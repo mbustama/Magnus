@@ -3,3 +3,4 @@
 *.jpg
 *.jpeg
 old/
+.ipynb_checkpoints/
