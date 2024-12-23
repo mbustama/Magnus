@@ -20,7 +20,7 @@ def compute_evolution_operator(H_func, t_slab, n_tpts_per_slab, magnus_exp_order
 
 
 def osc_prob(H_func, t_ini, t_fin, n_slabs=1, n_tpts_per_slab=100, t_slab_edges=None,
-    magnus_exp_order=4, n_jobs=1, **kwargs):
+    magnus_exp_order=4, n_jobs=1, integration_method='trapezoid', **kwargs):
 
     # Validate input
     if (t_fin < t_ini):
@@ -53,7 +53,7 @@ def osc_prob(H_func, t_ini, t_fin, n_slabs=1, n_tpts_per_slab=100, t_slab_edges=
                 # integrals of the Magnus expansion, from t_slab[0] to t_slab[1].
                 U = magnus.magnus_expansion(lambda t: -1j*H_func(t), 
                     t0=t_slab[0], t1=t_slab[1], order=magnus_exp_order, n_tpts=n_tpts_per_slab, 
-                    **kwargs)
+                    integration_method=integration_method, **kwargs)
                 U_chain.append(U)
             else: # t_slab[1] == t_slab[0]
                 U_chain.append(np.eye((nA, nA)))
@@ -61,7 +61,8 @@ def osc_prob(H_func, t_ini, t_fin, n_slabs=1, n_tpts_per_slab=100, t_slab_edges=
         # Parallel computation of U_chain
         U_chain = Parallel(n_jobs=n_jobs)(  # Use all available cores
             delayed(compute_evolution_operator)(
-                H_func, t_slab, n_tpts_per_slab, magnus_exp_order, **kwargs
+                H_func, t_slab, n_tpts_per_slab, magnus_exp_order, 
+                integration_method=integration_method, **kwargs
             )
             for t_slab in t_slab_edges
         )
@@ -83,7 +84,8 @@ if __name__ == "__main__":
         return np.array([[1 + 1j * t, 2 * t], [3 * t, 4 - 1j * t]], dtype=np.complex128)
 
     t_ini, t_fin = 0.0, 1.0
-    prob = osc_prob(H_func, t_ini, t_fin, n_slabs=2, n_tpts_per_slab=100, magnus_exp_order=2)
+    prob = osc_prob(H_func, t_ini, t_fin, n_slabs=2, n_tpts_per_slab=100, magnus_exp_order=2,
+        integration_method='trapezoid')
 
     print(prob)
 
