@@ -167,98 +167,98 @@ UNIT_TEV = 1.e12
 UNIT_PEV = 1.e15
 UNIT_EEV = 1.e18
 
-S12_NO_BF = sqrt(0.310)
+S12_NO_BF_NUFIT_6_0 = sqrt(0.308)
 r"""float: Module-level constant
 
-Lepton mixing angle sin(theta_12), best fit from NuFit 4.0, assuming
+Lepton mixing angle sin(theta_12), best fit from NuFit 6.0, assuming
 normal ordering with SK atmospheric data.
 Units: [Adimensional]
 """
 
-S23_NO_BF = sqrt(0.582)
+S23_NO_BF_NUFIT_6_0 = sqrt(0.470)
 r"""float: Module-level constant
 
-Lepton mixing angle sin(theta_23), best fit from NuFit 4.0, assuming
+Lepton mixing angle sin(theta_23), best fit from NuFit 6.0, assuming
 normal ordering with SK atmospheric data.
 Units: [Adimensional]
 """
 
-S13_NO_BF = sqrt(2.240e-2)
+S13_NO_BF_NUFIT_6_0 = sqrt(2.215e-2)
 r"""float: Module-level constant
 
-Lepton mixing angle sin(theta_13), best fit from NuFit 4.0, assuming
+Lepton mixing angle sin(theta_13), best fit from NuFit 6.0, assuming
 normal ordering with SK atmospheric data.
 Units: [Adimensional]
 """
 
-DCP_NO_BF = 217./180.*np.pi
+DCP_NO_BF_NUFIT_6_0 = 212./180.*np.pi
 r"""float: Module-level constant
 
-Lepton CP-violation phase delta_CP, best fit from NuFit 4.0, assuming
+Lepton CP-violation phase delta_CP, best fit from NuFit 6.0, assuming
 normal ordering with SK atmospheric data.
 Units: [radian]
 """
 
-D21_NO_BF = 7.39e-5
+D21_NO_BF_NUFIT_6_0 = 7.49e-5
 r"""float: Module-level constant
 
-Mass-squared difference Delta m^2_21, best fit from NuFit 4.0, assuming
+Mass-squared difference Delta m^2_21, best fit from NuFit 6.0, assuming
 normal ordering with SK atmospheric data.
 Units: [eV^2]
 """
 
-D31_NO_BF = 2.525e-3
+D31_NO_BF_NUFIT_6_0 = 2.513e-3
 r"""float: Module-level constant
 
-Mass-squared difference Delta m^2_31, best fit from NuFit 4.0, assuming
+Mass-squared difference Delta m^2_31, best fit from NuFit 6.0, assuming
 normal ordering with SK atmospheric data.
 Units: [eV^2]
 """
 
-S12_IO_BF = sqrt(0.310)
+S12_IO_BF_NUFIT_6_0 = sqrt(0.308)
 r"""float: Module-level constant
 
-Lepton mixing angle sin(theta_12), best fit from NuFit 4.0, assuming
+Lepton mixing angle sin(theta_12), best fit from NuFit 6.0, assuming
 inverted ordering with SK atmospheric data.
 Units: [Adimensional]
 """
 
-S23_IO_BF = sqrt(0.582)
+S23_IO_BF_NUFIT_6_0 = sqrt(0.550)
 r"""float: Module-level constant
 
-Lepton mixing angle sin(theta_23), best fit from NuFit 4.0, assuming
+Lepton mixing angle sin(theta_23), best fit from NuFit 6.0, assuming
 inverted ordering with SK atmospheric data.
 Units: [Adimensional]
 """
 
-S13_IO_BF = sqrt(2.263e-2)
+S13_IO_BF_NUFIT_6_0 = sqrt(2.231e-2)
 r"""float: Module-level constant
 
-Lepton mixing angle sin(theta_13), best fit from NuFit 4.0, assuming
+Lepton mixing angle sin(theta_13), best fit from NuFit 6.0, assuming
 inverted ordering with SK atmospheric data.
 Units: [Adimensional]
 """
 
-DCP_IO_BF = 280./180.*np.pi
+DCP_IO_BF_NUFIT_6_0 = 274./180.*np.pi
 r"""float: Module-level constant
 
-Lepton CP-violation phase delta_CP, best fit from NuFit 4.0, assuming
+Lepton CP-violation phase delta_CP, best fit from NuFit 6.0, assuming
 inverted ordering with SK atmospheric data.
 Units: [radian]
 """
 
-D21_IO_BF = 7.39e-5
+D21_IO_BF_NUFIT_6_0 = 7.49e-5
 r"""float: Module-level constant
 
-Mass-squared difference Delta m^2_21, best fit from NuFit 4.0, assuming
+Mass-squared difference Delta m^2_21, best fit from NuFit 6.0, assuming
 normal ordering with SK atmospheric data.
 Units: [eV^2]
 """
 
-D32_IO_BF = -2.512e-3
+D32_IO_BF_NUFIT_6_0 = -2.484e-3
 r"""float: Module-level constant
 
-Mass-squared difference Delta m^2_32, best fit from NuFit 4.0, assuming
+Mass-squared difference Delta m^2_32, best fit from NuFit 6.0, assuming
 normal ordering with SK atmospheric data.
 Units: [eV^2]
 """
@@ -266,7 +266,7 @@ Units: [eV^2]
 D31_IO_BF = D32_IO_BF+D21_IO_BF
 r"""float: Module-level constant
 
-Mass-squared difference Delta m^2_31, best fit from NuFit 4.0, assuming
+Mass-squared difference Delta m^2_31, best fit from NuFit 6.0, assuming
 inverted ordering with SK atmospheric data.
 Units: [eV^2]
 """
