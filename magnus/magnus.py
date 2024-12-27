@@ -32,6 +32,10 @@ B = {
     20: -174611./330.
 }
 
+# Multiplicative factors
+f1 = 1.0/12.0
+f2 = -1.0/720.0
+
 
 # Function to compute the Magnus expansion terms
 def compute_magnus_terms(A, t0, t1, n_tpts=50, order=2, integration_method='trapezoid'):
@@ -98,7 +102,7 @@ def compute_magnus_terms(A, t0, t1, n_tpts=50, order=2, integration_method='trap
     # Precompute the Omega_3(t) terms, integrating from t0 to t = t0, ..., t1
     if order >= 3:
         t1 = -0.5 * np.stack([commutator(o2t[i], At[i]) for i in range(n_tpts)], axis=0)
-        t2 = (1.0 / 12.0) * np.stack(
+        t2 = f1 * np.stack(
             [commutator(o1t[i], commutator(o1t[i], At[i])) for i in range(n_tpts)], axis=0
         )
         o3t_integrand = t1 + t2
@@ -131,7 +135,7 @@ def compute_magnus_terms(A, t0, t1, n_tpts=50, order=2, integration_method='trap
     # Precompute the Omega_4(t) terms, integrating from t0 to t = t0, ..., t1
     if order >= 4:
         t1 = -0.5 * np.stack([commutator(o3t[i], At[i]) for i in range(n_tpts)], axis=0)
-        t2 = (1.0 / 12.0) * np.stack(
+        t2 = f1 * np.stack(
             [commutator(o1t[i], commutator(o2t[i], At[i])) \
                 + commutator(o2t[i], commutator(o1t[i], At[i])) for i in range(n_tpts)], axis=0
         )
@@ -146,12 +150,12 @@ def compute_magnus_terms(A, t0, t1, n_tpts=50, order=2, integration_method='trap
     # Precompute the Omega_5(t) terms, integrating from t0 to t = t0, ..., t1
     if order >= 5:
         t1 = -0.5 * np.stack([commutator(o4t[i], At[i]) for i in range(n_tpts)], axis=0)
-        t2 = (1.0/12.0) * np.stack(
+        t2 = f1 * np.stack(
             [commutator(o1t[i], commutator(o3t[i], At[i])) \
             + commutator(o2t[i], commutator(o2t[i], At[i])) \
             + commutator(o3t[i], commutator(o1t[i], At[i])) for i in range(n_tpts)], axis=0
         )
-        t3 = (-1.0/720.0) * np.stack(
+        t3 = f2 * np.stack(
             [commutator(o1t[i], commutator(o1t[i], commutator(o1t[i], 
             commutator(o1t[i], At[i])))) for i in range(n_tpts)], axis=0
         )
@@ -166,13 +170,13 @@ def compute_magnus_terms(A, t0, t1, n_tpts=50, order=2, integration_method='trap
     # Precompute the Omega_6(t) terms, integrating from t0 to t = t0, ..., t1
     if order >= 6:
         t1 = -0.5 * np.stack([commutator(o5t[i], At[i]) for i in range(n_tpts)], axis=0)
-        t2 = (1.0/12.0) * np.stack(
+        t2 = f1 * np.stack(
             [commutator(o1t[i], commutator(o4t[i], At[i]))  \
             + commutator(o2t[i], commutator(o3t[i], At[i])) \
             + commutator(o3t[i], commutator(o2t[i], At[i])) \
             + commutator(o4t[i], commutator(o1t[i], At[i])) for i in range(n_tpts)], axis=0
         )
-        t3 = (-1.0/720.0) * np.stack(
+        t3 = f2 * np.stack(
             [commutator(o1t[i], commutator(o1t[i], commutator(o1t[i], commutator(o2t[i], At[i])))) \
             + commutator(o1t[i], commutator(o1t[i], commutator(o2t[i], commutator(o1t[i], At[i]))))\
             + commutator(o1t[i], commutator(o2t[i], commutator(o1t[i], commutator(o1t[i], At[i]))))\
