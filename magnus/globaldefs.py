@@ -263,7 +263,7 @@ normal ordering with SK atmospheric data.
 Units: [eV^2]
 """
 
-D31_IO_BF = D32_IO_BF+D21_IO_BF
+D31_IO_BF = D32_IO_BF_NUFIT_6_0+D21_IO_BF_NUFIT_6_0
 r"""float: Module-level constant
 
 Mass-squared difference Delta m^2_31, best fit from NuFit 6.0, assuming
