@@ -40,7 +40,7 @@ f2 = -1.0/720.0
 
 # Function to compute the Magnus expansion terms
 def compute_magnus_terms(A: np.ndarray, t0: float, t1: float, n_tpts: Optional[int]=50, 
-    order:Optional[int]=2, integration_method:Optional[str]='trapezoid'):
+    order:Optional[int]=2, integration_method:Optional[str]='trapezoid') -> np.ndarray:
     """
     Compute the Magnus expansion terms up to a given order over the range [t0, t1].
     """
@@ -60,10 +60,10 @@ def compute_magnus_terms(A: np.ndarray, t0: float, t1: float, n_tpts: Optional[i
         times = np.linspace(t0, t1, n_tpts)
     delta = (t1 - t0) / (n_tpts - 1)
 
-    def commutator(X: np.ndarray, Y: np.ndarray):
+    def commutator(X: np.ndarray, Y: np.ndarray) -> np.ndarray:
         return X @ Y - Y @ X
 
-    def integral_cumulative_simpson(times: np.ndarray, matrices: np.ndarray):
+    def integral_cumulative_simpson(times: np.ndarray, matrices: np.ndarray) -> np.ndarray:
         # We need to write our custom routine to compute cumulative matrix integrals because the
         # scipy routine `integrate.cumulative_simpson` does not handle complex numbers; it casts
         # them into real numbers.  This is not a problem of the `integrate.cumulative_trapezoid`, 
@@ -192,11 +192,11 @@ def compute_magnus_terms(A: np.ndarray, t0: float, t1: float, n_tpts: Optional[i
             o6t = matrix_integral_simpson(times, o6t_integrand)
         magnus_terms.append(o6t[-1])
 
-    return magnus_terms
+    return np.array(magnus_terms)
 
 # Function to compute the matrix exponential using Magnus expansion
 def magnus_expansion(A: np.ndarray, t0: float, t1: float, n_tpts: Optional[int]=50, 
-    order:Optional[int]=2, integration_method:Optional[str]='trapezoid'):
+    order:Optional[int]=2, integration_method:Optional[str]='trapezoid') -> np.ndarray:
     """
     Compute the matrix exponential of A(t) from t0 to t1 using the Magnus expansion.
     """
@@ -205,7 +205,7 @@ def magnus_expansion(A: np.ndarray, t0: float, t1: float, n_tpts: Optional[int]=
     # print(magnus_terms)
     Omega = sum(magnus_terms)  # Sum the Magnus terms
     # return sp.linalg.cosm(Omega) + 1j*sp.linalg.sinm(Omega)
-    return sp.linalg.expm(Omega)
+    return np.array(sp.linalg.expm(Omega))
 
 
 if __name__ == "__main__":
@@ -214,7 +214,7 @@ if __name__ == "__main__":
     t0, t1 = 0.0, 1.0
     exp_Omega = magnus_expansion(A, t0, t1, n_tpts=100, order=1, integration_method='trapezoid')
     print(exp_Omega)
-    exp_Omega = magnus_expansion(A, t0, t1, n_tpts=100, order=1, integration_method='simpson')
-    print(exp_Omega)
+    # exp_Omega = magnus_expansion(A, t0, t1, n_tpts=100, order=1, integration_method='simpson')
+    # print(exp_Omega)
 
 

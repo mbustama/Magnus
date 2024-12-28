@@ -1,9 +1,11 @@
 import numpy as np
 from joblib import Parallel, delayed
+from typing import Optional, Callable, Union
 
 import magnus as magnus
 
-def compute_evolution_operator(H_func, t_slab, n_tpts_per_slab, magnus_exp_order, **kwargs):
+def compute_evolution_operator(H_func: Callable, t_slab: Union[list, np.ndarray], 
+    n_tpts_per_slab: int, magnus_exp_order: int, **kwargs) -> np.ndarray:
     """Compute the evolution operator for a given time slab."""
     if t_slab[1] > t_slab[0]:
         return magnus.magnus_expansion(
@@ -19,8 +21,10 @@ def compute_evolution_operator(H_func, t_slab, n_tpts_per_slab, magnus_exp_order
         return np.eye(n, n)
 
 
-def osc_prob(H_func, t_ini, t_fin, n_slabs=1, n_tpts_per_slab=100, t_slab_edges=None,
-    magnus_exp_order=4, n_jobs=1, integration_method='trapezoid', **kwargs):
+def osc_prob(H_func: Callable, t_ini: float, t_fin: float, n_slabs: Optional[int]=1, 
+    n_tpts_per_slab: Optional[int]=100, t_slab_edges: Optional[list, np.ndarray]=None,
+    magnus_exp_order: Optional[int]=4, n_jobs: Optional[int]=1, 
+    integration_method: Optional[str]='trapezoid', **kwargs) -> np.ndarray:
 
     # Validate input
     if (t_fin < t_ini):
