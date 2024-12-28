@@ -80,18 +80,19 @@ def hamiltonian_2nu_vacuum_energy_independent(sth: float, Dm2: float,
 
     if not compute_matrix_multiplication:
 
-        H = (Dm2/4.0)*np.array([[c2th,-s2th], [-s2th,-c2th]])
+        return (Dm2/4.0)*np.array([[c2th,-s2th], [-s2th,-c2th]])
 
     else:
 
         # PMNS matrix
         R = mixing_matrix_2nu(sth)
         # Mass matrix
-        M2 = np.array([[1.0, 0.0], [0.0, -1.0]])
+        M2 = np.diag([1.0, -1.0]) #np.array([[1.0, 0.0], [0.0, -1.0]])
         # Hamiltonian
-        H = (Dm2/4.0)*np.matmul(R, np.matmul(M2, np.transpose(R)))
+        return (Dm2/4.0) * R @ M2 @ R.T  # Use matrix multiplication operator
+        # H = (Dm2/4.0)*np.matmul(R, np.matmul(M2, np.transpose(R)))
 
-    return H
+    # return H
 
 
 def hamiltonian_2nu_vacuum_energy_independent_td(l: float, sth: float, Dm2: float, 
@@ -193,12 +194,14 @@ def hamiltonian_2nu_matter(VCC: float) -> np.ndarray:
     list
         Hamiltonian 2x2 matrix.
     """
-    h_matter = np.zeros((2,2))
+    # The matter Hamiltonian is [[VCC,0],[0,0]]
+    return np.diag([VCC, 0.0]) 
+    # h_matter = np.zeros((2,2))
 
-    # Add the matter potential to the ee term to find the matter Hamiltonian
-    h_matter[0][0] = VCC
+    # # Add the matter potential to the ee term to find the matter Hamiltonian
+    # h_matter[0][0] = VCC
 
-    return h_matter
+    # return h_matter
 
 
 def hamiltonian_2nu_matter_td(l: float, VCC_func: Callable) -> np.ndarray:
@@ -250,16 +253,19 @@ def hamiltonian_2nu_nsi(VCC: float, eps: Union[list, np.ndarray]) -> np.ndarray:
     list
         Hamiltonian 2x2 matrix.
     """
-    h_nsi = np.zeros((2,2))
-
     eps_ee, eps_em, eps_mm = eps
+    return VCC * np.array([[1.0 + eps_ee, eps_em], [np.conj(eps_em), eps_mm]], dtype=np.complex128)
 
-    h_nsi[0][0] = VCC*(1.0+eps_ee)
-    h_nsi[0][1] = VCC*eps_em
-    h_nsi[1][0] = VCC*np.conj(eps_em)
-    h_nsi[1][1] = VCC*eps_mm
+    # h_nsi = np.zeros((2,2))
 
-    return h_nsi
+    # eps_ee, eps_em, eps_mm = eps
+
+    # h_nsi[0][0] = VCC*(1.0+eps_ee)
+    # h_nsi[0][1] = VCC*eps_em
+    # h_nsi[1][0] = VCC*np.conj(eps_em)
+    # h_nsi[1][1] = VCC*eps_mm
+
+    # return h_nsi
 
 
 def hamiltonian_2nu_nsi_td(l: float, VCC_func: Callable, 
@@ -297,13 +303,21 @@ def hamiltonian_2nu_liv(energy: float, sxi: float, b1: float, b2: float,
     list
         Hamiltonian 2x2 matrix.
     """
-    h_liv = np.zeros((2,2))
+    cxi = np.sqrt(1.0 - sxi * sxi)
+    delta_b = b2 - b1
 
-    cxi = np.sqrt(1.0-sxi-sxi)
-    h_liv[0][0] = (b1*cxi*cxi + b2*sxi*sxi)
-    h_liv[0][1] = ((-b1+b2)*cxi*sxi)
-    h_liv[1][0] = ((-b1+b2)*cxi*sxi)
-    h_liv[1][1] = (b2*cxi*cxi + b1*sxi*sxi)
-    h_liv = (energy/Lambda)*h_liv
+    return (energy / Lambda) * np.array([
+        [b1 * cxi * cxi + b2 * sxi * sxi, delta_b * cxi * sxi],
+        [delta_b * cxi * sxi, b2 * cxi * cxi + b1 * sxi * sxi]
+    ], dtype=np.float64)
 
-    return h_liv
+    # h_liv = np.zeros((2,2))
+
+    # cxi = np.sqrt(1.0-sxi-sxi)
+    # h_liv[0][0] = (b1*cxi*cxi + b2*sxi*sxi)
+    # h_liv[0][1] = ((-b1+b2)*cxi*sxi)
+    # h_liv[1][0] = ((-b1+b2)*cxi*sxi)
+    # h_liv[1][1] = (b2*cxi*cxi + b1*sxi*sxi)
+    # h_liv = (energy/Lambda)*h_liv
+
+    # return h_liv
