@@ -26,14 +26,14 @@ __email__ = "mbustamante@gmail.com"
 
 
 import numpy as np
+from typing import Optional, Callable, Union
 # from globaldefs import *
 
 
-def mixing_matrix_2nu(sth):
+def mixing_matrix_2nu(sth: float) -> np.ndarray:
     r"""Returns the 2x2 rotation matrix.
 
-    Computes and returns a 2x2 real rotation matrix parametrized by a
-    single rotation angle theta.
+    Computes and returns a 2x2 real rotation matrix parametrized by a single rotation angle theta.
 
     Parameters
     ----------
@@ -43,22 +43,21 @@ def mixing_matrix_2nu(sth):
     Returns
     -------
     list
-        Rotation matrix [[cth, sth], [-sth, cth]], with cth = cos(theta)
-        and sth = sin(theta).
+        Rotation matrix [[cth, sth], [-sth, cth]], with cth = cos(theta) and sth = sin(theta).
     """
     cth = np.sqrt(1.0-sth*sth)
 
     return np.array([[cth,sth],[-sth,cth]])
 
 
-def hamiltonian_2nu_vacuum_energy_independent(sth, Dm2, compute_matrix_multiplication=False):
+def hamiltonian_2nu_vacuum_energy_independent(sth: float, Dm2: float, 
+    compute_matrix_multiplication: Optional[bool]=False) -> np.ndarray:
     r"""Returns the two-neutrino Hamiltonian for vacuum oscillations.
 
-    Computes and returns the 2x2 real two-neutrino Hamiltonian for
-    oscillations in vacuum, parametrized by a single mixing angle theta
-    and a single mass-squared difference Dm2.  The Hamiltonian is
-    H = (1/2)*R.M2.R^dagger, with R the 2x2 rotation matrix and M2 the
-    mass matrix.  The multiplicative factor 1/E is not applied.
+    Computes and returns the 2x2 real two-neutrino Hamiltonian for oscillations in vacuum,
+    parametrized by a single mixing angle theta and a single mass-squared difference Dm2.  The
+    Hamiltonian is H = (1/2)*R.M2.R^dagger, with R the 2x2 rotation matrix and M2 the mass matrix.
+    The multiplicative factor 1/E is not applied.
 
     Parameters
     ----------
@@ -95,19 +94,17 @@ def hamiltonian_2nu_vacuum_energy_independent(sth, Dm2, compute_matrix_multiplic
     return H
 
 
-def hamiltonian_2nu_vacuum_energy_independent_td(l, sth, Dm2, compute_matrix_multiplication=False):
-    r"""Returns the two-neutrino Hamiltonian for vacuum oscillations,
-    as a function of distance, even if it does not depend on it.
+def hamiltonian_2nu_vacuum_energy_independent_td(l: float, sth: float, Dm2: float, 
+    compute_matrix_multiplication: Optional[bool]=False) -> np.ndarray:
+    r"""Returns the two-neutrino Hamiltonian for vacuum oscillations, as a function of distance,
+    even if it does not depend on it.
 
-    Computes and returns the 2x2 real two-neutrino Hamiltonian for
-    oscillations in vacuum, as a function of distance, parametrized by
-    a single mixing angle theta and a single mass-squared difference 
-    Dm2.  The Hamiltonian is H = (1/2)*R.M2.R^dagger, with R the 2x2
-    rotation matrix and M2 the mass matrix.  The multiplicative factor
-    1/E is not applied.  The vacuum Hamiltonian does not depend on
-    distance in reality, but we include the dependence here as a way
-    to validate the routine to compute probabilities for time-
-    dependent Hamiltonians.
+    Computes and returns the 2x2 real two-neutrino Hamiltonian for oscillations in vacuum, as a 
+    function of distance, parametrized by a single mixing angle theta and a single mass-squared 
+    difference Dm2.  The Hamiltonian is H = (1/2)*R.M2.R^dagger, with R the 2x2 rotation matrix and
+    M2 the mass matrix.  The multiplicative factor 1/E is not applied.  The vacuum Hamiltonian does
+    not depend on distance in reality, but we include the dependence here as a way to validate the
+    routine to compute probabilities for time-dependent Hamiltonians.
 
     Parameters
     ----------
@@ -118,8 +115,8 @@ def hamiltonian_2nu_vacuum_energy_independent_td(l, sth, Dm2, compute_matrix_mul
     Dm2 : float
         Mass-squared difference Delta m^2.
     compute_matrix_multiplication : bool, optional
-        If False (default), use the pre-computed expressions; otherwise,
-        multiply R.M2.R^dagger live.
+        If False (default), use the pre-computed expressions; otherwise, multiply R.M2.R^dagger 
+        live.
 
     Returns 
     -------
@@ -133,7 +130,8 @@ def hamiltonian_2nu_vacuum_energy_independent_td(l, sth, Dm2, compute_matrix_mul
     return H
 
 
-def hamiltonian_2nu_vacuum(energy, sth, Dm2, compute_matrix_multiplication=False):
+def hamiltonian_2nu_vacuum(energy: float, sth: float, Dm2: float, 
+    compute_matrix_multiplication: Optional[bool]=False) -> np.ndarray:
 
     h_vac = hamiltonian_2nu_vacuum_energy_independent(sth, Dm2, 
         compute_matrix_multiplication=compute_matrix_multiplication)
@@ -141,19 +139,17 @@ def hamiltonian_2nu_vacuum(energy, sth, Dm2, compute_matrix_multiplication=False
     return (1/energy)*h_vac
 
 
-def hamiltonian_2nu_vacuum_td(l, energy, sth, Dm2, compute_matrix_multiplication=False):
-    r"""Returns the two-neutrino Hamiltonian for vacuum oscillations,
-    as a function of distance, even if it does not depend on it.
+def hamiltonian_2nu_vacuum_td(l: float, energy: float, sth: float, Dm2: float, 
+    compute_matrix_multiplication: Optional[bool]=False) -> np.ndarray:
+    r"""Returns the two-neutrino Hamiltonian for vacuum oscillations, as a function of distance,
+    even if it does not depend on it.
 
-    Computes and returns the 2x2 real two-neutrino Hamiltonian for
-    oscillations in vacuum, as a function of distance, parametrized by
-    a single mixing angle theta and a single mass-squared difference 
-    Dm2.  The Hamiltonian is H = (1/2)*R.M2.R^dagger, with R the 2x2
-    rotation matrix and M2 the mass matrix.  The multiplicative factor
-    1/E is not applied.  The vacuum Hamiltonian does not depend on
-    distance in reality, but we include the dependence here as a way
-    to validate the routine to compute probabilities for time-
-    dependent Hamiltonians.
+    Computes and returns the 2x2 real two-neutrino Hamiltonian for oscillations in vacuum, as a
+    function of distance, parametrized by a single mixing angle theta and a single mass-squared
+    difference Dm2.  The Hamiltonian is H = (1/2)*R.M2.R^dagger, with R the 2x2 rotation matrix and 
+    M2 the mass matrix.  The multiplicative factor 1/E is not applied.  The vacuum Hamiltonian does 
+    not depend on distance in reality, but we include the dependence here as a way to validate the 
+    routine to compute probabilities for time-dependent Hamiltonians.
 
     Parameters
     ----------
@@ -179,19 +175,18 @@ def hamiltonian_2nu_vacuum_td(l, energy, sth, Dm2, compute_matrix_multiplication
     return H
 
 
-def hamiltonian_2nu_matter(VCC):
+def hamiltonian_2nu_matter(VCC: float) -> np.ndarray:
     r"""Returns the two-neutrino Hamiltonian for matter oscillations.
 
-    Computes and returns the 2x2 real two-neutrino Hamiltonian for
-    oscillations in matter with constant density.
+    Computes and returns the 2x2 real two-neutrino Hamiltonian for oscillations in matter with
+    constant density.
 
     Parameters
     ----------
     energy : float
         Neutrino energy.
     VCC : float
-        Potential due to charged-current interactions of nu_e with
-        electrons.
+        Potential due to charged-current interactions of nu_e with electrons.
 
     Returns
     -------
@@ -206,9 +201,8 @@ def hamiltonian_2nu_matter(VCC):
     return h_matter
 
 
-def hamiltonian_2nu_matter_td(l, VCC_func):
-    r"""Returns the two-neutrino Hamiltonian for matter oscillations,
-    as a function of distance.
+def hamiltonian_2nu_matter_td(l: float, VCC_func: Callable) -> np.ndarray:
+    r"""Returns the two-neutrino Hamiltonian for matter oscillations, as a function of distance.
 
     Computes and returns the 2x2 real two-neutrino Hamiltonian for
     oscillations in matter with a given density as a function of
@@ -217,12 +211,11 @@ def hamiltonian_2nu_matter_td(l, VCC_func):
     Parameters
     ----------
     h_vacuum_energy_independent : list
-        Energy-independent part of the two-neutrino Hamiltonian for
-        oscillations in vacuum.  This is computed by the routine
-        hamiltonian_2nu_vacuum_energy_independent.
+        Energy-independent part of the two-neutrino Hamiltonian for oscillations in vacuum.  This is
+        computed by the routine hamiltonian_2nu_vacuum_energy_independent.
     VCC_func : float
-        Potential due to charged-current interactions of nu_e with
-        electrons. This is a function only of the position, l.
+        Potential due to charged-current interactions of nu_e with electrons. This is a function 
+        only of the position, l.
 
     Returns
     -------
@@ -234,24 +227,21 @@ def hamiltonian_2nu_matter_td(l, VCC_func):
     return h_matter
 
 
-def hamiltonian_2nu_nsi(VCC, eps):
+def hamiltonian_2nu_nsi(VCC: float, eps: Union[list, np.ndarray]) -> np.ndarray:
     r"""Returns the two-neutrino Hamiltonian for oscillations with NSI.
 
-    Computes and returns the 2x2 real two-neutrino Hamiltonian for
-    oscillations with non-standard interactions (NSI) in matter with
-    constant density.
+    Computes and returns the 2x2 real two-neutrino Hamiltonian for oscillations with non-standard 
+    interactions (NSI) in matter with constant density.
 
     Parameters
     ----------
     h_vacuum_energy_independent : list
-        Energy-independent part of the two-neutrino Hamiltonian for
-        oscillations in vacuum.  This is computed by the routine
-        hamiltonian_2nu_vacuum_energy_independent.
+        Energy-independent part of the two-neutrino Hamiltonian for oscillations in vacuum.  This is
+        computed by the routine hamiltonian_2nu_vacuum_energy_independent.
     energy : float
         Neutrino energy.
     VCC : float
-        Potential due to charged-current interactions of nu_e with
-        electrons.
+        Potential due to charged-current interactions of nu_e with electrons.
     eps : list
         Vector of NSI strength parameters: eps = eps_ee, eps_em, eps_mm.
 
@@ -272,28 +262,29 @@ def hamiltonian_2nu_nsi(VCC, eps):
     return h_nsi
 
 
-def hamiltonian_2nu_nsi_td(l, VCC_func, eps):
+def hamiltonian_2nu_nsi_td(l: float, VCC_func: Callable, 
+    eps: Union[list, np.ndarray]) -> np.ndarray:
 
     return hamiltonian_2nu_nsi(VCC_func(l), eps)
 
 
-def hamiltonian_2nu_liv(energy, sxi, b1, b2, Lambda):
+def hamiltonian_2nu_liv(energy: float, sxi: float, b1: float, b2: float, 
+    Lambda: float) -> np.ndarray:
     r"""Returns the two-neutrino Hamiltonian for oscillations with LIV.
 
-    Computes and returns the 2x2 real two-neutrino Hamiltonian for
-    oscillations in a CPT-odd Lorentz invariance-violating background.
+    Computes and returns the 2x2 real two-neutrino Hamiltonian for oscillations in a CPT-odd Lorentz
+    invariance-violating background.
 
     Parameters
     ----------
     h_vacuum_energy_independent : list
-        Energy-independent part of the two-neutrino Hamiltonian for
-        oscillations in vacuum.  This is computed by the routine
-        hamiltonian_2nu_vacuum_energy_independent.
+        Energy-independent part of the two-neutrino Hamiltonian for oscillations in vacuum.  This is
+        computed by the routine hamiltonian_2nu_vacuum_energy_independent.
     energy : float
         Neutrino energy.
     sxi : float
-        Sin(xi), with xi the rotation angle between the space of the
-        eigenvectors of B2 and the flavor states.
+        Sin(xi), with xi the rotation angle between the space of the eigenvectors of B2 and the 
+        flavor states.
     b1 : float
         Eigenvalue b1 of the LIV operator B2.
     b2 : float
