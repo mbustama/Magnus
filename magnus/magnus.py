@@ -1,9 +1,10 @@
 import numpy as np
 import scipy as sp
+from typing import Optional
 # from scipy.integrate import quad
 # from scipy.linalg import expm
 # from scipy.special import factorial
-from numba import njit, prange
+# from numba import njit, prange
 # from joblib import Parallel, delayed
 
 
@@ -38,7 +39,8 @@ f2 = -1.0/720.0
 
 
 # Function to compute the Magnus expansion terms
-def compute_magnus_terms(A, t0, t1, n_tpts=50, order=2, integration_method='trapezoid'):
+def compute_magnus_terms(A: np.ndarray, t0: float, t1: float, n_tpts: Optional[int]=50, 
+    order:Optional[int]=2, integration_method:Optional[str]='trapezoid'):
     """
     Compute the Magnus expansion terms up to a given order over the range [t0, t1].
     """
@@ -58,10 +60,10 @@ def compute_magnus_terms(A, t0, t1, n_tpts=50, order=2, integration_method='trap
         times = np.linspace(t0, t1, n_tpts)
     delta = (t1 - t0) / (n_tpts - 1)
 
-    def commutator(X, Y):
+    def commutator(X: np.ndarray, Y: np.ndarray):
         return X @ Y - Y @ X
 
-    def integral_cumulative_simpson(times, matrices):
+    def integral_cumulative_simpson(times: np.ndarray, matrices: np.ndarray):
         # We need to write our custom routine to compute cumulative matrix integrals because the
         # scipy routine `integrate.cumulative_simpson` does not handle complex numbers; it casts
         # them into real numbers.  This is not a problem of the `integrate.cumulative_trapezoid`, 
@@ -193,7 +195,8 @@ def compute_magnus_terms(A, t0, t1, n_tpts=50, order=2, integration_method='trap
     return magnus_terms
 
 # Function to compute the matrix exponential using Magnus expansion
-def magnus_expansion(A, t0, t1, n_tpts=50, order=2, integration_method='trapezoid'):
+def magnus_expansion(A: np.ndarray, t0: float, t1: float, n_tpts: Optional[int]=50, 
+    order:Optional[int]=2, integration_method:Optional[str]='trapezoid'):
     """
     Compute the matrix exponential of A(t) from t0 to t1 using the Magnus expansion.
     """
