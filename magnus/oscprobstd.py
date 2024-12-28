@@ -1,12 +1,12 @@
 import numpy as np
+from typing import Union
 
 
-def osc_prob_2nu_vacuum_std(sth, Dm2, energy, L):
+def osc_prob_2nu_vacuum_std(sth: float, Dm2: float, energy: float, L: float) -> np.ndarray:
     r"""Returns 2nu oscillation vacuum probabilities, std. computation.
 
-    Returns the probabilities for two-neutrino oscillations in vacuum,
-    computed using the standard analytical expression of the
-    probabilities.
+    Returns the probabilities for two-neutrino oscillations in vacuum, computed using the standard
+    analytical expression of the probabilities.
 
     Parameters
     ----------
@@ -38,12 +38,12 @@ def osc_prob_2nu_vacuum_std(sth, Dm2, energy, L):
     return prob
 
 
-def osc_prob_2nu_matter_std(sth, Dm2, VCC, energy, L):
+def osc_prob_2nu_matter_std(sth: float, Dm2: float, VCC: float, energy: float, 
+    L: float) -> np.ndarray:
     r"""Returns 2nu oscillation matter probabilities, std. computation.
 
-    Returns the probabilities for two-neutrino oscillations in matter,
-    computed using the standard analytical expression of the
-    probabilities.
+    Returns the probabilities for two-neutrino oscillations in matter, computed using the standard
+    analytical expression of the probabilities.
 
     Parameters
     ----------
@@ -52,8 +52,7 @@ def osc_prob_2nu_matter_std(sth, Dm2, VCC, energy, L):
     Dm2 : float
         Mass-squared difference Delta m^2.
     VCC : float
-        Potential due to charged-current interactions of nu_e with
-        electrons.
+        Potential due to charged-current interactions of nu_e with electrons.
     energy : float
         Neutrino energy.
     L : float
@@ -85,11 +84,10 @@ def osc_prob_2nu_matter_std(sth, Dm2, VCC, energy, L):
     return prob
 
 
-def delta(a, b):
+def delta(a: int, b: int) -> int:
     r"""Returns the Kronecker delta function.
 
-    Returns the delta function delta(a, b) = 1 if a == b and 0 if
-    a != b.
+    Returns the delta function delta(a, b) = 1 if a == b and 0 if a != b.
 
     Parameters
     ----------
@@ -110,12 +108,12 @@ def delta(a, b):
     return 1 if (a == b) else 0
 
 
-def J(U, alpha, beta, k, j):
+def J(U: Union[list, np.ndarray], alpha: int, beta: int, k: int, j: int) -> complex:
     r"""Returns U*_ak * U_bk * U_aj * U*_bj, with U the PMNS matrix.
 
-    Returns the product U*_ak * U_bk * U_aj * U*_bj, where U is the
-    PMNS mixing matrix.  This product appears in the standard expression
-    for the three-neutrino oscillation probability in vacuum.
+    Returns the product U*_ak * U_bk * U_aj * U*_bj, where U is the PMNS mixing matrix.  This
+    product appears in the standard expression for the three-neutrino oscillation probability in
+    vacuum.
 
     Parameters
     ----------
@@ -138,12 +136,12 @@ def J(U, alpha, beta, k, j):
     return np.conj(U[alpha][k])*U[beta][k]*U[alpha][j]*np.conj(U[beta][j])
 
 
-def osc_prob_3nu_vacuum_std(U, D21, D31, energy, L):
+def osc_prob_3nu_vacuum_std(U: Union[list, np.ndarray], D21: float, D31: float, energy: float, 
+    L: float) -> np.ndarray:
     r"""Returns 3nu oscillation vacuum probabilities, std. computation.
 
-    Returns the probabilities for three-neutrino oscillations in vacuum,
-    computed using the standard analytical expression of the
-    probabilities.
+    Returns the probabilities for three-neutrino oscillations in vacuum, computed using the standard
+    analytical expression of the probabilities.
 
     Parameters
     ----------
@@ -161,8 +159,7 @@ def osc_prob_3nu_vacuum_std(U, D21, D31, energy, L):
     Returns
     -------
     list
-        List of probabilities [Pee, Pem, Pet, Pme, Pmm, Pmt, Pte, Ptm,
-        Ptt].
+        List of probabilities [Pee, Pem, Pet, Pme, Pmm, Pmt, Pte, Ptm, Ptt].
     """
     D32 = D31-D21
     # arg21 = 2.54*D21*L/energy
