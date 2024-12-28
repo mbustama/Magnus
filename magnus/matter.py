@@ -170,12 +170,7 @@ def distance_traveled_inside_earth(costhz: float) -> float:
     float
         Path length inside the Earth [km].
     """
-    if (costhz > 0.0):
-        d = 0.0
-    else:
-        d = -2.0 * gd.EARTH_RADIUS * costhz
-
-    return d
+    return 0.0 if costhz > 0.0 else -2.0 * gd.EARTH_RADIUS * costhz
 
 
 def earth_radial_distance_from_depth(costhz: float, l: float) -> float:
