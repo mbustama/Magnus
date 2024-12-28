@@ -16,7 +16,7 @@ __author__ = "Mauricio Bustamante"
 __email__ = "mbustamante@gmail.com"
 
 
-from numpy import *
+# from numpy import *
 import numpy as np
 
 
@@ -32,6 +32,13 @@ r"""float: Module-level constant
 
 Multiplicative conversion factor from cm to eV^{-1}.
 Units: [cm^{-1} eV^{-1}]
+"""
+
+CONV_CM3_TO_INV_EV3 = np.power(CONV_CM_TO_INV_EV, 3.0)
+r"""float: Module-level constant
+
+Multiplicative conversion factor from cm^3 to eV^{-3}.
+Units: [cm^{-3} eV^{-3}]
 """
 
 CONV_INV_EV_TO_CM = 1./CONV_CM_TO_INV_EV
@@ -53,6 +60,13 @@ r"""float: Module-level constant
 
 Multiplicative conversion factor from grams to eV^{-1}.
 Units: [eV g^{-1}]
+"""
+
+SQRT_OF_2 = np.sqrt(2.0)
+r"""float: Module-level constant
+
+Square root of 2..
+Units: [Adimensional]
 """
 
 GF = 1.1663787e-23
@@ -118,7 +132,7 @@ Electron number density in the Earth's crust
 Units: [eV^3]
 """
 
-VCC_EARTH_CRUST = sqrt(2.0)*GF*NUM_DENSITY_E_EARTH_CRUST
+VCC_EARTH_CRUST = np.sqrt(2.0)*GF*NUM_DENSITY_E_EARTH_CRUST
 r"""float: Module-level constant
 
 Charged-current matter potential in the Earth's crust.
@@ -167,7 +181,7 @@ UNIT_TEV = 1.e12
 UNIT_PEV = 1.e15
 UNIT_EEV = 1.e18
 
-S12_NO_BF_NUFIT_6_0 = sqrt(0.308)
+S12_NO_BF_NUFIT_6_0 = np.sqrt(0.308)
 r"""float: Module-level constant
 
 Lepton mixing angle sin(theta_12), best fit from NuFit 6.0, assuming
@@ -175,7 +189,7 @@ normal ordering with SK atmospheric data.
 Units: [Adimensional]
 """
 
-S23_NO_BF_NUFIT_6_0 = sqrt(0.470)
+S23_NO_BF_NUFIT_6_0 = np.sqrt(0.470)
 r"""float: Module-level constant
 
 Lepton mixing angle sin(theta_23), best fit from NuFit 6.0, assuming
@@ -183,7 +197,7 @@ normal ordering with SK atmospheric data.
 Units: [Adimensional]
 """
 
-S13_NO_BF_NUFIT_6_0 = sqrt(2.215e-2)
+S13_NO_BF_NUFIT_6_0 = np.sqrt(2.215e-2)
 r"""float: Module-level constant
 
 Lepton mixing angle sin(theta_13), best fit from NuFit 6.0, assuming
@@ -215,7 +229,7 @@ normal ordering with SK atmospheric data.
 Units: [eV^2]
 """
 
-S12_IO_BF_NUFIT_6_0 = sqrt(0.308)
+S12_IO_BF_NUFIT_6_0 = np.sqrt(0.308)
 r"""float: Module-level constant
 
 Lepton mixing angle sin(theta_12), best fit from NuFit 6.0, assuming
@@ -223,7 +237,7 @@ inverted ordering with SK atmospheric data.
 Units: [Adimensional]
 """
 
-S23_IO_BF_NUFIT_6_0 = sqrt(0.550)
+S23_IO_BF_NUFIT_6_0 = np.sqrt(0.550)
 r"""float: Module-level constant
 
 Lepton mixing angle sin(theta_23), best fit from NuFit 6.0, assuming
@@ -231,7 +245,7 @@ inverted ordering with SK atmospheric data.
 Units: [Adimensional]
 """
 
-S13_IO_BF_NUFIT_6_0 = sqrt(2.231e-2)
+S13_IO_BF_NUFIT_6_0 = np.sqrt(2.231e-2)
 r"""float: Module-level constant
 
 Lepton mixing angle sin(theta_13), best fit from NuFit 6.0, assuming

@@ -30,11 +30,12 @@ __email__ = "mbustamante@gmail.com"
 
 
 import numpy as np
-from globaldefs import *
+from typing import Optional, Callable
+import globaldefs as gd
 
 
-def density_matter_func_const(l, 
-    density_matter_const=DENSITY_MATTER_CRUST_G_PER_CM3):
+def density_matter_func_const(l: float, 
+    density_matter_const: Optional[float]=gd.DENSITY_MATTER_CRUST_G_PER_CM3) -> float:
     r"""Returns the matter density as a function of position, assuming a 
     constant density. Used for testing purposes.
 
@@ -59,7 +60,7 @@ def density_matter_func_const(l,
     return density_matter_const
 
 
-def density_matter_func_exp(l, density_matter_central, l_scale):
+def density_matter_func_exp(l: float, density_matter_central:float , l_scale: float) -> float:
     r"""Returns the matter density as a function of position, assuming  
     an exponentially decreasing density profile.
 
@@ -90,7 +91,7 @@ def density_matter_func_exp(l, density_matter_central, l_scale):
     return density
 
 
-def density_matter_func_prem(r):
+def density_matter_func_prem(r: float) -> float:
     r"""Returns the matter density inside the Earth according to the 
     Preliminary Reference Earth Model (PREM).
     
@@ -148,7 +149,7 @@ def density_matter_func_prem(r):
     return density
 
 
-def distance_traveled_inside_earth(costhz):
+def distance_traveled_inside_earth(costhz: float) -> float:
     r"""Returns the distance traveled by a neutrino inside the Earth,
     traveling with a cosine of zenith angle costhz.
     
@@ -172,12 +173,12 @@ def distance_traveled_inside_earth(costhz):
     if (costhz > 0.0):
         d = 0.0
     else:
-        d = -2.0 * EARTH_RADIUS * costhz
+        d = -2.0 * gd.EARTH_RADIUS * costhz
 
     return d
 
 
-def earth_radial_distance_from_depth(costhz, l):
+def earth_radial_distance_from_depth(costhz: float, l: float) -> float:
     r"""Returns the radial distance measured from the center of the
     Earth to a position inside the Earth, given by costhz and l.
     
@@ -202,22 +203,24 @@ def earth_radial_distance_from_depth(costhz, l):
     d = distance_traveled_inside_earth(costhz)
 
     if (l > d):
-        print('Error: earth_radial_distance_from_depth: value of ' + \
+        raise ValueError('earth_radial_distance_from_depth: value of ' + \
                 'l cannot be larger than the distance traveled ' + \
                 'inside Earth for this value of costhz')
         quit()
     elif ((l == 0.0) and (costhz == 0.0)):
         r = 0.0
     else:
-        r2 = EARTH_RADIUS*EARTH_RADIUS
+        r2 = gd.EARTH_RADIUS*gd.EARTH_RADIUS
         r2 += (d-l)**2
-        r2 += 2*EARTH_RADIUS*(d-l)*costhz
+        r2 += 2*gd.EARTH_RADIUS*(d-l)*costhz
         r = np.sqrt(r2)
 
     return abs(r)
 
 
-def num_density_e_func(l, density_matter_func, electron_fraction=0.5):
+def num_density_e_func(l: float, density_matter_func: Callable, 
+    ratio_number_neutrons_to_protons: Optional[float]=1.0,
+    electron_fraction: Optional[float]=0.5) -> float:
     r"""Converts matter density [g cm^{-3}] to electron number density
     [eV^3], for a given matter density profile and position.
 
@@ -242,15 +245,18 @@ def num_density_e_func(l, density_matter_func, electron_fraction=0.5):
     float
         Number density of electrons [eV^3]
     """
-    num_density_e = density_matter_func(l) * CONV_G_TO_EV \
-                        / ((MASS_PROTON+MASS_NEUTRON)/2.0) \
-                        * electron_fraction \
-                        / np.power(CONV_CM_TO_INV_EV, 3.0) # [eV^3]
+    avg_mass_nucleon = (gd.MASS_PROTON+gd.MASS_NEUTRON*ratio_number_neutrons_to_protons) \
+                        (1.0+ratio_number_neutrons_to_protons)
+
+    num_density_e = density_matter_func(l) * gd.CONV_G_TO_EV \
+                        / avg_mass_nucleon * electron_fraction \
+                        / gd.CONV_CM3_TO_INV_EV3 # [eV^3]
+                        # / np.power(gd.CONV_CM_TO_INV_EV, 3.0) # [eV^3]
 
     return num_density_e
 
 
-def VCC_func(l, num_density_e_func):
+def VCC_func(l: float, num_density_e_func: Callable) -> float:
     r"""Computes and returns the coherent forward electron potential, 
     V_CC, at position l, for a given electron number density, 
     num_density_e_func.
@@ -273,6 +279,6 @@ def VCC_func(l, num_density_e_func):
     float
         Coherent forward electron potntial, V_CC [eV]
     """
-    VCC = np.sqrt(2.0)*GF*num_density_e_func(l) # [eV]
+    VCC = gd.SQRT_OF_2 * gd.GF * num_density_e_func(l) # [eV]
 
     return VCC
