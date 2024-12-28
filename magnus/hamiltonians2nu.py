@@ -84,7 +84,7 @@ def hamiltonian_2nu_vacuum_energy_independent(sth: float, Dm2: float,
 
     else:
 
-        # PMNS matrix
+        # 2D mixing matrix
         R = mixing_matrix_2nu(sth)
         # Mass matrix
         M2 = np.diag([1.0, -1.0]) #np.array([[1.0, 0.0], [0.0, -1.0]])
