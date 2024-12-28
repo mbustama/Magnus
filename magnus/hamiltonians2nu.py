@@ -125,16 +125,14 @@ def hamiltonian_2nu_vacuum_energy_independent_td(l: float, sth: float, Dm2: floa
         Hamiltonian 2x2 matrix.
     """
 
-    H = hamiltonian_2nu_vacuum_energy_independent(sth, Dm2, 
+    return hamiltonian_2nu_vacuum_energy_independent(sth, Dm2, 
         compute_matrix_multiplication=compute_matrix_multiplication)
-
-    return H
 
 
 def hamiltonian_2nu_vacuum(energy: float, sth: float, Dm2: float, 
     compute_matrix_multiplication: Optional[bool]=False) -> np.ndarray:
 
-    h_vac = hamiltonian_2nu_vacuum_energy_independent(sth, Dm2, 
+    return (1/energy)*hamiltonian_2nu_vacuum_energy_independent(sth, Dm2, 
         compute_matrix_multiplication=compute_matrix_multiplication)
 
     return (1/energy)*h_vac
@@ -170,10 +168,8 @@ def hamiltonian_2nu_vacuum_td(l: float, energy: float, sth: float, Dm2: float,
         Hamiltonian 2x2 matrix.
     """
 
-    H = hamiltonian_2nu_vacuum(energy, sth, Dm2, 
+    return hamiltonian_2nu_vacuum(energy, sth, Dm2, 
         compute_matrix_multiplication=compute_matrix_multiplication)
-
-    return H
 
 
 def hamiltonian_2nu_matter(VCC: float) -> np.ndarray:
@@ -225,9 +221,7 @@ def hamiltonian_2nu_matter_td(l: float, VCC_func: Callable) -> np.ndarray:
     list
         Hamiltonian 2x2 matrix.
     """
-    h_matter = hamiltonian_2nu_matter(VCC_func(l))
-
-    return h_matter
+    return hamiltonian_2nu_matter(VCC_func(l))
 
 
 def hamiltonian_2nu_nsi(VCC: float, eps: Union[list, np.ndarray]) -> np.ndarray:
