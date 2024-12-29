@@ -172,7 +172,7 @@ def hamiltonian_3nu_vacuum(energy: float, s12: float, s23: float, s13: float, dC
         compute_matrix_multiplication=compute_matrix_multiplication)
 
 
-def hamiltonian_3nu_vacuum(l: float, energy: float, s12: float, s23: float, s13: float, dCP: float, 
+def hamiltonian_3nu_vacuum_td(l: float, energy: float, s12: float, s23: float, s13: float, dCP: float, 
     D21: float, D31: float, compute_matrix_multiplication: Optional[bool]=False) -> np.ndarray:
     r"""Returns the three-neutrino Hamiltonian for vacuum oscillations, as a function of distance,
     even if it does not depend on it.
