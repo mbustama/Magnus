@@ -168,12 +168,12 @@ def osc_prob_3nu_vacuum_std(U: Union[list, np.ndarray], D21: float, D31: float, 
     arg21 = D21*L/energy/2.0
     arg31 = D31*L/energy/2.0
     arg32 = D32*L/energy/2.0
-    s21 = sin(arg21)
-    s31 = sin(arg31)
-    s32 = sin(arg32)
-    ss21 = pow(sin(arg21/2.0), 2.0)
-    ss31 = pow(sin(arg31/2.0), 2.0)
-    ss32 = pow(sin(arg32/2.0), 2.0)
+    s21 = np.sin(arg21)
+    s31 = np.sin(arg31)
+    s32 = np.sin(arg32)
+    ss21 = pow(np.sin(arg21/2.0), 2.0)
+    ss31 = pow(np.sin(arg31/2.0), 2.0)
+    ss32 = pow(np.sin(arg32/2.0), 2.0)
     # Pee, Pem, Pet, Pme, Pmm, Pmt, Pte, Ptm, Ptt
     prob = [delta(alpha, beta) \
             - 4.0 * ( J(U, alpha, beta, 1, 0).real*ss21
