@@ -241,7 +241,7 @@ def num_density_e_func(l: float, density_matter_func: Callable,
         Number density of electrons [eV^3]
     """
     avg_mass_nucleon = (gd.MASS_PROTON+gd.MASS_NEUTRON*ratio_number_neutrons_to_protons) \
-                        (1.0+ratio_number_neutrons_to_protons)
+                        / (1.0+ratio_number_neutrons_to_protons)
 
     num_density_e = density_matter_func(l) * gd.CONV_G_TO_EV \
                         / avg_mass_nucleon * electron_fraction \
