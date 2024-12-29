@@ -137,7 +137,7 @@ def J(U: Union[list, np.ndarray], alpha: int, beta: int, k: int, j: int) -> comp
 
 
 def osc_prob_3nu_vacuum_std(U: Union[list, np.ndarray], D21: float, D31: float, energy: float, 
-    L: float) -> np.ndarray:
+    L: float, nubar: Optional[bool]=False) -> np.ndarray:
     r"""Returns 3nu oscillation vacuum probabilities, std. computation.
 
     Returns the probabilities for three-neutrino oscillations in vacuum, computed using the standard
@@ -179,7 +179,8 @@ def osc_prob_3nu_vacuum_std(U: Union[list, np.ndarray], D21: float, D31: float, 
             - 4.0 * ( J(U, alpha, beta, 1, 0).real*ss21
                     + J(U, alpha, beta, 2, 0).real*ss31
                     + J(U, alpha, beta, 2, 1).real*ss32 ) \
-            + 2.0 * ( J(U, alpha, beta, 1, 0).imag*s21
+            + (2.0 if (not nubar) else -2.0) * \
+                    ( J(U, alpha, beta, 1, 0).imag*s21
                     + J(U, alpha, beta, 2, 0).imag*s31
                     + J(U, alpha, beta, 2, 1).imag*s32 ) \
             for alpha in [0,1,2] for beta in [0,1,2]]
