@@ -153,7 +153,32 @@ def hamiltonian_3nu_vacuum_energy_independent(s12: float, s23: float, s13: float
         # Hamiltonian
         return 0.5 * R @ M2 @ R.T 
 
-    return H
+
+def hamiltonian_3nu_vacuum_energy_independent_td(l: float, s12: float, s23: float, s13: float, 
+    dCP: float, D21: float, D31: float, 
+    compute_matrix_multiplication: Optional[bool]=False) -> np.ndarray:
+    r"""Returns the three-neutrino Hamiltonian for vacuum oscillations, as a function of distance,
+    even if it does not depend on it.
+    """
+    return hamiltonian_3nu_vacuum_energy_independent(s12, s23, s13, dCP, D21, D31, 
+        compute_matrix_multiplication=compute_matrix_multiplication)
+
+
+def hamiltonian_3nu_vacuum(energy: float, s12: float, s23: float, s13: float, dCP: float, 
+    D21: float, D31: float, compute_matrix_multiplication: Optional[bool]=False) -> np.ndarray:
+    r"""Returns the three-neutrino Hamiltonian for vacuum oscillations.
+    """
+    return (1/energy)*hamiltonian_3nu_vacuum_energy_independent(s12, s23, s13, dCP, D21, D31, 
+        compute_matrix_multiplication=compute_matrix_multiplication)
+
+
+def hamiltonian_3nu_vacuum(l: float, energy: float, s12: float, s23: float, s13: float, dCP: float, 
+    D21: float, D31: float, compute_matrix_multiplication: Optional[bool]=False) -> np.ndarray:
+    r"""Returns the three-neutrino Hamiltonian for vacuum oscillations, as a function of distance,
+    even if it does not depend on it.
+    """
+    return hamiltonian_3nu_vacuum(energy, s12, s23, s13, dCP, D21, D31, 
+        compute_matrix_multiplication=compute_matrix_multiplication)
 
 
 def hamiltonian_3nu_matter(VCC: float) -> np.ndarray:
@@ -181,14 +206,9 @@ def hamiltonian_3nu_matter(VCC: float) -> np.ndarray:
     """
     return np.diag([VCC, 0.0, 0.0]) 
 
-    # h_matter = cp.deepcopy(h_vacuum_energy_independent)
-    # h_matter = np.multiply(1.0/energy, h_matter)
 
-    # # Add the matter potential to the ee term to find the matter
-    # # Hamiltonian
-    # h_matter[0][0] += VCC
-
-    # return h_matter
+def hamiltonian_3nu_matter_td(l: float, VCC_func: Callable) -> np.ndarray:
+    return hamiltonian_3nu_matter(VCC_func(l))
 
 
 def hamiltonian_3nu_nsi(VCC: float, eps: Union[list, np.ndarray]) -> np.ndarray:
@@ -221,22 +241,11 @@ def hamiltonian_3nu_nsi(VCC: float, eps: Union[list, np.ndarray]) -> np.ndarray:
         [np.conj(eps_et), np.conj(eps_mt), eps_tt],
         ], dtype=np.complex128)
 
-    # h_nsi = cp.deepcopy(h_vacuum_energy_independent)
-    # h_nsi = np.multiply(1.0/energy, h_nsi)
 
-    # eps_ee, eps_em, eps_et, eps_mm, eps_mt, eps_tt = eps
+def hamiltonian_3nu_nsi_td(l: float, VCC_func: Callable, 
+    eps: Union[list, np.ndarray]) -> np.ndarray:
 
-    # h_nsi[0][0] += VCC*(1.0+eps_ee)
-    # h_nsi[0][1] += VCC*eps_em
-    # h_nsi[0][2] += VCC*eps_et
-    # h_nsi[1][0] += VCC*np.conj(eps_em)
-    # h_nsi[1][1] += VCC*eps_mm
-    # h_nsi[1][2] += VCC*eps_mt
-    # h_nsi[2][0] += VCC*np.conj(eps_et)
-    # h_nsi[2][1] += VCC*np.conj(eps_mt)
-    # h_nsi[2][2] += VCC*eps_tt
-
-    # return h_nsi
+    return hamiltonian_3nu_nsi(VCC_func(l), eps)
 
 
 def hamiltonian_3nu_liv(sxi12: float, sxi23: float, sxi13: float, dxiCP: float, b1: float, 
@@ -280,26 +289,3 @@ def hamiltonian_3nu_liv(sxi12: float, sxi23: float, sxi13: float, dxiCP: float, 
     """
     R = pmns_mixing_matrix(sxi12, sxi23, sxi13, dxiCP)
     return (energy/Lambda) * R @ np.diag([b1, b2, b3]) @ np.conj(R.T)
-
-    # h_liv = cp.deepcopy(h_vacuum_energy_independent)
-    # h_liv = np.multiply(1.0/energy, h_liv)
-
-    # f = energy/Lambda
-    # # PMNS-like mixing matrix
-    # R = np.array(pmns_mixing_matrix(sxi12, sxi23, sxi13, dxiCP))
-    # # B matrix
-    # B = np.array([[b1, 0.0, 0.0], [0.0, b2, 0.0], [0.0, 0.0, b3]])
-    # # LIV term
-    # H = list(f*np.matmul(R, np.matmul(B, np.conj(matrix.transpose(R)))))
-
-    # h_liv[0][0] += H[0][0]
-    # h_liv[0][1] += H[0][1]
-    # h_liv[0][2] += H[0][2]
-    # h_liv[1][0] += H[1][0]
-    # h_liv[1][1] += H[1][1]
-    # h_liv[1][2] += H[1][2]
-    # h_liv[2][0] += H[2][0]
-    # h_liv[2][1] += H[2][1]
-    # h_liv[2][2] += H[2][2]
-
-    # return h_liv
