@@ -115,12 +115,17 @@ def osc_prob(H_func: Callable, t_ini: float, t_fin: float, n_slabs: Optional[int
 
 
 if __name__ == "__main__":
-    def H_func(t):
-        return np.array([[1 + 1j * t, 2 * t], [3 * t, 4 - 1j * t]], dtype=np.complex128)
+    def H_2nu_func(t):
+        return np.array([[1+1j*t, 2*t], [2*t, 4-1j*t]], dtype=np.complex128)
+    def H_3nu_func(t):
+        return np.array([[1+1j*t, 2*t, 3j*t], [2*t, 4-1j*t, 5+2j*t], [-3j*t, 5-2j*t, 1]], 
+            dtype=np.complex128)
 
     t_ini, t_fin = 0.0, 1.0
-    prob = osc_prob(H_func, t_ini, t_fin, n_slabs=100, n_tpts_per_slab=100, magnus_exp_order=6,
+    prob = osc_prob(H_2nu_func, t_ini, t_fin, n_slabs=100, n_tpts_per_slab=100, magnus_exp_order=6,
         integration_method='simpson', n_jobs=1)
-
+    print(prob)
+    prob = osc_prob(H_3nu_func, t_ini, t_fin, n_slabs=100, n_tpts_per_slab=100, magnus_exp_order=6,
+        integration_method='simpson', n_jobs=1)
     print(prob)
 
