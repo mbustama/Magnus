@@ -1,5 +1,6 @@
 import numpy as np
 import scipy as sp
+import sys
 from typing import Optional
 # from scipy.integrate import quad
 # from scipy.linalg import expm
@@ -37,18 +38,27 @@ B = {
 f1 = 1.0/12.0
 f2 = -1.0/720.0
 
+# Validate input
+valid_integration_methods = ['trapezoid', 'simpson']
+
 
 # Function to compute the Magnus expansion terms
 def compute_magnus_terms(A: np.ndarray, t0: float, t1: float, n_tpts: Optional[int]=50, 
-    order:Optional[int]=2, integration_method:Optional[str]='trapezoid') -> np.ndarray:
+    order:Optional[int]=2, integration_method:Optional[str]='trapezoid', 
+    validate_input: Optional[bool]=True) -> np.ndarray:
     """
     Compute the Magnus expansion terms up to a given order over the range [t0, t1].
     """
     # Validate input
-    valid_integration_methods = ['trapezoid', 'simpson']
-    if not (integration_method in valid_integration_methods):
-        raise ValueError("compute_magnus_terms: integration_method must be one of "+ \
-            str(valid_integration_methods)+".")
+    if validate_input:
+        try:
+            if not (integration_method in valid_integration_methods): 
+                raise ValueError("Error in magnus: magnus.compute_magnus_terms: " + \
+                    "integration_method must be one of " + str(valid_integration_methods) + ".")
+        except ValueError as error:
+            print(error)
+            print("Aborting execution...")
+            sys.exit(1)
 
     # nA = A(t0).shape[0]
     # zero_matrix = np.zeros((nA, nA), dtype=complex)
@@ -181,7 +191,7 @@ if __name__ == "__main__":
     def A(t):
         return np.array([[1.0*t, 2.0+3j*t],[2.0-3j*t, 2.0]])
     t0, t1 = 0.0, 1.0
-    exp_Omega_1 = magnus_expansion(A, t0, t1, n_tpts=100, order=6, integration_method='trapezoid')
+    exp_Omega_1 = magnus_expansion(A, t0, t1, n_tpts=100, order=6, integration_method='trapezoidd')
     print(exp_Omega_1)
     exp_Omega_2 = magnus_expansion(A, t0, t1, n_tpts=100, order=6, integration_method='simpson')
     print(exp_Omega_2)
