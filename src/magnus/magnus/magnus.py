@@ -43,7 +43,7 @@ valid_integration_methods = ['trapezoid', 'simpson']
 
 
 # Function to compute the Magnus expansion terms
-def compute_magnus_terms(A: np.ndarray, t0: float, t1: float, n_tpts: Optional[int]=50, 
+def compute_magnus_terms(A: Callable, t0: float, t1: float, n_tpts: Optional[int]=50, 
     order:Optional[int]=2, integration_method:Optional[str]='trapezoid', 
     validate_input: Optional[bool]=True) -> np.ndarray:
     """
