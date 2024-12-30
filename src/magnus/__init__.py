@@ -2,7 +2,10 @@
 
 submodules = [
     'globaldefs',
-    'magnus'
+    'hamiltonians',
+    'magnus',
+    'matter',
+    'oscprob'
 ]
 
 __all__ = submodules

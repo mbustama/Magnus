@@ -31,7 +31,13 @@ __email__ = "mbustamante@gmail.com"
 
 import numpy as np
 from typing import Optional, Callable
-import globaldefs as gd
+
+# TO-DO: remove this once setup.py and pip are working
+# import os, sys
+# sys.path.append(os.path.split(os.getcwd())[0]+'/src/')
+# print(os.path.split(os.getcwd())[0]+'/src/')
+
+import magnus.globaldefs as gd
 
 
 def density_matter_func_const(l: float, 
