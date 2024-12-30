@@ -1,5 +1,5 @@
 import numpy as np
-from typing import Union
+from typing import Optional, Union
 
 
 def osc_prob_2nu_vacuum_std(sth: float, Dm2: float, energy: float, L: float) -> np.ndarray:
