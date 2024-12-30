@@ -3,7 +3,7 @@ import sys
 from joblib import Parallel, delayed
 from typing import Optional, Callable, Union
 
-import magnus as magnus
+import magnus.magnus as magnus
 
 def compute_evolution_operator(H_func: Callable, t_slab: Union[list, np.ndarray], 
     n_tpts_per_slab: int, magnus_exp_order: int, **kwargs) -> np.ndarray:
