@@ -1,7 +1,7 @@
 import numpy as np
 import scipy as sp
 import sys
-from typing import Optional
+from typing import Optional, Callable
 # from scipy.integrate import quad
 # from scipy.linalg import expm
 # from scipy.special import factorial
