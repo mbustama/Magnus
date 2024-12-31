@@ -33,9 +33,10 @@ import numpy as np
 from typing import Optional, Callable
 
 # TO-DO: remove this once setup.py and pip are working
-# import os, sys
-# sys.path.append(os.path.split(os.getcwd())[0]+'/src/')
-# print(os.path.split(os.getcwd())[0]+'/src/')
+import os, sys
+sys.path.append(os.path.split(os.path.split(os.getcwd())[0])[0])
+# sys.path.append('/home/mbustamante/Research/magnus/src/')
+# print(os.path.split(os.path.split(os.getcwd())[0])[0])
 
 import magnus.globaldefs as gd
 
@@ -219,6 +220,72 @@ def earth_radial_distance_from_depth(costhz: float, l: float) -> float:
     return abs(r)
 
 
+def dms_to_decimal(degrees: float, minutes: float, seconds: float) -> float:
+    """
+    Convert coordinates from degrees, minutes, and seconds to decimal degrees.
+    
+    Parameters:
+        degrees: The degree part of the coordinate
+        minutes: The minute part of the coordinate
+        seconds: The second part of the coordinate
+    
+    Returns:
+        Decimal degrees
+    """
+    return degrees + minutes / 60 + seconds / 3600
+
+
+def straight_line_distance(lat1_dms: tuple[float, float, float], 
+    lon1_dms: tuple[float, float, float], lat2_dms: tuple[float, float, float], 
+    lon2_dms: tuple[float, float, float]) -> float:
+    """
+    Calculate the straight-line distance between two points through the Earth.
+    
+    Parameters:
+        lat1_dms, lon1_dms: Tuple of (degrees, minutes, seconds) for the first point
+        lat2_dms, lon2_dms: Tuple of (degrees, minutes, seconds) for the second point
+    
+    Returns:
+        Straight-line distance in kilometers
+    """
+
+    # Convert DMS to decimal degrees
+    lat1 = dms_to_decimal(*lat1_dms)
+    lon1 = dms_to_decimal(*lon1_dms)
+    lat2 = dms_to_decimal(*lat2_dms)
+    lon2 = dms_to_decimal(*lon2_dms)
+
+    # Convert decimal degrees to radians
+    lat1_rad = np.radians(lat1)
+    lon1_rad = np.radians(lon1)
+    lat2_rad = np.radians(lat2)
+    lon2_rad = np.radians(lon2)
+
+    # Differences in coordinates
+    delta_lat = lat2_rad - lat1_rad
+    delta_lon = lon2_rad - lon1_rad
+
+    # Haversine formula to calculate the central angle
+    a = np.sin(delta_lat / 2)**2 + np.cos(lat1_rad) * np.cos(lat2_rad) * np.sin(delta_lon / 2)**2
+    central_angle = 2 * np.math.atan2(np.sqrt(a), np.sqrt(1 - a))
+
+    # Straight-line distance (chord length)
+    distance = 2 * gd.EARTH_RADIUS * np.sin(central_angle / 2)
+
+    return distance
+
+
+def costhz_between_points_on_surface(lat1_dms: tuple[float, float, float], 
+    lon1_dms: tuple[float, float, float], lat2_dms: tuple[float, float, float], 
+    lon2_dms: tuple[float, float, float]) -> float:
+
+    # Assumes spherical Earth and detector on the surface, not underground.
+
+    chord_length = straight_line_distance(lat1_dms, lon1_dms, lat2_dms, lon2_dms) # [km]
+
+    return -0.5 * chord_length / gd.EARTH_RADIUS
+
+
 def num_density_e_func(l: float, density_matter_func: Callable, 
     ratio_number_neutrons_to_protons: Optional[float]=1.0,
     electron_fraction: Optional[float]=0.5) -> float:
@@ -283,3 +350,16 @@ def VCC_func(l: float, num_density_e_func: Callable) -> float:
     VCC = gd.SQRT_OF_2 * gd.GF * num_density_e_func(l) # [eV]
 
     return VCC
+
+
+if __name__ == "__main__":
+
+    lat1_dms = (52, 31, 12)  # Berlin latitude: 52°31'12"
+    lon1_dms = (13, 24, 18)  # Berlin longitude: 13°24'18"
+    lat2_dms = (48, 51, 24)  # Paris latitude: 48°51'24"
+    lon2_dms = (2, 21, 7)    # Paris longitude: 2°21'7"
+
+    distance = straight_line_distance(lat1_dms, lon1_dms, lat2_dms, lon2_dms)
+    costhz = costhz_between_points_on_surface(lat1_dms, lon1_dms, lat2_dms, lon2_dms)
+    print(distance)
+    print(costhz)
