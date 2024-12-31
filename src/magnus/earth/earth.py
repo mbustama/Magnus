@@ -1,0 +1,242 @@
+# -*- coding: utf-8 -*-
+r"""Contains helper functions to compute the oscillation probability in
+matter.
+
+This module contains routines to common matter density profiles (e.g.,
+constant, exponentially decreasing), electron number density, and
+coherent forward scattering potential.
+
+Routine listings
+----------------
+
+    * density_matter_func_const - Returns the density for a constant 
+           matter density profile
+    * density_matter_func_exp - Returns the density for an exponentially
+           decreasing matter density profile
+    * density_matter_prem - Returns the density inside the Earth using
+           the Preliminary Reference Earth Model
+    * num_density_e_func - Converts a matter density to an electron
+           number density
+    * VCC_func - Returns the potential for coherent forward electron
+           scattering
+
+Created: 2024/11/30 15:42
+Last modified: 2024/11/30 21:23
+"""
+
+__version__ = "1.0"
+__author__ = "Mauricio Bustamante"
+__email__ = "mbustamante@gmail.com"
+
+
+import numpy as np
+from typing import Optional, Callable
+
+# TO-DO: remove this once setup.py and pip are working
+import os, sys
+sys.path.append(os.path.split(os.path.split(os.getcwd())[0])[0])
+# sys.path.append('/home/mbustamante/Research/magnus/src/')
+# print(os.path.split(os.path.split(os.getcwd())[0])[0])
+
+import magnus.globaldefs as gd
+
+
+def density_matter_func_prem(r: float) -> float:
+    r"""Returns the matter density inside the Earth according to the 
+    Preliminary Reference Earth Model (PREM).
+    
+    Returns the matter density inside the Earth according to the PREM,
+    for a given radial distance measured from the center of the Earth.
+
+    Parameters
+    ----------
+    r : float
+        Radial distance measured from the center of the Earth [km].
+
+    Returns
+    -------
+    float
+        Matter density [g cm^{-3}].
+
+    References
+    ----------
+
+    .. [1] Adam M. Dziewonski & Don L. Anderson, "Preliminary Reference
+        Earth Model", Physics of the Earth and Planetary Interiors, 25,
+        297 (1981).
+    """
+
+    RADIUS_EARTH = 6371.0 # [km]
+
+    if (r > RADIUS_EARTH):
+        print('Error: density_matter_prem: value of ' + \
+                'l cannot be > RADIUS_EARTH = 6371 km')
+        quit()
+
+    x = r/RADIUS_EARTH
+
+    if (0 <= r <= 1221.5):
+        density = 13.0885-8.8381*x*x
+    elif (1221.5 < r <= 3480.0):
+        density = 12.5815-1.2638*x-3.6426*x*x-5.5281*x*x*x
+    elif (3480.0 < r <= 5701.0):
+        density = 7.9565-6.4761*x+5.5283*x*x-3.0807*x*x*x
+    elif (5701.0 < r <= 5771.0):
+        density = 5.3197-1.4836*x
+    elif (5771.0 < r <= 5971.0):
+        density = 11.2494-8.0298*x
+    elif (5971.0 < r <= 6151.0):
+        density = 7.1089-3.8045*x
+    elif (6151.0 < r <= 6346.6):
+        density = 2.6910+0.6924*x
+    elif (6346.6 < r <= 6356.0):
+        density = 2.900
+    elif (6356.0 < r <= 6368.0):
+        density = 2.600
+    elif (6368.0 < r <= RADIUS_EARTH):
+        density = 1.020
+
+    return density
+
+
+def distance_traveled_inside_earth(costhz: float) -> float:
+    r"""Returns the distance traveled by a neutrino inside the Earth,
+    traveling with a cosine of zenith angle costhz.
+    
+    Returns the length of the path traveled by a neutrino from the 
+    surface ot the Earth, through it, until it reaches a detector. The
+    direction of the neutrino is parametrized by the zenith angle of the
+    neutrino. Assumes that the neutrino detector is on the surface of 
+    the Earth, not underground. As a result, the distance is zero for 
+    all values of costhz > 0.
+
+    Parameters
+    ----------
+    costhz : float
+        Cosine of the zenith angle of the neutrino.
+
+    Returns
+    -------
+    float
+        Path length inside the Earth [km].
+    """
+    return 0.0 if costhz > 0.0 else -2.0 * gd.EARTH_RADIUS * costhz
+
+
+def earth_radial_distance_from_depth(costhz: float, l: float) -> float:
+    r"""Returns the radial distance measured from the center of the
+    Earth to a position inside the Earth, given by costhz and l.
+    
+    A neutrino with direction given by the cosine of the zenith angle, 
+    costhz, travels from l=0 to l=distance_traveled_inside_earth,
+    computed below. The routine returns the radial distance to the 
+    neutrino when its distance from its point of entry into the Earth is
+    l.  
+
+    Parameters
+    ----------
+    costhz : float
+        Cosine of the zenith angle of the neutrino.
+    l : float
+        Distance of the neutrino from its point of entry into the Earth.
+
+    Returns
+    -------
+    float
+        Radial distance from to the neutrino [km].
+    """
+    d = distance_traveled_inside_earth(costhz)
+
+    if (l > d):
+        raise ValueError('earth_radial_distance_from_depth: value of ' + \
+                'l cannot be larger than the distance traveled ' + \
+                'inside Earth for this value of costhz')
+        quit()
+    elif ((l == 0.0) and (costhz == 0.0)):
+        r = 0.0
+    else:
+        r2 = gd.EARTH_RADIUS*gd.EARTH_RADIUS
+        r2 += (d-l)**2
+        r2 += 2*gd.EARTH_RADIUS*(d-l)*costhz
+        r = np.sqrt(r2)
+
+    return abs(r)
+
+
+def dms_to_decimal(degrees: float, minutes: float, seconds: float) -> float:
+    """
+    Convert coordinates from degrees, minutes, and seconds to decimal degrees.
+    
+    Parameters:
+        degrees: The degree part of the coordinate
+        minutes: The minute part of the coordinate
+        seconds: The second part of the coordinate
+    
+    Returns:
+        Decimal degrees
+    """
+    return degrees + minutes / 60 + seconds / 3600
+
+
+def chord_length_inside_earth(lat1_dms: tuple[float, float, float], 
+    lon1_dms: tuple[float, float, float], lat2_dms: tuple[float, float, float], 
+    lon2_dms: tuple[float, float, float]) -> float:
+    """
+    Calculate the straight-line distance between two points through the Earth.
+    
+    Parameters:
+        lat1_dms, lon1_dms: Tuple of (degrees, minutes, seconds) for the first point
+        lat2_dms, lon2_dms: Tuple of (degrees, minutes, seconds) for the second point
+    
+    Returns:
+        Straight-line distance in kilometers
+    """
+
+    # Convert DMS to decimal degrees
+    lat1 = dms_to_decimal(*lat1_dms)
+    lon1 = dms_to_decimal(*lon1_dms)
+    lat2 = dms_to_decimal(*lat2_dms)
+    lon2 = dms_to_decimal(*lon2_dms)
+
+    # Convert decimal degrees to radians
+    lat1_rad = np.radians(lat1)
+    lon1_rad = np.radians(lon1)
+    lat2_rad = np.radians(lat2)
+    lon2_rad = np.radians(lon2)
+
+    # Differences in coordinates
+    delta_lat = lat2_rad - lat1_rad
+    delta_lon = lon2_rad - lon1_rad
+
+    # Haversine formula to calculate the central angle
+    a = np.sin(delta_lat / 2)**2 + np.cos(lat1_rad) * np.cos(lat2_rad) * np.sin(delta_lon / 2)**2
+    central_angle = 2 * np.math.atan2(np.sqrt(a), np.sqrt(1 - a))
+
+    # Straight-line distance (chord length)
+    distance = 2 * gd.EARTH_RADIUS * np.sin(central_angle / 2)
+
+    return distance
+
+
+def costhz_between_points_on_surface(lat1_dms: tuple[float, float, float], 
+    lon1_dms: tuple[float, float, float], lat2_dms: tuple[float, float, float], 
+    lon2_dms: tuple[float, float, float]) -> float:
+
+    # Assumes spherical Earth and detector on the surface, not underground.
+
+    chord_length = chord_length_inside_earth(lat1_dms, lon1_dms, lat2_dms, lon2_dms) # [km]
+
+    return -0.5 * chord_length / gd.EARTH_RADIUS
+
+
+if __name__ == "__main__":
+
+    lat1_dms = (52, 31, 12)  # Berlin latitude: 52°31'12"
+    lon1_dms = (13, 24, 18)  # Berlin longitude: 13°24'18"
+    lat2_dms = (48, 51, 24)  # Paris latitude: 48°51'24"
+    lon2_dms = (2, 21, 7)    # Paris longitude: 2°21'7"
+
+    distance = chord_length_inside_earth(lat1_dms, lon1_dms, lat2_dms, lon2_dms)
+    costhz = costhz_between_points_on_surface(lat1_dms, lon1_dms, lat2_dms, lon2_dms)
+    print(distance)
+    print(costhz)
