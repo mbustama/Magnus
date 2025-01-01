@@ -40,6 +40,27 @@ sys.path.append(os.path.split(os.path.split(os.getcwd())[0])[0])
 
 import magnus.globaldefs as gd
 
+# Predefined locations in ISO 6709:
+# North latitudes are positive, South latitudes are negative
+# East longitudes are positive, West longitudes are negative
+loc_coords_dms = {
+    'baikal':      {'lat': (51, 45, 54),    'lon': (104, 24, 54)},
+    'cern':        {'lat': (46, 14, 1.80),  'lon': (6, 3, 11.40)},
+    'desy':        {'lat': (53, 34, 19.79), 'lon': (9, 52, 27.59)},
+    'ess':         {'lat': (55, 44, 6),     'lon': (13, 15, 5.04)},
+    'fermilab':    {'lat': (41, 49, 55),    'lon': (-88, 15, 26)},
+    'gran_sasso':  {'lat': (42, 25, 15.8),  'lon': (13, 30, 58.43)},
+    'homestake':   {'lat': (44, 21, 5.76),  'lon': (-103, 45, 4.68)},
+    'kamioka':     {'lat': (36, 25, 50.05), 'lon': (137, 18, 41.15)}, # Mozumi mine
+    'km3net_arca': {'lat': (36, 16, 0), 'lon': (16, 6, 0)}, 
+    'km3net_orca': {'lat': (42, 48, 0), 'lon': (6, 2, 0)}, 
+    'north_pole':  {'lat': (90, 0, 0),      'lon': (0, 0, 0)},
+    'pyhaasalmi':  {'lat': (63, 39, 31),    'lon': (26, 2, 28)},
+    'snolab':      {'lat': (46, 28, 18),    'lon': (-81, 11, 12)},
+    'south_pole':  {'lat': (-90, 0, 0),     'lon': (0, 0, 0)},
+    'tokai':       {'lat': (36, 27, 59),    'lon': (140, 36, 24)},
+}
+
 
 def density_matter_func_prem(r: float) -> float:
     r"""Returns the matter density inside the Earth according to the 
@@ -66,14 +87,16 @@ def density_matter_func_prem(r: float) -> float:
         297 (1981).
     """
 
-    RADIUS_EARTH = 6371.0 # [km]
+    # RADIUS_EARTH = 6371.0 # [km]
 
-    if (r > RADIUS_EARTH):
+    if (r > gd.EARTH_RADIUS):
+        # print(r)
         print('Error: density_matter_prem: value of ' + \
-                'l cannot be > RADIUS_EARTH = 6371 km')
+                'l cannot be > globaldefs.RADIUS_EARTH = ' + \
+                str(gd.EARTH_RADIUS) + ' km')
         quit()
 
-    x = r/RADIUS_EARTH
+    x = r/gd.EARTH_RADIUS
 
     if (0 <= r <= 1221.5):
         density = 13.0885-8.8381*x*x
@@ -93,7 +116,7 @@ def density_matter_func_prem(r: float) -> float:
         density = 2.900
     elif (6356.0 < r <= 6368.0):
         density = 2.600
-    elif (6368.0 < r <= RADIUS_EARTH):
+    elif (6368.0 < r <= gd.EARTH_RADIUS):
         density = 1.020
 
     return density
@@ -123,7 +146,7 @@ def distance_traveled_inside_earth(costhz: float) -> float:
     return 0.0 if costhz > 0.0 else -2.0 * gd.EARTH_RADIUS * costhz
 
 
-def earth_radial_distance_from_depth(costhz: float, l: float) -> float:
+def earth_radial_distance_from_depth(costhz: float, l: float, tol: Optional[float]=1.e-10) -> float:
     r"""Returns the radial distance measured from the center of the
     Earth to a position inside the Earth, given by costhz and l.
     
@@ -147,6 +170,10 @@ def earth_radial_distance_from_depth(costhz: float, l: float) -> float:
     """
     d = distance_traveled_inside_earth(costhz)
 
+    if abs(l-d) <= tol: 
+        d = l
+
+    # if (abs(l-d) >= 1.e-10):
     if (l > d):
         raise ValueError('earth_radial_distance_from_depth: value of ' + \
                 'l cannot be larger than the distance traveled ' + \
@@ -240,3 +267,5 @@ if __name__ == "__main__":
     costhz = costhz_between_points_on_surface(lat1_dms, lon1_dms, lat2_dms, lon2_dms)
     print(distance)
     print(costhz)
+
+    # print(coord_cern_dms['lon'])

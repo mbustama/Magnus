@@ -1,5 +1,5 @@
 name = 'earth'
 
-from .matter import *
+from .earth import *
 
 __all__ = [s for s in dir() if not s.startswith('_')]
