@@ -62,7 +62,7 @@ loc_coords_dms = {
 }
 
 
-def density_matter_func_prem(r: float) -> float:
+def density_matter_func_prem(r: float, tol: Optional[float]=1.e-8) -> float:
     r"""Returns the matter density inside the Earth according to the 
     Preliminary Reference Earth Model (PREM).
     
@@ -89,9 +89,10 @@ def density_matter_func_prem(r: float) -> float:
 
     # RADIUS_EARTH = 6371.0 # [km]
 
-    if (r > gd.EARTH_RADIUS):
+    # if (r > gd.EARTH_RADIUS):
+    if (r-gd.EARTH_RADIUS >= tol):
         # print(r)
-        print('Error: density_matter_prem: value of ' + \
+        print('Error: density_matter_func_prem: value of ' + \
                 'l cannot be > globaldefs.RADIUS_EARTH = ' + \
                 str(gd.EARTH_RADIUS) + ' km')
         quit()
@@ -146,7 +147,7 @@ def distance_traveled_inside_earth(costhz: float) -> float:
     return 0.0 if costhz > 0.0 else -2.0 * gd.EARTH_RADIUS * costhz
 
 
-def earth_radial_distance_from_depth(costhz: float, l: float, tol: Optional[float]=1.e-10) -> float:
+def earth_radial_distance_from_depth(costhz: float, l: float, tol: Optional[float]=1.e-8) -> float:
     r"""Returns the radial distance measured from the center of the
     Earth to a position inside the Earth, given by costhz and l.
     
@@ -170,7 +171,7 @@ def earth_radial_distance_from_depth(costhz: float, l: float, tol: Optional[floa
     """
     d = distance_traveled_inside_earth(costhz)
 
-    if abs(l-d) <= tol: 
+    if l-d <= tol: 
         d = l
 
     # if (abs(l-d) >= 1.e-10):
