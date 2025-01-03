@@ -89,36 +89,60 @@ def density_matter_func_prem(r: float, tol: Optional[float]=1.e-8) -> float:
 
     # RADIUS_EARTH = 6371.0 # [km]
 
-    # if (r > gd.EARTH_RADIUS):
-    if (r-gd.EARTH_RADIUS >= tol):
-        # print(r)
-        print('Error: density_matter_func_prem: value of ' + \
-                'l cannot be > globaldefs.RADIUS_EARTH = ' + \
-                str(gd.EARTH_RADIUS) + ' km')
-        quit()
-
     x = r/gd.EARTH_RADIUS
+    
+    if (x > 1):
+        if ((x-1) <= tol):
+            r = gd.EARTH_RADIUS
+        else:
+            print('Error: density_matter_func_prem: value of l cannot exceed ' + \
+                'globaldefs.RADIUS_EARTH = ' + str(gd.EARTH_RADIUS) + ' km by more than the ' +
+                'desired tolerance of tol = ' + str(tol))
+            sys.exit('Quitting...')
+
+    # if (r > gd.EARTH_RADIUS):
+    # if (r-gd.EARTH_RADIUS >= tol):
+    # print((r-gd.EARTH_RADIUS)/gd.EARTH_RADIUS)
+    # if ((r-gd.EARTH_RADIUS)/gd.EARTH_RADIUS >= tol):
+    #     print('Error: density_matter_func_prem: value of ' + \
+    #             'l cannot be > globaldefs.RADIUS_EARTH = ' + \
+    #             str(gd.EARTH_RADIUS) + ' km')
+    #     quit()
+
+    # x = r/gd.EARTH_RADIUS
 
     if (0 <= r <= 1221.5):
         density = 13.0885-8.8381*x*x
+        # density = 100.0
     elif (1221.5 < r <= 3480.0):
         density = 12.5815-1.2638*x-3.6426*x*x-5.5281*x*x*x
+        # density = 100.0
     elif (3480.0 < r <= 5701.0):
         density = 7.9565-6.4761*x+5.5283*x*x-3.0807*x*x*x
+        # density = 100.0
     elif (5701.0 < r <= 5771.0):
         density = 5.3197-1.4836*x
+        # density = 100.0
     elif (5771.0 < r <= 5971.0):
         density = 11.2494-8.0298*x
+        # density = 100.0
     elif (5971.0 < r <= 6151.0):
         density = 7.1089-3.8045*x
+        # density = 100.0
     elif (6151.0 < r <= 6346.6):
         density = 2.6910+0.6924*x
+        # density = 100.0
     elif (6346.6 < r <= 6356.0):
         density = 2.900
+        # density = 100.0
     elif (6356.0 < r <= 6368.0):
         density = 2.600
+        # density = 1e20
     elif (6368.0 < r <= gd.EARTH_RADIUS):
         density = 1.020
+        # density = 100.0
+    else:
+        print((r-gd.EARTH_RADIUS)/gd.EARTH_RADIUS)
 
     return density
 
@@ -171,7 +195,9 @@ def earth_radial_distance_from_depth(costhz: float, l: float, tol: Optional[floa
     """
     d = distance_traveled_inside_earth(costhz)
 
-    if l-d <= tol: 
+    # if ((l-d) <= tol): 
+    #     d = l
+    if (0 < (l-d) <= tol): 
         d = l
 
     # if (abs(l-d) >= 1.e-10):
