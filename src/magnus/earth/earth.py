@@ -141,8 +141,6 @@ def density_matter_func_prem(r: float, tol: Optional[float]=1.e-8) -> float:
     elif (6368.0 < r <= gd.EARTH_RADIUS):
         density = 1.020
         # density = 100.0
-    else:
-        print((r-gd.EARTH_RADIUS)/gd.EARTH_RADIUS)
 
     return density
 
