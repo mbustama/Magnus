@@ -1,4 +1,4 @@
-# Magnus notebooks
+# Mag$`\nu`$s notebooks
 
 ## 1. Introduction [`1_magnus_introduction.ipynb`]
 
