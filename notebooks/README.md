@@ -66,4 +66,4 @@
 
 ## 10. Using Mag$`\nu`$s to expand time-dependent matrix exponentials [`10_magnus_matrix_exponential.ipynb`]
 
-   Contains example of how to use Mag$`\nu`$s to compute the Magnus expansion of the matrix exponential of the exponential of a time-dependent matrix, $A(t)$, such as the ones that appear in the calculation of the time-evolution operator of a time-dependent Hamiltonian, i.e., $\exp(\int_{t_i}^{t_f} A(t))$.
+   Contains example of how to use Mag$`\nu`$s to compute the Magnus expansion of the matrix exponential of the exponential of a time-dependent matrix, $A(t)$, such as the ones that appear in the calculation of the time-evolution operator of a time-dependent Hamiltonian, i.e., $\exp\left(\int_{t_i}^{t_f} A(t)\right)$.
