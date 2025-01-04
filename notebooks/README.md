@@ -8,7 +8,7 @@
 
    Contains example calculations and plots of oscillation probabilities in a two-neutrino system in vacuum and matter.  The notebook contains the following sections:
 
-   2.1 Probabilities $`2\nu`$: in vacuum
+   ### 2.1 Probabilities $`2\nu`$: in vacuum
 
    2.2 Probabilities $`2\nu`$: in matter with constant density
 
