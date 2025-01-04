@@ -1,6 +1,6 @@
 # Mag$`\nu`$s notebooks
 
-## 1. Introduction [`1_magnus_introduction.ipynb`]
+## 1. Introduction [[`1_magnus_introduction.ipynb`](1_magnus_introduction.ipynb)]
    Contains examples of basic usage of Mag$`\nu`$s.  Open this if you are looking for a quick introduction, but you will likely have to also look at least at the notebooks `2_magnus_2nu_vacuum_matter.ipynb` and `3_magnus_3nu_vacuum_matter.ipynb` to do something useful.
 
 ## 2. Two-neutrino oscillation probabilties [`2_magnus_2nu_vacuum_matter.ipynb`]
