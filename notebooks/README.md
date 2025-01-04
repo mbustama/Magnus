@@ -7,25 +7,25 @@
    Contains example calculations and plots of oscillation probabilities in a two-neutrino system in vacuum and matter.  The notebook contains the following sections:
 
    ### 2.1 Probabilities $`2\nu`$: in vacuum
-       Oscillation proabilities in vacuum vs. energy and vs. direction, validated against the standard probability expression
+   Oscillation proabilities in vacuum vs. energy and vs. direction, validated against the standard probability expression
 
    ### 2.2 Probabilities $`2\nu`$: in matter with constant density
-       Oscillation proabilities in constant-density matter vs. energy and vs. direction, validated against the standard probability expression
+   Oscillation proabilities in constant-density matter vs. energy and vs. direction, validated against the standard probability expression
 
    ### 2.3 Probabilities $`2\nu`$: in matter with varying density
-       Oscillation proabilities in varying-density matter vs. energy and vs. direction for a matter density profile that falls exponentially with distance and a Gaussian density profile.
+   Oscillation proabilities in varying-density matter vs. energy and vs. direction for a matter density profile that falls exponentially with distance and a Gaussian density profile.
 
    ### 2.4 Probabilities $`2\nu`$: in matter with castle-wall density potential
-       Oscillation proabilities in matter vs. energy and vs. direction for periodic, castle-wall density potential with different wall widths.
+   Oscillation proabilities in matter vs. energy and vs. direction for periodic, castle-wall density potential with different wall widths.
 
    ### 2.5 Probabilities $`2\nu`$: in matter with noisy density potential
-       Oscillation proabilities in matter vs. energy and vs. direction for density profiles that are not smooth, but rather noisy around a central value.
+   Oscillation proabilities in matter vs. energy and vs. direction for density profiles that are not smooth, but rather noisy around a central value.
 
    ### 2.6 Probabilities $`2\nu`$: in the Earth
-       Oscillation proabilities vs. energy and vs. direction for neutrinos propagating inside the Earth.  The example use matter density profile from the popular Preliminary Reference Earth Model (PREM), but others can be used.
+   Oscillation proabilities vs. energy and vs. direction for neutrinos propagating inside the Earth.  The example use matter density profile from the popular Preliminary Reference Earth Model (PREM), but others can be used.
 
    ### 2.7 Probabilities $`2\nu`$: in the Sun
-       Oscillation proabilities vs. energy and vs. direction for neutrinos propagating inside the Sun, showing the effect of the MSW resonance.
+   Oscillation proabilities vs. energy and vs. direction for neutrinos propagating inside the Sun, showing the effect of the MSW resonance.
 
 ## 3. Three-neutrino oscillation probabilties [[`3_magnus_3nu_vacuum_matter.ipynb`](3_magnus_3nu_vacuum_matter.ipynb)]
 
