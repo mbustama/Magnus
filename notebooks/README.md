@@ -1,1 +1,1 @@
-Mag$\nu$s notebooks
+Mag$'\nu'$s notebooks
