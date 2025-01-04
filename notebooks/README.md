@@ -6,8 +6,8 @@
 ## 2. Two-neutrino oscillation probabilties [[`2_magnus_2nu_vacuum_matter.ipynb`](2_magnus_2nu_vacuum_matter.ipynb)]
    Contains example calculations and plots of oscillation probabilities in a two-neutrino system in vacuum and matter.  The notebook contains the following sections:
 
-   ### 2.1 Probabilities $`2\nu`$: in vacuum
-   Oscillation proabilities in vacuum vs. energy and vs. direction, validated against the standard probability expression
+   2.1 Probabilities $`2\nu`$: in vacuum
+      Oscillation proabilities in vacuum vs. energy and vs. direction, validated against the standard probability expression
 
    ### 2.2 Probabilities $`2\nu`$: in matter with constant density
    Oscillation proabilities in constant-density matter vs. energy and vs. direction, validated against the standard probability expression
