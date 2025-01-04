@@ -10,35 +10,35 @@
 
    ### 2.1 Probabilities $`2\nu`$: in vacuum
 
-   2.2 Probabilities $`2\nu`$: in matter with constant density
+   ### 2.2 Probabilities $`2\nu`$: in matter with constant density
 
-   2.3 Probabilities $`2\nu`$: in matter with varying density
+   ### 2.3 Probabilities $`2\nu`$: in matter with varying density
 
-   2.4 Probabilities $`2\nu`$: in matter with castle-wall density potential
+   ### 2.4 Probabilities $`2\nu`$: in matter with castle-wall density potential
 
-   2.5 Probabilities $`2\nu`$: in matter with noisy density potential
+   ### 2.5 Probabilities $`2\nu`$: in matter with noisy density potential
 
-   2.6 Probabilities $`2\nu`$: in the Earth
+   ### 2.6 Probabilities $`2\nu`$: in the Earth
 
-   2.7 Probabilities $`2\nu`$: in the Sun
+   ### 2.7 Probabilities $`2\nu`$: in the Sun
 
 ## 3. Three-neutrino oscillation probabilties [`3_magnus_3nu_vacuum_matter.ipynb`]
 
    In analogy to the previous notebook, this one contains example calculations and plots of oscillation probabilities in a three-neutrino system in vacuum and matter.  The notebook contains the following sections:
 
-   3.1 Probabilities $`3\nu`$: in vacuum
+   ### 3.1 Probabilities $`3\nu`$: in vacuum
 
-   3.2 Probabilities $`3\nu`$: in matter with constant density
+   ### 3.2 Probabilities $`3\nu`$: in matter with constant density
 
-   3.3 Probabilities $`3\nu`$: in matter with varying density
+   ### 3.3 Probabilities $`3\nu`$: in matter with varying density
 
-   3.4 Probabilities $`3\nu`$: in matter with castle-wall density potential
+   ### 3.4 Probabilities $`3\nu`$: in matter with castle-wall density potential
 
-   3.5 Probabilities $`3\nu`$: in matter with noisy density potential
+   ### 3.5 Probabilities $`3\nu`$: in matter with noisy density potential
 
-   3.6 Probabilities $`3\nu`$: in the Earth
+   ### 3.6 Probabilities $`3\nu`$: in the Earth
 
-   3.7 Probabilities $`3\nu`$: in the Sun
+   ### 3.7 Probabilities $`3\nu`$: in the Sun
 
 ## 4. Long-baseline oscillation probabilities [`4_magnus_long_baseline.ipynb`]
 
