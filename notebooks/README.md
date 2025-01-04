@@ -54,8 +54,16 @@
 
 ## 7. BSM: sterile neutrinos [`7_magnus_bsm_sterile_nu.ipynb`]
 
-## 8. BSM: non-standard interacions [`8_magnus_bsm_nsi.ipynb`]
+   Contains examples of how to compute oscillation probabilities in systems of more than three neutrinos, i.e., containing one or more sterile neutrino.  Specifically, we show examples for 3+1 and 3+2 systems.
+
+## 8. BSM: non-standard interactions [`8_magnus_bsm_nsi.ipynb`]
+
+   Contains examples of how to compute $2\nu$ and $3\nu$ oscillation probabilities in matter if the neutrinos undergo non-standard neutral-current interactions with the medium, conventionally parametrized by the $\epsilon$ parameters.
 
 ## 9. BSM: Lorentz-invariance violation [`9_magnus_bsm_liv.ipynb`]
 
-## 10. Using Magnus to expand time-dependent matrix exponentials [`10_magnus_matrix_exponential.ipynb`]
+   Contains examples of how to compute $2\nu$ and $3\nu$ oscillation probabilities including an additional effective, energy-dependent Hamiltonian that represents the effect of Lorentz-invariance violation.
+
+## 10. Using Mag$`\nu`$s to expand time-dependent matrix exponentials [`10_magnus_matrix_exponential.ipynb`]
+
+   Contains example of how to use Mag$`\nu`$s to compute the Magnus expansion of the matrix exponential of the exponential of a time-dependent matrix, $A(t)$, such as the ones that appear in the calculation of the time-evolution operator of a time-dependent Hamiltonian, i.e., $\exp(\int_{t_i}^{t_f} A(t))$.
