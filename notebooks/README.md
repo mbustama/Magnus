@@ -6,14 +6,20 @@ Basic usage of Mag$`\nu`$s.  Open this if you are looking for a quick introducti
 
 2. Two-neutrino oscillation probabilties [`2_magnus_2nu_vacuum_matter.ipynb`]
 
-Example calculations and plots of oscillation probabilities in a two-neutrino system in vacuum and matter.  The notebook contains the following sections:
+Contains example calculations and plots of oscillation probabilities in a two-neutrino system in vacuum and matter.  The notebook contains the following sections:
 
 2.1 Probabilities $`2\nu`$: in vacuum
+
 2.2 Probabilities $`2\nu`$: in matter with constant density
+
 2.3 Probabilities $`2\nu`$: in matter with varying density
+
 2.4 Probabilities $`2\nu`$: in matter with castle-wall density potential
+
 2.5 Probabilities $`2\nu`$: in matter with noisy density potential
+
 2.6 Probabilities $`2\nu`$: in the Earth
+
 2.7 Probabilities $`2\nu`$: in the Sun
 
 3. Three-neutrino oscillation probabilties [`3_magnus_3nu_vacuum_matter.ipynb`]
