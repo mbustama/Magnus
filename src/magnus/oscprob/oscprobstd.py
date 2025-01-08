@@ -184,6 +184,6 @@ def osc_prob_3nu_vacuum_std(U: Union[list, np.ndarray], D21: float, D31: float, 
                     + J(U, alpha, beta, 2, 0).imag*s31
                     + J(U, alpha, beta, 2, 1).imag*s32 ) \
             for alpha in [0,1,2] for beta in [0,1,2]]
-    prob = np.array(prob).reshape((3,3))
 
-    return prob
+    # [[Pee, Pem, Pet], [Pme, Pmm, Pmt], [Pte, Ptm, Ptt]]
+    return np.array(prob).reshape((3,3))
