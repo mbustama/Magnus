@@ -66,7 +66,8 @@ def pmns_mixing_matrix(s12: float, s23: float, s13:float, dCP: float) -> np.ndar
     c23 = np.sqrt(1.0-s23*s23)
     c13 = np.sqrt(1.0-s13*s13)
     cdCP = np.cos(dCP)
-    sdCP = np.sqrt(1.0-cdCP*cdCP)
+    # sdCP = np.sqrt(1.0-cdCP*cdCP)
+    sdCP = np.sin(dCP)
     exp_dCP_p = complex(cdCP, sdCP)
     exp_dCP_m = np.conj(exp_dCP_p)
 
@@ -84,7 +85,8 @@ def pmns_mixing_matrix(s12: float, s23: float, s13:float, dCP: float) -> np.ndar
 
 
 def hamiltonian_3nu_vacuum_energy_independent(s12: float, s23: float, s13: float, dCP: float, 
-    D21: float, D31: float, compute_matrix_multiplication: Optional[bool]=False) -> np.ndarray:
+    D21: float, D31: float, nubar: Optional[bool]=False,
+    compute_matrix_multiplication: Optional[bool]=False) -> np.ndarray:
     r"""Returns the three-neutrino Hamiltonian for vacuum oscillations.
 
     Computes and returns the 3x3 complex three-neutrino Hamiltonian for oscillations in vacuum, 
@@ -123,8 +125,10 @@ def hamiltonian_3nu_vacuum_energy_independent(s12: float, s23: float, s13: float
         c23 = np.sqrt(1.0-s23*s23)
         c13 = np.sqrt(1.0-s13*s13)
         cdCP = np.cos(dCP)
-        sdCP = np.sqrt(1.0-cdCP*cdCP)
-        exp_dCP_p = complex(cdCP, sdCP)
+        # sdCP = np.sqrt(1.0-cdCP*cdCP)
+        sdCP = np.sin(dCP)
+        # exp_dCP_p = complex(cdCP, sdCP)
+        exp_dCP_p = complex(cdCP, sdCP) if nubar == False else complex(cdCP, -sdCP)
         exp_dCP_m = np.conj(exp_dCP_p)
 
         # All Hij have units of [eV^2]
@@ -147,11 +151,16 @@ def hamiltonian_3nu_vacuum_energy_independent(s12: float, s23: float, s13: float
     else:
 
         # PMNS matrix
-        R = pmns_mixing_matrix(s12, s23, s13, dCP)
+        # if nubar == False:
+        #     R = pmns_mixing_matrix(s12, s23, s13, dCP) 
+        # else:
+        #     R = np.conj(pmns_mixing_matrix(s12, s23, s13, dCP))
+        R = pmns_mixing_matrix(s12, s23, s13, dCP) if nubar == False \
+                else np.conj(pmns_mixing_matrix(s12, s23, s13, dCP))
         # Mass matrix
         M2 = np.diag([0.0, D21, D31])
         # Hamiltonian
-        return 0.5 * R @ M2 @ R.T 
+        return 0.5 * R @ M2 @ np.conj(R.T)
 
 
 def hamiltonian_3nu_vacuum_energy_independent_td(l: float, s12: float, s23: float, s13: float, 
@@ -165,11 +174,12 @@ def hamiltonian_3nu_vacuum_energy_independent_td(l: float, s12: float, s23: floa
 
 
 def hamiltonian_3nu_vacuum(energy: float, s12: float, s23: float, s13: float, dCP: float, 
-    D21: float, D31: float, compute_matrix_multiplication: Optional[bool]=False) -> np.ndarray:
+    D21: float, D31: float, nubar: Optional[bool]=False, 
+    compute_matrix_multiplication: Optional[bool]=False) -> np.ndarray:
     r"""Returns the three-neutrino Hamiltonian for vacuum oscillations.
     """
     return (1/energy)*hamiltonian_3nu_vacuum_energy_independent(s12, s23, s13, dCP, D21, D31, 
-        compute_matrix_multiplication=compute_matrix_multiplication)
+        nubar=nubar, compute_matrix_multiplication=compute_matrix_multiplication)
 
 
 def hamiltonian_3nu_vacuum_td(l: float, energy: float, s12: float, s23: float, s13: float, dCP: float, 
