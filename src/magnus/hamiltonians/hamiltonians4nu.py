@@ -32,62 +32,80 @@ __email__ = "mbustamante@gmail.com"
 import numpy as np
 from typing import Optional, Callable, Union
 
-# import cmath
-# import cmath as cmath
-# import copy as cp
 
-# import oscprob3nu
-# from globaldefs import *
+def mixing_matrix_4x4(s12: float, s23: float, s13:float, d13: float, s14: float, d14: float,
+    s24: float, d24: float, s34: float, 
+    compute_matrix_multiplication: Optional[bool]=False) -> np.ndarray:
+    # arXiv:1105.3911
 
-
-def pmns_mixing_matrix(s12: float, s23: float, s13:float, dCP: float) -> np.ndarray:
-    r"""Returns the 3x3 PMNS mixing matrix.
-
-    Computes and returns the 3x3 complex PMNS mixing matrix parametrized by three rotation angles, 
-    theta_12, theta_23, theta_13, and one CP-violation phase, delta_CP.
-
-    Parameters
-    ----------
-    s12 : float
-        Sin(theta_12).
-    s23 : float
-        Sin(theta_23).
-    s13 : float
-        Sin(theta_13).
-    dCP : float
-        delta_CP [radian].
-
-    Returns
-    -------
-    list
-        3x3 PMNS mixing matrix.
-    """
     c12 = np.sqrt(1.0-s12*s12)
     c23 = np.sqrt(1.0-s23*s23)
     c13 = np.sqrt(1.0-s13*s13)
-    cdCP = np.cos(dCP)
-    # sdCP = np.sqrt(1.0-cdCP*cdCP)
-    sdCP = np.sin(dCP)
-    exp_dCP_p = complex(cdCP, sdCP)
-    exp_dCP_m = np.conj(exp_dCP_p)
+    c14 = np.sqrt(1.0-s14*s14)
+    c24 = np.sqrt(1.0-s24*s24)
+    c34 = np.sqrt(1.0-s34*s34)
+    cd13 = np.cos(d13)
+    sd13 = np.sin(d13)
+    exp_d13_p = complex(cd13, sd13)
+    exp_d13_m = np.conj(exp_d13_p)
+    cd14 = np.cos(d14)
+    sd14 = np.sin(d14)
+    exp_d14_p = complex(cd14, sd14)
+    exp_d14_m = np.conj(exp_d14_p)
+    cd24 = np.cos(d24)
+    sd24 = np.sin(d24)
+    exp_d24_p = complex(cd24, sd24)
+    exp_d24_m = np.conj(exp_d24_p)
 
-    U00 = c12*c13
-    U01 = s12*c13
-    U02 = s13*exp_dCP_m
-    U10 = -s12*c23 - c12*s23*s13*exp_dCP_p
-    U11 = c12*c23 - s12*s23*s13*exp_dCP_p
-    U12 = s23*c13
-    U20 = s12*s23 - c12*c23*s13*exp_dCP_p
-    U21 = -c12*s23 - s12*c23*s13*exp_dCP_p
-    U22 = c23*c13
+    if not compute_matrix_multiplication:
 
-    return np.array([[U00,U01,U02],[U10,U11,U12],[U20,U21,U22]])
+        U00 = c12*c13*c14
+        U01 = c13*c14*s12
+        U02 = c14*s13*exp_d13_m
+        U03 = s14*exp_d14_m
+
+        f1 = -c24*s13*s23*exp_d13_p-c13*s14*s24*exp_d14_p*exp_d24_m
+        U10 = -c23*c24*s12 + c12*f1
+        U11 = c12*c23*c24 + s12*f1
+        U12 = c13*c24*s23 - s13*s14*s24*exp_d13_m*exp_d14_p*exp_d24_m
+        U13 = c14*s24*exp_d24_m
+
+        f2 = -c34*s23 - c23*s24*s34*exp_d24_p
+        f3 = -c13*c24*s14*s34*exp_d14_p - s13*exp_d13_p*(c23*c34-s23*s24*s34*exp_d24_p)
+        U20 = -s13*f2 + c12*f3
+        U21 = c12*f2 + s12*f3
+        U22 = -c24*s13*s14*s34*exp_d13_m*exp_d14_p + c13*(c23*c34-s23*s24*s34*exp_d24_p)
+        U23 = c14*c24*s34
+
+        f4 = -c23*c34*s24*exp_d24_p + s23*s34
+        f5 = -c13*c24*c34*s14*exp_d14_p - s13*exp_d13_p*(-c34*s23*s24*exp_d24_p - c23*s34)
+        U30 = -s12*f4 + s12*f5
+        U31 = c12*f4 + s12*f5
+        U32 = -c24*c34*s13*s14*exp_d13_m*exp_d14_p + c13*(-c34*s23*s24*exp_d24_p - c23*s34)
+        U33 = c14*c24*c34
+
+        return np.array([[U00,U01,U02,U03],[U10,U11,U12,U13],[U20,U21,U22,U23],[U30,U31,U32,U33]])
+
+    else:
+
+        # U = R34.~R24.~R14.R23.~R13.R12
+        R12 = np.array([[c12, s12, 0, 0], [-s12, c12, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]])
+        R13 = np.array([[c13, 0, s13*exp_d13_m, 0], [0, 1, 0, 0], [-s13*exp_d13_p, 0, c13, 0], 
+            [0, 0, 0, 1]])
+        R23 = np.array([[1, 0, 0, 0], [0, c23, s23, 0], [0, -s23, c23, 0], [0, 0, 0, 1]])
+        R14 = np.array([[c14, 0, 0, s14*exp_d14_m], [0, 1, 0, 0], [0, 0, 1, 0], 
+            [-s14*exp_d14_p, 0, 0, c14]])
+        R24 = np.array([[1, 0, 0, 0], [0, c24, 0, s24*exp_d24_m], [0, 0, 1, 0], 
+            [0, -s24*exp_d24_p, 0, c24]])
+        R34 = np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, c34, s34], [0, 0, -s34, c34]])
+
+        return np.linalg.multi_dot([R34, R24, R14, R23, R13, R12])
 
 
-def hamiltonian_3nu_vacuum_energy_independent(s12: float, s23: float, s13: float, dCP: float, 
-    D21: float, D31: float, nubar: Optional[bool]=False,
-    compute_matrix_multiplication: Optional[bool]=False) -> np.ndarray:
-    r"""Returns the three-neutrino Hamiltonian for vacuum oscillations.
+def hamiltonian_4nu_vacuum_energy_independent(s12: float, s23: float, s13:float, d13: float, 
+    s14: float, d14: float, s24: float, d24: float, s34: float, D21: float, D31: float, D41: float,
+    nubar: Optional[bool]=False, compute_matrix_multiplication: Optional[bool]=False) -> np.ndarray:
+    r"""Returns the four-neutrino (3+1) Hamiltonian for vacuum oscillations.
 
     Computes and returns the 3x3 complex three-neutrino Hamiltonian for oscillations in vacuum, 
     parametrized by three mixing angles (theta_12, theta_23, theta_13), one CP-violation phase 
@@ -116,82 +134,77 @@ def hamiltonian_3nu_vacuum_energy_independent(s12: float, s23: float, s13: float
     list
         Hamiltonian 3x3 matrix.
     """    
-
-    # f = 0.5
-
     if not compute_matrix_multiplication:
 
         c12 = np.sqrt(1.0-s12*s12)
         c23 = np.sqrt(1.0-s23*s23)
         c13 = np.sqrt(1.0-s13*s13)
-        cdCP = np.cos(dCP)
-        # sdCP = np.sqrt(1.0-cdCP*cdCP)
-        sdCP = np.sin(dCP)
-        # exp_dCP_p = complex(cdCP, sdCP)
-        exp_dCP_p = complex(cdCP, sdCP) if nubar == False else complex(cdCP, -sdCP)
-        exp_dCP_m = np.conj(exp_dCP_p)
+        c14 = np.sqrt(1.0-s14*s14)
+        c24 = np.sqrt(1.0-s24*s24)
+        c34 = np.sqrt(1.0-s34*s34)
+        cd13 = np.cos(d13)
+        sd13 = np.sin(d13)
+        exp_d13_p = complex(cd13, sd13) if nubar == False else complex(cd13, -sd13)
+        exp_d13_m = np.conj(exp_d13_p)
+        cd14 = np.cos(d14)
+        sd14 = np.sin(d14)
+        exp_d14_p = complex(cd14, sd14) if nubar == False else complex(cd14, -sd14)
+        exp_d14_m = np.conj(exp_d14_p)
+        cd24 = np.cos(d24)
+        sd24 = np.sin(d24)
+        exp_d24_p = complex(cd24, sd24) if nubar == False else complex(cd24, -sd24)
+        exp_d24_m = np.conj(exp_d24_p)
 
         # All Hij have units of [eV^2]
-        H00 = c13*c13*D21*s12*s12 + D31*s13*s13
-        H01 = c12*c13*c23*D21*s12 + c13*(D31-D21*s12*s12)*s13*s23*exp_dCP_m
-        H02 = c13*c23*(D31-D21*s12*s12)*s13*exp_dCP_m - c12*c13*D21*s12*s23
-        H10 = c12*c13*c23*D21*s12 + c13*(D31-D21*s12*s12)*s13*s23*exp_dCP_p
-        H11 = c12*c12*c23*c23*D21 + (c13*c13*D31 + D21*s12*s12*s13*s13)*s23*s23 - \
-                2.0*c12*c23*D21*s12*s13*s23*cdCP
-        H12 = c13*c13*c23*D31*s23 + (c23*s12*s13*exp_dCP_m + c12*s23) * \
-                (-c12*c23*D21 + D21*s12*s13*s23*exp_dCP_p)
-        H20 = c13*c23*(D31-D21*s12*s12)*s13*exp_dCP_p - c12*c13*D21*s12*s23
-        H21 = c13*c13*c23*D31*s23 - D21*(c23*s12*s13*exp_dCP_p + c12*s23) * \
-                (c12*c23 - s12*s13*s23*exp_dCP_m)
-        H22 = c23*c23*(c13*c13*D31 + D21*s12*s12*s13*s13) + c12*c12*D21*s23*s23 + \
-                2.0*c12*c23*D21*s12*s13*s23*cdCP
+        # H00 = ...
 
-        return 0.5*np.array([[H00,H01,H02], [H10,H11,H12], [H20,H21,H22]])
+        return 0.5*np.array([[H00,H01,H02,H03], [H10,H11,H12,H13], [H20,H21,H22,H23]])
 
     else:
 
-        # PMNS matrix
-        # if nubar == False:
-        #     R = pmns_mixing_matrix(s12, s23, s13, dCP) 
-        # else:
-        #     R = np.conj(pmns_mixing_matrix(s12, s23, s13, dCP))
-        R = pmns_mixing_matrix(s12, s23, s13, dCP) if nubar == False \
-                else np.conj(pmns_mixing_matrix(s12, s23, s13, dCP))
+        # 4x4 mixing matrix
+        R = mixing_matrix_4x4(s12, s23, s13, d13, s14, d14, s24, d24, s34, 
+            compute_matrix_multiplication=compute_matrix_multiplication) if nubar == False else \
+                np.conj(mixing_matrix_4x4(s12, s23, s13, d13, s14, d14, s24, d24, s34, 
+                    compute_matrix_multiplication=compute_matrix_multiplication))
         # Mass matrix
-        M2 = np.diag([0.0, D21, D31])
-        # Hamiltonian
+        M2 = np.diag([0.0, D21, D31, D41])
+        
         return 0.5 * R @ M2 @ np.conj(R.T)
 
 
-def hamiltonian_3nu_vacuum_energy_independent_td(l: float, s12: float, s23: float, s13: float, 
-    dCP: float, D21: float, D31: float, 
+def hamiltonian_4nu_vacuum_energy_independent_td(l: float, s12: float, s23: float, s13:float, 
+    d13: float, s14: float, d14: float, s24: float, d24: float, s34: float, D21: float, D31: float, 
+    D41: float, nubar: Optional[bool]=False, 
     compute_matrix_multiplication: Optional[bool]=False) -> np.ndarray:
     r"""Returns the three-neutrino Hamiltonian for vacuum oscillations, as a function of distance,
     even if it does not depend on it.
     """
-    return hamiltonian_3nu_vacuum_energy_independent(s12, s23, s13, dCP, D21, D31, 
-        compute_matrix_multiplication=compute_matrix_multiplication)
+    return hamiltonian_4nu_vacuum_energy_independent(s12, s23, s13, d13, s14, d14, s24, d24, s34, 
+        D21, D31, D41, nubar=nubar, compute_matrix_multiplication=compute_matrix_multiplication)
 
 
-def hamiltonian_3nu_vacuum(energy: float, s12: float, s23: float, s13: float, dCP: float, 
-    D21: float, D31: float, nubar: Optional[bool]=False, 
-    compute_matrix_multiplication: Optional[bool]=False) -> np.ndarray:
+def hamiltonian_4nu_vacuum(energy: float, s12: float, s23: float, s13:float, d13: float, 
+    s14: float, d14: float, s24: float, d24: float, s34: float, D21: float, D31: float, D41: float,
+    nubar: Optional[bool]=False, compute_matrix_multiplication: Optional[bool]=False) -> np.ndarray:
     r"""Returns the three-neutrino Hamiltonian for vacuum oscillations.
     """
-    return (1/energy)*hamiltonian_3nu_vacuum_energy_independent(s12, s23, s13, dCP, D21, D31, 
-        nubar=nubar, compute_matrix_multiplication=compute_matrix_multiplication)
-
-
-def hamiltonian_3nu_vacuum_td(l: float, energy: float, s12: float, s23: float, s13: float, dCP: float, 
-    D21: float, D31: float, compute_matrix_multiplication: Optional[bool]=False) -> np.ndarray:
-    r"""Returns the three-neutrino Hamiltonian for vacuum oscillations, as a function of distance,
-    even if it does not depend on it.
-    """
-    return hamiltonian_3nu_vacuum(energy, s12, s23, s13, dCP, D21, D31, 
+    return (1/energy)*hamiltonian_3nu_vacuum_energy_independent(s12, s23, s13, d13, s14, d14, s24, 
+        d24, s34, D21, D31, D41, nubar=nubar, 
         compute_matrix_multiplication=compute_matrix_multiplication)
 
 
-def hamiltonian_3nu_matter(VCC: float) -> np.ndarray:
+def hamiltonian_4nu_vacuum_td(l: float, energy: float, s12: float, s23: float, s13:float, d13: float, 
+    s14: float, d14: float, s24: float, d24: float, s34: float, D21: float, D31: float, D41: float,
+    nubar: Optional[bool]=False, compute_matrix_multiplication: Optional[bool]=False) -> np.ndarray:
+    r"""Returns the three-neutrino Hamiltonian for vacuum oscillations, as a function of distance,
+    even if it does not depend on it.
+    """
+    return hamiltonian_4nu_vacuum(energy, s12, s23, s13, d13, s14, d14, s24, d24, s34, D21, D31, 
+        D41, nubar=nubar, compute_matrix_multiplication=compute_matrix_multiplication)
+
+
+def hamiltonian_4nu_matter(VCC: float) -> np.ndarray:
     r"""Returns the three-neutrino Hamiltonian for matter oscillations.
 
     Computes and returns the 3x3 real three-neutrino Hamiltonian for
@@ -214,14 +227,14 @@ def hamiltonian_3nu_matter(VCC: float) -> np.ndarray:
     list
         Hamiltonian 3x3 matrix.
     """
-    return np.diag([VCC, 0.0, 0.0]) 
+    return np.diag([VCC, 0.0, 0.0, 0.0]) 
 
 
-def hamiltonian_3nu_matter_td(l: float, VCC_func: Callable) -> np.ndarray:
-    return hamiltonian_3nu_matter(VCC_func(l))
+def hamiltonian_4nu_matter_td(l: float, VCC_func: Callable) -> np.ndarray:
+    return hamiltonian_4nu_matter(VCC_func(l))
 
 
-def hamiltonian_3nu_nsi(VCC: float, eps: Union[list, np.ndarray]) -> np.ndarray:
+def hamiltonian_4nu_nsi(VCC: float, eps: Union[list, np.ndarray]) -> np.ndarray:
     r"""Returns the three-neutrino Hamiltonian for oscillations w/ NSI.
 
     Computes and returns the 3x3 complex three-neutrino Hamiltonian for oscillations with 
@@ -244,22 +257,24 @@ def hamiltonian_3nu_nsi(VCC: float, eps: Union[list, np.ndarray]) -> np.ndarray:
     list
         Hamiltonian 3x3 matrix.
     """
-    eps_ee, eps_em, eps_et, eps_mm, eps_mt, eps_tt = eps
+    eps_ee, eps_em, eps_et, eps_es, eps_mm, eps_mt, eps_ms, eps_tt, eps_ts, eps_ss = eps
     return VCC * np.array([
-        [1.0+eps_ee, eps_em, eps_et], 
-        [np.conj(eps_em), eps_mm, eps_mt],
-        [np.conj(eps_et), np.conj(eps_mt), eps_tt],
+        [1.0+eps_ee, eps_em, eps_et, eps_es], 
+        [np.conj(eps_em), eps_mm, eps_mt, eps_ms],
+        [np.conj(eps_et), np.conj(eps_mt), eps_tt, eps_ts],
+        [np.conj(eps_es), np.conj(eps_ms), np.conj(eps_ts), np.con(eps_ss)]
         ], dtype=np.complex128)
 
 
-def hamiltonian_3nu_nsi_td(l: float, VCC_func: Callable, 
+def hamiltonian_4nu_nsi_td(l: float, VCC_func: Callable, 
     eps: Union[list, np.ndarray]) -> np.ndarray:
 
-    return hamiltonian_3nu_nsi(VCC_func(l), eps)
+    return hamiltonian_4nu_nsi(VCC_func(l), eps)
 
 
-def hamiltonian_3nu_liv(sxi12: float, sxi23: float, sxi13: float, dxiCP: float, b1: float, 
-    b2: float, b3: float, Lambda: float) -> np.ndarray:
+def hamiltonian_4nu_liv(sxi12: float, sxi23: float, sxi13: float, dxi13: float, sxi14: float, 
+    dxi14: float, sxi24: float, dxi24: float, sxi34: float, b1: float, b2: float, b3: float, 
+    b4: float, Lambda: float) -> np.ndarray:
     r"""Returns the three-neutrino Hamiltonian for oscillations w/ LIV.
 
     Computes and returns the 3x3 complex three-neutrino Hamiltonian for oscillations in a CPT-odd 
@@ -297,5 +312,11 @@ def hamiltonian_3nu_liv(sxi12: float, sxi23: float, sxi13: float, dxiCP: float, 
     list
         Hamiltonian 3x3 matrix.
     """
-    R = pmns_mixing_matrix(sxi12, sxi23, sxi13, dxiCP)
-    return (energy/Lambda) * R @ np.diag([b1, b2, b3]) @ np.conj(R.T)
+    # 4x4 mixing matrix
+    R = mixing_matrix_4x4(s12, s23, s13, d13, s14, d14, s24, d24, s34, 
+        compute_matrix_multiplication=compute_matrix_multiplication) if nubar == False else \
+            np.conj(mixing_matrix_4x4(s12, s23, s13, d13, s14, d14, s24, d24, s34, 
+                compute_matrix_multiplication=compute_matrix_multiplication))
+
+    return (energy/Lambda) * R @ np.diag([b1, b2, b3, b4]) @ np.conj(R.T)
+
