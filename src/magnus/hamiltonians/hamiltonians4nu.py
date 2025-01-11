@@ -84,11 +84,6 @@ def pmns_mixing_matrix(s12: float, s23: float, s13:float, dCP: float) -> np.ndar
     return np.array([[U00,U01,U02],[U10,U11,U12],[U20,U21,U22]])
 
 
-def mixing_matrix_3x3(s12: float, s23: float, s13:float, dCP: float) -> np.ndarray:
-
-    return pmns_mixing_matrix(s12, s23, s13, dCP)
-
-
 def hamiltonian_3nu_vacuum_energy_independent(s12: float, s23: float, s13: float, dCP: float, 
     D21: float, D31: float, nubar: Optional[bool]=False,
     compute_matrix_multiplication: Optional[bool]=False) -> np.ndarray:
