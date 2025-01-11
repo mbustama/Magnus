@@ -134,43 +134,16 @@ def hamiltonian_4nu_vacuum_energy_independent(s12: float, s23: float, s13:float,
     list
         Hamiltonian 3x3 matrix.
     """    
-    if not compute_matrix_multiplication:
-
-        c12 = np.sqrt(1.0-s12*s12)
-        c23 = np.sqrt(1.0-s23*s23)
-        c13 = np.sqrt(1.0-s13*s13)
-        c14 = np.sqrt(1.0-s14*s14)
-        c24 = np.sqrt(1.0-s24*s24)
-        c34 = np.sqrt(1.0-s34*s34)
-        cd13 = np.cos(d13)
-        sd13 = np.sin(d13)
-        exp_d13_p = complex(cd13, sd13) if nubar == False else complex(cd13, -sd13)
-        exp_d13_m = np.conj(exp_d13_p)
-        cd14 = np.cos(d14)
-        sd14 = np.sin(d14)
-        exp_d14_p = complex(cd14, sd14) if nubar == False else complex(cd14, -sd14)
-        exp_d14_m = np.conj(exp_d14_p)
-        cd24 = np.cos(d24)
-        sd24 = np.sin(d24)
-        exp_d24_p = complex(cd24, sd24) if nubar == False else complex(cd24, -sd24)
-        exp_d24_m = np.conj(exp_d24_p)
-
-        # All Hij have units of [eV^2]
-        # H00 = ...
-
-        return 0.5*np.array([[H00,H01,H02,H03], [H10,H11,H12,H13], [H20,H21,H22,H23]])
-
-    else:
-
-        # 4x4 mixing matrix
-        R = mixing_matrix_4x4(s12, s23, s13, d13, s14, d14, s24, d24, s34, 
-            compute_matrix_multiplication=compute_matrix_multiplication) if nubar == False else \
-                np.conj(mixing_matrix_4x4(s12, s23, s13, d13, s14, d14, s24, d24, s34, 
-                    compute_matrix_multiplication=compute_matrix_multiplication))
-        # Mass matrix
-        M2 = np.diag([0.0, D21, D31, D41])
-        
-        return 0.5 * R @ M2 @ np.conj(R.T)
+    # 4x4 mixing matrix
+    R = mixing_matrix_4x4(s12, s23, s13, d13, s14, d14, s24, d24, s34, 
+        compute_matrix_multiplication=compute_matrix_multiplication) if nubar == False else \
+            np.conj(mixing_matrix_4x4(s12, s23, s13, d13, s14, d14, s24, d24, s34, 
+                compute_matrix_multiplication=compute_matrix_multiplication))
+    # Mass matrix
+    M2 = np.diag([0.0, D21, D31, D41])
+    
+    return 0.5 * np.linalg.multi_dot([R, M2, np.conj(R.T)])
+    # return 0.5 * R @ M2 @ np.conj(R.T)
 
 
 def hamiltonian_4nu_vacuum_energy_independent_td(l: float, s12: float, s23: float, s13:float, 
@@ -189,7 +162,7 @@ def hamiltonian_4nu_vacuum(energy: float, s12: float, s23: float, s13:float, d13
     nubar: Optional[bool]=False, compute_matrix_multiplication: Optional[bool]=False) -> np.ndarray:
     r"""Returns the three-neutrino Hamiltonian for vacuum oscillations.
     """
-    return (1/energy)*hamiltonian_3nu_vacuum_energy_independent(s12, s23, s13, d13, s14, d14, s24, 
+    return (1/energy)*hamiltonian_4nu_vacuum_energy_independent(s12, s23, s13, d13, s14, d14, s24, 
         d24, s34, D21, D31, D41, nubar=nubar, 
         compute_matrix_multiplication=compute_matrix_multiplication)
 
