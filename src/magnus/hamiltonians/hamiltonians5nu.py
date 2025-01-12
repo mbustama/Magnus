@@ -152,7 +152,7 @@ def mixing_matrix_5x5(s12: float, s23: float, s13:float, d13: float, s14: float,
             [c15, 0, 0, 0, s15*exp_d15_m], 
             [0, 1, 0, 0, 0], 
             [0, 0, 1, 0, 0], 
-            [0, 0, 0, 1, 0]
+            [0, 0, 0, 1, 0],
             [-s15*exp_d15_p, 0, 0, 0, c15]])
         R23 = np.array([
             [1, 0, 0, 0, 0], 
