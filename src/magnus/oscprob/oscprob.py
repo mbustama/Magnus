@@ -108,10 +108,10 @@ def osc_prob(H_func: Callable, t_ini: float, t_fin: float, n_slabs: Optional[int
     # else:
     #     Utot = U_chain[0]
 
-    # Using Utot, compute all the survival and transition probabilities; save them in the matrix P
-    P = (np.abs(Utot)**2).T
+    # Using Utot, compute all the survival and transition probabilities in a probability matrix, and
+    # return that matrix.
 
-    return P
+    return (np.abs(Utot)**2).T
 
 
 if __name__ == "__main__":
