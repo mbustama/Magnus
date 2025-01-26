@@ -2,6 +2,7 @@ import numpy as np
 import sys
 from joblib import Parallel, delayed
 from typing import Optional, Callable, Union
+from io import TextIOWrapper
 
 # TO-DO: remove this once setup.py and pip are working
 import os
@@ -21,42 +22,46 @@ def print_run_parameters(H_func: Callable, t_ini: float, t_fin: float, n_slabs: 
     growth_factor_n_tpts_per_slab: Optional[float]=1.5, 
     max_num_loops: Optional[int]=50, max_n_slabs: Optional[float]=2000, 
     max_n_tpts_per_slab: Optional[int]=500,
-    validate_input: Optional[bool]=True,
-    verbose: Optional[int]=0):
+    validate_input: Optional[bool]=True, save_log: Optional[bool]=False, 
+    filename_log: Optional[str]='./out.log', verbose: Optional[int]=0, 
+    file_log: Optional[TextIOWrapper]=None):
 
-    print(".----------------------------------------.")
-    print("|   __  __                               |")
-    print("|  |  \/  | __ _  __ _ _ __  _   _ ___   |")
-    print("|  | |\/| |/ _` |/ _` | '_ \| | | / __|  |")
-    print("|  | |  | | (_| | (_| | | | | |_| \__ \  |")
-    print("|  |_|  |_|\__,_|\__, |_| |_|\__,_|___/  |")
-    print("|                |___/                   |")
-    print("'----------------------------------------'")
-    print("Version: "+ version.__version__+"\n")
-    print("Parameters passed to function magnus.osc_prob in this run:")
-    print("   H_func = " + H_func.__name__)
-    print("   t_ini = " + str(t_ini))
-    print("   t_fin = " + str(t_fin))
-    print("   n_slabs = " + str(n_slabs))
-    print("   n_tpts_per_slab = " + str(n_slabs))
-    if t_slab_edges is None:
-        print("   n_tpts_per_slab = None")
-    else:
-        print("   n_tpts_per_slab = ")
-        for i, t_slab in enumerate(t_slab_edges):
-            print("      i" + ": " + str(t_slab))
-    print("   magnus_exp_order = " + str(magnus_exp_order))
-    print("   n_jobs = " + str(n_jobs))
-    print("   integration_method = " + integration_method)
-    print("   rtol = " + str(rtol))
-    print("   atol = " + str(atol))
-    print("   growth_factor_n_slabs = " + str(growth_factor_n_slabs))
-    print("   growth_factor_n_tpts_per_slab = " + str(growth_factor_n_tpts_per_slab))
-    print("   max_num_loops = " + str(max_num_loops))
-    print("   max_n_slabs = " + str(max_n_slabs))
-    print("   max_n_tpts_per_slab = " + str(max_n_tpts_per_slab))
-    print("   validate_input = " + str(validate_input))
-    print("   verbose = " + str(verbose))
+    for f in [None, file_log] if save_log else [None]:
+        print(".----------------------------------------.", file=f)
+        print("|   __  __                               |", file=f)
+        print("|  |  \/  | __ _  __ _ _ __  _   _ ___   |", file=f)
+        print("|  | |\/| |/ _` |/ _` | '_ \| | | / __|  |", file=f)
+        print("|  | |  | | (_| | (_| | | | | |_| \__ \  |", file=f)
+        print("|  |_|  |_|\__,_|\__, |_| |_|\__,_|___/  |", file=f)
+        print("|                |___/                   |", file=f)
+        print("'----------------------------------------'", file=f)
+        print("Version: "+ version.__version__+"\n", file=f)
+        print("Parameters passed to function magnus.osc_prob in this run:", file=f)
+        print("   H_func = " + H_func.__name__, file=f)
+        print("   t_ini = " + str(t_ini), file=f)
+        print("   t_fin = " + str(t_fin), file=f)
+        print("   n_slabs = " + str(n_slabs), file=f)
+        print("   n_tpts_per_slab = " + str(n_slabs), file=f)
+        if t_slab_edges is None:
+            print("   n_tpts_per_slab = None", file=f)
+        else:
+            print("   n_tpts_per_slab = ", file=f)
+            for i, t_slab in enumerate(t_slab_edges):
+                print("      i" + ": " + str(t_slab), file=f)
+        print("   magnus_exp_order = " + str(magnus_exp_order), file=f)
+        print("   n_jobs = " + str(n_jobs), file=f)
+        print("   integration_method = " + integration_method, file=f)
+        print("   rtol = " + str(rtol), file=f)
+        print("   atol = " + str(atol), file=f)
+        print("   growth_factor_n_slabs = " + str(growth_factor_n_slabs), file=f)
+        print("   growth_factor_n_tpts_per_slab = " + str(growth_factor_n_tpts_per_slab), file=f)
+        print("   max_num_loops = " + str(max_num_loops), file=f)
+        print("   max_n_slabs = " + str(max_n_slabs), file=f)
+        print("   max_n_tpts_per_slab = " + str(max_n_tpts_per_slab), file=f)
+        print("   validate_input = " + str(validate_input), file=f)
+        print("   save_log = " + str(save_log), file=f)
+        print("   filename_log = " + filename_log, file=f)
+        print("   verbose = " + str(verbose), file=f)
 
     return
 
@@ -87,6 +92,7 @@ def osc_prob(H_func: Callable, t_ini: float, t_fin: float, n_slabs: Optional[int
     growth_factor_n_tpts_per_slab: Optional[float]=1.5, 
     max_num_loops: Optional[int]=50, max_n_slabs: Optional[float]=2000, 
     max_n_tpts_per_slab: Optional[int]=500, validate_input: Optional[bool]=True,
+    save_log: Optional[bool]=False, filename_log: Optional[str]='./out.log',
     verbose: Optional[int]=0, **kwargs) -> np.ndarray:
 
     # Validate input; set validate_input to False for speed-up.
@@ -185,12 +191,15 @@ def osc_prob(H_func: Callable, t_ini: float, t_fin: float, n_slabs: Optional[int
             print("Aborting execution...")
             sys.exit(1)
 
+    # Open a log file if requested
+    file_log = open(filename_log, 'w') if save_log else None
+
     # Print a list of all the parameters passed to the osc_prob function and their values
     if (verbose > 1):
         print_run_parameters(H_func, t_ini, t_fin, n_slabs, n_tpts_per_slab, t_slab_edges,
             magnus_exp_order, n_jobs, integration_method, rtol, atol, growth_factor_n_slabs,
             growth_factor_n_tpts_per_slab, max_num_loops, max_n_slabs, max_n_tpts_per_slab,
-            validate_input, verbose)
+            validate_input, save_log, filename_log, verbose, file_log)
 
     loop_count = 1 # Loop counter
     # Copy this to remember whether the function was originally called with predefine slab edges, 
@@ -211,34 +220,42 @@ def osc_prob(H_func: Callable, t_ini: float, t_fin: float, n_slabs: Optional[int
             # Reached maximum allowed number of loops: exit loop, return the probability matrix
             if (loop_count > max_num_loops):
                 if (verbose > 0):
-                    print("   Warning: Number of loops (loop_count = " + str(loop_count-1) + ")" +\
-                        " reached maximum allowed (max_num_loops = " + str(max_num_loops) + "). " +\
-                        "Requested tolerance not achieved. Try increasing max_num_loops.\n")
+                    for f in [None, file_log] if save_log else [None]:
+                        print("   Warning: Number of loops (loop_count = " + str(loop_count-1) + \
+                            ") reached maximum allowed (max_num_loops = " + str(max_num_loops) + \
+                            "). Requested tolerance not achieved. Try increasing max_num_loops.\n",
+                            file=f)
+                if save_log: file_log.close()
                 return P
             # Reached maximum allowed number of slabs: continue execution
             if (n_slabs == max_n_slabs):
                 if ((verbose > 0) and not warned_reached_max_n_slabs):
-                    print("   Warning: Number of slabs (n_slabs)" + \
-                        " reached maximum allowed (max_n_slabs = " + str(max_n_slabs) + ").")
-                    warned_reached_max_n_slabs = True
+                    for f in [None, file_log] if save_log else [None]:
+                        print("   Warning: Number of slabs (n_slabs)" + \
+                            " reached maximum allowed (max_n_slabs = " + str(max_n_slabs) + ").",
+                            file=f)
+                        warned_reached_max_n_slabs = True
             # Reached maximum allowed number of time-points per slab: continue execution
             if (n_tpts_per_slab == max_n_tpts_per_slab):
                 if ((verbose > 0) and not warned_reached_max_n_tpts_per_slab):
-                    print("   Warning: Number of time-points per slab (n_tpts_per_slab)" + \
-                        " reached maximum allowed (max_n_tpts_per_slab = " + \
-                        str(max_n_tpts_per_slab) + ").")
-                    warned_reached_max_n_tpts_per_slab = True
+                    for f in [None, file_log] if save_log else [None]:
+                        print("   Warning: Number of time-points per slab (n_tpts_per_slab)" + \
+                            " reached maximum allowed (max_n_tpts_per_slab = " + \
+                            str(max_n_tpts_per_slab) + ").", file=f)
+                        warned_reached_max_n_tpts_per_slab = True
             # Reached maximum allowed number of slabs and maximum allowed number of time-points per
             # slab: exit loop, return the probability matrix
             if (ran_with_max_n_slabs and ran_with_max_n_tpts_per_slab):
                 if (verbose > 0):
-                    print("   Warning: Number of slabs (n_slabs) and time-points per slab" + \
-                        " (n_tpts_per_slab) reached maximum allowed (max_n_slabs = " + \
-                        str(max_n_slabs) + ", max_n_tpts_per_slab = " + str(max_n_tpts_per_slab) + \
-                        ").")
-                    print("   Warning: Returning probability, but requested tolerance (rtol = " + \
-                        str(rtol) + ", atol = " + str(atol) + ") not achieved." + \
-                        " Try increasing max_n_slabs or max_n_tpts_per_slab.\n")
+                    for f in [None, file_log] if save_log else [None]:
+                        print("   Warning: Number of slabs (n_slabs) and time-points per slab" + \
+                            " (n_tpts_per_slab) reached maximum allowed (max_n_slabs = " + \
+                            str(max_n_slabs) + ", max_n_tpts_per_slab = " + \
+                            str(max_n_tpts_per_slab) + ").", file=f)
+                        print("   Warning: Returning probability, but requested tolerance (rtol = " + \
+                            str(rtol) + ", atol = " + str(atol) + ") not achieved." + \
+                            " Try increasing max_n_slabs or max_n_tpts_per_slab.\n", file=f)
+                if save_log: file_log.close()
                 return P
 
         # The array (or list) t_slab_edges contains user-provided pairs of start and end times, 
@@ -279,19 +296,23 @@ def osc_prob(H_func: Callable, t_ini: float, t_fin: float, n_slabs: Optional[int
         # growth_factor_n_tpts_per_slab, and repeat the probability calculation until the desired
         # tolerance is achieved.
         if ((rtol is None) and (atol is None)): # No target tolerance requested: return right away
+            if save_log: file_log.close()
             return P
         else: # Target tolerance requested: iterate until tolerance is achieved
             if (verbose > 1):
-                if (loop_count == 1):
-                    print("\nRunning loops until requested rtol and atol are achieved:")
-                print("   Loop #" + str(loop_count) + ":")
-                print("      n_slabs = " + str(n_slabs))
-                print("      n_tpts_per_slab = " + str(n_tpts_per_slab))
+                for f in [None, file_log] if save_log else [None]:
+                    if (loop_count == 1):
+                        print("\nRunning loops until requested rtol and atol are achieved:", file=f)
+                    print("   Loop #" + str(loop_count) + ":", file=f)
+                    print("      n_slabs = " + str(n_slabs), file=f)
+                    print("      n_tpts_per_slab = " + str(n_tpts_per_slab), file=f)
             if loop_count > 1:
                 # Compare the new and old probability matrices element-wise
                 if np.allclose(P, P_old, rtol=rtol, atol=atol):
                     if (verbose > 0):
-                        print("   Requested tolerance achieved\n")
+                        for f in [None, file_log] if save_log else [None]:
+                            print("   Requested tolerance achieved\n", file=f)
+                    if save_log: file_log.close()
                     return P
                 else:
                     P_old = np.ndarray.copy(P)
@@ -326,5 +347,6 @@ if __name__ == "__main__":
     prob = osc_prob(H_3nu_func, t_ini, t_fin, n_slabs=10, n_tpts_per_slab=20, magnus_exp_order=4,
         integration_method='simpson', n_jobs=10, rtol=1e-5, atol=1.e-5, 
         growth_factor_n_slabs=1.5, growth_factor_n_tpts_per_slab=1.5, 
-        max_num_loops=50, max_n_slabs=200, max_n_tpts_per_slab=150, verbose=2)
+        max_num_loops=50, max_n_slabs=200, max_n_tpts_per_slab=150, 
+        save_log=True, filename_log='./out.log', verbose=2)
     print(prob)
