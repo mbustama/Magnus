@@ -6,8 +6,10 @@ from typing import Optional, Callable, Union
 # TO-DO: remove this once setup.py and pip are working
 import os
 sys.path.append(os.path.split(os.path.split(os.getcwd())[0])[0])
+sys.path.append(os.path.split(os.getcwd())[0])
 
 import magnus.magnus as magnus
+import version as version
 
 
 def print_run_parameters(H_func: Callable, t_ini: float, t_fin: float, n_slabs: Optional[int]=1, 
@@ -30,7 +32,7 @@ def print_run_parameters(H_func: Callable, t_ini: float, t_fin: float, n_slabs: 
     print("|  |_|  |_|\__,_|\__, |_| |_|\__,_|___/  |")
     print("|                |___/                   |")
     print("'----------------------------------------'")
-    print()
+    print("Version: "+ version.__version__+"\n")
     print("Parameters passed to function magnus.osc_prob in this run:")
     print("   H_func = " + H_func.__name__)
     print("   t_ini = " + str(t_ini))
@@ -315,12 +317,12 @@ if __name__ == "__main__":
             dtype=np.complex128)
 
     t_ini, t_fin = 0.0, 1.0
-    prob = osc_prob(H_2nu_func, t_ini, t_fin, n_slabs=100, n_tpts_per_slab=100, magnus_exp_order=6,
-        integration_method='simpson', n_jobs=1)
-    print(prob)
-    prob = osc_prob(H_3nu_func, t_ini, t_fin, n_slabs=100, n_tpts_per_slab=100, magnus_exp_order=6,
-        integration_method='simpson', n_jobs=1)
-    print(prob)
+    # prob = osc_prob(H_2nu_func, t_ini, t_fin, n_slabs=100, n_tpts_per_slab=100, magnus_exp_order=6,
+    #     integration_method='simpson', n_jobs=1)
+    # print(prob)
+    # prob = osc_prob(H_3nu_func, t_ini, t_fin, n_slabs=100, n_tpts_per_slab=100, magnus_exp_order=6,
+    #     integration_method='simpson', n_jobs=1)
+    # print(prob)
     prob = osc_prob(H_3nu_func, t_ini, t_fin, n_slabs=10, n_tpts_per_slab=20, magnus_exp_order=4,
         integration_method='simpson', n_jobs=10, rtol=1e-5, atol=1.e-5, 
         growth_factor_n_slabs=1.5, growth_factor_n_tpts_per_slab=1.5, 
