@@ -3,6 +3,7 @@ import sys
 from joblib import Parallel, delayed
 from typing import Optional, Callable, Union
 from io import TextIOWrapper
+from inspect import signature
 
 # TO-DO: remove this once setup.py and pip are working
 import os
@@ -13,10 +14,10 @@ import magnus.magnus as magnus
 import version as version
 
 
-def print_run_parameters(H_func: Callable, t_ini: float, t_fin: float, n_slabs: Optional[int]=1, 
-    n_tpts_per_slab: Optional[int]=100, t_slab_edges: Optional[Union[list, np.ndarray]]=None,
-    magnus_exp_order: Optional[int]=4, n_jobs: Optional[int]=1, 
-    integration_method: Optional[str]='trapezoid', 
+def print_run_parameters(H_func: Union[Callable, np.ndarray], t_ini: float, t_fin: float, 
+    n_slabs: Optional[int]=1, n_tpts_per_slab: Optional[int]=100, 
+    t_slab_edges: Optional[Union[list, np.ndarray]]=None, magnus_exp_order: Optional[int]=4, 
+    n_jobs: Optional[int]=1, integration_method: Optional[str]='trapezoid', 
     rtol: Optional[float]=None, atol: Optional[float]=None, 
     growth_factor_n_slabs: Optional[float]=1.5, 
     growth_factor_n_tpts_per_slab: Optional[float]=1.5, 
@@ -37,7 +38,10 @@ def print_run_parameters(H_func: Callable, t_ini: float, t_fin: float, n_slabs: 
         print("'----------------------------------------'", file=f)
         print("Version: "+ version.__version__+"\n", file=f)
         print("Parameters passed to function magnus.osc_prob in this run:", file=f)
-        print("   H_func = " + H_func.__name__, file=f)
+        if callable(H_func):
+            print("   H_func = " + H_func.__name__, file=f)
+        else:
+            print("   H_func = constant (time-independent)", file=f)
         print("   t_ini = " + str(t_ini), file=f)
         print("   t_fin = " + str(t_fin), file=f)
         print("   n_slabs = " + str(n_slabs), file=f)
@@ -83,10 +87,10 @@ def compute_evolution_operator(H_func: Callable, t_slab: Union[list, np.ndarray]
         return np.eye(n, n)
 
 
-def osc_prob(H_func: Callable, t_ini: float, t_fin: float, n_slabs: Optional[int]=1, 
-    n_tpts_per_slab: Optional[int]=100, t_slab_edges: Optional[Union[list, np.ndarray]]=None,
-    magnus_exp_order: Optional[int]=4, n_jobs: Optional[int]=1, 
-    integration_method: Optional[str]='trapezoid', 
+def osc_prob(H_func: Union[Callable, np.ndarray], t_ini: float, t_fin: float, 
+    n_slabs: Optional[int]=1, n_tpts_per_slab: Optional[int]=100, 
+    t_slab_edges: Optional[Union[list, np.ndarray]]=None, magnus_exp_order: Optional[int]=4, 
+    n_jobs: Optional[int]=1, integration_method: Optional[str]='trapezoid', 
     rtol: Optional[float]=1.e-3, atol: Optional[float]=1.e-3, 
     growth_factor_n_slabs: Optional[float]=1.5, 
     growth_factor_n_tpts_per_slab: Optional[float]=1.5, 
@@ -173,19 +177,31 @@ def osc_prob(H_func: Callable, t_ini: float, t_fin: float, n_slabs: Optional[int
             print("Aborting execution...")
             sys.exit(1)
 
-        H_ini = H_func(t_ini)
+        try:
+            if ((callable(H_func)) and (len(signature(H_func).parameters) > 1)):
+                raise ValueError("Error in magnus: oscprob.osc_prob: the provided H_func is a " + \
+                    " function of more than one parameter")
+        except ValueError as error:
+            print(error)
+            print("Aborting execution...")
+            sys.exit(1)
+
+        H_test = H_func(t_ini) if callable(H_func) else H_func
 
         try:
-            if not isinstance(H_func(t_ini), np.ndarray):
-                raise ValueError("Error in magnus: oscprob.osc_prob: H_func must return a numpy array.")
+            if not isinstance(H_test, np.ndarray):
+                raise ValueError("Error in magnus: oscprob.osc_prob: H_func must be a numpy " + \
+                    "(if the Hamiltonian is time-independent) or must return a numpy array.")
         except ValueError as error:
             print(error)
             print("Aborting execution...")
             sys.exit(1)
 
         try:
-            if H_func(t_ini).shape[0] != H_func(t_ini).shape[1]:
-                raise ValueError("Error in magnus: oscprob.osc_prob: H_func must return a square matrix.")
+            if H_test.shape[0] != H_test.shape[1]:
+                raise ValueError("Error in magnus: oscprob.osc_prob: H_func must be a square " + \
+                    "matrix (if the Hamiltonian is time-independent) or must return a square " + \
+                    "matrix.")
         except ValueError as error:
             print(error)
             print("Aborting execution...")
@@ -211,6 +227,27 @@ def osc_prob(H_func: Callable, t_ini: float, t_fin: float, n_slabs: Optional[int
     # Flags to signal whether we have already printed the warning that we have reached 
     # n_slabs == max_n_slabs or n_tpts_per_slab = max_n_tpts_per_slab, so as not to print it again
     warned_reached_max_n_slabs, warned_reached_max_n_tpts_per_slab = False, False
+
+    # The provided Hamiltonian, H_func, can be either a single-parameter function (of the neutrino
+    # position) or, if time-independent, a constant numpy array (e.g., for oscillations in vacuum
+    # or in matter with constant density).  In the latter case, we use this constant Hamiltonian to
+    # build a dummy one-parameter function of position that we will need later to call the function
+    # compute_evolution_operator.  In this case, first-order Magnus expansion is enough, and so we
+    # can overwrite the parameters provided to n_slabs = 1, n_tpts_per_slab = 2, rtol = None, 
+    # atol = None for speed-up.
+    if not callable(H_func): 
+        H = np.copy(H_func)
+        def H_func(l: float) -> np.ndarray:
+            return H
+        magnus_exp_order = 1
+        n_slabs = 1
+        n_tpts_per_slab = 2
+        rtol = None
+        atol = None
+        if verbose > 0:
+            print("\nWarning: The provided Hamiltonian is time-independent. Overwriting the " + \
+                "run parameters to magnus_exp_order = 1, n_slabs = 1, n_tpts_per_slab = 2," + \
+                " rtol = None, and atol = None for speed-up.")
 
     while True:
 
