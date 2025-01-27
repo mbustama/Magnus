@@ -11,6 +11,9 @@ sys.path.append(os.path.split(os.path.split(os.getcwd())[0])[0])
 sys.path.append(os.path.split(os.getcwd())[0])
 
 import magnus.magnus as magnus
+import magnus.hamiltonians.hamiltonians2nu as hamiltonians2nu
+import magnus.hamiltonians.hamiltonians3nu as hamiltonians3nu
+import magnus.matter as matter
 import version as version
 
 
@@ -365,6 +368,54 @@ def osc_prob(H_func: Union[Callable, np.ndarray], t_ini: float, t_fin: float,
             n_tpts_per_slab = min(int(growth_factor_n_tpts_per_slab*n_tpts_per_slab), 
                 max_n_tpts_per_slab)
             loop_count += 1
+
+
+def osc_prob_2nu_vacuum(sth: float, Dm2: float, energy: float, L: float) -> np.ndarray:
+    return osc_prob(hamiltonians2nu.hamiltonian_2nu_vacuum(energy, sth, Dm2), 0.0, L)
+    
+
+def osc_prob_2nu_matter_constant_density(sth: float, Dm2: float, energy: float, L: float,
+    rho: float, ratio_number_neutrons_to_protons: Optional[float]=1.0, 
+    electron_fraction: Optional[float]=0.5, nubar: Optional[bool]=False) -> np.ndarray:
+
+    s = 1.0 if not nubar else -1.0
+
+    # Electron number density [eV^3]
+    num_density_e = matter.num_density_e_func(l=0.0, density_matter_func=lambda l: rho, 
+        ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons, 
+        electron_fraction=electron_fraction) 
+
+    # Coherent forward potential, VCC [eV]
+    VCC = matter.VCC_func(l=0.0, num_density_e_func=lambda l: num_density_e) 
+
+    return osc_prob(hamiltonians2nu.hamiltonian_2nu_vacuum(energy, sth, Dm2) +
+        s*hamiltonians2nu.hamiltonian_2nu_matter(VCC), 0.0, L)
+
+
+def osc_prob_3nu_vacuum(s12: float, s23: float, s13: float, dCP: float, D21: float, D31: float, 
+    energy: float, L: float, nubar: Optional[bool]=False) -> np.ndarray:
+
+    return osc_prob(hamiltonians3nu.hamiltonian_3nu_vacuum(energy, s12, s23, s13, dCP, D21, D31,
+        nubar=nubar), 0.0, L)
+
+
+def osc_prob_3nu_matter_constant_density(s12: float, s23: float, s13: float, dCP: float, D21: float, 
+    D31: float, energy: float, L: float, rho: float, 
+    ratio_number_neutrons_to_protons: Optional[float]=1.0, electron_fraction: Optional[float]=0.5, 
+    nubar: Optional[bool]=False) -> np.ndarray:
+
+    s = 1.0 if not nubar else -1.0
+
+    # Electron number density [eV^3]
+    num_density_e = matter.num_density_e_func(l=0.0, density_matter_func=lambda l: rho, 
+        ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons, 
+        electron_fraction=electron_fraction) 
+
+    # Coherent forward potential, VCC [eV]
+    VCC = matter.VCC_func(l=0.0, num_density_e_func=lambda l: num_density_e) 
+
+    return osc_prob(hamiltonians3nu.hamiltonian_3nu_vacuum(energy, s12, s23, s13, dCP, D21, D31,
+        nubar=nubar) + s*hamiltonians3nu.hamiltonian_3nu_matter(VCC), 0.0, L)
 
 
 if __name__ == "__main__":
