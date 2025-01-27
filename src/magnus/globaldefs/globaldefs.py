@@ -27,6 +27,14 @@ Multiplicative conversion factor from km to eV^{-1}.
 Units: [km^{-1} eV^{-1}].
 """
 
+UNIT_KM = CONV_KM_TO_INV_EV
+r"""float: Module-level constant
+
+Multiplicative conversion factor from km to eV^{-1}.
+Units: [km^{-1} eV^{-1}].
+"""
+
+
 CONV_CM_TO_INV_EV = CONV_KM_TO_INV_EV*1.e-5
 r"""float: Module-level constant
 
