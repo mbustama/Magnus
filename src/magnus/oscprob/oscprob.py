@@ -87,7 +87,7 @@ def osc_prob(H_func: Callable, t_ini: float, t_fin: float, n_slabs: Optional[int
     n_tpts_per_slab: Optional[int]=100, t_slab_edges: Optional[Union[list, np.ndarray]]=None,
     magnus_exp_order: Optional[int]=4, n_jobs: Optional[int]=1, 
     integration_method: Optional[str]='trapezoid', 
-    rtol: Optional[float]=None, atol: Optional[float]=None, 
+    rtol: Optional[float]=1.e-3, atol: Optional[float]=1.e-3, 
     growth_factor_n_slabs: Optional[float]=1.5, 
     growth_factor_n_tpts_per_slab: Optional[float]=1.5, 
     max_num_loops: Optional[int]=50, max_n_slabs: Optional[float]=2000, 
