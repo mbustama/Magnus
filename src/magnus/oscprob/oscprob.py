@@ -102,7 +102,7 @@ def osc_prob(H_func: Union[Callable, np.ndarray], t_ini: float, t_fin: float,
     growth_factor_n_tpts_per_slab: Optional[float]=1.5, 
     max_num_loops: Optional[int]=50, min_n_slabs: Optional[float]=1, 
     max_n_slabs: Optional[float]=2000, 
-    min_n_tpts_per_slab: Optional[int]=500, max_n_tpts_per_slab: Optional[int]=500, 
+    min_n_tpts_per_slab: Optional[int]=2, max_n_tpts_per_slab: Optional[int]=500, 
     validate_input: Optional[bool]=True,
     save_log: Optional[bool]=False, filename_log: Optional[str]='./out.log',
     verbose: Optional[int]=0, **kwargs) -> np.ndarray:
