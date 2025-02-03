@@ -24,8 +24,9 @@ def print_run_parameters(H_func: Union[Callable, np.ndarray], t_ini: float, t_fi
     rtol: Optional[float]=None, atol: Optional[float]=None, 
     growth_factor_n_slabs: Optional[float]=1.5, 
     growth_factor_n_tpts_per_slab: Optional[float]=1.5, 
-    max_num_loops: Optional[int]=50, max_n_slabs: Optional[float]=2000, 
-    max_n_tpts_per_slab: Optional[int]=500,
+    max_num_loops: Optional[int]=50, min_n_slabs: Optional[float]=1, 
+    max_n_slabs: Optional[float]=2000, 
+    min_n_tpts_per_slab: Optional[int]=2, max_n_tpts_per_slab: Optional[int]=500,
     validate_input: Optional[bool]=True, save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log', verbose: Optional[int]=0, 
     file_log: Optional[TextIOWrapper]=None):
@@ -63,7 +64,9 @@ def print_run_parameters(H_func: Union[Callable, np.ndarray], t_ini: float, t_fi
         print("   growth_factor_n_slabs = " + str(growth_factor_n_slabs), file=f)
         print("   growth_factor_n_tpts_per_slab = " + str(growth_factor_n_tpts_per_slab), file=f)
         print("   max_num_loops = " + str(max_num_loops), file=f)
+        print("   min_n_slabs = " + str(min_n_slabs), file=f)
         print("   max_n_slabs = " + str(max_n_slabs), file=f)
+        print("   min_n_tpts_per_slab = " + str(min_n_tpts_per_slab), file=f)
         print("   max_n_tpts_per_slab = " + str(max_n_tpts_per_slab), file=f)
         print("   validate_input = " + str(validate_input), file=f)
         print("   save_log = " + str(save_log), file=f)
@@ -97,8 +100,10 @@ def osc_prob(H_func: Union[Callable, np.ndarray], t_ini: float, t_fin: float,
     rtol: Optional[float]=1.e-3, atol: Optional[float]=1.e-3, 
     growth_factor_n_slabs: Optional[float]=1.5, 
     growth_factor_n_tpts_per_slab: Optional[float]=1.5, 
-    max_num_loops: Optional[int]=50, max_n_slabs: Optional[float]=2000, 
-    max_n_tpts_per_slab: Optional[int]=500, validate_input: Optional[bool]=True,
+    max_num_loops: Optional[int]=50, min_n_slabs: Optional[float]=1, 
+    max_n_slabs: Optional[float]=2000, 
+    min_n_tpts_per_slab: Optional[int]=500, max_n_tpts_per_slab: Optional[int]=500, 
+    validate_input: Optional[bool]=True,
     save_log: Optional[bool]=False, filename_log: Optional[str]='./out.log',
     verbose: Optional[int]=0, **kwargs) -> np.ndarray:
 
@@ -217,8 +222,9 @@ def osc_prob(H_func: Union[Callable, np.ndarray], t_ini: float, t_fin: float,
     if (verbose > 1):
         print_run_parameters(H_func, t_ini, t_fin, n_slabs, n_tpts_per_slab, t_slab_edges,
             magnus_exp_order, n_jobs, integration_method, rtol, atol, growth_factor_n_slabs,
-            growth_factor_n_tpts_per_slab, max_num_loops, max_n_slabs, max_n_tpts_per_slab,
-            validate_input, save_log, filename_log, verbose, file_log)
+            growth_factor_n_tpts_per_slab, max_num_loops, min_n_slabs, max_n_slabs, 
+            min_n_tpts_per_slab, max_n_tpts_per_slab, validate_input, save_log, filename_log, 
+            verbose, file_log)
 
     loop_count = 1 # Loop counter
     # Copy this to remember whether the function was originally called with predefine slab edges, 
@@ -230,6 +236,12 @@ def osc_prob(H_func: Union[Callable, np.ndarray], t_ini: float, t_fin: float,
     # Flags to signal whether we have already printed the warning that we have reached 
     # n_slabs == max_n_slabs or n_tpts_per_slab = max_n_tpts_per_slab, so as not to print it again
     warned_reached_max_n_slabs, warned_reached_max_n_tpts_per_slab = False, False
+
+    # If a tolerance is requested, start the iterations with a number of slabs equal to the given
+    # value of min_n_slabs.
+    if ((rtol is not None) and (atol is not None)):
+        n_slabs = min_n_slabs
+        n_tpts_per_slab = min_n_tpts_per_slab
 
     # The provided Hamiltonian, H_func, can be either a single-parameter function (of the neutrino
     # position) or, if time-independent, a constant numpy array (e.g., for oscillations in vacuum
@@ -303,7 +315,7 @@ def osc_prob(H_func: Union[Callable, np.ndarray], t_ini: float, t_fin: float,
         # up to the user to ensure that the chain of time slabs covers the full range [t_ini, t_fin] 
         # without leaving gaps.  I.e., the user should ensure that ti_{k+1} = tf_k.  
         if (t_slab_edges_original is None):
-            # If t_slab_edges == None, then divide the internval [t_ini, t_fin] evenly into a number
+            # If t_slab_edges == None, then divide the interval [t_ini, t_fin] evenly into a number
             # n_slabs of time slabs.  
             dt = (t_fin-t_ini)/n_slabs # Size of one time slab
             t_slab_edges = [[t_ini+dt*i, t_ini+dt*(i+1)] for i in range(n_slabs)]
