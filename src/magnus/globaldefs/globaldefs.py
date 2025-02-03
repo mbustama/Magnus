@@ -30,10 +30,9 @@ Units: [km^{-1} eV^{-1}].
 UNIT_KM = CONV_KM_TO_INV_EV
 r"""float: Module-level constant
 
-Multiplicative conversion factor from km to eV^{-1}.
+Multiplicative conversion factor from km to eV^{-1}.  Alias for CONV_KM_TO_INV_EV.
 Units: [km^{-1} eV^{-1}].
 """
-
 
 CONV_CM_TO_INV_EV = CONV_KM_TO_INV_EV*1.e-5
 r"""float: Module-level constant
@@ -42,10 +41,24 @@ Multiplicative conversion factor from cm to eV^{-1}.
 Units: [cm^{-1} eV^{-1}]
 """
 
+UNIT_CM = CONV_CM_TO_INV_EV
+r"""float: Module-level constant
+
+Multiplicative conversion factor from cm to eV^{-1}.  Alias for CONV_CM_TO_INV_EV.
+Units: [cm^{-1} eV^{-1}]
+"""
+
 CONV_CM3_TO_INV_EV3 = np.power(CONV_CM_TO_INV_EV, 3.0)
 r"""float: Module-level constant
 
 Multiplicative conversion factor from cm^3 to eV^{-3}.
+Units: [cm^{-3} eV^{-3}]
+"""
+
+UNIT_CM3 = CONV_CM3_TO_INV_EV3
+r"""float: Module-level constant
+
+Multiplicative conversion factor from cm^3 to eV^{-3}.  Alias for CONV_CM3_TO_INV_EV3.
 Units: [cm^{-3} eV^{-3}]
 """
 
