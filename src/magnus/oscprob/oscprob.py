@@ -362,7 +362,7 @@ def osc_prob(H_func: Union[Callable, np.ndarray], t_ini: float, t_fin: float,
             # if the slab edges have *not* been explicitly provided by the user in t_slab_edges.
             if t_slab_edges_original is None:
                 ran_with_max_n_slabs = False if n_slabs < max_n_slabs else True
-                n_slabs = min(int(growth_factor_n_slabs*n_slabs), max_n_slabs)
+                n_slabs = min(round(growth_factor_n_slabs*n_slabs), max_n_slabs)
             # Increase the number of points per slab approximately by growth_factor_n_tpts_per_slab
             ran_with_max_n_tpts_per_slab = False if n_tpts_per_slab < max_n_tpts_per_slab else True
             n_tpts_per_slab = min(int(growth_factor_n_tpts_per_slab*n_tpts_per_slab), 
