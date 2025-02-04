@@ -20,6 +20,14 @@ __email__ = "mbustamante@gmail.com"
 import numpy as np
 
 
+MAGNUS_EXP_ORDER_MAX = 6
+r"""float: Module-level constant
+
+Maximum order of the Magnus expansion currently supported.
+Units: [Adimensional]
+"""
+
+
 CONV_KM_TO_INV_EV = 5.06773e9
 r"""float: Module-level constant
 
