@@ -569,7 +569,7 @@ def osc_prob_2nu_vacuum(sth: float, Dm2: float, energy: Union[float, list, np.nd
 
         try:
             if (((nu_i is not None) and (nu_f is None)) or ((nu_i is None) and (nu_f is not None))):
-                raise ValueError("Error in magnus: oscprob.osc_prob_3nu_vacuum: if either nu_i " + \
+                raise ValueError("Error in magnus: oscprob.osc_prob_2nu_vacuum: if either nu_i " + \
                     "or nu_f is not None, then the other flavor must also be not None.")
         except ValueError as error:
             print(error)
@@ -580,7 +580,7 @@ def osc_prob_2nu_vacuum(sth: float, Dm2: float, energy: Union[float, list, np.nd
             if ((nu_i is not None) and (nu_f is not None)):
                 flavors = set([gd.NUE, gd.NUMU, gd.NUTAU])
                 if ( (not (nu_i in flavors)) or (not (nu_f in flavors))):
-                    raise ValueError("Error in magnus: oscprob.osc_prob_3nu_vacuum: if nu_i " + \
+                    raise ValueError("Error in magnus: oscprob.osc_prob_2nu_vacuum: if nu_i " + \
                         "and nu_f are not None, they must be either gd.NUE (" + str(gd.NUE) + \
                         "), gd.NUMU (" + str(gd.NUMU) + "), or gd.NUTAU (" + str(gd.NUTAU) + \
                         ") only.")
@@ -612,9 +612,77 @@ def osc_prob_2nu_vacuum(sth: float, Dm2: float, energy: Union[float, list, np.nd
                 for xy in zip(energy, L)])
 
 
-def osc_prob_2nu_matter_constant_density(sth: float, Dm2: float, energy: float, L: float,
+def osc_prob_2nu_matter_constant_density(sth: float, Dm2: float, 
+    energy: Union[float, list, np.ndarray], L: Union[float, list, np.ndarray], 
     rho: float, ratio_number_neutrons_to_protons: Optional[float]=1.0, 
-    electron_fraction: Optional[float]=0.5, nubar: Optional[bool]=False) -> np.ndarray:
+    electron_fraction: Optional[float]=0.5, nubar: Optional[bool]=False,
+    nu_i: Optional[int]=None, nu_f: Optional[int]=None,
+    validate_input: Optional[bool]=True) -> np.ndarray:
+
+    if validate_input:
+
+        try:
+            if ( (not isinstance(energy, float)) and (not isinstance(energy, list)) and \
+                (not isinstance(energy, np.ndarray)) ):
+                raise ValueError("Error in magnus: oscprob.osc_prob_2nu_matter_constant_density" + \
+                    ": energy must be a float, a 1D list, or a 1D numpy array.")
+        except ValueError as error:
+            print(error)
+            print("Aborting execution...")
+            sys.exit(1)
+
+        try:
+            if ( (isinstance(energy, list) or isinstance(energy, np.ndarray)) and \
+                (np.array(energy).ndim != 1) ):
+                raise ValueError("Error in magnus: oscprob.osc_prob_2nu_matter_constant_density" + \
+                    ": if energy is a list or numpy array, it must be 1D.")
+        except ValueError as error:
+            print(error)
+            print("Aborting execution...")
+            sys.exit(1)
+
+        try:
+            if ( (not isinstance(L, float)) and (not isinstance(L, list)) and \
+                (not isinstance(L, np.ndarray)) ):
+                raise ValueError("Error in magnus: oscprob.osc_prob_2nu_matter_constant_density" + \
+                    ": L must be a float, a 1D list, or a 1D numpy array.")
+        except ValueError as error:
+            print(error)
+            print("Aborting execution...")
+            sys.exit(1)
+
+        try:
+            if ( (isinstance(energy, list) or isinstance(energy, np.ndarray)) and \
+                (np.array(energy).ndim != 1) ):
+                raise ValueError("Error in magnus: oscprob.osc_prob_2nu_matter_constant_density" + \
+                    ": if L is a list or numpy array, it must be 1D.")
+        except ValueError as error:
+            print(error)
+            print("Aborting execution...")
+            sys.exit(1)
+
+        try:
+            if (((nu_i is not None) and (nu_f is None)) or ((nu_i is None) and (nu_f is not None))):
+                raise ValueError("Error in magnus: oscprob.osc_prob_2nu_matter_constant_density" + \
+                    ": if either nu_i or nu_f is not None, then the other flavor must also be " + \
+                    "not None.")
+        except ValueError as error:
+            print(error)
+            print("Aborting execution...")
+            sys.exit(1)
+
+        try:
+            if ((nu_i is not None) and (nu_f is not None)):
+                flavors = set([gd.NUE, gd.NUMU, gd.NUTAU])
+                if ( (not (nu_i in flavors)) or (not (nu_f in flavors))):
+                    raise ValueError("Error in magnus: oscprob." + \
+                        "osc_prob_2nu_matter_constant_density: if nu_i and nu_f are not None, " + \
+                        "they must be either gd.NUE (" + str(gd.NUE) + "), gd.NUMU (" + \
+                        str(gd.NUMU) + "), or gd.NUTAU (" + str(gd.NUTAU) + ") only.")
+        except ValueError as error:
+            print(error)
+            print("Aborting execution...")
+            sys.exit(1)
 
     s = 1.0 if not nubar else -1.0
 
@@ -626,8 +694,30 @@ def osc_prob_2nu_matter_constant_density(sth: float, Dm2: float, energy: float, 
     # Coherent forward potential, VCC [eV]
     VCC = matter.VCC_func(l=0.0, num_density_e_func=lambda l: num_density_e) 
 
-    return osc_prob(hamiltonians2nu.hamiltonian_2nu_vacuum(energy, sth, Dm2) +
-        s*hamiltonians2nu.hamiltonian_2nu_matter(VCC), 0.0, L)
+    # Compute the energy-independent part of the vacuum Hamiltonian, i.e., everything but the 1/E 
+    # prefactor, only once, to save time.  Multiply by the 1/E factor below when calling osc_prob.
+    h_vac_energy_indep = hamiltonians2nu.hamiltonian_2nu_vacuum_energy_independent(sth, Dm2) 
+
+    # Compute the matter Hamiltonian only once, to save time.
+    h_matt = s*hamiltonians2nu.hamiltonian_2nu_matter(VCC)
+
+    if (isinstance(energy, float) and isinstance(L, float)): # Single value of energy and L
+        
+        if ((nu_i is not None) and (nu_f is not None)):
+            return osc_prob((1/energy)*h_vac_energy_indep+h_matt, 0.0, L)[nu_i][nu_f] # Single channel
+        else:
+            return osc_prob((1/energy)*h_vac_energy_indep+h_matt, 0.0, L) # Full probability matrix
+    
+    else: # Multiple values of energy, L, or both: zip them
+
+        energy = np.array(energy)
+        L = np.array(L)
+        if ((nu_i is not None) and (nu_f is not None)):
+            return np.array([osc_prob((1/xy[0])*h_vac_energy_indep+h_matt, 0.0, xy[1])[nu_i][nu_f]
+                for xy in zip(energy, L)])
+        else:
+            return np.array([osc_prob((1/xy[0])*h_vac_energy_indep+h_matt, 0.0, xy[1])
+                for xy in zip(energy, L)])
 
 
 def osc_prob_3nu_vacuum(s12: float, s23: float, s13: float, dCP: float, D21: float, D31: float, 
@@ -726,7 +816,73 @@ def osc_prob_3nu_vacuum(s12: float, s23: float, s13: float, dCP: float, D21: flo
 def osc_prob_3nu_matter_constant_density(s12: float, s23: float, s13: float, dCP: float, D21: float, 
     D31: float, energy: float, L: float, rho: float, 
     ratio_number_neutrons_to_protons: Optional[float]=1.0, electron_fraction: Optional[float]=0.5, 
-    nubar: Optional[bool]=False) -> np.ndarray:
+    nubar: Optional[bool]=False, nu_i: Optional[int]=None, nu_f: Optional[int]=None,
+    validate_input: Optional[bool]=True) -> np.ndarray:
+
+    if validate_input:
+
+        try:
+            if ( (not isinstance(energy, float)) and (not isinstance(energy, list)) and \
+                (not isinstance(energy, np.ndarray)) ):
+                raise ValueError("Error in magnus: oscprob.osc_prob_3nu_matter_constant_density" + \
+                    ": energy must be a float, a 1D list, or a 1D numpy array.")
+        except ValueError as error:
+            print(error)
+            print("Aborting execution...")
+            sys.exit(1)
+
+        try:
+            if ( (isinstance(energy, list) or isinstance(energy, np.ndarray)) and \
+                (np.array(energy).ndim != 1) ):
+                raise ValueError("Error in magnus: oscprob.osc_prob_3nu_matter_constant_density" + \
+                    ": if energy is a list or numpy array, it must be 1D.")
+        except ValueError as error:
+            print(error)
+            print("Aborting execution...")
+            sys.exit(1)
+
+        try:
+            if ( (not isinstance(L, float)) and (not isinstance(L, list)) and \
+                (not isinstance(L, np.ndarray)) ):
+                raise ValueError("Error in magnus: oscprob.osc_prob_3nu_matter_constant_density" + \
+                    ": L must be a float, a 1D list, or a 1D numpy array.")
+        except ValueError as error:
+            print(error)
+            print("Aborting execution...")
+            sys.exit(1)
+
+        try:
+            if ( (isinstance(energy, list) or isinstance(energy, np.ndarray)) and \
+                (np.array(energy).ndim != 1) ):
+                raise ValueError("Error in magnus: oscprob.osc_prob_3nu_matter_constant_density" + \
+                    ": if L is a list or numpy array, it must be 1D.")
+        except ValueError as error:
+            print(error)
+            print("Aborting execution...")
+            sys.exit(1)
+
+        try:
+            if (((nu_i is not None) and (nu_f is None)) or ((nu_i is None) and (nu_f is not None))):
+                raise ValueError("Error in magnus: oscprob.osc_prob_3nu_matter_constant_density" + \
+                    ": if either nu_i or nu_f is not None, then the other flavor must also be " + \
+                    "not None.")
+        except ValueError as error:
+            print(error)
+            print("Aborting execution...")
+            sys.exit(1)
+
+        try:
+            if ((nu_i is not None) and (nu_f is not None)):
+                flavors = set([gd.NUE, gd.NUMU, gd.NUTAU])
+                if ( (not (nu_i in flavors)) or (not (nu_f in flavors))):
+                    raise ValueError("Error in magnus: oscprob." + \
+                        "osc_prob_3nu_matter_constant_density: if nu_i and nu_f are not None, " + \
+                        "they must be either gd.NUE (" + str(gd.NUE) + "), gd.NUMU (" + \
+                        str(gd.NUMU) + "), or gd.NUTAU (" + str(gd.NUTAU) + ") only.")
+        except ValueError as error:
+            print(error)
+            print("Aborting execution...")
+            sys.exit(1)
 
     s = 1.0 if not nubar else -1.0
 
@@ -738,8 +894,31 @@ def osc_prob_3nu_matter_constant_density(s12: float, s23: float, s13: float, dCP
     # Coherent forward potential, VCC [eV]
     VCC = matter.VCC_func(l=0.0, num_density_e_func=lambda l: num_density_e) 
 
-    return osc_prob(hamiltonians3nu.hamiltonian_3nu_vacuum(energy, s12, s23, s13, dCP, D21, D31,
-        nubar=nubar) + s*hamiltonians3nu.hamiltonian_3nu_matter(VCC), 0.0, L)
+    # Compute the energy-independent part of the vacuum Hamiltonian, i.e., everything but the 1/E 
+    # prefactor, only once, to save time.  Multiply by the 1/E factor below when calling osc_prob.
+    h_vac_energy_indep = hamiltonians3nu.hamiltonian_3nu_vacuum_energy_independent(s12, s23, s13, 
+        dCP, D21, D31, nubar=nubar) 
+
+    # Compute the matter Hamiltonian only once, to save time.
+    h_matt = s*hamiltonians3nu.hamiltonian_3nu_matter(VCC)
+
+    if (isinstance(energy, float) and isinstance(L, float)): # Single value of energy and L
+        
+        if ((nu_i is not None) and (nu_f is not None)):
+            return osc_prob((1/energy)*h_vac_energy_indep+h_matt, 0.0, L)[nu_i][nu_f] # Single channel
+        else:
+            return osc_prob((1/energy)*h_vac_energy_indep+h_matt, 0.0, L) # Full probability matrix
+    
+    else: # Multiple values of energy, L, or both: zip them
+
+        energy = np.array(energy)
+        L = np.array(L)
+        if ((nu_i is not None) and (nu_f is not None)):
+            return np.array([osc_prob((1/xy[0])*h_vac_energy_indep+h_matt, 0.0, xy[1])[nu_i][nu_f]
+                for xy in zip(energy, L)])
+        else:
+            return np.array([osc_prob((1/xy[0])*h_vac_energy_indep+h_matt, 0.0, xy[1])
+                for xy in zip(energy, L)])
 
 
 if __name__ == "__main__":
