@@ -11,6 +11,7 @@ sys.path.append(os.path.split(os.path.split(os.getcwd())[0])[0])
 sys.path.append(os.path.split(os.getcwd())[0])
 
 import magnus.magnus as magnus
+import magnus.globaldefs as gd
 import magnus.hamiltonians.hamiltonians2nu as hamiltonians2nu
 import magnus.hamiltonians.hamiltonians3nu as hamiltonians3nu
 import magnus.matter as matter
@@ -27,6 +28,9 @@ def print_run_parameters(H_func: Union[Callable, np.ndarray], t_ini: float, t_fi
     max_num_loops: Optional[int]=50, min_n_slabs: Optional[float]=1, 
     max_n_slabs: Optional[float]=2000, 
     min_n_tpts_per_slab: Optional[int]=2, max_n_tpts_per_slab: Optional[int]=500,
+    iterate_over_magnus_exp_order: Optional[bool]=False,
+    min_magnus_exp_order: Optional[int]=1,
+    max_magnus_exp_order: Optional[int]=gd.MAGNUS_EXP_ORDER_MAX, 
     validate_input: Optional[bool]=True, save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log', verbose: Optional[int]=0, 
     file_log: Optional[TextIOWrapper]=None):
@@ -68,6 +72,9 @@ def print_run_parameters(H_func: Union[Callable, np.ndarray], t_ini: float, t_fi
         print("   max_n_slabs = " + str(max_n_slabs), file=f)
         print("   min_n_tpts_per_slab = " + str(min_n_tpts_per_slab), file=f)
         print("   max_n_tpts_per_slab = " + str(max_n_tpts_per_slab), file=f)
+        print("   iterate_over_magnus_exp_order = " + str(iterate_over_magnus_exp_order), file=f)
+        print("   min_magnus_exp_order = " + str(min_magnus_exp_order), file=f)
+        print("   max_magnus_exp_order = " + str(max_magnus_exp_order), file=f)
         print("   validate_input = " + str(validate_input), file=f)
         print("   save_log = " + str(save_log), file=f)
         print("   filename_log = " + filename_log, file=f)
@@ -103,8 +110,12 @@ def osc_prob(H_func: Union[Callable, np.ndarray], t_ini: float, t_fin: float,
     max_num_loops: Optional[int]=50, min_n_slabs: Optional[float]=1, 
     max_n_slabs: Optional[float]=2000, 
     min_n_tpts_per_slab: Optional[int]=2, max_n_tpts_per_slab: Optional[int]=500, 
+    iterate_over_magnus_exp_order: Optional[bool]=False,
+    min_magnus_exp_order: Optional[int]=1,
+    max_magnus_exp_order: Optional[int]=gd.MAGNUS_EXP_ORDER_MAX, 
     validate_input: Optional[bool]=True,
     save_log: Optional[bool]=False, filename_log: Optional[str]='./out.log',
+    file_log: Optional[TextIOWrapper]=None, close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0, **kwargs) -> np.ndarray:
 
     # Validate input; set validate_input to False for speed-up.
@@ -215,16 +226,54 @@ def osc_prob(H_func: Union[Callable, np.ndarray], t_ini: float, t_fin: float,
             print("Aborting execution...")
             sys.exit(1)
 
-    # Open a log file if requested
-    file_log = open(filename_log, 'w') if save_log else None
+    # If there is no file object given (i.e., if file_log is None), open a log file if requested
+    if file_log is None:
+        file_log = open(filename_log, 'w') if save_log else None
 
     # Print a list of all the parameters passed to the osc_prob function and their values
     if (verbose > 1):
         print_run_parameters(H_func, t_ini, t_fin, n_slabs, n_tpts_per_slab, t_slab_edges,
             magnus_exp_order, n_jobs, integration_method, rtol, atol, growth_factor_n_slabs,
             growth_factor_n_tpts_per_slab, max_num_loops, min_n_slabs, max_n_slabs, 
-            min_n_tpts_per_slab, max_n_tpts_per_slab, validate_input, save_log, filename_log, 
+            min_n_tpts_per_slab, max_n_tpts_per_slab, iterate_over_magnus_exp_order,
+            min_magnus_exp_order, max_magnus_exp_order, validate_input, save_log, filename_log, 
             verbose, file_log)
+
+    # By default, osc_prob is run using a fixed order of the Magnus expansion (magnus_exp_order), 
+    # and the tolerance is achieved (see below) only by changing the number of slabs (n_slabs), of
+    # time-points per slab (n_tpts_per_slab), or both, but not by changing the expansion order, 
+    # since doing that can be computationally taxing. However, if iterate_over_magnus_exp_order is
+    # True, then magnus_exp_order will be progressively increased, from min_magnus_exp_order to
+    # max_magnus_exp_order, until the requested tolerance (rtol, atol) is achieved.  This is done
+    # by calling the function osc_prob_iterate_over_magnus_exp_order, which in turn calls osc_prob
+    # with varying values of magnus_exp_order.
+    if ((rtol is not None) and (atol is not None) and iterate_over_magnus_exp_order):
+        if (max_magnus_exp_order == min_magnus_exp_order):
+            magnus_exp_order = min_magnus_exp_order
+            if verbose > 0:
+                for f in [None, file_log] if save_log else [None]:
+                    print("\nWarning: The flag iterate_over_magnus_exp_order has been set to " + \
+                        "True, but with min_magnus_exp_order = max_magnus_exp_order. Bypassing " + \
+                        "iteration over magnus_exp_order and calling osc_prob with fixed " + \
+                        "magnus_exp_order = " + str(magnus_exp_order) + ".", file=f)
+        else: # max_magnus_exp_order == min_magnus_exp_order (further input validation in function)
+            if verbose > 0:
+                for f in [None, file_log] if save_log else [None]:
+                    print("\nWarning: The flag iterate_over_magnus_exp_order has been set to " + \
+                        "True, so the calculation of the probability will increase the value of" + \
+                        " magnus_exp_order progressively from min_magnus_exp_order = " + \
+                        str(magnus_exp_order) + " to max_magnus_exp_order = " + \
+                        str(max_magnus_exp_order) + " until the requested tolerance is achieved.", 
+                        file=f)
+            P = osc_prob_iterate_over_magnus_exp_order(H_func, t_ini, t_fin, n_slabs, 
+                n_tpts_per_slab, t_slab_edges, magnus_exp_order, n_jobs, integration_method,
+                rtol, atol, growth_factor_n_slabs, growth_factor_n_tpts_per_slab,
+                max_num_loops, min_n_slabs, max_n_slabs, min_n_tpts_per_slab, 
+                max_n_tpts_per_slab, min_magnus_exp_order, 
+                max_magnus_exp_order, validate_input, save_log, filename_log, verbose, 
+                file_log, **kwargs)
+            if save_log and close_file_log_upon_exit: file_log.close()
+            return P
 
     loop_count = 1 # Loop counter
     # Copy this to remember whether the function was originally called with predefine slab edges, 
@@ -260,9 +309,10 @@ def osc_prob(H_func: Union[Callable, np.ndarray], t_ini: float, t_fin: float,
         rtol = None
         atol = None
         if verbose > 0:
-            print("\nWarning: The provided Hamiltonian is time-independent. Overwriting the " + \
-                "run parameters to magnus_exp_order = 1, n_slabs = 1, n_tpts_per_slab = 2," + \
-                " rtol = None, and atol = None for speed-up.")
+            for f in [None, file_log] if save_log else [None]:
+                print("\nWarning: The provided Hamiltonian is time-independent. Overwriting the" + \
+                    " run parameters to magnus_exp_order = 1, n_slabs = 1, n_tpts_per_slab = 2," + \
+                    " rtol = None, and atol = None for speed-up.", file=f)
 
     while True:
 
@@ -277,7 +327,7 @@ def osc_prob(H_func: Union[Callable, np.ndarray], t_ini: float, t_fin: float,
                             ") reached maximum allowed (max_num_loops = " + str(max_num_loops) + \
                             "). Requested tolerance not achieved. Try increasing max_num_loops.\n",
                             file=f)
-                if save_log: file_log.close()
+                if save_log and close_file_log_upon_exit: file_log.close()
                 return P
             # Reached maximum allowed number of slabs: continue execution
             if (n_slabs == max_n_slabs):
@@ -307,7 +357,7 @@ def osc_prob(H_func: Union[Callable, np.ndarray], t_ini: float, t_fin: float,
                         print("   Warning: Returning probability, but requested tolerance (rtol = " + \
                             str(rtol) + ", atol = " + str(atol) + ") not achieved." + \
                             " Try increasing max_n_slabs or max_n_tpts_per_slab.\n", file=f)
-                if save_log: file_log.close()
+                if save_log and close_file_log_upon_exit: file_log.close()
                 return P
 
         # The array (or list) t_slab_edges contains user-provided pairs of start and end times, 
@@ -348,7 +398,7 @@ def osc_prob(H_func: Union[Callable, np.ndarray], t_ini: float, t_fin: float,
         # growth_factor_n_tpts_per_slab, and repeat the probability calculation until the desired
         # tolerance is achieved.
         if ((rtol is None) and (atol is None)): # No target tolerance requested: return right away
-            if save_log: file_log.close()
+            if save_log and close_file_log_upon_exit: file_log.close()
             return P
         else: # Target tolerance requested: iterate until tolerance is achieved
             if (verbose > 1):
@@ -356,6 +406,7 @@ def osc_prob(H_func: Union[Callable, np.ndarray], t_ini: float, t_fin: float,
                     if (loop_count == 1):
                         print("\nRunning loops until requested rtol and atol are achieved:", file=f)
                     print("   Loop #" + str(loop_count) + ":", file=f)
+                    print("      magnus_exp_order = " + str(magnus_exp_order), file=f)                    
                     print("      n_slabs = " + str(n_slabs), file=f)
                     print("      n_tpts_per_slab = " + str(n_tpts_per_slab), file=f)
             if loop_count > 1:
@@ -363,8 +414,9 @@ def osc_prob(H_func: Union[Callable, np.ndarray], t_ini: float, t_fin: float,
                 if np.allclose(P, P_old, rtol=rtol, atol=atol):
                     if (verbose > 0):
                         for f in [None, file_log] if save_log else [None]:
-                            print("   Requested tolerance achieved\n", file=f)
-                    if save_log: file_log.close()
+                            print("   Requested tolerance achieved (for fixed magnus_exp_order "+ \
+                                "= " + str(magnus_exp_order) + ").\n", file=f)
+                    if save_log and close_file_log_upon_exit: file_log.close()
                     return P
                 else:
                     P_old = np.ndarray.copy(P)
@@ -380,6 +432,88 @@ def osc_prob(H_func: Union[Callable, np.ndarray], t_ini: float, t_fin: float,
             n_tpts_per_slab = min(int(growth_factor_n_tpts_per_slab*n_tpts_per_slab), 
                 max_n_tpts_per_slab)
             loop_count += 1
+
+
+def osc_prob_iterate_over_magnus_exp_order(H_func: Union[Callable, np.ndarray], t_ini: float, 
+    t_fin: float, n_slabs: Optional[int]=1, n_tpts_per_slab: Optional[int]=100, 
+    t_slab_edges: Optional[Union[list, np.ndarray]]=None, magnus_exp_order: Optional[int]=4, 
+    n_jobs: Optional[int]=1, integration_method: Optional[str]='trapezoid', 
+    rtol: Optional[float]=1.e-3, atol: Optional[float]=1.e-3, 
+    growth_factor_n_slabs: Optional[float]=1.5, 
+    growth_factor_n_tpts_per_slab: Optional[float]=1.5, 
+    max_num_loops: Optional[int]=50, min_n_slabs: Optional[float]=1, 
+    max_n_slabs: Optional[float]=2000, 
+    min_n_tpts_per_slab: Optional[int]=2, max_n_tpts_per_slab: Optional[int]=500, 
+    min_magnus_exp_order: Optional[int]=1, 
+    max_magnus_exp_order: Optional[int]=gd.MAGNUS_EXP_ORDER_MAX, 
+    validate_input: Optional[bool]=True,
+    save_log: Optional[bool]=False, filename_log: Optional[str]='./out.log',
+    verbose: Optional[int]=0, file_log: Optional[TextIOWrapper]=None, **kwargs):
+
+    # Validate input; set validate_input to False for speed-up.
+    if validate_input:
+
+        try:
+            if (max_magnus_exp_order > gd.MAGNUS_EXP_ORDER_MAX): 
+                raise ValueError("Error in magnus: " + \
+                    "oscprob.osc_prob_iterate_over_magnus_exp_order: max_magnus_exp_order must " + \
+                    "<= globaldefs.MAGNUS_EXP_ORDER_MAX = " + str(gd.MAGNUS_EXP_ORDER_MAX) + ".")
+        except ValueError as error:
+            print(error)
+            print("Aborting execution...")
+            sys.exit(1)
+
+        try:
+            if (min_magnus_exp_order < 1): 
+                raise ValueError("Error in magnus: " + \
+                    "oscprob.osc_prob_iterate_over_magnus_exp_order: max_magnus_exp_order must " + \
+                    "be >= 1.")
+        except ValueError as error:
+            print(error)
+            print("Aborting execution...")
+            sys.exit(1)
+
+    # Do this to prevent printing the Magnus header multiple times
+    verbose = 1 if verbose > 0 else verbose
+
+    # Call osc_prob to compute the probabilities using increasing order of the Magnus expansion
+    # (magnus_exp_order) until, ideally, the requested tolerance (rtol, atol) is reached.  See
+    # additional comments in the osc_prob function.  (We call osc_prob below with 
+    # iterate_over_magnus_exp_order=False to prevent infinite recursion.)
+    iterate_over_magnus_exp_order = False
+    # close_file_log_upon_exit = False
+    for magnus_exp_order in range(min_magnus_exp_order, max_magnus_exp_order+1):
+        if (verbose > 0):
+            for f in [None, file_log] if save_log else [None]:
+                print("\nComputing probabilities using magnus_exp_order = " + \
+                    str(magnus_exp_order) + ": \n", file=f)
+        P = osc_prob(H_func, t_ini, t_fin, n_slabs, n_tpts_per_slab, t_slab_edges, magnus_exp_order,
+            n_jobs, integration_method, rtol, atol, growth_factor_n_slabs, 
+            growth_factor_n_tpts_per_slab, max_num_loops, min_n_slabs, max_n_slabs, 
+            min_n_tpts_per_slab, max_n_tpts_per_slab, iterate_over_magnus_exp_order,
+            min_magnus_exp_order, max_magnus_exp_order, validate_input, save_log, filename_log,
+            file_log=file_log, close_file_log_upon_exit=False, verbose=verbose)
+        if (magnus_exp_order == min_magnus_exp_order):
+            P_old = np.ndarray.copy(P)
+        else: # magnus_exp_order > min_magnus_exp_order
+            if np.allclose(P, P_old, rtol=rtol, atol=atol):
+                if (verbose > 0):
+                    for f in [None, file_log] if save_log else [None]:
+                        print("Requested tolerance achieved using magnus_exp_order = " + \
+                            str(magnus_exp_order) + "\n", file=f)
+                if save_log: file_log.close()
+                return P
+    
+    # If the for loop finishes, then it means that the requested tolerance could achieved using the
+    # maximum test magnus_exp_order allowed for the run.  Return the probability matrix, but show
+    # a warning (if verbose).
+    if (verbose > 0):
+        for f in [None, file_log] if save_log else [None]:
+            print("Warning: Returning probability, but requested tolerance not achieved using " + \
+                "even the maximum allowed order of the Magnus expansion for this run " + \
+                "(max_magnus_exp_order = " + str(max_magnus_exp_order) + ").  Try increasing " + \
+                "max_n_slabs, max_n_tpts_per_slab, or max_num_loops.\n", file=f)
+    return P
 
 
 def osc_prob_2nu_vacuum(sth: float, Dm2: float, energy: float, L: float) -> np.ndarray:
@@ -438,15 +572,25 @@ if __name__ == "__main__":
             dtype=np.complex128)
 
     t_ini, t_fin = 0.0, 1.0
+
     # prob = osc_prob(H_2nu_func, t_ini, t_fin, n_slabs=100, n_tpts_per_slab=100, magnus_exp_order=6,
     #     integration_method='simpson', n_jobs=1)
     # print(prob)
     # prob = osc_prob(H_3nu_func, t_ini, t_fin, n_slabs=100, n_tpts_per_slab=100, magnus_exp_order=6,
     #     integration_method='simpson', n_jobs=1)
     # print(prob)
-    prob = osc_prob(H_3nu_func, t_ini, t_fin, n_slabs=10, n_tpts_per_slab=20, magnus_exp_order=4,
-        integration_method='simpson', n_jobs=10, rtol=1e-5, atol=1.e-5, 
-        growth_factor_n_slabs=1.5, growth_factor_n_tpts_per_slab=1.5, 
-        max_num_loops=50, max_n_slabs=200, max_n_tpts_per_slab=150, 
+
+    # prob = osc_prob(H_3nu_func, t_ini, t_fin, n_slabs=10, n_tpts_per_slab=20, magnus_exp_order=4,
+    #     integration_method='simpson', n_jobs=10, rtol=1e-5, atol=1.e-5, 
+    #     growth_factor_n_slabs=1.5, growth_factor_n_tpts_per_slab=1.5, 
+    #     max_num_loops=50, max_n_slabs=200, max_n_tpts_per_slab=150, 
+    #     save_log=True, filename_log='./out.log', verbose=2)
+    # print(prob)
+
+    prob = osc_prob(H_3nu_func, t_ini, t_fin, 
+        integration_method='simpson', n_jobs=10, rtol=1e-3, atol=1.e-3, 
+        max_n_slabs=10, max_n_tpts_per_slab=10, 
+        iterate_over_magnus_exp_order=True, min_magnus_exp_order=1, 
+        max_magnus_exp_order=gd.MAGNUS_EXP_ORDER_MAX,
         save_log=True, filename_log='./out.log', verbose=2)
     print(prob)
