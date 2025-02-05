@@ -1,5 +1,6 @@
 import numpy as np
 import sys
+import platform
 from joblib import Parallel, delayed
 from typing import Optional, Callable, Union
 from io import TextIOWrapper
@@ -353,16 +354,18 @@ def osc_prob(H_func: Union[Callable, np.ndarray], t_ini: float, t_fin: float,
             magnus_exp_order = min_magnus_exp_order
             if verbose > 0:
                 for f in [None, file_log] if save_log else [None]:
-                    print("\nWarning: The flag iterate_over_magnus_exp_order has been set to " + \
-                        "True, but with min_magnus_exp_order = max_magnus_exp_order. Bypassing " + \
-                        "iteration over magnus_exp_order and calling osc_prob with fixed " + \
-                        "magnus_exp_order = " + str(magnus_exp_order) + ".", file=f)
+                    warn_msg = gd.WARNING_MSG_IN_COLOR if f is None else gd.WARNING_MSG_NO_COLOR
+                    print("\n" + warn_msg + "The flag iterate_over_magnus_exp_order has been " + \
+                        "set to True, but with min_magnus_exp_order = max_magnus_exp_order. " + \
+                        "Bypassing iteration over magnus_exp_order and calling osc_prob with " + \
+                        "fixed magnus_exp_order = " + str(magnus_exp_order) + ".", file=f)
         else: # max_magnus_exp_order == min_magnus_exp_order (further input validation in function)
             if verbose > 0:
                 for f in [None, file_log] if save_log else [None]:
-                    print("\nWarning: The flag iterate_over_magnus_exp_order has been set to " + \
-                        "True, so the calculation of the probability will increase the value of" + \
-                        " magnus_exp_order progressively from min_magnus_exp_order = " + \
+                    warn_msg = gd.WARNING_MSG_IN_COLOR if f is None else gd.WARNING_MSG_NO_COLOR
+                    print("\n" + warn_msg + " The flag iterate_over_magnus_exp_order has been " + \
+                        "set to True, so the calculation of the probability will increase the" + \
+                        " value of magnus_exp_order progressively from min_magnus_exp_order = " + \
                         str(magnus_exp_order) + " to max_magnus_exp_order = " + \
                         str(max_magnus_exp_order) + " until the requested tolerance is achieved.", 
                         file=f)
@@ -516,7 +519,8 @@ def osc_prob(H_func: Union[Callable, np.ndarray], t_ini: float, t_fin: float,
                 if np.allclose(P, P_old, rtol=rtol, atol=atol):
                     if (verbose > 0):
                         for f in [None, file_log] if save_log else [None]:
-                            print("   Requested tolerance achieved (for fixed magnus_exp_order "+ \
+                            tol_msg = gd.TOL_MSG_IN_COLOR if f is None else gd.TOL_MSG_NO_COLOR
+                            print("   " + tol_msg + " (for fixed magnus_exp_order "+ \
                                 "= " + str(magnus_exp_order) + ").\n", file=f)
                     if save_log and close_file_log_upon_exit: file_log.close()
                     return P
@@ -562,9 +566,10 @@ def osc_prob_iterate_over_magnus_exp_order(H_func: Union[Callable, np.ndarray], 
 
         try:
             if (max_magnus_exp_order > gd.MAGNUS_EXP_ORDER_MAX): 
-                raise ValueError("Error in magnus: " + \
-                    "oscprob.osc_prob_iterate_over_magnus_exp_order: max_magnus_exp_order must " + \
-                    "<= globaldefs.MAGNUS_EXP_ORDER_MAX = " + str(gd.MAGNUS_EXP_ORDER_MAX) + ".")
+                raise ValueError(gd.ERROR_MSG_IN_COLOR + \
+                    " oscprob.osc_prob_iterate_over_magnus_exp_order: max_magnus_exp_order must" + \
+                    " be <= globaldefs.MAGNUS_EXP_ORDER_MAX = " + str(gd.MAGNUS_EXP_ORDER_MAX) + \
+                    ".")
         except ValueError as error:
             print(error)
             print("Aborting execution...")
@@ -572,9 +577,9 @@ def osc_prob_iterate_over_magnus_exp_order(H_func: Union[Callable, np.ndarray], 
 
         try:
             if (min_magnus_exp_order < 1): 
-                raise ValueError("Error in magnus: " + \
-                    "oscprob.osc_prob_iterate_over_magnus_exp_order: max_magnus_exp_order must " + \
-                    "be >= 1.")
+                raise ValueError(gd.ERROR_MSG_IN_COLOR + \
+                    " oscprob.osc_prob_iterate_over_magnus_exp_order: max_magnus_exp_order must" + \
+                    " be >= 1.")
         except ValueError as error:
             print(error)
             print("Aborting execution...")
@@ -623,9 +628,13 @@ def osc_prob_iterate_over_magnus_exp_order(H_func: Union[Callable, np.ndarray], 
     return P
 
     
-def osc_prob_2nu_vacuum(energy: Union[float, list, np.ndarray], L: Union[float, list, np.ndarray], 
+def osc_prob_2nu_vacuum(energy: Union[int, float, list, np.ndarray], 
+    L: Union[int, float, list, np.ndarray], 
     sth: float, Dm2: float, nu_i: Optional[int]=None, nu_f: Optional[int]=None,
     validate_input: Optional[bool]=True) -> Union[float, np.ndarray]:
+
+    energy = float(energy) if isinstance(energy, int) else energy
+    L = float(L) if isinstance(L, int) else L
 
     if validate_input:
         # The function name is sys._getframe().f_code.co_name
@@ -678,6 +687,9 @@ def osc_prob_2nu_matter_constant_density(energy: Union[float, list, np.ndarray],
     electron_fraction: Optional[float]=0.5, nubar: Optional[bool]=False,
     nu_i: Optional[int]=None, nu_f: Optional[int]=None,
     validate_input: Optional[bool]=True) -> Union[float, np.ndarray]:
+
+    energy = float(energy) if isinstance(energy, int) else energy
+    L = float(L) if isinstance(L, int) else L
 
     if validate_input:
         # The function name is sys._getframe().f_code.co_name
@@ -744,6 +756,9 @@ def osc_prob_3nu_vacuum(energy: Union[float, list, np.ndarray], L: Union[float, 
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
     validate_input: Optional[bool]=True, verbose: Optional[int]=0, 
     **kwargs) -> Union[float, np.ndarray]:
+
+    energy = float(energy) if isinstance(energy, int) else energy
+    L = float(L) if isinstance(L, int) else L
 
     if validate_input:
         # The function name is sys._getframe().f_code.co_name
@@ -828,6 +843,9 @@ def osc_prob_3nu_matter_constant_density(energy: Union[float, list, np.ndarray],
     density_matter_is_in_g_per_cm3=False,
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
     validate_input: Optional[bool]=True, verbose: Optional[int]=0) -> Union[float, np.ndarray]:
+
+    energy = float(energy) if isinstance(energy, int) else energy
+    L = float(L) if isinstance(L, int) else L
 
     if validate_input:
         # The function name is sys._getframe().f_code.co_name
@@ -924,10 +942,10 @@ if __name__ == "__main__":
         return np.array([[1+1j*t, 2*t, 3j*t], [2*t, 4-1j*t, 5+2j*t], [-3j*t, 5-2j*t, 1]], 
             dtype=np.complex128)
 
-    # t_ini, t_fin = 0.0, 1.0
+    t_ini, t_fin = 0.0, 1.0
 
     # prob = osc_prob(H_2nu_func, t_ini, t_fin, n_slabs=100, n_tpts_per_slab=100, magnus_exp_order=6,
-    #     integration_method='simpson', n_jobs=1)
+    #     integration_method='simpson', n_jobs=1, save_log=True, verbose=2)
     # print(prob)
     # prob = osc_prob(H_3nu_func, t_ini, t_fin, n_slabs=100, n_tpts_per_slab=100, magnus_exp_order=6,
     #     integration_method='simpson', n_jobs=1)
@@ -941,13 +959,13 @@ if __name__ == "__main__":
     # print(prob)
 
     # # Test iteration over magnus_exp_order
-    # prob = osc_prob(H_3nu_func, t_ini, t_fin, 
-    #     integration_method='simpson', n_jobs=10, rtol=1e-3, atol=1.e-3, 
-    #     max_n_slabs=10, max_n_tpts_per_slab=10, 
-    #     iterate_over_magnus_exp_order=True, min_magnus_exp_order=1, 
-    #     max_magnus_exp_order=gd.MAGNUS_EXP_ORDER_MAX,
-    #     save_log=True, filename_log='./out.log', verbose=2)
-    # print(prob)
+    prob = osc_prob(H_3nu_func, t_ini, t_fin, 
+        integration_method='simpson', n_jobs=10, rtol=1e-3, atol=1.e-3, 
+        max_n_slabs=10, max_n_tpts_per_slab=10, 
+        iterate_over_magnus_exp_order=True, min_magnus_exp_order=1, 
+        max_magnus_exp_order=gd.MAGNUS_EXP_ORDER_MAX,
+        save_log=True, filename_log='./out.log', verbose=2)
+    print(prob)
 
     # Test use of default values of oscillation parameters: vacuum
     # print(osc_prob_3nu_vacuum(1.*gd.UNIT_MEV, 100*gd.UNIT_KM, 
@@ -962,17 +980,17 @@ if __name__ == "__main__":
     #     default_osc_params_set_name='xxx', validate_input=True, verbose=1), end='\n\n')
 
     # Test use of default values of oscillation parameters: constant-density matter
-    print(osc_prob_3nu_matter_constant_density(1.*gd.UNIT_MEV, 100*gd.UNIT_KM, 
-        10.0*gd.UNIT_G_PER_CM3, validate_input=True, verbose=0), end='\n\n')
-    print(osc_prob_3nu_matter_constant_density(1.*gd.UNIT_MEV, 100*gd.UNIT_KM, 
-        10.0*gd.UNIT_G_PER_CM3, nu_i=gd.NUE, nu_f=gd.NUMU, validate_input=True, verbose=0), 
-    end='\n\n')
-    print(osc_prob_3nu_matter_constant_density(1.*gd.UNIT_MEV, 100*gd.UNIT_KM, 
-        10.0*gd.UNIT_G_PER_CM3, nu_i=gd.NUE, nu_f=gd.NUMU, validate_input=True, verbose=1), 
-    end='\n\n')
-    print(osc_prob_3nu_matter_constant_density(1.*gd.UNIT_MEV, 100*gd.UNIT_KM,
-        10.0*gd.UNIT_G_PER_CM3, nu_i=gd.NUE, nu_f=gd.NUMU,
-        s13=0.0, s23=0.0, dCP=0.0, D31=0.0, validate_input=True, verbose=1), end='\n\n')
-    print(osc_prob_3nu_matter_constant_density(1.*gd.UNIT_MEV, 100*gd.UNIT_KM, 
-        10.0*gd.UNIT_G_PER_CM3, nu_i=gd.NUE, nu_f=gd.NUMU,
-        default_osc_params_set_name='xxx', validate_input=True, verbose=1), end='\n\n')
+    # print(osc_prob_3nu_matter_constant_density(1.*gd.UNIT_MEV, 100*gd.UNIT_KM, 
+    #     10.0*gd.UNIT_G_PER_CM3, validate_input=True, verbose=0), end='\n\n')
+    # print(osc_prob_3nu_matter_constant_density(1.*gd.UNIT_MEV, 100*gd.UNIT_KM, 
+    #     10.0*gd.UNIT_G_PER_CM3, nu_i=gd.NUE, nu_f=gd.NUMU, validate_input=True, verbose=0), 
+    # end='\n\n')
+    # print(osc_prob_3nu_matter_constant_density(1.*gd.UNIT_MEV, 100*gd.UNIT_KM, 
+    #     10.0*gd.UNIT_G_PER_CM3, nu_i=gd.NUE, nu_f=gd.NUMU, validate_input=True, verbose=1), 
+    # end='\n\n')
+    # print(osc_prob_3nu_matter_constant_density(1.*gd.UNIT_MEV, 100*gd.UNIT_KM,
+    #     10.0*gd.UNIT_G_PER_CM3, nu_i=gd.NUE, nu_f=gd.NUMU,
+    #     s13=0.0, s23=0.0, dCP=0.0, D31=0.0, validate_input=True, verbose=1), end='\n\n')
+    # print(osc_prob_3nu_matter_constant_density(1.*gd.UNIT_MEV, 100*gd.UNIT_KM, 
+    #     10.0*gd.UNIT_G_PER_CM3, nu_i=gd.NUE, nu_f=gd.NUMU,
+    #     default_osc_params_set_name='xxx', validate_input=True, verbose=1), end='\n\n')
