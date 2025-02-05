@@ -523,7 +523,7 @@ def osc_prob_iterate_over_magnus_exp_order(H_func: Union[Callable, np.ndarray], 
     
 def osc_prob_2nu_vacuum(sth: float, Dm2: float, energy: Union[float, list, np.ndarray], 
     L: Union[float, list, np.ndarray], nu_i: Optional[int]=None, nu_f: Optional[int]=None,
-    validate_input: Optional[bool]=True) -> np.ndarray:
+    validate_input: Optional[bool]=True) -> Union[float, np.ndarray]:
 
     if validate_input:
 
@@ -617,7 +617,7 @@ def osc_prob_2nu_matter_constant_density(sth: float, Dm2: float,
     rho: float, ratio_number_neutrons_to_protons: Optional[float]=1.0, 
     electron_fraction: Optional[float]=0.5, nubar: Optional[bool]=False,
     nu_i: Optional[int]=None, nu_f: Optional[int]=None,
-    validate_input: Optional[bool]=True) -> np.ndarray:
+    validate_input: Optional[bool]=True) -> Union[float, np.ndarray]:
 
     if validate_input:
 
@@ -720,10 +720,12 @@ def osc_prob_2nu_matter_constant_density(sth: float, Dm2: float,
                 for xy in zip(energy, L)])
 
 
-def osc_prob_3nu_vacuum(s12: float, s23: float, s13: float, dCP: float, D21: float, D31: float, 
-    energy: Union[float, list, np.ndarray], L: Union[float, list, np.ndarray], 
+def osc_prob_3nu_vacuum(energy: Union[float, list, np.ndarray], L: Union[float, list, np.ndarray], 
+    s12: Optional[float]=None, s23: Optional[float]=None, s13: Optional[float]=None, 
+    dCP: Optional[float]=None, D21: Optional[float]=None, D31: Optional[float]=None, 
     nubar: Optional[bool]=False, nu_i: Optional[int]=None, nu_f: Optional[int]=None,
-    validate_input: Optional[bool]=True) -> np.ndarray:
+    default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
+    validate_input: Optional[bool]=True, verbose: Optional[int]=0) -> Union[float, np.ndarray]:
 
     if validate_input:
 
@@ -789,6 +791,46 @@ def osc_prob_3nu_vacuum(s12: float, s23: float, s13: float, dCP: float, D21: flo
             print("Aborting execution...")
             sys.exit(1)
 
+        try:
+            if not (default_osc_params_set_name in list(gd.OSC_PARAMS_PREDEFINED.keys())):
+                raise ValueError("Error in magnus: oscprob.osc_prob_3nu_vacuum: the requested " + \
+                    "name of the default set of oscillation parameters " + \
+                    "default_osc_params_set_name = " + default_osc_params_set_name + \
+                    ") is not one of the sets predefined in Magnus.  The available sets are: " + \
+                    str(list(gd.OSC_PARAMS_PREDEFINED.keys())) + ".")
+        except ValueError as error:
+            print(error)
+            print("Aborting execution...")
+            sys.exit(1)
+
+    # If any of the oscillation parameters has not been given a value, assign to it the value from
+    # the specified parameter set with name default_osc_params_set_name.  When input validation is
+    # on (validate_input == True), the routine checks whether the parameter set name is among the 
+    # predefined ones (see validation above).  Only the values of the parameters passed as None are
+    # assigned from the predefined set; other parameters are not modified.
+    if ((s12 is None) or (s23 is None) or (s13 is None) or (s23 is None) or (dCP is None) or \
+        (D21 is None) or (D31 is None)):
+
+        default_osc_params = gd.OSC_PARAMS_PREDEFINED[default_osc_params_set_name]
+
+        if verbose > 0:
+            print("Warning: Setting unspecified oscillation parameters to default values from " + \
+                "the predefined set " + default_osc_params['name'] + " (" + \
+                default_osc_params['description'] + "):\n" + \
+                ("s12 = " + str(default_osc_params['s12']) + "\n" if (s12 is None) else '') + \
+                ("s23 = " + str(default_osc_params['s23']) + "\n" if (s23 is None) else '') + \
+                ("s13 = " + str(default_osc_params['s13']) + "\n" if (s13 is None) else '') + \
+                ("dCP = " + str(default_osc_params['dCP']) + " rad\n" if (dCP is None) else '') + \
+                ("D21 = " + str(default_osc_params['D21']) + " eV^2\n" if (D21 is None) else '') + \
+                ("D31 = " + str(default_osc_params['D31']) + " eV^2\n" if (D31 is None) else ''))
+
+        s12 = s12 if (s12 is not None) else default_osc_params['s12']
+        s23 = s23 if (s23 is not None) else default_osc_params['s23']
+        s13 = s13 if (s13 is not None) else default_osc_params['s13']
+        dCP = dCP if (dCP is not None) else default_osc_params['dCP']
+        D21 = D21 if (D21 is not None) else default_osc_params['D21']
+        D31 = D31 if (D31 is not None) else default_osc_params['D31']            
+
     # Compute the energy-independent part of the Hamiltonian, i.e., everything but the 1/E 
     # prefactor, only once, to save time.  Multiply by the 1/E factor below when calling osc_prob.
     h_vac_energy_indep = hamiltonians3nu.hamiltonian_3nu_vacuum_energy_independent(s12, s23, s13,
@@ -813,11 +855,14 @@ def osc_prob_3nu_vacuum(s12: float, s23: float, s13: float, dCP: float, D21: flo
                 for xy in zip(energy, L)])
 
 
-def osc_prob_3nu_matter_constant_density(s12: float, s23: float, s13: float, dCP: float, D21: float, 
-    D31: float, energy: float, L: float, rho: float, 
+def osc_prob_3nu_matter_constant_density(energy: Union[float, list, np.ndarray], 
+    L: Union[float, list, np.ndarray], rho: float, s12: Optional[float]=None, 
+    s23: Optional[float]=None, s13: Optional[float]=None, dCP: Optional[float]=None, 
+    D21: Optional[float]=None, D31: Optional[float]=None, 
     ratio_number_neutrons_to_protons: Optional[float]=1.0, electron_fraction: Optional[float]=0.5, 
     nubar: Optional[bool]=False, nu_i: Optional[int]=None, nu_f: Optional[int]=None,
-    validate_input: Optional[bool]=True) -> np.ndarray:
+    default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
+    validate_input: Optional[bool]=True, verbose: Optional[int]=0) -> Union[float, np.ndarray]:
 
     if validate_input:
 
@@ -884,6 +929,46 @@ def osc_prob_3nu_matter_constant_density(s12: float, s23: float, s13: float, dCP
             print("Aborting execution...")
             sys.exit(1)
 
+        try:
+            if not (default_osc_params_set_name in list(gd.OSC_PARAMS_PREDEFINED.keys())):
+                raise ValueError("Error in magnus: oscprob.osc_prob_3nu_matter_constant_density:"+ \
+                    " the requested name of the default set of oscillation parameters " + \
+                    "default_osc_params_set_name = " + default_osc_params_set_name + \
+                    ") is not one of the sets predefined in Magnus.  The available sets are: " + \
+                    str(list(gd.OSC_PARAMS_PREDEFINED.keys())) + ".")
+        except ValueError as error:
+            print(error)
+            print("Aborting execution...")
+            sys.exit(1)
+
+    # If any of the oscillation parameters has not been given a value, assign to it the value from
+    # the specified parameter set with name default_osc_params_set_name.  When input validation is
+    # on (validate_input == True), the routine checks whether the parameter set name is among the 
+    # predefined ones (see validation above).  Only the values of the parameters passed as None are
+    # assigned from the predefined set; other parameters are not modified. 
+    if ((s12 is None) or (s23 is None) or (s13 is None) or (s23 is None) or (dCP is None) or \
+        (D21 is None) or (D31 is None)):
+
+        default_osc_params = gd.OSC_PARAMS_PREDEFINED[default_osc_params_set_name]
+
+        if verbose > 0:
+            print("Warning: Setting unspecified oscillation parameters to default values from " + \
+                "the predefined set " + default_osc_params['name'] + " (" + \
+                default_osc_params['description'] + "):\n" + \
+                ("s12 = " + str(default_osc_params['s12']) + "\n" if (s12 is None) else '') + \
+                ("s23 = " + str(default_osc_params['s23']) + "\n" if (s23 is None) else '') + \
+                ("s13 = " + str(default_osc_params['s13']) + "\n" if (s13 is None) else '') + \
+                ("dCP = " + str(default_osc_params['dCP']) + " rad\n" if (dCP is None) else '') + \
+                ("D21 = " + str(default_osc_params['D21']) + " eV^2\n" if (D21 is None) else '') + \
+                ("D31 = " + str(default_osc_params['D31']) + " eV^2\n" if (D31 is None) else ''))
+
+        s12 = s12 if (s12 is not None) else default_osc_params['s12']
+        s23 = s23 if (s23 is not None) else default_osc_params['s23']
+        s13 = s13 if (s13 is not None) else default_osc_params['s13']
+        dCP = dCP if (dCP is not None) else default_osc_params['dCP']
+        D21 = D21 if (D21 is not None) else default_osc_params['D21']
+        D31 = D31 if (D31 is not None) else default_osc_params['D31']            
+
     s = 1.0 if not nubar else -1.0
 
     # Electron number density [eV^3]
@@ -928,7 +1013,7 @@ if __name__ == "__main__":
         return np.array([[1+1j*t, 2*t, 3j*t], [2*t, 4-1j*t, 5+2j*t], [-3j*t, 5-2j*t, 1]], 
             dtype=np.complex128)
 
-    t_ini, t_fin = 0.0, 1.0
+    # t_ini, t_fin = 0.0, 1.0
 
     # prob = osc_prob(H_2nu_func, t_ini, t_fin, n_slabs=100, n_tpts_per_slab=100, magnus_exp_order=6,
     #     integration_method='simpson', n_jobs=1)
@@ -944,10 +1029,37 @@ if __name__ == "__main__":
     #     save_log=True, filename_log='./out.log', verbose=2)
     # print(prob)
 
-    prob = osc_prob(H_3nu_func, t_ini, t_fin, 
-        integration_method='simpson', n_jobs=10, rtol=1e-3, atol=1.e-3, 
-        max_n_slabs=10, max_n_tpts_per_slab=10, 
-        iterate_over_magnus_exp_order=True, min_magnus_exp_order=1, 
-        max_magnus_exp_order=gd.MAGNUS_EXP_ORDER_MAX,
-        save_log=True, filename_log='./out.log', verbose=2)
-    print(prob)
+    # # Test iteration over magnus_exp_order
+    # prob = osc_prob(H_3nu_func, t_ini, t_fin, 
+    #     integration_method='simpson', n_jobs=10, rtol=1e-3, atol=1.e-3, 
+    #     max_n_slabs=10, max_n_tpts_per_slab=10, 
+    #     iterate_over_magnus_exp_order=True, min_magnus_exp_order=1, 
+    #     max_magnus_exp_order=gd.MAGNUS_EXP_ORDER_MAX,
+    #     save_log=True, filename_log='./out.log', verbose=2)
+    # print(prob)
+
+    # Test use of default values of oscillation parameters: vacuum
+    # print(osc_prob_3nu_vacuum(1.*gd.UNIT_MEV, 100*gd.UNIT_KM, 
+    #     validate_input=True, verbose=0), end='\n\n')
+    # print(osc_prob_3nu_vacuum(1.*gd.UNIT_MEV, 100*gd.UNIT_KM, nu_i=gd.NUE, nu_f=gd.NUMU,
+    #     validate_input=True, verbose=0), end='\n\n')
+    # print(osc_prob_3nu_vacuum(1.*gd.UNIT_MEV, 100*gd.UNIT_KM, nu_i=gd.NUE, nu_f=gd.NUMU,
+    #     validate_input=True, verbose=1), end='\n\n')
+    # print(osc_prob_3nu_vacuum(1.*gd.UNIT_MEV, 100*gd.UNIT_KM, nu_i=gd.NUE, nu_f=gd.NUMU,
+    #     s13=0.0, s23=0.0, dCP=0.0, D31=0.0, validate_input=True, verbose=1), end='\n\n')
+    # print(osc_prob_3nu_vacuum(1.*gd.UNIT_MEV, 100*gd.UNIT_KM, nu_i=gd.NUE, nu_f=gd.NUMU,
+    #     default_osc_params_set_name='xxx', validate_input=True, verbose=1), end='\n\n')
+
+    # Test use of default values of oscillation parameters: constant-density matter
+    print(osc_prob_3nu_matter_constant_density(1.*gd.UNIT_MEV, 100*gd.UNIT_KM, 10.0, #*gd.UNIT_G_PER_CM3,
+        validate_input=True, verbose=0), end='\n\n')
+    print(osc_prob_3nu_matter_constant_density(1.*gd.UNIT_MEV, 100*gd.UNIT_KM, 10.0,
+        nu_i=gd.NUE, nu_f=gd.NUMU, validate_input=True, verbose=0), end='\n\n')
+    print(osc_prob_3nu_matter_constant_density(1.*gd.UNIT_MEV, 100*gd.UNIT_KM, 10.0,
+        nu_i=gd.NUE, nu_f=gd.NUMU, validate_input=True, verbose=1), end='\n\n')
+    print(osc_prob_3nu_matter_constant_density(1.*gd.UNIT_MEV, 100*gd.UNIT_KM, 10.0,
+        nu_i=gd.NUE, nu_f=gd.NUMU,
+        s13=0.0, s23=0.0, dCP=0.0, D31=0.0, validate_input=True, verbose=1), end='\n\n')
+    print(osc_prob_3nu_matter_constant_density(1.*gd.UNIT_MEV, 100*gd.UNIT_KM, 10.0,
+        nu_i=gd.NUE, nu_f=gd.NUMU,
+        default_osc_params_set_name='xxx', validate_input=True, verbose=1), end='\n\n')
