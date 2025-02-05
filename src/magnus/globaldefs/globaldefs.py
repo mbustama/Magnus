@@ -210,6 +210,7 @@ UNIT_TEV = 1.e12
 UNIT_PEV = 1.e15
 UNIT_EEV = 1.e18
 
+
 S12_NO_BF_NUFIT_6_0 = np.sqrt(0.308)
 r"""float: Module-level constant
 
@@ -313,6 +314,35 @@ Mass-squared difference Delta m^2_31, best fit from NuFit 6.0, assuming
 inverted ordering with SK atmospheric data.
 Units: [eV^2]
 """
+
+OSC_PARAMS_NU_FIT_6_0_SK_NO = {
+    'name': 'OSC_PARAMS_NU_FIT_6_0_NO',
+    'description': 'NuFit 6.0, NO, with SK atmospheric data',
+    's12': S12_NO_BF_NUFIT_6_0,
+    's23': S23_NO_BF_NUFIT_6_0,
+    's13': S13_NO_BF_NUFIT_6_0,
+    'dCP': DCP_NO_BF_NUFIT_6_0,
+    'D21': D21_NO_BF_NUFIT_6_0,
+    'D31': D31_NO_BF_NUFIT_6_0
+}
+
+OSC_PARAMS_NU_FIT_6_0_SK_IO = {
+    'name': 'OSC_PARAMS_NU_FIT_6_0_IO',
+    'description': 'NuFit 6.0, IO, with SK atmospheric data',
+    's12': S12_IO_BF_NUFIT_6_0,
+    's23': S23_IO_BF_NUFIT_6_0,
+    's13': S13_IO_BF_NUFIT_6_0,
+    'dCP': DCP_IO_BF_NUFIT_6_0,
+    'D21': D21_IO_BF_NUFIT_6_0,
+    'D31': D31_IO_BF_NUFIT_6_0
+}
+
+OSC_PARAMS_PREDEFINED = {
+    'OSC_PARAMS_DEFAULT': OSC_PARAMS_NU_FIT_6_0_SK_NO,
+    'OSC_PARAMS_NU_FIT_6_0_SK_NO': OSC_PARAMS_NU_FIT_6_0_SK_NO,
+    'OSC_PARAMS_NU_FIT_6_0_SK_IO': OSC_PARAMS_NU_FIT_6_0_SK_IO
+}
+
 
 EPS_EE = 0.06
 r"""float: Module-level constant
