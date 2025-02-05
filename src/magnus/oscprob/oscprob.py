@@ -725,7 +725,8 @@ def osc_prob_3nu_vacuum(energy: Union[float, list, np.ndarray], L: Union[float, 
     dCP: Optional[float]=None, D21: Optional[float]=None, D31: Optional[float]=None, 
     nubar: Optional[bool]=False, nu_i: Optional[int]=None, nu_f: Optional[int]=None,
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
-    validate_input: Optional[bool]=True, verbose: Optional[int]=0) -> Union[float, np.ndarray]:
+    validate_input: Optional[bool]=True, verbose: Optional[int]=0, 
+    **kwargs) -> Union[float, np.ndarray]:
 
     if validate_input:
 
@@ -861,6 +862,7 @@ def osc_prob_3nu_matter_constant_density(energy: Union[float, list, np.ndarray],
     D21: Optional[float]=None, D31: Optional[float]=None, 
     ratio_number_neutrons_to_protons: Optional[float]=1.0, electron_fraction: Optional[float]=0.5, 
     nubar: Optional[bool]=False, nu_i: Optional[int]=None, nu_f: Optional[int]=None,
+    density_matter_is_in_g_per_cm3=False,
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
     validate_input: Optional[bool]=True, verbose: Optional[int]=0) -> Union[float, np.ndarray]:
 
@@ -974,7 +976,8 @@ def osc_prob_3nu_matter_constant_density(energy: Union[float, list, np.ndarray],
     # Electron number density [eV^3]
     num_density_e = matter.num_density_e_func(l=0.0, density_matter_func=lambda l: rho, 
         ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons, 
-        electron_fraction=electron_fraction) 
+        electron_fraction=electron_fraction, 
+        density_matter_is_in_g_per_cm3=density_matter_is_in_g_per_cm3) 
 
     # Coherent forward potential, VCC [eV]
     VCC = matter.VCC_func(l=0.0, num_density_e_func=lambda l: num_density_e) 
@@ -1051,15 +1054,17 @@ if __name__ == "__main__":
     #     default_osc_params_set_name='xxx', validate_input=True, verbose=1), end='\n\n')
 
     # Test use of default values of oscillation parameters: constant-density matter
-    print(osc_prob_3nu_matter_constant_density(1.*gd.UNIT_MEV, 100*gd.UNIT_KM, 10.0, #*gd.UNIT_G_PER_CM3,
-        validate_input=True, verbose=0), end='\n\n')
-    print(osc_prob_3nu_matter_constant_density(1.*gd.UNIT_MEV, 100*gd.UNIT_KM, 10.0,
-        nu_i=gd.NUE, nu_f=gd.NUMU, validate_input=True, verbose=0), end='\n\n')
-    print(osc_prob_3nu_matter_constant_density(1.*gd.UNIT_MEV, 100*gd.UNIT_KM, 10.0,
-        nu_i=gd.NUE, nu_f=gd.NUMU, validate_input=True, verbose=1), end='\n\n')
-    print(osc_prob_3nu_matter_constant_density(1.*gd.UNIT_MEV, 100*gd.UNIT_KM, 10.0,
-        nu_i=gd.NUE, nu_f=gd.NUMU,
+    print(osc_prob_3nu_matter_constant_density(1.*gd.UNIT_MEV, 100*gd.UNIT_KM, 
+        10.0*gd.UNIT_G_PER_CM3, validate_input=True, verbose=0), end='\n\n')
+    print(osc_prob_3nu_matter_constant_density(1.*gd.UNIT_MEV, 100*gd.UNIT_KM, 
+        10.0*gd.UNIT_G_PER_CM3, nu_i=gd.NUE, nu_f=gd.NUMU, validate_input=True, verbose=0), 
+    end='\n\n')
+    print(osc_prob_3nu_matter_constant_density(1.*gd.UNIT_MEV, 100*gd.UNIT_KM, 
+        10.0*gd.UNIT_G_PER_CM3, nu_i=gd.NUE, nu_f=gd.NUMU, validate_input=True, verbose=1), 
+    end='\n\n')
+    print(osc_prob_3nu_matter_constant_density(1.*gd.UNIT_MEV, 100*gd.UNIT_KM,
+        10.0*gd.UNIT_G_PER_CM3, nu_i=gd.NUE, nu_f=gd.NUMU,
         s13=0.0, s23=0.0, dCP=0.0, D31=0.0, validate_input=True, verbose=1), end='\n\n')
-    print(osc_prob_3nu_matter_constant_density(1.*gd.UNIT_MEV, 100*gd.UNIT_KM, 10.0,
-        nu_i=gd.NUE, nu_f=gd.NUMU,
+    print(osc_prob_3nu_matter_constant_density(1.*gd.UNIT_MEV, 100*gd.UNIT_KM, 
+        10.0*gd.UNIT_G_PER_CM3, nu_i=gd.NUE, nu_f=gd.NUMU,
         default_osc_params_set_name='xxx', validate_input=True, verbose=1), end='\n\n')
