@@ -521,8 +521,8 @@ def osc_prob_iterate_over_magnus_exp_order(H_func: Union[Callable, np.ndarray], 
     return P
 
     
-def osc_prob_2nu_vacuum(sth: float, Dm2: float, energy: Union[float, list, np.ndarray], 
-    L: Union[float, list, np.ndarray], nu_i: Optional[int]=None, nu_f: Optional[int]=None,
+def osc_prob_2nu_vacuum(energy: Union[float, list, np.ndarray], L: Union[float, list, np.ndarray], 
+    sth: float, Dm2: float, nu_i: Optional[int]=None, nu_f: Optional[int]=None,
     validate_input: Optional[bool]=True) -> Union[float, np.ndarray]:
 
     if validate_input:
@@ -612,8 +612,8 @@ def osc_prob_2nu_vacuum(sth: float, Dm2: float, energy: Union[float, list, np.nd
                 for xy in zip(energy, L)])
 
 
-def osc_prob_2nu_matter_constant_density(sth: float, Dm2: float, 
-    energy: Union[float, list, np.ndarray], L: Union[float, list, np.ndarray], 
+def osc_prob_2nu_matter_constant_density(energy: Union[float, list, np.ndarray], 
+    L: Union[float, list, np.ndarray], sth: float, Dm2: float, 
     rho: float, ratio_number_neutrons_to_protons: Optional[float]=1.0, 
     electron_fraction: Optional[float]=0.5, nubar: Optional[bool]=False,
     nu_i: Optional[int]=None, nu_f: Optional[int]=None,
