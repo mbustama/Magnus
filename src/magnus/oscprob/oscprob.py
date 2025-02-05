@@ -636,23 +636,40 @@ def osc_prob_2nu_vacuum(energy: Union[float, list, np.ndarray], L: Union[float, 
     # prefactor, only once, to save time.  Multiply by the 1/E factor below when calling osc_prob.
     h_vac_energy_indep = hamiltonians2nu.hamiltonian_2nu_vacuum_energy_independent(sth, Dm2)
 
-    if (isinstance(energy, float) and isinstance(L, float)): # Single value of energy and L
-        
-        if ((nu_i is not None) and (nu_f is not None)):
-            return osc_prob((1/energy)*h_vac_energy_indep, 0.0, L)[nu_i][nu_f] # Single channel
-        else:
-            return osc_prob((1/energy)*h_vac_energy_indep, 0.0, L) # Full probability matrix
-    
-    else: # Multiple values of energy, L, or both: zip them
+    # Flag return_float remembers if energy and L were both floats.  If True, return a float, too.
+    return_float = isinstance(energy, float) and isinstance(L, float)
 
-        energy = np.array(energy)
-        L = np.array(L)
-        if ((nu_i is not None) and (nu_f is not None)):
-            return np.array([osc_prob((1/xy[0])*h_vac_energy_indep, 0.0, xy[1])[nu_i][nu_f]
-                for xy in zip(energy, L)])
-        else:
-            return np.array([osc_prob((1/xy[0])*h_vac_energy_indep, 0.0, xy[1])
-                for xy in zip(energy, L)])
+    energy = np.array([energy]) if isinstance(energy, float) else np.array(energy)  
+    L = np.array([L]) if isinstance(L, float) else np.array(L) 
+
+    # Either energy and L are both lists (or NumPy arrays) of the same length; or one is a float and
+    # the other is a list (or NumPy array).  Any other possibility will generate an exception.  This
+    # exception is raised earlier if validate_input == True, but we check below in case it has been
+    # set to False.
+    try:
+        if not ((len(energy) == len(L)) or (len(energy) == 1 and len(L) > 1) or \
+            (len(energy) > 1 and len(L) == 1)):
+            raise ValueError("Error in magnus: oscprob.osc_prob_2nu_vacuum: energy and L must " + \
+                "be both floats; or, if lists (or NumPy arrays), they must have the same " + \
+                "length; or, if one is a float or single-entry list, the other must be a list " + \
+                "with multiple entries.")
+    except ValueError as error:
+        print(error)
+        print("Aborting execution...")
+        sys.exit(1)
+
+    # If energy is a single value, then transform it into an array containing the value energy 
+    # repeated a number of times equal to the length of the L, and vice versa, in order to zip them.
+    energy = np.full(len(L), energy[0]) if (len(energy) == 1) else energy
+    L = np.full(len(energy), L[0]) if (len(L) == 1) else L
+
+    # The call to __getitem__ below is a way to return a float if both energy and L were floats
+    if ((nu_i is not None) and (nu_f is not None)):
+        return np.array([osc_prob((1/xy[0])*h_vac_energy_indep, 0.0, xy[1])[nu_i][nu_f]
+            for xy in zip(energy, L)]).__getitem__(0 if return_float else slice(None))
+    else:
+        return np.array([osc_prob((1/xy[0])*h_vac_energy_indep, 0.0, xy[1])
+            for xy in zip(energy, L)]).__getitem__(0 if return_float else slice(None))
 
 
 def osc_prob_2nu_matter_constant_density(energy: Union[float, list, np.ndarray], 
@@ -666,6 +683,28 @@ def osc_prob_2nu_matter_constant_density(energy: Union[float, list, np.ndarray],
         # The function name is sys._getframe().f_code.co_name
         if validate_input_battery(sys._getframe().f_code.co_name, energy, L, nu_i, nu_f) == 1:
             sys.exit(1)
+
+    # Flag return_float remembers if energy and L were both floats.  If True, return a float, too.
+    return_float = isinstance(energy, float) and isinstance(L, float)
+
+    energy = np.array([energy]) if isinstance(energy, float) else np.array(energy)  
+    L = np.array([L]) if isinstance(L, float) else np.array(L) 
+
+    # Either energy and L are both lists (or NumPy arrays) of the same length; or one is a float and
+    # the other is a list (or NumPy array).  Any other possibility will generate an exception.  This
+    # exception is raised earlier if validate_input == True, but we check below in case it has been
+    # set to False.
+    try:
+        if not ((len(energy) == len(L)) or (len(energy) == 1 and len(L) > 1) or \
+            (len(energy) > 1 and len(L) == 1)):
+            raise ValueError("Error in magnus: oscprob.osc_prob_2nu_matter_constant_density: " + \
+                "energy and L must be both floats; or, if lists (or NumPy arrays), they must " + \
+                "have the same length; or, if one is a float or single-entry list, the other " + \
+                "must be a list with multiple entries.")
+    except ValueError as error:
+        print(error)
+        print("Aborting execution...")
+        sys.exit(1)
 
     s = 1.0 if not nubar else -1.0
 
@@ -684,23 +723,18 @@ def osc_prob_2nu_matter_constant_density(energy: Union[float, list, np.ndarray],
     # Compute the matter Hamiltonian only once, to save time.
     h_matt = s*hamiltonians2nu.hamiltonian_2nu_matter(VCC)
 
-    if (isinstance(energy, float) and isinstance(L, float)): # Single value of energy and L
-        
-        if ((nu_i is not None) and (nu_f is not None)):
-            return osc_prob((1/energy)*h_vac_energy_indep+h_matt, 0.0, L)[nu_i][nu_f] # Single channel
-        else:
-            return osc_prob((1/energy)*h_vac_energy_indep+h_matt, 0.0, L) # Full probability matrix
-    
-    else: # Multiple values of energy, L, or both: zip them
+    # If energy is a single value, then transform it into an array containing the value energy 
+    # repeated a number of times equal to the length of the L, and vice versa, in order to zip them.
+    energy = np.full(len(L), energy[0]) if (len(energy) == 1) else energy
+    L = np.full(len(energy), L[0]) if (len(L) == 1) else L
 
-        energy = np.array(energy)
-        L = np.array(L)
-        if ((nu_i is not None) and (nu_f is not None)):
-            return np.array([osc_prob((1/xy[0])*h_vac_energy_indep+h_matt, 0.0, xy[1])[nu_i][nu_f]
-                for xy in zip(energy, L)])
-        else:
-            return np.array([osc_prob((1/xy[0])*h_vac_energy_indep+h_matt, 0.0, xy[1])
-                for xy in zip(energy, L)])
+    # The call to __getitem__ below is a way to return a float if both energy and L were floats
+    if ((nu_i is not None) and (nu_f is not None)):
+        return np.array([osc_prob((1/xy[0])*h_vac_energy_indep+h_matt, 0.0, xy[1])[nu_i][nu_f]
+            for xy in zip(energy, L)]).__getitem__(0 if return_float else slice(None))
+    else:
+        return np.array([osc_prob((1/xy[0])*h_vac_energy_indep+h_matt, 0.0, xy[1])
+            for xy in zip(energy, L)]).__getitem__(0 if return_float else slice(None))
 
 
 def osc_prob_3nu_vacuum(energy: Union[float, list, np.ndarray], L: Union[float, list, np.ndarray], 
@@ -715,6 +749,28 @@ def osc_prob_3nu_vacuum(energy: Union[float, list, np.ndarray], L: Union[float, 
         # The function name is sys._getframe().f_code.co_name
         if validate_input_battery(sys._getframe().f_code.co_name, energy, L, nu_i, nu_f) == 1:
             sys.exit(1)
+
+    # Flag return_float remembers if energy and L were both floats.  If True, return a float, too.
+    return_float = isinstance(energy, float) and isinstance(L, float)
+
+    energy = np.array([energy]) if isinstance(energy, float) else np.array(energy)  
+    L = np.array([L]) if isinstance(L, float) else np.array(L) 
+
+    # Either energy and L are both lists (or NumPy arrays) of the same length; or one is a float and
+    # the other is a list (or NumPy array).  Any other possibility will generate an exception.  This
+    # exception is raised earlier if validate_input == True, but we check below in case it has been
+    # set to False.
+    try:
+        if not ((len(energy) == len(L)) or (len(energy) == 1 and len(L) > 1) or \
+            (len(energy) > 1 and len(L) == 1)):
+            raise ValueError("Error in magnus: oscprob.osc_prob_3nu_vacuum: energy and L must " + \
+                "be both floats; or, if lists (or NumPy arrays), they must have the same " + \
+                "length; or, if one is a float or single-entry list, the other must be a list " + \
+                "with multiple entries.")
+    except ValueError as error:
+        print(error)
+        print("Aborting execution...")
+        sys.exit(1)
 
     # If any of the oscillation parameters has not been given a value, assign to it the value from
     # the specified parameter set with name default_osc_params_set_name.  When input validation is
@@ -749,23 +805,18 @@ def osc_prob_3nu_vacuum(energy: Union[float, list, np.ndarray], L: Union[float, 
     h_vac_energy_indep = hamiltonians3nu.hamiltonian_3nu_vacuum_energy_independent(s12, s23, s13,
         dCP, D21, D31, nubar=nubar) 
 
-    if (isinstance(energy, float) and isinstance(L, float)): # Single value of energy and L
-        
-        if ((nu_i is not None) and (nu_f is not None)):
-            return osc_prob((1/energy)*h_vac_energy_indep, 0.0, L)[nu_i][nu_f] # Single channel
-        else:
-            return osc_prob((1/energy)*h_vac_energy_indep, 0.0, L) # Full probability matrix
-    
-    else: # Multiple values of energy, L, or both: zip them
+    # If energy is a single value, then transform it into an array containing the value energy 
+    # repeated a number of times equal to the length of the L, and vice versa, in order to zip them.
+    energy = np.full(len(L), energy[0]) if (len(energy) == 1) else energy
+    L = np.full(len(energy), L[0]) if (len(L) == 1) else L
 
-        energy = np.array(energy)
-        L = np.array(L)
-        if ((nu_i is not None) and (nu_f is not None)):
-            return np.array([osc_prob((1/xy[0])*h_vac_energy_indep, 0.0, xy[1])[nu_i][nu_f]
-                for xy in zip(energy, L)])
-        else:
-            return np.array([osc_prob((1/xy[0])*h_vac_energy_indep, 0.0, xy[1])
-                for xy in zip(energy, L)])
+    # The call to __getitem__ below is a way to return a float if both energy and L were floats
+    if ((nu_i is not None) and (nu_f is not None)):
+        return np.array([osc_prob((1/xy[0])*h_vac_energy_indep, 0.0, xy[1])[nu_i][nu_f]
+            for xy in zip(energy, L)]).__getitem__(0 if return_float else slice(None))
+    else:
+        return np.array([osc_prob((1/xy[0])*h_vac_energy_indep, 0.0, xy[1])
+            for xy in zip(energy, L)]).__getitem__(0 if return_float else slice(None))
 
 
 def osc_prob_3nu_matter_constant_density(energy: Union[float, list, np.ndarray], 
@@ -782,6 +833,28 @@ def osc_prob_3nu_matter_constant_density(energy: Union[float, list, np.ndarray],
         # The function name is sys._getframe().f_code.co_name
         if validate_input_battery(sys._getframe().f_code.co_name, energy, L, nu_i, nu_f) == 1:
             sys.exit(1)
+
+    # Flag return_float remembers if energy and L were both floats.  If True, return a float, too.
+    return_float = isinstance(energy, float) and isinstance(L, float)
+
+    energy = np.array([energy]) if isinstance(energy, float) else np.array(energy)  
+    L = np.array([L]) if isinstance(L, float) else np.array(L) 
+
+    # Either energy and L are both lists (or NumPy arrays) of the same length; or one is a float and
+    # the other is a list (or NumPy array).  Any other possibility will generate an exception.  This
+    # exception is raised earlier if validate_input == True, but we check below in case it has been
+    # set to False.
+    try:
+        if not ((len(energy) == len(L)) or (len(energy) == 1 and len(L) > 1) or \
+            (len(energy) > 1 and len(L) == 1)):
+            raise ValueError("Error in magnus: oscprob.osc_prob_3nu_matter_constant_density: " + \
+                "energy and L must be both floats; or, if lists (or NumPy arrays), they must " + \
+                "have the same length; or, if one is a float or single-entry list, the other " + \
+                "must be a list with multiple entries.")
+    except ValueError as error:
+        print(error)
+        print("Aborting execution...")
+        sys.exit(1)
 
     # If any of the oscillation parameters has not been given a value, assign to it the value from
     # the specified parameter set with name default_osc_params_set_name.  When input validation is
@@ -830,23 +903,18 @@ def osc_prob_3nu_matter_constant_density(energy: Union[float, list, np.ndarray],
     # Compute the matter Hamiltonian only once, to save time.
     h_matt = s*hamiltonians3nu.hamiltonian_3nu_matter(VCC)
 
-    if (isinstance(energy, float) and isinstance(L, float)): # Single value of energy and L
-        
-        if ((nu_i is not None) and (nu_f is not None)):
-            return osc_prob((1/energy)*h_vac_energy_indep+h_matt, 0.0, L)[nu_i][nu_f] # Single channel
-        else:
-            return osc_prob((1/energy)*h_vac_energy_indep+h_matt, 0.0, L) # Full probability matrix
-    
-    else: # Multiple values of energy, L, or both: zip them
+    # If energy is a single value, then transform it into an array containing the value energy 
+    # repeated a number of times equal to the length of the L, and vice versa, in order to zip them.
+    energy = np.full(len(L), energy[0]) if (len(energy) == 1) else energy
+    L = np.full(len(energy), L[0]) if (len(L) == 1) else L
 
-        energy = np.array(energy)
-        L = np.array(L)
-        if ((nu_i is not None) and (nu_f is not None)):
-            return np.array([osc_prob((1/xy[0])*h_vac_energy_indep+h_matt, 0.0, xy[1])[nu_i][nu_f]
-                for xy in zip(energy, L)])
-        else:
-            return np.array([osc_prob((1/xy[0])*h_vac_energy_indep+h_matt, 0.0, xy[1])
-                for xy in zip(energy, L)])
+    # The call to __getitem__ below is a way to return a float if both energy and L were floats
+    if ((nu_i is not None) and (nu_f is not None)):
+        return np.array([osc_prob((1/xy[0])*h_vac_energy_indep+h_matt, 0.0, xy[1])[nu_i][nu_f]
+            for xy in zip(energy, L)]).__getitem__(0 if return_float else slice(None))
+    else:
+        return np.array([osc_prob((1/xy[0])*h_vac_energy_indep+h_matt, 0.0, xy[1])
+            for xy in zip(energy, L)]).__getitem__(0 if return_float else slice(None))
 
 
 if __name__ == "__main__":
