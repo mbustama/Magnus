@@ -84,14 +84,15 @@ def print_run_parameters(H_func: Union[Callable, np.ndarray], t_ini: float, t_fi
     return
 
 
-def validate_input_battery(source_func_name: str, energy: Union[float, list, np.ndarray], 
-    L: Union[float, list, np.ndarray], nu_i: Optional[int]=None, nu_f: Optional[int]=None) -> int:
+def validate_input_battery(source_func_name: str, energy: Union[int, float, list, np.ndarray], 
+    L: Union[int, float, list, np.ndarray], nu_i: Optional[int]=None, 
+    nu_f: Optional[int]=None) -> int:
 
     try:
-        if ( (not isinstance(energy, float)) and (not isinstance(energy, list)) and \
-            (not isinstance(energy, np.ndarray)) ):
-            raise ValueError("Error in magnus: oscprob." + source_func_name + ": energy must be" + \
-                " a float, a 1D list, or a 1D NumPy array.")
+        if ( (not isinstance(energy, int)) and (not isinstance(energy, float)) and \
+            (not isinstance(energy, list)) and (not isinstance(energy, np.ndarray)) ):
+            raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + \
+                ": energy must be an int, a float, a 1D list, or a 1D NumPy array.")
     except ValueError as error:
         print(error)
         print("Aborting execution...")
@@ -101,8 +102,8 @@ def validate_input_battery(source_func_name: str, energy: Union[float, list, np.
     try:
         if ( (isinstance(energy, list) or isinstance(energy, np.ndarray)) and \
             (np.array(energy).ndim != 1) ):
-            raise ValueError("Error in magnus: oscprob." + source_func_name + ": if energy is a" + \
-                "list or NumPy array, it must be 1D.")
+            raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + \
+                ": if energy is a list or NumPy array, it must be 1D.")
     except ValueError as error:
         print(error)
         print("Aborting execution...")
@@ -110,10 +111,10 @@ def validate_input_battery(source_func_name: str, energy: Union[float, list, np.
         # sys.exit(1)
 
     try:
-        if ( (not isinstance(L, float)) and (not isinstance(L, list)) and \
-            (not isinstance(L, np.ndarray)) ):
-            raise ValueError("Error in magnus: oscprob." + source_func_name + ": L must be a " + \
-                "float, a 1D list, or a 1D NumPy array.")
+        if ( (not isinstance(L, int)) and (not isinstance(L, float)) and \
+            (not isinstance(L, list)) and (not isinstance(L, np.ndarray)) ):
+            raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + \
+                ": L must be an int, a float, a 1D list, or a 1D NumPy array.")
     except ValueError as error:
         print(error)
         print("Aborting execution...")
@@ -123,8 +124,8 @@ def validate_input_battery(source_func_name: str, energy: Union[float, list, np.
     try:
         if ( (isinstance(L, list) or isinstance(L, np.ndarray)) and \
             (np.array(L).ndim != 1) ):
-            raise ValueError("Error in magnus: oscprob." + source_func_name + ": if L is a " + \
-                " list or NumPy array, it must be 1D.")
+            raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + \
+                ": if L is a list or NumPy array, it must be 1D.")
     except ValueError as error:
         print(error)
         print("Aborting execution...")
@@ -135,8 +136,9 @@ def validate_input_battery(source_func_name: str, energy: Union[float, list, np.
         if ( (isinstance(energy, list) or isinstance(energy, np.ndarray)) and \
             (isinstance(L, list) or isinstance(L, np.ndarray)) and \
             (len(energy) != len(L)) ):
-            raise ValueError("Error in magnus: oscprob." + source_func_name + ": since the input" +\
-                " energy and L are both lists or NumPy arrays, they must have the same length.")
+            raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + \
+                ": since the input energy and L are both lists or NumPy arrays, they must have " + \
+                "the same length.")
     except ValueError as error:
         print(error)
         print("Aborting execution...")
@@ -145,8 +147,8 @@ def validate_input_battery(source_func_name: str, energy: Union[float, list, np.
 
     try:
         if (((nu_i is not None) and (nu_f is None)) or ((nu_i is None) and (nu_f is not None))):
-            raise ValueError("Error in magnus: oscprob." + source_func_name + ": if either nu_i" + \
-                " or nu_f is not None, then the other flavor must also be not None.")
+            raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + \
+                ": if either nu_i or nu_f is not None, the other flavor must also be not None.")
     except ValueError as error:
         print(error)
         print("Aborting execution...")
@@ -157,10 +159,10 @@ def validate_input_battery(source_func_name: str, energy: Union[float, list, np.
         if ((nu_i is not None) and (nu_f is not None)):
             flavors = set([gd.NUE, gd.NUMU, gd.NUTAU])
             if ( (not (nu_i in flavors)) or (not (nu_f in flavors))):
-                raise ValueError("Error in magnus: oscprob." + source_func_name + ": if nu_i " + \
-                    "and nu_f are not None, they must be either gd.NUE (" + str(gd.NUE) + \
-                    "), gd.NUMU (" + str(gd.NUMU) + "), or gd.NUTAU (" + str(gd.NUTAU) + \
-                    ") only.")
+                raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + \
+                    ": if nu_i and nu_f are not None, they must be either gd.NUE (" + \
+                    str(gd.NUE) + "), gd.NUMU (" + str(gd.NUMU) + "), or gd.NUTAU (" + \
+                    str(gd.NUTAU) + ") only.")
     except ValueError as error:
         print(error)
         print("Aborting execution...")
@@ -225,7 +227,8 @@ def osc_prob(H_func: Union[Callable, np.ndarray], t_ini: float, t_fin: float,
 
         try:
             if (t_fin < t_ini): 
-                raise ValueError("Error in magnus: oscprob.osc_prob: t_fin must be >= t_ini.")
+                raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob: t_fin must be >=" + \
+                    " t_ini.")
         except ValueError as error:
             print(error)
             print("Aborting execution...")
@@ -233,7 +236,8 @@ def osc_prob(H_func: Union[Callable, np.ndarray], t_ini: float, t_fin: float,
 
         try:
             if (magnus_exp_order < 1): 
-                raise ValueError("Error in magnus: oscprob.osc_prob: magnus_exp_order must be >= 1.")
+                raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob: magnus_exp_order " + \
+                    "must be >= 1.")
         except ValueError as error:
             print(error)
             print("Aborting execution...")
@@ -241,7 +245,8 @@ def osc_prob(H_func: Union[Callable, np.ndarray], t_ini: float, t_fin: float,
 
         try:
             if ((rtol is not None) and (rtol <= 0.0)): 
-                raise ValueError("Error in magnus: oscprob.osc_prob: rtol must be None or > 0.0.")
+                raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob: rtol must be None " + \
+                    "or > 0.0.")
         except ValueError as error:
             print(error)
             print("Aborting execution...")
@@ -249,7 +254,8 @@ def osc_prob(H_func: Union[Callable, np.ndarray], t_ini: float, t_fin: float,
 
         try:
             if ((atol is not None) and (atol <= 0.0)): 
-                raise ValueError("Error in magnus: oscprob.osc_prob: atol must be None or > 0.0.")
+                raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob: atol must be None " + \
+                    "or > 0.0.")
         except ValueError as error:
             print(error)
             print("Aborting execution...")
@@ -257,8 +263,8 @@ def osc_prob(H_func: Union[Callable, np.ndarray], t_ini: float, t_fin: float,
 
         try:
             if ((rtol is not None) and (atol is not None) and (growth_factor_n_slabs < 1.0)): 
-                raise ValueError("Error in magnus: oscprob.osc_prob: growth_factor_n_slabs" + 
-                    " must be >= 1.0.")
+                raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob: " + \
+                    "growth_factor_n_slabs must be >= 1.0.")
         except ValueError as error:
             print(error)
             print("Aborting execution...")
@@ -266,8 +272,8 @@ def osc_prob(H_func: Union[Callable, np.ndarray], t_ini: float, t_fin: float,
 
         try:
             if ((rtol is not None) and (atol is not None) and (growth_factor_n_tpts_per_slab < 1.0)): 
-                raise ValueError("Error in magnus: oscprob.osc_prob: growth_factor_n_tpts_per_slab" + 
-                    " must be >= 1.0.")
+                raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob: " + \
+                    "growth_factor_n_tpts_per_slab must be >= 1.0.")
         except ValueError as error:
             print(error)
             print("Aborting execution...")
@@ -275,7 +281,8 @@ def osc_prob(H_func: Union[Callable, np.ndarray], t_ini: float, t_fin: float,
 
         try:
             if ((rtol is not None) and (atol is not None) and (max_num_loops <= 1)): 
-                raise ValueError("Error in magnus: oscprob.osc_prob: max_num_loops must be > 1.")
+                raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob: max_num_loops must" + \
+                    " be > 1.")
         except ValueError as error:
             print(error)
             print("Aborting execution...")
@@ -283,7 +290,8 @@ def osc_prob(H_func: Union[Callable, np.ndarray], t_ini: float, t_fin: float,
 
         try:
             if ((rtol is not None) and (atol is not None) and (max_n_slabs <= 1)): 
-                raise ValueError("Error in magnus: oscprob.osc_prob: max_n_slabs must be > 1.")
+                raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob: max_n_slabs must " + \
+                    "be > 1.")
         except ValueError as error:
             print(error)
             print("Aborting execution...")
@@ -291,7 +299,7 @@ def osc_prob(H_func: Union[Callable, np.ndarray], t_ini: float, t_fin: float,
 
         try:
             if ((rtol is not None) and (atol is not None) and (max_n_slabs <= 2)): 
-                raise ValueError("Error in magnus: oscprob.osc_prob: max_n_tpts_per_slab" + \
+                raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob: max_n_tpts_per_slab" +\
                     " must be > 2.")
         except ValueError as error:
             print(error)
@@ -300,8 +308,8 @@ def osc_prob(H_func: Union[Callable, np.ndarray], t_ini: float, t_fin: float,
 
         try:
             if ((callable(H_func)) and (len(signature(H_func).parameters) > 1)):
-                raise ValueError("Error in magnus: oscprob.osc_prob: the provided H_func is a " + \
-                    " function of more than one parameter")
+                raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob: the provided H_func" +\
+                    " is a function of more than one parameter")
         except ValueError as error:
             print(error)
             print("Aborting execution...")
@@ -311,8 +319,8 @@ def osc_prob(H_func: Union[Callable, np.ndarray], t_ini: float, t_fin: float,
 
         try:
             if not isinstance(H_test, np.ndarray):
-                raise ValueError("Error in magnus: oscprob.osc_prob: H_func must be a NumPy " + \
-                    "(if the Hamiltonian is time-independent) or must return a NumPy array.")
+                raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob: H_func must be a " + \
+                    "NumPy (if the Hamiltonian is time-independent) or must return a NumPy array.")
         except ValueError as error:
             print(error)
             print("Aborting execution...")
@@ -320,9 +328,9 @@ def osc_prob(H_func: Union[Callable, np.ndarray], t_ini: float, t_fin: float,
 
         try:
             if H_test.shape[0] != H_test.shape[1]:
-                raise ValueError("Error in magnus: oscprob.osc_prob: H_func must be a square " + \
-                    "matrix (if the Hamiltonian is time-independent) or must return a square " + \
-                    "matrix.")
+                raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob: H_func must be a " + \
+                    "square matrix (if the Hamiltonian is time-independent) or must return a " + \
+                    "square matrix.")
         except ValueError as error:
             print(error)
             print("Aborting execution...")
@@ -415,9 +423,11 @@ def osc_prob(H_func: Union[Callable, np.ndarray], t_ini: float, t_fin: float,
         n_jobs = 1 # No need to parallelize for this simple computation in a single slab
         if verbose > 0:
             for f in [None, file_log] if save_log else [None]:
-                print("\nWarning: The provided Hamiltonian is time-independent. Overwriting the" + \
-                    " run parameters to magnus_exp_order = 1, n_slabs = 1, n_tpts_per_slab = 2," + \
-                    " rtol = None, atol = None, and n_jobs = 1 for speed-up.", file=f)
+                warn_msg = gd.WARNING_MSG_IN_COLOR if f is None else gd.WARNING_MSG_NO_COLOR
+                print("\n" + warn_msg + " The provided Hamiltonian is time-independent. " + \
+                    "Overwriting the run parameters to magnus_exp_order = 1, n_slabs = 1, " + \
+                    "n_tpts_per_slab = 2, rtol = None, atol = None, and n_jobs = 1 for speed-up.",
+                    file=f)
 
     while True:
 
@@ -428,9 +438,11 @@ def osc_prob(H_func: Union[Callable, np.ndarray], t_ini: float, t_fin: float,
             if (loop_count > max_num_loops):
                 if (verbose > 0):
                     for f in [None, file_log] if save_log else [None]:
-                        print("   Warning: Number of loops (loop_count = " + str(loop_count-1) + \
-                            ") reached maximum allowed (max_num_loops = " + str(max_num_loops) + \
-                            "). Requested tolerance not achieved. Try increasing max_num_loops.\n",
+                        warn_msg = gd.WARNING_MSG_IN_COLOR if f is None else gd.WARNING_MSG_NO_COLOR
+                        print("   " + warn_msg + " Number of loops (loop_count = " + \
+                            str(loop_count-1) + ") reached maximum allowed (max_num_loops = " + \
+                            str(max_num_loops) + "). Requested tolerance not achieved. Try " + \
+                            "increasing max_num_loops.\n",
                             file=f)
                 if save_log and close_file_log_upon_exit: file_log.close()
                 return P
@@ -438,16 +450,17 @@ def osc_prob(H_func: Union[Callable, np.ndarray], t_ini: float, t_fin: float,
             if (n_slabs == max_n_slabs):
                 if ((verbose > 0) and not warned_reached_max_n_slabs):
                     for f in [None, file_log] if save_log else [None]:
-                        print("   Warning: Number of slabs (n_slabs)" + \
-                            " reached maximum allowed (max_n_slabs = " + str(max_n_slabs) + ").",
-                            file=f)
+                        warn_msg = gd.WARNING_MSG_IN_COLOR if f is None else gd.WARNING_MSG_NO_COLOR
+                        print("   " + warn_msg +  " Number of slabs (n_slabs) reached maximum " + \
+                            "allowed (max_n_slabs = " + str(max_n_slabs) + ").", file=f)
                         warned_reached_max_n_slabs = True
             # Reached maximum allowed number of time-points per slab: continue execution
             if (n_tpts_per_slab == max_n_tpts_per_slab):
                 if ((verbose > 0) and not warned_reached_max_n_tpts_per_slab):
                     for f in [None, file_log] if save_log else [None]:
-                        print("   Warning: Number of time-points per slab (n_tpts_per_slab)" + \
-                            " reached maximum allowed (max_n_tpts_per_slab = " + \
+                        warn_msg = gd.WARNING_MSG_IN_COLOR if f is None else gd.WARNING_MSG_NO_COLOR
+                        print("   " + warn_msg + " Number of time-points per slab " + \
+                            "(n_tpts_per_slab) reached maximum allowed (max_n_tpts_per_slab = " + \
                             str(max_n_tpts_per_slab) + ").", file=f)
                         warned_reached_max_n_tpts_per_slab = True
             # Reached maximum allowed number of slabs and maximum allowed number of time-points per
@@ -455,13 +468,15 @@ def osc_prob(H_func: Union[Callable, np.ndarray], t_ini: float, t_fin: float,
             if (ran_with_max_n_slabs and ran_with_max_n_tpts_per_slab):
                 if (verbose > 0):
                     for f in [None, file_log] if save_log else [None]:
-                        print("   Warning: Number of slabs (n_slabs) and time-points per slab" + \
-                            " (n_tpts_per_slab) reached maximum allowed (max_n_slabs = " + \
+                        warn_msg = gd.WARNING_MSG_IN_COLOR if f is None else gd.WARNING_MSG_NO_COLOR
+                        print("   " + warn_msg + " Number of slabs (n_slabs) and time-points " + \
+                            "per slab (n_tpts_per_slab) reached maximum allowed (max_n_slabs = " + \
                             str(max_n_slabs) + ", max_n_tpts_per_slab = " + \
                             str(max_n_tpts_per_slab) + ").", file=f)
-                        print("   Warning: Returning probability, but requested tolerance (rtol = " + \
-                            str(rtol) + ", atol = " + str(atol) + ") not achieved." + \
-                            " Try increasing max_n_slabs or max_n_tpts_per_slab.\n", file=f)
+                        print("   " + warn_msg + " Returning probability, but requested " + \
+                            "tolerance (rtol = " + str(rtol) + ", atol = " + str(atol) + \
+                            ") not achieved. Try increasing max_n_slabs or max_n_tpts_per_slab.\n",
+                            file=f)
                 if save_log and close_file_log_upon_exit: file_log.close()
                 return P
 
@@ -611,8 +626,9 @@ def osc_prob_iterate_over_magnus_exp_order(H_func: Union[Callable, np.ndarray], 
             if np.allclose(P, P_old, rtol=rtol, atol=atol):
                 if (verbose > 0):
                     for f in [None, file_log] if save_log else [None]:
-                        print("Requested tolerance achieved using magnus_exp_order = " + \
-                            str(magnus_exp_order) + "\n", file=f)
+                        tol_msg = gd.TOL_MSG_IN_COLOR if f is None else gd.TOL_MSG_NO_COLOR
+                        print(tol_msg + " using magnus_exp_order = " + str(magnus_exp_order) + \
+                            "\n", file=f)
                 if save_log: file_log.close()
                 return P
     
@@ -621,8 +637,9 @@ def osc_prob_iterate_over_magnus_exp_order(H_func: Union[Callable, np.ndarray], 
     # a warning (if verbose).
     if (verbose > 0):
         for f in [None, file_log] if save_log else [None]:
-            print("Warning: Returning probability, but requested tolerance not achieved using " + \
-                "even the maximum allowed order of the Magnus expansion for this run " + \
+            warn_msg = gd.WARNING_MSG_IN_COLOR if f is None else gd.WARNING_MSG_NO_COLOR
+            print(warn_msg + " returning probability, but requested tolerance not achieved using" +\
+                " even the maximum allowed order of the Magnus expansion for this run " + \
                 "(max_magnus_exp_order = " + str(max_magnus_exp_order) + ").  Try increasing " + \
                 "max_n_slabs, max_n_tpts_per_slab, or max_num_loops.\n", file=f)
     return P
@@ -658,10 +675,10 @@ def osc_prob_2nu_vacuum(energy: Union[int, float, list, np.ndarray],
     try:
         if not ((len(energy) == len(L)) or (len(energy) == 1 and len(L) > 1) or \
             (len(energy) > 1 and len(L) == 1)):
-            raise ValueError("Error in magnus: oscprob.osc_prob_2nu_vacuum: energy and L must " + \
-                "be both floats; or, if lists (or NumPy arrays), they must have the same " + \
-                "length; or, if one is a float or single-entry list, the other must be a list " + \
-                "with multiple entries.")
+            raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob_2nu_vacuum: energy and " + \
+                "L must be both int or float; or, if lists (or NumPy arrays), they must have " + \
+                "the same length; or, if one is a float or single-entry list, the other must " + \
+                "be a list with multiple entries.")
     except ValueError as error:
         print(error)
         print("Aborting execution...")
@@ -709,10 +726,11 @@ def osc_prob_2nu_matter_constant_density(energy: Union[float, list, np.ndarray],
     try:
         if not ((len(energy) == len(L)) or (len(energy) == 1 and len(L) > 1) or \
             (len(energy) > 1 and len(L) == 1)):
-            raise ValueError("Error in magnus: oscprob.osc_prob_2nu_matter_constant_density: " + \
-                "energy and L must be both floats; or, if lists (or NumPy arrays), they must " + \
-                "have the same length; or, if one is a float or single-entry list, the other " + \
-                "must be a list with multiple entries.")
+            raise ValueError(gd.ERROR_MSG_IN_COLOR + \
+                " oscprob.osc_prob_2nu_matter_constant_density: energy and L must be both " + \
+                "int or float; or, if lists (or NumPy arrays), they must have the same length;" + \
+                " or, if one is a float or single-entry list, the other must be a list with " + \
+                "multiple entries.")
     except ValueError as error:
         print(error)
         print("Aborting execution...")
@@ -778,10 +796,10 @@ def osc_prob_3nu_vacuum(energy: Union[float, list, np.ndarray], L: Union[float, 
     try:
         if not ((len(energy) == len(L)) or (len(energy) == 1 and len(L) > 1) or \
             (len(energy) > 1 and len(L) == 1)):
-            raise ValueError("Error in magnus: oscprob.osc_prob_3nu_vacuum: energy and L must " + \
-                "be both floats; or, if lists (or NumPy arrays), they must have the same " + \
-                "length; or, if one is a float or single-entry list, the other must be a list " + \
-                "with multiple entries.")
+            raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob_3nu_vacuum: energy and " + \
+                "L must be both int or float; or, if lists (or NumPy arrays), they must have " + \
+                "the same length; or, if one is a float or single-entry list, the other must " + \
+                "be a list with multiple entries.")
     except ValueError as error:
         print(error)
         print("Aborting execution...")
@@ -798,8 +816,8 @@ def osc_prob_3nu_vacuum(energy: Union[float, list, np.ndarray], L: Union[float, 
         default_osc_params = gd.OSC_PARAMS_PREDEFINED[default_osc_params_set_name]
 
         if verbose > 0:
-            print("Warning: Setting unspecified oscillation parameters to default values from " + \
-                "the predefined set " + default_osc_params['name'] + " (" + \
+            print(gd.WARNING_MSG_IN_COLOR + " Setting unspecified oscillation parameters to " + \
+                "default values from the predefined set " + default_osc_params['name'] + " (" + \
                 default_osc_params['description'] + "):\n" + \
                 ("s12 = " + str(default_osc_params['s12']) + "\n" if (s12 is None) else '') + \
                 ("s23 = " + str(default_osc_params['s23']) + "\n" if (s23 is None) else '') + \
@@ -865,10 +883,11 @@ def osc_prob_3nu_matter_constant_density(energy: Union[float, list, np.ndarray],
     try:
         if not ((len(energy) == len(L)) or (len(energy) == 1 and len(L) > 1) or \
             (len(energy) > 1 and len(L) == 1)):
-            raise ValueError("Error in magnus: oscprob.osc_prob_3nu_matter_constant_density: " + \
-                "energy and L must be both floats; or, if lists (or NumPy arrays), they must " + \
-                "have the same length; or, if one is a float or single-entry list, the other " + \
-                "must be a list with multiple entries.")
+            raise ValueError(gd.ERROR_MSG_IN_COLOR + \
+                " oscprob.osc_prob_3nu_matter_constant_density: energy and L must be both " + \
+                "int or float; or, if lists (or NumPy arrays), they must have the same length;" + \
+                " or, if one is a float or single-entry list, the other must be a list with " + \
+                "multiple entries.")
     except ValueError as error:
         print(error)
         print("Aborting execution...")
@@ -885,8 +904,8 @@ def osc_prob_3nu_matter_constant_density(energy: Union[float, list, np.ndarray],
         default_osc_params = gd.OSC_PARAMS_PREDEFINED[default_osc_params_set_name]
 
         if verbose > 0:
-            print("Warning: Setting unspecified oscillation parameters to default values from " + \
-                "the predefined set " + default_osc_params['name'] + " (" + \
+            print(gd.WARNING_MSG_IN_COLOR + " Setting unspecified oscillation parameters to " + \
+                "default values from the predefined set " + default_osc_params['name'] + " (" + \
                 default_osc_params['description'] + "):\n" + \
                 ("s12 = " + str(default_osc_params['s12']) + "\n" if (s12 is None) else '') + \
                 ("s23 = " + str(default_osc_params['s23']) + "\n" if (s23 is None) else '') + \
@@ -959,13 +978,13 @@ if __name__ == "__main__":
     # print(prob)
 
     # # Test iteration over magnus_exp_order
-    prob = osc_prob(H_3nu_func, t_ini, t_fin, 
-        integration_method='simpson', n_jobs=10, rtol=1e-3, atol=1.e-3, 
-        max_n_slabs=10, max_n_tpts_per_slab=10, 
-        iterate_over_magnus_exp_order=True, min_magnus_exp_order=1, 
-        max_magnus_exp_order=gd.MAGNUS_EXP_ORDER_MAX,
-        save_log=True, filename_log='./out.log', verbose=2)
-    print(prob)
+    # prob = osc_prob(H_3nu_func, t_ini, t_fin, 
+    #     integration_method='simpson', n_jobs=10, rtol=1e-3, atol=1.e-3, 
+    #     max_n_slabs=10, max_n_tpts_per_slab=10, 
+    #     iterate_over_magnus_exp_order=True, min_magnus_exp_order=1, 
+    #     max_magnus_exp_order=gd.MAGNUS_EXP_ORDER_MAX,
+    #     save_log=True, filename_log='./out.log', verbose=2)
+    # print(prob)
 
     # Test use of default values of oscillation parameters: vacuum
     # print(osc_prob_3nu_vacuum(1.*gd.UNIT_MEV, 100*gd.UNIT_KM, 
@@ -994,3 +1013,6 @@ if __name__ == "__main__":
     # print(osc_prob_3nu_matter_constant_density(1.*gd.UNIT_MEV, 100*gd.UNIT_KM, 
     #     10.0*gd.UNIT_G_PER_CM3, nu_i=gd.NUE, nu_f=gd.NUMU,
     #     default_osc_params_set_name='xxx', validate_input=True, verbose=1), end='\n\n')
+
+    prob = osc_prob_2nu_vacuum('x', 1.0*gd.UNIT_KM, 0.5, 1.e-4)
+    print(prob)
