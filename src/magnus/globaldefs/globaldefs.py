@@ -19,6 +19,82 @@ __email__ = "mbustamante@gmail.com"
 # from numpy import *
 import numpy as np
 
+import os
+import platform
+
+# If on Windows, need to call os.system() to print in color in stdout
+if platform.system() == 'Windows':
+    os.system("")
+
+# Class of different styles
+class cstyle():
+    CEND      = '\33[0m'
+    CBOLD     = '\33[1m'
+    CITALIC   = '\33[3m'
+    CURL      = '\33[4m'
+    CBLINK    = '\33[5m'
+    CBLINK2   = '\33[6m'
+    CSELECTED = '\33[7m'
+
+    CBLACK  = '\33[30m'
+    CRED    = '\33[31m'
+    CGREEN  = '\33[32m'
+    CYELLOW = '\33[33m'
+    CBLUE   = '\33[34m'
+    CVIOLET = '\33[35m'
+    CBEIGE  = '\33[36m'
+    CWHITE  = '\33[37m'
+
+    CBLACKBG  = '\33[40m'
+    CREDBG    = '\33[41m'
+    CGREENBG  = '\33[42m'
+    CYELLOWBG = '\33[43m'
+    CBLUEBG   = '\33[44m'
+    CVIOLETBG = '\33[45m'
+    CBEIGEBG  = '\33[46m'
+    CWHITEBG  = '\33[47m'
+
+    CGREY    = '\33[90m'
+    CRED2    = '\33[91m'
+    CGREEN2  = '\33[92m'
+    CYELLOW2 = '\33[93m'
+    CBLUE2   = '\33[94m'
+    CVIOLET2 = '\33[95m'
+    CBEIGE2  = '\33[96m'
+    CWHITE2  = '\33[97m'
+
+    CGREYBG    = '\33[100m'
+    CREDBG2    = '\33[101m'
+    CGREENBG2  = '\33[102m'
+    CYELLOWBG2 = '\33[103m'
+    CBLUEBG2   = '\33[104m'
+    CVIOLETBG2 = '\33[105m'
+    CBEIGEBG2  = '\33[106m'
+    CWHITEBG2  = '\33[107m'
+    # BLACK = '\033[30m'
+    # RED = '\033[31m'
+    # GREEN = '\033[32m'
+    # YELLOW = '\033[33m'
+    # BLUE = '\033[34m'
+    # MAGENTA = '\033[35m'
+    # CYAN = '\033[36m'
+    # WHITE = '\033[37m'
+    # UNDERLINE = '\033[4m'
+    # RESET = '\033[0m'
+
+
+WARNING_MSG_NO_COLOR = "Warning:"
+
+WARNING_MSG_IN_COLOR = cstyle.CVIOLETBG + "Warning:" + cstyle.CEND
+
+ERROR_MSG_NO_COLOR = "Error in magnus:"
+
+ERROR_MSG_IN_COLOR = cstyle.CREDBG + "Error in magnus:" + cstyle.CEND
+
+TOL_MSG_NO_COLOR = "Requested tolerance achieved"
+
+TOL_MSG_IN_COLOR = cstyle.CGREENBG + "Requested tolerance achieved" + cstyle.CEND
+
 
 MAGNUS_EXP_ORDER_MAX = 6
 r"""float: Module-level constant
