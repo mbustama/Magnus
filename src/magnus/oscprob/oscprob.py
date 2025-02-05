@@ -85,7 +85,22 @@ def print_run_parameters(H_func: Union[Callable, np.ndarray], t_ini: float, t_fi
 
 def compute_evolution_operator(H_func: Callable, t_slab: Union[list, np.ndarray], 
     n_tpts_per_slab: int, magnus_exp_order: int, **kwargs) -> np.ndarray:
-    """Compute the evolution operator for a given time slab."""
+    r"""Computes the evolution operator inside a given time slab.  This functions is not designed to
+    be called directly by the user, but rather internally by :func:`osc_prob`.
+
+    :param H_func: Hamiltonian, which is a function of time or position that returns a square matrix
+        in the form of NumPy array
+    :param t_slab: List or Numpy Array specifying the start and end times or positions of the slab,
+        i.e., [t0, t1]
+    :param n_tpts_per_slab: Number of time-points inside the slab at which to evaluate H_func in 
+        order to numerically compute the integrals over time required by the Magnus expansion
+    :param magnus_exp_order: Maximum order of Matnus expansion used to compute the evolution
+        operator (should not exceed :func:`magnus.globaldefs.MAGNUS_EXP_ORDER_MAX`)
+    :param \**kwargs: Additional unspecified arguments
+
+    :return: An NumPy array containing the evolution operator for the given time-slab.
+
+    """
     if t_slab[1] > t_slab[0]:
         return magnus.magnus_expansion(
             lambda t: -1j * H_func(t),
