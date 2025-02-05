@@ -308,11 +308,12 @@ def osc_prob(H_func: Union[Callable, np.ndarray], t_ini: float, t_fin: float,
         n_tpts_per_slab = 2
         rtol = None
         atol = None
+        n_jobs = 1 # No need to parallelize for this simple computation in a single slab
         if verbose > 0:
             for f in [None, file_log] if save_log else [None]:
                 print("\nWarning: The provided Hamiltonian is time-independent. Overwriting the" + \
                     " run parameters to magnus_exp_order = 1, n_slabs = 1, n_tpts_per_slab = 2," + \
-                    " rtol = None, and atol = None for speed-up.", file=f)
+                    " rtol = None, atol = None, and n_jobs = 1 for speed-up.", file=f)
 
     while True:
 
