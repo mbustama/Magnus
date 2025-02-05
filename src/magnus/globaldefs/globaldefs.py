@@ -91,6 +91,14 @@ Multiplicative conversion factor from grams to eV^{-1}.
 Units: [eV g^{-1}]
 """
 
+UNIT_G_PER_CM3 = CONV_G_TO_EV/CONV_CM3_TO_INV_EV3
+r"""float: Module-level constant
+
+Multiplicative conversion factor from g cm^{-3} to eV^4.
+Units: [g^{-1} cm^3 eV^4]
+"""
+
+
 SQRT_OF_2 = np.sqrt(2.0)
 r"""float: Module-level constant
 
