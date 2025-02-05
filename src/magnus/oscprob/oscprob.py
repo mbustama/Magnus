@@ -83,6 +83,92 @@ def print_run_parameters(H_func: Union[Callable, np.ndarray], t_ini: float, t_fi
     return
 
 
+def validate_input_battery(source_func_name: str, energy: Union[float, list, np.ndarray], 
+    L: Union[float, list, np.ndarray], nu_i: Optional[int]=None, nu_f: Optional[int]=None) -> int:
+
+    try:
+        if ( (not isinstance(energy, float)) and (not isinstance(energy, list)) and \
+            (not isinstance(energy, np.ndarray)) ):
+            raise ValueError("Error in magnus: oscprob." + source_func_name + ": energy must be" + \
+                " a float, a 1D list, or a 1D NumPy array.")
+    except ValueError as error:
+        print(error)
+        print("Aborting execution...")
+        return 1
+        # sys.exit(1)
+
+    try:
+        if ( (isinstance(energy, list) or isinstance(energy, np.ndarray)) and \
+            (np.array(energy).ndim != 1) ):
+            raise ValueError("Error in magnus: oscprob." + source_func_name + ": if energy is a" + \
+                "list or NumPy array, it must be 1D.")
+    except ValueError as error:
+        print(error)
+        print("Aborting execution...")
+        return 1
+        # sys.exit(1)
+
+    try:
+        if ( (not isinstance(L, float)) and (not isinstance(L, list)) and \
+            (not isinstance(L, np.ndarray)) ):
+            raise ValueError("Error in magnus: oscprob." + source_func_name + ": L must be a " + \
+                "float, a 1D list, or a 1D NumPy array.")
+    except ValueError as error:
+        print(error)
+        print("Aborting execution...")
+        return 1
+        # sys.exit(1)
+
+    try:
+        if ( (isinstance(L, list) or isinstance(L, np.ndarray)) and \
+            (np.array(L).ndim != 1) ):
+            raise ValueError("Error in magnus: oscprob." + source_func_name + ": if L is a " + \
+                " list or NumPy array, it must be 1D.")
+    except ValueError as error:
+        print(error)
+        print("Aborting execution...")
+        return 1
+        # sys.exit(1)
+
+    try:
+        if ( (isinstance(energy, list) or isinstance(energy, np.ndarray)) and \
+            (isinstance(L, list) or isinstance(L, np.ndarray)) and \
+            (len(energy) != len(L)) ):
+            raise ValueError("Error in magnus: oscprob." + source_func_name + ": since the input" +\
+                " energy and L are both lists or NumPy arrays, they must have the same length.")
+    except ValueError as error:
+        print(error)
+        print("Aborting execution...")
+        return 1
+        # sys.exit(1)
+
+    try:
+        if (((nu_i is not None) and (nu_f is None)) or ((nu_i is None) and (nu_f is not None))):
+            raise ValueError("Error in magnus: oscprob." + source_func_name + ": if either nu_i" + \
+                " or nu_f is not None, then the other flavor must also be not None.")
+    except ValueError as error:
+        print(error)
+        print("Aborting execution...")
+        return 1
+        # sys.exit(1)
+
+    try:
+        if ((nu_i is not None) and (nu_f is not None)):
+            flavors = set([gd.NUE, gd.NUMU, gd.NUTAU])
+            if ( (not (nu_i in flavors)) or (not (nu_f in flavors))):
+                raise ValueError("Error in magnus: oscprob." + source_func_name + ": if nu_i " + \
+                    "and nu_f are not None, they must be either gd.NUE (" + str(gd.NUE) + \
+                    "), gd.NUMU (" + str(gd.NUMU) + "), or gd.NUTAU (" + str(gd.NUTAU) + \
+                    ") only.")
+    except ValueError as error:
+        print(error)
+        print("Aborting execution...")
+        return 1
+        # sys.exit(1)
+
+    return 0
+
+
 def compute_evolution_operator(H_func: Callable, t_slab: Union[list, np.ndarray], 
     n_tpts_per_slab: int, magnus_exp_order: int, **kwargs) -> np.ndarray:
     r"""Computes the evolution operator inside a given time slab.  This functions is not designed to
@@ -224,8 +310,8 @@ def osc_prob(H_func: Union[Callable, np.ndarray], t_ini: float, t_fin: float,
 
         try:
             if not isinstance(H_test, np.ndarray):
-                raise ValueError("Error in magnus: oscprob.osc_prob: H_func must be a numpy " + \
-                    "(if the Hamiltonian is time-independent) or must return a numpy array.")
+                raise ValueError("Error in magnus: oscprob.osc_prob: H_func must be a NumPy " + \
+                    "(if the Hamiltonian is time-independent) or must return a NumPy array.")
         except ValueError as error:
             print(error)
             print("Aborting execution...")
@@ -308,7 +394,7 @@ def osc_prob(H_func: Union[Callable, np.ndarray], t_ini: float, t_fin: float,
         n_tpts_per_slab = min_n_tpts_per_slab
 
     # The provided Hamiltonian, H_func, can be either a single-parameter function (of the neutrino
-    # position) or, if time-independent, a constant numpy array (e.g., for oscillations in vacuum
+    # position) or, if time-independent, a constant NumPy array (e.g., for oscillations in vacuum
     # or in matter with constant density).  In the latter case, we use this constant Hamiltonian to
     # build a dummy one-parameter function of position that we will need later to call the function
     # compute_evolution_operator.  In this case, first-order Magnus expansion is enough, and so we
@@ -542,67 +628,8 @@ def osc_prob_2nu_vacuum(energy: Union[float, list, np.ndarray], L: Union[float, 
     validate_input: Optional[bool]=True) -> Union[float, np.ndarray]:
 
     if validate_input:
-
-        try:
-            if ( (not isinstance(energy, float)) and (not isinstance(energy, list)) and \
-                (not isinstance(energy, np.ndarray)) ):
-                raise ValueError("Error in magnus: oscprob.osc_prob_2nu_vacuum: energy must be " + \
-                    "a float, a 1D list, or a 1D numpy array.")
-        except ValueError as error:
-            print(error)
-            print("Aborting execution...")
-            sys.exit(1)
-
-        try:
-            if ( (isinstance(energy, list) or isinstance(energy, np.ndarray)) and \
-                (np.array(energy).ndim != 1) ):
-                raise ValueError("Error in magnus: oscprob.osc_prob_2nu_vacuum: if energy is a " + \
-                    " list or numpy array, it must be 1D.")
-        except ValueError as error:
-            print(error)
-            print("Aborting execution...")
-            sys.exit(1)
-
-        try:
-            if ( (not isinstance(L, float)) and (not isinstance(L, list)) and \
-                (not isinstance(L, np.ndarray)) ):
-                raise ValueError("Error in magnus: oscprob.osc_prob_2nu_vacuum: L must be a " + \
-                    "float, a 1D list, or a 1D numpy array.")
-        except ValueError as error:
-            print(error)
-            print("Aborting execution...")
-            sys.exit(1)
-
-        try:
-            if ( (isinstance(energy, list) or isinstance(energy, np.ndarray)) and \
-                (np.array(energy).ndim != 1) ):
-                raise ValueError("Error in magnus: oscprob.osc_prob_2nu_vacuum: if L is a " + \
-                    " list or numpy array, it must be 1D.")
-        except ValueError as error:
-            print(error)
-            print("Aborting execution...")
-            sys.exit(1)
-
-        try:
-            if (((nu_i is not None) and (nu_f is None)) or ((nu_i is None) and (nu_f is not None))):
-                raise ValueError("Error in magnus: oscprob.osc_prob_2nu_vacuum: if either nu_i " + \
-                    "or nu_f is not None, then the other flavor must also be not None.")
-        except ValueError as error:
-            print(error)
-            print("Aborting execution...")
-            sys.exit(1)
-
-        try:
-            if ((nu_i is not None) and (nu_f is not None)):
-                flavors = set([gd.NUE, gd.NUMU, gd.NUTAU])
-                if ( (not (nu_i in flavors)) or (not (nu_f in flavors))):
-                    raise ValueError("Error in magnus: oscprob.osc_prob_2nu_vacuum: if nu_i " + \
-                        "and nu_f are not None, they must be either gd.NUE (" + str(gd.NUE) + \
-                        "), gd.NUMU (" + str(gd.NUMU) + "), or gd.NUTAU (" + str(gd.NUTAU) + \
-                        ") only.")
-        except ValueError as error:
-            print(error)
-            print("Aborting execution...")
+        # The function name is sys._getframe().f_code.co_name
+        if validate_input_battery(sys._getframe().f_code.co_name,energy, L, nu_i, nu_f) == 1:
             sys.exit(1)
 
     # Compute the energy-independent part of the Hamiltonian, i.e., everything but the 1/E 
@@ -636,68 +663,8 @@ def osc_prob_2nu_matter_constant_density(energy: Union[float, list, np.ndarray],
     validate_input: Optional[bool]=True) -> Union[float, np.ndarray]:
 
     if validate_input:
-
-        try:
-            if ( (not isinstance(energy, float)) and (not isinstance(energy, list)) and \
-                (not isinstance(energy, np.ndarray)) ):
-                raise ValueError("Error in magnus: oscprob.osc_prob_2nu_matter_constant_density" + \
-                    ": energy must be a float, a 1D list, or a 1D numpy array.")
-        except ValueError as error:
-            print(error)
-            print("Aborting execution...")
-            sys.exit(1)
-
-        try:
-            if ( (isinstance(energy, list) or isinstance(energy, np.ndarray)) and \
-                (np.array(energy).ndim != 1) ):
-                raise ValueError("Error in magnus: oscprob.osc_prob_2nu_matter_constant_density" + \
-                    ": if energy is a list or numpy array, it must be 1D.")
-        except ValueError as error:
-            print(error)
-            print("Aborting execution...")
-            sys.exit(1)
-
-        try:
-            if ( (not isinstance(L, float)) and (not isinstance(L, list)) and \
-                (not isinstance(L, np.ndarray)) ):
-                raise ValueError("Error in magnus: oscprob.osc_prob_2nu_matter_constant_density" + \
-                    ": L must be a float, a 1D list, or a 1D numpy array.")
-        except ValueError as error:
-            print(error)
-            print("Aborting execution...")
-            sys.exit(1)
-
-        try:
-            if ( (isinstance(energy, list) or isinstance(energy, np.ndarray)) and \
-                (np.array(energy).ndim != 1) ):
-                raise ValueError("Error in magnus: oscprob.osc_prob_2nu_matter_constant_density" + \
-                    ": if L is a list or numpy array, it must be 1D.")
-        except ValueError as error:
-            print(error)
-            print("Aborting execution...")
-            sys.exit(1)
-
-        try:
-            if (((nu_i is not None) and (nu_f is None)) or ((nu_i is None) and (nu_f is not None))):
-                raise ValueError("Error in magnus: oscprob.osc_prob_2nu_matter_constant_density" + \
-                    ": if either nu_i or nu_f is not None, then the other flavor must also be " + \
-                    "not None.")
-        except ValueError as error:
-            print(error)
-            print("Aborting execution...")
-            sys.exit(1)
-
-        try:
-            if ((nu_i is not None) and (nu_f is not None)):
-                flavors = set([gd.NUE, gd.NUMU, gd.NUTAU])
-                if ( (not (nu_i in flavors)) or (not (nu_f in flavors))):
-                    raise ValueError("Error in magnus: oscprob." + \
-                        "osc_prob_2nu_matter_constant_density: if nu_i and nu_f are not None, " + \
-                        "they must be either gd.NUE (" + str(gd.NUE) + "), gd.NUMU (" + \
-                        str(gd.NUMU) + "), or gd.NUTAU (" + str(gd.NUTAU) + ") only.")
-        except ValueError as error:
-            print(error)
-            print("Aborting execution...")
+        # The function name is sys._getframe().f_code.co_name
+        if validate_input_battery(sys._getframe().f_code.co_name, energy, L, nu_i, nu_f) == 1:
             sys.exit(1)
 
     s = 1.0 if not nubar else -1.0
@@ -745,79 +712,8 @@ def osc_prob_3nu_vacuum(energy: Union[float, list, np.ndarray], L: Union[float, 
     **kwargs) -> Union[float, np.ndarray]:
 
     if validate_input:
-
-        try:
-            if ( (not isinstance(energy, float)) and (not isinstance(energy, list)) and \
-                (not isinstance(energy, np.ndarray)) ):
-                raise ValueError("Error in magnus: oscprob.osc_prob_3nu_vacuum: energy must be " + \
-                    "a float, a 1D list, or a 1D numpy array.")
-        except ValueError as error:
-            print(error)
-            print("Aborting execution...")
-            sys.exit(1)
-
-        try:
-            if ( (isinstance(energy, list) or isinstance(energy, np.ndarray)) and \
-                (np.array(energy).ndim != 1) ):
-                raise ValueError("Error in magnus: oscprob.osc_prob_3nu_vacuum: if energy is a " + \
-                    " list or numpy array, it must be 1D.")
-        except ValueError as error:
-            print(error)
-            print("Aborting execution...")
-            sys.exit(1)
-
-        try:
-            if ( (not isinstance(L, float)) and (not isinstance(L, list)) and \
-                (not isinstance(L, np.ndarray)) ):
-                raise ValueError("Error in magnus: oscprob.osc_prob_3nu_vacuum: L must be a " + \
-                    "float, a 1D list, or a 1D numpy array.")
-        except ValueError as error:
-            print(error)
-            print("Aborting execution...")
-            sys.exit(1)
-
-        try:
-            if ( (isinstance(energy, list) or isinstance(energy, np.ndarray)) and \
-                (np.array(energy).ndim != 1) ):
-                raise ValueError("Error in magnus: oscprob.osc_prob_3nu_vacuum: if L is a " + \
-                    " list or numpy array, it must be 1D.")
-        except ValueError as error:
-            print(error)
-            print("Aborting execution...")
-            sys.exit(1)
-
-        try:
-            if (((nu_i is not None) and (nu_f is None)) or ((nu_i is None) and (nu_f is not None))):
-                raise ValueError("Error in magnus: oscprob.osc_prob_3nu_vacuum: if either nu_i " + \
-                    "or nu_f is not None, then the other flavor must also be not None.")
-        except ValueError as error:
-            print(error)
-            print("Aborting execution...")
-            sys.exit(1)
-
-        try:
-            if ((nu_i is not None) and (nu_f is not None)):
-                flavors = set([gd.NUE, gd.NUMU, gd.NUTAU])
-                if ( (not (nu_i in flavors)) or (not (nu_f in flavors))):
-                    raise ValueError("Error in magnus: oscprob.osc_prob_3nu_vacuum: if nu_i " + \
-                        "and nu_f are not None, they must be either gd.NUE (" + str(gd.NUE) + \
-                        "), gd.NUMU (" + str(gd.NUMU) + "), or gd.NUTAU (" + str(gd.NUTAU) + \
-                        ") only.")
-        except ValueError as error:
-            print(error)
-            print("Aborting execution...")
-            sys.exit(1)
-
-        try:
-            if not (default_osc_params_set_name in list(gd.OSC_PARAMS_PREDEFINED.keys())):
-                raise ValueError("Error in magnus: oscprob.osc_prob_3nu_vacuum: the requested " + \
-                    "name of the default set of oscillation parameters " + \
-                    "default_osc_params_set_name = " + default_osc_params_set_name + \
-                    ") is not one of the sets predefined in Magnus.  The available sets are: " + \
-                    str(list(gd.OSC_PARAMS_PREDEFINED.keys())) + ".")
-        except ValueError as error:
-            print(error)
-            print("Aborting execution...")
+        # The function name is sys._getframe().f_code.co_name
+        if validate_input_battery(sys._getframe().f_code.co_name, energy, L, nu_i, nu_f) == 1:
             sys.exit(1)
 
     # If any of the oscillation parameters has not been given a value, assign to it the value from
@@ -883,80 +779,8 @@ def osc_prob_3nu_matter_constant_density(energy: Union[float, list, np.ndarray],
     validate_input: Optional[bool]=True, verbose: Optional[int]=0) -> Union[float, np.ndarray]:
 
     if validate_input:
-
-        try:
-            if ( (not isinstance(energy, float)) and (not isinstance(energy, list)) and \
-                (not isinstance(energy, np.ndarray)) ):
-                raise ValueError("Error in magnus: oscprob.osc_prob_3nu_matter_constant_density" + \
-                    ": energy must be a float, a 1D list, or a 1D numpy array.")
-        except ValueError as error:
-            print(error)
-            print("Aborting execution...")
-            sys.exit(1)
-
-        try:
-            if ( (isinstance(energy, list) or isinstance(energy, np.ndarray)) and \
-                (np.array(energy).ndim != 1) ):
-                raise ValueError("Error in magnus: oscprob.osc_prob_3nu_matter_constant_density" + \
-                    ": if energy is a list or numpy array, it must be 1D.")
-        except ValueError as error:
-            print(error)
-            print("Aborting execution...")
-            sys.exit(1)
-
-        try:
-            if ( (not isinstance(L, float)) and (not isinstance(L, list)) and \
-                (not isinstance(L, np.ndarray)) ):
-                raise ValueError("Error in magnus: oscprob.osc_prob_3nu_matter_constant_density" + \
-                    ": L must be a float, a 1D list, or a 1D numpy array.")
-        except ValueError as error:
-            print(error)
-            print("Aborting execution...")
-            sys.exit(1)
-
-        try:
-            if ( (isinstance(energy, list) or isinstance(energy, np.ndarray)) and \
-                (np.array(energy).ndim != 1) ):
-                raise ValueError("Error in magnus: oscprob.osc_prob_3nu_matter_constant_density" + \
-                    ": if L is a list or numpy array, it must be 1D.")
-        except ValueError as error:
-            print(error)
-            print("Aborting execution...")
-            sys.exit(1)
-
-        try:
-            if (((nu_i is not None) and (nu_f is None)) or ((nu_i is None) and (nu_f is not None))):
-                raise ValueError("Error in magnus: oscprob.osc_prob_3nu_matter_constant_density" + \
-                    ": if either nu_i or nu_f is not None, then the other flavor must also be " + \
-                    "not None.")
-        except ValueError as error:
-            print(error)
-            print("Aborting execution...")
-            sys.exit(1)
-
-        try:
-            if ((nu_i is not None) and (nu_f is not None)):
-                flavors = set([gd.NUE, gd.NUMU, gd.NUTAU])
-                if ( (not (nu_i in flavors)) or (not (nu_f in flavors))):
-                    raise ValueError("Error in magnus: oscprob." + \
-                        "osc_prob_3nu_matter_constant_density: if nu_i and nu_f are not None, " + \
-                        "they must be either gd.NUE (" + str(gd.NUE) + "), gd.NUMU (" + \
-                        str(gd.NUMU) + "), or gd.NUTAU (" + str(gd.NUTAU) + ") only.")
-        except ValueError as error:
-            print(error)
-            print("Aborting execution...")
-            sys.exit(1)
-
-        try:
-            if not (default_osc_params_set_name in list(gd.OSC_PARAMS_PREDEFINED.keys())):
-                raise ValueError("Error in magnus: oscprob.osc_prob_3nu_matter_constant_density:"+ \
-                    " the requested name of the default set of oscillation parameters " + \
-                    "default_osc_params_set_name = " + default_osc_params_set_name + \
-                    ") is not one of the sets predefined in Magnus.  The available sets are: " + \
-                    str(list(gd.OSC_PARAMS_PREDEFINED.keys())) + ".")
-        except ValueError as error:
-            print(error)
-            print("Aborting execution...")
+        # The function name is sys._getframe().f_code.co_name
+        if validate_input_battery(sys._getframe().f_code.co_name, energy, L, nu_i, nu_f) == 1:
             sys.exit(1)
 
     # If any of the oscillation parameters has not been given a value, assign to it the value from
