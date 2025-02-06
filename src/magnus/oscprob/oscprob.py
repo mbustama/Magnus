@@ -244,6 +244,37 @@ def osc_prob(H_func: Union[Callable, np.ndarray], t_ini: float, t_fin: float,
     save_log: Optional[bool]=False, filename_log: Optional[str]='./out.log',
     file_log: Optional[TextIOWrapper]=None, close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0, **kwargs) -> np.ndarray:
+    r"""Computes and returns the neutrino oscillation probability.
+
+    Computes the oscillation probability of neutrinos starting at time (or position) ``t_ini`` and 
+    ending at time (or position) ``t_fin``.
+
+    Parameters
+    ----------
+    H_func
+        The Hamiltonian, which is a function of time or position that returns a square matrix 
+        (a NumPy array). The Hamiltonian can have complex-valued entries.
+    t_ini
+        Initial time or position of the neutrino.
+    t_fin
+        Final time or position of the neutrino.
+    n_slabs
+        Number of slabs, or intervals into which the interval [t_ini, t_fin] is partitioned in order
+        to compute the neutrino evolution operators.
+
+        If no target tolerance is requested (i.e., if ``rtol`` and ``atol`` are both ``None``), 
+        then the given value of `n_slabs` is the final number of slabs used in the computation.
+
+        If a target tolerance is request (i.e., if either ``rtol`` or ``atol`` is not ``None``),
+        then the given value of `n_slabs` is only the initial number of slabs used, and the number
+        will be progressively increased internally (if `growth_factor_n_slabs > 1`)
+
+
+    Returns
+    -------
+    np.ndarray
+        NumPy array containing the probability matrix.
+    """
 
     # Validate input; set validate_input to False for speed-up.
     if validate_input:
@@ -575,11 +606,16 @@ def osc_prob(H_func: Union[Callable, np.ndarray], t_ini: float, t_fin: float,
                 # Occasionally, the new number of slabs could be equal to the old number (i.e., if
                 # growth_factor_n_slabs is too small or if n_slabs = 1).  If this happens, increase
                 # the new number of slabs by 1.
-                if (n_slabs == n_slabs_old): n_slabs += 1
+                if ((growth_factor_n_slabs > 1.0) and (n_slabs < max_n_slabs) and \
+                    (n_slabs == n_slabs_old)): n_slabs += 1
             # Increase the number of points per slab approximately by growth_factor_n_tpts_per_slab
             ran_with_max_n_tpts_per_slab = False if n_tpts_per_slab < max_n_tpts_per_slab else True
+            n_tpts_per_slab_old = n_tpts_per_slab
             n_tpts_per_slab = min(int(growth_factor_n_tpts_per_slab*n_tpts_per_slab), 
                 max_n_tpts_per_slab)
+            if ((growth_factor_n_tpts_per_slab > 1.0) and \
+                (n_tpts_per_slab < max_n_tpts_per_slab) and \
+                (n_tpts_per_slab == n_tpts_per_slab_old)): n_tpts_per_slab += 1
             loop_count += 1
 
 
