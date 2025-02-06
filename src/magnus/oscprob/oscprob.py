@@ -334,6 +334,17 @@ def osc_prob(H_func: Union[Callable, np.ndarray], t_ini: float, t_fin: float,
             sys.exit(1)
 
         try:
+            if ( ((rtol is not None) and (atol is not None)) and \
+                ((growth_factor_n_slabs == 1) and (growth_factor_n_tpts_per_slab == 1)) ): 
+                raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob: since a target " + \
+                    "tolerance has been requested, either growth_factor_n_slabs, " + \
+                    "growth_factor_n_tpts_per_slab, or both must be > 1".)
+        except ValueError as error:
+            print(error)
+            print("Aborting execution...")
+            sys.exit(1)
+
+        try:
             if ((rtol is not None) and (atol is not None) and (max_num_loops <= 1)): 
                 raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob: max_num_loops must" + \
                     " be > 1.")
