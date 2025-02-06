@@ -1,3 +1,11 @@
+"""Module oscprob
+
+Contains routines to compute the neutrino oscillation probability.
+"""
+
+__version__ = '0.1'
+__author__ = 'Mauricio Bustamante'
+
 import numpy as np
 import sys
 import platform
@@ -20,22 +28,35 @@ import version as version
 import authors as authors
 
 
-def print_run_parameters(H_func: Union[Callable, np.ndarray], t_ini: float, t_fin: float, 
-    n_slabs: Optional[int]=1, n_tpts_per_slab: Optional[int]=100, 
-    t_slab_edges: Optional[Union[list, np.ndarray]]=None, magnus_exp_order: Optional[int]=4, 
-    n_jobs: Optional[int]=1, integration_method: Optional[str]='trapezoid', 
-    rtol: Optional[float]=None, atol: Optional[float]=None, 
+def print_run_parameters(
+    H_func: Union[Callable, np.ndarray], 
+    t_ini: float, 
+    t_fin: float, 
+    n_slabs: Optional[int]=1, 
+    n_tpts_per_slab: Optional[int]=100, 
+    t_slab_edges: Optional[Union[list, np.ndarray]]=None, 
+    magnus_exp_order: Optional[int]=4, 
+    n_jobs: Optional[int]=1, 
+    integration_method: Optional[str]='trapezoid', 
+    rtol: Optional[float]=None, 
+    atol: Optional[float]=None, 
     growth_factor_n_slabs: Optional[float]=1.5, 
-    growth_factor_n_tpts_per_slab: Optional[float]=1.5, 
-    max_num_loops: Optional[int]=50, min_n_slabs: Optional[float]=1, 
+    growth_factor_n_tpts_per_slab: 
+    Optional[float]=1.5, 
+    max_num_loops: Optional[int]=50, 
+    min_n_slabs: Optional[float]=1, 
     max_n_slabs: Optional[float]=2000, 
-    min_n_tpts_per_slab: Optional[int]=2, max_n_tpts_per_slab: Optional[int]=500,
+    min_n_tpts_per_slab: Optional[int]=2, 
+    max_n_tpts_per_slab: Optional[int]=500,
     iterate_over_magnus_exp_order: Optional[bool]=False,
     min_magnus_exp_order: Optional[int]=1,
     max_magnus_exp_order: Optional[int]=gd.MAGNUS_EXP_ORDER_MAX, 
-    validate_input: Optional[bool]=True, save_log: Optional[bool]=False, 
-    filename_log: Optional[str]='./out.log', verbose: Optional[int]=0, 
-    file_log: Optional[TextIOWrapper]=None):
+    validate_input: Optional[bool]=True, 
+    save_log: Optional[bool]=False, 
+    filename_log: Optional[str]='./out.log', 
+    verbose: Optional[int]=0, 
+    file_log: Optional[TextIOWrapper]=None
+):
 
     def print_banner(file: TextIOWrapper=None):
         if file is None:
@@ -107,9 +128,13 @@ def print_run_parameters(H_func: Union[Callable, np.ndarray], t_ini: float, t_fi
     return
 
 
-def validate_input_battery(source_func_name: str, energy: Union[int, float, list, np.ndarray], 
-    L: Union[int, float, list, np.ndarray], nu_i: Optional[int]=None, 
-    nu_f: Optional[int]=None) -> int:
+def validate_input_battery(
+    source_func_name: str, 
+    energy: Union[int, float, list, np.ndarray], 
+    L: Union[int, float, list, np.ndarray], 
+    nu_i: Optional[int]=None, 
+    nu_f: Optional[int]=None
+) -> int:
 
     try:
         if ( (not isinstance(energy, int)) and (not isinstance(energy, float)) and \
@@ -195,8 +220,13 @@ def validate_input_battery(source_func_name: str, energy: Union[int, float, list
     return 0
 
 
-def compute_evolution_operator(H_func: Callable, t_slab: Union[list, np.ndarray], 
-    n_tpts_per_slab: int, magnus_exp_order: int, **kwargs) -> np.ndarray:
+def compute_evolution_operator(
+    H_func: Callable, 
+    t_slab: Union[list, np.ndarray], 
+    n_tpts_per_slab: int, 
+    magnus_exp_order: int, 
+    **kwargs
+) -> np.ndarray:
     r"""Computes the evolution operator inside a given time slab.  This functions is not designed to
     be called directly by the user, but rather internally by :func:`osc_prob`.
 
@@ -227,48 +257,118 @@ def compute_evolution_operator(H_func: Callable, t_slab: Union[list, np.ndarray]
         return np.eye(n, n)
 
 
-def osc_prob(H_func: Union[Callable, np.ndarray], t_ini: float, t_fin: float, 
-    n_slabs: Optional[int]=1, n_tpts_per_slab: Optional[int]=100, 
-    t_slab_edges: Optional[Union[list, np.ndarray]]=None, magnus_exp_order: Optional[int]=4, 
-    n_jobs: Optional[int]=1, integration_method: Optional[str]='trapezoid', 
-    rtol: Optional[float]=1.e-3, atol: Optional[float]=1.e-3, 
+def osc_prob(
+    H_func: Union[Callable, np.ndarray], 
+    t_ini: float, 
+    t_fin: float, 
+    n_slabs: Optional[int]=1, 
+    n_tpts_per_slab: Optional[int]=100, 
+    t_slab_edges: Optional[Union[list, np.ndarray]]=None, 
+    magnus_exp_order: Optional[int]=4, 
+    n_jobs: Optional[int]=1, 
+    integration_method: Optional[str]='trapezoid', 
+    rtol: Optional[float]=1.e-3, 
+    atol: Optional[float]=1.e-3, 
     growth_factor_n_slabs: Optional[float]=1.5, 
     growth_factor_n_tpts_per_slab: Optional[float]=1.5, 
-    max_num_loops: Optional[int]=50, min_n_slabs: Optional[float]=1, 
+    max_num_loops: Optional[int]=50, 
+    min_n_slabs: Optional[float]=1, 
     max_n_slabs: Optional[float]=2000, 
-    min_n_tpts_per_slab: Optional[int]=2, max_n_tpts_per_slab: Optional[int]=500, 
+    min_n_tpts_per_slab: Optional[int]=2, 
+    max_n_tpts_per_slab: Optional[int]=500, 
     iterate_over_magnus_exp_order: Optional[bool]=False,
     min_magnus_exp_order: Optional[int]=1,
     max_magnus_exp_order: Optional[int]=gd.MAGNUS_EXP_ORDER_MAX, 
     validate_input: Optional[bool]=True,
-    save_log: Optional[bool]=False, filename_log: Optional[str]='./out.log',
-    file_log: Optional[TextIOWrapper]=None, close_file_log_upon_exit: Optional[bool]=True,
-    verbose: Optional[int]=0, **kwargs) -> np.ndarray:
+    save_log: Optional[bool]=False, 
+    filename_log: Optional[str]='./out.log',
+    file_log: Optional[TextIOWrapper]=None, 
+    close_file_log_upon_exit: Optional[bool]=True,
+    verbose: Optional[int]=0, 
+    **kwargs
+) -> np.ndarray:
     r"""Computes and returns the neutrino oscillation probability.
 
-    Computes the oscillation probability of neutrinos starting at time (or position) ``t_ini`` and 
-    ending at time (or position) ``t_fin``.
+    Computes the oscillation probability of neutrinos starting at time 
+    (or position) ``t_ini`` and ending at time (or position) ``t_fin``.
 
     Parameters
     ----------
     H_func
-        The Hamiltonian, which is a function of time or position that returns a square matrix 
-        (a NumPy array). The Hamiltonian can have complex-valued entries.
+        The Hamiltonian, which is a function of time or position that 
+        returns a square matrix (a NumPy array). The Hamiltonian can 
+        have complex-valued entries.
     t_ini
         Initial time or position of the neutrino.
     t_fin
         Final time or position of the neutrino.
     n_slabs
-        Number of slabs, or intervals into which the interval [t_ini, t_fin] is partitioned in order
-        to compute the neutrino evolution operators.
+        Number of slabs, or subintervals, into which the interval 
+        [t_ini, t_fin] is partitioned in order to compute the neutrino 
+        evolution operators. A higher value of ``n_slabs`` yields a 
+        more accurate probability.
 
-        If no target tolerance is requested (i.e., if ``rtol`` and ``atol`` are both ``None``), 
-        then the given value of `n_slabs` is the final number of slabs used in the computation.
+        If no target tolerance is requested (i.e., if ``rtol`` and 
+        ``atol`` are both ``None``), then the given value of `n_slabs` 
+        is the final number of slabs used in the computation.
 
-        If a target tolerance is request (i.e., if either ``rtol`` or ``atol`` is not ``None``),
-        then the given value of `n_slabs` is only the initial number of slabs used, and the number
-        will be progressively increased internally (if `growth_factor_n_slabs > 1`)
-
+        If a target tolerance is requested (i.e., if either ``rtol`` or 
+        ``atol`` is not ``None``), then the given value of `n_slabs` is 
+        ignored. Instead, the number of slabs is increased 
+        progressively, starting from ``min_n_slabs``, until the 
+        tolerance is achieved or until we hit ``max_n_slabs``, whichever
+        happens first.
+    n_tpts_per_slab
+        Number of time-points inside the slab at which to evaluate 
+        H_func in order to numerically compute the integrals over time 
+        required by the Magnus expansion. A higher value of 
+        ``n_tpts_per_slab`` yields a more accurate probability.
+    t_slab_edges
+        XXX
+    magnus_exp_order
+        XXX
+    n_jobs
+        XXX
+    integration_method
+        XXX
+    rtol
+        XXX
+    atol
+        XXX
+    growth_factor_n_slabs
+        XXX
+    growth_factor_n_tpts_per_slab
+        XXX
+    max_num_loops
+        XXX
+    min_n_slabs
+        XXX
+    max_n_slabs
+        XXX
+    min_n_tpts_per_slab
+        XXX
+    max_n_tpts_per_slab
+        XXX
+    iterate_over_magnus_exp_order
+        XXX
+    min_magnus_exp_order
+        XXX
+    max_magnus_exp_order
+        XXX
+    validate_input
+        XXX
+    save_log
+        XXX
+    filename_log
+        XXX
+    file_log
+        XXX
+    close_file_log_upon_exit
+        XXX
+    verbose
+        XXX
+    \**kwargs
+        Additional unspecified arguments
 
     Returns
     -------
@@ -327,7 +427,7 @@ def osc_prob(H_func: Union[Callable, np.ndarray], t_ini: float, t_fin: float,
         try:
             if ((rtol is not None) and (atol is not None) and (growth_factor_n_tpts_per_slab < 1.0)): 
                 raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob: " + \
-                    "growth_factor_n_tpts_per_slab must be >= 1.0.")
+                    "growth_factor_n_tpts_per_slab must be >= 1.0.") 
         except ValueError as error:
             print(error)
             print("Aborting execution...")
@@ -335,10 +435,10 @@ def osc_prob(H_func: Union[Callable, np.ndarray], t_ini: float, t_fin: float,
 
         try:
             if ( ((rtol is not None) and (atol is not None)) and \
-                ((growth_factor_n_slabs == 1) and (growth_factor_n_tpts_per_slab == 1)) ): 
+                ((growth_factor_n_slabs == 1.0) and (growth_factor_n_tpts_per_slab == 1.0)) ): 
                 raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob: since a target " + \
                     "tolerance has been requested, either growth_factor_n_slabs, " + \
-                    "growth_factor_n_tpts_per_slab, or both must be > 1".)
+                    "growth_factor_n_tpts_per_slab, or both must be > 1.")
         except ValueError as error:
             print(error)
             print("Aborting execution...")
@@ -630,21 +730,38 @@ def osc_prob(H_func: Union[Callable, np.ndarray], t_ini: float, t_fin: float,
             loop_count += 1
 
 
-def osc_prob_iterate_over_magnus_exp_order(H_func: Union[Callable, np.ndarray], t_ini: float, 
-    t_fin: float, n_slabs: Optional[int]=1, n_tpts_per_slab: Optional[int]=100, 
-    t_slab_edges: Optional[Union[list, np.ndarray]]=None, magnus_exp_order: Optional[int]=4, 
-    n_jobs: Optional[int]=1, integration_method: Optional[str]='trapezoid', 
-    rtol: Optional[float]=1.e-3, atol: Optional[float]=1.e-3, 
+def osc_prob_iterate_over_magnus_exp_order(
+    H_func: Union[Callable, np.ndarray],
+    t_ini: float, 
+    t_fin: float,
+    n_slabs: Optional[int]=1,
+    n_tpts_per_slab: Optional[int]=100, 
+    t_slab_edges: Optional[Union[list, np.ndarray]]=None,
+    magnus_exp_order: Optional[int]=4, 
+    n_jobs: Optional[int]=1,
+    integration_method: Optional[str]='trapezoid', 
+    rtol: Optional[float]=1.e-3,
+    atol: Optional[float]=1.e-3, 
     growth_factor_n_slabs: Optional[float]=1.5, 
     growth_factor_n_tpts_per_slab: Optional[float]=1.5, 
-    max_num_loops: Optional[int]=50, min_n_slabs: Optional[float]=1, 
+    max_num_loops: Optional[int]=50,
+    min_n_slabs: Optional[float]=1, 
     max_n_slabs: Optional[float]=2000, 
-    min_n_tpts_per_slab: Optional[int]=2, max_n_tpts_per_slab: Optional[int]=500, 
+    min_n_tpts_per_slab: Optional[int]=2,
+    max_n_tpts_per_slab: Optional[int]=500, 
     min_magnus_exp_order: Optional[int]=1, 
     max_magnus_exp_order: Optional[int]=gd.MAGNUS_EXP_ORDER_MAX, 
     validate_input: Optional[bool]=True,
-    save_log: Optional[bool]=False, filename_log: Optional[str]='./out.log',
-    verbose: Optional[int]=0, file_log: Optional[TextIOWrapper]=None, **kwargs):
+    save_log: Optional[bool]=False,
+    filename_log: Optional[str]='./out.log',
+    verbose: Optional[int]=0,
+    file_log: Optional[TextIOWrapper]=None,
+    **kwargs
+) -> np.ndarray:
+    r"""Computes the neutrino oscillation probability until a requested
+    tolerance is achieved, including progressively increasing the order
+    of the Magnus expansion.
+    """
 
     # Validate input; set validate_input to False for speed-up.
     if validate_input:
@@ -715,10 +832,55 @@ def osc_prob_iterate_over_magnus_exp_order(H_func: Union[Callable, np.ndarray], 
     return P
 
     
-def osc_prob_2nu_vacuum(energy: Union[int, float, list, np.ndarray], 
+def osc_prob_2nu_vacuum(
+    energy: Union[int, float, list, np.ndarray], 
     L: Union[int, float, list, np.ndarray], 
-    sth: float, Dm2: float, nu_i: Optional[int]=None, nu_f: Optional[int]=None,
-    validate_input: Optional[bool]=True) -> Union[float, np.ndarray]:
+    sth: float, 
+    Dm2: float, 
+    nu_i: Optional[int]=None, 
+    nu_f: Optional[int]=None,
+    validate_input: Optional[bool]=True
+) -> Union[float, np.ndarray]:
+    r"""Compute and return the two-neutrino oscillation probability in
+    vacuum.
+
+    Parameters
+    ----------
+    energy
+        XXX
+    L
+        XXX
+    sth
+        XXX
+    Dm2
+        XXX
+    nu_i
+        XXX
+    nu_f
+        XXX
+    validate_input
+        XXX
+
+    Returns
+    -------
+    Union[float, np.narray]
+        XXX
+
+    Examples
+    --------
+    >>> import magnus.oscprob as oscprob
+    >>> import magnus.globaldefs as gd
+    >>> sth = gd.S12_NO_BF_NUFIT_6_0 # sin(theta) [adim]
+    >>> Dm2 = gd.D21_NO_BF_NUFIT_6_0 # [eV^2]
+
+    Single energy and baseline:
+
+    >>> baseline = 10.*gd.UNIT_KM # 10 km natural units [eV^{-1}]
+    >>> energy = 1.*gd.UNIT_MEV # [eV]
+    >>> oscprob.osc_prob_2nu_vacuum(energy, baseline, sth, Dm2)
+    array([[0.43678029, 0.56321971],
+       [0.56321971, 0.43678029]])
+    """
 
     energy = float(energy) if isinstance(energy, int) else energy
     L = float(L) if isinstance(L, int) else L
@@ -768,12 +930,19 @@ def osc_prob_2nu_vacuum(energy: Union[int, float, list, np.ndarray],
             for xy in zip(energy, L)]).__getitem__(0 if return_float else slice(None))
 
 
-def osc_prob_2nu_matter_constant_density(energy: Union[float, list, np.ndarray], 
-    L: Union[float, list, np.ndarray], sth: float, Dm2: float, 
-    rho: float, ratio_number_neutrons_to_protons: Optional[float]=1.0, 
-    electron_fraction: Optional[float]=0.5, nubar: Optional[bool]=False,
-    nu_i: Optional[int]=None, nu_f: Optional[int]=None,
-    validate_input: Optional[bool]=True) -> Union[float, np.ndarray]:
+def osc_prob_2nu_matter_constant_density(
+    energy: Union[float, list, np.ndarray], 
+    L: Union[float, list, np.ndarray], 
+    sth: float, 
+    Dm2: float, 
+    rho: float, 
+    ratio_number_neutrons_to_protons: Optional[float]=1.0, 
+    electron_fraction: Optional[float]=0.5, 
+    nubar: Optional[bool]=False,
+    nu_i: Optional[int]=None, 
+    nu_f: Optional[int]=None,
+    validate_input: Optional[bool]=True
+) -> Union[float, np.ndarray]:
 
     energy = float(energy) if isinstance(energy, int) else energy
     L = float(L) if isinstance(L, int) else L
@@ -837,13 +1006,23 @@ def osc_prob_2nu_matter_constant_density(energy: Union[float, list, np.ndarray],
             for xy in zip(energy, L)]).__getitem__(0 if return_float else slice(None))
 
 
-def osc_prob_3nu_vacuum(energy: Union[float, list, np.ndarray], L: Union[float, list, np.ndarray], 
-    s12: Optional[float]=None, s23: Optional[float]=None, s13: Optional[float]=None, 
-    dCP: Optional[float]=None, D21: Optional[float]=None, D31: Optional[float]=None, 
-    nubar: Optional[bool]=False, nu_i: Optional[int]=None, nu_f: Optional[int]=None,
+def osc_prob_3nu_vacuum(
+    energy: Union[float, list, np.ndarray], 
+    L: Union[float, list, np.ndarray], 
+    s12: Optional[float]=None, 
+    s23: Optional[float]=None, 
+    s13: Optional[float]=None, 
+    dCP: Optional[float]=None, 
+    D21: Optional[float]=None, 
+    D31: Optional[float]=None, 
+    nubar: Optional[bool]=False, 
+    nu_i: Optional[int]=None, 
+    nu_f: Optional[int]=None,
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
-    validate_input: Optional[bool]=True, verbose: Optional[int]=0, 
-    **kwargs) -> Union[float, np.ndarray]:
+    validate_input: Optional[bool]=True, 
+    verbose: Optional[int]=0, 
+    **kwargs
+) -> Union[float, np.ndarray]:
 
     energy = float(energy) if isinstance(energy, int) else energy
     L = float(L) if isinstance(L, int) else L
@@ -922,15 +1101,26 @@ def osc_prob_3nu_vacuum(energy: Union[float, list, np.ndarray], L: Union[float, 
             for xy in zip(energy, L)]).__getitem__(0 if return_float else slice(None))
 
 
-def osc_prob_3nu_matter_constant_density(energy: Union[float, list, np.ndarray], 
-    L: Union[float, list, np.ndarray], rho: float, s12: Optional[float]=None, 
-    s23: Optional[float]=None, s13: Optional[float]=None, dCP: Optional[float]=None, 
-    D21: Optional[float]=None, D31: Optional[float]=None, 
-    ratio_number_neutrons_to_protons: Optional[float]=1.0, electron_fraction: Optional[float]=0.5, 
-    nubar: Optional[bool]=False, nu_i: Optional[int]=None, nu_f: Optional[int]=None,
+def osc_prob_3nu_matter_constant_density(
+    energy: Union[float, list, np.ndarray], 
+    L: Union[float, list, np.ndarray], 
+    rho: float, 
+    s12: Optional[float]=None, 
+    s23: Optional[float]=None, 
+    s13: Optional[float]=None, 
+    dCP: Optional[float]=None, 
+    D21: Optional[float]=None, 
+    D31: Optional[float]=None, 
+    ratio_number_neutrons_to_protons: Optional[float]=1.0, 
+    electron_fraction: Optional[float]=0.5, 
+    nubar: Optional[bool]=False, 
+    nu_i: Optional[int]=None, 
+    nu_f: Optional[int]=None,
     density_matter_is_in_g_per_cm3=False,
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
-    validate_input: Optional[bool]=True, verbose: Optional[int]=0) -> Union[float, np.ndarray]:
+    validate_input: Optional[bool]=True, 
+    verbose: Optional[int]=0
+) -> Union[float, np.ndarray]:
 
     energy = float(energy) if isinstance(energy, int) else energy
     L = float(L) if isinstance(L, int) else L
