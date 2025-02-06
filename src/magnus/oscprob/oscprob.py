@@ -1,6 +1,132 @@
-"""Module oscprob
+"""Contains routines to compute the neutrino oscillation probability.
 
-Contains routines to compute the neutrino oscillation probability.
+Internally, the probability is computed using Magnus expansion, but the
+user does not call the routines in the :py:mod:`magnus.magnus` module
+directly. Instead, the user calls the :func:`osc_prob`, which calls the
+Magnus expansion routines internally.
+
+The function :func:`osc_prob` is the primordial function to compute the
+oscillation probability. The module contains additional functions built
+on top of it, for specific common cases:
+
+- :func:`osc_prob`: Primordial function to compute the oscillation
+  probability, for any given Hamiltonian, either time-dependent or 
+  -independent (or, equivalently, position-dependent or -independent). 
+  Supports arbitrary number of neutrino flavors.
+
+- :func:`osc_prob_2nu_vacuum`: Wrapper of :func:`osc_prob` to easily 
+  compute oscillation probabilities for two-flavor neutrino systems in
+  vacuum.
+
+- :func:`osc_prob_3nu_vacuum`: Wrapper of :func:`osc_prob` to easily 
+  compute oscillation probabilities for three-flavor neutrino systems in
+  vacuum
+
+- :func:`osc_prob_2nu_matter_constant_density`: Wrapper of 
+  :func:`osc_prob` to easily compute oscillation probabilities for 
+  two-flavor neutrino systems in matter with constant density.
+
+- :func:`osc_prob_3nu_matter_constant_density`: Wrapper of 
+  :func:`osc_prob` to easily compute oscillation probabilities for 
+  three-flavor neutrino systems in matter with constant density.
+
+Examples
+--------
+Find more examples within the documentation of each of the above 
+functions and **especially** in the `Jupyter notebooks 
+<https://github.com/mbustama/Magnus/tree/main/notebooks>`_ that are 
+distributed with Magnus, which include plots.
+
+>>> import magnus.oscprob as oscprob
+>>> import magnus.globaldefs as gd
+
+Calling :func:`osc_prob_3nu_vacuum` returns a :math:`3 \\times 3` NumPy array
+with entries XXX
+
+For a single neutrino energy and baseline:
+
+>>> baseline = 10.*gd.UNIT_KM # 10 km in natural units [eV^{-1}]
+>>> energy = 1.*gd.UNIT_MEV # [eV]
+>>> np.set_printoptions(precision=3)
+>>> oscprob.osc_prob_3nu_vacuum(energy, baseline)
+[[0.445 0.299 0.257]
+ [0.251 0.639 0.11 ]
+ [0.304 0.062 0.634]]
+
+The probabilities returned by :func:`osc_prob_3nu_vacuum` (and also
+:func:`osc_prob_2nu_vacuum`, 
+:func:`osc_prob_2nu_matter_constant_density`, and
+:func:`osc_prob_3nu_matter_constant_density`) are returned with machine
+(or NumPy) precision, since first-order Magnus expansion is enough to 
+compute them.
+
+Pick one channel only, e.g., :math:`\\nu_e \\to \\nu_\\mu`, by passing
+an initial flavor, ``nu_i``, and a final flavor ``nu_f``:
+
+>>> oscprob.osc_prob_3nu_vacuum(energy, baseline, nu_i=gd.NUE, \
+nu_f=gd.NUMU)
+
+The flavor indices ``NUE``, ``NUMU``, and ``NUMU`` are defined in the 
+:py:mod:`magnus.globaldefs` module. For anti-neutrinos, i.e., 
+:math:`\\bar{\\nu}_e \\to \\bar{\\nu}_\\mu`:
+
+>>> oscprob.osc_prob_3nu_vacuum(energy, baseline, nu_i=gd.NUE, \
+nu_f=gd.NUMU, nubar=True)
+
+Calling :func:`osc_prob_3nu_vacuum` without specifying the values of the
+oscillation parameters will compute probabilities using the default 
+values in Magnus (see 
+``gd.OSC_PARAMS_PREDEFINED['OSC_PARAMS_DEFAULT']``.)
+
+We can specify values of the oscillation parameters. Unspecified values
+are set to their defaults (pass nonzero ``verbose`` to see this and 
+other warnings):
+
+>>> oscprob.osc_prob_3nu_vacuum(energy, baseline, s12=0.0, verbose=1)
+Warning: Setting unspecified oscillation parameters to default values \
+from the predefined set\n OSC_PARAMS_NU_FIT_6_0_NO (NuFit 6.0, NO, with \
+SK atmospheric data):
+s23 = 0.6855654600401044
+s13 = 0.14882876066137216
+dCP = 3.7000980142279785 rad
+D21 = 7.49e-05 eV^2
+D31 = 0.002513 eV^2
+<BLANKLINE>
+[[0.985 0.007 0.008]
+ [0.007 0.736 0.257]
+ [0.008 0.257 0.735]]
+
+Fixed energy, multiple baselines:
+
+>>> baselines = gd.UNIT_KM*np.array([1.0, 10.0 100.0])
+>>> oscprob.osc_prob_3nu_vacuum(energy, baselines, nu_i=gd.NUE, \
+nu_f=gd.NUMU)
+
+Fixed baseline, multiple energies:
+
+>>> energies = gd.UNIT_MEV*np.array([1.0, 10.0, 100.0])
+>>> oscprob.osc_prob_3nu_vacuum(energies, baseline, nu_i=gd.NUE, \
+nu_f=gd.NUMU)
+
+Multiple energies and baselines:
+
+>>> oscprob.osc_prob_3nu_vacuum(energies, baselines, nu_i=gd.NUE, \
+nu_f=gd.NUMU)
+
+To compute the oscillation probabilities in constant-density matter, we
+need to specify the matter density, ``rho``, i.e.,
+
+>>> rho = 10.0*gd.UNIT_G_PER_CM3
+>>> osc_prob_3nu_matter_constant_density(energy, baseline, rho, \
+nu_i=gd.NUE, nu_f=gd.NUMU)
+
+To compute oscillation probabilities for a time-dependent Hamiltonian,
+we need to call :func:`osc_prob` directly which, while still 
+straightforward, requires us to pass a Hamiltonian function explicitly.
+
+For instance, for density matter profile that is exponentially falling
+with distance:
+
 """
 
 __version__ = '0.1'
@@ -13,6 +139,8 @@ from joblib import Parallel, delayed
 from typing import Optional, Callable, Union
 from io import TextIOWrapper
 from inspect import signature
+
+# import numpy.typing
 
 # TO-DO: remove this once setup.py and pip are working
 import os
@@ -304,17 +432,17 @@ def osc_prob(
         Final time or position of the neutrino.
     n_slabs
         Number of slabs, or subintervals, into which the interval 
-        [t_ini, t_fin] is partitioned in order to compute the neutrino 
-        evolution operators. A higher value of ``n_slabs`` yields a 
-        more accurate probability.
+        [``t_ini``, ``t_fin``] is partitioned in order to compute the 
+        neutrino evolution operators. A higher value of ``n_slabs`` 
+        yields a more accurate probability.
 
         If no target tolerance is requested (i.e., if ``rtol`` and 
-        ``atol`` are both ``None``), then the given value of `n_slabs` 
+        ``atol`` are both ``None``), then the given value of ``n_slabs`` 
         is the final number of slabs used in the computation.
 
         If a target tolerance is requested (i.e., if either ``rtol`` or 
-        ``atol`` is not ``None``), then the given value of `n_slabs` is 
-        ignored. Instead, the number of slabs is increased 
+        ``atol`` is not ``None``), then the given value of ``n_slabs`` 
+        is ignored. Instead, the number of slabs is increased 
         progressively, starting from ``min_n_slabs``, until the 
         tolerance is achieved or until we hit ``max_n_slabs``, whichever
         happens first.
@@ -373,7 +501,8 @@ def osc_prob(
     Returns
     -------
     np.ndarray
-        NumPy array containing the probability matrix.
+        NumPy array containing the probability matrix of the same 
+        dimensions as the Hamiltonian, ``H_func``.
     """
 
     # Validate input; set validate_input to False for speed-up.
@@ -1237,14 +1366,14 @@ if __name__ == "__main__":
     #     save_log=True, filename_log='./out.log', verbose=2)
     # print(prob)
 
-    # Test iteration over magnus_exp_order
-    prob = osc_prob(H_3nu_func, t_ini, t_fin, 
-        integration_method='simpson', n_jobs=10, rtol=1e-3, atol=1.e-3, 
-        max_n_slabs=10, max_n_tpts_per_slab=10, 
-        iterate_over_magnus_exp_order=True, min_magnus_exp_order=1, 
-        max_magnus_exp_order=gd.MAGNUS_EXP_ORDER_MAX,
-        save_log=True, filename_log='./out.log', verbose=2)
-    print(prob)
+    # # Test iteration over magnus_exp_order
+    # prob = osc_prob(H_3nu_func, t_ini, t_fin, 
+    #     integration_method='simpson', n_jobs=10, rtol=1e-3, atol=1.e-3, 
+    #     max_n_slabs=10, max_n_tpts_per_slab=10, 
+    #     iterate_over_magnus_exp_order=True, min_magnus_exp_order=1, 
+    #     max_magnus_exp_order=gd.MAGNUS_EXP_ORDER_MAX,
+    #     save_log=True, filename_log='./out.log', verbose=2)
+    # print(prob)
 
     # Test use of default values of oscillation parameters: vacuum
     # print(osc_prob_3nu_vacuum(1.*gd.UNIT_MEV, 100*gd.UNIT_KM, 
@@ -1276,3 +1405,12 @@ if __name__ == "__main__":
 
     # prob = osc_prob_2nu_vacuum('x', 1.0*gd.UNIT_KM, 0.5, 1.e-4)
     # print(prob)
+
+    baseline = 10.*gd.UNIT_KM # 10 km in natural units [eV^{-1}]
+    energy = 1.*gd.UNIT_MEV # [eV]
+    np.set_printoptions(precision=3)
+    prob = osc_prob_3nu_vacuum(energy, baseline)
+    print(prob)
+    print(gd.OSC_PARAMS_PREDEFINED['OSC_PARAMS_DEFAULT'])
+    np.set_printoptions(precision=3)
+    print(osc_prob_3nu_vacuum(energy, baseline, s12=0.0, verbose=1))
