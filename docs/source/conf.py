@@ -13,10 +13,16 @@ release = '0.10'
 
 import os
 import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path('../..', 'src/magnus').resolve()))
+# print(str(Path('../..', 'src/magnus').resolve()))
+sys.path.insert(0, os.path.abspath('..'))
 sys.path.insert(0, os.path.abspath('../../src/'))
 sys.path.insert(0, os.path.abspath('../../src/magnus/'))
 sys.path.insert(0, os.path.abspath('../../src/magnus/oscprob'))
 sys.path.insert(0, os.path.abspath('../../src/magnus/globaldefs'))
+# print(os.path.abspath('../../src/magnus/globaldefs'))
 
 
 # If extensions (or modules to document with autodoc) are in another directory,
@@ -39,6 +45,7 @@ extensions = [
     'sphinx.ext.intersphinx',
     ## Include autosymmary
     'sphinx.ext.autosummary',
+    'sphinx_rtd_theme'
 ]
 
 ## Include Python objects as they appear in source files
@@ -51,6 +58,11 @@ autodoc_default_options = {
 }
 ## Generate autodoc stubs with summaries from code
 autosummary_generate = True
+
+autodoc_typehints = "description"
+
+autodoc_mock_imports = ['magnus.globaldefs', 'magnus.hamiltonians',
+    'magnus.matter', 'magnus.earth']
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -67,9 +79,9 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 # General information about the project.
-project = 'Sphinx Autodoc Turorial'
-copyright = '2016, Roman Miroshnychenko'
-author = 'Roman Miroshnychenko'
+project = 'Magnus'
+copyright = '2025, Mauricio Bustamante'
+author = 'Mauricio Bustamante'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -129,7 +141,8 @@ todo_include_todos = False
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
-html_theme = 'alabaster'
+html_theme = 'sphinx_rtd_theme'
+# html_theme = 'pydata_sphinx_theme'
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the

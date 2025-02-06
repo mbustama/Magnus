@@ -9,8 +9,8 @@ Magnus documentation
    :maxdepth: 2
    :caption: Contents:
 
-Module oscprob
-==============
+oscprob
+=======
 
 .. automodule:: oscprob
   :members:
