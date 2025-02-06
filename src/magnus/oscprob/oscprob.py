@@ -1343,6 +1343,95 @@ def osc_prob_3nu_matter_constant_density(
             for xy in zip(energy, L)]).__getitem__(0 if return_float else slice(None))
 
 
+def osc_prob_2nu_across_earth(
+    ra_dec_ini: Union[tuple, list, np.ndarray, str], 
+    ra_dec_fin: Union[tuple, list, np.ndarray, str], 
+    costhz: Union[int, float]
+) -> Union[float, np.ndarray]:
+    """
+    Returns the three-neutrino oscillation probability between two 
+    points on the surface of the Earth.  Assumes standard oscillations. 
+    For the matter density inside the Earth, it uses the Preliminary 
+    Reference Earth Model.
+
+    The locations of each point on the surface can either be given as a
+    tuple (ra, dec) of right ascension and declination (i.e., 
+    ``ra_dec_ini`` and ``ra_dec_fin``)---including the possibility of 
+    using locations predefined in Magnus---or as the cosine of the
+    zenith angle between the initial and final positions (i.e.,
+    `costhz`).
+
+    See also :func:`osc_prob_3nu_across_earth`, `osc_prob_across_earth`.
+
+    Examples
+    --------
+    """
+
+    pass
+
+    return 
+
+
+def osc_prob_3nu_across_earth(
+    ra_dec_ini: Union[tuple, list, np.ndarray, str], 
+    ra_dec_fin: Union[tuple, list, np.ndarray, str], 
+    costhz: Union[int, float]
+) -> Union[float, np.ndarray]:
+    """
+    Returns the three-neutrino oscillation probability between two 
+    points on the surface of the Earth.  Assumes standard oscillations. 
+    For the matter density inside the Earth, it uses the Preliminary 
+    Reference Earth Model.
+
+    The locations of each point on the surface can either be given as a
+    tuple (ra, dec) of right ascension and declination (i.e., 
+    ``ra_dec_ini`` and ``ra_dec_fin``)---including the possibility of 
+    using locations predefined in Magnus---or as the cosine of the
+    zenith angle between the initial and final positions (i.e.,
+    `costhz`).
+
+    See also :func:`osc_prob_2nu_across_earth`, `osc_prob_across_earth`.
+
+    Examples
+    --------
+    """
+
+    pass
+
+    return 
+
+
+def osc_prob_across_earth(
+    ra_dec_ini: Union[tuple, list, np.ndarray, str], 
+    ra_dec_fin: Union[tuple, list, np.ndarray, str], 
+    costhz: Union[int, float]
+) -> Union[float, np.ndarray]:
+    """
+    Returns the three-neutrino oscillation probability between two 
+    points on the surface of the Earth.  Does **not** assume standard
+    oscillations nor a given number of neutrino flavors: the user must
+    supply their own Hamiltonian function, ``H_func``.
+    
+    For the matter density inside the Earth, it uses the Preliminary 
+    Reference Earth Model.
+
+    The locations of each point on the surface can either be given as a
+    tuple (ra, dec) of right ascension and declination (i.e., 
+    ``ra_dec_ini`` and ``ra_dec_fin``)---including the possibility of 
+    using locations predefined in Magnus---or as the cosine of the
+    zenith angle between the initial and final positions (i.e.,
+    `costhz`).
+
+    Examples
+    --------
+    """
+
+    pass
+
+    return 
+
+
+
 if __name__ == "__main__":
     def H_2nu_func(t):
         return np.array([[1+1j*t, 2*t], [2*t, 4-1j*t]], dtype=np.complex128)
