@@ -17,6 +17,7 @@ import magnus.hamiltonians.hamiltonians2nu as hamiltonians2nu
 import magnus.hamiltonians.hamiltonians3nu as hamiltonians3nu
 import magnus.matter as matter
 import version as version
+import authors as authors
 
 
 def print_run_parameters(H_func: Union[Callable, np.ndarray], t_ini: float, t_fin: float, 
@@ -36,16 +37,38 @@ def print_run_parameters(H_func: Union[Callable, np.ndarray], t_ini: float, t_fi
     filename_log: Optional[str]='./out.log', verbose: Optional[int]=0, 
     file_log: Optional[TextIOWrapper]=None):
 
+    def print_banner(file: TextIOWrapper=None):
+        if file is None:
+            print(gd.cstyle.CBLUEBG + ".----------------------------------------." + gd.cstyle.CEND,
+                file=f)
+            print(gd.cstyle.CBLUEBG + "|   __  __                               |" + gd.cstyle.CEND,
+                file=f)
+            print(gd.cstyle.CBLUEBG + "|  |  \/  | __ _  __ _ _ __  _   _ ___   |" + gd.cstyle.CEND, 
+                file=f)
+            print(gd.cstyle.CBLUEBG + "|  | |\/| |/ _` |/ _` | '_ \| | | / __|  |" + gd.cstyle.CEND,
+                file=f)
+            print(gd.cstyle.CBLUEBG + "|  | |  | | (_| | (_| | | | | |_| \__ \  |" + gd.cstyle.CEND,
+                file=f)
+            print(gd.cstyle.CBLUEBG + "|  |_|  |_|\__,_|\__, |_| |_|\__,_|___/  |" + gd.cstyle.CEND,
+                file=f)
+            print(gd.cstyle.CBLUEBG + "|                |___/                   |" + gd.cstyle.CEND,
+                file=f)
+            print(gd.cstyle.CBLUEBG + "'----------------------------------------'" + gd.cstyle.CEND,
+                file=f)
+        else: 
+            print(".----------------------------------------.", file=f)
+            print("|   __  __                               |", file=f)
+            print("|  |  \/  | __ _  __ _ _ __  _   _ ___   |", file=f)
+            print("|  | |\/| |/ _` |/ _` | '_ \| | | / __|  |", file=f)
+            print("|  | |  | | (_| | (_| | | | | |_| \__ \  |", file=f)
+            print("|  |_|  |_|\__,_|\__, |_| |_|\__,_|___/  |", file=f)
+            print("|                |___/                   |", file=f)
+            print("'----------------------------------------'", file=f)
+
     for f in [None, file_log] if save_log else [None]:
-        print(".----------------------------------------.", file=f)
-        print("|   __  __                               |", file=f)
-        print("|  |  \/  | __ _  __ _ _ __  _   _ ___   |", file=f)
-        print("|  | |\/| |/ _` |/ _` | '_ \| | | / __|  |", file=f)
-        print("|  | |  | | (_| | (_| | | | | |_| \__ \  |", file=f)
-        print("|  |_|  |_|\__,_|\__, |_| |_|\__,_|___/  |", file=f)
-        print("|                |___/                   |", file=f)
-        print("'----------------------------------------'", file=f)
-        print("Version: "+ version.__version__+"\n", file=f)
+        print_banner(f)
+        print("Version: "+ version.__version__ + " | Author(s): " + authors.__authors__ + "\n", 
+            file=f)
         print("Parameters passed to function magnus.osc_prob in this run:", file=f)
         if callable(H_func):
             print("   H_func = " + H_func.__name__, file=f)
@@ -977,14 +1000,14 @@ if __name__ == "__main__":
     #     save_log=True, filename_log='./out.log', verbose=2)
     # print(prob)
 
-    # # Test iteration over magnus_exp_order
-    # prob = osc_prob(H_3nu_func, t_ini, t_fin, 
-    #     integration_method='simpson', n_jobs=10, rtol=1e-3, atol=1.e-3, 
-    #     max_n_slabs=10, max_n_tpts_per_slab=10, 
-    #     iterate_over_magnus_exp_order=True, min_magnus_exp_order=1, 
-    #     max_magnus_exp_order=gd.MAGNUS_EXP_ORDER_MAX,
-    #     save_log=True, filename_log='./out.log', verbose=2)
-    # print(prob)
+    # Test iteration over magnus_exp_order
+    prob = osc_prob(H_3nu_func, t_ini, t_fin, 
+        integration_method='simpson', n_jobs=10, rtol=1e-3, atol=1.e-3, 
+        max_n_slabs=10, max_n_tpts_per_slab=10, 
+        iterate_over_magnus_exp_order=True, min_magnus_exp_order=1, 
+        max_magnus_exp_order=gd.MAGNUS_EXP_ORDER_MAX,
+        save_log=True, filename_log='./out.log', verbose=2)
+    print(prob)
 
     # Test use of default values of oscillation parameters: vacuum
     # print(osc_prob_3nu_vacuum(1.*gd.UNIT_MEV, 100*gd.UNIT_KM, 
@@ -1014,5 +1037,5 @@ if __name__ == "__main__":
     #     10.0*gd.UNIT_G_PER_CM3, nu_i=gd.NUE, nu_f=gd.NUMU,
     #     default_osc_params_set_name='xxx', validate_input=True, verbose=1), end='\n\n')
 
-    prob = osc_prob_2nu_vacuum('x', 1.0*gd.UNIT_KM, 0.5, 1.e-4)
-    print(prob)
+    # prob = osc_prob_2nu_vacuum('x', 1.0*gd.UNIT_KM, 0.5, 1.e-4)
+    # print(prob)
