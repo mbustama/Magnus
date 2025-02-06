@@ -45,7 +45,8 @@ extensions = [
     'sphinx.ext.intersphinx',
     ## Include autosymmary
     'sphinx.ext.autosummary',
-    'sphinx_rtd_theme'
+    'sphinx_rtd_theme',
+    'sphinx.ext.mathjax'
 ]
 
 ## Include Python objects as they appear in source files
@@ -60,6 +61,9 @@ autodoc_default_options = {
 autosummary_generate = True
 
 autodoc_typehints = "description"
+
+# autodoc_typehints_format = 'short'
+# python_use_unqualified_type_names = False
 
 autodoc_mock_imports = ['magnus.globaldefs', 'magnus.hamiltonians',
     'magnus.matter', 'magnus.earth']
