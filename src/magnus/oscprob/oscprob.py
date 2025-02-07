@@ -1135,16 +1135,11 @@ def osc_prob_2nu_vacuum(
 
     .. seealso::
         :func:`osc_prob_3nu_vacuum`
-            Three-flavor oscillation probabiltiies in vacuum. 
-        :func:`osc_prob_2nu_matter_constant_density`
-            Two-neutrino oscillation probabilities in matter with
-            constant density.
-        :func:`osc_prob_3nu_matter_constant_density`
-            Three-neutrino oscillation probabilities in matter with 
-            constant density.
-        :func:`osc_prob`
-            Neutrino oscillation probabilities for arbitrary 
-            number of flavors and Hamiltonian.
+            Three-flavor oscillation probabilities in vacuum. 
+        :func:`osc_prob_4nu_vacuum`
+            Four-flavor (3+1) oscillation probabilities in vacuum. 
+        :func:`osc_prob_5nu_vacuum`
+            Four-flavor (3+2) oscillation probabilities in vacuum. 
     """
     energy = float(energy) if isinstance(energy, int) else energy
     L = float(L) if isinstance(L, int) else L
@@ -1194,82 +1189,6 @@ def osc_prob_2nu_vacuum(
             for xy in zip(energy, L)]).__getitem__(0 if return_float else slice(None))
 
 
-def osc_prob_2nu_matter_constant_density(
-    energy: Union[float, list, np.ndarray], 
-    L: Union[float, list, np.ndarray], 
-    sth: float, 
-    Dm2: float, 
-    rho: float, 
-    ratio_number_neutrons_to_protons: Optional[float]=1.0, 
-    electron_fraction: Optional[float]=0.5, 
-    nubar: Optional[bool]=False,
-    nu_i: Optional[int]=None, 
-    nu_f: Optional[int]=None,
-    validate_input: Optional[bool]=True
-) -> Union[float, np.ndarray]:
-
-    energy = float(energy) if isinstance(energy, int) else energy
-    L = float(L) if isinstance(L, int) else L
-
-    if validate_input:
-        # The function name is sys._getframe().f_code.co_name
-        if validate_input_battery(sys._getframe().f_code.co_name, energy, L, nu_i, nu_f) == 1:
-            sys.exit(1)
-
-    # Flag return_float remembers if energy and L were both floats.  If True, return a float, too.
-    return_float = isinstance(energy, float) and isinstance(L, float)
-
-    energy = np.array([energy]) if isinstance(energy, float) else np.array(energy)  
-    L = np.array([L]) if isinstance(L, float) else np.array(L) 
-
-    # Either energy and L are both lists (or NumPy arrays) of the same length; or one is a float and
-    # the other is a list (or NumPy array).  Any other possibility will generate an exception.  This
-    # exception is raised earlier if validate_input == True, but we check below in case it has been
-    # set to False.
-    try:
-        if not ((len(energy) == len(L)) or (len(energy) == 1 and len(L) > 1) or \
-            (len(energy) > 1 and len(L) == 1)):
-            raise ValueError(gd.ERROR_MSG_IN_COLOR + \
-                " oscprob.osc_prob_2nu_matter_constant_density: energy and L must be both " + \
-                "int or float; or, if lists (or NumPy arrays), they must have the same length;" + \
-                " or, if one is a float or single-entry list, the other must be a list with " + \
-                "multiple entries.")
-    except ValueError as error:
-        print(error)
-        print("Aborting execution...")
-        sys.exit(1)
-
-    s = 1.0 if not nubar else -1.0
-
-    # Electron number density [eV^3]
-    num_density_e = matter.num_density_e_func(l=0.0, density_matter_func=lambda l: rho, 
-        ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons, 
-        electron_fraction=electron_fraction) 
-
-    # Coherent forward potential, VCC [eV]
-    VCC = matter.VCC_func(l=0.0, num_density_e_func=lambda l: num_density_e) 
-
-    # Compute the energy-independent part of the vacuum Hamiltonian, i.e., everything but the 1/E 
-    # prefactor, only once, to save time.  Multiply by the 1/E factor below when calling osc_prob.
-    h_vac_energy_indep = hamiltonians2nu.hamiltonian_2nu_vacuum_energy_independent(sth, Dm2) 
-
-    # Compute the matter Hamiltonian only once, to save time.
-    h_matt = s*hamiltonians2nu.hamiltonian_2nu_matter(VCC)
-
-    # If energy is a single value, then transform it into an array containing the value energy 
-    # repeated a number of times equal to the length of the L, and vice versa, in order to zip them.
-    energy = np.full(len(L), energy[0]) if (len(energy) == 1) else energy
-    L = np.full(len(energy), L[0]) if (len(L) == 1) else L
-
-    # The call to __getitem__ below is a way to return a float if both energy and L were floats
-    if ((nu_i is not None) and (nu_f is not None)):
-        return np.array([osc_prob((1/xy[0])*h_vac_energy_indep+h_matt, 0.0, xy[1])[nu_i][nu_f]
-            for xy in zip(energy, L)]).__getitem__(0 if return_float else slice(None))
-    else:
-        return np.array([osc_prob((1/xy[0])*h_vac_energy_indep+h_matt, 0.0, xy[1])
-            for xy in zip(energy, L)]).__getitem__(0 if return_float else slice(None))
-
-
 def osc_prob_3nu_vacuum(
     energy: Union[float, list, np.ndarray], 
     L: Union[float, list, np.ndarray], 
@@ -1289,69 +1208,158 @@ def osc_prob_3nu_vacuum(
     r"""Compute and return the three-neutrino oscillation probability in
     vacuum.
 
+    By default returns :math:`3 \times 3` probability matrices for all 
+    the  oscillation channels. Each matrix has shape ``np.ndarray([Pee,
+    Pem,Pet],[Pme,Pmm,Pmt],[Pte,Ptm,Ptt])``.  The matrix is symmetric, 
+    i.e., ``Pme == Pee``, ``Pte == Pet``, and ``Ptm == Pmt``.  
+
+    If a single energy and baseline is given, the function returns a 
+    single matrix.  If multiple energies and baselines are given, 
+    function returns an NumPy array of matrices.  See examples below.
+
+    If the probability needs to be computed multiple times, it is 
+    recommended to pass the array of energies and the array of baselines
+    to the function in a single call instead of calling the function
+    separately for each combination of energy and baseline. The reason
+    is that the function has an overhead that gets diluted when 
+    computing when the input energies and baselines are many.
+
+    If the initial and final flavors, ``nu_i`` and ``nu_f``, are 
+    specified (by setting them to ``NUE``, ``NUMU``, or ``NUTAU``
+    from the :py:mod:`magnus.globaldefs` module), the function returns 
+    instead a one-dimensional array of the probabilities computed for
+    each value of energy and baseline requested. See examples below.
+
+    If the function is called without specifying values of the standard
+    oscillation parameters (``s12``, ``s23``, ``s13``, ``dCP``, ``D21``,
+    ``D31``), the unspecified parameters are assigned default values 
+    taken from a predefined parameter set.  The name of the default 
+    parameter set can be changed by passing 
+    ``default_osc_params_set_name``.  
+
+    The names of the predefined parameter sets included in 
+    :math:`\text{Mag}\nu\text{s}` can be seen by printing
+
+    >>> import magnus.globaldefs as gd
+    >>> list(gd.OSC_PARAMS_PREDEFINED.keys())
+
+    And the default parameter values are from the set with name 
+    ``'OSC_PARAMS_DEFAULT'``:
+
+    >>> gd.OSC_PARAMS_PREDEFINED['OSC_PARAMS_DEFAULT']
+
+    If ``validate_input`` is set to True, the function validated the 
+    input arguments before calculating the probability, by calling the
+    function :func:`validate_input_battery`.
+
     Parameters
     ----------
     energy
-        XXX
+        Neutrino energy, single value or array.
     L
-        XXX
+        Neutrino baseline, single value or array.
     s12
-        XXX
+        Sine of the mixing angle :math:`\theta_{12}`.
     s23
-        XXX
+        Sine of the mixing angle :math:`\theta_{23}`.
     s13
-        XXX
+        Sine of the mixing angle :math:`\theta_{13}`.
     dCP
-        XXX
+        CP-violation phase, :math:`\delta_\text{CP}`.
     D21
-        XXX
+        Mass-squared difference :math:`\Delta m_{21}^2`.
     D31
-        XXX
+        Mass-squared difference :math:`\Delta m_{31}^2`.
     nubar
-        XXX
+        False (default) for neutrinos; True for anti-neutrinos.
     nu_i
-        XXX
+        Initial neutrino flavor, either ``NUE``, ``NUMU``, or ``NUTAU``
+        from the :py:mod:`magnus.globaldefs` module.
     nu_f
-        XXX
+        Final neutrino flavor, either ``NUE``, ``NUMU``, or ``NUTAU``
+        from the :py:mod:`magnus.globaldefs` module.
     default_osc_params_set_name
-        XXX
+        Name of the predefined set of oscillation parameters to use when
+        assigning default values to unspecified parameters.
     validate_input
-        XXX
+        True to validate input (default); False not to, which is faster
+        but riskier.
     verbose
-        XXX
+        0 not to print warnings and errors; 1 to print them.
 
     Returns
     -------
     Union[float, np.narray]
-        XXX
+        Neutrino oscillation probability matrix or probability for a 
+        single oscillation channel, for the values of `energy` and `L`.
 
     Examples
     --------
     >>> import magnus.oscprob as oscprob
     >>> import magnus.globaldefs as gd
-    >>> sth = gd.S12_NO_BF_NUFIT_6_0 # sin(theta) [adim]
-    >>> Dm2 = gd.D21_NO_BF_NUFIT_6_0 # [eV^2]
 
-    Single energy and baseline:
+    If both ``energy`` and ``L`` are single values (``float`` or 
+    ``int``), this function returns the probability computed at these
+    values.  
 
-    >>> baseline = 10.*gd.UNIT_KM # 10 km natural units [eV^{-1}]
+    >>> baseline = 10.*gd.UNIT_KM # 10 km in natural units [eV^{-1}]
     >>> energy = 1.*gd.UNIT_MEV # [eV]
-    >>> oscprob.osc_prob_2nu_vacuum(energy, baseline, sth, Dm2)
-    array([[0.43678029, 0.56321971],
-       [0.56321971, 0.43678029]])
+    >>> oscprob.osc_prob_3nu_vacuum(energy, baseline)
+ 
+    Pick one channel only, e.g., :math:`\nu_e \to \nu_\mu`, by 
+    passing an initial flavor, ``nu_i``, and a final flavor ``nu_f``:
+
+    >>> oscprob.osc_prob_3nu_vacuum(energy, baseline, nu_i=gd.NUE, nu_f=gd.NUMU)
+
+    The flavor indices ``NUE``, ``NUMU``, and ``NUMU`` are defined in 
+    the :py:mod:`magnus.globaldefs` module. For anti-neutrinos, i.e., 
+    :math:`\bar{\nu}_e \to \bar{\nu}_\mu`:
+
+    >>> oscprob.osc_prob_3nu_vacuum(energy, baseline, nu_i=gd.NUE, nu_f=gd.NUMU, nubar=True)
+
+    We can specify values of the oscillation parameters. Unspecified 
+    values are set to their defaults (pass nonzero ``verbose`` to see 
+    this and other warnings):
+
+    >>> oscprob.osc_prob_3nu_vacuum(energy, baseline, s12=0.0, verbose=1)
+    Warning: Setting unspecified oscillation parameters to default 
+    values from the predefined set\n OSC_PARAMS_NU_FIT_6_0_NO (NuFit \
+    6.0, NO, with SK atmospheric data):
+    s23 = 0.6855654600401044
+    s13 = 0.14882876066137216
+    dCP = 3.7000980142279785 rad
+    D21 = 7.49e-05 eV^2
+    D31 = 0.002513 eV^2
+    <BLANKLINE>
+    [[0.985 0.007 0.008]
+     [0.007 0.736 0.257]
+     [0.008 0.257 0.735]]
+
+    If a single energy value and multiple baselines are passed, this
+    function returns an array containing the probabilities computed for
+    this fixed energy and each value of the baseline:
+    
+    >>> baselines = gd.UNIT_KM*np.array([1.0, 10.0 100.0])
+    >>> oscprob.osc_prob_3nu_vacuum(energy, baselines, nu_i=gd.NUE, nu_f=gd.NUMU)
+
+    Conversely, if a single baseline and multiple energies are passed,
+    this function returns an array containing the probabilities computed
+    for this fixed baseline and each value of the energy:
+
+    >>> energies = gd.UNIT_MEV*np.array([1.0, 10.0, 100.0])
+    >>> oscprob.osc_prob_3nu_vacuum(energies, baseline, nu_i=gd.NUE, nu_f=gd.NUMU)
+
+    And, for multiple energies and baselines:
+
+    >>> oscprob.osc_prob_3nu_vacuum(energies, baselines, nu_i=gd.NUE, nu_f=gd.NUMU)
 
     .. seealso::
         :func:`osc_prob_2nu_vacuum`
-            Two-flavor oscillation probabiltiies in vacuum. 
-        :func:`osc_prob_2nu_matter_constant_density`
-            Two-neutrino oscillation probabilities in matter with
-            constant density.
-        :func:`osc_prob_3nu_matter_constant_density`
-            Three-neutrino oscillation probabilities in matter with 
-            constant density.
-        :func:`osc_prob`
-            Neutrino oscillation probabilities for arbitrary 
-            number of flavors and Hamiltonian.
+            Two-flavor oscillation probabilities in vacuum. 
+        :func:`osc_prob_4nu_vacuum`
+            Four-flavor (3+1) oscillation probabilities in vacuum. 
+        :func:`osc_prob_5nu_vacuum`
+            Four-flavor (3+2) oscillation probabilities in vacuum. 
     """
     energy = float(energy) if isinstance(energy, int) else energy
     L = float(L) if isinstance(L, int) else L
@@ -1430,6 +1438,117 @@ def osc_prob_3nu_vacuum(
             for xy in zip(energy, L)]).__getitem__(0 if return_float else slice(None))
 
 
+def osc_prob_4nu_vacuum(
+    energy: Union[int, float, list, np.ndarray], 
+    L: Union[int, float, list, np.ndarray], 
+    nu_i: Optional[int]=None, 
+    nu_f: Optional[int]=None,
+    validate_input: Optional[bool]=True
+) -> Union[float, np.ndarray]:
+    r"""Compute and return the four-neutrino (3+1) oscillation 
+    probability in vacuum.
+    """
+
+    pass 
+
+    return
+
+
+def osc_prob_5nu_vacuum(
+    energy: Union[int, float, list, np.ndarray], 
+    L: Union[int, float, list, np.ndarray], 
+    nu_i: Optional[int]=None, 
+    nu_f: Optional[int]=None,
+    validate_input: Optional[bool]=True
+) -> Union[float, np.ndarray]:
+    r"""Compute and return the five-neutrino (3+2) oscillation 
+    probability in vacuum.
+    """
+
+    pass 
+    
+    return
+
+
+def osc_prob_2nu_matter_constant_density(
+    energy: Union[float, list, np.ndarray], 
+    L: Union[float, list, np.ndarray], 
+    sth: float, 
+    Dm2: float, 
+    rho: float, 
+    ratio_number_neutrons_to_protons: Optional[float]=1.0, 
+    electron_fraction: Optional[float]=0.5, 
+    nubar: Optional[bool]=False,
+    nu_i: Optional[int]=None, 
+    nu_f: Optional[int]=None,
+    validate_input: Optional[bool]=True
+) -> Union[float, np.ndarray]:
+    r"""Compute and return the two-neutrino oscillation probability in
+    matter with a constant density profile.
+    """
+
+    energy = float(energy) if isinstance(energy, int) else energy
+    L = float(L) if isinstance(L, int) else L
+
+    if validate_input:
+        # The function name is sys._getframe().f_code.co_name
+        if validate_input_battery(sys._getframe().f_code.co_name, energy, L, nu_i, nu_f) == 1:
+            sys.exit(1)
+
+    # Flag return_float remembers if energy and L were both floats.  If True, return a float, too.
+    return_float = isinstance(energy, float) and isinstance(L, float)
+
+    energy = np.array([energy]) if isinstance(energy, float) else np.array(energy)  
+    L = np.array([L]) if isinstance(L, float) else np.array(L) 
+
+    # Either energy and L are both lists (or NumPy arrays) of the same length; or one is a float and
+    # the other is a list (or NumPy array).  Any other possibility will generate an exception.  This
+    # exception is raised earlier if validate_input == True, but we check below in case it has been
+    # set to False.
+    try:
+        if not ((len(energy) == len(L)) or (len(energy) == 1 and len(L) > 1) or \
+            (len(energy) > 1 and len(L) == 1)):
+            raise ValueError(gd.ERROR_MSG_IN_COLOR + \
+                " oscprob.osc_prob_2nu_matter_constant_density: energy and L must be both " + \
+                "int or float; or, if lists (or NumPy arrays), they must have the same length;" + \
+                " or, if one is a float or single-entry list, the other must be a list with " + \
+                "multiple entries.")
+    except ValueError as error:
+        print(error)
+        print("Aborting execution...")
+        sys.exit(1)
+
+    s = 1.0 if not nubar else -1.0
+
+    # Electron number density [eV^3]
+    num_density_e = matter.num_density_e_func(l=0.0, density_matter_func=lambda l: rho, 
+        ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons, 
+        electron_fraction=electron_fraction) 
+
+    # Coherent forward potential, VCC [eV]
+    VCC = matter.VCC_func(l=0.0, num_density_e_func=lambda l: num_density_e) 
+
+    # Compute the energy-independent part of the vacuum Hamiltonian, i.e., everything but the 1/E 
+    # prefactor, only once, to save time.  Multiply by the 1/E factor below when calling osc_prob.
+    h_vac_energy_indep = hamiltonians2nu.hamiltonian_2nu_vacuum_energy_independent(sth, Dm2) 
+
+    # Compute the matter Hamiltonian only once, to save time.
+    h_matt = s*hamiltonians2nu.hamiltonian_2nu_matter(VCC)
+
+    # If energy is a single value, then transform it into an array containing the value energy 
+    # repeated a number of times equal to the length of the L, and vice versa, in order to zip them.
+    energy = np.full(len(L), energy[0]) if (len(energy) == 1) else energy
+    L = np.full(len(energy), L[0]) if (len(L) == 1) else L
+
+    # The call to __getitem__ below is a way to return a float if both energy and L were floats
+    if ((nu_i is not None) and (nu_f is not None)):
+        return np.array([osc_prob((1/xy[0])*h_vac_energy_indep+h_matt, 0.0, xy[1])[nu_i][nu_f]
+            for xy in zip(energy, L)]).__getitem__(0 if return_float else slice(None))
+    else:
+        return np.array([osc_prob((1/xy[0])*h_vac_energy_indep+h_matt, 0.0, xy[1])
+            for xy in zip(energy, L)]).__getitem__(0 if return_float else slice(None))
+
+
 def osc_prob_3nu_matter_constant_density(
     energy: Union[float, list, np.ndarray], 
     L: Union[float, list, np.ndarray], 
@@ -1450,6 +1569,9 @@ def osc_prob_3nu_matter_constant_density(
     validate_input: Optional[bool]=True, 
     verbose: Optional[int]=0
 ) -> Union[float, np.ndarray]:
+    r"""Compute and return the three-neutrino oscillation probability in
+    matter with a constant density profile.
+    """
 
     energy = float(energy) if isinstance(energy, int) else energy
     L = float(L) if isinstance(L, int) else L
@@ -1543,76 +1665,222 @@ def osc_prob_3nu_matter_constant_density(
             for xy in zip(energy, L)]).__getitem__(0 if return_float else slice(None))
 
 
-def osc_prob_2nu_across_earth(
-    ra_dec_ini: Union[tuple, list, np.ndarray, str], 
-    ra_dec_fin: Union[tuple, list, np.ndarray, str], 
-    costhz: Union[int, float]
+def osc_prob_4nu_matter_constant_density(
+    energy: Union[float, list, np.ndarray], 
+    L: Union[float, list, np.ndarray], 
+    rho: float, 
+    s12: Optional[float]=None, 
+    s23: Optional[float]=None, 
+    s13: Optional[float]=None, 
+    dCP: Optional[float]=None, 
+    D21: Optional[float]=None, 
+    D31: Optional[float]=None, 
+    ratio_number_neutrons_to_protons: Optional[float]=1.0, 
+    electron_fraction: Optional[float]=0.5, 
+    nubar: Optional[bool]=False, 
+    nu_i: Optional[int]=None, 
+    nu_f: Optional[int]=None,
+    density_matter_is_in_g_per_cm3=False,
+    default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
+    validate_input: Optional[bool]=True, 
+    verbose: Optional[int]=0
 ) -> Union[float, np.ndarray]:
+    r"""Compute and return the four-neutrino (3+1) oscillation 
+    probability in matter with a constant density profile.
     """
-    Returns the three-neutrino oscillation probability between two 
-    points on the surface of the Earth.  Assumes standard oscillations. 
-    For the matter density inside the Earth, it uses the Preliminary 
-    Reference Earth Model.
-
-    The location of each point on the surface can either be given as a 
-    tuple (ra, dec) of right ascension and declination (i.e., 
-    ``ra_dec_ini`` and ``ra_dec_fin``)---including the possibility of 
-    using locations predefined in Magnus---or as the cosine of the
-    zenith angle between the initial and final positions (i.e.,
-    `costhz`).
-
-    See also :func:`osc_prob_3nu_across_earth`, 
-    :func:`osc_prob_across_earth`, :func:`osc_prob`.
-
-    Examples
-    --------
-    """
-
     pass
 
-    return 
+    return
 
 
-def osc_prob_3nu_across_earth(
-    ra_dec_ini: Union[tuple, list, np.ndarray, str], 
-    ra_dec_fin: Union[tuple, list, np.ndarray, str], 
-    costhz: Union[int, float]
+def osc_prob_5nu_matter_constant_density(
+    energy: Union[float, list, np.ndarray], 
+    L: Union[float, list, np.ndarray], 
+    rho: float, 
+    s12: Optional[float]=None, 
+    s23: Optional[float]=None, 
+    s13: Optional[float]=None, 
+    dCP: Optional[float]=None, 
+    D21: Optional[float]=None, 
+    D31: Optional[float]=None, 
+    ratio_number_neutrons_to_protons: Optional[float]=1.0, 
+    electron_fraction: Optional[float]=0.5, 
+    nubar: Optional[bool]=False, 
+    nu_i: Optional[int]=None, 
+    nu_f: Optional[int]=None,
+    density_matter_is_in_g_per_cm3=False,
+    default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
+    validate_input: Optional[bool]=True, 
+    verbose: Optional[int]=0
 ) -> Union[float, np.ndarray]:
+    r"""Compute and return the five-neutrino (3+2) oscillation 
+    probability in matter with a constant density profile.
     """
-    Returns the three-neutrino oscillation probability between two 
-    points on the surface of the Earth.  Assumes standard oscillations. 
-    For the matter density inside the Earth, it uses the Preliminary 
-    Reference Earth Model.
-
-    The location of each point on the surface can either be given as a 
-    tuple (ra, dec) of right ascension and declination (i.e., 
-    ``ra_dec_ini`` and ``ra_dec_fin``)---including the possibility of 
-    using locations predefined in Magnus---or as the cosine of the
-    zenith angle between the initial and final positions (i.e.,
-    `costhz`).
-
-    See also :func:`osc_prob_2nu_across_earth`, 
-    :func:`osc_prob_across_earth`, :func:`osc_prob`.
-
-    Examples
-    --------
-    """
-
     pass
 
-    return 
+    return
 
 
-def osc_prob_across_earth(
+def osc_prob_2nu_matter_exp_density(
+    energy: Union[float, list, np.ndarray], 
+    L: Union[float, list, np.ndarray],
+    L0: float, 
+    rho_central: float, 
+    l_scale: float,
+    sth: float, 
+    Dm2: float, 
+    ratio_number_neutrons_to_protons: Optional[float]=1.0, 
+    electron_fraction: Optional[float]=0.5, 
+    nubar: Optional[bool]=False, 
+    nu_i: Optional[int]=None, 
+    nu_f: Optional[int]=None,
+    density_matter_is_in_g_per_cm3=False,
+    validate_input: Optional[bool]=True, 
+    verbose: Optional[int]=0
+) -> Union[float, np.ndarray]:
+    r"""Compute and return the two-neutrino oscillation 
+    probability in matter with an exponentially falling density profile.
+    """
+    pass
+
+    return
+
+
+def osc_prob_3nu_matter_exp_density(
+    energy: Union[float, list, np.ndarray], 
+    L: Union[float, list, np.ndarray],
+    L0: float, 
+    rho_central: float, 
+    l_scale: float,
+    s12: Optional[float]=None, 
+    s23: Optional[float]=None, 
+    s13: Optional[float]=None, 
+    dCP: Optional[float]=None, 
+    D21: Optional[float]=None, 
+    D31: Optional[float]=None, 
+    ratio_number_neutrons_to_protons: Optional[float]=1.0, 
+    electron_fraction: Optional[float]=0.5, 
+    nubar: Optional[bool]=False, 
+    nu_i: Optional[int]=None, 
+    nu_f: Optional[int]=None,
+    density_matter_is_in_g_per_cm3=False,
+    default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
+    validate_input: Optional[bool]=True, 
+    verbose: Optional[int]=0
+) -> Union[float, np.ndarray]:
+    r"""Compute and return the three-neutrino oscillation 
+    probability in matter with an exponentially falling density profile.
+    """
+    pass
+
+    return
+
+
+def osc_prob_4nu_matter_exp_density(
+    energy: Union[float, list, np.ndarray], 
+    L: Union[float, list, np.ndarray],
+    L0: float, 
+    rho_central: float, 
+    l_scale: float,
+    s12: Optional[float]=None, 
+    s23: Optional[float]=None, 
+    s13: Optional[float]=None, 
+    dCP: Optional[float]=None, 
+    D21: Optional[float]=None, 
+    D31: Optional[float]=None, 
+    ratio_number_neutrons_to_protons: Optional[float]=1.0, 
+    electron_fraction: Optional[float]=0.5, 
+    nubar: Optional[bool]=False, 
+    nu_i: Optional[int]=None, 
+    nu_f: Optional[int]=None,
+    density_matter_is_in_g_per_cm3=False,
+    default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
+    validate_input: Optional[bool]=True, 
+    verbose: Optional[int]=0
+) -> Union[float, np.ndarray]:
+    r"""Compute and return the four-neutrino (3+1) oscillation 
+    probability in matter with an exponentially falling density profile.
+    """
+    pass
+
+    return
+
+
+def osc_prob_5nu_matter_exp_density(
+    energy: Union[float, list, np.ndarray], 
+    L: Union[float, list, np.ndarray],
+    L0: float, 
+    rho_central: float, 
+    l_scale: float,
+    s12: Optional[float]=None, 
+    s23: Optional[float]=None, 
+    s13: Optional[float]=None, 
+    dCP: Optional[float]=None, 
+    D21: Optional[float]=None, 
+    D31: Optional[float]=None, 
+    ratio_number_neutrons_to_protons: Optional[float]=1.0, 
+    electron_fraction: Optional[float]=0.5, 
+    nubar: Optional[bool]=False, 
+    nu_i: Optional[int]=None, 
+    nu_f: Optional[int]=None,
+    density_matter_is_in_g_per_cm3=False,
+    default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
+    validate_input: Optional[bool]=True, 
+    verbose: Optional[int]=0
+) -> Union[float, np.ndarray]:
+    r"""Compute and return the five-neutrino (3+2) oscillation 
+    probability in matter with an exponentially falling density profile.
+    """
+    pass
+
+    return
+
+
+def osc_prob_matter_exp_density(
+    H_func: Callable,
+    energy: Union[float, list, np.ndarray], 
+    L: Union[float, list, np.ndarray],
+    L0: float, 
+    rho_central: float, 
+    l_scale: float,
+    ratio_number_neutrons_to_protons: Optional[float]=1.0, 
+    electron_fraction: Optional[float]=0.5, 
+    nubar: Optional[bool]=False, 
+    nu_i: Optional[int]=None, 
+    nu_f: Optional[int]=None,
+    density_matter_is_in_g_per_cm3=False,
+    default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
+    validate_input: Optional[bool]=True, 
+    verbose: Optional[int]=0
+) -> Union[float, np.ndarray]:
+    r"""Compute and return the neutrino oscillation probability in 
+    matter with an exponentially falling density profile for a given
+    arbitrary Hamiltonian.
+    """
+    pass
+
+    return
+
+
+def osc_prob_2nu_earth(
     ra_dec_ini: Union[tuple, list, np.ndarray, str], 
     ra_dec_fin: Union[tuple, list, np.ndarray, str], 
-    costhz: Union[int, float]
+    costhz: Union[int, float],
+    energy: Union[float, list, np.ndarray], 
+    sth: float, 
+    Dm2: float, 
+    nubar: Optional[bool]=False, 
+    nu_i: Optional[int]=None, 
+    nu_f: Optional[int]=None,
+    validate_input: Optional[bool]=True, 
+    verbose: Optional[int]=0
 ) -> Union[float, np.ndarray]:
-    """
-    Returns the three-neutrino oscillation probability between two 
-    points on the surface of the Earth.  Does **not** assume standard
-    oscillations nor a given number of neutrino flavors: the user must
-    supply their own Hamiltonian function, ``H_func``.
+    """Compute and return the two-neutrino oscillation probability 
+    between two locations on the surface of the Earth.
+
+    Assumes that the matter potential is due only to the standard 
+    charged-current coherent forward scattering of :math:`\\nu_e` on 
+    electrons.
     
     For the matter density inside the Earth, it uses the Preliminary 
     Reference Earth Model.
@@ -1622,10 +1890,7 @@ def osc_prob_across_earth(
     ``ra_dec_ini`` and ``ra_dec_fin``)---including the possibility of 
     using locations predefined in Magnus---or as the cosine of the
     zenith angle between the initial and final positions (i.e.,
-    `costhz`).
-
-    See also :func:`osc_prob_2nu_across_earth`, 
-    :func:`osc_prob_3nu_across_earth`, :func:`osc_prob`.
+    ``costhz``).
 
     Examples
     --------
@@ -1634,6 +1899,407 @@ def osc_prob_across_earth(
     pass
 
     return 
+
+
+def osc_prob_3nu_earth(
+    ra_dec_ini: Union[tuple, list, np.ndarray, str], 
+    ra_dec_fin: Union[tuple, list, np.ndarray, str], 
+    costhz: Union[int, float],
+    energy: Union[float, list, np.ndarray], 
+    s12: Optional[float]=None, 
+    s23: Optional[float]=None, 
+    s13: Optional[float]=None, 
+    dCP: Optional[float]=None, 
+    D21: Optional[float]=None, 
+    D31: Optional[float]=None, 
+    nubar: Optional[bool]=False, 
+    nu_i: Optional[int]=None, 
+    nu_f: Optional[int]=None,
+    validate_input: Optional[bool]=True, 
+    verbose: Optional[int]=0
+) -> Union[float, np.ndarray]:
+    """Compute and return the three-neutrino oscillation probability 
+    between two locations on the surface of the Earth.
+
+    Assumes that the matter potential is due only to the standard 
+    charged-current coherent forward scattering of :math:`\\nu_e` on 
+    electrons.
+    
+    For the matter density inside the Earth, it uses the Preliminary 
+    Reference Earth Model.
+
+    The location of each point on the surface can either be given as a 
+    tuple (ra, dec) of right ascension and declination (i.e., 
+    ``ra_dec_ini`` and ``ra_dec_fin``)---including the possibility of 
+    using locations predefined in Magnus---or as the cosine of the
+    zenith angle between the initial and final positions (i.e.,
+    ``costhz``).
+
+    Examples
+    --------
+    """
+
+    pass
+
+    return 
+
+
+def osc_prob_4nu_earth(
+    ra_dec_ini: Union[tuple, list, np.ndarray, str], 
+    ra_dec_fin: Union[tuple, list, np.ndarray, str], 
+    costhz: Union[int, float],
+    energy: Union[float, list, np.ndarray], 
+    s12: Optional[float]=None, 
+    s23: Optional[float]=None, 
+    s13: Optional[float]=None, 
+    dCP: Optional[float]=None, 
+    D21: Optional[float]=None, 
+    D31: Optional[float]=None, 
+    nubar: Optional[bool]=False, 
+    nu_i: Optional[int]=None, 
+    nu_f: Optional[int]=None,
+    validate_input: Optional[bool]=True, 
+    verbose: Optional[int]=0
+) -> Union[float, np.ndarray]:
+    """Compute and return the four-neutrino (3+1) oscillation 
+    probability between two locations on the surface of the Earth.
+
+    Assumes that the matter potential is due only to the standard 
+    charged-current coherent forward scattering of :math:`\\nu_e` on 
+    electrons.
+    
+    For the matter density inside the Earth, it uses the Preliminary 
+    Reference Earth Model.
+
+    The location of each point on the surface can either be given as a 
+    tuple (ra, dec) of right ascension and declination (i.e., 
+    ``ra_dec_ini`` and ``ra_dec_fin``)---including the possibility of 
+    using locations predefined in Magnus---or as the cosine of the
+    zenith angle between the initial and final positions (i.e.,
+    ``costhz``).
+
+    Examples
+    --------
+    """
+
+    pass
+
+
+def osc_prob_5nu_earth(
+    ra_dec_ini: Union[tuple, list, np.ndarray, str], 
+    ra_dec_fin: Union[tuple, list, np.ndarray, str], 
+    costhz: Union[int, float],
+    energy: Union[float, list, np.ndarray], 
+    s12: Optional[float]=None, 
+    s23: Optional[float]=None, 
+    s13: Optional[float]=None, 
+    dCP: Optional[float]=None, 
+    D21: Optional[float]=None, 
+    D31: Optional[float]=None, 
+    nubar: Optional[bool]=False, 
+    nu_i: Optional[int]=None, 
+    nu_f: Optional[int]=None,
+    validate_input: Optional[bool]=True, 
+    verbose: Optional[int]=0
+) -> Union[float, np.ndarray]:
+    """Compute and return the five-neutrino (3+2) oscillation 
+    probability between two locations on the surface of the Earth.
+
+    Assumes that the matter potential is due only to the standard 
+    charged-current coherent forward scattering of :math:`\\nu_e` on 
+    electrons.
+    
+    For the matter density inside the Earth, it uses the Preliminary 
+    Reference Earth Model.
+
+    The location of each point on the surface can either be given as a 
+    tuple (ra, dec) of right ascension and declination (i.e., 
+    ``ra_dec_ini`` and ``ra_dec_fin``)---including the possibility of 
+    using locations predefined in Magnus---or as the cosine of the
+    zenith angle between the initial and final positions (i.e.,
+    ``costhz``).
+
+    Examples
+    --------
+    """
+
+    pass
+
+
+def osc_prob_earth(
+    H_func: Callable,
+    ra_dec_ini: Union[tuple, list, np.ndarray, str], 
+    ra_dec_fin: Union[tuple, list, np.ndarray, str], 
+    costhz: Union[int, float],
+    energy: Union[float, list, np.ndarray], 
+    s12: Optional[float]=None, 
+    s23: Optional[float]=None, 
+    s13: Optional[float]=None, 
+    dCP: Optional[float]=None, 
+    D21: Optional[float]=None, 
+    D31: Optional[float]=None, 
+    nubar: Optional[bool]=False, 
+    nu_i: Optional[int]=None, 
+    nu_f: Optional[int]=None,
+    validate_input: Optional[bool]=True, 
+    verbose: Optional[int]=0
+) -> Union[float, np.ndarray]:
+    """Compute and return the neutrino oscillation probability between 
+    two locations on the surface of the Earth for a given arbitrary 
+    Hamiltonian.
+
+    Does **not** assume standard oscillations nor a given number of 
+    neutrino flavors: the user must supply their own Hamiltonian 
+    function, ``H_func``.  The Hamiltonian can include matter potentials
+    due not only to electrons and that affect not only :math:`\\nu_e`.
+    
+    For the matter density inside the Earth, it uses the Preliminary 
+    Reference Earth Model.
+
+    The location of each point on the surface can either be given as a 
+    tuple (ra, dec) of right ascension and declination (i.e., 
+    ``ra_dec_ini`` and ``ra_dec_fin``)---including the possibility of 
+    using locations predefined in Magnus---or as the cosine of the
+    zenith angle between the initial and final positions (i.e.,
+    ``costhz``).
+
+    Examples
+    --------
+    """
+
+    pass
+
+    return 
+
+
+
+def osc_prob_2nu_sun(
+    ra_dec_ini: Union[tuple, list, np.ndarray, str], 
+    ra_dec_fin: Union[tuple, list, np.ndarray, str], 
+    costhz: Union[int, float],
+    energy: Union[float, list, np.ndarray], 
+    sth: float, 
+    Dm2: float, 
+    nubar: Optional[bool]=False, 
+    nu_i: Optional[int]=None, 
+    nu_f: Optional[int]=None,
+    validate_input: Optional[bool]=True, 
+    verbose: Optional[int]=0
+) -> Union[float, np.ndarray]:
+    """Compute and return the two-neutrino oscillation probability 
+    for neutrinos inside the Sun.
+
+    Assumes that the matter potential is due only to the standard 
+    charged-current coherent forward scattering of :math:`\\nu_e` on 
+    electrons.
+    
+    For the electron density inside the Sun, it assumes an exponentially
+    falling density profile: :math:`N_e(r) = N_e(0) \\exp(-r/r_0)`, 
+    with :math:`N_e(0) = 245 N_\\text{Av}~\\text{cm}^{-3}` and 
+    :math:`r_0 = R_\\odot/10.54`.  See Eq. (10.62) in
+    `Fundamentals of Neutrino Physics and Astrophysics 
+    <https://academic.oup.com/book/3490>`_ by Carlo Giunti and Chung 
+    Wook Kim.
+
+    The location of each point on the surface can either be given as a 
+    tuple (ra, dec) of right ascension and declination (i.e., 
+    ``ra_dec_ini`` and ``ra_dec_fin``)---including the possibility of 
+    using locations predefined in Magnus---or as the cosine of the
+    zenith angle between the initial and final positions (i.e.,
+    ``costhz``).
+
+    Examples
+    --------
+    """
+
+    pass
+
+    return 
+
+
+def osc_prob_3nu_sun(
+    ra_dec_ini: Union[tuple, list, np.ndarray, str], 
+    ra_dec_fin: Union[tuple, list, np.ndarray, str], 
+    costhz: Union[int, float],
+    energy: Union[float, list, np.ndarray], 
+    s12: Optional[float]=None, 
+    s23: Optional[float]=None, 
+    s13: Optional[float]=None, 
+    dCP: Optional[float]=None, 
+    D21: Optional[float]=None, 
+    D31: Optional[float]=None, 
+    nubar: Optional[bool]=False, 
+    nu_i: Optional[int]=None, 
+    nu_f: Optional[int]=None,
+    validate_input: Optional[bool]=True, 
+    verbose: Optional[int]=0
+) -> Union[float, np.ndarray]:
+    """Compute and return the three-neutrino oscillation probability 
+    for neutrinos inside the Sun.
+
+    Assumes that the matter potential is due only to the standard 
+    charged-current coherent forward scattering of :math:`\\nu_e` on 
+    electrons.
+    
+    For the electron density inside the Sun, it assumes an exponentially
+    falling density profile: :math:`N_e(r) = N_e(0) \\exp(-r/r_0)`, 
+    with :math:`N_e(0) = 245 N_\\text{Av}~\\text{cm}^{-3}` and 
+    :math:`r_0 = R_\\odot/10.54`.  See Eq. (10.62) in
+    `Fundamentals of Neutrino Physics and Astrophysics 
+    <https://academic.oup.com/book/3490>`_ by Carlo Giunti and Chung 
+    Wook Kim.
+
+    The location of each point on the surface can either be given as a 
+    tuple (ra, dec) of right ascension and declination (i.e., 
+    ``ra_dec_ini`` and ``ra_dec_fin``)---including the possibility of 
+    using locations predefined in Magnus---or as the cosine of the
+    zenith angle between the initial and final positions (i.e.,
+    ``costhz``).
+
+    Examples
+    --------
+    """
+
+    pass
+
+    return 
+
+
+def osc_prob_4nu_sun(
+    ra_dec_ini: Union[tuple, list, np.ndarray, str], 
+    ra_dec_fin: Union[tuple, list, np.ndarray, str], 
+    costhz: Union[int, float],
+    energy: Union[float, list, np.ndarray], 
+    s12: Optional[float]=None, 
+    s23: Optional[float]=None, 
+    s13: Optional[float]=None, 
+    dCP: Optional[float]=None, 
+    D21: Optional[float]=None, 
+    D31: Optional[float]=None, 
+    nubar: Optional[bool]=False, 
+    nu_i: Optional[int]=None, 
+    nu_f: Optional[int]=None,
+    validate_input: Optional[bool]=True, 
+    verbose: Optional[int]=0
+) -> Union[float, np.ndarray]:
+    """Compute and return the four-neutrino (3+1) oscillation 
+    probability for neutrinos inside the Sun.
+
+    Assumes that the matter potential is due only to the standard 
+    charged-current coherent forward scattering of :math:`\\nu_e` on 
+    electrons.
+    
+    For the electron density inside the Sun, it assumes an exponentially
+    falling density profile: :math:`N_e(r) = N_e(0) \\exp(-r/r_0)`, 
+    with :math:`N_e(0) = 245 N_\\text{Av}~\\text{cm}^{-3}` and 
+    :math:`r_0 = R_\\odot/10.54`.  See Eq. (10.62) in
+    `Fundamentals of Neutrino Physics and Astrophysics 
+    <https://academic.oup.com/book/3490>`_ by Carlo Giunti and Chung 
+    Wook Kim.
+
+    The location of each point on the surface can either be given as a 
+    tuple (ra, dec) of right ascension and declination (i.e., 
+    ``ra_dec_ini`` and ``ra_dec_fin``)---including the possibility of 
+    using locations predefined in Magnus---or as the cosine of the
+    zenith angle between the initial and final positions (i.e.,
+    ``costhz``).
+
+    Examples
+    --------
+    """
+
+    pass
+
+
+def osc_prob_5nu_sun(
+    ra_dec_ini: Union[tuple, list, np.ndarray, str], 
+    ra_dec_fin: Union[tuple, list, np.ndarray, str], 
+    costhz: Union[int, float],
+    energy: Union[float, list, np.ndarray], 
+    s12: Optional[float]=None, 
+    s23: Optional[float]=None, 
+    s13: Optional[float]=None, 
+    dCP: Optional[float]=None, 
+    D21: Optional[float]=None, 
+    D31: Optional[float]=None, 
+    nubar: Optional[bool]=False, 
+    nu_i: Optional[int]=None, 
+    nu_f: Optional[int]=None,
+    validate_input: Optional[bool]=True, 
+    verbose: Optional[int]=0
+) -> Union[float, np.ndarray]:
+    """Compute and return the five-neutrino (3+2) oscillation 
+    probability for neutrinos inside the Sun.
+
+    Assumes that the matter potential is due only to the standard 
+    charged-current coherent forward scattering of :math:`\\nu_e` on 
+    electrons.
+    
+    For the electron density inside the Sun, it assumes an exponentially
+    falling density profile: :math:`N_e(r) = N_e(0) \\exp(-r/r_0)`, 
+    with :math:`N_e(0) = 245 N_\\text{Av}~\\text{cm}^{-3}` and 
+    :math:`r_0 = R_\\odot/10.54`.  See Eq. (10.62) in
+    `Fundamentals of Neutrino Physics and Astrophysics 
+    <https://academic.oup.com/book/3490>`_ by Carlo Giunti and Chung 
+    Wook Kim.
+
+    The location of each point on the surface can either be given as a 
+    tuple (ra, dec) of right ascension and declination (i.e., 
+    ``ra_dec_ini`` and ``ra_dec_fin``)---including the possibility of 
+    using locations predefined in Magnus---or as the cosine of the
+    zenith angle between the initial and final positions (i.e.,
+    ``costhz``).
+
+    Examples
+    --------
+    """
+
+    pass
+
+
+def osc_prob_sun(
+    ra_dec_ini: Union[tuple, list, np.ndarray, str], 
+    ra_dec_fin: Union[tuple, list, np.ndarray, str], 
+    costhz: Union[int, float],
+    energy: Union[float, list, np.ndarray], 
+    s12: Optional[float]=None, 
+    s23: Optional[float]=None, 
+    s13: Optional[float]=None, 
+    dCP: Optional[float]=None, 
+    D21: Optional[float]=None, 
+    D31: Optional[float]=None, 
+    nubar: Optional[bool]=False, 
+    nu_i: Optional[int]=None, 
+    nu_f: Optional[int]=None,
+    validate_input: Optional[bool]=True, 
+    verbose: Optional[int]=0
+) -> Union[float, np.ndarray]:
+    """Compute and return the neutrino oscillation probability for 
+    neutrinos inside the Sun for a given arbitrary Hamiltonian.
+
+    Does **not** assume standard oscillations nor a given number of 
+    neutrino flavors: the user must supply their own Hamiltonian 
+    function, ``H_func``.  The Hamiltonian can include matter potentials
+    due not only to electrons and that affect not only :math:`\\nu_e`.
+    
+    For the electron density inside the Sun, it assumes an exponentially
+    falling density profile: :math:`N_e(r) = N_e(0) \\exp(-r/r_0)`, 
+    with :math:`N_e(0) = 245 N_\\text{Av}~\\text{cm}^{-3}` and 
+    :math:`r_0 = R_\\odot/10.54`.  See Eq. (10.62) in
+    `Fundamentals of Neutrino Physics and Astrophysics 
+    <https://academic.oup.com/book/3490>`_ by Carlo Giunti and Chung 
+    Wook Kim.
+
+    The location of each point on the surface can either be given as a 
+    tuple (ra, dec) of right ascension and declination (i.e., 
+    ``ra_dec_ini`` and ``ra_dec_fin``)---including the possibility of 
+    using locations predefined in Magnus---or as the cosine of the
+    zenith angle between the initial and final positions (i.e.,
+    ``costhz``).
+
+    Examples
+    --------
+    """
 
 
 def osc_prob_matter_std_potential():
@@ -1715,3 +2381,4 @@ if __name__ == "__main__":
     print(gd.OSC_PARAMS_PREDEFINED['OSC_PARAMS_DEFAULT'])
     np.set_printoptions(precision=3)
     print(osc_prob_3nu_vacuum(energy, baseline, s12=0.0, verbose=1))
+
