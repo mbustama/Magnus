@@ -259,7 +259,7 @@ import numpy as np
 import sys
 import platform
 from joblib import Parallel, delayed
-from typing import Optional, Callable, Union
+from typing import Optional, Callable, Union, Tuple
 from io import TextIOWrapper
 from inspect import signature
 
