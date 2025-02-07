@@ -471,6 +471,62 @@ def validate_input_battery(
     return 0
 
 
+def values_to_unspecified_osc_params(
+    s12: Optional[float]=None, 
+    s23: Optional[float]=None, 
+    s13: Optional[float]=None, 
+    dCP: Optional[float]=None, 
+    D21: Optional[float]=None, 
+    D31: Optional[float]=None, 
+    default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
+    verbose: Optional[int]=0
+) -> Tuple[float, float, float, float, float, float]:
+    r"""Return values of unspecified standard oscillation parameters
+
+    If any of the oscillation parameters has not been given a value, assign to it the value from
+    the specified parameter set with name default_osc_params_set_name.  When input validation is
+    on (validate_input == True), the routine checks whether the parameter set name is among the 
+    predefined ones (see validation above).  Only the values of the parameters passed as None are
+    assigned from the predefined set; other parameters are not modified.
+    """
+
+    try:
+        if not (default_osc_params_set_name in list(gd.OSC_PARAMS_PREDEFINED.keys()) ):
+            raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprobvalues_to_unspecified_osc_params:"+ \
+                ": the requested oscillation parameter set (default_osc_params_set_name = " + \
+                default_osc_params_set_name + ") is not among the predefined sets in Magnus. " + \
+                "Available sets are " + str(list(gd.OSC_PARAMS_PREDEFINED.keys())) + ".")
+    except ValueError as error:
+        print(error)
+        print("Aborting execution...")
+        sys.exit(1)
+
+    if ((s12 is None) or (s23 is None) or (s13 is None) or (s23 is None) or (dCP is None) or \
+        (D21 is None) or (D31 is None)):
+
+        default_osc_params = gd.OSC_PARAMS_PREDEFINED[default_osc_params_set_name]
+
+        if verbose > 0:
+            print(gd.WARNING_MSG_IN_COLOR + " Setting unspecified oscillation parameters to " + \
+                "default values from the predefined set " + default_osc_params['name'] + " (" + \
+                default_osc_params['description'] + "):\n" + \
+                ("s12 = " + str(default_osc_params['s12']) + "\n" if (s12 is None) else '') + \
+                ("s23 = " + str(default_osc_params['s23']) + "\n" if (s23 is None) else '') + \
+                ("s13 = " + str(default_osc_params['s13']) + "\n" if (s13 is None) else '') + \
+                ("dCP = " + str(default_osc_params['dCP']) + " rad\n" if (dCP is None) else '') + \
+                ("D21 = " + str(default_osc_params['D21']) + " eV^2\n" if (D21 is None) else '') + \
+                ("D31 = " + str(default_osc_params['D31']) + " eV^2\n" if (D31 is None) else ''))
+
+        s12 = s12 if (s12 is not None) else default_osc_params['s12']
+        s23 = s23 if (s23 is not None) else default_osc_params['s23']
+        s13 = s13 if (s13 is not None) else default_osc_params['s13']
+        dCP = dCP if (dCP is not None) else default_osc_params['dCP']
+        D21 = D21 if (D21 is not None) else default_osc_params['D21']
+        D31 = D31 if (D31 is not None) else default_osc_params['D31'] 
+
+    return s12, s23, s13, dCP, D21, D31
+
+
 def compute_evolution_operator(
     H_func: Callable, 
     t_slab: Union[list, np.ndarray], 
@@ -1392,32 +1448,10 @@ def osc_prob_3nu_vacuum(
         sys.exit(1)
 
     # If any of the oscillation parameters has not been given a value, assign to it the value from
-    # the specified parameter set with name default_osc_params_set_name.  When input validation is
-    # on (validate_input == True), the routine checks whether the parameter set name is among the 
-    # predefined ones (see validation above).  Only the values of the parameters passed as None are
-    # assigned from the predefined set; other parameters are not modified.
-    if ((s12 is None) or (s23 is None) or (s13 is None) or (s23 is None) or (dCP is None) or \
-        (D21 is None) or (D31 is None)):
-
-        default_osc_params = gd.OSC_PARAMS_PREDEFINED[default_osc_params_set_name]
-
-        if verbose > 0:
-            print(gd.WARNING_MSG_IN_COLOR + " Setting unspecified oscillation parameters to " + \
-                "default values from the predefined set " + default_osc_params['name'] + " (" + \
-                default_osc_params['description'] + "):\n" + \
-                ("s12 = " + str(default_osc_params['s12']) + "\n" if (s12 is None) else '') + \
-                ("s23 = " + str(default_osc_params['s23']) + "\n" if (s23 is None) else '') + \
-                ("s13 = " + str(default_osc_params['s13']) + "\n" if (s13 is None) else '') + \
-                ("dCP = " + str(default_osc_params['dCP']) + " rad\n" if (dCP is None) else '') + \
-                ("D21 = " + str(default_osc_params['D21']) + " eV^2\n" if (D21 is None) else '') + \
-                ("D31 = " + str(default_osc_params['D31']) + " eV^2\n" if (D31 is None) else ''))
-
-        s12 = s12 if (s12 is not None) else default_osc_params['s12']
-        s23 = s23 if (s23 is not None) else default_osc_params['s23']
-        s13 = s13 if (s13 is not None) else default_osc_params['s13']
-        dCP = dCP if (dCP is not None) else default_osc_params['dCP']
-        D21 = D21 if (D21 is not None) else default_osc_params['D21']
-        D31 = D31 if (D31 is not None) else default_osc_params['D31']            
+    # the specified parameter set with name default_osc_params_set_name.  Only the values of the 
+    # parameters passed as None are assigned from the predefined set; others are not modified.
+    s12, s23, s13, dCP, D21, D31 = values_to_unspecified_osc_params(s12, s23, s13, dCP, D21, D31, 
+        default_osc_params_set_name, verbose)
 
     # Compute the energy-independent part of the Hamiltonian, i.e., everything but the 1/E 
     # prefactor, only once, to save time.  Multiply by the 1/E factor below when calling osc_prob.
@@ -1605,32 +1639,10 @@ def osc_prob_3nu_matter_constant_density(
         sys.exit(1)
 
     # If any of the oscillation parameters has not been given a value, assign to it the value from
-    # the specified parameter set with name default_osc_params_set_name.  When input validation is
-    # on (validate_input == True), the routine checks whether the parameter set name is among the 
-    # predefined ones (see validation above).  Only the values of the parameters passed as None are
-    # assigned from the predefined set; other parameters are not modified. 
-    if ((s12 is None) or (s23 is None) or (s13 is None) or (s23 is None) or (dCP is None) or \
-        (D21 is None) or (D31 is None)):
-
-        default_osc_params = gd.OSC_PARAMS_PREDEFINED[default_osc_params_set_name]
-
-        if verbose > 0:
-            print(gd.WARNING_MSG_IN_COLOR + " Setting unspecified oscillation parameters to " + \
-                "default values from the predefined set " + default_osc_params['name'] + " (" + \
-                default_osc_params['description'] + "):\n" + \
-                ("s12 = " + str(default_osc_params['s12']) + "\n" if (s12 is None) else '') + \
-                ("s23 = " + str(default_osc_params['s23']) + "\n" if (s23 is None) else '') + \
-                ("s13 = " + str(default_osc_params['s13']) + "\n" if (s13 is None) else '') + \
-                ("dCP = " + str(default_osc_params['dCP']) + " rad\n" if (dCP is None) else '') + \
-                ("D21 = " + str(default_osc_params['D21']) + " eV^2\n" if (D21 is None) else '') + \
-                ("D31 = " + str(default_osc_params['D31']) + " eV^2\n" if (D31 is None) else ''))
-
-        s12 = s12 if (s12 is not None) else default_osc_params['s12']
-        s23 = s23 if (s23 is not None) else default_osc_params['s23']
-        s13 = s13 if (s13 is not None) else default_osc_params['s13']
-        dCP = dCP if (dCP is not None) else default_osc_params['dCP']
-        D21 = D21 if (D21 is not None) else default_osc_params['D21']
-        D31 = D31 if (D31 is not None) else default_osc_params['D31']            
+    # the specified parameter set with name default_osc_params_set_name.  Only the values of the 
+    # parameters passed as None are assigned from the predefined set; others are not modified.
+    s12, s23, s13, dCP, D21, D31 = values_to_unspecified_osc_params(s12, s23, s13, dCP, D21, D31, 
+        default_osc_params_set_name, verbose)
 
     s = 1.0 if not nubar else -1.0
 
