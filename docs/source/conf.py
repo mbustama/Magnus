@@ -47,7 +47,8 @@ extensions = [
     'sphinx.ext.autosummary',
     'sphinx_rtd_theme',
     'sphinx.ext.mathjax',
-    'sphinx_copybutton'
+    'sphinx_copybutton',
+    # 'sphinx.ext.doctest'
 ]
 
 ## Include Python objects as they appear in source files
