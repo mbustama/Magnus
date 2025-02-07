@@ -3,39 +3,149 @@
 Internally, the probability is computed using Magnus expansion, but the
 user does not call the routines in the :py:mod:`magnus.magnus` module
 directly. Instead, the user calls the :func:`osc_prob`, which calls the
-Magnus expansion routines internally.
-
-The function :func:`osc_prob` is the primordial function to compute the
-oscillation probability. The module contains additional functions built
-on top of it, for specific common cases:
+Magnus expansion routines internally. The function :func:`osc_prob` is
+generic, flexible, and computationally efficient. 
 
 - :func:`osc_prob`: Primordial function to compute the oscillation
   probability, for any given Hamiltonian, either time-dependent or 
   -independent (or, equivalently, position-dependent or -independent). 
   Supports arbitrary number of neutrino flavors.
 
-- :func:`osc_prob_2nu_vacuum`: Wrapper of :func:`osc_prob` to easily 
-  compute oscillation probabilities for two-flavor neutrino systems in
-  vacuum.
+The module contains additional functions that are wrappers of 
+:func:`osc_prob` to compute commonly studied cases.
 
-- :func:`osc_prob_3nu_vacuum`: Wrapper of :func:`osc_prob` to easily 
-  compute oscillation probabilities for three-flavor neutrino systems in
-  vacuum
+Neutrino oscillations in **vacuum**:
 
-- :func:`osc_prob_2nu_matter_constant_density`: Wrapper of 
-  :func:`osc_prob` to easily compute oscillation probabilities for 
-  two-flavor neutrino systems in matter with constant density.
+- :func:`osc_prob_2nu_vacuum`: Two-neutrino oscillation probabilities.
 
-- :func:`osc_prob_3nu_matter_constant_density`: Wrapper of 
-  :func:`osc_prob` to easily compute oscillation probabilities for 
-  three-flavor neutrino systems in matter with constant density.
+- :func:`osc_prob_3nu_vacuum`: Three-flavor oscillation probabilities.
+
+- :func:`osc_prob_4nu_vacuum`: One 
+  additional flavor (i.e., 3+1 sterile neutrino model).
+
+- :func:`osc_prob_5nu_vacuum`: Two 
+  additional flavors (i.e., 3+2 sterile neutrino model).
+
+Neutrino oscillations in **constant-density matter**:
+
+- :func:`osc_prob_2nu_matter_constant_density`: Two-neutrino oscillation
+  probabilities.
+
+- :func:`osc_prob_3nu_matter_constant_density`: Three-neutrino
+  oscillation probabilities.
+
+- :func:`osc_prob_4nu_matter_constant_density`: One additional flavor 
+  (i.e., 3+1 sterile model).
+
+- :func:`osc_prob_5nu_matter_constant_density`: Two additional flavors 
+  (i.e., 3+2 sterile model).
+
+Neutrino oscillations in **exponentially falling matter density 
+profile** (e.g., in a supernova or the Sun):
+
+- :func:`osc_prob_2nu_matter_exp_density`: Two-neutrino oscillation
+  probabilities.
+
+- :func:`osc_prob_3nu_matter_exp_density`: Three-neutrino oscillation
+  probabilities.
+
+- :func:`osc_prob_4nu_matter_exp_density`: One additional flavor. Matter
+  potential affects only :math:`\\nu_e`.
+
+- :func:`osc_prob_5nu_matter_exp_density`: Two additional flavors. 
+  Matter potential affects only :math:`\\nu_e`.
+
+- :func:`osc_prob_matter_exp_density`: Oscillation probabilities for
+  arbitrary number of flavors and arbitrary Hamiltonian.  Does not 
+  assume standard oscillations.
+
+Neutrino oscillations between any two locations on the surface of the
+**Earth**, useful for long-baseline neutrino experiments:
+
+- :func:`osc_prob_2nu_earth`: Two-neutrino oscillation probabilities.  
+
+- :func:`osc_prob_3nu_earth`: Three-neutrino oscillation probabilities. 
+
+- :func:`osc_prob_4nu_earth`: One additional flavor. Matter potential 
+  affects only :math:`\\nu_e`.
+
+- :func:`osc_prob_5nu_earth`: Two additional flavors. Matter potential 
+  affects only :math:`\\nu_e`.
+
+- :func:`osc_prob_earth`: Oscillation probabilities for arbitrary number
+  of flavors and arbitrary Hamiltonian.  Does not assume standard 
+  oscillations.
+
+.. note::
+   These routines use the `Preliminary Reference Earth Model 
+   <https://www.cfa.harvard.edu/~lzeng/papers/PREM.pdfL>`_ for the 
+   matter density profile inside Earth.  To use a different density 
+   profile (including also profiles for bodies other than the Earth), 
+   use the primordial function :func:`osc_prob` instead.
+
+Neutrino oscillations in the **Sun**:
+
+- :func:`osc_prob_2nu_sun`: Two-neutrino oscillation probabilities.  
+
+- :func:`osc_prob_3nu_sun`: Three-neutrino oscillation probabilities. 
+
+- :func:`osc_prob_4nu_sun`: One additional flavor. Matter potential 
+  affects only :math:`\\nu_e`.
+
+- :func:`osc_prob_5nu_sun`: Two additional flavors. Matter potential 
+  affects only :math:`\\nu_e`.
+
+- :func:`osc_prob_sun`: Oscillation probabilities for arbitrary number
+  of flavors and arbitrary Hamiltonian.  Does not assume standard 
+  oscillations.
+
+.. note::
+   These routines use a simple exponentially falling function of radial
+   distance for the matter density inside the Sun: :math:`N_e(r) = 
+   N_e(0) \\exp(-r/r_0)`, with 
+   :math:`N_e(0) = 245 N_\\text{Av}~\\text{cm}^{-3}` and 
+   :math:`r_0 = R_\\odot/10.54`.  See Eq. (10.62) in
+   `Fundamentals of Neutrino Physics and Astrophysics 
+   <https://academic.oup.com/book/3490>`_ by Carlo Giunti and Chung 
+   Wook Kim.
+
+   To use a different density profile, use the primordial function 
+   :func:`osc_prob` instead.
+
+Functions designed for specific **beyond-the-Standard-Model** proposals:
+
+- Non-standard neutrino interactions (NSI):
+
+  - :func:`osc_prob_2nu_matter_constant_density_nsi`
+  - :func:`osc_prob_3nu_matter_constant_density_nsi`
+  - :func:`osc_prob_2nu_matter_exp_density_nsi`
+  - :func:`osc_prob_3nu_matter_exp_density_nsi`
+  - :func:`osc_prob_2nu_matter_earth_nsi`
+  - :func:`osc_prob_3nu_matter_earth_nsi`
+  - :func:`osc_prob_2nu_matter_sun_nsi`
+  - :func:`osc_prob_3nu_matter_sun_nsi`
+
+- Lorentz-invariance violation:
+
+  - :func:`osc_prob_2nu_vacuum_liv`
+  - :func:`osc_prob_3nu_vacuum_liv`
+  - :func:`osc_prob_2nu_matter_constant_density_liv`
+  - :func:`osc_prob_3nu_matter_constant_density_liv`
+  - :func:`osc_prob_2nu_matter_exp_density_liv`
+  - :func:`osc_prob_3nu_matter_exp_density_liv`
+  - :func:`osc_prob_2nu_earth_liv`
+  - :func:`osc_prob_3nu_earth_liv`
+  - :func:`osc_prob_2nu_sun_liv`
+  - :func:`osc_prob_3nu_sun_liv`
 
 Examples
 --------
-Find more examples within the documentation of each of the above 
-functions and **especially** in the `Jupyter notebooks 
-<https://github.com/mbustama/Magnus/tree/main/notebooks>`_ that are 
-distributed with Magnus, which include plots.
+
+.. seealso::
+   Find many more examples, including advanced applications and plots,
+   in the `Jupyter notebooks 
+   <https://github.com/mbustama/Magnus/tree/main/notebooks>`_ that are 
+   distributed with :math:`{\\rm Mag}{\\nu}s`.
 
 >>> import magnus.oscprob as oscprob
 >>> import magnus.globaldefs as gd
@@ -75,7 +185,7 @@ nu_f=gd.NUMU, nubar=True)
 
 Calling :func:`osc_prob_3nu_vacuum` without specifying the values of the
 oscillation parameters will compute probabilities using the default 
-values in Magnus (see 
+values in :math:`{\\rm Mag}{\\nu}s` (see 
 ``gd.OSC_PARAMS_PREDEFINED['OSC_PARAMS_DEFAULT']``.)
 
 We can specify values of the oscillation parameters. Unspecified values
@@ -126,6 +236,19 @@ straightforward, requires us to pass a Hamiltonian function explicitly.
 
 For instance, for density matter profile that is exponentially falling
 with distance:
+
+.. hint::
+   There is a good chance that the scenario you are interested in 
+   calculating was already developed in the :math:`{\\rm Mag}{\\nu}s` 
+   `Jupyter 
+   notebooks 
+   <https://github.com/mbustama/Magnus/tree/main/notebooks>`_.  
+   
+   Worked-out examples include: oscillations in various matter density 
+   profiles, in the Earth, and in the Sun, oscillograms, biprobability 
+   plots, and new-physics models like additional neutrino flavors (3+1 
+   and 3+2 sterile neutrino models), non-standard neutrino interactions,
+   and Lorentz-invariance violation.
 
 """
 
@@ -364,7 +487,7 @@ def compute_evolution_operator(
         i.e., [t0, t1]
     :param n_tpts_per_slab: Number of time-points inside the slab at which to evaluate H_func in 
         order to numerically compute the integrals over time required by the Magnus expansion
-    :param magnus_exp_order: Maximum order of Matnus expansion used to compute the evolution
+    :param magnus_exp_order: Maximum order of Magnus expansion used to compute the evolution
         operator (should not exceed :func:`magnus.globaldefs.MAGNUS_EXP_ORDER_MAX`)
     :param \**kwargs: Additional unspecified arguments
 
@@ -1009,8 +1132,20 @@ def osc_prob_2nu_vacuum(
     >>> oscprob.osc_prob_2nu_vacuum(energy, baseline, sth, Dm2)
     array([[0.43678029, 0.56321971],
        [0.56321971, 0.43678029]])
-    """
 
+    .. seealso::
+        :func:`osc_prob_3nu_vacuum`
+            Three-flavor oscillation probabiltiies in vacuum. 
+        :func:`osc_prob_2nu_matter_constant_density`
+            Two-neutrino oscillation probabilities in matter with
+            constant density.
+        :func:`osc_prob_3nu_matter_constant_density`
+            Three-neutrino oscillation probabilities in matter with 
+            constant density.
+        :func:`osc_prob`
+            Neutrino oscillation probabilities for arbitrary 
+            number of flavors and Hamiltonian.
+    """
     energy = float(energy) if isinstance(energy, int) else energy
     L = float(L) if isinstance(L, int) else L
 
@@ -1149,10 +1284,75 @@ def osc_prob_3nu_vacuum(
     nu_f: Optional[int]=None,
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
     validate_input: Optional[bool]=True, 
-    verbose: Optional[int]=0, 
-    **kwargs
+    verbose: Optional[int]=0
 ) -> Union[float, np.ndarray]:
+    r"""Compute and return the three-neutrino oscillation probability in
+    vacuum.
 
+    Parameters
+    ----------
+    energy
+        XXX
+    L
+        XXX
+    s12
+        XXX
+    s23
+        XXX
+    s13
+        XXX
+    dCP
+        XXX
+    D21
+        XXX
+    D31
+        XXX
+    nubar
+        XXX
+    nu_i
+        XXX
+    nu_f
+        XXX
+    default_osc_params_set_name
+        XXX
+    validate_input
+        XXX
+    verbose
+        XXX
+
+    Returns
+    -------
+    Union[float, np.narray]
+        XXX
+
+    Examples
+    --------
+    >>> import magnus.oscprob as oscprob
+    >>> import magnus.globaldefs as gd
+    >>> sth = gd.S12_NO_BF_NUFIT_6_0 # sin(theta) [adim]
+    >>> Dm2 = gd.D21_NO_BF_NUFIT_6_0 # [eV^2]
+
+    Single energy and baseline:
+
+    >>> baseline = 10.*gd.UNIT_KM # 10 km natural units [eV^{-1}]
+    >>> energy = 1.*gd.UNIT_MEV # [eV]
+    >>> oscprob.osc_prob_2nu_vacuum(energy, baseline, sth, Dm2)
+    array([[0.43678029, 0.56321971],
+       [0.56321971, 0.43678029]])
+
+    .. seealso::
+        :func:`osc_prob_2nu_vacuum`
+            Two-flavor oscillation probabiltiies in vacuum. 
+        :func:`osc_prob_2nu_matter_constant_density`
+            Two-neutrino oscillation probabilities in matter with
+            constant density.
+        :func:`osc_prob_3nu_matter_constant_density`
+            Three-neutrino oscillation probabilities in matter with 
+            constant density.
+        :func:`osc_prob`
+            Neutrino oscillation probabilities for arbitrary 
+            number of flavors and Hamiltonian.
+    """
     energy = float(energy) if isinstance(energy, int) else energy
     L = float(L) if isinstance(L, int) else L
 
@@ -1354,14 +1554,15 @@ def osc_prob_2nu_across_earth(
     For the matter density inside the Earth, it uses the Preliminary 
     Reference Earth Model.
 
-    The locations of each point on the surface can either be given as a
+    The location of each point on the surface can either be given as a 
     tuple (ra, dec) of right ascension and declination (i.e., 
     ``ra_dec_ini`` and ``ra_dec_fin``)---including the possibility of 
     using locations predefined in Magnus---or as the cosine of the
     zenith angle between the initial and final positions (i.e.,
     `costhz`).
 
-    See also :func:`osc_prob_3nu_across_earth`, `osc_prob_across_earth`.
+    See also :func:`osc_prob_3nu_across_earth`, 
+    :func:`osc_prob_across_earth`, :func:`osc_prob`.
 
     Examples
     --------
@@ -1383,14 +1584,15 @@ def osc_prob_3nu_across_earth(
     For the matter density inside the Earth, it uses the Preliminary 
     Reference Earth Model.
 
-    The locations of each point on the surface can either be given as a
+    The location of each point on the surface can either be given as a 
     tuple (ra, dec) of right ascension and declination (i.e., 
     ``ra_dec_ini`` and ``ra_dec_fin``)---including the possibility of 
     using locations predefined in Magnus---or as the cosine of the
     zenith angle between the initial and final positions (i.e.,
     `costhz`).
 
-    See also :func:`osc_prob_2nu_across_earth`, `osc_prob_across_earth`.
+    See also :func:`osc_prob_2nu_across_earth`, 
+    :func:`osc_prob_across_earth`, :func:`osc_prob`.
 
     Examples
     --------
@@ -1415,12 +1617,15 @@ def osc_prob_across_earth(
     For the matter density inside the Earth, it uses the Preliminary 
     Reference Earth Model.
 
-    The locations of each point on the surface can either be given as a
+    The location of each point on the surface can either be given as a 
     tuple (ra, dec) of right ascension and declination (i.e., 
     ``ra_dec_ini`` and ``ra_dec_fin``)---including the possibility of 
     using locations predefined in Magnus---or as the cosine of the
     zenith angle between the initial and final positions (i.e.,
     `costhz`).
+
+    See also :func:`osc_prob_2nu_across_earth`, 
+    :func:`osc_prob_3nu_across_earth`, :func:`osc_prob`.
 
     Examples
     --------
@@ -1429,6 +1634,13 @@ def osc_prob_across_earth(
     pass
 
     return 
+
+
+def osc_prob_matter_std_potential():
+
+    pass
+
+    return
 
 
 
