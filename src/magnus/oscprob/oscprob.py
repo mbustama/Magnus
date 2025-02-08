@@ -255,6 +255,7 @@ with distance:
 __version__ = '0.1'
 __author__ = 'Mauricio Bustamante'
 
+
 import numpy as np
 import sys
 import platform
@@ -279,6 +280,40 @@ import magnus.hamiltonians.hamiltonians5nu as hamiltonians5nu
 import magnus.matter as matter
 import version as version
 import authors as authors
+
+
+has_magnus_header_been_printed = False
+
+
+def print_banner(file: TextIOWrapper=None):
+    if file is None:
+        print(gd.cstyle.CBLUEBG + ".----------------------------------------." + gd.cstyle.CEND,
+            file=file)
+        print(gd.cstyle.CBLUEBG + "|   __  __                               |" + gd.cstyle.CEND,
+            file=file)
+        print(gd.cstyle.CBLUEBG + "|  |  \/  | __ _  __ _ _ __  _   _ ___   |" + gd.cstyle.CEND, 
+            file=file)
+        print(gd.cstyle.CBLUEBG + "|  | |\/| |/ _` |/ _` | '_ \| | | / __|  |" + gd.cstyle.CEND,
+            file=file)
+        print(gd.cstyle.CBLUEBG + "|  | |  | | (_| | (_| | | | | |_| \__ \  |" + gd.cstyle.CEND,
+            file=file)
+        print(gd.cstyle.CBLUEBG + "|  |_|  |_|\__,_|\__, |_| |_|\__,_|___/  |" + gd.cstyle.CEND,
+            file=file)
+        print(gd.cstyle.CBLUEBG + "|                |___/                   |" + gd.cstyle.CEND,
+            file=file)
+        print(gd.cstyle.CBLUEBG + "'----------------------------------------'" + gd.cstyle.CEND,
+            file=file)
+    else: 
+        print(".----------------------------------------.", file=file)
+        print("|   __  __                               |", file=file)
+        print("|  |  \/  | __ _  __ _ _ __  _   _ ___   |", file=file)
+        print("|  | |\/| |/ _` |/ _` | '_ \| | | / __|  |", file=file)
+        print("|  | |  | | (_| | (_| | | | | |_| \__ \  |", file=file)
+        print("|  |_|  |_|\__,_|\__, |_| |_|\__,_|___/  |", file=file)
+        print("|                |___/                   |", file=file)
+        print("'----------------------------------------'", file=file)
+    print("Version: "+ version.__version__ + " | Author(s): " + authors.__authors__ + "\n",
+        file=file)
 
 
 def print_run_parameters(
@@ -310,38 +345,12 @@ def print_run_parameters(
     file_log: Optional[TextIOWrapper]=None
 ):
 
-    def print_banner(file: TextIOWrapper=None):
-        if file is None:
-            print(gd.cstyle.CBLUEBG + ".----------------------------------------." + gd.cstyle.CEND,
-                file=f)
-            print(gd.cstyle.CBLUEBG + "|   __  __                               |" + gd.cstyle.CEND,
-                file=f)
-            print(gd.cstyle.CBLUEBG + "|  |  \/  | __ _  __ _ _ __  _   _ ___   |" + gd.cstyle.CEND, 
-                file=f)
-            print(gd.cstyle.CBLUEBG + "|  | |\/| |/ _` |/ _` | '_ \| | | / __|  |" + gd.cstyle.CEND,
-                file=f)
-            print(gd.cstyle.CBLUEBG + "|  | |  | | (_| | (_| | | | | |_| \__ \  |" + gd.cstyle.CEND,
-                file=f)
-            print(gd.cstyle.CBLUEBG + "|  |_|  |_|\__,_|\__, |_| |_|\__,_|___/  |" + gd.cstyle.CEND,
-                file=f)
-            print(gd.cstyle.CBLUEBG + "|                |___/                   |" + gd.cstyle.CEND,
-                file=f)
-            print(gd.cstyle.CBLUEBG + "'----------------------------------------'" + gd.cstyle.CEND,
-                file=f)
-        else: 
-            print(".----------------------------------------.", file=f)
-            print("|   __  __                               |", file=f)
-            print("|  |  \/  | __ _  __ _ _ __  _   _ ___   |", file=f)
-            print("|  | |\/| |/ _` |/ _` | '_ \| | | / __|  |", file=f)
-            print("|  | |  | | (_| | (_| | | | | |_| \__ \  |", file=f)
-            print("|  |_|  |_|\__,_|\__, |_| |_|\__,_|___/  |", file=f)
-            print("|                |___/                   |", file=f)
-            print("'----------------------------------------'", file=f)
+    global has_magnus_header_been_printed
 
     for f in [None, file_log] if save_log else [None]:
-        print_banner(f)
-        print("Version: "+ version.__version__ + " | Author(s): " + authors.__authors__ + "\n", 
-            file=f)
+        if not has_magnus_header_been_printed:
+            print_banner(f)
+            has_magnus_header_been_printed = True
         print("Parameters passed to function magnus.osc_prob in this run:", file=f)
         if callable(H_func):
             print("   H_func = " + H_func.__name__, file=f)
@@ -576,12 +585,18 @@ def values_to_unspecified_osc_params(
         print("Aborting execution...")
         sys.exit(1)
 
+    global has_magnus_header_been_printed
+
     if ((s12 is None) or (s23 is None) or (s13 is None) or (s23 is None) or (dCP is None) or \
         (D21 is None) or (D31 is None)):
 
         default_osc_params = gd.OSC_PARAMS_PREDEFINED[default_osc_params_set_name]
 
         if verbose > 0:
+            if verbose >= 2:
+                if (not has_magnus_header_been_printed):
+                    print_banner()
+                    has_magnus_header_been_printed = True
             print(gd.WARNING_MSG_IN_COLOR + " Setting unspecified standard oscillation " + \
                 "parameters to default values from the predefined set " + \
                 default_osc_params['name'] + " (" + default_osc_params['description'] + "):\n" + \
@@ -2137,86 +2152,6 @@ def osc_prob_5nu_vacuum(
             for xy in zip(energy, L)]).__getitem__(0 if return_float else slice(None))
 
 
-# def osc_prob_2nu_matter_constant_density(
-#     energy: Union[int, float, list, np.ndarray], 
-#     L: Union[int, float, list, np.ndarray], 
-#     sth: Union[int, float], 
-#     Dm2: Union[int, float], 
-#     rho: Union[int, float], 
-#     ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0, 
-#     electron_fraction: Optional[Union[int, float]]=0.5, 
-#     nubar: Optional[bool]=False,
-#     nu_i: Optional[int]=None, 
-#     nu_f: Optional[int]=None,
-#     validate_input: Optional[bool]=True
-# ) -> Union[float, np.ndarray]:
-    r"""Compute and return the two-neutrino oscillation probability in
-    matter with a constant density profile.
-    """
-
-    energy = float(energy) if isinstance(energy, int) else energy
-    L = float(L) if isinstance(L, int) else L
-
-    if validate_input:
-        # The function name is sys._getframe().f_code.co_name
-        if validate_input_battery(sys._getframe().f_code.co_name, energy, L, nu_i, nu_f,
-            s12, s23, s13, dCP, D21, D31) == 1:
-            sys.exit(1)
-
-    # Flag return_float remembers if energy and L were both floats.  If True, return a float, too.
-    return_float = isinstance(energy, float) and isinstance(L, float)
-
-    energy = np.array([energy]) if isinstance(energy, float) else np.array(energy)  
-    L = np.array([L]) if isinstance(L, float) else np.array(L) 
-
-    # Either energy and L are both lists (or NumPy arrays) of the same length; or one is a float and
-    # the other is a list (or NumPy array).  Any other possibility will generate an exception.  This
-    # exception is raised earlier if validate_input == True, but we check below in case it has been
-    # set to False.
-    try:
-        if not ((len(energy) == len(L)) or (len(energy) == 1 and len(L) > 1) or \
-            (len(energy) > 1 and len(L) == 1)):
-            raise ValueError(gd.ERROR_MSG_IN_COLOR + \
-                " oscprob.osc_prob_2nu_matter_constant_density: energy and L must be both " + \
-                "int or float; or, if lists (or NumPy arrays), they must have the same length;" + \
-                " or, if one is a float or single-entry list, the other must be a list with " + \
-                "multiple entries.")
-    except ValueError as error:
-        print(error)
-        print("Aborting execution...")
-        sys.exit(1)
-
-    s = 1.0 if not nubar else -1.0
-
-    # Electron number density [eV^3]
-    num_density_e = matter.num_density_e_func(l=0.0, density_matter_func=lambda l: rho, 
-        ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons, 
-        electron_fraction=electron_fraction) 
-
-    # Coherent forward potential, VCC [eV]
-    VCC = matter.VCC_func(l=0.0, num_density_e_func=lambda l: num_density_e) 
-
-    # Compute the energy-independent part of the vacuum Hamiltonian, i.e., everything but the 1/E 
-    # prefactor, only once, to save time.  Multiply by the 1/E factor below when calling osc_prob.
-    h_vac_energy_indep = hamiltonians2nu.hamiltonian_2nu_vacuum_energy_independent(sth, Dm2) 
-
-    # Compute the matter Hamiltonian only once, to save time.
-    h_matt = s*hamiltonians2nu.hamiltonian_2nu_matter(VCC)
-
-    # If energy is a single value, then transform it into an array containing the value energy 
-    # repeated a number of times equal to the length of the L, and vice versa, in order to zip them.
-    energy = np.full(len(L), energy[0]) if (len(energy) == 1) else energy
-    L = np.full(len(energy), L[0]) if (len(L) == 1) else L
-
-    # The call to __getitem__ below is a way to return a float if both energy and L were floats
-    if ((nu_i is not None) and (nu_f is not None)):
-        return np.array([osc_prob((1/xy[0])*h_vac_energy_indep+h_matt, 0.0, xy[1])[nu_i][nu_f]
-            for xy in zip(energy, L)]).__getitem__(0 if return_float else slice(None))
-    else:
-        return np.array([osc_prob((1/xy[0])*h_vac_energy_indep+h_matt, 0.0, xy[1])
-            for xy in zip(energy, L)]).__getitem__(0 if return_float else slice(None))
-
-
 def osc_prob_2nu_matter_constant_density(
     energy: Union[int, float, list, np.ndarray], 
     L: Union[int, float, list, np.ndarray], 
@@ -2255,101 +2190,6 @@ def osc_prob_2nu_matter_constant_density(
         validate_input=validate_input,
         verbose=verbose
     )  
-
-
-# def osc_prob_3nu_matter_constant_density(
-#     energy: Union[int, float, list, np.ndarray], 
-#     L: Union[int, float, list, np.ndarray], 
-#     rho: Union[int, float],
-#     s12: Optional[Union[int, float]]=None, 
-#     s23: Optional[Union[int, float]]=None, 
-#     s13: Optional[Union[int, float]]=None, 
-#     dCP: Optional[Union[int, float]]=None, 
-#     D21: Optional[Union[int, float]]=None, 
-#     D31: Optional[Union[int, float]]=None, 
-#     ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0, 
-#     electron_fraction: Optional[Union[int, float]]=0.5, 
-#     nubar: Optional[bool]=False, 
-#     nu_i: Optional[int]=None, 
-#     nu_f: Optional[int]=None,
-#     density_matter_is_in_g_per_cm3: Optional[bool]=False,
-#     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
-#     validate_input: Optional[bool]=True, 
-#     verbose: Optional[int]=0
-# ) -> Union[float, np.ndarray]:
-#     r"""Compute and return the three-neutrino oscillation probability in
-#     matter with a constant density profile.
-#     """
-
-#     energy = float(energy) if isinstance(energy, int) else energy
-#     L = float(L) if isinstance(L, int) else L
-
-#     if validate_input:
-#         # The function name is sys._getframe().f_code.co_name
-#         if validate_input_battery(sys._getframe().f_code.co_name, energy, L, nu_i, nu_f,
-#             s12, s23, s13, dCP, D21, D31) == 1:
-#             sys.exit(1)
-
-#     # Flag return_float remembers if energy and L were both floats.  If True, return a float, too.
-#     return_float = isinstance(energy, float) and isinstance(L, float)
-
-#     energy = np.array([energy]) if isinstance(energy, float) else np.array(energy)  
-#     L = np.array([L]) if isinstance(L, float) else np.array(L) 
-
-#     # Either energy and L are both lists (or NumPy arrays) of the same length; or one is a float and
-#     # the other is a list (or NumPy array).  Any other possibility will generate an exception.  This
-#     # exception is raised earlier if validate_input == True, but we check below in case it has been
-#     # set to False.
-#     try:
-#         if not ((len(energy) == len(L)) or (len(energy) == 1 and len(L) > 1) or \
-#             (len(energy) > 1 and len(L) == 1)):
-#             raise ValueError(gd.ERROR_MSG_IN_COLOR + \
-#                 " oscprob.osc_prob_3nu_matter_constant_density: energy and L must be both " + \
-#                 "int or float; or, if lists (or NumPy arrays), they must have the same length;" + \
-#                 " or, if one is a float or single-entry list, the other must be a list with " + \
-#                 "multiple entries.")
-#     except ValueError as error:
-#         print(error)
-#         print("Aborting execution...")
-#         sys.exit(1)
-
-#     # If any of the oscillation parameters has not been given a value, assign to it the value from
-#     # the specified parameter set with name default_osc_params_set_name.  Only the values of the 
-#     # parameters passed as None are assigned from the predefined set; others are not modified.
-#     s12, s23, s13, dCP, D21, D31 = values_to_unspecified_osc_params(s12, s23, s13, dCP, D21, D31, 
-#         default_osc_params_set_name, verbose)
-
-#     s = 1.0 if not nubar else -1.0
-
-#     # Electron number density [eV^3]
-#     num_density_e = matter.num_density_e_func(l=0.0, density_matter_func=lambda l: rho, 
-#         ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons, 
-#         electron_fraction=electron_fraction, 
-#         density_matter_is_in_g_per_cm3=density_matter_is_in_g_per_cm3) 
-
-#     # Coherent forward potential, VCC [eV]
-#     VCC = matter.VCC_func(l=0.0, num_density_e_func=lambda l: num_density_e) 
-
-#     # Compute the energy-independent part of the vacuum Hamiltonian, i.e., everything but the 1/E 
-#     # prefactor, only once, to save time.  Multiply by the 1/E factor below when calling osc_prob.
-#     h_vac_energy_indep = hamiltonians3nu.hamiltonian_3nu_vacuum_energy_independent(s12, s23, s13, 
-#         dCP, D21, D31, nubar=nubar) 
-
-#     # Compute the matter Hamiltonian only once, to save time.
-#     h_matt = s*hamiltonians3nu.hamiltonian_3nu_matter(VCC)
-
-#     # If energy is a single value, then transform it into an array containing the value energy 
-#     # repeated a number of times equal to the length of the L, and vice versa, in order to zip them.
-#     energy = np.full(len(L), energy[0]) if (len(energy) == 1) else energy
-#     L = np.full(len(energy), L[0]) if (len(L) == 1) else L
-
-#     # The call to __getitem__ below is a way to return a float if both energy and L were floats
-#     if ((nu_i is not None) and (nu_f is not None)):
-#         return np.array([osc_prob((1/xy[0])*h_vac_energy_indep+h_matt, 0.0, xy[1])[nu_i][nu_f]
-#             for xy in zip(energy, L)]).__getitem__(0 if return_float else slice(None))
-#     else:
-#         return np.array([osc_prob((1/xy[0])*h_vac_energy_indep+h_matt, 0.0, xy[1])
-#             for xy in zip(energy, L)]).__getitem__(0 if return_float else slice(None))
 
 
 def osc_prob_3nu_matter_constant_density(
@@ -2399,6 +2239,12 @@ def osc_prob_4nu_matter_constant_density(
     energy: Union[int, float, list, np.ndarray], 
     L: Union[int, float, list, np.ndarray], 
     rho: Union[int, float],
+    s14: Union[int, float],
+    s24: Union[int, float],
+    s34: Union[int, float],
+    d14: Union[int, float],
+    d24: Union[int, float],
+    D41: Optional[Union[int, float]], 
     s12: Optional[Union[int, float]]=None, 
     s23: Optional[Union[int, float]]=None, 
     s13: Optional[Union[int, float]]=None, 
@@ -2411,22 +2257,50 @@ def osc_prob_4nu_matter_constant_density(
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
     density_matter_is_in_g_per_cm3: Optional[bool]=False,
+    density_is_of_number_of_electrons: Optional[bool]=False,
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
     validate_input: Optional[bool]=True, 
     verbose: Optional[int]=0
 ) -> Union[float, np.ndarray]:
-    r"""Compute and return the four-neutrino (3+1) oscillation 
-    probability in matter with a constant density profile.
+    r"""Compute and return the four-neutrino oscillation probability in
+    matter with a constant density profile.
     """
-    pass
-
-    return
+    return osc_prob_matter_std_potential(
+        num_flavors=4,
+        rho_func=rho,
+        energy=energy,
+        L=L,
+        osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 's14': s14, 'd14': d14, 
+            's24': s24, 'd24': d24, 's34': s34, 'D21': D21, 'D31': D31, 'D41': D41},
+        ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons, 
+        electron_fraction=electron_fraction,
+        nubar=nubar,
+        nu_i=nu_i,
+        nu_f=nu_f,
+        density_matter_is_in_g_per_cm3=density_matter_is_in_g_per_cm3,
+        density_is_of_number_of_electrons=density_is_of_number_of_electrons,
+        default_osc_params_set_name=default_osc_params_set_name,
+        validate_input=validate_input,
+        verbose=verbose
+    )  
 
 
 def osc_prob_5nu_matter_constant_density(
     energy: Union[int, float, list, np.ndarray], 
     L: Union[int, float, list, np.ndarray], 
     rho: Union[int, float],
+    s14: Union[int, float],
+    s15: Union[int, float],
+    s24: Union[int, float],
+    s25: Union[int, float],
+    s34: Union[int, float],
+    s35: Union[int, float],
+    d14: Union[int, float],
+    d15: Union[int, float],
+    d24: Union[int, float],
+    d35: Union[int, float],
+    D41: Optional[Union[int, float]], 
+    D51: Optional[Union[int, float]], 
     s12: Optional[Union[int, float]]=None, 
     s23: Optional[Union[int, float]]=None, 
     s13: Optional[Union[int, float]]=None, 
@@ -2439,16 +2313,33 @@ def osc_prob_5nu_matter_constant_density(
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
     density_matter_is_in_g_per_cm3: Optional[bool]=False,
+    density_is_of_number_of_electrons: Optional[bool]=False,
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
     validate_input: Optional[bool]=True, 
     verbose: Optional[int]=0
 ) -> Union[float, np.ndarray]:
-    r"""Compute and return the five-neutrino (3+2) oscillation 
-    probability in matter with a constant density profile.
+    r"""Compute and return the five-neutrino oscillation probability in
+    matter with a constant density profile.
     """
-    pass
-
-    return
+    return osc_prob_matter_std_potential(
+        num_flavors=5,
+        rho_func=rho,
+        energy=energy,
+        L=L,
+        osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 's14': s14, 'd14': d14, 
+            's15': s15, 'd15': d15, 's24': s24, 'd24': d24, 's25': s25, 's34': s34, 's35': s35, 
+            'd35': d35, 'D21': D21, 'D31': D31, 'D41': D41, 'D51': D51},
+        ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons, 
+        electron_fraction=electron_fraction,
+        nubar=nubar,
+        nu_i=nu_i,
+        nu_f=nu_f,
+        density_matter_is_in_g_per_cm3=density_matter_is_in_g_per_cm3,
+        density_is_of_number_of_electrons=density_is_of_number_of_electrons,
+        default_osc_params_set_name=default_osc_params_set_name,
+        validate_input=validate_input,
+        verbose=verbose
+    )  
 
 
 def osc_prob_2nu_matter_exp_density(
@@ -3096,7 +2987,7 @@ def osc_prob_matter_std_potential(
             osc_params_list = [s12, s23, s13, dCP, s14, d14, s24, d24, s34, D21, D31, D41]
         except KeyError:
             print(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob_matter_std_potential:"+\
-                    " since num_flavors == 3, the dictionary of oscillation parameters " + \
+                    " since num_flavors == 4, the dictionary of oscillation parameters " + \
                     "(osc_params) must contain the keys 's12', 's23', 's13', 'dCP', 'D21', and " + \
                     "'D31' (even if they are None); and 's14', 'd14', 's24', 'd24', 's34', and " + \
                     "'D41'.")
@@ -3126,7 +3017,7 @@ def osc_prob_matter_std_potential(
                 D21, D31, D41, D51]
         except KeyError:
             print(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob_matter_std_potential:" + \
-                    " since num_flavors == 3, the dictionary of oscillation parameters " + \
+                    " since num_flavors == 5, the dictionary of oscillation parameters " + \
                     "(osc_params) must contain the keys 's12', 's23', 's13', 'dCP', 'D21', and " + \
                     "'D31' (even if they are None); and 's14', 'd14', 's15', 'd15', 's24', " + \
                     "'d24', 's25', 's34', 's35', 'd35', 'D41', and 'D51'.")
@@ -3201,6 +3092,15 @@ def osc_prob_matter_std_potential(
             sys.exit(1)
 
         rho_test = rho_func(L0) if callable(rho_func) else rho_func
+
+        try:
+            if (rho_test < 0.0):
+                raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob_matter_std_potential:"+\
+                    " rho_func must be non-negative.")
+        except ValueError as error:
+            print(error)
+            print("Aborting execution...")
+            sys.exit(1)
 
         try:
             if not (isinstance(rho_test, int) or isinstance(rho_test, float)):
@@ -3292,18 +3192,21 @@ def osc_prob_matter_std_potential(
         def htot(enu, l):
             return (1/enu)*h_vac_energy_indep+h_matt_func(l)
         if ((nu_i is not None) and (nu_f is not None)):
-            return np.array([osc_prob(lambda l: htot(xy[0], l), L0, xy[1])[nu_i][nu_f]
+            return np.array([osc_prob(lambda l: htot(xy[0], l), L0, xy[1], 
+                    verbose=verbose)[nu_i][nu_f]
                 for xy in zip(energy, L)]).__getitem__(0 if return_float else slice(None))
         else:
-            return np.array([osc_prob(lambda l: htot(xy[0], l), L0, xy[1])
+            return np.array([osc_prob(lambda l: htot(xy[0], l), L0, xy[1], verbose=verbose)
                 for xy in zip(energy, L)]).__getitem__(0 if return_float else slice(None))
     else: # rho_func is constant, so we can evaluate the matter potential anywhere
         h_matt = h_matt_func(L0)
         if ((nu_i is not None) and (nu_f is not None)):
-            return np.array([osc_prob((1/xy[0])*h_vac_energy_indep+h_matt, L0, xy[1])[nu_i][nu_f]
-            for xy in zip(energy, L)]).__getitem__(0 if return_float else slice(None))
+            return np.array([osc_prob((1/xy[0])*h_vac_energy_indep+h_matt, L0, xy[1], 
+                    verbose=verbose)[nu_i][nu_f]
+                for xy in zip(energy, L)]).__getitem__(0 if return_float else slice(None))
         else:
-            return np.array([osc_prob((1/xy[0])*h_vac_energy_indep+h_matt, L0, xy[1])
+            return np.array([osc_prob((1/xy[0])*h_vac_energy_indep+h_matt, L0, xy[1], 
+                    verbose=verbose)
                 for xy in zip(energy, L)]).__getitem__(0 if return_float else slice(None))
 
 if __name__ == "__main__":
@@ -3409,7 +3312,7 @@ if __name__ == "__main__":
     # print(osc_prob_5nu_vacuum(energy, baseline, s14, s15, s24, s25, s34, s35, d14, d15, d24, d35,
     #     D41, D51, verbose=1))
 
-    # Three-neutrino oscillations in constant-density matter
+    # Two-neutrino oscillations in constant-density matter
     # np.set_printoptions(precision=3)
     # rho = 10.0*gd.UNIT_G_PER_CM3
     # sth = 0.1
@@ -3432,3 +3335,23 @@ if __name__ == "__main__":
     # np.set_printoptions(precision=3)
     # rho = 10.0*gd.UNIT_G_PER_CM3
     # print(osc_prob_3nu_matter_constant_density(energy, baseline, rho, verbose=1))
+
+    # # Four-neutrino oscillations in constant-density matter
+    # np.set_printoptions(precision=3)
+    # rho = 10.0*gd.UNIT_G_PER_CM3
+    # s14, s24, s34 = 0.1, 0.2, 0.3
+    # d14, d24 = np.radians(10.0), np.radians(100.0)
+    # D41 = 0.1 # [eV^2]
+    # print(osc_prob_4nu_matter_constant_density(energy, baseline, rho, s14, s24, s34, d14, d24, D41,
+    #     verbose=1))
+
+    # Five-neutrino oscillations in constant-density matter
+    np.set_printoptions(precision=3)
+    rho = 10.0*gd.UNIT_G_PER_CM3
+    s14, s15, s24, s25, s34, s35 = 0.1, 0.1, 0.2, 0.2, 0.3, 0.3
+    d14, d15, d24, d35 = np.radians([10.0, 20.0, 30.0, 40.0])
+    D41, D51 = 0.1, 0.01 # [eV^2]
+    print(osc_prob_5nu_matter_constant_density(energy, baseline, rho, s14, s15, s24, s25, s34, s35,
+        d14, d15, d24, d35, D41, D51, verbose=2))
+    # print(osc_prob_5nu_matter_constant_density(energy, baseline, rho, s14, s15, s24, s25, s34, s35,
+    #     d14, d15, d24, d35, D41, D51, nubar=True, verbose=1))
