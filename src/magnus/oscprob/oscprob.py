@@ -274,6 +274,7 @@ import magnus.magnus as magnus
 import magnus.globaldefs as gd
 import magnus.hamiltonians.hamiltonians2nu as hamiltonians2nu
 import magnus.hamiltonians.hamiltonians3nu as hamiltonians3nu
+import magnus.hamiltonians.hamiltonians4nu as hamiltonians4nu
 import magnus.matter as matter
 import version as version
 import authors as authors
@@ -535,9 +536,9 @@ def values_to_unspecified_osc_params(
         default_osc_params = gd.OSC_PARAMS_PREDEFINED[default_osc_params_set_name]
 
         if verbose > 0:
-            print(gd.WARNING_MSG_IN_COLOR + " Setting unspecified oscillation parameters to " + \
-                "default values from the predefined set " + default_osc_params['name'] + " (" + \
-                default_osc_params['description'] + "):\n" + \
+            print(gd.WARNING_MSG_IN_COLOR + " Setting unspecified standard oscillation " + \
+                "parameters to default values from the predefined set " + \
+                default_osc_params['name'] + " (" + default_osc_params['description'] + "):\n" + \
                 ("s12 = " + str(default_osc_params['s12']) + "\n" if (s12 is None) else '') + \
                 ("s23 = " + str(default_osc_params['s23']) + "\n" if (s23 is None) else '') + \
                 ("s13 = " + str(default_osc_params['s13']) + "\n" if (s13 is None) else '') + \
@@ -1456,6 +1457,8 @@ def osc_prob_3nu_vacuum(
     # Flag return_float remembers if energy and L were both floats.  If True, return a float, too.
     return_float = isinstance(energy, float) and isinstance(L, float)
 
+    # If energy is a float (fixed energy) and L is an array, make energy into a single-entry array
+    # in order to zip them below, and vice versa.
     energy = np.array([energy]) if isinstance(energy, float) else np.array(energy)  
     L = np.array([L]) if isinstance(L, float) else np.array(L) 
 
@@ -1685,9 +1688,62 @@ def osc_prob_4nu_vacuum(
             Four-flavor (3+2) oscillation probabilities in vacuum. 
     """
 
-    pass 
+    energy = float(energy) if isinstance(energy, int) else energy
+    L = float(L) if isinstance(L, int) else L
 
-    return
+    if validate_input:
+        # The function name is sys._getframe().f_code.co_name
+        if validate_input_battery(sys._getframe().f_code.co_name, energy, L, nu_i, nu_f) == 1:
+            sys.exit(1)
+
+    # Flag return_float remembers if energy and L were both floats.  If True, return a float, too.
+    return_float = isinstance(energy, float) and isinstance(L, float)
+
+    # If energy is a float (fixed energy) and L is an array, make energy into a single-entry array
+    # in order to zip them below, and vice versa.
+    energy = np.array([energy]) if isinstance(energy, float) else np.array(energy)  
+    L = np.array([L]) if isinstance(L, float) else np.array(L) 
+
+    # Either energy and L are both lists (or NumPy arrays) of the same length; or one is a float and
+    # the other is a list (or NumPy array).  Any other possibility will generate an exception.  This
+    # exception is raised earlier if validate_input == True, but we check below in case it has been
+    # set to False.
+    try:
+        if not ((len(energy) == len(L)) or (len(energy) == 1 and len(L) > 1) or \
+            (len(energy) > 1 and len(L) == 1)):
+            raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob_3nu_vacuum: energy and " + \
+                "L must be both int or float; or, if lists (or NumPy arrays), they must have " + \
+                "the same length; or, if one is a float or single-entry list, the other must " + \
+                "be a list with multiple entries.")
+    except ValueError as error:
+        print(error)
+        print("Aborting execution...")
+        sys.exit(1)
+
+    # If any of the standard oscillation parameters has not been given a value, assign to it the 
+    # value from the specified parameter set with name default_osc_params_set_name.  Only the values
+    # of the parameters passed as None are assigned from the predefined set; others are not modified.
+    s12, s23, s13, dCP, D21, D31 = values_to_unspecified_osc_params(s12, s23, s13, dCP, D21, D31, 
+        default_osc_params_set_name, verbose)
+
+    # Compute the energy-independent part of the Hamiltonian, i.e., everything but the 1/E 
+    # prefactor, only once, to save time.  Multiply by the 1/E factor below when calling osc_prob.
+    h_vac_energy_indep = hamiltonians4nu.hamiltonian_4nu_vacuum_energy_independent(s12, s23, s13, 
+        dCP, s14, d14, s24, d24, s34, D21, D31, D41, nubar=nubar) 
+
+    # If energy is a single value, then transform it into an array containing the value energy 
+    # repeated a number of times equal to the length of the L, and vice versa, in order to zip them.
+    energy = np.full(len(L), energy[0]) if (len(energy) == 1) else energy
+    L = np.full(len(energy), L[0]) if (len(L) == 1) else L
+
+    # The call to __getitem__ below is a way to return a float if both energy and L were floats
+    if ((nu_i is not None) and (nu_f is not None)):
+        return np.array([osc_prob((1/xy[0])*h_vac_energy_indep, 0.0, xy[1], 
+            verbose=verbose)[nu_i][nu_f] 
+        for xy in zip(energy, L)]).__getitem__(0 if return_float else slice(None))
+    else:
+        return np.array([osc_prob((1/xy[0])*h_vac_energy_indep, 0.0, xy[1], verbose=verbose)
+            for xy in zip(energy, L)]).__getitem__(0 if return_float else slice(None))
 
 
 def osc_prob_5nu_vacuum(
@@ -2594,10 +2650,18 @@ if __name__ == "__main__":
 
     baseline = 10.*gd.UNIT_KM # 10 km in natural units [eV^{-1}]
     energy = 1.*gd.UNIT_MEV # [eV]
-    np.set_printoptions(precision=3)
-    prob = osc_prob_3nu_vacuum(energy, baseline)
-    print(prob)
-    print(gd.OSC_PARAMS_PREDEFINED['OSC_PARAMS_DEFAULT'])
-    np.set_printoptions(precision=3)
-    print(osc_prob_3nu_vacuum(energy, baseline, s12=0.0, verbose=1))
 
+    # np.set_printoptions(precision=3)
+    # prob = osc_prob_3nu_vacuum(energy, baseline)
+    # print(prob)
+
+    # print(gd.OSC_PARAMS_PREDEFINED['OSC_PARAMS_DEFAULT'])
+
+    # np.set_printoptions(precision=3)
+    # print(osc_prob_3nu_vacuum(energy, baseline, s12=0.0, verbose=1))
+
+    np.set_printoptions(precision=3)
+    s14, s24, s34 = 0.1, 0.2, 0.3
+    d14, d24 = np.radians(10.0), np.radians(100.0)
+    D41 = 0.1 # [eV^2]
+    print(osc_prob_4nu_vacuum(energy, baseline, s14, s24, s34, d14, d24, D41, verbose=1))
