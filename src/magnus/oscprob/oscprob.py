@@ -455,12 +455,41 @@ def validate_input_battery(
 
     try:
         if ((nu_i is not None) and (nu_f is not None)):
-            flavors = set([gd.NUE, gd.NUMU, gd.NUTAU])
+            if "3nu" in source_func_name:
+                flavors = set([gd.NUE, gd.NUMU, gd.NUTAU])
+            elif "4nu" in source_func_name:
+                flavors = set([gd.NUE, gd.NUMU, gd.NUTAU, gd.NUS])
+            elif "5nu" in source_func_name:
+                flavors = set([gd.NUE, gd.NUMU, gd.NUTAU, gd.NUS1, gd.NUS2])
+            else:
+                flavors = set([gd.NUE, gd.NUMU, gd.NUTAU, gd.NUS1, gd.NUS2])
+                print(gd.WARN_MSG_IN_COLOR + " " + source_func_name + \
+                    ": nu_i and nu_f are not None, but input validation cannot infer what " + \
+                    "flavors are valid to use from the function name.  Consider adding `2nu`, " + \
+                    "`3nu`, `4nu`, or `5nu` to the function name.")
             if ( (not (nu_i in flavors)) or (not (nu_f in flavors))):
-                raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + \
-                    ": if nu_i and nu_f are not None, they must be either gd.NUE (" + \
-                    str(gd.NUE) + "), gd.NUMU (" + str(gd.NUMU) + "), or gd.NUTAU (" + \
-                    str(gd.NUTAU) + ") only.")
+                if "3nu" in source_func_name:
+                    raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + \
+                        ": if nu_i and nu_f are not None, they must be either gd.NUE (" + \
+                        str(gd.NUE) + "), gd.NUMU (" + str(gd.NUMU) + "), or gd.NUTAU (" + \
+                        str(gd.NUTAU) + ") only.")
+                elif "4nu" in source_func_name:
+                    raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + \
+                        ": if nu_i and nu_f are not None, they must be either gd.NUE (" + \
+                        str(gd.NUE) + "), gd.NUMU (" + str(gd.NUMU) + "), gd.NUTAU (" + \
+                        str(gd.NUTAU) + "), or gd.NUS (" + str(gd.NUS) + ") only.")
+                elif "5nu" in source_func_name:
+                    raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + \
+                        ": if nu_i and nu_f are not None, they must be either gd.NUE (" + \
+                        str(gd.NUE) + "), gd.NUMU (" + str(gd.NUMU) + "), gd.NUTAU (" + \
+                        str(gd.NUTAU) + "), gd.NUS1 (" + str(gd.NUS1) + "), or gd.NUS2 (" + \
+                        str(gd.NUS2) + ") only.")
+                else:
+                    raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + \
+                        ": if nu_i and nu_f are not None, they must be either gd.NUE (" + \
+                        str(gd.NUE) + "), gd.NUMU (" + str(gd.NUMU) + "), gd.NUTAU (" + \
+                        str(gd.NUTAU) + "), gd.NUS1 (" + str(gd.NUS1) + "), or gd.NUS2 (" + \
+                        str(gd.NUS2) + ") only.")
     except ValueError as error:
         print(error)
         print("Aborting execution...")
@@ -1263,8 +1292,8 @@ def osc_prob_3nu_vacuum(
     r"""Compute and return the three-neutrino oscillation probability in
     vacuum.
 
-    By default returns :math:`3 \times 3` probability matrices for all 
-    the  oscillation channels. Each matrix has shape ``np.ndarray([Pee,
+    By default, returns :math:`3 \times 3` probability matrices for all 
+    the oscillation channels. Each matrix has shape ``np.ndarray([Pee,
     Pem,Pet],[Pme,Pmm,Pmt],[Pte,Ptm,Ptt])``.  The matrix is symmetric, 
     i.e., ``Pme == Pee``, ``Pte == Pet``, and ``Ptm == Pmt``.  
 
@@ -1474,6 +1503,12 @@ def osc_prob_3nu_vacuum(
 def osc_prob_4nu_vacuum(
     energy: Union[int, float, list, np.ndarray], 
     L: Union[int, float, list, np.ndarray], 
+    s14: Union[int, float],
+    s24: Union[int, float],
+    s34: Union[int, float],
+    d14: Union[int, float],
+    d24: Union[int, float],
+    D41: Optional[Union[int, float]], 
     s12: Optional[Union[int, float]]=None, 
     s23: Optional[Union[int, float]]=None, 
     s13: Optional[Union[int, float]]=None, 
@@ -1489,6 +1524,165 @@ def osc_prob_4nu_vacuum(
 ) -> Union[float, np.ndarray]:
     r"""Compute and return the four-neutrino (3+1) oscillation 
     probability in vacuum.
+
+    By default, returns :math:`4 \times 4` probability matrices for all 
+    the oscillation channels. Each matrix has shape ``np.ndarray([Pee,
+    Pem,Pet,Pes],[Pme,Pmm,Pmt,Pms],[Pte,Ptm,Ptt,Pts],
+    [Pse,Psm,Pst,Pss])``.  The matrix is symmetric, i.e., 
+    ``Pme == Pee``, ``Pte == Pet``, ``Pse == Pes``, ``Ptm == Pmt``,
+    ``Psm == Pms``, and ``Pst == Pts``.
+
+    If a single energy and baseline is given, the function returns a 
+    single matrix.  If multiple energies and baselines are given, 
+    function returns an NumPy array of matrices.  See examples below.
+
+    If the probability needs to be computed multiple times, it is 
+    recommended to pass the array of energies and the array of baselines
+    to the function in a single call instead of calling the function
+    separately for each combination of energy and baseline. The reason
+    is that the function has an overhead that gets diluted when 
+    computing when the input energies and baselines are many.
+
+    If the initial and final flavors, ``nu_i`` and ``nu_f``, are 
+    specified (by setting them to ``NUE``, ``NUMU``, ``NUTAU``, or 
+    ``NUS`` from the :py:mod:`magnus.globaldefs` module), the function
+    returns instead a one-dimensional array of the probabilities 
+    computed for each value of energy and baseline requested. See 
+    examples below.
+
+    If the function is called without specifying values of the standard
+    oscillation parameters (``s12``, ``s23``, ``s13``, ``dCP``, ``D21``,
+    ``D31``), the unspecified parameters are assigned default values 
+    taken from a predefined parameter set.  The name of the default 
+    parameter set can be changed by passing 
+    ``default_osc_params_set_name``.  
+
+    The names of the predefined parameter sets included in 
+    :math:`\text{Mag}\nu\text{s}` can be seen by printing
+
+    >>> import magnus.globaldefs as gd
+    >>> list(gd.OSC_PARAMS_PREDEFINED.keys())
+
+    And the default parameter values are from the set with name 
+    ``'OSC_PARAMS_DEFAULT'``:
+
+    >>> gd.OSC_PARAMS_PREDEFINED['OSC_PARAMS_DEFAULT']
+
+    If ``validate_input`` is set to True, the function validated the 
+    input arguments before calculating the probability, by calling the
+    function :func:`validate_input_battery`.
+
+    Parameters
+    ----------
+    energy
+        Neutrino energy, single value or array.
+    L
+        Neutrino baseline, single value or array.
+    s14
+        Sine of the mixing angle :math:`\theta_{14}`.
+    s24
+        Sine of the mixing angle :math:`\theta_{24}`.
+    s34
+        Sine of the mixing angle :math:`\theta_{34}`.
+    d14
+        CP-violation phase, :math:`\delta_{14}`.
+    d24
+        CP-violation phase, :math:`\delta_{24}`.
+    D41
+        Mass-squared difference :math:`\Delta m_{41}^2`.
+    s12
+        Sine of the mixing angle :math:`\theta_{12}`.
+    s23
+        Sine of the mixing angle :math:`\theta_{23}`.
+    s13
+        Sine of the mixing angle :math:`\theta_{13}`.
+    dCP
+        CP-violation phase, :math:`\delta_\text{CP}`.
+    D21
+        Mass-squared difference :math:`\Delta m_{21}^2`.
+    D31
+        Mass-squared difference :math:`\Delta m_{31}^2`.
+    nubar
+        False (default) for neutrinos; True for anti-neutrinos.
+    nu_i
+        Initial neutrino flavor, either ``NUE``, ``NUMU``, ``NUTAU``,
+        or ``NUS`` from the :py:mod:`magnus.globaldefs` module.
+    nu_f
+        Final neutrino flavor, either ``NUE``, ``NUMU``, ``NUTAU``,
+        or ``NUS`` from the :py:mod:`magnus.globaldefs` module.
+    default_osc_params_set_name
+        Name of the predefined set of standard oscillation parameters to
+        use when assigning default values to unspecified parameters.
+    validate_input
+        True to validate input (default); False not to, which is faster
+        but riskier.
+    verbose
+        0 not to print warnings and errors; 1 to print them.
+
+    Returns
+    -------
+    Union[float, np.narray]
+        Neutrino oscillation probability matrix or probability for a 
+        single oscillation channel, for the values of `energy` and `L`.
+
+    Examples
+    --------
+    >>> import magnus.oscprob as oscprob
+    >>> import magnus.globaldefs as gd
+
+    If both ``energy`` and ``L`` are single values (``float`` or 
+    ``int``), this function returns the probability computed at these
+    values.  
+
+    >>> baseline = 10.*gd.UNIT_KM # 10 km in natural units [eV^{-1}]
+    >>> energy = 1.*gd.UNIT_MEV # [eV]
+    >>> s14, s24, s34 = 0.1, 0.2, 0.3
+    >>> d14, d24 = np.radians(10.0), np.radians(100.0)
+    >>> D41 = 0.1  # [eV^2]
+    >>> oscprob.osc_prob_4nu_vacuum(energy, baseline, s14, s24, s34, d14, d24, D41)
+ 
+    Pick one channel only, e.g., :math:`\nu_e \to \nu_s`, by 
+    passing an initial flavor, ``nu_i``, and a final flavor ``nu_f``:
+
+    >>> oscprob.osc_prob_3nu_vacuum(energy, baseline, s14, s24, s34, d14, d24, D41, nu_i=gd.NUE, nu_f=gd.NUS)
+
+    The flavor indices ``NUE``, ``NUMU``, ``NUMU``, and ``NUS`` are 
+    defined in  the :py:mod:`magnus.globaldefs` module. For 
+    anti-neutrinos, i.e., :math:`\bar{\nu}_e \to \bar{\nu}_\mu`:
+
+    >>> oscprob.osc_prob_4nu_vacuum(energy, baseline, s14, s24, s34, d14, d24, D41, nu_i=gd.NUE, nu_f=gd.NUMU, nubar=True)
+
+    We can specify values of the oscillation parameters. Unspecified 
+    values are set to their defaults (pass nonzero ``verbose`` to see 
+    this and other warnings):
+
+    >>> oscprob.osc_prob_4nu_vacuum(energy, baseline, s14, s24, s34, d14, d24, D41, s12=0.0, verbose=1)
+ 
+    If a single energy value and multiple baselines are passed, this
+    function returns an array containing the probabilities computed for
+    this fixed energy and each value of the baseline:
+    
+    >>> baselines = gd.UNIT_KM*np.array([1.0, 10.0 100.0])
+    >>> oscprob.osc_prob_4nu_vacuum(energy, baselines, s14, s24, s34, d14, d24, D41, nu_i=gd.NUE, nu_f=gd.NUMU)
+
+    Conversely, if a single baseline and multiple energies are passed,
+    this function returns an array containing the probabilities computed
+    for this fixed baseline and each value of the energy:
+
+    >>> energies = gd.UNIT_MEV*np.array([1.0, 10.0, 100.0])
+    >>> oscprob.osc_prob_4nu_vacuum(energies, baseline, s14, s24, s34, d14, d24, D41, nu_i=gd.NUE, nu_f=gd.NUMU)
+
+    And, for multiple energies and baselines:
+
+    >>> oscprob.osc_prob_4nu_vacuum(energies, baselines, s14, s24, s34, d14, d24, D41, nu_i=gd.NUE, nu_f=gd.NUMU)
+
+    .. seealso::
+        :func:`osc_prob_2nu_vacuum`
+            Two-flavor oscillation probabilities in vacuum. 
+        :func:`osc_prob_3nu_vacuum`
+            Three-flavor oscillation probabilities in vacuum. 
+        :func:`osc_prob_5nu_vacuum`
+            Four-flavor (3+2) oscillation probabilities in vacuum. 
     """
 
     pass 
