@@ -287,6 +287,31 @@ Index used to denote nu_tau flavor when computing probabilities.
 Units: [Adimensional]
 """
 
+NUS = 3
+r"""float: Module-level constant
+
+Index used to denote the sterile flavor in when computing four-neutrino
+(3+1) probabilities.
+Units: [Adimensional]
+"""
+
+NUS1 = 3
+r"""float: Module-level constant
+
+Index used to denote the first sterile flavor in when computing 
+five-neutrino (3+2) probabilities.
+Units: [Adimensional]
+"""
+
+NUS = 4
+r"""float: Module-level constant
+
+Index used to denote the second sterile flavor in when computing 
+five-neutrino (3+2) probabilities.
+Units: [Adimensional]
+"""
+
+
 UNIT_KEV = 1.e3
 UNIT_MEV = 1.e6
 UNIT_GEV = 1.e9
