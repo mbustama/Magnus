@@ -96,6 +96,14 @@ TOL_MSG_NO_COLOR = "Requested tolerance achieved"
 TOL_MSG_IN_COLOR = cstyle.CGREENBG + "Requested tolerance achieved" + cstyle.CEND
 
 
+MAGNUS_MAX_PREDEFINED_NUM_FLAVORS = 5
+r"""float: Module-level constant
+
+Maximum number of flavors for which we have hard-coded routines in the oscprob module.
+Units: [Adimensional]
+"""
+
+
 MAGNUS_EXP_ORDER_MAX = 6
 r"""float: Module-level constant
 
@@ -303,7 +311,7 @@ five-neutrino (3+2) probabilities.
 Units: [Adimensional]
 """
 
-NUS = 4
+NUS2 = 4
 r"""float: Module-level constant
 
 Index used to denote the second sterile flavor in when computing 
