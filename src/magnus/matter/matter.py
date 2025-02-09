@@ -30,7 +30,7 @@ __email__ = "mbustamante@gmail.com"
 
 
 import numpy as np
-from typing import Optional, Callable
+from typing import Optional, Callable, Union, Tuple, List, Dict
 
 # TO-DO: remove this once setup.py and pip are working
 import os, sys
@@ -164,6 +164,48 @@ def VCC_func(l: float, num_density_e_func: Callable) -> float:
     """
 
     return gd.SQRT_OF_2 * gd.GF * num_density_e_func(l) # VCC [eV]
+
+
+def vcc_func_from_rho_func(
+    rho_func: Union[Callable, int, float],
+    L0: Optional[Union[int, float]]=0.0,
+    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0, 
+    electron_fraction: Optional[Union[int, float]]=0.5, 
+    nubar: Optional[bool]=False, 
+    density_matter_is_in_g_per_cm3: Optional[bool]=False,
+    density_is_of_number_of_electrons: Optional[bool]=False,
+) -> Union[int, float, Callable]:
+
+    s = 1.0 if not nubar else -1.0
+
+    # If the provided rho_func is the matter density (e.g., g cm^{-3}), convert rho_func to a 
+    # function that returns the electron number density [eV^3]
+    if not density_is_of_number_of_electrons: 
+        # if isinstance(rho_func, Callable):
+        #     density_matter_func = rho_func
+        # else:
+        #     density_matter_func = lambda r: rho_func # If rho_func is constant, pass a dummy function 
+        # Number density of electrons [eV^3]
+        num_density_e = lambda l: num_density_e_func(l, 
+            # density_matter_func=density_matter_func,
+            density_matter_func=rho_func if isinstance(rho_func, Callable) \
+                else (lambda r: rho_func), # If rho_func is constant, pass a dummy function 
+            ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons, 
+            electron_fraction=electron_fraction, 
+            density_matter_is_in_g_per_cm3=density_matter_is_in_g_per_cm3) 
+        # Coherent forward potential, VCC [eV]
+        if isinstance(rho_func, Callable):
+            # Return VCC as a function, since the density is a function
+            return lambda l: s*VCC_func(l, num_density_e_func=num_density_e)
+        else:
+            # Return VCC as a constant, since the density is a constant. Its value when evaluated at
+            # L0 is the same at any other l.
+            return s*VCC_func(l=L0, num_density_e_func=num_density_e)
+    else: # rho_func is directly the electrn number density [eV^3]
+        if isinstance(rho_func, Callable):
+            return lambda l: s*VCC_func(l, num_density_e_func=rho_func) 
+        else:
+            return s*VCC_func(l=L0, num_density_e_func=rho_func) 
 
 
 if __name__ == "__main__":
