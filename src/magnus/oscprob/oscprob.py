@@ -1093,7 +1093,7 @@ def osc_prob(
             sys.setrecursionlimit(new_recursion_limit)  
             if verbose > 0:
                 for f in [None, file_log] if save_log else [None]:
-                    print("\n" + gd.WARNING_MSG_IN_COLOR + " oscprob.osc_prob: rasing recursion" + \
+                    print("\n" + gd.WARNING_MSG_IN_COLOR + " oscprob.osc_prob: raising recursion"+ \
                             " limit to new_recursion_limit = " + str(new_recursion_limit) + \
                             " (was " + str(old_recursion_limit) + ").", file=f)
 
@@ -1511,50 +1511,17 @@ def osc_prob_energy_baseline(
     # The call to __getitem__ below is a way to return a float if both energy and L were floats.
     
     # In the zip: xy[0]: energy, xy[1]: baseline
-
-    if not isinstance(H_func, Callable): # H_func is position- and energy-independent
-        if ((nu_i is not None) and (nu_f is not None)): # Select one oscillation channel
-            return np.array([osc_prob(H_func, L0, xy[1],
-                t_slab_edges=t_slab_edges, magnus_exp_order=magnus_exp_order, n_jobs=n_jobs,
-                integration_method=integration_method, rtol=rtol, atol=atol,
-                growth_factor_n_slabs=growth_factor_n_slabs,
-                growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
-                max_num_loops=max_num_loops, min_n_slabs=min_n_slabs, max_n_slabs=max_n_slabs,
-                min_n_tpts_per_slab=min_n_tpts_per_slab, max_n_tpts_per_slab=max_n_tpts_per_slab,
-                iterate_over_magnus_exp_order=iterate_over_magnus_exp_order,
-                min_magnus_exp_order=min_magnus_exp_order, 
-                max_magnus_exp_order=max_magnus_exp_order,
-                validate_input=validate_input, save_log=save_log, filename_log=filename_log,
-                file_log=file_log, close_file_log_upon_exit=close_file_log_upon_exit,
-                new_recursion_limit=new_recursion_limit, verbose=verbose)[nu_i][nu_f]
-            for xy in zip(energy, L)]).__getitem__(0 if return_float else slice(None))
-        else: # Select the full probability matrix
-            return np.array([osc_prob(H_func, L0, xy[1], 
-                t_slab_edges=t_slab_edges, magnus_exp_order=magnus_exp_order, n_jobs=n_jobs,
-                integration_method=integration_method, rtol=rtol, atol=atol,
-                growth_factor_n_slabs=growth_factor_n_slabs,
-                growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
-                max_num_loops=max_num_loops, min_n_slabs=min_n_slabs, max_n_slabs=max_n_slabs,
-                min_n_tpts_per_slab=min_n_tpts_per_slab, max_n_tpts_per_slab=max_n_tpts_per_slab,
-                iterate_over_magnus_exp_order=iterate_over_magnus_exp_order,
-                min_magnus_exp_order=min_magnus_exp_order, 
-                max_magnus_exp_order=max_magnus_exp_order,
-                validate_input=validate_input, save_log=save_log, filename_log=filename_log,
-                file_log=file_log, close_file_log_upon_exit=close_file_log_upon_exit,
-                new_recursion_limit=new_recursion_limit, verbose=verbose)
-            for xy in zip(energy, L)]).__getitem__(0 if return_float else slice(None))
-    else: # H_func is a function of one or more parameters 
-        if (len(signature(H_func).parameters) == 2): # H_func is a function of two parameters
-            # It is assumed that the first parameter is energy and the second is position.
+    
+    try:
+        if not isinstance(H_func, Callable): # H_func is position- and energy-independent
             if ((nu_i is not None) and (nu_f is not None)): # Select one oscillation channel
-                return np.array([osc_prob(lambda l: H_func(xy[0], l), L0, xy[1], 
+                return np.array([osc_prob(H_func, L0, xy[1],
                     t_slab_edges=t_slab_edges, magnus_exp_order=magnus_exp_order, n_jobs=n_jobs,
                     integration_method=integration_method, rtol=rtol, atol=atol,
                     growth_factor_n_slabs=growth_factor_n_slabs,
                     growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
                     max_num_loops=max_num_loops, min_n_slabs=min_n_slabs, max_n_slabs=max_n_slabs,
-                    min_n_tpts_per_slab=min_n_tpts_per_slab,
-                    max_n_tpts_per_slab=max_n_tpts_per_slab,
+                    min_n_tpts_per_slab=min_n_tpts_per_slab, max_n_tpts_per_slab=max_n_tpts_per_slab,
                     iterate_over_magnus_exp_order=iterate_over_magnus_exp_order,
                     min_magnus_exp_order=min_magnus_exp_order, 
                     max_magnus_exp_order=max_magnus_exp_order,
@@ -1563,14 +1530,13 @@ def osc_prob_energy_baseline(
                     new_recursion_limit=new_recursion_limit, verbose=verbose)[nu_i][nu_f]
                 for xy in zip(energy, L)]).__getitem__(0 if return_float else slice(None))
             else: # Select the full probability matrix
-                return np.array([osc_prob(lambda l: H_func(xy[0], l), L0, xy[1], 
+                return np.array([osc_prob(H_func, L0, xy[1], 
                     t_slab_edges=t_slab_edges, magnus_exp_order=magnus_exp_order, n_jobs=n_jobs,
                     integration_method=integration_method, rtol=rtol, atol=atol,
                     growth_factor_n_slabs=growth_factor_n_slabs,
                     growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
                     max_num_loops=max_num_loops, min_n_slabs=min_n_slabs, max_n_slabs=max_n_slabs,
-                    min_n_tpts_per_slab=min_n_tpts_per_slab,
-                    max_n_tpts_per_slab=max_n_tpts_per_slab,
+                    min_n_tpts_per_slab=min_n_tpts_per_slab, max_n_tpts_per_slab=max_n_tpts_per_slab,
                     iterate_over_magnus_exp_order=iterate_over_magnus_exp_order,
                     min_magnus_exp_order=min_magnus_exp_order, 
                     max_magnus_exp_order=max_magnus_exp_order,
@@ -1578,16 +1544,16 @@ def osc_prob_energy_baseline(
                     file_log=file_log, close_file_log_upon_exit=close_file_log_upon_exit,
                     new_recursion_limit=new_recursion_limit, verbose=verbose)
                 for xy in zip(energy, L)]).__getitem__(0 if return_float else slice(None))
-        elif (len(signature(H_func).parameters) == 1): # H_func is a function of one parameter
-            if H_func_is_function_only_of_energy: # H_func is a function only of energy
+        else: # H_func is a function of one or more parameters 
+            if (len(signature(H_func).parameters) == 2): # H_func is a function of two parameters
+                # It is assumed that the first parameter is energy and the second is position.
                 if ((nu_i is not None) and (nu_f is not None)): # Select one oscillation channel
-                    return np.array([osc_prob(H_func(xy[0]), L0, xy[1], 
+                    return np.array([osc_prob(lambda l: H_func(xy[0], l), L0, xy[1], 
                         t_slab_edges=t_slab_edges, magnus_exp_order=magnus_exp_order, n_jobs=n_jobs,
                         integration_method=integration_method, rtol=rtol, atol=atol,
                         growth_factor_n_slabs=growth_factor_n_slabs,
                         growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
-                        max_num_loops=max_num_loops, min_n_slabs=min_n_slabs, 
-                        max_n_slabs=max_n_slabs,
+                        max_num_loops=max_num_loops, min_n_slabs=min_n_slabs, max_n_slabs=max_n_slabs,
                         min_n_tpts_per_slab=min_n_tpts_per_slab,
                         max_n_tpts_per_slab=max_n_tpts_per_slab,
                         iterate_over_magnus_exp_order=iterate_over_magnus_exp_order,
@@ -1598,13 +1564,12 @@ def osc_prob_energy_baseline(
                         new_recursion_limit=new_recursion_limit, verbose=verbose)[nu_i][nu_f]
                     for xy in zip(energy, L)]).__getitem__(0 if return_float else slice(None))
                 else: # Select the full probability matrix
-                    return np.array([osc_prob(H_func(xy[0]), L0, xy[1], 
+                    return np.array([osc_prob(lambda l: H_func(xy[0], l), L0, xy[1], 
                         t_slab_edges=t_slab_edges, magnus_exp_order=magnus_exp_order, n_jobs=n_jobs,
                         integration_method=integration_method, rtol=rtol, atol=atol,
                         growth_factor_n_slabs=growth_factor_n_slabs,
                         growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
-                        max_num_loops=max_num_loops, min_n_slabs=min_n_slabs, 
-                        max_n_slabs=max_n_slabs,
+                        max_num_loops=max_num_loops, min_n_slabs=min_n_slabs, max_n_slabs=max_n_slabs,
                         min_n_tpts_per_slab=min_n_tpts_per_slab,
                         max_n_tpts_per_slab=max_n_tpts_per_slab,
                         iterate_over_magnus_exp_order=iterate_over_magnus_exp_order,
@@ -1614,42 +1579,89 @@ def osc_prob_energy_baseline(
                         file_log=file_log, close_file_log_upon_exit=close_file_log_upon_exit,
                         new_recursion_limit=new_recursion_limit, verbose=verbose)
                     for xy in zip(energy, L)]).__getitem__(0 if return_float else slice(None))
-            else: # H_func is a function only of position
-                if ((nu_i is not None) and (nu_f is not None)): # Select one oscillation channel
-                    return np.array([osc_prob(lambda l: H_func(l), L0, xy[1], 
-                        t_slab_edges=t_slab_edges, magnus_exp_order=magnus_exp_order, n_jobs=n_jobs,
-                        integration_method=integration_method, rtol=rtol, atol=atol,
-                        growth_factor_n_slabs=growth_factor_n_slabs,
-                        growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
-                        max_num_loops=max_num_loops, min_n_slabs=min_n_slabs, 
-                        max_n_slabs=max_n_slabs,
-                        min_n_tpts_per_slab=min_n_tpts_per_slab,
-                        max_n_tpts_per_slab=max_n_tpts_per_slab,
-                        iterate_over_magnus_exp_order=iterate_over_magnus_exp_order,
-                        min_magnus_exp_order=min_magnus_exp_order, 
-                        max_magnus_exp_order=max_magnus_exp_order,
-                        validate_input=validate_input, save_log=save_log, filename_log=filename_log,
-                        file_log=file_log, close_file_log_upon_exit=close_file_log_upon_exit,
-                        new_recursion_limit=new_recursion_limit, verbose=verbose)[nu_i][nu_f]
-                    for xy in zip(energy, L)]).__getitem__(0 if return_float else slice(None))
-                else: # Select the full probability matrix
-                    return np.array([osc_prob(lambda l: H_func(l), L0, xy[1], 
-                        t_slab_edges=t_slab_edges, magnus_exp_order=magnus_exp_order, n_jobs=n_jobs,
-                        integration_method=integration_method, rtol=rtol, atol=atol,
-                        growth_factor_n_slabs=growth_factor_n_slabs,
-                        growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
-                        max_num_loops=max_num_loops, min_n_slabs=min_n_slabs, 
-                        max_n_slabs=max_n_slabs,
-                        min_n_tpts_per_slab=min_n_tpts_per_slab,
-                        max_n_tpts_per_slab=max_n_tpts_per_slab,
-                        iterate_over_magnus_exp_order=iterate_over_magnus_exp_order,
-                        min_magnus_exp_order=min_magnus_exp_order, 
-                        max_magnus_exp_order=max_magnus_exp_order,
-                        validate_input=validate_input, save_log=save_log, filename_log=filename_log,
-                        file_log=file_log, close_file_log_upon_exit=close_file_log_upon_exit,
-                        new_recursion_limit=new_recursion_limit, verbose=verbose)
-                    for xy in zip(energy, L)]).__getitem__(0 if return_float else slice(None))
-    
+            elif (len(signature(H_func).parameters) == 1): # H_func is a function of one parameter
+                if H_func_is_function_only_of_energy: # H_func is a function only of energy
+                    if ((nu_i is not None) and (nu_f is not None)): # Select one oscillation channel
+                        return np.array([osc_prob(H_func(xy[0]), L0, xy[1], 
+                            t_slab_edges=t_slab_edges, magnus_exp_order=magnus_exp_order, n_jobs=n_jobs,
+                            integration_method=integration_method, rtol=rtol, atol=atol,
+                            growth_factor_n_slabs=growth_factor_n_slabs,
+                            growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
+                            max_num_loops=max_num_loops, min_n_slabs=min_n_slabs, 
+                            max_n_slabs=max_n_slabs,
+                            min_n_tpts_per_slab=min_n_tpts_per_slab,
+                            max_n_tpts_per_slab=max_n_tpts_per_slab,
+                            iterate_over_magnus_exp_order=iterate_over_magnus_exp_order,
+                            min_magnus_exp_order=min_magnus_exp_order, 
+                            max_magnus_exp_order=max_magnus_exp_order,
+                            validate_input=validate_input, save_log=save_log, filename_log=filename_log,
+                            file_log=file_log, close_file_log_upon_exit=close_file_log_upon_exit,
+                            new_recursion_limit=new_recursion_limit, verbose=verbose)[nu_i][nu_f]
+                        for xy in zip(energy, L)]).__getitem__(0 if return_float else slice(None))
+                    else: # Select the full probability matrix
+                        return np.array([osc_prob(H_func(xy[0]), L0, xy[1], 
+                            t_slab_edges=t_slab_edges, magnus_exp_order=magnus_exp_order, n_jobs=n_jobs,
+                            integration_method=integration_method, rtol=rtol, atol=atol,
+                            growth_factor_n_slabs=growth_factor_n_slabs,
+                            growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
+                            max_num_loops=max_num_loops, min_n_slabs=min_n_slabs, 
+                            max_n_slabs=max_n_slabs,
+                            min_n_tpts_per_slab=min_n_tpts_per_slab,
+                            max_n_tpts_per_slab=max_n_tpts_per_slab,
+                            iterate_over_magnus_exp_order=iterate_over_magnus_exp_order,
+                            min_magnus_exp_order=min_magnus_exp_order, 
+                            max_magnus_exp_order=max_magnus_exp_order,
+                            validate_input=validate_input, save_log=save_log, filename_log=filename_log,
+                            file_log=file_log, close_file_log_upon_exit=close_file_log_upon_exit,
+                            new_recursion_limit=new_recursion_limit, verbose=verbose)
+                        for xy in zip(energy, L)]).__getitem__(0 if return_float else slice(None))
+                else: # H_func is a function only of position
+                    if ((nu_i is not None) and (nu_f is not None)): # Select one oscillation channel
+                        return np.array([osc_prob(lambda l: H_func(l), L0, xy[1], 
+                            t_slab_edges=t_slab_edges, magnus_exp_order=magnus_exp_order, n_jobs=n_jobs,
+                            integration_method=integration_method, rtol=rtol, atol=atol,
+                            growth_factor_n_slabs=growth_factor_n_slabs,
+                            growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
+                            max_num_loops=max_num_loops, min_n_slabs=min_n_slabs, 
+                            max_n_slabs=max_n_slabs,
+                            min_n_tpts_per_slab=min_n_tpts_per_slab,
+                            max_n_tpts_per_slab=max_n_tpts_per_slab,
+                            iterate_over_magnus_exp_order=iterate_over_magnus_exp_order,
+                            min_magnus_exp_order=min_magnus_exp_order, 
+                            max_magnus_exp_order=max_magnus_exp_order,
+                            validate_input=validate_input, save_log=save_log, filename_log=filename_log,
+                            file_log=file_log, close_file_log_upon_exit=close_file_log_upon_exit,
+                            new_recursion_limit=new_recursion_limit, verbose=verbose)[nu_i][nu_f]
+                        for xy in zip(energy, L)]).__getitem__(0 if return_float else slice(None))
+                    else: # Select the full probability matrix
+                        return np.array([osc_prob(lambda l: H_func(l), L0, xy[1], 
+                            t_slab_edges=t_slab_edges, magnus_exp_order=magnus_exp_order, n_jobs=n_jobs,
+                            integration_method=integration_method, rtol=rtol, atol=atol,
+                            growth_factor_n_slabs=growth_factor_n_slabs,
+                            growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
+                            max_num_loops=max_num_loops, min_n_slabs=min_n_slabs, 
+                            max_n_slabs=max_n_slabs,
+                            min_n_tpts_per_slab=min_n_tpts_per_slab,
+                            max_n_tpts_per_slab=max_n_tpts_per_slab,
+                            iterate_over_magnus_exp_order=iterate_over_magnus_exp_order,
+                            min_magnus_exp_order=min_magnus_exp_order, 
+                            max_magnus_exp_order=max_magnus_exp_order,
+                            validate_input=validate_input, save_log=save_log, filename_log=filename_log,
+                            file_log=file_log, close_file_log_upon_exit=close_file_log_upon_exit,
+                            new_recursion_limit=new_recursion_limit, verbose=verbose)
+                        for xy in zip(energy, L)]).__getitem__(0 if return_float else slice(None))
+    except RecursionError:
+        print(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob_energy_baseline: error improvement too" + \
+            " slow and maximum recursion reached. Consider calling osc_prob_energy_baseline " + \
+            "with a higher value of new_recursion_limit (current value of maximum recursion is " + \
+            "sys.getrecursionlimit = " + str(sys.getrecursionlimit()) + ". [Failing that, " + \
+            "consider running with a higher value of min_n_slabs (currently, min_n_slabs = " + \
+            str(min_n_slabs) + ") or a lower requested tolerance (currently, rtol = " + \
+            str(rtol) + ", atol = " + str(atol) + ").  Also, consider running using multiple " + \
+            "cores by inreasing n_jobs (currently, n_jobs = " + str(n_jobs) + ").]")
+        print("Aborting execution...")
+        sys.exit(1)
+
 
 def osc_prob_vacuum(
     num_flavors: int,
@@ -3656,54 +3668,42 @@ def osc_prob_2nu_sun(
     --------
     """
 
-    try:
-        return osc_prob_2nu_matter_exp_density(
-            energy=energy,
-            L=L,
-            L0=L0,
-            rho_central=gd.NUM_DENSITY_E_SUN_CENTRAL,
-            l_scale=gd.L_SCALE_SUN,
-            sth=sth,
-            Dm2=Dm2,
-            nubar=nubar,
-            nu_i=nu_i,
-            nu_f=nu_f,
-            density_is_of_number_of_electrons=True,
-            default_osc_params_set_name=default_osc_params_set_name,
-            magnus_exp_order=magnus_exp_order,
-            n_jobs=n_jobs,
-            integration_method=integration_method,
-            rtol=rtol,
-            atol=atol,
-            growth_factor_n_slabs=growth_factor_n_slabs,
-            growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
-            max_num_loops=max_num_loops,
-            min_n_slabs=min_n_slabs,
-            max_n_slabs=max_n_slabs,
-            min_n_tpts_per_slab=min_n_tpts_per_slab,
-            max_n_tpts_per_slab=max_n_tpts_per_slab,
-            iterate_over_magnus_exp_order=iterate_over_magnus_exp_order,
-            min_magnus_exp_order=min_magnus_exp_order,
-            max_magnus_exp_order=max_magnus_exp_order,
-            validate_input=validate_input,
-            save_log=save_log,
-            filename_log=filename_log,
-            file_log=file_log,
-            close_file_log_upon_exit=close_file_log_upon_exit,
-            new_recursion_limit=new_recursion_limit,
-            verbose=verbose,
-            **kwargs)
-    except RecursionError:
-        print(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob_2nu_sun: error improvement too slow " + \
-            "and  maximum recursion reached. Consider calling osc_prob_2nu_sun with a higher " + \
-            "of new_recursion_limit (current value of maximum recursion is sys.getrecursionlimit"+ \
-            " = " + str(sys.getrecursionlimit()) + ". [Failing that, consider running with a " + \
-            "higher value of min_n_slabs (currently, min_n_slabs = " + str(min_n_slabs) + ") or" + \
-            " a lower requested tolerance (currently, rtol = " + str(rtol) + ", atol = " + \
-            str(atol) + ").  Also, consider running using multiple cores by inreasing n_jobs " + \
-            "(currently, n_jobs = " + str(n_jobs) + ".]")
-        print("Aborting execution...")
-        sys.exit(1)
+    return osc_prob_2nu_matter_exp_density(
+        energy=energy,
+        L=L,
+        L0=L0,
+        rho_central=gd.NUM_DENSITY_E_SUN_CENTRAL,
+        l_scale=gd.L_SCALE_SUN,
+        sth=sth,
+        Dm2=Dm2,
+        nubar=nubar,
+        nu_i=nu_i,
+        nu_f=nu_f,
+        density_is_of_number_of_electrons=True,
+        default_osc_params_set_name=default_osc_params_set_name,
+        magnus_exp_order=magnus_exp_order,
+        n_jobs=n_jobs,
+        integration_method=integration_method,
+        rtol=rtol,
+        atol=atol,
+        growth_factor_n_slabs=growth_factor_n_slabs,
+        growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
+        max_num_loops=max_num_loops,
+        min_n_slabs=min_n_slabs,
+        max_n_slabs=max_n_slabs,
+        min_n_tpts_per_slab=min_n_tpts_per_slab,
+        max_n_tpts_per_slab=max_n_tpts_per_slab,
+        iterate_over_magnus_exp_order=iterate_over_magnus_exp_order,
+        min_magnus_exp_order=min_magnus_exp_order,
+        max_magnus_exp_order=max_magnus_exp_order,
+        validate_input=validate_input,
+        save_log=save_log,
+        filename_log=filename_log,
+        file_log=file_log,
+        close_file_log_upon_exit=close_file_log_upon_exit,
+        new_recursion_limit=new_recursion_limit,
+        verbose=verbose,
+        **kwargs)
 
 
 def osc_prob_3nu_sun(
@@ -4123,14 +4123,6 @@ if __name__ == "__main__":
     L0 = 0.1*gd.SUN_RADIUS*gd.UNIT_KM # km in natural units [eV^{-1}]
     baseline = 1.0*gd.SUN_RADIUS*gd.UNIT_KM # km in natural units [eV^{-1}]
     energy = 10.0*gd.UNIT_MEV # [eV]
-    print(osc_prob_2nu_sun(energy, baseline, L0, sth, Dm2, rtol=1.e-2, atol=1.e-2,
-        min_n_slabs=100, min_n_tpts_per_slab=10, growth_factor_n_slabs=1.5, 
-        growth_factor_n_tpts_per_slab=2.0, magnus_exp_order=3,
-        # min_magnus_exp_order=2, max_magnus_exp_order=6, iterate_over_magnus_exp_order=True,
-        n_jobs=10, verbose=2))
+    print(osc_prob_2nu_sun(energy, baseline, L0, sth, Dm2, n_jobs=10, verbose=2))
     energy = (10.0+1.e-4)*gd.UNIT_MEV # [eV]
-    print(osc_prob_2nu_sun(energy, baseline, L0, sth, Dm2, rtol=1.e-2, atol=1.e-2,
-        min_n_slabs=100, min_n_tpts_per_slab=10, growth_factor_n_slabs=1.5, 
-        growth_factor_n_tpts_per_slab=2.0, magnus_exp_order=3,
-        # min_magnus_exp_order=2, max_magnus_exp_order=6, iterate_over_magnus_exp_order=True,
-        n_jobs=10, verbose=2))
+    print(osc_prob_2nu_sun(energy, baseline, L0, sth, Dm2, n_jobs=10, verbose=2))
