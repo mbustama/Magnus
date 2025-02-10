@@ -391,152 +391,220 @@ def print_run_parameters(
 
 def validate_input_battery(
     source_func_name: str, 
-    energy: Union[int, float, list, np.ndarray], 
-    L: Union[int, float, list, np.ndarray], 
-    num_flavors: int,
-    nu_i: int, 
-    nu_f: int,
-    osc_params: Union[list, np.ndarray]
+    energy: Optional[Union[int, float, list, np.ndarray]]=None, 
+    L: Optional[Union[int, float, list, np.ndarray]]=None, 
+    L0: Optional[Union[int, float]]=None,
+    num_flavors: Optional[int]=None,
+    nu_i: Optional[int]=None, 
+    nu_f: Optional[int]=None,
+    osc_params: Optional[Union[list, np.ndarray]]=None,
+    rho_func: Optional[Union[Callable, int, float]]=None,
+    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0, 
+    electron_fraction: Optional[Union[int, float]]=0.5, 
+    validate_energy_and_L: Optional[bool]=True,
+    validate_flavor_indices: Optional[bool]=True,
+    validate_osc_params: Optional[bool]=True,
+    validate_initial_position: Optional[bool]= False,
+    validate_density: Optional[bool]=False
 ) -> int:
 
-    try:
-        if ( (not isinstance(energy, int)) and (not isinstance(energy, float)) and \
-            (not isinstance(energy, list)) and (not isinstance(energy, np.ndarray)) ):
-            raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + \
-                ": energy must be an int, a float, a 1D list, or a 1D NumPy array.")
-    except ValueError as error:
-        print(error)
-        print("Aborting execution...")
-        return 1
-        # sys.exit(1)
+    if validate_energy_and_L:
 
-    try:
-        if ( (isinstance(energy, list) or isinstance(energy, np.ndarray)) and \
-            (np.array(energy).ndim != 1) ):
-            raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + \
-                ": if energy is a list or NumPy array, it must be 1D.")
-    except ValueError as error:
-        print(error)
-        print("Aborting execution...")
-        return 1
-        # sys.exit(1)
-
-    try:
-        if ( (isinstance(energy, list) or isinstance(energy, np.ndarray)) ):
-            if not (np.all(np.array(energy).dtype == np.float_) or \
-                np.all(np.array(energy).dtype == np.int_)):
+        try:
+            if ( (not isinstance(energy, int)) and (not isinstance(energy, float)) and \
+                (not isinstance(energy, list)) and (not isinstance(energy, np.ndarray)) ):
                 raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + \
-                    ": since energy is a list or NumPy array, all of its elements must be int" + \
-                    " or float.")
-    except ValueError as error:
-        print(error)
-        print("Aborting execution...")
-        return 1
-        # sys.exit(1)
+                    ": energy must be an int, a float, a 1D list, or a 1D NumPy array.")
+        except ValueError as error:
+            print(error)
+            print("Aborting execution...")
+            return 1
 
-    try:
-        if ( (not isinstance(L, int)) and (not isinstance(L, float)) and \
-            (not isinstance(L, list)) and (not isinstance(L, np.ndarray)) ):
-            raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + \
-                ": L must be an int, a float, a 1D list, or a 1D NumPy array.")
-    except ValueError as error:
-        print(error)
-        print("Aborting execution...")
-        return 1
-        # sys.exit(1)
-
-    try:
-        if ( (isinstance(L, list) or isinstance(L, np.ndarray)) and \
-            (np.array(L).ndim != 1) ):
-            raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + \
-                ": if L is a list or NumPy array, it must be 1D.")
-    except ValueError as error:
-        print(error)
-        print("Aborting execution...")
-        return 1
-        # sys.exit(1)
-
-    try:
-        if ( (isinstance(L, list) or isinstance(L, np.ndarray)) ):
-            if not (np.all(np.array(L).dtype == np.float_) or np.all(np.array(L).dtype == np.int_)):
+        try:
+            if ( (isinstance(energy, list) or isinstance(energy, np.ndarray)) and \
+                (np.array(energy).ndim != 1) ):
                 raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + \
-                    ": since L is a list or NumPy array, all of its elements must be int or float.")
-    except ValueError as error:
-        print(error)
-        print("Aborting execution...")
-        return 1
-        # sys.exit(1)
+                    ": if energy is a list or NumPy array, it must be 1D.")
+        except ValueError as error:
+            print(error)
+            print("Aborting execution...")
+            return 1
 
-    try:
-        if ( (isinstance(energy, list) or isinstance(energy, np.ndarray)) and \
-            (isinstance(L, list) or isinstance(L, np.ndarray)) and \
-            (len(energy) != len(L)) ):
-            raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + \
-                ": since the input energy and L are both lists or NumPy arrays, they must have " + \
-                "the same length.")
-    except ValueError as error:
-        print(error)
-        print("Aborting execution...")
-        return 1
-        # sys.exit(1)
+        try:
+            if ( (isinstance(energy, list) or isinstance(energy, np.ndarray)) ):
+                if not (np.all(np.array(energy).dtype == np.float_) or \
+                    np.all(np.array(energy).dtype == np.int_)):
+                    raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + \
+                        ": since energy is a list or NumPy array, all of its elements must be int" + \
+                        " or float.")
+        except ValueError as error:
+            print(error)
+            print("Aborting execution...")
+            return 1
 
-    try:
-        if (((nu_i is not None) and (nu_f is None)) or ((nu_i is None) and (nu_f is not None))):
-            raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + \
-                ": if either nu_i or nu_f is not None, the other flavor must also be not None.")
-    except ValueError as error:
-        print(error)
-        print("Aborting execution...")
-        return 1
-        # sys.exit(1)
+        try:
+            if ( (not isinstance(L, int)) and (not isinstance(L, float)) and \
+                (not isinstance(L, list)) and (not isinstance(L, np.ndarray)) ):
+                raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + \
+                    ": L must be an int, a float, a 1D list, or a 1D NumPy array.")
+        except ValueError as error:
+            print(error)
+            print("Aborting execution...")
+            return 1
 
-    try:
-        if ((nu_i is not None) and (nu_f is not None)):
-            if (num_flavors <= gd.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS):
-                if ((num_flavors == 2) or (num_flavors == 3)):
-                    flavors = set([gd.NUE, gd.NUMU, gd.NUTAU])
-                elif (num_flavors == 4):
-                    flavors = set([gd.NUE, gd.NUMU, gd.NUTAU, gd.NUS])
-                elif (num_flavors == 5):
-                    flavors = set([gd.NUE, gd.NUMU, gd.NUTAU, gd.NUS1, gd.NUS2])
-                if ( (not (nu_i in flavors)) or (not (nu_f in flavors))):
+        try:
+            if ( (isinstance(L, list) or isinstance(L, np.ndarray)) and \
+                (np.array(L).ndim != 1) ):
+                raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + \
+                    ": if L is a list or NumPy array, it must be 1D.")
+        except ValueError as error:
+            print(error)
+            print("Aborting execution...")
+            return 1
+
+        try:
+            if ( (isinstance(L, list) or isinstance(L, np.ndarray)) ):
+                if not (np.all(np.array(L).dtype == np.float_) or np.all(np.array(L).dtype == np.int_)):
+                    raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + \
+                        ": since L is a list or NumPy array, all of its elements must be int or float.")
+        except ValueError as error:
+            print(error)
+            print("Aborting execution...")
+            return 1
+
+        try:
+            if ( (isinstance(energy, list) or isinstance(energy, np.ndarray)) and \
+                (isinstance(L, list) or isinstance(L, np.ndarray)) and \
+                (len(energy) != len(L)) ):
+                raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + \
+                    ": since the input energy and L are both lists or NumPy arrays, they must have " + \
+                    "the same length.")
+        except ValueError as error:
+            print(error)
+            print("Aborting execution...")
+            return 1
+
+        try:
+            if (((nu_i is not None) and (nu_f is None)) or ((nu_i is None) and (nu_f is not None))):
+                raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + \
+                    ": if either nu_i or nu_f is not None, the other flavor must also be not None.")
+        except ValueError as error:
+            print(error)
+            print("Aborting execution...")
+            return 1
+
+    if validate_flavor_indices:
+
+        try:
+            if ((nu_i is not None) and (nu_f is not None)):
+                if (num_flavors <= gd.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS):
                     if ((num_flavors == 2) or (num_flavors == 3)):
-                        raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + \
-                            ": if nu_i and nu_f are not None, they must be either gd.NUE (" + \
-                            str(gd.NUE) + "), gd.NUMU (" + str(gd.NUMU) + "), or gd.NUTAU (" + \
-                            str(gd.NUTAU) + ") only.")
+                        flavors = set([gd.NUE, gd.NUMU, gd.NUTAU])
                     elif (num_flavors == 4):
-                        raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + \
-                            ": if nu_i and nu_f are not None, they must be either gd.NUE (" + \
-                            str(gd.NUE) + "), gd.NUMU (" + str(gd.NUMU) + "), gd.NUTAU (" + \
-                            str(gd.NUTAU) + "), or gd.NUS (" + str(gd.NUS) + ") only.")
+                        flavors = set([gd.NUE, gd.NUMU, gd.NUTAU, gd.NUS])
                     elif (num_flavors == 5):
-                        raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + \
-                            ": if nu_i and nu_f are not None, they must be either gd.NUE (" + \
-                            str(gd.NUE) + "), gd.NUMU (" + str(gd.NUMU) + "), gd.NUTAU (" + \
-                            str(gd.NUTAU) + "), gd.NUS1 (" + str(gd.NUS1) + "), or gd.NUS2 (" + \
-                            str(gd.NUS2) + ") only.")
-            else:
-                print(gd.WARNING_MSG_IN_COLOR + " " + source_func_name + \
-                    ": nu_i and nu_f are not None, but, since num_flavors = " + str(num_flavors) + \
-                    " > globaldefs.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS = " + \
-                    str(gd.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS) + ", input validation cannot " + \
-                    "check if nu_e and nu_f are valid indices.")
-    except ValueError as error:
-        print(error)
-        print("Aborting execution...")
-        return 1
-        # sys.exit(1)
+                        flavors = set([gd.NUE, gd.NUMU, gd.NUTAU, gd.NUS1, gd.NUS2])
+                    if ((not (nu_i in flavors)) or (not (nu_f in flavors))):
+                        if ((num_flavors == 2) or (num_flavors == 3)):
+                            raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + \
+                                ": if nu_i and nu_f are not None, they must be either gd.NUE (" + \
+                                str(gd.NUE) + "), gd.NUMU (" + str(gd.NUMU) + "), or gd.NUTAU (" + \
+                                str(gd.NUTAU) + ") only.")
+                        elif (num_flavors == 4):
+                            raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + \
+                                ": if nu_i and nu_f are not None, they must be either gd.NUE (" + \
+                                str(gd.NUE) + "), gd.NUMU (" + str(gd.NUMU) + "), gd.NUTAU (" + \
+                                str(gd.NUTAU) + "), or gd.NUS (" + str(gd.NUS) + ") only.")
+                        elif (num_flavors == 5):
+                            raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + \
+                                ": if nu_i and nu_f are not None, they must be either gd.NUE (" + \
+                                str(gd.NUE) + "), gd.NUMU (" + str(gd.NUMU) + "), gd.NUTAU (" + \
+                                str(gd.NUTAU) + "), gd.NUS1 (" + str(gd.NUS1) + "), or gd.NUS2 (" + \
+                                str(gd.NUS2) + ") only.")
+                else:
+                    print(gd.WARNING_MSG_IN_COLOR + " " + source_func_name + \
+                        ": nu_i and nu_f are not None, but, since num_flavors = " + str(num_flavors) + \
+                        " > globaldefs.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS = " + \
+                        str(gd.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS) + ", input validation cannot " + \
+                        "check if nu_e and nu_f are valid indices.")
+        except ValueError as error:
+            print(error)
+            print("Aborting execution...")
+            return 1
 
-    try:
-        ttest = [(isinstance(x, int) or isinstance(x, float) or (x is None)) for x in osc_params]
-        if (not np.all(ttest)):
-            raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + ":"+\
-                " the oscillations parameters must be int or float.")
-    except ValueError as error:
-        print(error)
-        print("Aborting execution...")
-        sys.exit(1)
+    if validate_osc_params:
+
+        try:
+            ttest = [(isinstance(x, int) or isinstance(x, float) or (x is None)) for x in osc_params]
+            if (not np.all(ttest)):
+                raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + ":"+\
+                    " the oscillations parameters must be int or float.")
+        except ValueError as error:
+            print(error)
+            print("Aborting execution...")
+            return 1
+
+    if validate_initial_position:
+
+        try:
+            if not ((isinstance(L0, int) or (isinstance(L0, float)))):
+                raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob_matter_std_potential:"+\
+                    " the initial neutrino position (L0) must be an int or float.")
+        except ValueError as error:
+            print(error)
+            print("Aborting execution...")
+            return 1
+
+    if validate_density:
+
+        try:
+            if (ratio_number_neutrons_to_protons < 0.0):
+                raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob_matter_std_potential:"+\
+                    " the ratio of neutrinos to protons (ratio_number_neutrons_to_protons) must" + \
+                    " be non-negative.")
+        except ValueError as error:
+            print(error)
+            print("Aborting execution...")
+            return 1
+
+        try:
+            if (electron_fraction < 0.0):
+                raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob_matter_std_potential:"+\
+                    " the ratio of electrons to protons + neutrons (electron_fraction) must be " + \
+                    "non-negative.")
+        except ValueError as error:
+            print(error)
+            print("Aborting execution...")
+            return 1
+
+        try:
+            if ((callable(rho_func)) and (len(signature(rho_func).parameters) > 1)):
+                raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob_matter_std_potential:"+\
+                    " the provided rho_func is a function of more than one parameter.")
+        except ValueError as error:
+            print(error)
+            print("Aborting execution...")
+            return 1
+
+        rho_test = rho_func(L0) if callable(rho_func) else rho_func
+
+        try:
+            if (rho_test < 0.0):
+                raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob_matter_std_potential:"+\
+                    " rho_func must be non-negative.")
+        except ValueError as error:
+            print(error)
+            print("Aborting execution...")
+            return 1
+
+        try:
+            if not (isinstance(rho_test, int) or isinstance(rho_test, float)):
+                raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob_matter_std_potential:"+\
+                    " rho_func must be a float (or int) or must return a float (or int).")
+        except ValueError as error:
+            print(error)
+            print("Aborting execution...")
+            return 1
 
     return 0
 
@@ -615,6 +683,104 @@ def values_to_unspecified_osc_params(
         D31 = D31 if (D31 is not None) else default_osc_params['D31'] 
 
     return s12, s23, s13, dCP, D21, D31
+
+
+def unpack_oscillation_params_from_dict(num_flavors: int, osc_params: Dict) -> np.ndarray:
+    """Unpack oscillation parameters from the osc_params dict
+    """
+
+    if (num_flavors == 2):
+        try:
+            sth = osc_params['sth']
+            Dm2 = osc_params['Dm2']
+            return np.array([sth, Dm2])
+        except KeyError :
+            print(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob_matter_std_potential:"+ \
+                    " since num_flavors == 2, the dictionary of oscillation parameters " + \
+                    "(osc_params) must contain the keys 'sth' and 'Dm2'.")
+            print("Aborting execution...")
+            sys.exit(1)
+    elif (num_flavors == 3):
+        try:
+            s12 = osc_params['s12']
+            s23 = osc_params['s23']
+            s13 = osc_params['s13']
+            dCP = osc_params['dCP']
+            D21 = osc_params['D21']
+            D31 = osc_params['D31']
+            return np.array([s12, s23, s13, dCP, D21, D31])
+        except KeyError:
+            print(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob_matter_std_potential:"+\
+                    " since num_flavors == 3, the dictionary of oscillation parameters " + \
+                    "(osc_params) must contain the keys 's12', 's23', 's13', 'dCP', 'D21', and " + \
+                    "'D31', even if they are None.")
+            print("Aborting execution...")
+            sys.exit(1)
+    elif (num_flavors == 4):
+        try:
+            s12 = osc_params['s12']
+            s23 = osc_params['s23']
+            s13 = osc_params['s13']
+            dCP = osc_params['dCP']
+            s14 = osc_params['s14']
+            d14 = osc_params['d14']
+            s24 = osc_params['s24']
+            d24 = osc_params['d24']
+            s34 = osc_params['s34']
+            D21 = osc_params['D21']
+            D31 = osc_params['D31']
+            D41 = osc_params['D41']
+            return np.array([s12, s23, s13, dCP, s14, d14, s24, d24, s34, D21, D31, D41])
+        except KeyError:
+            print(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob_matter_std_potential:"+\
+                    " since num_flavors == 4, the dictionary of oscillation parameters " + \
+                    "(osc_params) must contain the keys 's12', 's23', 's13', 'dCP', 'D21', and " + \
+                    "'D31' (even if they are None); and 's14', 'd14', 's24', 'd24', 's34', and " + \
+                    "'D41'.")
+            print("Aborting execution...")
+            sys.exit(1)
+    elif (num_flavors == 5):
+        try:
+            s12 = osc_params['s12']
+            s23 = osc_params['s23']
+            s13 = osc_params['s13']
+            dCP = osc_params['dCP']
+            s14 = osc_params['s14']
+            d14 = osc_params['d14']
+            s15 = osc_params['s15']
+            d15 = osc_params['d15']
+            s24 = osc_params['s24']
+            d24 = osc_params['d24']
+            s25 = osc_params['s25']
+            s34 = osc_params['s34']
+            s35 = osc_params['s35']
+            d35 = osc_params['d35']
+            D21 = osc_params['D21']
+            D31 = osc_params['D31']
+            D41 = osc_params['D41']
+            D51 = osc_params['D51']
+            return np.array([s12, s23, s13, dCP, s14, d14, s15, d15, s24, d24, s25, s34, s35, d35, \
+                D21, D31, D41, D51])
+        except KeyError:
+            print(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob_matter_std_potential:" + \
+                    " since num_flavors == 5, the dictionary of oscillation parameters " + \
+                    "(osc_params) must contain the keys 's12', 's23', 's13', 'dCP', 'D21', and " + \
+                    "'D31' (even if they are None); and 's14', 'd14', 's15', 'd15', 's24', " + \
+                    "'d24', 's25', 's34', 's35', 'd35', 'D41', and 'D51'.")
+            print("Aborting execution...")
+            sys.exit(1)
+    elif (num_flavors > gd.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS):
+        print(gd.WARNING_MSG_IN_COLOR + " oscprob.osc_prob_matter_std_potential: the number of " + \
+            "flavors passed (num_flavors = " + str(num_flavors) + \
+            ") exceeds the maximum number for which Magnus has predefined vacuum Hamiltonians " + \
+            "(globaldefs.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS = " + \
+            str(gd.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS) + "). Will use the Hamiltonian provided " + \
+            "in h_vac_energy_indep.")
+        if (h_vac_energy_indep is None):
+            print(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob_matter_std_potential: provided " + \
+                "h_vac_energy_indep is None.")
+            print("Aborting execution...")
+            sys.exit(1)
 
 
 def compute_evolution_operator(
@@ -3532,173 +3698,26 @@ def osc_prob_matter_std_potential(
     **kwargs
 ) -> Union[float, np.ndarray]:
 
-    # Unpack oscillation parameters from the osc_params dict
-    if (num_flavors == 2):
-        try:
-            sth = osc_params['sth']
-            Dm2 = osc_params['Dm2']
-            osc_params_list = [sth, Dm2]
-        except KeyError :
-            print(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob_matter_std_potential:"+ \
-                    " since num_flavors == 2, the dictionary of oscillation parameters " + \
-                    "(osc_params) must contain the keys 'sth' and 'Dm2'.")
-            print("Aborting execution...")
-            sys.exit(1)
-    elif (num_flavors == 3):
-        try:
-            s12 = osc_params['s12']
-            s23 = osc_params['s23']
-            s13 = osc_params['s13']
-            dCP = osc_params['dCP']
-            D21 = osc_params['D21']
-            D31 = osc_params['D31']
-            osc_params_list = [s12, s23, s13, dCP, D21, D31]
-        except KeyError:
-            print(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob_matter_std_potential:"+\
-                    " since num_flavors == 3, the dictionary of oscillation parameters " + \
-                    "(osc_params) must contain the keys 's12', 's23', 's13', 'dCP', 'D21', and " + \
-                    "'D31', even if they are None.")
-            print("Aborting execution...")
-            sys.exit(1)
-    elif (num_flavors == 4):
-        try:
-            s12 = osc_params['s12']
-            s23 = osc_params['s23']
-            s13 = osc_params['s13']
-            dCP = osc_params['dCP']
-            s14 = osc_params['s14']
-            d14 = osc_params['d14']
-            s24 = osc_params['s24']
-            d24 = osc_params['d24']
-            s34 = osc_params['s34']
-            D21 = osc_params['D21']
-            D31 = osc_params['D31']
-            D41 = osc_params['D41']
-            osc_params_list = [s12, s23, s13, dCP, s14, d14, s24, d24, s34, D21, D31, D41]
-        except KeyError:
-            print(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob_matter_std_potential:"+\
-                    " since num_flavors == 4, the dictionary of oscillation parameters " + \
-                    "(osc_params) must contain the keys 's12', 's23', 's13', 'dCP', 'D21', and " + \
-                    "'D31' (even if they are None); and 's14', 'd14', 's24', 'd24', 's34', and " + \
-                    "'D41'.")
-            print("Aborting execution...")
-            sys.exit(1)
-    elif (num_flavors == 5):
-        try:
-            s12 = osc_params['s12']
-            s23 = osc_params['s23']
-            s13 = osc_params['s13']
-            dCP = osc_params['dCP']
-            s14 = osc_params['s14']
-            d14 = osc_params['d14']
-            s15 = osc_params['s15']
-            d15 = osc_params['d15']
-            s24 = osc_params['s24']
-            d24 = osc_params['d24']
-            s25 = osc_params['s25']
-            s34 = osc_params['s34']
-            s35 = osc_params['s35']
-            d35 = osc_params['d35']
-            D21 = osc_params['D21']
-            D31 = osc_params['D31']
-            D41 = osc_params['D41']
-            D51 = osc_params['D51']
-            osc_params_list = [s12, s23, s13, dCP, s14, d14, s15, d15, s24, d24, s25, s34, s35, d35,
-                D21, D31, D41, D51]
-        except KeyError:
-            print(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob_matter_std_potential:" + \
-                    " since num_flavors == 5, the dictionary of oscillation parameters " + \
-                    "(osc_params) must contain the keys 's12', 's23', 's13', 'dCP', 'D21', and " + \
-                    "'D31' (even if they are None); and 's14', 'd14', 's15', 'd15', 's24', " + \
-                    "'d24', 's25', 's34', 's35', 'd35', 'D41', and 'D51'.")
-            print("Aborting execution...")
-            sys.exit(1)
-    elif (num_flavors > MAGNUS_MAX_PREDEFINED_NUM_FLAVORS):
-        print(gd.WARNING_MSG_IN_COLOR + " oscprob.osc_prob_matter_std_potential: the number of " + \
-            "flavors passed (num_flavors = " + str(num_flavors) + \
-            ") exceeds the maximum number for which Magnus has predefined vacuum Hamiltonians " + \
-            "(globaldefs.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS = " + \
-            str(gd.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS) + "). Will use the Hamiltonian provided " + \
-            "in h_vac_energy_indep.")
-        if (h_vac_energy_indep is None):
-            print(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob_matter_std_potential: provided " + \
-                "h_vac_energy_indep is None.")
-            print("Aborting execution...")
-            sys.exit(1)
+    # Unpack oscillation parameters from the osc_params dict, check if all values are available
+    osc_params_list = unpack_oscillation_params_from_dict(num_flavors, osc_params)
+    if num_flavors == 2:
+        sth, Dm2 = osc_params_list
+    elif num_flavors == 3:
+        s12, s23, s13, dCP, D21, D31 = osc_params_list
+    elif num_flavors == 4:
+        s12, s23, s13, dCP, s14, d14, s24, d24, s34, D21, D31, D41 = osc_params_list
+    elif num_flavors == 5:
+        s12, s23, s13, dCP, s14, d14, s15, d15, s24, d24, s25, s34, s35, d35, D21, D31, D41, D51 = \
+            osc_params_list
 
     if validate_input:
-
-        # try:
-        #     if not (2 <= num_flavors <= 5):
-        #         raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob_matter_std_potential:"+\
-        #             " the number of flavors (num_flavors) that this function can handle is " + \
-        #             ">= 2 and <= 5.")
-        # except ValueError as error:
-        #     print(error)
-        #     print("Aborting execution...")
-        #     sys.exit(1)
-
-        try:
-            if (ratio_number_neutrons_to_protons < 0.0):
-                raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob_matter_std_potential:"+\
-                    " the ratio of neutrinos to protons (ratio_number_neutrons_to_protons) must" + \
-                    " be non-negative.")
-        except ValueError as error:
-            print(error)
-            print("Aborting execution...")
-            sys.exit(1)
-
-        try:
-            if (electron_fraction < 0.0):
-                raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob_matter_std_potential:"+\
-                    " the ratio of electrons to protons + neutrons (electron_fraction) must be " + \
-                    "non-negative.")
-        except ValueError as error:
-            print(error)
-            print("Aborting execution...")
-            sys.exit(1)
-
-        try:
-            if not ((isinstance(L0, int) or (isinstance(L0, float)))):
-                raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob_matter_std_potential:"+\
-                    " the initial neutrino position (L0) must be an int or float.")
-        except ValueError as error:
-            print(error)
-            print("Aborting execution...")
-            sys.exit(1)
-
         # The function name is sys._getframe().f_code.co_name
-        if validate_input_battery(sys._getframe().f_code.co_name, energy, L, num_flavors, nu_i, 
-            nu_f, osc_params_list) == 1:
-            sys.exit(1)
-
-        try:
-            if ((callable(rho_func)) and (len(signature(rho_func).parameters) > 1)):
-                raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob_matter_std_potential:"+\
-                    " the provided rho_func is a function of more than one parameter.")
-        except ValueError as error:
-            print(error)
-            print("Aborting execution...")
-            sys.exit(1)
-
-        rho_test = rho_func(L0) if callable(rho_func) else rho_func
-
-        try:
-            if (rho_test < 0.0):
-                raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob_matter_std_potential:"+\
-                    " rho_func must be non-negative.")
-        except ValueError as error:
-            print(error)
-            print("Aborting execution...")
-            sys.exit(1)
-
-        try:
-            if not (isinstance(rho_test, int) or isinstance(rho_test, float)):
-                raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob_matter_std_potential:"+\
-                    " rho_func must be a float (or int) or must return a float (or int).")
-        except ValueError as error:
-            print(error)
-            print("Aborting execution...")
+        if validate_input_battery(sys._getframe().f_code.co_name, energy=energy, L=L, L0=L0,
+            num_flavors=num_flavors, nu_i=nu_i, nu_f=nu_f, osc_params=osc_params_list, 
+            rho_func=rho_func, ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
+            electron_fraction=electron_fraction, validate_energy_and_L=True, 
+            validate_flavor_indices=True, validate_osc_params=True, validate_initial_position=True,
+            validate_density=True) == 1:
             sys.exit(1)
 
     # If any of the standard oscillation parameters has not been given a value, assign to it the 
@@ -3942,25 +3961,25 @@ if __name__ == "__main__":
 
     # # Four-neutrino oscillations in exponentially falling matter density profile
     # np.set_printoptions(precision=3)
-    # s14, s24, s34 = 0.1, 0.2, 0.3
-    # d14, d24 = np.radians(10.0), np.radians(100.0)
-    # D41 = 0.1 # [eV^2]
-    # rho_central = 10.0*gd.UNIT_G_PER_CM3
-    # l_scale = 200.0*gd.UNIT_KM
-    # baseline = 50.*gd.UNIT_KM # km in natural units [eV^{-1}]
-    # energy = 10.*gd.UNIT_MEV # [eV]
-    # # print(osc_prob_4nu_matter_exp_density(energy, baseline, 0.0, rho_central, l_scale, 
-    # #     s14, s24, s34, d14, d24, D41, verbose=2))
+    s14, s24, s34 = 0.1, 0.2, 0.3
+    d14, d24 = np.radians(10.0), np.radians(100.0)
+    D41 = 0.1 # [eV^2]
+    rho_central = 10.0*gd.UNIT_G_PER_CM3
+    l_scale = 200.0*gd.UNIT_KM
+    baseline = 50.*gd.UNIT_KM # km in natural units [eV^{-1}]
+    energy = 10.*gd.UNIT_MEV # [eV]
+    # print(osc_prob_4nu_matter_exp_density(energy, baseline, 0.0, rho_central, l_scale, 
+    #     s14, s24, s34, d14, d24, D41, verbose=2))
     # print(osc_prob_4nu_vacuum(energy, baseline, s14, s24, s34, d14, d24, D41, nu_i=gd.NUE, 
     #     nu_f=gd.NUE, verbose=0))
-    # print(osc_prob_4nu_matter_constant_density(energy, baseline, rho_central, 
-    #     s14, s24, s34, d14, d24, D41, nu_i=gd.NUE, nu_f=gd.NUE, verbose=0))
-    # print(osc_prob_4nu_matter_exp_density(energy, baseline, 0.0, rho_central, 
-    #     1.0*gd.UNIT_KM, s14, s24, s34, d14, d24, D41, nu_i=gd.NUE, nu_f=gd.NUE, verbose=0))
-    # print(osc_prob_4nu_matter_exp_density(energy, baseline, 10.0*gd.UNIT_KM, rho_central, 
-    #     1.0*gd.UNIT_KM, s14, s24, s34, d14, d24, D41, nu_i=gd.NUE, nu_f=gd.NUE, verbose=0))
-    # print(osc_prob_4nu_matter_exp_density(energy, baseline, 0.0, rho_central, 
-    #     100.0*gd.UNIT_KM, s14, s24, s34, d14, d24, D41, nu_i=gd.NUE, nu_f=gd.NUE, verbose=0))
+    print(osc_prob_4nu_matter_constant_density(energy, baseline, rho_central, 
+        s14, s24, s34, d14, d24, D41, nu_i=gd.NUE, nu_f=gd.NUE, verbose=0))
+    print(osc_prob_4nu_matter_exp_density(energy, baseline, 0.0, rho_central, 
+        1.0*gd.UNIT_KM, s14, s24, s34, d14, d24, D41, nu_i=gd.NUE, nu_f=gd.NUE, verbose=0))
+    print(osc_prob_4nu_matter_exp_density(energy, baseline, 10.0*gd.UNIT_KM, rho_central, 
+        1.0*gd.UNIT_KM, s14, s24, s34, d14, d24, D41, nu_i=gd.NUE, nu_f=gd.NUE, verbose=0))
+    print(osc_prob_4nu_matter_exp_density(energy, baseline, 0.0, rho_central, 
+        100.0*gd.UNIT_KM, s14, s24, s34, d14, d24, D41, nu_i=gd.NUE, nu_f=gd.NUE, verbose=0))
 
     # Five-neutrino oscillations in exponentially falling matter density profile
     # np.set_printoptions(precision=3)
@@ -3972,9 +3991,9 @@ if __name__ == "__main__":
     # baseline = 50.*gd.UNIT_KM # km in natural units [eV^{-1}]
     # energy = 10.*gd.UNIT_MEV # [eV]
     # # print(osc_prob_5nu_matter_exp_density(energy, baseline, 0.0, rho_central, l_scale, 
-    #     # s14, s15, s24, s25, s34, s35, d14, d15, d24, d35, D41, D51, verbose=2))
-    # print(osc_prob_5nu_vacuum(energy, baseline, s14, s15, s24, s25, s34, s35, d14, d15, d24, d35, 
-    #     D41, D51, nu_i=gd.NUE, nu_f=gd.NUE, verbose=0))
+    # #     s14, s15, s24, s25, s34, s35, d14, d15, d24, d35, D41, D51, verbose=2))
+    # # print(osc_prob_5nu_vacuum(energy, baseline, s14, s15, s24, s25, s34, s35, d14, d15, d24, d35, 
+    # #     D41, D51, nu_i=gd.NUE, nu_f=gd.NUE, verbose=0))
     # print(osc_prob_5nu_matter_constant_density(energy, baseline, rho_central, 
     #     s14, s15, s24, s25, s34, s35, d14, d15, d24, d35, D41, D51, nu_i=gd.NUE, nu_f=gd.NUE, 
     #     verbose=0))
