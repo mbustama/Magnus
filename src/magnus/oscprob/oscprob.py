@@ -252,7 +252,7 @@ with distance:
 
 """
 
-__version__ = '0.1'
+__version__ = '0.10'
 __author__ = 'Mauricio Bustamante'
 
 
@@ -2648,6 +2648,10 @@ def osc_prob_2nu_matter_constant_density(
     density_is_of_number_of_electrons: Optional[bool]=False,
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
     validate_input: Optional[bool]=True, 
+    save_log: Optional[bool]=False, 
+    filename_log: Optional[str]='./out.log',
+    file_log: Optional[TextIOWrapper]=None, 
+    close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
     **kwargs
 ) -> Union[float, np.ndarray]:
@@ -2695,6 +2699,10 @@ def osc_prob_3nu_matter_constant_density(
     density_is_of_number_of_electrons: Optional[bool]=False,
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
     validate_input: Optional[bool]=True, 
+    save_log: Optional[bool]=False, 
+    filename_log: Optional[str]='./out.log',
+    file_log: Optional[TextIOWrapper]=None, 
+    close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
     **kwargs
 ) -> Union[float, np.ndarray]:
@@ -2716,6 +2724,10 @@ def osc_prob_3nu_matter_constant_density(
         density_is_of_number_of_electrons=density_is_of_number_of_electrons,
         default_osc_params_set_name=default_osc_params_set_name,
         validate_input=validate_input,
+        save_log=save_log,
+        filename_log=filename_log,
+        file_log=file_log,
+        close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
         **kwargs
     )  
@@ -2746,6 +2758,10 @@ def osc_prob_4nu_matter_constant_density(
     density_is_of_number_of_electrons: Optional[bool]=False,
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
     validate_input: Optional[bool]=True, 
+    save_log: Optional[bool]=False, 
+    filename_log: Optional[str]='./out.log',
+    file_log: Optional[TextIOWrapper]=None, 
+    close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
     **kwargs
 ) -> Union[float, np.ndarray]:
@@ -2768,6 +2784,10 @@ def osc_prob_4nu_matter_constant_density(
         density_is_of_number_of_electrons=density_is_of_number_of_electrons,
         default_osc_params_set_name=default_osc_params_set_name,
         validate_input=validate_input,
+        save_log=save_log,
+        filename_log=filename_log,
+        file_log=file_log,
+        close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
         **kwargs
     )  
@@ -2804,6 +2824,10 @@ def osc_prob_5nu_matter_constant_density(
     density_is_of_number_of_electrons: Optional[bool]=False,
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
     validate_input: Optional[bool]=True, 
+    save_log: Optional[bool]=False, 
+    filename_log: Optional[str]='./out.log',
+    file_log: Optional[TextIOWrapper]=None, 
+    close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
     **kwargs
 ) -> Union[float, np.ndarray]:
@@ -2827,6 +2851,10 @@ def osc_prob_5nu_matter_constant_density(
         density_is_of_number_of_electrons=density_is_of_number_of_electrons,
         default_osc_params_set_name=default_osc_params_set_name,
         validate_input=validate_input,
+        save_log=save_log,
+        filename_log=filename_log,
+        file_log=file_log,
+        close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
         **kwargs
     )  
@@ -3278,36 +3306,36 @@ def osc_prob_5nu_matter_exp_density(
     return
 
 
-def osc_prob_matter_exp_density(
-    H_func: Union[Callable, np.ndarray],
-    energy: Union[float, list, np.ndarray], 
-    L: Union[float, list, np.ndarray],
-    L0: Union[int, float], 
-    rho_central: Union[int, float], 
-    l_scale: Union[int, float],
-    s12: Optional[Union[int, float]]=None, 
-    s23: Optional[Union[int, float]]=None, 
-    s13: Optional[Union[int, float]]=None, 
-    dCP: Optional[Union[int, float]]=None, 
-    D21: Optional[Union[int, float]]=None, 
-    D31: Optional[Union[int, float]]=None, 
-    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0, 
-    electron_fraction: Optional[Union[int, float]]=0.5, 
-    nubar: Optional[bool]=False, 
-    nu_i: Optional[int]=None, 
-    nu_f: Optional[int]=None,
-    density_matter_is_in_g_per_cm3: Optional[bool]=False,
-    default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
-    validate_input: Optional[bool]=True, 
-    verbose: Optional[int]=0
-) -> Union[float, np.ndarray]:
-    r"""Compute and return the neutrino oscillation probability in 
-    matter with an exponentially falling density profile for a given
-    arbitrary Hamiltonian.
-    """
-    pass
+# def osc_prob_matter_exp_density(
+#     H_func: Union[Callable, np.ndarray],
+#     energy: Union[float, list, np.ndarray], 
+#     L: Union[float, list, np.ndarray],
+#     L0: Union[int, float], 
+#     rho_central: Union[int, float], 
+#     l_scale: Union[int, float],
+#     s12: Optional[Union[int, float]]=None, 
+#     s23: Optional[Union[int, float]]=None, 
+#     s13: Optional[Union[int, float]]=None, 
+#     dCP: Optional[Union[int, float]]=None, 
+#     D21: Optional[Union[int, float]]=None, 
+#     D31: Optional[Union[int, float]]=None, 
+#     ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0, 
+#     electron_fraction: Optional[Union[int, float]]=0.5, 
+#     nubar: Optional[bool]=False, 
+#     nu_i: Optional[int]=None, 
+#     nu_f: Optional[int]=None,
+#     density_matter_is_in_g_per_cm3: Optional[bool]=False,
+#     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
+#     validate_input: Optional[bool]=True, 
+#     verbose: Optional[int]=0
+# ) -> Union[float, np.ndarray]:
+#     r"""Compute and return the neutrino oscillation probability in 
+#     matter with an exponentially falling density profile for a given
+#     arbitrary Hamiltonian.
+#     """
+#     pass
 
-    return
+#     return
 
 
 def osc_prob_2nu_earth(
@@ -3946,7 +3974,7 @@ if __name__ == "__main__":
     # print(osc_prob_4nu_matter_exp_density(energy, baseline, 0.0, rho_central, 
     #     100.0*gd.UNIT_KM, s14, s24, s34, d14, d24, D41, nu_i=gd.NUE, nu_f=gd.NUE, verbose=0))
 
-    # Five-neutrino oscillations in exponentially falling matter density profile
+    # # Five-neutrino oscillations in exponentially falling matter density profile
     # np.set_printoptions(precision=3)
     # s14, s15, s24, s25, s34, s35 = 0.1, 0.1, 0.2, 0.2, 0.3, 0.3
     # d14, d15, d24, d35 = np.radians([10.0, 20.0, 30.0, 40.0])
