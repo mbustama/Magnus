@@ -341,6 +341,7 @@ def print_run_parameters(
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log', 
+    new_recursion_limit: Optional[int]=5000,
     verbose: Optional[int]=0, 
     file_log: Optional[TextIOWrapper]=None
 ):
@@ -384,6 +385,7 @@ def print_run_parameters(
         print("   validate_input = " + str(validate_input), file=f)
         print("   save_log = " + str(save_log), file=f)
         print("   filename_log = " + filename_log, file=f)
+        print("   new_recursion_limit = " + str(new_recursion_limit), file=f)
         print("   verbose = " + str(verbose), file=f)
 
     return
@@ -852,6 +854,7 @@ def osc_prob(
     filename_log: Optional[str]='./out.log',
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
+    new_recursion_limit: Optional[int]=5000,
     verbose: Optional[int]=0, 
     **kwargs
 ) -> np.ndarray:
@@ -1081,7 +1084,18 @@ def osc_prob(
             growth_factor_n_tpts_per_slab, max_num_loops, min_n_slabs, max_n_slabs, 
             min_n_tpts_per_slab, max_n_tpts_per_slab, iterate_over_magnus_exp_order,
             min_magnus_exp_order, max_magnus_exp_order, validate_input, save_log, filename_log, 
-            verbose, file_log)
+            new_recursion_limit, verbose, file_log)
+
+    # Set the maximum recursion limit higher if requested (i.e., if new_recursion_limit is not None)
+    if new_recursion_limit is not None:
+        old_recursion_limit = sys.getrecursionlimit() 
+        if new_recursion_limit > old_recursion_limit:
+            sys.setrecursionlimit(new_recursion_limit)  
+            if verbose > 0:
+                for f in [None, file_log] if save_log else [None]:
+                    print("\n" + gd.WARNING_MSG_IN_COLOR + " oscprob.osc_prob: rasing recursion" + \
+                            " limit to new_recursion_limit = " + str(new_recursion_limit) + \
+                            " (was " + str(old_recursion_limit) + ").", file=f)
 
     # By default, osc_prob is run using a fixed order of the Magnus expansion (magnus_exp_order), 
     # and the tolerance is achieved (see below) only by changing the number of slabs (n_slabs), of
@@ -1357,7 +1371,7 @@ def osc_prob_iterate_over_magnus_exp_order(
             sys.exit(1)
 
     # Do this to prevent printing the Magnus header multiple times
-    verbose = 1 if verbose > 0 else verbose
+    # verbose = 1 if verbose > 0 else verbose
 
     # Call osc_prob to compute the probabilities using increasing order of the Magnus expansion
     # (magnus_exp_order) until, ideally, the requested tolerance (rtol, atol) is reached.  See
@@ -1430,6 +1444,7 @@ def osc_prob_energy_baseline(
     filename_log: Optional[str]='./out.log',
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
+    new_recursion_limit: Optional[int]=5000,
     verbose: Optional[int]=0,
     **kwargs
 ) -> Union[int, float, np.ndarray]:
@@ -1511,7 +1526,7 @@ def osc_prob_energy_baseline(
                 max_magnus_exp_order=max_magnus_exp_order,
                 validate_input=validate_input, save_log=save_log, filename_log=filename_log,
                 file_log=file_log, close_file_log_upon_exit=close_file_log_upon_exit,
-                verbose=verbose)[nu_i][nu_f]
+                new_recursion_limit=new_recursion_limit, verbose=verbose)[nu_i][nu_f]
             for xy in zip(energy, L)]).__getitem__(0 if return_float else slice(None))
         else: # Select the full probability matrix
             return np.array([osc_prob(H_func, L0, xy[1], 
@@ -1526,7 +1541,7 @@ def osc_prob_energy_baseline(
                 max_magnus_exp_order=max_magnus_exp_order,
                 validate_input=validate_input, save_log=save_log, filename_log=filename_log,
                 file_log=file_log, close_file_log_upon_exit=close_file_log_upon_exit,
-                verbose=verbose)
+                new_recursion_limit=new_recursion_limit, verbose=verbose)
             for xy in zip(energy, L)]).__getitem__(0 if return_float else slice(None))
     else: # H_func is a function of one or more parameters 
         if (len(signature(H_func).parameters) == 2): # H_func is a function of two parameters
@@ -1545,7 +1560,7 @@ def osc_prob_energy_baseline(
                     max_magnus_exp_order=max_magnus_exp_order,
                     validate_input=validate_input, save_log=save_log, filename_log=filename_log,
                     file_log=file_log, close_file_log_upon_exit=close_file_log_upon_exit,
-                    verbose=verbose)[nu_i][nu_f]
+                    new_recursion_limit=new_recursion_limit, verbose=verbose)[nu_i][nu_f]
                 for xy in zip(energy, L)]).__getitem__(0 if return_float else slice(None))
             else: # Select the full probability matrix
                 return np.array([osc_prob(lambda l: H_func(xy[0], l), L0, xy[1], 
@@ -1561,7 +1576,7 @@ def osc_prob_energy_baseline(
                     max_magnus_exp_order=max_magnus_exp_order,
                     validate_input=validate_input, save_log=save_log, filename_log=filename_log,
                     file_log=file_log, close_file_log_upon_exit=close_file_log_upon_exit,
-                    verbose=verbose)
+                    new_recursion_limit=new_recursion_limit, verbose=verbose)
                 for xy in zip(energy, L)]).__getitem__(0 if return_float else slice(None))
         elif (len(signature(H_func).parameters) == 1): # H_func is a function of one parameter
             if H_func_is_function_only_of_energy: # H_func is a function only of energy
@@ -1580,7 +1595,7 @@ def osc_prob_energy_baseline(
                         max_magnus_exp_order=max_magnus_exp_order,
                         validate_input=validate_input, save_log=save_log, filename_log=filename_log,
                         file_log=file_log, close_file_log_upon_exit=close_file_log_upon_exit,
-                        verbose=verbose)[nu_i][nu_f]
+                        new_recursion_limit=new_recursion_limit, verbose=verbose)[nu_i][nu_f]
                     for xy in zip(energy, L)]).__getitem__(0 if return_float else slice(None))
                 else: # Select the full probability matrix
                     return np.array([osc_prob(H_func(xy[0]), L0, xy[1], 
@@ -1597,7 +1612,7 @@ def osc_prob_energy_baseline(
                         max_magnus_exp_order=max_magnus_exp_order,
                         validate_input=validate_input, save_log=save_log, filename_log=filename_log,
                         file_log=file_log, close_file_log_upon_exit=close_file_log_upon_exit,
-                        verbose=verbose)
+                        new_recursion_limit=new_recursion_limit, verbose=verbose)
                     for xy in zip(energy, L)]).__getitem__(0 if return_float else slice(None))
             else: # H_func is a function only of position
                 if ((nu_i is not None) and (nu_f is not None)): # Select one oscillation channel
@@ -1615,7 +1630,7 @@ def osc_prob_energy_baseline(
                         max_magnus_exp_order=max_magnus_exp_order,
                         validate_input=validate_input, save_log=save_log, filename_log=filename_log,
                         file_log=file_log, close_file_log_upon_exit=close_file_log_upon_exit,
-                        verbose=verbose)[nu_i][nu_f]
+                        new_recursion_limit=new_recursion_limit, verbose=verbose)[nu_i][nu_f]
                     for xy in zip(energy, L)]).__getitem__(0 if return_float else slice(None))
                 else: # Select the full probability matrix
                     return np.array([osc_prob(lambda l: H_func(l), L0, xy[1], 
@@ -1632,7 +1647,7 @@ def osc_prob_energy_baseline(
                         max_magnus_exp_order=max_magnus_exp_order,
                         validate_input=validate_input, save_log=save_log, filename_log=filename_log,
                         file_log=file_log, close_file_log_upon_exit=close_file_log_upon_exit,
-                        verbose=verbose)
+                        new_recursion_limit=new_recursion_limit, verbose=verbose)
                     for xy in zip(energy, L)]).__getitem__(0 if return_float else slice(None))
     
 
@@ -1727,7 +1742,7 @@ def osc_prob_vacuum(
 
     # Generate the probabilities for all pairs of energy and baseline in zip(energy, L).
     return osc_prob_energy_baseline(htot, energy, L, 0.0, nu_i, nu_f, 
-        htot_is_function_only_of_energy)
+        htot_is_function_only_of_energy, new_recursion_limit=None)
 
 
 def osc_prob_matter_std_potential(
@@ -1768,6 +1783,7 @@ def osc_prob_matter_std_potential(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
+    new_recursion_limit: Optional[int]=5000,
     **kwargs
 ) -> Union[float, np.ndarray]:
     r"""Computes and returns neutrino oscillation probabilities for 
@@ -1850,7 +1866,17 @@ def osc_prob_matter_std_potential(
 
     # Generate the probabilities for all pairs of energy and baseline in zip(energy, L).
     return osc_prob_energy_baseline(htot, energy, L, L0, nu_i, nu_f,
-        htot_is_function_only_of_energy)
+        htot_is_function_only_of_energy, t_slab_edges=t_slab_edges, 
+        magnus_exp_order=magnus_exp_order, n_jobs=n_jobs, integration_method=integration_method,
+        rtol=rtol, atol=atol, growth_factor_n_slabs=growth_factor_n_slabs,
+        growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
+        max_num_loops=max_num_loops, min_n_slabs=min_n_slabs, max_n_slabs=max_n_slabs,
+        min_n_tpts_per_slab=min_n_tpts_per_slab, max_n_tpts_per_slab=max_n_tpts_per_slab,
+        iterate_over_magnus_exp_order=iterate_over_magnus_exp_order,
+        min_magnus_exp_order=min_magnus_exp_order, max_magnus_exp_order=max_magnus_exp_order,
+        validate_input=validate_input, save_log=save_log, filename_log=filename_log,
+        file_log=file_log, close_file_log_upon_exit=close_file_log_upon_exit,
+        new_recursion_limit=new_recursion_limit, verbose=verbose, **kwargs)
 
 
 def osc_prob_2nu_vacuum(
@@ -2688,6 +2714,7 @@ def osc_prob_2nu_matter_constant_density(
         density_is_of_number_of_electrons=density_is_of_number_of_electrons,
         default_osc_params_set_name=default_osc_params_set_name,
         validate_input=validate_input,
+        new_recursion_limit=None,
         verbose=verbose,
         **kwargs
     )  
@@ -2909,6 +2936,7 @@ def osc_prob_2nu_matter_exp_density(
     filename_log: Optional[str]='./out.log',
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
+    new_recursion_limit: Optional[int]=5000,
     verbose: Optional[int]=0,
     **kwargs
 ) -> Union[float, np.ndarray]:
@@ -2970,6 +2998,7 @@ def osc_prob_2nu_matter_exp_density(
         filename_log=filename_log,
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
+        new_recursion_limit=new_recursion_limit,
         verbose=verbose,
         **kwargs
     )  
@@ -3015,6 +3044,7 @@ def osc_prob_3nu_matter_exp_density(
     filename_log: Optional[str]='./out.log',
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
+    new_recursion_limit: Optional[int]=5000,
     verbose: Optional[int]=0,
     **kwargs
 ) -> Union[float, np.ndarray]:
@@ -3076,6 +3106,7 @@ def osc_prob_3nu_matter_exp_density(
         filename_log=filename_log,
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
+        new_recursion_limit=new_recursion_limit,
         verbose=verbose,
         **kwargs
     )  
@@ -3129,6 +3160,7 @@ def osc_prob_4nu_matter_exp_density(
     filename_log: Optional[str]='./out.log',
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
+    new_recursion_limit: Optional[int]=5000,
     verbose: Optional[int]=0,
     **kwargs
 ) -> Union[float, np.ndarray]:
@@ -3191,6 +3223,7 @@ def osc_prob_4nu_matter_exp_density(
         filename_log=filename_log,
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
+        new_recursion_limit=new_recursion_limit,
         verbose=verbose,
         **kwargs
     )  
@@ -3249,6 +3282,7 @@ def osc_prob_5nu_matter_exp_density(
     filename_log: Optional[str]='./out.log',
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
+    new_recursion_limit: Optional[int]=5000,
     verbose: Optional[int]=0,
     **kwargs
 ) -> Union[float, np.ndarray]:
@@ -3312,6 +3346,7 @@ def osc_prob_5nu_matter_exp_density(
         filename_log=filename_log,
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
+        new_recursion_limit=new_recursion_limit,
         verbose=verbose,
         **kwargs
     )  
@@ -3562,15 +3597,38 @@ def osc_prob_earth(
 
 
 def osc_prob_2nu_sun(
-    costhz: Union[int, float],
-    energy: Union[int, float, list, np.ndarray], 
-    sth: Union[int, float], 
-    Dm2: Union[int, float], 
+    energy: Union[float, list, np.ndarray], 
+    L: Union[float, list, np.ndarray],
+    L0: Union[int, float], 
+    sth: Union[int, float],
+    Dm2: Union[int, float],
     nubar: Optional[bool]=False, 
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
+    default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
+    magnus_exp_order: Optional[int]=4, 
+    n_jobs: Optional[int]=1, 
+    integration_method: Optional[str]='trapezoid', 
+    rtol: Optional[Union[int, float]]=1.e-2, 
+    atol: Optional[Union[int, float]]=1.e-2, 
+    growth_factor_n_slabs: Optional[Union[int, float]]=1.5, 
+    growth_factor_n_tpts_per_slab: Optional[Union[int, float]]=2.0, 
+    max_num_loops: Optional[int]=50, 
+    min_n_slabs: Optional[int]=100, 
+    max_n_slabs: Optional[int]=2000, 
+    min_n_tpts_per_slab: Optional[int]=10, 
+    max_n_tpts_per_slab: Optional[int]=500, 
+    iterate_over_magnus_exp_order: Optional[bool]=False,
+    min_magnus_exp_order: Optional[int]=1,
+    max_magnus_exp_order: Optional[int]=gd.MAGNUS_EXP_ORDER_MAX,
     validate_input: Optional[bool]=True, 
-    verbose: Optional[int]=0
+    save_log: Optional[bool]=False, 
+    filename_log: Optional[str]='./out.log',
+    file_log: Optional[TextIOWrapper]=None, 
+    close_file_log_upon_exit: Optional[bool]=True,
+    new_recursion_limit: Optional[int]=5000,
+    verbose: Optional[int]=0,
+    **kwargs
 ) -> Union[float, np.ndarray]:
     """Compute and return the two-neutrino oscillation probability 
     for neutrinos inside the Sun.
@@ -3598,9 +3656,54 @@ def osc_prob_2nu_sun(
     --------
     """
 
-    pass
-
-    return 
+    try:
+        return osc_prob_2nu_matter_exp_density(
+            energy=energy,
+            L=L,
+            L0=L0,
+            rho_central=gd.NUM_DENSITY_E_SUN_CENTRAL,
+            l_scale=gd.L_SCALE_SUN,
+            sth=sth,
+            Dm2=Dm2,
+            nubar=nubar,
+            nu_i=nu_i,
+            nu_f=nu_f,
+            density_is_of_number_of_electrons=True,
+            default_osc_params_set_name=default_osc_params_set_name,
+            magnus_exp_order=magnus_exp_order,
+            n_jobs=n_jobs,
+            integration_method=integration_method,
+            rtol=rtol,
+            atol=atol,
+            growth_factor_n_slabs=growth_factor_n_slabs,
+            growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
+            max_num_loops=max_num_loops,
+            min_n_slabs=min_n_slabs,
+            max_n_slabs=max_n_slabs,
+            min_n_tpts_per_slab=min_n_tpts_per_slab,
+            max_n_tpts_per_slab=max_n_tpts_per_slab,
+            iterate_over_magnus_exp_order=iterate_over_magnus_exp_order,
+            min_magnus_exp_order=min_magnus_exp_order,
+            max_magnus_exp_order=max_magnus_exp_order,
+            validate_input=validate_input,
+            save_log=save_log,
+            filename_log=filename_log,
+            file_log=file_log,
+            close_file_log_upon_exit=close_file_log_upon_exit,
+            new_recursion_limit=new_recursion_limit,
+            verbose=verbose,
+            **kwargs)
+    except RecursionError:
+        print(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob_2nu_sun: error improvement too slow " + \
+            "and  maximum recursion reached. Consider calling osc_prob_2nu_sun with a higher " + \
+            "of new_recursion_limit (current value of maximum recursion is sys.getrecursionlimit"+ \
+            " = " + str(sys.getrecursionlimit()) + ". [Failing that, consider running with a " + \
+            "higher value of min_n_slabs (currently, min_n_slabs = " + str(min_n_slabs) + ") or" + \
+            " a lower requested tolerance (currently, rtol = " + str(rtol) + ", atol = " + \
+            str(atol) + ").  Also, consider running using multiple cores by inreasing n_jobs " + \
+            "(currently, n_jobs = " + str(n_jobs) + ".]")
+        print("Aborting execution...")
+        sys.exit(1)
 
 
 def osc_prob_3nu_sun(
@@ -4012,3 +4115,22 @@ if __name__ == "__main__":
     # print(osc_prob_5nu_matter_exp_density(energy, baseline, 0.0, rho_central, 
     #     100.0*gd.UNIT_KM, s14, s15, s24, s25, s34, s35, d14, d15, d24, d35, D41, D51, nu_i=gd.NUE, 
     #     nu_f=gd.NUE, verbose=0))
+
+    # Two-neutrino oscillations in the Sun
+    np.set_printoptions(precision=3)
+    sth = gd.S12_NO_BF_NUFIT_6_0
+    Dm2 = gd.D21_NO_BF_NUFIT_6_0 # [eV^2]
+    L0 = 0.1*gd.SUN_RADIUS*gd.UNIT_KM # km in natural units [eV^{-1}]
+    baseline = 1.0*gd.SUN_RADIUS*gd.UNIT_KM # km in natural units [eV^{-1}]
+    energy = 10.0*gd.UNIT_MEV # [eV]
+    print(osc_prob_2nu_sun(energy, baseline, L0, sth, Dm2, rtol=1.e-2, atol=1.e-2,
+        min_n_slabs=100, min_n_tpts_per_slab=10, growth_factor_n_slabs=1.5, 
+        growth_factor_n_tpts_per_slab=2.0, magnus_exp_order=3,
+        # min_magnus_exp_order=2, max_magnus_exp_order=6, iterate_over_magnus_exp_order=True,
+        n_jobs=10, verbose=2))
+    energy = (10.0+1.e-4)*gd.UNIT_MEV # [eV]
+    print(osc_prob_2nu_sun(energy, baseline, L0, sth, Dm2, rtol=1.e-2, atol=1.e-2,
+        min_n_slabs=100, min_n_tpts_per_slab=10, growth_factor_n_slabs=1.5, 
+        growth_factor_n_tpts_per_slab=2.0, magnus_exp_order=3,
+        # min_magnus_exp_order=2, max_magnus_exp_order=6, iterate_over_magnus_exp_order=True,
+        n_jobs=10, verbose=2))
