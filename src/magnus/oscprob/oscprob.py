@@ -691,7 +691,7 @@ def unpack_oscillation_params_from_dict(
     num_flavors: int,
     osc_params: Dict
 ) -> np.ndarray:
-    """Unpack oscillation parameters from the osc_params dict
+    r"""Unpack oscillation parameters from the osc_params dict
     """
 
     if (num_flavors == 2):
@@ -1433,6 +1433,12 @@ def osc_prob_energy_baseline(
     verbose: Optional[int]=0,
     **kwargs
 ) -> Union[int, float, np.ndarray]:
+    r"""Compute and return oscillation probabilities for given arrays of
+    neutrino energy and baseline, and an arbitrary Hamiltonian.
+
+    Serves as primordial directly for osc_prob_vacuum,
+    osc_prob_matter_std_potential, etc.
+    """
 
     try:
         if (isinstance(H_func, Callable) and (len(signature(H_func).parameters) > 2)):
@@ -1664,6 +1670,9 @@ def osc_prob_vacuum(
     verbose: Optional[int]=0,
     **kwargs
 ) -> Union[float, np.ndarray]:
+    r"""Computes and returns neutrino oscillation probabilities for 
+    oscillations in vacuum
+    """
 
     # Unpack oscillation parameters from the osc_params dict, check if all values are available
     # The function name is sys._getframe().f_code.co_name
@@ -1761,6 +1770,10 @@ def osc_prob_matter_std_potential(
     verbose: Optional[int]=0,
     **kwargs
 ) -> Union[float, np.ndarray]:
+    r"""Computes and returns neutrino oscillation probabilities for 
+    standard oscillations in matter, i.e., the matter potential is only
+    due to the coherent forward scattering of nu_e on electrons.
+    """
 
     # Unpack oscillation parameters from the osc_params dict, check if all values are available
     # The function name is sys._getframe().f_code.co_name
