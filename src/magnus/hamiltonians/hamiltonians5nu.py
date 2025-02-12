@@ -293,3 +293,51 @@ def hamiltonian_5nu_matter(VCC: float) -> np.ndarray:
 def hamiltonian_5nu_matter_td(l: float, VCC_func: Callable) -> np.ndarray:
     return hamiltonian_5nu_matter(VCC_func(l))
 
+
+def hamiltonian_5nu_nsi(
+    VCC: float,
+    eps_ee: float, 
+    eps_em: complex, 
+    eps_et: complex, 
+    eps_es1: complex, 
+    eps_es2: complex, 
+    eps_mm: float, 
+    eps_mt: complex, 
+    eps_ms1: complex, 
+    eps_ms2: complex, 
+    eps_tt: float,
+    eps_ts1: complex, 
+    eps_ts2: complex, 
+    eps_s1s1: float, 
+    eps_s1s2: complex, 
+    eps_s2s2: float
+) -> np.ndarray:
+    r"""Returns the five-neutrino Hamiltonian for oscillations w/ NSI.
+
+    Computes and returns the 3x3 complex three-neutrino Hamiltonian for oscillations with 
+    non-standard interactions (NSI) in matter with constant density.
+
+    Parameters
+    ----------
+    h_vacuum_energy_independent : list
+        Energy-independent part of the two-neutrino Hamiltonian for oscillations in vacuum.  This is
+        computed by the routine hamiltonian_2nu_vacuum_energy_independent.
+    energy : float
+        Neutrino energy.
+    VCC : float
+        Potential due to charged-current interactions of nu_e with electrons.
+    eps : list
+        Vector of NSI strength parameters: eps = eps_ee, eps_em, eps_et, eps_mm, eps_mt, eps_tt.
+
+    Returns
+    -------
+    list
+        Hamiltonian 3x3 matrix.
+    """
+    return VCC * np.array([
+        [eps_ee, eps_em, eps_et, eps_es1, eps_es2], 
+        [np.conj(eps_em), eps_mm, eps_mt, eps_ms1, eps_ms2],
+        [np.conj(eps_et), np.conj(eps_mt), eps_tt, eps_ts1, eps_ts2],
+        [np.conj(eps_es1), np.conj(eps_ms1), np.conj(eps_ts1), eps_s1s1, eps_s1s2],
+        [np.conj(eps_es2), np.conj(eps_ms2), np.conj(eps_ts2), np.conj(eps_s1s2), eps_s2s2]
+        ], dtype=np.complex128)
