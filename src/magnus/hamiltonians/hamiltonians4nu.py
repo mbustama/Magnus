@@ -207,8 +207,20 @@ def hamiltonian_4nu_matter_td(l: float, VCC_func: Callable) -> np.ndarray:
     return hamiltonian_4nu_matter(VCC_func(l))
 
 
-def hamiltonian_4nu_nsi(VCC: float, eps: Union[list, np.ndarray]) -> np.ndarray:
-    r"""Returns the three-neutrino Hamiltonian for oscillations w/ NSI.
+def hamiltonian_4nu_nsi(
+    VCC: float,
+    eps_ee: float, 
+    eps_em: complex, 
+    eps_et: complex, 
+    eps_es: complex, 
+    eps_mm: float, 
+    eps_mt: complex, 
+    eps_ms: complex, 
+    eps_tt: float, 
+    eps_ts: complex, 
+    eps_ss: float
+) -> np.ndarray:
+    r"""Returns the four-neutrino Hamiltonian for oscillations w/ NSI.
 
     Computes and returns the 3x3 complex three-neutrino Hamiltonian for oscillations with 
     non-standard interactions (NSI) in matter with constant density.
@@ -230,12 +242,11 @@ def hamiltonian_4nu_nsi(VCC: float, eps: Union[list, np.ndarray]) -> np.ndarray:
     list
         Hamiltonian 3x3 matrix.
     """
-    eps_ee, eps_em, eps_et, eps_es, eps_mm, eps_mt, eps_ms, eps_tt, eps_ts, eps_ss = eps
     return VCC * np.array([
-        [1.0+eps_ee, eps_em, eps_et, eps_es], 
+        [eps_ee, eps_em, eps_et, eps_es], 
         [np.conj(eps_em), eps_mm, eps_mt, eps_ms],
         [np.conj(eps_et), np.conj(eps_mt), eps_tt, eps_ts],
-        [np.conj(eps_es), np.conj(eps_ms), np.conj(eps_ts), np.con(eps_ss)]
+        [np.conj(eps_es), np.conj(eps_ms), np.conj(eps_ts), eps_ss]
         ], dtype=np.complex128)
 
 
