@@ -161,6 +161,13 @@ Multiplicative conversion factor from eV^{-1} to cm.
 Units: [eV cm]
 """
 
+UNIT_PER_CM3 = 1.0/CONV_CM3_TO_INV_EV3
+r"""float: Module-level constant
+
+Multiplicative conversion factor from cm^{-3} to eV^3. 
+Units: [cm^3 eV^3]
+"""
+
 CONV_EV_TO_G = 1.783e-33
 r"""float: Module-level constant
 
@@ -272,6 +279,20 @@ r"""float: Module-level constant
 
 Average solar radius.
 Units: [km]
+"""
+
+NUM_DENSITY_E_SUN_CENTRAL = 245.0*N_AV*UNIT_PER_CM3
+r"""float: Module-level constant
+
+Electron number density at the center of the Sun.
+Units: [eV^3]
+"""
+
+L_SCALE_SUN = SUN_RADIUS/10.54*UNIT_KM
+r"""float: Module-level constant
+
+Electron number density at the center of the Sun.
+Units: [eV^{-1}]
 """
 
 NUE = 0
