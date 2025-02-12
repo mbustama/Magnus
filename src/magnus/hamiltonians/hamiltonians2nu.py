@@ -224,7 +224,7 @@ def hamiltonian_2nu_matter_td(l: float, VCC_func: Callable) -> np.ndarray:
     return hamiltonian_2nu_matter(VCC_func(l))
 
 
-def hamiltonian_2nu_nsi(VCC: float, eps: Union[list, np.ndarray]) -> np.ndarray:
+def hamiltonian_2nu_nsi(VCC: float, eps_aa: float, eps_ab: complex) -> np.ndarray:
     r"""Returns the two-neutrino Hamiltonian for oscillations with NSI.
 
     Computes and returns the 2x2 real two-neutrino Hamiltonian for oscillations with non-standard 
@@ -247,8 +247,7 @@ def hamiltonian_2nu_nsi(VCC: float, eps: Union[list, np.ndarray]) -> np.ndarray:
     list
         Hamiltonian 2x2 matrix.
     """
-    eps_ee, eps_em, eps_mm = eps
-    return VCC * np.array([[1.0 + eps_ee, eps_em], [np.conj(eps_em), eps_mm]], dtype=np.complex128)
+    return VCC * np.array([[eps_aa, eps_ab], [np.conj(eps_ab), eps_aa]], dtype=np.complex128)
 
     # h_nsi = np.zeros((2,2))
 
