@@ -691,7 +691,8 @@ def values_to_unspecified_osc_params(
 def unpack_oscillation_params_from_dict(
     source_func_name: str,
     num_flavors: int,
-    osc_params: Dict
+    osc_params: Dict,
+    h_vac_energy_indep: Union[list, np.ndarray]
 ) -> np.ndarray:
     r"""Unpack oscillation parameters from the osc_params dict
     """
@@ -788,6 +789,114 @@ def unpack_oscillation_params_from_dict(
                 "h_vac_energy_indep is None.")
             print("Aborting execution...")
             sys.exit(1)
+    elif (num_flavors < 1):
+        print(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + ": num_flavors must be " + \
+            ">= 2.")
+        print("Aborting execution...")
+        sys.exit(1)
+
+
+def unpack_nsi_params_from_dict(
+    source_func_name: str,
+    num_flavors: int,
+    nsi_params: Dict,
+    h_nsi: Union[list, np.ndarray]
+) -> np.ndarray:
+    r"""Unpack NSI parameters from the nsi_params dict
+    """
+
+    if (num_flavors == 2):
+        try:
+            eps_aa = osc_params['eps_aa']
+            eps_ab = osc_params['eps_ab']
+            return np.array([eps_aa, eps_ab])
+        except KeyError :
+            print(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + ": since "+ \
+                    "num_flavors == 2, the dictionary of NSI parameters " + \
+                    "(nsi_params) must contain the keys 'eps_aa' and 'eps_ab'.")
+            print("Aborting execution...")
+            sys.exit(1)
+    elif (num_flavors == 3):
+        try:
+            eps_ee = osc_params['eps_ee']
+            eps_em = osc_params['eps_em']
+            eps_et = osc_params['eps_et']
+            eps_mm = osc_params['eps_mm']
+            eps_mt = osc_params['eps_mt']
+            eps_tt = osc_params['eps_tt']
+            return np.array([eps_ee, eps_em, eps_et, eps_mm, eps_mt, eps_tt])
+        except KeyError:
+            print(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + ": since " + \
+                    "num_flavors == 3, the dictionary of NSI parameters " + \
+                    "(nsi_params) must contain the keys 'eps_ee', 'eps_em', 'eps_et', 'eps_mm'," + \
+                    " 'eps_mt', and 'eps_tt'.")
+            print("Aborting execution...")
+            sys.exit(1)
+    elif (num_flavors == 4):
+        try:
+            eps_ee = osc_params['eps_ee']
+            eps_em = osc_params['eps_em']
+            eps_et = osc_params['eps_et']
+            eps_es = osc_params['eps_es']
+            eps_mm = osc_params['eps_mm']
+            eps_mt = osc_params['eps_mt']
+            eps_ms = osc_params['eps_ms']
+            eps_tt = osc_params['eps_tt']
+            eps_ts = osc_params['eps_ts']
+            eps_ss = osc_params['eps_ss']
+            return np.array([eps_ee, eps_em, eps_et, eps_es, eps_mm, eps_mt, eps_ms, eps_tt, eps_ts,
+                eps_ss])
+        except KeyError:
+            print(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + ": since " + \
+                    "num_flavors == 4, the dictionary of NSI parameters " + \
+                    "(nsi_params) must contain the keys 'eps_ee', 'eps_em', 'eps_et', 'eps_es'," + \
+                    " 'eps_mm', 'eps_mt', 'eps_ms', 'eps_tt', 'eps_ts', and 'eps_ss'.")
+            print("Aborting execution...")
+            sys.exit(1)
+    elif (num_flavors == 5):
+        try:
+            eps_ee = osc_params['eps_ee']
+            eps_em = osc_params['eps_em']
+            eps_et = osc_params['eps_et']
+            eps_es1 = osc_params['eps_es1']
+            eps_es2 = osc_params['eps_es2']
+            eps_mm = osc_params['eps_mm']
+            eps_mt = osc_params['eps_mt']
+            eps_ms1 = osc_params['eps_ms1']
+            eps_ms2 = osc_params['eps_ms2']
+            eps_tt = osc_params['eps_tt']
+            eps_ts1 = osc_params['eps_ts1']
+            eps_ts2 = osc_params['eps_ts2']
+            eps_s1s1 = osc_params['eps_s1s1']
+            eps_s1s2 = osc_params['eps_s1s2']
+            eps_s2s2 = osc_params['eps_s2s2']
+            return np.array([eps_ee, eps_em, eps_et, eps_es1, eps_es2, eps_mm, eps_mt, eps_ms1,
+                eps_ms2, eps_tt, eps_ts1, eps_ts2, eps_s1s1, eps_s1s2, eps_s2s2])
+        except KeyError:
+            print(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + ": since " + \
+                    "num_flavors == 5, the dictionary of NSI parameters " + \
+                    "(nsi_params) must contain the keys 'eps_ee', 'eps_em', 'eps_et', " + \
+                    "'eps_es1', 'eps_es2', 'eps_mm', 'eps_mt', 'eps_ms1', 'eps_ms2', 'eps_tt', " + \
+                    "'eps_ts1', 'eps_ts2', 'eps_s1s1', 'eps_s1s2', and 'eps_s2s2'.")
+            print("Aborting execution...")
+            sys.exit(1)
+    elif (num_flavors > gd.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS):
+        print(gd.WARNING_MSG_IN_COLOR + " oscprob." + source_func_name + ": the number of " + \
+            "flavors passed (num_flavors = " + str(num_flavors) + \
+            ") exceeds the maximum number for which Magnus has predefined vacuum Hamiltonians " + \
+            "(globaldefs.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS = " + \
+            str(gd.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS) + "). Will use the Hamiltonian provided " + \
+            "in h_nsi.")
+        if (h_nsi is None):
+            print(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + ": provided " + \
+                "h_nsi is None.")
+            print("Aborting execution...")
+            sys.exit(1)
+    elif (num_flavors < 1):
+        print(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + ": num_flavors must be " + \
+            ">= 2.")
+        print("Aborting execution...")
+        sys.exit(1)
 
 
 def compute_evolution_operator(
@@ -1705,7 +1814,7 @@ def osc_prob_vacuum(
     # Unpack oscillation parameters from the osc_params dict, check if all values are available
     # The function name is sys._getframe().f_code.co_name
     osc_params_list = unpack_oscillation_params_from_dict(sys._getframe().f_code.co_name, 
-        num_flavors, osc_params)
+        num_flavors, osc_params, h_vac_energy_indep)
     if num_flavors == 2:
         sth, Dm2 = osc_params_list
     elif num_flavors == 3:
@@ -1807,7 +1916,7 @@ def osc_prob_matter_std_potential(
     # Unpack oscillation parameters from the osc_params dict, check if all values are available
     # The function name is sys._getframe().f_code.co_name
     osc_params_list = unpack_oscillation_params_from_dict(sys._getframe().f_code.co_name,
-        num_flavors, osc_params)
+        num_flavors, osc_params, h_vac_energy_indep)
     if num_flavors == 2:
         sth, Dm2 = osc_params_list
     elif num_flavors == 3:
@@ -1873,6 +1982,163 @@ def osc_prob_matter_std_potential(
         # internally for speed-up.
         h_matt = np.zeros((num_flavors, num_flavors))
         h_matt[0][0] = VCC_func
+        def htot(enu: Union[int, float]) -> np.ndarray:
+            return (1/enu)*h_vac_energy_indep+h_matt
+        htot_is_function_only_of_energy = True
+
+    # Generate the probabilities for all pairs of energy and baseline in zip(energy, L).
+    return osc_prob_energy_baseline(htot, energy, L, L0, nu_i, nu_f,
+        htot_is_function_only_of_energy, t_slab_edges=t_slab_edges, 
+        magnus_exp_order=magnus_exp_order, n_jobs=n_jobs, integration_method=integration_method,
+        rtol=rtol, atol=atol, growth_factor_n_slabs=growth_factor_n_slabs,
+        growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
+        max_num_loops=max_num_loops, min_n_slabs=min_n_slabs, max_n_slabs=max_n_slabs,
+        min_n_tpts_per_slab=min_n_tpts_per_slab, max_n_tpts_per_slab=max_n_tpts_per_slab,
+        iterate_over_magnus_exp_order=iterate_over_magnus_exp_order,
+        min_magnus_exp_order=min_magnus_exp_order, max_magnus_exp_order=max_magnus_exp_order,
+        validate_input=validate_input, save_log=save_log, filename_log=filename_log,
+        file_log=file_log, close_file_log_upon_exit=close_file_log_upon_exit,
+        new_recursion_limit=new_recursion_limit, verbose=verbose, **kwargs)
+
+
+def osc_prob_matter_nsi(
+    num_flavors: int,
+    rho_func: Union[Callable, int, float],
+    energy: Union[int, float, list, np.ndarray], 
+    L: Union[int, float, list, np.ndarray], 
+    osc_params: Dict,
+    nsi_params: Dict,
+    L0: Optional[Union[int, float]]=0.0,
+    h_vac_energy_indep: Union[list, np.ndarray]=None,
+    h_nsi: Union[list, np.ndarray]=None,
+    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0, 
+    electron_fraction: Optional[Union[int, float]]=0.5, 
+    nubar: Optional[bool]=False, 
+    nu_i: Optional[int]=None, 
+    nu_f: Optional[int]=None,
+    density_matter_is_in_g_per_cm3: Optional[bool]=False,
+    density_is_of_number_of_electrons: Optional[bool]=False,
+    default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
+    t_slab_edges: Optional[Union[list, np.ndarray]]=None, 
+    magnus_exp_order: Optional[int]=4, 
+    n_jobs: Optional[int]=1, 
+    integration_method: Optional[str]='trapezoid', 
+    rtol: Optional[Union[int, float]]=1.e-3, 
+    atol: Optional[Union[int, float]]=1.e-3, 
+    growth_factor_n_slabs: Optional[Union[int, float]]=1.5, 
+    growth_factor_n_tpts_per_slab: Optional[Union[int, float]]=1.5, 
+    max_num_loops: Optional[int]=50, 
+    min_n_slabs: Optional[int]=1, 
+    max_n_slabs: Optional[int]=2000, 
+    min_n_tpts_per_slab: Optional[int]=2, 
+    max_n_tpts_per_slab: Optional[int]=500, 
+    iterate_over_magnus_exp_order: Optional[bool]=False,
+    min_magnus_exp_order: Optional[int]=1,
+    max_magnus_exp_order: Optional[int]=gd.MAGNUS_EXP_ORDER_MAX, 
+    validate_input: Optional[bool]=True, 
+    save_log: Optional[bool]=False, 
+    filename_log: Optional[str]='./out.log',
+    file_log: Optional[TextIOWrapper]=None, 
+    close_file_log_upon_exit: Optional[bool]=True,
+    verbose: Optional[int]=0,
+    new_recursion_limit: Optional[int]=5000,
+    **kwargs
+) -> Union[float, np.ndarray]:
+    r"""Computes and returns neutrino oscillation probabilities for 
+    standard oscillations in matter, i.e., the matter potential is only
+    due to the coherent forward scattering of nu_e on electrons.
+    """
+
+    # Unpack oscillation parameters from the osc_params dict, check if all values are available
+    # The function name is sys._getframe().f_code.co_name
+    osc_params_list = unpack_oscillation_params_from_dict(sys._getframe().f_code.co_name,
+        num_flavors, osc_params, h_vac_energy_indep)
+    nsi_params_list = unpack_nsi_params_from_dict(sys._getframe().f_code.co_name,
+        num_flavors, osc_params, h_nsi)
+    if num_flavors == 2:
+        sth, Dm2 = osc_params_list
+        eps_aa, eps_ab = nsi_params_list
+    elif num_flavors == 3:
+        s12, s23, s13, dCP, D21, D31 = osc_params_list
+        eps_ee, eps_em, eps_et, eps_mm, eps_mt, eps_tt = nsi_params_list
+    elif num_flavors == 4:
+        s12, s23, s13, dCP, s14, d14, s24, d24, s34, D21, D31, D41 = osc_params_list
+        eps_ee, eps_em, eps_et, eps_es, eps_mm, eps_mt, eps_ms, eps_tt, eps_ts, eps_ss = \
+            nsi_params_list
+    elif num_flavors == 5:
+        s12, s23, s13, dCP, s14, d14, s15, d15, s24, d24, s25, s34, s35, d35, D21, D31, D41, D51 = \
+            osc_params_list
+        eps_ee, eps_em, eps_et, eps_es1, eps_es2, eps_mm, eps_mt, eps_ms1, eps_ms2, eps_tt, \
+            eps_ts1, eps_ts2, eps_s1s1, eps_s1s2, eps_s2s2 = nsi_params_list
+
+    if validate_input:
+        if validate_input_battery(sys._getframe().f_code.co_name, energy=energy, L=L, L0=L0,
+            num_flavors=num_flavors, nu_i=nu_i, nu_f=nu_f, osc_params=osc_params_list, 
+            rho_func=rho_func, ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
+            electron_fraction=electron_fraction, validate_energy_and_L=True, 
+            validate_flavor_indices=True, validate_osc_params=True, validate_initial_position=True,
+            validate_density=True) == 1:
+            sys.exit(1)
+
+    # If any of the standard oscillation parameters has not been given a value, assign to it the 
+    # value from the specified parameter set with name default_osc_params_set_name.  Only the values
+    # of the parameters passed as None are assigned from the predefined set; others are not 
+    # modified.
+    if num_flavors > 2:
+        s12, s23, s13, dCP, D21, D31 = values_to_unspecified_osc_params(s12, s23, s13, dCP, D21, 
+            D31, default_osc_params_set_name, verbose)
+
+    # Compute the energy-independent part of the vacuum Hamiltonian, i.e., everything but the 1/E 
+    # prefactor, only once, to save time.  Multiply by the 1/E factor later when calling osc_prob.
+    # If num_flavors > MAGNUS_MAX_PREDEFINED_NUM_FLAVORS, we use the h_vac_energy_indep that was
+    # passed to the function.
+    if num_flavors == 2:
+        h_vac_energy_indep = hamiltonians2nu.hamiltonian_2nu_vacuum_energy_independent(sth, Dm2) 
+    elif num_flavors == 3:
+        h_vac_energy_indep = hamiltonians3nu.hamiltonian_3nu_vacuum_energy_independent(s12, s23, 
+            s13, dCP, D21, D31, nubar=nubar) 
+    elif num_flavors == 4:
+        h_vac_energy_indep = hamiltonians4nu.hamiltonian_4nu_vacuum_energy_independent(s12, s23, 
+            s13, dCP, s14, d14, s24, d24, s34, D21, D31, D41, nubar=nubar) 
+    elif num_flavors == 5:
+        h_vac_energy_indep = hamiltonians5nu.hamiltonian_5nu_vacuum_energy_independent(s12, s23,
+            s13, dCP, s14, d14, s15, d15, s24, d24, s25, s34, s35, d35, D21, D31, D41, D51,
+            nubar=nubar)
+
+    # Compute the standard + NSI matter Hamiltonian *without* the multiplicative prefactor of VCC.
+    # To do this we call the functions hamiltonians_Xnu_nsi(VCC, ...) with VCC = 1.0.  We add the
+    # standard matter contribution to the NSI matter contribution by adding 1.0 to the eps_ee entry.
+    if num_flavors == 2:
+        h_matt = hamiltonians2nu.hamiltonian_2nu_nsi(1.0, 1.0+eps_aa, eps_ab) # VCC = 1.0
+    elif num_flavors == 3:
+        h_matt = hamiltonians3nu.hamiltonian_3nu_nsi(1.0, 1.0+eps_ee, eps_em, eps_et, eps_mm, 
+            eps_mt, eps_tt)
+    elif num_flavors == 4:
+        h_matt = hamiltonians4nu.hamiltonian_4nu_nsi(1.0, 1.0+eps_ee, eps_em, eps_et, eps_es, 
+            eps_mm, eps_mt, eps_ms, eps_tt, eps_ts, eps_tt)
+    elif num_flavors == 5:
+        h_matt = hamiltonians5nu.hamiltonian_5nu_nsi(1.0, 1.0+eps_ee, eps_em, eps_et, eps_es1, 
+            eps_es2, eps_mm, eps_mt, eps_ms1, eps_ms2, eps_tt, eps_ts1, eps_ts2, eps_s1s1, eps_s1s2,
+            eps_s2s2)
+
+    # Build the coherent forward potential function, VCC_func, from the density function, rho_func.
+    # If the provided rho_func is the matter density (e.g., g cm^{-3}), convert rho_func to a 
+    # function that returns the electron number density [eV^3].
+    VCC_func = matter.vcc_func_from_rho_func(rho_func, L0, ratio_number_neutrons_to_protons,
+        electron_fraction, nubar, density_matter_is_in_g_per_cm3,
+        density_is_of_number_of_electrons) # [eV] 
+    
+    # Matter Hamiltonian function: diagonal matrix with VCC in the top-left (ee) entry
+    if isinstance(VCC_func, Callable):
+        # VCC_func is a function of position, so the Hamiltonian is, too
+        def htot(enu: Union[int, float], l: Union[int, float]) -> np.ndarray:
+            return (1/enu)*h_vac_energy_indep+VCC_func(l)*h_matt
+        htot_is_function_only_of_energy = False
+    else:
+        # VCC_func is a constant in position, so the Hamiltonian is, too. When VCC_func is passed to
+        # osc_prob below, osc_prob will detect that VCC_func is constant and set parameters 
+        # internally for speed-up.
+        h_matt = VCC_func*h_matt
         def htot(enu: Union[int, float]) -> np.ndarray:
             return (1/enu)*h_vac_energy_indep+h_matt
         htot_is_function_only_of_energy = True
