@@ -807,8 +807,8 @@ def unpack_nsi_params_from_dict(
 
     if (num_flavors == 2):
         try:
-            eps_aa = osc_params['eps_aa']
-            eps_ab = osc_params['eps_ab']
+            eps_aa = nsi_params['eps_aa']
+            eps_ab = nsi_params['eps_ab']
             return np.array([eps_aa, eps_ab])
         except KeyError :
             print(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + ": since "+ \
@@ -818,12 +818,12 @@ def unpack_nsi_params_from_dict(
             sys.exit(1)
     elif (num_flavors == 3):
         try:
-            eps_ee = osc_params['eps_ee']
-            eps_em = osc_params['eps_em']
-            eps_et = osc_params['eps_et']
-            eps_mm = osc_params['eps_mm']
-            eps_mt = osc_params['eps_mt']
-            eps_tt = osc_params['eps_tt']
+            eps_ee = nsi_params['eps_ee']
+            eps_em = nsi_params['eps_em']
+            eps_et = nsi_params['eps_et']
+            eps_mm = nsi_params['eps_mm']
+            eps_mt = nsi_params['eps_mt']
+            eps_tt = nsi_params['eps_tt']
             return np.array([eps_ee, eps_em, eps_et, eps_mm, eps_mt, eps_tt])
         except KeyError:
             print(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + ": since " + \
@@ -834,16 +834,16 @@ def unpack_nsi_params_from_dict(
             sys.exit(1)
     elif (num_flavors == 4):
         try:
-            eps_ee = osc_params['eps_ee']
-            eps_em = osc_params['eps_em']
-            eps_et = osc_params['eps_et']
-            eps_es = osc_params['eps_es']
-            eps_mm = osc_params['eps_mm']
-            eps_mt = osc_params['eps_mt']
-            eps_ms = osc_params['eps_ms']
-            eps_tt = osc_params['eps_tt']
-            eps_ts = osc_params['eps_ts']
-            eps_ss = osc_params['eps_ss']
+            eps_ee = nsi_params['eps_ee']
+            eps_em = nsi_params['eps_em']
+            eps_et = nsi_params['eps_et']
+            eps_es = nsi_params['eps_es']
+            eps_mm = nsi_params['eps_mm']
+            eps_mt = nsi_params['eps_mt']
+            eps_ms = nsi_params['eps_ms']
+            eps_tt = nsi_params['eps_tt']
+            eps_ts = nsi_params['eps_ts']
+            eps_ss = nsi_params['eps_ss']
             return np.array([eps_ee, eps_em, eps_et, eps_es, eps_mm, eps_mt, eps_ms, eps_tt, eps_ts,
                 eps_ss])
         except KeyError:
@@ -855,21 +855,21 @@ def unpack_nsi_params_from_dict(
             sys.exit(1)
     elif (num_flavors == 5):
         try:
-            eps_ee = osc_params['eps_ee']
-            eps_em = osc_params['eps_em']
-            eps_et = osc_params['eps_et']
-            eps_es1 = osc_params['eps_es1']
-            eps_es2 = osc_params['eps_es2']
-            eps_mm = osc_params['eps_mm']
-            eps_mt = osc_params['eps_mt']
-            eps_ms1 = osc_params['eps_ms1']
-            eps_ms2 = osc_params['eps_ms2']
-            eps_tt = osc_params['eps_tt']
-            eps_ts1 = osc_params['eps_ts1']
-            eps_ts2 = osc_params['eps_ts2']
-            eps_s1s1 = osc_params['eps_s1s1']
-            eps_s1s2 = osc_params['eps_s1s2']
-            eps_s2s2 = osc_params['eps_s2s2']
+            eps_ee = nsi_params['eps_ee']
+            eps_em = nsi_params['eps_em']
+            eps_et = nsi_params['eps_et']
+            eps_es1 = nsi_params['eps_es1']
+            eps_es2 = nsi_params['eps_es2']
+            eps_mm = nsi_params['eps_mm']
+            eps_mt = nsi_params['eps_mt']
+            eps_ms1 = nsi_params['eps_ms1']
+            eps_ms2 = nsi_params['eps_ms2']
+            eps_tt = nsi_params['eps_tt']
+            eps_ts1 = nsi_params['eps_ts1']
+            eps_ts2 = nsi_params['eps_ts2']
+            eps_s1s1 = nsi_params['eps_s1s1']
+            eps_s1s2 = nsi_params['eps_s1s2']
+            eps_s2s2 = nsi_params['eps_s2s2']
             return np.array([eps_ee, eps_em, eps_et, eps_es1, eps_es2, eps_mm, eps_mt, eps_ms1,
                 eps_ms2, eps_tt, eps_ts1, eps_ts2, eps_s1s1, eps_s1s2, eps_s2s2])
         except KeyError:
@@ -1773,6 +1773,10 @@ def osc_prob_energy_baseline(
         sys.exit(1)
 
 
+#-----------------------------------------------------------------------
+# General functions for vacuum, standard matter, NSI, LIV
+#-----------------------------------------------------------------------
+
 def osc_prob_vacuum(
     num_flavors: int,
     energy: Union[int, float, list, np.ndarray], 
@@ -2054,7 +2058,7 @@ def osc_prob_matter_nsi(
     osc_params_list = unpack_oscillation_params_from_dict(sys._getframe().f_code.co_name,
         num_flavors, osc_params, h_vac_energy_indep)
     nsi_params_list = unpack_nsi_params_from_dict(sys._getframe().f_code.co_name,
-        num_flavors, osc_params, h_nsi)
+        num_flavors, nsi_params, h_nsi)
     if num_flavors == 2:
         sth, Dm2 = osc_params_list
         eps_aa, eps_ab = nsi_params_list
@@ -2157,6 +2161,10 @@ def osc_prob_matter_nsi(
         file_log=file_log, close_file_log_upon_exit=close_file_log_upon_exit,
         new_recursion_limit=new_recursion_limit, verbose=verbose, **kwargs)
 
+
+#-----------------------------------------------------------------------
+# In vacuum
+#-----------------------------------------------------------------------
 
 def osc_prob_2nu_vacuum(
     energy: Union[int, float, list, np.ndarray], 
@@ -2952,6 +2960,10 @@ def osc_prob_5nu_vacuum(
     )
 
 
+#-----------------------------------------------------------------------
+# In matter, standard oscillations, constant density
+#-----------------------------------------------------------------------
+
 def osc_prob_2nu_matter_constant_density(
     energy: Union[int, float, list, np.ndarray], 
     L: Union[int, float, list, np.ndarray], 
@@ -3178,6 +3190,10 @@ def osc_prob_5nu_matter_constant_density(
         **kwargs
     )  
 
+
+#-----------------------------------------------------------------------
+# In matter, standard oscillations, exponentially falling density
+#-----------------------------------------------------------------------
 
 def osc_prob_2nu_matter_exp_density(
     energy: Union[float, list, np.ndarray], 
@@ -3634,37 +3650,9 @@ def osc_prob_5nu_matter_exp_density(
     return
 
 
-# def osc_prob_matter_exp_density(
-#     H_func: Union[Callable, np.ndarray],
-#     energy: Union[float, list, np.ndarray], 
-#     L: Union[float, list, np.ndarray],
-#     L0: Union[int, float], 
-#     rho_central: Union[int, float], 
-#     l_scale: Union[int, float],
-#     s12: Optional[Union[int, float]]=None, 
-#     s23: Optional[Union[int, float]]=None, 
-#     s13: Optional[Union[int, float]]=None, 
-#     dCP: Optional[Union[int, float]]=None, 
-#     D21: Optional[Union[int, float]]=None, 
-#     D31: Optional[Union[int, float]]=None, 
-#     ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0, 
-#     electron_fraction: Optional[Union[int, float]]=0.5, 
-#     nubar: Optional[bool]=False, 
-#     nu_i: Optional[int]=None, 
-#     nu_f: Optional[int]=None,
-#     density_matter_is_in_g_per_cm3: Optional[bool]=False,
-#     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
-#     validate_input: Optional[bool]=True, 
-#     verbose: Optional[int]=0
-# ) -> Union[float, np.ndarray]:
-#     r"""Compute and return the neutrino oscillation probability in 
-#     matter with an exponentially falling density profile for a given
-#     arbitrary Hamiltonian.
-#     """
-#     pass
-
-#     return
-
+#-----------------------------------------------------------------------
+# In matter, standard oscillations, in the Earth
+#-----------------------------------------------------------------------
 
 def osc_prob_2nu_earth(
     ra_dec_ini: Union[Tuple[float, float], list, np.ndarray, str], 
@@ -3875,6 +3863,10 @@ def osc_prob_earth(
 
     return 
 
+
+#-----------------------------------------------------------------------
+# In matter, standard oscillations, in the Sun
+#-----------------------------------------------------------------------
 
 def osc_prob_2nu_sun(
     energy: Union[float, list, np.ndarray], 
@@ -4372,6 +4364,62 @@ def osc_prob_sun(
     """
 
 
+#-----------------------------------------------------------------------
+# In matter, NSI, constant density
+#-----------------------------------------------------------------------
+
+def osc_prob_2nu_matter_nsi_constant_density(
+    energy: Union[int, float, list, np.ndarray], 
+    L: Union[int, float, list, np.ndarray], 
+    rho: Union[int, float],
+    sth: Union[int, float], 
+    Dm2: Union[int, float], 
+    eps_aa: Union[int, float],
+    eps_ab: Union[int, float],
+    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0, 
+    electron_fraction: Optional[Union[int, float]]=0.5, 
+    nu_i: Optional[int]=None, 
+    nu_f: Optional[int]=None,
+    density_matter_is_in_g_per_cm3: Optional[bool]=False,
+    density_is_of_number_of_electrons: Optional[bool]=False,
+    default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
+    validate_input: Optional[bool]=True, 
+    save_log: Optional[bool]=False, 
+    filename_log: Optional[str]='./out.log',
+    file_log: Optional[TextIOWrapper]=None, 
+    close_file_log_upon_exit: Optional[bool]=True,
+    verbose: Optional[int]=0,
+    **kwargs
+) -> Union[float, np.ndarray]:
+    r"""Compute and return the two-neutrino oscillation probability in
+    matter with a constant density profile, including non-standard
+    interactions (NSI).
+    """
+    # If any of the flavor indices is > 1, fix it (read the docstring above).
+    nu_i, nu_f = valid_flavor_indices_2nu(nu_i, nu_f)
+
+    return osc_prob_matter_nsi(
+        num_flavors=2,
+        rho_func=rho,
+        energy=energy,
+        L=L,
+        osc_params={'sth': sth, 'Dm2': Dm2},
+        nsi_params={'eps_aa': eps_aa, 'eps_ab': eps_ab},
+        ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons, 
+        electron_fraction=electron_fraction,
+        nu_i=nu_i,
+        nu_f=nu_f,
+        density_matter_is_in_g_per_cm3=density_matter_is_in_g_per_cm3,
+        density_is_of_number_of_electrons=density_is_of_number_of_electrons,
+        default_osc_params_set_name=default_osc_params_set_name,
+        validate_input=validate_input,
+        new_recursion_limit=None,
+        verbose=verbose,
+        **kwargs
+    )  
+
+
+
 if __name__ == "__main__":
     def H_2nu_func(t):
         return np.array([[1+1j*t, 2*t], [2*t, 4-1j*t]], dtype=np.complex128)
@@ -4633,13 +4681,40 @@ if __name__ == "__main__":
     # print(osc_prob_4nu_sun(energy, baseline, L0, s14, s24, s34, d14, d24, D41, 
     #     n_jobs=10, verbose=1))
 
-    # Five-neutrino oscillations in exponentially falling matter density profile
+    # # Five-neutrino oscillations in exponentially falling matter density profile
+    # np.set_printoptions(precision=3)
+    # baseline = 1.0*gd.SUN_RADIUS*gd.UNIT_KM # km in natural units [eV^{-1}]
+    # energy = 10.0*gd.UNIT_MEV # [eV]
+    # L0 = 0.1*gd.SUN_RADIUS*gd.UNIT_KM # km in natural units [eV^{-1}]
+    # s14, s15, s24, s25, s34, s35 = 0.1, 0.1, 0.2, 0.2, 0.3, 0.3
+    # d14, d15, d24, d35 = np.radians([10.0, 20.0, 30.0, 40.0])
+    # D41, D51 = 0.1, 0.01 # [eV^2]
+    # print(osc_prob_5nu_sun(energy, baseline, L0, s14, s15, s24, s25, s34, s35, d14, d15, d24, d35, 
+    #     D41, D51, n_jobs=10, verbose=1))
+
+    # Two-neutrino oscillations in constant-density matter, NSI
     np.set_printoptions(precision=3)
-    baseline = 1.0*gd.SUN_RADIUS*gd.UNIT_KM # km in natural units [eV^{-1}]
-    energy = 10.0*gd.UNIT_MEV # [eV]
-    L0 = 0.1*gd.SUN_RADIUS*gd.UNIT_KM # km in natural units [eV^{-1}]
-    s14, s15, s24, s25, s34, s35 = 0.1, 0.1, 0.2, 0.2, 0.3, 0.3
-    d14, d15, d24, d35 = np.radians([10.0, 20.0, 30.0, 40.0])
-    D41, D51 = 0.1, 0.01 # [eV^2]
-    print(osc_prob_5nu_sun(energy, baseline, L0, s14, s15, s24, s25, s34, s35, d14, d15, d24, d35, 
-        D41, D51, n_jobs=10, verbose=1))
+    rho = 100.0*gd.UNIT_G_PER_CM3
+    sth = gd.S12_NO_BF_NUFIT_6_0
+    Dm2 = gd.D21_NO_BF_NUFIT_6_0 # [eV^2]
+    energy = 1.0*gd.UNIT_MEV
+    eps_aa = 0.1 #gd.EPS_EE
+    eps_ab = 0.2 #gd.EPS_EM
+    print(osc_prob_2nu_matter_nsi_constant_density(energy, baseline, rho, sth, Dm2, eps_aa, eps_ab,
+        verbose=0))
+    print(osc_prob_2nu_matter_nsi_constant_density(energy, baseline, rho, sth, Dm2, 0.0, 0.0,
+        verbose=0))
+    print(osc_prob_2nu_matter_constant_density(energy, baseline, rho, sth, Dm2, verbose=0))
+    # print(osc_prob_2nu_matter_nsi_constant_density(energy, gd.UNIT_KM*np.array([1.0, 10.0]), 
+    #     rho, sth, Dm2, eps_aa, eps_ab, verbose=1))
+    # print(osc_prob_2nu_matter_nsi_constant_density(gd.UNIT_MEV*np.array([1.0, 10.0]), baseline, 
+    #     rho, sth, Dm2, eps_aa, eps_ab, verbose=1))
+    # print(osc_prob_2nu_matter_nsi_constant_density(gd.UNIT_MEV*np.array([1.0, 5.0]), 
+    #     gd.UNIT_KM*np.array([1.0, 10.0]), rho, sth, Dm2, eps_aa, eps_ab, nu_i=gd.NUE, nu_f=gd.NUMU,
+    #     verbose=1))
+    # print(osc_prob_2nu_matter_nsi_constant_density(energy, baseline, rho, sth, Dm2, eps_aa, eps_ab,
+    #     nu_i=gd.NUE, nu_f=gd.NUMU, verbose=1))
+    # print(osc_prob_2nu_matter_nsi_constant_density(energy, baseline, rho, sth, Dm2, eps_aa, eps_ab,
+    #     nu_i=gd.NUE, nu_f=gd.NUTAU, verbose=1))
+    # print(osc_prob_2nu_matter_nsi_constant_density(energy, baseline, rho, sth, Dm2, eps_aa, eps_ab,
+    #     nu_i=gd.NUMU, nu_f=gd.NUTAU, verbose=1))
