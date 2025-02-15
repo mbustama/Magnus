@@ -2513,7 +2513,7 @@ def osc_prob_4nu_vacuum(
     s34: Union[int, float],
     d14: Union[int, float],
     d24: Union[int, float],
-    D41: Optional[Union[int, float]], 
+    D41: Union[int, float], 
     s12: Optional[Union[int, float]]=None, 
     s23: Optional[Union[int, float]]=None, 
     s13: Optional[Union[int, float]]=None, 
@@ -2729,8 +2729,8 @@ def osc_prob_5nu_vacuum(
     d15: Union[int, float],
     d24: Union[int, float],
     d35: Union[int, float],
-    D41: Optional[Union[int, float]], 
-    D51: Optional[Union[int, float]], 
+    D41: Union[int, float], 
+    D51: Union[int, float], 
     s12: Optional[Union[int, float]]=None, 
     s23: Optional[Union[int, float]]=None, 
     s13: Optional[Union[int, float]]=None, 
@@ -3073,7 +3073,7 @@ def osc_prob_4nu_matter_constant_density(
     s34: Union[int, float],
     d14: Union[int, float],
     d24: Union[int, float],
-    D41: Optional[Union[int, float]], 
+    D41: Union[int, float], 
     s12: Optional[Union[int, float]]=None, 
     s23: Optional[Union[int, float]]=None, 
     s13: Optional[Union[int, float]]=None, 
@@ -3138,8 +3138,8 @@ def osc_prob_5nu_matter_constant_density(
     d15: Union[int, float],
     d24: Union[int, float],
     d35: Union[int, float],
-    D41: Optional[Union[int, float]], 
-    D51: Optional[Union[int, float]], 
+    D41: Union[int, float], 
+    D51: Union[int, float], 
     s12: Optional[Union[int, float]]=None, 
     s23: Optional[Union[int, float]]=None, 
     s13: Optional[Union[int, float]]=None, 
@@ -3420,7 +3420,7 @@ def osc_prob_4nu_matter_exp_density(
     s34: Union[int, float],
     d14: Union[int, float],
     d24: Union[int, float],
-    D41: Optional[Union[int, float]], 
+    D41: Union[int, float], 
     s12: Optional[Union[int, float]]=None, 
     s23: Optional[Union[int, float]]=None, 
     s13: Optional[Union[int, float]]=None, 
@@ -3542,8 +3542,8 @@ def osc_prob_5nu_matter_exp_density(
     d15: Union[int, float],
     d24: Union[int, float],
     d35: Union[int, float],
-    D41: Optional[Union[int, float]], 
-    D51: Optional[Union[int, float]], 
+    D41: Union[int, float], 
+    D51: Union[int, float], 
     s12: Optional[Union[int, float]]=None, 
     s23: Optional[Union[int, float]]=None, 
     s13: Optional[Union[int, float]]=None, 
@@ -4419,6 +4419,213 @@ def osc_prob_2nu_matter_nsi_constant_density(
     )  
 
 
+def osc_prob_3nu_matter_nsi_constant_density(
+    energy: Union[int, float, list, np.ndarray], 
+    L: Union[int, float, list, np.ndarray], 
+    rho: Union[int, float],
+    eps_ee: Union[int, float],
+    eps_em: Union[int, float],
+    eps_et: Union[int, float],
+    eps_mm: Union[int, float],
+    eps_mt: Union[int, float],
+    eps_tt: Union[int, float],
+    s12: Optional[Union[int, float]]=None, 
+    s23: Optional[Union[int, float]]=None, 
+    s13: Optional[Union[int, float]]=None, 
+    dCP: Optional[Union[int, float]]=None, 
+    D21: Optional[Union[int, float]]=None, 
+    D31: Optional[Union[int, float]]=None, 
+    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0, 
+    electron_fraction: Optional[Union[int, float]]=0.5, 
+    nu_i: Optional[int]=None, 
+    nu_f: Optional[int]=None,
+    density_matter_is_in_g_per_cm3: Optional[bool]=False,
+    density_is_of_number_of_electrons: Optional[bool]=False,
+    default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
+    validate_input: Optional[bool]=True, 
+    save_log: Optional[bool]=False, 
+    filename_log: Optional[str]='./out.log',
+    file_log: Optional[TextIOWrapper]=None, 
+    close_file_log_upon_exit: Optional[bool]=True,
+    verbose: Optional[int]=0,
+    **kwargs
+) -> Union[float, np.ndarray]:
+    r"""Compute and return the three-neutrino oscillation probability in
+    matter with a constant density profile, including non-standard
+    interactions (NSI).
+    """
+    return osc_prob_matter_nsi(
+        num_flavors=3,
+        rho_func=rho,
+        energy=energy,
+        L=L,
+        osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 'D21': D21, 'D31': D31},
+        nsi_params={'eps_ee': eps_ee, 'eps_em': eps_em, 'eps_et': eps_et, 'eps_mm': eps_mm,
+            'eps_mt': eps_mt, 'eps_tt': eps_tt},
+        ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons, 
+        electron_fraction=electron_fraction,
+        nu_i=nu_i,
+        nu_f=nu_f,
+        density_matter_is_in_g_per_cm3=density_matter_is_in_g_per_cm3,
+        density_is_of_number_of_electrons=density_is_of_number_of_electrons,
+        default_osc_params_set_name=default_osc_params_set_name,
+        validate_input=validate_input,
+        new_recursion_limit=None,
+        verbose=verbose,
+        **kwargs
+    )  
+
+
+def osc_prob_4nu_matter_nsi_constant_density(
+    energy: Union[int, float, list, np.ndarray], 
+    L: Union[int, float, list, np.ndarray], 
+    rho: Union[int, float],
+    s14: Union[int, float],
+    s24: Union[int, float],
+    s34: Union[int, float],
+    d14: Union[int, float],
+    d24: Union[int, float],
+    D41: Union[int, float], 
+    eps_ee: Union[int, float],
+    eps_em: Union[int, float],
+    eps_et: Union[int, float],
+    eps_es: Union[int, float],
+    eps_mm: Union[int, float],
+    eps_mt: Union[int, float],
+    eps_ms: Union[int, float],
+    eps_tt: Union[int, float],
+    eps_ts: Union[int, float],
+    eps_ss: Union[int, float],
+    s12: Optional[Union[int, float]]=None, 
+    s23: Optional[Union[int, float]]=None, 
+    s13: Optional[Union[int, float]]=None, 
+    dCP: Optional[Union[int, float]]=None, 
+    D21: Optional[Union[int, float]]=None, 
+    D31: Optional[Union[int, float]]=None, 
+    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0, 
+    electron_fraction: Optional[Union[int, float]]=0.5, 
+    nu_i: Optional[int]=None, 
+    nu_f: Optional[int]=None,
+    density_matter_is_in_g_per_cm3: Optional[bool]=False,
+    density_is_of_number_of_electrons: Optional[bool]=False,
+    default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
+    validate_input: Optional[bool]=True, 
+    save_log: Optional[bool]=False, 
+    filename_log: Optional[str]='./out.log',
+    file_log: Optional[TextIOWrapper]=None, 
+    close_file_log_upon_exit: Optional[bool]=True,
+    verbose: Optional[int]=0,
+    **kwargs
+) -> Union[float, np.ndarray]:
+    r"""Compute and return the four-neutrino oscillation probability in
+    matter with a constant density profile, including non-standard
+    interactions (NSI).
+    """
+    return osc_prob_matter_nsi(
+        num_flavors=4,
+        rho_func=rho,
+        energy=energy,
+        L=L,
+        osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 's14': s14, 'd14': d14, 
+            's24': s24, 'd24': d24, 's34': s34, 'D21': D21, 'D31': D31, 'D41': D41},
+        nsi_params={'eps_ee': eps_ee, 'eps_em': eps_em, 'eps_et': eps_et, 'eps_es': eps_es, 
+            'eps_mm': eps_mm, 'eps_mt': eps_mt, 'eps_ms': eps_ms, 'eps_tt': eps_tt,
+            'eps_ts': eps_ts, 'eps_ss': eps_ss},
+        ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons, 
+        electron_fraction=electron_fraction,
+        nu_i=nu_i,
+        nu_f=nu_f,
+        density_matter_is_in_g_per_cm3=density_matter_is_in_g_per_cm3,
+        density_is_of_number_of_electrons=density_is_of_number_of_electrons,
+        default_osc_params_set_name=default_osc_params_set_name,
+        validate_input=validate_input,
+        new_recursion_limit=None,
+        verbose=verbose,
+        **kwargs
+    )  
+
+
+def osc_prob_5nu_matter_nsi_constant_density(
+    energy: Union[int, float, list, np.ndarray], 
+    L: Union[int, float, list, np.ndarray], 
+    rho: Union[int, float],
+    s14: Union[int, float],
+    s15: Union[int, float],
+    s24: Union[int, float],
+    s25: Union[int, float],
+    s34: Union[int, float],
+    s35: Union[int, float],
+    d14: Union[int, float],
+    d15: Union[int, float],
+    d24: Union[int, float],
+    d35: Union[int, float],
+    D41: Union[int, float], 
+    D51: Union[int, float], 
+    eps_ee: Union[int, float],
+    eps_em: Union[int, float],
+    eps_et: Union[int, float],
+    eps_es1: Union[int, float],
+    eps_es2: Union[int, float],
+    eps_mm: Union[int, float],
+    eps_mt: Union[int, float],
+    eps_ms1: Union[int, float],
+    eps_ms2: Union[int, float],
+    eps_tt: Union[int, float],
+    eps_ts1: Union[int, float],
+    eps_ts2: Union[int, float],
+    eps_s1s1: Union[int, float],
+    eps_s1s2: Union[int, float],
+    eps_s2s2: Union[int, float],
+    s12: Optional[Union[int, float]]=None, 
+    s23: Optional[Union[int, float]]=None, 
+    s13: Optional[Union[int, float]]=None, 
+    dCP: Optional[Union[int, float]]=None, 
+    D21: Optional[Union[int, float]]=None, 
+    D31: Optional[Union[int, float]]=None, 
+    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0, 
+    electron_fraction: Optional[Union[int, float]]=0.5, 
+    nu_i: Optional[int]=None, 
+    nu_f: Optional[int]=None,
+    density_matter_is_in_g_per_cm3: Optional[bool]=False,
+    density_is_of_number_of_electrons: Optional[bool]=False,
+    default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
+    validate_input: Optional[bool]=True, 
+    save_log: Optional[bool]=False, 
+    filename_log: Optional[str]='./out.log',
+    file_log: Optional[TextIOWrapper]=None, 
+    close_file_log_upon_exit: Optional[bool]=True,
+    verbose: Optional[int]=0,
+    **kwargs
+) -> Union[float, np.ndarray]:
+    r"""Compute and return the five-neutrino oscillation probability in
+    matter with a constant density profile, including non-standard
+    interactions (NSI).
+    """
+    return osc_prob_matter_nsi(
+        num_flavors=5,
+        rho_func=rho,
+        energy=energy,
+        L=L,
+        osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 's14': s14, 'd14': d14, 
+            's15': s15, 'd15': d15, 's24': s24, 'd24': d24, 's25': s25, 's34': s34, 's35': s35, 
+            'd35': d35, 'D21': D21, 'D31': D31, 'D41': D41, 'D51': D51},
+        nsi_params={'eps_ee': eps_ee, 'eps_em': eps_em, 'eps_et': eps_et, 'eps_es1': eps_es1,
+            'eps_es2': eps_es2, 'eps_mm': eps_mm, 'eps_mt': eps_mt, 'eps_ms1': eps_ms1, 
+            'eps_ms2': eps_ms2, 'eps_tt': eps_tt, 'eps_ts1': eps_ts1, 'eps_ts2': eps_ts2, 
+            'eps_s1s1': eps_s1s1, 'eps_s1s2': eps_s1s2, 'eps_s2s2': eps_s2s2},
+        ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons, 
+        electron_fraction=electron_fraction,
+        nu_i=nu_i,
+        nu_f=nu_f,
+        density_matter_is_in_g_per_cm3=density_matter_is_in_g_per_cm3,
+        density_is_of_number_of_electrons=density_is_of_number_of_electrons,
+        default_osc_params_set_name=default_osc_params_set_name,
+        validate_input=validate_input,
+        new_recursion_limit=None,
+        verbose=verbose,
+        **kwargs
+    )  
+
 
 if __name__ == "__main__":
     def H_2nu_func(t):
@@ -4692,29 +4899,72 @@ if __name__ == "__main__":
     # print(osc_prob_5nu_sun(energy, baseline, L0, s14, s15, s24, s25, s34, s35, d14, d15, d24, d35, 
     #     D41, D51, n_jobs=10, verbose=1))
 
-    # Two-neutrino oscillations in constant-density matter, NSI
+    # # Two-neutrino oscillations in constant-density matter, NSI
+    # np.set_printoptions(precision=3)
+    # rho = 100.0*gd.UNIT_G_PER_CM3
+    # sth = gd.S12_NO_BF_NUFIT_6_0
+    # Dm2 = gd.D21_NO_BF_NUFIT_6_0 # [eV^2]
+    # energy = 1.0*gd.UNIT_MEV
+    # eps_aa = 0.1 #gd.EPS_EE
+    # eps_ab = 0.2 #gd.EPS_EM
+    # print(osc_prob_2nu_matter_nsi_constant_density(energy, baseline, rho, sth, Dm2, eps_aa, eps_ab,
+    #     verbose=0))
+    # print(osc_prob_2nu_matter_nsi_constant_density(energy, baseline, rho, sth, Dm2, 0.0, 0.0,
+    #     verbose=0))
+    # print(osc_prob_2nu_matter_constant_density(energy, baseline, rho, sth, Dm2, verbose=0))
+    # # print(osc_prob_2nu_matter_nsi_constant_density(energy, gd.UNIT_KM*np.array([1.0, 10.0]), 
+    # #     rho, sth, Dm2, eps_aa, eps_ab, verbose=1))
+    # # print(osc_prob_2nu_matter_nsi_constant_density(gd.UNIT_MEV*np.array([1.0, 10.0]), baseline, 
+    # #     rho, sth, Dm2, eps_aa, eps_ab, verbose=1))
+    # # print(osc_prob_2nu_matter_nsi_constant_density(gd.UNIT_MEV*np.array([1.0, 5.0]), 
+    # #     gd.UNIT_KM*np.array([1.0, 10.0]), rho, sth, Dm2, eps_aa, eps_ab, nu_i=gd.NUE, nu_f=gd.NUMU,
+    # #     verbose=1))
+    # # print(osc_prob_2nu_matter_nsi_constant_density(energy, baseline, rho, sth, Dm2, eps_aa, eps_ab,
+    # #     nu_i=gd.NUE, nu_f=gd.NUMU, verbose=1))
+    # # print(osc_prob_2nu_matter_nsi_constant_density(energy, baseline, rho, sth, Dm2, eps_aa, eps_ab,
+    # #     nu_i=gd.NUE, nu_f=gd.NUTAU, verbose=1))
+    # # print(osc_prob_2nu_matter_nsi_constant_density(energy, baseline, rho, sth, Dm2, eps_aa, eps_ab,
+    # #     nu_i=gd.NUMU, nu_f=gd.NUTAU, verbose=1))
+
+    # # Three-neutrino oscillations in constant-density matter, NSI
+    # np.set_printoptions(precision=3)
+    # rho = 100.0*gd.UNIT_G_PER_CM3
+    # energy = 1.0*gd.UNIT_MEV
+    # eps_ee, eps_em, eps_et, eps_mm, eps_mt, eps_tt = 0.1, 0.1, 1.1, 0.1, 0.1, 0.1
+    # print(osc_prob_3nu_matter_nsi_constant_density(energy, baseline, rho, eps_ee, eps_em, eps_et, 
+    #     eps_mm, eps_mt, eps_tt, verbose=1))
+    # print(osc_prob_3nu_matter_constant_density(energy, baseline, rho, verbose=1))
+
+    # # Four-neutrino oscillations in constant-density matter, NSI
+    # np.set_printoptions(precision=3)
+    # rho = 10.0*gd.UNIT_G_PER_CM3
+    # energy = 1.0*gd.UNIT_GEV
+    # baseline = 100.*gd.UNIT_KM
+    # s14, s24, s34 = 0.1, 0.2, 0.3
+    # d14, d24 = np.radians(10.0), np.radians(100.0)
+    # D41 = 0.1 # [eV^2]
+    # eps_ee, eps_em, eps_et, eps_es, eps_mm, eps_mt, eps_ms, eps_tt, eps_ts, eps_ss \
+    #     = 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1
+    # print(osc_prob_4nu_matter_nsi_constant_density(energy, baseline, rho, s14, s24, s34, d14, d24, 
+    #     D41, eps_ee, eps_em, eps_et, eps_es, eps_mm, eps_mt, eps_ms, eps_tt, eps_ts, eps_ss,
+    #     verbose=0))
+    # print(osc_prob_4nu_matter_constant_density(energy, baseline, rho, s14, s24, s34, d14, d24, D41,
+    #     verbose=0))
+
+
+    # Five-neutrino oscillations in constant-density matter, NSI
     np.set_printoptions(precision=3)
-    rho = 100.0*gd.UNIT_G_PER_CM3
-    sth = gd.S12_NO_BF_NUFIT_6_0
-    Dm2 = gd.D21_NO_BF_NUFIT_6_0 # [eV^2]
-    energy = 1.0*gd.UNIT_MEV
-    eps_aa = 0.1 #gd.EPS_EE
-    eps_ab = 0.2 #gd.EPS_EM
-    print(osc_prob_2nu_matter_nsi_constant_density(energy, baseline, rho, sth, Dm2, eps_aa, eps_ab,
-        verbose=0))
-    print(osc_prob_2nu_matter_nsi_constant_density(energy, baseline, rho, sth, Dm2, 0.0, 0.0,
-        verbose=0))
-    print(osc_prob_2nu_matter_constant_density(energy, baseline, rho, sth, Dm2, verbose=0))
-    # print(osc_prob_2nu_matter_nsi_constant_density(energy, gd.UNIT_KM*np.array([1.0, 10.0]), 
-    #     rho, sth, Dm2, eps_aa, eps_ab, verbose=1))
-    # print(osc_prob_2nu_matter_nsi_constant_density(gd.UNIT_MEV*np.array([1.0, 10.0]), baseline, 
-    #     rho, sth, Dm2, eps_aa, eps_ab, verbose=1))
-    # print(osc_prob_2nu_matter_nsi_constant_density(gd.UNIT_MEV*np.array([1.0, 5.0]), 
-    #     gd.UNIT_KM*np.array([1.0, 10.0]), rho, sth, Dm2, eps_aa, eps_ab, nu_i=gd.NUE, nu_f=gd.NUMU,
-    #     verbose=1))
-    # print(osc_prob_2nu_matter_nsi_constant_density(energy, baseline, rho, sth, Dm2, eps_aa, eps_ab,
-    #     nu_i=gd.NUE, nu_f=gd.NUMU, verbose=1))
-    # print(osc_prob_2nu_matter_nsi_constant_density(energy, baseline, rho, sth, Dm2, eps_aa, eps_ab,
-    #     nu_i=gd.NUE, nu_f=gd.NUTAU, verbose=1))
-    # print(osc_prob_2nu_matter_nsi_constant_density(energy, baseline, rho, sth, Dm2, eps_aa, eps_ab,
-    #     nu_i=gd.NUMU, nu_f=gd.NUTAU, verbose=1))
+    rho = 10.0*gd.UNIT_G_PER_CM3
+    energy = 1.0*gd.UNIT_GEV
+    baseline = 1000.*gd.UNIT_KM
+    s14, s15, s24, s25, s34, s35 = 0.1, 0.1, 0.2, 0.2, 0.3, 0.3
+    d14, d15, d24, d35 = np.radians([10.0, 20.0, 30.0, 40.0])
+    D41, D51 = 0.1, 0.01 # [eV^2]
+    eps_ee, eps_em, eps_et, eps_es1, eps_es2, eps_mm, eps_mt, eps_ms1, eps_ms2, eps_tt, eps_ts1, \
+        eps_ts2, eps_s1s1, eps_s1s2, eps_s2s2 \
+        = 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1
+    print(osc_prob_5nu_matter_nsi_constant_density(energy, baseline, rho, s14, s15, s24, s25, s34, 
+        s35, d14, d15, d24, d35, D41, D51, eps_ee, eps_em, eps_et, eps_es1, eps_es2, eps_mm, eps_mt,
+        eps_ms1, eps_ms2, eps_tt, eps_ts1, eps_ts2, eps_s1s1, eps_s1s2, eps_s2s2, verbose=0))
+    print(osc_prob_5nu_matter_constant_density(energy, baseline, rho, s14, s15, s24, s25, s34, s35,
+        d14, d15, d24, d35, D41, D51, verbose=0))
