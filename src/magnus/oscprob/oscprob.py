@@ -263,6 +263,7 @@ from joblib import Parallel, delayed
 from typing import Optional, Callable, Union, Tuple, List, Dict
 from io import TextIOWrapper
 from inspect import signature
+# from numba import jit
 
 # import numpy.typing
 
@@ -284,6 +285,10 @@ import authors as authors
 
 has_magnus_header_been_printed = False
 
+
+#-----------------------------------------------------------------------
+# Helper functions
+#-----------------------------------------------------------------------
 
 def print_banner(file: TextIOWrapper=None):
     if file is None:
@@ -899,6 +904,16 @@ def unpack_nsi_params_from_dict(
         sys.exit(1)
 
 
+def chunkify(lst, n):
+    """Yield successive n-sized chunks from lst."""
+    for i in range(0, len(lst), n):
+        yield lst[i:i + n]
+
+
+#-----------------------------------------------------------------------
+# Primordial functions
+#-----------------------------------------------------------------------
+
 def compute_evolution_operator(
     H_func: Callable, 
     t_slab: Union[list, np.ndarray], 
@@ -933,7 +948,57 @@ def compute_evolution_operator(
         )
     else:  # t_slab[1] == t_slab[0]
         n = H_func(t_slab[0]).shape[0]
-        return np.eye(n, n)
+        return np.eye(n)
+
+
+def compute_evolution_operator_multiple_slabs(
+    H_func: Callable,
+    t_slabs: Union[list, np.ndarray],
+    n_tpts_per_slab: int,
+    magnus_exp_order: int,
+    **kwargs
+) -> np.ndarray:
+    r"""Computes the evolution operator inside a given time slab.  This functions is not designed to
+    be called directly by the user, but rather internally by :func:`osc_prob`.
+
+    :param H_func: Hamiltonian, which is a function of time or position that returns a square matrix
+        in the form of NumPy array
+    :param t_slab: List or Numpy Array specifying the start and end times or positions of the slab,
+        i.e., [t0, t1]
+    :param n_tpts_per_slab: Number of time-points inside the slab at which to evaluate H_func in 
+        order to numerically compute the integrals over time required by the Magnus expansion
+    :param magnus_exp_order: Maximum order of Magnus expansion used to compute the evolution
+        operator (should not exceed :func:`magnus.globaldefs.MAGNUS_EXP_ORDER_MAX`)
+    :param \**kwargs: Additional unspecified arguments
+
+    :return: An NumPy array containing the evolution operator for the given time-slab.
+
+    """
+    t_slabs = np.asarray(t_slabs)  # Ensure t_slabs is a NumPy array
+    n_slabs = t_slabs.shape[0]
+
+    # Pre-allocate the output array.  Assumes all evolution operators are the same size.
+    # Get the shape from a sample Hamiltonian evaluation. This is generally faster
+    # than calling H_func repeatedly.
+    sample_t = t_slabs[0, 0] if n_slabs > 0 else 0 # Handle empty t_slabs case
+    sample_H = H_func(sample_t)
+    matrix_dim = sample_H.shape[0]
+    U_chain = np.empty((n_slabs, matrix_dim, matrix_dim), dtype=complex) 
+
+    for i, t_slab in enumerate(t_slabs):
+        if t_slab[1] > t_slab[0]:
+            U_chain[i] = magnus.magnus_expansion(
+                lambda t: -1j * H_func(t),
+                t0=t_slab[0],
+                t1=t_slab[1],
+                order=magnus_exp_order,
+                n_tpts=n_tpts_per_slab,
+                **kwargs,
+            )
+        else:  # t1 == t0
+            U_chain[i] = np.eye(matrix_dim, dtype=complex)  # Use pre-allocated identity
+
+    return U_chain
 
 
 def osc_prob(
@@ -1351,10 +1416,13 @@ def osc_prob(
         # of the Magnus expansion, from t_slab[0] to t_slab[1].  U_chain contains the chain of time-
         # ordered evolution operators, each computed in one time slab 
         if (n_jobs == 1): # No parallelization
-            U_chain = [compute_evolution_operator(H_func, t_slab, n_tpts_per_slab, magnus_exp_order,
-                integration_method=integration_method, **kwargs) for t_slab in t_slab_edges]
+            # U_chain = [compute_evolution_operator(H_func, t_slab, n_tpts_per_slab, magnus_exp_order,
+            #     integration_method=integration_method, **kwargs) for t_slab in t_slab_edges]
+            U_chain = compute_evolution_operator_multiple_slabs(H_func, t_slab_edges, 
+                n_tpts_per_slab, magnus_exp_order, integration_method=integration_method, **kwargs)
         else: # Run n_jobs jobs in parallel
-            U_chain = Parallel(n_jobs=n_jobs)(  
+            # batch_size = max(1, n_slabs // (n_jobs * 2))  # Adjust the factor as needed.
+            U_chain = Parallel(n_jobs=n_jobs, batch_size='auto')(  
                 delayed(compute_evolution_operator)(
                     H_func, t_slab, n_tpts_per_slab, magnus_exp_order, 
                     integration_method=integration_method, **kwargs
@@ -1362,12 +1430,42 @@ def osc_prob(
                 for t_slab in t_slab_edges
             )
 
+            # if n_slabs > 1:
+            #     chunk_size = 4  # Experiment with this value
+            #     U_chain = []
+            #     t_slab_chunks = list(chunkify(t_slab_edges, chunk_size))
+            #     U_chain_chunk = Parallel(n_jobs=n_jobs, batch_size=1)(
+            #         delayed(compute_evolution_operator_multiple_slabs)(
+            #             H_func, t_slabs[0], n_tpts_per_slab, magnus_exp_order,
+            #             integration_method=integration_method, **kwargs
+            #         ) for t_slabs in t_slab_chunks
+            #     )
+            #     U_chain.extend(U_chain_chunk)  # Combine results from chunks
+            #     U_chain = np.array(U_chain) # Convert back to a NumPy array if needed
+            # else:
+            #     U_chain = compute_evolution_operator_multiple_slabs(H_func, t_slab_edges, 
+            #         n_tpts_per_slab, magnus_exp_order, integration_method=integration_method, 
+            #         **kwargs)
+
+
+            # chunk_size = 4  # Experiment with this value
+            # U_chain = []
+            # for chunk in chunkify(t_slab_edges, chunk_size):
+            #     U_chain_chunk = Parallel(n_jobs=n_jobs)(
+            #         delayed(compute_evolution_operator)(
+            #             H_func, t_slab, n_tpts_per_slab, magnus_exp_order,
+            #             integration_method=integration_method, **kwargs
+            #         ) for t_slab in chunk
+            #     )
+            #     U_chain.extend(U_chain_chunk)  # Combine results from chunks
+            # U_chain = np.array(U_chain) # Convert back to a NumPy array if needed
+
         # Now compute the time-ordered product of all evolution operators across all slabs
         Utot = np.linalg.multi_dot(U_chain) if n_slabs > 1 else U_chain[0]
 
         # Using Utot, compute all the survival and transition probabilities in a probability matrix
         # P = (np.abs(Utot)**2).T and return that matrix.
-        P = (np.abs(Utot)**2).T
+        P = np.transpose(np.power(np.abs(Utot), 2))
 
         # If no target relative tolerance (rtol) or absolute tolerance (atol) of the probability is
         # requested, then return the result obtained already.  If, instead, a target tolerance is
@@ -5374,7 +5472,7 @@ if __name__ == "__main__":
     # energy = 1.0*gd.UNIT_MEV
     # eps_ee, eps_em, eps_et, eps_mm, eps_mt, eps_tt = 0.1, 0.1, 1.1, 0.1, 0.1, 0.1
     # print(osc_prob_3nu_matter_nsi_constant_density(energy, baseline, rho, eps_ee, eps_em, eps_et, 
-    #     eps_mm, eps_mt, eps_tt, verbose=1))
+    #     eps_mm, eps_mt, eps_tt, verbose=0))
     # print(osc_prob_3nu_matter_constant_density(energy, baseline, rho, verbose=1))
 
     # # Four-neutrino oscillations in constant-density matter, NSI
@@ -5426,17 +5524,47 @@ if __name__ == "__main__":
     #     verbose=0))
     # print(osc_prob_2nu_vacuum(energy, baseline, sth, Dm2, verbose=0))
 
-    # # Three-neutrino oscillations in exponentially falling matter density profile, NSI
-    # np.set_printoptions(precision=3)
-    # rho_central = 10.0*gd.UNIT_G_PER_CM3
-    # l_scale = 200.0*gd.UNIT_KM
-    # baseline = 50.*gd.UNIT_KM # km in natural units [eV^{-1}]
-    # energy = 10.*gd.UNIT_MEV # [eV]
-    # eps_ee, eps_em, eps_et, eps_mm, eps_mt, eps_tt = 0.1, 0.1, 1.1, 0.1, 0.1, 0.1
+    # Three-neutrino oscillations in exponentially falling matter density profile, NSI
+    np.set_printoptions(precision=3)
+    rho_central = 1000.0*gd.UNIT_G_PER_CM3
+    l_scale = 100.0*gd.UNIT_KM
+    baseline = 50.*gd.UNIT_KM # km in natural units [eV^{-1}]
+    energy = 10.*gd.UNIT_MEV # [eV]
+    eps_ee, eps_em, eps_et, eps_mm, eps_mt, eps_tt = 0.1, 0.1, 1.1, 0.1, 0.1, 0.1
     # print(osc_prob_3nu_matter_nsi_exp_density(energy, baseline, 0.0, rho_central, l_scale, 
     #     eps_ee, eps_em, eps_et, eps_mm, eps_mt, eps_tt, verbose=0))
+    # quit()
     # print(osc_prob_3nu_matter_exp_density(energy, baseline, 0.0, rho_central, l_scale, verbose=0))
     # print(osc_prob_3nu_vacuum(energy, baseline, verbose=0))
+        # print(osc_prob_3nu_matter_nsi_exp_density(energy, baseline, 0.0, rho_central, l_scale, 
+        # eps_ee, eps_em, eps_et, eps_mm, eps_mt, eps_tt, n_jobs=5, verbose=0))
+    
+    import time
+
+    duration = 0
+    n_loops = 30
+    for i in range(n_loops):
+        start = time.time()
+        osc_prob_3nu_matter_nsi_exp_density(gd.UNIT_MEV*np.linspace(1,10000,100), 
+            gd.UNIT_KM*np.linspace(0.1,1000,100), 0.0, rho_central, l_scale, 
+            eps_ee, eps_em, eps_et, eps_mm, eps_mt, eps_tt, rtol=1.e-3, atol=1.e-3, n_jobs=1, 
+            verbose=0)
+        end = time.time()
+        duration += end-start
+    print("Average time, n_jobs = 1: " + str(duration/n_loops) + " s")
+
+    # duration = 0
+    # n_loops = 30
+    # for i in range(n_loops):
+    #     start = time.time()
+    #     osc_prob_3nu_matter_nsi_exp_density(gd.UNIT_MEV*np.linspace(1,10000,100), 
+    #         gd.UNIT_KM*np.linspace(0.1,1000,100), 0.0, rho_central, l_scale, 
+    #         eps_ee, eps_em, eps_et, eps_mm, eps_mt, eps_tt, rtol=1.e-3, atol=1.e-3, n_jobs=4, 
+    #         verbose=0)
+    #     end = time.time()
+    #     duration += end-start
+    # print("Average time, n_jobs = 10: " + str(duration/n_loops) + " s")
+
 
     # # Four-neutrino oscillations in exponentially falling matter density profile, NSI
     # np.set_printoptions(precision=3)
