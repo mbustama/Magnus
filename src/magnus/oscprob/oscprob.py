@@ -3982,13 +3982,6 @@ def osc_prob_2nu_sun(
     <https://academic.oup.com/book/3490>`_ by Carlo Giunti and Chung 
     Wook Kim.
 
-    The location of each point on the surface can either be given as a 
-    tuple (ra, dec) of right ascension and declination (i.e., 
-    ``ra_dec_ini`` and ``ra_dec_fin``)---including the possibility of 
-    using locations predefined in Magnus---or as the cosine of the
-    zenith angle between the initial and final positions (i.e.,
-    ``costhz``).
-
     Examples
     --------
     """
@@ -4030,7 +4023,8 @@ def osc_prob_2nu_sun(
         close_file_log_upon_exit=close_file_log_upon_exit,
         new_recursion_limit=new_recursion_limit,
         verbose=verbose,
-        **kwargs)
+        **kwargs
+    )
 
 
 def osc_prob_3nu_sun(
@@ -4086,13 +4080,6 @@ def osc_prob_3nu_sun(
     <https://academic.oup.com/book/3490>`_ by Carlo Giunti and Chung 
     Wook Kim.
 
-    The location of each point on the surface can either be given as a 
-    tuple (ra, dec) of right ascension and declination (i.e., 
-    ``ra_dec_ini`` and ``ra_dec_fin``)---including the possibility of 
-    using locations predefined in Magnus---or as the cosine of the
-    zenith angle between the initial and final positions (i.e.,
-    ``costhz``).
-
     Examples
     --------
     """
@@ -4136,7 +4123,8 @@ def osc_prob_3nu_sun(
         close_file_log_upon_exit=close_file_log_upon_exit,
         new_recursion_limit=new_recursion_limit,
         verbose=verbose,
-        **kwargs)
+        **kwargs
+    )
 
 
 def osc_prob_4nu_sun(
@@ -4148,7 +4136,7 @@ def osc_prob_4nu_sun(
     s34: Union[int, float],
     d14: Union[int, float],
     d24: Union[int, float],
-    D41: Optional[Union[int, float]], 
+    D41: Union[int, float], 
     s12: Optional[Union[int, float]]=None, 
     s23: Optional[Union[int, float]]=None, 
     s13: Optional[Union[int, float]]=None, 
@@ -4197,13 +4185,6 @@ def osc_prob_4nu_sun(
     `Fundamentals of Neutrino Physics and Astrophysics 
     <https://academic.oup.com/book/3490>`_ by Carlo Giunti and Chung 
     Wook Kim.
-
-    The location of each point on the surface can either be given as a 
-    tuple (ra, dec) of right ascension and declination (i.e., 
-    ``ra_dec_ini`` and ``ra_dec_fin``)---including the possibility of 
-    using locations predefined in Magnus---or as the cosine of the
-    zenith angle between the initial and final positions (i.e.,
-    ``costhz``).
 
     Examples
     --------
@@ -4254,7 +4235,8 @@ def osc_prob_4nu_sun(
         close_file_log_upon_exit=close_file_log_upon_exit,
         new_recursion_limit=new_recursion_limit,
         verbose=verbose,
-        **kwargs)
+        **kwargs
+    )
 
 
 def osc_prob_5nu_sun(
@@ -4271,8 +4253,8 @@ def osc_prob_5nu_sun(
     d15: Union[int, float],
     d24: Union[int, float],
     d35: Union[int, float],
-    D41: Optional[Union[int, float]], 
-    D51: Optional[Union[int, float]], 
+    D41: Union[int, float], 
+    D51: Union[int, float], 
     s12: Optional[Union[int, float]]=None, 
     s23: Optional[Union[int, float]]=None, 
     s13: Optional[Union[int, float]]=None, 
@@ -4321,13 +4303,6 @@ def osc_prob_5nu_sun(
     `Fundamentals of Neutrino Physics and Astrophysics 
     <https://academic.oup.com/book/3490>`_ by Carlo Giunti and Chung 
     Wook Kim.
-
-    The location of each point on the surface can either be given as a 
-    tuple (ra, dec) of right ascension and declination (i.e., 
-    ``ra_dec_ini`` and ``ra_dec_fin``)---including the possibility of 
-    using locations predefined in Magnus---or as the cosine of the
-    zenith angle between the initial and final positions (i.e.,
-    ``costhz``).
 
     Examples
     --------
@@ -4384,7 +4359,8 @@ def osc_prob_5nu_sun(
         close_file_log_upon_exit=close_file_log_upon_exit,
         new_recursion_limit=new_recursion_limit,
         verbose=verbose,
-        **kwargs)
+        **kwargs
+    )
 
 
 def osc_prob_sun(
@@ -5167,6 +5143,493 @@ def osc_prob_5nu_matter_nsi_exp_density(
     return
 
 
+#-----------------------------------------------------------------------
+# In matter, NSI, in the Sun
+#-----------------------------------------------------------------------
+
+#-----------------------------------------------------------------------
+# In matter, standard oscillations, in the Sun
+#-----------------------------------------------------------------------
+
+def osc_prob_2nu_sun_nsi(
+    energy: Union[float, list, np.ndarray], 
+    L: Union[float, list, np.ndarray],
+    L0: Union[int, float], 
+    sth: Union[int, float],
+    Dm2: Union[int, float],
+    eps_aa: Union[int, float],
+    eps_ab: Union[int, float],
+    nubar: Optional[bool]=False, 
+    nu_i: Optional[int]=None, 
+    nu_f: Optional[int]=None,
+    default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
+    magnus_exp_order: Optional[int]=3, #4, 
+    n_jobs: Optional[int]=1, 
+    integration_method: Optional[str]='trapezoid', 
+    rtol: Optional[Union[int, float]]=1.e-2, 
+    atol: Optional[Union[int, float]]=1.e-2, 
+    growth_factor_n_slabs: Optional[Union[int, float]]=2.0, #1.5, 
+    growth_factor_n_tpts_per_slab: Optional[Union[int, float]]=2.0, 
+    max_num_loops: Optional[int]=50, 
+    min_n_slabs: Optional[int]=100, 
+    max_n_slabs: Optional[int]=400, #2000, 
+    min_n_tpts_per_slab: Optional[int]=100, #10, 
+    max_n_tpts_per_slab: Optional[int]=400, #500, 
+    iterate_over_magnus_exp_order: Optional[bool]=False,
+    min_magnus_exp_order: Optional[int]=1,
+    max_magnus_exp_order: Optional[int]=gd.MAGNUS_EXP_ORDER_MAX,
+    validate_input: Optional[bool]=True, 
+    save_log: Optional[bool]=False, 
+    filename_log: Optional[str]='./out.log',
+    file_log: Optional[TextIOWrapper]=None, 
+    close_file_log_upon_exit: Optional[bool]=True,
+    new_recursion_limit: Optional[int]=5000,
+    verbose: Optional[int]=0,
+    **kwargs
+) -> Union[float, np.ndarray]:
+    """Compute and return the two-neutrino oscillation probability 
+    for neutrinos inside the Sun, including non-standard interactions
+    (NSI).
+    
+    For the electron density inside the Sun, it assumes an exponentially
+    falling density profile: :math:`N_e(r) = N_e(0) \\exp(-r/r_0)`, 
+    with :math:`N_e(0) = 245 N_\\text{Av}~\\text{cm}^{-3}` and 
+    :math:`r_0 = R_\\odot/10.54`.  See Eq. (10.62) in
+    `Fundamentals of Neutrino Physics and Astrophysics 
+    <https://academic.oup.com/book/3490>`_ by Carlo Giunti and Chung 
+    Wook Kim.
+
+    Examples
+    --------
+    """
+
+    return osc_prob_2nu_matter_nsi_exp_density(
+        energy=energy,
+        L=L,
+        L0=L0,
+        rho_central=gd.NUM_DENSITY_E_SUN_CENTRAL,
+        l_scale=gd.L_SCALE_SUN,
+        sth=sth,
+        Dm2=Dm2,
+        eps_aa=eps_aa,
+        eps_ab=eps_ab,
+        nubar=nubar,
+        nu_i=nu_i,
+        nu_f=nu_f,
+        density_is_of_number_of_electrons=True,
+        default_osc_params_set_name=default_osc_params_set_name,
+        magnus_exp_order=magnus_exp_order,
+        n_jobs=n_jobs,
+        integration_method=integration_method,
+        rtol=rtol,
+        atol=atol,
+        growth_factor_n_slabs=growth_factor_n_slabs,
+        growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
+        max_num_loops=max_num_loops,
+        min_n_slabs=min_n_slabs,
+        max_n_slabs=max_n_slabs,
+        min_n_tpts_per_slab=min_n_tpts_per_slab,
+        max_n_tpts_per_slab=max_n_tpts_per_slab,
+        iterate_over_magnus_exp_order=iterate_over_magnus_exp_order,
+        min_magnus_exp_order=min_magnus_exp_order,
+        max_magnus_exp_order=max_magnus_exp_order,
+        validate_input=validate_input,
+        save_log=save_log,
+        filename_log=filename_log,
+        file_log=file_log,
+        close_file_log_upon_exit=close_file_log_upon_exit,
+        new_recursion_limit=new_recursion_limit,
+        verbose=verbose,
+        **kwargs
+    )
+
+
+def osc_prob_3nu_sun_nsi(
+    energy: Union[float, list, np.ndarray], 
+    L: Union[float, list, np.ndarray],
+    L0: Union[int, float], 
+    eps_ee: Union[int, float],
+    eps_em: Union[int, float],
+    eps_et: Union[int, float],
+    eps_mm: Union[int, float],
+    eps_mt: Union[int, float],
+    eps_tt: Union[int, float],
+    s12: Optional[Union[int, float]]=None, 
+    s23: Optional[Union[int, float]]=None, 
+    s13: Optional[Union[int, float]]=None, 
+    dCP: Optional[Union[int, float]]=None, 
+    D21: Optional[Union[int, float]]=None, 
+    D31: Optional[Union[int, float]]=None, 
+    nubar: Optional[bool]=False, 
+    nu_i: Optional[int]=None, 
+    nu_f: Optional[int]=None,
+    default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
+    magnus_exp_order: Optional[int]=3, 
+    n_jobs: Optional[int]=1, 
+    integration_method: Optional[str]='trapezoid', 
+    rtol: Optional[Union[int, float]]=1.e-2, 
+    atol: Optional[Union[int, float]]=1.e-2, 
+    growth_factor_n_slabs: Optional[Union[int, float]]=2.0, 
+    growth_factor_n_tpts_per_slab: Optional[Union[int, float]]=2.0, 
+    max_num_loops: Optional[int]=50, 
+    min_n_slabs: Optional[int]=100, 
+    max_n_slabs: Optional[int]=400, 
+    min_n_tpts_per_slab: Optional[int]=100, 
+    max_n_tpts_per_slab: Optional[int]=400, 
+    iterate_over_magnus_exp_order: Optional[bool]=False,
+    min_magnus_exp_order: Optional[int]=1,
+    max_magnus_exp_order: Optional[int]=gd.MAGNUS_EXP_ORDER_MAX,
+    validate_input: Optional[bool]=True, 
+    save_log: Optional[bool]=False, 
+    filename_log: Optional[str]='./out.log',
+    file_log: Optional[TextIOWrapper]=None, 
+    close_file_log_upon_exit: Optional[bool]=True,
+    new_recursion_limit: Optional[int]=5000,
+    verbose: Optional[int]=0,
+    **kwargs
+) -> Union[float, np.ndarray]:
+    """Compute and return the three-neutrino oscillation probability 
+    for neutrinos inside the Sun.
+    
+    For the electron density inside the Sun, it assumes an exponentially
+    falling density profile: :math:`N_e(r) = N_e(0) \\exp(-r/r_0)`, 
+    with :math:`N_e(0) = 245 N_\\text{Av}~\\text{cm}^{-3}` and 
+    :math:`r_0 = R_\\odot/10.54`.  See Eq. (10.62) in
+    `Fundamentals of Neutrino Physics and Astrophysics 
+    <https://academic.oup.com/book/3490>`_ by Carlo Giunti and Chung 
+    Wook Kim.
+
+    Examples
+    --------
+    """
+
+    return osc_prob_3nu_matter_nsi_exp_density(
+        energy=energy,
+        L=L,
+        L0=L0,
+        rho_central=gd.NUM_DENSITY_E_SUN_CENTRAL,
+        l_scale=gd.L_SCALE_SUN,
+        eps_ee=eps_ee,
+        eps_em=eps_em,
+        eps_et=eps_et,
+        eps_mm=eps_mm,
+        eps_mt=eps_mt,
+        eps_tt=eps_tt,
+        s12=s12,
+        s23=s23,
+        s13=s13,
+        dCP=dCP,
+        D21=D21,
+        D31=D31,
+        nubar=nubar,
+        nu_i=nu_i,
+        nu_f=nu_f,
+        density_is_of_number_of_electrons=True,
+        default_osc_params_set_name=default_osc_params_set_name,
+        magnus_exp_order=magnus_exp_order,
+        n_jobs=n_jobs,
+        integration_method=integration_method,
+        rtol=rtol,
+        atol=atol,
+        growth_factor_n_slabs=growth_factor_n_slabs,
+        growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
+        max_num_loops=max_num_loops,
+        min_n_slabs=min_n_slabs,
+        max_n_slabs=max_n_slabs,
+        min_n_tpts_per_slab=min_n_tpts_per_slab,
+        max_n_tpts_per_slab=max_n_tpts_per_slab,
+        iterate_over_magnus_exp_order=iterate_over_magnus_exp_order,
+        min_magnus_exp_order=min_magnus_exp_order,
+        max_magnus_exp_order=max_magnus_exp_order,
+        validate_input=validate_input,
+        save_log=save_log,
+        filename_log=filename_log,
+        file_log=file_log,
+        close_file_log_upon_exit=close_file_log_upon_exit,
+        new_recursion_limit=new_recursion_limit,
+        verbose=verbose,
+        **kwargs
+    )
+
+
+def osc_prob_4nu_sun_nsi(
+    energy: Union[float, list, np.ndarray], 
+    L: Union[float, list, np.ndarray],
+    L0: Union[int, float], 
+    s14: Union[int, float],
+    s24: Union[int, float],
+    s34: Union[int, float],
+    d14: Union[int, float],
+    d24: Union[int, float],
+    D41: Optional[Union[int, float]], 
+    eps_ee: Union[int, float],
+    eps_em: Union[int, float],
+    eps_et: Union[int, float],
+    eps_es: Union[int, float],
+    eps_mm: Union[int, float],
+    eps_mt: Union[int, float],
+    eps_ms: Union[int, float],
+    eps_tt: Union[int, float],
+    eps_ts: Union[int, float],
+    eps_ss: Union[int, float],
+    s12: Optional[Union[int, float]]=None, 
+    s23: Optional[Union[int, float]]=None, 
+    s13: Optional[Union[int, float]]=None, 
+    dCP: Optional[Union[int, float]]=None, 
+    D21: Optional[Union[int, float]]=None, 
+    D31: Optional[Union[int, float]]=None, 
+    nubar: Optional[bool]=False, 
+    nu_i: Optional[int]=None, 
+    nu_f: Optional[int]=None,
+    default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
+    magnus_exp_order: Optional[int]=3, 
+    n_jobs: Optional[int]=1, 
+    integration_method: Optional[str]='trapezoid', 
+    rtol: Optional[Union[int, float]]=1.e-2, 
+    atol: Optional[Union[int, float]]=1.e-2, 
+    growth_factor_n_slabs: Optional[Union[int, float]]=2.0, 
+    growth_factor_n_tpts_per_slab: Optional[Union[int, float]]=2.0, 
+    max_num_loops: Optional[int]=50, 
+    min_n_slabs: Optional[int]=100, 
+    max_n_slabs: Optional[int]=400, 
+    min_n_tpts_per_slab: Optional[int]=100, 
+    max_n_tpts_per_slab: Optional[int]=400, 
+    iterate_over_magnus_exp_order: Optional[bool]=False,
+    min_magnus_exp_order: Optional[int]=1,
+    max_magnus_exp_order: Optional[int]=gd.MAGNUS_EXP_ORDER_MAX,
+    validate_input: Optional[bool]=True, 
+    save_log: Optional[bool]=False, 
+    filename_log: Optional[str]='./out.log',
+    file_log: Optional[TextIOWrapper]=None, 
+    close_file_log_upon_exit: Optional[bool]=True,
+    new_recursion_limit: Optional[int]=5000,
+    verbose: Optional[int]=0,
+    **kwargs
+) -> Union[float, np.ndarray]:
+    """Compute and return the four-neutrino (3+1) oscillation 
+    probability for neutrinos inside the Sun.
+
+    For the electron density inside the Sun, it assumes an exponentially
+    falling density profile: :math:`N_e(r) = N_e(0) \\exp(-r/r_0)`, 
+    with :math:`N_e(0) = 245 N_\\text{Av}~\\text{cm}^{-3}` and 
+    :math:`r_0 = R_\\odot/10.54`.  See Eq. (10.62) in
+    `Fundamentals of Neutrino Physics and Astrophysics 
+    <https://academic.oup.com/book/3490>`_ by Carlo Giunti and Chung 
+    Wook Kim.
+
+    Examples
+    --------
+    """
+
+    return osc_prob_4nu_matter_nsi_exp_density(
+        energy=energy,
+        L=L,
+        L0=L0,
+        rho_central=gd.NUM_DENSITY_E_SUN_CENTRAL,
+        l_scale=gd.L_SCALE_SUN,
+        s14=s14,
+        s24=s24,
+        s34=s34,
+        d14=d14,
+        d24=d24,
+        D41=D41,
+        eps_ee=eps_ee,
+        eps_em=eps_em,
+        eps_et=eps_et,
+        eps_es=eps_es,
+        eps_mm=eps_mm,
+        eps_mt=eps_mt,
+        eps_ms=eps_ms,
+        eps_tt=eps_tt,
+        eps_ts=eps_ts,
+        eps_ss=eps_ss,
+        s12=s12,
+        s23=s23,
+        s13=s13,
+        dCP=dCP,
+        D21=D21,
+        D31=D31,
+        nubar=nubar,
+        nu_i=nu_i,
+        nu_f=nu_f,
+        density_is_of_number_of_electrons=True,
+        default_osc_params_set_name=default_osc_params_set_name,
+        magnus_exp_order=magnus_exp_order,
+        n_jobs=n_jobs,
+        integration_method=integration_method,
+        rtol=rtol,
+        atol=atol,
+        growth_factor_n_slabs=growth_factor_n_slabs,
+        growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
+        max_num_loops=max_num_loops,
+        min_n_slabs=min_n_slabs,
+        max_n_slabs=max_n_slabs,
+        min_n_tpts_per_slab=min_n_tpts_per_slab,
+        max_n_tpts_per_slab=max_n_tpts_per_slab,
+        iterate_over_magnus_exp_order=iterate_over_magnus_exp_order,
+        min_magnus_exp_order=min_magnus_exp_order,
+        max_magnus_exp_order=max_magnus_exp_order,
+        validate_input=validate_input,
+        save_log=save_log,
+        filename_log=filename_log,
+        file_log=file_log,
+        close_file_log_upon_exit=close_file_log_upon_exit,
+        new_recursion_limit=new_recursion_limit,
+        verbose=verbose,
+        **kwargs
+    )
+
+
+def osc_prob_5nu_sun_nsi(
+    energy: Union[float, list, np.ndarray], 
+    L: Union[float, list, np.ndarray],
+    L0: Union[int, float], 
+    s14: Union[int, float],
+    s15: Union[int, float],
+    s24: Union[int, float],
+    s25: Union[int, float],
+    s34: Union[int, float],
+    s35: Union[int, float],
+    d14: Union[int, float],
+    d15: Union[int, float],
+    d24: Union[int, float],
+    d35: Union[int, float],
+    D41: Union[int, float], 
+    D51: Union[int, float], 
+    eps_ee: Union[int, float],
+    eps_em: Union[int, float],
+    eps_et: Union[int, float],
+    eps_es1: Union[int, float],
+    eps_es2: Union[int, float],
+    eps_mm: Union[int, float],
+    eps_mt: Union[int, float],
+    eps_ms1: Union[int, float],
+    eps_ms2: Union[int, float],
+    eps_tt: Union[int, float],
+    eps_ts1: Union[int, float],
+    eps_ts2: Union[int, float],
+    eps_s1s1: Union[int, float],
+    eps_s1s2: Union[int, float],
+    eps_s2s2: Union[int, float],
+    s12: Optional[Union[int, float]]=None, 
+    s23: Optional[Union[int, float]]=None, 
+    s13: Optional[Union[int, float]]=None, 
+    dCP: Optional[Union[int, float]]=None, 
+    D21: Optional[Union[int, float]]=None, 
+    D31: Optional[Union[int, float]]=None, 
+    nubar: Optional[bool]=False, 
+    nu_i: Optional[int]=None, 
+    nu_f: Optional[int]=None,
+    default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
+    magnus_exp_order: Optional[int]=3, 
+    n_jobs: Optional[int]=1, 
+    integration_method: Optional[str]='trapezoid', 
+    rtol: Optional[Union[int, float]]=1.e-2, 
+    atol: Optional[Union[int, float]]=1.e-2, 
+    growth_factor_n_slabs: Optional[Union[int, float]]=2.0, 
+    growth_factor_n_tpts_per_slab: Optional[Union[int, float]]=2.0, 
+    max_num_loops: Optional[int]=50, 
+    min_n_slabs: Optional[int]=100, 
+    max_n_slabs: Optional[int]=400, 
+    min_n_tpts_per_slab: Optional[int]=100, 
+    max_n_tpts_per_slab: Optional[int]=400, 
+    iterate_over_magnus_exp_order: Optional[bool]=False,
+    min_magnus_exp_order: Optional[int]=1,
+    max_magnus_exp_order: Optional[int]=gd.MAGNUS_EXP_ORDER_MAX,
+    validate_input: Optional[bool]=True, 
+    save_log: Optional[bool]=False, 
+    filename_log: Optional[str]='./out.log',
+    file_log: Optional[TextIOWrapper]=None, 
+    close_file_log_upon_exit: Optional[bool]=True,
+    new_recursion_limit: Optional[int]=5000,
+    verbose: Optional[int]=0,
+    **kwargs
+) -> Union[float, np.ndarray]:
+    """Compute and return the five-neutrino (3+2) oscillation 
+    probability for neutrinos inside the Sun.
+    
+    For the electron density inside the Sun, it assumes an exponentially
+    falling density profile: :math:`N_e(r) = N_e(0) \\exp(-r/r_0)`, 
+    with :math:`N_e(0) = 245 N_\\text{Av}~\\text{cm}^{-3}` and 
+    :math:`r_0 = R_\\odot/10.54`.  See Eq. (10.62) in
+    `Fundamentals of Neutrino Physics and Astrophysics 
+    <https://academic.oup.com/book/3490>`_ by Carlo Giunti and Chung 
+    Wook Kim.
+
+    Examples
+    --------
+    """
+
+    return osc_prob_5nu_matter_nsi_exp_density(
+        energy=energy,
+        L=L,
+        L0=L0,
+        rho_central=gd.NUM_DENSITY_E_SUN_CENTRAL,
+        l_scale=gd.L_SCALE_SUN,
+        s14=s14,
+        s15=s15,
+        s24=s24,
+        s25=s25,
+        s34=s34,
+        s35=s35,
+        d14=d14,
+        d15=d15,
+        d24=d24,
+        d35=d35,
+        D41=D41,
+        D51=D51,
+        eps_ee=eps_ee,
+        eps_em=eps_em,
+        eps_et=eps_et,
+        eps_es1=eps_es1,
+        eps_es2=eps_es2,
+        eps_mm=eps_mm,
+        eps_mt=eps_mt,
+        eps_ms1=eps_ms1,
+        eps_ms2=eps_ms2,
+        eps_tt=eps_tt,
+        eps_ts1=eps_ts1,
+        eps_ts2=eps_ts2,
+        eps_s1s1=eps_s1s1,
+        eps_s1s2=eps_s1s2,
+        eps_s2s2=eps_s2s2,
+        s12=s12,
+        s23=s23,
+        s13=s13,
+        dCP=dCP,
+        D21=D21,
+        D31=D31,
+        nubar=nubar,
+        nu_i=nu_i,
+        nu_f=nu_f,
+        density_is_of_number_of_electrons=True,
+        default_osc_params_set_name=default_osc_params_set_name,
+        magnus_exp_order=magnus_exp_order,
+        n_jobs=n_jobs,
+        integration_method=integration_method,
+        rtol=rtol,
+        atol=atol,
+        growth_factor_n_slabs=growth_factor_n_slabs,
+        growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
+        max_num_loops=max_num_loops,
+        min_n_slabs=min_n_slabs,
+        max_n_slabs=max_n_slabs,
+        min_n_tpts_per_slab=min_n_tpts_per_slab,
+        max_n_tpts_per_slab=max_n_tpts_per_slab,
+        iterate_over_magnus_exp_order=iterate_over_magnus_exp_order,
+        min_magnus_exp_order=min_magnus_exp_order,
+        max_magnus_exp_order=max_magnus_exp_order,
+        validate_input=validate_input,
+        save_log=save_log,
+        filename_log=filename_log,
+        file_log=file_log,
+        close_file_log_upon_exit=close_file_log_upon_exit,
+        new_recursion_limit=new_recursion_limit,
+        verbose=verbose,
+        **kwargs
+    )
+
+
 if __name__ == "__main__":
     def H_2nu_func(t):
         return np.array([[1+1j*t, 2*t], [2*t, 4-1j*t]], dtype=np.complex128)
@@ -5525,12 +5988,12 @@ if __name__ == "__main__":
     # print(osc_prob_2nu_vacuum(energy, baseline, sth, Dm2, verbose=0))
 
     # Three-neutrino oscillations in exponentially falling matter density profile, NSI
-    np.set_printoptions(precision=3)
-    rho_central = 1000.0*gd.UNIT_G_PER_CM3
-    l_scale = 100.0*gd.UNIT_KM
-    baseline = 50.*gd.UNIT_KM # km in natural units [eV^{-1}]
-    energy = 10.*gd.UNIT_MEV # [eV]
-    eps_ee, eps_em, eps_et, eps_mm, eps_mt, eps_tt = 0.1, 0.1, 1.1, 0.1, 0.1, 0.1
+    # np.set_printoptions(precision=3)
+    # rho_central = 1000.0*gd.UNIT_G_PER_CM3
+    # l_scale = 100.0*gd.UNIT_KM
+    # baseline = 50.*gd.UNIT_KM # km in natural units [eV^{-1}]
+    # energy = 10.*gd.UNIT_MEV # [eV]
+    # eps_ee, eps_em, eps_et, eps_mm, eps_mt, eps_tt = 0.1, 0.1, 1.1, 0.1, 0.1, 0.1
     # print(osc_prob_3nu_matter_nsi_exp_density(energy, baseline, 0.0, rho_central, l_scale, 
     #     eps_ee, eps_em, eps_et, eps_mm, eps_mt, eps_tt, verbose=0))
     # quit()
@@ -5539,19 +6002,18 @@ if __name__ == "__main__":
         # print(osc_prob_3nu_matter_nsi_exp_density(energy, baseline, 0.0, rho_central, l_scale, 
         # eps_ee, eps_em, eps_et, eps_mm, eps_mt, eps_tt, n_jobs=5, verbose=0))
     
-    import time
-
-    duration = 0
-    n_loops = 30
-    for i in range(n_loops):
-        start = time.time()
-        osc_prob_3nu_matter_nsi_exp_density(gd.UNIT_MEV*np.linspace(1,10000,100), 
-            gd.UNIT_KM*np.linspace(0.1,1000,100), 0.0, rho_central, l_scale, 
-            eps_ee, eps_em, eps_et, eps_mm, eps_mt, eps_tt, rtol=1.e-3, atol=1.e-3, n_jobs=1, 
-            verbose=0)
-        end = time.time()
-        duration += end-start
-    print("Average time, n_jobs = 1: " + str(duration/n_loops) + " s")
+    # import time
+    # duration = 0
+    # n_loops = 30
+    # for i in range(n_loops):
+    #     start = time.time()
+    #     osc_prob_3nu_matter_nsi_exp_density(gd.UNIT_MEV*np.linspace(1,10000,100), 
+    #         gd.UNIT_KM*np.linspace(0.1,1000,100), 0.0, rho_central, l_scale, 
+    #         eps_ee, eps_em, eps_et, eps_mm, eps_mt, eps_tt, rtol=1.e-3, atol=1.e-3, n_jobs=1, 
+    #         verbose=0)
+    #     end = time.time()
+    #     duration += end-start
+    # print("Average time, n_jobs = 1: " + str(duration/n_loops) + " s")
 
     # duration = 0
     # n_loops = 30
@@ -5604,3 +6066,54 @@ if __name__ == "__main__":
     #     s24, s25, s34, s35, d14, d15, d24, d35, D41, D51, verbose=1))
     # print(osc_prob_5nu_vacuum(energy, baseline, s14, s15, s24, s25, s34, s35, d14, d15, d24, d35,
     #     D41, D51, verbose=1))
+
+    # # Two-neutrino oscillations in the Sun, NSI
+    # np.set_printoptions(precision=3)
+    # sth = gd.S12_NO_BF_NUFIT_6_0
+    # Dm2 = gd.D21_NO_BF_NUFIT_6_0 # [eV^2]
+    # eps_aa = 0.1 #gd.EPS_EE
+    # eps_ab = 0.2 #gd.EPS_EM
+    # L0 = 0.1*gd.SUN_RADIUS*gd.UNIT_KM # km in natural units [eV^{-1}]
+    # baseline = 1.0*gd.SUN_RADIUS*gd.UNIT_KM # km in natural units [eV^{-1}]
+    # energy = 10.0*gd.UNIT_MEV # [eV]
+    # print(osc_prob_2nu_sun_nsi(energy, baseline, L0, sth, Dm2, eps_aa, eps_ab,
+    #     n_jobs=10, verbose=1))
+    # # print(osc_prob_2nu_sun_nsi(energy, baseline, L0, sth, Dm2, eps_aa, eps_ab,
+    # #     rtol=1.e-2, atol=1.e-2, magnus_exp_order=4, max_n_slabs=2000, n_jobs=10, verbose=1))
+
+    # # Three-neutrino oscillations in the Sun, NSI
+    # np.set_printoptions(precision=3)
+    # L0 = 0.1*gd.SUN_RADIUS*gd.UNIT_KM # km in natural units [eV^{-1}]
+    # baseline = 1.0*gd.SUN_RADIUS*gd.UNIT_KM # km in natural units [eV^{-1}]
+    # energy = 10.*gd.UNIT_MEV # [eV]
+    # eps_ee, eps_em, eps_et, eps_mm, eps_mt, eps_tt = 0.1, 0.1, 1.1, 0.1, 0.1, 0.1
+    # print(osc_prob_3nu_sun_nsi(energy, baseline, L0, eps_ee, eps_em, eps_et, eps_mm, 
+    #     eps_mt, eps_tt, n_jobs=10, verbose=1))
+
+    # # Four-neutrino oscillations in the Sun, NSI
+    # np.set_printoptions(precision=3)
+    # L0 = 0.1*gd.SUN_RADIUS*gd.UNIT_KM # km in natural units [eV^{-1}]
+    # baseline = 1.0*gd.SUN_RADIUS*gd.UNIT_KM # km in natural units [eV^{-1}]
+    # energy = 10.*gd.UNIT_MEV # [eV]
+    # s14, s24, s34 = 0.1, 0.2, 0.3
+    # d14, d24 = np.radians(10.0), np.radians(100.0)
+    # D41 = 0.1 # [eV^2]
+    # eps_ee, eps_em, eps_et, eps_es, eps_mm, eps_mt, eps_ms, eps_tt, eps_ts, eps_ss \
+    #     = 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1
+    # print(osc_prob_4nu_sun_nsi(energy, baseline, L0, s14, s24, s34, d14, d24, D41, eps_ee, eps_em,
+    #     eps_et, eps_es, eps_mm, eps_mt, eps_ms, eps_tt, eps_ts, eps_ss, n_jobs=10, verbose=1))
+
+    # Five-neutrino oscillations in the Sun, NSI
+    np.set_printoptions(precision=3)
+    L0 = 0.1*gd.SUN_RADIUS*gd.UNIT_KM # km in natural units [eV^{-1}]
+    baseline = 1.0*gd.SUN_RADIUS*gd.UNIT_KM # km in natural units [eV^{-1}]
+    energy = 10.*gd.UNIT_MEV # [eV]
+    s14, s15, s24, s25, s34, s35 = 0.1, 0.1, 0.2, 0.2, 0.3, 0.3
+    d14, d15, d24, d35 = np.radians([10.0, 20.0, 30.0, 40.0])
+    D41, D51 = 0.1, 0.01 # [eV^2]
+    eps_ee, eps_em, eps_et, eps_es1, eps_es2, eps_mm, eps_mt, eps_ms1, eps_ms2, eps_tt, eps_ts1, \
+        eps_ts2, eps_s1s1, eps_s1s2, eps_s2s2 \
+        = 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1
+    print(osc_prob_5nu_sun_nsi(energy, baseline, L0, s14, s15, s24, s25, s34, s35, d14, d15, d24, 
+        d35, D41, D51, eps_ee, eps_em, eps_et, eps_es1, eps_es2, eps_mm, eps_mt, eps_ms1, eps_ms2,
+        eps_tt, eps_ts1, eps_ts2, eps_s1s1, eps_s1s2, eps_s2s2, n_jobs=10, verbose=1))
