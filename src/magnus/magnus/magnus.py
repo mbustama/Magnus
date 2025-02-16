@@ -2,6 +2,7 @@ import numpy as np
 import scipy as sp
 import sys
 from typing import Optional, Callable
+
 # from scipy.integrate import quad
 # from scipy.linalg import expm
 # from scipy.special import factorial
@@ -42,13 +43,16 @@ f2 = -1.0/720.0
 valid_integration_methods = ['trapezoid', 'simpson']
 
 
-# Function to compute the Magnus expansion terms
-def compute_magnus_terms(A: Callable, t0: float, t1: float, n_tpts: Optional[int]=50, 
-    order:Optional[int]=2, integration_method:Optional[str]='trapezoid', 
+# Function to compute the matrix exponential using Magnus expansion
+# @jit(nopython=True)
+def magnus_expansion(A: np.ndarray, t0: float, t1: float, n_tpts: Optional[int]=50, 
+    order:Optional[int]=2, integration_method:Optional[str]='trapezoid',
+    return_magnus_terms: Optional[bool]=False, 
     validate_input: Optional[bool]=True) -> np.ndarray:
     """
-    Compute the Magnus expansion terms up to a given order over the range [t0, t1].
+    Compute the matrix exponential of A(t) from t0 to t1 using the Magnus expansion.
     """
+
     # Validate input
     if validate_input:
         try:
@@ -60,9 +64,6 @@ def compute_magnus_terms(A: Callable, t0: float, t1: float, n_tpts: Optional[int
             print("Aborting execution...")
             sys.exit(1)
 
-    # nA = A(t0).shape[0]
-    # zero_matrix = np.zeros((nA, nA), dtype=complex)
-
     # Precompute time points and weights
     if t0 > 0.0:
         times = np.logspace(np.log10(t0), np.log10(t1), n_tpts)
@@ -72,21 +73,6 @@ def compute_magnus_terms(A: Callable, t0: float, t1: float, n_tpts: Optional[int
 
     def commutator(X: np.ndarray, Y: np.ndarray) -> np.ndarray:
         return X @ Y - Y @ X
-
-    # def integral_cumulative_simpson(times: np.ndarray, matrices: np.ndarray) -> np.ndarray:
-    #     # We need to write our custom routine to compute cumulative matrix integrals because the
-    #     # scipy routine `integrate.cumulative_simpson` does not handle complex numbers; it casts
-    #     # them into real numbers.  This is not a problem of the `integrate.cumulative_trapezoid`, 
-    #     # which we do use.
-    #     result = []
-    #     for i in range(len(times)):
-    #         if (i == 0): # Integral from t0 to t0
-    #             result.append(zero_matrix)
-    #         elif (i == 1): # Integral from t0 to t1
-    #             result.append(0.5*(times[1]-times[0])*sum(matrices[:2]))
-    #         else:
-    #             result.append(sp.integrate.simpson(matrices[0:i+1], x=times[0:i+1], axis=0))
-    #     return np.array(result)
 
     def integral_cumulative_simpson(matrices: np.ndarray, x: np.ndarray, **kwargs) -> np.ndarray:
         # We need to write our custom routine to compute cumulative matrix integrals because the
@@ -106,15 +92,18 @@ def compute_magnus_terms(A: Callable, t0: float, t1: float, n_tpts: Optional[int
     # Precompute the A(t) terms
     At = np.array([A(t) for t in times])
 
+    matrix_dim = At[0].shape[0]
+    magnus_terms = np.empty((order, matrix_dim, matrix_dim), dtype=complex) 
+
     # Precompute the Omega_1(t) terms, integrating from t0 to t = t0, ..., t1
     o1t = integral_cumulative(At, x=times, axis=0, initial=0)
-    magnus_terms.append(o1t[-1]) # Integral from t0 to t1
+    magnus_terms[0] = o1t[-1] # Integral from t0 to t1
 
     # Precompute the Omega_2(t) terms, integrating from t0 to t = t0, ..., t1
     if order >= 2:
         o2t_integrand = -0.5 * np.stack([commutator(o1t[i], At[i]) for i in range(n_tpts)], axis=0)
         o2t = integral_cumulative(o2t_integrand, x=times, axis=0, initial=0)
-        magnus_terms.append(o2t[-1])
+        magnus_terms[1] = o2t[-1]
 
     # Precompute the Omega_3(t) terms, integrating from t0 to t = t0, ..., t1
     if order >= 3:
@@ -122,9 +111,10 @@ def compute_magnus_terms(A: Callable, t0: float, t1: float, n_tpts: Optional[int
         t2 = f1 * np.stack(
             [commutator(o1t[i], commutator(o1t[i], At[i])) for i in range(n_tpts)], axis=0
         )
-        o3t_integrand = t1 + t2
-        o3t = integral_cumulative(o3t_integrand, x=times, axis=0, initial=0)
-        magnus_terms.append(o3t[-1])
+        # o3t_integrand = t1 + t2
+        # o3t = integral_cumulative(o3t_integrand, x=times, axis=0, initial=0)
+        o3t = integral_cumulative(t1+t2, x=times, axis=0, initial=0)
+        magnus_terms[2] = o3t[-1]
 
     # Precompute the Omega_4(t) terms, integrating from t0 to t = t0, ..., t1
     if order >= 4:
@@ -133,9 +123,10 @@ def compute_magnus_terms(A: Callable, t0: float, t1: float, n_tpts: Optional[int
             [commutator(o1t[i], commutator(o2t[i], At[i])) \
                 + commutator(o2t[i], commutator(o1t[i], At[i])) for i in range(n_tpts)], axis=0
         )
-        o4t_integrand = t1 + t2
-        o4t = integral_cumulative(o4t_integrand, x=times, axis=0, initial=0)
-        magnus_terms.append(o4t[-1])
+        # o4t_integrand = t1 + t2
+        # o4t = integral_cumulative(o4t_integrand, x=times, axis=0, initial=0)
+        o4t = integral_cumulative(t1+t2, x=times, axis=0, initial=0)
+        magnus_terms[3] = o4t[-1]
 
     # Precompute the Omega_5(t) terms, integrating from t0 to t = t0, ..., t1
     if order >= 5:
@@ -149,9 +140,10 @@ def compute_magnus_terms(A: Callable, t0: float, t1: float, n_tpts: Optional[int
             [commutator(o1t[i], commutator(o1t[i], commutator(o1t[i], 
             commutator(o1t[i], At[i])))) for i in range(n_tpts)], axis=0
         )
-        o5t_integrand = t1 + t2 + t3
-        o5t = integral_cumulative(o5t_integrand, x=times, axis=0, initial=0)
-        magnus_terms.append(o5t[-1])
+        # o5t_integrand = t1 + t2 + t3
+        # o5t = integral_cumulative(o5t_integrand, x=times, axis=0, initial=0)
+        o5t = integral_cumulative(t1+t2+t3, x=times, axis=0, initial=0)
+        magnus_terms[4] = o5t[-1]
 
     # Precompute the Omega_6(t) terms, integrating from t0 to t = t0, ..., t1
     if order >= 6:
@@ -168,23 +160,17 @@ def compute_magnus_terms(A: Callable, t0: float, t1: float, n_tpts: Optional[int
             + commutator(o1t[i], commutator(o2t[i], commutator(o1t[i], commutator(o1t[i], At[i]))))\
             + commutator(o2t[i], commutator(o1t[i], commutator(o1t[i], commutator(o1t[i], At[i]))))\
             for i in range(n_tpts)], axis=0)
-        o6t_integrand = t1 + t2 + t3
-        o6t = integral_cumulative(o6t_integrand, x=times, axis=0, initial=0)
-        magnus_terms.append(o6t[-1])
+        # o6t_integrand = t1 + t2 + t3
+        # o6t = integral_cumulative(o6t_integrand, x=times, axis=0, initial=0)
+        o6t = integral_cumulative(t1+t2+t3, x=times, axis=0, initial=0)
+        magnus_terms = o6t[-1]
 
-    return np.array(magnus_terms)
-
-# Function to compute the matrix exponential using Magnus expansion
-def magnus_expansion(A: np.ndarray, t0: float, t1: float, n_tpts: Optional[int]=50, 
-    order:Optional[int]=2, integration_method:Optional[str]='trapezoid') -> np.ndarray:
-    """
-    Compute the matrix exponential of A(t) from t0 to t1 using the Magnus expansion.
-    """
-    magnus_terms = compute_magnus_terms(A, t0, t1, n_tpts=n_tpts, order=order,
-        integration_method=integration_method)
-    Omega = sum(magnus_terms)  # Sum the Magnus terms
-    # return sp.linalg.cosm(Omega) + 1j*sp.linalg.sinm(Omega)
-    return np.array(sp.linalg.expm(Omega))
+    # Sum of the Magnus terms: Omega = np.sum(magnus_terms, axis=0)
+    # Return the exponential matrix (expm) of Omega and the terms of the expansion if requested
+    if not return_magnus_terms:
+        return np.array(sp.linalg.expm(np.sum(magnus_terms, axis=0)))
+    else:
+        return np.array(sp.linalg.expm(np.sum(magnus_terms, axis=0))), magnus_terms
 
 
 if __name__ == "__main__":
