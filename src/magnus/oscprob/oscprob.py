@@ -904,10 +904,163 @@ def unpack_nsi_params_from_dict(
         sys.exit(1)
 
 
-def chunkify(lst, n):
-    """Yield successive n-sized chunks from lst."""
-    for i in range(0, len(lst), n):
-        yield lst[i:i + n]
+def unpack_liv_params_from_dict(
+    source_func_name: str,
+    num_flavors: int,
+    liv_params: Dict,
+    h_liv: Union[list, np.ndarray]
+) -> np.ndarray:
+    r"""Unpack LIV parameters from the liv_params dict
+    """
+
+    if (num_flavors == 2):
+        try:
+            Lambda = liv_params['Lambda']
+            try:
+                if (Lambda <= 0.0):
+                    raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + \
+                        ": Lambda must be nonzero.")
+            except ValueError as error:
+                print(error)
+                print("Aborting execution...")
+                sys.exit(1)            
+            sxi = liv_params['sxi']
+            b1 = liv_params['b1']
+            b2 = liv_params['b2']
+            n_liv = liv_params['n_liv']
+            return np.array([sxi, b1, b2, Lambda, n_liv])
+        except KeyError :
+            print(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + ": since "+ \
+                    "num_flavors == 2, the dictionary of LIV parameters " + \
+                    "(liv_params) must contain the keys 'sxi', 'b1', 'b2', 'Lambda', 'n_liv'.")
+            print("Aborting execution...")
+            sys.exit(1)
+    elif (num_flavors == 3):
+        try:
+            Lambda = liv_params['Lambda']
+            try:
+                if (Lambda <= 0.0):
+                    raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + \
+                        ": Lambda must be nonzero.")
+            except ValueError as error:
+                print(error)
+                print("Aborting execution...")
+                sys.exit(1)            
+            sxi12 = liv_params['sxi12']
+            sxi23 = liv_params['sxi23']
+            sxi13 = liv_params['sxi13']
+            dxiCP = liv_params['dxiCP']
+            b1 = liv_params['b1']
+            b2 = liv_params['b2']
+            b3 = liv_params['b3']
+            n_liv = liv_params['n_liv']
+            return np.array([sxi12, sxi23, sxi13, dxiCP, b1, b2, b3, Lambda, n_liv])
+        except KeyError:
+            print(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + ": since " + \
+                    "num_flavors == 3, the dictionary of LIV parameters " + \
+                    "(liv_params) must contain the keys 'sxi12', 'sxi23', 'sxi13', 'dxiCP'," + \
+                    " 'b1', 'b2', 'b3', 'Lambda', and 'n_liv'.")
+            print("Aborting execution...")
+            sys.exit(1)
+    elif (num_flavors == 4):
+        try:
+            Lambda = liv_params['Lambda']
+            try:
+                if (Lambda <= 0.0):
+                    raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + \
+                        ": Lambda must be nonzero.")
+            except ValueError as error:
+                print(error)
+                print("Aborting execution...")
+                sys.exit(1)            
+            sxi12 = liv_params['sxi12']
+            sxi23 = liv_params['sxi23']
+            sxi13 = liv_params['sxi13']
+            dxi13 = liv_params['dxi13']
+            sxi14 = liv_params['sxi14']
+            dxi14 = liv_params['dxi14']
+            sxi24 = liv_params['sxi24']
+            dxi24 = liv_params['dxi24']
+            sxi34 = liv_params['sxi34']
+            b1 = liv_params['b1']
+            b2 = liv_params['b2']
+            b3 = liv_params['b3']
+            b4 = liv_params['b4']
+            n_liv = liv_params['n_liv']
+            return np.array([sxi12, sxi23, sxi13, dxi13, sxi14, dxi14, sxi24, dxi24, sxi34, b1, b2,
+                b3, b4, Lambda, n_liv])
+        except KeyError:
+            print(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + ": since " + \
+                    "num_flavors == 4, the dictionary of LIV parameters " + \
+                    "(liv_params) must contain the keys 'sxi12', 'sxi23', 'sxi13', 'dxi13'," + \
+                    " 'sxi14', 'dxi14', 'sxi24', 'dxi24', 'sxi34', 'b1', 'b2', 'b3', 'b4'," + \
+                    " 'Lambda', and 'n_liv'.")
+            print("Aborting execution...")
+            sys.exit(1)
+    elif (num_flavors == 5):
+        try:
+            Lambda = liv_params['Lambda']
+            try:
+                if (Lambda <= 0.0):
+                    raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + \
+                        ": Lambda must be nonzero.")
+            except ValueError as error:
+                print(error)
+                print("Aborting execution...")
+                sys.exit(1)            
+            sxi12 = liv_params['sxi12']
+            sxi23 = liv_params['sxi23']
+            sxi13 = liv_params['sxi13']
+            dxi13 = liv_params['dxi13']
+            sxi14 = liv_params['sxi14']
+            dxi14 = liv_params['dxi14']
+            sxi15 = liv_params['sxi15']
+            dxi15 = liv_params['dxi15']            
+            sxi24 = liv_params['sxi24']
+            dxi24 = liv_params['dxi24']
+            sxi25 = liv_params['sxi25']
+            sxi34 = liv_params['sxi34']
+            sxi35 = liv_params['sxi35']
+            dxi35 = liv_params['dxi35']
+            b1 = liv_params['b1']
+            b2 = liv_params['b2']
+            b3 = liv_params['b3']
+            b4 = liv_params['b4']
+            b5 = liv_params['b5']
+            n_liv = liv_params['n_liv']
+            return np.array([sxi12, sxi23, sxi13, dxi13, sxi14, dxi14, sxi15, dxi15, sxi24, dxi24, 
+                sxi25, sxi34, sxi35, dxi35, b1, b2, b3, b4, b5, Lambda, n_liv])
+        except KeyError:
+            print(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + ": since " + \
+                    "num_flavors == 5, the dictionary of LIV parameters " + \
+                    "(liv_params) must contain the keys 'sxi12', 'sxi23', 'sxi13', 'dxi13'," + \
+                    " 'sxi14', 'dxi14', 'sxi15', 'dxi15', 'sxi24', 'dxi24', 'sxi25' 'sxi34', " + \
+                    " 'sxi35', 'dxi35', 'b1', 'b2', 'b3', 'b4', 'b5', 'Lambda', and 'n_liv'.")
+            print("Aborting execution...")
+            sys.exit(1)
+    elif (num_flavors > gd.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS):
+        print(gd.WARNING_MSG_IN_COLOR + " oscprob." + source_func_name + ": the number of " + \
+            "flavors passed (num_flavors = " + str(num_flavors) + \
+            ") exceeds the maximum number for which Magnus has predefined vacuum Hamiltonians " + \
+            "(globaldefs.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS = " + \
+            str(gd.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS) + "). Will use the Hamiltonian provided " + \
+            "in h_liv.")
+        if (h_liv is None):
+            print(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + ": provided " + \
+                "h_liv is None.")
+            print("Aborting execution...")
+            sys.exit(1)
+    elif (num_flavors < 1):
+        print(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + ": num_flavors must be " + \
+            ">= 2.")
+        print("Aborting execution...")
+        sys.exit(1)
+
+
+# def chunkify(lst, n):
+#     """Yield successive n-sized chunks from lst."""
+#     for i in range(0, len(lst), n):
+#         yield lst[i:i + n]
 
 
 #-----------------------------------------------------------------------
@@ -2070,12 +2223,14 @@ def osc_prob_matter_std_potential(
         electron_fraction, nubar, density_matter_is_in_g_per_cm3,
         density_is_of_number_of_electrons) # [eV] 
     
+    s = -1.0 if nubar else 1.0
+
     # Matter Hamiltonian function: diagonal matrix with VCC in the top-left (ee) entry
     if isinstance(VCC_func, Callable):
         # VCC_func is a function of position, so the Hamiltonian is, too
         def htot(enu: Union[int, float], l: Union[int, float]) -> np.ndarray:
             h_matt = np.zeros((num_flavors, num_flavors))
-            h_matt[0][0] = VCC_func(l)
+            h_matt[0][0] = s*VCC_func(l)
             return (1/enu)*h_vac_energy_indep+h_matt
         htot_is_function_only_of_energy = False
     else:
@@ -2083,7 +2238,7 @@ def osc_prob_matter_std_potential(
         # osc_prob below, osc_prob will detect that VCC_func is constant and set parameters 
         # internally for speed-up.
         h_matt = np.zeros((num_flavors, num_flavors))
-        h_matt[0][0] = VCC_func
+        h_matt[0][0] = s*VCC_func
         def htot(enu: Union[int, float]) -> np.ndarray:
             return (1/enu)*h_vac_energy_indep+h_matt
         htot_is_function_only_of_energy = True
@@ -2207,19 +2362,21 @@ def osc_prob_matter_nsi(
             s13, dCP, s14, d14, s15, d15, s24, d24, s25, s34, s35, d35, D21, D31, D41, D51,
             nubar=nubar)
 
+    s = -1.0 if nubar else 1.0
+
     # Compute the standard + NSI matter Hamiltonian *without* the multiplicative prefactor of VCC.
     # To do this we call the functions hamiltonians_Xnu_nsi(VCC, ...) with VCC = 1.0.  We add the
     # standard matter contribution to the NSI matter contribution by adding 1.0 to the eps_ee entry.
     if num_flavors == 2:
-        h_matt = hamiltonians2nu.hamiltonian_2nu_nsi(1.0, 1.0+eps_aa, eps_ab) # VCC = 1.0
+        h_matt = s*hamiltonians2nu.hamiltonian_2nu_nsi(1.0, 1.0+eps_aa, eps_ab) # VCC = 1.0
     elif num_flavors == 3:
-        h_matt = hamiltonians3nu.hamiltonian_3nu_nsi(1.0, 1.0+eps_ee, eps_em, eps_et, eps_mm, 
+        h_matt = s*hamiltonians3nu.hamiltonian_3nu_nsi(1.0, 1.0+eps_ee, eps_em, eps_et, eps_mm, 
             eps_mt, eps_tt)
     elif num_flavors == 4:
-        h_matt = hamiltonians4nu.hamiltonian_4nu_nsi(1.0, 1.0+eps_ee, eps_em, eps_et, eps_es, 
+        h_matt = s*hamiltonians4nu.hamiltonian_4nu_nsi(1.0, 1.0+eps_ee, eps_em, eps_et, eps_es, 
             eps_mm, eps_mt, eps_ms, eps_tt, eps_ts, eps_tt)
     elif num_flavors == 5:
-        h_matt = hamiltonians5nu.hamiltonian_5nu_nsi(1.0, 1.0+eps_ee, eps_em, eps_et, eps_es1, 
+        h_matt = s*hamiltonians5nu.hamiltonian_5nu_nsi(1.0, 1.0+eps_ee, eps_em, eps_et, eps_es1, 
             eps_es2, eps_mm, eps_mt, eps_ms1, eps_ms2, eps_tt, eps_ts1, eps_ts2, eps_s1s1, eps_s1s2,
             eps_s2s2)
 
@@ -2243,6 +2400,179 @@ def osc_prob_matter_nsi(
         h_matt = VCC_func*h_matt
         def htot(enu: Union[int, float]) -> np.ndarray:
             return (1/enu)*h_vac_energy_indep+h_matt
+        htot_is_function_only_of_energy = True
+
+    # Generate the probabilities for all pairs of energy and baseline in zip(energy, L).
+    return osc_prob_energy_baseline(htot, energy, L, L0, nu_i, nu_f,
+        htot_is_function_only_of_energy, t_slab_edges=t_slab_edges, 
+        magnus_exp_order=magnus_exp_order, n_jobs=n_jobs, integration_method=integration_method,
+        rtol=rtol, atol=atol, growth_factor_n_slabs=growth_factor_n_slabs,
+        growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
+        max_num_loops=max_num_loops, min_n_slabs=min_n_slabs, max_n_slabs=max_n_slabs,
+        min_n_tpts_per_slab=min_n_tpts_per_slab, max_n_tpts_per_slab=max_n_tpts_per_slab,
+        iterate_over_magnus_exp_order=iterate_over_magnus_exp_order,
+        min_magnus_exp_order=min_magnus_exp_order, max_magnus_exp_order=max_magnus_exp_order,
+        validate_input=validate_input, save_log=save_log, filename_log=filename_log,
+        file_log=file_log, close_file_log_upon_exit=close_file_log_upon_exit,
+        new_recursion_limit=new_recursion_limit, verbose=verbose, **kwargs)
+
+
+def osc_prob_liv(
+    num_flavors: int,
+    energy: Union[int, float, list, np.ndarray], 
+    L: Union[int, float, list, np.ndarray], 
+    osc_params: Dict,
+    liv_params: Dict,
+    rho_func: Optional[Union[Callable, int, float]]=0.0,
+    L0: Optional[Union[int, float]]=0.0,
+    h_vac_energy_indep: Union[list, np.ndarray]=None,
+    h_liv_energy_indep: Union[list, np.ndarray]=None,
+    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0, 
+    electron_fraction: Optional[Union[int, float]]=0.5, 
+    nubar: Optional[bool]=False, 
+    nu_i: Optional[int]=None, 
+    nu_f: Optional[int]=None,
+    density_matter_is_in_g_per_cm3: Optional[bool]=False,
+    density_is_of_number_of_electrons: Optional[bool]=False,
+    default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
+    t_slab_edges: Optional[Union[list, np.ndarray]]=None, 
+    magnus_exp_order: Optional[int]=4, 
+    n_jobs: Optional[int]=1, 
+    integration_method: Optional[str]='trapezoid', 
+    rtol: Optional[Union[int, float]]=1.e-3, 
+    atol: Optional[Union[int, float]]=1.e-3, 
+    growth_factor_n_slabs: Optional[Union[int, float]]=1.5, 
+    growth_factor_n_tpts_per_slab: Optional[Union[int, float]]=1.5, 
+    max_num_loops: Optional[int]=50, 
+    min_n_slabs: Optional[int]=1, 
+    max_n_slabs: Optional[int]=2000, 
+    min_n_tpts_per_slab: Optional[int]=2, 
+    max_n_tpts_per_slab: Optional[int]=500, 
+    iterate_over_magnus_exp_order: Optional[bool]=False,
+    min_magnus_exp_order: Optional[int]=1,
+    max_magnus_exp_order: Optional[int]=gd.MAGNUS_EXP_ORDER_MAX, 
+    validate_input: Optional[bool]=True, 
+    save_log: Optional[bool]=False, 
+    filename_log: Optional[str]='./out.log',
+    file_log: Optional[TextIOWrapper]=None, 
+    close_file_log_upon_exit: Optional[bool]=True,
+    verbose: Optional[int]=0,
+    new_recursion_limit: Optional[int]=5000,
+    **kwargs
+) -> Union[float, np.ndarray]:
+    r"""Computes and returns neutrino oscillation probabilities for 
+    oscillations under (one form of) Lorentz-invariance violation, in 
+    vacuum or in matter.
+    """
+
+    # Unpack oscillation parameters from the osc_params dict, check if all values are available
+    # The function name is sys._getframe().f_code.co_name
+    osc_params_list = unpack_oscillation_params_from_dict(sys._getframe().f_code.co_name,
+        num_flavors, osc_params, h_vac_energy_indep)
+    liv_params_list = unpack_liv_params_from_dict(sys._getframe().f_code.co_name,
+        num_flavors, liv_params, h_liv_energy_indep)
+    if num_flavors == 2:
+        sth, Dm2 = osc_params_list
+        sxi, b1, b2, Lambda, n_liv = liv_params_list
+    elif num_flavors == 3:
+        s12, s23, s13, dCP, D21, D31 = osc_params_list
+        sxi12, sxi23, sxi13, dxiCP, b1, b2, b3, Lambda, n_liv = liv_params_list
+    elif num_flavors == 4:
+        s12, s23, s13, dCP, s14, d14, s24, d24, s34, D21, D31, D41 = osc_params_list
+        sxi12, sxi23, sxi13, dxi13, sxi14, dxi14, sxi24, dxi24, sxi34, b1, b2, b3, b4, Lambda, \
+            n_liv = liv_params_list
+    elif num_flavors == 5:
+        s12, s23, s13, dCP, s14, d14, s15, d15, s24, d24, s25, s34, s35, d35, D21, D31, D41, D51 = \
+            osc_params_list
+        sxi12, sxi23, sxi13, dxi13, sxi14, dxi14, sxi15, dxi15, sxi24, dxi24, sxi25, sxi34, sxi35, \
+            dxi35, b1, b2, b3, b4, b5, Lambda, n_liv = liv_params_list
+
+    if validate_input:
+        if validate_input_battery(sys._getframe().f_code.co_name, energy=energy, L=L, L0=L0,
+            num_flavors=num_flavors, nu_i=nu_i, nu_f=nu_f, osc_params=osc_params_list, 
+            rho_func=rho_func, ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
+            electron_fraction=electron_fraction, validate_energy_and_L=True, 
+            validate_flavor_indices=True, validate_osc_params=True, validate_initial_position=True,
+            validate_density=True) == 1:
+            sys.exit(1)
+    
+    # If any of the standard oscillation parameters has not been given a value, assign to it the 
+    # value from the specified parameter set with name default_osc_params_set_name.  Only the values
+    # of the parameters passed as None are assigned from the predefined set; others are not 
+    # modified.
+    if num_flavors > 2:
+        s12, s23, s13, dCP, D21, D31 = values_to_unspecified_osc_params(s12, s23, s13, dCP, D21, 
+            D31, default_osc_params_set_name, verbose)
+
+    # Compute the energy-independent part of the vacuum Hamiltonian, i.e., everything but the 1/E 
+    # prefactor, only once, to save time.  Multiply by the 1/E factor later when calling osc_prob.
+    # If num_flavors > MAGNUS_MAX_PREDEFINED_NUM_FLAVORS, we use the h_vac_energy_indep that was
+    # passed to the function.
+    if num_flavors == 2:
+        h_vac_energy_indep = hamiltonians2nu.hamiltonian_2nu_vacuum_energy_independent(sth, Dm2) 
+    elif num_flavors == 3:
+        h_vac_energy_indep = hamiltonians3nu.hamiltonian_3nu_vacuum_energy_independent(s12, s23, 
+            s13, dCP, D21, D31, nubar=nubar) 
+    elif num_flavors == 4:
+        h_vac_energy_indep = hamiltonians4nu.hamiltonian_4nu_vacuum_energy_independent(s12, s23, 
+            s13, dCP, s14, d14, s24, d24, s34, D21, D31, D41, nubar=nubar) 
+    elif num_flavors == 5:
+        h_vac_energy_indep = hamiltonians5nu.hamiltonian_5nu_vacuum_energy_independent(s12, s23,
+            s13, dCP, s14, d14, s15, d15, s24, d24, s25, s34, s35, d35, D21, D31, D41, D51,
+            nubar=nubar)
+    
+    # Compute the energy-independent part of the LIV Hamiltonian, i.e., everything but the 1/E 
+    # prefactor, only once, to save time.  Multiply by the 1/E factor later when calling osc_prob.
+    # If num_flavors > MAGNUS_MAX_PREDEFINED_NUM_FLAVORS, we use the h_liv_energy_indep that was
+    # passed to the function.
+    if num_flavors == 2:
+        h_liv_energy_indep = hamiltonians2nu.hamiltonian_2nu_liv_energy_independent(sxi, b1, b2, 
+            Lambda, n_liv)
+    elif num_flavors == 3:
+        h_liv_energy_indep = hamiltonians3nu.hamiltonian_3nu_liv_energy_independent(sxi12, sxi23,
+            sxi13, dxiCP, b1, b2, b3, Lambda, n_liv, nubar=nubar)
+    elif num_flavors == 4:
+        h_liv_energy_indep = hamiltonians4nu.hamiltonian_4nu_liv_energy_independent(sxi12, sxi23,
+            sxi13, dxi13, sxi14, dxi14, sxi24, dxi24, sxi34, b1, b2, b3, b4, Lambda, n_liv,
+            nubar=nubar)
+    elif num_flavors == 5:
+        h_liv_energy_indep = hamiltonians5nu.hamiltonian_5nu_liv_energy_independent(sxi12, sxi23,
+            sxi13, dxi13, sxi14, dxi14, sxi15, dxi15, sxi24, dxi24, sxi25, sxi34, sxi35, dxi35, b1,
+            b2, b3, b4, b5, Lambda, n_liv, nubar=nubar)
+
+    if (rho_func != 0.0): # Matter density is nonzero, include the matter term in the Hamiltonian
+
+        # Compute the standard matter Hamiltonian *without* the multiplicative prefactor of VCC.
+        h_matt = np.zeros((num_flavors, num_flavors))
+        h_matt[0][0] = -1.0 if nubar else 1.0
+
+        # Build the coherent forward potential function, VCC_func, from the density function, 
+        # rho_func. If the provided rho_func is the matter density (e.g., g cm^{-3}), convert 
+        # rho_func to a function that returns the electron number density [eV^3].
+        VCC_func = matter.vcc_func_from_rho_func(rho_func, L0, ratio_number_neutrons_to_protons,
+            electron_fraction, nubar, density_matter_is_in_g_per_cm3,
+            density_is_of_number_of_electrons) # [eV] 
+        
+        # Matter Hamiltonian function: diagonal matrix with VCC in the top-left (ee) entry
+        if isinstance(VCC_func, Callable):
+            # VCC_func is a function of position, so the Hamiltonian is, too
+            def htot(enu: Union[int, float], l: Union[int, float]) -> np.ndarray:
+                return (1/enu)*h_vac_energy_indep + VCC_func(l)*h_matt + \
+                    pow(enu,n_liv)*h_liv_energy_indep
+            htot_is_function_only_of_energy = False
+        else:
+            # VCC_func is a constant in position, so the Hamiltonian is, too. When VCC_func is 
+            # passed to osc_prob below, osc_prob will detect that VCC_func is constant and set 
+            # parameters  internally for speed-up.
+            h_matt[0][0] *= VCC_func
+            def htot(enu: Union[int, float]) -> np.ndarray:
+                return (1/enu)*h_vac_energy_indep + h_matt + pow(enu,n_liv)*h_liv_energy_indep
+            htot_is_function_only_of_energy = True
+
+    else: # Matter density is zero; the only terms in the Hamiltonian are vacuum and LIV
+
+        def htot(enu: Union[int, float]) -> np.ndarray:
+            return (1/enu)*h_vac_energy_indep + pow(enu,n_liv)*h_liv_energy_indep
         htot_is_function_only_of_energy = True
 
     # Generate the probabilities for all pairs of energy and baseline in zip(energy, L).
@@ -5626,6 +5956,55 @@ def osc_prob_5nu_sun_nsi(
     )
 
 
+#-----------------------------------------------------------------------
+# In vacuum, LIV
+#-----------------------------------------------------------------------
+
+def osc_prob_2nu_vacuum_liv(
+    energy: Union[int, float, list, np.ndarray], 
+    L: Union[int, float, list, np.ndarray], 
+    sth: Union[int, float], 
+    Dm2: Union[int, float], 
+    sxi: Optional[Union[int, float]]=0.0,
+    b1: Optional[Union[int, float]]=0.0,
+    b2: Optional[Union[int, float]]=0.0,
+    Lambda: Optional[Union[int, float]]=1.0,
+    n_liv: Optional[int]=0,
+    nu_i: Optional[int]=None, 
+    nu_f: Optional[int]=None,
+    validate_input: Optional[bool]=True, 
+    save_log: Optional[bool]=False, 
+    filename_log: Optional[str]='./out.log',
+    file_log: Optional[TextIOWrapper]=None, 
+    close_file_log_upon_exit: Optional[bool]=True,
+    verbose: Optional[int]=0,
+    **kwargs
+) -> Union[float, np.ndarray]:
+    r"""Compute and return the two-neutrino oscillation probability in
+    vacuum under (one form of) Lorentz-invariance violation.
+    """
+    # If any of the flavor indices is > 1, fix it (read the docstring above).
+    nu_i, nu_f = valid_flavor_indices_2nu(nu_i, nu_f)
+
+    return osc_prob_liv(
+        num_flavors=2,
+        rho_func=0.0,
+        energy=energy,
+        L=L,
+        osc_params={'sth': sth, 'Dm2': Dm2},
+        liv_params={'sxi': sxi, 'b1': b1, 'b2': b2, 'Lambda': Lambda, 'n_liv': n_liv},
+        nu_i=nu_i,
+        nu_f=nu_f,
+        validate_input=validate_input,
+        save_log=save_log,
+        filename_log=filename_log,
+        file_log=file_log,
+        close_file_log_upon_exit=close_file_log_upon_exit,
+        verbose=verbose,
+        **kwargs
+    )  
+
+
 if __name__ == "__main__":
     def H_2nu_func(t):
         return np.array([[1+1j*t, 2*t], [2*t, 4-1j*t]], dtype=np.complex128)
@@ -6099,19 +6478,34 @@ if __name__ == "__main__":
     # print(osc_prob_4nu_sun_nsi(energy, baseline, L0, s14, s24, s34, d14, d24, D41, eps_ee, eps_em,
     #     eps_et, eps_es, eps_mm, eps_mt, eps_ms, eps_tt, eps_ts, eps_ss, n_jobs=10, verbose=1))
 
-    # Five-neutrino oscillations in the Sun, NSI
+    # # Five-neutrino oscillations in the Sun, NSI
+    # np.set_printoptions(precision=3)
+    # L0 = 0.1*gd.SUN_RADIUS*gd.UNIT_KM # km in natural units [eV^{-1}]
+    # baseline = 1.0*gd.SUN_RADIUS*gd.UNIT_KM # km in natural units [eV^{-1}]
+    # energy = 10.*gd.UNIT_MEV # [eV]
+    # s14, s15, s24, s25, s34, s35 = 0.1, 0.1, 0.2, 0.2, 0.3, 0.3
+    # d14, d15, d24, d35 = np.radians([10.0, 20.0, 30.0, 40.0])
+    # D41, D51 = 0.1, 0.01 # [eV^2]
+    # eps_ee, eps_em, eps_et, eps_es1, eps_es2, eps_mm, eps_mt, eps_ms1, eps_ms2, eps_tt, eps_ts1, \
+    #     eps_ts2, eps_s1s1, eps_s1s2, eps_s2s2 \
+    #     = 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1
+    # # print(osc_prob_5nu_sun_nsi(energy, baseline, L0, s14, s15, s24, s25, s34, s35, d14, d15, d24, 
+    # #     d35, D41, D51, eps_ee, eps_em, eps_et, eps_es1, eps_es2, eps_mm, eps_mt, eps_ms1, eps_ms2,
+    # #     eps_tt, eps_ts1, eps_ts2, eps_s1s1, eps_s1s2, eps_s2s2, n_jobs=10, verbose=1))
+    # print(osc_prob_5nu_sun_nsi(energy, baseline, L0, s14=s14, s15=s15, D41=D41, D51=D51, 
+    #     eps_ee=eps_ee, eps_em=eps_em, eps_es1=eps_es1, eps_es2=eps_es2, n_jobs=10, verbose=1))
+
+    # Two-neutrino oscillations, vacuum, LIV
     np.set_printoptions(precision=3)
-    L0 = 0.1*gd.SUN_RADIUS*gd.UNIT_KM # km in natural units [eV^{-1}]
-    baseline = 1.0*gd.SUN_RADIUS*gd.UNIT_KM # km in natural units [eV^{-1}]
-    energy = 10.*gd.UNIT_MEV # [eV]
-    s14, s15, s24, s25, s34, s35 = 0.1, 0.1, 0.2, 0.2, 0.3, 0.3
-    d14, d15, d24, d35 = np.radians([10.0, 20.0, 30.0, 40.0])
-    D41, D51 = 0.1, 0.01 # [eV^2]
-    eps_ee, eps_em, eps_et, eps_es1, eps_es2, eps_mm, eps_mt, eps_ms1, eps_ms2, eps_tt, eps_ts1, \
-        eps_ts2, eps_s1s1, eps_s1s2, eps_s2s2 \
-        = 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1
-    # print(osc_prob_5nu_sun_nsi(energy, baseline, L0, s14, s15, s24, s25, s34, s35, d14, d15, d24, 
-    #     d35, D41, D51, eps_ee, eps_em, eps_et, eps_es1, eps_es2, eps_mm, eps_mt, eps_ms1, eps_ms2,
-    #     eps_tt, eps_ts1, eps_ts2, eps_s1s1, eps_s1s2, eps_s2s2, n_jobs=10, verbose=1))
-    print(osc_prob_5nu_sun_nsi(energy, baseline, L0, s14=s14, s15=s15, D41=D41, D51=D51, 
-        eps_ee=eps_ee, eps_em=eps_em, eps_es1=eps_es1, eps_es2=eps_es2, n_jobs=10, verbose=1))
+    baseline = 10.*gd.UNIT_KM # 10 km in natural units [eV^{-1}]
+    energy = 1.*gd.UNIT_MEV # [eV]
+    sth = gd.S12_NO_BF_NUFIT_6_0
+    Dm2 = gd.D21_NO_BF_NUFIT_6_0 # [eV^2]
+    sxi = 0.01
+    b1 = 1.e-2
+    b2 = 1.e-3
+    Lambda = 10.*gd.UNIT_GEV
+    n_liv = 3
+    print(osc_prob_2nu_vacuum(energy, baseline, sth, Dm2, verbose=1))
+    print(osc_prob_2nu_vacuum_liv(energy, baseline, sth, Dm2, sxi, b1, b2, Lambda, n_liv, 
+        verbose=1))
