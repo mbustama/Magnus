@@ -267,8 +267,40 @@ def hamiltonian_2nu_nsi_td(l: float, VCC_func: Callable,
     return hamiltonian_2nu_nsi(VCC_func(l), eps)
 
 
-def hamiltonian_2nu_liv(energy: float, sxi: float, b1: float, b2: float, 
-    Lambda: float) -> np.ndarray:
+def hamiltonian_2nu_liv(energy: float, sxi: float, b1: float, b2: float, Lambda: float, n_liv: int,
+    nubar: Optional[bool]=False) -> np.ndarray:
+    r"""Returns the two-neutrino Hamiltonian for oscillations with LIV.
+
+    Computes and returns the 2x2 real two-neutrino Hamiltonian for oscillations in a CPT-odd Lorentz
+    invariance-violating background.
+
+    Parameters
+    ----------
+    h_vacuum_energy_independent : list
+        Energy-independent part of the two-neutrino Hamiltonian for oscillations in vacuum.  This is
+        computed by the routine hamiltonian_2nu_vacuum_energy_independent.
+    energy : float
+        Neutrino energy.
+    sxi : float
+        Sin(xi), with xi the rotation angle between the space of the eigenvectors of B2 and the 
+        flavor states.
+    b1 : float
+        Eigenvalue b1 of the LIV operator B2.
+    b2 : float
+        Eigenvalue b2 of the LIV operator B2.
+    Lambda : float
+        Energy scale of the LIV operator B2.
+
+    Returns
+    -------
+    list
+        Hamiltonian 2x2 matrix.
+    """
+    return pow(energy, n_liv) * hamiltonian_2nu_liv_energy_independent(sxi, b1, b2, Lambda, n_liv) 
+
+
+def hamiltonian_2nu_liv_energy_independent(sxi: float, b1: float, b2: float, 
+    Lambda: float, n_liv: int) -> np.ndarray:
     r"""Returns the two-neutrino Hamiltonian for oscillations with LIV.
 
     Computes and returns the 2x2 real two-neutrino Hamiltonian for oscillations in a CPT-odd Lorentz
@@ -299,18 +331,8 @@ def hamiltonian_2nu_liv(energy: float, sxi: float, b1: float, b2: float,
     cxi = np.sqrt(1.0 - sxi * sxi)
     delta_b = b2 - b1
 
-    return (energy / Lambda) * np.array([
-        [b1 * cxi * cxi + b2 * sxi * sxi, delta_b * cxi * sxi],
-        [delta_b * cxi * sxi, b2 * cxi * cxi + b1 * sxi * sxi]
+    return pow(1.0 / Lambda, n_liv) * np.array([
+        [b1 * cxi * cxi + b2 * sxi * sxi, -delta_b * cxi * sxi],
+        [-delta_b * cxi * sxi, b2 * cxi * cxi + b1 * sxi * sxi]
     ], dtype=np.float64)
 
-    # h_liv = np.zeros((2,2))
-
-    # cxi = np.sqrt(1.0-sxi-sxi)
-    # h_liv[0][0] = (b1*cxi*cxi + b2*sxi*sxi)
-    # h_liv[0][1] = ((-b1+b2)*cxi*sxi)
-    # h_liv[1][0] = ((-b1+b2)*cxi*sxi)
-    # h_liv[1][1] = (b2*cxi*cxi + b1*sxi*sxi)
-    # h_liv = (energy/Lambda)*h_liv
-
-    # return h_liv
