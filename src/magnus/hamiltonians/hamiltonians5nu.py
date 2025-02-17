@@ -341,3 +341,72 @@ def hamiltonian_5nu_nsi(
         [np.conj(eps_es1), np.conj(eps_ms1), np.conj(eps_ts1), eps_s1s1, eps_s1s2],
         [np.conj(eps_es2), np.conj(eps_ms2), np.conj(eps_ts2), np.conj(eps_s1s2), eps_s2s2]
         ], dtype=np.complex128)
+
+
+def hamiltonian_5nu_liv(energy: float, sxi12: float, sxi23: float, sxi13:float, dxi13: float, 
+    sxi14: float, dxi14: float, sxi15: float, dxi15: float, sxi24: float, dxi24: float, 
+    sxi25: float, sxi34: float, sxi35: float, dxi35: float, b1: float, b2: float, b3: float, 
+    b4: float, b5: float, Lambda: float, n_liv: int, nubar: Optional[bool]=False,
+    compute_matrix_multiplication: Optional[bool]=False) -> np.ndarray:
+    r"""Returns the five-neutrino Hamiltonian for oscillations w/ LIV.
+    """
+
+    return pow(energy, n_liv) * hamiltonian_5nu_liv_energy_independent(sxi12, sxi23, sxi13, dxi13,
+        sxi14, dxi14, sxi15, dxi15, sxi24, dxi24, sxi25, sxi34, sxi35, dxi35, b1, b2, b3, b4, b5,
+        Lambda, n_liv, nubar=nubar, compute_matrix_multiplication=compute_matrix_multiplication)
+
+
+def hamiltonian_5nu_liv_energy_independent(sxi12: float, sxi23: float, sxi13:float, dxi13: float, 
+    sxi14: float, dxi14: float, sxi15: float, dxi15: float, sxi24: float, dxi24: float, 
+    sxi25: float, sxi34: float, sxi35: float, dxi35: float, b1: float, b2: float, b3: float, 
+    b4: float, b5: float, Lambda: float, n_liv: int, nubar: Optional[bool]=False,
+    compute_matrix_multiplication: Optional[bool]=False) -> np.ndarray:
+    r"""Returns the five-neutrino Hamiltonian for oscillations w/ LIV.
+
+    Computes and returns the 5x5 complex four-neutrino Hamiltonian for oscillations in a CPT-odd 
+    Lorentz invariance-violating background.
+
+    Parameters
+    ----------
+    h_vacuum_energy_independent : list
+        Energy-independent part of the two-neutrino Hamiltonian for oscillations in vacuum.  This is
+        computed by the routine hamiltonian_2nu_vacuum_energy_independent.
+    energy : float
+        Neutrino energy.
+    sxi12 : float
+        Sin(xi_12), with xi_12 the one of the mixing angles between the space of the eigenvectors of
+        B3 and the flavor states.
+    sxi23 : float
+        Sin(xi_23), with xi_23 the one of the mixing angles between the space of the eigenvectors of
+        B3 and the flavor states.
+    sxi13 : float
+        Sin(xi_12), with xi_13 the one of the mixing angles between the space of the eigenvectors of
+        B3 and the flavor states.
+    dciCP : float
+        CP-violation angle of the LIV operator B3 [radian].
+    b1 : float
+        Eigenvalue b1 of the LIV operator B3.
+    b2 : float
+        Eigenvalue b2 of the LIV operator B3.
+    b3 : float
+        Eigenvalue b3 of the LIV operator B3.
+    Lambda : float
+        Energy scale of the LIV operator B2.
+
+    Returns
+    -------
+    list
+        Hamiltonian 3x3 matrix.
+    """
+    # 5x5 mixing matrix
+
+    if not nubar:
+        R = mixing_matrix_5x5(sxi12, sxi23, sxi13, dxi13, sxi14, dxi14, sxi15, dxi15, sxi24, dxi24,
+            sxi25, sxi34, sxi35, dxi35, compute_matrix_multiplication=compute_matrix_multiplication)
+    else:
+        R = np.conj(mixing_matrix_5x5(sxi12, sxi23, sxi13, dxi13, sxi14, dxi14, sxi15, dxi15, sxi24,
+            dxi24, sxi25, sxi34, sxi35, dxi35, 
+            compute_matrix_multiplication=compute_matrix_multiplication))
+    
+    return pow(1.0/Lambda, n_liv) * R @ np.diag([b1, b2, b3, b4]) @ np.conj(R.T)
+
