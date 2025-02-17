@@ -354,9 +354,7 @@ def hamiltonian_3nu_liv_energy_independent(sxi12: float, sxi23: float, sxi13: fl
     list
         Hamiltonian 3x3 matrix.
     """
-    R = pmns_mixing_matrix(sxi12, sxi23, sxi13, dxiCP, 
-        compute_matrix_multiplication=compute_matrix_multiplication) if nubar == False \
-            else np.conj(pmns_mixing_matrix(sxi12, sxi23, sxi13, dxiCP,
-                compute_matrix_multiplication=compute_matrix_multiplication))
+    R = pmns_mixing_matrix(sxi12, sxi23, sxi13, dxiCP) if nubar == False \
+            else np.conj(pmns_mixing_matrix(sxi12, sxi23, sxi13, dxiCP))
             
     return pow(1.0/Lambda, n_liv) * R @ np.diag([b1, b2, b3]) @ np.conj(R.T)

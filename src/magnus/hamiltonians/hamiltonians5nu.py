@@ -408,5 +408,5 @@ def hamiltonian_5nu_liv_energy_independent(sxi12: float, sxi23: float, sxi13:flo
             dxi24, sxi25, sxi34, sxi35, dxi35, 
             compute_matrix_multiplication=compute_matrix_multiplication))
     
-    return pow(1.0/Lambda, n_liv) * R @ np.diag([b1, b2, b3, b4]) @ np.conj(R.T)
+    return pow(1.0/Lambda, n_liv) * R @ np.diag([b1, b2, b3, b4, b5]) @ np.conj(R.T)
 
