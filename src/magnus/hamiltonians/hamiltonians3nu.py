@@ -270,8 +270,9 @@ def hamiltonian_3nu_nsi_td(l: float, VCC_func: Callable,
     return hamiltonian_3nu_nsi(VCC_func(l), eps)
 
 
-def hamiltonian_3nu_liv(sxi12: float, sxi23: float, sxi13: float, dxiCP: float, b1: float, 
-    b2: float, b3: float, Lambda: float) -> np.ndarray:
+def hamiltonian_3nu_liv(energy: float, sxi12: float, sxi23: float, sxi13: float, dxiCP: float, b1: float, 
+    b2: float, b3: float, Lambda: float, n_liv: int, nubar: Optional[bool]=False,
+    compute_matrix_multiplication: Optional[bool]=False) -> np.ndarray:
     r"""Returns the three-neutrino Hamiltonian for oscillations w/ LIV.
 
     Computes and returns the 3x3 complex three-neutrino Hamiltonian for oscillations in a CPT-odd 
@@ -309,5 +310,53 @@ def hamiltonian_3nu_liv(sxi12: float, sxi23: float, sxi13: float, dxiCP: float, 
     list
         Hamiltonian 3x3 matrix.
     """
-    R = pmns_mixing_matrix(sxi12, sxi23, sxi13, dxiCP)
-    return (energy/Lambda) * R @ np.diag([b1, b2, b3]) @ np.conj(R.T)
+    return pow(energy, n_liv) * hamiltonian_3nu_liv_energy_independent(sxi12, sxi23, sxi13, dxiCP, 
+        b1, b2, b3, Lambda, compute_matrix_multiplication=compute_matrix_multiplication)
+
+
+def hamiltonian_3nu_liv_energy_independent(sxi12: float, sxi23: float, sxi13: float, dxiCP: float,
+    b1: float, b2: float, b3: float, Lambda: float, n_liv: int, nubar: Optional[bool]=False,
+    compute_matrix_multiplication: Optional[bool]=False) -> np.ndarray:
+    r"""Returns the three-neutrino Hamiltonian for oscillations w/ LIV.
+
+    Computes and returns the 3x3 complex three-neutrino Hamiltonian for oscillations in a CPT-odd 
+    Lorentz invariance-violating background.
+
+    Parameters
+    ----------
+    h_vacuum_energy_independent : list
+        Energy-independent part of the two-neutrino Hamiltonian for oscillations in vacuum.  This is
+        computed by the routine hamiltonian_2nu_vacuum_energy_independent.
+    energy : float
+        Neutrino energy.
+    sxi12 : float
+        Sin(xi_12), with xi_12 the one of the mixing angles between the space of the eigenvectors of
+        B3 and the flavor states.
+    sxi23 : float
+        Sin(xi_23), with xi_23 the one of the mixing angles between the space of the eigenvectors of
+        B3 and the flavor states.
+    sxi13 : float
+        Sin(xi_12), with xi_13 the one of the mixing angles between the space of the eigenvectors of
+        B3 and the flavor states.
+    dciCP : float
+        CP-violation angle of the LIV operator B3 [radian].
+    b1 : float
+        Eigenvalue b1 of the LIV operator B3.
+    b2 : float
+        Eigenvalue b2 of the LIV operator B3.
+    b3 : float
+        Eigenvalue b3 of the LIV operator B3.
+    Lambda : float
+        Energy scale of the LIV operator B2.
+
+    Returns
+    -------
+    list
+        Hamiltonian 3x3 matrix.
+    """
+    R = pmns_mixing_matrix(sxi12, sxi23, sxi13, dxiCP, 
+        compute_matrix_multiplication=compute_matrix_multiplication) if nubar == False \
+            else np.conj(pmns_mixing_matrix(sxi12, sxi23, sxi13, dxiCP,
+                compute_matrix_multiplication=compute_matrix_multiplication))
+            
+    return pow(1.0/Lambda, n_liv) * R @ np.diag([b1, b2, b3]) @ np.conj(R.T)
