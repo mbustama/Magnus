@@ -256,10 +256,11 @@ def hamiltonian_4nu_nsi_td(l: float, VCC_func: Callable,
     return hamiltonian_4nu_nsi(VCC_func(l), eps)
 
 
-def hamiltonian_4nu_liv(sxi12: float, sxi23: float, sxi13: float, dxi13: float, sxi14: float, 
-    dxi14: float, sxi24: float, dxi24: float, sxi34: float, b1: float, b2: float, b3: float, 
-    b4: float, Lambda: float) -> np.ndarray:
-    r"""Returns the three-neutrino Hamiltonian for oscillations w/ LIV.
+def hamiltonian_4nu_liv(energy: float, sxi12: float, sxi23: float, sxi13: float, dxi13: float, 
+    sxi14: float, dxi14: float, sxi24: float, dxi24: float, sxi34: float, b1: float, b2: float, 
+    b3: float, b4: float, Lambda: float, n_liv: int, nubar: Optional[bool]=False,
+    compute_matrix_multiplication: Optional[bool]=False) -> np.ndarray:
+    r"""Returns the four-neutrino Hamiltonian for oscillations w/ LIV.
 
     Computes and returns the 3x3 complex three-neutrino Hamiltonian for oscillations in a CPT-odd 
     Lorentz invariance-violating background.
@@ -296,11 +297,58 @@ def hamiltonian_4nu_liv(sxi12: float, sxi23: float, sxi13: float, dxi13: float, 
     list
         Hamiltonian 3x3 matrix.
     """
+
+    return pow(energy, n_liv) * hamiltonian_4nu_liv_energy_independent(sxi12, sxi23, sxi13, dxi13,
+        sxi14, dxi14, sxi24, dxi24, sxi34, b1, b2, b3, b4, Lambda, n_liv, nubar=nubar,
+        compute_matrix_multiplication=compute_matrix_multiplication)
+
+
+def hamiltonian_4nu_liv_energy_independent(sxi12: float, sxi23: float, sxi13: float, dxi13: float, 
+    sxi14: float, dxi14: float, sxi24: float, dxi24: float, sxi34: float, b1: float, b2: float, 
+    b3: float, b4: float, Lambda: float, n_liv: int, nubar: Optional[bool]=False,
+    compute_matrix_multiplication: Optional[bool]=False) -> np.ndarray:
+    r"""Returns the three-neutrino Hamiltonian for oscillations w/ LIV.
+
+    Computes and returns the 4x4 complex four-neutrino Hamiltonian for oscillations in a CPT-odd 
+    Lorentz invariance-violating background.
+
+    Parameters
+    ----------
+    h_vacuum_energy_independent : list
+        Energy-independent part of the two-neutrino Hamiltonian for oscillations in vacuum.  This is
+        computed by the routine hamiltonian_2nu_vacuum_energy_independent.
+    energy : float
+        Neutrino energy.
+    sxi12 : float
+        Sin(xi_12), with xi_12 the one of the mixing angles between the space of the eigenvectors of
+        B3 and the flavor states.
+    sxi23 : float
+        Sin(xi_23), with xi_23 the one of the mixing angles between the space of the eigenvectors of
+        B3 and the flavor states.
+    sxi13 : float
+        Sin(xi_12), with xi_13 the one of the mixing angles between the space of the eigenvectors of
+        B3 and the flavor states.
+    dciCP : float
+        CP-violation angle of the LIV operator B3 [radian].
+    b1 : float
+        Eigenvalue b1 of the LIV operator B3.
+    b2 : float
+        Eigenvalue b2 of the LIV operator B3.
+    b3 : float
+        Eigenvalue b3 of the LIV operator B3.
+    Lambda : float
+        Energy scale of the LIV operator B2.
+
+    Returns
+    -------
+    list
+        Hamiltonian 3x3 matrix.
+    """
     # 4x4 mixing matrix
-    R = mixing_matrix_4x4(s12, s23, s13, d13, s14, d14, s24, d24, s34, 
+    R = mixing_matrix_4x4(sxi12, sxi23, sxi13, dxi13, sxi14, dxi14, sxi24, dxi24, sxi34, 
         compute_matrix_multiplication=compute_matrix_multiplication) if nubar == False else \
-            np.conj(mixing_matrix_4x4(s12, s23, s13, d13, s14, d14, s24, d24, s34, 
+            np.conj(mixing_matrix_4x4(sxi12, sxi23, sxi13, dxi13, sxi14, dxi14, sxi24, dxi24, sxi34,
                 compute_matrix_multiplication=compute_matrix_multiplication))
 
-    return (energy/Lambda) * R @ np.diag([b1, b2, b3, b4]) @ np.conj(R.T)
+    return pow(1.0/Lambda, n_liv) * R @ np.diag([b1, b2, b3, b4]) @ np.conj(R.T)
 
