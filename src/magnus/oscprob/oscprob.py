@@ -6202,6 +6202,263 @@ def osc_prob_5nu_vacuum_liv(
         **kwargs
     )  
 
+
+#-----------------------------------------------------------------------
+# In matter, LIV, constant density
+#-----------------------------------------------------------------------
+
+def osc_prob_2nu_matter_constant_density_liv(
+    energy: Union[int, float, list, np.ndarray], 
+    L: Union[int, float, list, np.ndarray], 
+    rho: Union[int, float], 
+    sth: Union[int, float], 
+    Dm2: Union[int, float], 
+    sxi: Optional[Union[int, float]]=0.0,
+    b1: Optional[Union[int, float]]=0.0,
+    b2: Optional[Union[int, float]]=0.0,
+    Lambda: Optional[Union[int, float]]=1.0,
+    n_liv: Optional[int]=0,
+    nu_i: Optional[int]=None, 
+    nu_f: Optional[int]=None,
+    validate_input: Optional[bool]=True, 
+    save_log: Optional[bool]=False, 
+    filename_log: Optional[str]='./out.log',
+    file_log: Optional[TextIOWrapper]=None, 
+    close_file_log_upon_exit: Optional[bool]=True,
+    verbose: Optional[int]=0,
+    **kwargs
+) -> Union[float, np.ndarray]:
+    r"""Compute and return the two-neutrino oscillation probability in
+    matter with a constant density profile, under (one form of) 
+    Lorentz-invariance violation.
+    """
+    # If any of the flavor indices is > 1, fix it (read the docstring above).
+    nu_i, nu_f = valid_flavor_indices_2nu(nu_i, nu_f)
+
+    return osc_prob_liv(
+        num_flavors=2,
+        rho_func=rho,
+        energy=energy,
+        L=L,
+        osc_params={'sth': sth, 'Dm2': Dm2},
+        liv_params={'sxi': sxi, 'b1': b1, 'b2': b2, 'Lambda': Lambda, 'n_liv': n_liv},
+        nu_i=nu_i,
+        nu_f=nu_f,
+        validate_input=validate_input,
+        save_log=save_log,
+        filename_log=filename_log,
+        file_log=file_log,
+        close_file_log_upon_exit=close_file_log_upon_exit,
+        verbose=verbose,
+        **kwargs
+    )  
+
+
+def osc_prob_3nu_matter_constant_density_liv(
+    energy: Union[int, float, list, np.ndarray], 
+    L: Union[int, float, list, np.ndarray], 
+    rho: Optional[Union[int, float]], 
+    s12: Optional[Union[int, float]]=None, 
+    s23: Optional[Union[int, float]]=None, 
+    s13: Optional[Union[int, float]]=None, 
+    dCP: Optional[Union[int, float]]=None, 
+    D21: Optional[Union[int, float]]=None, 
+    D31: Optional[Union[int, float]]=None, 
+    sxi12: Optional[Union[int, float]]=0.0,
+    sxi23: Optional[Union[int, float]]=0.0,
+    sxi13: Optional[Union[int, float]]=0.0,
+    dxiCP: Optional[Union[int, float]]=0.0,
+    b1: Optional[Union[int, float]]=0.0,
+    b2: Optional[Union[int, float]]=0.0,
+    b3: Optional[Union[int, float]]=0.0,
+    Lambda: Optional[Union[int, float]]=1.0,
+    n_liv: Optional[int]=0,
+    nu_i: Optional[int]=None, 
+    nu_f: Optional[int]=None,
+    validate_input: Optional[bool]=True, 
+    save_log: Optional[bool]=False, 
+    filename_log: Optional[str]='./out.log',
+    file_log: Optional[TextIOWrapper]=None, 
+    close_file_log_upon_exit: Optional[bool]=True,
+    verbose: Optional[int]=0,
+    **kwargs
+) -> Union[float, np.ndarray]:
+    r"""Compute and return the three-neutrino oscillation probability in
+    matter with a constant density profile, under (one form of) 
+    Lorentz-invariance violation.
+    """
+
+    return osc_prob_liv(
+        num_flavors=3,
+        rho_func=rho,
+        energy=energy,
+        L=L,
+        osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 'D21': D21, 'D31': D31},
+        liv_params={'sxi12': sxi12, 'sxi23': sxi23, 'sxi13': sxi13, 'dxiCP': dxiCP, 'b1': b1, 
+            'b2': b2, 'b3': b3, 'Lambda': Lambda, 'n_liv': n_liv},
+        nu_i=nu_i,
+        nu_f=nu_f,
+        validate_input=validate_input,
+        save_log=save_log,
+        filename_log=filename_log,
+        file_log=file_log,
+        close_file_log_upon_exit=close_file_log_upon_exit,
+        verbose=verbose,
+        **kwargs
+    )  
+
+
+def osc_prob_4nu_matter_constant_density_liv(
+    energy: Union[int, float, list, np.ndarray], 
+    L: Union[int, float, list, np.ndarray], 
+    rho: Optional[Union[int, float]],
+    s14: Optional[Union[int, float]]=0.0,
+    s24: Optional[Union[int, float]]=0.0,
+    s34: Optional[Union[int, float]]=0.0,
+    d14: Optional[Union[int, float]]=0.0,
+    d24: Optional[Union[int, float]]=0.0,
+    D41: Optional[Union[int, float]]=0.0, 
+    sxi12: Optional[Union[int, float]]=0.0,
+    sxi23: Optional[Union[int, float]]=0.0,
+    sxi13: Optional[Union[int, float]]=0.0,
+    dxi13: Optional[Union[int, float]]=0.0,
+    sxi14: Optional[Union[int, float]]=0.0,
+    dxi14: Optional[Union[int, float]]=0.0,
+    sxi24: Optional[Union[int, float]]=0.0,
+    dxi24: Optional[Union[int, float]]=0.0,
+    sxi34: Optional[Union[int, float]]=0.0,
+    b1: Optional[Union[int, float]]=0.0,
+    b2: Optional[Union[int, float]]=0.0,
+    b3: Optional[Union[int, float]]=0.0,
+    b4: Optional[Union[int, float]]=0.0,
+    Lambda: Optional[Union[int, float]]=1.0,
+    n_liv: Optional[int]=0,
+    s12: Optional[Union[int, float]]=None, 
+    s23: Optional[Union[int, float]]=None, 
+    s13: Optional[Union[int, float]]=None, 
+    dCP: Optional[Union[int, float]]=None, 
+    D21: Optional[Union[int, float]]=None, 
+    D31: Optional[Union[int, float]]=None, 
+    nu_i: Optional[int]=None, 
+    nu_f: Optional[int]=None,
+    validate_input: Optional[bool]=True, 
+    save_log: Optional[bool]=False, 
+    filename_log: Optional[str]='./out.log',
+    file_log: Optional[TextIOWrapper]=None, 
+    close_file_log_upon_exit: Optional[bool]=True,
+    verbose: Optional[int]=0,
+    **kwargs
+) -> Union[float, np.ndarray]:
+    r"""Compute and return the four-neutrino oscillation probability in
+    matter with a constant density profile, under (one form of) 
+    Lorentz-invariance violation.
+    """
+
+    return osc_prob_liv(
+        num_flavors=4,
+        rho_func=rho,
+        energy=energy,
+        L=L,
+        osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 's14': s14, 'd14': d14, 
+            's24': s24, 'd24': d24, 's34': s34, 'D21': D21, 'D31': D31, 'D41': D41},
+        liv_params={'sxi12': sxi12, 'sxi23': sxi23, 'sxi13': sxi13, 'dxi13': dxi13, 'sxi14': sxi14,
+            'dxi14': dxi14, 'sxi24': sxi24, 'dxi24': dxi24, 'sxi34': sxi34, 'b1': b1, 'b2': b2, 
+            'b3': b3, 'b4': b4, 'Lambda': Lambda, 'n_liv': n_liv},
+        nu_i=nu_i,
+        nu_f=nu_f,
+        validate_input=validate_input,
+        save_log=save_log,
+        filename_log=filename_log,
+        file_log=file_log,
+        close_file_log_upon_exit=close_file_log_upon_exit,
+        verbose=verbose,
+        **kwargs
+    )  
+
+
+def osc_prob_5nu_matter_constant_density_liv(
+    energy: Union[int, float, list, np.ndarray], 
+    L: Union[int, float, list, np.ndarray], 
+    rho: Optional[Union[int, float]],
+    s14: Optional[Union[int, float]]=0.0,
+    s15: Optional[Union[int, float]]=0.0,
+    s24: Optional[Union[int, float]]=0.0,
+    s25: Optional[Union[int, float]]=0.0,
+    s34: Optional[Union[int, float]]=0.0,
+    s35: Optional[Union[int, float]]=0.0,
+    d14: Optional[Union[int, float]]=0.0,
+    d15: Optional[Union[int, float]]=0.0,
+    d24: Optional[Union[int, float]]=0.0,
+    d35: Optional[Union[int, float]]=0.0,
+    D41: Optional[Union[int, float]]=0.0, 
+    D51: Optional[Union[int, float]]=0.0, 
+    sxi12: Optional[Union[int, float]]=0.0,
+    sxi23: Optional[Union[int, float]]=0.0,
+    sxi13: Optional[Union[int, float]]=0.0,
+    dxi13: Optional[Union[int, float]]=0.0,
+    sxi14: Optional[Union[int, float]]=0.0,
+    dxi14: Optional[Union[int, float]]=0.0,
+    sxi15: Optional[Union[int, float]]=0.0,
+    dxi15: Optional[Union[int, float]]=0.0,
+    sxi24: Optional[Union[int, float]]=0.0,
+    dxi24: Optional[Union[int, float]]=0.0,
+    sxi25: Optional[Union[int, float]]=0.0,
+    sxi34: Optional[Union[int, float]]=0.0,
+    sxi35: Optional[Union[int, float]]=0.0,
+    dxi35: Optional[Union[int, float]]=0.0,
+    b1: Optional[Union[int, float]]=0.0,
+    b2: Optional[Union[int, float]]=0.0,
+    b3: Optional[Union[int, float]]=0.0,
+    b4: Optional[Union[int, float]]=0.0,
+    b5: Optional[Union[int, float]]=0.0,
+    Lambda: Optional[Union[int, float]]=1.0,
+    n_liv: Optional[int]=0,
+    s12: Optional[Union[int, float]]=None, 
+    s23: Optional[Union[int, float]]=None, 
+    s13: Optional[Union[int, float]]=None, 
+    dCP: Optional[Union[int, float]]=None, 
+    D21: Optional[Union[int, float]]=None, 
+    D31: Optional[Union[int, float]]=None, 
+    nu_i: Optional[int]=None, 
+    nu_f: Optional[int]=None,
+    validate_input: Optional[bool]=True, 
+    save_log: Optional[bool]=False, 
+    filename_log: Optional[str]='./out.log',
+    file_log: Optional[TextIOWrapper]=None, 
+    close_file_log_upon_exit: Optional[bool]=True,
+    verbose: Optional[int]=0,
+    **kwargs
+) -> Union[float, np.ndarray]:
+    r"""Compute and return the five-neutrino oscillation probability in
+    matter with a constant density profile, under (one form of) 
+    Lorentz-invariance violation.
+    """
+    
+    return osc_prob_liv(
+        num_flavors=5,
+        rho_func=rho,
+        energy=energy,
+        L=L,
+        osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 's14': s14, 'd14': d14, 
+            's15': s15, 'd15': d15, 's24': s24, 'd24': d24, 's25': s25, 's34': s34, 's35': s35, 
+            'd35': d35, 'D21': D21, 'D31': D31, 'D41': D41, 'D51': D51},
+        liv_params={'sxi12': sxi12, 'sxi23': sxi23, 'sxi13': sxi13, 'dxi13': dxi13, 'sxi14': sxi14,
+            'dxi14': dxi14, 'sxi15': sxi15, 'dxi15': dxi15, 'sxi24': sxi24, 'dxi24': dxi24, 
+            'sxi25': sxi25, 'sxi34': sxi34, 'sxi35': sxi35, 'dxi35': dxi35, 'b1': b1, 'b2': b2, 
+            'b3': b3, 'b4': b4, 'b5': b5, 'Lambda': Lambda, 'n_liv': n_liv},
+        nu_i=nu_i,
+        nu_f=nu_f,
+        validate_input=validate_input,
+        save_log=save_log,
+        filename_log=filename_log,
+        file_log=file_log,
+        close_file_log_upon_exit=close_file_log_upon_exit,
+        verbose=verbose,
+        **kwargs
+    )  
+
+
+
 if __name__ == "__main__":
     def H_2nu_func(t):
         return np.array([[1+1j*t, 2*t], [2*t, 4-1j*t]], dtype=np.complex128)
@@ -6738,10 +6995,81 @@ if __name__ == "__main__":
     #     dxi13=dxi13, dxi14=dxi14, dxi24=dxi24, b1=b1, b2=b2, b3=b3, b4=b4, Lambda=Lambda,
     #     n_liv=n_liv, verbose=0))
 
-    # Five-neutrino oscillations, vacuum, LIV
+    # # Five-neutrino oscillations, vacuum, LIV
+    # np.set_printoptions(precision=3)
+    # baseline = 10.*gd.UNIT_KM # 10 km in natural units [eV^{-1}]
+    # energy = 1.*gd.UNIT_MEV # [eV]
+    # s14, s15, s24, s25, s34, s35 = 0.1, 0.1, 0.2, 0.2, 0.3, 0.3
+    # d14, d15, d24, d35 = np.radians([10.0, 20.0, 30.0, 40.0])
+    # D41, D51 = 0.1, 0.01 # [eV^2]
+    # sxi12, sxi23, sxi13, sxi14, sxi15, sxi24, sxi25, sxi34, sxi35 = \
+    #     0.01, 0.05, 0.06, 0.1, 0.9, 0.02, 0.04, 0.1, 0.05
+    # dxi13, dxi14, dxi15, dxi24, dxi35 = np.radians([10, 20, 30, 40, 50])
+    # b1, b2, b3, b4, b5 = 1.e-2, 1.e-3, 5.e-3, 4.e-2, 1.e-1
+    # Lambda = 10.*gd.UNIT_GEV
+    # n_liv = 2
+    # print(osc_prob_5nu_vacuum(energy, baseline, s14=s14, s15=s15, s24=s24, s25=s25, s34=s34, 
+    #     s35=s35, d14=d14, d15=d15, d24=d24, d35=d35, D41=D41, D51=D51, verbose=0))
+    # print(osc_prob_5nu_vacuum_liv(energy, baseline, s14=s14, s15=s15, s24=s24, s25=s25, s34=s34, 
+    #     s35=s35, d14=d14, d15=d15, d24=d24, d35=d35, D41=D41, D51=D51, sxi12=sxi12, sxi23=sxi23,
+    #     sxi13=sxi13, sxi14=sxi14, sxi15=sxi15, sxi24=sxi24, sxi25=sxi25, sxi34=sxi34, sxi35=sxi35,
+    #     dxi13=dxi13, dxi14=dxi14, dxi15=dxi15, dxi24=dxi24, dxi35=dxi35, b1=b1, b2=b2, b3=b3, b4=b4,
+    #     b5=b5, Lambda=Lambda, n_liv=n_liv, verbose=0))
+
+    # # Two-neutrino oscillations in constant-density matter, LIV
+    # np.set_printoptions(precision=3)
+    # baseline = 10.*gd.UNIT_KM # 10 km in natural units [eV^{-1}]
+    # energy = 10.*gd.UNIT_GEV # [eV]
+    # rho = 10.0 # [g cm^{-3}]
+    # sth = gd.S12_NO_BF_NUFIT_6_0
+    # Dm2 = gd.D21_NO_BF_NUFIT_6_0 # [eV^2]
+    # sxi = 0.5
+    # b1 = 1.e-2
+    # b2 = 1.e-3
+    # Lambda = 10.*gd.UNIT_GEV
+    # n_liv = 3
+    # print(osc_prob_2nu_matter_constant_density(energy, baseline, rho, sth, Dm2, verbose=0))
+    # print(osc_prob_2nu_matter_constant_density_liv(energy, baseline, rho, sth, Dm2, sxi=sxi, 
+    #     b1=b1, b2=b2, Lambda=Lambda, n_liv=n_liv, verbose=0))
+
+    # # Three-neutrino oscillations in constant-density matter, LIV
+    # np.set_printoptions(precision=3)
+    # baseline = 10.*gd.UNIT_KM # 10 km in natural units [eV^{-1}]
+    # energy = 1.*gd.UNIT_GEV # [eV]
+    # rho = 10.0 # [g cm^{-3}]
+    # sxi12, sxi23, sxi13, dxiCP = 0.01, 0.02, 0.03, np.radians(10.0)
+    # b1, b2, b3 = 1.e-2, 1.e-3, 5.e-3
+    # Lambda = 10.*gd.UNIT_GEV
+    # n_liv = 3
+    # print(osc_prob_3nu_matter_constant_density(energy, baseline, rho, verbose=0))
+    # print(osc_prob_3nu_matter_constant_density_liv(energy, baseline, rho, sxi12=sxi12, sxi23=sxi23,
+    #     sxi13=sxi13, dxiCP=dxiCP, b1=b1, b2=b2, b3=b3, Lambda=Lambda, n_liv=n_liv, verbose=0))
+
+    # # Four-neutrino oscillations in constant-density matter, LIV
+    # np.set_printoptions(precision=3)
+    # baseline = 10.*gd.UNIT_KM # 10 km in natural units [eV^{-1}]
+    # energy = 1.*gd.UNIT_GEV # [eV]
+    # rho = 10.0 # [g cm^{-3}]
+    # s14, s24, s34 = 0.1, 0.2, 0.3
+    # d14, d24 = np.radians(10.0), np.radians(100.0)
+    # D41 = 0.1 # [eV^2]
+    # sxi12, sxi23, sxi13, sxi14, sxi24, sxi34 = 0.01, 0.05, 0.06, 0.1, 0.9, 0.02
+    # dxi13, dxi14, dxi24 = np.radians([10,20,30])
+    # b1, b2, b3, b4 = 1.e-2, 1.e-3, 5.e-3, 4.e-2
+    # Lambda = 10.*gd.UNIT_GEV
+    # n_liv = 3
+    # print(osc_prob_4nu_matter_constant_density(energy, baseline, rho, s14=s14, s24=s24, s34=s34,
+    #     d14=d14, d24=d24, D41=D41, verbose=0))
+    # print(osc_prob_4nu_matter_constant_density_liv(energy, baseline, rho, s14=s14, s24=s24, s34=s34,
+    #     d14=d14, d24=d24, D41=D41, sxi12=sxi12, sxi23=sxi23, sxi13=sxi13, sxi14=sxi14, sxi24=sxi24, 
+    #     sxi34=sxi34, dxi13=dxi13, dxi14=dxi14, dxi24=dxi24, b1=b1, b2=b2, b3=b3, b4=b4, 
+    #     Lambda=Lambda, n_liv=n_liv, verbose=0))
+
+    # Five-neutrino oscillations in constant-density matter, LIV
     np.set_printoptions(precision=3)
     baseline = 10.*gd.UNIT_KM # 10 km in natural units [eV^{-1}]
-    energy = 1.*gd.UNIT_MEV # [eV]
+    energy = 1.*gd.UNIT_GEV # [eV]
+    rho = 10.0 # [g cm^{-3}]
     s14, s15, s24, s25, s34, s35 = 0.1, 0.1, 0.2, 0.2, 0.3, 0.3
     d14, d15, d24, d35 = np.radians([10.0, 20.0, 30.0, 40.0])
     D41, D51 = 0.1, 0.01 # [eV^2]
@@ -6751,10 +7079,10 @@ if __name__ == "__main__":
     b1, b2, b3, b4, b5 = 1.e-2, 1.e-3, 5.e-3, 4.e-2, 1.e-1
     Lambda = 10.*gd.UNIT_GEV
     n_liv = 2
-    print(osc_prob_5nu_vacuum(energy, baseline, s14=s14, s15=s15, s24=s24, s25=s25, s34=s34, 
-        s35=s35, d14=d14, d15=d15, d24=d24, d35=d35, D41=D41, D51=D51, verbose=0))
-    print(osc_prob_5nu_vacuum_liv(energy, baseline, s14=s14, s15=s15, s24=s24, s25=s25, s34=s34, 
-        s35=s35, d14=d14, d15=d15, d24=d24, d35=d35, D41=D41, D51=D51, sxi12=sxi12, sxi23=sxi23,
-        sxi13=sxi13, sxi14=sxi14, sxi15=sxi15, sxi24=sxi24, sxi25=sxi25, sxi34=sxi34, sxi35=sxi35,
-        dxi13=dxi13, dxi14=dxi14, dxi15=dxi15, dxi24=dxi24, dxi35=dxi35, b1=b1, b2=b2, b3=b3, b4=b4,
-        b5=b5, Lambda=Lambda, n_liv=n_liv, verbose=0))
+    print(osc_prob_5nu_matter_constant_density(energy, baseline, rho, s14=s14, s15=s15, s24=s24, 
+        s25=s25, s34=s34, s35=s35, d14=d14, d15=d15, d24=d24, d35=d35, D41=D41, D51=D51, verbose=0))
+    print(osc_prob_5nu_matter_constant_density_liv(energy, baseline, rho, s14=s14, s15=s15, s24=s24,
+        s25=s25, s34=s34, s35=s35, d14=d14, d15=d15, d24=d24, d35=d35, D41=D41, D51=D51, 
+        sxi12=sxi12, sxi23=sxi23, sxi13=sxi13, sxi14=sxi14, sxi15=sxi15, sxi24=sxi24, sxi25=sxi25, 
+        sxi34=sxi34, sxi35=sxi35, dxi13=dxi13, dxi14=dxi14, dxi15=dxi15, dxi24=dxi24, dxi35=dxi35, 
+        b1=b1, b2=b2, b3=b3, b4=b4, b5=b5, Lambda=Lambda, n_liv=n_liv, verbose=0))
