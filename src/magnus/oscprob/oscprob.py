@@ -116,27 +116,41 @@ Functions designed for specific **beyond-the-Standard-Model** proposals:
 
 - Non-standard neutrino interactions (NSI):
 
-  - :func:`osc_prob_2nu_matter_constant_density_nsi`
-  - :func:`osc_prob_3nu_matter_constant_density_nsi`
-  - :func:`osc_prob_2nu_matter_exp_density_nsi`
-  - :func:`osc_prob_3nu_matter_exp_density_nsi`
-  - :func:`osc_prob_2nu_matter_earth_nsi`
-  - :func:`osc_prob_3nu_matter_earth_nsi`
-  - :func:`osc_prob_2nu_matter_sun_nsi`
-  - :func:`osc_prob_3nu_matter_sun_nsi`
+  - :func:`osc_prob_2nu_matter_nsi_constant_density`
+  - :func:`osc_prob_3nu_matter_nsi_constant_density`
+  - :func:`osc_prob_4nu_matter_nsi_constant_density`
+  - :func:`osc_prob_5nu_matter_nsi_constant_density`
+  - :func:`osc_prob_2nu_matter_nsi_exp_density`
+  - :func:`osc_prob_3nu_matter_nsi_exp_density`
+  - :func:`osc_prob_4nu_matter_nsi_exp_density`
+  - :func:`osc_prob_5nu_matter_nsi_exp_density`
+  - :func:`osc_prob_2nu_earth_nsi`
+  - :func:`osc_prob_3nu_earth_nsi`
+  - :func:`osc_prob_4nu_earth_nsi`
+  - :func:`osc_prob_5nu_earth_nsi`
+  - :func:`osc_prob_2nu_sun_nsi`
+  - :func:`osc_prob_3nu_sun_nsi`
+  - :func:`osc_prob_4nu_sun_nsi`
+  - :func:`osc_prob_5nu_sun_nsi`
 
 - Lorentz-invariance violation:
 
-  - :func:`osc_prob_2nu_vacuum_liv`
-  - :func:`osc_prob_3nu_vacuum_liv`
-  - :func:`osc_prob_2nu_matter_constant_density_liv`
-  - :func:`osc_prob_3nu_matter_constant_density_liv`
-  - :func:`osc_prob_2nu_matter_exp_density_liv`
-  - :func:`osc_prob_3nu_matter_exp_density_liv`
+  - :func:`osc_prob_2nu_matter_liv_constant_density`
+  - :func:`osc_prob_3nu_matter_liv_constant_density`
+  - :func:`osc_prob_4nu_matter_liv_constant_density`
+  - :func:`osc_prob_5nu_matter_liv_constant_density`
+  - :func:`osc_prob_2nu_matter_liv_exp_density`
+  - :func:`osc_prob_3nu_matter_liv_exp_density`
+  - :func:`osc_prob_4nu_matter_liv_exp_density`
+  - :func:`osc_prob_5nu_matter_liv_exp_density`
   - :func:`osc_prob_2nu_earth_liv`
   - :func:`osc_prob_3nu_earth_liv`
+  - :func:`osc_prob_4nu_earth_liv`
+  - :func:`osc_prob_5nu_earth_liv`
   - :func:`osc_prob_2nu_sun_liv`
   - :func:`osc_prob_3nu_sun_liv`
+  - :func:`osc_prob_4nu_sun_liv`
+  - :func:`osc_prob_5nu_sun_liv`
 
 Examples
 --------
