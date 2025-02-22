@@ -367,9 +367,9 @@ def print_run_parameters(
         print("   n_slabs = " + str(n_slabs), file=f)
         print("   n_tpts_per_slab = " + str(n_slabs), file=f)
         if t_slab_edges is None:
-            print("   n_tpts_per_slab = None", file=f)
+            print("   t_slab_edges = None", file=f)
         else:
-            print("   n_tpts_per_slab = ", file=f)
+            print("   t_slab_edges = ", file=f)
             for i, t_slab in enumerate(t_slab_edges):
                 print("      i" + ": " + str(t_slab), file=f)
         print("   magnus_exp_order = " + str(magnus_exp_order), file=f)
@@ -3400,6 +3400,7 @@ def osc_prob_2nu_matter_constant_density(
     Dm2: Union[int, float], 
     ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0, 
     electron_fraction: Optional[Union[int, float]]=0.5, 
+    nubar: Optional[bool]=False, 
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
     density_matter_is_in_g_per_cm3: Optional[bool]=False,
@@ -3426,6 +3427,7 @@ def osc_prob_2nu_matter_constant_density(
         osc_params={'sth': sth, 'Dm2': Dm2},
         ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons, 
         electron_fraction=electron_fraction,
+        nubar=nubar,
         nu_i=nu_i,
         nu_f=nu_f,
         density_matter_is_in_g_per_cm3=density_matter_is_in_g_per_cm3,
@@ -3665,10 +3667,10 @@ def osc_prob_2nu_matter_exp_density(
     """
 
     try:
-        if (rho_central <= 0.0 or l_scale <= 0.0):
+        if (rho_central < 0.0 or l_scale <= 0.0):
             raise ValueError(gd.ERROR_MSG_IN_COLOR + \
-                " oscprob.osc_prob_2nu_matter_exp_density: rho_central and l_scale must be " + \
-                "non-negative.")
+                " oscprob.osc_prob_2nu_matter_exp_density: rho_central must be non-negative" + \
+                " and l_scale must be positive.")
     except ValueError as error:
         print(error)
         print("Aborting execution...")
@@ -3766,10 +3768,10 @@ def osc_prob_3nu_matter_exp_density(
     """
 
     try:
-        if (rho_central <= 0.0 or l_scale <= 0.0):
+        if (rho_central < 0.0 or l_scale <= 0.0):
             raise ValueError(gd.ERROR_MSG_IN_COLOR + \
-                " oscprob.osc_prob_4nu_matter_exp_density: rho_central and l_scale must be " + \
-                "non-negative.")
+                " oscprob.osc_prob_3nu_matter_exp_density: rho_central must be non-negative" + \
+                " and l_scale must be positive.")
     except ValueError as error:
         print(error)
         print("Aborting execution...")
@@ -3873,10 +3875,10 @@ def osc_prob_4nu_matter_exp_density(
     """
 
     try:
-        if (rho_central <= 0.0 or l_scale <= 0.0):
+        if (rho_central < 0.0 or l_scale <= 0.0):
             raise ValueError(gd.ERROR_MSG_IN_COLOR + \
-                " oscprob.osc_prob_4nu_matter_exp_density: rho_central and l_scale must be " + \
-                "non-negative.")
+                " oscprob.osc_prob_4nu_matter_exp_density: rho_central must be non-negative" + \
+                " and l_scale must be positive.")
     except ValueError as error:
         print(error)
         print("Aborting execution...")
@@ -3987,10 +3989,10 @@ def osc_prob_5nu_matter_exp_density(
     """
 
     try:
-        if (rho_central <= 0.0 or l_scale <= 0.0):
+        if (rho_central < 0.0 or l_scale <= 0.0):
             raise ValueError(gd.ERROR_MSG_IN_COLOR + \
-                " oscprob.osc_prob_5nu_matter_exp_density: rho_central and l_scale must be " + \
-                "non-negative.")
+                " oscprob.osc_prob_5nu_matter_exp_density: rho_central must be non-negative" + \
+                " and l_scale must be positive.")
     except ValueError as error:
         print(error)
         print("Aborting execution...")
@@ -4745,6 +4747,7 @@ def osc_prob_2nu_matter_nsi_constant_density(
     eps_ab: Union[int, float],
     ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0, 
     electron_fraction: Optional[Union[int, float]]=0.5, 
+    nubar: Optional[bool]=False, 
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
     density_matter_is_in_g_per_cm3: Optional[bool]=False,
@@ -4773,6 +4776,7 @@ def osc_prob_2nu_matter_nsi_constant_density(
         nsi_params={'eps_aa': eps_aa, 'eps_ab': eps_ab},
         ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons, 
         electron_fraction=electron_fraction,
+        nubar=nubar,
         nu_i=nu_i,
         nu_f=nu_f,
         density_matter_is_in_g_per_cm3=density_matter_is_in_g_per_cm3,
@@ -6201,7 +6205,7 @@ def osc_prob_5nu_vacuum_liv(
 # In matter, LIV, constant density
 #-----------------------------------------------------------------------
 
-def osc_prob_2nu_matter_constant_density_liv(
+def osc_prob_2nu_matter_liv_constant_density(
     energy: Union[int, float, list, np.ndarray], 
     L: Union[int, float, list, np.ndarray], 
     rho: Union[int, float], 
@@ -6256,7 +6260,7 @@ def osc_prob_2nu_matter_constant_density_liv(
     )  
 
 
-def osc_prob_3nu_matter_constant_density_liv(
+def osc_prob_3nu_matter_liv_constant_density(
     energy: Union[int, float, list, np.ndarray], 
     L: Union[int, float, list, np.ndarray], 
     rho: Optional[Union[int, float]], 
@@ -6322,7 +6326,7 @@ def osc_prob_3nu_matter_constant_density_liv(
     )  
 
 
-def osc_prob_4nu_matter_constant_density_liv(
+def osc_prob_4nu_matter_liv_constant_density(
     energy: Union[int, float, list, np.ndarray], 
     L: Union[int, float, list, np.ndarray], 
     rho: Optional[Union[int, float]],
@@ -6402,7 +6406,7 @@ def osc_prob_4nu_matter_constant_density_liv(
     )  
 
 
-def osc_prob_5nu_matter_constant_density_liv(
+def osc_prob_5nu_matter_liv_constant_density(
     energy: Union[int, float, list, np.ndarray], 
     L: Union[int, float, list, np.ndarray], 
     rho: Optional[Union[int, float]],
@@ -6500,7 +6504,107 @@ def osc_prob_5nu_matter_constant_density_liv(
 # In matter, LIV, exponentially falling density
 #-----------------------------------------------------------------------
 
+def osc_prob_2nu_matter_liv_exp_density(
+    energy: Union[float, list, np.ndarray], 
+    L: Union[float, list, np.ndarray],
+    L0: Union[int, float], 
+    rho_central: Union[int, float], 
+    l_scale: Union[int, float],
+    sth: Union[int, float],
+    Dm2: Union[int, float],
+    sxi: Optional[Union[int, float]]=0.0,
+    b1: Optional[Union[int, float]]=0.0,
+    b2: Optional[Union[int, float]]=0.0,
+    Lambda: Optional[Union[int, float]]=1.0,
+    n_liv: Optional[int]=0,
+    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0, 
+    electron_fraction: Optional[Union[int, float]]=0.5, 
+    nubar: Optional[bool]=False, 
+    nu_i: Optional[int]=None, 
+    nu_f: Optional[int]=None,
+    density_matter_is_in_g_per_cm3: Optional[bool]=False,
+    density_is_of_number_of_electrons: Optional[bool]=False,
+    magnus_exp_order: Optional[int]=4, 
+    n_jobs: Optional[int]=1, 
+    integration_method: Optional[str]='trapezoid', 
+    rtol: Optional[Union[int, float]]=1.e-3, 
+    atol: Optional[Union[int, float]]=1.e-3, 
+    growth_factor_n_slabs: Optional[Union[int, float]]=1.5, 
+    growth_factor_n_tpts_per_slab: Optional[Union[int, float]]=1.5, 
+    max_num_loops: Optional[int]=50, 
+    min_n_slabs: Optional[int]=1, 
+    max_n_slabs: Optional[int]=2000, 
+    min_n_tpts_per_slab: Optional[int]=2, 
+    max_n_tpts_per_slab: Optional[int]=500, 
+    iterate_over_magnus_exp_order: Optional[bool]=False,
+    min_magnus_exp_order: Optional[int]=1,
+    max_magnus_exp_order: Optional[int]=gd.MAGNUS_EXP_ORDER_MAX,
+    validate_input: Optional[bool]=True, 
+    save_log: Optional[bool]=False, 
+    filename_log: Optional[str]='./out.log',
+    file_log: Optional[TextIOWrapper]=None, 
+    close_file_log_upon_exit: Optional[bool]=True,
+    new_recursion_limit: Optional[int]=5000,
+    verbose: Optional[int]=0,
+    **kwargs
+) -> Union[float, np.ndarray]:
+    r"""Compute and return the two-neutrino oscillation probability in
+    matter with an exponentially falling density profile, under (one 
+    form of) Lorentz-invariance violation.
+    """
 
+    try:
+        if (rho_central < 0.0 or l_scale <= 0.0):
+            raise ValueError(gd.ERROR_MSG_IN_COLOR + \
+                " oscprob.osc_prob_2nu_matter_liv_exp_density: rho_central must be non-negative" + \
+                " and l_scale must be positive.")
+    except ValueError as error:
+        print(error)
+        print("Aborting execution...")
+        sys.exit(1)
+
+    # If any of the flavor indices is > 1, fix it (read the docstring above).
+    nu_i, nu_f = valid_flavor_indices_2nu(nu_i, nu_f)
+
+    return osc_prob_liv(
+        num_flavors=2,
+        energy=energy,
+        L=L,
+        osc_params={'sth': sth, 'Dm2': Dm2},
+        liv_params={'sxi': sxi, 'b1': b1, 'b2': b2, 'Lambda': Lambda, 'n_liv': n_liv},
+        rho_func=lambda r: rho_central*np.exp(-r/l_scale),
+        L0=L0,
+        ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons, 
+        electron_fraction=electron_fraction,
+        nubar=nubar,
+        nu_i=nu_i,
+        nu_f=nu_f,
+        density_matter_is_in_g_per_cm3=density_matter_is_in_g_per_cm3,
+        density_is_of_number_of_electrons=density_is_of_number_of_electrons,
+        magnus_exp_order=magnus_exp_order,
+        n_jobs=n_jobs,
+        integration_method=integration_method,
+        rtol=rtol,
+        atol=atol,
+        growth_factor_n_slabs=growth_factor_n_slabs,
+        growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
+        max_num_loops=max_num_loops,
+        min_n_slabs=min_n_slabs,
+        max_n_slabs=max_n_slabs,
+        min_n_tpts_per_slab=min_n_tpts_per_slab,
+        max_n_tpts_per_slab=max_n_tpts_per_slab,
+        iterate_over_magnus_exp_order=iterate_over_magnus_exp_order,
+        min_magnus_exp_order=min_magnus_exp_order,
+        max_magnus_exp_order=max_magnus_exp_order,
+        validate_input=validate_input,
+        save_log=save_log,
+        filename_log=filename_log,
+        file_log=file_log,
+        close_file_log_upon_exit=close_file_log_upon_exit,
+        new_recursion_limit=new_recursion_limit,
+        verbose=verbose,
+        **kwargs
+    )  
 
 
 
@@ -7065,7 +7169,7 @@ if __name__ == "__main__":
     # np.set_printoptions(precision=3)
     # baseline = 10.*gd.UNIT_KM # 10 km in natural units [eV^{-1}]
     # energy = 10.*gd.UNIT_GEV # [eV]
-    # rho = 10.0 # [g cm^{-3}]
+    # rho = 10.0*gd.UNIT_G_PER_CM3 # [g cm^{-3}]
     # sth = gd.S12_NO_BF_NUFIT_6_0
     # Dm2 = gd.D21_NO_BF_NUFIT_6_0 # [eV^2]
     # sxi = 0.5
@@ -7074,27 +7178,27 @@ if __name__ == "__main__":
     # Lambda = 10.*gd.UNIT_GEV
     # n_liv = 3
     # print(osc_prob_2nu_matter_constant_density(energy, baseline, rho, sth, Dm2, verbose=0))
-    # print(osc_prob_2nu_matter_constant_density_liv(energy, baseline, rho, sth, Dm2, sxi=sxi, 
+    # print(osc_prob_2nu_matter_liv_constant_density(energy, baseline, rho, sth, Dm2, sxi=sxi, 
     #     b1=b1, b2=b2, Lambda=Lambda, n_liv=n_liv, verbose=0))
 
     # # Three-neutrino oscillations in constant-density matter, LIV
     # np.set_printoptions(precision=3)
     # baseline = 10.*gd.UNIT_KM # 10 km in natural units [eV^{-1}]
     # energy = 1.*gd.UNIT_GEV # [eV]
-    # rho = 10.0 # [g cm^{-3}]
+    # rho = 10.0*gd.UNIT_G_PER_CM3 # [g cm^{-3}]
     # sxi12, sxi23, sxi13, dxiCP = 0.01, 0.02, 0.03, np.radians(10.0)
     # b1, b2, b3 = 1.e-2, 1.e-3, 5.e-3
     # Lambda = 10.*gd.UNIT_GEV
     # n_liv = 3
     # print(osc_prob_3nu_matter_constant_density(energy, baseline, rho, verbose=0))
-    # print(osc_prob_3nu_matter_constant_density_liv(energy, baseline, rho, sxi12=sxi12, sxi23=sxi23,
+    # print(osc_prob_3nu_matter_liv_constant_density(energy, baseline, rho, sxi12=sxi12, sxi23=sxi23,
     #     sxi13=sxi13, dxiCP=dxiCP, b1=b1, b2=b2, b3=b3, Lambda=Lambda, n_liv=n_liv, verbose=0))
 
     # # Four-neutrino oscillations in constant-density matter, LIV
     # np.set_printoptions(precision=3)
     # baseline = 10.*gd.UNIT_KM # 10 km in natural units [eV^{-1}]
     # energy = 1.*gd.UNIT_GEV # [eV]
-    # rho = 10.0 # [g cm^{-3}]
+    # rho = 10.0*gd.UNIT_G_PER_CM3 # [g cm^{-3}]
     # s14, s24, s34 = 0.1, 0.2, 0.3
     # d14, d24 = np.radians(10.0), np.radians(100.0)
     # D41 = 0.1 # [eV^2]
@@ -7105,7 +7209,7 @@ if __name__ == "__main__":
     # n_liv = 3
     # print(osc_prob_4nu_matter_constant_density(energy, baseline, rho, s14=s14, s24=s24, s34=s34,
     #     d14=d14, d24=d24, D41=D41, verbose=0))
-    # print(osc_prob_4nu_matter_constant_density_liv(energy, baseline, rho, s14=s14, s24=s24, s34=s34,
+    # print(osc_prob_4nu_matter_liv_constant_density(energy, baseline, rho, s14=s14, s24=s24, s34=s34,
     #     d14=d14, d24=d24, D41=D41, sxi12=sxi12, sxi23=sxi23, sxi13=sxi13, sxi14=sxi14, sxi24=sxi24, 
     #     sxi34=sxi34, dxi13=dxi13, dxi14=dxi14, dxi24=dxi24, b1=b1, b2=b2, b3=b3, b4=b4, 
     #     Lambda=Lambda, n_liv=n_liv, verbose=0))
@@ -7114,7 +7218,7 @@ if __name__ == "__main__":
     # np.set_printoptions(precision=3)
     # baseline = 10.*gd.UNIT_KM # 10 km in natural units [eV^{-1}]
     # energy = 1.*gd.UNIT_GEV # [eV]
-    # rho = 10.0 # [g cm^{-3}]
+    # rho = 10.0*gd.UNIT_G_PER_CM3 # [g cm^{-3}]
     # s14, s15, s24, s25, s34, s35 = 0.1, 0.1, 0.2, 0.2, 0.3, 0.3
     # d14, d15, d24, d35 = np.radians([10.0, 20.0, 30.0, 40.0])
     # D41, D51 = 0.1, 0.01 # [eV^2]
@@ -7126,8 +7230,34 @@ if __name__ == "__main__":
     # n_liv = 2
     # print(osc_prob_5nu_matter_constant_density(energy, baseline, rho, s14=s14, s15=s15, s24=s24, 
     #     s25=s25, s34=s34, s35=s35, d14=d14, d15=d15, d24=d24, d35=d35, D41=D41, D51=D51, verbose=0))
-    # print(osc_prob_5nu_matter_constant_density_liv(energy, baseline, rho, s14=s14, s15=s15, s24=s24,
+    # print(osc_prob_5nu_matter_liv_constant_density(energy, baseline, rho, s14=s14, s15=s15, s24=s24,
     #     s25=s25, s34=s34, s35=s35, d14=d14, d15=d15, d24=d24, d35=d35, D41=D41, D51=D51, 
     #     sxi12=sxi12, sxi23=sxi23, sxi13=sxi13, sxi14=sxi14, sxi15=sxi15, sxi24=sxi24, sxi25=sxi25, 
     #     sxi34=sxi34, sxi35=sxi35, dxi13=dxi13, dxi14=dxi14, dxi15=dxi15, dxi24=dxi24, dxi35=dxi35, 
     #     b1=b1, b2=b2, b3=b3, b4=b4, b5=b5, Lambda=Lambda, n_liv=n_liv, verbose=0))
+
+    # Two-neutrino oscillations in exponentially falling matter density profile, LIV
+    np.set_printoptions(precision=3)
+    baseline = 20.*gd.UNIT_KM # 10 km in natural units [eV^{-1}]
+    energy = 1.*gd.UNIT_MEV # [eV]
+    L0 = 0.0
+    sth = gd.S12_NO_BF_NUFIT_6_0
+    Dm2 = gd.D21_NO_BF_NUFIT_6_0 # [eV^2]
+    rho_central = 12.0*gd.UNIT_G_PER_CM3
+    l_scale = 4.0*gd.UNIT_KM
+    sxi = 0.5
+    b1 = 1.e-3#1.e-2
+    b2 = 1.e-4#1.e-3
+    Lambda = 10.*gd.UNIT_GEV
+    n_liv = 1
+    print(osc_prob_2nu_matter_constant_density(energy, baseline, rho_central, sth, Dm2, 
+        verbose=0))
+    print(osc_prob_2nu_matter_exp_density(energy, baseline, L0, rho_central, l_scale, sth, Dm2, 
+        verbose=0))
+    print(osc_prob_2nu_matter_liv_constant_density(energy, baseline, rho_central, sth, Dm2,
+        sxi=sxi, b1=b1, b2=b2, Lambda=Lambda, n_liv=n_liv, rtol=1.e-3, atol=1.e-3, verbose=0))
+    print(osc_prob_2nu_matter_liv_exp_density(energy, baseline, L0, rho_central, l_scale, sth, Dm2,
+        sxi=sxi, b1=b1, b2=b2, Lambda=Lambda, n_liv=n_liv, rtol=1.e-3, atol=1.e-3, n_jobs=1, 
+        verbose=0))
+
+
