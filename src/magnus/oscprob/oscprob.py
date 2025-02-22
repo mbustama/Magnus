@@ -3404,7 +3404,6 @@ def osc_prob_2nu_matter_constant_density(
     nu_f: Optional[int]=None,
     density_matter_is_in_g_per_cm3: Optional[bool]=False,
     density_is_of_number_of_electrons: Optional[bool]=False,
-    default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
@@ -3431,7 +3430,6 @@ def osc_prob_2nu_matter_constant_density(
         nu_f=nu_f,
         density_matter_is_in_g_per_cm3=density_matter_is_in_g_per_cm3,
         density_is_of_number_of_electrons=density_is_of_number_of_electrons,
-        default_osc_params_set_name=default_osc_params_set_name,
         validate_input=validate_input,
         new_recursion_limit=None,
         verbose=verbose,
@@ -3638,7 +3636,6 @@ def osc_prob_2nu_matter_exp_density(
     nu_f: Optional[int]=None,
     density_matter_is_in_g_per_cm3: Optional[bool]=False,
     density_is_of_number_of_electrons: Optional[bool]=False,
-    default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
     magnus_exp_order: Optional[int]=4, 
     n_jobs: Optional[int]=1, 
     integration_method: Optional[str]='trapezoid', 
@@ -3694,7 +3691,6 @@ def osc_prob_2nu_matter_exp_density(
         nu_f=nu_f,
         density_matter_is_in_g_per_cm3=density_matter_is_in_g_per_cm3,
         density_is_of_number_of_electrons=density_is_of_number_of_electrons,
-        default_osc_params_set_name=default_osc_params_set_name,
         magnus_exp_order=magnus_exp_order,
         n_jobs=n_jobs,
         integration_method=integration_method,
@@ -4272,7 +4268,6 @@ def osc_prob_2nu_sun(
     nubar: Optional[bool]=False, 
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
-    default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
     magnus_exp_order: Optional[int]=3, #4, 
     n_jobs: Optional[int]=1, 
     integration_method: Optional[str]='trapezoid', 
@@ -4330,7 +4325,6 @@ def osc_prob_2nu_sun(
         nu_i=nu_i,
         nu_f=nu_f,
         density_is_of_number_of_electrons=True,
-        default_osc_params_set_name=default_osc_params_set_name,
         magnus_exp_order=magnus_exp_order,
         n_jobs=n_jobs,
         integration_method=integration_method,
@@ -4755,7 +4749,6 @@ def osc_prob_2nu_matter_nsi_constant_density(
     nu_f: Optional[int]=None,
     density_matter_is_in_g_per_cm3: Optional[bool]=False,
     density_is_of_number_of_electrons: Optional[bool]=False,
-    default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
@@ -4784,7 +4777,6 @@ def osc_prob_2nu_matter_nsi_constant_density(
         nu_f=nu_f,
         density_matter_is_in_g_per_cm3=density_matter_is_in_g_per_cm3,
         density_is_of_number_of_electrons=density_is_of_number_of_electrons,
-        default_osc_params_set_name=default_osc_params_set_name,
         validate_input=validate_input,
         new_recursion_limit=None,
         verbose=verbose,
@@ -5021,7 +5013,6 @@ def osc_prob_2nu_matter_nsi_exp_density(
     nu_f: Optional[int]=None,
     density_matter_is_in_g_per_cm3: Optional[bool]=False,
     density_is_of_number_of_electrons: Optional[bool]=False,
-    default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
     magnus_exp_order: Optional[int]=4, 
     n_jobs: Optional[int]=1, 
     integration_method: Optional[str]='trapezoid', 
@@ -5079,7 +5070,6 @@ def osc_prob_2nu_matter_nsi_exp_density(
         nu_f=nu_f,
         density_matter_is_in_g_per_cm3=density_matter_is_in_g_per_cm3,
         density_is_of_number_of_electrons=density_is_of_number_of_electrons,
-        default_osc_params_set_name=default_osc_params_set_name,
         magnus_exp_order=magnus_exp_order,
         n_jobs=n_jobs,
         integration_method=integration_method,
@@ -5488,7 +5478,6 @@ def osc_prob_2nu_sun_nsi(
     nubar: Optional[bool]=False, 
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
-    default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
     magnus_exp_order: Optional[int]=3, #4, 
     n_jobs: Optional[int]=1, 
     integration_method: Optional[str]='trapezoid', 
@@ -5543,7 +5532,6 @@ def osc_prob_2nu_sun_nsi(
         nu_i=nu_i,
         nu_f=nu_f,
         density_is_of_number_of_electrons=True,
-        default_osc_params_set_name=default_osc_params_set_name,
         magnus_exp_order=magnus_exp_order,
         n_jobs=n_jobs,
         integration_method=integration_method,
@@ -6023,6 +6011,7 @@ def osc_prob_3nu_vacuum_liv(
     b3: Optional[Union[int, float]]=0.0,
     Lambda: Optional[Union[int, float]]=1.0,
     n_liv: Optional[int]=0,
+    nubar: Optional[bool]=False, 
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
     validate_input: Optional[bool]=True, 
@@ -6045,6 +6034,7 @@ def osc_prob_3nu_vacuum_liv(
         osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 'D21': D21, 'D31': D31},
         liv_params={'sxi12': sxi12, 'sxi23': sxi23, 'sxi13': sxi13, 'dxiCP': dxiCP, 'b1': b1, 
             'b2': b2, 'b3': b3, 'Lambda': Lambda, 'n_liv': n_liv},
+        nubar=nubar,
         nu_i=nu_i,
         nu_f=nu_f,
         validate_input=validate_input,
@@ -6087,6 +6077,7 @@ def osc_prob_4nu_vacuum_liv(
     dCP: Optional[Union[int, float]]=None, 
     D21: Optional[Union[int, float]]=None, 
     D31: Optional[Union[int, float]]=None, 
+    nubar: Optional[bool]=False, 
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
     validate_input: Optional[bool]=True, 
@@ -6111,6 +6102,7 @@ def osc_prob_4nu_vacuum_liv(
         liv_params={'sxi12': sxi12, 'sxi23': sxi23, 'sxi13': sxi13, 'dxi13': dxi13, 'sxi14': sxi14,
             'dxi14': dxi14, 'sxi24': sxi24, 'dxi24': dxi24, 'sxi34': sxi34, 'b1': b1, 'b2': b2, 
             'b3': b3, 'b4': b4, 'Lambda': Lambda, 'n_liv': n_liv},
+        nubar=nubar,
         nu_i=nu_i,
         nu_f=nu_f,
         validate_input=validate_input,
@@ -6165,6 +6157,7 @@ def osc_prob_5nu_vacuum_liv(
     dCP: Optional[Union[int, float]]=None, 
     D21: Optional[Union[int, float]]=None, 
     D31: Optional[Union[int, float]]=None, 
+    nubar: Optional[bool]=False, 
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
     validate_input: Optional[bool]=True, 
@@ -6191,6 +6184,7 @@ def osc_prob_5nu_vacuum_liv(
             'dxi14': dxi14, 'sxi15': sxi15, 'dxi15': dxi15, 'sxi24': sxi24, 'dxi24': dxi24, 
             'sxi25': sxi25, 'sxi34': sxi34, 'sxi35': sxi35, 'dxi35': dxi35, 'b1': b1, 'b2': b2, 
             'b3': b3, 'b4': b4, 'b5': b5, 'Lambda': Lambda, 'n_liv': n_liv},
+        nubar=nubar,
         nu_i=nu_i,
         nu_f=nu_f,
         validate_input=validate_input,
@@ -6218,8 +6212,12 @@ def osc_prob_2nu_matter_constant_density_liv(
     b2: Optional[Union[int, float]]=0.0,
     Lambda: Optional[Union[int, float]]=1.0,
     n_liv: Optional[int]=0,
+    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0, 
+    electron_fraction: Optional[Union[int, float]]=0.5, 
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
+    density_matter_is_in_g_per_cm3: Optional[bool]=False,
+    density_is_of_number_of_electrons: Optional[bool]=False,
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
@@ -6242,8 +6240,12 @@ def osc_prob_2nu_matter_constant_density_liv(
         L=L,
         osc_params={'sth': sth, 'Dm2': Dm2},
         liv_params={'sxi': sxi, 'b1': b1, 'b2': b2, 'Lambda': Lambda, 'n_liv': n_liv},
+        ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
+        electron_fraction=electron_fraction,
         nu_i=nu_i,
         nu_f=nu_f,
+        density_matter_is_in_g_per_cm3=density_matter_is_in_g_per_cm3,
+        density_is_of_number_of_electrons=density_is_of_number_of_electrons,
         validate_input=validate_input,
         save_log=save_log,
         filename_log=filename_log,
@@ -6273,8 +6275,14 @@ def osc_prob_3nu_matter_constant_density_liv(
     b3: Optional[Union[int, float]]=0.0,
     Lambda: Optional[Union[int, float]]=1.0,
     n_liv: Optional[int]=0,
+    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0, 
+    electron_fraction: Optional[Union[int, float]]=0.5, 
+    nubar: Optional[bool]=False, 
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
+    density_matter_is_in_g_per_cm3: Optional[bool]=False,
+    density_is_of_number_of_electrons: Optional[bool]=False,
+    default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
@@ -6296,8 +6304,14 @@ def osc_prob_3nu_matter_constant_density_liv(
         osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 'D21': D21, 'D31': D31},
         liv_params={'sxi12': sxi12, 'sxi23': sxi23, 'sxi13': sxi13, 'dxiCP': dxiCP, 'b1': b1, 
             'b2': b2, 'b3': b3, 'Lambda': Lambda, 'n_liv': n_liv},
+        ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
+        electron_fraction=electron_fraction,
+        nubar=nubar,
         nu_i=nu_i,
         nu_f=nu_f,
+        density_matter_is_in_g_per_cm3=density_matter_is_in_g_per_cm3,
+        density_is_of_number_of_electrons=density_is_of_number_of_electrons,
+        default_osc_params_set_name=default_osc_params_set_name,
         validate_input=validate_input,
         save_log=save_log,
         filename_log=filename_log,
@@ -6339,8 +6353,14 @@ def osc_prob_4nu_matter_constant_density_liv(
     dCP: Optional[Union[int, float]]=None, 
     D21: Optional[Union[int, float]]=None, 
     D31: Optional[Union[int, float]]=None, 
+    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0, 
+    electron_fraction: Optional[Union[int, float]]=0.5, 
+    nubar: Optional[bool]=False, 
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
+    density_matter_is_in_g_per_cm3: Optional[bool]=False,
+    density_is_of_number_of_electrons: Optional[bool]=False,
+    default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
@@ -6364,8 +6384,14 @@ def osc_prob_4nu_matter_constant_density_liv(
         liv_params={'sxi12': sxi12, 'sxi23': sxi23, 'sxi13': sxi13, 'dxi13': dxi13, 'sxi14': sxi14,
             'dxi14': dxi14, 'sxi24': sxi24, 'dxi24': dxi24, 'sxi34': sxi34, 'b1': b1, 'b2': b2, 
             'b3': b3, 'b4': b4, 'Lambda': Lambda, 'n_liv': n_liv},
+        ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
+        electron_fraction=electron_fraction,
+        nubar=nubar,
         nu_i=nu_i,
         nu_f=nu_f,
+        density_matter_is_in_g_per_cm3=density_matter_is_in_g_per_cm3,
+        density_is_of_number_of_electrons=density_is_of_number_of_electrons,
+        default_osc_params_set_name=default_osc_params_set_name,
         validate_input=validate_input,
         save_log=save_log,
         filename_log=filename_log,
@@ -6419,8 +6445,14 @@ def osc_prob_5nu_matter_constant_density_liv(
     dCP: Optional[Union[int, float]]=None, 
     D21: Optional[Union[int, float]]=None, 
     D31: Optional[Union[int, float]]=None, 
+    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0, 
+    electron_fraction: Optional[Union[int, float]]=0.5, 
+    nubar: Optional[bool]=False, 
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
+    density_matter_is_in_g_per_cm3: Optional[bool]=False,
+    density_is_of_number_of_electrons: Optional[bool]=False,
+    default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
@@ -6446,8 +6478,14 @@ def osc_prob_5nu_matter_constant_density_liv(
             'dxi14': dxi14, 'sxi15': sxi15, 'dxi15': dxi15, 'sxi24': sxi24, 'dxi24': dxi24, 
             'sxi25': sxi25, 'sxi34': sxi34, 'sxi35': sxi35, 'dxi35': dxi35, 'b1': b1, 'b2': b2, 
             'b3': b3, 'b4': b4, 'b5': b5, 'Lambda': Lambda, 'n_liv': n_liv},
+        ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
+        electron_fraction=electron_fraction,
+        nubar=nubar,
         nu_i=nu_i,
         nu_f=nu_f,
+        density_matter_is_in_g_per_cm3=density_matter_is_in_g_per_cm3,
+        density_is_of_number_of_electrons=density_is_of_number_of_electrons,
+        default_osc_params_set_name=default_osc_params_set_name,
         validate_input=validate_input,
         save_log=save_log,
         filename_log=filename_log,
@@ -6456,6 +6494,13 @@ def osc_prob_5nu_matter_constant_density_liv(
         verbose=verbose,
         **kwargs
     )  
+
+
+#-----------------------------------------------------------------------
+# In matter, LIV, exponentially falling density
+#-----------------------------------------------------------------------
+
+
 
 
 
@@ -7065,24 +7110,24 @@ if __name__ == "__main__":
     #     sxi34=sxi34, dxi13=dxi13, dxi14=dxi14, dxi24=dxi24, b1=b1, b2=b2, b3=b3, b4=b4, 
     #     Lambda=Lambda, n_liv=n_liv, verbose=0))
 
-    # Five-neutrino oscillations in constant-density matter, LIV
-    np.set_printoptions(precision=3)
-    baseline = 10.*gd.UNIT_KM # 10 km in natural units [eV^{-1}]
-    energy = 1.*gd.UNIT_GEV # [eV]
-    rho = 10.0 # [g cm^{-3}]
-    s14, s15, s24, s25, s34, s35 = 0.1, 0.1, 0.2, 0.2, 0.3, 0.3
-    d14, d15, d24, d35 = np.radians([10.0, 20.0, 30.0, 40.0])
-    D41, D51 = 0.1, 0.01 # [eV^2]
-    sxi12, sxi23, sxi13, sxi14, sxi15, sxi24, sxi25, sxi34, sxi35 = \
-        0.01, 0.05, 0.06, 0.1, 0.9, 0.02, 0.04, 0.1, 0.05
-    dxi13, dxi14, dxi15, dxi24, dxi35 = np.radians([10, 20, 30, 40, 50])
-    b1, b2, b3, b4, b5 = 1.e-2, 1.e-3, 5.e-3, 4.e-2, 1.e-1
-    Lambda = 10.*gd.UNIT_GEV
-    n_liv = 2
-    print(osc_prob_5nu_matter_constant_density(energy, baseline, rho, s14=s14, s15=s15, s24=s24, 
-        s25=s25, s34=s34, s35=s35, d14=d14, d15=d15, d24=d24, d35=d35, D41=D41, D51=D51, verbose=0))
-    print(osc_prob_5nu_matter_constant_density_liv(energy, baseline, rho, s14=s14, s15=s15, s24=s24,
-        s25=s25, s34=s34, s35=s35, d14=d14, d15=d15, d24=d24, d35=d35, D41=D41, D51=D51, 
-        sxi12=sxi12, sxi23=sxi23, sxi13=sxi13, sxi14=sxi14, sxi15=sxi15, sxi24=sxi24, sxi25=sxi25, 
-        sxi34=sxi34, sxi35=sxi35, dxi13=dxi13, dxi14=dxi14, dxi15=dxi15, dxi24=dxi24, dxi35=dxi35, 
-        b1=b1, b2=b2, b3=b3, b4=b4, b5=b5, Lambda=Lambda, n_liv=n_liv, verbose=0))
+    # # Five-neutrino oscillations in constant-density matter, LIV
+    # np.set_printoptions(precision=3)
+    # baseline = 10.*gd.UNIT_KM # 10 km in natural units [eV^{-1}]
+    # energy = 1.*gd.UNIT_GEV # [eV]
+    # rho = 10.0 # [g cm^{-3}]
+    # s14, s15, s24, s25, s34, s35 = 0.1, 0.1, 0.2, 0.2, 0.3, 0.3
+    # d14, d15, d24, d35 = np.radians([10.0, 20.0, 30.0, 40.0])
+    # D41, D51 = 0.1, 0.01 # [eV^2]
+    # sxi12, sxi23, sxi13, sxi14, sxi15, sxi24, sxi25, sxi34, sxi35 = \
+    #     0.01, 0.05, 0.06, 0.1, 0.9, 0.02, 0.04, 0.1, 0.05
+    # dxi13, dxi14, dxi15, dxi24, dxi35 = np.radians([10, 20, 30, 40, 50])
+    # b1, b2, b3, b4, b5 = 1.e-2, 1.e-3, 5.e-3, 4.e-2, 1.e-1
+    # Lambda = 10.*gd.UNIT_GEV
+    # n_liv = 2
+    # print(osc_prob_5nu_matter_constant_density(energy, baseline, rho, s14=s14, s15=s15, s24=s24, 
+    #     s25=s25, s34=s34, s35=s35, d14=d14, d15=d15, d24=d24, d35=d35, D41=D41, D51=D51, verbose=0))
+    # print(osc_prob_5nu_matter_constant_density_liv(energy, baseline, rho, s14=s14, s15=s15, s24=s24,
+    #     s25=s25, s34=s34, s35=s35, d14=d14, d15=d15, d24=d24, d35=d35, D41=D41, D51=D51, 
+    #     sxi12=sxi12, sxi23=sxi23, sxi13=sxi13, sxi14=sxi14, sxi15=sxi15, sxi24=sxi24, sxi25=sxi25, 
+    #     sxi34=sxi34, sxi35=sxi35, dxi13=dxi13, dxi14=dxi14, dxi15=dxi15, dxi24=dxi24, dxi35=dxi35, 
+    #     b1=b1, b2=b2, b3=b3, b4=b4, b5=b5, Lambda=Lambda, n_liv=n_liv, verbose=0))
