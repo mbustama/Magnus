@@ -4743,8 +4743,8 @@ def osc_prob_2nu_matter_nsi_constant_density(
     rho: Union[int, float],
     sth: Union[int, float], 
     Dm2: Union[int, float], 
-    eps_aa: Union[int, float],
-    eps_ab: Union[int, float],
+    eps_aa: Optional[Union[int, float]]=0.0,
+    eps_ab: Optional[Union[int, float]]=0.0,
     ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0, 
     electron_fraction: Optional[Union[int, float]]=0.5, 
     nubar: Optional[bool]=False, 
@@ -4792,18 +4792,18 @@ def osc_prob_3nu_matter_nsi_constant_density(
     energy: Union[int, float, list, np.ndarray], 
     L: Union[int, float, list, np.ndarray], 
     rho: Union[int, float],
-    eps_ee: Union[int, float],
-    eps_em: Union[int, float],
-    eps_et: Union[int, float],
-    eps_mm: Union[int, float],
-    eps_mt: Union[int, float],
-    eps_tt: Union[int, float],
     s12: Optional[Union[int, float]]=None, 
     s23: Optional[Union[int, float]]=None, 
     s13: Optional[Union[int, float]]=None, 
     dCP: Optional[Union[int, float]]=None, 
     D21: Optional[Union[int, float]]=None, 
     D31: Optional[Union[int, float]]=None, 
+    eps_ee: Optional[Union[int, float]]=0.0,
+    eps_em: Optional[Union[int, float]]=0.0,
+    eps_et: Optional[Union[int, float]]=0.0,
+    eps_mm: Optional[Union[int, float]]=0.0,
+    eps_mt: Optional[Union[int, float]]=0.0,
+    eps_tt: Optional[Union[int, float]]=0.0,
     ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0, 
     electron_fraction: Optional[Union[int, float]]=0.5, 
     nu_i: Optional[int]=None, 
@@ -4849,6 +4849,12 @@ def osc_prob_4nu_matter_nsi_constant_density(
     energy: Union[int, float, list, np.ndarray], 
     L: Union[int, float, list, np.ndarray], 
     rho: Union[int, float],
+    s12: Optional[Union[int, float]]=None, 
+    s23: Optional[Union[int, float]]=None, 
+    s13: Optional[Union[int, float]]=None, 
+    dCP: Optional[Union[int, float]]=None, 
+    D21: Optional[Union[int, float]]=None, 
+    D31: Optional[Union[int, float]]=None, 
     s14: Optional[Union[int, float]]=0.0,
     s24: Optional[Union[int, float]]=0.0,
     s34: Optional[Union[int, float]]=0.0,
@@ -4865,12 +4871,6 @@ def osc_prob_4nu_matter_nsi_constant_density(
     eps_tt: Optional[Union[int, float]]=0.0,
     eps_ts: Optional[Union[int, float]]=0.0,
     eps_ss: Optional[Union[int, float]]=0.0,
-    s12: Optional[Union[int, float]]=None, 
-    s23: Optional[Union[int, float]]=None, 
-    s13: Optional[Union[int, float]]=None, 
-    dCP: Optional[Union[int, float]]=None, 
-    D21: Optional[Union[int, float]]=None, 
-    D31: Optional[Union[int, float]]=None, 
     ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0, 
     electron_fraction: Optional[Union[int, float]]=0.5, 
     nu_i: Optional[int]=None, 
@@ -4918,6 +4918,12 @@ def osc_prob_5nu_matter_nsi_constant_density(
     energy: Union[int, float, list, np.ndarray], 
     L: Union[int, float, list, np.ndarray], 
     rho: Union[int, float],
+    s12: Optional[Union[int, float]]=None, 
+    s23: Optional[Union[int, float]]=None, 
+    s13: Optional[Union[int, float]]=None, 
+    dCP: Optional[Union[int, float]]=None, 
+    D21: Optional[Union[int, float]]=None, 
+    D31: Optional[Union[int, float]]=None, 
     s14: Optional[Union[int, float]]=0.0,
     s15: Optional[Union[int, float]]=0.0,
     s24: Optional[Union[int, float]]=0.0,
@@ -4945,12 +4951,6 @@ def osc_prob_5nu_matter_nsi_constant_density(
     eps_s1s1: Optional[Union[int, float]]=0.0,
     eps_s1s2: Optional[Union[int, float]]=0.0,
     eps_s2s2: Optional[Union[int, float]]=0.0,
-    s12: Optional[Union[int, float]]=None, 
-    s23: Optional[Union[int, float]]=None, 
-    s13: Optional[Union[int, float]]=None, 
-    dCP: Optional[Union[int, float]]=None, 
-    D21: Optional[Union[int, float]]=None, 
-    D31: Optional[Union[int, float]]=None, 
     ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0, 
     electron_fraction: Optional[Union[int, float]]=0.5, 
     nu_i: Optional[int]=None, 
@@ -5008,8 +5008,8 @@ def osc_prob_2nu_matter_nsi_exp_density(
     l_scale: Union[int, float],
     sth: Union[int, float],
     Dm2: Union[int, float],
-    eps_aa: Union[int, float],
-    eps_ab: Union[int, float],
+    eps_aa: Optional[Union[int, float]]=0.0,
+    eps_ab: Optional[Union[int, float]]=0.0,
     ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0, 
     electron_fraction: Optional[Union[int, float]]=0.5, 
     nubar: Optional[bool]=False, 
@@ -5106,18 +5106,18 @@ def osc_prob_3nu_matter_nsi_exp_density(
     L0: Union[int, float], 
     rho_central: Union[int, float], 
     l_scale: Union[int, float],
-    eps_ee: Union[int, float],
-    eps_em: Union[int, float],
-    eps_et: Union[int, float],
-    eps_mm: Union[int, float],
-    eps_mt: Union[int, float],
-    eps_tt: Union[int, float],
     s12: Optional[Union[int, float]]=None, 
     s23: Optional[Union[int, float]]=None, 
     s13: Optional[Union[int, float]]=None, 
     dCP: Optional[Union[int, float]]=None, 
     D21: Optional[Union[int, float]]=None, 
     D31: Optional[Union[int, float]]=None, 
+    eps_ee: Optional[Union[int, float]]=0.0,
+    eps_em: Optional[Union[int, float]]=0.0,
+    eps_et: Optional[Union[int, float]]=0.0,
+    eps_mm: Optional[Union[int, float]]=0.0,
+    eps_mt: Optional[Union[int, float]]=0.0,
+    eps_tt: Optional[Union[int, float]]=0.0,
     ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0, 
     electron_fraction: Optional[Union[int, float]]=0.5, 
     nubar: Optional[bool]=False, 
@@ -5216,6 +5216,12 @@ def osc_prob_4nu_matter_nsi_exp_density(
     L0: Union[int, float], 
     rho_central: Union[int, float], 
     l_scale: Union[int, float],
+    s12: Optional[Union[int, float]]=None, 
+    s23: Optional[Union[int, float]]=None, 
+    s13: Optional[Union[int, float]]=None, 
+    dCP: Optional[Union[int, float]]=None, 
+    D21: Optional[Union[int, float]]=None, 
+    D31: Optional[Union[int, float]]=None, 
     s14: Optional[Union[int, float]]=0.0,
     s24: Optional[Union[int, float]]=0.0,
     s34: Optional[Union[int, float]]=0.0,
@@ -5232,12 +5238,6 @@ def osc_prob_4nu_matter_nsi_exp_density(
     eps_tt: Optional[Union[int, float]]=0.0,
     eps_ts: Optional[Union[int, float]]=0.0,
     eps_ss: Optional[Union[int, float]]=0.0,
-    s12: Optional[Union[int, float]]=None, 
-    s23: Optional[Union[int, float]]=None, 
-    s13: Optional[Union[int, float]]=None, 
-    dCP: Optional[Union[int, float]]=None, 
-    D21: Optional[Union[int, float]]=None, 
-    D31: Optional[Union[int, float]]=None, 
     ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0, 
     electron_fraction: Optional[Union[int, float]]=0.5, 
     nubar: Optional[bool]=False, 
@@ -5338,6 +5338,12 @@ def osc_prob_5nu_matter_nsi_exp_density(
     L0: Union[int, float], 
     rho_central: Union[int, float], 
     l_scale: Union[int, float],
+    s12: Optional[Union[int, float]]=None, 
+    s23: Optional[Union[int, float]]=None, 
+    s13: Optional[Union[int, float]]=None, 
+    dCP: Optional[Union[int, float]]=None, 
+    D21: Optional[Union[int, float]]=None, 
+    D31: Optional[Union[int, float]]=None, 
     s14: Optional[Union[int, float]]=0.0,
     s15: Optional[Union[int, float]]=0.0,
     s24: Optional[Union[int, float]]=0.0,
@@ -5365,12 +5371,6 @@ def osc_prob_5nu_matter_nsi_exp_density(
     eps_s1s1: Optional[Union[int, float]]=0.0,
     eps_s1s2: Optional[Union[int, float]]=0.0,
     eps_s2s2: Optional[Union[int, float]]=0.0,
-    s12: Optional[Union[int, float]]=None, 
-    s23: Optional[Union[int, float]]=None, 
-    s13: Optional[Union[int, float]]=None, 
-    dCP: Optional[Union[int, float]]=None, 
-    D21: Optional[Union[int, float]]=None, 
-    D31: Optional[Union[int, float]]=None, 
     ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0, 
     electron_fraction: Optional[Union[int, float]]=0.5, 
     nubar: Optional[bool]=False, 
@@ -5477,8 +5477,8 @@ def osc_prob_2nu_sun_nsi(
     L0: Union[int, float], 
     sth: Union[int, float],
     Dm2: Union[int, float],
-    eps_aa: Union[int, float],
-    eps_ab: Union[int, float],
+    eps_aa: Optional[Union[int, float]]=0.0,
+    eps_ab: Optional[Union[int, float]]=0.0,
     nubar: Optional[bool]=False, 
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
@@ -5566,18 +5566,18 @@ def osc_prob_3nu_sun_nsi(
     energy: Union[float, list, np.ndarray], 
     L: Union[float, list, np.ndarray],
     L0: Union[int, float], 
-    eps_ee: Union[int, float],
-    eps_em: Union[int, float],
-    eps_et: Union[int, float],
-    eps_mm: Union[int, float],
-    eps_mt: Union[int, float],
-    eps_tt: Union[int, float],
     s12: Optional[Union[int, float]]=None, 
     s23: Optional[Union[int, float]]=None, 
     s13: Optional[Union[int, float]]=None, 
     dCP: Optional[Union[int, float]]=None, 
     D21: Optional[Union[int, float]]=None, 
     D31: Optional[Union[int, float]]=None, 
+    eps_ee: Optional[Union[int, float]]=0.0,
+    eps_em: Optional[Union[int, float]]=0.0,
+    eps_et: Optional[Union[int, float]]=0.0,
+    eps_mm: Optional[Union[int, float]]=0.0,
+    eps_mt: Optional[Union[int, float]]=0.0,
+    eps_tt: Optional[Union[int, float]]=0.0,
     nubar: Optional[bool]=False, 
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
@@ -5674,6 +5674,12 @@ def osc_prob_4nu_sun_nsi(
     energy: Union[float, list, np.ndarray], 
     L: Union[float, list, np.ndarray],
     L0: Union[int, float], 
+    s12: Optional[Union[int, float]]=None, 
+    s23: Optional[Union[int, float]]=None, 
+    s13: Optional[Union[int, float]]=None, 
+    dCP: Optional[Union[int, float]]=None, 
+    D21: Optional[Union[int, float]]=None, 
+    D31: Optional[Union[int, float]]=None, 
     s14: Optional[Union[int, float]]=0.0,
     s24: Optional[Union[int, float]]=0.0,
     s34: Optional[Union[int, float]]=0.0,
@@ -5690,12 +5696,6 @@ def osc_prob_4nu_sun_nsi(
     eps_tt: Optional[Union[int, float]]=0.0,
     eps_ts: Optional[Union[int, float]]=0.0,
     eps_ss: Optional[Union[int, float]]=0.0,
-    s12: Optional[Union[int, float]]=None, 
-    s23: Optional[Union[int, float]]=None, 
-    s13: Optional[Union[int, float]]=None, 
-    dCP: Optional[Union[int, float]]=None, 
-    D21: Optional[Union[int, float]]=None, 
-    D31: Optional[Union[int, float]]=None, 
     nubar: Optional[bool]=False, 
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
@@ -5802,6 +5802,12 @@ def osc_prob_5nu_sun_nsi(
     energy: Union[float, list, np.ndarray], 
     L: Union[float, list, np.ndarray],
     L0: Union[int, float], 
+    s12: Optional[Union[int, float]]=None, 
+    s23: Optional[Union[int, float]]=None, 
+    s13: Optional[Union[int, float]]=None, 
+    dCP: Optional[Union[int, float]]=None, 
+    D21: Optional[Union[int, float]]=None, 
+    D31: Optional[Union[int, float]]=None, 
     s14: Optional[Union[int, float]]=0.0,
     s15: Optional[Union[int, float]]=0.0,
     s24: Optional[Union[int, float]]=0.0,
@@ -5829,12 +5835,6 @@ def osc_prob_5nu_sun_nsi(
     eps_s1s1: Optional[Union[int, float]]=0.0,
     eps_s1s2: Optional[Union[int, float]]=0.0,
     eps_s2s2: Optional[Union[int, float]]=0.0,
-    s12: Optional[Union[int, float]]=None, 
-    s23: Optional[Union[int, float]]=None, 
-    s13: Optional[Union[int, float]]=None, 
-    dCP: Optional[Union[int, float]]=None, 
-    D21: Optional[Union[int, float]]=None, 
-    D31: Optional[Union[int, float]]=None, 
     nubar: Optional[bool]=False, 
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
@@ -6054,6 +6054,12 @@ def osc_prob_3nu_vacuum_liv(
 def osc_prob_4nu_vacuum_liv(
     energy: Union[int, float, list, np.ndarray], 
     L: Union[int, float, list, np.ndarray], 
+    s12: Optional[Union[int, float]]=None, 
+    s23: Optional[Union[int, float]]=None, 
+    s13: Optional[Union[int, float]]=None, 
+    dCP: Optional[Union[int, float]]=None, 
+    D21: Optional[Union[int, float]]=None, 
+    D31: Optional[Union[int, float]]=None, 
     s14: Optional[Union[int, float]]=0.0,
     s24: Optional[Union[int, float]]=0.0,
     s34: Optional[Union[int, float]]=0.0,
@@ -6075,12 +6081,6 @@ def osc_prob_4nu_vacuum_liv(
     b4: Optional[Union[int, float]]=0.0,
     Lambda: Optional[Union[int, float]]=1.0,
     n_liv: Optional[int]=0,
-    s12: Optional[Union[int, float]]=None, 
-    s23: Optional[Union[int, float]]=None, 
-    s13: Optional[Union[int, float]]=None, 
-    dCP: Optional[Union[int, float]]=None, 
-    D21: Optional[Union[int, float]]=None, 
-    D31: Optional[Union[int, float]]=None, 
     nubar: Optional[bool]=False, 
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
@@ -6122,6 +6122,12 @@ def osc_prob_4nu_vacuum_liv(
 def osc_prob_5nu_vacuum_liv(
     energy: Union[int, float, list, np.ndarray], 
     L: Union[int, float, list, np.ndarray], 
+    s12: Optional[Union[int, float]]=None, 
+    s23: Optional[Union[int, float]]=None, 
+    s13: Optional[Union[int, float]]=None, 
+    dCP: Optional[Union[int, float]]=None, 
+    D21: Optional[Union[int, float]]=None, 
+    D31: Optional[Union[int, float]]=None, 
     s14: Optional[Union[int, float]]=0.0,
     s15: Optional[Union[int, float]]=0.0,
     s24: Optional[Union[int, float]]=0.0,
@@ -6155,12 +6161,6 @@ def osc_prob_5nu_vacuum_liv(
     b5: Optional[Union[int, float]]=0.0,
     Lambda: Optional[Union[int, float]]=1.0,
     n_liv: Optional[int]=0,
-    s12: Optional[Union[int, float]]=None, 
-    s23: Optional[Union[int, float]]=None, 
-    s13: Optional[Union[int, float]]=None, 
-    dCP: Optional[Union[int, float]]=None, 
-    D21: Optional[Union[int, float]]=None, 
-    D31: Optional[Union[int, float]]=None, 
     nubar: Optional[bool]=False, 
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
@@ -6606,6 +6606,114 @@ def osc_prob_2nu_matter_liv_exp_density(
         **kwargs
     )  
 
+
+def osc_prob_3nu_matter_liv_exp_density(
+    energy: Union[float, list, np.ndarray], 
+    L: Union[float, list, np.ndarray],
+    L0: Union[int, float], 
+    rho_central: Union[int, float], 
+    l_scale: Union[int, float],
+    s12: Optional[Union[int, float]]=None, 
+    s23: Optional[Union[int, float]]=None, 
+    s13: Optional[Union[int, float]]=None, 
+    dCP: Optional[Union[int, float]]=None, 
+    D21: Optional[Union[int, float]]=None, 
+    D31: Optional[Union[int, float]]=None, 
+    sxi12: Optional[Union[int, float]]=0.0,
+    sxi23: Optional[Union[int, float]]=0.0,
+    sxi13: Optional[Union[int, float]]=0.0,
+    dxiCP: Optional[Union[int, float]]=0.0,
+    b1: Optional[Union[int, float]]=0.0,
+    b2: Optional[Union[int, float]]=0.0,
+    b3: Optional[Union[int, float]]=0.0,
+    Lambda: Optional[Union[int, float]]=1.0,
+    n_liv: Optional[int]=0,
+    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0, 
+    electron_fraction: Optional[Union[int, float]]=0.5, 
+    nubar: Optional[bool]=False, 
+    nu_i: Optional[int]=None, 
+    nu_f: Optional[int]=None,
+    density_matter_is_in_g_per_cm3: Optional[bool]=False,
+    density_is_of_number_of_electrons: Optional[bool]=False,
+    magnus_exp_order: Optional[int]=4, 
+    n_jobs: Optional[int]=1, 
+    integration_method: Optional[str]='trapezoid', 
+    rtol: Optional[Union[int, float]]=1.e-3, 
+    atol: Optional[Union[int, float]]=1.e-3, 
+    growth_factor_n_slabs: Optional[Union[int, float]]=1.5, 
+    growth_factor_n_tpts_per_slab: Optional[Union[int, float]]=1.5, 
+    max_num_loops: Optional[int]=50, 
+    min_n_slabs: Optional[int]=1, 
+    max_n_slabs: Optional[int]=2000, 
+    min_n_tpts_per_slab: Optional[int]=2, 
+    max_n_tpts_per_slab: Optional[int]=500, 
+    iterate_over_magnus_exp_order: Optional[bool]=False,
+    min_magnus_exp_order: Optional[int]=1,
+    max_magnus_exp_order: Optional[int]=gd.MAGNUS_EXP_ORDER_MAX,
+    validate_input: Optional[bool]=True, 
+    save_log: Optional[bool]=False, 
+    filename_log: Optional[str]='./out.log',
+    file_log: Optional[TextIOWrapper]=None, 
+    close_file_log_upon_exit: Optional[bool]=True,
+    new_recursion_limit: Optional[int]=5000,
+    verbose: Optional[int]=0,
+    **kwargs
+) -> Union[float, np.ndarray]:
+    r"""Compute and return the two-neutrino oscillation probability in
+    matter with an exponentially falling density profile, under (one 
+    form of) Lorentz-invariance violation.
+    """
+
+    try:
+        if (rho_central < 0.0 or l_scale <= 0.0):
+            raise ValueError(gd.ERROR_MSG_IN_COLOR + \
+                " oscprob.osc_prob_3nu_matter_liv_exp_density: rho_central must be non-negative" + \
+                " and l_scale must be positive.")
+    except ValueError as error:
+        print(error)
+        print("Aborting execution...")
+        sys.exit(1)
+
+    return osc_prob_liv(
+        num_flavors=3,
+        energy=energy,
+        L=L,
+        osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 'D21': D21, 'D31': D31},
+        liv_params={'sxi12': sxi12, 'sxi23': sxi23, 'sxi13': sxi13, 'dxiCP': dxiCP, 'b1': b1, 
+            'b2': b2, 'b3': b3, 'Lambda': Lambda, 'n_liv': n_liv},
+        rho_func=lambda r: rho_central*np.exp(-r/l_scale),
+        L0=L0,
+        ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons, 
+        electron_fraction=electron_fraction,
+        nubar=nubar,
+        nu_i=nu_i,
+        nu_f=nu_f,
+        density_matter_is_in_g_per_cm3=density_matter_is_in_g_per_cm3,
+        density_is_of_number_of_electrons=density_is_of_number_of_electrons,
+        magnus_exp_order=magnus_exp_order,
+        n_jobs=n_jobs,
+        integration_method=integration_method,
+        rtol=rtol,
+        atol=atol,
+        growth_factor_n_slabs=growth_factor_n_slabs,
+        growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
+        max_num_loops=max_num_loops,
+        min_n_slabs=min_n_slabs,
+        max_n_slabs=max_n_slabs,
+        min_n_tpts_per_slab=min_n_tpts_per_slab,
+        max_n_tpts_per_slab=max_n_tpts_per_slab,
+        iterate_over_magnus_exp_order=iterate_over_magnus_exp_order,
+        min_magnus_exp_order=min_magnus_exp_order,
+        max_magnus_exp_order=max_magnus_exp_order,
+        validate_input=validate_input,
+        save_log=save_log,
+        filename_log=filename_log,
+        file_log=file_log,
+        close_file_log_upon_exit=close_file_log_upon_exit,
+        new_recursion_limit=new_recursion_limit,
+        verbose=verbose,
+        **kwargs
+    )  
 
 
 if __name__ == "__main__":
@@ -7236,28 +7344,48 @@ if __name__ == "__main__":
     #     sxi34=sxi34, sxi35=sxi35, dxi13=dxi13, dxi14=dxi14, dxi15=dxi15, dxi24=dxi24, dxi35=dxi35, 
     #     b1=b1, b2=b2, b3=b3, b4=b4, b5=b5, Lambda=Lambda, n_liv=n_liv, verbose=0))
 
-    # Two-neutrino oscillations in exponentially falling matter density profile, LIV
+    # # Two-neutrino oscillations in exponentially falling matter density profile, LIV
+    # np.set_printoptions(precision=3)
+    # baseline = 20.*gd.UNIT_KM # 10 km in natural units [eV^{-1}]
+    # energy = 1.*gd.UNIT_MEV # [eV]
+    # L0 = 0.0
+    # sth = gd.S12_NO_BF_NUFIT_6_0
+    # Dm2 = gd.D21_NO_BF_NUFIT_6_0 # [eV^2]
+    # rho_central = 12.0*gd.UNIT_G_PER_CM3
+    # l_scale = 4.0*gd.UNIT_KM
+    # sxi = 0.5
+    # b1 = 1.e-3#1.e-2
+    # b2 = 1.e-4#1.e-3
+    # Lambda = 10.*gd.UNIT_GEV
+    # n_liv = 1
+    # print(osc_prob_2nu_matter_constant_density(energy, baseline, rho_central, sth, Dm2, 
+    #     verbose=0))
+    # print(osc_prob_2nu_matter_exp_density(energy, baseline, L0, rho_central, l_scale, sth, Dm2, 
+    #     verbose=0))
+    # print(osc_prob_2nu_matter_liv_constant_density(energy, baseline, rho_central, sth, Dm2,
+    #     sxi=sxi, b1=b1, b2=b2, Lambda=Lambda, n_liv=n_liv, rtol=1.e-3, atol=1.e-3, verbose=0))
+    # print(osc_prob_2nu_matter_liv_exp_density(energy, baseline, L0, rho_central, l_scale, sth, Dm2,
+    #     sxi=sxi, b1=b1, b2=b2, Lambda=Lambda, n_liv=n_liv, rtol=1.e-3, atol=1.e-3, n_jobs=1, 
+    #     verbose=0))
+
+
+    # Three-neutrino oscillations in exponentially falling matter density profile, LIV
     np.set_printoptions(precision=3)
     baseline = 20.*gd.UNIT_KM # 10 km in natural units [eV^{-1}]
     energy = 1.*gd.UNIT_MEV # [eV]
     L0 = 0.0
-    sth = gd.S12_NO_BF_NUFIT_6_0
-    Dm2 = gd.D21_NO_BF_NUFIT_6_0 # [eV^2]
     rho_central = 12.0*gd.UNIT_G_PER_CM3
     l_scale = 4.0*gd.UNIT_KM
-    sxi = 0.5
-    b1 = 1.e-3#1.e-2
-    b2 = 1.e-4#1.e-3
+    sxi12, sxi23, sxi13, dxiCP = 0.01, 0.02, 0.03, np.radians(10.0)
+    b1, b2, b3 = 1.e-2, 1.e-3, 5.e-3
     Lambda = 10.*gd.UNIT_GEV
     n_liv = 1
-    print(osc_prob_2nu_matter_constant_density(energy, baseline, rho_central, sth, Dm2, 
-        verbose=0))
-    print(osc_prob_2nu_matter_exp_density(energy, baseline, L0, rho_central, l_scale, sth, Dm2, 
-        verbose=0))
-    print(osc_prob_2nu_matter_liv_constant_density(energy, baseline, rho_central, sth, Dm2,
-        sxi=sxi, b1=b1, b2=b2, Lambda=Lambda, n_liv=n_liv, rtol=1.e-3, atol=1.e-3, verbose=0))
-    print(osc_prob_2nu_matter_liv_exp_density(energy, baseline, L0, rho_central, l_scale, sth, Dm2,
-        sxi=sxi, b1=b1, b2=b2, Lambda=Lambda, n_liv=n_liv, rtol=1.e-3, atol=1.e-3, n_jobs=1, 
-        verbose=0))
-
+    print(osc_prob_3nu_matter_constant_density(energy, baseline, rho_central, verbose=0))
+    print(osc_prob_3nu_matter_exp_density(energy, baseline, L0, rho_central, l_scale, verbose=0))
+    print(osc_prob_3nu_matter_liv_constant_density(energy, baseline, rho_central, 
+        sxi12=sxi12, sxi23=sxi23, sxi13=sxi13, dxiCP=dxiCP, b1=b1, b2=b2, b3=b3, Lambda=Lambda,
+        n_liv=n_liv, rtol=1.e-3, atol=1.e-3, verbose=0))
+    print(osc_prob_3nu_matter_liv_exp_density(energy, baseline, L0, rho_central, l_scale,
+        sxi12=sxi12, sxi23=sxi23, sxi13=sxi13, dxiCP=dxiCP, b1=b1, b2=b2, b3=b3, Lambda=Lambda, 
+        n_liv=n_liv, rtol=1.e-3, atol=1.e-3, n_jobs=1, verbose=0))
 
