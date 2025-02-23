@@ -6990,6 +6990,535 @@ def osc_prob_5nu_matter_liv_exp_density(
     )  
 
 
+#-----------------------------------------------------------------------
+# In matter, LIV, in the Sun
+#-----------------------------------------------------------------------
+
+def osc_prob_2nu_sun_liv(
+    energy: Union[float, list, np.ndarray], 
+    L: Union[float, list, np.ndarray],
+    L0: Union[int, float], 
+    sth: Union[int, float],
+    Dm2: Union[int, float],
+    sxi: Optional[Union[int, float]]=0.0,
+    b1: Optional[Union[int, float]]=0.0,
+    b2: Optional[Union[int, float]]=0.0,
+    Lambda: Optional[Union[int, float]]=1.0,
+    n_liv: Optional[int]=0,
+    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0, 
+    electron_fraction: Optional[Union[int, float]]=0.5, 
+    nubar: Optional[bool]=False, 
+    nu_i: Optional[int]=None, 
+    nu_f: Optional[int]=None,
+    density_matter_is_in_g_per_cm3: Optional[bool]=False,
+    density_is_of_number_of_electrons: Optional[bool]=False,
+    magnus_exp_order: Optional[int]=3, #4, 
+    n_jobs: Optional[int]=1, 
+    integration_method: Optional[str]='trapezoid', 
+    rtol: Optional[Union[int, float]]=1.e-2, 
+    atol: Optional[Union[int, float]]=1.e-2, 
+    growth_factor_n_slabs: Optional[Union[int, float]]=2.0, #1.5, 
+    growth_factor_n_tpts_per_slab: Optional[Union[int, float]]=2.0, 
+    max_num_loops: Optional[int]=50, 
+    min_n_slabs: Optional[int]=100, 
+    max_n_slabs: Optional[int]=400, #2000, 
+    min_n_tpts_per_slab: Optional[int]=100, #10, 
+    max_n_tpts_per_slab: Optional[int]=400, #500, 
+    iterate_over_magnus_exp_order: Optional[bool]=False,
+    min_magnus_exp_order: Optional[int]=1,
+    max_magnus_exp_order: Optional[int]=gd.MAGNUS_EXP_ORDER_MAX,
+    validate_input: Optional[bool]=True, 
+    save_log: Optional[bool]=False, 
+    filename_log: Optional[str]='./out.log',
+    file_log: Optional[TextIOWrapper]=None, 
+    close_file_log_upon_exit: Optional[bool]=True,
+    new_recursion_limit: Optional[int]=5000,
+    verbose: Optional[int]=0,
+    **kwargs
+) -> Union[float, np.ndarray]:
+    r"""Compute and return the two-neutrino oscillation probability 
+    for neutrinos inside the Sun, under (one form of) Lorentz-invariance
+    violation.
+    
+    For the electron density inside the Sun, it assumes an exponentially
+    falling density profile: :math:`N_e(r) = N_e(0) \\exp(-r/r_0)`, 
+    with :math:`N_e(0) = 245 N_\\text{Av}~\\text{cm}^{-3}` and 
+    :math:`r_0 = R_\\odot/10.54`.  See Eq. (10.62) in
+    `Fundamentals of Neutrino Physics and Astrophysics 
+    <https://academic.oup.com/book/3490>`_ by Carlo Giunti and Chung 
+    Wook Kim.
+    """
+
+    return osc_prob_2nu_matter_liv_exp_density(
+        energy=energy,
+        L=L,
+        L0=L0,
+        rho_central=gd.NUM_DENSITY_E_SUN_CENTRAL,
+        l_scale=gd.L_SCALE_SUN,
+        sth=sth,
+        Dm2=Dm2,
+        sxi=sxi,
+        b1=b1,
+        b2=b2,
+        Lambda=Lambda,
+        n_liv=n_liv,
+        ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
+        electron_fraction=electron_fraction,
+        nubar=nubar,
+        nu_i=nu_i,
+        nu_f=nu_f,
+        density_matter_is_in_g_per_cm3=density_matter_is_in_g_per_cm3,
+        density_is_of_number_of_electrons=density_is_of_number_of_electrons,
+        magnus_exp_order=magnus_exp_order,
+        n_jobs=n_jobs,
+        integration_method=integration_method,
+        rtol=rtol,
+        atol=rtol,
+        growth_factor_n_slabs=growth_factor_n_slabs,
+        growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
+        max_num_loops=max_num_loops,
+        min_n_slabs=min_n_slabs,
+        max_n_slabs=max_n_slabs,
+        min_n_tpts_per_slab=min_n_tpts_per_slab,
+        max_n_tpts_per_slab=max_n_tpts_per_slab,
+        iterate_over_magnus_exp_order=iterate_over_magnus_exp_order,
+        min_magnus_exp_order=min_magnus_exp_order,
+        max_magnus_exp_order=max_magnus_exp_order,
+        validate_input=validate_input,
+        save_log=save_log,
+        filename_log=filename_log,
+        file_log=file_log,
+        close_file_log_upon_exit=close_file_log_upon_exit,
+        new_recursion_limit=new_recursion_limit,
+        verbose=verbose,
+        **kwargs
+    )
+
+
+def osc_prob_3nu_sun_liv(
+    energy: Union[float, list, np.ndarray], 
+    L: Union[float, list, np.ndarray],
+    L0: Union[int, float], 
+    s12: Optional[Union[int, float]]=None, 
+    s23: Optional[Union[int, float]]=None, 
+    s13: Optional[Union[int, float]]=None, 
+    dCP: Optional[Union[int, float]]=None, 
+    D21: Optional[Union[int, float]]=None, 
+    D31: Optional[Union[int, float]]=None, 
+    sxi12: Optional[Union[int, float]]=0.0,
+    sxi23: Optional[Union[int, float]]=0.0,
+    sxi13: Optional[Union[int, float]]=0.0,
+    dxiCP: Optional[Union[int, float]]=0.0,
+    b1: Optional[Union[int, float]]=0.0,
+    b2: Optional[Union[int, float]]=0.0,
+    b3: Optional[Union[int, float]]=0.0,
+    Lambda: Optional[Union[int, float]]=1.0,
+    n_liv: Optional[int]=0,
+    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0, 
+    electron_fraction: Optional[Union[int, float]]=0.5, 
+    nubar: Optional[bool]=False, 
+    nu_i: Optional[int]=None, 
+    nu_f: Optional[int]=None,
+    density_matter_is_in_g_per_cm3: Optional[bool]=False,
+    density_is_of_number_of_electrons: Optional[bool]=False,
+    magnus_exp_order: Optional[int]=3, #4, 
+    n_jobs: Optional[int]=1, 
+    integration_method: Optional[str]='trapezoid', 
+    rtol: Optional[Union[int, float]]=1.e-2, 
+    atol: Optional[Union[int, float]]=1.e-2, 
+    growth_factor_n_slabs: Optional[Union[int, float]]=2.0, #1.5, 
+    growth_factor_n_tpts_per_slab: Optional[Union[int, float]]=2.0, 
+    max_num_loops: Optional[int]=50, 
+    min_n_slabs: Optional[int]=100, 
+    max_n_slabs: Optional[int]=400, #2000, 
+    min_n_tpts_per_slab: Optional[int]=100, #10, 
+    max_n_tpts_per_slab: Optional[int]=400, #500, 
+    iterate_over_magnus_exp_order: Optional[bool]=False,
+    min_magnus_exp_order: Optional[int]=1,
+    max_magnus_exp_order: Optional[int]=gd.MAGNUS_EXP_ORDER_MAX,
+    validate_input: Optional[bool]=True, 
+    save_log: Optional[bool]=False, 
+    filename_log: Optional[str]='./out.log',
+    file_log: Optional[TextIOWrapper]=None, 
+    close_file_log_upon_exit: Optional[bool]=True,
+    new_recursion_limit: Optional[int]=5000,
+    verbose: Optional[int]=0,
+    **kwargs
+) -> Union[float, np.ndarray]:
+    r"""Compute and return the three-neutrino oscillation probability 
+    for neutrinos inside the Sun, under (one form of) Lorentz-invariance
+    violation.
+    
+    For the electron density inside the Sun, it assumes an exponentially
+    falling density profile: :math:`N_e(r) = N_e(0) \\exp(-r/r_0)`, 
+    with :math:`N_e(0) = 245 N_\\text{Av}~\\text{cm}^{-3}` and 
+    :math:`r_0 = R_\\odot/10.54`.  See Eq. (10.62) in
+    `Fundamentals of Neutrino Physics and Astrophysics 
+    <https://academic.oup.com/book/3490>`_ by Carlo Giunti and Chung 
+    Wook Kim.
+    """
+
+    return osc_prob_3nu_matter_liv_exp_density(
+        energy=energy,
+        L=L,
+        L0=L0,
+        rho_central=gd.NUM_DENSITY_E_SUN_CENTRAL,
+        l_scale=gd.L_SCALE_SUN,
+        s12=s12,
+        s23=s23,
+        s13=s13,
+        dCP=dCP,
+        D21=D21,
+        D31=D31,
+        sxi12=sxi12,
+        sxi23=sxi23,
+        sxi13=sxi13,
+        dxiCP=dxiCP,
+        b1=b1,
+        b2=b2,
+        b3=b3,
+        Lambda=Lambda,
+        n_liv=n_liv,
+        ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
+        electron_fraction=electron_fraction,
+        nubar=nubar,
+        nu_i=nu_i,
+        nu_f=nu_f,
+        density_matter_is_in_g_per_cm3=density_matter_is_in_g_per_cm3,
+        density_is_of_number_of_electrons=density_is_of_number_of_electrons,
+        magnus_exp_order=magnus_exp_order,
+        n_jobs=n_jobs,
+        integration_method=integration_method,
+        rtol=rtol,
+        atol=rtol,
+        growth_factor_n_slabs=growth_factor_n_slabs,
+        growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
+        max_num_loops=max_num_loops,
+        min_n_slabs=min_n_slabs,
+        max_n_slabs=max_n_slabs,
+        min_n_tpts_per_slab=min_n_tpts_per_slab,
+        max_n_tpts_per_slab=max_n_tpts_per_slab,
+        iterate_over_magnus_exp_order=iterate_over_magnus_exp_order,
+        min_magnus_exp_order=min_magnus_exp_order,
+        max_magnus_exp_order=max_magnus_exp_order,
+        validate_input=validate_input,
+        save_log=save_log,
+        filename_log=filename_log,
+        file_log=file_log,
+        close_file_log_upon_exit=close_file_log_upon_exit,
+        new_recursion_limit=new_recursion_limit,
+        verbose=verbose,
+        **kwargs
+    )
+
+
+def osc_prob_4nu_sun_liv(
+    energy: Union[float, list, np.ndarray], 
+    L: Union[float, list, np.ndarray],
+    L0: Union[int, float], 
+    s12: Optional[Union[int, float]]=None, 
+    s23: Optional[Union[int, float]]=None, 
+    s13: Optional[Union[int, float]]=None, 
+    dCP: Optional[Union[int, float]]=None, 
+    D21: Optional[Union[int, float]]=None, 
+    D31: Optional[Union[int, float]]=None, 
+    s14: Optional[Union[int, float]]=0.0,
+    s24: Optional[Union[int, float]]=0.0,
+    s34: Optional[Union[int, float]]=0.0,
+    d14: Optional[Union[int, float]]=0.0,
+    d24: Optional[Union[int, float]]=0.0,
+    D41: Optional[Union[int, float]]=0.0, 
+    sxi12: Optional[Union[int, float]]=0.0,
+    sxi23: Optional[Union[int, float]]=0.0,
+    sxi13: Optional[Union[int, float]]=0.0,
+    dxi13: Optional[Union[int, float]]=0.0,
+    sxi14: Optional[Union[int, float]]=0.0,
+    dxi14: Optional[Union[int, float]]=0.0,
+    sxi24: Optional[Union[int, float]]=0.0,
+    dxi24: Optional[Union[int, float]]=0.0,
+    sxi34: Optional[Union[int, float]]=0.0,
+    b1: Optional[Union[int, float]]=0.0,
+    b2: Optional[Union[int, float]]=0.0,
+    b3: Optional[Union[int, float]]=0.0,
+    b4: Optional[Union[int, float]]=0.0,
+    Lambda: Optional[Union[int, float]]=1.0,
+    n_liv: Optional[int]=0,
+    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0, 
+    electron_fraction: Optional[Union[int, float]]=0.5, 
+    nubar: Optional[bool]=False, 
+    nu_i: Optional[int]=None, 
+    nu_f: Optional[int]=None,
+    density_matter_is_in_g_per_cm3: Optional[bool]=False,
+    density_is_of_number_of_electrons: Optional[bool]=False,
+    magnus_exp_order: Optional[int]=3, #4, 
+    n_jobs: Optional[int]=1, 
+    integration_method: Optional[str]='trapezoid', 
+    rtol: Optional[Union[int, float]]=1.e-2, 
+    atol: Optional[Union[int, float]]=1.e-2, 
+    growth_factor_n_slabs: Optional[Union[int, float]]=2.0, #1.5, 
+    growth_factor_n_tpts_per_slab: Optional[Union[int, float]]=2.0, 
+    max_num_loops: Optional[int]=50, 
+    min_n_slabs: Optional[int]=100, 
+    max_n_slabs: Optional[int]=400, #2000, 
+    min_n_tpts_per_slab: Optional[int]=100, #10, 
+    max_n_tpts_per_slab: Optional[int]=400, #500, 
+    iterate_over_magnus_exp_order: Optional[bool]=False,
+    min_magnus_exp_order: Optional[int]=1,
+    max_magnus_exp_order: Optional[int]=gd.MAGNUS_EXP_ORDER_MAX,
+    validate_input: Optional[bool]=True, 
+    save_log: Optional[bool]=False, 
+    filename_log: Optional[str]='./out.log',
+    file_log: Optional[TextIOWrapper]=None, 
+    close_file_log_upon_exit: Optional[bool]=True,
+    new_recursion_limit: Optional[int]=5000,
+    verbose: Optional[int]=0,
+    **kwargs
+) -> Union[float, np.ndarray]:
+    r"""Compute and return the four-neutrino oscillation probability 
+    for neutrinos inside the Sun, under (one form of) Lorentz-invariance
+    violation.
+    
+    For the electron density inside the Sun, it assumes an exponentially
+    falling density profile: :math:`N_e(r) = N_e(0) \\exp(-r/r_0)`, 
+    with :math:`N_e(0) = 245 N_\\text{Av}~\\text{cm}^{-3}` and 
+    :math:`r_0 = R_\\odot/10.54`.  See Eq. (10.62) in
+    `Fundamentals of Neutrino Physics and Astrophysics 
+    <https://academic.oup.com/book/3490>`_ by Carlo Giunti and Chung 
+    Wook Kim.
+    """
+
+    return osc_prob_4nu_matter_liv_exp_density(
+        energy=energy,
+        L=L,
+        L0=L0,
+        rho_central=gd.NUM_DENSITY_E_SUN_CENTRAL,
+        l_scale=gd.L_SCALE_SUN,
+        s12=s12,
+        s23=s23,
+        s13=s13,
+        dCP=dCP,
+        D21=D21,
+        D31=D31,
+        s14=s14,
+        s24=s24,
+        s34=s34,
+        d14=d14,
+        d24=d24,
+        D41=D41,
+        sxi12=sxi12,
+        sxi23=sxi23,
+        sxi13=sxi13,
+        dxi13=dxi13,
+        sxi14=sxi14,
+        dxi14=dxi14,
+        sxi24=sxi24,
+        dxi24=dxi24,
+        sxi34=sxi34,
+        b1=b1,
+        b2=b2,
+        b3=b3,
+        b4=b4,
+        Lambda=Lambda,
+        n_liv=n_liv,
+        ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
+        electron_fraction=electron_fraction,
+        nubar=nubar,
+        nu_i=nu_i,
+        nu_f=nu_f,
+        density_matter_is_in_g_per_cm3=density_matter_is_in_g_per_cm3,
+        density_is_of_number_of_electrons=density_is_of_number_of_electrons,
+        magnus_exp_order=magnus_exp_order,
+        n_jobs=n_jobs,
+        integration_method=integration_method,
+        rtol=rtol,
+        atol=rtol,
+        growth_factor_n_slabs=growth_factor_n_slabs,
+        growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
+        max_num_loops=max_num_loops,
+        min_n_slabs=min_n_slabs,
+        max_n_slabs=max_n_slabs,
+        min_n_tpts_per_slab=min_n_tpts_per_slab,
+        max_n_tpts_per_slab=max_n_tpts_per_slab,
+        iterate_over_magnus_exp_order=iterate_over_magnus_exp_order,
+        min_magnus_exp_order=min_magnus_exp_order,
+        max_magnus_exp_order=max_magnus_exp_order,
+        validate_input=validate_input,
+        save_log=save_log,
+        filename_log=filename_log,
+        file_log=file_log,
+        close_file_log_upon_exit=close_file_log_upon_exit,
+        new_recursion_limit=new_recursion_limit,
+        verbose=verbose,
+        **kwargs
+    )
+
+
+def osc_prob_5nu_sun_liv(
+    energy: Union[float, list, np.ndarray], 
+    L: Union[float, list, np.ndarray],
+    L0: Union[int, float], 
+    s12: Optional[Union[int, float]]=None, 
+    s23: Optional[Union[int, float]]=None, 
+    s13: Optional[Union[int, float]]=None, 
+    dCP: Optional[Union[int, float]]=None, 
+    D21: Optional[Union[int, float]]=None, 
+    D31: Optional[Union[int, float]]=None, 
+    s14: Optional[Union[int, float]]=0.0,
+    s15: Optional[Union[int, float]]=0.0,
+    s24: Optional[Union[int, float]]=0.0,
+    s25: Optional[Union[int, float]]=0.0,
+    s34: Optional[Union[int, float]]=0.0,
+    s35: Optional[Union[int, float]]=0.0,
+    d14: Optional[Union[int, float]]=0.0,
+    d15: Optional[Union[int, float]]=0.0,
+    d24: Optional[Union[int, float]]=0.0,
+    d35: Optional[Union[int, float]]=0.0,
+    D41: Optional[Union[int, float]]=0.0, 
+    D51: Optional[Union[int, float]]=0.0, 
+    sxi12: Optional[Union[int, float]]=0.0,
+    sxi23: Optional[Union[int, float]]=0.0,
+    sxi13: Optional[Union[int, float]]=0.0,
+    dxi13: Optional[Union[int, float]]=0.0,
+    sxi14: Optional[Union[int, float]]=0.0,
+    dxi14: Optional[Union[int, float]]=0.0,
+    sxi15: Optional[Union[int, float]]=0.0,
+    dxi15: Optional[Union[int, float]]=0.0,
+    sxi24: Optional[Union[int, float]]=0.0,
+    dxi24: Optional[Union[int, float]]=0.0,
+    sxi25: Optional[Union[int, float]]=0.0,
+    sxi34: Optional[Union[int, float]]=0.0,
+    sxi35: Optional[Union[int, float]]=0.0,
+    dxi35: Optional[Union[int, float]]=0.0,
+    b1: Optional[Union[int, float]]=0.0,
+    b2: Optional[Union[int, float]]=0.0,
+    b3: Optional[Union[int, float]]=0.0,
+    b4: Optional[Union[int, float]]=0.0,
+    b5: Optional[Union[int, float]]=0.0,
+    Lambda: Optional[Union[int, float]]=1.0,
+    n_liv: Optional[int]=0,
+    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0, 
+    electron_fraction: Optional[Union[int, float]]=0.5, 
+    nubar: Optional[bool]=False, 
+    nu_i: Optional[int]=None, 
+    nu_f: Optional[int]=None,
+    density_matter_is_in_g_per_cm3: Optional[bool]=False,
+    density_is_of_number_of_electrons: Optional[bool]=False,
+    magnus_exp_order: Optional[int]=3, #4, 
+    n_jobs: Optional[int]=1, 
+    integration_method: Optional[str]='trapezoid', 
+    rtol: Optional[Union[int, float]]=1.e-2, 
+    atol: Optional[Union[int, float]]=1.e-2, 
+    growth_factor_n_slabs: Optional[Union[int, float]]=2.0, #1.5, 
+    growth_factor_n_tpts_per_slab: Optional[Union[int, float]]=2.0, 
+    max_num_loops: Optional[int]=50, 
+    min_n_slabs: Optional[int]=100, 
+    max_n_slabs: Optional[int]=400, #2000, 
+    min_n_tpts_per_slab: Optional[int]=100, #10, 
+    max_n_tpts_per_slab: Optional[int]=400, #500, 
+    iterate_over_magnus_exp_order: Optional[bool]=False,
+    min_magnus_exp_order: Optional[int]=1,
+    max_magnus_exp_order: Optional[int]=gd.MAGNUS_EXP_ORDER_MAX,
+    validate_input: Optional[bool]=True, 
+    save_log: Optional[bool]=False, 
+    filename_log: Optional[str]='./out.log',
+    file_log: Optional[TextIOWrapper]=None, 
+    close_file_log_upon_exit: Optional[bool]=True,
+    new_recursion_limit: Optional[int]=5000,
+    verbose: Optional[int]=0,
+    **kwargs
+) -> Union[float, np.ndarray]:
+    r"""Compute and return the five-neutrino oscillation probability 
+    for neutrinos inside the Sun, under (one form of) Lorentz-invariance
+    violation.
+    
+    For the electron density inside the Sun, it assumes an exponentially
+    falling density profile: :math:`N_e(r) = N_e(0) \\exp(-r/r_0)`, 
+    with :math:`N_e(0) = 245 N_\\text{Av}~\\text{cm}^{-3}` and 
+    :math:`r_0 = R_\\odot/10.54`.  See Eq. (10.62) in
+    `Fundamentals of Neutrino Physics and Astrophysics 
+    <https://academic.oup.com/book/3490>`_ by Carlo Giunti and Chung 
+    Wook Kim.
+    """
+
+    return osc_prob_5nu_matter_liv_exp_density(
+        energy=energy,
+        L=L,
+        L0=L0,
+        rho_central=gd.NUM_DENSITY_E_SUN_CENTRAL,
+        l_scale=gd.L_SCALE_SUN,
+        s12=s12,
+        s23=s23,
+        s13=s13,
+        dCP=dCP,
+        D21=D21,
+        D31=D31,
+        s14=s14,
+        s15=s15,
+        s24=s24,
+        s25=s25,
+        s34=s34,
+        s35=s35,
+        d14=d14,
+        d15=d15,
+        d24=d24,
+        d35=d35,
+        D41=D41,
+        D51=D51,
+        sxi12=sxi12,
+        sxi23=sxi23,
+        sxi13=sxi13,
+        dxi13=dxi13,
+        sxi14=sxi14,
+        dxi14=dxi14,
+        sxi15=sxi15,
+        dxi15=dxi15,
+        sxi24=sxi24,
+        dxi24=dxi24,
+        sxi25=sxi25,
+        sxi34=sxi34,
+        sxi35=sxi35,
+        dxi35=dxi35,
+        b1=b1,
+        b2=b2,
+        b3=b3,
+        b4=b4,
+        b5=b5,
+        Lambda=Lambda,
+        n_liv=n_liv,
+        ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
+        electron_fraction=electron_fraction,
+        nubar=nubar,
+        nu_i=nu_i,
+        nu_f=nu_f,
+        density_matter_is_in_g_per_cm3=density_matter_is_in_g_per_cm3,
+        density_is_of_number_of_electrons=density_is_of_number_of_electrons,
+        magnus_exp_order=magnus_exp_order,
+        n_jobs=n_jobs,
+        integration_method=integration_method,
+        rtol=rtol,
+        atol=rtol,
+        growth_factor_n_slabs=growth_factor_n_slabs,
+        growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
+        max_num_loops=max_num_loops,
+        min_n_slabs=min_n_slabs,
+        max_n_slabs=max_n_slabs,
+        min_n_tpts_per_slab=min_n_tpts_per_slab,
+        max_n_tpts_per_slab=max_n_tpts_per_slab,
+        iterate_over_magnus_exp_order=iterate_over_magnus_exp_order,
+        min_magnus_exp_order=min_magnus_exp_order,
+        max_magnus_exp_order=max_magnus_exp_order,
+        validate_input=validate_input,
+        save_log=save_log,
+        filename_log=filename_log,
+        file_log=file_log,
+        close_file_log_upon_exit=close_file_log_upon_exit,
+        new_recursion_limit=new_recursion_limit,
+        verbose=verbose,
+        **kwargs
+    )
+
+
+
 if __name__ == "__main__":
     def H_2nu_func(t):
         return np.array([[1+1j*t, 2*t], [2*t, 4-1j*t]], dtype=np.complex128)
@@ -7695,41 +8224,122 @@ if __name__ == "__main__":
     #     n_liv=n_liv, rtol=1.e-3, atol=1.e-3, verbose=0))
 
 
-    # Five-neutrino oscillations in exponentially falling matter density profile, LIV
+    # # Five-neutrino oscillations in exponentially falling matter density profile, LIV
+    # np.set_printoptions(precision=3)
+    # baseline = 20.*gd.UNIT_KM # 10 km in natural units [eV^{-1}]
+    # energy = 1.*gd.UNIT_MEV # [eV]
+    # L0 = 0.0
+    # rho_central = 12.0*gd.UNIT_G_PER_CM3
+    # l_scale = 4.0*gd.UNIT_KM
+    # s14, s15, s24, s25, s34, s35 = 0.1, 0.1, 0.2, 0.2, 0.3, 0.3
+    # d14, d15, d24, d35 = np.radians([10.0, 20.0, 30.0, 40.0])
+    # D41, D51 = 0.1, 0.01 # [eV^2]
+    # sxi12, sxi23, sxi13, sxi14, sxi15, sxi24, sxi25, sxi34, sxi35 = \
+    #     0.01, 0.05, 0.06, 0.1, 0.9, 0.02, 0.04, 0.1, 0.05
+    # dxi13, dxi14, dxi15, dxi24, dxi35 = np.radians([10, 20, 30, 40, 50])
+    # b1, b2, b3, b4, b5 = 1.e-2, 1.e-3, 5.e-3, 4.e-2, 1.e-1
+    # Lambda = 100.*gd.UNIT_GEV
+    # n_liv = 1
+    # print(osc_prob_5nu_matter_constant_density(energy, baseline, rho_central, 
+    #     s14=s14, s15=s15, s24=s24, s25=s25, s34=s34, s35=s35, d14=d14, d15=d15, d24=d24, d35=d35, 
+    #     D41=D41, D51=D51, verbose=0))
+    # print(osc_prob_5nu_matter_exp_density(energy, baseline, L0, rho_central, l_scale, 
+    #     s14=s14, s15=s15, s24=s24, s25=s25, s34=s34, s35=s35, d14=d14, d15=d15, d24=d24, d35=d35, 
+    #     D41=D41, D51=D51, verbose=0))
+    # print(osc_prob_5nu_matter_liv_constant_density(energy, baseline, rho_central, 
+    #     s14=s14, s15=s15, s24=s24, s25=s25, s34=s34, s35=s35, d14=d14, d15=d15, d24=d24, d35=d35, 
+    #     D41=D41, D51=D51,
+    #     sxi12=sxi12, sxi23=sxi23, sxi13=sxi13, sxi14=sxi14, sxi15=sxi15, sxi24=sxi24, sxi25=sxi25,
+    #     sxi34=sxi34, sxi35=sxi35, 
+    #     dxi13=dxi13, dxi14=dxi14, dxi15=dxi15, dxi24=dxi24, dxi35=dxi35, 
+    #     b1=b1, b2=b2, b3=b3, b4=b4, b5=b5, Lambda=Lambda,
+    #     n_liv=n_liv, rtol=1.e-3, atol=1.e-3, verbose=0))
+    # print(osc_prob_5nu_matter_liv_exp_density(energy, baseline, L0, rho_central, l_scale,
+    #     s14=s14, s15=s15, s24=s24, s25=s25, s34=s34, s35=s35, d14=d14, d15=d15, d24=d24, d35=d35, 
+    #     D41=D41, D51=D51,
+    #     sxi12=sxi12, sxi23=sxi23, sxi13=sxi13, sxi14=sxi14, sxi15=sxi15, sxi24=sxi24, sxi25=sxi25,
+    #     sxi34=sxi34, sxi35=sxi35, 
+    #     dxi13=dxi13, dxi14=dxi14, dxi15=dxi15, dxi24=dxi24, dxi35=dxi35, 
+    #     b1=b1, b2=b2, b3=b3, b4=b4, b5=b5, Lambda=Lambda,
+    #     n_liv=n_liv, rtol=1.e-3, atol=1.e-3, verbose=0))
+
+
+    # # Two-neutrino oscillations in the Sun, LIV
+    # np.set_printoptions(precision=3)
+    # baseline = gd.SUN_RADIUS*gd.UNIT_KM # [eV^{-1}]
+    # energy = 10.*gd.UNIT_MEV # [eV]
+    # L0 = 0.1*gd.SUN_RADIUS*gd.UNIT_KM # [eV^{-1}]
+    # sth = gd.S12_NO_BF_NUFIT_6_0
+    # Dm2 = gd.D21_NO_BF_NUFIT_6_0 # [eV^2]
+    # sxi = 0.001
+    # b1 = 2.e-4#1.e-2
+    # b2 = 1.e-4#1.e-3
+    # Lambda = 1000.*gd.UNIT_GEV
+    # n_liv = 2
+    # print(osc_prob_2nu_sun(energy, baseline, L0, sth, Dm2, verbose=0))
+    # print(osc_prob_2nu_sun_liv(energy, baseline, L0, sth, Dm2, 
+    #     sxi=sxi, b1=b1, b2=b2, Lambda=Lambda, n_liv=n_liv, verbose=0))
+
+
+    # # Three-neutrino oscillations in the Sun, LIV
+    # np.set_printoptions(precision=3)
+    # baseline = gd.SUN_RADIUS*gd.UNIT_KM # [eV^{-1}]
+    # energy = 10.*gd.UNIT_MEV # [eV]
+    # L0 = 0.1*gd.SUN_RADIUS*gd.UNIT_KM # [eV^{-1}]
+    # sxi12, sxi23, sxi13, dxiCP = 0.001, 0.002, 0.003, np.radians(10.0)
+    # b1, b2, b3 = 1.e-6, 2.e-6, 3.e-6 #1.e-2, 1.e-3, 5.e-3
+    # Lambda = 100.*gd.UNIT_GEV
+    # n_liv = 1
+    # print(osc_prob_3nu_sun(energy, baseline, L0, verbose=0))
+    # print(osc_prob_3nu_sun_liv(energy, baseline, L0,
+    #     sxi12=sxi12, sxi23=sxi23, sxi13=sxi13, dxiCP=dxiCP, b1=b1, b2=b2, b3=b3, Lambda=Lambda,
+    #     n_liv=n_liv, rtol=1.e-3, atol=1.e-3, verbose=0))
+
+
+    # # Four-neutrino oscillations in the Sun, LIV
+    # np.set_printoptions(precision=3)
+    # baseline = gd.SUN_RADIUS*gd.UNIT_KM # [eV^{-1}]
+    # energy = 10.*gd.UNIT_MEV # [eV]
+    # L0 = 0.1*gd.SUN_RADIUS*gd.UNIT_KM # [eV^{-1}]
+    # s14, s24, s34 = 0.1, 0.2, 0.3
+    # d14, d24 = np.radians(10.0), np.radians(100.0)
+    # D41 = 0.1 # [eV^2]
+    # sxi12, sxi23, sxi13, sxi14, sxi24, sxi34 = 0.01, 0.05, 0.06, 0.01, 0.01, 0.02
+    # dxi13, dxi14, dxi24 = np.radians([10,20,30])
+    # b1, b2, b3, b4 = 2.e-8, 1.e-8, 5.e-8, 4.e-8 #1.e-2, 1.e-3, 5.e-3, 4.e-2
+    # Lambda = 100.*gd.UNIT_GEV
+    # n_liv = 2
+    # print(osc_prob_4nu_sun(energy, baseline, L0, 
+    #     s14=s14, s24=s24, s34=s34, d14=d14, d24=d24, D41=D41, verbose=2))
+    # print(osc_prob_4nu_sun_liv(energy, baseline, L0, 
+    #     s14=s14, s24=s24, s34=s34, d14=d14, d24=d24, D41=D41,
+    #     sxi12=sxi12, sxi23=sxi23, sxi13=sxi13, sxi14=sxi14, sxi24=sxi24, sxi34=sxi34, 
+    #     dxi13=dxi13, dxi14=dxi14, dxi24=dxi24, b1=b1, b2=b2, b3=b3, b4=b4, Lambda=Lambda,
+    #     n_liv=n_liv, rtol=1.e-3, atol=1.e-3, verbose=2))
+
+
+    # Five-neutrino oscillations in the Sun, LIV
     np.set_printoptions(precision=3)
-    baseline = 20.*gd.UNIT_KM # 10 km in natural units [eV^{-1}]
-    energy = 1.*gd.UNIT_MEV # [eV]
-    L0 = 0.0
-    rho_central = 12.0*gd.UNIT_G_PER_CM3
-    l_scale = 4.0*gd.UNIT_KM
+    baseline = gd.SUN_RADIUS*gd.UNIT_KM # [eV^{-1}]
+    energy = 10.*gd.UNIT_MEV # [eV]
+    L0 = 0.1*gd.SUN_RADIUS*gd.UNIT_KM # [eV^{-1}]
     s14, s15, s24, s25, s34, s35 = 0.1, 0.1, 0.2, 0.2, 0.3, 0.3
     d14, d15, d24, d35 = np.radians([10.0, 20.0, 30.0, 40.0])
     D41, D51 = 0.1, 0.01 # [eV^2]
     sxi12, sxi23, sxi13, sxi14, sxi15, sxi24, sxi25, sxi34, sxi35 = \
-        0.01, 0.05, 0.06, 0.1, 0.9, 0.02, 0.04, 0.1, 0.05
+        0.01, 0.05, 0.06, 0.05, 0.01, 0.02, 0.04, 0.01, 0.05
     dxi13, dxi14, dxi15, dxi24, dxi35 = np.radians([10, 20, 30, 40, 50])
-    b1, b2, b3, b4, b5 = 1.e-2, 1.e-3, 5.e-3, 4.e-2, 1.e-1
+    b1, b2, b3, b4, b5 = 1.e-3, 2.e-3, 3.e-3, 4.e-3, 5.e-3
     Lambda = 100.*gd.UNIT_GEV
     n_liv = 1
-    print(osc_prob_5nu_matter_constant_density(energy, baseline, rho_central, 
+    print(osc_prob_5nu_sun(energy, baseline, L0, 
         s14=s14, s15=s15, s24=s24, s25=s25, s34=s34, s35=s35, d14=d14, d15=d15, d24=d24, d35=d35, 
         D41=D41, D51=D51, verbose=0))
-    print(osc_prob_5nu_matter_exp_density(energy, baseline, L0, rho_central, l_scale, 
-        s14=s14, s15=s15, s24=s24, s25=s25, s34=s34, s35=s35, d14=d14, d15=d15, d24=d24, d35=d35, 
-        D41=D41, D51=D51, verbose=0))
-    print(osc_prob_5nu_matter_liv_constant_density(energy, baseline, rho_central, 
+    print(osc_prob_5nu_sun_liv(energy, baseline, L0, 
         s14=s14, s15=s15, s24=s24, s25=s25, s34=s34, s35=s35, d14=d14, d15=d15, d24=d24, d35=d35, 
         D41=D41, D51=D51,
         sxi12=sxi12, sxi23=sxi23, sxi13=sxi13, sxi14=sxi14, sxi15=sxi15, sxi24=sxi24, sxi25=sxi25,
         sxi34=sxi34, sxi35=sxi35, 
         dxi13=dxi13, dxi14=dxi14, dxi15=dxi15, dxi24=dxi24, dxi35=dxi35, 
         b1=b1, b2=b2, b3=b3, b4=b4, b5=b5, Lambda=Lambda,
-        n_liv=n_liv, rtol=1.e-3, atol=1.e-3, verbose=0))
-    print(osc_prob_5nu_matter_liv_exp_density(energy, baseline, L0, rho_central, l_scale,
-        s14=s14, s15=s15, s24=s24, s25=s25, s34=s34, s35=s35, d14=d14, d15=d15, d24=d24, d35=d35, 
-        D41=D41, D51=D51,
-        sxi12=sxi12, sxi23=sxi23, sxi13=sxi13, sxi14=sxi14, sxi15=sxi15, sxi24=sxi24, sxi25=sxi25,
-        sxi34=sxi34, sxi35=sxi35, 
-        dxi13=dxi13, dxi14=dxi14, dxi15=dxi15, dxi24=dxi24, dxi35=dxi35, 
-        b1=b1, b2=b2, b3=b3, b4=b4, b5=b5, Lambda=Lambda,
-        n_liv=n_liv, rtol=1.e-3, atol=1.e-3, verbose=0))
+        n_liv=n_liv, rtol=1.e-2, atol=1.e-2, verbose=0))
