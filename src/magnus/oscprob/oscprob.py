@@ -7041,9 +7041,9 @@ def osc_prob_2nu_sun_liv(
     violation.
     
     For the electron density inside the Sun, it assumes an exponentially
-    falling density profile: :math:`N_e(r) = N_e(0) \\exp(-r/r_0)`, 
-    with :math:`N_e(0) = 245 N_\\text{Av}~\\text{cm}^{-3}` and 
-    :math:`r_0 = R_\\odot/10.54`.  See Eq. (10.62) in
+    falling density profile: :math:`N_e(r) = N_e(0) \exp(-r/r_0)`, 
+    with :math:`N_e(0) = 245 N_\text{Av}~\text{cm}^{-3}` and 
+    :math:`r_0 = R_\odot/10.54`.  See Eq. (10.62) in
     `Fundamentals of Neutrino Physics and Astrophysics 
     <https://academic.oup.com/book/3490>`_ by Carlo Giunti and Chung 
     Wook Kim.
@@ -7150,9 +7150,9 @@ def osc_prob_3nu_sun_liv(
     violation.
     
     For the electron density inside the Sun, it assumes an exponentially
-    falling density profile: :math:`N_e(r) = N_e(0) \\exp(-r/r_0)`, 
-    with :math:`N_e(0) = 245 N_\\text{Av}~\\text{cm}^{-3}` and 
-    :math:`r_0 = R_\\odot/10.54`.  See Eq. (10.62) in
+    falling density profile: :math:`N_e(r) = N_e(0) \exp(-r/r_0)`, 
+    with :math:`N_e(0) = 245 N_\text{Av}~\text{cm}^{-3}` and 
+    :math:`r_0 = R_\odot/10.54`.  See Eq. (10.62) in
     `Fundamentals of Neutrino Physics and Astrophysics 
     <https://academic.oup.com/book/3490>`_ by Carlo Giunti and Chung 
     Wook Kim.
@@ -7279,9 +7279,9 @@ def osc_prob_4nu_sun_liv(
     violation.
     
     For the electron density inside the Sun, it assumes an exponentially
-    falling density profile: :math:`N_e(r) = N_e(0) \\exp(-r/r_0)`, 
-    with :math:`N_e(0) = 245 N_\\text{Av}~\\text{cm}^{-3}` and 
-    :math:`r_0 = R_\\odot/10.54`.  See Eq. (10.62) in
+    falling density profile: :math:`N_e(r) = N_e(0) \exp(-r/r_0)`, 
+    with :math:`N_e(0) = 245 N_\text{Av}~\text{cm}^{-3}` and 
+    :math:`r_0 = R_\odot/10.54`.  See Eq. (10.62) in
     `Fundamentals of Neutrino Physics and Astrophysics 
     <https://academic.oup.com/book/3490>`_ by Carlo Giunti and Chung 
     Wook Kim.
@@ -7432,9 +7432,9 @@ def osc_prob_5nu_sun_liv(
     violation.
     
     For the electron density inside the Sun, it assumes an exponentially
-    falling density profile: :math:`N_e(r) = N_e(0) \\exp(-r/r_0)`, 
-    with :math:`N_e(0) = 245 N_\\text{Av}~\\text{cm}^{-3}` and 
-    :math:`r_0 = R_\\odot/10.54`.  See Eq. (10.62) in
+    falling density profile: :math:`N_e(r) = N_e(0) \exp(-r/r_0)`, 
+    with :math:`N_e(0) = 245 N_\text{Av}~\text{cm}^{-3}` and 
+    :math:`r_0 = R_\odot/10.54`.  See Eq. (10.62) in
     `Fundamentals of Neutrino Physics and Astrophysics 
     <https://academic.oup.com/book/3490>`_ by Carlo Giunti and Chung 
     Wook Kim.
