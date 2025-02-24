@@ -289,10 +289,11 @@ sys.path.append(os.path.split(os.getcwd())[0])
 
 import magnus.magnus as magnus
 import magnus.globaldefs as gd
-import magnus.hamiltonians.hamiltonians2nu as hamiltonians2nu
-import magnus.hamiltonians.hamiltonians3nu as hamiltonians3nu
-import magnus.hamiltonians.hamiltonians4nu as hamiltonians4nu
-import magnus.hamiltonians.hamiltonians5nu as hamiltonians5nu
+# import magnus.hamiltonians.hamiltonians2nu as hamiltonians2nu
+# import magnus.hamiltonians.hamiltonians3nu as hamiltonians3nu
+# import magnus.hamiltonians.hamiltonians4nu as hamiltonians4nu
+# import magnus.hamiltonians.hamiltonians5nu as hamiltonians5nu
+import magnus.hamiltonians as hamiltonians
 import magnus.matter as matter
 import magnus.earth as earth
 import version as version
@@ -2205,15 +2206,15 @@ def osc_prob_vacuum(
     # If num_flavors > MAGNUS_MAX_PREDEFINED_NUM_FLAVORS, we use the h_vac_energy_indep that was
     # passed to the function.
     if num_flavors == 2:
-        h_vac_energy_indep = hamiltonians2nu.hamiltonian_2nu_vacuum_energy_independent(sth, Dm2) 
+        h_vac_energy_indep = hamiltonians.hamiltonian_2nu_vacuum_energy_independent(sth, Dm2) 
     elif num_flavors == 3:
-        h_vac_energy_indep = hamiltonians3nu.hamiltonian_3nu_vacuum_energy_independent(s12, s23, 
+        h_vac_energy_indep = hamiltonians.hamiltonian_3nu_vacuum_energy_independent(s12, s23, 
             s13, dCP, D21, D31, nubar=nubar) 
     elif num_flavors == 4:
-        h_vac_energy_indep = hamiltonians4nu.hamiltonian_4nu_vacuum_energy_independent(s12, s23, 
+        h_vac_energy_indep = hamiltonians.hamiltonian_4nu_vacuum_energy_independent(s12, s23, 
             s13, dCP, s14, d14, s24, d24, s34, D21, D31, D41, nubar=nubar) 
     elif num_flavors == 5:
-        h_vac_energy_indep = hamiltonians5nu.hamiltonian_5nu_vacuum_energy_independent(s12, s23,
+        h_vac_energy_indep = hamiltonians.hamiltonian_5nu_vacuum_energy_independent(s12, s23,
             s13, dCP, s14, d14, s15, d15, s24, d24, s25, s34, s35, d35, D21, D31, D41, D51,
             nubar=nubar) 
 
@@ -2309,15 +2310,15 @@ def osc_prob_matter_std_potential(
     # If num_flavors > MAGNUS_MAX_PREDEFINED_NUM_FLAVORS, we use the h_vac_energy_indep that was
     # passed to the function.
     if num_flavors == 2:
-        h_vac_energy_indep = hamiltonians2nu.hamiltonian_2nu_vacuum_energy_independent(sth, Dm2) 
+        h_vac_energy_indep = hamiltonians.hamiltonian_2nu_vacuum_energy_independent(sth, Dm2) 
     elif num_flavors == 3:
-        h_vac_energy_indep = hamiltonians3nu.hamiltonian_3nu_vacuum_energy_independent(s12, s23, 
+        h_vac_energy_indep = hamiltonians.hamiltonian_3nu_vacuum_energy_independent(s12, s23, 
             s13, dCP, D21, D31, nubar=nubar) 
     elif num_flavors == 4:
-        h_vac_energy_indep = hamiltonians4nu.hamiltonian_4nu_vacuum_energy_independent(s12, s23, 
+        h_vac_energy_indep = hamiltonians.hamiltonian_4nu_vacuum_energy_independent(s12, s23, 
             s13, dCP, s14, d14, s24, d24, s34, D21, D31, D41, nubar=nubar) 
     elif num_flavors == 5:
-        h_vac_energy_indep = hamiltonians5nu.hamiltonian_5nu_vacuum_energy_independent(s12, s23,
+        h_vac_energy_indep = hamiltonians.hamiltonian_5nu_vacuum_energy_independent(s12, s23,
             s13, dCP, s14, d14, s15, d15, s24, d24, s25, s34, s35, d35, D21, D31, D41, D51,
             nubar=nubar)
 
@@ -2455,15 +2456,15 @@ def osc_prob_matter_nsi(
     # If num_flavors > MAGNUS_MAX_PREDEFINED_NUM_FLAVORS, we use the h_vac_energy_indep that was
     # passed to the function.
     if num_flavors == 2:
-        h_vac_energy_indep = hamiltonians2nu.hamiltonian_2nu_vacuum_energy_independent(sth, Dm2) 
+        h_vac_energy_indep = hamiltonians.hamiltonian_2nu_vacuum_energy_independent(sth, Dm2) 
     elif num_flavors == 3:
-        h_vac_energy_indep = hamiltonians3nu.hamiltonian_3nu_vacuum_energy_independent(s12, s23, 
+        h_vac_energy_indep = hamiltonians.hamiltonian_3nu_vacuum_energy_independent(s12, s23, 
             s13, dCP, D21, D31, nubar=nubar) 
     elif num_flavors == 4:
-        h_vac_energy_indep = hamiltonians4nu.hamiltonian_4nu_vacuum_energy_independent(s12, s23, 
+        h_vac_energy_indep = hamiltonians.hamiltonian_4nu_vacuum_energy_independent(s12, s23, 
             s13, dCP, s14, d14, s24, d24, s34, D21, D31, D41, nubar=nubar) 
     elif num_flavors == 5:
-        h_vac_energy_indep = hamiltonians5nu.hamiltonian_5nu_vacuum_energy_independent(s12, s23,
+        h_vac_energy_indep = hamiltonians.hamiltonian_5nu_vacuum_energy_independent(s12, s23,
             s13, dCP, s14, d14, s15, d15, s24, d24, s25, s34, s35, d35, D21, D31, D41, D51,
             nubar=nubar)
 
@@ -2473,15 +2474,15 @@ def osc_prob_matter_nsi(
     # To do this we call the functions hamiltonians_Xnu_nsi(VCC, ...) with VCC = 1.0.  We add the
     # standard matter contribution to the NSI matter contribution by adding 1.0 to the eps_ee entry.
     if num_flavors == 2:
-        h_matt = s*hamiltonians2nu.hamiltonian_2nu_nsi(1.0, 1.0+eps_aa, eps_ab) # VCC = 1.0
+        h_matt = s*hamiltonians.hamiltonian_2nu_nsi(1.0, 1.0+eps_aa, eps_ab) # VCC = 1.0
     elif num_flavors == 3:
-        h_matt = s*hamiltonians3nu.hamiltonian_3nu_nsi(1.0, 1.0+eps_ee, eps_em, eps_et, eps_mm, 
+        h_matt = s*hamiltonians.hamiltonian_3nu_nsi(1.0, 1.0+eps_ee, eps_em, eps_et, eps_mm, 
             eps_mt, eps_tt)
     elif num_flavors == 4:
-        h_matt = s*hamiltonians4nu.hamiltonian_4nu_nsi(1.0, 1.0+eps_ee, eps_em, eps_et, eps_es, 
+        h_matt = s*hamiltonians.hamiltonian_4nu_nsi(1.0, 1.0+eps_ee, eps_em, eps_et, eps_es, 
             eps_mm, eps_mt, eps_ms, eps_tt, eps_ts, eps_tt)
     elif num_flavors == 5:
-        h_matt = s*hamiltonians5nu.hamiltonian_5nu_nsi(1.0, 1.0+eps_ee, eps_em, eps_et, eps_es1, 
+        h_matt = s*hamiltonians.hamiltonian_5nu_nsi(1.0, 1.0+eps_ee, eps_em, eps_et, eps_es1, 
             eps_es2, eps_mm, eps_mt, eps_ms1, eps_ms2, eps_tt, eps_ts1, eps_ts2, eps_s1s1, eps_s1s2,
             eps_s2s2)
 
@@ -2614,15 +2615,15 @@ def osc_prob_liv(
     # If num_flavors > MAGNUS_MAX_PREDEFINED_NUM_FLAVORS, we use the h_vac_energy_indep that was
     # passed to the function.
     if num_flavors == 2:
-        h_vac_energy_indep = hamiltonians2nu.hamiltonian_2nu_vacuum_energy_independent(sth, Dm2) 
+        h_vac_energy_indep = hamiltonians.hamiltonian_2nu_vacuum_energy_independent(sth, Dm2) 
     elif num_flavors == 3:
-        h_vac_energy_indep = hamiltonians3nu.hamiltonian_3nu_vacuum_energy_independent(s12, s23, 
+        h_vac_energy_indep = hamiltonians.hamiltonian_3nu_vacuum_energy_independent(s12, s23, 
             s13, dCP, D21, D31, nubar=nubar) 
     elif num_flavors == 4:
-        h_vac_energy_indep = hamiltonians4nu.hamiltonian_4nu_vacuum_energy_independent(s12, s23, 
+        h_vac_energy_indep = hamiltonians.hamiltonian_4nu_vacuum_energy_independent(s12, s23, 
             s13, dCP, s14, d14, s24, d24, s34, D21, D31, D41, nubar=nubar) 
     elif num_flavors == 5:
-        h_vac_energy_indep = hamiltonians5nu.hamiltonian_5nu_vacuum_energy_independent(s12, s23,
+        h_vac_energy_indep = hamiltonians.hamiltonian_5nu_vacuum_energy_independent(s12, s23,
             s13, dCP, s14, d14, s15, d15, s24, d24, s25, s34, s35, d35, D21, D31, D41, D51,
             nubar=nubar)
     
@@ -2631,17 +2632,17 @@ def osc_prob_liv(
     # If num_flavors > MAGNUS_MAX_PREDEFINED_NUM_FLAVORS, we use the h_liv_energy_indep that was
     # passed to the function.
     if num_flavors == 2:
-        h_liv_energy_indep = hamiltonians2nu.hamiltonian_2nu_liv_energy_independent(sxi, b1, b2, 
+        h_liv_energy_indep = hamiltonians.hamiltonian_2nu_liv_energy_independent(sxi, b1, b2, 
             Lambda, n_liv)
     elif num_flavors == 3:
-        h_liv_energy_indep = hamiltonians3nu.hamiltonian_3nu_liv_energy_independent(sxi12, sxi23,
+        h_liv_energy_indep = hamiltonians.hamiltonian_3nu_liv_energy_independent(sxi12, sxi23,
             sxi13, dxiCP, b1, b2, b3, Lambda, n_liv, nubar=nubar)
     elif num_flavors == 4:
-        h_liv_energy_indep = hamiltonians4nu.hamiltonian_4nu_liv_energy_independent(sxi12, sxi23,
+        h_liv_energy_indep = hamiltonians.hamiltonian_4nu_liv_energy_independent(sxi12, sxi23,
             sxi13, dxi13, sxi14, dxi14, sxi24, dxi24, sxi34, b1, b2, b3, b4, Lambda, n_liv,
             nubar=nubar)
     elif num_flavors == 5:
-        h_liv_energy_indep = hamiltonians5nu.hamiltonian_5nu_liv_energy_independent(sxi12, sxi23,
+        h_liv_energy_indep = hamiltonians.hamiltonian_5nu_liv_energy_independent(sxi12, sxi23,
             sxi13, dxi13, sxi14, dxi14, sxi15, dxi15, sxi24, dxi24, sxi25, sxi34, sxi35, dxi35, b1,
             b2, b3, b4, b5, Lambda, n_liv, nubar=nubar)
    
