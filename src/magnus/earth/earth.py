@@ -281,6 +281,24 @@ def costhz_between_points_on_surface(lat1_dms: tuple[float, float, float],
     return -0.5 * chord_length / gd.EARTH_RADIUS
 
 
+def coordinates_of_named_location(source_func_name: str, loc_name: str) -> np.ndarray:
+
+    # The latitude and longitude are each returned in day-minute-second format, (dd, mm, ss)
+
+    try:
+        lat = loc_coords_dms[loc_name.lower().replace(" ", "_")]['lat']
+        lon = loc_coords_dms[loc_name.lower().replace(" ", "_")]['lon']
+    except KeyError:
+        print(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + ": the given name of the" + \
+                " the location (" + loc_name + ") is not one of the predefined named locations" + \
+                " in Magnus.  The available predefined named locations (in" + \
+                " earth.loc_coords_dms)" + " are: " + str(list(loc_coords_dms.keys())) + ".")
+        print("Aborting execution...")
+        sys.exit(1)
+
+    return np.array([lat, lon])
+
+
 if __name__ == "__main__":
 
     lat1_dms = (52, 31, 12)  # Berlin latitude: 52°31'12"
