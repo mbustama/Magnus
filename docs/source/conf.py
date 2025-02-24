@@ -49,7 +49,11 @@ extensions = [
     'sphinx.ext.mathjax',
     'sphinx_copybutton',
     # 'sphinx.ext.doctest'
+    'autoapi.extension'
 ]
+
+autoapi_own_page_level = "function"
+autoapi_dirs = ['../../']
 
 ## Include Python objects as they appear in source files
 ## Default: alphabetically ('alphabetical')
