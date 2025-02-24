@@ -52,8 +52,8 @@ extensions = [
     'autoapi.extension'
 ]
 
-autoapi_own_page_level = "function"
-autoapi_dirs = ['../../']
+autoapi_own_page_level = "module" #"function"
+autoapi_dirs = ['../../src/magnus']
 
 ## Include Python objects as they appear in source files
 ## Default: alphabetically ('alphabetical')
