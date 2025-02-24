@@ -633,6 +633,95 @@ def validate_input_battery(
     return 0
 
 
+def validate_input_osc_prob_earth(
+    source_func_name: str,
+    loc_ini: Optional[Union[Tuple[float, float], list, np.ndarray, str]]=None, 
+    loc_fin: Optional[Union[Tuple[float, float], list, np.ndarray, str]]=None, 
+    costhz: Optional[Union[int, float]]=None,
+    L: Optional[Union[float, list, np.ndarray]]=None,
+    verbose: Optional[int]=0,
+    ) -> Tuple[float, np.ndarray]:
+
+    # If the initial and final locations are given (i.e., if they are not None), then the neutrino 
+    # travels the chord joining them through the Earth, overriding any given value of costhz given.
+    # If only a single location is given, throw an exception.  If neither of the two locations are
+    # given, use the given value of costhz and of baseline given (could be an array of baselines).
+    
+    if ( ((loc_ini is None) and (loc_fin is not None)) or \
+        ((loc_ini is not None) and (loc_fin is None)) ):
+
+        print(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + ": only of the two " + \
+            "locations on Earth (loc_ini or loc_fin) has been given. If one location is " + \
+            "given (i.e., is not None), the other one must also be given.  Alternatively, " + \
+            "both locations can be set to None, and the given value of costhz will be used " +\
+            "(if it is not None).")
+        print("Aborting execution...")
+        sys.exit(1)
+
+    elif ((loc_ini is not None) and (loc_fin is not None)):
+
+        # Check that the location is a two-entry tuple, list, or array
+
+        try:
+            lat_ini, lon_ini = loc_ini
+        except KeyError:
+            print(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + ": if the initial " + \
+                    "location (loc_ini) is given as coordinates, it must be a two-entry tuple," + \
+                    " list, or NumPy array.")
+            print("Aborting execution...")
+            sys.exit(1)
+    
+        try:
+            lat_fin, lon_fin = loc_fin
+        except KeyError:
+            print(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + ": if the final " + \
+                    "location (loc_fin) is given as coordinates, it must be a two-entry tuple," + \
+                    " list, or NumPy array.")
+            print("Aborting execution...")
+            sys.exit(1)
+
+        # We use the function earth.costhz_between_points_on_surface to compute the cosine of the
+        # zenith angle of the chord that joins two locations on the surface of the Earth, measured 
+        # at one position (any of the two locations will give the same result).
+        costhz = earth.costhz_between_points_on_surface(lat_ini, lon_ini, lat_fin, lon_fin)
+
+        # Length of the chord is the baseline
+        L = earth.distance_traveled_inside_earth(costhz)*gd.UNIT_KM # [eV^{-1}]
+
+        if verbose > 0:
+            print(gd.WARNING_MSG_IN_COLOR + " oscprob." + source_func_name + ": using as " + \
+                "baseline the chord that joins the given initial and final locations on the " + \
+                "surface of the Earth.")
+
+        return costhz, L
+
+    else: # (loc_ini is None) and (loc_fin is None)
+
+        try:
+            if costhz is None:
+                raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + ": no" + \
+                    " initial and final locations on the surface of the Earth give, and no " + \
+                    "value of costhz given.  This function requires either the two locations " + \
+                    "or, alternatively, the value of costhz.")
+        except ValueError as error:
+            print(error)
+            print("Aborting execution...")
+            sys.exit(1)
+
+        try:
+            if L is None:
+                raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + \
+                    ": since two locations on the surface of the Earth have not been given, " + \
+                    "the value of costhz wil be used to define the chord lengh, but the" + \
+                    " baseline, L, cannot be None.")
+        except ValueError as error:
+            print(error)
+            print("Aborting execution...")
+            sys.exit(1)
+
+        return costhz, L
+
+
 def valid_flavor_indices_2nu(nu_i: int, nu_f: int) -> Tuple[int, int]:
 
     if ((nu_i == gd.NUE) and (nu_f == gd.NUTAU)):
@@ -723,7 +812,7 @@ def unpack_oscillation_params_from_dict(
             sth = osc_params['sth']
             Dm2 = osc_params['Dm2']
             return np.array([sth, Dm2])
-        except KeyError :
+        except KeyError:
             print(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + ": since "+ \
                     "num_flavors == 2, the dictionary of oscillation parameters " + \
                     "(osc_params) must contain the keys 'sth' and 'Dm2'.")
@@ -4105,8 +4194,8 @@ def osc_prob_2nu_earth(
 def osc_prob_3nu_earth(
     energy: Union[int, float, list, np.ndarray], 
     costhz: Optional[Union[int, float]]=None,
-    lat_lon_ini: Optional[Union[Tuple[float, float], list, np.ndarray, str]]=None, 
-    lat_lon_fin: Optional[Union[Tuple[float, float], list, np.ndarray, str]]=None, 
+    loc_ini: Optional[Union[Tuple[float, float], list, np.ndarray, str]]=None, 
+    loc_fin: Optional[Union[Tuple[float, float], list, np.ndarray, str]]=None, 
     L: Optional[Union[float, list, np.ndarray]]=None,
     s12: Optional[Union[int, float]]=None, 
     s23: Optional[Union[int, float]]=None, 
@@ -4162,89 +4251,26 @@ def osc_prob_3nu_earth(
     Examples
     --------
     """
+    # If the location is given as a string, check if it is one of the predefined named locations in
+    # Magnus.  The method sys._getframe().f_code.co_name returns the function name.  If the name
+    # is one of the predefined ones, coordinates_of_named_location returns the coordinates as 
+    # np.array([lat, lon]).  The latitude and longitude are each returned in day-minute-second 
+    # format, (dd, mm, ss)
+
+    source_func_name = sys._getframe().f_code.co_name
+    if isinstance(loc_ini, str):
+        loc_ini = earth.coordinates_of_named_location(source_func_name, loc_name=loc_ini)
+    if isinstance(loc_fin, str):
+        loc_fin = earth.coordinates_of_named_location(source_func_name, loc_name=loc_fin)
 
     # If the initial and final locations are given (i.e., if they are not None), then the neutrino 
-    # travels the chord joining them through the Earth, overriding any given value of costhz given.
-    # If only a single location is given, throw an exception.  If neither of the two locations are
-    # given, use the given value of costhz and of baseline given (could be an array of baselines).
+    # travels the chord joining them through the Earth, overriding any given value of costhz given,
+    # and using the chord length as the baseline. If only a single location is given, throw an 
+    # exception.  If neither of the two locations are given, use the given value of costhz and of 
+    # baseline given (could be an array of baselines).
+    costhz, L = validate_input_osc_prob_earth(source_func_name, loc_ini, loc_fin, costhz, L,
+        verbose=verbose)
     
-    if ( ((lat_lon_ini is None) and (lat_lon_fin is not None)) or \
-        ((lat_lon_ini is not None) and (lat_lon_fin is None)) ):
-
-        if verbose > 0:
-            print(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob_3nu_earth: only of the two " + \
-                "locations on Earth (initial or final) has been given. If one location is given" + \
-                " (i.e., is not None), the other one must also be given.  Alternatively, " + \
-                "both locations can be set to None, and the given value of costhz will be used.")
-            print("Aborting execution...")
-
-    elif ((lat_lon_ini is not None) and (lat_lon_fin is not None)):
-
-        # We use the function earth.costhz_between_points_on_surface to compute the cosine of the
-        # zenith angle of the chord that joins two locations on the surface of the Earth, measured 
-        # at one position (any of the two locations will give the same result).
-        lat_ini, lon_ini = lat_lon_ini
-        lat_fin, lon_fin = lat_lon_fin
-        costhz = earth.costhz_between_points_on_surface(lat_ini, lon_ini, lat_fin, lon_fin)
-
-        # Length of the chord is the baseline
-        L = earth.distance_traveled_inside_earth(costhz)*gd.UNIT_KM # [eV^{-1}]
-
-        if verbose > 0:
-            print(gd.WARNING_MSG_IN_COLOR + " oscprob.osc_prob_3nu_earth: using as baseline the" + \
-                " chord that joins the given initial and final locations on the surface of the" + \
-                " Earth.")
-
-    else: # (lat_lon_ini is None) and (lat_lon_fin is None)
-
-        try:
-            if costhz is None:
-                raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob_3nu_earth: no " + \
-                    "initial and final locations on the surface of the Earth give, and no value" + \
-                    " of costhz given.  This function requires either the two locations or, " + \
-                    "alternatively, the value of costhz.")
-        except ValueError as error:
-            print(error)
-            print("Aborting execution...")
-            sys.exit(1)
-
-        try:
-            if L is None:
-                raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob_3nu_earth: since " + \
-                    "the value of costhz wil be used to define the chord lengh, the baseline, " + \
-                    "L, cannot be None.")
-        except ValueError as error:
-            print(error)
-            print("Aborting execution...")
-            sys.exit(1)
-
-
-        # Check if any value of baseline input is longer than the maximum allowed value for the
-        # given costhz, i.e., the chord length joining the initial and final locations.
-
-        # Length of the chord
-        chord_length = earth.distance_traveled_inside_earth(costhz) # [km]
-        # print(chord_length)
-        # quit()
-
-        if verbose > 0:
-            print(gd.WARNING_MSG_IN_COLOR + " oscprob.osc_prob_3nu_earth: no initial and final " + \
-                "locations on the surface of the Earth given.  Using the given value of costhz" + \
-                " to determine the chord inside the Earth.")
-
-        try:
-            # if np.any((1/gd.UNIT_KM)*np.array(L) > chord_length):
-            if np.any((1/gd.UNIT_KM)*np.array(L) - chord_length > 1.e-8):
-                raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob_3nu_earth: the " + \
-                    "requested baseline (L = " + str(L/gd.UNIT_KM) + " km) exceeds the length " + \
-                    "of the chord for the given value of costhz = " + str(costhz) + " (i.e., " + \
-                    str(chord_length) + " km).")
-        except ValueError as error:
-            print(error)
-            print("Aborting execution...")
-            sys.exit(1)
-
-
     # The function earth.density_matter_func_prem returns the internal matter density of the Earth
     # as a function of radial distance, r, using the Preliminary Reference Earth Model (PREM). The
     # function matter.num_density_e_func converts the matter density into electron number density.
@@ -8500,18 +8526,21 @@ if __name__ == "__main__":
     # Three-neutrino oscillations in Earth
     np.set_printoptions(precision=3)
     energy = 10.*gd.UNIT_MEV # [eV]
-
-    L = earth.distance_traveled_inside_earth(-0.05)
-    print(osc_prob_3nu_earth(energy, costhz=-0.05, L=L*gd.UNIT_KM, verbose=0))
-    print(osc_prob_3nu_earth(energy, costhz=-1, L=L*gd.UNIT_KM, verbose=0))
-
+    ###
+    # L = earth.distance_traveled_inside_earth(-0.05)
+    # print(osc_prob_3nu_earth(energy, costhz=-0.05, L=L*gd.UNIT_KM, verbose=0))
+    # print(osc_prob_3nu_earth(energy, costhz=-1, L=L*gd.UNIT_KM, verbose=0))
+    ###
+    # L = earth.distance_traveled_inside_earth(0)
+    # print(osc_prob_3nu_earth(energy, costhz=0, L=L*gd.UNIT_KM, verbose=0))
+    ###
     # for costhz in np.linspace(-0.5, -1.0, 2):
     #     print(earth.distance_traveled_inside_earth(costhz))
     #     print(osc_prob_3nu_earth(energy, costhz=costhz,
-    #         # L=earth.distance_traveled_inside_earth(costhz)*gd.UNIT_KM,
-    #         L=6371*gd.UNIT_KM, 
+    #         L=earth.distance_traveled_inside_earth(costhz)*gd.UNIT_KM,
+    #         # L=6371*gd.UNIT_KM, 
     #         verbose=0))
-
+    ###
     # costhz = -0.8
     # print(osc_prob_3nu_earth(energy, costhz=costhz, L=1000*gd.UNIT_KM, magnus_exp_order=4, 
     #     verbose=0))
@@ -8521,12 +8550,9 @@ if __name__ == "__main__":
     #     verbose=0))
     # print(osc_prob_3nu_earth(energy, costhz=costhz, L=1000*gd.UNIT_KM, magnus_exp_order=4, 
     #     rtol=1.e-4, atol=1.e-4, verbose=0))
-
-    # detectors = ['SNOLAB', 'Homestake', 'CERN', "South Pole"]
-    # for det in detectors:
-    #     print(det)
-    #     print(osc_prob_3nu_earth(energy, nu_i=gd.NUE, nu_f=gd.NUMU,
-    #         lat_lon_ini=(earth.loc_coords_dms[det.lower().replace(" ", "_")]['lat'], 
-    #             earth.loc_coords_dms[det.lower().replace(" ", "_")]['lon']),
-    #         lat_lon_fin=( earth.loc_coords_dms['fermilab']['lat'], 
-    #             earth.loc_coords_dms['fermilab']['lon']), verbose=0))
+    ###
+    loc_fin = 'fermilab'
+    for loc_ini in ['SNOLAB', 'Homestake', 'CERN', "South Pole"]:
+        print(loc_ini)
+        print(osc_prob_3nu_earth(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
+            loc_ini=loc_ini, loc_fin=loc_fin, verbose=0))
