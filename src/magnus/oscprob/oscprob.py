@@ -4153,19 +4153,41 @@ def osc_prob_5nu_matter_exp_density(
 #-----------------------------------------------------------------------
 
 def osc_prob_2nu_earth(
-    ra_dec_ini: Union[Tuple[float, float], list, np.ndarray, str], 
-    ra_dec_fin: Union[Tuple[float, float], list, np.ndarray, str], 
-    costhz: Union[int, float],
     energy: Union[int, float, list, np.ndarray], 
     sth: Union[int, float], 
     Dm2: Union[int, float], 
+    costhz: Optional[Union[int, float]]=None,
+    loc_ini: Optional[Union[Tuple[float, float], list, np.ndarray, str]]=None, 
+    loc_fin: Optional[Union[Tuple[float, float], list, np.ndarray, str]]=None, 
+    L: Optional[Union[float, list, np.ndarray]]=None,
     nubar: Optional[bool]=False, 
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
+    magnus_exp_order: Optional[int]=4, 
+    n_jobs: Optional[int]=1, 
+    integration_method: Optional[str]='trapezoid', 
+    rtol: Optional[Union[int, float]]=1.e-3, 
+    atol: Optional[Union[int, float]]=1.e-3, 
+    growth_factor_n_slabs: Optional[Union[int, float]]=1.5, 
+    growth_factor_n_tpts_per_slab: Optional[Union[int, float]]=1.5, 
+    max_num_loops: Optional[int]=50, 
+    min_n_slabs: Optional[int]=1, 
+    max_n_slabs: Optional[int]=2000, 
+    min_n_tpts_per_slab: Optional[int]=2, 
+    max_n_tpts_per_slab: Optional[int]=500, 
+    iterate_over_magnus_exp_order: Optional[bool]=False,
+    min_magnus_exp_order: Optional[int]=1,
+    max_magnus_exp_order: Optional[int]=gd.MAGNUS_EXP_ORDER_MAX,
     validate_input: Optional[bool]=True, 
-    verbose: Optional[int]=0
+    save_log: Optional[bool]=False, 
+    filename_log: Optional[str]='./out.log',
+    file_log: Optional[TextIOWrapper]=None, 
+    close_file_log_upon_exit: Optional[bool]=True,
+    new_recursion_limit: Optional[int]=5000,
+    verbose: Optional[int]=0,
+    **kwargs
 ) -> Union[float, np.ndarray]:
-    """Compute and return the two-neutrino oscillation probability 
+    """Compute and return the three-neutrino oscillation probability 
     between two locations on the surface of the Earth.
 
     Assumes that the matter potential is due only to the standard 
@@ -4185,8 +4207,74 @@ def osc_prob_2nu_earth(
     Examples
     --------
     """
+    # If the location is given as a string, check if it is one of the predefined named locations in
+    # Magnus.  The method sys._getframe().f_code.co_name returns the function name.  If the name
+    # is one of the predefined ones, coordinates_of_named_location returns the coordinates as 
+    # np.array([lat, lon]).  The latitude and longitude are each returned in day-minute-second 
+    # format, (dd, mm, ss)
 
-    pass
+    source_func_name = sys._getframe().f_code.co_name
+    if isinstance(loc_ini, str):
+        loc_ini = earth.coordinates_of_named_location(source_func_name, loc_name=loc_ini)
+    if isinstance(loc_fin, str):
+        loc_fin = earth.coordinates_of_named_location(source_func_name, loc_name=loc_fin)
+
+    # If the initial and final locations are given (i.e., if they are not None), then the neutrino 
+    # travels the chord joining them through the Earth, overriding any given value of costhz given,
+    # and using the chord length as the baseline. If only a single location is given, throw an 
+    # exception.  If neither of the two locations are given, use the given value of costhz and of 
+    # baseline given (could be an array of baselines).
+    costhz, L = validate_input_osc_prob_earth(source_func_name, loc_ini, loc_fin, costhz, L,
+        verbose=verbose)
+    
+    # If any of the flavor indices is > 1, fix it (read the docstring above).
+    nu_i, nu_f = valid_flavor_indices_2nu(nu_i, nu_f)
+
+    # The function earth.density_matter_func_prem returns the internal matter density of the Earth
+    # as a function of radial distance, r, using the Preliminary Reference Earth Model (PREM). The
+    # function matter.num_density_e_func converts the matter density into electron number density.
+
+    # The function earth.earth_radial_distance_from_depth returns the radial distance, measured from
+    # the center of the Earth, given a neutrino direction (cosine of zenith angle, costhz) and the 
+    # distance of the neutrino, or depth (l), measured from the surface of the Earth.
+
+    return osc_prob_matter_std_potential(
+        num_flavors=2,
+        rho_func=lambda l: matter.num_density_e_func(earth.earth_radial_distance_from_depth(costhz, 
+            l/gd.UNIT_KM), earth.density_matter_func_prem, electron_fraction=0.5),
+        energy=energy,
+        L=L,
+        osc_params={'sth': sth, 'Dm2': Dm2},
+        L0=0.0,
+        ratio_number_neutrons_to_protons=1.0, 
+        electron_fraction=0.5,
+        nubar=nubar,
+        nu_i=nu_i,
+        nu_f=nu_f,
+        magnus_exp_order=magnus_exp_order,
+        n_jobs=n_jobs,
+        integration_method=integration_method,
+        rtol=rtol,
+        atol=atol,
+        growth_factor_n_slabs=growth_factor_n_slabs,
+        growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
+        max_num_loops=max_num_loops,
+        min_n_slabs=min_n_slabs,
+        max_n_slabs=max_n_slabs,
+        min_n_tpts_per_slab=min_n_tpts_per_slab,
+        max_n_tpts_per_slab=max_n_tpts_per_slab,
+        iterate_over_magnus_exp_order=iterate_over_magnus_exp_order,
+        min_magnus_exp_order=min_magnus_exp_order,
+        max_magnus_exp_order=max_magnus_exp_order,
+        validate_input=validate_input,
+        save_log=save_log,
+        filename_log=filename_log,
+        file_log=file_log,
+        close_file_log_upon_exit=close_file_log_upon_exit,
+        new_recursion_limit=new_recursion_limit,
+        verbose=verbose,
+        **kwargs
+    )  
 
     return 
 
@@ -8523,36 +8611,63 @@ if __name__ == "__main__":
     #     n_liv=n_liv, rtol=1.e-2, atol=1.e-2, verbose=0))
 
 
-    # Three-neutrino oscillations in Earth
-    np.set_printoptions(precision=3)
-    energy = 10.*gd.UNIT_MEV # [eV]
+    # Two-neutrino oscillations in Earth
+    # np.set_printoptions(precision=3)
+    # energy = 10.*gd.UNIT_MEV # [eV]
+    # sth = gd.S12_NO_BF_NUFIT_6_0
+    # Dm2 = gd.D21_NO_BF_NUFIT_6_0 # [eV^2]
     ###
     # L = earth.distance_traveled_inside_earth(-0.05)
-    # print(osc_prob_3nu_earth(energy, costhz=-0.05, L=L*gd.UNIT_KM, verbose=0))
-    # print(osc_prob_3nu_earth(energy, costhz=-1, L=L*gd.UNIT_KM, verbose=0))
-    ###
-    # L = earth.distance_traveled_inside_earth(0)
-    # print(osc_prob_3nu_earth(energy, costhz=0, L=L*gd.UNIT_KM, verbose=0))
+    # print(osc_prob_2nu_earth(energy, sth, Dm2, costhz=-0.05, L=L*gd.UNIT_KM, verbose=0))
+    # print(osc_prob_2nu_earth(energy, sth, Dm2, costhz=-1, L=L*gd.UNIT_KM, verbose=0))
     ###
     # for costhz in np.linspace(-0.5, -1.0, 2):
     #     print(earth.distance_traveled_inside_earth(costhz))
-    #     print(osc_prob_3nu_earth(energy, costhz=costhz,
+    #     print(osc_prob_2nu_earth(energy, sth, Dm2, costhz=costhz,
     #         L=earth.distance_traveled_inside_earth(costhz)*gd.UNIT_KM,
     #         # L=6371*gd.UNIT_KM, 
     #         verbose=0))
     ###
-    # costhz = -0.8
-    # print(osc_prob_3nu_earth(energy, costhz=costhz, L=1000*gd.UNIT_KM, magnus_exp_order=4, 
-    #     verbose=0))
-    # print(osc_prob_3nu_earth(energy, costhz=costhz, L=1200*gd.UNIT_KM, magnus_exp_order=4, 
-    #     verbose=0))
-    # print(osc_prob_3nu_earth(energy, costhz=costhz, L=1000*gd.UNIT_KM, magnus_exp_order=5, 
-    #     verbose=0))
-    # print(osc_prob_3nu_earth(energy, costhz=costhz, L=1000*gd.UNIT_KM, magnus_exp_order=4, 
-    #     rtol=1.e-4, atol=1.e-4, verbose=0))
-    ###
-    loc_fin = 'fermilab'
-    for loc_ini in ['SNOLAB', 'Homestake', 'CERN', "South Pole"]:
-        print(loc_ini)
-        print(osc_prob_3nu_earth(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
-            loc_ini=loc_ini, loc_fin=loc_fin, verbose=0))
+    # loc_fin = 'fermilab'
+    # for loc_ini in ['SNOLAB', 'Homestake', 'CERN', "South Pole"]:
+    #     print(loc_ini)
+    #     print(osc_prob_2nu_earth(energy, sth, Dm2, nu_i=gd.NUE, nu_f=gd.NUMU, 
+    #         loc_ini=loc_ini, loc_fin=loc_fin, verbose=0))
+    #     print(osc_prob_3nu_earth(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
+    #         loc_ini=loc_ini, loc_fin=loc_fin, verbose=0))
+    #     print()
+
+
+    # # Three-neutrino oscillations in Earth
+    # np.set_printoptions(precision=3)
+    # energy = 10.*gd.UNIT_MEV # [eV]
+    # ###
+    # # L = earth.distance_traveled_inside_earth(-0.05)
+    # # print(osc_prob_3nu_earth(energy, costhz=-0.05, L=L*gd.UNIT_KM, verbose=0))
+    # # print(osc_prob_3nu_earth(energy, costhz=-1, L=L*gd.UNIT_KM, verbose=0))
+    # ###
+    # # L = earth.distance_traveled_inside_earth(0)
+    # # print(osc_prob_3nu_earth(energy, costhz=0, L=L*gd.UNIT_KM, verbose=0))
+    # ###
+    # # for costhz in np.linspace(-0.5, -1.0, 2):
+    # #     print(earth.distance_traveled_inside_earth(costhz))
+    # #     print(osc_prob_3nu_earth(energy, costhz=costhz,
+    # #         L=earth.distance_traveled_inside_earth(costhz)*gd.UNIT_KM,
+    # #         # L=6371*gd.UNIT_KM, 
+    # #         verbose=0))
+    # ###
+    # # costhz = -0.8
+    # # print(osc_prob_3nu_earth(energy, costhz=costhz, L=1000*gd.UNIT_KM, magnus_exp_order=4, 
+    # #     verbose=0))
+    # # print(osc_prob_3nu_earth(energy, costhz=costhz, L=1200*gd.UNIT_KM, magnus_exp_order=4, 
+    # #     verbose=0))
+    # # print(osc_prob_3nu_earth(energy, costhz=costhz, L=1000*gd.UNIT_KM, magnus_exp_order=5, 
+    # #     verbose=0))
+    # # print(osc_prob_3nu_earth(energy, costhz=costhz, L=1000*gd.UNIT_KM, magnus_exp_order=4, 
+    # #     rtol=1.e-4, atol=1.e-4, verbose=0))
+    # ###
+    # loc_fin = 'fermilab'
+    # for loc_ini in ['SNOLAB', 'Homestake', 'CERN', "South Pole"]:
+    #     print(loc_ini)
+    #     print(osc_prob_3nu_earth(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
+    #         loc_ini=loc_ini, loc_fin=loc_fin, verbose=0))
