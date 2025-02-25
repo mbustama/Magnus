@@ -1,7 +1,7 @@
 import numpy as np
 import scipy as sp
 import sys
-from typing import Optional, Callable
+from typing import Optional, Callable, Union
 
 # from scipy.integrate import quad
 # from scipy.linalg import expm
@@ -44,51 +44,51 @@ f2 = -1.0/720.0
 valid_integration_methods = ['trapezoid', 'simpson']
 
 
-@nb.njit(fastmath=True, cache=True)
-def simpson_rule(y, x):
-    n = len(x)
-    if n < 2:
-        return np.zeros_like(y[0])
-    elif n == 2:
-        return (x[1] - x[0]) * (y[0] + y[1]) / 2.0  # Trapezoidal rule for two points
+# @nb.njit(fastmath=True, cache=True)
+# def simpson_rule(y, x):
+#     n = len(x)
+#     if n < 2:
+#         return np.zeros_like(y[0])
+#     elif n == 2:
+#         return (x[1] - x[0]) * (y[0] + y[1]) / 2.0  # Trapezoidal rule for two points
     
-    integral = np.zeros_like(y[0])
-    for i in range(2, n, 2):
-        h = (x[i] - x[i - 2]) / 2.0
-        integral += (h / 3.0) * (y[i - 2] + 4.0 * y[i - 1] + y[i])
+#     integral = np.zeros_like(y[0])
+#     for i in range(2, n, 2):
+#         h = (x[i] - x[i - 2]) / 2.0
+#         integral += (h / 3.0) * (y[i - 2] + 4.0 * y[i - 1] + y[i])
     
-    if (n - 1) % 2:  # If odd number of intervals, apply trapezoidal rule to the last segment
-        integral += (x[-1] - x[-2]) * (y[-1] + y[-2]) / 2.0
+#     if (n - 1) % 2:  # If odd number of intervals, apply trapezoidal rule to the last segment
+#         integral += (x[-1] - x[-2]) * (y[-1] + y[-2]) / 2.0
     
-    return integral
+#     return integral
 
-@nb.njit(parallel=True, fastmath=True, cache=True)
-def integral_cumulative_simpson_numba(matrices, x):
-    n = len(x)
-    result = np.zeros((n,) + matrices.shape[1:], dtype=matrices.dtype)
-    for i in nb.prange(n):
-        result[i] = simpson_rule(matrices[:i+1], x[:i+1])
-    return result
+# @nb.njit(parallel=True, fastmath=True, cache=True)
+# def integral_cumulative_simpson_numba(matrices, x):
+#     n = len(x)
+#     result = np.zeros((n,) + matrices.shape[1:], dtype=matrices.dtype)
+#     for i in nb.prange(n):
+#         result[i] = simpson_rule(matrices[:i+1], x[:i+1])
+#     return result
 
-@nb.njit(fastmath=True, cache=True)
-def trapezoidal_rule(y, x):
-    n = len(x)
-    if n < 2:
-        return np.zeros_like(y[0])
-    integral = np.zeros_like(y[0])
-    for i in range(1, n):
-        integral += (x[i] - x[i - 1]) * (y[i] + y[i - 1]) / 2.0
-    return integral
+# @nb.njit(fastmath=True, cache=True)
+# def trapezoidal_rule(y, x):
+#     n = len(x)
+#     if n < 2:
+#         return np.zeros_like(y[0])
+#     integral = np.zeros_like(y[0])
+#     for i in range(1, n):
+#         integral += (x[i] - x[i - 1]) * (y[i] + y[i - 1]) / 2.0
+#     return integral
 
-@nb.njit(parallel=True, fastmath=True, cache=True)
-def integral_cumulative_trapezoidal_numba(matrices, x):
-    n = len(x)
-    result = np.empty((n,) + matrices.shape[1:], dtype=matrices.dtype)
+# @nb.njit(parallel=True, fastmath=True, cache=True)
+# def integral_cumulative_trapezoidal_numba(matrices, x):
+#     n = len(x)
+#     result = np.empty((n,) + matrices.shape[1:], dtype=matrices.dtype)
     
-    for i in nb.prange(n):
-        result[i] = trapezoidal_rule(matrices[:i+1], x[:i+1])
+#     for i in nb.prange(n):
+#         result[i] = trapezoidal_rule(matrices[:i+1], x[:i+1])
     
-    return result
+#     return result
 
 
 def commutator(X: np.ndarray, Y: np.ndarray) -> np.ndarray:
@@ -97,10 +97,17 @@ def commutator(X: np.ndarray, Y: np.ndarray) -> np.ndarray:
 
 # Function to compute the matrix exponential using Magnus expansion
 # @nb.jit(parallel=True, fastmath=True, cache=True)
-def magnus_expansion(A: np.ndarray, t0: float, t1: float, n_tpts: Optional[int]=50, 
-    order:Optional[int]=2, integration_method:Optional[str]='trapezoid',
+def magnus_expansion(
+    A: Callable, 
+    t0: float, 
+    t1: float, 
+    # t_slabs: Union[list, np.ndarray],
+    n_tpts: Optional[int]=50, 
+    order: Optional[int]=2, 
+    integration_method: Optional[str]='trapezoid',
     return_magnus_terms: Optional[bool]=False, 
-    validate_input: Optional[bool]=True) -> np.ndarray:
+    validate_input: Optional[bool]=True
+) -> np.ndarray:
     """
     Compute the matrix exponential of A(t) from t0 to t1 using the Magnus expansion.
     """
@@ -115,6 +122,10 @@ def magnus_expansion(A: np.ndarray, t0: float, t1: float, n_tpts: Optional[int]=
             print(error)
             print("Aborting execution...")
             sys.exit(1)
+
+    # for t_slab in t_slabs:
+
+    #     t0, t1 = t_slab
 
     # Precompute time points and weights
     if t0 > 0.0:
@@ -145,6 +156,7 @@ def magnus_expansion(A: np.ndarray, t0: float, t1: float, n_tpts: Optional[int]=
 
     # Precompute the A(t) terms
     At = np.array([A(t) for t in times])
+    # At = A(times)
 
     matrix_dim = At[0].shape[0]
     magnus_terms = np.empty((order, matrix_dim, matrix_dim), dtype=complex) 
