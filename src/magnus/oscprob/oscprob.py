@@ -9704,17 +9704,17 @@ if __name__ == "__main__":
         = 0.0, 0.01, 0.0, 0.0, 0.0, 0.0, 0.02, 0.0, 0.02, 0.03
     print("4nu")
     ###
-    costhz = -0.20#-1.0
-    L = earth.distance_traveled_inside_earth(costhz)
-    print(L)
-    print("4nu, std: " + str(osc_prob_4nu_earth(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
-        s14=s14, s24=s24, s34=s34, d14=d14, d24=d24, D41=D41,
-        costhz=costhz, L=L*gd.UNIT_KM, verbose=0, n_jobs=12, magnus_exp_order=3)))
-    print("4nu, nsi: " + str(osc_prob_4nu_earth_nsi(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
-        s14=s14, s24=s24, s34=s34, d14=d14, d24=d24, D41=D41,
-        eps_ee=eps_ee, eps_em=eps_em, eps_et=eps_et, eps_es=eps_es, eps_mm=eps_mm, eps_mt=eps_mt, 
-        eps_ms=eps_ms, eps_tt=eps_tt, eps_ts=eps_ts, eps_ss=eps_ss,
-        costhz=costhz, L=L*gd.UNIT_KM, verbose=0, n_jobs=12, magnus_exp_order=3)))
+    # costhz = -0.20#-1.0
+    # L = earth.distance_traveled_inside_earth(costhz)
+    # print(L)
+    # print("4nu, std: " + str(osc_prob_4nu_earth(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
+    #     s14=s14, s24=s24, s34=s34, d14=d14, d24=d24, D41=D41,
+    #     costhz=costhz, L=L*gd.UNIT_KM, verbose=0, n_jobs=12, magnus_exp_order=3)))
+    # print("4nu, nsi: " + str(osc_prob_4nu_earth_nsi(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
+    #     s14=s14, s24=s24, s34=s34, d14=d14, d24=d24, D41=D41,
+    #     eps_ee=eps_ee, eps_em=eps_em, eps_et=eps_et, eps_es=eps_es, eps_mm=eps_mm, eps_mt=eps_mt, 
+    #     eps_ms=eps_ms, eps_tt=eps_tt, eps_ts=eps_ts, eps_ss=eps_ss,
+    #     costhz=costhz, L=L*gd.UNIT_KM, verbose=0, n_jobs=12, magnus_exp_order=3)))
     # print()
     # print("4nu, std: " + str(osc_prob_4nu_earth(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
     #     s14=s14, s24=s24, s34=s34, d14=d14, d24=d24, D41=D41,
@@ -9728,12 +9728,12 @@ if __name__ == "__main__":
     ###
     loc_fin = 'fermilab'
     import time
-    for integration_method in ['trapezoid', 'simpson']:
+    for integration_method in ['trapezoid']: #['trapezoid', 'simpson']:
         print(integration_method)
         start = time.time()
         for loc_ini in ['Homestake']: # ['SNOLAB', 'Homestake', 'CERN', "South Pole"]:
             print(loc_ini)
-            for i in range(1):
+            for i in range(10):
                 osc_prob_4nu_earth(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
                     s14=s14, s24=s24, s34=s34, d14=d14, d24=d24, D41=D41,
                     loc_ini=loc_ini, loc_fin=loc_fin, verbose=0, n_jobs=1, max_magnus_exp_order=3,
@@ -9749,7 +9749,7 @@ if __name__ == "__main__":
             #     loc_ini=loc_ini, loc_fin=loc_fin, verbose=0, max_magnus_exp_order=3, n_jobs=12,
             #     integration_method=integration_method)))
             print()
-        print((time.time()-start)/30)
+        print((time.time()-start)/10)
 
 
     # # Five-neutrino oscillations in Earth, NSI
