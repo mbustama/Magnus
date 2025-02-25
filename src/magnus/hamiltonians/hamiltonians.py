@@ -28,6 +28,7 @@ __email__ = "mbustamante@gmail.com"
 import numpy as np
 from typing import Optional, Callable, Union
 
+
 #-----------------------------------------------------------------------
 # Two-neutrino Hamiltonians
 #-----------------------------------------------------------------------
