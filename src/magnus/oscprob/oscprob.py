@@ -2474,17 +2474,20 @@ def osc_prob_matter_nsi(
     # To do this we call the functions hamiltonians_Xnu_nsi(VCC, ...) with VCC = 1.0.  We add the
     # standard matter contribution to the NSI matter contribution by adding 1.0 to the eps_ee entry.
     if num_flavors == 2:
-        h_matt = s*hamiltonians.hamiltonian_2nu_nsi(1.0, 1.0+eps_aa, eps_ab) # VCC = 1.0
+        h_matt = s*np.diag([1.0, 0.0]) + \
+            s*hamiltonians.hamiltonian_2nu_nsi(1.0, eps_aa, eps_ab) # VCC = 1.0
     elif num_flavors == 3:
-        h_matt = s*hamiltonians.hamiltonian_3nu_nsi(1.0, 1.0+eps_ee, eps_em, eps_et, eps_mm, 
-            eps_mt, eps_tt)
+        h_matt = s*np.diag([1.0, 0.0, 0.0]) + \
+            s*hamiltonians.hamiltonian_3nu_nsi(1.0, eps_ee, eps_em, eps_et, eps_mm, eps_mt, eps_tt)
     elif num_flavors == 4:
-        h_matt = s*hamiltonians.hamiltonian_4nu_nsi(1.0, 1.0+eps_ee, eps_em, eps_et, eps_es, 
-            eps_mm, eps_mt, eps_ms, eps_tt, eps_ts, eps_tt)
+        h_matt = s*np.diag([1.0, 0.0, 0.0, 0.0]) + \
+            s*hamiltonians.hamiltonian_4nu_nsi(1.0, eps_ee, eps_em, eps_et, eps_es, eps_mm, eps_mt,
+                eps_ms, eps_tt, eps_ts, eps_tt)
     elif num_flavors == 5:
-        h_matt = s*hamiltonians.hamiltonian_5nu_nsi(1.0, 1.0+eps_ee, eps_em, eps_et, eps_es1, 
-            eps_es2, eps_mm, eps_mt, eps_ms1, eps_ms2, eps_tt, eps_ts1, eps_ts2, eps_s1s1, eps_s1s2,
-            eps_s2s2)
+        h_matt = s*np.diag([1.0, 0.0, 0.0, 0.0, 0.0]) + \
+            s*hamiltonians.hamiltonian_5nu_nsi(1.0, eps_ee, eps_em, eps_et, eps_es1, eps_es2, 
+                eps_mm, eps_mt, eps_ms1, eps_ms2, eps_tt, eps_ts1, eps_ts2, eps_s1s1, eps_s1s2, 
+                eps_s2s2)
 
     # Build the coherent forward potential function, VCC_func, from the density function, rho_func.
     # If the provided rho_func is the matter density (e.g., g cm^{-3}), convert rho_func to a 
@@ -4199,12 +4202,30 @@ def osc_prob_2nu_earth(
     For the matter density inside the Earth, it uses the Preliminary 
     Reference Earth Model.
 
-    The location of each point on the surface can either be given as a 
-    tuple (ra, dec) of right ascension and declination (i.e., 
-    ``ra_dec_ini`` and ``ra_dec_fin``)---including the possibility of 
-    using locations predefined in Magnus---or as the cosine of the
-    zenith angle between the initial and final positions (i.e.,
-    ``costhz``).
+    If the initial location (``loc_ini``) and final location 
+    (``loc_fin``) on the surface of the Earth are given (i.e., if they
+    are not ``None``), then the neutrino travels the chord joining them 
+    through the Earth, overriding any given value of costhz given, and 
+    using the chord length as the baseline. 
+
+    The initial and final location can be given as a three-entry tuple
+    of coordinates in the (degree, minute, second) format.  Alternatively,
+    any of the two locations can be given as a predefined named 
+    location.  The predefined locations are in the earth.loc_coords_dms
+    dictionary:
+
+    >>> import magnus.earth as earth
+    >>> list(earth.loc_coords_dms.keys())
+    >>> print(earth.loc_coords_dms['fermilab'])
+
+    See the example below.
+
+    [If only a single location is given (i.e., if either ``loc_ini`` or
+    ``loc_fin`` are ``None``), the function throws an exception.]
+
+    If neither of the two locations is given, the function uses the 
+    given value of ``costhz`` as direction and of ``L`` as baseline.
+    (And ``L`` can be an array of baselines.)
 
     Examples
     --------
@@ -4227,14 +4248,15 @@ def osc_prob_2nu_earth(
     # exception.  If neither of the two locations are given, use the given value of costhz and of 
     # baseline given (could be an array of baselines).
     costhz, L = validate_input_osc_prob_earth(source_func_name, loc_ini, loc_fin, costhz, L,
-        verbose=verbose)
-    
+        verbose=verbose) # L in eV^{-1}
+
     # If any of the flavor indices is > 1, fix it (read the docstring above).
     nu_i, nu_f = valid_flavor_indices_2nu(nu_i, nu_f)
 
     # The function earth.density_matter_func_prem returns the internal matter density of the Earth
-    # as a function of radial distance, r, using the Preliminary Reference Earth Model (PREM). The
-    # function matter.num_density_e_func converts the matter density into electron number density.
+    # [g cm^{-3}] as a function of radial distance, r, using the Preliminary Reference Earth Model 
+    # (PREM). The function matter.num_density_e_func converts the matter density into electron 
+    # number density [eV^3].
 
     # The function earth.earth_radial_distance_from_depth returns the radial distance, measured from
     # the center of the Earth, given a neutrino direction (cosine of zenith angle, costhz) and the 
@@ -4244,9 +4266,9 @@ def osc_prob_2nu_earth(
         num_flavors=2,
         rho_func=lambda l: matter.num_density_e_func(earth.earth_radial_distance_from_depth(costhz, 
             l/gd.UNIT_KM), earth.density_matter_func_prem, ratio_number_neutrons_to_protons=1.0,
-            electron_fraction=0.5),
+            electron_fraction=0.5, density_matter_is_in_g_per_cm3=True), # [eV^3] (l in eV^{-1})
         energy=energy,
-        L=L,
+        L=L, # [eV^{-1}]
         osc_params={'sth': sth, 'Dm2': Dm2},
         L0=0.0,
         nubar=nubar,
@@ -4330,12 +4352,30 @@ def osc_prob_3nu_earth(
     For the matter density inside the Earth, it uses the Preliminary 
     Reference Earth Model.
 
-    The location of each point on the surface can either be given as a 
-    tuple (ra, dec) of right ascension and declination (i.e., 
-    ``ra_dec_ini`` and ``ra_dec_fin``)---including the possibility of 
-    using locations predefined in Magnus---or as the cosine of the
-    zenith angle between the initial and final positions (i.e.,
-    ``costhz``).
+    If the initial location (``loc_ini``) and final location 
+    (``loc_fin``) on the surface of the Earth are given (i.e., if they
+    are not ``None``), then the neutrino travels the chord joining them 
+    through the Earth, overriding any given value of costhz given, and 
+    using the chord length as the baseline. 
+
+    The initial and final location can be given as a three-entry tuple
+    of coordinates in the (degree, minute, second) format.  Alternatively,
+    any of the two locations can be given as a predefined named 
+    location.  The predefined locations are in the earth.loc_coords_dms
+    dictionary:
+
+    >>> import magnus.earth as earth
+    >>> list(earth.loc_coords_dms.keys())
+    >>> print(earth.loc_coords_dms['fermilab'])
+
+    See the example below.
+
+    [If only a single location is given (i.e., if either ``loc_ini`` or
+    ``loc_fin`` are ``None``), the function throws an exception.]
+
+    If neither of the two locations is given, the function uses the 
+    given value of ``costhz`` as direction and of ``L`` as baseline.
+    (And ``L`` can be an array of baselines.)
 
     Examples
     --------
@@ -4372,7 +4412,7 @@ def osc_prob_3nu_earth(
         num_flavors=3,
         rho_func=lambda l: matter.num_density_e_func(earth.earth_radial_distance_from_depth(costhz, 
             l/gd.UNIT_KM), earth.density_matter_func_prem, ratio_number_neutrons_to_protons=1.0,
-            electron_fraction=0.5),
+            electron_fraction=0.5, density_matter_is_in_g_per_cm3=True), # [eV^3] (l in eV^{-1})
         energy=energy,
         L=L,
         osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 'D21': D21, 'D31': D31},
@@ -4465,12 +4505,30 @@ def osc_prob_4nu_earth(
     For the matter density inside the Earth, it uses the Preliminary 
     Reference Earth Model.
 
-    The location of each point on the surface can either be given as a 
-    tuple (ra, dec) of right ascension and declination (i.e., 
-    ``ra_dec_ini`` and ``ra_dec_fin``)---including the possibility of 
-    using locations predefined in Magnus---or as the cosine of the
-    zenith angle between the initial and final positions (i.e.,
-    ``costhz``).
+    If the initial location (``loc_ini``) and final location 
+    (``loc_fin``) on the surface of the Earth are given (i.e., if they
+    are not ``None``), then the neutrino travels the chord joining them 
+    through the Earth, overriding any given value of costhz given, and 
+    using the chord length as the baseline. 
+
+    The initial and final location can be given as a three-entry tuple
+    of coordinates in the (degree, minute, second) format.  Alternatively,
+    any of the two locations can be given as a predefined named 
+    location.  The predefined locations are in the earth.loc_coords_dms
+    dictionary:
+
+    >>> import magnus.earth as earth
+    >>> list(earth.loc_coords_dms.keys())
+    >>> print(earth.loc_coords_dms['fermilab'])
+
+    See the example below.
+
+    [If only a single location is given (i.e., if either ``loc_ini`` or
+    ``loc_fin`` are ``None``), the function throws an exception.]
+
+    If neither of the two locations is given, the function uses the 
+    given value of ``costhz`` as direction and of ``L`` as baseline.
+    (And ``L`` can be an array of baselines.)
 
     Examples
     --------
@@ -4507,7 +4565,7 @@ def osc_prob_4nu_earth(
         num_flavors=4,
         rho_func=lambda l: matter.num_density_e_func(earth.earth_radial_distance_from_depth(costhz, 
             l/gd.UNIT_KM), earth.density_matter_func_prem, ratio_number_neutrons_to_protons=1.0,
-            electron_fraction=0.5),
+            electron_fraction=0.5, density_matter_is_in_g_per_cm3=True), # [eV^3] (l in eV^{-1})
         energy=energy,
         L=L,
         osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 's14': s14, 'd14': d14, 
@@ -4607,12 +4665,30 @@ def osc_prob_5nu_earth(
     For the matter density inside the Earth, it uses the Preliminary 
     Reference Earth Model.
 
-    The location of each point on the surface can either be given as a 
-    tuple (ra, dec) of right ascension and declination (i.e., 
-    ``ra_dec_ini`` and ``ra_dec_fin``)---including the possibility of 
-    using locations predefined in Magnus---or as the cosine of the
-    zenith angle between the initial and final positions (i.e.,
-    ``costhz``).
+    If the initial location (``loc_ini``) and final location 
+    (``loc_fin``) on the surface of the Earth are given (i.e., if they
+    are not ``None``), then the neutrino travels the chord joining them 
+    through the Earth, overriding any given value of costhz given, and 
+    using the chord length as the baseline. 
+
+    The initial and final location can be given as a three-entry tuple
+    of coordinates in the (degree, minute, second) format.  Alternatively,
+    any of the two locations can be given as a predefined named 
+    location.  The predefined locations are in the earth.loc_coords_dms
+    dictionary:
+
+    >>> import magnus.earth as earth
+    >>> list(earth.loc_coords_dms.keys())
+    >>> print(earth.loc_coords_dms['fermilab'])
+
+    See the example below.
+
+    [If only a single location is given (i.e., if either ``loc_ini`` or
+    ``loc_fin`` are ``None``), the function throws an exception.]
+
+    If neither of the two locations is given, the function uses the 
+    given value of ``costhz`` as direction and of ``L`` as baseline.
+    (And ``L`` can be an array of baselines.)
 
     Examples
     --------
@@ -4649,7 +4725,7 @@ def osc_prob_5nu_earth(
         num_flavors=5,
         rho_func=lambda l: matter.num_density_e_func(earth.earth_radial_distance_from_depth(costhz, 
             l/gd.UNIT_KM), earth.density_matter_func_prem, ratio_number_neutrons_to_protons=1.0,
-            electron_fraction=0.5),
+            electron_fraction=0.5, density_matter_is_in_g_per_cm3=True), # [eV^3] (l in eV^{-1})
         energy=energy,
         L=L,
         osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 's14': s14, 'd14': d14, 
@@ -5941,6 +6017,154 @@ def osc_prob_5nu_matter_nsi_exp_density(
     )  
 
     return
+
+
+#-----------------------------------------------------------------------
+# In matter, NSI, in the Earth
+#-----------------------------------------------------------------------
+
+def osc_prob_2nu_earth_nsi(
+    energy: Union[int, float, list, np.ndarray], 
+    sth: Union[int, float], 
+    Dm2: Union[int, float], 
+    eps_aa: Optional[Union[int, float]]=0.0,
+    eps_ab: Optional[Union[int, float]]=0.0,
+    costhz: Optional[Union[int, float]]=None,
+    loc_ini: Optional[Union[Tuple[float, float], list, np.ndarray, str]]=None, 
+    loc_fin: Optional[Union[Tuple[float, float], list, np.ndarray, str]]=None, 
+    L: Optional[Union[float, list, np.ndarray]]=None,
+    nubar: Optional[bool]=False, 
+    nu_i: Optional[int]=None, 
+    nu_f: Optional[int]=None,
+    magnus_exp_order: Optional[int]=4, 
+    n_jobs: Optional[int]=1, 
+    integration_method: Optional[str]='trapezoid', 
+    rtol: Optional[Union[int, float]]=1.e-3, 
+    atol: Optional[Union[int, float]]=1.e-3, 
+    growth_factor_n_slabs: Optional[Union[int, float]]=1.5, 
+    growth_factor_n_tpts_per_slab: Optional[Union[int, float]]=1.5, 
+    max_num_loops: Optional[int]=50, 
+    min_n_slabs: Optional[int]=1, 
+    max_n_slabs: Optional[int]=2000, 
+    min_n_tpts_per_slab: Optional[int]=2, 
+    max_n_tpts_per_slab: Optional[int]=500, 
+    iterate_over_magnus_exp_order: Optional[bool]=False,
+    min_magnus_exp_order: Optional[int]=1,
+    max_magnus_exp_order: Optional[int]=gd.MAGNUS_EXP_ORDER_MAX,
+    validate_input: Optional[bool]=True, 
+    save_log: Optional[bool]=False, 
+    filename_log: Optional[str]='./out.log',
+    file_log: Optional[TextIOWrapper]=None, 
+    close_file_log_upon_exit: Optional[bool]=True,
+    new_recursion_limit: Optional[int]=5000,
+    verbose: Optional[int]=0,
+    **kwargs
+) -> Union[float, np.ndarray]:
+    r"""Compute and return the two-neutrino oscillation probability 
+    inside the Earth, either between two locations on the surface of the
+    Earth, or between the surface and a point in the interior, including
+    non-standard interactions (NSI).
+    
+    For the matter density inside the Earth, it uses the Preliminary 
+    Reference Earth Model.
+
+    If the initial location (``loc_ini``) and final location 
+    (``loc_fin``) on the surface of the Earth are given (i.e., if they
+    are not ``None``), then the neutrino travels the chord joining them 
+    through the Earth, overriding any given value of costhz given, and 
+    using the chord length as the baseline. 
+
+    The initial and final location can be given as a three-entry tuple
+    of coordinates in the (degree, minute, second) format.  Alternatively,
+    any of the two locations can be given as a predefined named 
+    location.  The predefined locations are in the earth.loc_coords_dms
+    dictionary:
+
+    >>> import magnus.earth as earth
+    >>> list(earth.loc_coords_dms.keys())
+    >>> print(earth.loc_coords_dms['fermilab'])
+
+    See the example below.
+
+    [If only a single location is given (i.e., if either ``loc_ini`` or
+    ``loc_fin`` are ``None``), the function throws an exception.]
+
+    If neither of the two locations is given, the function uses the 
+    given value of ``costhz`` as direction and of ``L`` as baseline.
+    (And ``L`` can be an array of baselines.)
+
+    Examples
+    --------
+    """
+    # If the location is given as a string, check if it is one of the predefined named locations in
+    # Magnus.  The method sys._getframe().f_code.co_name returns the function name.  If the name
+    # is one of the predefined ones, coordinates_of_named_location returns the coordinates as 
+    # np.array([lat, lon]).  The latitude and longitude are each returned in day-minute-second 
+    # format, (dd, mm, ss)
+
+    source_func_name = sys._getframe().f_code.co_name
+    if isinstance(loc_ini, str):
+        loc_ini = earth.coordinates_of_named_location(source_func_name, loc_name=loc_ini)
+    if isinstance(loc_fin, str):
+        loc_fin = earth.coordinates_of_named_location(source_func_name, loc_name=loc_fin)
+
+    # If the initial and final locations are given (i.e., if they are not None), then the neutrino 
+    # travels the chord joining them through the Earth, overriding any given value of costhz given,
+    # and using the chord length as the baseline. If only a single location is given, throw an 
+    # exception.  If neither of the two locations are given, use the given value of costhz and of 
+    # baseline given (could be an array of baselines).
+    costhz, L = validate_input_osc_prob_earth(source_func_name, loc_ini, loc_fin, costhz, L,
+        verbose=verbose)
+    
+    # If any of the flavor indices is > 1, fix it (read the docstring above).
+    nu_i, nu_f = valid_flavor_indices_2nu(nu_i, nu_f)
+
+    # The function earth.density_matter_func_prem returns the internal matter density of the Earth
+    # as a function of radial distance, r, using the Preliminary Reference Earth Model (PREM). The
+    # function matter.num_density_e_func converts the matter density into electron number density.
+
+    # The function earth.earth_radial_distance_from_depth returns the radial distance, measured from
+    # the center of the Earth, given a neutrino direction (cosine of zenith angle, costhz) and the 
+    # distance of the neutrino, or depth (l), measured from the surface of the Earth.
+
+    return osc_prob_matter_nsi(
+        num_flavors=2,
+        rho_func=lambda l: matter.num_density_e_func(earth.earth_radial_distance_from_depth(costhz, 
+            l/gd.UNIT_KM), earth.density_matter_func_prem, ratio_number_neutrons_to_protons=1.0,
+            electron_fraction=0.5, density_matter_is_in_g_per_cm3=True), # [eV^3] (l in eV^{-1})
+        energy=energy,
+        L=L,
+        osc_params={'sth': sth, 'Dm2': Dm2},
+        nsi_params={'eps_aa': eps_aa, 'eps_ab': eps_ab},
+        L0=0.0,
+        nubar=nubar,
+        nu_i=nu_i,
+        nu_f=nu_f,
+        density_is_of_number_of_electrons=True,
+        magnus_exp_order=magnus_exp_order,
+        n_jobs=n_jobs,
+        integration_method=integration_method,
+        rtol=rtol,
+        atol=atol,
+        growth_factor_n_slabs=growth_factor_n_slabs,
+        growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
+        max_num_loops=max_num_loops,
+        min_n_slabs=min_n_slabs,
+        max_n_slabs=max_n_slabs,
+        min_n_tpts_per_slab=min_n_tpts_per_slab,
+        max_n_tpts_per_slab=max_n_tpts_per_slab,
+        iterate_over_magnus_exp_order=iterate_over_magnus_exp_order,
+        min_magnus_exp_order=min_magnus_exp_order,
+        max_magnus_exp_order=max_magnus_exp_order,
+        validate_input=validate_input,
+        save_log=save_log,
+        filename_log=filename_log,
+        file_log=file_log,
+        close_file_log_upon_exit=close_file_log_upon_exit,
+        new_recursion_limit=new_recursion_limit,
+        verbose=verbose,
+        **kwargs
+    )  
 
 
 #-----------------------------------------------------------------------
@@ -8892,28 +9116,56 @@ if __name__ == "__main__":
     #         loc_ini=loc_ini, loc_fin=loc_fin, verbose=0))
 
 
-    # Five-neutrino oscillations in Earth
+    # # Five-neutrino oscillations in Earth
+    # np.set_printoptions(precision=3)
+    # energy = 10.*gd.UNIT_MEV # [eV]
+    # s14, s15, s24, s25, s34, s35 = 0.1, 0.1, 0.2, 0.2, 0.3, 0.3
+    # d14, d15, d24, d35 = np.radians([10.0, 20.0, 30.0, 40.0])
+    # D41, D51 = 0.1, 0.01 # [eV^2]
+    # ###
+    # L = earth.distance_traveled_inside_earth(-0.05)
+    # print(osc_prob_5nu_earth(energy, 
+    #     s14=s14, s15=s15, s24=s24, s25=s25, s34=s34, s35=s35, d14=d14, d15=d15, d24=d24, d35=d35, 
+    #     D41=D41, D51=D51, costhz=-0.05, L=L*gd.UNIT_KM, verbose=0))
+    # print(osc_prob_5nu_earth(energy, 
+    #     s14=s14, s15=s15, s24=s24, s25=s25, s34=s34, s35=s35, d14=d14, d15=d15, d24=d24, d35=d35, 
+    #     D41=D41, D51=D51, costhz=-1, L=L*gd.UNIT_KM, verbose=0))
+    # ###
+    # loc_fin = 'fermilab'
+    # for loc_ini in ['SNOLAB', 'Homestake', 'CERN', "South Pole"]:
+    #     print(loc_ini)
+    #     print(osc_prob_4nu_earth(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
+    #          s14=s14, s24=s24, s34=s34, d14=d14, d24=d24, D41=D41,
+    #         loc_ini=loc_ini, loc_fin=loc_fin, verbose=0))
+    #     print(osc_prob_5nu_earth(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
+    #         s14=s14, s15=s15, s24=s24, s25=s25, s34=s34, s35=s35, d14=d14, d15=d15, d24=d24,
+    #         d35=d35, D41=D41, D51=D51,
+    #         loc_ini=loc_ini, loc_fin=loc_fin, verbose=0))
+
+
+    # Two-neutrino oscillations in Earth, NSI
     np.set_printoptions(precision=3)
     energy = 10.*gd.UNIT_MEV # [eV]
-    s14, s15, s24, s25, s34, s35 = 0.1, 0.1, 0.2, 0.2, 0.3, 0.3
-    d14, d15, d24, d35 = np.radians([10.0, 20.0, 30.0, 40.0])
-    D41, D51 = 0.1, 0.01 # [eV^2]
+    sth = gd.S12_NO_BF_NUFIT_6_0
+    Dm2 = gd.D21_NO_BF_NUFIT_6_0 # [eV^2]
+    eps_aa, eps_ab = 0.05, 0.02
     ###
-    L = earth.distance_traveled_inside_earth(-0.05)
-    print(osc_prob_5nu_earth(energy, 
-        s14=s14, s15=s15, s24=s24, s25=s25, s34=s34, s35=s35, d14=d14, d15=d15, d24=d24, d35=d35, 
-        D41=D41, D51=D51, costhz=-0.05, L=L*gd.UNIT_KM, verbose=0))
-    print(osc_prob_5nu_earth(energy, 
-        s14=s14, s15=s15, s24=s24, s25=s25, s34=s34, s35=s35, d14=d14, d15=d15, d24=d24, d35=d35, 
-        D41=D41, D51=D51, costhz=-1, L=L*gd.UNIT_KM, verbose=0))
+    # costhz = -1.0
+    # L = earth.distance_traveled_inside_earth(costhz)
+    # print(L)
+    # print(osc_prob_2nu_vacuum(energy, L*gd.UNIT_KM, sth, Dm2, verbose=0))
+    # print(osc_prob_2nu_earth(energy, sth, Dm2, 
+    #     costhz=costhz, L=L*gd.UNIT_KM, verbose=0, rtol=1.e-3, atol=1.e-3, n_jobs=1))
+    # print(osc_prob_2nu_earth_nsi(energy, sth, Dm2, eps_aa=0, eps_ab=0, 
+    #     costhz=costhz, L=L*gd.UNIT_KM, verbose=0))
+    # print(osc_prob_2nu_earth_nsi(energy, sth, Dm2, eps_aa=eps_aa, eps_ab=eps_ab, 
+    #     costhz=-1, L=L*gd.UNIT_KM, rtol=1.e-3, atol=1.e-3, verbose=0))
     ###
     loc_fin = 'fermilab'
     for loc_ini in ['SNOLAB', 'Homestake', 'CERN', "South Pole"]:
         print(loc_ini)
-        print(osc_prob_4nu_earth(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
-             s14=s14, s24=s24, s34=s34, d14=d14, d24=d24, D41=D41,
+        print(osc_prob_2nu_earth(energy, sth, Dm2, nu_i=gd.NUE, nu_f=gd.NUMU, 
             loc_ini=loc_ini, loc_fin=loc_fin, verbose=0))
-        print(osc_prob_5nu_earth(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
-            s14=s14, s15=s15, s24=s24, s25=s25, s34=s34, s35=s35, d14=d14, d15=d15, d24=d24,
-            d35=d35, D41=D41, D51=D51,
-            loc_ini=loc_ini, loc_fin=loc_fin, verbose=0))
+        print(osc_prob_2nu_earth_nsi(energy, sth, Dm2, nu_i=gd.NUE, nu_f=gd.NUMU, 
+            eps_aa=eps_aa, eps_ab=eps_ab, loc_ini=loc_ini, loc_fin=loc_fin, verbose=0))
+        print()
