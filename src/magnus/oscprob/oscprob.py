@@ -278,7 +278,7 @@ from joblib import Parallel, delayed
 from typing import Optional, Callable, Union, Tuple, List, Dict
 from io import TextIOWrapper
 from inspect import signature
-# from numba import jit
+# import numba as nb
 
 # import numpy.typing
 
@@ -9727,70 +9727,82 @@ if __name__ == "__main__":
     print()
     ###
     loc_fin = 'fermilab'
-    for loc_ini in ['SNOLAB', 'Homestake', 'CERN', "South Pole"]:
-        print(loc_ini)
-        print("4nu, std: " + str(osc_prob_4nu_earth(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
-            s14=s14, s24=s24, s34=s34, d14=d14, d24=d24, D41=D41,
-            loc_ini=loc_ini, loc_fin=loc_fin, verbose=0, n_jobs=12, max_magnus_exp_order=3)))
-        print("4nu, nsi: " + str(osc_prob_4nu_earth_nsi(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
-            s14=s14, s24=s24, s34=s34, d14=d14, d24=d24, D41=D41,
-            eps_ee=eps_ee, eps_em=eps_em, eps_et=eps_et, eps_es=eps_es, eps_mm=eps_mm,
-            eps_mt=eps_mt, eps_ms=eps_ms, eps_tt=eps_tt, eps_ts=eps_ts, eps_ss=eps_ss,
-            loc_ini=loc_ini, loc_fin=loc_fin, verbose=0, max_magnus_exp_order=3, n_jobs=12)))
-        print()
+    import time
+    for integration_method in ['trapezoid', 'simpson']:
+        print(integration_method)
+        start = time.time()
+        for loc_ini in ['CERN']: # ['SNOLAB', 'Homestake', 'CERN', "South Pole"]:
+            print(loc_ini)
+            for i in range(30):
+                osc_prob_4nu_earth(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
+                    s14=s14, s24=s24, s34=s34, d14=d14, d24=d24, D41=D41,
+                    loc_ini=loc_ini, loc_fin=loc_fin, verbose=0, n_jobs=12, max_magnus_exp_order=3,
+                    integration_method=integration_method)
+                # print("4nu, std: " + str(osc_prob_4nu_earth(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
+                #     s14=s14, s24=s24, s34=s34, d14=d14, d24=d24, D41=D41,
+                #     loc_ini=loc_ini, loc_fin=loc_fin, verbose=0, n_jobs=12, max_magnus_exp_order=3,
+                #     integration_method=integration_method)))
+            # print("4nu, nsi: " + str(osc_prob_4nu_earth_nsi(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
+            #     s14=s14, s24=s24, s34=s34, d14=d14, d24=d24, D41=D41,
+            #     eps_ee=eps_ee, eps_em=eps_em, eps_et=eps_et, eps_es=eps_es, eps_mm=eps_mm,
+            #     eps_mt=eps_mt, eps_ms=eps_ms, eps_tt=eps_tt, eps_ts=eps_ts, eps_ss=eps_ss,
+            #     loc_ini=loc_ini, loc_fin=loc_fin, verbose=0, max_magnus_exp_order=3, n_jobs=12,
+            #     integration_method=integration_method)))
+            print()
+        print((time.time()-start)/30)
 
 
-    # Five-neutrino oscillations in Earth, NSI
-    np.set_printoptions(precision=3)
-    energy = 10.*gd.UNIT_MEV # [eV]
-    s14, s15, s24, s25, s34, s35 = 0.01, 0.0, 0.0, 0.02, 0.03, 0.0
-    d14, d15, d24, d35 = np.radians([10.0, 20.0, 30.0, 40.0])
-    D41, D51 = 0.01, 0.02 # [eV^2]
-    eps_ee, eps_em, eps_et, eps_es1, eps_es2, eps_mm, eps_mt, eps_ms1, eps_ms2, eps_tt, eps_ts1, \
-        eps_ts2, eps_s1s1, eps_s1s2, eps_s2s2 \
-        = 0.0, 0.02, 0.0, 0.01, 0.0, 0.0, 0.0, 0.02, 0.02, 0.0, 0.01, 0.01, 0.02, 0.0, 0.01
-    print("5nu")
-    ###
-    costhz = -0.20
-    L = earth.distance_traveled_inside_earth(costhz)
-    print(L)
-    print("5nu, std: " + str(osc_prob_5nu_earth(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
-        s14=s14, s15=s15, s24=s24, s25=s25, s34=s34, s35=s35, 
-        d14=d14, d15=d15, d24=d24, d35=d35, D41=D41, D51=D51,
-        costhz=costhz, L=L*gd.UNIT_KM, verbose=0, n_jobs=12, magnus_exp_order=3)))
-    print("5nu, nsi: " + str(osc_prob_5nu_earth_nsi(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
-        s14=s14, s24=s24, s34=s34, d14=d14, d24=d24, D41=D41,
-        eps_ee=eps_ee, eps_em=eps_em, eps_et=eps_et, eps_es1=eps_es1, eps_es2=eps_es2, 
-        eps_mm=eps_mm, eps_mt=eps_mt, eps_ms1=eps_ms1, eps_ms2=eps_ms2, eps_tt=eps_tt, 
-        eps_ts1=eps_ts1, eps_ts2=eps_ts2, eps_s1s1=eps_s1s1, eps_s1s2=eps_s1s2, eps_s2s2=eps_s2s2,
-        costhz=costhz, L=L*gd.UNIT_KM, verbose=0, n_jobs=12, magnus_exp_order=3)))
-    # print()
+    # # Five-neutrino oscillations in Earth, NSI
+    # np.set_printoptions(precision=3)
+    # energy = 10.*gd.UNIT_MEV # [eV]
+    # s14, s15, s24, s25, s34, s35 = 0.01, 0.0, 0.0, 0.02, 0.03, 0.0
+    # d14, d15, d24, d35 = np.radians([10.0, 20.0, 30.0, 40.0])
+    # D41, D51 = 0.01, 0.02 # [eV^2]
+    # eps_ee, eps_em, eps_et, eps_es1, eps_es2, eps_mm, eps_mt, eps_ms1, eps_ms2, eps_tt, eps_ts1, \
+    #     eps_ts2, eps_s1s1, eps_s1s2, eps_s2s2 \
+    #     = 0.0, 0.02, 0.0, 0.01, 0.0, 0.0, 0.0, 0.02, 0.02, 0.0, 0.01, 0.01, 0.02, 0.0, 0.01
+    # print("5nu")
+    # ###
+    # costhz = -0.20
+    # L = earth.distance_traveled_inside_earth(costhz)
+    # print(L)
     # print("5nu, std: " + str(osc_prob_5nu_earth(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
     #     s14=s14, s15=s15, s24=s24, s25=s25, s34=s34, s35=s35, 
     #     d14=d14, d15=d15, d24=d24, d35=d35, D41=D41, D51=D51,
-    #     costhz=costhz, L=L*gd.UNIT_KM, verbose=0, n_jobs=10, magnus_exp_order=4)))
+    #     costhz=costhz, L=L*gd.UNIT_KM, verbose=0, n_jobs=12, magnus_exp_order=3)))
     # print("5nu, nsi: " + str(osc_prob_5nu_earth_nsi(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
-    #     s14=s14, s15=s15, s24=s24, s25=s25, s34=s34, s35=s35, 
-    #     d14=d14, d15=d15, d24=d24, d35=d35, D41=D41, D51=D51,
+    #     s14=s14, s24=s24, s34=s34, d14=d14, d24=d24, D41=D41,
     #     eps_ee=eps_ee, eps_em=eps_em, eps_et=eps_et, eps_es1=eps_es1, eps_es2=eps_es2, 
     #     eps_mm=eps_mm, eps_mt=eps_mt, eps_ms1=eps_ms1, eps_ms2=eps_ms2, eps_tt=eps_tt, 
     #     eps_ts1=eps_ts1, eps_ts2=eps_ts2, eps_s1s1=eps_s1s1, eps_s1s2=eps_s1s2, eps_s2s2=eps_s2s2,
-    #     costhz=costhz, L=L*gd.UNIT_KM, verbose=0, n_jobs=10, magnus_exp_order=4)))
-    print()
-    ###
-    loc_fin = 'fermilab'
-    for loc_ini in ['SNOLAB', 'Homestake', 'CERN', "South Pole"]:
-        print(loc_ini)
-        print("5nu, std: " + str(osc_prob_5nu_earth(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
-            s14=s14, s15=s15, s24=s24, s25=s25, s34=s34, s35=s35, 
-            d14=d14, d15=d15, d24=d24, d35=d35, D41=D41, D51=D51,
-            loc_ini=loc_ini, loc_fin=loc_fin, verbose=0, n_jobs=12, max_magnus_exp_order=3)))
-        print("5nu, nsi: " + str(osc_prob_5nu_earth_nsi(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
-            s14=s14, s15=s15, s24=s24, s25=s25, s34=s34, s35=s35, 
-            d14=d14, d15=d15, d24=d24, d35=d35, D41=D41, D51=D51,
-            eps_ee=eps_ee, eps_em=eps_em, eps_et=eps_et, eps_es1=eps_es1, eps_es2=eps_es2, 
-            eps_mm=eps_mm, eps_mt=eps_mt, eps_ms1=eps_ms1, eps_ms2=eps_ms2, eps_tt=eps_tt, 
-            eps_ts1=eps_ts1, eps_ts2=eps_ts2, eps_s1s1=eps_s1s1, eps_s1s2=eps_s1s2, 
-            eps_s2s2=eps_s2s2,
-            loc_ini=loc_ini, loc_fin=loc_fin, verbose=0, max_magnus_exp_order=3, n_jobs=12)))
-        print()
+    #     costhz=costhz, L=L*gd.UNIT_KM, verbose=0, n_jobs=12, magnus_exp_order=3)))
+    # # print()
+    # # print("5nu, std: " + str(osc_prob_5nu_earth(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
+    # #     s14=s14, s15=s15, s24=s24, s25=s25, s34=s34, s35=s35, 
+    # #     d14=d14, d15=d15, d24=d24, d35=d35, D41=D41, D51=D51,
+    # #     costhz=costhz, L=L*gd.UNIT_KM, verbose=0, n_jobs=10, magnus_exp_order=4)))
+    # # print("5nu, nsi: " + str(osc_prob_5nu_earth_nsi(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
+    # #     s14=s14, s15=s15, s24=s24, s25=s25, s34=s34, s35=s35, 
+    # #     d14=d14, d15=d15, d24=d24, d35=d35, D41=D41, D51=D51,
+    # #     eps_ee=eps_ee, eps_em=eps_em, eps_et=eps_et, eps_es1=eps_es1, eps_es2=eps_es2, 
+    # #     eps_mm=eps_mm, eps_mt=eps_mt, eps_ms1=eps_ms1, eps_ms2=eps_ms2, eps_tt=eps_tt, 
+    # #     eps_ts1=eps_ts1, eps_ts2=eps_ts2, eps_s1s1=eps_s1s1, eps_s1s2=eps_s1s2, eps_s2s2=eps_s2s2,
+    # #     costhz=costhz, L=L*gd.UNIT_KM, verbose=0, n_jobs=10, magnus_exp_order=4)))
+    # print()
+    # ###
+    # loc_fin = 'fermilab'
+    # for loc_ini in ['SNOLAB', 'Homestake', 'CERN', "South Pole"]:
+    #     print(loc_ini)
+    #     print("5nu, std: " + str(osc_prob_5nu_earth(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
+    #         s14=s14, s15=s15, s24=s24, s25=s25, s34=s34, s35=s35, 
+    #         d14=d14, d15=d15, d24=d24, d35=d35, D41=D41, D51=D51,
+    #         loc_ini=loc_ini, loc_fin=loc_fin, verbose=0, n_jobs=12, max_magnus_exp_order=3)))
+    #     print("5nu, nsi: " + str(osc_prob_5nu_earth_nsi(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
+    #         s14=s14, s15=s15, s24=s24, s25=s25, s34=s34, s35=s35, 
+    #         d14=d14, d15=d15, d24=d24, d35=d35, D41=D41, D51=D51,
+    #         eps_ee=eps_ee, eps_em=eps_em, eps_et=eps_et, eps_es1=eps_es1, eps_es2=eps_es2, 
+    #         eps_mm=eps_mm, eps_mt=eps_mt, eps_ms1=eps_ms1, eps_ms2=eps_ms2, eps_tt=eps_tt, 
+    #         eps_ts1=eps_ts1, eps_ts2=eps_ts2, eps_s1s1=eps_s1s1, eps_s1s2=eps_s1s2, 
+    #         eps_s2s2=eps_s2s2,
+    #         loc_ini=loc_ini, loc_fin=loc_fin, verbose=0, max_magnus_exp_order=3, n_jobs=12)))
+    #     print()
