@@ -9731,12 +9731,12 @@ if __name__ == "__main__":
     for integration_method in ['trapezoid', 'simpson']:
         print(integration_method)
         start = time.time()
-        for loc_ini in ['CERN']: # ['SNOLAB', 'Homestake', 'CERN', "South Pole"]:
+        for loc_ini in ['Homestake']: # ['SNOLAB', 'Homestake', 'CERN', "South Pole"]:
             print(loc_ini)
-            for i in range(30):
+            for i in range(1):
                 osc_prob_4nu_earth(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
                     s14=s14, s24=s24, s34=s34, d14=d14, d24=d24, D41=D41,
-                    loc_ini=loc_ini, loc_fin=loc_fin, verbose=0, n_jobs=12, max_magnus_exp_order=3,
+                    loc_ini=loc_ini, loc_fin=loc_fin, verbose=0, n_jobs=1, max_magnus_exp_order=3,
                     integration_method=integration_method)
                 # print("4nu, std: " + str(osc_prob_4nu_earth(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
                 #     s14=s14, s24=s24, s34=s34, d14=d14, d24=d24, D41=D41,
