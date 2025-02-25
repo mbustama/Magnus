@@ -1201,6 +1201,7 @@ def compute_evolution_operator(
             lambda t: -1j * H_func(t),
             t0=t_slab[0],
             t1=t_slab[1],
+            # t_slabs=[t_slab],
             order=magnus_exp_order,
             n_tpts=n_tpts_per_slab,
             **kwargs,
@@ -1240,22 +1241,36 @@ def compute_evolution_operator_multiple_slabs(
     # Get the shape from a sample Hamiltonian evaluation. This is generally faster
     # than calling H_func repeatedly.
     sample_t = t_slabs[0, 0] if n_slabs > 0 else 0 # Handle empty t_slabs case
-    sample_H = H_func(sample_t)
-    matrix_dim = sample_H.shape[0]
-    U_chain = np.empty((n_slabs, matrix_dim, matrix_dim), dtype=complex) 
+    matrix_dim = H_func(sample_t).shape[0]
+    # U_chain = np.empty((n_slabs, matrix_dim, matrix_dim), dtype=complex) 
 
-    for i, t_slab in enumerate(t_slabs):
-        if t_slab[1] > t_slab[0]:
-            U_chain[i] = magnus.magnus_expansion(
-                lambda t: -1j * H_func(t),
-                t0=t_slab[0],
-                t1=t_slab[1],
-                order=magnus_exp_order,
-                n_tpts=n_tpts_per_slab,
-                **kwargs,
-            )
-        else:  # t1 == t0
-            U_chain[i] = np.eye(matrix_dim, dtype=complex)  # Use pre-allocated identity
+    # def H_func_vec(t):
+    #     return np.array([-1j * H_func(tt) for tt in t])
+
+    # for i, t_slab in enumerate(t_slabs):
+    #     if t_slab[1] > t_slab[0]:
+    #         U_chain[i] = magnus.magnus_expansion(
+    #             lambda t: -1j * H_func(t),
+    #             # H_func_vec,
+    #             t0=t_slab[0],
+    #             t1=t_slab[1],
+    #             order=magnus_exp_order,
+    #             n_tpts=n_tpts_per_slab,
+    #             **kwargs,
+    #         )
+    #     else:  # t1 == t0
+    #         U_chain[i] = np.eye(matrix_dim, dtype=complex)  # Use pre-allocated identity
+    
+    def hh(t):
+        return -1j * H_func(t)
+
+    # TODO: Make magnus_expansion vectorized, so we can pass t_slabs directlsy
+    U_chain = [magnus.magnus_expansion(hh, t0=t_slab[0], t1=t_slab[1], order=magnus_exp_order, 
+        n_tpts=n_tpts_per_slab, **kwargs) if t_slab[1] > t_slab[0] else np.eye(matrix_dim,
+        dtype=complex) for t_slab in t_slabs]
+    # U_chain = [magnus.magnus_expansion(hh, t_slabs=t_slabs, order=magnus_exp_order, 
+    #     n_tpts=n_tpts_per_slab, **kwargs) if t_slab[1] > t_slab[0] else np.eye(matrix_dim,
+    #     dtype=complex) for t_slab in t_slabs]
 
     return U_chain
 
@@ -9728,7 +9743,7 @@ if __name__ == "__main__":
     print(L)
     print("4nu, std: " + str(osc_prob_4nu_earth(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
         s14=s14, s24=s24, s34=s34, d14=d14, d24=d24, D41=D41,
-        costhz=costhz, L=L*gd.UNIT_KM, verbose=0, n_jobs=12, magnus_exp_order=3)))
+        costhz=costhz, L=L*gd.UNIT_KM, verbose=0, n_jobs=1, magnus_exp_order=3)))
     # print("4nu, nsi: " + str(osc_prob_4nu_earth_nsi(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
     #     s14=s14, s24=s24, s34=s34, d14=d14, d24=d24, D41=D41,
     #     eps_ee=eps_ee, eps_em=eps_em, eps_et=eps_et, eps_es=eps_es, eps_mm=eps_mm, eps_mt=eps_mt, 
@@ -9747,12 +9762,12 @@ if __name__ == "__main__":
     ###
     loc_fin = 'fermilab'
     import time
-    for integration_method in ['trapezoid']: #['trapezoid', 'simpson']:
+    for integration_method in ['trapezoid', 'simpson']:
         print(integration_method)
-        start = time.time()
-        for loc_ini in ['CERN']: # ['SNOLAB', 'Homestake', 'CERN', "South Pole"]:
+        for loc_ini in ['SNOLAB', 'Homestake', 'CERN']:#, "South Pole"]:
             print(loc_ini)
-            for i in range(10):
+            start = time.time()
+            for i in range(5):
                 osc_prob_4nu_earth(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
                     s14=s14, s24=s24, s34=s34, d14=d14, d24=d24, D41=D41,
                     loc_ini=loc_ini, loc_fin=loc_fin, verbose=0, n_jobs=1, max_magnus_exp_order=3,
@@ -9767,8 +9782,9 @@ if __name__ == "__main__":
             #     eps_mt=eps_mt, eps_ms=eps_ms, eps_tt=eps_tt, eps_ts=eps_ts, eps_ss=eps_ss,
             #     loc_ini=loc_ini, loc_fin=loc_fin, verbose=0, max_magnus_exp_order=3, n_jobs=12,
             #     integration_method=integration_method)))
+            print((time.time()-start)/5)
             print()
-        print((time.time()-start)/10)
+        
 
 
     # # Five-neutrino oscillations in Earth, NSI
