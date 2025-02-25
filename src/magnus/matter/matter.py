@@ -134,7 +134,7 @@ def num_density_e_func(l: float, density_matter_func: Callable,
     # If the matter density is given in g cm^{-3} (density_matter_in_g_per_cm3 == True), convert it
     # natural units of eV^4.  Otherwise, it is assumed that the matter density is in natural units
     # already.
-
+    
     return density_matter_func(l) / avg_mass_nucleon * electron_fraction * \
         (gd.UNIT_G_PER_CM3 if density_matter_is_in_g_per_cm3 else 1.0) # num_density_e [eV^3]
 
@@ -201,7 +201,7 @@ def vcc_func_from_rho_func(
             # Return VCC as a constant, since the density is a constant. Its value when evaluated at
             # L0 is the same at any other l.
             return s*VCC_func(l=L0, num_density_e_func=num_density_e)
-    else: # rho_func is directly the electrn number density [eV^3]
+    else: # rho_func is directly the electron number density [eV^3]
         if isinstance(rho_func, Callable):
             return lambda l: s*VCC_func(l, num_density_e_func=rho_func) 
         else:
