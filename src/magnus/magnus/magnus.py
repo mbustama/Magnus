@@ -44,8 +44,59 @@ f2 = -1.0/720.0
 valid_integration_methods = ['trapezoid', 'simpson']
 
 
+@nb.njit(fastmath=True, cache=True)
+def simpson_rule(y, x):
+    n = len(x)
+    if n < 2:
+        return np.zeros_like(y[0])
+    elif n == 2:
+        return (x[1] - x[0]) * (y[0] + y[1]) / 2.0  # Trapezoidal rule for two points
+    
+    integral = np.zeros_like(y[0])
+    for i in range(2, n, 2):
+        h = (x[i] - x[i - 2]) / 2.0
+        integral += (h / 3.0) * (y[i - 2] + 4.0 * y[i - 1] + y[i])
+    
+    if (n - 1) % 2:  # If odd number of intervals, apply trapezoidal rule to the last segment
+        integral += (x[-1] - x[-2]) * (y[-1] + y[-2]) / 2.0
+    
+    return integral
+
+@nb.njit(parallel=True, fastmath=True, cache=True)
+def integral_cumulative_simpson_numba(matrices, x):
+    n = len(x)
+    result = np.zeros((n,) + matrices.shape[1:], dtype=matrices.dtype)
+    for i in nb.prange(n):
+        result[i] = simpson_rule(matrices[:i+1], x[:i+1])
+    return result
+
+@nb.njit(fastmath=True, cache=True)
+def trapezoidal_rule(y, x):
+    n = len(x)
+    if n < 2:
+        return np.zeros_like(y[0])
+    integral = np.zeros_like(y[0])
+    for i in range(1, n):
+        integral += (x[i] - x[i - 1]) * (y[i] + y[i - 1]) / 2.0
+    return integral
+
+@nb.njit(parallel=True, fastmath=True, cache=True)
+def integral_cumulative_trapezoidal_numba(matrices, x):
+    n = len(x)
+    result = np.empty((n,) + matrices.shape[1:], dtype=matrices.dtype)
+    
+    for i in nb.prange(n):
+        result[i] = trapezoidal_rule(matrices[:i+1], x[:i+1])
+    
+    return result
+
+
+def commutator(X: np.ndarray, Y: np.ndarray) -> np.ndarray:
+    return X @ Y - Y @ X
+
+
 # Function to compute the matrix exponential using Magnus expansion
-# @jit(nopython=True)
+# @nb.jit(parallel=True, fastmath=True, cache=True)
 def magnus_expansion(A: np.ndarray, t0: float, t1: float, n_tpts: Optional[int]=50, 
     order:Optional[int]=2, integration_method:Optional[str]='trapezoid',
     return_magnus_terms: Optional[bool]=False, 
@@ -72,9 +123,6 @@ def magnus_expansion(A: np.ndarray, t0: float, t1: float, n_tpts: Optional[int]=
         times = np.linspace(t0, t1, n_tpts)
     # delta = (t1 - t0) / (n_tpts - 1)
 
-    def commutator(X: np.ndarray, Y: np.ndarray) -> np.ndarray:
-        return X @ Y - Y @ X
-
     # @nb.njit(parallel=True, fastmath=True, nogil=True)
     def integral_cumulative_simpson(matrices: np.ndarray, x: np.ndarray, **kwargs) -> np.ndarray:
         # We need to write our custom routine to compute cumulative matrix integrals because the
@@ -85,9 +133,13 @@ def magnus_expansion(A: np.ndarray, t0: float, t1: float, n_tpts: Optional[int]=
             for i in range(len(times))])
 
     if integration_method == 'trapezoid':
+        # Using the SciPy integrate.cumulative_trapezoid is faster than using the Numba-assisted
+        # function integral_cumulative_trapezoidal_numba
         integral_cumulative = sp.integrate.cumulative_trapezoid 
+        # integral_cumulative = integral_cumulative_trapezoidal_numba
     elif integration_method == 'simpson':
         integral_cumulative = integral_cumulative_simpson
+        # integral_cumulative = integral_cumulative_simpson_numba
 
     magnus_terms = []
 
@@ -98,72 +150,81 @@ def magnus_expansion(A: np.ndarray, t0: float, t1: float, n_tpts: Optional[int]=
     magnus_terms = np.empty((order, matrix_dim, matrix_dim), dtype=complex) 
 
     # Precompute the Omega_1(t) terms, integrating from t0 to t = t0, ..., t1
+    # o1t = integral_cumulative(At, times)#x=times, axis=0, initial=0) # Form for Numba to work
     o1t = integral_cumulative(At, x=times, axis=0, initial=0)
     magnus_terms[0] = o1t[-1] # Integral from t0 to t1
 
     # Precompute the Omega_2(t) terms, integrating from t0 to t = t0, ..., t1
     if order >= 2:
-        o2t_integrand = -0.5 * np.stack([commutator(o1t[i], At[i]) for i in range(n_tpts)], axis=0)
+        # o2t_integrand = -0.5 * np.stack([commutator(o1t[i], At[i]) for i in range(n_tpts)], axis=0)
+        o2t_integrand = -0.5 * commutator(o1t, At)
         o2t = integral_cumulative(o2t_integrand, x=times, axis=0, initial=0)
         magnus_terms[1] = o2t[-1]
 
     # Precompute the Omega_3(t) terms, integrating from t0 to t = t0, ..., t1
     if order >= 3:
-        t1 = -0.5 * np.stack([commutator(o2t[i], At[i]) for i in range(n_tpts)], axis=0)
-        t2 = f1 * np.stack(
-            [commutator(o1t[i], commutator(o1t[i], At[i])) for i in range(n_tpts)], axis=0
-        )
-        # o3t_integrand = t1 + t2
-        # o3t = integral_cumulative(o3t_integrand, x=times, axis=0, initial=0)
+        # t1 = -0.5 * np.stack([commutator(o2t[i], At[i]) for i in range(n_tpts)], axis=0)
+        # t2 = f1 * np.stack(
+        #     [commutator(o1t[i], commutator(o1t[i], At[i])) for i in range(n_tpts)], axis=0
+        # )
+        t1 = -0.5 * commutator(o2t, At)
+        t2 = f1 * commutator(o1t, commutator(o1t, At))
         o3t = integral_cumulative(t1+t2, x=times, axis=0, initial=0)
         magnus_terms[2] = o3t[-1]
 
     # Precompute the Omega_4(t) terms, integrating from t0 to t = t0, ..., t1
     if order >= 4:
-        t1 = -0.5 * np.stack([commutator(o3t[i], At[i]) for i in range(n_tpts)], axis=0)
-        t2 = f1 * np.stack(
-            [commutator(o1t[i], commutator(o2t[i], At[i])) \
-                + commutator(o2t[i], commutator(o1t[i], At[i])) for i in range(n_tpts)], axis=0
-        )
-        # o4t_integrand = t1 + t2
-        # o4t = integral_cumulative(o4t_integrand, x=times, axis=0, initial=0)
+        # t1 = -0.5 * np.stack([commutator(o3t[i], At[i]) for i in range(n_tpts)], axis=0)
+        # t2 = f1 * np.stack(
+        #     [commutator(o1t[i], commutator(o2t[i], At[i])) \
+        #         + commutator(o2t[i], commutator(o1t[i], At[i])) for i in range(n_tpts)], axis=0
+        # )
+        t1 = -0.5 * commutator(o3t, At) 
+        t2 = f1 * commutator(o1t, commutator(o2t, At)) + commutator(o2t, commutator(o1t, At)) 
         o4t = integral_cumulative(t1+t2, x=times, axis=0, initial=0)
         magnus_terms[3] = o4t[-1]
 
     # Precompute the Omega_5(t) terms, integrating from t0 to t = t0, ..., t1
     if order >= 5:
-        t1 = -0.5 * np.stack([commutator(o4t[i], At[i]) for i in range(n_tpts)], axis=0)
-        t2 = f1 * np.stack(
-            [commutator(o1t[i], commutator(o3t[i], At[i])) \
-            + commutator(o2t[i], commutator(o2t[i], At[i])) \
-            + commutator(o3t[i], commutator(o1t[i], At[i])) for i in range(n_tpts)], axis=0
-        )
-        t3 = f2 * np.stack(
-            [commutator(o1t[i], commutator(o1t[i], commutator(o1t[i], 
-            commutator(o1t[i], At[i])))) for i in range(n_tpts)], axis=0
-        )
-        # o5t_integrand = t1 + t2 + t3
-        # o5t = integral_cumulative(o5t_integrand, x=times, axis=0, initial=0)
+        # t1 = -0.5 * np.stack([commutator(o4t[i], At[i]) for i in range(n_tpts)], axis=0)
+        # t2 = f1 * np.stack(
+        #     [commutator(o1t[i], commutator(o3t[i], At[i])) \
+        #     + commutator(o2t[i], commutator(o2t[i], At[i])) \
+        #     + commutator(o3t[i], commutator(o1t[i], At[i])) for i in range(n_tpts)], axis=0
+        # )
+        # t3 = f2 * np.stack(
+        #     [commutator(o1t[i], commutator(o1t[i], commutator(o1t[i], 
+        #     commutator(o1t[i], At[i])))) for i in range(n_tpts)], axis=0
+        # )
+        t1 = -0.5 * commutator(o4t, At)
+        t2 = f1 * commutator(o1t, commutator(o3t, At)) + commutator(o2t, commutator(o2t, At)) \
+            + commutator(o3t, commutator(o1t, At))
+        t3 = f2 * commutator(o1t, commutator(o1t, commutator(o1t, commutator(o1t, At)))) 
         o5t = integral_cumulative(t1+t2+t3, x=times, axis=0, initial=0)
         magnus_terms[4] = o5t[-1]
 
     # Precompute the Omega_6(t) terms, integrating from t0 to t = t0, ..., t1
     if order >= 6:
-        t1 = -0.5 * np.stack([commutator(o5t[i], At[i]) for i in range(n_tpts)], axis=0)
-        t2 = f1 * np.stack(
-            [commutator(o1t[i], commutator(o4t[i], At[i]))  \
-            + commutator(o2t[i], commutator(o3t[i], At[i])) \
-            + commutator(o3t[i], commutator(o2t[i], At[i])) \
-            + commutator(o4t[i], commutator(o1t[i], At[i])) for i in range(n_tpts)], axis=0
-        )
-        t3 = f2 * np.stack(
-            [commutator(o1t[i], commutator(o1t[i], commutator(o1t[i], commutator(o2t[i], At[i])))) \
-            + commutator(o1t[i], commutator(o1t[i], commutator(o2t[i], commutator(o1t[i], At[i]))))\
-            + commutator(o1t[i], commutator(o2t[i], commutator(o1t[i], commutator(o1t[i], At[i]))))\
-            + commutator(o2t[i], commutator(o1t[i], commutator(o1t[i], commutator(o1t[i], At[i]))))\
-            for i in range(n_tpts)], axis=0)
-        # o6t_integrand = t1 + t2 + t3
-        # o6t = integral_cumulative(o6t_integrand, x=times, axis=0, initial=0)
+        # t1 = -0.5 * np.stack([commutator(o5t[i], At[i]) for i in range(n_tpts)], axis=0)
+        # t2 = f1 * np.stack(
+        #     [commutator(o1t[i], commutator(o4t[i], At[i]))  \
+        #     + commutator(o2t[i], commutator(o3t[i], At[i])) \
+        #     + commutator(o3t[i], commutator(o2t[i], At[i])) \
+        #     + commutator(o4t[i], commutator(o1t[i], At[i])) for i in range(n_tpts)], axis=0
+        # )
+        # t3 = f2 * np.stack(
+        #     [commutator(o1t[i], commutator(o1t[i], commutator(o1t[i], commutator(o2t[i], At[i])))) \
+        #     + commutator(o1t[i], commutator(o1t[i], commutator(o2t[i], commutator(o1t[i], At[i]))))\
+        #     + commutator(o1t[i], commutator(o2t[i], commutator(o1t[i], commutator(o1t[i], At[i]))))\
+        #     + commutator(o2t[i], commutator(o1t[i], commutator(o1t[i], commutator(o1t[i], At[i]))))\
+        #     for i in range(n_tpts)], axis=0)
+        t1 = -0.5 * commutator(o5t, At)
+        t2 = f1 * commutator(o1t, commutator(o4t, At)) + commutator(o2t, commutator(o3t, At)) \
+            + commutator(o3t, commutator(o2t, At)) + commutator(o4t, commutator(o1t, At))
+        t3 = f2 * commutator(o1t, commutator(o1t, commutator(o1t, commutator(o2t, At)))) \
+            + commutator(o1t, commutator(o1t, commutator(o2t, commutator(o1t, At)))) \
+            + commutator(o1t, commutator(o2t, commutator(o1t, commutator(o1t, At)))) \
+            + commutator(o2t, commutator(o1t, commutator(o1t, commutator(o1t, At)))) 
         o6t = integral_cumulative(t1+t2+t3, x=times, axis=0, initial=0)
         magnus_terms = o6t[-1]
 
