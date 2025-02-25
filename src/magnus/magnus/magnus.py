@@ -8,6 +8,7 @@ from typing import Optional, Callable
 # from scipy.special import factorial
 # from numba import njit, prange
 # from joblib import Parallel, delayed
+import numba as nb
 
 
 # Bernoulli numbers
@@ -74,6 +75,7 @@ def magnus_expansion(A: np.ndarray, t0: float, t1: float, n_tpts: Optional[int]=
     def commutator(X: np.ndarray, Y: np.ndarray) -> np.ndarray:
         return X @ Y - Y @ X
 
+    # @nb.njit(parallel=True, fastmath=True, nogil=True)
     def integral_cumulative_simpson(matrices: np.ndarray, x: np.ndarray, **kwargs) -> np.ndarray:
         # We need to write our custom routine to compute cumulative matrix integrals because the
         # scipy routine `integrate.cumulative_simpson` does not handle complex numbers; it casts
