@@ -9693,6 +9693,25 @@ if __name__ == "__main__":
     # #         iterate_over_magnus_exp_order=True, n_jobs=10)))
     # #     print()
 
+    # a = np.array([[1., 2.], [3., 4.]])
+    # b = np.array([[5., 6.], [7., 8.]])
+    # c = np.array([[9., 10.], [11., 12.]])
+    # d = np.array([[13., 14.], [15., 16.]])
+    # e = np.array([[17., 18.], [19., 20.]])
+    # f = np.array([[21., 22.], [23., 24.]])
+    # X = np.array([a,b,c])
+    # Y = np.array([d,e,f])
+
+    # def commutator(X: np.ndarray, Y: np.ndarray) -> np.ndarray:
+    #     return X @ Y - Y @ X
+
+    # Z = commutator(X, Y)
+    # print(Z)
+
+    # Z = np.stack([commutator(X[i], Y[i]) for i in range(3)], axis=0)
+    # print(Z)
+
+    # quit()
 
     # Four-neutrino oscillations in Earth, NSI
     np.set_printoptions(precision=3)
@@ -9704,12 +9723,12 @@ if __name__ == "__main__":
         = 0.0, 0.01, 0.0, 0.0, 0.0, 0.0, 0.02, 0.0, 0.02, 0.03
     print("4nu")
     ###
-    # costhz = -0.20#-1.0
-    # L = earth.distance_traveled_inside_earth(costhz)
-    # print(L)
-    # print("4nu, std: " + str(osc_prob_4nu_earth(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
-    #     s14=s14, s24=s24, s34=s34, d14=d14, d24=d24, D41=D41,
-    #     costhz=costhz, L=L*gd.UNIT_KM, verbose=0, n_jobs=12, magnus_exp_order=3)))
+    costhz = -0.20#-1.0
+    L = earth.distance_traveled_inside_earth(costhz)
+    print(L)
+    print("4nu, std: " + str(osc_prob_4nu_earth(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
+        s14=s14, s24=s24, s34=s34, d14=d14, d24=d24, D41=D41,
+        costhz=costhz, L=L*gd.UNIT_KM, verbose=0, n_jobs=12, magnus_exp_order=3)))
     # print("4nu, nsi: " + str(osc_prob_4nu_earth_nsi(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
     #     s14=s14, s24=s24, s34=s34, d14=d14, d24=d24, D41=D41,
     #     eps_ee=eps_ee, eps_em=eps_em, eps_et=eps_et, eps_es=eps_es, eps_mm=eps_mm, eps_mt=eps_mt, 
@@ -9731,7 +9750,7 @@ if __name__ == "__main__":
     for integration_method in ['trapezoid']: #['trapezoid', 'simpson']:
         print(integration_method)
         start = time.time()
-        for loc_ini in ['Homestake']: # ['SNOLAB', 'Homestake', 'CERN', "South Pole"]:
+        for loc_ini in ['CERN']: # ['SNOLAB', 'Homestake', 'CERN', "South Pole"]:
             print(loc_ini)
             for i in range(10):
                 osc_prob_4nu_earth(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
