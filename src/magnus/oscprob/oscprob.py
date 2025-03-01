@@ -6230,7 +6230,8 @@ def osc_prob_3nu_earth_nsi(
 ) -> Union[float, np.ndarray]:
     r"""Compute and return the three-neutrino oscillation probability 
     inside the Earth, either between two locations on the surface of the
-    Earth, or between the surface and a point in the interior.
+    Earth, or between the surface and a point in the interior, including
+    non-standard interactions (NSI).
     
     For the matter density inside the Earth, it uses the Preliminary 
     Reference Earth Model.
@@ -6391,7 +6392,8 @@ def osc_prob_4nu_earth_nsi(
 ) -> Union[float, np.ndarray]:
     r"""Compute and return the four-neutrino oscillation probability 
     inside the Earth, either between two locations on the surface of the
-    Earth, or between the surface and a point in the interior.
+    Earth, or between the surface and a point in the interior, including
+    non-standard interactions (NSI).
     
     For the matter density inside the Earth, it uses the Preliminary 
     Reference Earth Model.
@@ -6565,7 +6567,8 @@ def osc_prob_5nu_earth_nsi(
 ) -> Union[float, np.ndarray]:
     r"""Compute and return the five-neutrino oscillation probability 
     inside the Earth, either between two locations on the surface of the
-    Earth, or between the surface and a point in the interior.
+    Earth, or between the surface and a point in the interior, including
+    non-standard interactions (NSI).
     
     For the matter density inside the Earth, it uses the Preliminary 
     Reference Earth Model.
@@ -8182,6 +8185,664 @@ def osc_prob_5nu_matter_liv_exp_density(
 
 
 #-----------------------------------------------------------------------
+# In matter, LIV, in the Earth
+#-----------------------------------------------------------------------
+
+def osc_prob_2nu_earth_liv(
+    energy: Union[int, float, list, np.ndarray], 
+    sth: Union[int, float], 
+    Dm2: Union[int, float], 
+    sxi: Optional[Union[int, float]]=0.0,
+    b1: Optional[Union[int, float]]=0.0,
+    b2: Optional[Union[int, float]]=0.0,
+    Lambda: Optional[Union[int, float]]=1.0,
+    n_liv: Optional[int]=0,
+    costhz: Optional[Union[int, float]]=None,
+    loc_ini: Optional[Union[Tuple[float, float], list, np.ndarray, str]]=None, 
+    loc_fin: Optional[Union[Tuple[float, float], list, np.ndarray, str]]=None, 
+    L: Optional[Union[float, list, np.ndarray]]=None,
+    nubar: Optional[bool]=False, 
+    nu_i: Optional[int]=None, 
+    nu_f: Optional[int]=None,
+    magnus_exp_order: Optional[int]=4, 
+    n_jobs: Optional[int]=1, 
+    integration_method: Optional[str]='trapezoid', 
+    rtol: Optional[Union[int, float]]=1.e-3, 
+    atol: Optional[Union[int, float]]=1.e-3, 
+    growth_factor_n_slabs: Optional[Union[int, float]]=1.5, 
+    growth_factor_n_tpts_per_slab: Optional[Union[int, float]]=1.5, 
+    max_num_loops: Optional[int]=50, 
+    min_n_slabs: Optional[int]=1, 
+    max_n_slabs: Optional[int]=2000, 
+    min_n_tpts_per_slab: Optional[int]=2, 
+    max_n_tpts_per_slab: Optional[int]=500, 
+    iterate_over_magnus_exp_order: Optional[bool]=False,
+    min_magnus_exp_order: Optional[int]=1,
+    max_magnus_exp_order: Optional[int]=gd.MAGNUS_EXP_ORDER_MAX,
+    validate_input: Optional[bool]=True, 
+    save_log: Optional[bool]=False, 
+    filename_log: Optional[str]='./out.log',
+    file_log: Optional[TextIOWrapper]=None, 
+    close_file_log_upon_exit: Optional[bool]=True,
+    new_recursion_limit: Optional[int]=5000,
+    verbose: Optional[int]=0,
+    **kwargs
+) -> Union[float, np.ndarray]:
+    r"""Compute and return the two-neutrino oscillation probability 
+    inside the Earth, either between two locations on the surface of the
+    Earth, or between the surface and a point in the interior, under
+    (one form of) Lorentz-invariance violation.
+    
+    For the matter density inside the Earth, it uses the Preliminary 
+    Reference Earth Model.
+
+    If the initial location (``loc_ini``) and final location 
+    (``loc_fin``) on the surface of the Earth are given (i.e., if they
+    are not ``None``), then the neutrino travels the chord joining them 
+    through the Earth, overriding any given value of costhz given, and 
+    using the chord length as the baseline. 
+
+    The initial and final location can be given as a three-entry tuple
+    of coordinates in the (degree, minute, second) format.  Alternatively,
+    any of the two locations can be given as a predefined named 
+    location.  The predefined locations are in the earth.loc_coords_dms
+    dictionary:
+
+    >>> import magnus.earth as earth
+    >>> list(earth.loc_coords_dms.keys())
+    >>> print(earth.loc_coords_dms['fermilab'])
+
+    See the example below.
+
+    [If only a single location is given (i.e., if either ``loc_ini`` or
+    ``loc_fin`` are ``None``), the function throws an exception.]
+
+    If neither of the two locations is given, the function uses the 
+    given value of ``costhz`` as direction and of ``L`` as baseline.
+    (And ``L`` can be an array of baselines.)
+
+    Examples
+    --------
+    """
+    # If the location is given as a string, check if it is one of the predefined named locations in
+    # Magnus.  The method sys._getframe().f_code.co_name returns the function name.  If the name
+    # is one of the predefined ones, coordinates_of_named_location returns the coordinates as 
+    # np.array([lat, lon]).  The latitude and longitude are each returned in day-minute-second 
+    # format, (dd, mm, ss)
+
+    source_func_name = sys._getframe().f_code.co_name
+    if isinstance(loc_ini, str):
+        loc_ini = earth.coordinates_of_named_location(source_func_name, loc_name=loc_ini)
+    if isinstance(loc_fin, str):
+        loc_fin = earth.coordinates_of_named_location(source_func_name, loc_name=loc_fin)
+
+    # If the initial and final locations are given (i.e., if they are not None), then the neutrino 
+    # travels the chord joining them through the Earth, overriding any given value of costhz given,
+    # and using the chord length as the baseline. If only a single location is given, throw an 
+    # exception.  If neither of the two locations are given, use the given value of costhz and of 
+    # baseline given (could be an array of baselines).
+    costhz, L = validate_input_osc_prob_earth(source_func_name, loc_ini, loc_fin, costhz, L,
+        verbose=verbose)
+    
+    # If any of the flavor indices is > 1, fix it (read the docstring above).
+    nu_i, nu_f = valid_flavor_indices_2nu(nu_i, nu_f)
+
+    # The function earth.density_matter_func_prem returns the internal matter density of the Earth
+    # as a function of radial distance, r, using the Preliminary Reference Earth Model (PREM). The
+    # function matter.num_density_e_func converts the matter density into electron number density.
+
+    # The function earth.earth_radial_distance_from_depth returns the radial distance, measured from
+    # the center of the Earth, given a neutrino direction (cosine of zenith angle, costhz) and the 
+    # distance of the neutrino, or depth (l), measured from the surface of the Earth.
+
+    return osc_prob_liv(
+        num_flavors=2,
+        rho_func=lambda l: matter.num_density_e_func(earth.earth_radial_distance_from_depth(costhz, 
+            l/gd.UNIT_KM), earth.density_matter_func_prem, ratio_number_neutrons_to_protons=1.0,
+            electron_fraction=0.5, density_matter_is_in_g_per_cm3=True), # [eV^3] (l in eV^{-1})
+        energy=energy,
+        L=L,
+        osc_params={'sth': sth, 'Dm2': Dm2},
+        liv_params={'sxi': sxi, 'b1': b1, 'b2': b2, 'Lambda': Lambda, 'n_liv': n_liv},
+        L0=0.0,
+        nubar=nubar,
+        nu_i=nu_i,
+        nu_f=nu_f,
+        density_is_of_number_of_electrons=True,
+        magnus_exp_order=magnus_exp_order,
+        n_jobs=n_jobs,
+        integration_method=integration_method,
+        rtol=rtol,
+        atol=atol,
+        growth_factor_n_slabs=growth_factor_n_slabs,
+        growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
+        max_num_loops=max_num_loops,
+        min_n_slabs=min_n_slabs,
+        max_n_slabs=max_n_slabs,
+        min_n_tpts_per_slab=min_n_tpts_per_slab,
+        max_n_tpts_per_slab=max_n_tpts_per_slab,
+        iterate_over_magnus_exp_order=iterate_over_magnus_exp_order,
+        min_magnus_exp_order=min_magnus_exp_order,
+        max_magnus_exp_order=max_magnus_exp_order,
+        validate_input=validate_input,
+        save_log=save_log,
+        filename_log=filename_log,
+        file_log=file_log,
+        close_file_log_upon_exit=close_file_log_upon_exit,
+        new_recursion_limit=new_recursion_limit,
+        verbose=verbose,
+        **kwargs
+    )  
+
+
+def osc_prob_3nu_earth_liv(
+    energy: Union[int, float, list, np.ndarray], 
+    costhz: Optional[Union[int, float]]=None,
+    loc_ini: Optional[Union[Tuple[float, float], list, np.ndarray, str]]=None, 
+    loc_fin: Optional[Union[Tuple[float, float], list, np.ndarray, str]]=None, 
+    L: Optional[Union[float, list, np.ndarray]]=None,
+    s12: Optional[Union[int, float]]=None, 
+    s23: Optional[Union[int, float]]=None, 
+    s13: Optional[Union[int, float]]=None, 
+    dCP: Optional[Union[int, float]]=None, 
+    D21: Optional[Union[int, float]]=None, 
+    D31: Optional[Union[int, float]]=None, 
+    sxi12: Optional[Union[int, float]]=0.0,
+    sxi23: Optional[Union[int, float]]=0.0,
+    sxi13: Optional[Union[int, float]]=0.0,
+    dxiCP: Optional[Union[int, float]]=0.0,
+    b1: Optional[Union[int, float]]=0.0,
+    b2: Optional[Union[int, float]]=0.0,
+    b3: Optional[Union[int, float]]=0.0,
+    Lambda: Optional[Union[int, float]]=1.0,
+    n_liv: Optional[int]=0,
+    nubar: Optional[bool]=False, 
+    nu_i: Optional[int]=None, 
+    nu_f: Optional[int]=None,
+    default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
+    magnus_exp_order: Optional[int]=4, 
+    n_jobs: Optional[int]=1, 
+    integration_method: Optional[str]='trapezoid', 
+    rtol: Optional[Union[int, float]]=1.e-3, 
+    atol: Optional[Union[int, float]]=1.e-3, 
+    growth_factor_n_slabs: Optional[Union[int, float]]=1.5, 
+    growth_factor_n_tpts_per_slab: Optional[Union[int, float]]=1.5, 
+    max_num_loops: Optional[int]=50, 
+    min_n_slabs: Optional[int]=1, 
+    max_n_slabs: Optional[int]=2000, 
+    min_n_tpts_per_slab: Optional[int]=2, 
+    max_n_tpts_per_slab: Optional[int]=500, 
+    iterate_over_magnus_exp_order: Optional[bool]=False,
+    min_magnus_exp_order: Optional[int]=1,
+    max_magnus_exp_order: Optional[int]=gd.MAGNUS_EXP_ORDER_MAX,
+    validate_input: Optional[bool]=True, 
+    save_log: Optional[bool]=False, 
+    filename_log: Optional[str]='./out.log',
+    file_log: Optional[TextIOWrapper]=None, 
+    close_file_log_upon_exit: Optional[bool]=True,
+    new_recursion_limit: Optional[int]=5000,
+    verbose: Optional[int]=0,
+    **kwargs
+) -> Union[float, np.ndarray]:
+    r"""Compute and return the three-neutrino oscillation probability 
+    inside the Earth, either between two locations on the surface of the
+    Earth, or between the surface and a point in the interior, under
+    (one form of) Lorentz-invariance violation.
+    
+    For the matter density inside the Earth, it uses the Preliminary 
+    Reference Earth Model.
+
+    If the initial location (``loc_ini``) and final location 
+    (``loc_fin``) on the surface of the Earth are given (i.e., if they
+    are not ``None``), then the neutrino travels the chord joining them 
+    through the Earth, overriding any given value of costhz given, and 
+    using the chord length as the baseline. 
+
+    The initial and final location can be given as a three-entry tuple
+    of coordinates in the (degree, minute, second) format.  Alternatively,
+    any of the two locations can be given as a predefined named 
+    location.  The predefined locations are in the earth.loc_coords_dms
+    dictionary:
+
+    >>> import magnus.earth as earth
+    >>> list(earth.loc_coords_dms.keys())
+    >>> print(earth.loc_coords_dms['fermilab'])
+
+    See the example below.
+
+    [If only a single location is given (i.e., if either ``loc_ini`` or
+    ``loc_fin`` are ``None``), the function throws an exception.]
+
+    If neither of the two locations is given, the function uses the 
+    given value of ``costhz`` as direction and of ``L`` as baseline.
+    (And ``L`` can be an array of baselines.)
+
+    Examples
+    --------
+    """
+    # If the location is given as a string, check if it is one of the predefined named locations in
+    # Magnus.  The method sys._getframe().f_code.co_name returns the function name.  If the name
+    # is one of the predefined ones, coordinates_of_named_location returns the coordinates as 
+    # np.array([lat, lon]).  The latitude and longitude are each returned in day-minute-second 
+    # format, (dd, mm, ss)
+
+    source_func_name = sys._getframe().f_code.co_name
+    if isinstance(loc_ini, str):
+        loc_ini = earth.coordinates_of_named_location(source_func_name, loc_name=loc_ini)
+    if isinstance(loc_fin, str):
+        loc_fin = earth.coordinates_of_named_location(source_func_name, loc_name=loc_fin)
+
+    # If the initial and final locations are given (i.e., if they are not None), then the neutrino 
+    # travels the chord joining them through the Earth, overriding any given value of costhz given,
+    # and using the chord length as the baseline. If only a single location is given, throw an 
+    # exception.  If neither of the two locations are given, use the given value of costhz and of 
+    # baseline given (could be an array of baselines).
+    costhz, L = validate_input_osc_prob_earth(source_func_name, loc_ini, loc_fin, costhz, L,
+        verbose=verbose)
+    
+    # The function earth.density_matter_func_prem returns the internal matter density of the Earth
+    # as a function of radial distance, r, using the Preliminary Reference Earth Model (PREM). The
+    # function matter.num_density_e_func converts the matter density into electron number density.
+
+    # The function earth.earth_radial_distance_from_depth returns the radial distance, measured from
+    # the center of the Earth, given a neutrino direction (cosine of zenith angle, costhz) and the 
+    # distance of the neutrino, or depth (l), measured from the surface of the Earth.
+
+    return osc_prob_liv(
+        num_flavors=3,
+        rho_func=lambda l: matter.num_density_e_func(earth.earth_radial_distance_from_depth(costhz, 
+            l/gd.UNIT_KM), earth.density_matter_func_prem, ratio_number_neutrons_to_protons=1.0,
+            electron_fraction=0.5, density_matter_is_in_g_per_cm3=True), # [eV^3] (l in eV^{-1})
+        energy=energy,
+        L=L,
+        osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 'D21': D21, 'D31': D31},
+        liv_params={'sxi12': sxi12, 'sxi23': sxi23, 'sxi13': sxi13, 'dxiCP': dxiCP, 'b1': b1, 
+            'b2': b2, 'b3': b3, 'Lambda': Lambda, 'n_liv': n_liv},
+        L0=0.0,
+        nubar=nubar,
+        nu_i=nu_i,
+        nu_f=nu_f,
+        density_is_of_number_of_electrons=True,
+        default_osc_params_set_name=default_osc_params_set_name,
+        magnus_exp_order=magnus_exp_order,
+        n_jobs=n_jobs,
+        integration_method=integration_method,
+        rtol=rtol,
+        atol=atol,
+        growth_factor_n_slabs=growth_factor_n_slabs,
+        growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
+        max_num_loops=max_num_loops,
+        min_n_slabs=min_n_slabs,
+        max_n_slabs=max_n_slabs,
+        min_n_tpts_per_slab=min_n_tpts_per_slab,
+        max_n_tpts_per_slab=max_n_tpts_per_slab,
+        iterate_over_magnus_exp_order=iterate_over_magnus_exp_order,
+        min_magnus_exp_order=min_magnus_exp_order,
+        max_magnus_exp_order=max_magnus_exp_order,
+        validate_input=validate_input,
+        save_log=save_log,
+        filename_log=filename_log,
+        file_log=file_log,
+        close_file_log_upon_exit=close_file_log_upon_exit,
+        new_recursion_limit=new_recursion_limit,
+        verbose=verbose,
+        **kwargs
+    )  
+
+
+def osc_prob_4nu_earth_liv(
+    energy: Union[int, float, list, np.ndarray], 
+    costhz: Optional[Union[int, float]]=None,
+    loc_ini: Optional[Union[Tuple[float, float], list, np.ndarray, str]]=None, 
+    loc_fin: Optional[Union[Tuple[float, float], list, np.ndarray, str]]=None, 
+    L: Optional[Union[float, list, np.ndarray]]=None,
+    s12: Optional[Union[int, float]]=None, 
+    s23: Optional[Union[int, float]]=None, 
+    s13: Optional[Union[int, float]]=None, 
+    dCP: Optional[Union[int, float]]=None, 
+    D21: Optional[Union[int, float]]=None, 
+    D31: Optional[Union[int, float]]=None, 
+    s14: Optional[Union[int, float]]=0.0,
+    s24: Optional[Union[int, float]]=0.0,
+    s34: Optional[Union[int, float]]=0.0,
+    d14: Optional[Union[int, float]]=0.0,
+    d24: Optional[Union[int, float]]=0.0,
+    D41: Optional[Union[int, float]]=0.0, 
+    sxi12: Optional[Union[int, float]]=0.0,
+    sxi23: Optional[Union[int, float]]=0.0,
+    sxi13: Optional[Union[int, float]]=0.0,
+    dxi13: Optional[Union[int, float]]=0.0,
+    sxi14: Optional[Union[int, float]]=0.0,
+    dxi14: Optional[Union[int, float]]=0.0,
+    sxi24: Optional[Union[int, float]]=0.0,
+    dxi24: Optional[Union[int, float]]=0.0,
+    sxi34: Optional[Union[int, float]]=0.0,
+    b1: Optional[Union[int, float]]=0.0,
+    b2: Optional[Union[int, float]]=0.0,
+    b3: Optional[Union[int, float]]=0.0,
+    b4: Optional[Union[int, float]]=0.0,
+    Lambda: Optional[Union[int, float]]=1.0,
+    n_liv: Optional[int]=0,
+    nubar: Optional[bool]=False, 
+    nu_i: Optional[int]=None, 
+    nu_f: Optional[int]=None,
+    default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
+    magnus_exp_order: Optional[int]=4, 
+    n_jobs: Optional[int]=1, 
+    integration_method: Optional[str]='trapezoid', 
+    rtol: Optional[Union[int, float]]=1.e-3, 
+    atol: Optional[Union[int, float]]=1.e-3, 
+    growth_factor_n_slabs: Optional[Union[int, float]]=1.5, 
+    growth_factor_n_tpts_per_slab: Optional[Union[int, float]]=1.5, 
+    max_num_loops: Optional[int]=50, 
+    min_n_slabs: Optional[int]=1, 
+    max_n_slabs: Optional[int]=2000, 
+    min_n_tpts_per_slab: Optional[int]=2, 
+    max_n_tpts_per_slab: Optional[int]=500, 
+    iterate_over_magnus_exp_order: Optional[bool]=False,
+    min_magnus_exp_order: Optional[int]=1,
+    max_magnus_exp_order: Optional[int]=gd.MAGNUS_EXP_ORDER_MAX,
+    validate_input: Optional[bool]=True, 
+    save_log: Optional[bool]=False, 
+    filename_log: Optional[str]='./out.log',
+    file_log: Optional[TextIOWrapper]=None, 
+    close_file_log_upon_exit: Optional[bool]=True,
+    new_recursion_limit: Optional[int]=5000,
+    verbose: Optional[int]=0,
+    **kwargs
+) -> Union[float, np.ndarray]:
+    r"""Compute and return the four-neutrino oscillation probability 
+    inside the Earth, either between two locations on the surface of the
+    Earth, or between the surface and a point in the interior, under
+    (one form of) Lorentz-invariance violation.
+    
+    For the matter density inside the Earth, it uses the Preliminary 
+    Reference Earth Model.
+
+    If the initial location (``loc_ini``) and final location 
+    (``loc_fin``) on the surface of the Earth are given (i.e., if they
+    are not ``None``), then the neutrino travels the chord joining them 
+    through the Earth, overriding any given value of costhz given, and 
+    using the chord length as the baseline. 
+
+    The initial and final location can be given as a three-entry tuple
+    of coordinates in the (degree, minute, second) format.  Alternatively,
+    any of the two locations can be given as a predefined named 
+    location.  The predefined locations are in the earth.loc_coords_dms
+    dictionary:
+
+    >>> import magnus.earth as earth
+    >>> list(earth.loc_coords_dms.keys())
+    >>> print(earth.loc_coords_dms['fermilab'])
+
+    See the example below.
+
+    [If only a single location is given (i.e., if either ``loc_ini`` or
+    ``loc_fin`` are ``None``), the function throws an exception.]
+
+    If neither of the two locations is given, the function uses the 
+    given value of ``costhz`` as direction and of ``L`` as baseline.
+    (And ``L`` can be an array of baselines.)
+
+    Examples
+    --------
+    """
+    # If the location is given as a string, check if it is one of the predefined named locations in
+    # Magnus.  The method sys._getframe().f_code.co_name returns the function name.  If the name
+    # is one of the predefined ones, coordinates_of_named_location returns the coordinates as 
+    # np.array([lat, lon]).  The latitude and longitude are each returned in day-minute-second 
+    # format, (dd, mm, ss)
+
+    source_func_name = sys._getframe().f_code.co_name
+    if isinstance(loc_ini, str):
+        loc_ini = earth.coordinates_of_named_location(source_func_name, loc_name=loc_ini)
+    if isinstance(loc_fin, str):
+        loc_fin = earth.coordinates_of_named_location(source_func_name, loc_name=loc_fin)
+
+    # If the initial and final locations are given (i.e., if they are not None), then the neutrino 
+    # travels the chord joining them through the Earth, overriding any given value of costhz given,
+    # and using the chord length as the baseline. If only a single location is given, throw an 
+    # exception.  If neither of the two locations are given, use the given value of costhz and of 
+    # baseline given (could be an array of baselines).
+    costhz, L = validate_input_osc_prob_earth(source_func_name, loc_ini, loc_fin, costhz, L,
+        verbose=verbose)
+    
+    # The function earth.density_matter_func_prem returns the internal matter density of the Earth
+    # as a function of radial distance, r, using the Preliminary Reference Earth Model (PREM). The
+    # function matter.num_density_e_func converts the matter density into electron number density.
+
+    # The function earth.earth_radial_distance_from_depth returns the radial distance, measured from
+    # the center of the Earth, given a neutrino direction (cosine of zenith angle, costhz) and the 
+    # distance of the neutrino, or depth (l), measured from the surface of the Earth.
+
+    return osc_prob_liv(
+        num_flavors=4,
+        rho_func=lambda l: matter.num_density_e_func(earth.earth_radial_distance_from_depth(costhz, 
+            l/gd.UNIT_KM), earth.density_matter_func_prem, ratio_number_neutrons_to_protons=1.0,
+            electron_fraction=0.5, density_matter_is_in_g_per_cm3=True), # [eV^3] (l in eV^{-1})
+        energy=energy,
+        L=L,
+        osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 's14': s14, 'd14': d14, 
+            's24': s24, 'd24': d24, 's34': s34, 'D21': D21, 'D31': D31, 'D41': D41},
+        liv_params={'sxi12': sxi12, 'sxi23': sxi23, 'sxi13': sxi13, 'dxi13': dxi13, 'sxi14': sxi14,
+            'dxi14': dxi14, 'sxi24': sxi24, 'dxi24': dxi24, 'sxi34': sxi34, 'b1': b1, 'b2': b2, 
+            'b3': b3, 'b4': b4, 'Lambda': Lambda, 'n_liv': n_liv},
+        L0=0.0,
+        nubar=nubar,
+        nu_i=nu_i,
+        nu_f=nu_f,
+        density_is_of_number_of_electrons=True,
+        default_osc_params_set_name=default_osc_params_set_name,
+        magnus_exp_order=magnus_exp_order,
+        n_jobs=n_jobs,
+        integration_method=integration_method,
+        rtol=rtol,
+        atol=atol,
+        growth_factor_n_slabs=growth_factor_n_slabs,
+        growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
+        max_num_loops=max_num_loops,
+        min_n_slabs=min_n_slabs,
+        max_n_slabs=max_n_slabs,
+        min_n_tpts_per_slab=min_n_tpts_per_slab,
+        max_n_tpts_per_slab=max_n_tpts_per_slab,
+        iterate_over_magnus_exp_order=iterate_over_magnus_exp_order,
+        min_magnus_exp_order=min_magnus_exp_order,
+        max_magnus_exp_order=max_magnus_exp_order,
+        validate_input=validate_input,
+        save_log=save_log,
+        filename_log=filename_log,
+        file_log=file_log,
+        close_file_log_upon_exit=close_file_log_upon_exit,
+        new_recursion_limit=new_recursion_limit,
+        verbose=verbose,
+        **kwargs
+    )  
+
+
+def osc_prob_5nu_earth_liv(
+    energy: Union[int, float, list, np.ndarray], 
+    costhz: Optional[Union[int, float]]=None,
+    loc_ini: Optional[Union[Tuple[float, float], list, np.ndarray, str]]=None, 
+    loc_fin: Optional[Union[Tuple[float, float], list, np.ndarray, str]]=None, 
+    L: Optional[Union[float, list, np.ndarray]]=None,
+    s12: Optional[Union[int, float]]=None, 
+    s23: Optional[Union[int, float]]=None, 
+    s13: Optional[Union[int, float]]=None, 
+    dCP: Optional[Union[int, float]]=None, 
+    D21: Optional[Union[int, float]]=None, 
+    D31: Optional[Union[int, float]]=None, 
+    s14: Optional[Union[int, float]]=0.0,
+    s15: Optional[Union[int, float]]=0.0,
+    s24: Optional[Union[int, float]]=0.0,
+    s25: Optional[Union[int, float]]=0.0,
+    s34: Optional[Union[int, float]]=0.0,
+    s35: Optional[Union[int, float]]=0.0,
+    d14: Optional[Union[int, float]]=0.0,
+    d15: Optional[Union[int, float]]=0.0,
+    d24: Optional[Union[int, float]]=0.0,
+    d35: Optional[Union[int, float]]=0.0,
+    D41: Optional[Union[int, float]]=0.0, 
+    D51: Optional[Union[int, float]]=0.0, 
+    sxi12: Optional[Union[int, float]]=0.0,
+    sxi23: Optional[Union[int, float]]=0.0,
+    sxi13: Optional[Union[int, float]]=0.0,
+    dxi13: Optional[Union[int, float]]=0.0,
+    sxi14: Optional[Union[int, float]]=0.0,
+    dxi14: Optional[Union[int, float]]=0.0,
+    sxi15: Optional[Union[int, float]]=0.0,
+    dxi15: Optional[Union[int, float]]=0.0,
+    sxi24: Optional[Union[int, float]]=0.0,
+    dxi24: Optional[Union[int, float]]=0.0,
+    sxi25: Optional[Union[int, float]]=0.0,
+    sxi34: Optional[Union[int, float]]=0.0,
+    sxi35: Optional[Union[int, float]]=0.0,
+    dxi35: Optional[Union[int, float]]=0.0,
+    b1: Optional[Union[int, float]]=0.0,
+    b2: Optional[Union[int, float]]=0.0,
+    b3: Optional[Union[int, float]]=0.0,
+    b4: Optional[Union[int, float]]=0.0,
+    b5: Optional[Union[int, float]]=0.0,
+    Lambda: Optional[Union[int, float]]=1.0,
+    n_liv: Optional[int]=0,
+    nubar: Optional[bool]=False, 
+    nu_i: Optional[int]=None, 
+    nu_f: Optional[int]=None,
+    default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
+    magnus_exp_order: Optional[int]=4, 
+    n_jobs: Optional[int]=1, 
+    integration_method: Optional[str]='trapezoid', 
+    rtol: Optional[Union[int, float]]=1.e-3, 
+    atol: Optional[Union[int, float]]=1.e-3, 
+    growth_factor_n_slabs: Optional[Union[int, float]]=1.5, 
+    growth_factor_n_tpts_per_slab: Optional[Union[int, float]]=1.5, 
+    max_num_loops: Optional[int]=50, 
+    min_n_slabs: Optional[int]=1, 
+    max_n_slabs: Optional[int]=2000, 
+    min_n_tpts_per_slab: Optional[int]=2, 
+    max_n_tpts_per_slab: Optional[int]=500, 
+    iterate_over_magnus_exp_order: Optional[bool]=False,
+    min_magnus_exp_order: Optional[int]=1,
+    max_magnus_exp_order: Optional[int]=gd.MAGNUS_EXP_ORDER_MAX,
+    validate_input: Optional[bool]=True, 
+    save_log: Optional[bool]=False, 
+    filename_log: Optional[str]='./out.log',
+    file_log: Optional[TextIOWrapper]=None, 
+    close_file_log_upon_exit: Optional[bool]=True,
+    new_recursion_limit: Optional[int]=5000,
+    verbose: Optional[int]=0,
+    **kwargs
+) -> Union[float, np.ndarray]:
+    r"""Compute and return the five-neutrino oscillation probability 
+    inside the Earth, either between two locations on the surface of the
+    Earth, or between the surface and a point in the interior, under
+    (one form of) Lorentz-invariance violation.
+    
+    For the matter density inside the Earth, it uses the Preliminary 
+    Reference Earth Model.
+
+    If the initial location (``loc_ini``) and final location 
+    (``loc_fin``) on the surface of the Earth are given (i.e., if they
+    are not ``None``), then the neutrino travels the chord joining them 
+    through the Earth, overriding any given value of costhz given, and 
+    using the chord length as the baseline. 
+
+    The initial and final location can be given as a three-entry tuple
+    of coordinates in the (degree, minute, second) format.  Alternatively,
+    any of the two locations can be given as a predefined named 
+    location.  The predefined locations are in the earth.loc_coords_dms
+    dictionary:
+
+    >>> import magnus.earth as earth
+    >>> list(earth.loc_coords_dms.keys())
+    >>> print(earth.loc_coords_dms['fermilab'])
+
+    See the example below.
+
+    [If only a single location is given (i.e., if either ``loc_ini`` or
+    ``loc_fin`` are ``None``), the function throws an exception.]
+
+    If neither of the two locations is given, the function uses the 
+    given value of ``costhz`` as direction and of ``L`` as baseline.
+    (And ``L`` can be an array of baselines.)
+
+    Examples
+    --------
+    """
+    # If the location is given as a string, check if it is one of the predefined named locations in
+    # Magnus.  The method sys._getframe().f_code.co_name returns the function name.  If the name
+    # is one of the predefined ones, coordinates_of_named_location returns the coordinates as 
+    # np.array([lat, lon]).  The latitude and longitude are each returned in day-minute-second 
+    # format, (dd, mm, ss)
+
+    source_func_name = sys._getframe().f_code.co_name
+    if isinstance(loc_ini, str):
+        loc_ini = earth.coordinates_of_named_location(source_func_name, loc_name=loc_ini)
+    if isinstance(loc_fin, str):
+        loc_fin = earth.coordinates_of_named_location(source_func_name, loc_name=loc_fin)
+
+    # If the initial and final locations are given (i.e., if they are not None), then the neutrino 
+    # travels the chord joining them through the Earth, overriding any given value of costhz given,
+    # and using the chord length as the baseline. If only a single location is given, throw an 
+    # exception.  If neither of the two locations are given, use the given value of costhz and of 
+    # baseline given (could be an array of baselines).
+    costhz, L = validate_input_osc_prob_earth(source_func_name, loc_ini, loc_fin, costhz, L,
+        verbose=verbose)
+    
+    # The function earth.density_matter_func_prem returns the internal matter density of the Earth
+    # as a function of radial distance, r, using the Preliminary Reference Earth Model (PREM). The
+    # function matter.num_density_e_func converts the matter density into electron number density.
+
+    # The function earth.earth_radial_distance_from_depth returns the radial distance, measured from
+    # the center of the Earth, given a neutrino direction (cosine of zenith angle, costhz) and the 
+    # distance of the neutrino, or depth (l), measured from the surface of the Earth.
+
+    return osc_prob_liv(
+        num_flavors=5,
+        rho_func=lambda l: matter.num_density_e_func(earth.earth_radial_distance_from_depth(costhz, 
+            l/gd.UNIT_KM), earth.density_matter_func_prem, ratio_number_neutrons_to_protons=1.0,
+            electron_fraction=0.5, density_matter_is_in_g_per_cm3=True), # [eV^3] (l in eV^{-1})
+        energy=energy,
+        L=L,
+        osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 's14': s14, 'd14': d14, 
+            's15': s15, 'd15': d15, 's24': s24, 'd24': d24, 's25': s25, 's34': s34, 's35': s35, 
+            'd35': d35, 'D21': D21, 'D31': D31, 'D41': D41, 'D51': D51},
+        liv_params={'sxi12': sxi12, 'sxi23': sxi23, 'sxi13': sxi13, 'dxi13': dxi13, 'sxi14': sxi14,
+            'dxi14': dxi14, 'sxi15': sxi15, 'dxi15': dxi15, 'sxi24': sxi24, 'dxi24': dxi24, 
+            'sxi25': sxi25, 'sxi34': sxi34, 'sxi35': sxi35, 'dxi35': dxi35, 'b1': b1, 'b2': b2, 
+            'b3': b3, 'b4': b4, 'b5': b5, 'Lambda': Lambda, 'n_liv': n_liv},
+        L0=0.0,
+        nubar=nubar,
+        nu_i=nu_i,
+        nu_f=nu_f,
+        density_is_of_number_of_electrons=True,
+        default_osc_params_set_name=default_osc_params_set_name,
+        magnus_exp_order=magnus_exp_order,
+        n_jobs=n_jobs,
+        integration_method=integration_method,
+        rtol=rtol,
+        atol=atol,
+        growth_factor_n_slabs=growth_factor_n_slabs,
+        growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
+        max_num_loops=max_num_loops,
+        min_n_slabs=min_n_slabs,
+        max_n_slabs=max_n_slabs,
+        min_n_tpts_per_slab=min_n_tpts_per_slab,
+        max_n_tpts_per_slab=max_n_tpts_per_slab,
+        iterate_over_magnus_exp_order=iterate_over_magnus_exp_order,
+        min_magnus_exp_order=min_magnus_exp_order,
+        max_magnus_exp_order=max_magnus_exp_order,
+        validate_input=validate_input,
+        save_log=save_log,
+        filename_log=filename_log,
+        file_log=file_log,
+        close_file_log_upon_exit=close_file_log_upon_exit,
+        new_recursion_limit=new_recursion_limit,
+        verbose=verbose,
+        **kwargs
+    )  
+
+
+#-----------------------------------------------------------------------
 # In matter, LIV, in the Sun
 #-----------------------------------------------------------------------
 
@@ -9728,63 +10389,62 @@ if __name__ == "__main__":
 
     # quit()
 
-    # Four-neutrino oscillations in Earth, NSI
-    np.set_printoptions(precision=3)
-    energy = 10.*gd.UNIT_MEV # [eV]
-    s14, s24, s34 = 0.01, 0.02, 0.0
-    d14, d24 = np.radians(10.0), np.radians(100.0)
-    D41 = 0.02 # [eV^2]
-    eps_ee, eps_em, eps_et, eps_es, eps_mm, eps_mt, eps_ms, eps_tt, eps_ts, eps_ss \
-        = 0.0, 0.01, 0.0, 0.0, 0.0, 0.0, 0.02, 0.0, 0.02, 0.03
-    print("4nu")
-    ###
-    costhz = -0.20#-1.0
-    L = earth.distance_traveled_inside_earth(costhz)
-    print(L)
-    print("4nu, std: " + str(osc_prob_4nu_earth(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
-        s14=s14, s24=s24, s34=s34, d14=d14, d24=d24, D41=D41,
-        costhz=costhz, L=L*gd.UNIT_KM, verbose=0, n_jobs=1, magnus_exp_order=3)))
-    # print("4nu, nsi: " + str(osc_prob_4nu_earth_nsi(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
-    #     s14=s14, s24=s24, s34=s34, d14=d14, d24=d24, D41=D41,
-    #     eps_ee=eps_ee, eps_em=eps_em, eps_et=eps_et, eps_es=eps_es, eps_mm=eps_mm, eps_mt=eps_mt, 
-    #     eps_ms=eps_ms, eps_tt=eps_tt, eps_ts=eps_ts, eps_ss=eps_ss,
-    #     costhz=costhz, L=L*gd.UNIT_KM, verbose=0, n_jobs=12, magnus_exp_order=3)))
-    # print()
+    # # Four-neutrino oscillations in Earth, NSI
+    # np.set_printoptions(precision=3)
+    # energy = 10.*gd.UNIT_MEV # [eV]
+    # s14, s24, s34 = 0.01, 0.02, 0.0
+    # d14, d24 = np.radians(10.0), np.radians(100.0)
+    # D41 = 0.02 # [eV^2]
+    # eps_ee, eps_em, eps_et, eps_es, eps_mm, eps_mt, eps_ms, eps_tt, eps_ts, eps_ss \
+    #     = 0.0, 0.01, 0.0, 0.0, 0.0, 0.0, 0.02, 0.0, 0.02, 0.03
+    # print("4nu")
+    # ###
+    # costhz = -0.20#-1.0
+    # L = earth.distance_traveled_inside_earth(costhz)
+    # print(L)
     # print("4nu, std: " + str(osc_prob_4nu_earth(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
     #     s14=s14, s24=s24, s34=s34, d14=d14, d24=d24, D41=D41,
-    #     costhz=costhz, L=L*gd.UNIT_KM, verbose=0, n_jobs=10, magnus_exp_order=4)))
-    # print("4nu, nsi: " + str(osc_prob_4nu_earth_nsi(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
-    #     s14=s14, s24=s24, s34=s34, d14=d14, d24=d24, D41=D41,
-    #     eps_ee=eps_ee, eps_em=eps_em, eps_et=eps_et, eps_es=eps_es, eps_mm=eps_mm, eps_mt=eps_mt, 
-    #     eps_ms=eps_ms, eps_tt=eps_tt, eps_ts=eps_ts, eps_ss=eps_ss,
-    #     costhz=costhz, L=L*gd.UNIT_KM, verbose=0, n_jobs=10, magnus_exp_order=4)))
-    print()
-    ###
-    loc_fin = 'fermilab'
-    import time
-    for integration_method in ['trapezoid', 'simpson']:
-        print(integration_method)
-        for loc_ini in ['SNOLAB', 'Homestake', 'CERN']:#, "South Pole"]:
-            print(loc_ini)
-            start = time.time()
-            for i in range(5):
-                osc_prob_4nu_earth(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
-                    s14=s14, s24=s24, s34=s34, d14=d14, d24=d24, D41=D41,
-                    loc_ini=loc_ini, loc_fin=loc_fin, verbose=0, n_jobs=1, max_magnus_exp_order=3,
-                    integration_method=integration_method)
-                # print("4nu, std: " + str(osc_prob_4nu_earth(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
-                #     s14=s14, s24=s24, s34=s34, d14=d14, d24=d24, D41=D41,
-                #     loc_ini=loc_ini, loc_fin=loc_fin, verbose=0, n_jobs=12, max_magnus_exp_order=3,
-                #     integration_method=integration_method)))
-            # print("4nu, nsi: " + str(osc_prob_4nu_earth_nsi(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
-            #     s14=s14, s24=s24, s34=s34, d14=d14, d24=d24, D41=D41,
-            #     eps_ee=eps_ee, eps_em=eps_em, eps_et=eps_et, eps_es=eps_es, eps_mm=eps_mm,
-            #     eps_mt=eps_mt, eps_ms=eps_ms, eps_tt=eps_tt, eps_ts=eps_ts, eps_ss=eps_ss,
-            #     loc_ini=loc_ini, loc_fin=loc_fin, verbose=0, max_magnus_exp_order=3, n_jobs=12,
-            #     integration_method=integration_method)))
-            print((time.time()-start)/5)
-            print()
-        
+    #     costhz=costhz, L=L*gd.UNIT_KM, verbose=0, n_jobs=1, magnus_exp_order=3)))
+    # # print("4nu, nsi: " + str(osc_prob_4nu_earth_nsi(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
+    # #     s14=s14, s24=s24, s34=s34, d14=d14, d24=d24, D41=D41,
+    # #     eps_ee=eps_ee, eps_em=eps_em, eps_et=eps_et, eps_es=eps_es, eps_mm=eps_mm, eps_mt=eps_mt, 
+    # #     eps_ms=eps_ms, eps_tt=eps_tt, eps_ts=eps_ts, eps_ss=eps_ss,
+    # #     costhz=costhz, L=L*gd.UNIT_KM, verbose=0, n_jobs=12, magnus_exp_order=3)))
+    # # print()
+    # # print("4nu, std: " + str(osc_prob_4nu_earth(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
+    # #     s14=s14, s24=s24, s34=s34, d14=d14, d24=d24, D41=D41,
+    # #     costhz=costhz, L=L*gd.UNIT_KM, verbose=0, n_jobs=10, magnus_exp_order=4)))
+    # # print("4nu, nsi: " + str(osc_prob_4nu_earth_nsi(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
+    # #     s14=s14, s24=s24, s34=s34, d14=d14, d24=d24, D41=D41,
+    # #     eps_ee=eps_ee, eps_em=eps_em, eps_et=eps_et, eps_es=eps_es, eps_mm=eps_mm, eps_mt=eps_mt, 
+    # #     eps_ms=eps_ms, eps_tt=eps_tt, eps_ts=eps_ts, eps_ss=eps_ss,
+    # #     costhz=costhz, L=L*gd.UNIT_KM, verbose=0, n_jobs=10, magnus_exp_order=4)))
+    # print()
+    # ###
+    # loc_fin = 'fermilab'
+    # import time
+    # for integration_method in ['trapezoid', 'simpson']:
+    #     print(integration_method)
+    #     for loc_ini in ['SNOLAB', 'Homestake', 'CERN']:#, "South Pole"]:
+    #         print(loc_ini)
+    #         start = time.time()
+    #         for i in range(5):
+    #             osc_prob_4nu_earth(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
+    #                 s14=s14, s24=s24, s34=s34, d14=d14, d24=d24, D41=D41,
+    #                 loc_ini=loc_ini, loc_fin=loc_fin, verbose=0, n_jobs=1, max_magnus_exp_order=3,
+    #                 integration_method=integration_method)
+    #             # print("4nu, std: " + str(osc_prob_4nu_earth(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
+    #             #     s14=s14, s24=s24, s34=s34, d14=d14, d24=d24, D41=D41,
+    #             #     loc_ini=loc_ini, loc_fin=loc_fin, verbose=0, n_jobs=12, max_magnus_exp_order=3,
+    #             #     integration_method=integration_method)))
+    #         # print("4nu, nsi: " + str(osc_prob_4nu_earth_nsi(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
+    #         #     s14=s14, s24=s24, s34=s34, d14=d14, d24=d24, D41=D41,
+    #         #     eps_ee=eps_ee, eps_em=eps_em, eps_et=eps_et, eps_es=eps_es, eps_mm=eps_mm,
+    #         #     eps_mt=eps_mt, eps_ms=eps_ms, eps_tt=eps_tt, eps_ts=eps_ts, eps_ss=eps_ss,
+    #         #     loc_ini=loc_ini, loc_fin=loc_fin, verbose=0, max_magnus_exp_order=3, n_jobs=12,
+    #         #     integration_method=integration_method)))
+    #         print((time.time()-start)/5)
+    #         print()
 
 
     # # Five-neutrino oscillations in Earth, NSI
@@ -9841,3 +10501,89 @@ if __name__ == "__main__":
     #         eps_s2s2=eps_s2s2,
     #         loc_ini=loc_ini, loc_fin=loc_fin, verbose=0, max_magnus_exp_order=3, n_jobs=12)))
     #     print()
+
+    # LIV in the Earth
+    np.set_printoptions(precision=3)
+    energy = 1.*gd.UNIT_GEV # [eV]
+    costhz = -1.0
+    L = earth.distance_traveled_inside_earth(costhz)
+    # Two-neutrino
+    sth = gd.S12_NO_BF_NUFIT_6_0
+    Dm2 = gd.D21_NO_BF_NUFIT_6_0 # [eV^2]
+    sxi = 0.1
+    b1 = 2.e-4
+    b2 = 1.e-4
+    Lambda = 1000.*gd.UNIT_GEV
+    n_liv = 2
+    print("Two-neutrino:")
+    print(osc_prob_2nu_earth_liv(energy, sth, Dm2, 
+        costhz=costhz, L=L,
+        sxi=sxi, b1=b1, b2=b2, Lambda=Lambda, n_liv=n_liv, verbose=0))
+    print(osc_prob_2nu_earth_liv(energy, sth, Dm2, 
+        loc_ini='fermilab', loc_fin='homestake',
+        sxi=sxi, b1=b1, b2=b2, Lambda=Lambda, n_liv=n_liv, verbose=0))
+    print()
+    # Three-neutrino
+    sxi12, sxi23, sxi13, dxiCP = 0.1, 0.02, 0.03, np.radians(10.0)
+    b1, b2, b3 = 1.e-4, 2.e-4, 3.e-4 
+    Lambda = 1000.*gd.UNIT_GEV
+    n_liv = 2
+    print("Three-neutrino:")
+    print(osc_prob_3nu_earth_liv(energy, costhz=costhz, L=L,
+        sxi12=sxi12, sxi23=sxi23, sxi13=sxi13, dxiCP=dxiCP, 
+        b1=b1, b2=b2, b3=b3, Lambda=Lambda, n_liv=n_liv, verbose=0))
+    print(osc_prob_3nu_earth_liv(energy, 
+        loc_ini='fermilab', loc_fin='homestake',
+        sxi12=sxi12, sxi23=sxi23, sxi13=sxi13, dxiCP=dxiCP, 
+        b1=b1, b2=b2, b3=b3, Lambda=Lambda, n_liv=n_liv, verbose=0))
+    print()
+    # Four-neutrino
+    s14, s24, s34 = 0.1, 0.2, 0.3
+    d14, d24 = np.radians(10.0), np.radians(100.0)
+    D41 = 0.1 # [eV^2]
+    sxi12, sxi23, sxi13, sxi14, sxi24, sxi34 = 0.1, 0.05, 0.06, 0.01, 0.01, 0.02
+    dxi13, dxi14, dxi24 = np.radians([10,20,30])
+    b1, b2, b3, b4 = 2.e-8, 1.e-8, 5.e-8, 4.e-8 
+    Lambda = 1000.*gd.UNIT_GEV
+    n_liv = 2
+    print("Four-neutrino:")
+    print(osc_prob_4nu_earth_liv(energy, costhz=costhz, L=L,
+        s14=s14, s24=s24, s34=s34, d14=d14, d24=d24, D41=D41,
+        sxi12=sxi12, sxi23=sxi23, sxi13=sxi13, sxi14=sxi14, sxi24=sxi24, sxi34=sxi34, 
+        dxi13=dxi13, dxi14=dxi14, dxi24=dxi24, b1=b1, b2=b2, b3=b3, b4=b4, Lambda=Lambda,
+        n_liv=n_liv, verbose=0))
+    print(osc_prob_4nu_earth_liv(energy,
+        loc_ini='fermilab', loc_fin='homestake',
+        s14=s14, s24=s24, s34=s34, d14=d14, d24=d24, D41=D41,
+        sxi12=sxi12, sxi23=sxi23, sxi13=sxi13, sxi14=sxi14, sxi24=sxi24, sxi34=sxi34, 
+        dxi13=dxi13, dxi14=dxi14, dxi24=dxi24, b1=b1, b2=b2, b3=b3, b4=b4, Lambda=Lambda,
+        n_liv=n_liv, verbose=0))
+    print()
+    # Five-neutrino
+    s14, s15, s24, s25, s34, s35 = 0.1, 0.1, 0.2, 0.2, 0.3, 0.3
+    d14, d15, d24, d35 = np.radians([10.0, 20.0, 30.0, 40.0])
+    D41, D51 = 0.1, 0.01 # [eV^2]
+    sxi12, sxi23, sxi13, sxi14, sxi15, sxi24, sxi25, sxi34, sxi35 = \
+        0.1, 0.05, 0.6, 0.05, 0.01, 0.2, 0.4, 0.01, 0.05
+    dxi13, dxi14, dxi15, dxi24, dxi35 = np.radians([10, 20, 30, 40, 50])
+    b1, b2, b3, b4, b5 = 1.e-3, 2.e-3, 3.e-3, 4.e-3, 5.e-3
+    Lambda = 1000.*gd.UNIT_GEV
+    n_liv = 2
+    print("Five-neutrino:")
+    print(osc_prob_5nu_earth_liv(energy, costhz=costhz, L=L,
+        s14=s14, s15=s15, s24=s24, s25=s25, s34=s34, s35=s35, d14=d14, d15=d15, d24=d24, d35=d35, 
+        D41=D41, D51=D51,
+        sxi12=sxi12, sxi23=sxi23, sxi13=sxi13, sxi14=sxi14, sxi15=sxi15, sxi24=sxi24, sxi25=sxi25,
+        sxi34=sxi34, sxi35=sxi35, 
+        dxi13=dxi13, dxi14=dxi14, dxi15=dxi15, dxi24=dxi24, dxi35=dxi35, 
+        b1=b1, b2=b2, b3=b3, b4=b4, b5=b5, Lambda=Lambda,
+        n_liv=n_liv, verbose=0))
+    print(osc_prob_5nu_earth_liv(energy, 
+        loc_ini='fermilab', loc_fin='homestake',
+        s14=s14, s15=s15, s24=s24, s25=s25, s34=s34, s35=s35, d14=d14, d15=d15, d24=d24, d35=d35, 
+        D41=D41, D51=D51,
+        sxi12=sxi12, sxi23=sxi23, sxi13=sxi13, sxi14=sxi14, sxi15=sxi15, sxi24=sxi24, sxi25=sxi25,
+        sxi34=sxi34, sxi35=sxi35, 
+        dxi13=dxi13, dxi14=dxi14, dxi15=dxi15, dxi24=dxi24, dxi35=dxi35, 
+        b1=b1, b2=b2, b3=b3, b4=b4, b5=b5, Lambda=Lambda,
+        n_liv=n_liv, verbose=0))
