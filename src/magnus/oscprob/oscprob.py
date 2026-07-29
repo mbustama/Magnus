@@ -281,22 +281,13 @@ from inspect import signature
 
 # import numpy.typing
 
-# TO-DO: remove this once setup.py and pip are working
-import os
-sys.path.append(os.path.split(os.path.split(os.getcwd())[0])[0])
-sys.path.append(os.path.split(os.getcwd())[0])
-
 import magnus.magnus as magnus
 import magnus.globaldefs as gd
-# import magnus.hamiltonians.hamiltonians2nu as hamiltonians2nu
-# import magnus.hamiltonians.hamiltonians3nu as hamiltonians3nu
-# import magnus.hamiltonians.hamiltonians4nu as hamiltonians4nu
-# import magnus.hamiltonians.hamiltonians5nu as hamiltonians5nu
 import magnus.hamiltonians as hamiltonians
 import magnus.matter as matter
 import magnus.earth as earth
-import version as version
-import authors as authors
+from magnus import version
+from magnus import authors
 
 
 has_magnus_header_been_printed = False
