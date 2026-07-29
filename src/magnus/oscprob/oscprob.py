@@ -52,12 +52,8 @@ profile** (e.g., in a supernova or the Sun):
 - :func:`osc_prob_4nu_matter_exp_density`: One additional flavor. Matter
   potential affects only :math:`\\nu_e`.
 
-- :func:`osc_prob_5nu_matter_exp_density`: Two additional flavors. 
+- :func:`osc_prob_5nu_matter_exp_density`: Two additional flavors.
   Matter potential affects only :math:`\\nu_e`.
-
-- :func:`osc_prob_matter_exp_density`: Oscillation probabilities for
-  arbitrary number of flavors and arbitrary Hamiltonian.  Does not 
-  assume standard oscillations.
 
 Neutrino oscillations between any two locations on the surface of the
 **Earth**, useful for long-baseline neutrino experiments:
@@ -165,7 +161,8 @@ Examples
 >>> import magnus.globaldefs as gd
 
 Calling :func:`osc_prob_3nu_vacuum` returns a :math:`3 \\times 3` NumPy array
-with entries XXX
+of probabilities whose entry ``[i][j]`` is the probability of a neutrino
+produced with flavor ``i`` being detected with flavor ``j``
 
 For a single neutrino energy and baseline:
 
@@ -457,8 +454,10 @@ def validate_input_battery(
 
         try:
             if ( (isinstance(energy, list) or isinstance(energy, np.ndarray)) ):
-                if not (np.all(np.array(energy).dtype == np.float_) or \
-                    np.all(np.array(energy).dtype == np.int_)):
+                # (np.issubdtype is used instead of the np.float_/np.int_ aliases, which were
+                # removed in NumPy 2.0)
+                if not (np.issubdtype(np.asarray(energy).dtype, np.floating) or \
+                    np.issubdtype(np.asarray(energy).dtype, np.integer)):
                     raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + \
                         ": since energy is a list or NumPy array, all of its elements must be int" + \
                         " or float.")
@@ -489,7 +488,8 @@ def validate_input_battery(
 
         try:
             if ( (isinstance(L, list) or isinstance(L, np.ndarray)) ):
-                if not (np.all(np.array(L).dtype == np.float_) or np.all(np.array(L).dtype == np.int_)):
+                if not (np.issubdtype(np.asarray(L).dtype, np.floating) or \
+                    np.issubdtype(np.asarray(L).dtype, np.integer)):
                     raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + \
                         ": since L is a list or NumPy array, all of its elements must be int or float.")
         except ValueError as error:
@@ -1552,18 +1552,11 @@ def osc_prob(
             min_magnus_exp_order, max_magnus_exp_order, validate_input, save_log, filename_log, 
             new_recursion_limit, verbose, file_log)
 
-    # Set the maximum recursion limit higher if requested (i.e., if new_recursion_limit is not None)
-    if new_recursion_limit is not None:
-        old_recursion_limit = sys.getrecursionlimit() 
-        if new_recursion_limit > old_recursion_limit:
-            sys.setrecursionlimit(new_recursion_limit)  
-            if verbose > 0:
-                for f in [None, file_log] if save_log else [None]:
-                    print("\n" + gd.WARNING_MSG_IN_COLOR + " oscprob.osc_prob: raising recursion"+ \
-                            " limit to new_recursion_limit = " + str(new_recursion_limit) + \
-                            " (was " + str(old_recursion_limit) + ").\n", file=f)
+    # Note: new_recursion_limit is accepted for backward compatibility but no longer used; the
+    # probability calculation is fully iterative (nothing recurses), so there is no need to raise
+    # Python's recursion limit.
 
-    # By default, osc_prob is run using a fixed order of the Magnus expansion (magnus_exp_order), 
+    # By default, osc_prob is run using a fixed order of the Magnus expansion (magnus_exp_order),
     # and the tolerance is achieved (see below) only by changing the number of slabs (n_slabs), of
     # time-points per slab (n_tpts_per_slab), or both, but not by changing the expansion order, 
     # since doing that can be computationally taxing. However, if iterate_over_magnus_exp_order is
@@ -1713,51 +1706,13 @@ def osc_prob(
 
         # Within each slab, t_slab, we use n_tpts_per_slab time-evaluations to compute the integrals
         # of the Magnus expansion, from t_slab[0] to t_slab[1].  U_chain contains the chain of time-
-        # ordered evolution operators, each computed in one time slab 
-        if (n_jobs == 1): # No parallelization
-            # U_chain = [compute_evolution_operator(H_func, t_slab, n_tpts_per_slab, magnus_exp_order,
-            #     integration_method=integration_method, **kwargs) for t_slab in t_slab_edges]
-            U_chain = compute_evolution_operator_multiple_slabs(H_func, t_slab_edges, 
-                n_tpts_per_slab, magnus_exp_order, integration_method=integration_method, **kwargs)
-        else: # Run n_jobs jobs in parallel
-            # batch_size = max(1, n_slabs // (n_jobs * 2))  # Adjust the factor as needed.
-            U_chain = Parallel(n_jobs=n_jobs, batch_size='auto')(  
-                delayed(compute_evolution_operator)(
-                    H_func, t_slab, n_tpts_per_slab, magnus_exp_order, 
-                    integration_method=integration_method, **kwargs
-                )
-                for t_slab in t_slab_edges
-            )
-
-            # if n_slabs > 1:
-            #     chunk_size = 4  # Experiment with this value
-            #     U_chain = []
-            #     t_slab_chunks = list(chunkify(t_slab_edges, chunk_size))
-            #     U_chain_chunk = Parallel(n_jobs=n_jobs, batch_size=1)(
-            #         delayed(compute_evolution_operator_multiple_slabs)(
-            #             H_func, t_slabs[0], n_tpts_per_slab, magnus_exp_order,
-            #             integration_method=integration_method, **kwargs
-            #         ) for t_slabs in t_slab_chunks
-            #     )
-            #     U_chain.extend(U_chain_chunk)  # Combine results from chunks
-            #     U_chain = np.array(U_chain) # Convert back to a NumPy array if needed
-            # else:
-            #     U_chain = compute_evolution_operator_multiple_slabs(H_func, t_slab_edges, 
-            #         n_tpts_per_slab, magnus_exp_order, integration_method=integration_method, 
-            #         **kwargs)
-
-
-            # chunk_size = 4  # Experiment with this value
-            # U_chain = []
-            # for chunk in chunkify(t_slab_edges, chunk_size):
-            #     U_chain_chunk = Parallel(n_jobs=n_jobs)(
-            #         delayed(compute_evolution_operator)(
-            #             H_func, t_slab, n_tpts_per_slab, magnus_exp_order,
-            #             integration_method=integration_method, **kwargs
-            #         ) for t_slab in chunk
-            #     )
-            #     U_chain.extend(U_chain_chunk)  # Combine results from chunks
-            # U_chain = np.array(U_chain) # Convert back to a NumPy array if needed
+        # ordered evolution operators, each computed in one time slab.  All slabs are computed in a
+        # single batched call.  (Note: n_jobs is accepted for backward compatibility, but the
+        # per-slab parallelization it used to trigger here has been retired: the batched kernel is
+        # faster than distributing the small per-slab tasks over joblib workers.  Parallelism over
+        # (energy, L) points is available in osc_prob_energy_baseline instead.)
+        U_chain = compute_evolution_operator_multiple_slabs(H_func, t_slab_edges,
+            n_tpts_per_slab, magnus_exp_order, integration_method=integration_method, **kwargs)
 
         # Now compute the time-ordered product of all evolution operators across all slabs.  The
         # neutrino crosses the slabs in the order in which they appear in U_chain (earliest first),
@@ -1914,9 +1869,9 @@ def osc_prob_iterate_over_magnus_exp_order(
                 if save_log: file_log.close()
                 return P
     
-    # If the for loop finishes, then it means that the requested tolerance could achieved using the
-    # maximum test magnus_exp_order allowed for the run.  Return the probability matrix, but show
-    # a warning (if verbose).
+    # If the for loop finishes, then it means that the requested tolerance could not be achieved
+    # using even the maximum magnus_exp_order allowed for the run.  Return the probability matrix,
+    # but show a warning (if verbose).
     if (verbose > 0):
         for f in [None, file_log] if save_log else [None]:
             warn_msg = gd.WARNING_MSG_IN_COLOR if f is None else gd.WARNING_MSG_NO_COLOR
@@ -1924,6 +1879,7 @@ def osc_prob_iterate_over_magnus_exp_order(
                 " even the maximum allowed order of the Magnus expansion for this run " + \
                 "(max_magnus_exp_order = " + str(max_magnus_exp_order) + ").  Try increasing " + \
                 "max_n_slabs, max_n_tpts_per_slab, or max_num_loops.\n", file=f)
+    if save_log and (file_log is not None): file_log.close()
     return P
 
 
@@ -2183,9 +2139,12 @@ def osc_prob_vacuum(
 
     htot_is_function_only_of_energy = True
 
-    # Generate the probabilities for all pairs of energy and baseline in zip(energy, L).
-    return osc_prob_energy_baseline(htot, energy, L, 0.0, nu_i, nu_f, 
-        htot_is_function_only_of_energy, new_recursion_limit=None)
+    # Generate the probabilities for all pairs of energy and baseline in zip(energy, L).  (The
+    # Hamiltonian is constant in position, so osc_prob computes each point exactly with a single
+    # slab; the tolerance and refinement parameters play no role and are not forwarded.)
+    return osc_prob_energy_baseline(htot, energy, L, 0.0, nu_i, nu_f,
+        htot_is_function_only_of_energy, n_jobs=n_jobs, validate_input=validate_input,
+        verbose=verbose, **kwargs)
 
 
 def osc_prob_matter_std_potential(

@@ -1,27 +1,29 @@
 # -*- coding: utf-8 -*-
-r"""Contains helper functions to compute the oscillation probability in
-matter.
-
-This module contains routines to common matter density profiles (e.g.,
-constant, exponentially decreasing), electron number density, and
-coherent forward scattering potential.
+r"""Contains helper functions related to the Earth: its internal matter
+density and the geometry of neutrino trajectories through it.
 
 Routine listings
 ----------------
 
-    * density_matter_func_const - Returns the density for a constant 
-           matter density profile
-    * density_matter_func_exp - Returns the density for an exponentially
-           decreasing matter density profile
-    * density_matter_prem - Returns the density inside the Earth using
-           the Preliminary Reference Earth Model
-    * num_density_e_func - Converts a matter density to an electron
-           number density
-    * VCC_func - Returns the potential for coherent forward electron
-           scattering
+    * density_matter_func_prem - Returns the density inside the Earth
+           using the Preliminary Reference Earth Model (PREM)
+    * prem_layer_edges_along_chord - Returns the positions at which a
+           chord through the Earth crosses the PREM layer boundaries
+    * distance_traveled_inside_earth - Returns the chord length for a
+           given neutrino direction
+    * earth_radial_distance_from_depth - Converts position along a
+           chord to radial distance from the center of the Earth
+    * dms_to_decimal - Converts (degree, minute, second) coordinates to
+           decimal degrees
+    * chord_length_inside_earth - Returns the chord length between two
+           locations on the surface of the Earth
+    * costhz_between_points_on_surface - Returns the zenith angle of
+           the chord between two locations on the surface of the Earth
+    * coordinates_of_named_location - Returns the coordinates of a
+           predefined location (e.g., a neutrino detector site)
 
 Created: 2024/11/30 15:42
-Last modified: 2024/11/30 21:23
+Last modified: 2026/07/29
 """
 
 __version__ = "1.0"
