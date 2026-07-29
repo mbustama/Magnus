@@ -1174,11 +1174,45 @@ def unpack_liv_params_from_dict(
 # Primordial functions
 #-----------------------------------------------------------------------
 
+class _PositionProfileCache:
+    r"""Memoizes a position-profile function on repeated position grids.
+
+    Across an energy scan, the matter term of the Hamiltonian is evaluated on
+    the same position grids for every energy (only the 1/E vacuum part
+    changes), and across the adaptive refinement loops the same grids recur
+    between neighboring points.  This tiny cache stores the profile values of
+    the most recent grids, keyed by the exact grid contents, so the
+    (comparatively expensive) density-profile chain runs once per distinct
+    grid instead of once per Hamiltonian evaluation.  Scalar evaluations are
+    passed through uncached.
+    """
+
+    def __init__(self, func: Callable, maxsize: Optional[int]=8):
+        self.func = func
+        self._cache = {}
+        self._keys = []
+        self._maxsize = maxsize
+
+    def __call__(self, l: Union[int, float, np.ndarray]):
+        if np.ndim(l) == 0:
+            return self.func(l)
+        l = np.asarray(l, dtype=float)
+        key = (l.shape, l.tobytes())
+        val = self._cache.get(key)
+        if val is None:
+            val = np.asarray(self.func(l))
+            self._cache[key] = val
+            self._keys.append(key)
+            if len(self._keys) > self._maxsize:
+                self._cache.pop(self._keys.pop(0), None)
+        return val
+
+
 def compute_evolution_operator(
-    H_func: Callable, 
-    t_slab: Union[list, np.ndarray], 
-    n_tpts_per_slab: int, 
-    magnus_exp_order: int, 
+    H_func: Callable,
+    t_slab: Union[list, np.ndarray],
+    n_tpts_per_slab: int,
+    magnus_exp_order: int,
     **kwargs
 ) -> np.ndarray:
     r"""Computes the evolution operator inside a given time slab.  This functions is not designed to
@@ -1280,6 +1314,7 @@ def osc_prob(
     close_file_log_upon_exit: Optional[bool]=True,
     new_recursion_limit: Optional[int]=5000,
     verbose: Optional[int]=0, 
+    A_eval_mode: Optional[str]=None,
     **kwargs
 ) -> np.ndarray:
     r"""Computes and returns the neutrino oscillation probability.
@@ -1643,6 +1678,12 @@ def osc_prob(
     if t_slab_edges_original is not None:
         n_slabs = len(t_slab_edges_original)
 
+    # Determine once how the Hamiltonian can be evaluated (vectorized over an array of positions,
+    # constant, or scalar-only), so that the Magnus kernel does not have to re-probe it on every
+    # refinement iteration below.
+    if A_eval_mode is None:
+        A_eval_mode = magnus.probe_eval_mode(lambda t: -1j*H_func(t), t_ini, t_fin)
+
     while True:
 
         # These checks only apply when osc_prob is run with a requested tolerance (rtol, atol) that
@@ -1712,7 +1753,8 @@ def osc_prob(
         # faster than distributing the small per-slab tasks over joblib workers.  Parallelism over
         # (energy, L) points is available in osc_prob_energy_baseline instead.)
         U_chain = compute_evolution_operator_multiple_slabs(H_func, t_slab_edges,
-            n_tpts_per_slab, magnus_exp_order, integration_method=integration_method, **kwargs)
+            n_tpts_per_slab, magnus_exp_order, integration_method=integration_method,
+            A_eval_mode=A_eval_mode, **kwargs)
 
         # Now compute the time-ordered product of all evolution operators across all slabs.  The
         # neutrino crosses the slabs in the order in which they appear in U_chain (earliest first),
@@ -2016,6 +2058,14 @@ def osc_prob_energy_baseline(
         def H_at_energy(enu: float) -> Callable:
             return H_func
 
+    # Probe once how the Hamiltonian can be evaluated (vectorized over an array of positions,
+    # constant, or scalar-only): the verdict is structural and holds for every (energy, L) point,
+    # so probing here avoids re-probing inside every osc_prob call.
+    H_first = H_at_energy(energy[0])
+    if isinstance(H_first, Callable):
+        osc_prob_kwargs['A_eval_mode'] = magnus.probe_eval_mode(
+            lambda t: -1j*H_first(t), L0, np.max(L))
+
     def compute_single_point(enu: float, baseline: float) -> Union[float, np.ndarray]:
         P = osc_prob(H_at_energy(enu), L0, baseline, **osc_prob_kwargs)
         # Select one oscillation channel if requested; otherwise return the full matrix
@@ -2255,6 +2305,11 @@ def osc_prob_matter_std_potential(
     h_matt_proj = np.zeros((num_flavors, num_flavors))
     h_matt_proj[0][0] = 1.0
 
+    # Cache repeated evaluations of the potential on identical position grids (see
+    # _PositionProfileCache)
+    if isinstance(VCC_func, Callable):
+        VCC_func = _PositionProfileCache(VCC_func)
+
     # Matter Hamiltonian function: diagonal matrix with VCC in the top-left (ee) entry
     if isinstance(VCC_func, Callable):
         # VCC_func is a function of position, so the Hamiltonian is, too.  If l is an array, the
@@ -2424,6 +2479,11 @@ def osc_prob_matter_nsi(
         electron_fraction, nubar, density_matter_is_in_g_per_cm3,
         density_is_of_number_of_electrons) # [eV] 
     
+    # Cache repeated evaluations of the potential on identical position grids (see
+    # _PositionProfileCache)
+    if isinstance(VCC_func, Callable):
+        VCC_func = _PositionProfileCache(VCC_func)
+
     # Matter Hamiltonian function: (standard + NSI) matter matrix scaled by VCC
     if isinstance(VCC_func, Callable):
         # VCC_func is a function of position, so the Hamiltonian is, too.  If l is an array, the
@@ -2594,6 +2654,11 @@ def osc_prob_liv(
         VCC_func = matter.vcc_func_from_rho_func(rho_func, L0, ratio_number_neutrons_to_protons,
             electron_fraction, nubar, density_matter_is_in_g_per_cm3,
             density_is_of_number_of_electrons) # [eV]
+
+        # Cache repeated evaluations of the potential on identical position grids (see
+        # _PositionProfileCache)
+        if isinstance(VCC_func, Callable):
+            VCC_func = _PositionProfileCache(VCC_func)
 
         # Matter Hamiltonian function: diagonal matrix with VCC in the top-left (ee) entry
         if isinstance(VCC_func, Callable):

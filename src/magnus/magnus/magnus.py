@@ -110,7 +110,8 @@ def commutator(X: np.ndarray, Y: np.ndarray) -> np.ndarray:
     return X @ Y - Y @ X
 
 
-def _evaluate_A(A: Callable, times: np.ndarray) -> Tuple[np.ndarray, bool]:
+def _evaluate_A(A: Callable, times: np.ndarray,
+                A_eval_mode: Optional[str] = None) -> Tuple[np.ndarray, str]:
     r"""Evaluate the matrix function A at all requested times.
 
     Silently tries a single vectorized call, A(times), which is much
@@ -127,20 +128,51 @@ def _evaluate_A(A: Callable, times: np.ndarray) -> Tuple[np.ndarray, bool]:
         accept an array of times and return a (..., d, d) stack.
     times : np.ndarray
         Times at which to evaluate A; any shape.
+    A_eval_mode : str, optional
+        If given ('vector', 'constant', or 'scalar', e.g., from a
+        previous call or from :func:`probe_eval_mode`), skip the probe
+        and evaluate directly in that mode.  This avoids re-probing A
+        (two extra scalar evaluations) on every call.
 
     Returns
     -------
-    (np.ndarray, bool)
+    (np.ndarray, str)
         Array of shape ``times.shape + (d, d)`` and complex dtype, and
-        a flag telling whether A was detected to be constant in time.
+        the evaluation mode that was used ('vector', 'constant', or
+        'scalar').
     """
     times = np.asarray(times, dtype=float)
     flat = times.ravel()
+
+    if A_eval_mode == 'vector':
+        try:
+            At = np.asarray(A(flat))
+        except Exception:
+            At = None
+        if (At is None) or (At.ndim < 3) or (At.shape[0] != flat.shape[0]):
+            # The mode hint was wrong for this A: fall back safely
+            At = np.array([A(t) for t in flat])
+            A_eval_mode = 'scalar'
+        return (At.reshape(times.shape + At.shape[-2:])
+                .astype(complex, copy=False), A_eval_mode)
+
+    if A_eval_mode == 'constant':
+        A0 = np.asarray(A(flat[0]))
+        At = np.broadcast_to(A0, flat.shape + A0.shape)
+        return (At.reshape(times.shape + A0.shape)
+                .astype(complex, copy=False), A_eval_mode)
+
+    if A_eval_mode == 'scalar':
+        At = np.array([A(t) for t in flat])
+        return (At.reshape(times.shape + At.shape[-2:])
+                .astype(complex, copy=False), A_eval_mode)
+
+    # No mode given: probe
     A0 = np.asarray(A(flat[0]))
     target_shape = flat.shape + A0.shape
 
     At = None
-    is_constant = False
+    mode = 'scalar'
     try:
         cand = np.asarray(A(flat))
     except Exception:
@@ -153,19 +185,35 @@ def _evaluate_A(A: Callable, times: np.ndarray) -> Tuple[np.ndarray, bool]:
             spot = np.asarray(A(flat[k]))
             if np.allclose(cand[k], spot, rtol=1.e-10, atol=0.0):
                 At = cand
+                mode = 'vector'
         elif cand.shape == A0.shape:
             # A returned a single matrix for an array argument: constant A
             k = len(flat) // 2
             spot = np.asarray(A(flat[k]))
             if np.allclose(cand, spot, rtol=1.e-10, atol=0.0):
                 At = np.broadcast_to(cand, target_shape)
-                is_constant = True
+                mode = 'constant'
 
     if At is None:  # Fall back to the (slow but safe) per-point loop
         At = np.array([A(t) for t in flat])
 
     At = At.reshape(times.shape + A0.shape).astype(complex, copy=False)
-    return At, is_constant
+    return At, mode
+
+
+def probe_eval_mode(A: Callable, t0: float, t1: float,
+                    n_probe: Optional[int] = 5) -> str:
+    r"""Determine how the matrix function A can be evaluated.
+
+    Returns 'vector' if A accepts an array of times (fast path),
+    'constant' if A ignores its argument, and 'scalar' otherwise.  Use
+    the result as the ``A_eval_mode`` argument of
+    :func:`magnus_expansion` and :func:`magnus_expansion_multislab` to
+    avoid re-probing A on every call.
+    """
+    times = np.linspace(t0, t1, n_probe)
+    _, mode = _evaluate_A(A, times, None)
+    return mode
 
 
 def _cumulative_integral(y: np.ndarray, ds: float, method: str) -> np.ndarray:
@@ -434,7 +482,8 @@ def magnus_expansion(
     order: Optional[int] = 2,
     integration_method: Optional[str] = 'trapezoid',
     return_magnus_terms: Optional[bool] = False,
-    validate_input: Optional[bool] = True
+    validate_input: Optional[bool] = True,
+    A_eval_mode: Optional[str] = None
 ) -> np.ndarray:
     r"""Compute exp(Omega_1 + ... + Omega_order) of A(t) from t0 to t1.
 
@@ -478,20 +527,20 @@ def magnus_expansion(
         nodes = _gl_nodes(order)
         width = float(t1) - float(t0)
         tnodes = t0 + width*nodes
-        An, A_is_const = _evaluate_A(A, tnodes)
+        An, used_mode = _evaluate_A(A, tnodes, A_eval_mode)
         Om = _magnus_gl(An, width, order)
-        U = _expm_stack(Om, warn_wide=True, A_is_const=A_is_const)
+        U = _expm_stack(Om, warn_wide=True, A_is_const=(used_mode == 'constant'))
         if not return_magnus_terms:
             return U
         return U, np.stack([Om], axis=0)
 
     times = np.linspace(t0, t1, n_tpts)
-    At, A_is_const = _evaluate_A(A, times)
+    At, used_mode = _evaluate_A(A, times, A_eval_mode)
     Bt = (float(t1) - float(t0))*At  # rescale to the unit interval
     magnus_terms = _magnus_terms_quadrature(Bt, order, integration_method)
 
     U = _expm_stack(np.sum(magnus_terms, axis=0), warn_wide=True,
-                    A_is_const=A_is_const)
+                    A_is_const=(used_mode == 'constant'))
     if not return_magnus_terms:
         return U
     return U, magnus_terms
@@ -503,7 +552,8 @@ def magnus_expansion_multislab(
     n_tpts_per_slab: Optional[int] = 50,
     order: Optional[int] = 2,
     integration_method: Optional[str] = 'trapezoid',
-    validate_input: Optional[bool] = True
+    validate_input: Optional[bool] = True,
+    A_eval_mode: Optional[str] = None
 ) -> np.ndarray:
     r"""Compute the evolution operators of all time slabs at once.
 
@@ -557,17 +607,18 @@ def magnus_expansion_multislab(
     if integration_method == 'gl':
         nodes = _gl_nodes(order)                        # (k,)
         tgrid = edges[:, :1] + widths[:, None]*nodes    # (n_slabs, k)
-        An, A_is_const = _evaluate_A(A, tgrid)          # (n_slabs, k, d, d)
+        An, used_mode = _evaluate_A(A, tgrid, A_eval_mode)  # (n_slabs, k, d, d)
         Om = _magnus_gl(An, widths, order)              # (n_slabs, d, d)
-        return _expm_stack(Om, warn_wide=True, A_is_const=A_is_const)
+        return _expm_stack(Om, warn_wide=True,
+                           A_is_const=(used_mode == 'constant'))
 
     s = np.linspace(0.0, 1.0, n_tpts_per_slab)          # normalized grid
     tgrid = edges[:, :1] + widths[:, None]*s            # (n_slabs, m)
-    At, A_is_const = _evaluate_A(A, tgrid)              # (n_slabs, m, d, d)
+    At, used_mode = _evaluate_A(A, tgrid, A_eval_mode)  # (n_slabs, m, d, d)
     Bt = widths[:, None, None, None]*At                 # rescale to [0, 1]
     magnus_terms = _magnus_terms_quadrature(Bt, order, integration_method)
     return _expm_stack(np.sum(magnus_terms, axis=0), warn_wide=True,
-                       A_is_const=A_is_const)
+                       A_is_const=(used_mode == 'constant'))
 
 
 if __name__ == "__main__":
