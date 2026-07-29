@@ -108,7 +108,7 @@ def commutator(X: np.ndarray, Y: np.ndarray) -> np.ndarray:
     return X @ Y - Y @ X
 
 
-def _evaluate_A(A: Callable, times: np.ndarray) -> np.ndarray:
+def _evaluate_A(A: Callable, times: np.ndarray) -> Tuple[np.ndarray, bool]:
     r"""Evaluate the matrix function A at all requested times.
 
     Silently tries a single vectorized call, A(times), which is much
@@ -128,8 +128,9 @@ def _evaluate_A(A: Callable, times: np.ndarray) -> np.ndarray:
 
     Returns
     -------
-    np.ndarray
-        Array of shape ``times.shape + (d, d)`` and complex dtype.
+    (np.ndarray, bool)
+        Array of shape ``times.shape + (d, d)`` and complex dtype, and
+        a flag telling whether A was detected to be constant in time.
     """
     times = np.asarray(times, dtype=float)
     flat = times.ravel()
@@ -137,6 +138,7 @@ def _evaluate_A(A: Callable, times: np.ndarray) -> np.ndarray:
     target_shape = flat.shape + A0.shape
 
     At = None
+    is_constant = False
     try:
         cand = np.asarray(A(flat))
     except Exception:
@@ -155,11 +157,13 @@ def _evaluate_A(A: Callable, times: np.ndarray) -> np.ndarray:
             spot = np.asarray(A(flat[k]))
             if np.allclose(cand, spot, rtol=1.e-10, atol=0.0):
                 At = np.broadcast_to(cand, target_shape)
+                is_constant = True
 
     if At is None:  # Fall back to the (slow but safe) per-point loop
         At = np.array([A(t) for t in flat])
 
-    return At.reshape(times.shape + A0.shape).astype(complex, copy=False)
+    At = At.reshape(times.shape + A0.shape).astype(complex, copy=False)
+    return At, is_constant
 
 
 def _cumulative_integral(y: np.ndarray, ds: float, method: str) -> np.ndarray:
@@ -379,20 +383,31 @@ def _expm_stack(Om: np.ndarray) -> np.ndarray:
         return out.reshape(shape)
 
 
-def _warn_if_slab_too_wide(om1: np.ndarray):
+def _warn_if_slab_too_wide(om1: np.ndarray, A_is_constant: bool = False):
     r"""Warn if ||Omega_1||_2 >= pi for any slab (see
-    :class:`MagnusConvergenceWarning`)."""
+    :class:`MagnusConvergenceWarning`).
+
+    For a constant A the series terminates exactly at Omega_1, so the
+    check does not apply and no warning is issued.
+    """
+    if A_is_constant:
+        return
     try:
         svals = np.linalg.svd(om1, compute_uv=False)
     except np.linalg.LinAlgError:
         return
     nmax = np.max(svals)
     if nmax >= np.pi:
+        # The message is intentionally static (no numbers) so that Python's
+        # default warning filter shows it only once per session.
         warnings.warn(
-            "max ||Omega_1||_2 = %.3g >= pi: at least one time slab may be "
-            "too wide for the Magnus series to converge; raising the "
-            "expansion order will not help. Use more (narrower) slabs "
-            "instead." % nmax, MagnusConvergenceWarning, stacklevel=3)
+            "at least one time slab is too wide for guaranteed convergence "
+            "of the Magnus series (||Omega_1||_2 >= pi); raising the "
+            "expansion order will not help there -- more (narrower) slabs "
+            "are needed. If a target tolerance (rtol/atol) was requested, "
+            "the adaptive refinement narrows the slabs automatically and "
+            "this warning can be ignored. Shown once per session.",
+            MagnusConvergenceWarning, stacklevel=3)
 
 
 def _validate(order: int, integration_method: str):
@@ -459,18 +474,18 @@ def magnus_expansion(
         nodes = _gl_nodes(order)
         width = float(t1) - float(t0)
         tnodes = t0 + width*nodes
-        An = _evaluate_A(A, tnodes)
+        An, A_is_const = _evaluate_A(A, tnodes)
         Om = _magnus_gl(An, width, order)
-        _warn_if_slab_too_wide(Om)
+        _warn_if_slab_too_wide(Om, A_is_const)
         if not return_magnus_terms:
             return _expm_stack(Om)
         return _expm_stack(Om), np.stack([Om], axis=0)
 
     times = np.linspace(t0, t1, n_tpts)
-    At = _evaluate_A(A, times)
+    At, A_is_const = _evaluate_A(A, times)
     Bt = (float(t1) - float(t0))*At  # rescale to the unit interval
     magnus_terms = _magnus_terms_quadrature(Bt, order, integration_method)
-    _warn_if_slab_too_wide(magnus_terms[0])
+    _warn_if_slab_too_wide(magnus_terms[0], A_is_const)
 
     U = _expm_stack(np.sum(magnus_terms, axis=0))
     if not return_magnus_terms:
@@ -538,17 +553,17 @@ def magnus_expansion_multislab(
     if integration_method == 'gl':
         nodes = _gl_nodes(order)                        # (k,)
         tgrid = edges[:, :1] + widths[:, None]*nodes    # (n_slabs, k)
-        An = _evaluate_A(A, tgrid)                      # (n_slabs, k, d, d)
+        An, A_is_const = _evaluate_A(A, tgrid)          # (n_slabs, k, d, d)
         Om = _magnus_gl(An, widths, order)              # (n_slabs, d, d)
-        _warn_if_slab_too_wide(Om)
+        _warn_if_slab_too_wide(Om, A_is_const)
         return _expm_stack(Om)
 
     s = np.linspace(0.0, 1.0, n_tpts_per_slab)          # normalized grid
     tgrid = edges[:, :1] + widths[:, None]*s            # (n_slabs, m)
-    At = _evaluate_A(A, tgrid)                          # (n_slabs, m, d, d)
+    At, A_is_const = _evaluate_A(A, tgrid)              # (n_slabs, m, d, d)
     Bt = widths[:, None, None, None]*At                 # rescale to [0, 1]
     magnus_terms = _magnus_terms_quadrature(Bt, order, integration_method)
-    _warn_if_slab_too_wide(magnus_terms[0])
+    _warn_if_slab_too_wide(magnus_terms[0], A_is_const)
     return _expm_stack(np.sum(magnus_terms, axis=0))
 
 
