@@ -274,6 +274,7 @@ __author__ = 'Mauricio Bustamante'
 import numpy as np
 import sys
 import platform
+from functools import reduce
 from joblib import Parallel, delayed
 from typing import Optional, Callable, Union, Tuple, List, Dict
 from io import TextIOWrapper
@@ -313,13 +314,13 @@ def print_banner(file: TextIOWrapper=None):
             file=file)
         print(gd.cstyle.CBLUEBG + "|   __  __                               |" + gd.cstyle.CEND,
             file=file)
-        print(gd.cstyle.CBLUEBG + "|  |  \/  | __ _  __ _ _ __  _   _ ___   |" + gd.cstyle.CEND, 
+        print(gd.cstyle.CBLUEBG + r"|  |  \/  | __ _  __ _ _ __  _   _ ___   |" + gd.cstyle.CEND, 
             file=file)
-        print(gd.cstyle.CBLUEBG + "|  | |\/| |/ _` |/ _` | '_ \| | | / __|  |" + gd.cstyle.CEND,
+        print(gd.cstyle.CBLUEBG + r"|  | |\/| |/ _` |/ _` | '_ \| | | / __|  |" + gd.cstyle.CEND,
             file=file)
-        print(gd.cstyle.CBLUEBG + "|  | |  | | (_| | (_| | | | | |_| \__ \  |" + gd.cstyle.CEND,
+        print(gd.cstyle.CBLUEBG + r"|  | |  | | (_| | (_| | | | | |_| \__ \  |" + gd.cstyle.CEND,
             file=file)
-        print(gd.cstyle.CBLUEBG + "|  |_|  |_|\__,_|\__, |_| |_|\__,_|___/  |" + gd.cstyle.CEND,
+        print(gd.cstyle.CBLUEBG + r"|  |_|  |_|\__,_|\__, |_| |_|\__,_|___/  |" + gd.cstyle.CEND,
             file=file)
         print(gd.cstyle.CBLUEBG + "|                |___/                   |" + gd.cstyle.CEND,
             file=file)
@@ -328,10 +329,10 @@ def print_banner(file: TextIOWrapper=None):
     else: 
         print(".----------------------------------------.", file=file)
         print("|   __  __                               |", file=file)
-        print("|  |  \/  | __ _  __ _ _ __  _   _ ___   |", file=file)
-        print("|  | |\/| |/ _` |/ _` | '_ \| | | / __|  |", file=file)
-        print("|  | |  | | (_| | (_| | | | | |_| \__ \  |", file=file)
-        print("|  |_|  |_|\__,_|\__, |_| |_|\__,_|___/  |", file=file)
+        print(r"|  |  \/  | __ _  __ _ _ __  _   _ ___   |", file=file)
+        print(r"|  | |\/| |/ _` |/ _` | '_ \| | | / __|  |", file=file)
+        print(r"|  | |  | | (_| | (_| | | | | |_| \__ \  |", file=file)
+        print(r"|  |_|  |_|\__,_|\__, |_| |_|\__,_|___/  |", file=file)
         print("|                |___/                   |", file=file)
         print("'----------------------------------------'", file=file)
     print("Version: "+ version.__version__ + " | Author(s): " + authors.__authors__ + "\n",
@@ -382,7 +383,7 @@ def print_run_parameters(
         print("   t_ini = " + str(t_ini), file=f)
         print("   t_fin = " + str(t_fin), file=f)
         print("   n_slabs = " + str(n_slabs), file=f)
-        print("   n_tpts_per_slab = " + str(n_slabs), file=f)
+        print("   n_tpts_per_slab = " + str(n_tpts_per_slab), file=f)
         if t_slab_edges is None:
             print("   t_slab_edges = None", file=f)
         else:
@@ -1218,61 +1219,36 @@ def compute_evolution_operator_multiple_slabs(
     magnus_exp_order: int,
     **kwargs
 ) -> np.ndarray:
-    r"""Computes the evolution operator inside a given time slab.  This functions is not designed to
-    be called directly by the user, but rather internally by :func:`osc_prob`.
+    r"""Computes the evolution operators of a chain of time slabs.  This function is not designed
+    to be called directly by the user, but rather internally by :func:`osc_prob`.
+
+    All slabs are computed at once by :func:`magnus.magnus.magnus_expansion_multislab`, which
+    batches the Hamiltonian evaluation, the quadrature, the commutator algebra, and the matrix
+    exponentials over the slab axis.  Slabs of zero width yield identity operators.
 
     :param H_func: Hamiltonian, which is a function of time or position that returns a square matrix
-        in the form of NumPy array
-    :param t_slab: List or Numpy Array specifying the start and end times or positions of the slab,
-        i.e., [t0, t1]
-    :param n_tpts_per_slab: Number of time-points inside the slab at which to evaluate H_func in 
+        in the form of NumPy array.  If it also accepts an array of times (returning a stack of
+        matrices), the vectorized form is detected and used automatically for speed.
+    :param t_slabs: List or NumPy array of pairs specifying the start and end times or positions of
+        each slab, i.e., [[t0, t1], [t1, t2], ...]
+    :param n_tpts_per_slab: Number of time-points inside each slab at which to evaluate H_func in
         order to numerically compute the integrals over time required by the Magnus expansion
+        (ignored by the 'gl' integration method)
     :param magnus_exp_order: Maximum order of Magnus expansion used to compute the evolution
         operator (should not exceed :func:`magnus.globaldefs.MAGNUS_EXP_ORDER_MAX`)
-    :param \**kwargs: Additional unspecified arguments
+    :param \**kwargs: Additional arguments passed to
+        :func:`magnus.magnus.magnus_expansion_multislab` (e.g., integration_method)
 
-    :return: An NumPy array containing the evolution operator for the given time-slab.
+    :return: A NumPy array of shape (n_slabs, dim, dim) containing the evolution operators, ordered
+        like ``t_slabs`` (earliest slab first).  Note that the time-ordered product over the chain
+        is U_total = U[-1] @ ... @ U[1] @ U[0], i.e., the last slab is the leftmost factor.
 
     """
-    t_slabs = np.asarray(t_slabs)  # Ensure t_slabs is a NumPy array
-    n_slabs = t_slabs.shape[0]
-
-    # Pre-allocate the output array.  Assumes all evolution operators are the same size.
-    # Get the shape from a sample Hamiltonian evaluation. This is generally faster
-    # than calling H_func repeatedly.
-    sample_t = t_slabs[0, 0] if n_slabs > 0 else 0 # Handle empty t_slabs case
-    matrix_dim = H_func(sample_t).shape[0]
-    # U_chain = np.empty((n_slabs, matrix_dim, matrix_dim), dtype=complex) 
-
-    # def H_func_vec(t):
-    #     return np.array([-1j * H_func(tt) for tt in t])
-
-    # for i, t_slab in enumerate(t_slabs):
-    #     if t_slab[1] > t_slab[0]:
-    #         U_chain[i] = magnus.magnus_expansion(
-    #             lambda t: -1j * H_func(t),
-    #             # H_func_vec,
-    #             t0=t_slab[0],
-    #             t1=t_slab[1],
-    #             order=magnus_exp_order,
-    #             n_tpts=n_tpts_per_slab,
-    #             **kwargs,
-    #         )
-    #     else:  # t1 == t0
-    #         U_chain[i] = np.eye(matrix_dim, dtype=complex)  # Use pre-allocated identity
-    
     def hh(t):
         return -1j * H_func(t)
 
-    # TODO: Make magnus_expansion vectorized, so we can pass t_slabs directlsy
-    U_chain = [magnus.magnus_expansion(hh, t0=t_slab[0], t1=t_slab[1], order=magnus_exp_order, 
-        n_tpts=n_tpts_per_slab, **kwargs) if t_slab[1] > t_slab[0] else np.eye(matrix_dim,
-        dtype=complex) for t_slab in t_slabs]
-    # U_chain = [magnus.magnus_expansion(hh, t_slabs=t_slabs, order=magnus_exp_order, 
-    #     n_tpts=n_tpts_per_slab, **kwargs) if t_slab[1] > t_slab[0] else np.eye(matrix_dim,
-    #     dtype=complex) for t_slab in t_slabs]
-
-    return U_chain
+    return magnus.magnus_expansion_multislab(hh, t_slabs, n_tpts_per_slab=n_tpts_per_slab,
+        order=magnus_exp_order, **kwargs)
 
 
 def osc_prob(
@@ -1343,51 +1319,78 @@ def osc_prob(
         required by the Magnus expansion. A higher value of 
         ``n_tpts_per_slab`` yields a more accurate probability.
     t_slab_edges
-        XXX
+        Optional list of pairs [[t0, t1], [t1, t2], ...] with the edges
+        of each time slab.  If given, it overrides ``n_slabs`` and the
+        uniform partitioning of [``t_ini``, ``t_fin``]; the user must
+        ensure that the slabs chain without gaps.  If a tolerance is
+        requested, only ``n_tpts_per_slab`` is grown (the user-provided
+        edges are kept fixed).
     magnus_exp_order
-        XXX
+        Order at which the Magnus expansion is truncated (1 to
+        ``globaldefs.MAGNUS_EXP_ORDER_MAX``).
     n_jobs
-        XXX
+        Number of parallel joblib workers used to compute the per-slab
+        evolution operators.  With the default, ``n_jobs = 1``, all
+        slabs are computed in a single vectorized (batched) call, which
+        is usually fastest; use ``n_jobs > 1`` only for very expensive
+        Hamiltonian functions.
     integration_method
-        XXX
+        'trapezoid' or 'simpson' for cumulative quadrature over
+        ``n_tpts_per_slab`` points per slab, or 'gl' for Gauss-Legendre
+        collocation, which needs only 1, 2, or 3 Hamiltonian
+        evaluations per slab for orders <= 2, <= 4, <= 6, and ignores
+        ``n_tpts_per_slab``.
     rtol
-        XXX
+        Target relative tolerance of the probability matrix between
+        successive refinement loops.  Set both ``rtol`` and ``atol`` to
+        ``None`` to run once with the given fixed parameters.  If only
+        one of the two is ``None``, it is treated as 0.
     atol
-        XXX
+        Target absolute tolerance; see ``rtol``.
     growth_factor_n_slabs
-        XXX
+        Factor by which ``n_slabs`` is multiplied on each refinement
+        loop (used only when a tolerance is requested).
     growth_factor_n_tpts_per_slab
-        XXX
+        Factor by which ``n_tpts_per_slab`` is multiplied on each
+        refinement loop (used only when a tolerance is requested).
     max_num_loops
-        XXX
+        Maximum number of refinement loops.
     min_n_slabs
-        XXX
+        Number of slabs used in the first refinement loop.
     max_n_slabs
-        XXX
+        Maximum allowed number of slabs.
     min_n_tpts_per_slab
-        XXX
+        Number of time points per slab in the first refinement loop.
     max_n_tpts_per_slab
-        XXX
+        Maximum allowed number of time points per slab.
     iterate_over_magnus_exp_order
-        XXX
+        If True, additionally increase ``magnus_exp_order`` from
+        ``min_magnus_exp_order`` to ``max_magnus_exp_order`` until the
+        requested tolerance is achieved.
     min_magnus_exp_order
-        XXX
+        Lowest expansion order tried when iterating over the order.
     max_magnus_exp_order
-        XXX
+        Highest expansion order tried when iterating over the order.
     validate_input
-        XXX
+        If True, validate the input parameters (set to False for a
+        small speed-up once a call is known to be well-formed).
     save_log
-        XXX
+        If True, also write all messages to the log file.
     filename_log
-        XXX
+        Name of the log file (used if ``save_log`` is True and no
+        ``file_log`` object is given).
     file_log
-        XXX
+        Optional file object to write log messages to.
     close_file_log_upon_exit
-        XXX
+        If True, close the log file before returning.
+    new_recursion_limit
+        If not None, raise Python's recursion limit to this value.
     verbose
-        XXX
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the
+        refinement loops).
     \**kwargs
-        Additional unspecified arguments
+        Additional arguments passed through to the Magnus-expansion
+        routines
 
     Returns
     -------
@@ -1521,6 +1524,21 @@ def osc_prob(
             print("Aborting execution...")
             sys.exit(1)
 
+    # If only one of rtol and atol was given (i.e., the other one is None), set the missing one to
+    # 0.0, so that the requested tolerance is driven by the one that was given.  (Internally, the
+    # code treats "a tolerance was requested" as both rtol and atol being not None.)
+    if (rtol is None) != (atol is None):
+        rtol = 0.0 if rtol is None else rtol
+        atol = 0.0 if atol is None else atol
+
+    # The Gauss-Legendre integration method ('gl') uses a fixed, small number of Hamiltonian
+    # evaluations per slab (1, 2, or 3, depending on magnus_exp_order), so n_tpts_per_slab plays no
+    # role: the accuracy is controlled by the number of slabs only.  Neutralize the growth of
+    # n_tpts_per_slab so that the adaptive loop below grows only n_slabs.
+    if integration_method == 'gl':
+        growth_factor_n_tpts_per_slab = 1.0
+        min_n_tpts_per_slab = max_n_tpts_per_slab = n_tpts_per_slab = 2
+
     # If there is no file object given (i.e., if file_log is None), open a log file if requested
     if file_log is None:
         file_log = open(filename_log, 'w') if save_log else None
@@ -1607,7 +1625,7 @@ def osc_prob(
     # compute_evolution_operator.  In this case, first-order Magnus expansion is enough, and so we
     # can overwrite the parameters provided to n_slabs = 1, n_tpts_per_slab = 2, rtol = None, 
     # atol = None for speed-up.
-    if not callable(H_func): 
+    if not callable(H_func):
         H = np.copy(H_func)
         def H_func(l: float) -> np.ndarray:
             return H
@@ -1617,6 +1635,9 @@ def osc_prob(
         rtol = None
         atol = None
         n_jobs = 1 # No need to parallelize for this simple computation in a single slab
+        # A single slab is exact for a constant Hamiltonian, so drop any user-provided slab edges
+        t_slab_edges = None
+        t_slab_edges_original = None
         if verbose > 0:
             for f in [None, file_log] if save_log else [None]:
                 warn_msg = gd.WARNING_MSG_IN_COLOR if f is None else gd.WARNING_MSG_NO_COLOR
@@ -1624,6 +1645,10 @@ def osc_prob(
                     "Overwriting the run parameters to magnus_exp_order = 1, n_slabs = 1, " + \
                     "n_tpts_per_slab = 2, rtol = None, atol = None, and n_jobs = 1 for speed-up.",
                     file=f)
+
+    # If the user provided the slab edges explicitly, the number of slabs is set by them
+    if t_slab_edges_original is not None:
+        n_slabs = len(t_slab_edges_original)
 
     while True:
 
@@ -1734,12 +1759,17 @@ def osc_prob(
             #     U_chain.extend(U_chain_chunk)  # Combine results from chunks
             # U_chain = np.array(U_chain) # Convert back to a NumPy array if needed
 
-        # Now compute the time-ordered product of all evolution operators across all slabs
-        Utot = np.linalg.multi_dot(U_chain) if n_slabs > 1 else U_chain[0]
+        # Now compute the time-ordered product of all evolution operators across all slabs.  The
+        # neutrino crosses the slabs in the order in which they appear in U_chain (earliest first),
+        # so the total operator is U_tot = U_chain[-1] @ ... @ U_chain[1] @ U_chain[0]: the operator
+        # of the *last* slab is the leftmost factor.  (functools.reduce is used instead of
+        # np.linalg.multi_dot because all factors are square matrices of the same size, for which
+        # multi_dot wastes time computing an optimal parenthesization that does not exist.)
+        Utot = reduce(np.matmul, U_chain[::-1]) if len(U_chain) > 1 else U_chain[0]
 
         # Using Utot, compute all the survival and transition probabilities in a probability matrix
-        # P = (np.abs(Utot)**2).T and return that matrix.
-        P = np.transpose(np.power(np.abs(Utot), 2))
+        # P = (|Utot|^2).T and return that matrix, so that P[nu_i][nu_f] = |Utot[nu_f][nu_i]|^2.
+        P = np.transpose(Utot.real**2 + Utot.imag**2)
 
         # If no target relative tolerance (rtol) or absolute tolerance (atol) of the probability is
         # requested, then return the result obtained already.  If, instead, a target tolerance is
@@ -1949,22 +1979,22 @@ def osc_prob_energy_baseline(
         print("Aborting execution...")
         sys.exit(1)
 
-    # Turn into into float
+    # Turn int into float
     energy = float(energy) if isinstance(energy, int) else energy
     L = float(L) if isinstance(L, int) else L
 
-    # Flag return_float remembers if energy and L were both floats.  If True, 
+    # Flag return_float remembers if energy and L were both floats.  If True,
     # osc_prob_energy_baseline returns a float, too.
     return_float = isinstance(energy, float) and isinstance(L, float)
 
     # If there is a single value of energy, make an array out of it.  Same for L.  This will allow
     # us to zip them later.
-    energy = np.array([energy]) if isinstance(energy, float) else np.array(energy)  
-    L = np.array([L]) if isinstance(L, float) else np.array(L) 
+    energy = np.array([energy]) if isinstance(energy, float) else np.array(energy)
+    L = np.array([L]) if isinstance(L, float) else np.array(L)
 
     # Either energy and L are both lists (or NumPy arrays) of the same length; or one is a float and
     # the other is a list (or NumPy array).  Any other possibility will generate an exception.  This
-    # exception may be raised earlier in routines that call osc_prob_energy_baseline if they are 
+    # exception may be raised earlier in routines that call osc_prob_energy_baseline if they are
     # called wih validate_input == True, but we check below in case it osc_prob_energy_baseline was
     # set to False.
     try:
@@ -1980,158 +2010,69 @@ def osc_prob_energy_baseline(
         print("Aborting execution...")
         sys.exit(1)
 
-    # If energy is a single value, then transform it into an array containing the value energy 
+    # If energy is a single value, then transform it into an array containing the value energy
     # repeated a number of times equal to the length of the L, and vice versa, in order to zip them.
     energy = np.full(len(L), energy[0]) if (len(energy) == 1) else energy
     L = np.full(len(energy), L[0]) if (len(L) == 1) else L
 
-    # The function osc_prob checks whether the Hamiltonian, H_func, is a one-dimensional function or
-    # not (if H_func is a function, osc_prob modifies internal run parameters for speed-up).  
-    # However, in a physical setting, H_func might still be a one-dimensional function, not of 
-    # position, but of energy. Below we deal with these cases before calling osc_prob.
+    n_points = len(energy)
 
-    # The call to __getitem__ below is a way to return a float if both energy and L were floats.
-    
-    # In the zip: xy[0]: energy, xy[1]: baseline
-    
+    # When there are multiple (energy, L) points and n_jobs != 1, parallelize over the points, and
+    # run each individual osc_prob call serially.  The per-point tasks are large enough for
+    # process-based parallelism to pay off, unlike the much smaller per-slab tasks inside osc_prob.
+    parallelize_over_points = (n_jobs != 1) and (n_points > 1)
+
+    # Keyword arguments common to all the calls to osc_prob below.  Additional keyword arguments
+    # received in **kwargs are passed through to osc_prob as well (e.g., n_slabs,
+    # n_tpts_per_slab).
+    osc_prob_kwargs = dict(
+        t_slab_edges=t_slab_edges, magnus_exp_order=magnus_exp_order,
+        n_jobs=1 if parallelize_over_points else n_jobs,
+        integration_method=integration_method, rtol=rtol, atol=atol,
+        growth_factor_n_slabs=growth_factor_n_slabs,
+        growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
+        max_num_loops=max_num_loops, min_n_slabs=min_n_slabs, max_n_slabs=max_n_slabs,
+        min_n_tpts_per_slab=min_n_tpts_per_slab, max_n_tpts_per_slab=max_n_tpts_per_slab,
+        iterate_over_magnus_exp_order=iterate_over_magnus_exp_order,
+        min_magnus_exp_order=min_magnus_exp_order, max_magnus_exp_order=max_magnus_exp_order,
+        validate_input=validate_input, save_log=save_log, filename_log=filename_log,
+        file_log=file_log, close_file_log_upon_exit=close_file_log_upon_exit,
+        new_recursion_limit=new_recursion_limit, verbose=verbose, **kwargs)
+
+    # Build, for a given neutrino energy, the Hamiltonian to be passed to osc_prob: either a
+    # one-parameter function of position or, if position-independent, a constant matrix (which
+    # osc_prob detects and handles with internal speed-ups).
+    if not isinstance(H_func, Callable):
+        # H_func is position- and energy-independent
+        def H_at_energy(enu: float) -> np.ndarray:
+            return H_func
+    elif (len(signature(H_func).parameters) == 2):
+        # H_func is a function of two parameters; it is assumed that the first parameter is the
+        # energy and the second one is the position
+        def H_at_energy(enu: float) -> Callable:
+            return lambda l: H_func(enu, l)
+    elif H_func_is_function_only_of_energy:
+        # H_func is a function only of energy: at fixed energy, it is a constant matrix
+        def H_at_energy(enu: float) -> np.ndarray:
+            return H_func(enu)
+    else:
+        # H_func is a function only of position
+        def H_at_energy(enu: float) -> Callable:
+            return H_func
+
+    def compute_single_point(enu: float, baseline: float) -> Union[float, np.ndarray]:
+        P = osc_prob(H_at_energy(enu), L0, baseline, **osc_prob_kwargs)
+        # Select one oscillation channel if requested; otherwise return the full matrix
+        if ((nu_i is not None) and (nu_f is not None)):
+            return P[nu_i][nu_f]
+        return P
+
     try:
-        if not isinstance(H_func, Callable): # H_func is position- and energy-independent
-            if ((nu_i is not None) and (nu_f is not None)): # Select one oscillation channel
-                return np.array([osc_prob(H_func, L0, xy[1],
-                    t_slab_edges=t_slab_edges, magnus_exp_order=magnus_exp_order, n_jobs=n_jobs,
-                    integration_method=integration_method, rtol=rtol, atol=atol,
-                    growth_factor_n_slabs=growth_factor_n_slabs,
-                    growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
-                    max_num_loops=max_num_loops, min_n_slabs=min_n_slabs, max_n_slabs=max_n_slabs,
-                    min_n_tpts_per_slab=min_n_tpts_per_slab, max_n_tpts_per_slab=max_n_tpts_per_slab,
-                    iterate_over_magnus_exp_order=iterate_over_magnus_exp_order,
-                    min_magnus_exp_order=min_magnus_exp_order, 
-                    max_magnus_exp_order=max_magnus_exp_order,
-                    validate_input=validate_input, save_log=save_log, filename_log=filename_log,
-                    file_log=file_log, close_file_log_upon_exit=close_file_log_upon_exit,
-                    new_recursion_limit=new_recursion_limit, verbose=verbose)[nu_i][nu_f]
-                for xy in zip(energy, L)]).__getitem__(0 if return_float else slice(None))
-            else: # Select the full probability matrix
-                return np.array([osc_prob(H_func, L0, xy[1], 
-                    t_slab_edges=t_slab_edges, magnus_exp_order=magnus_exp_order, n_jobs=n_jobs,
-                    integration_method=integration_method, rtol=rtol, atol=atol,
-                    growth_factor_n_slabs=growth_factor_n_slabs,
-                    growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
-                    max_num_loops=max_num_loops, min_n_slabs=min_n_slabs, max_n_slabs=max_n_slabs,
-                    min_n_tpts_per_slab=min_n_tpts_per_slab, max_n_tpts_per_slab=max_n_tpts_per_slab,
-                    iterate_over_magnus_exp_order=iterate_over_magnus_exp_order,
-                    min_magnus_exp_order=min_magnus_exp_order, 
-                    max_magnus_exp_order=max_magnus_exp_order,
-                    validate_input=validate_input, save_log=save_log, filename_log=filename_log,
-                    file_log=file_log, close_file_log_upon_exit=close_file_log_upon_exit,
-                    new_recursion_limit=new_recursion_limit, verbose=verbose)
-                for xy in zip(energy, L)]).__getitem__(0 if return_float else slice(None))
-        else: # H_func is a function of one or more parameters 
-            if (len(signature(H_func).parameters) == 2): # H_func is a function of two parameters
-                # It is assumed that the first parameter is energy and the second is position.
-                if ((nu_i is not None) and (nu_f is not None)): # Select one oscillation channel
-                    return np.array([osc_prob(lambda l: H_func(xy[0], l), L0, xy[1], 
-                        t_slab_edges=t_slab_edges, magnus_exp_order=magnus_exp_order, n_jobs=n_jobs,
-                        integration_method=integration_method, rtol=rtol, atol=atol,
-                        growth_factor_n_slabs=growth_factor_n_slabs,
-                        growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
-                        max_num_loops=max_num_loops, min_n_slabs=min_n_slabs, max_n_slabs=max_n_slabs,
-                        min_n_tpts_per_slab=min_n_tpts_per_slab,
-                        max_n_tpts_per_slab=max_n_tpts_per_slab,
-                        iterate_over_magnus_exp_order=iterate_over_magnus_exp_order,
-                        min_magnus_exp_order=min_magnus_exp_order, 
-                        max_magnus_exp_order=max_magnus_exp_order,
-                        validate_input=validate_input, save_log=save_log, filename_log=filename_log,
-                        file_log=file_log, close_file_log_upon_exit=close_file_log_upon_exit,
-                        new_recursion_limit=new_recursion_limit, verbose=verbose)[nu_i][nu_f]
-                    for xy in zip(energy, L)]).__getitem__(0 if return_float else slice(None))
-                else: # Select the full probability matrix
-                    return np.array([osc_prob(lambda l: H_func(xy[0], l), L0, xy[1], 
-                        t_slab_edges=t_slab_edges, magnus_exp_order=magnus_exp_order, n_jobs=n_jobs,
-                        integration_method=integration_method, rtol=rtol, atol=atol,
-                        growth_factor_n_slabs=growth_factor_n_slabs,
-                        growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
-                        max_num_loops=max_num_loops, min_n_slabs=min_n_slabs, max_n_slabs=max_n_slabs,
-                        min_n_tpts_per_slab=min_n_tpts_per_slab,
-                        max_n_tpts_per_slab=max_n_tpts_per_slab,
-                        iterate_over_magnus_exp_order=iterate_over_magnus_exp_order,
-                        min_magnus_exp_order=min_magnus_exp_order, 
-                        max_magnus_exp_order=max_magnus_exp_order,
-                        validate_input=validate_input, save_log=save_log, filename_log=filename_log,
-                        file_log=file_log, close_file_log_upon_exit=close_file_log_upon_exit,
-                        new_recursion_limit=new_recursion_limit, verbose=verbose)
-                    for xy in zip(energy, L)]).__getitem__(0 if return_float else slice(None))
-            elif (len(signature(H_func).parameters) == 1): # H_func is a function of one parameter
-                if H_func_is_function_only_of_energy: # H_func is a function only of energy
-                    if ((nu_i is not None) and (nu_f is not None)): # Select one oscillation channel
-                        return np.array([osc_prob(H_func(xy[0]), L0, xy[1], 
-                            t_slab_edges=t_slab_edges, magnus_exp_order=magnus_exp_order, n_jobs=n_jobs,
-                            integration_method=integration_method, rtol=rtol, atol=atol,
-                            growth_factor_n_slabs=growth_factor_n_slabs,
-                            growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
-                            max_num_loops=max_num_loops, min_n_slabs=min_n_slabs, 
-                            max_n_slabs=max_n_slabs,
-                            min_n_tpts_per_slab=min_n_tpts_per_slab,
-                            max_n_tpts_per_slab=max_n_tpts_per_slab,
-                            iterate_over_magnus_exp_order=iterate_over_magnus_exp_order,
-                            min_magnus_exp_order=min_magnus_exp_order, 
-                            max_magnus_exp_order=max_magnus_exp_order,
-                            validate_input=validate_input, save_log=save_log, filename_log=filename_log,
-                            file_log=file_log, close_file_log_upon_exit=close_file_log_upon_exit,
-                            new_recursion_limit=new_recursion_limit, verbose=verbose)[nu_i][nu_f]
-                        for xy in zip(energy, L)]).__getitem__(0 if return_float else slice(None))
-                    else: # Select the full probability matrix
-                        return np.array([osc_prob(H_func(xy[0]), L0, xy[1], 
-                            t_slab_edges=t_slab_edges, magnus_exp_order=magnus_exp_order, n_jobs=n_jobs,
-                            integration_method=integration_method, rtol=rtol, atol=atol,
-                            growth_factor_n_slabs=growth_factor_n_slabs,
-                            growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
-                            max_num_loops=max_num_loops, min_n_slabs=min_n_slabs, 
-                            max_n_slabs=max_n_slabs,
-                            min_n_tpts_per_slab=min_n_tpts_per_slab,
-                            max_n_tpts_per_slab=max_n_tpts_per_slab,
-                            iterate_over_magnus_exp_order=iterate_over_magnus_exp_order,
-                            min_magnus_exp_order=min_magnus_exp_order, 
-                            max_magnus_exp_order=max_magnus_exp_order,
-                            validate_input=validate_input, save_log=save_log, filename_log=filename_log,
-                            file_log=file_log, close_file_log_upon_exit=close_file_log_upon_exit,
-                            new_recursion_limit=new_recursion_limit, verbose=verbose)
-                        for xy in zip(energy, L)]).__getitem__(0 if return_float else slice(None))
-                else: # H_func is a function only of position
-                    if ((nu_i is not None) and (nu_f is not None)): # Select one oscillation channel
-                        return np.array([osc_prob(lambda l: H_func(l), L0, xy[1], 
-                            t_slab_edges=t_slab_edges, magnus_exp_order=magnus_exp_order, n_jobs=n_jobs,
-                            integration_method=integration_method, rtol=rtol, atol=atol,
-                            growth_factor_n_slabs=growth_factor_n_slabs,
-                            growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
-                            max_num_loops=max_num_loops, min_n_slabs=min_n_slabs, 
-                            max_n_slabs=max_n_slabs,
-                            min_n_tpts_per_slab=min_n_tpts_per_slab,
-                            max_n_tpts_per_slab=max_n_tpts_per_slab,
-                            iterate_over_magnus_exp_order=iterate_over_magnus_exp_order,
-                            min_magnus_exp_order=min_magnus_exp_order, 
-                            max_magnus_exp_order=max_magnus_exp_order,
-                            validate_input=validate_input, save_log=save_log, filename_log=filename_log,
-                            file_log=file_log, close_file_log_upon_exit=close_file_log_upon_exit,
-                            new_recursion_limit=new_recursion_limit, verbose=verbose)[nu_i][nu_f]
-                        for xy in zip(energy, L)]).__getitem__(0 if return_float else slice(None))
-                    else: # Select the full probability matrix
-                        return np.array([osc_prob(lambda l: H_func(l), L0, xy[1], 
-                            t_slab_edges=t_slab_edges, magnus_exp_order=magnus_exp_order, n_jobs=n_jobs,
-                            integration_method=integration_method, rtol=rtol, atol=atol,
-                            growth_factor_n_slabs=growth_factor_n_slabs,
-                            growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
-                            max_num_loops=max_num_loops, min_n_slabs=min_n_slabs, 
-                            max_n_slabs=max_n_slabs,
-                            min_n_tpts_per_slab=min_n_tpts_per_slab,
-                            max_n_tpts_per_slab=max_n_tpts_per_slab,
-                            iterate_over_magnus_exp_order=iterate_over_magnus_exp_order,
-                            min_magnus_exp_order=min_magnus_exp_order, 
-                            max_magnus_exp_order=max_magnus_exp_order,
-                            validate_input=validate_input, save_log=save_log, filename_log=filename_log,
-                            file_log=file_log, close_file_log_upon_exit=close_file_log_upon_exit,
-                            new_recursion_limit=new_recursion_limit, verbose=verbose)
-                        for xy in zip(energy, L)]).__getitem__(0 if return_float else slice(None))
+        if parallelize_over_points:
+            probs = Parallel(n_jobs=n_jobs)(delayed(compute_single_point)(enu, baseline)
+                for enu, baseline in zip(energy, L))
+        else:
+            probs = [compute_single_point(enu, baseline) for enu, baseline in zip(energy, L)]
     except RecursionError:
         print(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob_energy_baseline: error improvement too" + \
             " slow and maximum recursion reached. Consider calling osc_prob_energy_baseline " + \
@@ -2143,6 +2084,10 @@ def osc_prob_energy_baseline(
             "cores by inreasing n_jobs (currently, n_jobs = " + str(n_jobs) + ").]")
         print("Aborting execution...")
         sys.exit(1)
+
+    # The call to __getitem__ below is a way to return a single float (or single probability
+    # matrix) if both energy and L were given as floats.
+    return np.array(probs).__getitem__(0 if return_float else slice(None))
 
 
 #-----------------------------------------------------------------------
@@ -2342,24 +2287,29 @@ def osc_prob_matter_std_potential(
     # function that returns the electron number density [eV^3].
     VCC_func = matter.vcc_func_from_rho_func(rho_func, L0, ratio_number_neutrons_to_protons,
         electron_fraction, nubar, density_matter_is_in_g_per_cm3,
-        density_is_of_number_of_electrons) # [eV] 
-    
-    s = -1.0 if nubar else 1.0
+        density_is_of_number_of_electrons) # [eV]
+
+    # Projector onto the nu_e--nu_e entry, multiplied below by the potential VCC.  Note that
+    # VCC_func already carries the antineutrino sign flip (applied inside
+    # matter.vcc_func_from_rho_func), so no extra sign is applied here.  [Previously, the sign was
+    # applied twice, which gave the antineutrino matter potential the wrong (positive) sign.]
+    h_matt_proj = np.zeros((num_flavors, num_flavors))
+    h_matt_proj[0][0] = 1.0
 
     # Matter Hamiltonian function: diagonal matrix with VCC in the top-left (ee) entry
     if isinstance(VCC_func, Callable):
-        # VCC_func is a function of position, so the Hamiltonian is, too
-        def htot(enu: Union[int, float], l: Union[int, float]) -> np.ndarray:
-            h_matt = np.zeros((num_flavors, num_flavors))
-            h_matt[0][0] = s*VCC_func(l)
-            return (1/enu)*h_vac_energy_indep+h_matt
+        # VCC_func is a function of position, so the Hamiltonian is, too.  If l is an array, the
+        # result is a stack of Hamiltonians with the position axis leading; this lets the Magnus
+        # routines evaluate the Hamiltonian at all time points in a single vectorized call.
+        def htot(enu: Union[int, float], l: Union[int, float, np.ndarray]) -> np.ndarray:
+            vcc = np.asarray(VCC_func(l))
+            return (1/enu)*h_vac_energy_indep + vcc[..., None, None]*h_matt_proj
         htot_is_function_only_of_energy = False
     else:
         # VCC_func is a constant in position, so the Hamiltonian is, too. When VCC_func is passed to
-        # osc_prob below, osc_prob will detect that VCC_func is constant and set parameters 
+        # osc_prob below, osc_prob will detect that VCC_func is constant and set parameters
         # internally for speed-up.
-        h_matt = np.zeros((num_flavors, num_flavors))
-        h_matt[0][0] = s*VCC_func
+        h_matt = VCC_func*h_matt_proj
         def htot(enu: Union[int, float]) -> np.ndarray:
             return (1/enu)*h_vac_energy_indep+h_matt
         htot_is_function_only_of_energy = True
@@ -2483,26 +2433,30 @@ def osc_prob_matter_nsi(
             s13, dCP, s14, d14, s15, d15, s24, d24, s25, s34, s35, d35, D21, D31, D41, D51,
             nubar=nubar)
 
-    s = -1.0 if nubar else 1.0
-
     # Compute the standard + NSI matter Hamiltonian *without* the multiplicative prefactor of VCC.
     # To do this we call the functions hamiltonians_Xnu_nsi(VCC, ...) with VCC = 1.0.  We add the
     # standard matter contribution to the NSI matter contribution by adding 1.0 to the eps_ee entry.
+    # The overall antineutrino sign flip is carried by VCC_func (see
+    # matter.vcc_func_from_rho_func); for antineutrinos, the NSI couplings are additionally
+    # conjugated (H_matt -> -H_matt^* relative to neutrinos).
     if num_flavors == 2:
-        h_matt = s*np.diag([1.0, 0.0]) + \
-            s*hamiltonians.hamiltonian_2nu_nsi(1.0, eps_aa, eps_ab) # VCC = 1.0
+        h_matt = np.diag([1.0, 0.0]) + \
+            hamiltonians.hamiltonian_2nu_nsi(1.0, eps_aa, eps_ab) # VCC = 1.0
     elif num_flavors == 3:
-        h_matt = s*np.diag([1.0, 0.0, 0.0]) + \
-            s*hamiltonians.hamiltonian_3nu_nsi(1.0, eps_ee, eps_em, eps_et, eps_mm, eps_mt, eps_tt)
+        h_matt = np.diag([1.0, 0.0, 0.0]) + \
+            hamiltonians.hamiltonian_3nu_nsi(1.0, eps_ee, eps_em, eps_et, eps_mm, eps_mt, eps_tt)
     elif num_flavors == 4:
-        h_matt = s*np.diag([1.0, 0.0, 0.0, 0.0]) + \
-            s*hamiltonians.hamiltonian_4nu_nsi(1.0, eps_ee, eps_em, eps_et, eps_es, eps_mm, eps_mt,
-                eps_ms, eps_tt, eps_ts, eps_tt)
+        h_matt = np.diag([1.0, 0.0, 0.0, 0.0]) + \
+            hamiltonians.hamiltonian_4nu_nsi(1.0, eps_ee, eps_em, eps_et, eps_es, eps_mm, eps_mt,
+                eps_ms, eps_tt, eps_ts, eps_ss)
     elif num_flavors == 5:
-        h_matt = s*np.diag([1.0, 0.0, 0.0, 0.0, 0.0]) + \
-            s*hamiltonians.hamiltonian_5nu_nsi(1.0, eps_ee, eps_em, eps_et, eps_es1, eps_es2, 
-                eps_mm, eps_mt, eps_ms1, eps_ms2, eps_tt, eps_ts1, eps_ts2, eps_s1s1, eps_s1s2, 
+        h_matt = np.diag([1.0, 0.0, 0.0, 0.0, 0.0]) + \
+            hamiltonians.hamiltonian_5nu_nsi(1.0, eps_ee, eps_em, eps_et, eps_es1, eps_es2,
+                eps_mm, eps_mt, eps_ms1, eps_ms2, eps_tt, eps_ts1, eps_ts2, eps_s1s1, eps_s1s2,
                 eps_s2s2)
+
+    if nubar:
+        h_matt = np.conj(h_matt)
 
     # Build the coherent forward potential function, VCC_func, from the density function, rho_func.
     # If the provided rho_func is the matter density (e.g., g cm^{-3}), convert rho_func to a 
@@ -2511,15 +2465,18 @@ def osc_prob_matter_nsi(
         electron_fraction, nubar, density_matter_is_in_g_per_cm3,
         density_is_of_number_of_electrons) # [eV] 
     
-    # Matter Hamiltonian function: diagonal matrix with VCC in the top-left (ee) entry
+    # Matter Hamiltonian function: (standard + NSI) matter matrix scaled by VCC
     if isinstance(VCC_func, Callable):
-        # VCC_func is a function of position, so the Hamiltonian is, too
-        def htot(enu: Union[int, float], l: Union[int, float]) -> np.ndarray:
-            return (1/enu)*h_vac_energy_indep+VCC_func(l)*h_matt
+        # VCC_func is a function of position, so the Hamiltonian is, too.  If l is an array, the
+        # result is a stack of Hamiltonians with the position axis leading; this lets the Magnus
+        # routines evaluate the Hamiltonian at all time points in a single vectorized call.
+        def htot(enu: Union[int, float], l: Union[int, float, np.ndarray]) -> np.ndarray:
+            vcc = np.asarray(VCC_func(l))
+            return (1/enu)*h_vac_energy_indep + vcc[..., None, None]*h_matt
         htot_is_function_only_of_energy = False
     else:
         # VCC_func is a constant in position, so the Hamiltonian is, too. When VCC_func is passed to
-        # osc_prob below, osc_prob will detect that VCC_func is constant and set parameters 
+        # osc_prob below, osc_prob will detect that VCC_func is constant and set parameters
         # internally for speed-up.
         h_matt = VCC_func*h_matt
         def htot(enu: Union[int, float]) -> np.ndarray:
@@ -2666,29 +2623,34 @@ def osc_prob_liv(
    
     if (rho_func != 0.0): # Matter density is nonzero, include the matter term in the Hamiltonian
 
-        # Compute the standard matter Hamiltonian *without* the multiplicative prefactor of VCC.
+        # Projector onto the nu_e--nu_e entry, multiplied below by the potential VCC.  Note that
+        # VCC_func already carries the antineutrino sign flip (applied inside
+        # matter.vcc_func_from_rho_func), so no extra sign is applied here.
         h_matt = np.zeros((num_flavors, num_flavors))
-        h_matt[0][0] = -1.0 if nubar else 1.0
+        h_matt[0][0] = 1.0
 
-        # Build the coherent forward potential function, VCC_func, from the density function, 
-        # rho_func. If the provided rho_func is the matter density (e.g., g cm^{-3}), convert 
+        # Build the coherent forward potential function, VCC_func, from the density function,
+        # rho_func. If the provided rho_func is the matter density (e.g., g cm^{-3}), convert
         # rho_func to a function that returns the electron number density [eV^3].
         VCC_func = matter.vcc_func_from_rho_func(rho_func, L0, ratio_number_neutrons_to_protons,
             electron_fraction, nubar, density_matter_is_in_g_per_cm3,
-            density_is_of_number_of_electrons) # [eV] 
-        
+            density_is_of_number_of_electrons) # [eV]
+
         # Matter Hamiltonian function: diagonal matrix with VCC in the top-left (ee) entry
         if isinstance(VCC_func, Callable):
-            # VCC_func is a function of position, so the Hamiltonian is, too
-            def htot(enu: Union[int, float], l: Union[int, float]) -> np.ndarray:
-                return (1/enu)*h_vac_energy_indep + VCC_func(l)*h_matt + \
+            # VCC_func is a function of position, so the Hamiltonian is, too.  If l is an array,
+            # the result is a stack of Hamiltonians with the position axis leading; this lets the
+            # Magnus routines evaluate the Hamiltonian at all time points in a single call.
+            def htot(enu: Union[int, float], l: Union[int, float, np.ndarray]) -> np.ndarray:
+                vcc = np.asarray(VCC_func(l))
+                return (1/enu)*h_vac_energy_indep + vcc[..., None, None]*h_matt + \
                     pow(enu,n_liv)*h_liv_energy_indep
             htot_is_function_only_of_energy = False
         else:
-            # VCC_func is a constant in position, so the Hamiltonian is, too. When VCC_func is 
-            # passed to osc_prob below, osc_prob will detect that VCC_func is constant and set 
+            # VCC_func is a constant in position, so the Hamiltonian is, too. When VCC_func is
+            # passed to osc_prob below, osc_prob will detect that VCC_func is constant and set
             # parameters  internally for speed-up.
-            h_matt[0][0] *= VCC_func
+            h_matt = VCC_func*h_matt
             def htot(enu: Union[int, float]) -> np.ndarray:
                 return (1/enu)*h_vac_energy_indep + h_matt + pow(enu,n_liv)*h_liv_energy_indep
             htot_is_function_only_of_energy = True

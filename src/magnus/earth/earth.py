@@ -30,7 +30,7 @@ __email__ = "mbustamante@gmail.com"
 
 
 import numpy as np
-from typing import Optional, Callable
+from typing import Optional, Callable, Union
 
 # TO-DO: remove this once setup.py and pip are working
 import os, sys
@@ -62,22 +62,31 @@ loc_coords_dms = {
 }
 
 
-def density_matter_func_prem(r: float, tol: Optional[float]=1.e-8) -> float:
-    r"""Returns the matter density inside the Earth according to the 
+def density_matter_func_prem(r: Union[float, np.ndarray],
+    tol: Optional[float]=1.e-8) -> Union[float, np.ndarray]:
+    r"""Returns the matter density inside the Earth according to the
     Preliminary Reference Earth Model (PREM).
-    
+
     Returns the matter density inside the Earth according to the PREM,
     for a given radial distance measured from the center of the Earth.
+    Accepts a single radial distance or an array of radial distances;
+    array input is evaluated in a single vectorized pass.
 
     Parameters
     ----------
-    r : float
-        Radial distance measured from the center of the Earth [km].
+    r : float or np.ndarray
+        Radial distance(s) measured from the center of the Earth [km].
 
     Returns
     -------
-    float
+    float or np.ndarray
         Matter density [g cm^{-3}].
+
+    Raises
+    ------
+    ValueError
+        If any radial distance exceeds globaldefs.EARTH_RADIUS by more
+        than the relative tolerance tol.
 
     References
     ----------
@@ -86,63 +95,43 @@ def density_matter_func_prem(r: float, tol: Optional[float]=1.e-8) -> float:
         Earth Model", Physics of the Earth and Planetary Interiors, 25,
         297 (1981).
     """
-
-    # RADIUS_EARTH = 6371.0 # [km]
+    scalar_input = (np.ndim(r) == 0)
+    r = np.asarray(r, dtype=float)
 
     x = r/gd.EARTH_RADIUS
-    
-    if (x > 1):
-        if ((x-1) <= tol):
-            r = gd.EARTH_RADIUS
-        else:
-            print('Error: density_matter_func_prem: value of l cannot exceed ' + \
-                'globaldefs.RADIUS_EARTH = ' + str(gd.EARTH_RADIUS) + ' km by more than the ' +
-                'desired tolerance of tol = ' + str(tol))
-            sys.exit('Quitting...')
 
-    # if (r > gd.EARTH_RADIUS):
-    # if (r-gd.EARTH_RADIUS >= tol):
-    # print((r-gd.EARTH_RADIUS)/gd.EARTH_RADIUS)
-    # if ((r-gd.EARTH_RADIUS)/gd.EARTH_RADIUS >= tol):
-    #     print('Error: density_matter_func_prem: value of ' + \
-    #             'l cannot be > globaldefs.RADIUS_EARTH = ' + \
-    #             str(gd.EARTH_RADIUS) + ' km')
-    #     quit()
+    if np.any(x - 1.0 > tol):
+        raise ValueError('earth.density_matter_func_prem: value of r cannot exceed ' + \
+            'globaldefs.EARTH_RADIUS = ' + str(gd.EARTH_RADIUS) + ' km by more than the ' + \
+            'desired tolerance of tol = ' + str(tol))
 
-    # x = r/gd.EARTH_RADIUS
+    # Clamp radii within tolerance of the surface onto the surface
+    r = np.minimum(r, gd.EARTH_RADIUS)
+    x = np.minimum(x, 1.0)
 
-    if (0 <= r <= 1221.5):
-        density = 13.0885-8.8381*x*x
-        # density = 100.0
-    elif (1221.5 < r <= 3480.0):
-        density = 12.5815-1.2638*x-3.6426*x*x-5.5281*x*x*x
-        # density = 100.0
-    elif (3480.0 < r <= 5701.0):
-        density = 7.9565-6.4761*x+5.5283*x*x-3.0807*x*x*x
-        # density = 100.0
-    elif (5701.0 < r <= 5771.0):
-        density = 5.3197-1.4836*x
-        # density = 100.0
-    elif (5771.0 < r <= 5971.0):
-        density = 11.2494-8.0298*x
-        # density = 100.0
-    elif (5971.0 < r <= 6151.0):
-        density = 7.1089-3.8045*x
-        # density = 100.0
-    elif (6151.0 < r <= 6346.6):
-        density = 2.6910+0.6924*x
-        # density = 100.0
-    elif (6346.6 < r <= 6356.0):
-        density = 2.900
-        # density = 100.0
-    elif (6356.0 < r <= 6368.0):
-        density = 2.600
-        # density = 1e20
-    elif (6368.0 < r <= gd.EARTH_RADIUS):
-        density = 1.020
-        # density = 100.0
+    density = np.select(
+        [r <= 1221.5,
+         r <= 3480.0,
+         r <= 5701.0,
+         r <= 5771.0,
+         r <= 5971.0,
+         r <= 6151.0,
+         r <= 6346.6,
+         r <= 6356.0,
+         r <= 6368.0,
+         r <= gd.EARTH_RADIUS],
+        [13.0885-8.8381*x*x,
+         12.5815-1.2638*x-3.6426*x*x-5.5281*x*x*x,
+         7.9565-6.4761*x+5.5283*x*x-3.0807*x*x*x,
+         5.3197-1.4836*x,
+         11.2494-8.0298*x,
+         7.1089-3.8045*x,
+         2.6910+0.6924*x,
+         np.full_like(x, 2.900),
+         np.full_like(x, 2.600),
+         np.full_like(x, 1.020)])
 
-    return density
+    return float(density) if scalar_input else density
 
 
 def distance_traveled_inside_earth(costhz: float) -> float:
@@ -169,50 +158,56 @@ def distance_traveled_inside_earth(costhz: float) -> float:
     return 0.0 if costhz > 0.0 else -2.0 * gd.EARTH_RADIUS * costhz
 
 
-def earth_radial_distance_from_depth(costhz: float, l: float, tol: Optional[float]=1.e-8) -> float:
+def earth_radial_distance_from_depth(costhz: float, l: Union[float, np.ndarray],
+    tol: Optional[float]=1.e-8) -> Union[float, np.ndarray]:
     r"""Returns the radial distance measured from the center of the
     Earth to a position inside the Earth, given by costhz and l.
-    
-    A neutrino with direction given by the cosine of the zenith angle, 
+
+    A neutrino with direction given by the cosine of the zenith angle,
     costhz, travels from l=0 to l=distance_traveled_inside_earth,
-    computed below. The routine returns the radial distance to the 
+    computed below. The routine returns the radial distance to the
     neutrino when its distance from its point of entry into the Earth is
-    l.  
+    l.  Accepts a single distance or an array of distances; array input
+    is evaluated in a single vectorized pass.
 
     Parameters
     ----------
     costhz : float
         Cosine of the zenith angle of the neutrino.
-    l : float
-        Distance of the neutrino from its point of entry into the Earth.
+    l : float or np.ndarray
+        Distance(s) of the neutrino from its point of entry into the
+        Earth [km].
 
     Returns
     -------
-    float
-        Radial distance from to the neutrino [km].
+    float or np.ndarray
+        Radial distance to the neutrino [km].
+
+    Raises
+    ------
+    ValueError
+        If any l exceeds the distance traveled inside the Earth for
+        this value of costhz by more than the tolerance tol.
     """
+    scalar_input = (np.ndim(l) == 0)
+    l = np.asarray(l, dtype=float)
+
     d = distance_traveled_inside_earth(costhz)
 
-    # if ((l-d) <= tol): 
-    #     d = l
-    if (0 < (l-d) <= tol): 
-        d = l
-
-    # if (abs(l-d) >= 1.e-10):
-    if (l > d):
+    if np.any(l - d > tol):
         raise ValueError('earth_radial_distance_from_depth: value of ' + \
                 'l cannot be larger than the distance traveled ' + \
                 'inside Earth for this value of costhz')
-        quit()
-    elif ((l == 0.0) and (costhz == 0.0)):
-        r = 0.0
-    else:
-        r2 = gd.EARTH_RADIUS*gd.EARTH_RADIUS
-        r2 += (d-l)**2
-        r2 += 2*gd.EARTH_RADIUS*(d-l)*costhz
-        r = np.sqrt(r2)
 
-    return abs(r)
+    # Clamp values of l within tolerance of the exit point onto the exit point
+    l = np.minimum(l, d)
+
+    r2 = gd.EARTH_RADIUS*gd.EARTH_RADIUS
+    r2 = r2 + (d-l)**2
+    r2 = r2 + 2.0*gd.EARTH_RADIUS*(d-l)*costhz
+    r = np.sqrt(np.abs(r2))
+
+    return float(r) if scalar_input else r
 
 
 def dms_to_decimal(degrees: float, minutes: float, seconds: float) -> float:
@@ -262,7 +257,7 @@ def chord_length_inside_earth(lat1_dms: tuple[float, float, float],
 
     # Haversine formula to calculate the central angle
     a = np.sin(delta_lat / 2)**2 + np.cos(lat1_rad) * np.cos(lat2_rad) * np.sin(delta_lon / 2)**2
-    central_angle = 2 * np.math.atan2(np.sqrt(a), np.sqrt(1 - a))
+    central_angle = 2 * np.arctan2(np.sqrt(a), np.sqrt(1 - a))
 
     # Straight-line distance (chord length)
     distance = 2 * gd.EARTH_RADIUS * np.sin(central_angle / 2)

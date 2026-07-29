@@ -80,14 +80,17 @@ def hamiltonian_2nu_vacuum_energy_independent(sth: float, Dm2: float,
 
     if not compute_matrix_multiplication:
 
-        return (Dm2/4.0)*np.array([[c2th,-s2th], [-s2th,-c2th]])
+        # Standard convention, Dm2 = m2^2 - m1^2 > 0 for m2 > m1 (matches the
+        # three-neutrino convention M2 = diag(0, D21, D31) and the closed-form
+        # matter probability in oscprobstd): H = (Dm2/4E) [[-c2th, s2th], [s2th, c2th]]
+        return (Dm2/4.0)*np.array([[-c2th,s2th], [s2th,c2th]])
 
     else:
 
         # 2D mixing matrix
         R = mixing_matrix_2nu(sth)
         # Mass matrix
-        M2 = np.diag([1.0, -1.0]) #np.array([[1.0, 0.0], [0.0, -1.0]])
+        M2 = np.diag([-1.0, 1.0]) # (m1^2 - m2^2, m2^2 - m1^2)/Dm2, traceless form
         # Hamiltonian
         return (Dm2/4.0) * R @ M2 @ R.T  # Use matrix multiplication operator
         # H = (Dm2/4.0)*np.matmul(R, np.matmul(M2, np.transpose(R)))
