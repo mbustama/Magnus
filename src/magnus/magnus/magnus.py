@@ -63,10 +63,12 @@ class MagnusConvergenceWarning(UserWarning):
     r"""Warns that a time slab may be too wide for the Magnus series.
 
     The Magnus series is guaranteed to converge when
-    int_{t0}^{t1} ||A(t)||_2 dt < pi.  We use ||Omega_1||_2 >= pi as a
+    int_{t0}^{t1} ||A(t)||_2 dt < pi.  We use ||Omega||_2 >= pi as a
     cheap (necessary, not sufficient) proxy to flag slabs that are
     likely too wide; raising the expansion order will not help in that
-    regime -- use more (narrower) slabs instead.
+    regime -- use more (narrower) slabs instead.  The norm comes for
+    free from the eigenvalues already computed for the matrix
+    exponential.
     """
 
 
@@ -350,7 +352,24 @@ def _gl_nodes(order: int) -> np.ndarray:
     return _GL3_NODES
 
 
-def _expm_stack(Om: np.ndarray) -> np.ndarray:
+def _warn_slab_norm(nmax: float):
+    r"""Warn if the slab norm proxy nmax = max ||Omega||_2 is >= pi (see
+    :class:`MagnusConvergenceWarning`)."""
+    if nmax >= np.pi:
+        # The message is intentionally static (no numbers) so that Python's
+        # default warning filter shows it only once per session.
+        warnings.warn(
+            "at least one time slab is too wide for guaranteed convergence "
+            "of the Magnus series (||Omega||_2 >= pi); raising the "
+            "expansion order will not help there -- more (narrower) slabs "
+            "are needed. If a target tolerance (rtol/atol) was requested, "
+            "the adaptive refinement narrows the slabs automatically and "
+            "this warning can be ignored. Shown once per session.",
+            MagnusConvergenceWarning, stacklevel=4)
+
+
+def _expm_stack(Om: np.ndarray, warn_wide: bool = False,
+                A_is_const: bool = False) -> np.ndarray:
     r"""Matrix exponential of one matrix or a stack of matrices.
 
     If Om is anti-Hermitian (as is always the case for A = -i H with a
@@ -360,6 +379,11 @@ def _expm_stack(Om: np.ndarray) -> np.ndarray:
     scipy's Pade-based expm for stacks of small matrices, and it yields
     an exactly unitary result (probabilities that sum to 1 by
     construction).  Otherwise it falls back to scipy.linalg.expm.
+
+    If ``warn_wide`` is True, the eigenvalues (whose maximum modulus is
+    ||Om||_2) are also used to warn about slabs too wide for the Magnus
+    series to converge; for a constant A (``A_is_const``) the series
+    terminates exactly and the check is skipped.
     """
     Om = np.asarray(Om)
     K = 1j*Om
@@ -370,9 +394,16 @@ def _expm_stack(Om: np.ndarray) -> np.ndarray:
                                Om.shape).copy()
     if np.max(np.abs(K - Kh)) <= 1.e-12*scale:
         lam, V = np.linalg.eigh(0.5*(K + Kh))
+        if warn_wide and not A_is_const:
+            _warn_slab_norm(np.max(np.abs(lam)))  # ||Om||_2 = max |lambda|
         Vh = np.conj(np.swapaxes(V, -1, -2))
         return (V*np.exp(-1j*lam)[..., None, :]) @ Vh
     # General (non-anti-Hermitian) fallback
+    if warn_wide and not A_is_const:
+        try:
+            _warn_slab_norm(np.max(np.linalg.svd(Om, compute_uv=False)))
+        except np.linalg.LinAlgError:
+            pass
     try:
         return np.asarray(sp.linalg.expm(Om))
     except Exception:
@@ -381,33 +412,6 @@ def _expm_stack(Om: np.ndarray) -> np.ndarray:
         flat = Om.reshape((-1,) + shape[-2:])
         out = np.array([sp.linalg.expm(w) for w in flat])
         return out.reshape(shape)
-
-
-def _warn_if_slab_too_wide(om1: np.ndarray, A_is_constant: bool = False):
-    r"""Warn if ||Omega_1||_2 >= pi for any slab (see
-    :class:`MagnusConvergenceWarning`).
-
-    For a constant A the series terminates exactly at Omega_1, so the
-    check does not apply and no warning is issued.
-    """
-    if A_is_constant:
-        return
-    try:
-        svals = np.linalg.svd(om1, compute_uv=False)
-    except np.linalg.LinAlgError:
-        return
-    nmax = np.max(svals)
-    if nmax >= np.pi:
-        # The message is intentionally static (no numbers) so that Python's
-        # default warning filter shows it only once per session.
-        warnings.warn(
-            "at least one time slab is too wide for guaranteed convergence "
-            "of the Magnus series (||Omega_1||_2 >= pi); raising the "
-            "expansion order will not help there -- more (narrower) slabs "
-            "are needed. If a target tolerance (rtol/atol) was requested, "
-            "the adaptive refinement narrows the slabs automatically and "
-            "this warning can be ignored. Shown once per session.",
-            MagnusConvergenceWarning, stacklevel=3)
 
 
 def _validate(order: int, integration_method: str):
@@ -476,18 +480,18 @@ def magnus_expansion(
         tnodes = t0 + width*nodes
         An, A_is_const = _evaluate_A(A, tnodes)
         Om = _magnus_gl(An, width, order)
-        _warn_if_slab_too_wide(Om, A_is_const)
+        U = _expm_stack(Om, warn_wide=True, A_is_const=A_is_const)
         if not return_magnus_terms:
-            return _expm_stack(Om)
-        return _expm_stack(Om), np.stack([Om], axis=0)
+            return U
+        return U, np.stack([Om], axis=0)
 
     times = np.linspace(t0, t1, n_tpts)
     At, A_is_const = _evaluate_A(A, times)
     Bt = (float(t1) - float(t0))*At  # rescale to the unit interval
     magnus_terms = _magnus_terms_quadrature(Bt, order, integration_method)
-    _warn_if_slab_too_wide(magnus_terms[0], A_is_const)
 
-    U = _expm_stack(np.sum(magnus_terms, axis=0))
+    U = _expm_stack(np.sum(magnus_terms, axis=0), warn_wide=True,
+                    A_is_const=A_is_const)
     if not return_magnus_terms:
         return U
     return U, magnus_terms
@@ -555,16 +559,15 @@ def magnus_expansion_multislab(
         tgrid = edges[:, :1] + widths[:, None]*nodes    # (n_slabs, k)
         An, A_is_const = _evaluate_A(A, tgrid)          # (n_slabs, k, d, d)
         Om = _magnus_gl(An, widths, order)              # (n_slabs, d, d)
-        _warn_if_slab_too_wide(Om, A_is_const)
-        return _expm_stack(Om)
+        return _expm_stack(Om, warn_wide=True, A_is_const=A_is_const)
 
     s = np.linspace(0.0, 1.0, n_tpts_per_slab)          # normalized grid
     tgrid = edges[:, :1] + widths[:, None]*s            # (n_slabs, m)
     At, A_is_const = _evaluate_A(A, tgrid)              # (n_slabs, m, d, d)
     Bt = widths[:, None, None, None]*At                 # rescale to [0, 1]
     magnus_terms = _magnus_terms_quadrature(Bt, order, integration_method)
-    _warn_if_slab_too_wide(magnus_terms[0], A_is_const)
-    return _expm_stack(np.sum(magnus_terms, axis=0))
+    return _expm_stack(np.sum(magnus_terms, axis=0), warn_wide=True,
+                       A_is_const=A_is_const)
 
 
 if __name__ == "__main__":

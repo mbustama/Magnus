@@ -94,6 +94,30 @@ def test_radial_distance_raises_beyond_path():
         earth.earth_radial_distance_from_depth(-0.5, 2.0*gd.EARTH_RADIUS)
 
 
+def test_prem_layer_edges_along_chord():
+    # Every returned crossing must sit exactly on a PREM boundary radius,
+    # and crossings must come in symmetric pairs about the chord midpoint
+    costhz = -0.8
+    d = earth.distance_traveled_inside_earth(costhz)
+    ls = earth.prem_layer_edges_along_chord(costhz)
+    assert len(ls) > 0
+    assert np.all((ls > 0.0) & (ls < d))
+    rs = earth.earth_radial_distance_from_depth(costhz, ls)
+    dist_to_boundary = np.min(np.abs(rs[:, None] - earth.PREM_BOUNDARIES),
+                              axis=1)
+    assert np.max(dist_to_boundary) < 1e-6  # [km]
+    assert np.allclose(np.sort(d - ls), np.sort(ls))  # symmetric pairs
+    # A vertical chord (costhz = -1) crosses every boundary twice
+    ls_vert = earth.prem_layer_edges_along_chord(-1.0)
+    assert len(ls_vert) == 2*len(earth.PREM_BOUNDARIES)
+    # A down-going direction has no crossings
+    assert len(earth.prem_layer_edges_along_chord(0.5)) == 0
+    # A shallow chord crosses only the outermost layers
+    ls_shallow = earth.prem_layer_edges_along_chord(-0.05)
+    rs_shallow = earth.earth_radial_distance_from_depth(-0.05, ls_shallow)
+    assert np.min(rs_shallow) > 6151.0
+
+
 def test_chord_length_haversine():
     # Independent haversine computation for Berlin -> Paris
     lat1, lon1 = (52, 31, 12), (13, 24, 18)
