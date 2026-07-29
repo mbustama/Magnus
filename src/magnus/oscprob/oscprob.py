@@ -1315,6 +1315,7 @@ def osc_prob(
     new_recursion_limit: Optional[int]=5000,
     verbose: Optional[int]=0, 
     A_eval_mode: Optional[str]=None,
+    convergence_info: Optional[Dict]=None,
     **kwargs
 ) -> np.ndarray:
     r"""Computes and returns the neutrino oscillation probability.
@@ -1423,6 +1424,16 @@ def osc_prob(
     verbose
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the
         refinement loops).
+    A_eval_mode
+        How the Hamiltonian can be evaluated: 'vector' (accepts an
+        array of positions), 'constant', or 'scalar'.  Determined
+        automatically when None; pass it explicitly (e.g., from
+        :func:`magnus.magnus.probe_eval_mode`) to skip the probe.
+    convergence_info
+        If a dict is passed, it is filled in place with the refinement
+        parameters of the returned probability ('n_slabs',
+        'n_tpts_per_slab'), which callers can use to warm-start
+        neighboring computations.
     \**kwargs
         Additional arguments passed through to the Magnus-expansion
         routines
@@ -1684,6 +1695,19 @@ def osc_prob(
     if A_eval_mode is None:
         A_eval_mode = magnus.probe_eval_mode(lambda t: -1j*H_func(t), t_ini, t_fin)
 
+    # Physics-informed starting number of slabs (Gauss-Legendre method only): rather than always
+    # starting the refinement from min_n_slabs and climbing the geometric ladder, start from an
+    # estimate based on the accumulated phase (see magnus.suggest_n_slabs).  min_n_slabs still
+    # acts as a lower bound, so warm starts provided by the caller take precedence when they are
+    # larger.  For the quadrature methods ('trapezoid', 'simpson') the accuracy is governed
+    # jointly by n_slabs and n_tpts_per_slab, and seeding only the slab count unbalances that
+    # ladder, so the seed is not applied there.
+    if ((rtol is not None) and (atol is not None) and (t_slab_edges_original is None) and \
+        (integration_method == 'gl')):
+        n_slabs = int(np.clip(max(min_n_slabs,
+            magnus.suggest_n_slabs(lambda t: -1j*H_func(t), t_ini, t_fin,
+                A_eval_mode=A_eval_mode)), 1, max_n_slabs))
+
     while True:
 
         # These checks only apply when osc_prob is run with a requested tolerance (rtol, atol) that
@@ -1767,6 +1791,12 @@ def osc_prob(
         # Using Utot, compute all the survival and transition probabilities in a probability matrix
         # P = (|Utot|^2).T and return that matrix, so that P[nu_i][nu_f] = |Utot[nu_f][nu_i]|^2.
         P = np.transpose(Utot.real**2 + Utot.imag**2)
+
+        # Record the refinement parameters of this (latest) computation, so that callers (e.g.,
+        # osc_prob_energy_baseline) can warm-start neighboring points
+        if convergence_info is not None:
+            convergence_info['n_slabs'] = n_slabs
+            convergence_info['n_tpts_per_slab'] = n_tpts_per_slab
 
         # If no target relative tolerance (rtol) or absolute tolerance (atol) of the probability is
         # requested, then return the result obtained already.  If, instead, a target tolerance is
@@ -2066,6 +2096,30 @@ def osc_prob_energy_baseline(
         osc_prob_kwargs['A_eval_mode'] = magnus.probe_eval_mode(
             lambda t: -1j*H_first(t), L0, np.max(L))
 
+    # Warm starts: osc_prob reports the refinement parameters at which each point converged
+    # (conv_info), and the next point starts its refinement from there (divided by one growth
+    # factor, so that the comparison between successive refinements is still performed).
+    # Neighboring points typically converge at (nearly) the same parameters, so this skips most
+    # of the refinement ladder.
+    conv_info = {}
+    osc_prob_kwargs['convergence_info'] = conv_info
+    warm_start = (t_slab_edges is None) and \
+        ((rtol is not None) or (atol is not None))
+
+    def apply_warm_start():
+        # Seed the next point TWO growth steps below the last converged values.  One step below
+        # reproduces exactly the pair of refinements at which the previous point was accepted;
+        # starting one step lower than that lets the refinement scale decay geometrically across
+        # points when the previous point was harder than the next ones (e.g., the lowest energy
+        # of a scan), at the price of at most one extra refinement when it was not.
+        if warm_start and conv_info:
+            g1 = max(growth_factor_n_slabs, 1.0)**2
+            g2 = max(growth_factor_n_tpts_per_slab, 1.0)**2
+            osc_prob_kwargs['min_n_slabs'] = max(min_n_slabs,
+                int(np.ceil(conv_info['n_slabs']/g1)))
+            osc_prob_kwargs['min_n_tpts_per_slab'] = max(min_n_tpts_per_slab,
+                int(np.ceil(conv_info['n_tpts_per_slab']/g2)))
+
     def compute_single_point(enu: float, baseline: float) -> Union[float, np.ndarray]:
         P = osc_prob(H_at_energy(enu), L0, baseline, **osc_prob_kwargs)
         # Select one oscillation channel if requested; otherwise return the full matrix
@@ -2073,23 +2127,21 @@ def osc_prob_energy_baseline(
             return P[nu_i][nu_f]
         return P
 
-    try:
-        if parallelize_over_points:
-            probs = Parallel(n_jobs=n_jobs)(delayed(compute_single_point)(enu, baseline)
-                for enu, baseline in zip(energy, L))
-        else:
-            probs = [compute_single_point(enu, baseline) for enu, baseline in zip(energy, L)]
-    except RecursionError:
-        print(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob_energy_baseline: error improvement too" + \
-            " slow and maximum recursion reached. Consider calling osc_prob_energy_baseline " + \
-            "with a higher value of new_recursion_limit (current value of maximum recursion is " + \
-            "sys.getrecursionlimit = " + str(sys.getrecursionlimit()) + ". [Failing that, " + \
-            "consider running with a higher value of min_n_slabs (currently, min_n_slabs = " + \
-            str(min_n_slabs) + ") or a lower requested tolerance (currently, rtol = " + \
-            str(rtol) + ", atol = " + str(atol) + ").  Also, consider running using multiple " + \
-            "cores by inreasing n_jobs (currently, n_jobs = " + str(n_jobs) + ").]")
-        print("Aborting execution...")
-        sys.exit(1)
+    if parallelize_over_points:
+        # Compute the first point serially to learn the refinement parameters, then distribute
+        # the remaining points over the workers, warm-started from the first point.  (The shared
+        # conv_info dict cannot be updated across processes, so it is dropped from the parallel
+        # calls.)
+        probs = [compute_single_point(energy[0], L[0])]
+        apply_warm_start()
+        osc_prob_kwargs.pop('convergence_info', None)
+        probs += Parallel(n_jobs=n_jobs)(delayed(compute_single_point)(enu, baseline)
+            for enu, baseline in zip(energy[1:], L[1:]))
+    else:
+        probs = []
+        for enu, baseline in zip(energy, L):
+            apply_warm_start()
+            probs.append(compute_single_point(enu, baseline))
 
     # The call to __getitem__ below is a way to return a single float (or single probability
     # matrix) if both energy and L were given as floats.

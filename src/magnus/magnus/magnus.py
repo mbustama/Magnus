@@ -216,6 +216,46 @@ def probe_eval_mode(A: Callable, t0: float, t1: float,
     return mode
 
 
+def suggest_n_slabs(
+    A: Callable,
+    t0: float,
+    t1: float,
+    A_eval_mode: Optional[str] = None,
+    n_probe: Optional[int] = 17,
+    phase_per_slab: Optional[float] = 2.0*np.pi
+) -> int:
+    r"""Suggest a starting number of time slabs for [t0, t1].
+
+    Estimates the accumulated phase ||Omega_1||_2 over the whole
+    interval from a coarse sample of A (with the trace removed, since a
+    global phase does not affect the probabilities) and suggests enough
+    slabs to keep roughly ``phase_per_slab`` (radians) of phase per
+    slab.  Starting an adaptive refinement from this estimate skips
+    most of the geometric ladder that would otherwise climb from a
+    single slab.
+
+    The default of 2 pi radians per slab is deliberately *looser* than
+    the Magnus convergence guarantee (pi): empirically, for smooth
+    profiles, order-4 methods reach ~1e-3 accuracy already at this slab
+    width, and the adaptive refinement loop -- which remains the sole
+    arbiter of accuracy -- grows the slab count from here when the
+    requested tolerance demands it.
+    """
+    if not (t1 > t0):
+        return 1
+    times = np.linspace(t0, t1, n_probe)
+    At, _ = _evaluate_A(A, times, A_eval_mode)
+    M = (float(t1) - float(t0))*_full_integral(At, 1.0/(n_probe - 1),
+                                               'trapezoid')
+    dim = M.shape[-1]
+    M = M - (np.trace(M)/dim)*np.eye(dim)
+    try:
+        nrm = np.max(np.linalg.svd(M, compute_uv=False))
+    except np.linalg.LinAlgError:
+        return 1
+    return int(max(1, np.ceil(nrm/phase_per_slab)))
+
+
 def _cumulative_integral(y: np.ndarray, ds: float, method: str) -> np.ndarray:
     r"""Cumulative integral of y along axis -3 on a uniform grid.
 
