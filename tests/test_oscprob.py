@@ -1,0 +1,259 @@
+# -*- coding: utf-8 -*-
+"""Tests of the oscillation-probability engine (magnus.oscprob)."""
+
+import numpy as np
+import pytest
+import scipy as sp
+from scipy.integrate import solve_ivp
+
+import magnus.globaldefs as gd
+import magnus.hamiltonians as hams
+import magnus.oscprob.oscprob as op
+import magnus.oscprob.oscprobstd as opstd
+
+RNG = np.random.default_rng(7)
+
+# Oscillation parameters used throughout (dCP far from 0 and pi so that the
+# Hamiltonian is genuinely complex)
+S12, S23, S13, DCP = 0.55, 0.68, 0.15, 3.7
+D21, D31 = 7.5e-5, 2.5e-3
+ENERGY = 1.0*gd.UNIT_GEV
+BASELINE = 1000.0*gd.UNIT_KM
+
+
+def random_hermitian(dim, rng=RNG):
+    X = rng.standard_normal((dim, dim)) + 1j*rng.standard_normal((dim, dim))
+    return 0.5*(X + X.conj().T)
+
+
+def maxabs(x):
+    return np.max(np.abs(np.asarray(x)))
+
+
+# ----------------------------------------------------------------------
+# Closed-form cross-checks
+# ----------------------------------------------------------------------
+
+def test_3nu_vacuum_matches_closed_form():
+    U_pmns = hams.pmns_mixing_matrix(S12, S23, S13, DCP)
+    for nubar in [False, True]:
+        P = op.osc_prob_3nu_vacuum(ENERGY, BASELINE, s12=S12, s23=S23,
+                                   s13=S13, dCP=DCP, D21=D21, D31=D31,
+                                   nubar=nubar)
+        P_std = opstd.osc_prob_3nu_vacuum_std(U_pmns, D21, D31, ENERGY,
+                                              BASELINE, nubar=nubar)
+        assert maxabs(P - P_std) < 1e-12
+
+
+def test_2nu_vacuum_matches_closed_form():
+    sth, Dm2 = 0.4, 2.5e-3
+    P = op.osc_prob_2nu_vacuum(ENERGY, BASELINE, sth, Dm2)
+    P_std = opstd.osc_prob_2nu_vacuum_std(sth, Dm2, ENERGY, BASELINE)
+    assert maxabs(np.asarray(P) - np.asarray(P_std)) < 1e-12
+
+
+def test_2nu_constant_matter_matches_closed_form_nu_and_nubar():
+    """Regression test for two sign bugs: the doubled antineutrino sign of
+    the matter potential, and the flipped 2nu mass-ordering convention
+    (which put the MSW resonance in the wrong channel)."""
+    sth, Dm2 = 0.4, 2.5e-3
+    rho = 5.0  # [g cm^-3]
+    energy, L = 2.0*gd.UNIT_GEV, 2000.0*gd.UNIT_KM
+    ne = rho*gd.CONV_G_TO_EV/((gd.MASS_PROTON + gd.MASS_NEUTRON)/2.0)*0.5 \
+        / gd.CONV_CM3_TO_INV_EV3   # [eV^3]
+    VCC = np.sqrt(2.0)*gd.GF*ne    # [eV]
+    for nubar, sign in [(False, +1.0), (True, -1.0)]:
+        P = op.osc_prob_2nu_matter_constant_density(
+            energy, L, rho*gd.UNIT_G_PER_CM3, sth, Dm2, nubar=nubar,
+            validate_input=False)
+        P_std = opstd.osc_prob_2nu_matter_std(sth, Dm2, sign*VCC, energy, L)
+        assert maxabs(np.asarray(P) - np.asarray(P_std)) < 1e-12, \
+            f"nubar={nubar}"
+
+
+# ----------------------------------------------------------------------
+# Slab ordering (time-ordered product)
+# ----------------------------------------------------------------------
+
+def test_slab_ordering_two_constant_slabs():
+    """A neutrino crosses slab A then slab B: the exact propagator is
+    U = expm(-i H_B L2) @ expm(-i H_A L1) (B leftmost). Regression test for
+    the reversed product. Uses the 'gl' method, whose interior nodes never
+    touch the piecewise-constant discontinuity, so the comparison is exact
+    to machine precision."""
+    H_A, H_B = random_hermitian(3), random_hermitian(3)
+    L1 = L2 = 0.4
+
+    def H_piecewise(l):
+        if np.ndim(l) == 0:
+            return H_A if l < L1 else H_B
+        raise TypeError("scalar only")
+
+    U_exact = sp.linalg.expm(-1j*H_B*L2) @ sp.linalg.expm(-1j*H_A*L1)
+    U_reversed = sp.linalg.expm(-1j*H_A*L1) @ sp.linalg.expm(-1j*H_B*L2)
+    P_exact = np.abs(U_exact.T)**2
+    P_reversed = np.abs(U_reversed.T)**2
+
+    P = op.osc_prob(H_piecewise, 0.0, L1 + L2,
+                    t_slab_edges=[[0.0, L1], [L1, L1 + L2]],
+                    magnus_exp_order=2, integration_method='gl',
+                    rtol=None, atol=None, validate_input=False)
+
+    assert maxabs(P - P_exact) < 1e-12
+    # The reversed product must be clearly distinguishable (the two
+    # Hamiltonians do not commute)
+    assert maxabs(P_exact - P_reversed) > 1e-2
+
+
+def test_asymmetric_profile_matches_ode_solution():
+    """Smooth asymmetric profile with a complex Hamiltonian, against a
+    high-accuracy ODE solution."""
+    H0, H1 = random_hermitian(3), random_hermitian(3)
+    Lc = 1.0
+
+    def H_ramp(l):
+        lr = np.asarray(l)/Lc
+        return H0 + lr[..., None, None]*H1 if lr.ndim else H0 + float(lr)*H1
+
+    def rhs(t, y):
+        return (-1j*H_ramp(t) @ y.reshape(3, 3)).ravel()
+
+    sol = solve_ivp(rhs, (0.0, Lc), np.eye(3, dtype=complex).ravel(),
+                    rtol=1e-12, atol=1e-14, method='DOP853')
+    P_exact = np.abs(sol.y[:, -1].reshape(3, 3).T)**2
+
+    for method in ['trapezoid', 'gl']:
+        P = op.osc_prob(H_ramp, 0.0, Lc, n_slabs=64, n_tpts_per_slab=33,
+                        magnus_exp_order=4, integration_method=method,
+                        rtol=None, atol=None, validate_input=False)
+        assert maxabs(P - P_exact) < 1e-6, method
+
+
+# ----------------------------------------------------------------------
+# osc_prob interface behavior
+# ----------------------------------------------------------------------
+
+def test_user_t_slab_edges_are_all_used():
+    """Regression test: with user-provided t_slab_edges, all slabs (not just
+    the first) must enter the product."""
+    H0, H1 = random_hermitian(3), random_hermitian(3)
+
+    def H_ramp(l):
+        lr = np.asarray(l)
+        return H0 + lr[..., None, None]*H1 if lr.ndim else H0 + float(lr)*H1
+
+    edges = [[0.0, 0.3], [0.3, 1.0]]
+    P_edges = op.osc_prob(H_ramp, 0.0, 1.0, t_slab_edges=edges,
+                          n_tpts_per_slab=101, magnus_exp_order=4,
+                          rtol=None, atol=None, validate_input=False)
+    P_auto = op.osc_prob(H_ramp, 0.0, 1.0, n_slabs=50, n_tpts_per_slab=101,
+                         magnus_exp_order=4, rtol=None, atol=None,
+                         validate_input=False)
+    # Same interval, different slabbings: results must agree well, and in
+    # particular P_edges must NOT equal the single-slab [0, 0.3] result
+    assert maxabs(P_edges - P_auto) < 1e-3
+    P_first_only = op.osc_prob(H_ramp, 0.0, 0.3, n_slabs=1,
+                               n_tpts_per_slab=101, magnus_exp_order=4,
+                               rtol=None, atol=None, validate_input=False)
+    assert maxabs(P_edges - P_first_only) > 1e-2
+
+
+def test_single_none_tolerance_is_accepted():
+    """Regression test: rtol=None with atol set used to crash with a
+    TypeError inside np.allclose."""
+    H0, H1 = random_hermitian(3), random_hermitian(3)
+
+    def H_ramp(l):
+        lr = np.asarray(l)
+        return H0 + lr[..., None, None]*H1 if lr.ndim else H0 + float(lr)*H1
+
+    P = op.osc_prob(H_ramp, 0.0, 1.0, rtol=None, atol=1e-4,
+                    validate_input=False)
+    assert np.all(np.isfinite(P))
+    P = op.osc_prob(H_ramp, 0.0, 1.0, rtol=1e-4, atol=None,
+                    validate_input=False)
+    assert np.all(np.isfinite(P))
+
+
+def test_energy_baseline_shapes_and_channel_selection():
+    sth, Dm2 = 0.3, 2.4e-3
+    energies = np.array([0.5, 1.0, 2.0])*gd.UNIT_GEV
+    # scalar energy, scalar L -> 2x2 matrix
+    P = op.osc_prob_2nu_vacuum(ENERGY, BASELINE, sth, Dm2)
+    assert np.shape(P) == (2, 2)
+    # array energy, scalar L -> (3, 2, 2)
+    P = op.osc_prob_2nu_vacuum(energies, BASELINE, sth, Dm2)
+    assert np.shape(P) == (3, 2, 2)
+    # channel selection -> (3,)
+    P = op.osc_prob_2nu_vacuum(energies, BASELINE, sth, Dm2, nu_i=gd.NUE,
+                               nu_f=gd.NUMU)
+    assert np.shape(P) == (3,)
+    # scalar + channel -> scalar float
+    P = op.osc_prob_2nu_vacuum(ENERGY, BASELINE, sth, Dm2, nu_i=gd.NUE,
+                               nu_f=gd.NUMU)
+    assert np.ndim(P) == 0
+
+
+def test_point_parallelism_matches_serial():
+    energies = np.array([0.5, 1.0, 2.0])*gd.UNIT_GEV
+    common = dict(costhz=-0.8, L=np.full(3, 2.0*6371.0*0.8)*gd.UNIT_KM,
+                  nu_i=gd.NUE, nu_f=gd.NUMU, validate_input=False)
+    P_serial = op.osc_prob_3nu_earth(energies, **common)
+    P_parallel = op.osc_prob_3nu_earth(energies, n_jobs=2, **common)
+    assert maxabs(np.asarray(P_serial) - np.asarray(P_parallel)) == 0.0
+
+
+# ----------------------------------------------------------------------
+# Physics wrappers: unitarity and vectorized-Hamiltonian consistency
+# ----------------------------------------------------------------------
+
+def test_earth_probability_rows_sum_to_one():
+    P = op.osc_prob_3nu_earth(1.0*gd.UNIT_GEV, costhz=-0.8,
+                              L=2.0*6371.0*0.8*gd.UNIT_KM,
+                              validate_input=False)
+    assert np.allclose(np.sum(P, axis=1), 1.0, atol=1e-9)
+    assert np.all((P >= 0.0) & (P <= 1.0))
+
+
+def test_sun_probability_rows_sum_to_one():
+    P = op.osc_prob_2nu_sun(10.0*gd.UNIT_MEV, 0.9*gd.SUN_RADIUS*gd.UNIT_KM,
+                            0.0, np.sqrt(0.308), 7.5e-5,
+                            validate_input=False)
+    assert np.allclose(np.sum(P, axis=1), 1.0, atol=1e-9)
+
+
+def test_bsm_wrappers_run_and_are_unitary():
+    P4 = op.osc_prob_4nu_vacuum(ENERGY, BASELINE, s14=0.1, d14=0.0, s24=0.1,
+                                d24=0.0, s34=0.1, D41=1.0,
+                                validate_input=False)
+    assert np.allclose(np.sum(P4, axis=1), 1.0, atol=1e-9)
+    Pnsi = op.osc_prob_3nu_matter_nsi_constant_density(
+        ENERGY, BASELINE, 5.0*gd.UNIT_G_PER_CM3, eps_ee=0.1, eps_em=0.05j,
+        eps_et=0.0, eps_mm=0.0, eps_mt=0.0, eps_tt=0.0, validate_input=False)
+    assert np.allclose(np.sum(np.asarray(Pnsi), axis=1), 1.0, atol=1e-9)
+    Pliv = op.osc_prob_3nu_vacuum_liv(ENERGY, BASELINE, b1=gd.B1, b2=gd.B2,
+                                      b3=gd.B3, Lambda=gd.LAMBDA, n_liv=1,
+                                      validate_input=False)
+    assert np.allclose(np.sum(np.asarray(Pliv), axis=1), 1.0, atol=1e-9)
+
+
+def test_vectorized_profile_matches_scalar_profile():
+    """The silently vectorized Hamiltonian evaluation must give exactly the
+    same probabilities as a scalar-only density profile."""
+    def rho_vec(l):
+        return 3.0 + 2.0*np.sin(np.asarray(l)*1e-12)**2
+
+    def rho_scalar(l):
+        if np.ndim(l) != 0:
+            raise TypeError("scalar only")
+        return float(rho_vec(l))
+
+    common = dict(num_flavors=3, energy=1.0*gd.UNIT_GEV,
+                  L=5000.0*gd.UNIT_KM,
+                  osc_params={'s12': S12, 's23': S23, 's13': S13,
+                              'dCP': DCP, 'D21': D21, 'D31': D31},
+                  density_matter_is_in_g_per_cm3=True,
+                  validate_input=False)
+    P_vec = op.osc_prob_matter_std_potential(rho_func=rho_vec, **common)
+    P_scl = op.osc_prob_matter_std_potential(rho_func=rho_scalar, **common)
+    assert maxabs(np.asarray(P_vec) - np.asarray(P_scl)) < 1e-12
