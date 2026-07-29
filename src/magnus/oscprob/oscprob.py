@@ -3817,11 +3817,11 @@ def osc_prob_5nu_vacuum(
 
     >>> oscprob.osc_prob_5nu_vacuum(energy, baseline, s14, s15, s24, s25, s34, s35, d14, d15, d24, d35, D41, D51, nu_i=gd.NUE, nu_f=gd.NUS1)
 
-    And, for :math:`\nu_e \to \nu_{s_2},
+    And, for :math:`\nu_e \to \nu_{s_2}`:
 
     >>> oscprob.osc_prob_5nu_vacuum(energy, baseline, s14, s15, s24, s25, s34, s35, d14, d15, d24, d35, D41, D51, nu_i=gd.NUE, nu_f=gd.NUS2)
 
-    and :math:`\nu_{s_1} \to \nu_{s_2},
+    and :math:`\nu_{s_1} \to \nu_{s_2}`:
 
     >>> oscprob.osc_prob_5nu_vacuum(energy, baseline, s14, s15, s24, s25, s34, s35, d14, d15, d24, d35, D41, D51, nu_i=gd.NUS1, nu_f=gd.NUS2)
 

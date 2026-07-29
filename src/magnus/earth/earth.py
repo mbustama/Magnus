@@ -87,7 +87,7 @@ _PREM_COEFFS = np.array([
 def density_matter_func_prem(r: Union[float, np.ndarray],
     tol: Optional[float]=1.e-8) -> Union[float, np.ndarray]:
     r"""Returns the matter density inside the Earth according to the
-    Preliminary Reference Earth Model (PREM).
+    Preliminary Reference Earth Model (PREM) [1]_.
 
     Returns the matter density inside the Earth according to the PREM,
     for a given radial distance measured from the center of the Earth.

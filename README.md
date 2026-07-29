@@ -160,27 +160,6 @@ refinements — the standard adaptive heuristic — not strict global error
 bounds; in practice the default 10⁻³ setting delivers ~5 × 10⁻⁴ on Earth
 crossings (verified against 10⁻⁷-tolerance references).
 
-## Recent changes (2026-07, `dev`)
-
-The Magnus core and the oscillation-probability chain were audited against
-the literature and against exact solutions, then overhauled:
-
-- **Correctness:** fixed dropped coefficients in Ω₄–Ω₆ and a crash at order
-  6; fixed the time-ordering of the slab product (affected asymmetric
-  profiles with CP violation, e.g., the Sun); fixed the antineutrino sign of
-  the matter potential (it was applied twice); fixed the 2ν mass-ordering
-  convention (the MSW resonance sat in the wrong channel); implemented
-  `osc_prob_earth` / `osc_prob_sun`, which previously were silent stubs;
-  removed hand-tuned caps in the Sun wrappers that silently limited solar
-  probabilities to ~10⁻² accuracy; NumPy 2 compatibility.
-  **Results obtained with earlier versions for antineutrinos in matter, for
-  2ν in matter, and for the Sun should be recomputed.**
-- **Performance:** ~100× on single probabilities and ~180× on scans
-  (see table above), from the Gauss–Legendre integrators, batched slab and
-  energy axes, vectorized PREM, probe/profile caching, warm-started
-  refinement, and layer-aligned slabs.
-- **Testing:** new pytest suite (59 tests) and GitHub Actions workflow.
-
 ## Requirements
 
 `numpy`, `scipy (>= 1.9)`, `joblib` — see
