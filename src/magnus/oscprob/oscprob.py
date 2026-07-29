@@ -271,6 +271,7 @@ __author__ = 'Mauricio Bustamante'
 import numpy as np
 import sys
 import platform
+import warnings
 from functools import reduce
 from joblib import Parallel, delayed
 from typing import Optional, Callable, Union, Tuple, List, Dict
@@ -299,6 +300,19 @@ import authors as authors
 
 
 has_magnus_header_been_printed = False
+
+
+class ToleranceNotAchievedWarning(UserWarning):
+    r"""Warns that the probability returned by :func:`osc_prob` did not
+    reach the requested tolerance because a refinement cap was hit
+    (max_num_loops, max_n_slabs, or max_n_tpts_per_slab).
+
+    The result may look plausible (it is still exactly unitary) while
+    being inaccurate, so this warning is issued regardless of the
+    verbosity setting.  Raise the caps, loosen the tolerance, or use
+    wider applicability methods for extreme-phase problems (e.g., many
+    more slabs for low-energy solar neutrinos).
+    """
 
 
 #-----------------------------------------------------------------------
@@ -1723,6 +1737,10 @@ def osc_prob(
         if ((rtol is not None) and (atol is not None)):
             # Reached maximum allowed number of loops: exit loop, return the probability matrix
             if (loop_count > max_num_loops):
+                warnings.warn("osc_prob: requested tolerance not achieved "
+                    "(max_num_loops reached); the returned probabilities may be "
+                    "inaccurate. Try increasing max_num_loops. Shown once per "
+                    "session.", ToleranceNotAchievedWarning, stacklevel=2)
                 if (verbose > 0):
                     for f in [None, file_log] if save_log else [None]:
                         warn_msg = gd.WARNING_MSG_IN_COLOR if f is None else gd.WARNING_MSG_NO_COLOR
@@ -1753,6 +1771,13 @@ def osc_prob(
             # Reached maximum allowed number of slabs and maximum allowed number of time-points per
             # slab: exit loop, return the probability matrix
             if (ran_with_max_n_slabs and ran_with_max_n_tpts_per_slab):
+                warnings.warn("osc_prob: requested tolerance not achieved "
+                    "(max_n_slabs and max_n_tpts_per_slab reached); the returned "
+                    "probabilities may be inaccurate. Try increasing max_n_slabs "
+                    "or max_n_tpts_per_slab. This can happen for very large "
+                    "accumulated phases, e.g., low-energy neutrinos over very "
+                    "long baselines. Shown once per session.",
+                    ToleranceNotAchievedWarning, stacklevel=2)
                 if (verbose > 0):
                     for f in [None, file_log] if save_log else [None]:
                         warn_msg = gd.WARNING_MSG_IN_COLOR if f is None else gd.WARNING_MSG_NO_COLOR
@@ -4856,49 +4881,158 @@ def osc_prob_5nu_earth(
 
 
 def osc_prob_earth(
-    H_func: Union[Callable, np.ndarray],
-    ra_dec_ini: Union[Tuple[float, float], list, np.ndarray, str], 
-    ra_dec_fin: Union[Tuple[float, float], list, np.ndarray, str], 
-    costhz: Union[int, float],
-    energy: Union[int, float, list, np.ndarray], 
-    s12: Optional[Union[int, float]]=None, 
-    s23: Optional[Union[int, float]]=None, 
-    s13: Optional[Union[int, float]]=None, 
-    dCP: Optional[Union[int, float]]=None, 
-    D21: Optional[Union[int, float]]=None, 
-    D31: Optional[Union[int, float]]=None, 
-    nubar: Optional[bool]=False, 
-    nu_i: Optional[int]=None, 
+    H_func: Callable,
+    energy: Union[int, float, list, np.ndarray],
+    costhz: Optional[Union[int, float]]=None,
+    loc_ini: Optional[Union[Tuple[float, float], list, np.ndarray, str]]=None,
+    loc_fin: Optional[Union[Tuple[float, float], list, np.ndarray, str]]=None,
+    L: Optional[Union[float, list, np.ndarray]]=None,
+    nubar: Optional[bool]=False,
+    nu_i: Optional[int]=None,
     nu_f: Optional[int]=None,
-    validate_input: Optional[bool]=True, 
-    verbose: Optional[int]=0
+    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
+    electron_fraction: Optional[Union[int, float]]=0.5,
+    magnus_exp_order: Optional[int]=4,
+    n_jobs: Optional[int]=1,
+    integration_method: Optional[str]='trapezoid',
+    rtol: Optional[Union[int, float]]=1.e-3,
+    atol: Optional[Union[int, float]]=1.e-3,
+    validate_input: Optional[bool]=True,
+    verbose: Optional[int]=0,
+    **kwargs
 ) -> Union[float, np.ndarray]:
-    """Compute and return the neutrino oscillation probability between 
-    two locations on the surface of the Earth for a given arbitrary 
-    Hamiltonian.
+    r"""Compute and return the neutrino oscillation probability inside
+    the Earth for a given arbitrary Hamiltonian.
 
-    Does **not** assume standard oscillations nor a given number of 
-    neutrino flavors: the user must supply their own Hamiltonian 
-    function, ``H_func``.  The Hamiltonian can include matter potentials
-    due not only to electrons and that affect not only :math:`\\nu_e`.
-    
-    For the matter density inside the Earth, it uses the Preliminary 
-    Reference Earth Model.
+    Does **not** assume standard oscillations nor a given number of
+    neutrino flavors: the user supplies their own Hamiltonian function,
+    ``H_func``, and this routine takes care of the geometry of the
+    trajectory through the Earth and of the matter density along it.
 
-    The location of each point on the surface can either be given as a 
-    tuple (ra, dec) of right ascension and declination (i.e., 
-    ``ra_dec_ini`` and ``ra_dec_fin``)---including the possibility of 
-    using locations predefined in Magnus---or as the cosine of the
-    zenith angle between the initial and final positions (i.e.,
-    ``costhz``).
+    ``H_func`` must be a function of either three arguments,
+    ``H_func(energy, l, VCC)``, or two arguments,
+    ``H_func(energy, l)``, returning a square complex NumPy array (the
+    Hamiltonian in the flavor basis, in eV).  In the three-argument
+    form, ``VCC`` is the charged-current matter potential
+    :math:`V_{\rm CC} = \sqrt{2} G_F N_e` [eV] at position ``l``
+    along the chord, computed from the Preliminary Reference Earth
+    Model; its sign is already flipped for antineutrinos
+    (``nubar=True``).  The user is free to use it, scale it, or ignore
+    it (e.g., to add non-standard matter potentials that affect flavors
+    other than :math:`\nu_e`).  For extra speed, ``H_func`` may accept
+    an array of positions ``l`` and return a stack of Hamiltonians with
+    the position axis leading; this is detected automatically.
+
+    The trajectory can be specified either by the cosine of the zenith
+    angle (``costhz``) together with the baseline ``L`` [eV^{-1}], or
+    by an initial and a final location on the surface of the Earth
+    (``loc_ini``, ``loc_fin``), given as (degree, minute, second)
+    latitude/longitude tuples or as the names of predefined locations
+    (see ``earth.loc_coords_dms``); in the latter case the neutrino
+    travels the chord that joins the two locations.
+
+    The slab edges used internally are aligned with the crossings of
+    the PREM layer boundaries along the chord.
 
     Examples
     --------
+    Standard three-neutrino oscillations, written by hand (the
+    dedicated wrapper :func:`osc_prob_3nu_earth` does this internally):
+
+    >>> h_vac = hamiltonians.hamiltonian_3nu_vacuum_energy_independent( \
+    ...     s12, s23, s13, dCP, D21, D31)
+    >>> def H(energy, l, VCC):
+    ...     return (1/energy)*h_vac + VCC*np.diag([1.0, 0.0, 0.0])
+    >>> osc_prob_earth(H, energy=1.e9, loc_ini='fermilab', \
+    ...     loc_fin='homestake')
     """
+    source_func_name = sys._getframe().f_code.co_name
 
-    pass
+    # If the location is given as a string, look it up among the predefined named locations
+    if isinstance(loc_ini, str):
+        loc_ini = earth.coordinates_of_named_location(source_func_name, loc_name=loc_ini)
+    if isinstance(loc_fin, str):
+        loc_fin = earth.coordinates_of_named_location(source_func_name, loc_name=loc_fin)
 
-    return 
+    # Resolve the trajectory: either the chord between two surface locations, or (costhz, L)
+    costhz, L = validate_input_osc_prob_earth(source_func_name, loc_ini, loc_fin, costhz, L,
+        verbose=verbose)
+
+    # Align the slab edges with the crossings of the PREM layer boundaries along the chord
+    t_breakpoints = earth.prem_layer_edges_along_chord(costhz)*gd.UNIT_KM # [eV^{-1}]
+
+    # Charged-current potential along the chord from the PREM electron density; the antineutrino
+    # sign flip is applied inside matter.vcc_func_from_rho_func.  The profile evaluations are
+    # cached on repeated position grids.
+    VCC_func = matter.vcc_func_from_rho_func(
+        rho_func=lambda l: matter.num_density_e_func(
+            earth.earth_radial_distance_from_depth(costhz, l/gd.UNIT_KM),
+            earth.density_matter_func_prem,
+            ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
+            electron_fraction=electron_fraction,
+            density_matter_is_in_g_per_cm3=True), # [eV^3] (l in eV^{-1})
+        nubar=nubar,
+        density_is_of_number_of_electrons=True) # [eV]
+    VCC_func = _PositionProfileCache(VCC_func)
+
+    return _osc_prob_with_potential(source_func_name, H_func, VCC_func, energy, L, 0.0, nu_i,
+        nu_f, t_breakpoints, magnus_exp_order, n_jobs, integration_method, rtol, atol,
+        validate_input, verbose, **kwargs)
+
+
+def _osc_prob_with_potential(
+    source_func_name: str,
+    H_func: Callable,
+    VCC_func: Callable,
+    energy: Union[int, float, list, np.ndarray],
+    L: Union[int, float, list, np.ndarray],
+    L0: Union[int, float],
+    nu_i: Optional[int],
+    nu_f: Optional[int],
+    t_breakpoints: Optional[np.ndarray],
+    magnus_exp_order: int,
+    n_jobs: int,
+    integration_method: str,
+    rtol: Optional[Union[int, float]],
+    atol: Optional[Union[int, float]],
+    validate_input: bool,
+    verbose: int,
+    **kwargs
+) -> Union[float, np.ndarray]:
+    r"""Common machinery of :func:`osc_prob_earth` and
+    :func:`osc_prob_sun`: wire a user-supplied Hamiltonian function --
+    H_func(energy, l, VCC) or H_func(energy, l) -- to the environment
+    potential ``VCC_func`` and hand it to
+    :func:`osc_prob_energy_baseline`."""
+
+    if validate_input:
+        try:
+            if not isinstance(H_func, Callable):
+                raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + \
+                    ": H_func must be a function of (energy, l, VCC) or of (energy, l).")
+            n_params_H = len(signature(H_func).parameters)
+            if n_params_H not in (2, 3):
+                raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + \
+                    ": H_func must be a function of either three arguments (energy, l, VCC) or" + \
+                    " two arguments (energy, l); the provided H_func takes " + \
+                    str(n_params_H) + " argument(s).")
+        except ValueError as error:
+            print(error)
+            print("Aborting execution...")
+            sys.exit(1)
+
+    n_params_H = len(signature(H_func).parameters)
+    if n_params_H == 3:
+        def htot(enu: Union[int, float], l: Union[int, float, np.ndarray]) -> np.ndarray:
+            return H_func(enu, l, VCC_func(l))
+    else:
+        def htot(enu: Union[int, float], l: Union[int, float, np.ndarray]) -> np.ndarray:
+            return H_func(enu, l)
+
+    return osc_prob_energy_baseline(htot, energy, L, L0, nu_i, nu_f, False,
+        t_breakpoints=t_breakpoints, magnus_exp_order=magnus_exp_order, n_jobs=n_jobs,
+        integration_method=integration_method, rtol=rtol, atol=atol,
+        validate_input=validate_input, verbose=verbose, **kwargs)
 
 
 #-----------------------------------------------------------------------
@@ -4914,18 +5048,18 @@ def osc_prob_2nu_sun(
     nubar: Optional[bool]=False, 
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
-    magnus_exp_order: Optional[int]=3, #4, 
+    magnus_exp_order: Optional[int]=4, 
     n_jobs: Optional[int]=1, 
     integration_method: Optional[str]='trapezoid', 
-    rtol: Optional[Union[int, float]]=1.e-2, 
-    atol: Optional[Union[int, float]]=1.e-2, 
-    growth_factor_n_slabs: Optional[Union[int, float]]=2.0, #1.5, 
-    growth_factor_n_tpts_per_slab: Optional[Union[int, float]]=2.0, 
+    rtol: Optional[Union[int, float]]=1.e-3, 
+    atol: Optional[Union[int, float]]=1.e-3, 
+    growth_factor_n_slabs: Optional[Union[int, float]]=1.5, #1.5, 
+    growth_factor_n_tpts_per_slab: Optional[Union[int, float]]=1.5, 
     max_num_loops: Optional[int]=50, 
-    min_n_slabs: Optional[int]=100, 
-    max_n_slabs: Optional[int]=400, #2000, 
-    min_n_tpts_per_slab: Optional[int]=100, #10, 
-    max_n_tpts_per_slab: Optional[int]=400, #500, 
+    min_n_slabs: Optional[int]=1, 
+    max_n_slabs: Optional[int]=2000, #2000, 
+    min_n_tpts_per_slab: Optional[int]=2, #10, 
+    max_n_tpts_per_slab: Optional[int]=500, #500, 
     iterate_over_magnus_exp_order: Optional[bool]=False,
     min_magnus_exp_order: Optional[int]=1,
     max_magnus_exp_order: Optional[int]=gd.MAGNUS_EXP_ORDER_MAX,
@@ -5011,18 +5145,18 @@ def osc_prob_3nu_sun(
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
-    magnus_exp_order: Optional[int]=3, 
+    magnus_exp_order: Optional[int]=4, 
     n_jobs: Optional[int]=1, 
     integration_method: Optional[str]='trapezoid', 
-    rtol: Optional[Union[int, float]]=1.e-2, 
-    atol: Optional[Union[int, float]]=1.e-2, 
-    growth_factor_n_slabs: Optional[Union[int, float]]=2.0, 
-    growth_factor_n_tpts_per_slab: Optional[Union[int, float]]=2.0, 
+    rtol: Optional[Union[int, float]]=1.e-3, 
+    atol: Optional[Union[int, float]]=1.e-3, 
+    growth_factor_n_slabs: Optional[Union[int, float]]=1.5, 
+    growth_factor_n_tpts_per_slab: Optional[Union[int, float]]=1.5, 
     max_num_loops: Optional[int]=50, 
-    min_n_slabs: Optional[int]=100, 
-    max_n_slabs: Optional[int]=400, 
-    min_n_tpts_per_slab: Optional[int]=100, 
-    max_n_tpts_per_slab: Optional[int]=400, 
+    min_n_slabs: Optional[int]=1, 
+    max_n_slabs: Optional[int]=2000, 
+    min_n_tpts_per_slab: Optional[int]=2, 
+    max_n_tpts_per_slab: Optional[int]=500, 
     iterate_over_magnus_exp_order: Optional[bool]=False,
     min_magnus_exp_order: Optional[int]=1,
     max_magnus_exp_order: Optional[int]=gd.MAGNUS_EXP_ORDER_MAX,
@@ -5117,18 +5251,18 @@ def osc_prob_4nu_sun(
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
-    magnus_exp_order: Optional[int]=3, 
+    magnus_exp_order: Optional[int]=4, 
     n_jobs: Optional[int]=1, 
     integration_method: Optional[str]='trapezoid', 
-    rtol: Optional[Union[int, float]]=1.e-2, 
-    atol: Optional[Union[int, float]]=1.e-2, 
-    growth_factor_n_slabs: Optional[Union[int, float]]=2.0, 
-    growth_factor_n_tpts_per_slab: Optional[Union[int, float]]=2.0, 
+    rtol: Optional[Union[int, float]]=1.e-3, 
+    atol: Optional[Union[int, float]]=1.e-3, 
+    growth_factor_n_slabs: Optional[Union[int, float]]=1.5, 
+    growth_factor_n_tpts_per_slab: Optional[Union[int, float]]=1.5, 
     max_num_loops: Optional[int]=50, 
-    min_n_slabs: Optional[int]=100, 
-    max_n_slabs: Optional[int]=400, 
-    min_n_tpts_per_slab: Optional[int]=100, 
-    max_n_tpts_per_slab: Optional[int]=400, 
+    min_n_slabs: Optional[int]=1, 
+    max_n_slabs: Optional[int]=2000, 
+    min_n_tpts_per_slab: Optional[int]=2, 
+    max_n_tpts_per_slab: Optional[int]=500, 
     iterate_over_magnus_exp_order: Optional[bool]=False,
     min_magnus_exp_order: Optional[int]=1,
     max_magnus_exp_order: Optional[int]=gd.MAGNUS_EXP_ORDER_MAX,
@@ -5235,18 +5369,18 @@ def osc_prob_5nu_sun(
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
-    magnus_exp_order: Optional[int]=3, 
+    magnus_exp_order: Optional[int]=4, 
     n_jobs: Optional[int]=1, 
     integration_method: Optional[str]='trapezoid', 
-    rtol: Optional[Union[int, float]]=1.e-2, 
-    atol: Optional[Union[int, float]]=1.e-2, 
-    growth_factor_n_slabs: Optional[Union[int, float]]=2.0, 
-    growth_factor_n_tpts_per_slab: Optional[Union[int, float]]=2.0, 
+    rtol: Optional[Union[int, float]]=1.e-3, 
+    atol: Optional[Union[int, float]]=1.e-3, 
+    growth_factor_n_slabs: Optional[Union[int, float]]=1.5, 
+    growth_factor_n_tpts_per_slab: Optional[Union[int, float]]=1.5, 
     max_num_loops: Optional[int]=50, 
-    min_n_slabs: Optional[int]=100, 
-    max_n_slabs: Optional[int]=400, 
-    min_n_tpts_per_slab: Optional[int]=100, 
-    max_n_tpts_per_slab: Optional[int]=400, 
+    min_n_slabs: Optional[int]=1, 
+    max_n_slabs: Optional[int]=2000, 
+    min_n_tpts_per_slab: Optional[int]=2, 
+    max_n_tpts_per_slab: Optional[int]=500, 
     iterate_over_magnus_exp_order: Optional[bool]=False,
     min_magnus_exp_order: Optional[int]=1,
     max_magnus_exp_order: Optional[int]=gd.MAGNUS_EXP_ORDER_MAX,
@@ -5334,47 +5468,78 @@ def osc_prob_5nu_sun(
 
 
 def osc_prob_sun(
-    H_func: Union[Callable, np.ndarray],
-    costhz: Union[int, float],
-    energy: Union[int, float, list, np.ndarray], 
-    s12: Optional[Union[int, float]]=None, 
-    s23: Optional[Union[int, float]]=None, 
-    s13: Optional[Union[int, float]]=None, 
-    dCP: Optional[Union[int, float]]=None, 
-    D21: Optional[Union[int, float]]=None, 
-    D31: Optional[Union[int, float]]=None, 
-    nubar: Optional[bool]=False, 
-    nu_i: Optional[int]=None, 
+    H_func: Callable,
+    energy: Union[int, float, list, np.ndarray],
+    L: Union[float, list, np.ndarray],
+    L0: Optional[Union[int, float]]=0.0,
+    nubar: Optional[bool]=False,
+    nu_i: Optional[int]=None,
     nu_f: Optional[int]=None,
-    validate_input: Optional[bool]=True, 
-    verbose: Optional[int]=0
+    magnus_exp_order: Optional[int]=4,
+    n_jobs: Optional[int]=1,
+    integration_method: Optional[str]='trapezoid',
+    rtol: Optional[Union[int, float]]=1.e-3,
+    atol: Optional[Union[int, float]]=1.e-3,
+    validate_input: Optional[bool]=True,
+    verbose: Optional[int]=0,
+    **kwargs
 ) -> Union[float, np.ndarray]:
-    """Compute and return the neutrino oscillation probability for 
-    neutrinos inside the Sun for a given arbitrary Hamiltonian.
+    r"""Compute and return the neutrino oscillation probability inside
+    the Sun for a given arbitrary Hamiltonian.
 
-    Does **not** assume standard oscillations nor a given number of 
-    neutrino flavors: the user must supply their own Hamiltonian 
-    function, ``H_func``.  The Hamiltonian can include matter potentials
-    due not only to electrons and that affect not only :math:`\\nu_e`.
-    
+    Does **not** assume standard oscillations nor a given number of
+    neutrino flavors: the user supplies their own Hamiltonian function,
+    ``H_func``, and this routine provides the solar electron density
+    along the (radial) trajectory.
+
+    ``H_func`` must be a function of either three arguments,
+    ``H_func(energy, l, VCC)``, or two arguments,
+    ``H_func(energy, l)``, returning a square complex NumPy array (the
+    Hamiltonian in the flavor basis, in eV).  In the three-argument
+    form, ``VCC`` is the charged-current matter potential
+    :math:`V_{\rm CC} = \sqrt{2} G_F N_e` [eV] at radial position
+    ``l``; its sign is already flipped for antineutrinos
+    (``nubar=True``).  For extra speed, ``H_func`` may accept an array
+    of positions ``l`` and return a stack of Hamiltonians with the
+    position axis leading; this is detected automatically.
+
+    The neutrino travels radially outward from ``L0`` to ``L`` (both in
+    eV^{-1}, measured from the center of the Sun).
+
     For the electron density inside the Sun, it assumes an exponentially
-    falling density profile: :math:`N_e(r) = N_e(0) \\exp(-r/r_0)`, 
-    with :math:`N_e(0) = 245 N_\\text{Av}~\\text{cm}^{-3}` and 
-    :math:`r_0 = R_\\odot/10.54`.  See Eq. (10.62) in
-    `Fundamentals of Neutrino Physics and Astrophysics 
-    <https://academic.oup.com/book/3490>`_ by Carlo Giunti and Chung 
+    falling density profile: :math:`N_e(r) = N_e(0) \exp(-r/r_0)`,
+    with :math:`N_e(0) = 245 N_\text{Av}~\text{cm}^{-3}` and
+    :math:`r_0 = R_\odot/10.54`.  See Eq. (10.62) in
+    `Fundamentals of Neutrino Physics and Astrophysics
+    <https://academic.oup.com/book/3490>`_ by Carlo Giunti and Chung
     Wook Kim.
-
-    The location of each point on the surface can either be given as a 
-    tuple (ra, dec) of right ascension and declination (i.e., 
-    ``ra_dec_ini`` and ``ra_dec_fin``)---including the possibility of 
-    using locations predefined in Magnus---or as the cosine of the
-    zenith angle between the initial and final positions (i.e.,
-    ``costhz``).
 
     Examples
     --------
+    Standard two-neutrino oscillations, written by hand (the dedicated
+    wrapper :func:`osc_prob_2nu_sun` does this internally):
+
+    >>> h_vac = hamiltonians.hamiltonian_2nu_vacuum_energy_independent(sth, Dm2)
+    >>> def H(energy, l, VCC):
+    ...     return (1/energy)*h_vac + VCC*np.diag([1.0, 0.0])
+    >>> osc_prob_sun(H, energy=1.e7, L=0.9*gd.SUN_RADIUS*gd.UNIT_KM)
     """
+    source_func_name = sys._getframe().f_code.co_name
+
+    # Solar electron number density [eV^3] along the radial trajectory; the antineutrino sign
+    # flip of the potential is applied inside matter.vcc_func_from_rho_func.  The profile
+    # evaluations are cached on repeated position grids.
+    VCC_func = matter.vcc_func_from_rho_func(
+        rho_func=lambda l: matter.density_matter_func_exp(l, gd.NUM_DENSITY_E_SUN_CENTRAL,
+            gd.L_SCALE_SUN), # [eV^3] (l in eV^{-1})
+        L0=L0,
+        nubar=nubar,
+        density_is_of_number_of_electrons=True) # [eV]
+    VCC_func = _PositionProfileCache(VCC_func)
+
+    return _osc_prob_with_potential(source_func_name, H_func, VCC_func, energy, L, L0, nu_i,
+        nu_f, None, magnus_exp_order, n_jobs, integration_method, rtol, atol,
+        validate_input, verbose, **kwargs)
 
 
 #-----------------------------------------------------------------------
@@ -6791,18 +6956,18 @@ def osc_prob_2nu_sun_nsi(
     nubar: Optional[bool]=False, 
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
-    magnus_exp_order: Optional[int]=3, #4, 
+    magnus_exp_order: Optional[int]=4, 
     n_jobs: Optional[int]=1, 
     integration_method: Optional[str]='trapezoid', 
-    rtol: Optional[Union[int, float]]=1.e-2, 
-    atol: Optional[Union[int, float]]=1.e-2, 
-    growth_factor_n_slabs: Optional[Union[int, float]]=2.0, #1.5, 
-    growth_factor_n_tpts_per_slab: Optional[Union[int, float]]=2.0, 
+    rtol: Optional[Union[int, float]]=1.e-3, 
+    atol: Optional[Union[int, float]]=1.e-3, 
+    growth_factor_n_slabs: Optional[Union[int, float]]=1.5, #1.5, 
+    growth_factor_n_tpts_per_slab: Optional[Union[int, float]]=1.5, 
     max_num_loops: Optional[int]=50, 
-    min_n_slabs: Optional[int]=100, 
-    max_n_slabs: Optional[int]=400, #2000, 
-    min_n_tpts_per_slab: Optional[int]=100, #10, 
-    max_n_tpts_per_slab: Optional[int]=400, #500, 
+    min_n_slabs: Optional[int]=1, 
+    max_n_slabs: Optional[int]=2000, #2000, 
+    min_n_tpts_per_slab: Optional[int]=2, #10, 
+    max_n_tpts_per_slab: Optional[int]=500, #500, 
     iterate_over_magnus_exp_order: Optional[bool]=False,
     min_magnus_exp_order: Optional[int]=1,
     max_magnus_exp_order: Optional[int]=gd.MAGNUS_EXP_ORDER_MAX,
@@ -6891,18 +7056,18 @@ def osc_prob_3nu_sun_nsi(
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
-    magnus_exp_order: Optional[int]=3, 
+    magnus_exp_order: Optional[int]=4, 
     n_jobs: Optional[int]=1, 
     integration_method: Optional[str]='trapezoid', 
-    rtol: Optional[Union[int, float]]=1.e-2, 
-    atol: Optional[Union[int, float]]=1.e-2, 
-    growth_factor_n_slabs: Optional[Union[int, float]]=2.0, 
-    growth_factor_n_tpts_per_slab: Optional[Union[int, float]]=2.0, 
+    rtol: Optional[Union[int, float]]=1.e-3, 
+    atol: Optional[Union[int, float]]=1.e-3, 
+    growth_factor_n_slabs: Optional[Union[int, float]]=1.5, 
+    growth_factor_n_tpts_per_slab: Optional[Union[int, float]]=1.5, 
     max_num_loops: Optional[int]=50, 
-    min_n_slabs: Optional[int]=100, 
-    max_n_slabs: Optional[int]=400, 
-    min_n_tpts_per_slab: Optional[int]=100, 
-    max_n_tpts_per_slab: Optional[int]=400, 
+    min_n_slabs: Optional[int]=1, 
+    max_n_slabs: Optional[int]=2000, 
+    min_n_tpts_per_slab: Optional[int]=2, 
+    max_n_tpts_per_slab: Optional[int]=500, 
     iterate_over_magnus_exp_order: Optional[bool]=False,
     min_magnus_exp_order: Optional[int]=1,
     max_magnus_exp_order: Optional[int]=gd.MAGNUS_EXP_ORDER_MAX,
@@ -7009,18 +7174,18 @@ def osc_prob_4nu_sun_nsi(
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
-    magnus_exp_order: Optional[int]=3, 
+    magnus_exp_order: Optional[int]=4, 
     n_jobs: Optional[int]=1, 
     integration_method: Optional[str]='trapezoid', 
-    rtol: Optional[Union[int, float]]=1.e-2, 
-    atol: Optional[Union[int, float]]=1.e-2, 
-    growth_factor_n_slabs: Optional[Union[int, float]]=2.0, 
-    growth_factor_n_tpts_per_slab: Optional[Union[int, float]]=2.0, 
+    rtol: Optional[Union[int, float]]=1.e-3, 
+    atol: Optional[Union[int, float]]=1.e-3, 
+    growth_factor_n_slabs: Optional[Union[int, float]]=1.5, 
+    growth_factor_n_tpts_per_slab: Optional[Union[int, float]]=1.5, 
     max_num_loops: Optional[int]=50, 
-    min_n_slabs: Optional[int]=100, 
-    max_n_slabs: Optional[int]=400, 
-    min_n_tpts_per_slab: Optional[int]=100, 
-    max_n_tpts_per_slab: Optional[int]=400, 
+    min_n_slabs: Optional[int]=1, 
+    max_n_slabs: Optional[int]=2000, 
+    min_n_tpts_per_slab: Optional[int]=2, 
+    max_n_tpts_per_slab: Optional[int]=500, 
     iterate_over_magnus_exp_order: Optional[bool]=False,
     min_magnus_exp_order: Optional[int]=1,
     max_magnus_exp_order: Optional[int]=gd.MAGNUS_EXP_ORDER_MAX,
@@ -7148,18 +7313,18 @@ def osc_prob_5nu_sun_nsi(
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
-    magnus_exp_order: Optional[int]=3, 
+    magnus_exp_order: Optional[int]=4, 
     n_jobs: Optional[int]=1, 
     integration_method: Optional[str]='trapezoid', 
-    rtol: Optional[Union[int, float]]=1.e-2, 
-    atol: Optional[Union[int, float]]=1.e-2, 
-    growth_factor_n_slabs: Optional[Union[int, float]]=2.0, 
-    growth_factor_n_tpts_per_slab: Optional[Union[int, float]]=2.0, 
+    rtol: Optional[Union[int, float]]=1.e-3, 
+    atol: Optional[Union[int, float]]=1.e-3, 
+    growth_factor_n_slabs: Optional[Union[int, float]]=1.5, 
+    growth_factor_n_tpts_per_slab: Optional[Union[int, float]]=1.5, 
     max_num_loops: Optional[int]=50, 
-    min_n_slabs: Optional[int]=100, 
-    max_n_slabs: Optional[int]=400, 
-    min_n_tpts_per_slab: Optional[int]=100, 
-    max_n_tpts_per_slab: Optional[int]=400, 
+    min_n_slabs: Optional[int]=1, 
+    max_n_slabs: Optional[int]=2000, 
+    min_n_tpts_per_slab: Optional[int]=2, 
+    max_n_tpts_per_slab: Optional[int]=500, 
     iterate_over_magnus_exp_order: Optional[bool]=False,
     min_magnus_exp_order: Optional[int]=1,
     max_magnus_exp_order: Optional[int]=gd.MAGNUS_EXP_ORDER_MAX,
@@ -8989,18 +9154,18 @@ def osc_prob_2nu_sun_liv(
     nu_f: Optional[int]=None,
     density_matter_is_in_g_per_cm3: Optional[bool]=False,
     density_is_of_number_of_electrons: Optional[bool]=False,
-    magnus_exp_order: Optional[int]=3, #4, 
+    magnus_exp_order: Optional[int]=4, 
     n_jobs: Optional[int]=1, 
     integration_method: Optional[str]='trapezoid', 
-    rtol: Optional[Union[int, float]]=1.e-2, 
-    atol: Optional[Union[int, float]]=1.e-2, 
-    growth_factor_n_slabs: Optional[Union[int, float]]=2.0, #1.5, 
-    growth_factor_n_tpts_per_slab: Optional[Union[int, float]]=2.0, 
+    rtol: Optional[Union[int, float]]=1.e-3, 
+    atol: Optional[Union[int, float]]=1.e-3, 
+    growth_factor_n_slabs: Optional[Union[int, float]]=1.5, #1.5, 
+    growth_factor_n_tpts_per_slab: Optional[Union[int, float]]=1.5, 
     max_num_loops: Optional[int]=50, 
-    min_n_slabs: Optional[int]=100, 
-    max_n_slabs: Optional[int]=400, #2000, 
-    min_n_tpts_per_slab: Optional[int]=100, #10, 
-    max_n_tpts_per_slab: Optional[int]=400, #500, 
+    min_n_slabs: Optional[int]=1, 
+    max_n_slabs: Optional[int]=2000, #2000, 
+    min_n_tpts_per_slab: Optional[int]=2, #10, 
+    max_n_tpts_per_slab: Optional[int]=500, #500, 
     iterate_over_magnus_exp_order: Optional[bool]=False,
     min_magnus_exp_order: Optional[int]=1,
     max_magnus_exp_order: Optional[int]=gd.MAGNUS_EXP_ORDER_MAX,
@@ -9098,18 +9263,18 @@ def osc_prob_3nu_sun_liv(
     nu_f: Optional[int]=None,
     density_matter_is_in_g_per_cm3: Optional[bool]=False,
     density_is_of_number_of_electrons: Optional[bool]=False,
-    magnus_exp_order: Optional[int]=3, #4, 
+    magnus_exp_order: Optional[int]=4, 
     n_jobs: Optional[int]=1, 
     integration_method: Optional[str]='trapezoid', 
-    rtol: Optional[Union[int, float]]=1.e-2, 
-    atol: Optional[Union[int, float]]=1.e-2, 
-    growth_factor_n_slabs: Optional[Union[int, float]]=2.0, #1.5, 
-    growth_factor_n_tpts_per_slab: Optional[Union[int, float]]=2.0, 
+    rtol: Optional[Union[int, float]]=1.e-3, 
+    atol: Optional[Union[int, float]]=1.e-3, 
+    growth_factor_n_slabs: Optional[Union[int, float]]=1.5, #1.5, 
+    growth_factor_n_tpts_per_slab: Optional[Union[int, float]]=1.5, 
     max_num_loops: Optional[int]=50, 
-    min_n_slabs: Optional[int]=100, 
-    max_n_slabs: Optional[int]=400, #2000, 
-    min_n_tpts_per_slab: Optional[int]=100, #10, 
-    max_n_tpts_per_slab: Optional[int]=400, #500, 
+    min_n_slabs: Optional[int]=1, 
+    max_n_slabs: Optional[int]=2000, #2000, 
+    min_n_tpts_per_slab: Optional[int]=2, #10, 
+    max_n_tpts_per_slab: Optional[int]=500, #500, 
     iterate_over_magnus_exp_order: Optional[bool]=False,
     min_magnus_exp_order: Optional[int]=1,
     max_magnus_exp_order: Optional[int]=gd.MAGNUS_EXP_ORDER_MAX,
@@ -9227,18 +9392,18 @@ def osc_prob_4nu_sun_liv(
     nu_f: Optional[int]=None,
     density_matter_is_in_g_per_cm3: Optional[bool]=False,
     density_is_of_number_of_electrons: Optional[bool]=False,
-    magnus_exp_order: Optional[int]=3, #4, 
+    magnus_exp_order: Optional[int]=4, 
     n_jobs: Optional[int]=1, 
     integration_method: Optional[str]='trapezoid', 
-    rtol: Optional[Union[int, float]]=1.e-2, 
-    atol: Optional[Union[int, float]]=1.e-2, 
-    growth_factor_n_slabs: Optional[Union[int, float]]=2.0, #1.5, 
-    growth_factor_n_tpts_per_slab: Optional[Union[int, float]]=2.0, 
+    rtol: Optional[Union[int, float]]=1.e-3, 
+    atol: Optional[Union[int, float]]=1.e-3, 
+    growth_factor_n_slabs: Optional[Union[int, float]]=1.5, #1.5, 
+    growth_factor_n_tpts_per_slab: Optional[Union[int, float]]=1.5, 
     max_num_loops: Optional[int]=50, 
-    min_n_slabs: Optional[int]=100, 
-    max_n_slabs: Optional[int]=400, #2000, 
-    min_n_tpts_per_slab: Optional[int]=100, #10, 
-    max_n_tpts_per_slab: Optional[int]=400, #500, 
+    min_n_slabs: Optional[int]=1, 
+    max_n_slabs: Optional[int]=2000, #2000, 
+    min_n_tpts_per_slab: Optional[int]=2, #10, 
+    max_n_tpts_per_slab: Optional[int]=500, #500, 
     iterate_over_magnus_exp_order: Optional[bool]=False,
     min_magnus_exp_order: Optional[int]=1,
     max_magnus_exp_order: Optional[int]=gd.MAGNUS_EXP_ORDER_MAX,
@@ -9380,18 +9545,18 @@ def osc_prob_5nu_sun_liv(
     nu_f: Optional[int]=None,
     density_matter_is_in_g_per_cm3: Optional[bool]=False,
     density_is_of_number_of_electrons: Optional[bool]=False,
-    magnus_exp_order: Optional[int]=3, #4, 
+    magnus_exp_order: Optional[int]=4, 
     n_jobs: Optional[int]=1, 
     integration_method: Optional[str]='trapezoid', 
-    rtol: Optional[Union[int, float]]=1.e-2, 
-    atol: Optional[Union[int, float]]=1.e-2, 
-    growth_factor_n_slabs: Optional[Union[int, float]]=2.0, #1.5, 
-    growth_factor_n_tpts_per_slab: Optional[Union[int, float]]=2.0, 
+    rtol: Optional[Union[int, float]]=1.e-3, 
+    atol: Optional[Union[int, float]]=1.e-3, 
+    growth_factor_n_slabs: Optional[Union[int, float]]=1.5, #1.5, 
+    growth_factor_n_tpts_per_slab: Optional[Union[int, float]]=1.5, 
     max_num_loops: Optional[int]=50, 
-    min_n_slabs: Optional[int]=100, 
-    max_n_slabs: Optional[int]=400, #2000, 
-    min_n_tpts_per_slab: Optional[int]=100, #10, 
-    max_n_tpts_per_slab: Optional[int]=400, #500, 
+    min_n_slabs: Optional[int]=1, 
+    max_n_slabs: Optional[int]=2000, #2000, 
+    min_n_tpts_per_slab: Optional[int]=2, #10, 
+    max_n_tpts_per_slab: Optional[int]=500, #500, 
     iterate_over_magnus_exp_order: Optional[bool]=False,
     min_magnus_exp_order: Optional[int]=1,
     max_magnus_exp_order: Optional[int]=gd.MAGNUS_EXP_ORDER_MAX,

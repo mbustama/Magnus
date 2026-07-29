@@ -219,9 +219,12 @@ def test_earth_probability_rows_sum_to_one():
 
 
 def test_sun_probability_rows_sum_to_one():
-    P = op.osc_prob_2nu_sun(10.0*gd.UNIT_MEV, 0.9*gd.SUN_RADIUS*gd.UNIT_KM,
+    # 50 MeV over 0.3 R_sun: moderate accumulated phase, converges quickly
+    # within the default refinement caps (see test_tolerance_cap_warns for
+    # the extreme-phase behavior)
+    P = op.osc_prob_2nu_sun(50.0*gd.UNIT_MEV, 0.3*gd.SUN_RADIUS*gd.UNIT_KM,
                             0.0, np.sqrt(0.308), 7.5e-5,
-                            validate_input=False)
+                            integration_method='gl', validate_input=False)
     assert np.allclose(np.sum(P, axis=1), 1.0, atol=1e-9)
 
 
@@ -309,6 +312,90 @@ def test_prem_breakpoints_improve_accuracy():
     err_bp = maxabs(P_bp - P_ode)
     assert err_bp < err_plain
     assert err_bp < 1e-4
+
+
+def test_generic_osc_prob_earth_matches_wrapper():
+    """osc_prob_earth with a hand-written standard 3nu Hamiltonian must
+    reproduce the dedicated osc_prob_3nu_earth wrapper."""
+    params = gd.OSC_PARAMS_PREDEFINED['OSC_PARAMS_DEFAULT']
+    for nubar in [False, True]:
+        hvac = hams.hamiltonian_3nu_vacuum_energy_independent(
+            params['s12'], params['s23'], params['s13'], params['dCP'],
+            params['D21'], params['D31'], nubar=nubar)
+        e00 = np.diag([1.0, 0.0, 0.0])
+
+        def H(energy, l, VCC):
+            vcc = np.asarray(VCC)
+            return (1.0/energy)*hvac + vcc[..., None, None]*e00
+
+        common = dict(costhz=-0.6, L=2.0*6371.0*0.6*gd.UNIT_KM,
+                      validate_input=False)
+        P_gen = op.osc_prob_earth(H, 2.0*gd.UNIT_GEV, nubar=nubar, **common)
+        P_wrap = op.osc_prob_3nu_earth(2.0*gd.UNIT_GEV, nubar=nubar, **common)
+        assert maxabs(np.asarray(P_gen) - np.asarray(P_wrap)) < 3e-3
+        assert np.allclose(np.sum(P_gen, axis=1), 1.0, atol=1e-9)
+
+
+def test_generic_osc_prob_earth_named_locations_and_two_arg_H():
+    """Named locations resolve, and a two-argument H (no matter potential)
+    reproduces the vacuum probability over the chord."""
+    params = gd.OSC_PARAMS_PREDEFINED['OSC_PARAMS_DEFAULT']
+    hvac = hams.hamiltonian_3nu_vacuum_energy_independent(
+        params['s12'], params['s23'], params['s13'], params['dCP'],
+        params['D21'], params['D31'])
+
+    def H_vacuum_only(energy, l):
+        return (1.0/energy)*hvac
+
+    import magnus.earth as earth
+    lat1 = earth.loc_coords_dms['fermilab']['lat']
+    lon1 = earth.loc_coords_dms['fermilab']['lon']
+    lat2 = earth.loc_coords_dms['homestake']['lat']
+    lon2 = earth.loc_coords_dms['homestake']['lon']
+    Lchord = earth.chord_length_inside_earth(lat1, lon1, lat2, lon2)*gd.UNIT_KM
+
+    P = op.osc_prob_earth(H_vacuum_only, 3.0*gd.UNIT_GEV, loc_ini='fermilab',
+                          loc_fin='homestake', validate_input=False)
+    P_vac = op.osc_prob_3nu_vacuum(3.0*gd.UNIT_GEV, Lchord)
+    assert maxabs(np.asarray(P) - np.asarray(P_vac)) < 1e-6
+
+
+def test_generic_osc_prob_sun_matches_wrapper():
+    """osc_prob_sun with a hand-written standard 2nu Hamiltonian must
+    reproduce the dedicated osc_prob_2nu_sun wrapper.
+
+    Uses a moderate accumulated phase (50 MeV over 0.3 R_sun, ~800 rad)
+    so that both paths converge within the default refinement caps; at,
+    e.g., 10 MeV over 0.9 R_sun (~1.2e4 rad of phase), the default
+    max_n_slabs is insufficient and osc_prob warns
+    (ToleranceNotAchievedWarning) instead of failing silently."""
+    sth, Dm2 = np.sqrt(0.308), 7.5e-5
+    hvac = hams.hamiltonian_2nu_vacuum_energy_independent(sth, Dm2)
+    e00 = np.diag([1.0, 0.0])
+
+    def H(energy, l, VCC):
+        vcc = np.asarray(VCC)
+        return (1.0/energy)*hvac + vcc[..., None, None]*e00
+
+    energy, L = 50.0*gd.UNIT_MEV, 0.3*gd.SUN_RADIUS*gd.UNIT_KM
+    common = dict(integration_method='gl', rtol=1e-4, atol=1e-4,
+                  validate_input=False)
+    P_gen = op.osc_prob_sun(H, energy, L, **common)
+    P_wrap = op.osc_prob_2nu_sun(energy, L, 0.0, sth, Dm2,
+                                 magnus_exp_order=4, **common)
+    assert maxabs(np.asarray(P_gen) - np.asarray(P_wrap)) < 1e-3
+    assert np.allclose(np.sum(P_gen, axis=1), 1.0, atol=1e-9)
+
+
+def test_tolerance_cap_warns():
+    """Hitting the refinement caps must warn even at verbose=0 (the result
+    can look plausible while being unconverged)."""
+    sth, Dm2 = np.sqrt(0.308), 7.5e-5
+    with pytest.warns(op.ToleranceNotAchievedWarning):
+        op.osc_prob_2nu_sun(10.0*gd.UNIT_MEV, 0.9*gd.SUN_RADIUS*gd.UNIT_KM,
+                            0.0, sth, Dm2, integration_method='gl',
+                            max_n_slabs=64, max_num_loops=8,
+                            validate_input=False)
 
 
 def test_vectorized_profile_matches_scalar_profile():
