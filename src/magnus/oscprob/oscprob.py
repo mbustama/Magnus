@@ -2383,7 +2383,9 @@ def osc_prob_energy_baseline(
     # factor, so that the comparison between successive refinements is still performed).
     # Neighboring points typically converge at (nearly) the same parameters, so this skips most
     # of the refinement ladder.
-    conv_info = {}
+    conv_info = osc_prob_kwargs.get('convergence_info')
+    if conv_info is None:
+        conv_info = {}
     osc_prob_kwargs['convergence_info'] = conv_info
     warm_start = (t_slab_edges is None) and \
         ((rtol is not None) or (atol is not None))
