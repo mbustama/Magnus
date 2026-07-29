@@ -1316,6 +1316,7 @@ def osc_prob(
     verbose: Optional[int]=0, 
     A_eval_mode: Optional[str]=None,
     convergence_info: Optional[Dict]=None,
+    t_breakpoints: Optional[Union[list, np.ndarray]]=None,
     **kwargs
 ) -> np.ndarray:
     r"""Computes and returns the neutrino oscillation probability.
@@ -1434,6 +1435,13 @@ def osc_prob(
         parameters of the returned probability ('n_slabs',
         'n_tpts_per_slab'), which callers can use to warm-start
         neighboring computations.
+    t_breakpoints
+        Optional positions at which the Hamiltonian is known to be
+        non-smooth (e.g., density discontinuities such as the PREM
+        layer boundaries).  They are inserted as mandatory slab edges
+        into the automatically generated slab grid at every refinement
+        level, so that the quadrature never integrates across them.
+        Ignored when ``t_slab_edges`` is given explicitly.
     \**kwargs
         Additional arguments passed through to the Magnus-expansion
         routines
@@ -1765,9 +1773,16 @@ def osc_prob(
         # without leaving gaps.  I.e., the user should ensure that ti_{k+1} = tf_k.  
         if (t_slab_edges_original is None):
             # If t_slab_edges == None, then divide the interval [t_ini, t_fin] evenly into a number
-            # n_slabs of time slabs.  
-            dt = (t_fin-t_ini)/n_slabs # Size of one time slab
-            t_slab_edges = [[t_ini+dt*i, t_ini+dt*(i+1)] for i in range(n_slabs)]
+            # n_slabs of time slabs.  Any t_breakpoints inside the interval (e.g., density
+            # discontinuities) are inserted as additional mandatory slab edges: high-order
+            # quadrature converges at its nominal order only if the Hamiltonian is smooth inside
+            # each slab.
+            grid = np.linspace(t_ini, t_fin, n_slabs+1)
+            if (t_breakpoints is not None) and (len(np.atleast_1d(t_breakpoints)) > 0):
+                bp = np.atleast_1d(np.asarray(t_breakpoints, dtype=float))
+                bp = bp[(bp > t_ini) & (bp < t_fin)]
+                grid = np.unique(np.concatenate([grid, bp]))
+            t_slab_edges = np.column_stack([grid[:-1], grid[1:]])
 
         # Within each slab, t_slab, we use n_tpts_per_slab time-evaluations to compute the integrals
         # of the Magnus expansion, from t_slab[0] to t_slab[1].  U_chain contains the chain of time-
@@ -4303,6 +4318,11 @@ def osc_prob_2nu_earth(
     costhz, L = validate_input_osc_prob_earth(source_func_name, loc_ini, loc_fin, costhz, L,
         verbose=verbose) # L in eV^{-1}
 
+    # Align the slab edges with the crossings of the PREM layer boundaries along the chord: the
+    # matter density is discontinuous there, and the high-order quadrature of the Magnus kernel
+    # converges at its nominal order only if the Hamiltonian is smooth inside each slab.
+    t_breakpoints = earth.prem_layer_edges_along_chord(costhz)*gd.UNIT_KM # [eV^{-1}]
+
     # If any of the flavor indices is > 1, fix it (read the docstring above).
     nu_i, nu_f = valid_flavor_indices_2nu(nu_i, nu_f)
 
@@ -4322,6 +4342,7 @@ def osc_prob_2nu_earth(
             electron_fraction=0.5, density_matter_is_in_g_per_cm3=True), # [eV^3] (l in eV^{-1})
         energy=energy,
         L=L, # [eV^{-1}]
+        t_breakpoints=t_breakpoints,
         osc_params={'sth': sth, 'Dm2': Dm2},
         L0=0.0,
         nubar=nubar,
@@ -4452,6 +4473,11 @@ def osc_prob_3nu_earth(
     # baseline given (could be an array of baselines).
     costhz, L = validate_input_osc_prob_earth(source_func_name, loc_ini, loc_fin, costhz, L,
         verbose=verbose)
+
+    # Align the slab edges with the crossings of the PREM layer boundaries along the chord: the
+    # matter density is discontinuous there, and the high-order quadrature of the Magnus kernel
+    # converges at its nominal order only if the Hamiltonian is smooth inside each slab.
+    t_breakpoints = earth.prem_layer_edges_along_chord(costhz)*gd.UNIT_KM # [eV^{-1}]
     
     # The function earth.density_matter_func_prem returns the internal matter density of the Earth
     # as a function of radial distance, r, using the Preliminary Reference Earth Model (PREM). The
@@ -4468,6 +4494,7 @@ def osc_prob_3nu_earth(
             electron_fraction=0.5, density_matter_is_in_g_per_cm3=True), # [eV^3] (l in eV^{-1})
         energy=energy,
         L=L,
+        t_breakpoints=t_breakpoints,
         osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 'D21': D21, 'D31': D31},
         L0=0.0,
         nubar=nubar,
@@ -4605,6 +4632,11 @@ def osc_prob_4nu_earth(
     # baseline given (could be an array of baselines).
     costhz, L = validate_input_osc_prob_earth(source_func_name, loc_ini, loc_fin, costhz, L,
         verbose=verbose)
+
+    # Align the slab edges with the crossings of the PREM layer boundaries along the chord: the
+    # matter density is discontinuous there, and the high-order quadrature of the Magnus kernel
+    # converges at its nominal order only if the Hamiltonian is smooth inside each slab.
+    t_breakpoints = earth.prem_layer_edges_along_chord(costhz)*gd.UNIT_KM # [eV^{-1}]
     
     # The function earth.density_matter_func_prem returns the internal matter density of the Earth
     # as a function of radial distance, r, using the Preliminary Reference Earth Model (PREM). The
@@ -4621,6 +4653,7 @@ def osc_prob_4nu_earth(
             electron_fraction=0.5, density_matter_is_in_g_per_cm3=True), # [eV^3] (l in eV^{-1})
         energy=energy,
         L=L,
+        t_breakpoints=t_breakpoints,
         osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 's14': s14, 'd14': d14, 
             's24': s24, 'd24': d24, 's34': s34, 'D21': D21, 'D31': D31, 'D41': D41},
         L0=0.0,
@@ -4765,6 +4798,11 @@ def osc_prob_5nu_earth(
     # baseline given (could be an array of baselines).
     costhz, L = validate_input_osc_prob_earth(source_func_name, loc_ini, loc_fin, costhz, L,
         verbose=verbose)
+
+    # Align the slab edges with the crossings of the PREM layer boundaries along the chord: the
+    # matter density is discontinuous there, and the high-order quadrature of the Magnus kernel
+    # converges at its nominal order only if the Hamiltonian is smooth inside each slab.
+    t_breakpoints = earth.prem_layer_edges_along_chord(costhz)*gd.UNIT_KM # [eV^{-1}]
     
     # The function earth.density_matter_func_prem returns the internal matter density of the Earth
     # as a function of radial distance, r, using the Preliminary Reference Earth Model (PREM). The
@@ -4781,6 +4819,7 @@ def osc_prob_5nu_earth(
             electron_fraction=0.5, density_matter_is_in_g_per_cm3=True), # [eV^3] (l in eV^{-1})
         energy=energy,
         L=L,
+        t_breakpoints=t_breakpoints,
         osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 's14': s14, 'd14': d14, 
             's15': s15, 'd15': d15, 's24': s24, 'd24': d24, 's25': s25, 's34': s34, 's35': s35, 
             'd35': d35, 'D21': D21, 'D31': D31, 'D41': D41, 'D51': D51},
@@ -6168,6 +6207,11 @@ def osc_prob_2nu_earth_nsi(
     # baseline given (could be an array of baselines).
     costhz, L = validate_input_osc_prob_earth(source_func_name, loc_ini, loc_fin, costhz, L,
         verbose=verbose)
+
+    # Align the slab edges with the crossings of the PREM layer boundaries along the chord: the
+    # matter density is discontinuous there, and the high-order quadrature of the Magnus kernel
+    # converges at its nominal order only if the Hamiltonian is smooth inside each slab.
+    t_breakpoints = earth.prem_layer_edges_along_chord(costhz)*gd.UNIT_KM # [eV^{-1}]
     
     # If any of the flavor indices is > 1, fix it (read the docstring above).
     nu_i, nu_f = valid_flavor_indices_2nu(nu_i, nu_f)
@@ -6187,6 +6231,7 @@ def osc_prob_2nu_earth_nsi(
             electron_fraction=0.5, density_matter_is_in_g_per_cm3=True), # [eV^3] (l in eV^{-1})
         energy=energy,
         L=L,
+        t_breakpoints=t_breakpoints,
         osc_params={'sth': sth, 'Dm2': Dm2},
         nsi_params={'eps_aa': eps_aa, 'eps_ab': eps_ab},
         L0=0.0,
@@ -6321,6 +6366,11 @@ def osc_prob_3nu_earth_nsi(
     # baseline given (could be an array of baselines).
     costhz, L = validate_input_osc_prob_earth(source_func_name, loc_ini, loc_fin, costhz, L,
         verbose=verbose)
+
+    # Align the slab edges with the crossings of the PREM layer boundaries along the chord: the
+    # matter density is discontinuous there, and the high-order quadrature of the Magnus kernel
+    # converges at its nominal order only if the Hamiltonian is smooth inside each slab.
+    t_breakpoints = earth.prem_layer_edges_along_chord(costhz)*gd.UNIT_KM # [eV^{-1}]
     
     # The function earth.density_matter_func_prem returns the internal matter density of the Earth
     # as a function of radial distance, r, using the Preliminary Reference Earth Model (PREM). The
@@ -6337,6 +6387,7 @@ def osc_prob_3nu_earth_nsi(
             electron_fraction=0.5, density_matter_is_in_g_per_cm3=True), # [eV^3] (l in eV^{-1})
         energy=energy,
         L=L,
+        t_breakpoints=t_breakpoints,
         osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 'D21': D21, 'D31': D31},
         nsi_params={'eps_ee': eps_ee, 'eps_em': eps_em, 'eps_et': eps_et, 'eps_mm': eps_mm,
             'eps_mt': eps_mt, 'eps_tt': eps_tt},
@@ -6483,6 +6534,11 @@ def osc_prob_4nu_earth_nsi(
     # baseline given (could be an array of baselines).
     costhz, L = validate_input_osc_prob_earth(source_func_name, loc_ini, loc_fin, costhz, L,
         verbose=verbose)
+
+    # Align the slab edges with the crossings of the PREM layer boundaries along the chord: the
+    # matter density is discontinuous there, and the high-order quadrature of the Magnus kernel
+    # converges at its nominal order only if the Hamiltonian is smooth inside each slab.
+    t_breakpoints = earth.prem_layer_edges_along_chord(costhz)*gd.UNIT_KM # [eV^{-1}]
     
     # The function earth.density_matter_func_prem returns the internal matter density of the Earth
     # as a function of radial distance, r, using the Preliminary Reference Earth Model (PREM). The
@@ -6499,6 +6555,7 @@ def osc_prob_4nu_earth_nsi(
             electron_fraction=0.5, density_matter_is_in_g_per_cm3=True), # [eV^3] (l in eV^{-1})
         energy=energy,
         L=L,
+        t_breakpoints=t_breakpoints,
         osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 's14': s14, 'd14': d14, 
             's24': s24, 'd24': d24, 's34': s34, 'D21': D21, 'D31': D31, 'D41': D41},
         nsi_params={'eps_ee': eps_ee, 'eps_em': eps_em, 'eps_et': eps_et, 'eps_es': eps_es, 
@@ -6658,6 +6715,11 @@ def osc_prob_5nu_earth_nsi(
     # baseline given (could be an array of baselines).
     costhz, L = validate_input_osc_prob_earth(source_func_name, loc_ini, loc_fin, costhz, L,
         verbose=verbose)
+
+    # Align the slab edges with the crossings of the PREM layer boundaries along the chord: the
+    # matter density is discontinuous there, and the high-order quadrature of the Magnus kernel
+    # converges at its nominal order only if the Hamiltonian is smooth inside each slab.
+    t_breakpoints = earth.prem_layer_edges_along_chord(costhz)*gd.UNIT_KM # [eV^{-1}]
     
     # The function earth.density_matter_func_prem returns the internal matter density of the Earth
     # as a function of radial distance, r, using the Preliminary Reference Earth Model (PREM). The
@@ -6674,6 +6736,7 @@ def osc_prob_5nu_earth_nsi(
             electron_fraction=0.5, density_matter_is_in_g_per_cm3=True), # [eV^3] (l in eV^{-1})
         energy=energy,
         L=L,
+        t_breakpoints=t_breakpoints,
         osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 's14': s14, 'd14': d14, 
             's15': s15, 'd15': d15, 's24': s24, 'd24': d24, 's25': s25, 's34': s34, 's35': s35, 
             'd35': d35, 'D21': D21, 'D31': D31, 'D41': D41, 'D51': D51},
@@ -8321,6 +8384,11 @@ def osc_prob_2nu_earth_liv(
     # baseline given (could be an array of baselines).
     costhz, L = validate_input_osc_prob_earth(source_func_name, loc_ini, loc_fin, costhz, L,
         verbose=verbose)
+
+    # Align the slab edges with the crossings of the PREM layer boundaries along the chord: the
+    # matter density is discontinuous there, and the high-order quadrature of the Magnus kernel
+    # converges at its nominal order only if the Hamiltonian is smooth inside each slab.
+    t_breakpoints = earth.prem_layer_edges_along_chord(costhz)*gd.UNIT_KM # [eV^{-1}]
     
     # If any of the flavor indices is > 1, fix it (read the docstring above).
     nu_i, nu_f = valid_flavor_indices_2nu(nu_i, nu_f)
@@ -8340,6 +8408,7 @@ def osc_prob_2nu_earth_liv(
             electron_fraction=0.5, density_matter_is_in_g_per_cm3=True), # [eV^3] (l in eV^{-1})
         energy=energy,
         L=L,
+        t_breakpoints=t_breakpoints,
         osc_params={'sth': sth, 'Dm2': Dm2},
         liv_params={'sxi': sxi, 'b1': b1, 'b2': b2, 'Lambda': Lambda, 'n_liv': n_liv},
         L0=0.0,
@@ -8477,6 +8546,11 @@ def osc_prob_3nu_earth_liv(
     # baseline given (could be an array of baselines).
     costhz, L = validate_input_osc_prob_earth(source_func_name, loc_ini, loc_fin, costhz, L,
         verbose=verbose)
+
+    # Align the slab edges with the crossings of the PREM layer boundaries along the chord: the
+    # matter density is discontinuous there, and the high-order quadrature of the Magnus kernel
+    # converges at its nominal order only if the Hamiltonian is smooth inside each slab.
+    t_breakpoints = earth.prem_layer_edges_along_chord(costhz)*gd.UNIT_KM # [eV^{-1}]
     
     # The function earth.density_matter_func_prem returns the internal matter density of the Earth
     # as a function of radial distance, r, using the Preliminary Reference Earth Model (PREM). The
@@ -8493,6 +8567,7 @@ def osc_prob_3nu_earth_liv(
             electron_fraction=0.5, density_matter_is_in_g_per_cm3=True), # [eV^3] (l in eV^{-1})
         energy=energy,
         L=L,
+        t_breakpoints=t_breakpoints,
         osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 'D21': D21, 'D31': D31},
         liv_params={'sxi12': sxi12, 'sxi23': sxi23, 'sxi13': sxi13, 'dxiCP': dxiCP, 'b1': b1, 
             'b2': b2, 'b3': b3, 'Lambda': Lambda, 'n_liv': n_liv},
@@ -8644,6 +8719,11 @@ def osc_prob_4nu_earth_liv(
     # baseline given (could be an array of baselines).
     costhz, L = validate_input_osc_prob_earth(source_func_name, loc_ini, loc_fin, costhz, L,
         verbose=verbose)
+
+    # Align the slab edges with the crossings of the PREM layer boundaries along the chord: the
+    # matter density is discontinuous there, and the high-order quadrature of the Magnus kernel
+    # converges at its nominal order only if the Hamiltonian is smooth inside each slab.
+    t_breakpoints = earth.prem_layer_edges_along_chord(costhz)*gd.UNIT_KM # [eV^{-1}]
     
     # The function earth.density_matter_func_prem returns the internal matter density of the Earth
     # as a function of radial distance, r, using the Preliminary Reference Earth Model (PREM). The
@@ -8660,6 +8740,7 @@ def osc_prob_4nu_earth_liv(
             electron_fraction=0.5, density_matter_is_in_g_per_cm3=True), # [eV^3] (l in eV^{-1})
         energy=energy,
         L=L,
+        t_breakpoints=t_breakpoints,
         osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 's14': s14, 'd14': d14, 
             's24': s24, 'd24': d24, 's34': s34, 'D21': D21, 'D31': D31, 'D41': D41},
         liv_params={'sxi12': sxi12, 'sxi23': sxi23, 'sxi13': sxi13, 'dxi13': dxi13, 'sxi14': sxi14,
@@ -8825,6 +8906,11 @@ def osc_prob_5nu_earth_liv(
     # baseline given (could be an array of baselines).
     costhz, L = validate_input_osc_prob_earth(source_func_name, loc_ini, loc_fin, costhz, L,
         verbose=verbose)
+
+    # Align the slab edges with the crossings of the PREM layer boundaries along the chord: the
+    # matter density is discontinuous there, and the high-order quadrature of the Magnus kernel
+    # converges at its nominal order only if the Hamiltonian is smooth inside each slab.
+    t_breakpoints = earth.prem_layer_edges_along_chord(costhz)*gd.UNIT_KM # [eV^{-1}]
     
     # The function earth.density_matter_func_prem returns the internal matter density of the Earth
     # as a function of radial distance, r, using the Preliminary Reference Earth Model (PREM). The
@@ -8841,6 +8927,7 @@ def osc_prob_5nu_earth_liv(
             electron_fraction=0.5, density_matter_is_in_g_per_cm3=True), # [eV^3] (l in eV^{-1})
         energy=energy,
         L=L,
+        t_breakpoints=t_breakpoints,
         osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 's14': s14, 'd14': d14, 
             's15': s15, 'd15': d15, 's24': s24, 'd24': d24, 's25': s25, 's34': s34, 's35': s35, 
             'd35': d35, 'D21': D21, 'D31': D31, 'D41': D41, 'D51': D51},

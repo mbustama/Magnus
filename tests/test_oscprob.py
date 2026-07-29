@@ -240,6 +240,77 @@ def test_bsm_wrappers_run_and_are_unitary():
     assert np.allclose(np.sum(np.asarray(Pliv), axis=1), 1.0, atol=1e-9)
 
 
+def _earth_hamiltonian_chain(costhz):
+    """Independent construction of the standard 3nu PREM Hamiltonian,
+    mirroring what osc_prob_3nu_earth builds internally."""
+    import magnus.earth as earth
+    import magnus.matter as matter
+    params = gd.OSC_PARAMS_PREDEFINED['OSC_PARAMS_DEFAULT']
+    hvac = hams.hamiltonian_3nu_vacuum_energy_independent(
+        params['s12'], params['s23'], params['s13'], params['dCP'],
+        params['D21'], params['D31'])
+    e00 = np.diag([1.0, 0.0, 0.0])
+
+    def H(enu, l):
+        ne = matter.num_density_e_func(
+            earth.earth_radial_distance_from_depth(costhz,
+                np.asarray(l)/gd.UNIT_KM),
+            earth.density_matter_func_prem, density_matter_is_in_g_per_cm3=True)
+        vcc = np.sqrt(2.0)*gd.GF*np.asarray(ne)
+        return (1.0/enu)*hvac + vcc[..., None, None]*e00
+
+    return H
+
+
+def test_earth_probability_matches_ode_solution():
+    """End-to-end physics test: 3nu through PREM at 1 GeV against a
+    high-accuracy direct integration of the Schrodinger equation."""
+    import magnus.earth as earth
+    costhz = -0.8
+    L = earth.distance_traveled_inside_earth(costhz)*gd.UNIT_KM
+    H = _earth_hamiltonian_chain(costhz)
+    enu = 1.0*gd.UNIT_GEV
+
+    def rhs(l, y):
+        return (-1j*H(enu, l) @ y.reshape(3, 3)).ravel()
+
+    sol = solve_ivp(rhs, (0.0, L), np.eye(3, dtype=complex).ravel(),
+                    rtol=1e-10, atol=1e-12, method='DOP853')
+    P_ode = np.abs(sol.y[:, -1].reshape(3, 3).T)**2
+
+    P = op.osc_prob_3nu_earth(enu, costhz=costhz, L=L, rtol=1e-5, atol=1e-5,
+                              integration_method='gl', validate_input=False)
+    assert maxabs(np.asarray(P) - P_ode) < 1e-3
+
+
+def test_prem_breakpoints_improve_accuracy():
+    """At a fixed slab count, aligning slab edges with the PREM layer
+    boundaries must reduce the error (the density is discontinuous there,
+    which otherwise spoils the high-order convergence of the quadrature)."""
+    import magnus.earth as earth
+    costhz = -0.9
+    L = earth.distance_traveled_inside_earth(costhz)*gd.UNIT_KM
+    H = _earth_hamiltonian_chain(costhz)
+    enu = 2.0*gd.UNIT_GEV
+
+    def rhs(l, y):
+        return (-1j*H(enu, l) @ y.reshape(3, 3)).ravel()
+
+    sol = solve_ivp(rhs, (0.0, L), np.eye(3, dtype=complex).ravel(),
+                    rtol=1e-10, atol=1e-12, method='DOP853')
+    P_ode = np.abs(sol.y[:, -1].reshape(3, 3).T)**2
+
+    bp = earth.prem_layer_edges_along_chord(costhz)*gd.UNIT_KM
+    common = dict(n_slabs=24, magnus_exp_order=4, integration_method='gl',
+                  rtol=None, atol=None, validate_input=False)
+    P_plain = op.osc_prob(lambda l: H(enu, l), 0.0, L, **common)
+    P_bp = op.osc_prob(lambda l: H(enu, l), 0.0, L, t_breakpoints=bp, **common)
+    err_plain = maxabs(P_plain - P_ode)
+    err_bp = maxabs(P_bp - P_ode)
+    assert err_bp < err_plain
+    assert err_bp < 1e-4
+
+
 def test_vectorized_profile_matches_scalar_profile():
     """The silently vectorized Hamiltonian evaluation must give exactly the
     same probabilities as a scalar-only density profile."""
