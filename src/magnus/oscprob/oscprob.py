@@ -1995,6 +1995,248 @@ def osc_prob_iterate_over_magnus_exp_order(
     return P
 
 
+def _normalize_energy_L(
+    energy: Union[int, float, list, np.ndarray],
+    L: Union[int, float, list, np.ndarray]
+) -> Tuple[np.ndarray, np.ndarray, bool, bool]:
+    r"""Normalize energy and L to same-length 1D arrays.
+
+    Returns (energy, L, return_float, ok): return_float records whether both
+    inputs were scalars (so that the caller returns a scalar-like result),
+    and ok whether the input lengths were compatible.
+    """
+    energy = float(energy) if isinstance(energy, int) else energy
+    L = float(L) if isinstance(L, int) else L
+    return_float = isinstance(energy, float) and isinstance(L, float)
+    energy = np.array([energy]) if isinstance(energy, float) else np.array(energy)
+    L = np.array([L]) if isinstance(L, float) else np.array(L)
+    ok = ((len(energy) == len(L)) or (len(energy) == 1 and len(L) > 1) or
+          (len(energy) > 1 and len(L) == 1))
+    if ok:
+        energy = np.full(len(L), energy[0]) if (len(energy) == 1) else energy
+        L = np.full(len(energy), L[0]) if (len(L) == 1) else L
+    return energy, L, return_float, ok
+
+
+def _osc_prob_scan_separable(
+    H_E: np.ndarray,
+    VCC_func: Callable,
+    h_matt: np.ndarray,
+    L0: float,
+    L_val: float,
+    t_breakpoints: Optional[np.ndarray],
+    magnus_exp_order: int,
+    integration_method: str,
+    rtol: Optional[float],
+    atol: Optional[float],
+    growth_factor_n_slabs: float,
+    growth_factor_n_tpts_per_slab: float,
+    max_num_loops: int,
+    min_n_slabs: int,
+    max_n_slabs: int,
+    min_n_tpts_per_slab: int,
+    max_n_tpts_per_slab: int,
+    n_slabs: int,
+    n_tpts_per_slab: int
+) -> np.ndarray:
+    r"""Energy-batched probability scan for separable Hamiltonians.
+
+    Computes the probabilities of many neutrino energies that share the same
+    baseline [``L0``, ``L_val``] in one batched pipeline, for Hamiltonians of
+    the separable form
+
+        H(E, l) = H_E(E) + VCC(l) * h_matt ,
+
+    where ``H_E`` (shape (nE, d, d)) collects all the position-independent,
+    energy-dependent terms (vacuum, LIV, ...), ``VCC_func`` is the scalar
+    matter potential along the trajectory, and ``h_matt`` (shape (d, d)) is
+    the constant matter matrix it multiplies.  The position samples of the
+    potential are computed once per refinement level and shared by all
+    energies, and the Magnus kernel (quadrature, commutators, exponentials,
+    slab products) runs with the energy axis batched in front of the slab
+    axis.
+
+    The adaptive refinement mirrors :func:`osc_prob`: the slab count (and,
+    for the quadrature methods, the points per slab) grows geometrically
+    until the probabilities of each energy agree between successive levels
+    within (rtol, atol); converged energies drop out of the batch.  Energies
+    are processed in chunks to bound the memory of the sample array.
+
+    Returns the stacked probability matrices, shape (nE, d, d).
+    """
+    nE, dim = H_E.shape[0], H_E.shape[-1]
+    tol_requested = ((rtol is not None) and (atol is not None))
+
+    if integration_method == 'gl':
+        # The accuracy of the GL method is controlled by n_slabs only
+        growth_factor_n_tpts_per_slab = 1.0
+        min_n_tpts_per_slab = max_n_tpts_per_slab = n_tpts_per_slab = 2
+        s_nodes = magnus.gl_nodes(magnus_exp_order)
+
+    if tol_requested:
+        n_tpts_per_slab = min_n_tpts_per_slab
+        # Physics-informed starting number of slabs (see magnus.suggest_n_slabs):
+        # integral of the traceless Hamiltonian over the trajectory, maximized
+        # over the energies of the scan
+        if integration_method == 'gl':
+            ts = np.linspace(L0, L_val, 17)
+            V17 = np.asarray(VCC_func(ts))
+            I_V = (np.sum(V17) - 0.5*(V17[0] + V17[-1]))*(L_val - L0)/16.0
+            M = (L_val - L0)*H_E + I_V*h_matt
+            M = M - (np.trace(M, axis1=-2, axis2=-1)/dim)[:, None, None]*np.eye(dim)
+            try:
+                phase = np.max(np.linalg.svd(M, compute_uv=False))
+            except np.linalg.LinAlgError:
+                phase = 0.0
+            n_slabs = int(np.clip(max(min_n_slabs,
+                np.ceil(phase/(2.0*np.pi))), 1, max_n_slabs))
+        else:
+            n_slabs = min_n_slabs
+
+    P_prev = np.full((nE, dim, dim), np.nan)
+    P_out = np.empty((nE, dim, dim))
+    active = np.arange(nE)
+    mA = -1j*h_matt.astype(complex)
+    HE_c = -1j*H_E.astype(complex)
+
+    loop_count = 1
+    while True:
+        # Slab grid shared by all energies (PREM-layer breakpoints included)
+        grid = np.linspace(L0, L_val, n_slabs + 1)
+        if (t_breakpoints is not None) and (len(np.atleast_1d(t_breakpoints)) > 0):
+            bp = np.atleast_1d(np.asarray(t_breakpoints, dtype=float))
+            bp = bp[(bp > L0) & (bp < L_val)]
+            grid = np.unique(np.concatenate([grid, bp]))
+        edges = np.column_stack([grid[:-1], grid[1:]])
+        widths = edges[:, 1] - edges[:, 0]
+
+        if integration_method == 'gl':
+            s = s_nodes
+        else:
+            s = np.linspace(0.0, 1.0, n_tpts_per_slab)
+        tgrid = edges[:, :1] + widths[:, None]*s              # (n_slabs, m)
+        V = np.asarray(VCC_func(tgrid.ravel())).reshape(tgrid.shape)
+        Vmat = V[:, :, None, None]*mA                         # (n_slabs, m, d, d)
+
+        # Batched kernel over the active energies, chunked so that each
+        # sample array At holds at most ~4M complex entries (~64 MB)
+        chunk = max(1, int(4_194_304 // max(1, tgrid.size*dim*dim)))
+        P_new = np.empty((len(active), dim, dim))
+        for i0 in range(0, len(active), chunk):
+            sel = active[i0:i0+chunk]
+            At = HE_c[sel][:, None, None, :, :] + Vmat[None, :, :, :, :]
+            U = magnus.evolution_operators_from_samples(At, widths,
+                magnus_exp_order, integration_method, validate_input=False)
+            Utot = U[:, -1]
+            for k in range(U.shape[1] - 2, -1, -1):
+                Utot = Utot @ U[:, k]
+            P_new[i0:i0+chunk] = np.swapaxes(
+                Utot.real**2 + Utot.imag**2, -1, -2)
+
+        if not tol_requested:
+            P_out[active] = P_new
+            return P_out
+
+        prev = P_prev[active]
+        have_prev = ~np.isnan(prev[:, 0, 0])
+        conv = have_prev & np.all(np.abs(P_new - prev) <= atol + rtol*np.abs(prev),
+                                  axis=(-1, -2))
+        P_out[active[conv]] = P_new[conv]
+        P_prev[active] = P_new
+        active = active[~conv]
+        if active.size == 0:
+            return P_out
+
+        at_caps = ((n_slabs >= max_n_slabs) and
+                   (n_tpts_per_slab >= max_n_tpts_per_slab))
+        if (loop_count >= max_num_loops) or at_caps:
+            warnings.warn("osc_prob (energy-batched scan): requested tolerance "
+                "not achieved for some energies (refinement caps reached); the "
+                "returned probabilities may be inaccurate. Try increasing "
+                "max_n_slabs, max_n_tpts_per_slab, or max_num_loops. Shown "
+                "once per session.", ToleranceNotAchievedWarning, stacklevel=2)
+            P_out[active] = P_new[~conv]
+            return P_out
+
+        n_slabs_old = n_slabs
+        n_slabs = min(round(growth_factor_n_slabs*n_slabs), max_n_slabs)
+        if ((growth_factor_n_slabs > 1.0) and (n_slabs < max_n_slabs) and
+                (n_slabs == n_slabs_old)):
+            n_slabs += 1
+        n_tpts_old = n_tpts_per_slab
+        n_tpts_per_slab = min(int(growth_factor_n_tpts_per_slab*n_tpts_per_slab),
+                              max_n_tpts_per_slab)
+        if ((growth_factor_n_tpts_per_slab > 1.0) and
+                (n_tpts_per_slab < max_n_tpts_per_slab) and
+                (n_tpts_per_slab == n_tpts_old)):
+            n_tpts_per_slab += 1
+        loop_count += 1
+
+
+def _osc_prob_scan_separable_dispatch(
+    h_vac_energy_indep: np.ndarray,
+    VCC_func: Union[Callable, float],
+    h_matt: np.ndarray,
+    h_liv_energy_indep: Optional[np.ndarray],
+    n_liv: Optional[Union[int, float]],
+    energy: Union[int, float, list, np.ndarray],
+    L: Union[int, float, list, np.ndarray],
+    L0: Union[int, float],
+    nu_i: Optional[int],
+    nu_f: Optional[int],
+    scan_kwargs: Dict
+):
+    r"""Decide whether the energy-batched scan engine applies; run it if so.
+
+    Returns NotImplemented when the request does not fit the engine (single
+    point, per-point baselines, user-provided slab edges, parallel or logged
+    runs, iteration over the expansion order, or unknown extra arguments), in
+    which case the caller falls back to the generic per-point path.
+    """
+    kwargs = dict(scan_kwargs.get('kwargs', {}))
+    t_breakpoints = kwargs.pop('t_breakpoints', None)
+    n_slabs = kwargs.pop('n_slabs', 1)
+    n_tpts_per_slab = kwargs.pop('n_tpts_per_slab', 100)
+    if len(kwargs) > 0:
+        return NotImplemented
+    if not isinstance(VCC_func, Callable):
+        return NotImplemented
+    if scan_kwargs['t_slab_edges'] is not None:
+        return NotImplemented
+    if scan_kwargs['iterate_over_magnus_exp_order']:
+        return NotImplemented
+    if (scan_kwargs['n_jobs'] != 1) or scan_kwargs['save_log'] or \
+            (scan_kwargs['file_log'] is not None):
+        return NotImplemented
+
+    energy_arr, L_arr, return_float, ok = _normalize_energy_L(energy, L)
+    if (not ok) or (len(energy_arr) < 2) or (not np.all(L_arr == L_arr[0])):
+        return NotImplemented
+
+    rtol, atol = scan_kwargs['rtol'], scan_kwargs['atol']
+    if (rtol is None) != (atol is None):
+        rtol = 0.0 if rtol is None else rtol
+        atol = 0.0 if atol is None else atol
+
+    # All the position-independent, energy-dependent terms of the Hamiltonian
+    H_E = (1.0/energy_arr)[:, None, None]*np.asarray(h_vac_energy_indep)
+    if h_liv_energy_indep is not None:
+        H_E = H_E + (energy_arr**n_liv)[:, None, None]*np.asarray(h_liv_energy_indep)
+
+    P = _osc_prob_scan_separable(H_E, VCC_func, np.asarray(h_matt), float(L0),
+        float(L_arr[0]), t_breakpoints, scan_kwargs['magnus_exp_order'],
+        scan_kwargs['integration_method'], rtol, atol,
+        scan_kwargs['growth_factor_n_slabs'],
+        scan_kwargs['growth_factor_n_tpts_per_slab'],
+        scan_kwargs['max_num_loops'], scan_kwargs['min_n_slabs'],
+        scan_kwargs['max_n_slabs'], scan_kwargs['min_n_tpts_per_slab'],
+        scan_kwargs['max_n_tpts_per_slab'], n_slabs, n_tpts_per_slab)
+
+    if (nu_i is not None) and (nu_f is not None):
+        P = P[:, nu_i, nu_f]
+    return P.__getitem__(0 if return_float else slice(None))
+
+
 def osc_prob_energy_baseline(
     H_func: Union[Callable, np.ndarray],
     energy: Union[int, float, list, np.ndarray], 
@@ -2420,6 +2662,23 @@ def osc_prob_matter_std_potential(
             return (1/enu)*h_vac_energy_indep+h_matt
         htot_is_function_only_of_energy = True
 
+    # Energy-batched fast path: when many energies share a single baseline and the Hamiltonian
+    # is position-dependent, compute the whole scan in one batched pipeline, with the potential
+    # samples shared across energies (see _osc_prob_scan_separable).  If the request does not fit
+    # the engine, fall back to the generic per-point path below.
+    P_scan = _osc_prob_scan_separable_dispatch(h_vac_energy_indep, VCC_func, h_matt_proj, None, None,
+        energy, L, L0, nu_i, nu_f,
+        dict(t_slab_edges=t_slab_edges, magnus_exp_order=magnus_exp_order, n_jobs=n_jobs,
+             integration_method=integration_method, rtol=rtol, atol=atol,
+             growth_factor_n_slabs=growth_factor_n_slabs,
+             growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
+             max_num_loops=max_num_loops, min_n_slabs=min_n_slabs, max_n_slabs=max_n_slabs,
+             min_n_tpts_per_slab=min_n_tpts_per_slab, max_n_tpts_per_slab=max_n_tpts_per_slab,
+             iterate_over_magnus_exp_order=iterate_over_magnus_exp_order,
+             save_log=save_log, file_log=file_log, kwargs=kwargs))
+    if P_scan is not NotImplemented:
+        return P_scan
+
     # Generate the probabilities for all pairs of energy and baseline in zip(energy, L).
     return osc_prob_energy_baseline(htot, energy, L, L0, nu_i, nu_f,
         htot_is_function_only_of_energy, t_slab_edges=t_slab_edges, 
@@ -2593,6 +2852,23 @@ def osc_prob_matter_nsi(
         def htot(enu: Union[int, float]) -> np.ndarray:
             return (1/enu)*h_vac_energy_indep+h_matt
         htot_is_function_only_of_energy = True
+
+    # Energy-batched fast path: when many energies share a single baseline and the Hamiltonian
+    # is position-dependent, compute the whole scan in one batched pipeline, with the potential
+    # samples shared across energies (see _osc_prob_scan_separable).  If the request does not fit
+    # the engine, fall back to the generic per-point path below.
+    P_scan = _osc_prob_scan_separable_dispatch(h_vac_energy_indep, VCC_func, h_matt, None, None,
+        energy, L, L0, nu_i, nu_f,
+        dict(t_slab_edges=t_slab_edges, magnus_exp_order=magnus_exp_order, n_jobs=n_jobs,
+             integration_method=integration_method, rtol=rtol, atol=atol,
+             growth_factor_n_slabs=growth_factor_n_slabs,
+             growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
+             max_num_loops=max_num_loops, min_n_slabs=min_n_slabs, max_n_slabs=max_n_slabs,
+             min_n_tpts_per_slab=min_n_tpts_per_slab, max_n_tpts_per_slab=max_n_tpts_per_slab,
+             iterate_over_magnus_exp_order=iterate_over_magnus_exp_order,
+             save_log=save_log, file_log=file_log, kwargs=kwargs))
+    if P_scan is not NotImplemented:
+        return P_scan
 
     # Generate the probabilities for all pairs of energy and baseline in zip(energy, L).
     return osc_prob_energy_baseline(htot, energy, L, L0, nu_i, nu_f,
@@ -2776,6 +3052,25 @@ def osc_prob_liv(
         def htot(enu: Union[int, float]) -> np.ndarray:
             return (1/enu)*h_vac_energy_indep + pow(enu,n_liv)*h_liv_energy_indep
         htot_is_function_only_of_energy = True
+
+    # Energy-batched fast path: when many energies share a single baseline and the Hamiltonian
+    # is position-dependent, compute the whole scan in one batched pipeline, with the potential
+    # samples shared across energies (see _osc_prob_scan_separable).  If the request does not fit
+    # the engine, fall back to the generic per-point path below.
+    P_scan = NotImplemented
+    if (rho_func != 0.0):  # VCC_func and h_matt exist only when there is matter
+        P_scan = _osc_prob_scan_separable_dispatch(h_vac_energy_indep, VCC_func, h_matt,
+            h_liv_energy_indep, n_liv, energy, L, L0, nu_i, nu_f,
+            dict(t_slab_edges=t_slab_edges, magnus_exp_order=magnus_exp_order, n_jobs=n_jobs,
+                 integration_method=integration_method, rtol=rtol, atol=atol,
+                 growth_factor_n_slabs=growth_factor_n_slabs,
+                 growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
+                 max_num_loops=max_num_loops, min_n_slabs=min_n_slabs, max_n_slabs=max_n_slabs,
+                 min_n_tpts_per_slab=min_n_tpts_per_slab, max_n_tpts_per_slab=max_n_tpts_per_slab,
+                 iterate_over_magnus_exp_order=iterate_over_magnus_exp_order,
+                 save_log=save_log, file_log=file_log, kwargs=kwargs))
+    if P_scan is not NotImplemented:
+        return P_scan
 
     # Generate the probabilities for all pairs of energy and baseline in zip(energy, L).
     return osc_prob_energy_baseline(htot, energy, L, L0, nu_i, nu_f,

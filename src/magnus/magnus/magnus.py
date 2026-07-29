@@ -586,6 +586,66 @@ def magnus_expansion(
     return U, magnus_terms
 
 
+def evolution_operators_from_samples(
+    At: np.ndarray,
+    widths: Union[list, np.ndarray],
+    order: Optional[int] = 2,
+    integration_method: Optional[str] = 'trapezoid',
+    A_is_const: Optional[bool] = False,
+    validate_input: Optional[bool] = True
+) -> np.ndarray:
+    r"""Evolution operators of a chain of slabs from precomputed samples.
+
+    Mid-level entry point for callers that build the samples of A
+    themselves -- e.g., to batch extra axes (such as the neutrino
+    energy) in front of the slab axis, which this routine broadcasts
+    through all operations.
+
+    Parameters
+    ----------
+    At : np.ndarray
+        Samples of A, shape (..., n_slabs, m, d, d).  For the
+        quadrature methods ('trapezoid'/'simpson'), the m samples of
+        each slab lie on the uniform grid spanning the slab (endpoints
+        included).  For 'gl', they lie on the Gauss-Legendre nodes
+        (m = 1, 2, or 3 for orders <= 2, <= 4, <= 6; see
+        :func:`gl_nodes`).
+    widths : np.ndarray
+        Slab widths, shape (n_slabs,) (or broadcastable to the leading
+        axes of ``At`` without the last three).
+    order : int, optional
+        Highest Magnus order (1 to 6).
+    integration_method : str, optional
+        'trapezoid', 'simpson', or 'gl'.
+    A_is_const : bool, optional
+        Set to True if A is constant in time to skip the (inapplicable)
+        slab-width convergence warning.
+    validate_input : bool, optional
+        If True, validate order and integration_method.
+
+    Returns
+    -------
+    np.ndarray
+        Evolution operators, shape (..., n_slabs, d, d).
+    """
+    if validate_input:
+        _validate(order, integration_method)
+    w = np.asarray(widths, dtype=float)
+    if integration_method == 'gl':
+        Om = _magnus_gl(At, w, order)
+        return _expm_stack(Om, warn_wide=True, A_is_const=A_is_const)
+    Bt = w[..., None, None, None]*At        # rescale to the unit interval
+    magnus_terms = _magnus_terms_quadrature(Bt, order, integration_method)
+    return _expm_stack(np.sum(magnus_terms, axis=0), warn_wide=True,
+                       A_is_const=A_is_const)
+
+
+def gl_nodes(order: int) -> np.ndarray:
+    r"""Gauss-Legendre nodes on [0, 1] used by the 'gl' method for the
+    given Magnus order (1, 2, or 3 nodes for orders <= 2, <= 4, <= 6)."""
+    return _gl_nodes(order)
+
+
 def magnus_expansion_multislab(
     A: Callable,
     t_slab_edges: Union[list, np.ndarray],
@@ -645,20 +705,14 @@ def magnus_expansion_multislab(
                 "t1 >= t0.")
 
     if integration_method == 'gl':
-        nodes = _gl_nodes(order)                        # (k,)
-        tgrid = edges[:, :1] + widths[:, None]*nodes    # (n_slabs, k)
-        An, used_mode = _evaluate_A(A, tgrid, A_eval_mode)  # (n_slabs, k, d, d)
-        Om = _magnus_gl(An, widths, order)              # (n_slabs, d, d)
-        return _expm_stack(Om, warn_wide=True,
-                           A_is_const=(used_mode == 'constant'))
-
-    s = np.linspace(0.0, 1.0, n_tpts_per_slab)          # normalized grid
+        s = _gl_nodes(order)                            # (k,) GL nodes
+    else:
+        s = np.linspace(0.0, 1.0, n_tpts_per_slab)      # normalized grid
     tgrid = edges[:, :1] + widths[:, None]*s            # (n_slabs, m)
     At, used_mode = _evaluate_A(A, tgrid, A_eval_mode)  # (n_slabs, m, d, d)
-    Bt = widths[:, None, None, None]*At                 # rescale to [0, 1]
-    magnus_terms = _magnus_terms_quadrature(Bt, order, integration_method)
-    return _expm_stack(np.sum(magnus_terms, axis=0), warn_wide=True,
-                       A_is_const=(used_mode == 'constant'))
+    return evolution_operators_from_samples(At, widths, order,
+        integration_method, A_is_const=(used_mode == 'constant'),
+        validate_input=False)
 
 
 if __name__ == "__main__":

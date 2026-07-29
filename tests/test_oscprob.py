@@ -314,6 +314,49 @@ def test_prem_breakpoints_improve_accuracy():
     assert err_bp < 1e-4
 
 
+@pytest.mark.parametrize("family", ['std', 'nsi', 'liv'])
+def test_energy_batched_scan_matches_per_point(family):
+    """The energy-batched scan engine must reproduce the per-point path.
+
+    With fixed refinement parameters (rtol=atol=None) both paths use
+    identical grids, so they must agree to near machine precision; single
+    energies (nE=1) always take the per-point path, which is how the
+    reference is generated here."""
+    energies = np.array([0.8, 1.5, 3.0])*gd.UNIT_GEV
+    L = 2.0*6371.0*0.7*gd.UNIT_KM
+    common = dict(costhz=-0.7, L=L, integration_method='gl',
+                  magnus_exp_order=4, rtol=None, atol=None, n_slabs=32,
+                  validate_input=False)
+    if family == 'std':
+        f = lambda e: op.osc_prob_3nu_earth(e, **common)
+    elif family == 'nsi':
+        f = lambda e: op.osc_prob_3nu_earth_nsi(
+            e, eps_ee=0.1, eps_em=0.05j, eps_et=0.0, eps_mm=0.0, eps_mt=0.02,
+            eps_tt=0.0, **common)
+    else:
+        f = lambda e: op.osc_prob_3nu_earth_liv(
+            e, sxi12=0.1, sxi23=0.1, sxi13=0.0, dxiCP=0.0, b1=gd.B1,
+            b2=gd.B2, b3=gd.B3, Lambda=gd.LAMBDA, n_liv=1, **common)
+    P_scan = np.asarray(f(energies))              # batched engine (nE > 1)
+    P_pts = np.array([f(float(E)) for E in energies])  # per-point path
+    assert P_scan.shape == (3, 3, 3)
+    assert maxabs(P_scan - P_pts) < 1e-12
+    assert np.allclose(np.sum(P_scan, axis=2), 1.0, atol=1e-9)
+
+
+def test_energy_batched_scan_adaptive_matches_per_point():
+    """With adaptive tolerances the two paths refine differently but must
+    agree at the tolerance level, and channel selection must work."""
+    energies = np.linspace(0.6, 4.0, 8)*gd.UNIT_GEV
+    common = dict(costhz=-0.8, L=2.0*6371.0*0.8*gd.UNIT_KM, nu_i=gd.NUE,
+                  nu_f=gd.NUMU, integration_method='gl', validate_input=False)
+    P_scan = np.asarray(op.osc_prob_3nu_earth(energies, **common))
+    P_pts = np.array([op.osc_prob_3nu_earth(float(E), **common)
+                      for E in energies])
+    assert P_scan.shape == (8,)
+    assert maxabs(P_scan - P_pts) < 5e-3
+
+
 def test_generic_osc_prob_earth_matches_wrapper():
     """osc_prob_earth with a hand-written standard 3nu Hamiltonian must
     reproduce the dedicated osc_prob_3nu_earth wrapper."""
