@@ -1,10 +1,8 @@
 # -*- coding: utf-8 -*-
 r"""Contains physical constants and unit-conversion constants.
 
-This module contains contains values of physical constants and
-unit-conversion factors used by the various modules of NuOscProbExact.
-The core modules oscprob2nu.py and oscprob3nu.py do not require these
-constants.
+This module contains values of physical constants and unit-conversion
+factors used by the various modules of Magnus.
 
 Created: 2019/04/17 17:03
 Last modified: 2024/12/11 20:32
@@ -201,7 +199,7 @@ GF = 1.1663787e-23
 r"""float: Module-level constant
 
 Fermi constant.
-Units: [eV^{-1}]
+Units: [eV^{-2}]
 """
 
 MASS_ELECTRON = 0.5109989461e6
@@ -534,7 +532,6 @@ EPS_2 = [EPS_EE, EPS_EM, EPS_MM]
 r"""float: Module-level constant
 
 Vector of total NSI strength parameters for two-neutrino oscillations.
-Used in oscprob2nu_plot.py.
 Units: [Adimensional]
 """
 
@@ -542,7 +539,6 @@ EPS_3 = [EPS_EE, EPS_EM, EPS_ET, EPS_MM, EPS_MT, EPS_TT]
 r"""float: Module-level constant
 
 Vector of total NSI strength parameters for three-neutrino oscillations.
-Used in oscprob3nu_plot.py.
 Units: [Adimensional]
 """
 

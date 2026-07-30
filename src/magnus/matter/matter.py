@@ -9,16 +9,17 @@ coherent forward scattering potential.
 Routine listings
 ----------------
 
-    * density_matter_func_const - Returns the density for a constant 
+    * density_matter_func_const - Returns the density for a constant
            matter density profile
     * density_matter_func_exp - Returns the density for an exponentially
            decreasing matter density profile
-    * density_matter_prem - Returns the density inside the Earth using
-           the Preliminary Reference Earth Model
     * num_density_e_func - Converts a matter density to an electron
            number density
     * VCC_func - Returns the potential for coherent forward electron
            scattering
+    * vcc_func_from_rho_func - Builds a VCC function (or constant) from
+           a density profile, handling neutrino/antineutrino sign and
+           unit conversion
 
 Created: 2024/11/30 15:42
 Last modified: 2024/11/30 21:23
@@ -73,9 +74,7 @@ def density_matter_func_exp(l: float, density_matter_central:float , l_scale: fl
     Parameters
     ----------
     l : float
-        Position at which the density profile is evaluated (in this
-        case, the profile is uniform, so any value of l returns the same
-        constant density).
+        Position at which the density profile is evaluated.
     density_matter_central : float
         Matter density at the center of the profile (l = 0) [g cm^{-3}]
     l_scale : float
@@ -105,9 +104,7 @@ def num_density_e_func(l: float, density_matter_func: Callable,
     Parameters
     ----------
     l : float
-        Position at which the density profile is evaluated (in this
-        case, the profile is uniform, so any value of l returns the same
-        constant density).
+        Position at which the density profile is evaluated.
     density_matter_funct : float(l)
         Matter density as a function of l [g cm^{-3}].
     electron_fraction : float
@@ -145,9 +142,7 @@ def VCC_func(l: float, num_density_e_func: Callable) -> float:
     Parameters
     ----------
     l : float
-        Position at which the density profile is evaluated (in this
-        case, the profile is uniform, so any value of l returns the same
-        constant density).
+        Position at which the density profile is evaluated.
     num_density_e_func : float(l)
         Electron number density [eV^3].
 
