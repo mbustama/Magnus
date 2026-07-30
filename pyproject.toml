@@ -28,7 +28,10 @@ dependencies = [
 [project.optional-dependencies]
 test = ["pytest"]
 dev = ["pytest", "twine", "build", "ruff"]
-docs = ["sphinx", "sphinx-autoapi", "sphinx-rtd-theme", "sphinx-copybutton", "sphinxcontrib-bibtex", "sphinxcontrib-mermaid"]
+docs = ["sphinx", "sphinx-autoapi", "sphinx-rtd-theme", "sphinx-copybutton", "sphinxcontrib-bibtex", "sphinxcontrib-mermaid", "myst-parser"]
+
+[project.scripts]
+magnus = "magnus.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/mbustama/Magnus"
