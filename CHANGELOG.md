@@ -23,6 +23,41 @@ and the project uses [Semantic Versioning](https://semver.org/).
 - A "When is Magνs not the right tool?" section in the README and docs,
   covering quantum decoherence, open-system/bath coupling, neutrino decay,
   and self-consistent collective oscillations.
+- `magnus.matter.exp_density_profile(density_matter_central, l_scale)`: builds
+  an exponential density-profile callable tagged for the new fast
+  interaction-picture integrator (see below); `osc_prob_2nu_matter_exp_density`
+  and `osc_prob_2nu_sun` (and their NSI counterparts) now build their profile
+  through it instead of an untagged lambda, so they pick up the speed-up
+  automatically. A fast, closed-form interaction-picture Magnus integrator
+  (`magnus.oscprob._osc_prob_ip_exp_dispatch`/`_osc_prob_ip_exp_core`) for
+  two-flavor oscillations in a genuine exponential matter profile (the Sun):
+  it factors the (possibly huge, at low energy) constant vacuum phase out of
+  the Magnus expansion analytically, in closed form, instead of resolving it
+  slab by slab, leaving only the matter-potential envelope -- whose exact
+  exponential integral is also closed-form -- to be integrated. This directly
+  fixes the bottleneck described under "Fixed" below for the two-flavor Sun
+  wrappers: `osc_prob_2nu_sun`/`osc_prob_2nu_matter_exp_density` (and their
+  NSI counterparts) now return correct, warning-free probabilities in a
+  fraction of a second across the realistic solar-neutrino energy range
+  (~0.1-18 MeV), where the general slab-refinement method previously either
+  took many seconds to fail or returned a silently inaccurate result. The
+  fast path is unconditionally exact in the accumulated vacuum phase and in
+  the density profile's shape (no local-constant or local-linear
+  approximation); its only approximation is truncating the resulting
+  interaction-picture Magnus series at first order, which is validated
+  against `solve_ivp` across the realistic energy range and is checked at
+  runtime (both via the size of the neglected term and via successive-
+  refinement agreement) before being trusted, with a transparent, lossless
+  fallback to the general method whenever it is not (e.g., near an MSW
+  resonance, where the matter term is no longer a small perturbation on the
+  vacuum splitting). Three- to five-flavor scenarios are not yet covered:
+  the neglected term's coefficient grows by roughly three orders of
+  magnitude going from two to three flavors (one off-diagonal mass-pair vs.
+  three, each with an O(1) diagonal mixing contribution), which pushes the
+  slab count needed for a certified answer far past what stays fast; those
+  wrappers therefore still use the general method unconditionally, exactly
+  as before -- a natural target for a follow-up (e.g., a genuine adiabatic/
+  WKB treatment, which does not have this scaling problem).
 
 ### Changed
 

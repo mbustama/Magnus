@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 """Tests of the oscillation-probability engine (magnus.oscprob)."""
 
+import warnings
+
 import numpy as np
 import pytest
 import scipy as sp
@@ -8,6 +10,8 @@ from scipy.integrate import solve_ivp
 
 import magnus.globaldefs as gd
 import magnus.hamiltonians as hams
+import magnus.magnus as mg
+import magnus.matter as matter
 import magnus.oscprob as op
 import magnus.oscprobstd as opstd
 
@@ -439,6 +443,41 @@ def test_tolerance_cap_warns():
                             0.0, sth, Dm2, integration_method='gl',
                             max_n_slabs=64, max_num_loops=8,
                             validate_input=False)
+
+
+@pytest.mark.parametrize("energy_mev", [1.0, 5.0, 15.0])
+def test_sun_2nu_fast_path_matches_solve_ivp(energy_mev):
+    """The interaction-picture fast path for a genuine exponential density profile (Sun-like)
+    must reproduce the exact (solve_ivp) probability at realistic, low solar-neutrino energies,
+    without hitting the refinement caps or emitting the slab-width convergence warning -- this is
+    the regime (large accumulated vacuum phase, far below the 1 GeV point that already saturates
+    the general method's default max_n_slabs) the fast path exists to fix. A short baseline (a
+    fraction of an e-fold of the density profile) keeps solve_ivp itself tractable at these
+    energies while still exercising a genuinely varying matter potential."""
+    sth, Dm2 = np.sqrt(0.308), 7.5e-5
+    energy = energy_mev*gd.UNIT_MEV
+    L = 0.3*gd.L_SCALE_SUN
+
+    with warnings.catch_warnings(record=True) as wlist:
+        warnings.simplefilter("always")
+        P = op.osc_prob_2nu_sun(energy, L, 0.0, sth, Dm2, validate_input=False)
+    assert not any(issubclass(w.category, (op.ToleranceNotAchievedWarning,
+                                           mg.MagnusConvergenceWarning)) for w in wlist)
+    assert np.allclose(np.sum(P, axis=1), 1.0, atol=1e-9)
+
+    hvac = hams.hamiltonian_2nu_vacuum_energy_independent(sth, Dm2)
+    e00 = np.diag([1.0, 0.0])
+    rho_func = matter.exp_density_profile(gd.NUM_DENSITY_E_SUN_CENTRAL, gd.L_SCALE_SUN)
+    VCC_func = matter.vcc_func_from_rho_func(rho_func, 0.0, 1.0, 0.5, False, False, True)
+
+    def rhs(l, y):
+        H = (1.0/energy)*hvac + VCC_func(l)*e00
+        return (-1j*H @ y.reshape(2, 2)).ravel()
+
+    sol = solve_ivp(rhs, (0.0, L), np.eye(2, dtype=complex).ravel(),
+                    rtol=1e-12, atol=1e-14, method='DOP853')
+    P_exact = np.abs(sol.y[:, -1].reshape(2, 2)).T**2
+    assert maxabs(np.asarray(P) - P_exact) < 1e-3
 
 
 def test_vectorized_profile_matches_scalar_profile():
