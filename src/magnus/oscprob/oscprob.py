@@ -4177,18 +4177,20 @@ def osc_prob_2nu_vacuum(
 
     Examples
     --------
-    >>> import magnus.oscprob as oscprob
-    >>> import magnus.globaldefs as gd
-    >>> sth = gd.S12_NO_BF_NUFIT_6_0 # sin(theta) [adim]
-    >>> Dm2 = gd.D21_NO_BF_NUFIT_6_0 # [eV^2]
+    Single energy and baseline (the code below runs when these docs are
+    built, so the output shown is always current):
 
-    Single energy and baseline:
+    .. jupyter-execute::
 
-    >>> baseline = 10.*gd.UNIT_KM # 10 km natural units [eV^{-1}]
-    >>> energy = 1.*gd.UNIT_MEV # [eV]
-    >>> oscprob.osc_prob_2nu_vacuum(energy, baseline, sth, Dm2)
-    array([[0.43678029, 0.56321971],
-       [0.56321971, 0.43678029]])
+        import magnus.oscprob as oscprob
+        import magnus.globaldefs as gd
+
+        sth = gd.S12_NO_BF_NUFIT_6_0  # sin(theta) [adim]
+        Dm2 = gd.D21_NO_BF_NUFIT_6_0  # [eV^2]
+        baseline = 10.0 * gd.UNIT_KM  # 10 km in natural units [eV^-1]
+        energy = 1.0 * gd.UNIT_MEV    # [eV]
+
+        oscprob.osc_prob_2nu_vacuum(energy, baseline, sth, Dm2)
 
     .. seealso::
         :func:`osc_prob_3nu_vacuum`
@@ -4332,63 +4334,57 @@ def osc_prob_3nu_vacuum(
 
     Examples
     --------
-    >>> import magnus.oscprob as oscprob
-    >>> import magnus.globaldefs as gd
+    If both ``energy`` and ``L`` are single values, this function returns
+    the full :math:`3\times 3` probability matrix computed at those
+    values, using the NuFit 6.0 (normal ordering) defaults for any
+    oscillation parameter not passed explicitly:
 
-    If both ``energy`` and ``L`` are single values (``float`` or 
-    ``int``), this function returns the probability computed at these
-    values.  
+    .. jupyter-execute::
 
-    >>> baseline = 10.*gd.UNIT_KM # 10 km in natural units [eV^{-1}]
-    >>> energy = 1.*gd.UNIT_MEV # [eV]
-    >>> oscprob.osc_prob_3nu_vacuum(energy, baseline)
- 
-    Pick one channel only, e.g., :math:`\nu_e \to \nu_\mu`, by 
-    passing an initial flavor, ``nu_i``, and a final flavor ``nu_f``:
+        import numpy as np
+        import magnus.oscprob as oscprob
+        import magnus.globaldefs as gd
 
-    >>> oscprob.osc_prob_3nu_vacuum(energy, baseline, nu_i=gd.NUE, nu_f=gd.NUMU)
+        baseline = 10.0 * gd.UNIT_KM  # 10 km in natural units [eV^-1]
+        energy = 1.0 * gd.UNIT_MEV    # [eV]
 
-    The flavor indices ``NUE``, ``NUMU``, and ``NUMU`` are defined in 
-    the :py:mod:`magnus.globaldefs` module. For anti-neutrinos, i.e., 
-    :math:`\bar{\nu}_e \to \bar{\nu}_\mu`:
+        oscprob.osc_prob_3nu_vacuum(energy, baseline)
 
-    >>> oscprob.osc_prob_3nu_vacuum(energy, baseline, nu_i=gd.NUE, nu_f=gd.NUMU, nubar=True)
+    Pick one channel only, e.g., :math:`\nu_e \to \nu_\mu`, by passing an
+    initial flavor, ``nu_i``, and a final flavor, ``nu_f`` (the flavor
+    indices ``NUE``, ``NUMU``, ``NUTAU`` are defined in
+    :py:mod:`magnus.globaldefs`); pass ``nubar=True`` for the
+    antineutrino channel :math:`\bar\nu_e \to \bar\nu_\mu`:
 
-    We can specify values of the oscillation parameters. Unspecified 
-    values are set to their defaults (pass nonzero ``verbose`` to see 
-    this and other warnings):
+    .. jupyter-execute::
 
-    >>> oscprob.osc_prob_3nu_vacuum(energy, baseline, s12=0.0, verbose=1)
-    Warning: Setting unspecified oscillation parameters to default 
-    values from the predefined set\n OSC_PARAMS_NU_FIT_6_0_NO (NuFit \
-    6.0, NO, with SK atmospheric data):
-    s23 = 0.6855654600401044
-    s13 = 0.14882876066137216
-    dCP = 3.7000980142279785 rad
-    D21 = 7.49e-05 eV^2
-    D31 = 0.002513 eV^2
-    <BLANKLINE>
-    [[0.985 0.007 0.008]
-     [0.007 0.736 0.257]
-     [0.008 0.257 0.735]]
+        print(oscprob.osc_prob_3nu_vacuum(energy, baseline, nu_i=gd.NUE, nu_f=gd.NUMU))
+        print(oscprob.osc_prob_3nu_vacuum(energy, baseline, nu_i=gd.NUE, nu_f=gd.NUMU,
+                                           nubar=True))
 
-    If a single energy value and multiple baselines are passed, this
-    function returns an array containing the probabilities computed for
-    this fixed energy and each value of the baseline:
-    
-    >>> baselines = gd.UNIT_KM*np.array([1.0, 10.0 100.0])
-    >>> oscprob.osc_prob_3nu_vacuum(energy, baselines, nu_i=gd.NUE, nu_f=gd.NUMU)
+    Any standard oscillation parameter can be overridden; the rest keep
+    defaulting to the predefined set named by ``default_osc_params_set_name``
+    (``'OSC_PARAMS_DEFAULT'`` unless changed -- see
+    ``globaldefs.OSC_PARAMS_PREDEFINED`` for the values it uses):
 
-    Conversely, if a single baseline and multiple energies are passed,
-    this function returns an array containing the probabilities computed
-    for this fixed baseline and each value of the energy:
+    .. jupyter-execute::
 
-    >>> energies = gd.UNIT_MEV*np.array([1.0, 10.0, 100.0])
-    >>> oscprob.osc_prob_3nu_vacuum(energies, baseline, nu_i=gd.NUE, nu_f=gd.NUMU)
+        oscprob.osc_prob_3nu_vacuum(energy, baseline, s12=0.0)
 
-    And, for multiple energies and baselines:
+    If a single energy and multiple baselines are passed, the result is
+    an array of probabilities, one per baseline (and, conversely, one
+    per energy for a single baseline and multiple energies; or a full
+    grid for arrays of both -- paired index-by-index, not an outer
+    product):
 
-    >>> oscprob.osc_prob_3nu_vacuum(energies, baselines, nu_i=gd.NUE, nu_f=gd.NUMU)
+    .. jupyter-execute::
+
+        baselines = gd.UNIT_KM * np.array([1.0, 10.0, 100.0])
+        energies = gd.UNIT_MEV * np.array([1.0, 5.0, 20.0])
+
+        print(oscprob.osc_prob_3nu_vacuum(energy, baselines, nu_i=gd.NUE, nu_f=gd.NUMU))
+        print(oscprob.osc_prob_3nu_vacuum(energies, baseline, nu_i=gd.NUE, nu_f=gd.NUMU))
+        print(oscprob.osc_prob_3nu_vacuum(energies, baselines, nu_i=gd.NUE, nu_f=gd.NUMU))
 
     .. seealso::
         :func:`osc_prob_2nu_vacuum`
@@ -4553,62 +4549,63 @@ def osc_prob_4nu_vacuum(
 
     Examples
     --------
-    >>> import magnus.oscprob as oscprob
-    >>> import magnus.globaldefs as gd
+    With the sterile-sector angles/phases given explicitly and the
+    active-sector angles left at their NuFit 6.0 defaults:
 
-    If both ``energy`` and ``L`` are single values (``float`` or 
-    ``int``), this function returns the probability computed at these
-    values.  
+    .. jupyter-execute::
 
-    >>> baseline = 10.*gd.UNIT_KM # 10 km in natural units [eV^{-1}]
-    >>> energy = 1.*gd.UNIT_MEV # [eV]
-    >>> s14, s24, s34 = 0.1, 0.2, 0.3
-    >>> d14, d24 = np.radians(10.0), np.radians(100.0)
-    >>> D41 = 0.1  # [eV^2]
-    >>> oscprob.osc_prob_4nu_vacuum(energy, baseline, s14, s24, s34, d14, d24, D41)
- 
-    Pick one channel only, e.g., :math:`\nu_e \to \nu_s`, by 
-    passing an initial flavor, ``nu_i``, and a final flavor ``nu_f``:
+        import numpy as np
+        import magnus.oscprob as oscprob
+        import magnus.globaldefs as gd
 
-    >>> oscprob.osc_prob_4nu_vacuum(energy, baseline, s14, s24, s34, d14, d24, D41, nu_i=gd.NUE, nu_f=gd.NUS)
+        baseline = 10.0 * gd.UNIT_KM  # 10 km in natural units [eV^-1]
+        energy = 1.0 * gd.UNIT_MEV    # [eV]
+        s14, s24, s34 = 0.1, 0.2, 0.3
+        d14, d24 = np.radians(10.0), np.radians(100.0)
+        D41 = 0.1  # [eV^2]
 
-    The flavor indices ``NUE``, ``NUMU``, ``NUMU``, and ``NUS`` are 
-    defined in  the :py:mod:`magnus.globaldefs` module. For 
-    anti-neutrinos, i.e., :math:`\bar{\nu}_e \to \bar{\nu}_\mu`:
+        oscprob.osc_prob_4nu_vacuum(energy, baseline, s14=s14, s24=s24, s34=s34,
+                                     d14=d14, d24=d24, D41=D41)
 
-    >>> oscprob.osc_prob_4nu_vacuum(energy, baseline, s14, s24, s34, d14, d24, D41, nu_i=gd.NUE, nu_f=gd.NUMU, nubar=True)
+    Pick one channel only, e.g., :math:`\nu_e \to \nu_s`, and the
+    antineutrino channel :math:`\bar\nu_e \to \bar\nu_\mu` (the flavor
+    indices ``NUE``, ``NUMU``, ``NUTAU``, ``NUS`` are defined in
+    :py:mod:`magnus.globaldefs`):
 
-    We can specify values of the oscillation parameters. Unspecified 
-    values are set to their defaults (pass nonzero ``verbose`` to see 
-    this and other warnings):
+    .. jupyter-execute::
 
-    >>> oscprob.osc_prob_4nu_vacuum(energy, baseline, s14, s24, s34, d14, d24, D41, s12=0.0, verbose=1)
- 
-    If a single energy value and multiple baselines are passed, this
-    function returns an array containing the probabilities computed for
-    this fixed energy and each value of the baseline:
-    
-    >>> baselines = gd.UNIT_KM*np.array([1.0, 10.0 100.0])
-    >>> oscprob.osc_prob_4nu_vacuum(energy, baselines, s14, s24, s34, d14, d24, D41, nu_i=gd.NUE, nu_f=gd.NUMU)
+        common = dict(s14=s14, s24=s24, s34=s34, d14=d14, d24=d24, D41=D41)
+        print(oscprob.osc_prob_4nu_vacuum(energy, baseline, nu_i=gd.NUE, nu_f=gd.NUS, **common))
+        print(oscprob.osc_prob_4nu_vacuum(energy, baseline, nu_i=gd.NUE, nu_f=gd.NUMU,
+                                           nubar=True, **common))
 
-    Conversely, if a single baseline and multiple energies are passed,
-    this function returns an array containing the probabilities computed
-    for this fixed baseline and each value of the energy:
+    Any active-sector parameter can still be overridden on top of the
+    sterile-sector values:
 
-    >>> energies = gd.UNIT_MEV*np.array([1.0, 10.0, 100.0])
-    >>> oscprob.osc_prob_4nu_vacuum(energies, baseline, s14, s24, s34, d14, d24, D41, nu_i=gd.NUE, nu_f=gd.NUMU)
+    .. jupyter-execute::
 
-    And, for multiple energies and baselines:
+        oscprob.osc_prob_4nu_vacuum(energy, baseline, s12=0.0, **common)
 
-    >>> oscprob.osc_prob_4nu_vacuum(energies, baselines, s14, s24, s34, d14, d24, D41, nu_i=gd.NUE, nu_f=gd.NUMU)
+    Arrays of energies and/or baselines work the same way as for
+    :func:`osc_prob_3nu_vacuum` (paired index-by-index for two arrays,
+    not an outer product):
+
+    .. jupyter-execute::
+
+        baselines = gd.UNIT_KM * np.array([1.0, 10.0, 100.0])
+        energies = gd.UNIT_MEV * np.array([1.0, 5.0, 20.0])
+
+        print(oscprob.osc_prob_4nu_vacuum(energy, baselines, nu_i=gd.NUE, nu_f=gd.NUMU, **common))
+        print(oscprob.osc_prob_4nu_vacuum(energies, baseline, nu_i=gd.NUE, nu_f=gd.NUMU, **common))
+        print(oscprob.osc_prob_4nu_vacuum(energies, baselines, nu_i=gd.NUE, nu_f=gd.NUMU, **common))
 
     .. seealso::
         :func:`osc_prob_2nu_vacuum`
-            Two-flavor oscillation probabilities in vacuum. 
+            Two-flavor oscillation probabilities in vacuum.
         :func:`osc_prob_3nu_vacuum`
-            Three-flavor oscillation probabilities in vacuum. 
+            Three-flavor oscillation probabilities in vacuum.
         :func:`osc_prob_5nu_vacuum`
-            Five-flavor (3+2) oscillation probabilities in vacuum. 
+            Five-flavor (3+2) oscillation probabilities in vacuum.
     """
 
     return osc_prob_vacuum(
@@ -4788,72 +4785,66 @@ def osc_prob_5nu_vacuum(
 
     Examples
     --------
-    >>> import magnus.oscprob as oscprob
-    >>> import magnus.globaldefs as gd
+    With the sterile-sector angles/phases given explicitly and the
+    active-sector angles left at their NuFit 6.0 defaults:
 
-    If both ``energy`` and ``L`` are single values (``float`` or 
-    ``int``), this function returns the probability computed at these
-    values.  
+    .. jupyter-execute::
 
-    >>> baseline = 10.*gd.UNIT_KM # 10 km in natural units [eV^{-1}]
-    >>> energy = 1.*gd.UNIT_MEV # [eV]
-    >>> s14, s15, s24, s25, s34, s35 = 0.1, 0.1, 1.e-2, 1.e-2, 1.e-3, 1.e-3
-    >>> d14, d15, d24, d35 = np.radians([10.0, 20.0, 30.0, 40.0])
-    >>> D41, D51 = 0.1, 0.001  # [eV^2]
-    >>> oscprob.osc_prob_5nu_vacuum(energy, baseline, s14, s15, s24, s25, s34, s35, d14, d15, d24, d35, D41, D51)
- 
-    Pick one channel only, e.g., :math:`\nu_e \to \nu_{s_1}`, by 
-    passing an initial flavor, ``nu_i``, and a final flavor ``nu_f``:
+        import numpy as np
+        import magnus.oscprob as oscprob
+        import magnus.globaldefs as gd
 
-    >>> oscprob.osc_prob_5nu_vacuum(energy, baseline, s14, s15, s24, s25, s34, s35, d14, d15, d24, d35, D41, D51, nu_i=gd.NUE, nu_f=gd.NUS1)
+        baseline = 10.0 * gd.UNIT_KM  # 10 km in natural units [eV^-1]
+        energy = 1.0 * gd.UNIT_MEV    # [eV]
+        s14, s15, s24, s25, s34, s35 = 0.1, 0.1, 1.e-2, 1.e-2, 1.e-3, 1.e-3
+        d14, d15, d24, d35 = np.radians([10.0, 20.0, 30.0, 40.0])
+        D41, D51 = 0.1, 0.001  # [eV^2]
+        common = dict(s14=s14, s15=s15, s24=s24, s25=s25, s34=s34, s35=s35,
+                      d14=d14, d15=d15, d24=d24, d35=d35, D41=D41, D51=D51)
 
-    And, for :math:`\nu_e \to \nu_{s_2}`:
+        oscprob.osc_prob_5nu_vacuum(energy, baseline, **common).shape
 
-    >>> oscprob.osc_prob_5nu_vacuum(energy, baseline, s14, s15, s24, s25, s34, s35, d14, d15, d24, d35, D41, D51, nu_i=gd.NUE, nu_f=gd.NUS2)
+    Pick one channel only -- :math:`\nu_e \to \nu_{s_1}`,
+    :math:`\nu_e \to \nu_{s_2}`, and :math:`\nu_{s_1} \to \nu_{s_2}` (the
+    flavor indices ``NUE``, ``NUMU``, ``NUTAU``, ``NUS1``, ``NUS2`` are
+    defined in :py:mod:`magnus.globaldefs`); and the antineutrino channel
+    :math:`\bar\nu_e \to \bar\nu_{s_1}`:
 
-    and :math:`\nu_{s_1} \to \nu_{s_2}`:
+    .. jupyter-execute::
 
-    >>> oscprob.osc_prob_5nu_vacuum(energy, baseline, s14, s15, s24, s25, s34, s35, d14, d15, d24, d35, D41, D51, nu_i=gd.NUS1, nu_f=gd.NUS2)
+        print(oscprob.osc_prob_5nu_vacuum(energy, baseline, nu_i=gd.NUE, nu_f=gd.NUS1, **common))
+        print(oscprob.osc_prob_5nu_vacuum(energy, baseline, nu_i=gd.NUE, nu_f=gd.NUS2, **common))
+        print(oscprob.osc_prob_5nu_vacuum(energy, baseline, nu_i=gd.NUS1, nu_f=gd.NUS2, **common))
+        print(oscprob.osc_prob_5nu_vacuum(energy, baseline, nu_i=gd.NUE, nu_f=gd.NUS1,
+                                           nubar=True, **common))
 
-    The flavor indices ``NUE``, ``NUMU``, ``NUMU``, ``NUS1``, and 
-    ``NUS2`` are defined in  the :py:mod:`magnus.globaldefs` module. For 
-    anti-neutrinos, i.e., :math:`\bar{\nu}_e \to \bar{\nu}_{s_1}`:
+    Any active-sector parameter can still be overridden on top of the
+    sterile-sector values:
 
-    >>> oscprob.osc_prob_5nu_vacuum(energy, baseline, s14, s15, s24, s25, s34, s35, d14, d15, d24, d35, D41, D51, nu_i=gd.NUE, nu_f=gd.NUS1)
-    >>> oscprob.osc_prob_5nu_vacuum(energy, baseline, s14, s15, s24, s25, s34, s35, d14, d15, d24, d35, D41, D51, nu_i=gd.NUE, nu_f=gd.NUS2)
-    >>> oscprob.osc_prob_5nu_vacuum(energy, baseline, s14, s15, s24, s25, s34, s35, d14, d15, d24, d35, D41, D51, nu_i=gd.NUS1, nu_f=gd.NUS2)
+    .. jupyter-execute::
 
-    We can specify values of the oscillation parameters. Unspecified 
-    values are set to their defaults (pass nonzero ``verbose`` to see 
-    this and other warnings):
+        oscprob.osc_prob_5nu_vacuum(energy, baseline, s12=0.0, **common)
 
-    >>> oscprob.osc_prob_5nu_vacuum(energy, baseline, s14, s15, s24, s25, s34, s35, d14, d15, d24, d35, D41, D51, s12=0.0, verbose=1)
- 
-    If a single energy value and multiple baselines are passed, this
-    function returns an array containing the probabilities computed for
-    this fixed energy and each value of the baseline:
-    
-    >>> baselines = gd.UNIT_KM*np.array([1.0, 10.0 100.0])
-    >>> oscprob.osc_prob_5nu_vacuum(energy, baselines, s14, s15, s24, s25, s34, s35, d14, d15, d24, d35, D41, D51, nu_i=gd.NUE, nu_f=gd.NUMU)
+    Arrays of energies and/or baselines work the same way as for
+    :func:`osc_prob_3nu_vacuum` (paired index-by-index for two arrays,
+    not an outer product):
 
-    Conversely, if a single baseline and multiple energies are passed,
-    this function returns an array containing the probabilities computed
-    for this fixed baseline and each value of the energy:
+    .. jupyter-execute::
 
-    >>> energies = gd.UNIT_MEV*np.array([1.0, 10.0, 100.0])
-    >>> oscprob.osc_prob_5nu_vacuum(energies, baseline, s14, s15, s24, s25, s34, s35, d14, d15, d24, d35, D41, D51, nu_i=gd.NUE, nu_f=gd.NUMU)
+        baselines = gd.UNIT_KM * np.array([1.0, 10.0, 100.0])
+        energies = gd.UNIT_MEV * np.array([1.0, 5.0, 20.0])
 
-    And, for multiple energies and baselines:
-
-    >>> oscprob.osc_prob_5nu_vacuum(energies, baselines, s14, s15, s24, s25, s34, s35, d14, d15, d24, d35, D41, D51, nu_i=gd.NUE, nu_f=gd.NUMU)
+        print(oscprob.osc_prob_5nu_vacuum(energy, baselines, nu_i=gd.NUE, nu_f=gd.NUMU, **common))
+        print(oscprob.osc_prob_5nu_vacuum(energies, baseline, nu_i=gd.NUE, nu_f=gd.NUMU, **common))
+        print(oscprob.osc_prob_5nu_vacuum(energies, baselines, nu_i=gd.NUE, nu_f=gd.NUMU, **common))
 
     .. seealso::
         :func:`osc_prob_2nu_vacuum`
-            Two-flavor oscillation probabilities in vacuum. 
+            Two-flavor oscillation probabilities in vacuum.
         :func:`osc_prob_3nu_vacuum`
-            Three-flavor oscillation probabilities in vacuum. 
+            Three-flavor oscillation probabilities in vacuum.
         :func:`osc_prob_4nu_vacuum`
-            Four-flavor (3+1) oscillation probabilities in vacuum. 
+            Four-flavor (3+1) oscillation probabilities in vacuum.
     """
 
     return osc_prob_vacuum(
@@ -6791,12 +6782,24 @@ def osc_prob_earth(
     Standard three-neutrino oscillations, written by hand (the
     dedicated wrapper :func:`osc_prob_3nu_earth` does this internally):
 
-    >>> h_vac = hamiltonians.hamiltonian_3nu_vacuum_energy_independent( \
-    ...     s12, s23, s13, dCP, D21, D31)
-    >>> def H(energy, l, VCC):
-    ...     return (1/energy)*h_vac + VCC*np.diag([1.0, 0.0, 0.0])
-    >>> osc_prob_earth(H, energy=1.e9, loc_ini='fermilab', \
-    ...     loc_fin='homestake')
+    .. jupyter-execute::
+
+        import numpy as np
+        import magnus.oscprob as oscprob
+        import magnus.hamiltonians as hamiltonians
+        import magnus.globaldefs as gd
+
+        p = gd.OSC_PARAMS_PREDEFINED['OSC_PARAMS_DEFAULT']
+        s12, s23, s13, dCP, D21, D31 = p['s12'], p['s23'], p['s13'], p['dCP'], p['D21'], p['D31']
+
+        h_vac = hamiltonians.hamiltonian_3nu_vacuum_energy_independent(
+            s12, s23, s13, dCP, D21, D31)
+
+        def H(energy, l, VCC):
+            return (1 / energy) * h_vac + VCC * np.diag([1.0, 0.0, 0.0])
+
+        oscprob.osc_prob_earth(H, energy=1.0 * gd.UNIT_GEV, loc_ini='fermilab',
+                                loc_fin='homestake')
     """
     source_func_name = sys._getframe().f_code.co_name
 
@@ -7556,10 +7559,31 @@ def osc_prob_sun(
     Standard two-neutrino oscillations, written by hand (the dedicated
     wrapper :func:`osc_prob_2nu_sun` does this internally):
 
-    >>> h_vac = hamiltonians.hamiltonian_2nu_vacuum_energy_independent(sth, Dm2)
-    >>> def H(energy, l, VCC):
-    ...     return (1/energy)*h_vac + VCC*np.diag([1.0, 0.0])
-    >>> osc_prob_sun(H, energy=1.e7, L=0.9*gd.SUN_RADIUS*gd.UNIT_KM)
+    .. jupyter-execute::
+
+        import warnings
+        import numpy as np
+        import magnus.oscprob as oscprob
+        import magnus.hamiltonians as hamiltonians
+        import magnus.globaldefs as gd
+        from magnus.magnus import MagnusConvergenceWarning
+
+        sth = gd.S12_NO_BF_NUFIT_6_0
+        Dm2 = gd.D21_NO_BF_NUFIT_6_0
+        h_vac = hamiltonians.hamiltonian_2nu_vacuum_energy_independent(sth, Dm2)
+
+        def H(energy, l, VCC):
+            return (1 / energy) * h_vac + VCC * np.diag([1.0, 0.0])
+
+        # A trajectory through most of the Sun accumulates a large phase, so the
+        # adaptive refinement needs a few loops to narrow the slabs; this is the
+        # expected, informational MagnusConvergenceWarning discussed in the
+        # package README, suppressed here to keep the example focused.
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore', MagnusConvergenceWarning)
+            P = oscprob.osc_prob_sun(H, energy=1.0 * gd.UNIT_GEV,
+                                      L=0.9 * gd.SUN_RADIUS * gd.UNIT_KM)
+        P
     """
     source_func_name = sys._getframe().f_code.co_name
 

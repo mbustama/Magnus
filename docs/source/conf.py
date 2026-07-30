@@ -35,8 +35,19 @@ extensions = [
     'sphinxcontrib.bibtex',     # References page (refs.bib)
     'sphinxcontrib.mermaid',    # Architecture diagrams (architecture.rst)
     'myst_parser',              # Lets changelog.rst .. include:: the root CHANGELOG.md
+    'jupyter_sphinx',           # Executes .. jupyter-execute:: blocks in docstring Examples
     'autoapi.extension',        # API reference, generated from src/magnus/
 ]
+
+# jupyter-sphinx runs every `.. jupyter-execute::` block (used in the "Examples" section of
+# several oscprob.py docstrings) through a real Jupyter kernel at build time, so the output
+# shown in the docs is always the actual current output, not hand-typed text that can drift.
+# Requires a "python3" kernel with `magnus` and its dependencies importable -- see the
+# "Install magnus (editable)" / "Register the Jupyter kernel" steps in .github/workflows/pages.yml.
+# For a local build: `pip install -e .` from the repo root, then
+# `python -m ipykernel install --user --name python3` (harmless if a "python3" kernel already
+# exists and points to an environment where `magnus` is importable).
+jupyter_execute_default_kernel = 'python3'
 
 intersphinx_mapping = {
     'python': ('https://docs.python.org/3', None),

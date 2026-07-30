@@ -34,6 +34,14 @@ jobs:
       - name: Install documentation dependencies
         run: pip install -r docs/requirements.txt
 
+      - name: Install magnus (editable)
+        # Needed so the jupyter-sphinx kernel that executes the docstring
+        # Examples (.. jupyter-execute::) can `import magnus`.
+        run: pip install -e .
+
+      - name: Register the Jupyter kernel used by jupyter-sphinx
+        run: python -m ipykernel install --user --name python3 --display-name "Python 3"
+
       - name: Build HTML documentation
         run: |
           cd docs

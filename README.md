@@ -728,6 +728,10 @@ Four GitHub Actions workflows run under [`.github/workflows/`](.github/workflows
   without blocking merges.
 - **[`pages.yml`](.github/workflows/pages.yml)** — on every push to `main`,
   builds the Sphinx documentation (`docs/`) and deploys it to GitHub Pages.
+  Several API docstrings (e.g. `osc_prob_3nu_vacuum`, `osc_prob_earth`)
+  contain live `jupyter-execute` code examples: the build actually runs
+  them and embeds the real output, so the docs build itself fails if an
+  example ever stops working, instead of silently shipping stale output.
 - **[`publish.yml`](.github/workflows/publish.yml)** — on every published
   GitHub Release, builds the sdist/wheel and publishes to PyPI via trusted
   (OIDC) publishing.

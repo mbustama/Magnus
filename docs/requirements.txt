@@ -5,3 +5,5 @@ sphinx-copybutton
 sphinxcontrib-bibtex
 sphinxcontrib-mermaid
 myst-parser
+jupyter-sphinx
+ipykernel
