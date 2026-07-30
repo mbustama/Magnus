@@ -185,7 +185,8 @@ Magnus/
 │   ├── test_oscprob.py              # Oscillation-probability engine, closed-form and ODE cross-checks
 │   ├── test_earth_matter.py         # PREM profile, chord geometry, electron density
 │   ├── test_hamiltonians.py         # Hamiltonian/mixing-matrix builders
-│   └── test_cli.py                  # magnus command-line calculator
+│   ├── test_cli.py                  # magnus command-line calculator
+│   └── test_globaldefs.py           # NuFit historical parameter dict/loader
 ├── .gitignore
 ├── CHANGELOG.md                     # Version history (Keep a Changelog format)
 ├── pyproject.toml                   # Build system, dependencies, and the `magnus` console-script entry point
@@ -761,6 +762,12 @@ Four GitHub Actions workflows run under [`.github/workflows/`](.github/workflows
     environment/scenario/flavor-count combination, JSON output matching
     the equivalent direct Python call, and the CLI's own input-validation
     error paths (e.g. rejecting `--scenario nsi` with `--environment vacuum`).
+  - [`test_globaldefs.py`](tests/test_globaldefs.py) — the historical NuFit
+    parameter data: every release in `NUFIT_GLOBAL_FITS` has finite,
+    physically sensible values with the correct `D31` sign per ordering,
+    `load_nufit_params`'s version/ordering/category validation and default
+    selection, and that its output feeds directly into `osc_prob_3nu_vacuum`
+    to produce a unitary probability matrix.
 - **[`lint.yml`](.github/workflows/lint.yml)** — runs Ruff (`ruff check` and
   `ruff format --check`) on every push/PR to `main`. Currently informational
   (`continue-on-error: true`): it reports style/static-analysis issues

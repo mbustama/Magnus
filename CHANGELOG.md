@@ -7,6 +7,28 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- `magnus.globaldefs.NUFIT_GLOBAL_FITS`: best-fit standard three-flavor
+  oscillation parameters from every NuFit global-analysis release, v1.0
+  (2012) through v6.1 (2025), by mass ordering and by each release's
+  secondary category (`with_SK`/`without_SK` for v4.0+, `LEM`/`LID` for
+  v2.1, `free_fluxes_rsbl`/`huber_fluxes_no_rsbl` for v1.0-v1.3).
+  Transcribed directly from the official parameter tables at
+  [nu-fit.org](http://www.nu-fit.org/?q=node/12).
+- `magnus.globaldefs.load_nufit_params(version, ordering, category)`: loads
+  a specific release/ordering/category as a plain `{s12, s23, s13, dCP,
+  D21, D31}` dict, directly usable as keyword arguments to any
+  `osc_prob_3nu_*` function.
+- A "When is Magνs not the right tool?" section in the README and docs,
+  covering quantum decoherence, open-system/bath coupling, neutrino decay,
+  and self-consistent collective oscillations.
+
+### Removed
+
+- `docs/source/sandbox/`, an untracked, unused pydata-theme experiment
+  directory.
+
 ## [0.10.0] - 2026-07-30
 
 This is the first version with a maintained changelog, and serves as the

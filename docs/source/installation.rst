@@ -121,7 +121,8 @@ File Tree
    │   ├── test_oscprob.py              # Oscillation-probability engine, closed-form and ODE cross-checks
    │   ├── test_earth_matter.py         # PREM profile, chord geometry, electron density
    │   ├── test_hamiltonians.py         # Hamiltonian/mixing-matrix builders
-   │   └── test_cli.py                  # magnus command-line calculator
+   │   ├── test_cli.py                  # magnus command-line calculator
+   │   └── test_globaldefs.py           # NuFit historical parameter dict/loader
    ├── .gitignore
    ├── CHANGELOG.md                     # Version history (Keep a Changelog format)
    ├── pyproject.toml                   # Build system, dependencies, and the `magnus` console-script entry point
