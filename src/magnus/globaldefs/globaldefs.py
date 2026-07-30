@@ -1,11 +1,27 @@
 # -*- coding: utf-8 -*-
-r"""Contains physical constants and unit-conversion constants.
+r"""globaldefs.py
+
+Contains physical constants and unit-conversion constants.
 
 This module contains values of physical constants and unit-conversion
-factors used by the various modules of Magnus.
+factors used by the various modules of Magnus: unit conversions (km,
+cm, GeV, etc., to natural units of eV), fundamental constants (G_F,
+particle masses, Avogadro's number), Earth/Sun radii and reference
+densities, flavor index constants (NUE, NUMU, NUTAU, NUS), predefined
+oscillation/NSI/LIV parameter sets (e.g., NuFit 6.0), and ANSI terminal
+color codes (class ``cstyle``) used to format warning/error messages.
+
+Routine listings
+----------------
+
+    * cstyle - ANSI terminal color-code constants
+
+The remaining module-level names are physical constants and
+unit-conversion factors, not routines; see the module source for the
+full list.
 
 Created: 2019/04/17 17:03
-Last modified: 2024/12/11 20:32
+Last modified: 2026/07/30
 """
 
 
@@ -26,6 +42,17 @@ if platform.system() == 'Windows':
 
 # Class of different styles
 class cstyle():
+    r"""ANSI escape-code constants for colored/styled terminal output.
+
+    Used to format the warning/error/tolerance messages printed by
+    ``oscprob.py`` (e.g., ``gd.WARNING_MSG_IN_COLOR``,
+    ``gd.ERROR_MSG_IN_COLOR``). Has no effect on Windows terminals unless
+    ``os.system("")`` has been called first, which this module does at
+    import time.
+
+    .. versionadded:: 0.10.0
+    """
+
     CEND      = '\33[0m'
     CBOLD     = '\33[1m'
     CITALIC   = '\33[3m'

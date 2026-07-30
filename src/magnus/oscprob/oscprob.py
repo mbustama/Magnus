@@ -1,4 +1,6 @@
-"""Contains routines to compute the neutrino oscillation probability.
+"""oscprob.py
+
+Contains routines to compute the neutrino oscillation probability.
 
 Internally, the probability is computed using Magnus expansion, but the
 user does not call the routines in the :py:mod:`magnus.magnus` module
@@ -262,9 +264,14 @@ with distance:
    and 3+2 sterile neutrino models), non-standard neutrino interactions,
    and Lorentz-invariance violation.
 
+See :doc:`/architecture` for how the ``osc_prob_*`` functions listed above
+are layered internally (primordial/middle/wrapper) and how to add a new one.
+
+Created: 2024/12/22 20:57
+Last modified: 2026/07/30
 """
 
-__version__ = '0.10'
+__version__ = '0.10.0'
 __author__ = 'Mauricio Bustamante'
 
 
@@ -303,6 +310,8 @@ class ToleranceNotAchievedWarning(UserWarning):
     verbosity setting.  Raise the caps, loosen the tolerance, or use
     wider applicability methods for extreme-phase problems (e.g., many
     more slabs for low-energy solar neutrinos).
+
+    .. versionadded:: 0.10.0
     """
 
 
@@ -311,6 +320,24 @@ class ToleranceNotAchievedWarning(UserWarning):
 #-----------------------------------------------------------------------
 
 def print_banner(file: TextIOWrapper=None):
+    r"""Prints the Magnus ASCII banner, version, and author string.
+
+    Prints an ASCII-art banner followed by the package version (:data:`magnus.version.__version__`)
+    and author (:data:`magnus.authors.__authors__`).  Uses ANSI color codes when printing to
+    stdout (``file is None``); plain text otherwise (e.g., when writing to a log file).
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    file : TextIOWrapper, optional
+        File object to print to, in addition to (or instead of, depending on the caller) stdout.
+        If None (default), print to stdout with color.
+
+    Returns
+    -------
+    None
+    """
     if file is None:
         print(gd.cstyle.CBLUEBG + ".----------------------------------------." + gd.cstyle.CEND,
             file=file)
@@ -370,7 +397,74 @@ def print_run_parameters(
     verbose: Optional[int]=0, 
     file_log: Optional[TextIOWrapper]=None
 ):
+    r"""Prints the banner (once per session) and the parameters passed to :func:`osc_prob`.
 
+    Diagnostic/logging helper called from :func:`osc_prob` when ``verbose >= 1`` or ``save_log``
+    is True.  Prints (to stdout, and additionally to ``file_log`` if ``save_log`` is True) the
+    values of every refinement/logging parameter for the current call, to help reproduce or debug
+    a specific run.
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    H_func : Callable or np.ndarray
+        The Hamiltonian passed to :func:`osc_prob`.
+    t_ini, t_fin : int or float
+        Integration limits passed to :func:`osc_prob`.
+    n_slabs : int
+        Forwarded verbatim from the calling :func:`osc_prob`; see its docstring.
+    n_tpts_per_slab : int
+        Forwarded verbatim from the calling :func:`osc_prob`; see its docstring.
+    t_slab_edges : list or np.ndarray, optional
+        Forwarded verbatim from the calling :func:`osc_prob`; see its docstring.
+    magnus_exp_order : int
+        Forwarded verbatim from the calling :func:`osc_prob`; see its docstring.
+    n_jobs : int
+        Forwarded verbatim from the calling :func:`osc_prob`; see its docstring.
+    integration_method : str
+        Forwarded verbatim from the calling :func:`osc_prob`; see its docstring.
+    rtol : int or float, optional
+        Forwarded verbatim from the calling :func:`osc_prob`; see its docstring.
+    atol : int or float, optional
+        Forwarded verbatim from the calling :func:`osc_prob`; see its docstring.
+    growth_factor_n_slabs : int or float
+        Forwarded verbatim from the calling :func:`osc_prob`; see its docstring.
+    growth_factor_n_tpts_per_slab : int or float
+        Forwarded verbatim from the calling :func:`osc_prob`; see its docstring.
+    max_num_loops : int
+        Forwarded verbatim from the calling :func:`osc_prob`; see its docstring.
+    min_n_slabs : int
+        Forwarded verbatim from the calling :func:`osc_prob`; see its docstring.
+    max_n_slabs : int
+        Forwarded verbatim from the calling :func:`osc_prob`; see its docstring.
+    min_n_tpts_per_slab : int
+        Forwarded verbatim from the calling :func:`osc_prob`; see its docstring.
+    max_n_tpts_per_slab : int
+        Forwarded verbatim from the calling :func:`osc_prob`; see its docstring.
+    iterate_over_magnus_exp_order : bool
+        Forwarded verbatim from the calling :func:`osc_prob`; see its docstring.
+    min_magnus_exp_order : int
+        Forwarded verbatim from the calling :func:`osc_prob`; see its docstring.
+    max_magnus_exp_order : int
+        Forwarded verbatim from the calling :func:`osc_prob`; see its docstring.
+    validate_input : bool
+        Forwarded verbatim from the calling :func:`osc_prob`; see its docstring.
+    save_log : bool
+        Forwarded verbatim from the calling :func:`osc_prob`; see its docstring.
+    filename_log : str
+        Forwarded verbatim from the calling :func:`osc_prob`; see its docstring.
+    new_recursion_limit : int, optional
+        Forwarded verbatim from the calling :func:`osc_prob`; see its docstring.
+    verbose : int
+        Forwarded verbatim from the calling :func:`osc_prob`; see its docstring.
+    file_log : TextIOWrapper, optional
+        Forwarded verbatim from the calling :func:`osc_prob`; see its docstring.
+
+    Returns
+    -------
+    None
+    """
     global has_magnus_header_been_printed
 
     for f in [None, file_log] if save_log else [None]:
@@ -434,7 +528,59 @@ def validate_input_battery(
     validate_initial_position: Optional[bool]= False,
     validate_density: Optional[bool]=False
 ) -> int:
+    r"""Validates the inputs common to the ``osc_prob_*`` family of functions.
 
+    Runs a battery of type/shape/value checks (selected by the ``validate_*`` flags below) and
+    prints a descriptive error message identifying the offending argument and the calling function
+    (via ``source_func_name``) if any check fails, rather than letting an invalid input propagate
+    into a cryptic NumPy/linear-algebra error deep inside the Magnus core.
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    source_func_name : str
+        Name of the calling function, used to build more informative error messages.
+    energy : int, float, list, or np.ndarray, optional
+        Neutrino energy/energies to validate (checked if ``validate_energy_and_L`` is True).
+    L : int, float, list, or np.ndarray, optional
+        Baseline(s) to validate (checked if ``validate_energy_and_L`` is True).
+    L0 : int or float, optional
+        Initial position to validate (checked if ``validate_initial_position`` is True).
+    num_flavors : int, optional
+        Number of neutrino flavors, used to validate ``nu_i``/``nu_f``/``osc_params``.
+    nu_i : int, optional
+        Initial flavor index to validate (checked if ``validate_flavor_indices`` is True).
+    nu_f : int, optional
+        Final flavor index to validate (checked if ``validate_flavor_indices`` is True).
+    osc_params : list or np.ndarray, optional
+        Unpacked oscillation parameters to validate (checked if ``validate_osc_params`` is True).
+    rho_func : Callable, int, or float, optional
+        Matter density (function or constant) to validate (checked if ``validate_density`` is
+        True).
+    ratio_number_neutrons_to_protons : int or float, optional
+        Ratio of the number of neutrons to protons in matter, validated alongside the density.
+        Default: 1.0.
+    electron_fraction : int or float, optional
+        Electron fraction, validated alongside the density. Default: 0.5.
+    validate_energy_and_L : bool, optional
+        If True, validate ``energy`` and ``L``. Default: True.
+    validate_flavor_indices : bool, optional
+        If True, validate ``nu_i`` and ``nu_f`` against ``num_flavors``. Default: True.
+    validate_osc_params : bool, optional
+        If True, validate ``osc_params``. Default: True.
+    validate_initial_position : bool, optional
+        If True, validate ``L0``. Default: False.
+    validate_density : bool, optional
+        If True, validate ``rho_func``, ``ratio_number_neutrons_to_protons``, and
+        ``electron_fraction``. Default: False.
+
+    Returns
+    -------
+    int
+        0 if every requested check passed; 1 if any check failed (after printing a descriptive
+        error message).
+    """
     if validate_energy_and_L:
 
         try:
@@ -648,7 +794,38 @@ def validate_input_osc_prob_earth(
     L: Optional[Union[float, list, np.ndarray]]=None,
     verbose: Optional[int]=0,
     ) -> Tuple[float, np.ndarray]:
+    r"""Resolves (costhz, L) for :func:`osc_prob_earth`, from either two locations or costhz+L.
 
+    Implements the two mutually exclusive ways of specifying an Earth-crossing trajectory: either
+    give both ``loc_ini`` and ``loc_fin`` (the chord's zenith angle and length are computed from
+    their coordinates), or give ``costhz`` and ``L`` directly. Aborts with a descriptive error if
+    exactly one location is given, or if neither locations nor (costhz, L) are given.
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    source_func_name : str
+        Name of the calling function, used to build more informative error messages.
+    loc_ini : tuple, list, np.ndarray, or str, optional
+        Initial location, as (latitude, longitude) coordinates or a predefined location name (see
+        :data:`magnus.earth.earth.loc_coords_dms`). Must be given together with ``loc_fin``.
+    loc_fin : tuple, list, np.ndarray, or str, optional
+        Final location, same format as ``loc_ini``. Must be given together with ``loc_ini``.
+    costhz : int or float, optional
+        Cosine of the zenith angle of the neutrino. Used only if ``loc_ini``/``loc_fin`` are not
+        given.
+    L : float, list, or np.ndarray, optional
+        Baseline(s). Used only if ``loc_ini``/``loc_fin`` are not given.
+    verbose : int, optional
+        Verbosity level: if > 0, print a note when the chord between the two given locations is
+        used as the baseline. Default: 0.
+
+    Returns
+    -------
+    (float, np.ndarray)
+        The resolved ``(costhz, L)`` pair.
+    """
     # If the initial and final locations are given (i.e., if they are not None), then the neutrino 
     # travels the chord joining them through the Earth, overriding any given value of costhz given.
     # If only a single location is given, throw an exception.  If neither of the two locations are
@@ -730,7 +907,29 @@ def validate_input_osc_prob_earth(
 
 
 def valid_flavor_indices_2nu(nu_i: int, nu_f: int) -> Tuple[int, int]:
+    r"""Remaps 3-flavor-style flavor indices onto valid 2-flavor indices (0 or 1).
 
+    Two-flavor wrappers (e.g. :func:`osc_prob_2nu_matter_constant_density`) accept ``nu_i``/
+    ``nu_f`` values from the same ``NUE``/``NUMU``/``NUTAU`` constants used by the 3/4/5-flavor
+    wrappers, for interface consistency, even though a two-flavor system only has indices 0 and 1.
+    This remaps the flavor not included in the two-flavor system (whichever of NUE/NUMU/NUTAU is
+    not being used) onto the other valid index, so that, e.g., requesting the nu_e-nu_tau channel
+    of a system parametrized by theta_13 (which is really a nu_e-nu_x system) resolves correctly.
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    nu_i : int
+        Initial flavor index, as one of ``globaldefs.NUE``, ``NUMU``, ``NUTAU``, or already 0/1.
+    nu_f : int
+        Final flavor index, same convention as ``nu_i``.
+
+    Returns
+    -------
+    (int, int)
+        The remapped ``(nu_i, nu_f)``, each 0 or 1.
+    """
     if ((nu_i == gd.NUE) and (nu_f == gd.NUTAU)):
         nu_f = 1
     elif ((nu_i == gd.NUTAU) and (nu_f == gd.NUE)):
@@ -757,9 +956,37 @@ def values_to_unspecified_osc_params(
 
     If any of the oscillation parameters has not been given a value, assign to it the value from
     the specified parameter set with name default_osc_params_set_name.  When input validation is
-    on (validate_input == True), the routine checks whether the parameter set name is among the 
+    on (validate_input == True), the routine checks whether the parameter set name is among the
     predefined ones (see validation above).  Only the values of the parameters passed as None are
     assigned from the predefined set; other parameters are not modified.
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    s12 : int or float, optional
+        Sin(theta_12); if None, taken from the predefined set.
+    s23 : int or float, optional
+        Sin(theta_23); if None, taken from the predefined set.
+    s13 : int or float, optional
+        Sin(theta_13); if None, taken from the predefined set.
+    dCP : int or float, optional
+        delta_CP [radian]; if None, taken from the predefined set.
+    D21 : int or float, optional
+        Mass-squared difference Delta m^2_21; if None, taken from the predefined set.
+    D31 : int or float, optional
+        Mass-squared difference Delta m^2_31; if None, taken from the predefined set.
+    default_osc_params_set_name : str, optional
+        Name of the predefined oscillation-parameter set to draw missing values from (see
+        ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
+    verbose : int, optional
+        Verbosity level. Default: 0.
+
+    Returns
+    -------
+    (float, float, float, float, float, float)
+        ``(s12, s23, s13, dCP, D21, D31)``, with every previously-None entry filled in from the
+        predefined set.
     """
 
     try:
@@ -812,6 +1039,35 @@ def unpack_oscillation_params_from_dict(
     h_vac_energy_indep: Union[list, np.ndarray]
 ) -> np.ndarray:
     r"""Unpack oscillation parameters from the osc_params dict
+
+    Extracts the standard oscillation parameters for ``num_flavors`` flavors from ``osc_params``
+    (as built by each ``osc_prob_{N}nu_*`` wrapper), in the fixed order expected by the matching
+    ``hamiltonians.hamiltonian_{N}nu_vacuum_energy_independent`` function. Aborts with a
+    descriptive error if a required key is missing.
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    source_func_name : str
+        Name of the calling function, used to build more informative error messages.
+    num_flavors : int
+        Number of neutrino flavors (2, 3, 4, or 5; or higher, if ``h_vac_energy_indep`` is given).
+    osc_params : dict
+        Dictionary of oscillation parameters. For ``num_flavors == 2``, must contain 'sth', 'Dm2'.
+        For 3, 4, 5, must contain 's12', 's23', 's13', 'dCP', 'D21', 'D31', plus, for 4:
+        's14', 'd14', 's24', 'd24', 's34', 'D41'; and for 5, additionally 's15', 'd15', 's25',
+        's34', 's35', 'd35', 'D51'.
+    h_vac_energy_indep : list or np.ndarray
+        Precomputed energy-independent vacuum Hamiltonian, required (and used, instead of
+        ``osc_params``) when ``num_flavors`` exceeds
+        ``globaldefs.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS``.
+
+    Returns
+    -------
+    np.ndarray
+        The unpacked oscillation parameters, in the order expected by the matching
+        ``hamiltonian_{N}nu_vacuum_energy_independent`` function.
     """
 
     if (num_flavors == 2):
@@ -920,6 +1176,37 @@ def unpack_nsi_params_from_dict(
     h_nsi: Union[list, np.ndarray]
 ) -> np.ndarray:
     r"""Unpack NSI parameters from the nsi_params dict
+
+    Extracts the NSI epsilon parameters for ``num_flavors`` flavors from ``nsi_params`` (as built
+    by each ``osc_prob_{N}nu_*_nsi_*`` wrapper), in the fixed order expected by the matching
+    ``hamiltonians.hamiltonian_{N}nu_nsi`` function. Aborts with a descriptive error if a required
+    key is missing.
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    source_func_name : str
+        Name of the calling function, used to build more informative error messages.
+    num_flavors : int
+        Number of neutrino flavors (2, 3, 4, or 5; or higher, if ``h_nsi`` is given).
+    nsi_params : dict
+        Dictionary of NSI parameters. For ``num_flavors == 2``, must contain 'eps_aa', 'eps_ab'.
+        For 3, must contain 'eps_ee', 'eps_em', 'eps_et', 'eps_mm', 'eps_mt', 'eps_tt'. For 4,
+        additionally 'eps_es', 'eps_ms', 'eps_ts', 'eps_ss'. For 5, instead of the sterile-flavor
+        keys above, 'eps_es1', 'eps_es2', 'eps_ms1', 'eps_ms2', 'eps_ts1', 'eps_ts2', 'eps_s1s1',
+        'eps_s1s2', 'eps_s2s2'.
+    h_nsi : list or np.ndarray
+        Precomputed NSI Hamiltonian, required when ``num_flavors`` exceeds
+        ``globaldefs.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS`` (in which case there is nothing to
+        unpack from ``nsi_params`` and this function returns None).
+
+    Returns
+    -------
+    np.ndarray or None
+        The unpacked NSI parameters, in the order expected by the matching
+        ``hamiltonian_{N}nu_nsi`` function; or None if ``num_flavors`` exceeds
+        ``globaldefs.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS`` (the caller uses ``h_nsi`` directly).
     """
 
     if (num_flavors == 2):
@@ -1026,6 +1313,37 @@ def unpack_liv_params_from_dict(
     h_liv: Union[list, np.ndarray]
 ) -> np.ndarray:
     r"""Unpack LIV parameters from the liv_params dict
+
+    Extracts the LIV parameters for ``num_flavors`` flavors from ``liv_params`` (as built by each
+    ``osc_prob_{N}nu_*_liv`` wrapper), in the fixed order expected by the matching
+    ``hamiltonians.hamiltonian_{N}nu_liv_energy_independent`` function. Validates that ``Lambda``
+    is positive and aborts with a descriptive error if a required key is missing.
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    source_func_name : str
+        Name of the calling function, used to build more informative error messages.
+    num_flavors : int
+        Number of neutrino flavors (2, 3, 4, or 5; or higher, if ``h_liv`` is given).
+    liv_params : dict
+        Dictionary of LIV parameters. Always must contain 'Lambda' (LIV energy scale, must be
+        positive) and 'n_liv' (power of the energy dependence). For ``num_flavors == 2``, must
+        also contain 'sxi', 'b1', 'b2'. For 3, 'sxi12', 'sxi23', 'sxi13', 'dxiCP', 'b1', 'b2',
+        'b3'. For 4, additionally 'dxi13' (replacing 'dxiCP'), 'sxi14', 'dxi14', 'sxi24', 'dxi24',
+        'sxi34', 'b4'. For 5, additionally 'sxi15', 'dxi15', 'sxi25', 'sxi35', 'dxi35', 'b5'.
+    h_liv : list or np.ndarray
+        Precomputed LIV Hamiltonian, required when ``num_flavors`` exceeds
+        ``globaldefs.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS`` (in which case there is nothing to
+        unpack from ``liv_params`` and this function returns None).
+
+    Returns
+    -------
+    np.ndarray or None
+        The unpacked LIV parameters, in the order expected by the matching
+        ``hamiltonian_{N}nu_liv_energy_independent`` function; or None if ``num_flavors`` exceeds
+        ``globaldefs.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS`` (the caller uses ``h_liv`` directly).
     """
 
     if (num_flavors == 2):
@@ -1229,18 +1547,28 @@ def compute_evolution_operator(
     r"""Computes the evolution operator inside a given time slab.  This functions is not designed to
     be called directly by the user, but rather internally by :func:`osc_prob`.
 
-    :param H_func: Hamiltonian, which is a function of time or position that returns a square matrix
-        in the form of NumPy array
-    :param t_slab: List or Numpy Array specifying the start and end times or positions of the slab,
-        i.e., [t0, t1]
-    :param n_tpts_per_slab: Number of time-points inside the slab at which to evaluate H_func in 
-        order to numerically compute the integrals over time required by the Magnus expansion
-    :param magnus_exp_order: Maximum order of Magnus expansion used to compute the evolution
-        operator (should not exceed :func:`magnus.globaldefs.MAGNUS_EXP_ORDER_MAX`)
-    :param \**kwargs: Additional unspecified arguments
+    .. versionadded:: 0.10.0
 
-    :return: An NumPy array containing the evolution operator for the given time-slab.
+    Parameters
+    ----------
+    H_func : Callable
+        Hamiltonian, a function of time or position that returns a square matrix (NumPy array).
+    t_slab : list or np.ndarray
+        Start and end times or positions of the slab, ``[t0, t1]``.
+    n_tpts_per_slab : int
+        Number of time points inside the slab at which to evaluate ``H_func`` to numerically
+        compute the integrals required by the Magnus expansion.
+    magnus_exp_order : int
+        Highest order of the Magnus expansion used to compute the evolution operator (should not
+        exceed ``globaldefs.MAGNUS_EXP_ORDER_MAX``).
+    \**kwargs
+        Additional arguments passed to :func:`magnus.magnus.magnus_expansion` (e.g.,
+        ``integration_method``).
 
+    Returns
+    -------
+    np.ndarray
+        The evolution operator for the given time slab.
     """
     if t_slab[1] > t_slab[0]:
         return magnus.magnus_expansion(
@@ -1271,23 +1599,34 @@ def compute_evolution_operator_multiple_slabs(
     batches the Hamiltonian evaluation, the quadrature, the commutator algebra, and the matrix
     exponentials over the slab axis.  Slabs of zero width yield identity operators.
 
-    :param H_func: Hamiltonian, which is a function of time or position that returns a square matrix
-        in the form of NumPy array.  If it also accepts an array of times (returning a stack of
-        matrices), the vectorized form is detected and used automatically for speed.
-    :param t_slabs: List or NumPy array of pairs specifying the start and end times or positions of
-        each slab, i.e., [[t0, t1], [t1, t2], ...]
-    :param n_tpts_per_slab: Number of time-points inside each slab at which to evaluate H_func in
-        order to numerically compute the integrals over time required by the Magnus expansion
-        (ignored by the 'gl' integration method)
-    :param magnus_exp_order: Maximum order of Magnus expansion used to compute the evolution
-        operator (should not exceed :func:`magnus.globaldefs.MAGNUS_EXP_ORDER_MAX`)
-    :param \**kwargs: Additional arguments passed to
-        :func:`magnus.magnus.magnus_expansion_multislab` (e.g., integration_method)
+    .. versionadded:: 0.10.0
 
-    :return: A NumPy array of shape (n_slabs, dim, dim) containing the evolution operators, ordered
-        like ``t_slabs`` (earliest slab first).  Note that the time-ordered product over the chain
-        is U_total = U[-1] @ ... @ U[1] @ U[0], i.e., the last slab is the leftmost factor.
+    Parameters
+    ----------
+    H_func : Callable
+        Hamiltonian, a function of time or position that returns a square matrix (NumPy array).
+        If it also accepts an array of times (returning a stack of matrices), the vectorized form
+        is detected and used automatically for speed.
+    t_slabs : list or np.ndarray
+        Pairs specifying the start and end times or positions of each slab, i.e.,
+        ``[[t0, t1], [t1, t2], ...]``.
+    n_tpts_per_slab : int
+        Number of time points inside each slab at which to evaluate ``H_func`` to numerically
+        compute the integrals required by the Magnus expansion (ignored by the 'gl' integration
+        method).
+    magnus_exp_order : int
+        Highest order of the Magnus expansion used to compute the evolution operator (should not
+        exceed ``globaldefs.MAGNUS_EXP_ORDER_MAX``).
+    \**kwargs
+        Additional arguments passed to :func:`magnus.magnus.magnus_expansion_multislab` (e.g.,
+        ``integration_method``).
 
+    Returns
+    -------
+    np.ndarray
+        Evolution operators, shape (n_slabs, dim, dim), ordered like ``t_slabs`` (earliest slab
+        first). Note that the time-ordered product over the chain is
+        ``U_total = U[-1] @ ... @ U[1] @ U[0]``, i.e., the last slab is the leftmost factor.
     """
     def hh(t):
         return -1j * H_func(t)
@@ -1332,8 +1671,10 @@ def osc_prob(
 ) -> np.ndarray:
     r"""Computes and returns the neutrino oscillation probability.
 
-    Computes the oscillation probability of neutrinos starting at time 
+    Computes the oscillation probability of neutrinos starting at time
     (or position) ``t_ini`` and ending at time (or position) ``t_fin``.
+
+    .. versionadded:: 0.10.0
 
     Parameters
     ----------
@@ -1920,6 +2261,74 @@ def osc_prob_iterate_over_magnus_exp_order(
     r"""Computes the neutrino oscillation probability until a requested
     tolerance is achieved, including progressively increasing the order
     of the Magnus expansion.
+
+    Calls :func:`osc_prob` (with ``iterate_over_magnus_exp_order=False``, to prevent infinite
+    recursion) once per Magnus order from ``min_magnus_exp_order`` to ``max_magnus_exp_order``,
+    stopping as soon as two successive orders agree to within ``rtol``/``atol``. This is the
+    order-refinement counterpart to the slab/time-point refinement that :func:`osc_prob` performs
+    internally when ``iterate_over_magnus_exp_order=True``.
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    H_func : Callable or np.ndarray
+        The Hamiltonian; see :func:`osc_prob`.
+    t_ini, t_fin : int or float
+        Integration limits; see :func:`osc_prob`.
+    n_slabs : int
+        Forwarded to :func:`osc_prob` on each call; see its docstring.
+    n_tpts_per_slab : int
+        Forwarded to :func:`osc_prob` on each call; see its docstring.
+    t_slab_edges : list or np.ndarray, optional
+        Forwarded to :func:`osc_prob` on each call; see its docstring.
+    magnus_exp_order : int
+        Forwarded to :func:`osc_prob` on each call; see its docstring.
+    n_jobs : int
+        Forwarded to :func:`osc_prob` on each call; see its docstring.
+    integration_method : str
+        Forwarded to :func:`osc_prob` on each call; see its docstring.
+    rtol : int or float, optional
+        Forwarded to :func:`osc_prob` on each call; see its docstring.
+    atol : int or float, optional
+        Forwarded to :func:`osc_prob` on each call; see its docstring.
+    growth_factor_n_slabs : int or float
+        Forwarded to :func:`osc_prob` on each call; see its docstring.
+    growth_factor_n_tpts_per_slab : int or float
+        Forwarded to :func:`osc_prob` on each call; see its docstring.
+    max_num_loops : int
+        Forwarded to :func:`osc_prob` on each call; see its docstring.
+    min_n_slabs : int
+        Forwarded to :func:`osc_prob` on each call; see its docstring.
+    max_n_slabs : int
+        Forwarded to :func:`osc_prob` on each call; see its docstring.
+    min_n_tpts_per_slab : int
+        Forwarded to :func:`osc_prob` on each call; see its docstring.
+    max_n_tpts_per_slab : int
+        Forwarded to :func:`osc_prob` on each call; see its docstring.
+    min_magnus_exp_order : int
+        Forwarded to :func:`osc_prob` on each call; see its docstring.
+    max_magnus_exp_order : int
+        Forwarded to :func:`osc_prob` on each call; see its docstring.
+    validate_input : bool
+        Forwarded to :func:`osc_prob` on each call; see its docstring.
+    save_log : bool
+        Forwarded to :func:`osc_prob` on each call; see its docstring.
+    filename_log : str
+        Forwarded to :func:`osc_prob` on each call; see its docstring.
+    verbose : int
+        Forwarded to :func:`osc_prob` on each call; see its docstring.
+    file_log : TextIOWrapper, optional
+        Forwarded to :func:`osc_prob` on each call; see its docstring.
+    \**kwargs
+        Additional arguments forwarded to :func:`osc_prob`.
+
+    Returns
+    -------
+    np.ndarray
+        The oscillation probability at the Magnus order at which two successive orders agreed to
+        within tolerance (or at ``max_magnus_exp_order``, with a warning if ``verbose > 0``, if
+        the tolerance was never achieved).
     """
 
     # Validate input; set validate_input to False for speed-up.
@@ -1998,9 +2407,22 @@ def _normalize_energy_L(
 ) -> Tuple[np.ndarray, np.ndarray, bool, bool]:
     r"""Normalize energy and L to same-length 1D arrays.
 
-    Returns (energy, L, return_float, ok): return_float records whether both
-    inputs were scalars (so that the caller returns a scalar-like result),
-    and ok whether the input lengths were compatible.
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    energy : int, float, list, or np.ndarray
+        Neutrino energy/energies.
+    L : int, float, list, or np.ndarray
+        Baseline(s).
+
+    Returns
+    -------
+    (np.ndarray, np.ndarray, bool, bool)
+        ``(energy, L, return_float, ok)``: ``energy`` and ``L`` broadcast to the same length;
+        ``return_float`` records whether both inputs were scalars (so that the caller returns a
+        scalar-like result); ``ok`` records whether the input lengths were compatible (equal, or
+        one of them of length 1).
     """
     energy = float(energy) if isinstance(energy, int) else energy
     L = float(L) if isinstance(L, int) else L
@@ -2059,7 +2481,46 @@ def _osc_prob_scan_separable(
     within (rtol, atol); converged energies drop out of the batch.  Energies
     are processed in chunks to bound the memory of the sample array.
 
-    Returns the stacked probability matrices, shape (nE, d, d).
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    H_E : np.ndarray
+        Position-independent, energy-dependent part of the Hamiltonian for each energy, shape
+        (nE, d, d) (vacuum, LIV, ...).
+    VCC_func : Callable
+        Scalar matter potential along the trajectory, as a function of position (accepts an array).
+    h_matt : np.ndarray
+        Constant matrix multiplying ``VCC_func(l)``, shape (d, d).
+    L0 : float
+        Initial position.
+    L_val : float
+        Final position (baseline).
+    t_breakpoints : np.ndarray, optional
+        Mandatory slab edges (e.g., PREM layer boundaries) inserted into the grid at every
+        refinement level.
+    magnus_exp_order : int
+        Highest order of the Magnus expansion.
+    integration_method : str
+        'trapezoid', 'simpson', or 'gl'.
+    rtol, atol : float, optional
+        Target relative/absolute tolerance between successive refinement levels. If both None,
+        run once with the given fixed ``n_slabs``/``n_tpts_per_slab``.
+    growth_factor_n_slabs, growth_factor_n_tpts_per_slab : float
+        Factors by which ``n_slabs``/``n_tpts_per_slab`` are multiplied on each refinement loop.
+    max_num_loops : int
+        Maximum number of refinement loops.
+    min_n_slabs, max_n_slabs : int
+        Bounds on the number of slabs.
+    min_n_tpts_per_slab, max_n_tpts_per_slab : int
+        Bounds on the number of time points per slab.
+    n_slabs, n_tpts_per_slab : int
+        Starting number of slabs/time points per slab.
+
+    Returns
+    -------
+    np.ndarray
+        Stacked probability matrices, shape (nE, d, d).
     """
     nE, dim = H_E.shape[0], H_E.shape[-1]
     tol_requested = ((rtol is not None) and (atol is not None))
@@ -2189,6 +2650,43 @@ def _osc_prob_scan_separable_dispatch(
     point, per-point baselines, user-provided slab edges, parallel or logged
     runs, iteration over the expansion order, or unknown extra arguments), in
     which case the caller falls back to the generic per-point path.
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    h_vac_energy_indep : np.ndarray
+        Energy-independent part of the vacuum Hamiltonian.
+    VCC_func : Callable or float
+        Matter potential, as a function of position (required for the batched engine to apply;
+        a constant potential falls back to the generic path).
+    h_matt : np.ndarray
+        Constant matrix multiplying ``VCC_func(l)``.
+    h_liv_energy_indep : np.ndarray, optional
+        Energy-independent part of the LIV Hamiltonian, if any.
+    n_liv : int or float, optional
+        Power of the energy dependence of the LIV operator, if ``h_liv_energy_indep`` is given.
+    energy : int, float, list, or np.ndarray
+        Neutrino energy/energies.
+    L : int, float, list, or np.ndarray
+        Baseline(s); the batched engine applies only when all requested baselines are equal.
+    L0 : int or float
+        Initial position.
+    nu_i : int, optional
+        Initial flavor index. If given together with ``nu_f``, a single channel is returned.
+    nu_f : int, optional
+        Final flavor index; see ``nu_i``.
+    scan_kwargs : dict
+        The refinement/logging keyword arguments of :func:`osc_prob_energy_baseline` (rtol, atol,
+        magnus_exp_order, integration_method, growth factors, loop/slab/time-point bounds,
+        t_slab_edges, iterate_over_magnus_exp_order, n_jobs, save_log, file_log) plus a nested
+        'kwargs' dict of any remaining, unrecognized keyword arguments.
+
+    Returns
+    -------
+    np.ndarray or NotImplemented
+        The oscillation probability (or single channel), computed via the batched engine; or the
+        ``NotImplemented`` singleton if the request does not fit it.
     """
     kwargs = dict(scan_kwargs.get('kwargs', {}))
     t_breakpoints = kwargs.pop('t_breakpoints', None)
@@ -2270,8 +2768,90 @@ def osc_prob_energy_baseline(
     r"""Compute and return oscillation probabilities for given arrays of
     neutrino energy and baseline, and an arbitrary Hamiltonian.
 
-    Serves as primordial directly for osc_prob_vacuum,
-    osc_prob_matter_std_potential, etc.
+    Sits directly above :func:`osc_prob` in the primordial layer (see
+    :doc:`/architecture`): given arrays of ``energy`` and ``L``, builds the
+    right energy-dependent closure over ``H_func``, decides whether to parallelize over
+    (energy, L) points or hand a single call straight to :func:`osc_prob`, and carries the warm
+    start logic that seeds each point's refinement from the previous point's converged
+    (``n_slabs``, ``n_tpts_per_slab``). Called directly by :func:`osc_prob_vacuum`,
+    :func:`osc_prob_matter_std_potential`, :func:`osc_prob_matter_nsi`, and :func:`osc_prob_liv`.
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    H_func : Callable or np.ndarray
+        The Hamiltonian: a function of energy only, of position only, of both (in that
+        parameter order), or a constant matrix.
+    energy : int, float, list, or np.ndarray
+        Neutrino energy/energies.
+    L : int, float, list, or np.ndarray
+        Baseline(s). Must have the same length as ``energy``, or either may be a single value
+        broadcast against the other.
+    L0 : int or float, optional
+        Initial position. Default: 0.0.
+    nu_i : int, optional
+        Initial flavor index. If given together with ``nu_f``, a single channel is returned
+        instead of the full probability matrix.
+    nu_f : int, optional
+        Final flavor index; see ``nu_i``.
+    H_func_is_function_only_of_energy : bool, optional
+        If True and ``H_func`` accepts a single argument, treat it as energy-only (returning a
+        constant matrix per energy) rather than position-only. Default: False.
+    t_slab_edges : list or np.ndarray, optional
+        Forwarded to :func:`osc_prob` for each (energy, L) point; see its docstring.
+    magnus_exp_order : int
+        Forwarded to :func:`osc_prob` for each (energy, L) point; see its docstring.
+    n_jobs : int
+        Forwarded to :func:`osc_prob` for each (energy, L) point; see its docstring.
+    integration_method : str
+        Forwarded to :func:`osc_prob` for each (energy, L) point; see its docstring.
+    rtol : int or float, optional
+        Forwarded to :func:`osc_prob` for each (energy, L) point; see its docstring.
+    atol : int or float, optional
+        Forwarded to :func:`osc_prob` for each (energy, L) point; see its docstring.
+    growth_factor_n_slabs : int or float
+        Forwarded to :func:`osc_prob` for each (energy, L) point; see its docstring.
+    growth_factor_n_tpts_per_slab : int or float
+        Forwarded to :func:`osc_prob` for each (energy, L) point; see its docstring.
+    max_num_loops : int
+        Forwarded to :func:`osc_prob` for each (energy, L) point; see its docstring.
+    min_n_slabs : int
+        Forwarded to :func:`osc_prob` for each (energy, L) point; see its docstring.
+    max_n_slabs : int
+        Forwarded to :func:`osc_prob` for each (energy, L) point; see its docstring.
+    min_n_tpts_per_slab : int
+        Forwarded to :func:`osc_prob` for each (energy, L) point; see its docstring.
+    max_n_tpts_per_slab : int
+        Forwarded to :func:`osc_prob` for each (energy, L) point; see its docstring.
+    iterate_over_magnus_exp_order : bool
+        Forwarded to :func:`osc_prob` for each (energy, L) point; see its docstring.
+    min_magnus_exp_order : int
+        Forwarded to :func:`osc_prob` for each (energy, L) point; see its docstring.
+    max_magnus_exp_order : int
+        Forwarded to :func:`osc_prob` for each (energy, L) point; see its docstring.
+    validate_input : bool
+        Forwarded to :func:`osc_prob` for each (energy, L) point; see its docstring.
+    save_log : bool
+        Forwarded to :func:`osc_prob` for each (energy, L) point; see its docstring.
+    filename_log : str
+        Forwarded to :func:`osc_prob` for each (energy, L) point; see its docstring.
+    file_log : TextIOWrapper, optional
+        Forwarded to :func:`osc_prob` for each (energy, L) point; see its docstring.
+    close_file_log_upon_exit : bool
+        Forwarded to :func:`osc_prob` for each (energy, L) point; see its docstring.
+    new_recursion_limit : int, optional
+        Forwarded to :func:`osc_prob` for each (energy, L) point; see its docstring.
+    verbose : int
+        Forwarded to :func:`osc_prob` for each (energy, L) point; see its docstring.
+    \**kwargs
+        Additional arguments forwarded to :func:`osc_prob`.
+
+    Returns
+    -------
+    int, float, or np.ndarray
+        Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for
+        each (energy, L) point; a single value/matrix if both ``energy`` and ``L`` were floats.
     """
 
     try:
@@ -2467,8 +3047,93 @@ def osc_prob_vacuum(
     verbose: Optional[int]=0,
     **kwargs
 ) -> Union[float, np.ndarray]:
-    r"""Computes and returns neutrino oscillation probabilities for 
+    r"""Computes and returns neutrino oscillation probabilities for
     oscillations in vacuum
+
+    Middle (scenario) layer for the vacuum case, generic in ``num_flavors``: unpacks
+    ``osc_params``, builds the energy-independent vacuum Hamiltonian via
+    ``hamiltonians.hamiltonian_{num_flavors}nu_vacuum_energy_independent``, and calls
+    :func:`osc_prob_energy_baseline`. Called by :func:`osc_prob_2nu_vacuum`,
+    :func:`osc_prob_3nu_vacuum`, :func:`osc_prob_4nu_vacuum`, and :func:`osc_prob_5nu_vacuum`.
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    num_flavors : int
+        Number of neutrino flavors (2, 3, 4, or 5; or higher, if ``h_vac_energy_indep`` is given).
+    energy : int, float, list, or np.ndarray
+        Neutrino energy/energies.
+    L : int, float, list, or np.ndarray
+        Baseline(s).
+    osc_params : dict
+        Oscillation parameters; see :func:`unpack_oscillation_params_from_dict` for the required
+        keys for each ``num_flavors``.
+    h_vac_energy_indep : list or np.ndarray, optional
+        Precomputed energy-independent vacuum Hamiltonian, used instead of ``osc_params`` when
+        ``num_flavors`` exceeds ``globaldefs.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS``.
+    nubar : bool, optional
+        If True, compute the probability for antineutrinos. Default: False.
+    nu_i : int, optional
+        Initial flavor index. If given together with ``nu_f``, a single channel is returned
+        instead of the full probability matrix.
+    nu_f : int, optional
+        Final flavor index; see ``nu_i``.
+    default_osc_params_set_name : str, optional
+        Name of the predefined oscillation-parameter set used to fill in any parameter left as
+        None in ``osc_params``. Default: 'OSC_PARAMS_DEFAULT'.
+    t_slab_edges : list or np.ndarray, optional
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    magnus_exp_order : int
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    n_jobs : int
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    integration_method : str
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    rtol : int or float, optional
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    atol : int or float, optional
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    growth_factor_n_slabs : int or float
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    growth_factor_n_tpts_per_slab : int or float
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    max_num_loops : int
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    min_n_slabs : int
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    max_n_slabs : int
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    min_n_tpts_per_slab : int
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    max_n_tpts_per_slab : int
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    iterate_over_magnus_exp_order : bool
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    min_magnus_exp_order : int
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    max_magnus_exp_order : int
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    validate_input : bool
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    save_log : bool
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    filename_log : str
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    file_log : TextIOWrapper, optional
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    close_file_log_upon_exit : bool
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    verbose : int
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    \**kwargs
+        Additional arguments forwarded to :func:`osc_prob_energy_baseline`.
+
+    Returns
+    -------
+    float or np.ndarray
+        Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for
+        each (energy, L) point.
     """
 
     # Unpack oscillation parameters from the osc_params dict, check if all values are available
@@ -2571,9 +3236,112 @@ def osc_prob_matter_std_potential(
     new_recursion_limit: Optional[int]=5000,
     **kwargs
 ) -> Union[float, np.ndarray]:
-    r"""Computes and returns neutrino oscillation probabilities for 
+    r"""Computes and returns neutrino oscillation probabilities for
     standard oscillations in matter, i.e., the matter potential is only
     due to the coherent forward scattering of nu_e on electrons.
+
+    Middle (scenario) layer for the standard-matter case, generic in ``num_flavors``: unpacks
+    ``osc_params``, builds the vacuum + matter Hamiltonian (via
+    ``hamiltonians.hamiltonian_{num_flavors}nu_vacuum_energy_independent`` and
+    ``hamiltonian_{num_flavors}nu_matter_td``, with the potential from
+    :func:`magnus.matter.matter.vcc_func_from_rho_func`), and calls
+    :func:`osc_prob_energy_baseline`. Called by every
+    ``osc_prob_{2,3,4,5}nu_matter_{constant,exp}_density`` and
+    ``osc_prob_{2,3,4,5}nu_earth``/``osc_prob_{2,3,4,5}nu_sun`` wrapper.
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    num_flavors : int
+        Number of neutrino flavors (2, 3, 4, or 5; or higher, if ``h_vac_energy_indep`` is given).
+    rho_func : Callable, int, or float
+        Matter density (or electron number density, if ``density_is_of_number_of_electrons`` is
+        True), either as a function of position or as a constant.
+    energy : int, float, list, or np.ndarray
+        Neutrino energy/energies.
+    L : int, float, list, or np.ndarray
+        Baseline(s).
+    osc_params : dict
+        Oscillation parameters; see :func:`unpack_oscillation_params_from_dict`.
+    L0 : int or float, optional
+        Initial position. Default: 0.0.
+    h_vac_energy_indep : list or np.ndarray, optional
+        Precomputed energy-independent vacuum Hamiltonian, used instead of ``osc_params`` when
+        ``num_flavors`` exceeds ``globaldefs.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS``.
+    ratio_number_neutrons_to_protons : int or float, optional
+        Ratio of the number of neutrons to protons in matter. Default: 1.0.
+    electron_fraction : int or float, optional
+        Electron fraction. Default: 0.5.
+    nubar : bool, optional
+        If True, compute the probability for antineutrinos (flips the sign of the matter
+        potential). Default: False.
+    nu_i : int, optional
+        Initial flavor index. If given together with ``nu_f``, a single channel is returned
+        instead of the full probability matrix.
+    nu_f : int, optional
+        Final flavor index; see ``nu_i``.
+    density_matter_is_in_g_per_cm3 : bool, optional
+        If True, ``rho_func`` returns the density in g cm^{-3}. Default: False.
+    density_is_of_number_of_electrons : bool, optional
+        If True, ``rho_func`` directly returns the electron number density [eV^3]. Default: False.
+    default_osc_params_set_name : str, optional
+        Name of the predefined oscillation-parameter set used to fill in any parameter left as
+        None in ``osc_params``. Default: 'OSC_PARAMS_DEFAULT'.
+    t_slab_edges : list or np.ndarray, optional
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    magnus_exp_order : int
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    n_jobs : int
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    integration_method : str
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    rtol : int or float, optional
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    atol : int or float, optional
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    growth_factor_n_slabs : int or float
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    growth_factor_n_tpts_per_slab : int or float
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    max_num_loops : int
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    min_n_slabs : int
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    max_n_slabs : int
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    min_n_tpts_per_slab : int
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    max_n_tpts_per_slab : int
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    iterate_over_magnus_exp_order : bool
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    min_magnus_exp_order : int
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    max_magnus_exp_order : int
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    validate_input : bool
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    save_log : bool
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    filename_log : str
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    file_log : TextIOWrapper, optional
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    close_file_log_upon_exit : bool
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    verbose : int
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    new_recursion_limit : int, optional
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    \**kwargs
+        Additional arguments forwarded to :func:`osc_prob_energy_baseline`.
+
+    Returns
+    -------
+    float or np.ndarray
+        Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for
+        each (energy, L) point.
     """
 
     # Unpack oscillation parameters from the osc_params dict, check if all values are available
@@ -2736,9 +3504,118 @@ def osc_prob_matter_nsi(
     new_recursion_limit: Optional[int]=5000,
     **kwargs
 ) -> Union[float, np.ndarray]:
-    r"""Computes and returns neutrino oscillation probabilities for 
-    standard oscillations in matter, i.e., the matter potential is only
-    due to the coherent forward scattering of nu_e on electrons.
+    r"""Computes and returns neutrino oscillation probabilities for
+    oscillations in matter with non-standard interactions (NSI), i.e., the matter potential
+    includes both the standard coherent-forward-scattering term and the NSI epsilon couplings.
+
+    Middle (scenario) layer for the NSI case, generic in ``num_flavors``: unpacks ``osc_params``
+    and ``nsi_params``, builds the vacuum + matter + NSI Hamiltonian (via
+    ``hamiltonians.hamiltonian_{num_flavors}nu_vacuum_energy_independent``,
+    ``hamiltonian_{num_flavors}nu_matter_td``, and ``hamiltonian_{num_flavors}nu_nsi_td``, with
+    the potential from :func:`magnus.matter.matter.vcc_func_from_rho_func`), and calls
+    :func:`osc_prob_energy_baseline`. Called by every
+    ``osc_prob_{2,3,4,5}nu_matter_nsi_{constant,exp}_density`` and
+    ``osc_prob_{2,3,4,5}nu_earth_nsi``/``osc_prob_{2,3,4,5}nu_sun_nsi`` wrapper.
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    num_flavors : int
+        Number of neutrino flavors (2, 3, 4, or 5; or higher, if ``h_vac_energy_indep``/``h_nsi``
+        are given).
+    rho_func : Callable, int, or float
+        Matter density (or electron number density, if ``density_is_of_number_of_electrons`` is
+        True), either as a function of position or as a constant.
+    energy : int, float, list, or np.ndarray
+        Neutrino energy/energies.
+    L : int, float, list, or np.ndarray
+        Baseline(s).
+    osc_params : dict
+        Oscillation parameters; see :func:`unpack_oscillation_params_from_dict`.
+    nsi_params : dict
+        NSI epsilon parameters; see :func:`unpack_nsi_params_from_dict`.
+    L0 : int or float, optional
+        Initial position. Default: 0.0.
+    h_vac_energy_indep : list or np.ndarray, optional
+        Precomputed energy-independent vacuum Hamiltonian, used instead of ``osc_params`` when
+        ``num_flavors`` exceeds ``globaldefs.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS``.
+    h_nsi : list or np.ndarray, optional
+        Precomputed NSI Hamiltonian, used instead of ``nsi_params`` when ``num_flavors`` exceeds
+        ``globaldefs.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS``.
+    ratio_number_neutrons_to_protons : int or float, optional
+        Ratio of the number of neutrons to protons in matter. Default: 1.0.
+    electron_fraction : int or float, optional
+        Electron fraction. Default: 0.5.
+    nubar : bool, optional
+        If True, compute the probability for antineutrinos (flips the sign of the matter
+        potential). Default: False.
+    nu_i : int, optional
+        Initial flavor index. If given together with ``nu_f``, a single channel is returned
+        instead of the full probability matrix.
+    nu_f : int, optional
+        Final flavor index; see ``nu_i``.
+    density_matter_is_in_g_per_cm3 : bool, optional
+        If True, ``rho_func`` returns the density in g cm^{-3}. Default: False.
+    density_is_of_number_of_electrons : bool, optional
+        If True, ``rho_func`` directly returns the electron number density [eV^3]. Default: False.
+    default_osc_params_set_name : str, optional
+        Name of the predefined oscillation-parameter set used to fill in any parameter left as
+        None in ``osc_params``. Default: 'OSC_PARAMS_DEFAULT'.
+    t_slab_edges : list or np.ndarray, optional
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    magnus_exp_order : int
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    n_jobs : int
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    integration_method : str
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    rtol : int or float, optional
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    atol : int or float, optional
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    growth_factor_n_slabs : int or float
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    growth_factor_n_tpts_per_slab : int or float
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    max_num_loops : int
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    min_n_slabs : int
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    max_n_slabs : int
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    min_n_tpts_per_slab : int
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    max_n_tpts_per_slab : int
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    iterate_over_magnus_exp_order : bool
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    min_magnus_exp_order : int
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    max_magnus_exp_order : int
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    validate_input : bool
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    save_log : bool
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    filename_log : str
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    file_log : TextIOWrapper, optional
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    close_file_log_upon_exit : bool
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    verbose : int
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    new_recursion_limit : int, optional
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    \**kwargs
+        Additional arguments forwarded to :func:`osc_prob_energy_baseline`.
+
+    Returns
+    -------
+    float or np.ndarray
+        Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for
+        each (energy, L) point.
     """
 
     # Unpack oscillation parameters from the osc_params dict, check if all values are available
@@ -2927,9 +3804,117 @@ def osc_prob_liv(
     new_recursion_limit: Optional[int]=5000,
     **kwargs
 ) -> Union[float, np.ndarray]:
-    r"""Computes and returns neutrino oscillation probabilities for 
-    oscillations under (one form of) Lorentz-invariance violation, in 
+    r"""Computes and returns neutrino oscillation probabilities for
+    oscillations under (one form of) Lorentz-invariance violation, in
     vacuum or in matter.
+
+    Middle (scenario) layer for the LIV case, generic in ``num_flavors``: unpacks ``osc_params``
+    and ``liv_params``, builds the vacuum (+ matter, if ``rho_func`` is nonzero) + LIV
+    Hamiltonian (via ``hamiltonians.hamiltonian_{num_flavors}nu_vacuum_energy_independent``,
+    optionally ``hamiltonian_{num_flavors}nu_matter_td``, and
+    ``hamiltonian_{num_flavors}nu_liv_energy_independent``), and calls
+    :func:`osc_prob_energy_baseline`. Called by every ``osc_prob_{2,3,4,5}nu_vacuum_liv``,
+    ``osc_prob_{2,3,4,5}nu_matter_liv_{constant,exp}_density``, and
+    ``osc_prob_{2,3,4,5}nu_earth_liv``/``osc_prob_{2,3,4,5}nu_sun_liv`` wrapper.
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    num_flavors : int
+        Number of neutrino flavors (2, 3, 4, or 5; or higher, if ``h_vac_energy_indep``/
+        ``h_liv_energy_indep`` are given).
+    energy : int, float, list, or np.ndarray
+        Neutrino energy/energies.
+    L : int, float, list, or np.ndarray
+        Baseline(s).
+    osc_params : dict
+        Oscillation parameters; see :func:`unpack_oscillation_params_from_dict`.
+    liv_params : dict
+        LIV parameters; see :func:`unpack_liv_params_from_dict`.
+    rho_func : Callable, int, or float, optional
+        Matter density (or electron number density, if ``density_is_of_number_of_electrons`` is
+        True). If 0.0 (default), the probability is for vacuum + LIV only, with no matter term.
+    L0 : int or float, optional
+        Initial position. Default: 0.0.
+    h_vac_energy_indep : list or np.ndarray, optional
+        Precomputed energy-independent vacuum Hamiltonian, used instead of ``osc_params`` when
+        ``num_flavors`` exceeds ``globaldefs.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS``.
+    h_liv_energy_indep : list or np.ndarray, optional
+        Precomputed energy-independent LIV Hamiltonian, used instead of ``liv_params`` when
+        ``num_flavors`` exceeds ``globaldefs.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS``.
+    ratio_number_neutrons_to_protons : int or float, optional
+        Ratio of the number of neutrons to protons in matter. Default: 1.0.
+    electron_fraction : int or float, optional
+        Electron fraction. Default: 0.5.
+    nubar : bool, optional
+        If True, compute the probability for antineutrinos. Default: False.
+    nu_i : int, optional
+        Initial flavor index. If given together with ``nu_f``, a single channel is returned
+        instead of the full probability matrix.
+    nu_f : int, optional
+        Final flavor index; see ``nu_i``.
+    density_matter_is_in_g_per_cm3 : bool, optional
+        If True, ``rho_func`` returns the density in g cm^{-3}. Default: False.
+    density_is_of_number_of_electrons : bool, optional
+        If True, ``rho_func`` directly returns the electron number density [eV^3]. Default: False.
+    default_osc_params_set_name : str, optional
+        Name of the predefined oscillation-parameter set used to fill in any parameter left as
+        None in ``osc_params``. Default: 'OSC_PARAMS_DEFAULT'.
+    t_slab_edges : list or np.ndarray, optional
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    magnus_exp_order : int
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    n_jobs : int
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    integration_method : str
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    rtol : int or float, optional
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    atol : int or float, optional
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    growth_factor_n_slabs : int or float
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    growth_factor_n_tpts_per_slab : int or float
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    max_num_loops : int
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    min_n_slabs : int
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    max_n_slabs : int
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    min_n_tpts_per_slab : int
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    max_n_tpts_per_slab : int
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    iterate_over_magnus_exp_order : bool
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    min_magnus_exp_order : int
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    max_magnus_exp_order : int
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    validate_input : bool
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    save_log : bool
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    filename_log : str
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    file_log : TextIOWrapper, optional
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    close_file_log_upon_exit : bool
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    verbose : int
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    new_recursion_limit : int, optional
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+    \**kwargs
+        Additional arguments forwarded to :func:`osc_prob_energy_baseline`.
+
+    Returns
+    -------
+    float or np.ndarray
+        Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for
+        each (energy, L) point.
     """
 
     # Unpack oscillation parameters from the osc_params dict, check if all values are available
@@ -3159,6 +4144,8 @@ def osc_prob_2nu_vacuum(
     input arguments before calculating the probability, by calling the
     function :func:`validate_input_battery`.
 
+    .. versionadded:: 0.10.0
+
     Parameters
     ----------
     energy
@@ -3298,6 +4285,8 @@ def osc_prob_3nu_vacuum(
     If ``validate_input`` is set to True, the function validates the 
     input arguments before calculating the probability, by calling the
     function :func:`validate_input_battery`.
+
+    .. versionadded:: 0.10.0
 
     Parameters
     ----------
@@ -3505,6 +4494,8 @@ def osc_prob_4nu_vacuum(
     If ``validate_input`` is set to True, the function validates the 
     input arguments before calculating the probability, by calling the
     function :func:`validate_input_battery`.
+
+    .. versionadded:: 0.10.0
 
     Parameters
     ----------
@@ -3725,6 +4716,8 @@ def osc_prob_5nu_vacuum(
     input arguments before calculating the probability, by calling the
     function :func:`validate_input_battery`.
 
+    .. versionadded:: 0.10.0
+
     Parameters
     ----------
     energy
@@ -3911,6 +4904,54 @@ def osc_prob_2nu_matter_constant_density(
 ) -> Union[float, np.ndarray]:
     r"""Compute and return the two-neutrino oscillation probability in
     matter with a constant density profile.
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    energy : int, float, list, or np.ndarray
+        Neutrino energy/energies.
+    L : int, float, list, or np.ndarray
+        Baseline(s).
+    rho : int or float
+        Matter density (or electron number density, if ``density_is_of_number_of_electrons`` is True).
+    sth : int or float
+        Sin(theta), the single mixing angle of the two-flavor system.
+    Dm2 : int or float
+        Mass-squared difference Delta m^2 of the two-flavor system.
+    ratio_number_neutrons_to_protons : int or float, optional
+        Ratio of the number of neutrons to protons in matter. Default: 1.0.
+    electron_fraction : int or float, optional
+        Electron fraction. Default: 0.5.
+    nubar : bool, optional
+        If True, compute the probability for antineutrinos. Default: False.
+    nu_i : int, optional
+        Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
+    nu_f : int, optional
+        Final flavor index; see ``nu_i``. Default: None.
+    density_matter_is_in_g_per_cm3 : bool, optional
+        If True, the density is given in g cm^{-3}. Default: False.
+    density_is_of_number_of_electrons : bool, optional
+        If True, the density parameter directly gives the electron number density [eV^3]. Default: False.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+
+    Returns
+    -------
+    float or np.ndarray
+        Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
     # If any of the flavor indices is > 1, fix it (read the docstring above).
     nu_i, nu_f = valid_flavor_indices_2nu(nu_i, nu_f)
@@ -3963,6 +5004,64 @@ def osc_prob_3nu_matter_constant_density(
 ) -> Union[float, np.ndarray]:
     r"""Compute and return the three-neutrino oscillation probability in
     matter with a constant density profile.
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    energy : int, float, list, or np.ndarray
+        Neutrino energy/energies.
+    L : int, float, list, or np.ndarray
+        Baseline(s).
+    rho : int or float
+        Matter density (or electron number density, if ``density_is_of_number_of_electrons`` is True).
+    s12 : int or float, optional
+        Sin(theta_12). Default: None.
+    s23 : int or float, optional
+        Sin(theta_23). Default: None.
+    s13 : int or float, optional
+        Sin(theta_13). Default: None.
+    dCP : int or float, optional
+        delta_CP [radian]. Default: None.
+    D21 : int or float, optional
+        Mass-squared difference Delta m^2_21. Default: None.
+    D31 : int or float, optional
+        Mass-squared difference Delta m^2_31. Default: None.
+    ratio_number_neutrons_to_protons : int or float, optional
+        Ratio of the number of neutrons to protons in matter. Default: 1.0.
+    electron_fraction : int or float, optional
+        Electron fraction. Default: 0.5.
+    nubar : bool, optional
+        If True, compute the probability for antineutrinos. Default: False.
+    nu_i : int, optional
+        Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
+    nu_f : int, optional
+        Final flavor index; see ``nu_i``. Default: None.
+    density_matter_is_in_g_per_cm3 : bool, optional
+        If True, the density is given in g cm^{-3}. Default: False.
+    density_is_of_number_of_electrons : bool, optional
+        If True, the density parameter directly gives the electron number density [eV^3]. Default: False.
+    default_osc_params_set_name : str, optional
+        Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+
+    Returns
+    -------
+    float or np.ndarray
+        Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
     return osc_prob_matter_std_potential(
         num_flavors=3,
@@ -4022,6 +5121,76 @@ def osc_prob_4nu_matter_constant_density(
 ) -> Union[float, np.ndarray]:
     r"""Compute and return the four-neutrino oscillation probability in
     matter with a constant density profile.
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    energy : int, float, list, or np.ndarray
+        Neutrino energy/energies.
+    L : int, float, list, or np.ndarray
+        Baseline(s).
+    rho : int or float
+        Matter density (or electron number density, if ``density_is_of_number_of_electrons`` is True).
+    s14 : int or float, optional
+        Sin(theta_14). Default: 0.0.
+    s24 : int or float, optional
+        Sin(theta_24). Default: 0.0.
+    s34 : int or float, optional
+        Sin(theta_34). Default: 0.0.
+    d14 : int or float, optional
+        delta_14 [radian]. Default: 0.0.
+    d24 : int or float, optional
+        delta_24 [radian]. Default: 0.0.
+    D41 : int or float, optional
+        Mass-squared difference Delta m^2_41. Default: 0.0.
+    s12 : int or float, optional
+        Sin(theta_12). Default: None.
+    s23 : int or float, optional
+        Sin(theta_23). Default: None.
+    s13 : int or float, optional
+        Sin(theta_13). Default: None.
+    dCP : int or float, optional
+        delta_CP [radian]. Default: None.
+    D21 : int or float, optional
+        Mass-squared difference Delta m^2_21. Default: None.
+    D31 : int or float, optional
+        Mass-squared difference Delta m^2_31. Default: None.
+    ratio_number_neutrons_to_protons : int or float, optional
+        Ratio of the number of neutrons to protons in matter. Default: 1.0.
+    electron_fraction : int or float, optional
+        Electron fraction. Default: 0.5.
+    nubar : bool, optional
+        If True, compute the probability for antineutrinos. Default: False.
+    nu_i : int, optional
+        Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
+    nu_f : int, optional
+        Final flavor index; see ``nu_i``. Default: None.
+    density_matter_is_in_g_per_cm3 : bool, optional
+        If True, the density is given in g cm^{-3}. Default: False.
+    density_is_of_number_of_electrons : bool, optional
+        If True, the density parameter directly gives the electron number density [eV^3]. Default: False.
+    default_osc_params_set_name : str, optional
+        Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+
+    Returns
+    -------
+    float or np.ndarray
+        Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
     return osc_prob_matter_std_potential(
         num_flavors=4,
@@ -4088,6 +5257,88 @@ def osc_prob_5nu_matter_constant_density(
 ) -> Union[float, np.ndarray]:
     r"""Compute and return the five-neutrino oscillation probability in
     matter with a constant density profile.
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    energy : int, float, list, or np.ndarray
+        Neutrino energy/energies.
+    L : int, float, list, or np.ndarray
+        Baseline(s).
+    rho : int or float
+        Matter density (or electron number density, if ``density_is_of_number_of_electrons`` is True).
+    s14 : int or float, optional
+        Sin(theta_14). Default: 0.0.
+    s15 : int or float, optional
+        Sin(theta_15). Default: 0.0.
+    s24 : int or float, optional
+        Sin(theta_24). Default: 0.0.
+    s25 : int or float, optional
+        Sin(theta_25). Default: 0.0.
+    s34 : int or float, optional
+        Sin(theta_34). Default: 0.0.
+    s35 : int or float, optional
+        Sin(theta_35). Default: 0.0.
+    d14 : int or float, optional
+        delta_14 [radian]. Default: 0.0.
+    d15 : int or float, optional
+        delta_15 [radian]. Default: 0.0.
+    d24 : int or float, optional
+        delta_24 [radian]. Default: 0.0.
+    d35 : int or float, optional
+        delta_35 [radian]. Default: 0.0.
+    D41 : int or float, optional
+        Mass-squared difference Delta m^2_41. Default: 0.0.
+    D51 : int or float, optional
+        Mass-squared difference Delta m^2_51. Default: 0.0.
+    s12 : int or float, optional
+        Sin(theta_12). Default: None.
+    s23 : int or float, optional
+        Sin(theta_23). Default: None.
+    s13 : int or float, optional
+        Sin(theta_13). Default: None.
+    dCP : int or float, optional
+        delta_CP [radian]. Default: None.
+    D21 : int or float, optional
+        Mass-squared difference Delta m^2_21. Default: None.
+    D31 : int or float, optional
+        Mass-squared difference Delta m^2_31. Default: None.
+    ratio_number_neutrons_to_protons : int or float, optional
+        Ratio of the number of neutrons to protons in matter. Default: 1.0.
+    electron_fraction : int or float, optional
+        Electron fraction. Default: 0.5.
+    nubar : bool, optional
+        If True, compute the probability for antineutrinos. Default: False.
+    nu_i : int, optional
+        Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
+    nu_f : int, optional
+        Final flavor index; see ``nu_i``. Default: None.
+    density_matter_is_in_g_per_cm3 : bool, optional
+        If True, the density is given in g cm^{-3}. Default: False.
+    density_is_of_number_of_electrons : bool, optional
+        If True, the density parameter directly gives the electron number density [eV^3]. Default: False.
+    default_osc_params_set_name : str, optional
+        Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+
+    Returns
+    -------
+    float or np.ndarray
+        Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
     return osc_prob_matter_std_potential(
         num_flavors=5,
@@ -4144,6 +5395,58 @@ def osc_prob_2nu_matter_exp_density(
 ) -> Union[float, np.ndarray]:
     r"""Compute and return the two-neutrino oscillation 
     probability in matter with an exponentially falling density profile.
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    energy : float, list, or np.ndarray
+        Neutrino energy/energies.
+    L : float, list, or np.ndarray
+        Baseline(s).
+    L0 : int or float
+        Initial position.
+    rho_central : int or float
+        Matter density (or electron number density) at the center of the exponential profile (l = 0).
+    l_scale : int or float
+        Length scale of the exponential density decrease.
+    sth : int or float
+        Sin(theta), the single mixing angle of the two-flavor system.
+    Dm2 : int or float
+        Mass-squared difference Delta m^2 of the two-flavor system.
+    ratio_number_neutrons_to_protons : int or float, optional
+        Ratio of the number of neutrons to protons in matter. Default: 1.0.
+    electron_fraction : int or float, optional
+        Electron fraction. Default: 0.5.
+    nubar : bool, optional
+        If True, compute the probability for antineutrinos. Default: False.
+    nu_i : int, optional
+        Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
+    nu_f : int, optional
+        Final flavor index; see ``nu_i``. Default: None.
+    density_matter_is_in_g_per_cm3 : bool, optional
+        If True, the density is given in g cm^{-3}. Default: False.
+    density_is_of_number_of_electrons : bool, optional
+        If True, the density parameter directly gives the electron number density [eV^3]. Default: False.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+
+    Returns
+    -------
+    float or np.ndarray
+        Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
     try:
@@ -4213,6 +5516,68 @@ def osc_prob_3nu_matter_exp_density(
 ) -> Union[float, np.ndarray]:
     r"""Compute and return the three-neutrino oscillation 
     probability in matter with an exponentially falling density profile.
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    energy : float, list, or np.ndarray
+        Neutrino energy/energies.
+    L : float, list, or np.ndarray
+        Baseline(s).
+    L0 : int or float
+        Initial position.
+    rho_central : int or float
+        Matter density (or electron number density) at the center of the exponential profile (l = 0).
+    l_scale : int or float
+        Length scale of the exponential density decrease.
+    s12 : int or float, optional
+        Sin(theta_12). Default: None.
+    s23 : int or float, optional
+        Sin(theta_23). Default: None.
+    s13 : int or float, optional
+        Sin(theta_13). Default: None.
+    dCP : int or float, optional
+        delta_CP [radian]. Default: None.
+    D21 : int or float, optional
+        Mass-squared difference Delta m^2_21. Default: None.
+    D31 : int or float, optional
+        Mass-squared difference Delta m^2_31. Default: None.
+    ratio_number_neutrons_to_protons : int or float, optional
+        Ratio of the number of neutrons to protons in matter. Default: 1.0.
+    electron_fraction : int or float, optional
+        Electron fraction. Default: 0.5.
+    nubar : bool, optional
+        If True, compute the probability for antineutrinos. Default: False.
+    nu_i : int, optional
+        Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
+    nu_f : int, optional
+        Final flavor index; see ``nu_i``. Default: None.
+    density_matter_is_in_g_per_cm3 : bool, optional
+        If True, the density is given in g cm^{-3}. Default: False.
+    density_is_of_number_of_electrons : bool, optional
+        If True, the density parameter directly gives the electron number density [eV^3]. Default: False.
+    default_osc_params_set_name : str, optional
+        Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+
+    Returns
+    -------
+    float or np.ndarray
+        Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
     try:
@@ -4286,6 +5651,80 @@ def osc_prob_4nu_matter_exp_density(
 ) -> Union[float, np.ndarray]:
     r"""Compute and return the four-neutrino (3+1) oscillation 
     probability in matter with an exponentially falling density profile.
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    energy : float, list, or np.ndarray
+        Neutrino energy/energies.
+    L : float, list, or np.ndarray
+        Baseline(s).
+    L0 : int or float
+        Initial position.
+    rho_central : int or float
+        Matter density (or electron number density) at the center of the exponential profile (l = 0).
+    l_scale : int or float
+        Length scale of the exponential density decrease.
+    s12 : int or float, optional
+        Sin(theta_12). Default: None.
+    s23 : int or float, optional
+        Sin(theta_23). Default: None.
+    s13 : int or float, optional
+        Sin(theta_13). Default: None.
+    dCP : int or float, optional
+        delta_CP [radian]. Default: None.
+    D21 : int or float, optional
+        Mass-squared difference Delta m^2_21. Default: None.
+    D31 : int or float, optional
+        Mass-squared difference Delta m^2_31. Default: None.
+    s14 : int or float, optional
+        Sin(theta_14). Default: 0.0.
+    s24 : int or float, optional
+        Sin(theta_24). Default: 0.0.
+    s34 : int or float, optional
+        Sin(theta_34). Default: 0.0.
+    d14 : int or float, optional
+        delta_14 [radian]. Default: 0.0.
+    d24 : int or float, optional
+        delta_24 [radian]. Default: 0.0.
+    D41 : int or float, optional
+        Mass-squared difference Delta m^2_41. Default: 0.0.
+    ratio_number_neutrons_to_protons : int or float, optional
+        Ratio of the number of neutrons to protons in matter. Default: 1.0.
+    electron_fraction : int or float, optional
+        Electron fraction. Default: 0.5.
+    nubar : bool, optional
+        If True, compute the probability for antineutrinos. Default: False.
+    nu_i : int, optional
+        Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
+    nu_f : int, optional
+        Final flavor index; see ``nu_i``. Default: None.
+    density_matter_is_in_g_per_cm3 : bool, optional
+        If True, the density is given in g cm^{-3}. Default: False.
+    density_is_of_number_of_electrons : bool, optional
+        If True, the density parameter directly gives the electron number density [eV^3]. Default: False.
+    default_osc_params_set_name : str, optional
+        Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+
+    Returns
+    -------
+    float or np.ndarray
+        Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
     try:
@@ -4366,6 +5805,92 @@ def osc_prob_5nu_matter_exp_density(
 ) -> Union[float, np.ndarray]:
     r"""Compute and return the five-neutrino (3+2) oscillation 
     probability in matter with an exponentially falling density profile.
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    energy : float, list, or np.ndarray
+        Neutrino energy/energies.
+    L : float, list, or np.ndarray
+        Baseline(s).
+    L0 : int or float
+        Initial position.
+    rho_central : int or float
+        Matter density (or electron number density) at the center of the exponential profile (l = 0).
+    l_scale : int or float
+        Length scale of the exponential density decrease.
+    s12 : int or float, optional
+        Sin(theta_12). Default: None.
+    s23 : int or float, optional
+        Sin(theta_23). Default: None.
+    s13 : int or float, optional
+        Sin(theta_13). Default: None.
+    dCP : int or float, optional
+        delta_CP [radian]. Default: None.
+    D21 : int or float, optional
+        Mass-squared difference Delta m^2_21. Default: None.
+    D31 : int or float, optional
+        Mass-squared difference Delta m^2_31. Default: None.
+    s14 : int or float, optional
+        Sin(theta_14). Default: 0.0.
+    s15 : int or float, optional
+        Sin(theta_15). Default: 0.0.
+    s24 : int or float, optional
+        Sin(theta_24). Default: 0.0.
+    s25 : int or float, optional
+        Sin(theta_25). Default: 0.0.
+    s34 : int or float, optional
+        Sin(theta_34). Default: 0.0.
+    s35 : int or float, optional
+        Sin(theta_35). Default: 0.0.
+    d14 : int or float, optional
+        delta_14 [radian]. Default: 0.0.
+    d15 : int or float, optional
+        delta_15 [radian]. Default: 0.0.
+    d24 : int or float, optional
+        delta_24 [radian]. Default: 0.0.
+    d35 : int or float, optional
+        delta_35 [radian]. Default: 0.0.
+    D41 : int or float, optional
+        Mass-squared difference Delta m^2_41. Default: 0.0.
+    D51 : int or float, optional
+        Mass-squared difference Delta m^2_51. Default: 0.0.
+    ratio_number_neutrons_to_protons : int or float, optional
+        Ratio of the number of neutrons to protons in matter. Default: 1.0.
+    electron_fraction : int or float, optional
+        Electron fraction. Default: 0.5.
+    nubar : bool, optional
+        If True, compute the probability for antineutrinos. Default: False.
+    nu_i : int, optional
+        Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
+    nu_f : int, optional
+        Final flavor index; see ``nu_i``. Default: None.
+    density_matter_is_in_g_per_cm3 : bool, optional
+        If True, the density is given in g cm^{-3}. Default: False.
+    density_is_of_number_of_electrons : bool, optional
+        If True, the density parameter directly gives the electron number density [eV^3]. Default: False.
+    default_osc_params_set_name : str, optional
+        Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+
+    Returns
+    -------
+    float or np.ndarray
+        Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
     try:
@@ -4435,7 +5960,7 @@ def osc_prob_2nu_earth(
     Assumes that the matter potential is due only to the standard 
     charged-current coherent forward scattering of :math:`\\nu_e` on 
     electrons.
-    
+
     For the matter density inside the Earth, it uses the Preliminary 
     Reference Earth Model.
 
@@ -4466,6 +5991,50 @@ def osc_prob_2nu_earth(
 
     Examples
     --------
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    energy : int, float, list, or np.ndarray
+        Neutrino energy/energies.
+    sth : int or float
+        Sin(theta), the single mixing angle of the two-flavor system.
+    Dm2 : int or float
+        Mass-squared difference Delta m^2 of the two-flavor system.
+    costhz : int or float, optional
+        Cosine of the zenith angle of the neutrino. Used together with ``L``, as an alternative to ``loc_ini``/``loc_fin``. Default: None.
+    loc_ini : tuple, list, np.ndarray, or str, optional
+        Initial location on the surface of the Earth, as (latitude, longitude) coordinates or a predefined location name (see ``earth.loc_coords_dms``). Must be given with ``loc_fin``. Default: None.
+    loc_fin : tuple, list, np.ndarray, or str, optional
+        Final location, same format as ``loc_ini``. Must be given with ``loc_ini``. Default: None.
+    L : float, list, or np.ndarray, optional
+        Baseline(s). Default: None.
+    nubar : bool, optional
+        If True, compute the probability for antineutrinos. Default: False.
+    nu_i : int, optional
+        Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
+    nu_f : int, optional
+        Final flavor index; see ``nu_i``. Default: None.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+
+    Returns
+    -------
+    float or np.ndarray
+        Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
     # If the location is given as a string, check if it is one of the predefined named locations in
     # Magnus.  The method sys._getframe().f_code.co_name returns the function name.  If the name
@@ -4559,7 +6128,7 @@ def osc_prob_3nu_earth(
     Assumes that the matter potential is due only to the standard 
     charged-current coherent forward scattering of :math:`\\nu_e` on 
     electrons.
-    
+
     For the matter density inside the Earth, it uses the Preliminary 
     Reference Earth Model.
 
@@ -4590,6 +6159,60 @@ def osc_prob_3nu_earth(
 
     Examples
     --------
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    energy : int, float, list, or np.ndarray
+        Neutrino energy/energies.
+    costhz : int or float, optional
+        Cosine of the zenith angle of the neutrino. Used together with ``L``, as an alternative to ``loc_ini``/``loc_fin``. Default: None.
+    loc_ini : tuple, list, np.ndarray, or str, optional
+        Initial location on the surface of the Earth, as (latitude, longitude) coordinates or a predefined location name (see ``earth.loc_coords_dms``). Must be given with ``loc_fin``. Default: None.
+    loc_fin : tuple, list, np.ndarray, or str, optional
+        Final location, same format as ``loc_ini``. Must be given with ``loc_ini``. Default: None.
+    L : float, list, or np.ndarray, optional
+        Baseline(s). Default: None.
+    s12 : int or float, optional
+        Sin(theta_12). Default: None.
+    s23 : int or float, optional
+        Sin(theta_23). Default: None.
+    s13 : int or float, optional
+        Sin(theta_13). Default: None.
+    dCP : int or float, optional
+        delta_CP [radian]. Default: None.
+    D21 : int or float, optional
+        Mass-squared difference Delta m^2_21. Default: None.
+    D31 : int or float, optional
+        Mass-squared difference Delta m^2_31. Default: None.
+    nubar : bool, optional
+        If True, compute the probability for antineutrinos. Default: False.
+    nu_i : int, optional
+        Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
+    nu_f : int, optional
+        Final flavor index; see ``nu_i``. Default: None.
+    default_osc_params_set_name : str, optional
+        Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+
+    Returns
+    -------
+    float or np.ndarray
+        Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
     # If the location is given as a string, check if it is one of the predefined named locations in
     # Magnus.  The method sys._getframe().f_code.co_name returns the function name.  If the name
@@ -4686,7 +6309,7 @@ def osc_prob_4nu_earth(
     Assumes that the matter potential is due only to the standard 
     charged-current coherent forward scattering of :math:`\\nu_e` on 
     electrons.
-    
+
     For the matter density inside the Earth, it uses the Preliminary 
     Reference Earth Model.
 
@@ -4717,6 +6340,72 @@ def osc_prob_4nu_earth(
 
     Examples
     --------
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    energy : int, float, list, or np.ndarray
+        Neutrino energy/energies.
+    costhz : int or float, optional
+        Cosine of the zenith angle of the neutrino. Used together with ``L``, as an alternative to ``loc_ini``/``loc_fin``. Default: None.
+    loc_ini : tuple, list, np.ndarray, or str, optional
+        Initial location on the surface of the Earth, as (latitude, longitude) coordinates or a predefined location name (see ``earth.loc_coords_dms``). Must be given with ``loc_fin``. Default: None.
+    loc_fin : tuple, list, np.ndarray, or str, optional
+        Final location, same format as ``loc_ini``. Must be given with ``loc_ini``. Default: None.
+    L : float, list, or np.ndarray, optional
+        Baseline(s). Default: None.
+    s12 : int or float, optional
+        Sin(theta_12). Default: None.
+    s23 : int or float, optional
+        Sin(theta_23). Default: None.
+    s13 : int or float, optional
+        Sin(theta_13). Default: None.
+    dCP : int or float, optional
+        delta_CP [radian]. Default: None.
+    D21 : int or float, optional
+        Mass-squared difference Delta m^2_21. Default: None.
+    D31 : int or float, optional
+        Mass-squared difference Delta m^2_31. Default: None.
+    s14 : int or float, optional
+        Sin(theta_14). Default: 0.0.
+    s24 : int or float, optional
+        Sin(theta_24). Default: 0.0.
+    s34 : int or float, optional
+        Sin(theta_34). Default: 0.0.
+    d14 : int or float, optional
+        delta_14 [radian]. Default: 0.0.
+    d24 : int or float, optional
+        delta_24 [radian]. Default: 0.0.
+    D41 : int or float, optional
+        Mass-squared difference Delta m^2_41. Default: 0.0.
+    nubar : bool, optional
+        If True, compute the probability for antineutrinos. Default: False.
+    nu_i : int, optional
+        Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
+    nu_f : int, optional
+        Final flavor index; see ``nu_i``. Default: None.
+    default_osc_params_set_name : str, optional
+        Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+
+    Returns
+    -------
+    float or np.ndarray
+        Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
     # If the location is given as a string, check if it is one of the predefined named locations in
     # Magnus.  The method sys._getframe().f_code.co_name returns the function name.  If the name
@@ -4820,7 +6509,7 @@ def osc_prob_5nu_earth(
     Assumes that the matter potential is due only to the standard 
     charged-current coherent forward scattering of :math:`\\nu_e` on 
     electrons.
-    
+
     For the matter density inside the Earth, it uses the Preliminary 
     Reference Earth Model.
 
@@ -4851,6 +6540,84 @@ def osc_prob_5nu_earth(
 
     Examples
     --------
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    energy : int, float, list, or np.ndarray
+        Neutrino energy/energies.
+    costhz : int or float, optional
+        Cosine of the zenith angle of the neutrino. Used together with ``L``, as an alternative to ``loc_ini``/``loc_fin``. Default: None.
+    loc_ini : tuple, list, np.ndarray, or str, optional
+        Initial location on the surface of the Earth, as (latitude, longitude) coordinates or a predefined location name (see ``earth.loc_coords_dms``). Must be given with ``loc_fin``. Default: None.
+    loc_fin : tuple, list, np.ndarray, or str, optional
+        Final location, same format as ``loc_ini``. Must be given with ``loc_ini``. Default: None.
+    L : float, list, or np.ndarray, optional
+        Baseline(s). Default: None.
+    s12 : int or float, optional
+        Sin(theta_12). Default: None.
+    s23 : int or float, optional
+        Sin(theta_23). Default: None.
+    s13 : int or float, optional
+        Sin(theta_13). Default: None.
+    dCP : int or float, optional
+        delta_CP [radian]. Default: None.
+    D21 : int or float, optional
+        Mass-squared difference Delta m^2_21. Default: None.
+    D31 : int or float, optional
+        Mass-squared difference Delta m^2_31. Default: None.
+    s14 : int or float, optional
+        Sin(theta_14). Default: 0.0.
+    s15 : int or float, optional
+        Sin(theta_15). Default: 0.0.
+    s24 : int or float, optional
+        Sin(theta_24). Default: 0.0.
+    s25 : int or float, optional
+        Sin(theta_25). Default: 0.0.
+    s34 : int or float, optional
+        Sin(theta_34). Default: 0.0.
+    s35 : int or float, optional
+        Sin(theta_35). Default: 0.0.
+    d14 : int or float, optional
+        delta_14 [radian]. Default: 0.0.
+    d15 : int or float, optional
+        delta_15 [radian]. Default: 0.0.
+    d24 : int or float, optional
+        delta_24 [radian]. Default: 0.0.
+    d35 : int or float, optional
+        delta_35 [radian]. Default: 0.0.
+    D41 : int or float, optional
+        Mass-squared difference Delta m^2_41. Default: 0.0.
+    D51 : int or float, optional
+        Mass-squared difference Delta m^2_51. Default: 0.0.
+    nubar : bool, optional
+        If True, compute the probability for antineutrinos. Default: False.
+    nu_i : int, optional
+        Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
+    nu_f : int, optional
+        Final flavor index; see ``nu_i``. Default: None.
+    default_osc_params_set_name : str, optional
+        Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+
+    Returns
+    -------
+    float or np.ndarray
+        Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
     # If the location is given as a string, check if it is one of the predefined named locations in
     # Magnus.  The method sys._getframe().f_code.co_name returns the function name.  If the name
@@ -4966,6 +6733,59 @@ def osc_prob_earth(
     The slab edges used internally are aligned with the crossings of
     the PREM layer boundaries along the chord.
 
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    H_func : Callable
+        The Hamiltonian, as ``H_func(energy, l, VCC)`` or ``H_func(energy, l)``; see above.
+    energy : int, float, list, or np.ndarray
+        Neutrino energy/energies.
+    costhz : int or float, optional
+        Cosine of the zenith angle of the neutrino. Used together with ``L``, as an alternative
+        to ``loc_ini``/``loc_fin``.
+    loc_ini : tuple, list, np.ndarray, or str, optional
+        Initial location on the surface of the Earth, as (latitude, longitude) coordinates or a
+        predefined location name (see ``earth.loc_coords_dms``). Must be given with ``loc_fin``.
+    loc_fin : tuple, list, np.ndarray, or str, optional
+        Final location, same format as ``loc_ini``. Must be given with ``loc_ini``.
+    L : float, list, or np.ndarray, optional
+        Baseline(s) [eV^{-1}]. Used together with ``costhz``, as an alternative to
+        ``loc_ini``/``loc_fin``.
+    nubar : bool, optional
+        If True, compute the probability for antineutrinos (flips the sign of the PREM-based
+        matter potential passed to ``H_func``). Default: False.
+    nu_i : int, optional
+        Initial flavor index. If given together with ``nu_f``, a single channel is returned
+        instead of the full probability matrix.
+    nu_f : int, optional
+        Final flavor index; see ``nu_i``.
+    ratio_number_neutrons_to_protons : int or float, optional
+        Ratio of the number of neutrons to protons in Earth matter. Default: 1.0.
+    electron_fraction : int or float, optional
+        Electron fraction of Earth matter. Default: 0.5.
+    magnus_exp_order : int, optional
+        Highest order of the Magnus expansion. Default: 4.
+    n_jobs : int, optional
+        Number of parallel joblib workers. Default: 1.
+    integration_method : str, optional
+        'trapezoid', 'simpson', or 'gl'. Default: 'trapezoid'.
+    rtol, atol : int or float, optional
+        Target relative/absolute tolerance for the adaptive slab refinement. Default: 1e-3 each.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    verbose : int, optional
+        Verbosity level. Default: 0.
+    \**kwargs
+        Additional arguments forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`
+        (e.g., the refinement-loop bounds).
+
+    Returns
+    -------
+    float or np.ndarray
+        Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for
+        each energy.
+
     Examples
     --------
     Standard three-neutrino oscillations, written by hand (the
@@ -5035,7 +6855,52 @@ def _osc_prob_with_potential(
     :func:`osc_prob_sun`: wire a user-supplied Hamiltonian function --
     H_func(energy, l, VCC) or H_func(energy, l) -- to the environment
     potential ``VCC_func`` and hand it to
-    :func:`osc_prob_energy_baseline`."""
+    :func:`osc_prob_energy_baseline`.
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    source_func_name : str
+        Name of the calling function (``osc_prob_earth`` or ``osc_prob_sun``), used to build more
+        informative error messages.
+    H_func : Callable
+        The Hamiltonian, as ``H_func(energy, l, VCC)`` or ``H_func(energy, l)``.
+    VCC_func : Callable
+        The environment's matter potential, as a function of position.
+    energy : int, float, list, or np.ndarray
+        Neutrino energy/energies.
+    L : int, float, list, or np.ndarray
+        Baseline(s).
+    L0 : int or float
+        Initial position.
+    nu_i : int, optional
+        Initial flavor index. If given together with ``nu_f``, a single channel is returned.
+    nu_f : int, optional
+        Final flavor index; see ``nu_i``.
+    t_breakpoints : np.ndarray, optional
+        Mandatory slab edges (e.g., PREM layer boundaries).
+    magnus_exp_order : int
+        Highest order of the Magnus expansion.
+    n_jobs : int
+        Number of parallel joblib workers.
+    integration_method : str
+        'trapezoid', 'simpson', or 'gl'.
+    rtol, atol : int or float, optional
+        Target relative/absolute tolerance for the adaptive slab refinement.
+    validate_input : bool
+        If True, validate that ``H_func`` has the expected signature.
+    verbose : int
+        Verbosity level.
+    \**kwargs
+        Additional arguments forwarded to :func:`osc_prob_energy_baseline`.
+
+    Returns
+    -------
+    float or np.ndarray
+        Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for
+        each (energy, L) point.
+    """
 
     if validate_input:
         try:
@@ -5088,23 +6953,63 @@ def osc_prob_2nu_sun(
     verbose: Optional[int]=0,
     **kwargs
 ) -> Union[float, np.ndarray]:
-    """Compute and return the two-neutrino oscillation probability 
+    r"""Compute and return the two-neutrino oscillation probability 
     for neutrinos inside the Sun.
 
     Assumes that the matter potential is due only to the standard 
-    charged-current coherent forward scattering of :math:`\\nu_e` on 
+    charged-current coherent forward scattering of :math:`\nu_e` on 
     electrons.
-    
+
     For the electron density inside the Sun, it assumes an exponentially
-    falling density profile: :math:`N_e(r) = N_e(0) \\exp(-r/r_0)`, 
-    with :math:`N_e(0) = 245 N_\\text{Av}~\\text{cm}^{-3}` and 
-    :math:`r_0 = R_\\odot/10.54`.  See Eq. (10.62) in
+    falling density profile: :math:`N_e(r) = N_e(0) \exp(-r/r_0)`, 
+    with :math:`N_e(0) = 245 N_\text{Av}~\text{cm}^{-3}` and 
+    :math:`r_0 = R_\odot/10.54`.  See Eq. (10.62) in
     `Fundamentals of Neutrino Physics and Astrophysics 
     <https://academic.oup.com/book/3490>`_ by Carlo Giunti and Chung 
     Wook Kim.
 
     Examples
     --------
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    energy : float, list, or np.ndarray
+        Neutrino energy/energies.
+    L : float, list, or np.ndarray
+        Baseline(s).
+    L0 : int or float
+        Initial position.
+    sth : int or float
+        Sin(theta), the single mixing angle of the two-flavor system.
+    Dm2 : int or float
+        Mass-squared difference Delta m^2 of the two-flavor system.
+    nubar : bool, optional
+        If True, compute the probability for antineutrinos. Default: False.
+    nu_i : int, optional
+        Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
+    nu_f : int, optional
+        Final flavor index; see ``nu_i``. Default: None.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+
+    Returns
+    -------
+    float or np.ndarray
+        Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
     # If any of the flavor indices is > 1, fix it (read the docstring above).
     nu_i, nu_f = valid_flavor_indices_2nu(nu_i, nu_f)
@@ -5153,23 +7058,73 @@ def osc_prob_3nu_sun(
     verbose: Optional[int]=0,
     **kwargs
 ) -> Union[float, np.ndarray]:
-    """Compute and return the three-neutrino oscillation probability 
+    r"""Compute and return the three-neutrino oscillation probability 
     for neutrinos inside the Sun.
 
     Assumes that the matter potential is due only to the standard 
-    charged-current coherent forward scattering of :math:`\\nu_e` on 
+    charged-current coherent forward scattering of :math:`\nu_e` on 
     electrons.
-    
+
     For the electron density inside the Sun, it assumes an exponentially
-    falling density profile: :math:`N_e(r) = N_e(0) \\exp(-r/r_0)`, 
-    with :math:`N_e(0) = 245 N_\\text{Av}~\\text{cm}^{-3}` and 
-    :math:`r_0 = R_\\odot/10.54`.  See Eq. (10.62) in
+    falling density profile: :math:`N_e(r) = N_e(0) \exp(-r/r_0)`, 
+    with :math:`N_e(0) = 245 N_\text{Av}~\text{cm}^{-3}` and 
+    :math:`r_0 = R_\odot/10.54`.  See Eq. (10.62) in
     `Fundamentals of Neutrino Physics and Astrophysics 
     <https://academic.oup.com/book/3490>`_ by Carlo Giunti and Chung 
     Wook Kim.
 
     Examples
     --------
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    energy : float, list, or np.ndarray
+        Neutrino energy/energies.
+    L : float, list, or np.ndarray
+        Baseline(s).
+    L0 : int or float
+        Initial position.
+    s12 : int or float, optional
+        Sin(theta_12). Default: None.
+    s23 : int or float, optional
+        Sin(theta_23). Default: None.
+    s13 : int or float, optional
+        Sin(theta_13). Default: None.
+    dCP : int or float, optional
+        delta_CP [radian]. Default: None.
+    D21 : int or float, optional
+        Mass-squared difference Delta m^2_21. Default: None.
+    D31 : int or float, optional
+        Mass-squared difference Delta m^2_31. Default: None.
+    nubar : bool, optional
+        If True, compute the probability for antineutrinos. Default: False.
+    nu_i : int, optional
+        Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
+    nu_f : int, optional
+        Final flavor index; see ``nu_i``. Default: None.
+    default_osc_params_set_name : str, optional
+        Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+
+    Returns
+    -------
+    float or np.ndarray
+        Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
     return osc_prob_3nu_matter_exp_density(
@@ -5227,23 +7182,85 @@ def osc_prob_4nu_sun(
     verbose: Optional[int]=0,
     **kwargs
 ) -> Union[float, np.ndarray]:
-    """Compute and return the four-neutrino (3+1) oscillation 
+    r"""Compute and return the four-neutrino (3+1) oscillation 
     probability for neutrinos inside the Sun.
 
     Assumes that the matter potential is due only to the standard 
-    charged-current coherent forward scattering of :math:`\\nu_e` on 
+    charged-current coherent forward scattering of :math:`\nu_e` on 
     electrons.
-    
+
     For the electron density inside the Sun, it assumes an exponentially
-    falling density profile: :math:`N_e(r) = N_e(0) \\exp(-r/r_0)`, 
-    with :math:`N_e(0) = 245 N_\\text{Av}~\\text{cm}^{-3}` and 
-    :math:`r_0 = R_\\odot/10.54`.  See Eq. (10.62) in
+    falling density profile: :math:`N_e(r) = N_e(0) \exp(-r/r_0)`, 
+    with :math:`N_e(0) = 245 N_\text{Av}~\text{cm}^{-3}` and 
+    :math:`r_0 = R_\odot/10.54`.  See Eq. (10.62) in
     `Fundamentals of Neutrino Physics and Astrophysics 
     <https://academic.oup.com/book/3490>`_ by Carlo Giunti and Chung 
     Wook Kim.
 
     Examples
     --------
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    energy : float, list, or np.ndarray
+        Neutrino energy/energies.
+    L : float, list, or np.ndarray
+        Baseline(s).
+    L0 : int or float
+        Initial position.
+    s14 : int or float, optional
+        Sin(theta_14). Default: 0.0.
+    s24 : int or float, optional
+        Sin(theta_24). Default: 0.0.
+    s34 : int or float, optional
+        Sin(theta_34). Default: 0.0.
+    d14 : int or float, optional
+        delta_14 [radian]. Default: 0.0.
+    d24 : int or float, optional
+        delta_24 [radian]. Default: 0.0.
+    D41 : int or float, optional
+        Mass-squared difference Delta m^2_41. Default: 0.0.
+    s12 : int or float, optional
+        Sin(theta_12). Default: None.
+    s23 : int or float, optional
+        Sin(theta_23). Default: None.
+    s13 : int or float, optional
+        Sin(theta_13). Default: None.
+    dCP : int or float, optional
+        delta_CP [radian]. Default: None.
+    D21 : int or float, optional
+        Mass-squared difference Delta m^2_21. Default: None.
+    D31 : int or float, optional
+        Mass-squared difference Delta m^2_31. Default: None.
+    nubar : bool, optional
+        If True, compute the probability for antineutrinos. Default: False.
+    nu_i : int, optional
+        Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
+    nu_f : int, optional
+        Final flavor index; see ``nu_i``. Default: None.
+    default_osc_params_set_name : str, optional
+        Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+
+    Returns
+    -------
+    float or np.ndarray
+        Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
     return osc_prob_4nu_matter_exp_density(
@@ -5313,23 +7330,97 @@ def osc_prob_5nu_sun(
     verbose: Optional[int]=0,
     **kwargs
 ) -> Union[float, np.ndarray]:
-    """Compute and return the five-neutrino (3+2) oscillation 
+    r"""Compute and return the five-neutrino (3+2) oscillation 
     probability for neutrinos inside the Sun.
 
     Assumes that the matter potential is due only to the standard 
-    charged-current coherent forward scattering of :math:`\\nu_e` on 
+    charged-current coherent forward scattering of :math:`\nu_e` on 
     electrons.
-    
+
     For the electron density inside the Sun, it assumes an exponentially
-    falling density profile: :math:`N_e(r) = N_e(0) \\exp(-r/r_0)`, 
-    with :math:`N_e(0) = 245 N_\\text{Av}~\\text{cm}^{-3}` and 
-    :math:`r_0 = R_\\odot/10.54`.  See Eq. (10.62) in
+    falling density profile: :math:`N_e(r) = N_e(0) \exp(-r/r_0)`, 
+    with :math:`N_e(0) = 245 N_\text{Av}~\text{cm}^{-3}` and 
+    :math:`r_0 = R_\odot/10.54`.  See Eq. (10.62) in
     `Fundamentals of Neutrino Physics and Astrophysics 
     <https://academic.oup.com/book/3490>`_ by Carlo Giunti and Chung 
     Wook Kim.
 
     Examples
     --------
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    energy : float, list, or np.ndarray
+        Neutrino energy/energies.
+    L : float, list, or np.ndarray
+        Baseline(s).
+    L0 : int or float
+        Initial position.
+    s14 : int or float, optional
+        Sin(theta_14). Default: 0.0.
+    s15 : int or float, optional
+        Sin(theta_15). Default: 0.0.
+    s24 : int or float, optional
+        Sin(theta_24). Default: 0.0.
+    s25 : int or float, optional
+        Sin(theta_25). Default: 0.0.
+    s34 : int or float, optional
+        Sin(theta_34). Default: 0.0.
+    s35 : int or float, optional
+        Sin(theta_35). Default: 0.0.
+    d14 : int or float, optional
+        delta_14 [radian]. Default: 0.0.
+    d15 : int or float, optional
+        delta_15 [radian]. Default: 0.0.
+    d24 : int or float, optional
+        delta_24 [radian]. Default: 0.0.
+    d35 : int or float, optional
+        delta_35 [radian]. Default: 0.0.
+    D41 : int or float, optional
+        Mass-squared difference Delta m^2_41. Default: 0.0.
+    D51 : int or float, optional
+        Mass-squared difference Delta m^2_51. Default: 0.0.
+    s12 : int or float, optional
+        Sin(theta_12). Default: None.
+    s23 : int or float, optional
+        Sin(theta_23). Default: None.
+    s13 : int or float, optional
+        Sin(theta_13). Default: None.
+    dCP : int or float, optional
+        delta_CP [radian]. Default: None.
+    D21 : int or float, optional
+        Mass-squared difference Delta m^2_21. Default: None.
+    D31 : int or float, optional
+        Mass-squared difference Delta m^2_31. Default: None.
+    nubar : bool, optional
+        If True, compute the probability for antineutrinos. Default: False.
+    nu_i : int, optional
+        Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
+    nu_f : int, optional
+        Final flavor index; see ``nu_i``. Default: None.
+    default_osc_params_set_name : str, optional
+        Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+
+    Returns
+    -------
+    float or np.ndarray
+        Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
     return osc_prob_5nu_matter_exp_density(
@@ -5418,6 +7509,48 @@ def osc_prob_sun(
     <https://academic.oup.com/book/3490>`_ by Carlo Giunti and Chung
     Wook Kim.
 
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    H_func : Callable
+        The Hamiltonian, as ``H_func(energy, l, VCC)`` or ``H_func(energy, l)``; see above.
+    energy : int, float, list, or np.ndarray
+        Neutrino energy/energies.
+    L : float, list, or np.ndarray
+        Final radial position(s) [eV^{-1}], measured from the center of the Sun.
+    L0 : int or float, optional
+        Initial radial position [eV^{-1}]. Default: 0.0.
+    nubar : bool, optional
+        If True, compute the probability for antineutrinos (flips the sign of the solar matter
+        potential passed to ``H_func``). Default: False.
+    nu_i : int, optional
+        Initial flavor index. If given together with ``nu_f``, a single channel is returned
+        instead of the full probability matrix.
+    nu_f : int, optional
+        Final flavor index; see ``nu_i``.
+    magnus_exp_order : int, optional
+        Highest order of the Magnus expansion. Default: 4.
+    n_jobs : int, optional
+        Number of parallel joblib workers. Default: 1.
+    integration_method : str, optional
+        'trapezoid', 'simpson', or 'gl'. Default: 'trapezoid'.
+    rtol, atol : int or float, optional
+        Target relative/absolute tolerance for the adaptive slab refinement. Default: 1e-3 each.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    verbose : int, optional
+        Verbosity level. Default: 0.
+    \**kwargs
+        Additional arguments forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`
+        (e.g., the refinement-loop bounds).
+
+    Returns
+    -------
+    float or np.ndarray
+        Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for
+        each energy.
+
     Examples
     --------
     Standard two-neutrino oscillations, written by hand (the dedicated
@@ -5476,6 +7609,58 @@ def osc_prob_2nu_matter_nsi_constant_density(
     r"""Compute and return the two-neutrino oscillation probability in
     matter with a constant density profile, including non-standard
     interactions (NSI).
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    energy : int, float, list, or np.ndarray
+        Neutrino energy/energies.
+    L : int, float, list, or np.ndarray
+        Baseline(s).
+    rho : int or float
+        Matter density (or electron number density, if ``density_is_of_number_of_electrons`` is True).
+    sth : int or float
+        Sin(theta), the single mixing angle of the two-flavor system.
+    Dm2 : int or float
+        Mass-squared difference Delta m^2 of the two-flavor system.
+    eps_aa : int or float, optional
+        Non-universal diagonal NSI coupling of nu_e (relative to nu_mu, whose diagonal coupling is fixed to 0 by convention); see ``hamiltonians.hamiltonian_2nu_nsi``. Default: 0.0.
+    eps_ab : int or float, optional
+        Flavor-off-diagonal (nu_e-nu_mu) NSI coupling. Default: 0.0.
+    ratio_number_neutrons_to_protons : int or float, optional
+        Ratio of the number of neutrons to protons in matter. Default: 1.0.
+    electron_fraction : int or float, optional
+        Electron fraction. Default: 0.5.
+    nubar : bool, optional
+        If True, compute the probability for antineutrinos. Default: False.
+    nu_i : int, optional
+        Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
+    nu_f : int, optional
+        Final flavor index; see ``nu_i``. Default: None.
+    density_matter_is_in_g_per_cm3 : bool, optional
+        If True, the density is given in g cm^{-3}. Default: False.
+    density_is_of_number_of_electrons : bool, optional
+        If True, the density parameter directly gives the electron number density [eV^3]. Default: False.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+
+    Returns
+    -------
+    float or np.ndarray
+        Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
     # If any of the flavor indices is > 1, fix it (read the docstring above).
     nu_i, nu_f = valid_flavor_indices_2nu(nu_i, nu_f)
@@ -5536,6 +7721,76 @@ def osc_prob_3nu_matter_nsi_constant_density(
     r"""Compute and return the three-neutrino oscillation probability in
     matter with a constant density profile, including non-standard
     interactions (NSI).
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    energy : int, float, list, or np.ndarray
+        Neutrino energy/energies.
+    L : int, float, list, or np.ndarray
+        Baseline(s).
+    rho : int or float
+        Matter density (or electron number density, if ``density_is_of_number_of_electrons`` is True).
+    s12 : int or float, optional
+        Sin(theta_12). Default: None.
+    s23 : int or float, optional
+        Sin(theta_23). Default: None.
+    s13 : int or float, optional
+        Sin(theta_13). Default: None.
+    dCP : int or float, optional
+        delta_CP [radian]. Default: None.
+    D21 : int or float, optional
+        Mass-squared difference Delta m^2_21. Default: None.
+    D31 : int or float, optional
+        Mass-squared difference Delta m^2_31. Default: None.
+    eps_ee : int or float, optional
+        Diagonal NSI coupling of nu_e. Default: 0.0.
+    eps_em : int or float, optional
+        Flavor-off-diagonal (nu_e-nu_mu) NSI coupling. Default: 0.0.
+    eps_et : int or float, optional
+        Flavor-off-diagonal (nu_e-nu_tau) NSI coupling. Default: 0.0.
+    eps_mm : int or float, optional
+        Diagonal NSI coupling of nu_mu. Default: 0.0.
+    eps_mt : int or float, optional
+        Flavor-off-diagonal (nu_mu-nu_tau) NSI coupling. Default: 0.0.
+    eps_tt : int or float, optional
+        Diagonal NSI coupling of nu_tau. Default: 0.0.
+    ratio_number_neutrons_to_protons : int or float, optional
+        Ratio of the number of neutrons to protons in matter. Default: 1.0.
+    electron_fraction : int or float, optional
+        Electron fraction. Default: 0.5.
+    nubar : bool, optional
+        If True, compute the probability for antineutrinos. Default: False.
+    nu_i : int, optional
+        Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
+    nu_f : int, optional
+        Final flavor index; see ``nu_i``. Default: None.
+    density_matter_is_in_g_per_cm3 : bool, optional
+        If True, the density is given in g cm^{-3}. Default: False.
+    density_is_of_number_of_electrons : bool, optional
+        If True, the density parameter directly gives the electron number density [eV^3]. Default: False.
+    default_osc_params_set_name : str, optional
+        Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+
+    Returns
+    -------
+    float or np.ndarray
+        Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
     return osc_prob_matter_nsi(
         num_flavors=3,
@@ -5605,6 +7860,96 @@ def osc_prob_4nu_matter_nsi_constant_density(
     r"""Compute and return the four-neutrino oscillation probability in
     matter with a constant density profile, including non-standard
     interactions (NSI).
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    energy : int, float, list, or np.ndarray
+        Neutrino energy/energies.
+    L : int, float, list, or np.ndarray
+        Baseline(s).
+    rho : int or float
+        Matter density (or electron number density, if ``density_is_of_number_of_electrons`` is True).
+    s12 : int or float, optional
+        Sin(theta_12). Default: None.
+    s23 : int or float, optional
+        Sin(theta_23). Default: None.
+    s13 : int or float, optional
+        Sin(theta_13). Default: None.
+    dCP : int or float, optional
+        delta_CP [radian]. Default: None.
+    D21 : int or float, optional
+        Mass-squared difference Delta m^2_21. Default: None.
+    D31 : int or float, optional
+        Mass-squared difference Delta m^2_31. Default: None.
+    s14 : int or float, optional
+        Sin(theta_14). Default: 0.0.
+    s24 : int or float, optional
+        Sin(theta_24). Default: 0.0.
+    s34 : int or float, optional
+        Sin(theta_34). Default: 0.0.
+    d14 : int or float, optional
+        delta_14 [radian]. Default: 0.0.
+    d24 : int or float, optional
+        delta_24 [radian]. Default: 0.0.
+    D41 : int or float, optional
+        Mass-squared difference Delta m^2_41. Default: 0.0.
+    eps_ee : int or float, optional
+        Diagonal NSI coupling of nu_e. Default: 0.0.
+    eps_em : int or float, optional
+        Flavor-off-diagonal (nu_e-nu_mu) NSI coupling. Default: 0.0.
+    eps_et : int or float, optional
+        Flavor-off-diagonal (nu_e-nu_tau) NSI coupling. Default: 0.0.
+    eps_es : int or float, optional
+        Flavor-off-diagonal (nu_e-nu_s) NSI coupling. Default: 0.0.
+    eps_mm : int or float, optional
+        Diagonal NSI coupling of nu_mu. Default: 0.0.
+    eps_mt : int or float, optional
+        Flavor-off-diagonal (nu_mu-nu_tau) NSI coupling. Default: 0.0.
+    eps_ms : int or float, optional
+        Flavor-off-diagonal (nu_mu-nu_s) NSI coupling. Default: 0.0.
+    eps_tt : int or float, optional
+        Diagonal NSI coupling of nu_tau. Default: 0.0.
+    eps_ts : int or float, optional
+        Flavor-off-diagonal (nu_tau-nu_s) NSI coupling. Default: 0.0.
+    eps_ss : int or float, optional
+        Diagonal NSI coupling of nu_s. Default: 0.0.
+    ratio_number_neutrons_to_protons : int or float, optional
+        Ratio of the number of neutrons to protons in matter. Default: 1.0.
+    electron_fraction : int or float, optional
+        Electron fraction. Default: 0.5.
+    nubar : bool, optional
+        If True, compute the probability for antineutrinos. Default: False.
+    nu_i : int, optional
+        Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
+    nu_f : int, optional
+        Final flavor index; see ``nu_i``. Default: None.
+    density_matter_is_in_g_per_cm3 : bool, optional
+        If True, the density is given in g cm^{-3}. Default: False.
+    density_is_of_number_of_electrons : bool, optional
+        If True, the density parameter directly gives the electron number density [eV^3]. Default: False.
+    default_osc_params_set_name : str, optional
+        Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+
+    Returns
+    -------
+    float or np.ndarray
+        Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
     return osc_prob_matter_nsi(
         num_flavors=4,
@@ -5687,6 +8032,118 @@ def osc_prob_5nu_matter_nsi_constant_density(
     r"""Compute and return the five-neutrino oscillation probability in
     matter with a constant density profile, including non-standard
     interactions (NSI).
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    energy : int, float, list, or np.ndarray
+        Neutrino energy/energies.
+    L : int, float, list, or np.ndarray
+        Baseline(s).
+    rho : int or float
+        Matter density (or electron number density, if ``density_is_of_number_of_electrons`` is True).
+    s12 : int or float, optional
+        Sin(theta_12). Default: None.
+    s23 : int or float, optional
+        Sin(theta_23). Default: None.
+    s13 : int or float, optional
+        Sin(theta_13). Default: None.
+    dCP : int or float, optional
+        delta_CP [radian]. Default: None.
+    D21 : int or float, optional
+        Mass-squared difference Delta m^2_21. Default: None.
+    D31 : int or float, optional
+        Mass-squared difference Delta m^2_31. Default: None.
+    s14 : int or float, optional
+        Sin(theta_14). Default: 0.0.
+    s15 : int or float, optional
+        Sin(theta_15). Default: 0.0.
+    s24 : int or float, optional
+        Sin(theta_24). Default: 0.0.
+    s25 : int or float, optional
+        Sin(theta_25). Default: 0.0.
+    s34 : int or float, optional
+        Sin(theta_34). Default: 0.0.
+    s35 : int or float, optional
+        Sin(theta_35). Default: 0.0.
+    d14 : int or float, optional
+        delta_14 [radian]. Default: 0.0.
+    d15 : int or float, optional
+        delta_15 [radian]. Default: 0.0.
+    d24 : int or float, optional
+        delta_24 [radian]. Default: 0.0.
+    d35 : int or float, optional
+        delta_35 [radian]. Default: 0.0.
+    D41 : int or float, optional
+        Mass-squared difference Delta m^2_41. Default: 0.0.
+    D51 : int or float, optional
+        Mass-squared difference Delta m^2_51. Default: 0.0.
+    eps_ee : int or float, optional
+        Diagonal NSI coupling of nu_e. Default: 0.0.
+    eps_em : int or float, optional
+        Flavor-off-diagonal (nu_e-nu_mu) NSI coupling. Default: 0.0.
+    eps_et : int or float, optional
+        Flavor-off-diagonal (nu_e-nu_tau) NSI coupling. Default: 0.0.
+    eps_es1 : int or float, optional
+        Flavor-off-diagonal (nu_e-nu_s1) NSI coupling. Default: 0.0.
+    eps_es2 : int or float, optional
+        Flavor-off-diagonal (nu_e-nu_s2) NSI coupling. Default: 0.0.
+    eps_mm : int or float, optional
+        Diagonal NSI coupling of nu_mu. Default: 0.0.
+    eps_mt : int or float, optional
+        Flavor-off-diagonal (nu_mu-nu_tau) NSI coupling. Default: 0.0.
+    eps_ms1 : int or float, optional
+        Flavor-off-diagonal (nu_mu-nu_s1) NSI coupling. Default: 0.0.
+    eps_ms2 : int or float, optional
+        Flavor-off-diagonal (nu_mu-nu_s2) NSI coupling. Default: 0.0.
+    eps_tt : int or float, optional
+        Diagonal NSI coupling of nu_tau. Default: 0.0.
+    eps_ts1 : int or float, optional
+        Flavor-off-diagonal (nu_tau-nu_s1) NSI coupling. Default: 0.0.
+    eps_ts2 : int or float, optional
+        Flavor-off-diagonal (nu_tau-nu_s2) NSI coupling. Default: 0.0.
+    eps_s1s1 : int or float, optional
+        Diagonal NSI coupling of nu_s1. Default: 0.0.
+    eps_s1s2 : int or float, optional
+        Flavor-off-diagonal (nu_s1-nu_s2) NSI coupling. Default: 0.0.
+    eps_s2s2 : int or float, optional
+        Diagonal NSI coupling of nu_s2. Default: 0.0.
+    ratio_number_neutrons_to_protons : int or float, optional
+        Ratio of the number of neutrons to protons in matter. Default: 1.0.
+    electron_fraction : int or float, optional
+        Electron fraction. Default: 0.5.
+    nubar : bool, optional
+        If True, compute the probability for antineutrinos. Default: False.
+    nu_i : int, optional
+        Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
+    nu_f : int, optional
+        Final flavor index; see ``nu_i``. Default: None.
+    density_matter_is_in_g_per_cm3 : bool, optional
+        If True, the density is given in g cm^{-3}. Default: False.
+    density_is_of_number_of_electrons : bool, optional
+        If True, the density parameter directly gives the electron number density [eV^3]. Default: False.
+    default_osc_params_set_name : str, optional
+        Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+
+    Returns
+    -------
+    float or np.ndarray
+        Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
     return osc_prob_matter_nsi(
         num_flavors=5,
@@ -5747,6 +8204,62 @@ def osc_prob_2nu_matter_nsi_exp_density(
     r"""Compute and return the two-neutrino oscillation probability in
     matter with an exponentially falling density profile, including
     non-standard interactions (NSI).
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    energy : float, list, or np.ndarray
+        Neutrino energy/energies.
+    L : float, list, or np.ndarray
+        Baseline(s).
+    L0 : int or float
+        Initial position.
+    rho_central : int or float
+        Matter density (or electron number density) at the center of the exponential profile (l = 0).
+    l_scale : int or float
+        Length scale of the exponential density decrease.
+    sth : int or float
+        Sin(theta), the single mixing angle of the two-flavor system.
+    Dm2 : int or float
+        Mass-squared difference Delta m^2 of the two-flavor system.
+    eps_aa : int or float, optional
+        Non-universal diagonal NSI coupling of nu_e (relative to nu_mu, whose diagonal coupling is fixed to 0 by convention); see ``hamiltonians.hamiltonian_2nu_nsi``. Default: 0.0.
+    eps_ab : int or float, optional
+        Flavor-off-diagonal (nu_e-nu_mu) NSI coupling. Default: 0.0.
+    ratio_number_neutrons_to_protons : int or float, optional
+        Ratio of the number of neutrons to protons in matter. Default: 1.0.
+    electron_fraction : int or float, optional
+        Electron fraction. Default: 0.5.
+    nubar : bool, optional
+        If True, compute the probability for antineutrinos. Default: False.
+    nu_i : int, optional
+        Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
+    nu_f : int, optional
+        Final flavor index; see ``nu_i``. Default: None.
+    density_matter_is_in_g_per_cm3 : bool, optional
+        If True, the density is given in g cm^{-3}. Default: False.
+    density_is_of_number_of_electrons : bool, optional
+        If True, the density parameter directly gives the electron number density [eV^3]. Default: False.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+
+    Returns
+    -------
+    float or np.ndarray
+        Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
     try:
@@ -5824,6 +8337,80 @@ def osc_prob_3nu_matter_nsi_exp_density(
     r"""Compute and return the three-neutrino oscillation probability in
     matter with an exponentially falling density profile, including
     non-standard interactions (NSI).
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    energy : float, list, or np.ndarray
+        Neutrino energy/energies.
+    L : float, list, or np.ndarray
+        Baseline(s).
+    L0 : int or float
+        Initial position.
+    rho_central : int or float
+        Matter density (or electron number density) at the center of the exponential profile (l = 0).
+    l_scale : int or float
+        Length scale of the exponential density decrease.
+    s12 : int or float, optional
+        Sin(theta_12). Default: None.
+    s23 : int or float, optional
+        Sin(theta_23). Default: None.
+    s13 : int or float, optional
+        Sin(theta_13). Default: None.
+    dCP : int or float, optional
+        delta_CP [radian]. Default: None.
+    D21 : int or float, optional
+        Mass-squared difference Delta m^2_21. Default: None.
+    D31 : int or float, optional
+        Mass-squared difference Delta m^2_31. Default: None.
+    eps_ee : int or float, optional
+        Diagonal NSI coupling of nu_e. Default: 0.0.
+    eps_em : int or float, optional
+        Flavor-off-diagonal (nu_e-nu_mu) NSI coupling. Default: 0.0.
+    eps_et : int or float, optional
+        Flavor-off-diagonal (nu_e-nu_tau) NSI coupling. Default: 0.0.
+    eps_mm : int or float, optional
+        Diagonal NSI coupling of nu_mu. Default: 0.0.
+    eps_mt : int or float, optional
+        Flavor-off-diagonal (nu_mu-nu_tau) NSI coupling. Default: 0.0.
+    eps_tt : int or float, optional
+        Diagonal NSI coupling of nu_tau. Default: 0.0.
+    ratio_number_neutrons_to_protons : int or float, optional
+        Ratio of the number of neutrons to protons in matter. Default: 1.0.
+    electron_fraction : int or float, optional
+        Electron fraction. Default: 0.5.
+    nubar : bool, optional
+        If True, compute the probability for antineutrinos. Default: False.
+    nu_i : int, optional
+        Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
+    nu_f : int, optional
+        Final flavor index; see ``nu_i``. Default: None.
+    density_matter_is_in_g_per_cm3 : bool, optional
+        If True, the density is given in g cm^{-3}. Default: False.
+    density_is_of_number_of_electrons : bool, optional
+        If True, the density parameter directly gives the electron number density [eV^3]. Default: False.
+    default_osc_params_set_name : str, optional
+        Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+
+    Returns
+    -------
+    float or np.ndarray
+        Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
     try:
@@ -5910,6 +8497,100 @@ def osc_prob_4nu_matter_nsi_exp_density(
     r"""Compute and return the four-neutrino (3+1) oscillation 
     probability in matter with an exponentially falling density profile,
     including non-standard interactions (NSI).
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    energy : float, list, or np.ndarray
+        Neutrino energy/energies.
+    L : float, list, or np.ndarray
+        Baseline(s).
+    L0 : int or float
+        Initial position.
+    rho_central : int or float
+        Matter density (or electron number density) at the center of the exponential profile (l = 0).
+    l_scale : int or float
+        Length scale of the exponential density decrease.
+    s12 : int or float, optional
+        Sin(theta_12). Default: None.
+    s23 : int or float, optional
+        Sin(theta_23). Default: None.
+    s13 : int or float, optional
+        Sin(theta_13). Default: None.
+    dCP : int or float, optional
+        delta_CP [radian]. Default: None.
+    D21 : int or float, optional
+        Mass-squared difference Delta m^2_21. Default: None.
+    D31 : int or float, optional
+        Mass-squared difference Delta m^2_31. Default: None.
+    s14 : int or float, optional
+        Sin(theta_14). Default: 0.0.
+    s24 : int or float, optional
+        Sin(theta_24). Default: 0.0.
+    s34 : int or float, optional
+        Sin(theta_34). Default: 0.0.
+    d14 : int or float, optional
+        delta_14 [radian]. Default: 0.0.
+    d24 : int or float, optional
+        delta_24 [radian]. Default: 0.0.
+    D41 : int or float, optional
+        Mass-squared difference Delta m^2_41. Default: 0.0.
+    eps_ee : int or float, optional
+        Diagonal NSI coupling of nu_e. Default: 0.0.
+    eps_em : int or float, optional
+        Flavor-off-diagonal (nu_e-nu_mu) NSI coupling. Default: 0.0.
+    eps_et : int or float, optional
+        Flavor-off-diagonal (nu_e-nu_tau) NSI coupling. Default: 0.0.
+    eps_es : int or float, optional
+        Flavor-off-diagonal (nu_e-nu_s) NSI coupling. Default: 0.0.
+    eps_mm : int or float, optional
+        Diagonal NSI coupling of nu_mu. Default: 0.0.
+    eps_mt : int or float, optional
+        Flavor-off-diagonal (nu_mu-nu_tau) NSI coupling. Default: 0.0.
+    eps_ms : int or float, optional
+        Flavor-off-diagonal (nu_mu-nu_s) NSI coupling. Default: 0.0.
+    eps_tt : int or float, optional
+        Diagonal NSI coupling of nu_tau. Default: 0.0.
+    eps_ts : int or float, optional
+        Flavor-off-diagonal (nu_tau-nu_s) NSI coupling. Default: 0.0.
+    eps_ss : int or float, optional
+        Diagonal NSI coupling of nu_s. Default: 0.0.
+    ratio_number_neutrons_to_protons : int or float, optional
+        Ratio of the number of neutrons to protons in matter. Default: 1.0.
+    electron_fraction : int or float, optional
+        Electron fraction. Default: 0.5.
+    nubar : bool, optional
+        If True, compute the probability for antineutrinos. Default: False.
+    nu_i : int, optional
+        Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
+    nu_f : int, optional
+        Final flavor index; see ``nu_i``. Default: None.
+    density_matter_is_in_g_per_cm3 : bool, optional
+        If True, the density is given in g cm^{-3}. Default: False.
+    density_is_of_number_of_electrons : bool, optional
+        If True, the density parameter directly gives the electron number density [eV^3]. Default: False.
+    default_osc_params_set_name : str, optional
+        Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+
+    Returns
+    -------
+    float or np.ndarray
+        Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
     try:
@@ -6009,6 +8690,122 @@ def osc_prob_5nu_matter_nsi_exp_density(
     r"""Compute and return the five-neutrino (3+2) oscillation 
     probability in matter with an exponentially falling density profile,
     including non-standard interactions (NSI).
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    energy : float, list, or np.ndarray
+        Neutrino energy/energies.
+    L : float, list, or np.ndarray
+        Baseline(s).
+    L0 : int or float
+        Initial position.
+    rho_central : int or float
+        Matter density (or electron number density) at the center of the exponential profile (l = 0).
+    l_scale : int or float
+        Length scale of the exponential density decrease.
+    s12 : int or float, optional
+        Sin(theta_12). Default: None.
+    s23 : int or float, optional
+        Sin(theta_23). Default: None.
+    s13 : int or float, optional
+        Sin(theta_13). Default: None.
+    dCP : int or float, optional
+        delta_CP [radian]. Default: None.
+    D21 : int or float, optional
+        Mass-squared difference Delta m^2_21. Default: None.
+    D31 : int or float, optional
+        Mass-squared difference Delta m^2_31. Default: None.
+    s14 : int or float, optional
+        Sin(theta_14). Default: 0.0.
+    s15 : int or float, optional
+        Sin(theta_15). Default: 0.0.
+    s24 : int or float, optional
+        Sin(theta_24). Default: 0.0.
+    s25 : int or float, optional
+        Sin(theta_25). Default: 0.0.
+    s34 : int or float, optional
+        Sin(theta_34). Default: 0.0.
+    s35 : int or float, optional
+        Sin(theta_35). Default: 0.0.
+    d14 : int or float, optional
+        delta_14 [radian]. Default: 0.0.
+    d15 : int or float, optional
+        delta_15 [radian]. Default: 0.0.
+    d24 : int or float, optional
+        delta_24 [radian]. Default: 0.0.
+    d35 : int or float, optional
+        delta_35 [radian]. Default: 0.0.
+    D41 : int or float, optional
+        Mass-squared difference Delta m^2_41. Default: 0.0.
+    D51 : int or float, optional
+        Mass-squared difference Delta m^2_51. Default: 0.0.
+    eps_ee : int or float, optional
+        Diagonal NSI coupling of nu_e. Default: 0.0.
+    eps_em : int or float, optional
+        Flavor-off-diagonal (nu_e-nu_mu) NSI coupling. Default: 0.0.
+    eps_et : int or float, optional
+        Flavor-off-diagonal (nu_e-nu_tau) NSI coupling. Default: 0.0.
+    eps_es1 : int or float, optional
+        Flavor-off-diagonal (nu_e-nu_s1) NSI coupling. Default: 0.0.
+    eps_es2 : int or float, optional
+        Flavor-off-diagonal (nu_e-nu_s2) NSI coupling. Default: 0.0.
+    eps_mm : int or float, optional
+        Diagonal NSI coupling of nu_mu. Default: 0.0.
+    eps_mt : int or float, optional
+        Flavor-off-diagonal (nu_mu-nu_tau) NSI coupling. Default: 0.0.
+    eps_ms1 : int or float, optional
+        Flavor-off-diagonal (nu_mu-nu_s1) NSI coupling. Default: 0.0.
+    eps_ms2 : int or float, optional
+        Flavor-off-diagonal (nu_mu-nu_s2) NSI coupling. Default: 0.0.
+    eps_tt : int or float, optional
+        Diagonal NSI coupling of nu_tau. Default: 0.0.
+    eps_ts1 : int or float, optional
+        Flavor-off-diagonal (nu_tau-nu_s1) NSI coupling. Default: 0.0.
+    eps_ts2 : int or float, optional
+        Flavor-off-diagonal (nu_tau-nu_s2) NSI coupling. Default: 0.0.
+    eps_s1s1 : int or float, optional
+        Diagonal NSI coupling of nu_s1. Default: 0.0.
+    eps_s1s2 : int or float, optional
+        Flavor-off-diagonal (nu_s1-nu_s2) NSI coupling. Default: 0.0.
+    eps_s2s2 : int or float, optional
+        Diagonal NSI coupling of nu_s2. Default: 0.0.
+    ratio_number_neutrons_to_protons : int or float, optional
+        Ratio of the number of neutrons to protons in matter. Default: 1.0.
+    electron_fraction : int or float, optional
+        Electron fraction. Default: 0.5.
+    nubar : bool, optional
+        If True, compute the probability for antineutrinos. Default: False.
+    nu_i : int, optional
+        Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
+    nu_f : int, optional
+        Final flavor index; see ``nu_i``. Default: None.
+    density_matter_is_in_g_per_cm3 : bool, optional
+        If True, the density is given in g cm^{-3}. Default: False.
+    density_is_of_number_of_electrons : bool, optional
+        If True, the density parameter directly gives the electron number density [eV^3]. Default: False.
+    default_osc_params_set_name : str, optional
+        Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+
+    Returns
+    -------
+    float or np.ndarray
+        Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
     try:
@@ -6081,7 +8878,7 @@ def osc_prob_2nu_earth_nsi(
     inside the Earth, either between two locations on the surface of the
     Earth, or between the surface and a point in the interior, including
     non-standard interactions (NSI).
-    
+
     For the matter density inside the Earth, it uses the Preliminary 
     Reference Earth Model.
 
@@ -6112,6 +8909,54 @@ def osc_prob_2nu_earth_nsi(
 
     Examples
     --------
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    energy : int, float, list, or np.ndarray
+        Neutrino energy/energies.
+    sth : int or float
+        Sin(theta), the single mixing angle of the two-flavor system.
+    Dm2 : int or float
+        Mass-squared difference Delta m^2 of the two-flavor system.
+    eps_aa : int or float, optional
+        Non-universal diagonal NSI coupling of nu_e (relative to nu_mu, whose diagonal coupling is fixed to 0 by convention); see ``hamiltonians.hamiltonian_2nu_nsi``. Default: 0.0.
+    eps_ab : int or float, optional
+        Flavor-off-diagonal (nu_e-nu_mu) NSI coupling. Default: 0.0.
+    costhz : int or float, optional
+        Cosine of the zenith angle of the neutrino. Used together with ``L``, as an alternative to ``loc_ini``/``loc_fin``. Default: None.
+    loc_ini : tuple, list, np.ndarray, or str, optional
+        Initial location on the surface of the Earth, as (latitude, longitude) coordinates or a predefined location name (see ``earth.loc_coords_dms``). Must be given with ``loc_fin``. Default: None.
+    loc_fin : tuple, list, np.ndarray, or str, optional
+        Final location, same format as ``loc_ini``. Must be given with ``loc_ini``. Default: None.
+    L : float, list, or np.ndarray, optional
+        Baseline(s). Default: None.
+    nubar : bool, optional
+        If True, compute the probability for antineutrinos. Default: False.
+    nu_i : int, optional
+        Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
+    nu_f : int, optional
+        Final flavor index; see ``nu_i``. Default: None.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+
+    Returns
+    -------
+    float or np.ndarray
+        Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
     # If the location is given as a string, check if it is one of the predefined named locations in
     # Magnus.  The method sys._getframe().f_code.co_name returns the function name.  If the name
@@ -6208,7 +9053,7 @@ def osc_prob_3nu_earth_nsi(
     inside the Earth, either between two locations on the surface of the
     Earth, or between the surface and a point in the interior, including
     non-standard interactions (NSI).
-    
+
     For the matter density inside the Earth, it uses the Preliminary 
     Reference Earth Model.
 
@@ -6239,6 +9084,72 @@ def osc_prob_3nu_earth_nsi(
 
     Examples
     --------
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    energy : int, float, list, or np.ndarray
+        Neutrino energy/energies.
+    costhz : int or float, optional
+        Cosine of the zenith angle of the neutrino. Used together with ``L``, as an alternative to ``loc_ini``/``loc_fin``. Default: None.
+    loc_ini : tuple, list, np.ndarray, or str, optional
+        Initial location on the surface of the Earth, as (latitude, longitude) coordinates or a predefined location name (see ``earth.loc_coords_dms``). Must be given with ``loc_fin``. Default: None.
+    loc_fin : tuple, list, np.ndarray, or str, optional
+        Final location, same format as ``loc_ini``. Must be given with ``loc_ini``. Default: None.
+    L : float, list, or np.ndarray, optional
+        Baseline(s). Default: None.
+    s12 : int or float, optional
+        Sin(theta_12). Default: None.
+    s23 : int or float, optional
+        Sin(theta_23). Default: None.
+    s13 : int or float, optional
+        Sin(theta_13). Default: None.
+    dCP : int or float, optional
+        delta_CP [radian]. Default: None.
+    D21 : int or float, optional
+        Mass-squared difference Delta m^2_21. Default: None.
+    D31 : int or float, optional
+        Mass-squared difference Delta m^2_31. Default: None.
+    eps_ee : int or float, optional
+        Diagonal NSI coupling of nu_e. Default: 0.0.
+    eps_em : int or float, optional
+        Flavor-off-diagonal (nu_e-nu_mu) NSI coupling. Default: 0.0.
+    eps_et : int or float, optional
+        Flavor-off-diagonal (nu_e-nu_tau) NSI coupling. Default: 0.0.
+    eps_mm : int or float, optional
+        Diagonal NSI coupling of nu_mu. Default: 0.0.
+    eps_mt : int or float, optional
+        Flavor-off-diagonal (nu_mu-nu_tau) NSI coupling. Default: 0.0.
+    eps_tt : int or float, optional
+        Diagonal NSI coupling of nu_tau. Default: 0.0.
+    nubar : bool, optional
+        If True, compute the probability for antineutrinos. Default: False.
+    nu_i : int, optional
+        Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
+    nu_f : int, optional
+        Final flavor index; see ``nu_i``. Default: None.
+    default_osc_params_set_name : str, optional
+        Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+
+    Returns
+    -------
+    float or np.ndarray
+        Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
     # If the location is given as a string, check if it is one of the predefined named locations in
     # Magnus.  The method sys._getframe().f_code.co_name returns the function name.  If the name
@@ -6344,7 +9255,7 @@ def osc_prob_4nu_earth_nsi(
     inside the Earth, either between two locations on the surface of the
     Earth, or between the surface and a point in the interior, including
     non-standard interactions (NSI).
-    
+
     For the matter density inside the Earth, it uses the Preliminary 
     Reference Earth Model.
 
@@ -6375,6 +9286,92 @@ def osc_prob_4nu_earth_nsi(
 
     Examples
     --------
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    energy : int, float, list, or np.ndarray
+        Neutrino energy/energies.
+    costhz : int or float, optional
+        Cosine of the zenith angle of the neutrino. Used together with ``L``, as an alternative to ``loc_ini``/``loc_fin``. Default: None.
+    loc_ini : tuple, list, np.ndarray, or str, optional
+        Initial location on the surface of the Earth, as (latitude, longitude) coordinates or a predefined location name (see ``earth.loc_coords_dms``). Must be given with ``loc_fin``. Default: None.
+    loc_fin : tuple, list, np.ndarray, or str, optional
+        Final location, same format as ``loc_ini``. Must be given with ``loc_ini``. Default: None.
+    L : float, list, or np.ndarray, optional
+        Baseline(s). Default: None.
+    s12 : int or float, optional
+        Sin(theta_12). Default: None.
+    s23 : int or float, optional
+        Sin(theta_23). Default: None.
+    s13 : int or float, optional
+        Sin(theta_13). Default: None.
+    dCP : int or float, optional
+        delta_CP [radian]. Default: None.
+    D21 : int or float, optional
+        Mass-squared difference Delta m^2_21. Default: None.
+    D31 : int or float, optional
+        Mass-squared difference Delta m^2_31. Default: None.
+    s14 : int or float, optional
+        Sin(theta_14). Default: 0.0.
+    s24 : int or float, optional
+        Sin(theta_24). Default: 0.0.
+    s34 : int or float, optional
+        Sin(theta_34). Default: 0.0.
+    d14 : int or float, optional
+        delta_14 [radian]. Default: 0.0.
+    d24 : int or float, optional
+        delta_24 [radian]. Default: 0.0.
+    D41 : int or float, optional
+        Mass-squared difference Delta m^2_41. Default: 0.0.
+    eps_ee : int or float, optional
+        Diagonal NSI coupling of nu_e. Default: 0.0.
+    eps_em : int or float, optional
+        Flavor-off-diagonal (nu_e-nu_mu) NSI coupling. Default: 0.0.
+    eps_et : int or float, optional
+        Flavor-off-diagonal (nu_e-nu_tau) NSI coupling. Default: 0.0.
+    eps_es : int or float, optional
+        Flavor-off-diagonal (nu_e-nu_s) NSI coupling. Default: 0.0.
+    eps_mm : int or float, optional
+        Diagonal NSI coupling of nu_mu. Default: 0.0.
+    eps_mt : int or float, optional
+        Flavor-off-diagonal (nu_mu-nu_tau) NSI coupling. Default: 0.0.
+    eps_ms : int or float, optional
+        Flavor-off-diagonal (nu_mu-nu_s) NSI coupling. Default: 0.0.
+    eps_tt : int or float, optional
+        Diagonal NSI coupling of nu_tau. Default: 0.0.
+    eps_ts : int or float, optional
+        Flavor-off-diagonal (nu_tau-nu_s) NSI coupling. Default: 0.0.
+    eps_ss : int or float, optional
+        Diagonal NSI coupling of nu_s. Default: 0.0.
+    nubar : bool, optional
+        If True, compute the probability for antineutrinos. Default: False.
+    nu_i : int, optional
+        Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
+    nu_f : int, optional
+        Final flavor index; see ``nu_i``. Default: None.
+    default_osc_params_set_name : str, optional
+        Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+
+    Returns
+    -------
+    float or np.ndarray
+        Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
     # If the location is given as a string, check if it is one of the predefined named locations in
     # Magnus.  The method sys._getframe().f_code.co_name returns the function name.  If the name
@@ -6493,7 +9490,7 @@ def osc_prob_5nu_earth_nsi(
     inside the Earth, either between two locations on the surface of the
     Earth, or between the surface and a point in the interior, including
     non-standard interactions (NSI).
-    
+
     For the matter density inside the Earth, it uses the Preliminary 
     Reference Earth Model.
 
@@ -6524,6 +9521,114 @@ def osc_prob_5nu_earth_nsi(
 
     Examples
     --------
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    energy : int, float, list, or np.ndarray
+        Neutrino energy/energies.
+    costhz : int or float, optional
+        Cosine of the zenith angle of the neutrino. Used together with ``L``, as an alternative to ``loc_ini``/``loc_fin``. Default: None.
+    loc_ini : tuple, list, np.ndarray, or str, optional
+        Initial location on the surface of the Earth, as (latitude, longitude) coordinates or a predefined location name (see ``earth.loc_coords_dms``). Must be given with ``loc_fin``. Default: None.
+    loc_fin : tuple, list, np.ndarray, or str, optional
+        Final location, same format as ``loc_ini``. Must be given with ``loc_ini``. Default: None.
+    L : float, list, or np.ndarray, optional
+        Baseline(s). Default: None.
+    s12 : int or float, optional
+        Sin(theta_12). Default: None.
+    s23 : int or float, optional
+        Sin(theta_23). Default: None.
+    s13 : int or float, optional
+        Sin(theta_13). Default: None.
+    dCP : int or float, optional
+        delta_CP [radian]. Default: None.
+    D21 : int or float, optional
+        Mass-squared difference Delta m^2_21. Default: None.
+    D31 : int or float, optional
+        Mass-squared difference Delta m^2_31. Default: None.
+    s14 : int or float, optional
+        Sin(theta_14). Default: 0.0.
+    s15 : int or float, optional
+        Sin(theta_15). Default: 0.0.
+    s24 : int or float, optional
+        Sin(theta_24). Default: 0.0.
+    s25 : int or float, optional
+        Sin(theta_25). Default: 0.0.
+    s34 : int or float, optional
+        Sin(theta_34). Default: 0.0.
+    s35 : int or float, optional
+        Sin(theta_35). Default: 0.0.
+    d14 : int or float, optional
+        delta_14 [radian]. Default: 0.0.
+    d15 : int or float, optional
+        delta_15 [radian]. Default: 0.0.
+    d24 : int or float, optional
+        delta_24 [radian]. Default: 0.0.
+    d35 : int or float, optional
+        delta_35 [radian]. Default: 0.0.
+    D41 : int or float, optional
+        Mass-squared difference Delta m^2_41. Default: 0.0.
+    D51 : int or float, optional
+        Mass-squared difference Delta m^2_51. Default: 0.0.
+    eps_ee : int or float, optional
+        Diagonal NSI coupling of nu_e. Default: 0.0.
+    eps_em : int or float, optional
+        Flavor-off-diagonal (nu_e-nu_mu) NSI coupling. Default: 0.0.
+    eps_et : int or float, optional
+        Flavor-off-diagonal (nu_e-nu_tau) NSI coupling. Default: 0.0.
+    eps_es1 : int or float, optional
+        Flavor-off-diagonal (nu_e-nu_s1) NSI coupling. Default: 0.0.
+    eps_es2 : int or float, optional
+        Flavor-off-diagonal (nu_e-nu_s2) NSI coupling. Default: 0.0.
+    eps_mm : int or float, optional
+        Diagonal NSI coupling of nu_mu. Default: 0.0.
+    eps_mt : int or float, optional
+        Flavor-off-diagonal (nu_mu-nu_tau) NSI coupling. Default: 0.0.
+    eps_ms1 : int or float, optional
+        Flavor-off-diagonal (nu_mu-nu_s1) NSI coupling. Default: 0.0.
+    eps_ms2 : int or float, optional
+        Flavor-off-diagonal (nu_mu-nu_s2) NSI coupling. Default: 0.0.
+    eps_tt : int or float, optional
+        Diagonal NSI coupling of nu_tau. Default: 0.0.
+    eps_ts1 : int or float, optional
+        Flavor-off-diagonal (nu_tau-nu_s1) NSI coupling. Default: 0.0.
+    eps_ts2 : int or float, optional
+        Flavor-off-diagonal (nu_tau-nu_s2) NSI coupling. Default: 0.0.
+    eps_s1s1 : int or float, optional
+        Diagonal NSI coupling of nu_s1. Default: 0.0.
+    eps_s1s2 : int or float, optional
+        Flavor-off-diagonal (nu_s1-nu_s2) NSI coupling. Default: 0.0.
+    eps_s2s2 : int or float, optional
+        Diagonal NSI coupling of nu_s2. Default: 0.0.
+    nubar : bool, optional
+        If True, compute the probability for antineutrinos. Default: False.
+    nu_i : int, optional
+        Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
+    nu_f : int, optional
+        Final flavor index; see ``nu_i``. Default: None.
+    default_osc_params_set_name : str, optional
+        Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+
+    Returns
+    -------
+    float or np.ndarray
+        Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
     # If the location is given as a string, check if it is one of the predefined named locations in
     # Magnus.  The method sys._getframe().f_code.co_name returns the function name.  If the name
@@ -6612,20 +9717,64 @@ def osc_prob_2nu_sun_nsi(
     verbose: Optional[int]=0,
     **kwargs
 ) -> Union[float, np.ndarray]:
-    """Compute and return the two-neutrino oscillation probability 
+    r"""Compute and return the two-neutrino oscillation probability 
     for neutrinos inside the Sun, including non-standard interactions
     (NSI).
-    
+
     For the electron density inside the Sun, it assumes an exponentially
-    falling density profile: :math:`N_e(r) = N_e(0) \\exp(-r/r_0)`, 
-    with :math:`N_e(0) = 245 N_\\text{Av}~\\text{cm}^{-3}` and 
-    :math:`r_0 = R_\\odot/10.54`.  See Eq. (10.62) in
+    falling density profile: :math:`N_e(r) = N_e(0) \exp(-r/r_0)`, 
+    with :math:`N_e(0) = 245 N_\text{Av}~\text{cm}^{-3}` and 
+    :math:`r_0 = R_\odot/10.54`.  See Eq. (10.62) in
     `Fundamentals of Neutrino Physics and Astrophysics 
     <https://academic.oup.com/book/3490>`_ by Carlo Giunti and Chung 
     Wook Kim.
 
     Examples
     --------
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    energy : float, list, or np.ndarray
+        Neutrino energy/energies.
+    L : float, list, or np.ndarray
+        Baseline(s).
+    L0 : int or float
+        Initial position.
+    sth : int or float
+        Sin(theta), the single mixing angle of the two-flavor system.
+    Dm2 : int or float
+        Mass-squared difference Delta m^2 of the two-flavor system.
+    eps_aa : int or float, optional
+        Non-universal diagonal NSI coupling of nu_e (relative to nu_mu, whose diagonal coupling is fixed to 0 by convention); see ``hamiltonians.hamiltonian_2nu_nsi``. Default: 0.0.
+    eps_ab : int or float, optional
+        Flavor-off-diagonal (nu_e-nu_mu) NSI coupling. Default: 0.0.
+    nubar : bool, optional
+        If True, compute the probability for antineutrinos. Default: False.
+    nu_i : int, optional
+        Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
+    nu_f : int, optional
+        Final flavor index; see ``nu_i``. Default: None.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+
+    Returns
+    -------
+    float or np.ndarray
+        Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
     return osc_prob_2nu_matter_nsi_exp_density(
@@ -6680,19 +9829,81 @@ def osc_prob_3nu_sun_nsi(
     verbose: Optional[int]=0,
     **kwargs
 ) -> Union[float, np.ndarray]:
-    """Compute and return the three-neutrino oscillation probability 
+    r"""Compute and return the three-neutrino oscillation probability 
     for neutrinos inside the Sun.
-    
+
     For the electron density inside the Sun, it assumes an exponentially
-    falling density profile: :math:`N_e(r) = N_e(0) \\exp(-r/r_0)`, 
-    with :math:`N_e(0) = 245 N_\\text{Av}~\\text{cm}^{-3}` and 
-    :math:`r_0 = R_\\odot/10.54`.  See Eq. (10.62) in
+    falling density profile: :math:`N_e(r) = N_e(0) \exp(-r/r_0)`, 
+    with :math:`N_e(0) = 245 N_\text{Av}~\text{cm}^{-3}` and 
+    :math:`r_0 = R_\odot/10.54`.  See Eq. (10.62) in
     `Fundamentals of Neutrino Physics and Astrophysics 
     <https://academic.oup.com/book/3490>`_ by Carlo Giunti and Chung 
     Wook Kim.
 
     Examples
     --------
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    energy : float, list, or np.ndarray
+        Neutrino energy/energies.
+    L : float, list, or np.ndarray
+        Baseline(s).
+    L0 : int or float
+        Initial position.
+    s12 : int or float, optional
+        Sin(theta_12). Default: None.
+    s23 : int or float, optional
+        Sin(theta_23). Default: None.
+    s13 : int or float, optional
+        Sin(theta_13). Default: None.
+    dCP : int or float, optional
+        delta_CP [radian]. Default: None.
+    D21 : int or float, optional
+        Mass-squared difference Delta m^2_21. Default: None.
+    D31 : int or float, optional
+        Mass-squared difference Delta m^2_31. Default: None.
+    eps_ee : int or float, optional
+        Diagonal NSI coupling of nu_e. Default: 0.0.
+    eps_em : int or float, optional
+        Flavor-off-diagonal (nu_e-nu_mu) NSI coupling. Default: 0.0.
+    eps_et : int or float, optional
+        Flavor-off-diagonal (nu_e-nu_tau) NSI coupling. Default: 0.0.
+    eps_mm : int or float, optional
+        Diagonal NSI coupling of nu_mu. Default: 0.0.
+    eps_mt : int or float, optional
+        Flavor-off-diagonal (nu_mu-nu_tau) NSI coupling. Default: 0.0.
+    eps_tt : int or float, optional
+        Diagonal NSI coupling of nu_tau. Default: 0.0.
+    nubar : bool, optional
+        If True, compute the probability for antineutrinos. Default: False.
+    nu_i : int, optional
+        Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
+    nu_f : int, optional
+        Final flavor index; see ``nu_i``. Default: None.
+    default_osc_params_set_name : str, optional
+        Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+
+    Returns
+    -------
+    float or np.ndarray
+        Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
     return osc_prob_3nu_matter_nsi_exp_density(
@@ -6766,19 +9977,101 @@ def osc_prob_4nu_sun_nsi(
     verbose: Optional[int]=0,
     **kwargs
 ) -> Union[float, np.ndarray]:
-    """Compute and return the four-neutrino (3+1) oscillation 
+    r"""Compute and return the four-neutrino (3+1) oscillation 
     probability for neutrinos inside the Sun.
 
     For the electron density inside the Sun, it assumes an exponentially
-    falling density profile: :math:`N_e(r) = N_e(0) \\exp(-r/r_0)`, 
-    with :math:`N_e(0) = 245 N_\\text{Av}~\\text{cm}^{-3}` and 
-    :math:`r_0 = R_\\odot/10.54`.  See Eq. (10.62) in
+    falling density profile: :math:`N_e(r) = N_e(0) \exp(-r/r_0)`, 
+    with :math:`N_e(0) = 245 N_\text{Av}~\text{cm}^{-3}` and 
+    :math:`r_0 = R_\odot/10.54`.  See Eq. (10.62) in
     `Fundamentals of Neutrino Physics and Astrophysics 
     <https://academic.oup.com/book/3490>`_ by Carlo Giunti and Chung 
     Wook Kim.
 
     Examples
     --------
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    energy : float, list, or np.ndarray
+        Neutrino energy/energies.
+    L : float, list, or np.ndarray
+        Baseline(s).
+    L0 : int or float
+        Initial position.
+    s12 : int or float, optional
+        Sin(theta_12). Default: None.
+    s23 : int or float, optional
+        Sin(theta_23). Default: None.
+    s13 : int or float, optional
+        Sin(theta_13). Default: None.
+    dCP : int or float, optional
+        delta_CP [radian]. Default: None.
+    D21 : int or float, optional
+        Mass-squared difference Delta m^2_21. Default: None.
+    D31 : int or float, optional
+        Mass-squared difference Delta m^2_31. Default: None.
+    s14 : int or float, optional
+        Sin(theta_14). Default: 0.0.
+    s24 : int or float, optional
+        Sin(theta_24). Default: 0.0.
+    s34 : int or float, optional
+        Sin(theta_34). Default: 0.0.
+    d14 : int or float, optional
+        delta_14 [radian]. Default: 0.0.
+    d24 : int or float, optional
+        delta_24 [radian]. Default: 0.0.
+    D41 : int or float, optional
+        Mass-squared difference Delta m^2_41. Default: 0.0.
+    eps_ee : int or float, optional
+        Diagonal NSI coupling of nu_e. Default: 0.0.
+    eps_em : int or float, optional
+        Flavor-off-diagonal (nu_e-nu_mu) NSI coupling. Default: 0.0.
+    eps_et : int or float, optional
+        Flavor-off-diagonal (nu_e-nu_tau) NSI coupling. Default: 0.0.
+    eps_es : int or float, optional
+        Flavor-off-diagonal (nu_e-nu_s) NSI coupling. Default: 0.0.
+    eps_mm : int or float, optional
+        Diagonal NSI coupling of nu_mu. Default: 0.0.
+    eps_mt : int or float, optional
+        Flavor-off-diagonal (nu_mu-nu_tau) NSI coupling. Default: 0.0.
+    eps_ms : int or float, optional
+        Flavor-off-diagonal (nu_mu-nu_s) NSI coupling. Default: 0.0.
+    eps_tt : int or float, optional
+        Diagonal NSI coupling of nu_tau. Default: 0.0.
+    eps_ts : int or float, optional
+        Flavor-off-diagonal (nu_tau-nu_s) NSI coupling. Default: 0.0.
+    eps_ss : int or float, optional
+        Diagonal NSI coupling of nu_s. Default: 0.0.
+    nubar : bool, optional
+        If True, compute the probability for antineutrinos. Default: False.
+    nu_i : int, optional
+        Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
+    nu_f : int, optional
+        Final flavor index; see ``nu_i``. Default: None.
+    default_osc_params_set_name : str, optional
+        Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+
+    Returns
+    -------
+    float or np.ndarray
+        Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
     return osc_prob_4nu_matter_nsi_exp_density(
@@ -6873,19 +10166,123 @@ def osc_prob_5nu_sun_nsi(
     verbose: Optional[int]=0,
     **kwargs
 ) -> Union[float, np.ndarray]:
-    """Compute and return the five-neutrino (3+2) oscillation 
+    r"""Compute and return the five-neutrino (3+2) oscillation 
     probability for neutrinos inside the Sun.
-    
+
     For the electron density inside the Sun, it assumes an exponentially
-    falling density profile: :math:`N_e(r) = N_e(0) \\exp(-r/r_0)`, 
-    with :math:`N_e(0) = 245 N_\\text{Av}~\\text{cm}^{-3}` and 
-    :math:`r_0 = R_\\odot/10.54`.  See Eq. (10.62) in
+    falling density profile: :math:`N_e(r) = N_e(0) \exp(-r/r_0)`, 
+    with :math:`N_e(0) = 245 N_\text{Av}~\text{cm}^{-3}` and 
+    :math:`r_0 = R_\odot/10.54`.  See Eq. (10.62) in
     `Fundamentals of Neutrino Physics and Astrophysics 
     <https://academic.oup.com/book/3490>`_ by Carlo Giunti and Chung 
     Wook Kim.
 
     Examples
     --------
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    energy : float, list, or np.ndarray
+        Neutrino energy/energies.
+    L : float, list, or np.ndarray
+        Baseline(s).
+    L0 : int or float
+        Initial position.
+    s12 : int or float, optional
+        Sin(theta_12). Default: None.
+    s23 : int or float, optional
+        Sin(theta_23). Default: None.
+    s13 : int or float, optional
+        Sin(theta_13). Default: None.
+    dCP : int or float, optional
+        delta_CP [radian]. Default: None.
+    D21 : int or float, optional
+        Mass-squared difference Delta m^2_21. Default: None.
+    D31 : int or float, optional
+        Mass-squared difference Delta m^2_31. Default: None.
+    s14 : int or float, optional
+        Sin(theta_14). Default: 0.0.
+    s15 : int or float, optional
+        Sin(theta_15). Default: 0.0.
+    s24 : int or float, optional
+        Sin(theta_24). Default: 0.0.
+    s25 : int or float, optional
+        Sin(theta_25). Default: 0.0.
+    s34 : int or float, optional
+        Sin(theta_34). Default: 0.0.
+    s35 : int or float, optional
+        Sin(theta_35). Default: 0.0.
+    d14 : int or float, optional
+        delta_14 [radian]. Default: 0.0.
+    d15 : int or float, optional
+        delta_15 [radian]. Default: 0.0.
+    d24 : int or float, optional
+        delta_24 [radian]. Default: 0.0.
+    d35 : int or float, optional
+        delta_35 [radian]. Default: 0.0.
+    D41 : int or float, optional
+        Mass-squared difference Delta m^2_41. Default: 0.0.
+    D51 : int or float, optional
+        Mass-squared difference Delta m^2_51. Default: 0.0.
+    eps_ee : int or float, optional
+        Diagonal NSI coupling of nu_e. Default: 0.0.
+    eps_em : int or float, optional
+        Flavor-off-diagonal (nu_e-nu_mu) NSI coupling. Default: 0.0.
+    eps_et : int or float, optional
+        Flavor-off-diagonal (nu_e-nu_tau) NSI coupling. Default: 0.0.
+    eps_es1 : int or float, optional
+        Flavor-off-diagonal (nu_e-nu_s1) NSI coupling. Default: 0.0.
+    eps_es2 : int or float, optional
+        Flavor-off-diagonal (nu_e-nu_s2) NSI coupling. Default: 0.0.
+    eps_mm : int or float, optional
+        Diagonal NSI coupling of nu_mu. Default: 0.0.
+    eps_mt : int or float, optional
+        Flavor-off-diagonal (nu_mu-nu_tau) NSI coupling. Default: 0.0.
+    eps_ms1 : int or float, optional
+        Flavor-off-diagonal (nu_mu-nu_s1) NSI coupling. Default: 0.0.
+    eps_ms2 : int or float, optional
+        Flavor-off-diagonal (nu_mu-nu_s2) NSI coupling. Default: 0.0.
+    eps_tt : int or float, optional
+        Diagonal NSI coupling of nu_tau. Default: 0.0.
+    eps_ts1 : int or float, optional
+        Flavor-off-diagonal (nu_tau-nu_s1) NSI coupling. Default: 0.0.
+    eps_ts2 : int or float, optional
+        Flavor-off-diagonal (nu_tau-nu_s2) NSI coupling. Default: 0.0.
+    eps_s1s1 : int or float, optional
+        Diagonal NSI coupling of nu_s1. Default: 0.0.
+    eps_s1s2 : int or float, optional
+        Flavor-off-diagonal (nu_s1-nu_s2) NSI coupling. Default: 0.0.
+    eps_s2s2 : int or float, optional
+        Diagonal NSI coupling of nu_s2. Default: 0.0.
+    nubar : bool, optional
+        If True, compute the probability for antineutrinos. Default: False.
+    nu_i : int, optional
+        Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
+    nu_f : int, optional
+        Final flavor index; see ``nu_i``. Default: None.
+    default_osc_params_set_name : str, optional
+        Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+
+    Returns
+    -------
+    float or np.ndarray
+        Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
     return osc_prob_5nu_matter_nsi_exp_density(
@@ -6968,6 +10365,52 @@ def osc_prob_2nu_vacuum_liv(
 ) -> Union[float, np.ndarray]:
     r"""Compute and return the two-neutrino oscillation probability in
     vacuum under (one form of) Lorentz-invariance violation.
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    energy : int, float, list, or np.ndarray
+        Neutrino energy/energies.
+    L : int, float, list, or np.ndarray
+        Baseline(s).
+    sth : int or float
+        Sin(theta), the single mixing angle of the two-flavor system.
+    Dm2 : int or float
+        Mass-squared difference Delta m^2 of the two-flavor system.
+    sxi : int or float, optional
+        Sin(xi), with xi the rotation angle between the space of the eigenvectors of the LIV operator and the flavor states. Default: 0.0.
+    b1 : int or float, optional
+        Eigenvalue b1 of the LIV operator. Default: 0.0.
+    b2 : int or float, optional
+        Eigenvalue b2 of the LIV operator. Default: 0.0.
+    Lambda : int or float, optional
+        Energy scale of the LIV operator. Default: 1.0.
+    n_liv : int, optional
+        Power of the energy dependence of the LIV operator (dimension of the operator minus 3). Default: 0.
+    nu_i : int, optional
+        Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
+    nu_f : int, optional
+        Final flavor index; see ``nu_i``. Default: None.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+
+    Returns
+    -------
+    float or np.ndarray
+        Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
     # If any of the flavor indices is > 1, fix it (read the docstring above).
     nu_i, nu_f = valid_flavor_indices_2nu(nu_i, nu_f)
@@ -7022,6 +10465,70 @@ def osc_prob_3nu_vacuum_liv(
 ) -> Union[float, np.ndarray]:
     r"""Compute and return the three-neutrino oscillation probability in
     vacuum under (one form of) Lorentz-invariance violation.
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    energy : int, float, list, or np.ndarray
+        Neutrino energy/energies.
+    L : int, float, list, or np.ndarray
+        Baseline(s).
+    s12 : int or float, optional
+        Sin(theta_12). Default: None.
+    s23 : int or float, optional
+        Sin(theta_23). Default: None.
+    s13 : int or float, optional
+        Sin(theta_13). Default: None.
+    dCP : int or float, optional
+        delta_CP [radian]. Default: None.
+    D21 : int or float, optional
+        Mass-squared difference Delta m^2_21. Default: None.
+    D31 : int or float, optional
+        Mass-squared difference Delta m^2_31. Default: None.
+    sxi12 : int or float, optional
+        Sin(xi_12), one of the mixing angles between the space of the eigenvectors of the LIV operator and the flavor states. Default: 0.0.
+    sxi23 : int or float, optional
+        Sin(xi_23); see ``sxi12``. Default: 0.0.
+    sxi13 : int or float, optional
+        Sin(xi_13); see ``sxi12``. Default: 0.0.
+    dxiCP : int or float, optional
+        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+    b1 : int or float, optional
+        Eigenvalue b1 of the LIV operator. Default: 0.0.
+    b2 : int or float, optional
+        Eigenvalue b2 of the LIV operator. Default: 0.0.
+    b3 : int or float, optional
+        Eigenvalue b3 of the LIV operator. Default: 0.0.
+    Lambda : int or float, optional
+        Energy scale of the LIV operator. Default: 1.0.
+    n_liv : int, optional
+        Power of the energy dependence of the LIV operator (dimension of the operator minus 3). Default: 0.
+    nubar : bool, optional
+        If True, compute the probability for antineutrinos. Default: False.
+    nu_i : int, optional
+        Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
+    nu_f : int, optional
+        Final flavor index; see ``nu_i``. Default: None.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+
+    Returns
+    -------
+    float or np.ndarray
+        Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
     return osc_prob_liv(
@@ -7088,6 +10595,94 @@ def osc_prob_4nu_vacuum_liv(
 ) -> Union[float, np.ndarray]:
     r"""Compute and return the four-neutrino oscillation probability in
     vacuum under (one form of) Lorentz-invariance violation.
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    energy : int, float, list, or np.ndarray
+        Neutrino energy/energies.
+    L : int, float, list, or np.ndarray
+        Baseline(s).
+    s12 : int or float, optional
+        Sin(theta_12). Default: None.
+    s23 : int or float, optional
+        Sin(theta_23). Default: None.
+    s13 : int or float, optional
+        Sin(theta_13). Default: None.
+    dCP : int or float, optional
+        delta_CP [radian]. Default: None.
+    D21 : int or float, optional
+        Mass-squared difference Delta m^2_21. Default: None.
+    D31 : int or float, optional
+        Mass-squared difference Delta m^2_31. Default: None.
+    s14 : int or float, optional
+        Sin(theta_14). Default: 0.0.
+    s24 : int or float, optional
+        Sin(theta_24). Default: 0.0.
+    s34 : int or float, optional
+        Sin(theta_34). Default: 0.0.
+    d14 : int or float, optional
+        delta_14 [radian]. Default: 0.0.
+    d24 : int or float, optional
+        delta_24 [radian]. Default: 0.0.
+    D41 : int or float, optional
+        Mass-squared difference Delta m^2_41. Default: 0.0.
+    sxi12 : int or float, optional
+        Sin(xi_12), one of the mixing angles between the space of the eigenvectors of the LIV operator and the flavor states. Default: 0.0.
+    sxi23 : int or float, optional
+        Sin(xi_23); see ``sxi12``. Default: 0.0.
+    sxi13 : int or float, optional
+        Sin(xi_13); see ``sxi12``. Default: 0.0.
+    dxi13 : int or float, optional
+        CP-violation phase of the LIV operator [radian] (replaces ``dxiCP`` for 4/5-flavor systems). Default: 0.0.
+    sxi14 : int or float, optional
+        Sin(xi_14); see ``sxi12``. Default: 0.0.
+    dxi14 : int or float, optional
+        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+    sxi24 : int or float, optional
+        Sin(xi_24); see ``sxi12``. Default: 0.0.
+    dxi24 : int or float, optional
+        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+    sxi34 : int or float, optional
+        Sin(xi_34); see ``sxi12``. Default: 0.0.
+    b1 : int or float, optional
+        Eigenvalue b1 of the LIV operator. Default: 0.0.
+    b2 : int or float, optional
+        Eigenvalue b2 of the LIV operator. Default: 0.0.
+    b3 : int or float, optional
+        Eigenvalue b3 of the LIV operator. Default: 0.0.
+    b4 : int or float, optional
+        Eigenvalue b4 of the LIV operator. Default: 0.0.
+    Lambda : int or float, optional
+        Energy scale of the LIV operator. Default: 1.0.
+    n_liv : int, optional
+        Power of the energy dependence of the LIV operator (dimension of the operator minus 3). Default: 0.
+    nubar : bool, optional
+        If True, compute the probability for antineutrinos. Default: False.
+    nu_i : int, optional
+        Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
+    nu_f : int, optional
+        Final flavor index; see ``nu_i``. Default: None.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+
+    Returns
+    -------
+    float or np.ndarray
+        Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
     return osc_prob_liv(
@@ -7168,6 +10763,118 @@ def osc_prob_5nu_vacuum_liv(
 ) -> Union[float, np.ndarray]:
     r"""Compute and return the five-neutrino oscillation probability in
     vacuum under (one form of) Lorentz-invariance violation.
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    energy : int, float, list, or np.ndarray
+        Neutrino energy/energies.
+    L : int, float, list, or np.ndarray
+        Baseline(s).
+    s12 : int or float, optional
+        Sin(theta_12). Default: None.
+    s23 : int or float, optional
+        Sin(theta_23). Default: None.
+    s13 : int or float, optional
+        Sin(theta_13). Default: None.
+    dCP : int or float, optional
+        delta_CP [radian]. Default: None.
+    D21 : int or float, optional
+        Mass-squared difference Delta m^2_21. Default: None.
+    D31 : int or float, optional
+        Mass-squared difference Delta m^2_31. Default: None.
+    s14 : int or float, optional
+        Sin(theta_14). Default: 0.0.
+    s15 : int or float, optional
+        Sin(theta_15). Default: 0.0.
+    s24 : int or float, optional
+        Sin(theta_24). Default: 0.0.
+    s25 : int or float, optional
+        Sin(theta_25). Default: 0.0.
+    s34 : int or float, optional
+        Sin(theta_34). Default: 0.0.
+    s35 : int or float, optional
+        Sin(theta_35). Default: 0.0.
+    d14 : int or float, optional
+        delta_14 [radian]. Default: 0.0.
+    d15 : int or float, optional
+        delta_15 [radian]. Default: 0.0.
+    d24 : int or float, optional
+        delta_24 [radian]. Default: 0.0.
+    d35 : int or float, optional
+        delta_35 [radian]. Default: 0.0.
+    D41 : int or float, optional
+        Mass-squared difference Delta m^2_41. Default: 0.0.
+    D51 : int or float, optional
+        Mass-squared difference Delta m^2_51. Default: 0.0.
+    sxi12 : int or float, optional
+        Sin(xi_12), one of the mixing angles between the space of the eigenvectors of the LIV operator and the flavor states. Default: 0.0.
+    sxi23 : int or float, optional
+        Sin(xi_23); see ``sxi12``. Default: 0.0.
+    sxi13 : int or float, optional
+        Sin(xi_13); see ``sxi12``. Default: 0.0.
+    dxi13 : int or float, optional
+        CP-violation phase of the LIV operator [radian] (replaces ``dxiCP`` for 4/5-flavor systems). Default: 0.0.
+    sxi14 : int or float, optional
+        Sin(xi_14); see ``sxi12``. Default: 0.0.
+    dxi14 : int or float, optional
+        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+    sxi15 : int or float, optional
+        Sin(xi_15); see ``sxi12``. Default: 0.0.
+    dxi15 : int or float, optional
+        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+    sxi24 : int or float, optional
+        Sin(xi_24); see ``sxi12``. Default: 0.0.
+    dxi24 : int or float, optional
+        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+    sxi25 : int or float, optional
+        Sin(xi_25); see ``sxi12``. Default: 0.0.
+    sxi34 : int or float, optional
+        Sin(xi_34); see ``sxi12``. Default: 0.0.
+    sxi35 : int or float, optional
+        Sin(xi_35); see ``sxi12``. Default: 0.0.
+    dxi35 : int or float, optional
+        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+    b1 : int or float, optional
+        Eigenvalue b1 of the LIV operator. Default: 0.0.
+    b2 : int or float, optional
+        Eigenvalue b2 of the LIV operator. Default: 0.0.
+    b3 : int or float, optional
+        Eigenvalue b3 of the LIV operator. Default: 0.0.
+    b4 : int or float, optional
+        Eigenvalue b4 of the LIV operator. Default: 0.0.
+    b5 : int or float, optional
+        Eigenvalue b5 of the LIV operator. Default: 0.0.
+    Lambda : int or float, optional
+        Energy scale of the LIV operator. Default: 1.0.
+    n_liv : int, optional
+        Power of the energy dependence of the LIV operator (dimension of the operator minus 3). Default: 0.
+    nubar : bool, optional
+        If True, compute the probability for antineutrinos. Default: False.
+    nu_i : int, optional
+        Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
+    nu_f : int, optional
+        Final flavor index; see ``nu_i``. Default: None.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+
+    Returns
+    -------
+    float or np.ndarray
+        Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
     return osc_prob_liv(
@@ -7228,6 +10935,64 @@ def osc_prob_2nu_matter_liv_constant_density(
     r"""Compute and return the two-neutrino oscillation probability in
     matter with a constant density profile, under (one form of)
     Lorentz-invariance violation.
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    energy : int, float, list, or np.ndarray
+        Neutrino energy/energies.
+    L : int, float, list, or np.ndarray
+        Baseline(s).
+    rho : int or float
+        Matter density (or electron number density, if ``density_is_of_number_of_electrons`` is True).
+    sth : int or float
+        Sin(theta), the single mixing angle of the two-flavor system.
+    Dm2 : int or float
+        Mass-squared difference Delta m^2 of the two-flavor system.
+    sxi : int or float, optional
+        Sin(xi), with xi the rotation angle between the space of the eigenvectors of the LIV operator and the flavor states. Default: 0.0.
+    b1 : int or float, optional
+        Eigenvalue b1 of the LIV operator. Default: 0.0.
+    b2 : int or float, optional
+        Eigenvalue b2 of the LIV operator. Default: 0.0.
+    Lambda : int or float, optional
+        Energy scale of the LIV operator. Default: 1.0.
+    n_liv : int, optional
+        Power of the energy dependence of the LIV operator (dimension of the operator minus 3). Default: 0.
+    ratio_number_neutrons_to_protons : int or float, optional
+        Ratio of the number of neutrons to protons in matter. Default: 1.0.
+    electron_fraction : int or float, optional
+        Electron fraction. Default: 0.5.
+    nubar : bool, optional
+        If True, compute the probability for antineutrinos. Default: False.
+    nu_i : int, optional
+        Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
+    nu_f : int, optional
+        Final flavor index; see ``nu_i``. Default: None.
+    density_matter_is_in_g_per_cm3 : bool, optional
+        If True, the density is given in g cm^{-3}. Default: False.
+    density_is_of_number_of_electrons : bool, optional
+        If True, the density parameter directly gives the electron number density [eV^3]. Default: False.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+
+    Returns
+    -------
+    float or np.ndarray
+        Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
     # If any of the flavor indices is > 1, fix it (read the docstring above).
     nu_i, nu_f = valid_flavor_indices_2nu(nu_i, nu_f)
@@ -7294,6 +11059,82 @@ def osc_prob_3nu_matter_liv_constant_density(
     r"""Compute and return the three-neutrino oscillation probability in
     matter with a constant density profile, under (one form of) 
     Lorentz-invariance violation.
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    energy : int, float, list, or np.ndarray
+        Neutrino energy/energies.
+    L : int, float, list, or np.ndarray
+        Baseline(s).
+    rho : int or float
+        Matter density (or electron number density, if ``density_is_of_number_of_electrons`` is True).
+    s12 : int or float, optional
+        Sin(theta_12). Default: None.
+    s23 : int or float, optional
+        Sin(theta_23). Default: None.
+    s13 : int or float, optional
+        Sin(theta_13). Default: None.
+    dCP : int or float, optional
+        delta_CP [radian]. Default: None.
+    D21 : int or float, optional
+        Mass-squared difference Delta m^2_21. Default: None.
+    D31 : int or float, optional
+        Mass-squared difference Delta m^2_31. Default: None.
+    sxi12 : int or float, optional
+        Sin(xi_12), one of the mixing angles between the space of the eigenvectors of the LIV operator and the flavor states. Default: 0.0.
+    sxi23 : int or float, optional
+        Sin(xi_23); see ``sxi12``. Default: 0.0.
+    sxi13 : int or float, optional
+        Sin(xi_13); see ``sxi12``. Default: 0.0.
+    dxiCP : int or float, optional
+        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+    b1 : int or float, optional
+        Eigenvalue b1 of the LIV operator. Default: 0.0.
+    b2 : int or float, optional
+        Eigenvalue b2 of the LIV operator. Default: 0.0.
+    b3 : int or float, optional
+        Eigenvalue b3 of the LIV operator. Default: 0.0.
+    Lambda : int or float, optional
+        Energy scale of the LIV operator. Default: 1.0.
+    n_liv : int, optional
+        Power of the energy dependence of the LIV operator (dimension of the operator minus 3). Default: 0.
+    ratio_number_neutrons_to_protons : int or float, optional
+        Ratio of the number of neutrons to protons in matter. Default: 1.0.
+    electron_fraction : int or float, optional
+        Electron fraction. Default: 0.5.
+    nubar : bool, optional
+        If True, compute the probability for antineutrinos. Default: False.
+    nu_i : int, optional
+        Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
+    nu_f : int, optional
+        Final flavor index; see ``nu_i``. Default: None.
+    density_matter_is_in_g_per_cm3 : bool, optional
+        If True, the density is given in g cm^{-3}. Default: False.
+    density_is_of_number_of_electrons : bool, optional
+        If True, the density parameter directly gives the electron number density [eV^3]. Default: False.
+    default_osc_params_set_name : str, optional
+        Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+
+    Returns
+    -------
+    float or np.ndarray
+        Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
     return osc_prob_liv(
@@ -7372,6 +11213,106 @@ def osc_prob_4nu_matter_liv_constant_density(
     r"""Compute and return the four-neutrino oscillation probability in
     matter with a constant density profile, under (one form of) 
     Lorentz-invariance violation.
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    energy : int, float, list, or np.ndarray
+        Neutrino energy/energies.
+    L : int, float, list, or np.ndarray
+        Baseline(s).
+    rho : int or float
+        Matter density (or electron number density, if ``density_is_of_number_of_electrons`` is True).
+    s12 : int or float, optional
+        Sin(theta_12). Default: None.
+    s23 : int or float, optional
+        Sin(theta_23). Default: None.
+    s13 : int or float, optional
+        Sin(theta_13). Default: None.
+    dCP : int or float, optional
+        delta_CP [radian]. Default: None.
+    D21 : int or float, optional
+        Mass-squared difference Delta m^2_21. Default: None.
+    D31 : int or float, optional
+        Mass-squared difference Delta m^2_31. Default: None.
+    s14 : int or float, optional
+        Sin(theta_14). Default: 0.0.
+    s24 : int or float, optional
+        Sin(theta_24). Default: 0.0.
+    s34 : int or float, optional
+        Sin(theta_34). Default: 0.0.
+    d14 : int or float, optional
+        delta_14 [radian]. Default: 0.0.
+    d24 : int or float, optional
+        delta_24 [radian]. Default: 0.0.
+    D41 : int or float, optional
+        Mass-squared difference Delta m^2_41. Default: 0.0.
+    sxi12 : int or float, optional
+        Sin(xi_12), one of the mixing angles between the space of the eigenvectors of the LIV operator and the flavor states. Default: 0.0.
+    sxi23 : int or float, optional
+        Sin(xi_23); see ``sxi12``. Default: 0.0.
+    sxi13 : int or float, optional
+        Sin(xi_13); see ``sxi12``. Default: 0.0.
+    dxi13 : int or float, optional
+        CP-violation phase of the LIV operator [radian] (replaces ``dxiCP`` for 4/5-flavor systems). Default: 0.0.
+    sxi14 : int or float, optional
+        Sin(xi_14); see ``sxi12``. Default: 0.0.
+    dxi14 : int or float, optional
+        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+    sxi24 : int or float, optional
+        Sin(xi_24); see ``sxi12``. Default: 0.0.
+    dxi24 : int or float, optional
+        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+    sxi34 : int or float, optional
+        Sin(xi_34); see ``sxi12``. Default: 0.0.
+    b1 : int or float, optional
+        Eigenvalue b1 of the LIV operator. Default: 0.0.
+    b2 : int or float, optional
+        Eigenvalue b2 of the LIV operator. Default: 0.0.
+    b3 : int or float, optional
+        Eigenvalue b3 of the LIV operator. Default: 0.0.
+    b4 : int or float, optional
+        Eigenvalue b4 of the LIV operator. Default: 0.0.
+    Lambda : int or float, optional
+        Energy scale of the LIV operator. Default: 1.0.
+    n_liv : int, optional
+        Power of the energy dependence of the LIV operator (dimension of the operator minus 3). Default: 0.
+    ratio_number_neutrons_to_protons : int or float, optional
+        Ratio of the number of neutrons to protons in matter. Default: 1.0.
+    electron_fraction : int or float, optional
+        Electron fraction. Default: 0.5.
+    nubar : bool, optional
+        If True, compute the probability for antineutrinos. Default: False.
+    nu_i : int, optional
+        Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
+    nu_f : int, optional
+        Final flavor index; see ``nu_i``. Default: None.
+    density_matter_is_in_g_per_cm3 : bool, optional
+        If True, the density is given in g cm^{-3}. Default: False.
+    density_is_of_number_of_electrons : bool, optional
+        If True, the density parameter directly gives the electron number density [eV^3]. Default: False.
+    default_osc_params_set_name : str, optional
+        Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+
+    Returns
+    -------
+    float or np.ndarray
+        Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
     return osc_prob_liv(
@@ -7464,6 +11405,130 @@ def osc_prob_5nu_matter_liv_constant_density(
     r"""Compute and return the five-neutrino oscillation probability in
     matter with a constant density profile, under (one form of) 
     Lorentz-invariance violation.
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    energy : int, float, list, or np.ndarray
+        Neutrino energy/energies.
+    L : int, float, list, or np.ndarray
+        Baseline(s).
+    rho : int or float
+        Matter density (or electron number density, if ``density_is_of_number_of_electrons`` is True).
+    s12 : int or float, optional
+        Sin(theta_12). Default: None.
+    s23 : int or float, optional
+        Sin(theta_23). Default: None.
+    s13 : int or float, optional
+        Sin(theta_13). Default: None.
+    dCP : int or float, optional
+        delta_CP [radian]. Default: None.
+    D21 : int or float, optional
+        Mass-squared difference Delta m^2_21. Default: None.
+    D31 : int or float, optional
+        Mass-squared difference Delta m^2_31. Default: None.
+    s14 : int or float, optional
+        Sin(theta_14). Default: 0.0.
+    s15 : int or float, optional
+        Sin(theta_15). Default: 0.0.
+    s24 : int or float, optional
+        Sin(theta_24). Default: 0.0.
+    s25 : int or float, optional
+        Sin(theta_25). Default: 0.0.
+    s34 : int or float, optional
+        Sin(theta_34). Default: 0.0.
+    s35 : int or float, optional
+        Sin(theta_35). Default: 0.0.
+    d14 : int or float, optional
+        delta_14 [radian]. Default: 0.0.
+    d15 : int or float, optional
+        delta_15 [radian]. Default: 0.0.
+    d24 : int or float, optional
+        delta_24 [radian]. Default: 0.0.
+    d35 : int or float, optional
+        delta_35 [radian]. Default: 0.0.
+    D41 : int or float, optional
+        Mass-squared difference Delta m^2_41. Default: 0.0.
+    D51 : int or float, optional
+        Mass-squared difference Delta m^2_51. Default: 0.0.
+    sxi12 : int or float, optional
+        Sin(xi_12), one of the mixing angles between the space of the eigenvectors of the LIV operator and the flavor states. Default: 0.0.
+    sxi23 : int or float, optional
+        Sin(xi_23); see ``sxi12``. Default: 0.0.
+    sxi13 : int or float, optional
+        Sin(xi_13); see ``sxi12``. Default: 0.0.
+    dxi13 : int or float, optional
+        CP-violation phase of the LIV operator [radian] (replaces ``dxiCP`` for 4/5-flavor systems). Default: 0.0.
+    sxi14 : int or float, optional
+        Sin(xi_14); see ``sxi12``. Default: 0.0.
+    dxi14 : int or float, optional
+        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+    sxi15 : int or float, optional
+        Sin(xi_15); see ``sxi12``. Default: 0.0.
+    dxi15 : int or float, optional
+        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+    sxi24 : int or float, optional
+        Sin(xi_24); see ``sxi12``. Default: 0.0.
+    dxi24 : int or float, optional
+        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+    sxi25 : int or float, optional
+        Sin(xi_25); see ``sxi12``. Default: 0.0.
+    sxi34 : int or float, optional
+        Sin(xi_34); see ``sxi12``. Default: 0.0.
+    sxi35 : int or float, optional
+        Sin(xi_35); see ``sxi12``. Default: 0.0.
+    dxi35 : int or float, optional
+        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+    b1 : int or float, optional
+        Eigenvalue b1 of the LIV operator. Default: 0.0.
+    b2 : int or float, optional
+        Eigenvalue b2 of the LIV operator. Default: 0.0.
+    b3 : int or float, optional
+        Eigenvalue b3 of the LIV operator. Default: 0.0.
+    b4 : int or float, optional
+        Eigenvalue b4 of the LIV operator. Default: 0.0.
+    b5 : int or float, optional
+        Eigenvalue b5 of the LIV operator. Default: 0.0.
+    Lambda : int or float, optional
+        Energy scale of the LIV operator. Default: 1.0.
+    n_liv : int, optional
+        Power of the energy dependence of the LIV operator (dimension of the operator minus 3). Default: 0.
+    ratio_number_neutrons_to_protons : int or float, optional
+        Ratio of the number of neutrons to protons in matter. Default: 1.0.
+    electron_fraction : int or float, optional
+        Electron fraction. Default: 0.5.
+    nubar : bool, optional
+        If True, compute the probability for antineutrinos. Default: False.
+    nu_i : int, optional
+        Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
+    nu_f : int, optional
+        Final flavor index; see ``nu_i``. Default: None.
+    density_matter_is_in_g_per_cm3 : bool, optional
+        If True, the density is given in g cm^{-3}. Default: False.
+    density_is_of_number_of_electrons : bool, optional
+        If True, the density parameter directly gives the electron number density [eV^3]. Default: False.
+    default_osc_params_set_name : str, optional
+        Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+
+    Returns
+    -------
+    float or np.ndarray
+        Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
     
     return osc_prob_liv(
@@ -7531,6 +11596,68 @@ def osc_prob_2nu_matter_liv_exp_density(
     r"""Compute and return the two-neutrino oscillation probability in
     matter with an exponentially falling density profile, under (one 
     form of) Lorentz-invariance violation.
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    energy : float, list, or np.ndarray
+        Neutrino energy/energies.
+    L : float, list, or np.ndarray
+        Baseline(s).
+    L0 : int or float
+        Initial position.
+    rho_central : int or float
+        Matter density (or electron number density) at the center of the exponential profile (l = 0).
+    l_scale : int or float
+        Length scale of the exponential density decrease.
+    sth : int or float
+        Sin(theta), the single mixing angle of the two-flavor system.
+    Dm2 : int or float
+        Mass-squared difference Delta m^2 of the two-flavor system.
+    sxi : int or float, optional
+        Sin(xi), with xi the rotation angle between the space of the eigenvectors of the LIV operator and the flavor states. Default: 0.0.
+    b1 : int or float, optional
+        Eigenvalue b1 of the LIV operator. Default: 0.0.
+    b2 : int or float, optional
+        Eigenvalue b2 of the LIV operator. Default: 0.0.
+    Lambda : int or float, optional
+        Energy scale of the LIV operator. Default: 1.0.
+    n_liv : int, optional
+        Power of the energy dependence of the LIV operator (dimension of the operator minus 3). Default: 0.
+    ratio_number_neutrons_to_protons : int or float, optional
+        Ratio of the number of neutrons to protons in matter. Default: 1.0.
+    electron_fraction : int or float, optional
+        Electron fraction. Default: 0.5.
+    nubar : bool, optional
+        If True, compute the probability for antineutrinos. Default: False.
+    nu_i : int, optional
+        Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
+    nu_f : int, optional
+        Final flavor index; see ``nu_i``. Default: None.
+    density_matter_is_in_g_per_cm3 : bool, optional
+        If True, the density is given in g cm^{-3}. Default: False.
+    density_is_of_number_of_electrons : bool, optional
+        If True, the density parameter directly gives the electron number density [eV^3]. Default: False.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+
+    Returns
+    -------
+    float or np.ndarray
+        Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
     try:
@@ -7610,6 +11737,84 @@ def osc_prob_3nu_matter_liv_exp_density(
     r"""Compute and return the three-neutrino oscillation probability in
     matter with an exponentially falling density profile, under (one 
     form of) Lorentz-invariance violation.
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    energy : float, list, or np.ndarray
+        Neutrino energy/energies.
+    L : float, list, or np.ndarray
+        Baseline(s).
+    L0 : int or float
+        Initial position.
+    rho_central : int or float
+        Matter density (or electron number density) at the center of the exponential profile (l = 0).
+    l_scale : int or float
+        Length scale of the exponential density decrease.
+    s12 : int or float, optional
+        Sin(theta_12). Default: None.
+    s23 : int or float, optional
+        Sin(theta_23). Default: None.
+    s13 : int or float, optional
+        Sin(theta_13). Default: None.
+    dCP : int or float, optional
+        delta_CP [radian]. Default: None.
+    D21 : int or float, optional
+        Mass-squared difference Delta m^2_21. Default: None.
+    D31 : int or float, optional
+        Mass-squared difference Delta m^2_31. Default: None.
+    sxi12 : int or float, optional
+        Sin(xi_12), one of the mixing angles between the space of the eigenvectors of the LIV operator and the flavor states. Default: 0.0.
+    sxi23 : int or float, optional
+        Sin(xi_23); see ``sxi12``. Default: 0.0.
+    sxi13 : int or float, optional
+        Sin(xi_13); see ``sxi12``. Default: 0.0.
+    dxiCP : int or float, optional
+        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+    b1 : int or float, optional
+        Eigenvalue b1 of the LIV operator. Default: 0.0.
+    b2 : int or float, optional
+        Eigenvalue b2 of the LIV operator. Default: 0.0.
+    b3 : int or float, optional
+        Eigenvalue b3 of the LIV operator. Default: 0.0.
+    Lambda : int or float, optional
+        Energy scale of the LIV operator. Default: 1.0.
+    n_liv : int, optional
+        Power of the energy dependence of the LIV operator (dimension of the operator minus 3). Default: 0.
+    ratio_number_neutrons_to_protons : int or float, optional
+        Ratio of the number of neutrons to protons in matter. Default: 1.0.
+    electron_fraction : int or float, optional
+        Electron fraction. Default: 0.5.
+    nubar : bool, optional
+        If True, compute the probability for antineutrinos. Default: False.
+    nu_i : int, optional
+        Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
+    nu_f : int, optional
+        Final flavor index; see ``nu_i``. Default: None.
+    density_matter_is_in_g_per_cm3 : bool, optional
+        If True, the density is given in g cm^{-3}. Default: False.
+    density_is_of_number_of_electrons : bool, optional
+        If True, the density parameter directly gives the electron number density [eV^3]. Default: False.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+
+    Returns
+    -------
+    float or np.ndarray
+        Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
     try:
@@ -7699,6 +11904,108 @@ def osc_prob_4nu_matter_liv_exp_density(
     r"""Compute and return the four-neutrino oscillation probability in
     matter with an exponentially falling density profile, under (one 
     form of) Lorentz-invariance violation.
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    energy : float, list, or np.ndarray
+        Neutrino energy/energies.
+    L : float, list, or np.ndarray
+        Baseline(s).
+    L0 : int or float
+        Initial position.
+    rho_central : int or float
+        Matter density (or electron number density) at the center of the exponential profile (l = 0).
+    l_scale : int or float
+        Length scale of the exponential density decrease.
+    s12 : int or float, optional
+        Sin(theta_12). Default: None.
+    s23 : int or float, optional
+        Sin(theta_23). Default: None.
+    s13 : int or float, optional
+        Sin(theta_13). Default: None.
+    dCP : int or float, optional
+        delta_CP [radian]. Default: None.
+    D21 : int or float, optional
+        Mass-squared difference Delta m^2_21. Default: None.
+    D31 : int or float, optional
+        Mass-squared difference Delta m^2_31. Default: None.
+    s14 : int or float, optional
+        Sin(theta_14). Default: 0.0.
+    s24 : int or float, optional
+        Sin(theta_24). Default: 0.0.
+    s34 : int or float, optional
+        Sin(theta_34). Default: 0.0.
+    d14 : int or float, optional
+        delta_14 [radian]. Default: 0.0.
+    d24 : int or float, optional
+        delta_24 [radian]. Default: 0.0.
+    D41 : int or float, optional
+        Mass-squared difference Delta m^2_41. Default: 0.0.
+    sxi12 : int or float, optional
+        Sin(xi_12), one of the mixing angles between the space of the eigenvectors of the LIV operator and the flavor states. Default: 0.0.
+    sxi23 : int or float, optional
+        Sin(xi_23); see ``sxi12``. Default: 0.0.
+    sxi13 : int or float, optional
+        Sin(xi_13); see ``sxi12``. Default: 0.0.
+    dxi13 : int or float, optional
+        CP-violation phase of the LIV operator [radian] (replaces ``dxiCP`` for 4/5-flavor systems). Default: 0.0.
+    sxi14 : int or float, optional
+        Sin(xi_14); see ``sxi12``. Default: 0.0.
+    dxi14 : int or float, optional
+        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+    sxi24 : int or float, optional
+        Sin(xi_24); see ``sxi12``. Default: 0.0.
+    dxi24 : int or float, optional
+        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+    sxi34 : int or float, optional
+        Sin(xi_34); see ``sxi12``. Default: 0.0.
+    b1 : int or float, optional
+        Eigenvalue b1 of the LIV operator. Default: 0.0.
+    b2 : int or float, optional
+        Eigenvalue b2 of the LIV operator. Default: 0.0.
+    b3 : int or float, optional
+        Eigenvalue b3 of the LIV operator. Default: 0.0.
+    b4 : int or float, optional
+        Eigenvalue b4 of the LIV operator. Default: 0.0.
+    Lambda : int or float, optional
+        Energy scale of the LIV operator. Default: 1.0.
+    n_liv : int, optional
+        Power of the energy dependence of the LIV operator (dimension of the operator minus 3). Default: 0.
+    ratio_number_neutrons_to_protons : int or float, optional
+        Ratio of the number of neutrons to protons in matter. Default: 1.0.
+    electron_fraction : int or float, optional
+        Electron fraction. Default: 0.5.
+    nubar : bool, optional
+        If True, compute the probability for antineutrinos. Default: False.
+    nu_i : int, optional
+        Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
+    nu_f : int, optional
+        Final flavor index; see ``nu_i``. Default: None.
+    density_matter_is_in_g_per_cm3 : bool, optional
+        If True, the density is given in g cm^{-3}. Default: False.
+    density_is_of_number_of_electrons : bool, optional
+        If True, the density parameter directly gives the electron number density [eV^3]. Default: False.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+
+    Returns
+    -------
+    float or np.ndarray
+        Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
     try:
@@ -7802,6 +12109,132 @@ def osc_prob_5nu_matter_liv_exp_density(
     r"""Compute and return the five-neutrino oscillation probability in
     matter with an exponentially falling density profile, under (one 
     form of) Lorentz-invariance violation.
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    energy : float, list, or np.ndarray
+        Neutrino energy/energies.
+    L : float, list, or np.ndarray
+        Baseline(s).
+    L0 : int or float
+        Initial position.
+    rho_central : int or float
+        Matter density (or electron number density) at the center of the exponential profile (l = 0).
+    l_scale : int or float
+        Length scale of the exponential density decrease.
+    s12 : int or float, optional
+        Sin(theta_12). Default: None.
+    s23 : int or float, optional
+        Sin(theta_23). Default: None.
+    s13 : int or float, optional
+        Sin(theta_13). Default: None.
+    dCP : int or float, optional
+        delta_CP [radian]. Default: None.
+    D21 : int or float, optional
+        Mass-squared difference Delta m^2_21. Default: None.
+    D31 : int or float, optional
+        Mass-squared difference Delta m^2_31. Default: None.
+    s14 : int or float, optional
+        Sin(theta_14). Default: 0.0.
+    s15 : int or float, optional
+        Sin(theta_15). Default: 0.0.
+    s24 : int or float, optional
+        Sin(theta_24). Default: 0.0.
+    s25 : int or float, optional
+        Sin(theta_25). Default: 0.0.
+    s34 : int or float, optional
+        Sin(theta_34). Default: 0.0.
+    s35 : int or float, optional
+        Sin(theta_35). Default: 0.0.
+    d14 : int or float, optional
+        delta_14 [radian]. Default: 0.0.
+    d15 : int or float, optional
+        delta_15 [radian]. Default: 0.0.
+    d24 : int or float, optional
+        delta_24 [radian]. Default: 0.0.
+    d35 : int or float, optional
+        delta_35 [radian]. Default: 0.0.
+    D41 : int or float, optional
+        Mass-squared difference Delta m^2_41. Default: 0.0.
+    D51 : int or float, optional
+        Mass-squared difference Delta m^2_51. Default: 0.0.
+    sxi12 : int or float, optional
+        Sin(xi_12), one of the mixing angles between the space of the eigenvectors of the LIV operator and the flavor states. Default: 0.0.
+    sxi23 : int or float, optional
+        Sin(xi_23); see ``sxi12``. Default: 0.0.
+    sxi13 : int or float, optional
+        Sin(xi_13); see ``sxi12``. Default: 0.0.
+    dxi13 : int or float, optional
+        CP-violation phase of the LIV operator [radian] (replaces ``dxiCP`` for 4/5-flavor systems). Default: 0.0.
+    sxi14 : int or float, optional
+        Sin(xi_14); see ``sxi12``. Default: 0.0.
+    dxi14 : int or float, optional
+        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+    sxi15 : int or float, optional
+        Sin(xi_15); see ``sxi12``. Default: 0.0.
+    dxi15 : int or float, optional
+        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+    sxi24 : int or float, optional
+        Sin(xi_24); see ``sxi12``. Default: 0.0.
+    dxi24 : int or float, optional
+        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+    sxi25 : int or float, optional
+        Sin(xi_25); see ``sxi12``. Default: 0.0.
+    sxi34 : int or float, optional
+        Sin(xi_34); see ``sxi12``. Default: 0.0.
+    sxi35 : int or float, optional
+        Sin(xi_35); see ``sxi12``. Default: 0.0.
+    dxi35 : int or float, optional
+        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+    b1 : int or float, optional
+        Eigenvalue b1 of the LIV operator. Default: 0.0.
+    b2 : int or float, optional
+        Eigenvalue b2 of the LIV operator. Default: 0.0.
+    b3 : int or float, optional
+        Eigenvalue b3 of the LIV operator. Default: 0.0.
+    b4 : int or float, optional
+        Eigenvalue b4 of the LIV operator. Default: 0.0.
+    b5 : int or float, optional
+        Eigenvalue b5 of the LIV operator. Default: 0.0.
+    Lambda : int or float, optional
+        Energy scale of the LIV operator. Default: 1.0.
+    n_liv : int, optional
+        Power of the energy dependence of the LIV operator (dimension of the operator minus 3). Default: 0.
+    ratio_number_neutrons_to_protons : int or float, optional
+        Ratio of the number of neutrons to protons in matter. Default: 1.0.
+    electron_fraction : int or float, optional
+        Electron fraction. Default: 0.5.
+    nubar : bool, optional
+        If True, compute the probability for antineutrinos. Default: False.
+    nu_i : int, optional
+        Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
+    nu_f : int, optional
+        Final flavor index; see ``nu_i``. Default: None.
+    density_matter_is_in_g_per_cm3 : bool, optional
+        If True, the density is given in g cm^{-3}. Default: False.
+    density_is_of_number_of_electrons : bool, optional
+        If True, the density parameter directly gives the electron number density [eV^3]. Default: False.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+
+    Returns
+    -------
+    float or np.ndarray
+        Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
     try:
@@ -7876,7 +12309,7 @@ def osc_prob_2nu_earth_liv(
     inside the Earth, either between two locations on the surface of the
     Earth, or between the surface and a point in the interior, under
     (one form of) Lorentz-invariance violation.
-    
+
     For the matter density inside the Earth, it uses the Preliminary 
     Reference Earth Model.
 
@@ -7907,6 +12340,60 @@ def osc_prob_2nu_earth_liv(
 
     Examples
     --------
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    energy : int, float, list, or np.ndarray
+        Neutrino energy/energies.
+    sth : int or float
+        Sin(theta), the single mixing angle of the two-flavor system.
+    Dm2 : int or float
+        Mass-squared difference Delta m^2 of the two-flavor system.
+    sxi : int or float, optional
+        Sin(xi), with xi the rotation angle between the space of the eigenvectors of the LIV operator and the flavor states. Default: 0.0.
+    b1 : int or float, optional
+        Eigenvalue b1 of the LIV operator. Default: 0.0.
+    b2 : int or float, optional
+        Eigenvalue b2 of the LIV operator. Default: 0.0.
+    Lambda : int or float, optional
+        Energy scale of the LIV operator. Default: 1.0.
+    n_liv : int, optional
+        Power of the energy dependence of the LIV operator (dimension of the operator minus 3). Default: 0.
+    costhz : int or float, optional
+        Cosine of the zenith angle of the neutrino. Used together with ``L``, as an alternative to ``loc_ini``/``loc_fin``. Default: None.
+    loc_ini : tuple, list, np.ndarray, or str, optional
+        Initial location on the surface of the Earth, as (latitude, longitude) coordinates or a predefined location name (see ``earth.loc_coords_dms``). Must be given with ``loc_fin``. Default: None.
+    loc_fin : tuple, list, np.ndarray, or str, optional
+        Final location, same format as ``loc_ini``. Must be given with ``loc_ini``. Default: None.
+    L : float, list, or np.ndarray, optional
+        Baseline(s). Default: None.
+    nubar : bool, optional
+        If True, compute the probability for antineutrinos. Default: False.
+    nu_i : int, optional
+        Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
+    nu_f : int, optional
+        Final flavor index; see ``nu_i``. Default: None.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+
+    Returns
+    -------
+    float or np.ndarray
+        Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
     # If the location is given as a string, check if it is one of the predefined named locations in
     # Magnus.  The method sys._getframe().f_code.co_name returns the function name.  If the name
@@ -8006,7 +12493,7 @@ def osc_prob_3nu_earth_liv(
     inside the Earth, either between two locations on the surface of the
     Earth, or between the surface and a point in the interior, under
     (one form of) Lorentz-invariance violation.
-    
+
     For the matter density inside the Earth, it uses the Preliminary 
     Reference Earth Model.
 
@@ -8037,6 +12524,78 @@ def osc_prob_3nu_earth_liv(
 
     Examples
     --------
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    energy : int, float, list, or np.ndarray
+        Neutrino energy/energies.
+    costhz : int or float, optional
+        Cosine of the zenith angle of the neutrino. Used together with ``L``, as an alternative to ``loc_ini``/``loc_fin``. Default: None.
+    loc_ini : tuple, list, np.ndarray, or str, optional
+        Initial location on the surface of the Earth, as (latitude, longitude) coordinates or a predefined location name (see ``earth.loc_coords_dms``). Must be given with ``loc_fin``. Default: None.
+    loc_fin : tuple, list, np.ndarray, or str, optional
+        Final location, same format as ``loc_ini``. Must be given with ``loc_ini``. Default: None.
+    L : float, list, or np.ndarray, optional
+        Baseline(s). Default: None.
+    s12 : int or float, optional
+        Sin(theta_12). Default: None.
+    s23 : int or float, optional
+        Sin(theta_23). Default: None.
+    s13 : int or float, optional
+        Sin(theta_13). Default: None.
+    dCP : int or float, optional
+        delta_CP [radian]. Default: None.
+    D21 : int or float, optional
+        Mass-squared difference Delta m^2_21. Default: None.
+    D31 : int or float, optional
+        Mass-squared difference Delta m^2_31. Default: None.
+    sxi12 : int or float, optional
+        Sin(xi_12), one of the mixing angles between the space of the eigenvectors of the LIV operator and the flavor states. Default: 0.0.
+    sxi23 : int or float, optional
+        Sin(xi_23); see ``sxi12``. Default: 0.0.
+    sxi13 : int or float, optional
+        Sin(xi_13); see ``sxi12``. Default: 0.0.
+    dxiCP : int or float, optional
+        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+    b1 : int or float, optional
+        Eigenvalue b1 of the LIV operator. Default: 0.0.
+    b2 : int or float, optional
+        Eigenvalue b2 of the LIV operator. Default: 0.0.
+    b3 : int or float, optional
+        Eigenvalue b3 of the LIV operator. Default: 0.0.
+    Lambda : int or float, optional
+        Energy scale of the LIV operator. Default: 1.0.
+    n_liv : int, optional
+        Power of the energy dependence of the LIV operator (dimension of the operator minus 3). Default: 0.
+    nubar : bool, optional
+        If True, compute the probability for antineutrinos. Default: False.
+    nu_i : int, optional
+        Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
+    nu_f : int, optional
+        Final flavor index; see ``nu_i``. Default: None.
+    default_osc_params_set_name : str, optional
+        Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+
+    Returns
+    -------
+    float or np.ndarray
+        Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
     # If the location is given as a string, check if it is one of the predefined named locations in
     # Magnus.  The method sys._getframe().f_code.co_name returns the function name.  If the name
@@ -8147,7 +12706,7 @@ def osc_prob_4nu_earth_liv(
     inside the Earth, either between two locations on the surface of the
     Earth, or between the surface and a point in the interior, under
     (one form of) Lorentz-invariance violation.
-    
+
     For the matter density inside the Earth, it uses the Preliminary 
     Reference Earth Model.
 
@@ -8178,6 +12737,102 @@ def osc_prob_4nu_earth_liv(
 
     Examples
     --------
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    energy : int, float, list, or np.ndarray
+        Neutrino energy/energies.
+    costhz : int or float, optional
+        Cosine of the zenith angle of the neutrino. Used together with ``L``, as an alternative to ``loc_ini``/``loc_fin``. Default: None.
+    loc_ini : tuple, list, np.ndarray, or str, optional
+        Initial location on the surface of the Earth, as (latitude, longitude) coordinates or a predefined location name (see ``earth.loc_coords_dms``). Must be given with ``loc_fin``. Default: None.
+    loc_fin : tuple, list, np.ndarray, or str, optional
+        Final location, same format as ``loc_ini``. Must be given with ``loc_ini``. Default: None.
+    L : float, list, or np.ndarray, optional
+        Baseline(s). Default: None.
+    s12 : int or float, optional
+        Sin(theta_12). Default: None.
+    s23 : int or float, optional
+        Sin(theta_23). Default: None.
+    s13 : int or float, optional
+        Sin(theta_13). Default: None.
+    dCP : int or float, optional
+        delta_CP [radian]. Default: None.
+    D21 : int or float, optional
+        Mass-squared difference Delta m^2_21. Default: None.
+    D31 : int or float, optional
+        Mass-squared difference Delta m^2_31. Default: None.
+    s14 : int or float, optional
+        Sin(theta_14). Default: 0.0.
+    s24 : int or float, optional
+        Sin(theta_24). Default: 0.0.
+    s34 : int or float, optional
+        Sin(theta_34). Default: 0.0.
+    d14 : int or float, optional
+        delta_14 [radian]. Default: 0.0.
+    d24 : int or float, optional
+        delta_24 [radian]. Default: 0.0.
+    D41 : int or float, optional
+        Mass-squared difference Delta m^2_41. Default: 0.0.
+    sxi12 : int or float, optional
+        Sin(xi_12), one of the mixing angles between the space of the eigenvectors of the LIV operator and the flavor states. Default: 0.0.
+    sxi23 : int or float, optional
+        Sin(xi_23); see ``sxi12``. Default: 0.0.
+    sxi13 : int or float, optional
+        Sin(xi_13); see ``sxi12``. Default: 0.0.
+    dxi13 : int or float, optional
+        CP-violation phase of the LIV operator [radian] (replaces ``dxiCP`` for 4/5-flavor systems). Default: 0.0.
+    sxi14 : int or float, optional
+        Sin(xi_14); see ``sxi12``. Default: 0.0.
+    dxi14 : int or float, optional
+        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+    sxi24 : int or float, optional
+        Sin(xi_24); see ``sxi12``. Default: 0.0.
+    dxi24 : int or float, optional
+        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+    sxi34 : int or float, optional
+        Sin(xi_34); see ``sxi12``. Default: 0.0.
+    b1 : int or float, optional
+        Eigenvalue b1 of the LIV operator. Default: 0.0.
+    b2 : int or float, optional
+        Eigenvalue b2 of the LIV operator. Default: 0.0.
+    b3 : int or float, optional
+        Eigenvalue b3 of the LIV operator. Default: 0.0.
+    b4 : int or float, optional
+        Eigenvalue b4 of the LIV operator. Default: 0.0.
+    Lambda : int or float, optional
+        Energy scale of the LIV operator. Default: 1.0.
+    n_liv : int, optional
+        Power of the energy dependence of the LIV operator (dimension of the operator minus 3). Default: 0.
+    nubar : bool, optional
+        If True, compute the probability for antineutrinos. Default: False.
+    nu_i : int, optional
+        Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
+    nu_f : int, optional
+        Final flavor index; see ``nu_i``. Default: None.
+    default_osc_params_set_name : str, optional
+        Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+
+    Returns
+    -------
+    float or np.ndarray
+        Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
     # If the location is given as a string, check if it is one of the predefined named locations in
     # Magnus.  The method sys._getframe().f_code.co_name returns the function name.  If the name
@@ -8302,7 +12957,7 @@ def osc_prob_5nu_earth_liv(
     inside the Earth, either between two locations on the surface of the
     Earth, or between the surface and a point in the interior, under
     (one form of) Lorentz-invariance violation.
-    
+
     For the matter density inside the Earth, it uses the Preliminary 
     Reference Earth Model.
 
@@ -8333,6 +12988,126 @@ def osc_prob_5nu_earth_liv(
 
     Examples
     --------
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    energy : int, float, list, or np.ndarray
+        Neutrino energy/energies.
+    costhz : int or float, optional
+        Cosine of the zenith angle of the neutrino. Used together with ``L``, as an alternative to ``loc_ini``/``loc_fin``. Default: None.
+    loc_ini : tuple, list, np.ndarray, or str, optional
+        Initial location on the surface of the Earth, as (latitude, longitude) coordinates or a predefined location name (see ``earth.loc_coords_dms``). Must be given with ``loc_fin``. Default: None.
+    loc_fin : tuple, list, np.ndarray, or str, optional
+        Final location, same format as ``loc_ini``. Must be given with ``loc_ini``. Default: None.
+    L : float, list, or np.ndarray, optional
+        Baseline(s). Default: None.
+    s12 : int or float, optional
+        Sin(theta_12). Default: None.
+    s23 : int or float, optional
+        Sin(theta_23). Default: None.
+    s13 : int or float, optional
+        Sin(theta_13). Default: None.
+    dCP : int or float, optional
+        delta_CP [radian]. Default: None.
+    D21 : int or float, optional
+        Mass-squared difference Delta m^2_21. Default: None.
+    D31 : int or float, optional
+        Mass-squared difference Delta m^2_31. Default: None.
+    s14 : int or float, optional
+        Sin(theta_14). Default: 0.0.
+    s15 : int or float, optional
+        Sin(theta_15). Default: 0.0.
+    s24 : int or float, optional
+        Sin(theta_24). Default: 0.0.
+    s25 : int or float, optional
+        Sin(theta_25). Default: 0.0.
+    s34 : int or float, optional
+        Sin(theta_34). Default: 0.0.
+    s35 : int or float, optional
+        Sin(theta_35). Default: 0.0.
+    d14 : int or float, optional
+        delta_14 [radian]. Default: 0.0.
+    d15 : int or float, optional
+        delta_15 [radian]. Default: 0.0.
+    d24 : int or float, optional
+        delta_24 [radian]. Default: 0.0.
+    d35 : int or float, optional
+        delta_35 [radian]. Default: 0.0.
+    D41 : int or float, optional
+        Mass-squared difference Delta m^2_41. Default: 0.0.
+    D51 : int or float, optional
+        Mass-squared difference Delta m^2_51. Default: 0.0.
+    sxi12 : int or float, optional
+        Sin(xi_12), one of the mixing angles between the space of the eigenvectors of the LIV operator and the flavor states. Default: 0.0.
+    sxi23 : int or float, optional
+        Sin(xi_23); see ``sxi12``. Default: 0.0.
+    sxi13 : int or float, optional
+        Sin(xi_13); see ``sxi12``. Default: 0.0.
+    dxi13 : int or float, optional
+        CP-violation phase of the LIV operator [radian] (replaces ``dxiCP`` for 4/5-flavor systems). Default: 0.0.
+    sxi14 : int or float, optional
+        Sin(xi_14); see ``sxi12``. Default: 0.0.
+    dxi14 : int or float, optional
+        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+    sxi15 : int or float, optional
+        Sin(xi_15); see ``sxi12``. Default: 0.0.
+    dxi15 : int or float, optional
+        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+    sxi24 : int or float, optional
+        Sin(xi_24); see ``sxi12``. Default: 0.0.
+    dxi24 : int or float, optional
+        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+    sxi25 : int or float, optional
+        Sin(xi_25); see ``sxi12``. Default: 0.0.
+    sxi34 : int or float, optional
+        Sin(xi_34); see ``sxi12``. Default: 0.0.
+    sxi35 : int or float, optional
+        Sin(xi_35); see ``sxi12``. Default: 0.0.
+    dxi35 : int or float, optional
+        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+    b1 : int or float, optional
+        Eigenvalue b1 of the LIV operator. Default: 0.0.
+    b2 : int or float, optional
+        Eigenvalue b2 of the LIV operator. Default: 0.0.
+    b3 : int or float, optional
+        Eigenvalue b3 of the LIV operator. Default: 0.0.
+    b4 : int or float, optional
+        Eigenvalue b4 of the LIV operator. Default: 0.0.
+    b5 : int or float, optional
+        Eigenvalue b5 of the LIV operator. Default: 0.0.
+    Lambda : int or float, optional
+        Energy scale of the LIV operator. Default: 1.0.
+    n_liv : int, optional
+        Power of the energy dependence of the LIV operator (dimension of the operator minus 3). Default: 0.
+    nubar : bool, optional
+        If True, compute the probability for antineutrinos. Default: False.
+    nu_i : int, optional
+        Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
+    nu_f : int, optional
+        Final flavor index; see ``nu_i``. Default: None.
+    default_osc_params_set_name : str, optional
+        Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+
+    Returns
+    -------
+    float or np.ndarray
+        Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
     # If the location is given as a string, check if it is one of the predefined named locations in
     # Magnus.  The method sys._getframe().f_code.co_name returns the function name.  If the name
@@ -8431,7 +13206,7 @@ def osc_prob_2nu_sun_liv(
     r"""Compute and return the two-neutrino oscillation probability 
     for neutrinos inside the Sun, under (one form of) Lorentz-invariance
     violation.
-    
+
     For the electron density inside the Sun, it assumes an exponentially
     falling density profile: :math:`N_e(r) = N_e(0) \exp(-r/r_0)`, 
     with :math:`N_e(0) = 245 N_\text{Av}~\text{cm}^{-3}` and 
@@ -8439,6 +13214,64 @@ def osc_prob_2nu_sun_liv(
     `Fundamentals of Neutrino Physics and Astrophysics 
     <https://academic.oup.com/book/3490>`_ by Carlo Giunti and Chung 
     Wook Kim.
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    energy : float, list, or np.ndarray
+        Neutrino energy/energies.
+    L : float, list, or np.ndarray
+        Baseline(s).
+    L0 : int or float
+        Initial position.
+    sth : int or float
+        Sin(theta), the single mixing angle of the two-flavor system.
+    Dm2 : int or float
+        Mass-squared difference Delta m^2 of the two-flavor system.
+    sxi : int or float, optional
+        Sin(xi), with xi the rotation angle between the space of the eigenvectors of the LIV operator and the flavor states. Default: 0.0.
+    b1 : int or float, optional
+        Eigenvalue b1 of the LIV operator. Default: 0.0.
+    b2 : int or float, optional
+        Eigenvalue b2 of the LIV operator. Default: 0.0.
+    Lambda : int or float, optional
+        Energy scale of the LIV operator. Default: 1.0.
+    n_liv : int, optional
+        Power of the energy dependence of the LIV operator (dimension of the operator minus 3). Default: 0.
+    ratio_number_neutrons_to_protons : int or float, optional
+        Ratio of the number of neutrons to protons in matter. Default: 1.0.
+    electron_fraction : int or float, optional
+        Electron fraction. Default: 0.5.
+    nubar : bool, optional
+        If True, compute the probability for antineutrinos. Default: False.
+    nu_i : int, optional
+        Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
+    nu_f : int, optional
+        Final flavor index; see ``nu_i``. Default: None.
+    density_matter_is_in_g_per_cm3 : bool, optional
+        If True, the density is given in g cm^{-3}. Default: False.
+    density_is_of_number_of_electrons : bool, optional
+        If True, the density parameter directly gives the electron number density [eV^3]. Default: False.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+
+    Returns
+    -------
+    float or np.ndarray
+        Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
     return osc_prob_2nu_matter_liv_exp_density(
@@ -8508,7 +13341,7 @@ def osc_prob_3nu_sun_liv(
     r"""Compute and return the three-neutrino oscillation probability 
     for neutrinos inside the Sun, under (one form of) Lorentz-invariance
     violation.
-    
+
     For the electron density inside the Sun, it assumes an exponentially
     falling density profile: :math:`N_e(r) = N_e(0) \exp(-r/r_0)`, 
     with :math:`N_e(0) = 245 N_\text{Av}~\text{cm}^{-3}` and 
@@ -8516,6 +13349,80 @@ def osc_prob_3nu_sun_liv(
     `Fundamentals of Neutrino Physics and Astrophysics 
     <https://academic.oup.com/book/3490>`_ by Carlo Giunti and Chung 
     Wook Kim.
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    energy : float, list, or np.ndarray
+        Neutrino energy/energies.
+    L : float, list, or np.ndarray
+        Baseline(s).
+    L0 : int or float
+        Initial position.
+    s12 : int or float, optional
+        Sin(theta_12). Default: None.
+    s23 : int or float, optional
+        Sin(theta_23). Default: None.
+    s13 : int or float, optional
+        Sin(theta_13). Default: None.
+    dCP : int or float, optional
+        delta_CP [radian]. Default: None.
+    D21 : int or float, optional
+        Mass-squared difference Delta m^2_21. Default: None.
+    D31 : int or float, optional
+        Mass-squared difference Delta m^2_31. Default: None.
+    sxi12 : int or float, optional
+        Sin(xi_12), one of the mixing angles between the space of the eigenvectors of the LIV operator and the flavor states. Default: 0.0.
+    sxi23 : int or float, optional
+        Sin(xi_23); see ``sxi12``. Default: 0.0.
+    sxi13 : int or float, optional
+        Sin(xi_13); see ``sxi12``. Default: 0.0.
+    dxiCP : int or float, optional
+        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+    b1 : int or float, optional
+        Eigenvalue b1 of the LIV operator. Default: 0.0.
+    b2 : int or float, optional
+        Eigenvalue b2 of the LIV operator. Default: 0.0.
+    b3 : int or float, optional
+        Eigenvalue b3 of the LIV operator. Default: 0.0.
+    Lambda : int or float, optional
+        Energy scale of the LIV operator. Default: 1.0.
+    n_liv : int, optional
+        Power of the energy dependence of the LIV operator (dimension of the operator minus 3). Default: 0.
+    ratio_number_neutrons_to_protons : int or float, optional
+        Ratio of the number of neutrons to protons in matter. Default: 1.0.
+    electron_fraction : int or float, optional
+        Electron fraction. Default: 0.5.
+    nubar : bool, optional
+        If True, compute the probability for antineutrinos. Default: False.
+    nu_i : int, optional
+        Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
+    nu_f : int, optional
+        Final flavor index; see ``nu_i``. Default: None.
+    density_matter_is_in_g_per_cm3 : bool, optional
+        If True, the density is given in g cm^{-3}. Default: False.
+    density_is_of_number_of_electrons : bool, optional
+        If True, the density parameter directly gives the electron number density [eV^3]. Default: False.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+
+    Returns
+    -------
+    float or np.ndarray
+        Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
     return osc_prob_3nu_matter_liv_exp_density(
@@ -8605,7 +13512,7 @@ def osc_prob_4nu_sun_liv(
     r"""Compute and return the four-neutrino oscillation probability 
     for neutrinos inside the Sun, under (one form of) Lorentz-invariance
     violation.
-    
+
     For the electron density inside the Sun, it assumes an exponentially
     falling density profile: :math:`N_e(r) = N_e(0) \exp(-r/r_0)`, 
     with :math:`N_e(0) = 245 N_\text{Av}~\text{cm}^{-3}` and 
@@ -8613,6 +13520,104 @@ def osc_prob_4nu_sun_liv(
     `Fundamentals of Neutrino Physics and Astrophysics 
     <https://academic.oup.com/book/3490>`_ by Carlo Giunti and Chung 
     Wook Kim.
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    energy : float, list, or np.ndarray
+        Neutrino energy/energies.
+    L : float, list, or np.ndarray
+        Baseline(s).
+    L0 : int or float
+        Initial position.
+    s12 : int or float, optional
+        Sin(theta_12). Default: None.
+    s23 : int or float, optional
+        Sin(theta_23). Default: None.
+    s13 : int or float, optional
+        Sin(theta_13). Default: None.
+    dCP : int or float, optional
+        delta_CP [radian]. Default: None.
+    D21 : int or float, optional
+        Mass-squared difference Delta m^2_21. Default: None.
+    D31 : int or float, optional
+        Mass-squared difference Delta m^2_31. Default: None.
+    s14 : int or float, optional
+        Sin(theta_14). Default: 0.0.
+    s24 : int or float, optional
+        Sin(theta_24). Default: 0.0.
+    s34 : int or float, optional
+        Sin(theta_34). Default: 0.0.
+    d14 : int or float, optional
+        delta_14 [radian]. Default: 0.0.
+    d24 : int or float, optional
+        delta_24 [radian]. Default: 0.0.
+    D41 : int or float, optional
+        Mass-squared difference Delta m^2_41. Default: 0.0.
+    sxi12 : int or float, optional
+        Sin(xi_12), one of the mixing angles between the space of the eigenvectors of the LIV operator and the flavor states. Default: 0.0.
+    sxi23 : int or float, optional
+        Sin(xi_23); see ``sxi12``. Default: 0.0.
+    sxi13 : int or float, optional
+        Sin(xi_13); see ``sxi12``. Default: 0.0.
+    dxi13 : int or float, optional
+        CP-violation phase of the LIV operator [radian] (replaces ``dxiCP`` for 4/5-flavor systems). Default: 0.0.
+    sxi14 : int or float, optional
+        Sin(xi_14); see ``sxi12``. Default: 0.0.
+    dxi14 : int or float, optional
+        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+    sxi24 : int or float, optional
+        Sin(xi_24); see ``sxi12``. Default: 0.0.
+    dxi24 : int or float, optional
+        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+    sxi34 : int or float, optional
+        Sin(xi_34); see ``sxi12``. Default: 0.0.
+    b1 : int or float, optional
+        Eigenvalue b1 of the LIV operator. Default: 0.0.
+    b2 : int or float, optional
+        Eigenvalue b2 of the LIV operator. Default: 0.0.
+    b3 : int or float, optional
+        Eigenvalue b3 of the LIV operator. Default: 0.0.
+    b4 : int or float, optional
+        Eigenvalue b4 of the LIV operator. Default: 0.0.
+    Lambda : int or float, optional
+        Energy scale of the LIV operator. Default: 1.0.
+    n_liv : int, optional
+        Power of the energy dependence of the LIV operator (dimension of the operator minus 3). Default: 0.
+    ratio_number_neutrons_to_protons : int or float, optional
+        Ratio of the number of neutrons to protons in matter. Default: 1.0.
+    electron_fraction : int or float, optional
+        Electron fraction. Default: 0.5.
+    nubar : bool, optional
+        If True, compute the probability for antineutrinos. Default: False.
+    nu_i : int, optional
+        Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
+    nu_f : int, optional
+        Final flavor index; see ``nu_i``. Default: None.
+    density_matter_is_in_g_per_cm3 : bool, optional
+        If True, the density is given in g cm^{-3}. Default: False.
+    density_is_of_number_of_electrons : bool, optional
+        If True, the density parameter directly gives the electron number density [eV^3]. Default: False.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+
+    Returns
+    -------
+    float or np.ndarray
+        Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
     return osc_prob_4nu_matter_liv_exp_density(
@@ -8726,7 +13731,7 @@ def osc_prob_5nu_sun_liv(
     r"""Compute and return the five-neutrino oscillation probability 
     for neutrinos inside the Sun, under (one form of) Lorentz-invariance
     violation.
-    
+
     For the electron density inside the Sun, it assumes an exponentially
     falling density profile: :math:`N_e(r) = N_e(0) \exp(-r/r_0)`, 
     with :math:`N_e(0) = 245 N_\text{Av}~\text{cm}^{-3}` and 
@@ -8734,6 +13739,128 @@ def osc_prob_5nu_sun_liv(
     `Fundamentals of Neutrino Physics and Astrophysics 
     <https://academic.oup.com/book/3490>`_ by Carlo Giunti and Chung 
     Wook Kim.
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    energy : float, list, or np.ndarray
+        Neutrino energy/energies.
+    L : float, list, or np.ndarray
+        Baseline(s).
+    L0 : int or float
+        Initial position.
+    s12 : int or float, optional
+        Sin(theta_12). Default: None.
+    s23 : int or float, optional
+        Sin(theta_23). Default: None.
+    s13 : int or float, optional
+        Sin(theta_13). Default: None.
+    dCP : int or float, optional
+        delta_CP [radian]. Default: None.
+    D21 : int or float, optional
+        Mass-squared difference Delta m^2_21. Default: None.
+    D31 : int or float, optional
+        Mass-squared difference Delta m^2_31. Default: None.
+    s14 : int or float, optional
+        Sin(theta_14). Default: 0.0.
+    s15 : int or float, optional
+        Sin(theta_15). Default: 0.0.
+    s24 : int or float, optional
+        Sin(theta_24). Default: 0.0.
+    s25 : int or float, optional
+        Sin(theta_25). Default: 0.0.
+    s34 : int or float, optional
+        Sin(theta_34). Default: 0.0.
+    s35 : int or float, optional
+        Sin(theta_35). Default: 0.0.
+    d14 : int or float, optional
+        delta_14 [radian]. Default: 0.0.
+    d15 : int or float, optional
+        delta_15 [radian]. Default: 0.0.
+    d24 : int or float, optional
+        delta_24 [radian]. Default: 0.0.
+    d35 : int or float, optional
+        delta_35 [radian]. Default: 0.0.
+    D41 : int or float, optional
+        Mass-squared difference Delta m^2_41. Default: 0.0.
+    D51 : int or float, optional
+        Mass-squared difference Delta m^2_51. Default: 0.0.
+    sxi12 : int or float, optional
+        Sin(xi_12), one of the mixing angles between the space of the eigenvectors of the LIV operator and the flavor states. Default: 0.0.
+    sxi23 : int or float, optional
+        Sin(xi_23); see ``sxi12``. Default: 0.0.
+    sxi13 : int or float, optional
+        Sin(xi_13); see ``sxi12``. Default: 0.0.
+    dxi13 : int or float, optional
+        CP-violation phase of the LIV operator [radian] (replaces ``dxiCP`` for 4/5-flavor systems). Default: 0.0.
+    sxi14 : int or float, optional
+        Sin(xi_14); see ``sxi12``. Default: 0.0.
+    dxi14 : int or float, optional
+        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+    sxi15 : int or float, optional
+        Sin(xi_15); see ``sxi12``. Default: 0.0.
+    dxi15 : int or float, optional
+        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+    sxi24 : int or float, optional
+        Sin(xi_24); see ``sxi12``. Default: 0.0.
+    dxi24 : int or float, optional
+        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+    sxi25 : int or float, optional
+        Sin(xi_25); see ``sxi12``. Default: 0.0.
+    sxi34 : int or float, optional
+        Sin(xi_34); see ``sxi12``. Default: 0.0.
+    sxi35 : int or float, optional
+        Sin(xi_35); see ``sxi12``. Default: 0.0.
+    dxi35 : int or float, optional
+        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+    b1 : int or float, optional
+        Eigenvalue b1 of the LIV operator. Default: 0.0.
+    b2 : int or float, optional
+        Eigenvalue b2 of the LIV operator. Default: 0.0.
+    b3 : int or float, optional
+        Eigenvalue b3 of the LIV operator. Default: 0.0.
+    b4 : int or float, optional
+        Eigenvalue b4 of the LIV operator. Default: 0.0.
+    b5 : int or float, optional
+        Eigenvalue b5 of the LIV operator. Default: 0.0.
+    Lambda : int or float, optional
+        Energy scale of the LIV operator. Default: 1.0.
+    n_liv : int, optional
+        Power of the energy dependence of the LIV operator (dimension of the operator minus 3). Default: 0.
+    ratio_number_neutrons_to_protons : int or float, optional
+        Ratio of the number of neutrons to protons in matter. Default: 1.0.
+    electron_fraction : int or float, optional
+        Electron fraction. Default: 0.5.
+    nubar : bool, optional
+        If True, compute the probability for antineutrinos. Default: False.
+    nu_i : int, optional
+        Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
+    nu_f : int, optional
+        Final flavor index; see ``nu_i``. Default: None.
+    density_matter_is_in_g_per_cm3 : bool, optional
+        If True, the density is given in g cm^{-3}. Default: False.
+    density_is_of_number_of_electrons : bool, optional
+        If True, the density parameter directly gives the electron number density [eV^3]. Default: False.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+
+    Returns
+    -------
+    float or np.ndarray
+        Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
     return osc_prob_5nu_matter_liv_exp_density(

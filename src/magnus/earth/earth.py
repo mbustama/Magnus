@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
-r"""Contains helper functions related to the Earth: its internal matter
+r"""earth.py
+
+Contains helper functions related to the Earth: its internal matter
 density and the geometry of neutrino trajectories through it.
 
 Routine listings
@@ -89,6 +91,8 @@ def density_matter_func_prem(r: Union[float, np.ndarray],
     Accepts a single radial distance or an array of radial distances;
     array input is evaluated in a single vectorized pass.
 
+    .. versionadded:: 0.10.0
+
     Parameters
     ----------
     r : float or np.ndarray
@@ -144,8 +148,10 @@ def distance_traveled_inside_earth(costhz: float) -> float:
     surface ot the Earth, through it, until it reaches a detector. The
     direction of the neutrino is parametrized by the zenith angle of the
     neutrino. Assumes that the neutrino detector is on the surface of 
-    the Earth, not underground. As a result, the distance is zero for 
+    the Earth, not underground. As a result, the distance is zero for
     all values of costhz > 0.
+
+    .. versionadded:: 0.10.0
 
     Parameters
     ----------
@@ -171,6 +177,8 @@ def earth_radial_distance_from_depth(costhz: float, l: Union[float, np.ndarray],
     neutrino when its distance from its point of entry into the Earth is
     l.  Accepts a single distance or an array of distances; array input
     is evaluated in a single vectorized pass.
+
+    .. versionadded:: 0.10.0
 
     Parameters
     ----------
@@ -229,6 +237,8 @@ def prem_layer_edges_along_chord(costhz: float) -> np.ndarray:
     r_b, which is a quadratic equation in l: with u = d - l and
     d = -2 R costhz, one has u^2 + 2 R costhz u + (R^2 - r_b^2) = 0.
 
+    .. versionadded:: 0.10.0
+
     Parameters
     ----------
     costhz : float
@@ -262,32 +272,54 @@ def prem_layer_edges_along_chord(costhz: float) -> np.ndarray:
 
 
 def dms_to_decimal(degrees: float, minutes: float, seconds: float) -> float:
-    """
-    Convert coordinates from degrees, minutes, and seconds to decimal degrees.
-    
-    Parameters:
-        degrees: The degree part of the coordinate
-        minutes: The minute part of the coordinate
-        seconds: The second part of the coordinate
-    
-    Returns:
-        Decimal degrees
+    r"""Converts (degree, minute, second) coordinates to decimal degrees.
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    degrees : float
+        Degree part of the coordinate.
+    minutes : float
+        Minute part of the coordinate.
+    seconds : float
+        Second part of the coordinate.
+
+    Returns
+    -------
+    float
+        Coordinate in decimal degrees.
     """
     return degrees + minutes / 60 + seconds / 3600
 
 
-def chord_length_inside_earth(lat1_dms: tuple[float, float, float], 
-    lon1_dms: tuple[float, float, float], lat2_dms: tuple[float, float, float], 
+def chord_length_inside_earth(lat1_dms: tuple[float, float, float],
+    lon1_dms: tuple[float, float, float], lat2_dms: tuple[float, float, float],
     lon2_dms: tuple[float, float, float]) -> float:
-    """
-    Calculate the straight-line distance between two points through the Earth.
-    
-    Parameters:
-        lat1_dms, lon1_dms: Tuple of (degrees, minutes, seconds) for the first point
-        lat2_dms, lon2_dms: Tuple of (degrees, minutes, seconds) for the second point
-    
-    Returns:
-        Straight-line distance in kilometers
+    r"""Returns the chord length between two locations on the surface of
+    the Earth.
+
+    Computes the straight-line (chord) distance between two locations on the surface of the
+    Earth, assumed spherical, using the haversine formula for the central angle between the two
+    locations and converting it to a chord length.
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    lat1_dms : tuple of float
+        Latitude of the first location, as (degrees, minutes, seconds).
+    lon1_dms : tuple of float
+        Longitude of the first location, as (degrees, minutes, seconds).
+    lat2_dms : tuple of float
+        Latitude of the second location, as (degrees, minutes, seconds).
+    lon2_dms : tuple of float
+        Longitude of the second location, as (degrees, minutes, seconds).
+
+    Returns
+    -------
+    float
+        Chord length between the two locations [km].
     """
 
     # Convert DMS to decimal degrees
@@ -316,19 +348,65 @@ def chord_length_inside_earth(lat1_dms: tuple[float, float, float],
     return distance
 
 
-def costhz_between_points_on_surface(lat1_dms: tuple[float, float, float], 
-    lon1_dms: tuple[float, float, float], lat2_dms: tuple[float, float, float], 
+def costhz_between_points_on_surface(lat1_dms: tuple[float, float, float],
+    lon1_dms: tuple[float, float, float], lat2_dms: tuple[float, float, float],
     lon2_dms: tuple[float, float, float]) -> float:
+    r"""Returns the zenith angle of the chord between two locations on
+    the surface of the Earth.
 
-    # Assumes spherical Earth and detector on the surface, not underground.
+    Computes the cosine of the zenith angle at which a neutrino would need to travel in a
+    straight chord through the Earth to reach the second location from the first (e.g., a source
+    and a detector both on the surface).  Assumes a spherical Earth and a detector on the
+    surface, not underground, so the returned value is always non-positive (an upward- or
+    horizontally-traveling neutrino, i.e. costhz > 0, would not cross the Earth's interior at all).
 
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    lat1_dms : tuple of float
+        Latitude of the first location, as (degrees, minutes, seconds).
+    lon1_dms : tuple of float
+        Longitude of the first location, as (degrees, minutes, seconds).
+    lat2_dms : tuple of float
+        Latitude of the second location, as (degrees, minutes, seconds).
+    lon2_dms : tuple of float
+        Longitude of the second location, as (degrees, minutes, seconds).
+
+    Returns
+    -------
+    float
+        Cosine of the zenith angle of the chord connecting the two locations.
+    """
     chord_length = chord_length_inside_earth(lat1_dms, lon1_dms, lat2_dms, lon2_dms) # [km]
 
     return -0.5 * chord_length / gd.EARTH_RADIUS
 
 
 def coordinates_of_named_location(source_func_name: str, loc_name: str) -> np.ndarray:
+    r"""Returns the coordinates of a predefined location (e.g., a
+    neutrino detector site).
 
+    Looks up ``loc_name`` (case-insensitively, spaces treated as underscores) in the
+    ``loc_coords_dms`` dictionary of predefined locations (neutrino telescopes/detector sites and
+    a few reference points) and returns its latitude and longitude.
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    source_func_name : str
+        Name of the calling function, used only to build a more informative error message if
+        ``loc_name`` is not found.
+    loc_name : str
+        Name of the predefined location (e.g., ``'kamioka'``, ``'south_pole'``). See
+        ``earth.loc_coords_dms`` for the full list.
+
+    Returns
+    -------
+    np.ndarray
+        Array ``[lat, lon]``, with ``lat`` and ``lon`` each a (degree, minute, second) tuple.
+    """
     # The latitude and longitude are each returned in day-minute-second format, (dd, mm, ss)
 
     try:

@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
-r"""Compute the time-evolution operator using the Magnus expansion.
+r"""magnus.py
+
+Compute the time-evolution operator using the Magnus expansion.
 
 This module contains the numerical core of Magnus: routines to compute
 the matrix exponential of the Magnus expansion of a (possibly
@@ -43,8 +45,23 @@ References
 .. [2] S. Blanes, F. Casas & J. Ros, "Improved high order integrators
    based on the Magnus expansion", BIT Numer. Math. 40, 434 (2000).
 
+Routine listings
+----------------
+
+    * commutator - Returns [X, Y] = XY - YX
+    * probe_eval_mode - Determines how a matrix function can be evaluated
+    * suggest_n_slabs - Suggests a starting number of time slabs
+    * magnus_expansion - Computes exp(Omega) for a single time slab
+    * evolution_operators_from_samples - Evolution operators of a chain
+           of slabs from precomputed samples of A
+    * gl_nodes - Returns the Gauss-Legendre nodes used by the 'gl' method
+    * magnus_expansion_multislab - Computes the evolution operators of
+           all time slabs at once, from A directly
+    * MagnusConvergenceWarning - Warning class for slabs too wide for
+           guaranteed Magnus convergence
+
 Created: 2024/11/30
-Last modified: 2026/07/29
+Last modified: 2026/07/30
 """
 
 __version__ = "2.0"
@@ -69,6 +86,8 @@ class MagnusConvergenceWarning(UserWarning):
     regime -- use more (narrower) slabs instead.  The norm comes for
     free from the eigenvalues already computed for the matrix
     exponential.
+
+    .. versionadded:: 0.10.0
     """
 
 
@@ -102,10 +121,24 @@ _HAS_CUMULATIVE_SIMPSON = hasattr(sp.integrate, 'cumulative_simpson')
 
 
 def commutator(X: np.ndarray, Y: np.ndarray) -> np.ndarray:
-    r"""Commutator [X, Y] = X Y - Y X.
+    r"""Returns the commutator [X, Y] = X Y - Y X.
 
     Works on single matrices and on stacks of matrices (the matrix
     product broadcasts over all leading axes).
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    X : np.ndarray
+        Left matrix (or stack of matrices).
+    Y : np.ndarray
+        Right matrix (or stack of matrices), broadcastable against X.
+
+    Returns
+    -------
+    np.ndarray
+        The commutator X @ Y - Y @ X.
     """
     return X @ Y - Y @ X
 
@@ -210,6 +243,22 @@ def probe_eval_mode(A: Callable, t0: float, t1: float,
     the result as the ``A_eval_mode`` argument of
     :func:`magnus_expansion` and :func:`magnus_expansion_multislab` to
     avoid re-probing A on every call.
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    A : Callable
+        Matrix function of time; see :func:`magnus_expansion`.
+    t0, t1 : float
+        Interval over which A is probed (t1 >= t0).
+    n_probe : int, optional
+        Number of sample times used for the probe. Default: 5.
+
+    Returns
+    -------
+    str
+        'vector', 'constant', or 'scalar'.
     """
     times = np.linspace(t0, t1, n_probe)
     _, mode = _evaluate_A(A, times, None)
@@ -240,6 +289,26 @@ def suggest_n_slabs(
     width, and the adaptive refinement loop -- which remains the sole
     arbiter of accuracy -- grows the slab count from here when the
     requested tolerance demands it.
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    A : Callable
+        Matrix function of time; see :func:`magnus_expansion`.
+    t0, t1 : float
+        Interval over which the phase is estimated (t1 >= t0).
+    A_eval_mode : str, optional
+        Skip probing how A can be evaluated; see :func:`probe_eval_mode`.
+    n_probe : int, optional
+        Number of sample points used to estimate the accumulated phase. Default: 17.
+    phase_per_slab : float, optional
+        Target accumulated phase per slab, in radians. Default: 2*pi.
+
+    Returns
+    -------
+    int
+        Suggested starting number of slabs (at least 1).
     """
     if not (t1 > t0):
         return 1
@@ -264,6 +333,20 @@ def _cumulative_integral(y: np.ndarray, ds: float, method: str) -> np.ndarray:
     Handles complex integrands.  For 'simpson', splits the integrand
     into real and imaginary parts because scipy's
     ``cumulative_simpson`` silently discards the imaginary part.
+
+    Parameters
+    ----------
+    y : np.ndarray
+        Integrand samples, shape (..., m, d, d), on a uniform grid along axis -3.
+    ds : float
+        Grid spacing.
+    method : str
+        'trapezoid' or 'simpson'.
+
+    Returns
+    -------
+    np.ndarray
+        Cumulative integral, same shape as y.
     """
     m = y.shape[-3]
     if method == 'simpson' and m >= 3 and _HAS_CUMULATIVE_SIMPSON:
@@ -281,6 +364,20 @@ def _full_integral(y: np.ndarray, ds: float, method: str) -> np.ndarray:
 
     Cheaper than :func:`_cumulative_integral` when only the total
     integral is needed (i.e., for the highest requested Magnus order).
+
+    Parameters
+    ----------
+    y : np.ndarray
+        Integrand samples, shape (..., m, d, d), on a uniform grid along axis -3.
+    ds : float
+        Grid spacing.
+    method : str
+        'trapezoid' or 'simpson'.
+
+    Returns
+    -------
+    np.ndarray
+        Integral over the full grid, shape (..., d, d).
     """
     m = y.shape[-3]
     if method == 'simpson' and m >= 3:
@@ -433,6 +530,19 @@ def _magnus_gl(
 
 
 def _gl_nodes(order: int) -> np.ndarray:
+    r"""Returns the Gauss-Legendre nodes on [0, 1] for the given Magnus order.
+
+    Parameters
+    ----------
+    order : int
+        Requested Magnus order; mapped to the smallest GL scheme with at least that order
+        (1-2 -> 1 node, 3-4 -> 2 nodes, 5-6 -> 3 nodes).
+
+    Returns
+    -------
+    np.ndarray
+        GL nodes on [0, 1] (1, 2, or 3 of them).
+    """
     if order <= 2:
         return _GL1_NODES
     if order <= 4:
@@ -442,7 +552,17 @@ def _gl_nodes(order: int) -> np.ndarray:
 
 def _warn_slab_norm(nmax: float):
     r"""Warn if the slab norm proxy nmax = max ||Omega||_2 is >= pi (see
-    :class:`MagnusConvergenceWarning`)."""
+    :class:`MagnusConvergenceWarning`).
+
+    Parameters
+    ----------
+    nmax : float
+        Largest ||Omega||_2 (or a proxy for it) encountered across the slab(s) just evaluated.
+
+    Returns
+    -------
+    None
+    """
     if nmax >= np.pi:
         # The message is intentionally static (no numbers) so that Python's
         # default warning filter shows it only once per session.
@@ -472,6 +592,22 @@ def _expm_stack(Om: np.ndarray, warn_wide: bool = False,
     ||Om||_2) are also used to warn about slabs too wide for the Magnus
     series to converge; for a constant A (``A_is_const``) the series
     terminates exactly and the check is skipped.
+
+    Parameters
+    ----------
+    Om : np.ndarray
+        Matrix (or stack of matrices), shape (..., d, d).
+    warn_wide : bool, optional
+        If True, check the slab norm and emit :class:`MagnusConvergenceWarning` if it is too
+        large. Default: False.
+    A_is_const : bool, optional
+        If True, A is constant in time/position, so the Magnus series terminates exactly and the
+        convergence check is skipped even if ``warn_wide`` is True. Default: False.
+
+    Returns
+    -------
+    np.ndarray
+        exp(Om), same shape as Om.
     """
     Om = np.asarray(Om)
     K = 1j*Om
@@ -503,6 +639,24 @@ def _expm_stack(Om: np.ndarray, warn_wide: bool = False,
 
 
 def _validate(order: int, integration_method: str):
+    r"""Validates ``order`` and ``integration_method``.
+
+    Parameters
+    ----------
+    order : int
+        Requested Magnus order; must satisfy 1 <= order <= MAGNUS_EXP_ORDER_MAX.
+    integration_method : str
+        Must be one of ``valid_integration_methods``.
+
+    Returns
+    -------
+    None
+
+    Raises
+    ------
+    ValueError
+        If ``order`` or ``integration_method`` is invalid.
+    """
     if not (integration_method in valid_integration_methods):
         raise ValueError(
             "magnus.magnus_expansion: integration_method must be one of "
@@ -526,6 +680,8 @@ def magnus_expansion(
     A_eval_mode: Optional[str] = None
 ) -> np.ndarray:
     r"""Compute exp(Omega_1 + ... + Omega_order) of A(t) from t0 to t1.
+
+    .. versionadded:: 0.10.0
 
     Parameters
     ----------
@@ -601,6 +757,8 @@ def evolution_operators_from_samples(
     energy) in front of the slab axis, which this routine broadcasts
     through all operations.
 
+    .. versionadded:: 0.10.0
+
     Parameters
     ----------
     At : np.ndarray
@@ -641,8 +799,21 @@ def evolution_operators_from_samples(
 
 
 def gl_nodes(order: int) -> np.ndarray:
-    r"""Gauss-Legendre nodes on [0, 1] used by the 'gl' method for the
-    given Magnus order (1, 2, or 3 nodes for orders <= 2, <= 4, <= 6)."""
+    r"""Returns the Gauss-Legendre nodes on [0, 1] used by the 'gl' method.
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    order : int
+        Requested Magnus order; mapped to the smallest GL scheme with at least that order
+        (1-2 -> 1 node, 3-4 -> 2 nodes, 5-6 -> 3 nodes).
+
+    Returns
+    -------
+    np.ndarray
+        GL nodes on [0, 1] (1, 2, or 3 of them).
+    """
     return _gl_nodes(order)
 
 
@@ -663,6 +834,8 @@ def magnus_expansion_multislab(
     algebra, and matrix exponentials are evaluated as batched NumPy
     operations with the slab axis leading.  This is much faster than
     calling :func:`magnus_expansion` slab by slab.
+
+    .. versionadded:: 0.10.0
 
     Parameters
     ----------

@@ -1,3 +1,33 @@
+# -*- coding: utf-8 -*-
+r"""oscprobstd.py
+
+Closed-form (non-Magnus) two- and three-neutrino oscillation
+probabilities, computed from the standard analytical expressions rather
+than from the Magnus expansion.  Used by the test suite to validate
+oscprob.py's Magnus-based results against an independent method, not
+intended as a general-purpose replacement for it (it does not cover
+matter with non-constant density, NSI, LIV, or more than three flavors).
+
+Routine listings
+----------------
+
+    * osc_prob_2nu_vacuum_std - Returns 2nu vacuum probabilities, closed form
+    * osc_prob_2nu_matter_std - Returns 2nu constant-density matter
+           probabilities, closed form
+    * delta - Kronecker delta
+    * J - Returns U*_ak * U_bk * U_aj * U*_bj, a building block of the
+           3nu vacuum probability
+    * osc_prob_3nu_vacuum_std - Returns 3nu vacuum probabilities, closed form
+
+Created: 2024/12/19 00:53
+Last modified: 2026/07/30
+"""
+
+__version__ = "1.0"
+__author__ = "Mauricio Bustamante"
+__email__ = "mbustamante@gmail.com"
+
+
 import numpy as np
 from typing import Optional, Union
 
@@ -7,6 +37,8 @@ def osc_prob_2nu_vacuum_std(sth: float, Dm2: float, energy: float, L: float) -> 
 
     Returns the probabilities for two-neutrino oscillations in vacuum, computed using the standard
     analytical expression of the probabilities.
+
+    .. versionadded:: 0.10.0
 
     Parameters
     ----------
@@ -44,6 +76,8 @@ def osc_prob_2nu_matter_std(sth: float, Dm2: float, VCC: float, energy: float,
 
     Returns the probabilities for two-neutrino oscillations in matter, computed using the standard
     analytical expression of the probabilities.
+
+    .. versionadded:: 0.10.0
 
     Parameters
     ----------
@@ -89,6 +123,8 @@ def delta(a: int, b: int) -> int:
 
     Returns the delta function delta(a, b) = 1 if a == b and 0 if a != b.
 
+    .. versionadded:: 0.10.0
+
     Parameters
     ----------
     a : int
@@ -114,6 +150,8 @@ def J(U: Union[list, np.ndarray], alpha: int, beta: int, k: int, j: int) -> comp
     Returns the product U*_ak * U_bk * U_aj * U*_bj, where U is the PMNS mixing matrix.  This
     product appears in the standard expression for the three-neutrino oscillation probability in
     vacuum.
+
+    .. versionadded:: 0.10.0
 
     Parameters
     ----------
@@ -143,6 +181,8 @@ def osc_prob_3nu_vacuum_std(U: Union[list, np.ndarray], D21: float, D31: float, 
     Returns the probabilities for three-neutrino oscillations in vacuum, computed using the standard
     analytical expression of the probabilities.
 
+    .. versionadded:: 0.10.0
+
     Parameters
     ----------
     U : list
@@ -155,6 +195,9 @@ def osc_prob_3nu_vacuum_std(U: Union[list, np.ndarray], D21: float, D31: float, 
         Neutrino energy.
     L : float
         Baseline.
+    nubar : bool, optional
+        If True, compute the probability for antineutrinos (flips the
+        sign of the CP-violating term). Default: False.
 
     Returns
     -------
