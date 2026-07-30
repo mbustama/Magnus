@@ -13,7 +13,7 @@ from pathlib import Path
 project = 'Magnus'
 copyright = '2026, Mauricio Bustamante'
 author = 'Mauricio Bustamante'
-release = '0.10'
+release = '0.10.0'
 
 # -- General configuration ----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
@@ -33,6 +33,7 @@ extensions = [
     'sphinx.ext.intersphinx',
     'sphinx_copybutton',        # Copy-to-clipboard button on code blocks
     'sphinxcontrib.bibtex',     # References page (refs.bib)
+    'sphinxcontrib.mermaid',    # Architecture diagrams (architecture.rst)
     'autoapi.extension',        # API reference, generated from src/magnus/
 ]
 

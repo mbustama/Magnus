@@ -106,8 +106,9 @@ Salient Features
 
    installation
    quickstart
-   tutorials
+   architecture
    methodology
+   tutorials
    references
 
 .. toctree::

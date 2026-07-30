@@ -178,6 +178,50 @@ plots, steriles, NSI, LIV — in the [Jupyter notebooks](notebooks/).
 - **Neutrinos and antineutrinos**, single energies or arrays, full probability
   matrices or single channels.
 
+## Code architecture
+
+Mag$`\nu`$s's oscillation-probability API (`src/magnus/oscprob/oscprob.py`) is
+organized as three layers, so that adding a new default or fixing a bug in
+one place fixes it everywhere instead of needing to be copy-pasted across
+dozens of functions:
+
+1. **Wrapper layer** (~60 functions, e.g. `osc_prob_3nu_earth`,
+   `osc_prob_2nu_matter_nsi_constant_density`) — one function per
+   (flavor count) × (environment) × (BSM scenario) combination. Each just
+   names its physics parameters explicitly (for a good IDE/autocomplete and
+   docs experience) and repackages them for the layer below.
+2. **Middle layer** (`osc_prob_vacuum`, `osc_prob_matter_std_potential`,
+   `osc_prob_matter_nsi`, `osc_prob_liv`) — one function per physics
+   scenario, generic in the number of flavors. Builds the right Hamiltonian
+   (from `hamiltonians{2,3,4,5}nu.py`) and the matter potential (from
+   `earth.py` / `matter.py`), then calls down.
+3. **Primordial layer** (`osc_prob_energy_baseline`, `osc_prob`) — owns the
+   adaptive slab refinement and the single call into the Magnus core
+   (`magnus.py`). `osc_prob` is also a fully public, generic entry point:
+   pass it *any* Hamiltonian function of position and it works, no wrapper
+   required.
+
+```mermaid
+flowchart TD
+    W["Wrapper layer<br/>osc_prob_3nu_earth, osc_prob_2nu_matter_nsi_constant_density, ..."]
+    M["Middle layer<br/>osc_prob_vacuum · osc_prob_matter_std_potential · osc_prob_matter_nsi · osc_prob_liv"]
+    P["Primordial layer<br/>osc_prob_energy_baseline → osc_prob"]
+    K["Magnus core (magnus.py)<br/>magnus_expansion_multislab"]
+    H["Hamiltonians<br/>(hamiltonians2nu..5nu.py)"]
+    E["Earth / Sun / matter density<br/>(VCC_func)"]
+    U["Your own H_func(l)"]
+
+    W --> M --> P --> K
+    H --> M
+    E --> M
+    U -. bypasses the wrapper and middle layers .-> P
+```
+
+See [Code architecture](https://mbustama.github.io/Magnus/architecture.html)
+in the full documentation for the naming conventions, the `**kwargs`
+forwarding contract between layers, and a walkthrough of how to add your own
+wrapper.
+
 ## Mathematical method
 
 This section derives, in full, how Mag$`\nu`$s computes the neutrino
@@ -514,6 +558,47 @@ Requested tolerances are targets for the difference between successive
 refinements — the standard adaptive heuristic — not strict global error
 bounds; in practice the default 10⁻³ setting delivers ~5 × 10⁻⁴ on Earth
 crossings (verified against 10⁻⁷-tolerance references).
+
+## Continuous Integration
+
+Four GitHub Actions workflows run under [`.github/workflows/`](.github/workflows/):
+
+- **[`tests.yml`](.github/workflows/tests.yml)** — runs on every push to
+  `main`/`dev` and on every pull request. Runs `pytest tests/ -v` on a
+  matrix of Python 3.10, 3.11, and 3.12. The suite (see
+  [`tests/`](tests/)) covers:
+  - [`test_magnus_expansion.py`](tests/test_magnus_expansion.py) — the
+    Magnus term recursion against an independently coded Bernoulli-number
+    implementation (orders 1–6), Gauss–Legendre convergence rates,
+    exact unitarity of the resulting evolution operators, and the
+    single-slab/multi-slab chaining logic.
+  - [`test_oscprob.py`](tests/test_oscprob.py) — the oscillation-probability
+    engine: every `osc_prob_{2,3,4,5}nu_*` wrapper family runs and returns
+    unitary probabilities (rows sum to 1) across vacuum, constant- and
+    exponential-density matter, Earth, and Sun; probabilities are
+    cross-checked against closed-form expressions and against
+    `scipy.integrate.solve_ivp`; NSI/LIV parameters and `nubar` are checked
+    to have a real, non-degenerate effect where physically expected; and
+    two permanent structural guards ensure no wrapper re-declares the
+    shared refinement kwargs in its own signature and that `nubar` stays
+    consistently exposed across all four flavor counts.
+  - [`test_earth_matter.py`](tests/test_earth_matter.py) — the PREM density
+    profile, chord/zenith-angle geometry through the Earth, and the
+    matter-density-to-electron-number-density conversion.
+  - [`test_hamiltonians.py`](tests/test_hamiltonians.py) — the Hamiltonian
+    and mixing-matrix builders: unitarity and fast/slow-path agreement of
+    the 4×4 and 5×5 mixing matrices, exact reduction to the 3ν PMNS matrix
+    when sterile mixing is off, NSI/LIV convention checks, and the
+    position-dependent `_td` convenience wrappers.
+- **[`lint.yml`](.github/workflows/lint.yml)** — runs Ruff (`ruff check` and
+  `ruff format --check`) on every push/PR to `main`. Currently informational
+  (`continue-on-error: true`): it reports style/static-analysis issues
+  without blocking merges.
+- **[`pages.yml`](.github/workflows/pages.yml)** — on every push to `main`,
+  builds the Sphinx documentation (`docs/`) and deploys it to GitHub Pages.
+- **[`publish.yml`](.github/workflows/publish.yml)** — on every published
+  GitHub Release, builds the sdist/wheel and publishes to PyPI via trusted
+  (OIDC) publishing.
 
 ## Requirements
 
