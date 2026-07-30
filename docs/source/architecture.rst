@@ -24,7 +24,7 @@ single, non-overlapping responsibility:
        gd["magnus.globaldefs<br/>physical constants, unit conversions,<br/>NuFit parameter sets"]
        earth["magnus.earth<br/>PREM density profile,<br/>chord/zenith-angle geometry"]
        matter["magnus.matter<br/>density profiles, electron number density,<br/>V_CC construction"]
-       osc["magnus.oscprob<br/>oscprob.py, oscprobstd.py<br/>the public API"]
+       osc["magnus.oscprob<br/>the public API + oscprobstd.py<br/>(closed-form validation)"]
 
        gd --> earth
        gd --> matter
@@ -52,18 +52,21 @@ easy to break by accident when adding code:
   place instead of scattering it across the physics and numerical
   modules.
 
-Each subpackage's ``__init__.py`` is a thin, uniform
-``from .module import *`` plus an ``__all__`` built from ``dir()`` — there
-is no hidden logic at import time; the implementation always lives in the
-same-named ``.py`` file inside the subpackage (e.g.
-``magnus.hamiltonians`` re-exports everything from
-``hamiltonians2nu.py``, ``hamiltonians3nu.py``, ``hamiltonians4nu.py``,
-and ``hamiltonians5nu.py``).
+``magnus.earth``, ``magnus.globaldefs``, ``magnus.magnus``, ``magnus.matter``,
+and ``magnus.oscprob``'s wrapper API each hold a single implementation, so
+their code lives directly in the subpackage's ``__init__.py`` — there is
+no separate, identically-named submodule to click through to find it.
+``magnus.hamiltonians`` genuinely holds four distinct, flavor-count-specific
+modules (``hamiltonians2nu.py`` through ``hamiltonians5nu.py``), and
+``magnus.oscprob`` additionally re-exports ``oscprobstd.py`` (the
+closed-form validation counterpart to the wrapper API); for these,
+``__init__.py`` keeps a thin ``from .module import *`` re-export alongside
+its own content.
 
-The three-layer structure of ``oscprob.py``
-----------------------------------------------
+The three-layer structure of ``magnus.oscprob``
+----------------------------------------------------
 
-``oscprob.py`` is the largest module (~10,000 lines) because it exposes a
+``magnus.oscprob`` is the largest module (~10,000 lines) because it exposes a
 dedicated, explicitly-named function for every combination of
 (flavor count) :math:`\times` (environment) :math:`\times` (BSM
 scenario) — roughly 60 combinations. To keep that size from turning into
@@ -108,7 +111,7 @@ into the Magnus core. It owns the adaptive-refinement loop (grow
 ``atol`` is met or a cap is hit), input validation, logging, and the
 `~50`-line docstring documenting all of the refinement/logging keyword
 arguments (see it directly in
-:func:`~magnus.oscprob.oscprob.osc_prob`). It is also a first-class
+:func:`~magnus.oscprob.osc_prob`). It is also a first-class
 public entry point: pass it *any* callable ``H_func(l)`` (or
 ``H_func(enu, l)``, or a constant matrix) and it works with no wrapper at
 all -- this is the escape hatch for Hamiltonians the package does not
@@ -235,7 +238,7 @@ How to add your own wrapper
 Suppose you want to add support for a new environment, e.g. a
 user-supplied radial density profile for 3-flavor NSI oscillations,
 ``osc_prob_3nu_matter_nsi_custom_density``. The existing
-``osc_prob_3nu_matter_nsi_exp_density`` (in ``oscprob.py``) is the
+``osc_prob_3nu_matter_nsi_exp_density`` (in ``magnus.oscprob``) is the
 closest sibling to copy from. The recipe:
 
 #. **Pick the right layer-2 function.** You are adding an environment
@@ -334,7 +337,7 @@ Where things live: a quick lookup
    * - A default tolerance, the refinement/adaptive-slab-growth logic,
        or anything every scenario shares
      - ``osc_prob`` / ``osc_prob_energy_baseline``
-       (``src/magnus/oscprob/oscprob.py``)
+       (``src/magnus/oscprob/__init__.py``)
    * - How a physics scenario's Hamiltonian is assembled from mixing
        angles/NSI epsilons/LIV coefficients
      - ``osc_prob_vacuum`` / ``osc_prob_matter_std_potential`` /
@@ -347,12 +350,12 @@ Where things live: a quick lookup
      - the matching ``osc_prob_{N}nu_{scenario}`` wrapper
    * - The Magnus term recursion, the Gauss-Legendre integrators, or the
        matrix exponential itself
-     - ``magnus.magnus.magnus`` (:doc:`methodology`)
+     - ``magnus.magnus`` (:doc:`methodology`)
    * - The PREM density profile or Earth chord/zenith geometry
-     - ``magnus.earth.earth``
+     - ``magnus.earth``
    * - A generic density profile, electron number density, or the
        :math:`V_{CC}` potential construction
-     - ``magnus.matter.matter``
+     - ``magnus.matter``
    * - A physical constant, unit conversion, or a predefined oscillation
        parameter set (e.g. NuFit 6.0)
-     - ``magnus.globaldefs.globaldefs``
+     - ``magnus.globaldefs``

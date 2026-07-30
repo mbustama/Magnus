@@ -7,9 +7,6 @@ Routine listings
 ----------------
 
     (none; only calls magnus.cli.main() when run as a script)
-
-Created: 2026/07/30
-Last modified: 2026/07/30
 """
 
 __author__ = "Mauricio Bustamante"

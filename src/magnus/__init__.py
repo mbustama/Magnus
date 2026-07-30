@@ -10,9 +10,6 @@ Routine listings
 ----------------
 
     (none; only re-exports __version__ and defines submodules/__all__)
-
-Created: 2024/12/30 02:00
-Last modified: 2026/07/30
 """
 
 __author__ = "Mauricio Bustamante"

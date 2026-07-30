@@ -23,9 +23,6 @@ Routine listings
     * hamiltonian_5nu_liv - Returns H_LIV
     * hamiltonian_5nu_liv_energy_independent - Returns H_LIV (no energy
            dependence)
-
-Created: 2019/04/17 17:14
-Last modified: 2026/07/30
 """
 
 
@@ -45,9 +42,9 @@ def mixing_matrix_5x5(s12: float, s23: float, s13:float, d13: float, s14: float,
     r"""Returns the 5x5 (3+2 sterile) mixing matrix.
 
     Computes and returns the 5x5 complex mixing matrix for a 3+2 sterile-neutrino scenario,
-    parametrized by the three standard mixing angles (theta_12, theta_23, theta_13) and CP phase
-    (delta_13), plus six additional mixing angles (theta_14, theta_15, theta_24, theta_25,
-    theta_34, theta_35) and three additional CP phases (delta_14, delta_15, delta_35) coupling the
+    parametrized by the three standard mixing angles (:math:`\theta_{12}`, :math:`\theta_{23}`, :math:`\theta_{13}`) and CP phase
+    (:math:`\delta_{13}`), plus six additional mixing angles (:math:`\theta_{14}`, :math:`\theta_{15}`, :math:`\theta_{24}`, :math:`\theta_{25}`,
+    :math:`\theta_{34}`, :math:`\theta_{35}`) and three additional CP phases (:math:`\delta_{14}`, :math:`\delta_{15}`, :math:`\delta_{35}`) coupling the
     two sterile states.  Follows the parametrization
     :math:`U = \tilde R_{35} R_{34} R_{25} \tilde R_{24} R_{23} \tilde R_{15} \tilde R_{14}
     \tilde R_{13} R_{12}` of Kopp, Machado, Maltoni & Schwetz, arXiv:1103.4570 (see also
@@ -58,33 +55,33 @@ def mixing_matrix_5x5(s12: float, s23: float, s13:float, d13: float, s14: float,
     Parameters
     ----------
     s12 : float
-        Sin(theta_12).
+        Sine of the mixing angle :math:`\theta_{12}`.
     s23 : float
-        Sin(theta_23).
+        Sine of the mixing angle :math:`\theta_{23}`.
     s13 : float
-        Sin(theta_13).
+        Sine of the mixing angle :math:`\theta_{13}`.
     d13 : float
-        delta_13 [radian].
+        :math:`\delta_{13}` [radian].
     s14 : float
-        Sin(theta_14).
+        Sine of the mixing angle :math:`\theta_{14}`.
     d14 : float
-        delta_14 [radian].
+        :math:`\delta_{14}` [radian].
     s15 : float
-        Sin(theta_15).
+        Sine of the mixing angle :math:`\theta_{15}`.
     d15 : float
-        delta_15 [radian].
+        :math:`\delta_{15}` [radian].
     s24 : float
-        Sin(theta_24).
+        Sine of the mixing angle :math:`\theta_{24}`.
     d24 : float
-        delta_24 [radian].
+        :math:`\delta_{24}` [radian].
     s25 : float
-        Sin(theta_25).
+        Sine of the mixing angle :math:`\theta_{25}`.
     s34 : float
-        Sin(theta_34).
+        Sine of the mixing angle :math:`\theta_{34}`.
     s35 : float
-        Sin(theta_35).
+        Sine of the mixing angle :math:`\theta_{35}`.
     d35 : float
-        delta_35 [radian].
+        :math:`\delta_{35}` [radian].
     compute_matrix_multiplication : bool, optional
         If False (default), use the pre-computed closed-form expressions for each entry;
         otherwise, build the matrix by multiplying the nine rotation matrices live. Both paths
@@ -251,7 +248,7 @@ def hamiltonian_5nu_vacuum_energy_independent(s12: float, s23: float, s13:float,
 
     Computes and returns the 5x5 complex five-neutrino Hamiltonian for oscillations in vacuum,
     parametrized by the nine 3+2 mixing angles and three CP phases of :func:`mixing_matrix_5x5`,
-    and four mass-squared differences (Delta m^2_21, Delta m^2_31, Delta m^2_41, Delta m^2_51).
+    and four mass-squared differences (:math:`\Delta m_{21}^2`, :math:`\Delta m_{31}^2`, :math:`\Delta m_{41}^2`, :math:`\Delta m_{51}^2`).
     The Hamiltonian is H = (1/2)*R.M2.R^dagger, with R the 5x5 mixing matrix and M2 the mass
     matrix.  The multiplicative factor 1/E is not applied.
 
@@ -262,13 +259,13 @@ def hamiltonian_5nu_vacuum_energy_independent(s12: float, s23: float, s13:float,
     s12, s23, s13, d13, s14, d14, s15, d15, s24, d24, s25, s34, s35, d35 : float
         3+2 mixing angles (sines) and CP phases; see :func:`mixing_matrix_5x5`.
     D21 : float
-        Mass-squared difference Delta m^2_21.
+        Mass-squared difference :math:`\Delta m_{21}^2`.
     D31 : float
-        Mass-squared difference Delta m^2_31.
+        Mass-squared difference :math:`\Delta m_{31}^2`.
     D41 : float
-        Mass-squared difference Delta m^2_41.
+        Mass-squared difference :math:`\Delta m_{41}^2`.
     D51 : float
-        Mass-squared difference Delta m^2_51.
+        Mass-squared difference :math:`\Delta m_{51}^2`.
     nubar : bool, optional
         If True, compute the Hamiltonian for antineutrinos (conjugates the mixing matrix,
         equivalent to negating every CP phase). Default: False.
@@ -312,13 +309,13 @@ def hamiltonian_5nu_vacuum_energy_independent_td(l: float, s12: float, s23: floa
     s12, s23, s13, d13, s14, d14, s15, d15, s24, d24, s25, s34, s35, d35 : float
         3+2 mixing angles (sines) and CP phases; see :func:`mixing_matrix_5x5`.
     D21 : float
-        Mass-squared difference Delta m^2_21.
+        Mass-squared difference :math:`\Delta m_{21}^2`.
     D31 : float
-        Mass-squared difference Delta m^2_31.
+        Mass-squared difference :math:`\Delta m_{31}^2`.
     D41 : float
-        Mass-squared difference Delta m^2_41.
+        Mass-squared difference :math:`\Delta m_{41}^2`.
     D51 : float
-        Mass-squared difference Delta m^2_51.
+        Mass-squared difference :math:`\Delta m_{51}^2`.
     nubar : bool, optional
         If True, compute the Hamiltonian for antineutrinos. Default: False.
     compute_matrix_multiplication : bool, optional
@@ -351,13 +348,13 @@ def hamiltonian_5nu_vacuum(energy: float, s12: float, s23: float, s13:float, d13
     s12, s23, s13, d13, s14, d14, s15, d15, s24, d24, s25, s34, s35, d35 : float
         3+2 mixing angles (sines) and CP phases; see :func:`mixing_matrix_5x5`.
     D21 : float
-        Mass-squared difference Delta m^2_21.
+        Mass-squared difference :math:`\Delta m_{21}^2`.
     D31 : float
-        Mass-squared difference Delta m^2_31.
+        Mass-squared difference :math:`\Delta m_{31}^2`.
     D41 : float
-        Mass-squared difference Delta m^2_41.
+        Mass-squared difference :math:`\Delta m_{41}^2`.
     D51 : float
-        Mass-squared difference Delta m^2_51.
+        Mass-squared difference :math:`\Delta m_{51}^2`.
     nubar : bool, optional
         If True, compute the Hamiltonian for antineutrinos. Default: False.
     compute_matrix_multiplication : bool, optional
@@ -394,13 +391,13 @@ def hamiltonian_5nu_vacuum_td(l: float, energy: float, s12: float, s23: float, s
     s12, s23, s13, d13, s14, d14, s15, d15, s24, d24, s25, s34, s35, d35 : float
         3+2 mixing angles (sines) and CP phases; see :func:`mixing_matrix_5x5`.
     D21 : float
-        Mass-squared difference Delta m^2_21.
+        Mass-squared difference :math:`\Delta m_{21}^2`.
     D31 : float
-        Mass-squared difference Delta m^2_31.
+        Mass-squared difference :math:`\Delta m_{31}^2`.
     D41 : float
-        Mass-squared difference Delta m^2_41.
+        Mass-squared difference :math:`\Delta m_{41}^2`.
     D51 : float
-        Mass-squared difference Delta m^2_51.
+        Mass-squared difference :math:`\Delta m_{51}^2`.
     nubar : bool, optional
         If True, compute the Hamiltonian for antineutrinos. Default: False.
     compute_matrix_multiplication : bool, optional

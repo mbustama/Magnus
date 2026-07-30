@@ -25,9 +25,6 @@ Routine listings
     * hamiltonian_3nu_liv - Returns H_LIV
     * hamiltonian_3nu_liv_energy_independent - Returns H_LIV (no energy
            dependence)
-
-Created: 2019/04/17 17:14
-Last modified: 2026/07/30
 """
 
 
@@ -52,20 +49,20 @@ def pmns_mixing_matrix(s12: float, s23: float, s13:float, dCP: float) -> np.ndar
     r"""Returns the 3x3 PMNS mixing matrix.
 
     Computes and returns the 3x3 complex PMNS mixing matrix parametrized by three rotation angles,
-    theta_12, theta_23, theta_13, and one CP-violation phase, delta_CP.
+    :math:`\theta_{12}`, :math:`\theta_{23}`, :math:`\theta_{13}`, and one CP-violation phase, :math:`\delta_\text{CP}`.
 
     .. versionadded:: 0.10.0
 
     Parameters
     ----------
     s12 : float
-        Sin(theta_12).
+        Sine of the mixing angle :math:`\theta_{12}`.
     s23 : float
-        Sin(theta_23).
+        Sine of the mixing angle :math:`\theta_{23}`.
     s13 : float
-        Sin(theta_13).
+        Sine of the mixing angle :math:`\theta_{13}`.
     dCP : float
-        delta_CP [radian].
+        :math:`\delta_\text{CP}` [radian].
 
     Returns
     -------
@@ -106,13 +103,13 @@ def mixing_matrix_3x3(s12: float, s23: float, s13:float, dCP: float) -> np.ndarr
     Parameters
     ----------
     s12 : float
-        Sin(theta_12).
+        Sine of the mixing angle :math:`\theta_{12}`.
     s23 : float
-        Sin(theta_23).
+        Sine of the mixing angle :math:`\theta_{23}`.
     s13 : float
-        Sin(theta_13).
+        Sine of the mixing angle :math:`\theta_{13}`.
     dCP : float
-        delta_CP [radian].
+        :math:`\delta_\text{CP}` [radian].
 
     Returns
     -------
@@ -128,8 +125,8 @@ def hamiltonian_3nu_vacuum_energy_independent(s12: float, s23: float, s13: float
     r"""Returns the three-neutrino Hamiltonian for vacuum oscillations.
 
     Computes and returns the 3x3 complex three-neutrino Hamiltonian for oscillations in vacuum,
-    parametrized by three mixing angles (theta_12, theta_23, theta_13), one CP-violation phase
-    (delta_CP), and two mass-squared difference (Delta m^2_21, Delta m^2_31).  The Hamiltonian is
+    parametrized by three mixing angles (:math:`\theta_{12}`, :math:`\theta_{23}`, :math:`\theta_{13}`), one CP-violation phase
+    (:math:`\delta_\text{CP}`), and two mass-squared difference (:math:`\Delta m_{21}^2`, :math:`\Delta m_{31}^2`).  The Hamiltonian is
     H = (1/2)*R.M2.R^dagger, with R the 3x3 PMNS matrix and M2 the mass matrix.  The multiplicative
     factor 1/E is not applied.
 
@@ -138,20 +135,20 @@ def hamiltonian_3nu_vacuum_energy_independent(s12: float, s23: float, s13: float
     Parameters
     ----------
     s12 : float
-        Sin(theta_12).
+        Sine of the mixing angle :math:`\theta_{12}`.
     s23 : float
-        Sin(theta_23).
+        Sine of the mixing angle :math:`\theta_{23}`.
     s13 : float
-        Sin(theta_13).
+        Sine of the mixing angle :math:`\theta_{13}`.
     dCP : float
-        delta_CP [radian].
+        :math:`\delta_\text{CP}` [radian].
     D21 : float
-        Mass-squared difference Delta m^2_21.
+        Mass-squared difference :math:`\Delta m_{21}^2`.
     D31 : float
-        Mass-squared difference Delta m^2_31.
+        Mass-squared difference :math:`\Delta m_{31}^2`.
     nubar : bool, optional
         If True, compute the Hamiltonian for antineutrinos (conjugates the PMNS matrix, equivalent
-        to delta_CP -> -delta_CP). Default: False.
+        to :math:`\delta_\text{CP}` -> -:math:`\delta_\text{CP}`). Default: False.
     compute_matrix_multiplication : bool, optional
         If False (default), use the pre-computed expressions; otherwise, multiply R.M2.R^dagger
         live.
@@ -224,17 +221,17 @@ def hamiltonian_3nu_vacuum_energy_independent_td(l: float, s12: float, s23: floa
     l : float
         Position at which the Hamiltonian is evaluated.
     s12 : float
-        Sin(theta_12).
+        Sine of the mixing angle :math:`\theta_{12}`.
     s23 : float
-        Sin(theta_23).
+        Sine of the mixing angle :math:`\theta_{23}`.
     s13 : float
-        Sin(theta_13).
+        Sine of the mixing angle :math:`\theta_{13}`.
     dCP : float
-        delta_CP [radian].
+        :math:`\delta_\text{CP}` [radian].
     D21 : float
-        Mass-squared difference Delta m^2_21.
+        Mass-squared difference :math:`\Delta m_{21}^2`.
     D31 : float
-        Mass-squared difference Delta m^2_31.
+        Mass-squared difference :math:`\Delta m_{31}^2`.
     compute_matrix_multiplication : bool, optional
         If False (default), use the pre-computed expressions; otherwise, multiply R.M2.R^dagger
         live.
@@ -262,17 +259,17 @@ def hamiltonian_3nu_vacuum(energy: float, s12: float, s23: float, s13: float, dC
     energy : float
         Neutrino energy.
     s12 : float
-        Sin(theta_12).
+        Sine of the mixing angle :math:`\theta_{12}`.
     s23 : float
-        Sin(theta_23).
+        Sine of the mixing angle :math:`\theta_{23}`.
     s13 : float
-        Sin(theta_13).
+        Sine of the mixing angle :math:`\theta_{13}`.
     dCP : float
-        delta_CP [radian].
+        :math:`\delta_\text{CP}` [radian].
     D21 : float
-        Mass-squared difference Delta m^2_21.
+        Mass-squared difference :math:`\Delta m_{21}^2`.
     D31 : float
-        Mass-squared difference Delta m^2_31.
+        Mass-squared difference :math:`\Delta m_{31}^2`.
     nubar : bool, optional
         If True, compute the Hamiltonian for antineutrinos. Default: False.
     compute_matrix_multiplication : bool, optional
@@ -305,17 +302,17 @@ def hamiltonian_3nu_vacuum_td(l: float, energy: float, s12: float, s23: float, s
     energy : float
         Neutrino energy.
     s12 : float
-        Sin(theta_12).
+        Sine of the mixing angle :math:`\theta_{12}`.
     s23 : float
-        Sin(theta_23).
+        Sine of the mixing angle :math:`\theta_{23}`.
     s13 : float
-        Sin(theta_13).
+        Sine of the mixing angle :math:`\theta_{13}`.
     dCP : float
-        delta_CP [radian].
+        :math:`\delta_\text{CP}` [radian].
     D21 : float
-        Mass-squared difference Delta m^2_21.
+        Mass-squared difference :math:`\Delta m_{21}^2`.
     D31 : float
-        Mass-squared difference Delta m^2_31.
+        Mass-squared difference :math:`\Delta m_{31}^2`.
     compute_matrix_multiplication : bool, optional
         If False (default), use the pre-computed expressions; otherwise, multiply R.M2.R^dagger
         live.

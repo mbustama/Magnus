@@ -104,10 +104,10 @@ File Tree
    ├── src/
    │   ├── magnus/                      # Main Python package
    │   │   ├── magnus/                  # Magnus-expansion numerical core
-   │   │   │   └── magnus.py            # Term recursion, Gauss-Legendre integrators, batched kernel
+   │   │   │   └── __init__.py          # Term recursion, Gauss-Legendre integrators, batched kernel
    │   │   ├── oscprob/                 # Oscillation probabilities: main API
-   │   │   │   ├── oscprob.py           # osc_prob and every physics-scenario wrapper
-   │   │   │   └── oscprobstd.py        # Closed-form 2nu/3nu probabilities (used to validate oscprob.py)
+   │   │   │   ├── __init__.py          # osc_prob and every physics-scenario wrapper
+   │   │   │   └── oscprobstd.py        # Closed-form 2nu/3nu probabilities (used to validate the wrapper API)
    │   │   ├── hamiltonians/            # 2nu-5nu Hamiltonians: vacuum, matter, NSI, LIV
    │   │   ├── earth/                   # PREM density profile, chord/zenith-angle geometry
    │   │   ├── matter/                  # Density profiles, electron number density, CC potential

@@ -10,9 +10,6 @@ Routine listings
 ----------------
 
     (none; only re-exports the four hamiltonians{2,3,4,5}nu.py modules)
-
-Created: 2024/12/30 02:00
-Last modified: 2026/07/30
 """
 
 __author__ = "Mauricio Bustamante"

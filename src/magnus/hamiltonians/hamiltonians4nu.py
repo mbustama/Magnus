@@ -24,9 +24,6 @@ Routine listings
     * hamiltonian_4nu_liv - Returns H_LIV
     * hamiltonian_4nu_liv_energy_independent - Returns H_LIV (no energy
            dependence)
-
-Created: 2019/04/17 17:14
-Last modified: 2026/07/30
 """
 
 
@@ -46,9 +43,9 @@ def mixing_matrix_4x4(s12: float, s23: float, s13:float, d13: float, s14: float,
     r"""Returns the 4x4 (3+1 sterile) mixing matrix.
 
     Computes and returns the 4x4 complex mixing matrix for a 3+1 sterile-neutrino scenario,
-    parametrized by the three standard mixing angles (theta_12, theta_23, theta_13) and CP phase
-    (delta_13), plus three additional mixing angles (theta_14, theta_24, theta_34) and two
-    additional CP phases (delta_14, delta_24) coupling the sterile state.  Follows the
+    parametrized by the three standard mixing angles (:math:`\theta_{12}`, :math:`\theta_{23}`, :math:`\theta_{13}`) and CP phase
+    (:math:`\delta_{13}`), plus three additional mixing angles (:math:`\theta_{14}`, :math:`\theta_{24}`, :math:`\theta_{34}`) and two
+    additional CP phases (:math:`\delta_{14}`, :math:`\delta_{24}`) coupling the sterile state.  Follows the
     parametrization :math:`U = R_{34} \tilde R_{24} \tilde R_{14} R_{23} \tilde R_{13} R_{12}` of
     Kopp, Machado, Maltoni & Schwetz, arXiv:1103.4570 (see also arXiv:1105.3911).
 
@@ -57,23 +54,23 @@ def mixing_matrix_4x4(s12: float, s23: float, s13:float, d13: float, s14: float,
     Parameters
     ----------
     s12 : float
-        Sin(theta_12).
+        Sine of the mixing angle :math:`\theta_{12}`.
     s23 : float
-        Sin(theta_23).
+        Sine of the mixing angle :math:`\theta_{23}`.
     s13 : float
-        Sin(theta_13).
+        Sine of the mixing angle :math:`\theta_{13}`.
     d13 : float
-        delta_13 [radian].
+        :math:`\delta_{13}` [radian].
     s14 : float
-        Sin(theta_14).
+        Sine of the mixing angle :math:`\theta_{14}`.
     d14 : float
-        delta_14 [radian].
+        :math:`\delta_{14}` [radian].
     s24 : float
-        Sin(theta_24).
+        Sine of the mixing angle :math:`\theta_{24}`.
     d24 : float
-        delta_24 [radian].
+        :math:`\delta_{24}` [radian].
     s34 : float
-        Sin(theta_34).
+        Sine of the mixing angle :math:`\theta_{34}`.
     compute_matrix_multiplication : bool, optional
         If False (default), use the pre-computed closed-form expressions for each entry;
         otherwise, build the matrix by multiplying the five rotation matrices live. Both paths
@@ -157,7 +154,7 @@ def hamiltonian_4nu_vacuum_energy_independent(s12: float, s23: float, s13:float,
 
     Computes and returns the 4x4 complex four-neutrino Hamiltonian for oscillations in vacuum,
     parametrized by the six 3+1 mixing angles and two CP phases of :func:`mixing_matrix_4x4`, and
-    three mass-squared differences (Delta m^2_21, Delta m^2_31, Delta m^2_41).  The Hamiltonian is
+    three mass-squared differences (:math:`\Delta m_{21}^2`, :math:`\Delta m_{31}^2`, :math:`\Delta m_{41}^2`).  The Hamiltonian is
     H = (1/2)*R.M2.R^dagger, with R the 4x4 mixing matrix and M2 the mass matrix.  The
     multiplicative factor 1/E is not applied.
 
@@ -166,29 +163,29 @@ def hamiltonian_4nu_vacuum_energy_independent(s12: float, s23: float, s13:float,
     Parameters
     ----------
     s12 : float
-        Sin(theta_12).
+        Sine of the mixing angle :math:`\theta_{12}`.
     s23 : float
-        Sin(theta_23).
+        Sine of the mixing angle :math:`\theta_{23}`.
     s13 : float
-        Sin(theta_13).
+        Sine of the mixing angle :math:`\theta_{13}`.
     d13 : float
-        delta_13 [radian].
+        :math:`\delta_{13}` [radian].
     s14 : float
-        Sin(theta_14).
+        Sine of the mixing angle :math:`\theta_{14}`.
     d14 : float
-        delta_14 [radian].
+        :math:`\delta_{14}` [radian].
     s24 : float
-        Sin(theta_24).
+        Sine of the mixing angle :math:`\theta_{24}`.
     d24 : float
-        delta_24 [radian].
+        :math:`\delta_{24}` [radian].
     s34 : float
-        Sin(theta_34).
+        Sine of the mixing angle :math:`\theta_{34}`.
     D21 : float
-        Mass-squared difference Delta m^2_21.
+        Mass-squared difference :math:`\Delta m_{21}^2`.
     D31 : float
-        Mass-squared difference Delta m^2_31.
+        Mass-squared difference :math:`\Delta m_{31}^2`.
     D41 : float
-        Mass-squared difference Delta m^2_41.
+        Mass-squared difference :math:`\Delta m_{41}^2`.
     nubar : bool, optional
         If True, compute the Hamiltonian for antineutrinos (conjugates the mixing matrix,
         equivalent to negating every CP phase). Default: False.
@@ -232,11 +229,11 @@ def hamiltonian_4nu_vacuum_energy_independent_td(l: float, s12: float, s23: floa
     s12, s23, s13, d13, s14, d14, s24, d24, s34 : float
         3+1 mixing angles (sines) and CP phases; see :func:`mixing_matrix_4x4`.
     D21 : float
-        Mass-squared difference Delta m^2_21.
+        Mass-squared difference :math:`\Delta m_{21}^2`.
     D31 : float
-        Mass-squared difference Delta m^2_31.
+        Mass-squared difference :math:`\Delta m_{31}^2`.
     D41 : float
-        Mass-squared difference Delta m^2_41.
+        Mass-squared difference :math:`\Delta m_{41}^2`.
     nubar : bool, optional
         If True, compute the Hamiltonian for antineutrinos. Default: False.
     compute_matrix_multiplication : bool, optional
@@ -267,11 +264,11 @@ def hamiltonian_4nu_vacuum(energy: float, s12: float, s23: float, s13:float, d13
     s12, s23, s13, d13, s14, d14, s24, d24, s34 : float
         3+1 mixing angles (sines) and CP phases; see :func:`mixing_matrix_4x4`.
     D21 : float
-        Mass-squared difference Delta m^2_21.
+        Mass-squared difference :math:`\Delta m_{21}^2`.
     D31 : float
-        Mass-squared difference Delta m^2_31.
+        Mass-squared difference :math:`\Delta m_{31}^2`.
     D41 : float
-        Mass-squared difference Delta m^2_41.
+        Mass-squared difference :math:`\Delta m_{41}^2`.
     nubar : bool, optional
         If True, compute the Hamiltonian for antineutrinos. Default: False.
     compute_matrix_multiplication : bool, optional
@@ -307,11 +304,11 @@ def hamiltonian_4nu_vacuum_td(l: float, energy: float, s12: float, s23: float, s
     s12, s23, s13, d13, s14, d14, s24, d24, s34 : float
         3+1 mixing angles (sines) and CP phases; see :func:`mixing_matrix_4x4`.
     D21 : float
-        Mass-squared difference Delta m^2_21.
+        Mass-squared difference :math:`\Delta m_{21}^2`.
     D31 : float
-        Mass-squared difference Delta m^2_31.
+        Mass-squared difference :math:`\Delta m_{31}^2`.
     D41 : float
-        Mass-squared difference Delta m^2_41.
+        Mass-squared difference :math:`\Delta m_{41}^2`.
     nubar : bool, optional
         If True, compute the Hamiltonian for antineutrinos. Default: False.
     compute_matrix_multiplication : bool, optional

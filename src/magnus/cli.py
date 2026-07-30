@@ -4,7 +4,7 @@ r"""cli.py
 Command-line calculator for Mag$\nu$s: computes a single neutrino
 oscillation probability (or probability matrix) from the command line,
 without writing any Python. Wraps the same ``osc_prob_{2,3,4,5}nu_*``
-functions used by the Python API (see :py:mod:`magnus.oscprob.oscprob`
+functions used by the Python API (see :py:mod:`magnus.oscprob`
 and :doc:`/cli`), dispatching to the right one based on ``--flavors``,
 ``--environment``, and ``--scenario``.
 
@@ -19,9 +19,6 @@ Routine listings
     * FLAVOR_NAME_TO_INDEX - Maps flavor names (e, mu, tau, s, s1, s2)
            to their globaldefs index
     * ENERGY_UNITS, LENGTH_UNITS - Unit-name to eV/eV^-1 conversion factors
-
-Created: 2026/07/30
-Last modified: 2026/07/30
 """
 
 __author__ = "Mauricio Bustamante"

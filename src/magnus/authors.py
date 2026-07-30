@@ -8,9 +8,6 @@ Routine listings
 ----------------
 
     (none; only defines the __authors__ string)
-
-Created: 2025/02/06 01:34
-Last modified: 2026/07/30
 """
 
 __author__ = "Mauricio Bustamante"

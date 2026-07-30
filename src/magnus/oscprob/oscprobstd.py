@@ -18,9 +18,6 @@ Routine listings
     * J - Returns U*_ak * U_bk * U_aj * U*_bj, a building block of the
            3nu vacuum probability
     * osc_prob_3nu_vacuum_std - Returns 3nu vacuum probabilities, closed form
-
-Created: 2024/12/19 00:53
-Last modified: 2026/07/30
 """
 
 __version__ = "1.0"
@@ -43,9 +40,9 @@ def osc_prob_2nu_vacuum_std(sth: float, Dm2: float, energy: float, L: float) -> 
     Parameters
     ----------
     sth : float
-        Sin(theta).
+        Sine of the mixing angle :math:`\theta`.
     Dm2 : float
-        Mass-squared difference Delta m^2.
+        Mass-squared difference :math:`\Delta m^2`.
     energy : float
         Neutrino energy.
     L : float
@@ -82,9 +79,9 @@ def osc_prob_2nu_matter_std(sth: float, Dm2: float, VCC: float, energy: float,
     Parameters
     ----------
     sth : float
-        Sin(theta).
+        Sine of the mixing angle :math:`\theta`.
     Dm2 : float
-        Mass-squared difference Delta m^2.
+        Mass-squared difference :math:`\Delta m^2`.
     VCC : float
         Potential due to charged-current interactions of nu_e with electrons.
     energy : float
@@ -188,9 +185,9 @@ def osc_prob_3nu_vacuum_std(U: Union[list, np.ndarray], D21: float, D31: float, 
     U : list
         3x3 PMNS complex mixing matrix.
     D21 : float
-        Mass-squared difference Delta m^2_21.
+        Mass-squared difference :math:`\Delta m_{21}^2`.
     D31 : float
-        Mass-squared difference Delta m^2_31.
+        Mass-squared difference :math:`\Delta m_{31}^2`.
     energy : float
         Neutrino energy.
     L : float

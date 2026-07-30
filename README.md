@@ -167,10 +167,10 @@ Magnus/
 ├── src/
 │   └── magnus/                      # Main Python package
 │       ├── magnus/                  # Magnus-expansion numerical core
-│       │   └── magnus.py            # Term recursion, Gauss-Legendre integrators, batched kernel
+│       │   └── __init__.py          # Term recursion, Gauss-Legendre integrators, batched kernel
 │       ├── oscprob/                 # Oscillation probabilities: main API
-│       │   ├── oscprob.py           # osc_prob and every physics-scenario wrapper
-│       │   └── oscprobstd.py        # Closed-form 2nu/3nu probabilities (used to validate oscprob.py)
+│       │   ├── __init__.py          # osc_prob and every physics-scenario wrapper
+│       │   └── oscprobstd.py        # Closed-form 2nu/3nu probabilities (used to validate the wrapper API)
 │       ├── hamiltonians/            # 2nu-5nu Hamiltonians: vacuum, matter, NSI, LIV
 │       ├── earth/                   # PREM density profile, chord/zenith-angle geometry
 │       ├── matter/                  # Density profiles, electron number density, CC potential
@@ -347,7 +347,7 @@ same table via `--environment`/`--scenario`/`--flavors`.
 
 ## Code architecture
 
-Mag$`\nu`$s's oscillation-probability API (`src/magnus/oscprob/oscprob.py`) is
+Mag$`\nu`$s's oscillation-probability API (`src/magnus/oscprob/__init__.py`) is
 organized as three layers, so that adding a new default or fixing a bug in
 one place fixes it everywhere instead of needing to be copy-pasted across
 dozens of functions:
@@ -361,10 +361,10 @@ dozens of functions:
    `osc_prob_matter_nsi`, `osc_prob_liv`) — one function per physics
    scenario, generic in the number of flavors. Builds the right Hamiltonian
    (from `hamiltonians{2,3,4,5}nu.py`) and the matter potential (from
-   `earth.py` / `matter.py`), then calls down.
+   `magnus.earth` / `magnus.matter`), then calls down.
 3. **Primordial layer** (`osc_prob_energy_baseline`, `osc_prob`) — owns the
    adaptive slab refinement and the single call into the Magnus core
-   (`magnus.py`). `osc_prob` is also a fully public, generic entry point:
+   (`magnus.magnus`). `osc_prob` is also a fully public, generic entry point:
    pass it *any* Hamiltonian function of position and it works, no wrapper
    required.
 
@@ -493,7 +493,7 @@ Written out explicitly, with $[\cdot,\cdot]$ the matrix commutator:
 
 and similarly for $\Omega_5$ and $\Omega_6$, which additionally involve the
 $B_4$-weighted quadruple commutators (see
-[`src/magnus/magnus/magnus.py`](src/magnus/magnus/magnus.py) for the full,
+[`src/magnus/magnus/__init__.py`](src/magnus/magnus/__init__.py) for the full,
 tested expressions). This is not an approximation scheme in the usual sense
 of a truncated Taylor series in a small parameter — it is an exact identity
 order by order in the *number of nested commutators*, and it is this

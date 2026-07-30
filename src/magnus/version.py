@@ -11,9 +11,6 @@ Routine listings
 ----------------
 
     (none; only defines the __version__ string)
-
-Created: 2025/01/26 21:37
-Last modified: 2026/07/30
 """
 
 __author__ = "Mauricio Bustamante"

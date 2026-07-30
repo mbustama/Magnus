@@ -24,9 +24,6 @@ Routine listings
     * hamiltonian_2nu_liv - Returns H_LIV
     * hamiltonian_2nu_liv_energy_independent - Returns H_LIV (no energy
            dependence)
-
-Created: 2019/04/21 15:00
-Last modified: 2026/07/30
 """
 
 
@@ -50,7 +47,7 @@ def mixing_matrix_2nu(sth: float) -> np.ndarray:
     Parameters
     ----------
     sth : float
-        Sin(theta).
+        Sine of the mixing angle :math:`\theta`.
 
     Returns
     -------
@@ -76,9 +73,9 @@ def hamiltonian_2nu_vacuum_energy_independent(sth: float, Dm2: float,
     Parameters
     ----------
     sth : float
-        Sin(theta).
+        Sine of the mixing angle :math:`\theta`.
     Dm2 : float
-        Mass-squared difference Delta m^2.
+        Mass-squared difference :math:`\Delta m^2`.
     compute_matrix_multiplication : bool, optional
         If False (default), use the pre-computed expressions; otherwise,
         multiply R.M2.R^dagger live.
@@ -131,9 +128,9 @@ def hamiltonian_2nu_vacuum_energy_independent_td(l: float, sth: float, Dm2: floa
     l : float
         Position at which the Hamiltonian is evaluated.
     sth : float
-        Sin(theta).
+        Sine of the mixing angle :math:`\theta`.
     Dm2 : float
-        Mass-squared difference Delta m^2.
+        Mass-squared difference :math:`\Delta m^2`.
     compute_matrix_multiplication : bool, optional
         If False (default), use the pre-computed expressions; otherwise, multiply R.M2.R^dagger
         live.
@@ -161,9 +158,9 @@ def hamiltonian_2nu_vacuum(energy: float, sth: float, Dm2: float,
     energy : float
         Neutrino energy.
     sth : float
-        Sin(theta).
+        Sine of the mixing angle :math:`\theta`.
     Dm2 : float
-        Mass-squared difference Delta m^2.
+        Mass-squared difference :math:`\Delta m^2`.
     compute_matrix_multiplication : bool, optional
         If False (default), use the pre-computed expressions; otherwise,
         multiply R.M2.R^dagger live.
@@ -198,9 +195,9 @@ def hamiltonian_2nu_vacuum_td(l: float, energy: float, sth: float, Dm2: float,
     energy : float
         Neutrino energy.
     sth : float
-        Sin(theta).
+        Sine of the mixing angle :math:`\theta`.
     Dm2 : float
-        Mass-squared difference Delta m^2.
+        Mass-squared difference :math:`\Delta m^2`.
     compute_matrix_multiplication : bool, optional
         If False (default), use the pre-computed expressions; otherwise,
         multiply R.M2.R^dagger live.
