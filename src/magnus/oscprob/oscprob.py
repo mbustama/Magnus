@@ -5982,6 +5982,29 @@ def osc_prob_2nu_earth(
 
     Examples
     --------
+    Standard two-neutrino oscillations through the Earth, specified by
+    the cosine of the zenith angle:
+
+    .. jupyter-execute::
+
+        import warnings
+        import magnus.oscprob as oscprob
+        import magnus.globaldefs as gd
+        from magnus.magnus import MagnusConvergenceWarning
+
+        sth = gd.S12_NO_BF_NUFIT_6_0
+        Dm2 = gd.D21_NO_BF_NUFIT_6_0
+        costhz = -0.8
+        baseline = 2.0 * gd.EARTH_RADIUS * 0.8 * gd.UNIT_KM  # chord length for this costhz
+        energy = 1.0 * gd.UNIT_GEV
+
+        # The small solar mass splitting Dm2 combined with this Earth baseline
+        # means the adaptive refinement needs a few loops; this is the expected,
+        # informational MagnusConvergenceWarning discussed in the package README.
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore', MagnusConvergenceWarning)
+            P = oscprob.osc_prob_2nu_earth(energy, sth, Dm2, costhz=costhz, L=baseline)
+        P
 
     .. versionadded:: 0.10.0
 
@@ -6150,6 +6173,27 @@ def osc_prob_3nu_earth(
 
     Examples
     --------
+    Standard three-neutrino oscillations through the Earth, using the
+    NuFit 6.0 defaults for the oscillation parameters:
+
+    .. jupyter-execute::
+
+        import magnus.oscprob as oscprob
+        import magnus.globaldefs as gd
+        import warnings
+        from magnus.magnus import MagnusConvergenceWarning
+
+        costhz = -0.8
+        baseline = 2.0 * gd.EARTH_RADIUS * 0.8 * gd.UNIT_KM
+        energy = 1.0 * gd.UNIT_GEV
+
+        # The chosen baseline/energy combination needs a few adaptive-refinement
+        # loops to converge; this is the expected, informational
+        # MagnusConvergenceWarning discussed in the package README.
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore', MagnusConvergenceWarning)
+            P = oscprob.osc_prob_3nu_earth(energy, costhz=costhz, L=baseline)
+        P
 
     .. versionadded:: 0.10.0
 
@@ -6331,6 +6375,30 @@ def osc_prob_4nu_earth(
 
     Examples
     --------
+    Four-neutrino (3+1 sterile) oscillations through the Earth, with a
+    modest sterile mixing on top of the NuFit 6.0 active-sector defaults:
+
+    .. jupyter-execute::
+
+        import numpy as np
+        import magnus.oscprob as oscprob
+        import magnus.globaldefs as gd
+        import warnings
+        from magnus.magnus import MagnusConvergenceWarning
+
+        costhz = -0.8
+        baseline = 2.0 * gd.EARTH_RADIUS * 0.8 * gd.UNIT_KM
+        energy = 1.0 * gd.UNIT_GEV
+
+        # The chosen baseline/energy combination needs a few adaptive-refinement
+        # loops to converge; this is the expected, informational
+        # MagnusConvergenceWarning discussed in the package README.
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore', MagnusConvergenceWarning)
+            P = oscprob.osc_prob_4nu_earth(energy, costhz=costhz, L=baseline,
+                                        s14=0.1, s24=0.05, s34=0.02,
+                                        d14=np.radians(10.0), d24=np.radians(20.0), D41=0.1)
+        P
 
     .. versionadded:: 0.10.0
 
@@ -6531,6 +6599,32 @@ def osc_prob_5nu_earth(
 
     Examples
     --------
+    Five-neutrino (3+2 sterile) oscillations through the Earth, with
+    modest sterile mixing on top of the NuFit 6.0 active-sector defaults:
+
+    .. jupyter-execute::
+
+        import numpy as np
+        import magnus.oscprob as oscprob
+        import magnus.globaldefs as gd
+        import warnings
+        from magnus.magnus import MagnusConvergenceWarning
+
+        costhz = -0.8
+        baseline = 2.0 * gd.EARTH_RADIUS * 0.8 * gd.UNIT_KM
+        energy = 1.0 * gd.UNIT_GEV
+
+        # The chosen baseline/energy combination needs a few adaptive-refinement
+        # loops to converge; this is the expected, informational
+        # MagnusConvergenceWarning discussed in the package README.
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore', MagnusConvergenceWarning)
+            P = oscprob.osc_prob_5nu_earth(energy, costhz=costhz, L=baseline,
+                                        s14=0.1, s15=0.05, s24=0.05, s25=0.02, s34=0.02, s35=0.01,
+                                        d14=np.radians(10.0), d15=np.radians(15.0),
+                                        d24=np.radians(20.0), d35=np.radians(25.0),
+                                        D41=0.1, D51=0.05)
+        P
 
     .. versionadded:: 0.10.0
 
@@ -6973,6 +7067,30 @@ def osc_prob_2nu_sun(
 
     Examples
     --------
+    Standard two-neutrino oscillations from the center of the Sun to
+    90% of its radius:
+
+    .. jupyter-execute::
+
+        import warnings
+        import magnus.oscprob as oscprob
+        import magnus.globaldefs as gd
+        from magnus.magnus import MagnusConvergenceWarning
+
+        sth = gd.S12_NO_BF_NUFIT_6_0
+        Dm2 = gd.D21_NO_BF_NUFIT_6_0
+        energy = 15.0 * gd.UNIT_GEV  # high enough energy for the adaptive refinement
+        L0 = 0.0                     # to converge cleanly under the default tolerance
+        L = 0.9 * gd.SUN_RADIUS * gd.UNIT_KM
+
+        # A trajectory through most of the Sun accumulates a large phase, so the
+        # adaptive refinement needs a few loops to narrow the slabs; this is the
+        # expected, informational MagnusConvergenceWarning discussed in the
+        # package README, suppressed here to keep the example focused.
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore', MagnusConvergenceWarning)
+            P = oscprob.osc_prob_2nu_sun(energy, L, L0, sth, Dm2)
+        P
 
     .. versionadded:: 0.10.0
 
@@ -7078,6 +7196,28 @@ def osc_prob_3nu_sun(
 
     Examples
     --------
+    Standard three-neutrino oscillations through the Sun, using the
+    NuFit 6.0 defaults for the oscillation parameters:
+
+    .. jupyter-execute::
+
+        import warnings
+        import magnus.oscprob as oscprob
+        import magnus.globaldefs as gd
+        from magnus.magnus import MagnusConvergenceWarning
+
+        energy = 15.0 * gd.UNIT_GEV  # high enough energy for the adaptive refinement
+        L0 = 0.0                     # to converge cleanly under the default tolerance
+        L = 0.9 * gd.SUN_RADIUS * gd.UNIT_KM
+
+        # A trajectory through most of the Sun accumulates a large phase, so the
+        # adaptive refinement needs a few loops to narrow the slabs; this is the
+        # expected, informational MagnusConvergenceWarning discussed in the
+        # package README, suppressed here to keep the example focused.
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore', MagnusConvergenceWarning)
+            P = oscprob.osc_prob_3nu_sun(energy, L, L0)
+        P
 
     .. versionadded:: 0.10.0
 
@@ -7202,6 +7342,30 @@ def osc_prob_4nu_sun(
 
     Examples
     --------
+    Four-neutrino (3+1 sterile) oscillations through the Sun, with a
+    modest sterile mixing on top of the NuFit 6.0 active-sector defaults:
+
+    .. jupyter-execute::
+
+        import warnings
+        import numpy as np
+        import magnus.oscprob as oscprob
+        import magnus.globaldefs as gd
+        from magnus.magnus import MagnusConvergenceWarning
+
+        energy = 15.0 * gd.UNIT_GEV  # high enough energy for the adaptive refinement
+        L0 = 0.0                     # to converge cleanly under the default tolerance
+        L = 0.9 * gd.SUN_RADIUS * gd.UNIT_KM
+
+        # A trajectory through most of the Sun accumulates a large phase, so the
+        # adaptive refinement needs a few loops to narrow the slabs; this is the
+        # expected, informational MagnusConvergenceWarning discussed in the
+        # package README, suppressed here to keep the example focused.
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore', MagnusConvergenceWarning)
+            P = oscprob.osc_prob_4nu_sun(energy, L, L0, s14=0.1, s24=0.05, s34=0.02,
+                                      d14=np.radians(10.0), d24=np.radians(20.0), D41=0.1)
+        P
 
     .. versionadded:: 0.10.0
 
@@ -7350,6 +7514,33 @@ def osc_prob_5nu_sun(
 
     Examples
     --------
+    Five-neutrino (3+2 sterile) oscillations through the Sun, with
+    modest sterile mixing on top of the NuFit 6.0 active-sector defaults:
+
+    .. jupyter-execute::
+
+        import warnings
+        import numpy as np
+        import magnus.oscprob as oscprob
+        import magnus.globaldefs as gd
+        from magnus.magnus import MagnusConvergenceWarning
+
+        energy = 15.0 * gd.UNIT_GEV  # high enough energy for the adaptive refinement
+        L0 = 0.0                     # to converge cleanly under the default tolerance
+        L = 0.9 * gd.SUN_RADIUS * gd.UNIT_KM
+
+        # A trajectory through most of the Sun accumulates a large phase, so the
+        # adaptive refinement needs a few loops to narrow the slabs; this is the
+        # expected, informational MagnusConvergenceWarning discussed in the
+        # package README, suppressed here to keep the example focused.
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore', MagnusConvergenceWarning)
+            P = oscprob.osc_prob_5nu_sun(energy, L, L0,
+                                      s14=0.1, s15=0.05, s24=0.05, s25=0.02, s34=0.02, s35=0.01,
+                                      d14=np.radians(10.0), d15=np.radians(15.0),
+                                      d24=np.radians(20.0), d35=np.radians(25.0),
+                                      D41=0.1, D51=0.05)
+        P
 
     .. versionadded:: 0.10.0
 
@@ -8933,6 +9124,30 @@ def osc_prob_2nu_earth_nsi(
 
     Examples
     --------
+    Two-neutrino oscillations through the Earth with non-standard
+    interactions:
+
+    .. jupyter-execute::
+
+        import warnings
+        import magnus.oscprob as oscprob
+        import magnus.globaldefs as gd
+        from magnus.magnus import MagnusConvergenceWarning
+
+        sth = gd.S12_NO_BF_NUFIT_6_0
+        Dm2 = gd.D21_NO_BF_NUFIT_6_0
+        costhz = -0.8
+        baseline = 2.0 * gd.EARTH_RADIUS * 0.8 * gd.UNIT_KM
+        energy = 1.0 * gd.UNIT_GEV
+
+        # The small solar mass splitting Dm2 combined with this Earth baseline
+        # means the adaptive refinement needs a few loops; this is the expected,
+        # informational MagnusConvergenceWarning discussed in the package README.
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore', MagnusConvergenceWarning)
+            P = oscprob.osc_prob_2nu_earth_nsi(energy, sth, Dm2, eps_aa=0.05, eps_ab=0.02,
+                                                costhz=costhz, L=baseline)
+        P
 
     .. versionadded:: 0.10.0
 
@@ -9108,6 +9323,29 @@ def osc_prob_3nu_earth_nsi(
 
     Examples
     --------
+    Three-neutrino oscillations through the Earth with non-standard
+    interactions, using the NuFit 6.0 defaults for the standard
+    oscillation parameters:
+
+    .. jupyter-execute::
+
+        import magnus.oscprob as oscprob
+        import magnus.globaldefs as gd
+        import warnings
+        from magnus.magnus import MagnusConvergenceWarning
+
+        costhz = -0.8
+        baseline = 2.0 * gd.EARTH_RADIUS * 0.8 * gd.UNIT_KM
+        energy = 1.0 * gd.UNIT_GEV
+
+        # The chosen baseline/energy combination needs a few adaptive-refinement
+        # loops to converge; this is the expected, informational
+        # MagnusConvergenceWarning discussed in the package README.
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore', MagnusConvergenceWarning)
+            P = oscprob.osc_prob_3nu_earth_nsi(energy, costhz=costhz, L=baseline,
+                                            eps_ee=0.05, eps_em=-0.03, eps_et=0.01)
+        P
 
     .. versionadded:: 0.10.0
 
@@ -9310,6 +9548,31 @@ def osc_prob_4nu_earth_nsi(
 
     Examples
     --------
+    Four-neutrino (3+1 sterile) oscillations through the Earth with
+    non-standard interactions, including the sterile-flavor couplings:
+
+    .. jupyter-execute::
+
+        import numpy as np
+        import magnus.oscprob as oscprob
+        import magnus.globaldefs as gd
+        import warnings
+        from magnus.magnus import MagnusConvergenceWarning
+
+        costhz = -0.8
+        baseline = 2.0 * gd.EARTH_RADIUS * 0.8 * gd.UNIT_KM
+        energy = 1.0 * gd.UNIT_GEV
+
+        # The chosen baseline/energy combination needs a few adaptive-refinement
+        # loops to converge; this is the expected, informational
+        # MagnusConvergenceWarning discussed in the package README.
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore', MagnusConvergenceWarning)
+            P = oscprob.osc_prob_4nu_earth_nsi(
+                energy, costhz=costhz, L=baseline,
+                s14=0.1, s24=0.05, s34=0.02, d14=np.radians(10.0), d24=np.radians(20.0), D41=0.1,
+                eps_ee=0.05, eps_em=-0.03, eps_et=0.01, eps_es=0.02, eps_ms=0.01, eps_ts=0.01)
+        P
 
     .. versionadded:: 0.10.0
 
@@ -9545,6 +9808,34 @@ def osc_prob_5nu_earth_nsi(
 
     Examples
     --------
+    Five-neutrino (3+2 sterile) oscillations through the Earth with
+    non-standard interactions, including the sterile-flavor couplings:
+
+    .. jupyter-execute::
+
+        import numpy as np
+        import magnus.oscprob as oscprob
+        import magnus.globaldefs as gd
+        import warnings
+        from magnus.magnus import MagnusConvergenceWarning
+
+        costhz = -0.8
+        baseline = 2.0 * gd.EARTH_RADIUS * 0.8 * gd.UNIT_KM
+        energy = 1.0 * gd.UNIT_GEV
+
+        # The chosen baseline/energy combination needs a few adaptive-refinement
+        # loops to converge; this is the expected, informational
+        # MagnusConvergenceWarning discussed in the package README.
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore', MagnusConvergenceWarning)
+            P = oscprob.osc_prob_5nu_earth_nsi(
+                energy, costhz=costhz, L=baseline,
+                s14=0.1, s15=0.05, s24=0.05, s25=0.02, s34=0.02, s35=0.01,
+                d14=np.radians(10.0), d15=np.radians(15.0), d24=np.radians(20.0), d35=np.radians(25.0),
+                D41=0.1, D51=0.05,
+                eps_ee=0.05, eps_em=-0.03, eps_et=0.01, eps_es1=0.02, eps_es2=0.01,
+                eps_ms1=0.01, eps_ms2=0.01, eps_ts1=0.01, eps_ts2=0.01)
+        P
 
     .. versionadded:: 0.10.0
 
@@ -9755,6 +10046,30 @@ def osc_prob_2nu_sun_nsi(
 
     Examples
     --------
+    Two-neutrino oscillations through the Sun with non-standard
+    interactions:
+
+    .. jupyter-execute::
+
+        import warnings
+        import magnus.oscprob as oscprob
+        import magnus.globaldefs as gd
+        from magnus.magnus import MagnusConvergenceWarning
+
+        sth = gd.S12_NO_BF_NUFIT_6_0
+        Dm2 = gd.D21_NO_BF_NUFIT_6_0
+        energy = 15.0 * gd.UNIT_GEV  # high enough energy for the adaptive refinement
+        L0 = 0.0                     # to converge cleanly under the default tolerance
+        L = 0.9 * gd.SUN_RADIUS * gd.UNIT_KM
+
+        # A trajectory through most of the Sun accumulates a large phase, so the
+        # adaptive refinement needs a few loops to narrow the slabs; this is the
+        # expected, informational MagnusConvergenceWarning discussed in the
+        # package README, suppressed here to keep the example focused.
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore', MagnusConvergenceWarning)
+            P = oscprob.osc_prob_2nu_sun_nsi(energy, L, L0, sth, Dm2, eps_aa=0.05, eps_ab=0.02)
+        P
 
     .. versionadded:: 0.10.0
 
@@ -9866,6 +10181,29 @@ def osc_prob_3nu_sun_nsi(
 
     Examples
     --------
+    Three-neutrino oscillations through the Sun with non-standard
+    interactions, using the NuFit 6.0 defaults for the standard
+    oscillation parameters:
+
+    .. jupyter-execute::
+
+        import warnings
+        import magnus.oscprob as oscprob
+        import magnus.globaldefs as gd
+        from magnus.magnus import MagnusConvergenceWarning
+
+        energy = 15.0 * gd.UNIT_GEV  # high enough energy for the adaptive refinement
+        L0 = 0.0                     # to converge cleanly under the default tolerance
+        L = 0.9 * gd.SUN_RADIUS * gd.UNIT_KM
+
+        # A trajectory through most of the Sun accumulates a large phase, so the
+        # adaptive refinement needs a few loops to narrow the slabs; this is the
+        # expected, informational MagnusConvergenceWarning discussed in the
+        # package README, suppressed here to keep the example focused.
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore', MagnusConvergenceWarning)
+            P = oscprob.osc_prob_3nu_sun_nsi(energy, L, L0, eps_ee=0.05, eps_em=-0.03, eps_et=0.01)
+        P
 
     .. versionadded:: 0.10.0
 
@@ -10014,6 +10352,32 @@ def osc_prob_4nu_sun_nsi(
 
     Examples
     --------
+    Four-neutrino (3+1 sterile) oscillations through the Sun with
+    non-standard interactions, including the sterile-flavor couplings:
+
+    .. jupyter-execute::
+
+        import warnings
+        import numpy as np
+        import magnus.oscprob as oscprob
+        import magnus.globaldefs as gd
+        from magnus.magnus import MagnusConvergenceWarning
+
+        energy = 15.0 * gd.UNIT_GEV  # high enough energy for the adaptive refinement
+        L0 = 0.0                     # to converge cleanly under the default tolerance
+        L = 0.9 * gd.SUN_RADIUS * gd.UNIT_KM
+
+        # A trajectory through most of the Sun accumulates a large phase, so the
+        # adaptive refinement needs a few loops to narrow the slabs; this is the
+        # expected, informational MagnusConvergenceWarning discussed in the
+        # package README, suppressed here to keep the example focused.
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore', MagnusConvergenceWarning)
+            P = oscprob.osc_prob_4nu_sun_nsi(
+                energy, L, L0,
+                s14=0.1, s24=0.05, s34=0.02, d14=np.radians(10.0), d24=np.radians(20.0), D41=0.1,
+                eps_ee=0.05, eps_em=-0.03, eps_et=0.01, eps_es=0.02, eps_ms=0.01, eps_ts=0.01)
+        P
 
     .. versionadded:: 0.10.0
 
@@ -10203,6 +10567,35 @@ def osc_prob_5nu_sun_nsi(
 
     Examples
     --------
+    Five-neutrino (3+2 sterile) oscillations through the Sun with
+    non-standard interactions, including the sterile-flavor couplings:
+
+    .. jupyter-execute::
+
+        import warnings
+        import numpy as np
+        import magnus.oscprob as oscprob
+        import magnus.globaldefs as gd
+        from magnus.magnus import MagnusConvergenceWarning
+
+        energy = 15.0 * gd.UNIT_GEV  # high enough energy for the adaptive refinement
+        L0 = 0.0                     # to converge cleanly under the default tolerance
+        L = 0.9 * gd.SUN_RADIUS * gd.UNIT_KM
+
+        # A trajectory through most of the Sun accumulates a large phase, so the
+        # adaptive refinement needs a few loops to narrow the slabs; this is the
+        # expected, informational MagnusConvergenceWarning discussed in the
+        # package README, suppressed here to keep the example focused.
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore', MagnusConvergenceWarning)
+            P = oscprob.osc_prob_5nu_sun_nsi(
+                energy, L, L0,
+                s14=0.1, s15=0.05, s24=0.05, s25=0.02, s34=0.02, s35=0.01,
+                d14=np.radians(10.0), d15=np.radians(15.0), d24=np.radians(20.0), d35=np.radians(25.0),
+                D41=0.1, D51=0.05,
+                eps_ee=0.05, eps_em=-0.03, eps_et=0.01, eps_es1=0.02, eps_es2=0.01,
+                eps_ms1=0.01, eps_ms2=0.01, eps_ts1=0.01, eps_ts2=0.01)
+        P
 
     .. versionadded:: 0.10.0
 
@@ -12364,6 +12757,30 @@ def osc_prob_2nu_earth_liv(
 
     Examples
     --------
+    Two-neutrino oscillations through the Earth under Lorentz-invariance
+    violation:
+
+    .. jupyter-execute::
+
+        import warnings
+        import magnus.oscprob as oscprob
+        import magnus.globaldefs as gd
+        from magnus.magnus import MagnusConvergenceWarning
+
+        sth = gd.S12_NO_BF_NUFIT_6_0
+        Dm2 = gd.D21_NO_BF_NUFIT_6_0
+        costhz = -0.8
+        baseline = 2.0 * gd.EARTH_RADIUS * 0.8 * gd.UNIT_KM
+        energy = 1.0 * gd.UNIT_GEV
+
+        # The small solar mass splitting Dm2 combined with this Earth baseline
+        # means the adaptive refinement needs a few loops; this is the expected,
+        # informational MagnusConvergenceWarning discussed in the package README.
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore', MagnusConvergenceWarning)
+            P = oscprob.osc_prob_2nu_earth_liv(energy, sth, Dm2, sxi=0.1, b1=1.e-13, b2=2.e-13,
+                                                Lambda=1.e9, n_liv=1, costhz=costhz, L=baseline)
+        P
 
     .. versionadded:: 0.10.0
 
@@ -12548,6 +12965,31 @@ def osc_prob_3nu_earth_liv(
 
     Examples
     --------
+    Three-neutrino oscillations through the Earth under Lorentz-invariance
+    violation, using the NuFit 6.0 defaults for the standard oscillation
+    parameters:
+
+    .. jupyter-execute::
+
+        import magnus.oscprob as oscprob
+        import magnus.globaldefs as gd
+        import warnings
+        from magnus.magnus import MagnusConvergenceWarning
+
+        costhz = -0.8
+        baseline = 2.0 * gd.EARTH_RADIUS * 0.8 * gd.UNIT_KM
+        energy = 1.0 * gd.UNIT_GEV
+
+        # The chosen baseline/energy combination needs a few adaptive-refinement
+        # loops to converge; this is the expected, informational
+        # MagnusConvergenceWarning discussed in the package README.
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore', MagnusConvergenceWarning)
+            P = oscprob.osc_prob_3nu_earth_liv(
+                energy, costhz=costhz, L=baseline,
+                sxi12=0.1, sxi23=0.05, sxi13=0.02, dxiCP=0.3,
+                b1=1.e-13, b2=2.e-13, b3=3.e-13, Lambda=1.e9, n_liv=1)
+        P
 
     .. versionadded:: 0.10.0
 
@@ -12761,6 +13203,31 @@ def osc_prob_4nu_earth_liv(
 
     Examples
     --------
+    Four-neutrino (3+1 sterile) oscillations through the Earth under
+    Lorentz-invariance violation:
+
+    .. jupyter-execute::
+
+        import magnus.oscprob as oscprob
+        import magnus.globaldefs as gd
+        import warnings
+        from magnus.magnus import MagnusConvergenceWarning
+
+        costhz = -0.8
+        baseline = 2.0 * gd.EARTH_RADIUS * 0.8 * gd.UNIT_KM
+        energy = 1.0 * gd.UNIT_GEV
+
+        # The chosen baseline/energy combination needs a few adaptive-refinement
+        # loops to converge; this is the expected, informational
+        # MagnusConvergenceWarning discussed in the package README.
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore', MagnusConvergenceWarning)
+            P = oscprob.osc_prob_4nu_earth_liv(
+                energy, costhz=costhz, L=baseline,
+                sxi12=0.1, sxi23=0.05, sxi13=0.02, dxi13=0.2,
+                sxi14=0.05, dxi14=0.4, sxi24=0.03, dxi24=0.5, sxi34=0.02,
+                b1=1.e-13, b2=2.e-13, b3=3.e-13, b4=1.e-13, Lambda=1.e9, n_liv=1)
+        P
 
     .. versionadded:: 0.10.0
 
@@ -13012,6 +13479,32 @@ def osc_prob_5nu_earth_liv(
 
     Examples
     --------
+    Five-neutrino (3+2 sterile) oscillations through the Earth under
+    Lorentz-invariance violation:
+
+    .. jupyter-execute::
+
+        import magnus.oscprob as oscprob
+        import magnus.globaldefs as gd
+        import warnings
+        from magnus.magnus import MagnusConvergenceWarning
+
+        costhz = -0.8
+        baseline = 2.0 * gd.EARTH_RADIUS * 0.8 * gd.UNIT_KM
+        energy = 1.0 * gd.UNIT_GEV
+
+        # The chosen baseline/energy combination needs a few adaptive-refinement
+        # loops to converge; this is the expected, informational
+        # MagnusConvergenceWarning discussed in the package README.
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore', MagnusConvergenceWarning)
+            P = oscprob.osc_prob_5nu_earth_liv(
+                energy, costhz=costhz, L=baseline,
+                sxi12=0.1, sxi23=0.05, sxi13=0.02, dxi13=0.2,
+                sxi14=0.05, dxi14=0.4, sxi15=0.02, dxi15=0.6,
+                sxi24=0.03, dxi24=0.5, sxi25=0.01, sxi34=0.02, sxi35=0.01, dxi35=0.7,
+                b1=1.e-13, b2=2.e-13, b3=3.e-13, b4=1.e-13, b5=1.e-13, Lambda=1.e9, n_liv=1)
+        P
 
     .. versionadded:: 0.10.0
 
