@@ -34,6 +34,7 @@ extensions = [
     'sphinx_copybutton',        # Copy-to-clipboard button on code blocks
     'sphinxcontrib.bibtex',     # References page (refs.bib)
     'sphinxcontrib.mermaid',    # Architecture diagrams (architecture.rst)
+    'myst_parser',              # Lets changelog.rst .. include:: the root CHANGELOG.md
     'autoapi.extension',        # API reference, generated from src/magnus/
 ]
 

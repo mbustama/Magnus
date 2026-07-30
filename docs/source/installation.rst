@@ -35,6 +35,17 @@ sibling imports directly) to your Python path:
    import magnus.oscprob as oscprob
    import magnus.globaldefs as gd
 
+Alternatively, an editable ``pip`` install (using the ``pyproject.toml`` at
+the repository root) avoids the ``sys.path`` step and also installs the
+``magnus`` command-line calculator (see :doc:`cli`):
+
+.. code-block:: bash
+
+   pip install -e .
+
+   magnus prob --flavors 3 --environment vacuum --energy 1 --energy-unit GeV \
+       --baseline 1300 --baseline-unit km
+
 Verifying the Installation
 ---------------------------
 
@@ -57,18 +68,25 @@ File Tree
    Magnus/
    ├── .github/
    │   └── workflows/
+   │       ├── lint.yml                 # Ruff linter/formatter (informational; does not block CI)
    │       ├── pages.yml                # GitHub Pages deployment for this documentation
-   │       └── tests.yml                # GitHub Actions CI testing pipeline
+   │       ├── publish.yml              # PyPI (OIDC) automated publishing workflow, on GitHub Release
+   │       └── tests.yml                # GitHub Actions CI testing pipeline (Python 3.10-3.12)
    ├── docs/                            # Sphinx documentation configuration and source
    │   ├── source/
-   │   │   ├── conf.py                  # Sphinx build configuration
+   │   │   ├── conf.py                  # Sphinx build configuration (autoapi + napoleon + bibtex + mermaid + myst)
    │   │   ├── index.rst                # Master documentation page: overview, features, when Magnus wins
    │   │   ├── installation.rst         # This page
-   │   │   ├── quickstart.rst           # Worked code examples for every entry point
+   │   │   ├── quickstart.rst           # Worked Python-API code examples for every entry point
+   │   │   ├── cli.rst                  # Command-line calculator: flag reference and examples
+   │   │   ├── functions.rst            # Full osc_prob_{2,3,4,5}nu_* listing, by environment/scenario
+   │   │   ├── architecture.rst         # The wrapper/middle/primordial layering, with diagrams
    │   │   ├── methodology.rst          # The Magnus expansion, integrators, and performance engineering
    │   │   ├── tutorials.rst            # Guide to the numbered example notebooks in notebooks/
    │   │   ├── references.rst           # Bibliography page rendering
-   │   │   └── refs.bib                 # BibTeX citations for the Magnus-expansion and PREM literature
+   │   │   ├── refs.bib                 # BibTeX citations for the Magnus-expansion and PREM literature
+   │   │   └── changelog.rst            # Renders the root CHANGELOG.md via myst-parser
+   │   ├── requirements.txt             # Sphinx + theme + extensions needed to build the docs
    │   ├── Makefile                     # Build commands for Unix
    │   └── make.bat                     # Build commands for Windows
    ├── fig/                             # Plots produced by the example notebooks
@@ -93,13 +111,18 @@ File Tree
    │   │   ├── hamiltonians/            # 2nu-5nu Hamiltonians: vacuum, matter, NSI, LIV
    │   │   ├── earth/                   # PREM density profile, chord/zenith-angle geometry
    │   │   ├── matter/                  # Density profiles, electron number density, CC potential
-   │   │   └── globaldefs/              # Units, physical constants, NuFit parameter sets
-   │   ├── requirements.txt
-   │   └── setup.py
+   │   │   ├── globaldefs/              # Units, physical constants, NuFit parameter sets
+   │   │   ├── cli.py                   # `magnus` command-line calculator (also `python -m magnus`)
+   │   │   └── __main__.py              # Entry point for `python -m magnus`
+   │   └── requirements.txt
    ├── tests/                           # Test suite (pytest; runs in CI)
    │   ├── conftest.py                  # Path setup so magnus is importable without installation
    │   ├── test_magnus_expansion.py     # Magnus-core correctness (terms, orders, GL rates, unitarity)
    │   ├── test_oscprob.py              # Oscillation-probability engine, closed-form and ODE cross-checks
-   │   └── test_earth_matter.py         # PREM profile, chord geometry, electron density
+   │   ├── test_earth_matter.py         # PREM profile, chord geometry, electron density
+   │   ├── test_hamiltonians.py         # Hamiltonian/mixing-matrix builders
+   │   └── test_cli.py                  # magnus command-line calculator
    ├── .gitignore
+   ├── CHANGELOG.md                     # Version history (Keep a Changelog format)
+   ├── pyproject.toml                   # Build system, dependencies, and the `magnus` console-script entry point
    └── README.md

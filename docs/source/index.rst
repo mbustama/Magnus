@@ -76,10 +76,14 @@ numbers were measured.
 Salient Features
 -----------------
 
+* **Two ways to use it**: as an importable Python module (the full API --
+  see :doc:`quickstart`) or as a ``magnus`` command-line calculator for a
+  single probability with no Python required (see :doc:`cli`).
 * **Any number of flavors, any Hamiltonian**: dedicated, validated wrappers
-  for 2ν, 3ν, 4ν (3+1 sterile), and 5ν (3+2 sterile) systems, plus a fully
-  generic entry point (``osc_prob``) that accepts an arbitrary Hermitian
-  Hamiltonian of any dimension.
+  for 2ν, 3ν, 4ν (3+1 sterile), and 5ν (3+2 sterile) systems (see
+  :doc:`functions` for the full listing), plus a fully generic entry point
+  (``osc_prob``) that accepts an arbitrary Hermitian Hamiltonian of any
+  dimension.
 * **Vacuum, matter, Earth, and Sun**: constant-density matter, exponentially
   falling density profiles, the Earth (`Preliminary Reference Earth Model
   <https://doi.org/10.1016/0031-9201(81)90046-7>`_, including chords between
@@ -106,10 +110,13 @@ Salient Features
 
    installation
    quickstart
+   cli
+   functions
    architecture
    methodology
    tutorials
    references
+   changelog
 
 .. toctree::
    :maxdepth: 2

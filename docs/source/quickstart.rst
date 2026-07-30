@@ -1,6 +1,12 @@
 Quick Start Guide
 ==================
 
+Magνs works two ways: as an **importable Python module** (the full API --
+this page) and as a **command-line calculator** (one probability, no Python
+required -- see :doc:`cli`). Use the module for anything programmatic
+(scans, plots, fitting); use the CLI for a quick one-off number or a shell
+script.
+
 .. note::
    All positions, baselines, and energies in Magνs are in **natural
    units** (inverse eV and eV, respectively).  The :mod:`magnus.globaldefs`
