@@ -461,3 +461,215 @@ def test_vectorized_profile_matches_scalar_profile():
     P_vec = op.osc_prob_matter_std_potential(rho_func=rho_vec, **common)
     P_scl = op.osc_prob_matter_std_potential(rho_func=rho_scalar, **common)
     assert maxabs(np.asarray(P_vec) - np.asarray(P_scl)) < 1e-12
+
+
+# ----------------------------------------------------------------------
+# Regression tests for the wrapper-layer bugs (A4, B1-B4) found in the
+# src/magnus audit and fixed alongside the G1 de-duplication refactor.
+# ----------------------------------------------------------------------
+
+RHO_C = 10.0*gd.UNIT_G_PER_CM3
+L_SCALE = 100.0*gd.UNIT_KM
+S5 = dict(s14=0.1, d14=0.0, s15=0.05, d15=0.0, s24=0.05, d24=0.0, s25=0.02,
+         s34=0.02, s35=0.01, d35=0.0, D41=1.0, D51=2.0)
+NSI5_ZERO = dict(eps_ee=0.0, eps_em=0.0, eps_et=0.0, eps_es1=0.0, eps_es2=0.0,
+                 eps_mm=0.0, eps_mt=0.0, eps_ms1=0.0, eps_ms2=0.0, eps_tt=0.0,
+                 eps_ts1=0.0, eps_ts2=0.0, eps_s1s1=0.0, eps_s1s2=0.0, eps_s2s2=0.0)
+NSI5_NONZERO = dict(NSI5_ZERO, eps_ee=0.2, eps_em=0.1)
+
+
+def test_5nu_matter_nsi_exp_density_applies_nsi():
+    """Regression test for A4: this wrapper used to call
+    osc_prob_matter_std_potential instead of osc_prob_matter_nsi, so its
+    epsilon parameters had no effect (or crashed, in the current codebase's
+    stricter kwargs handling)."""
+    common = dict(energy=ENERGY, L=BASELINE, L0=0.0, rho_central=RHO_C,
+                  l_scale=L_SCALE, **S5, validate_input=False)
+    P0 = op.osc_prob_5nu_matter_nsi_exp_density(**common, **NSI5_ZERO)
+    P1 = op.osc_prob_5nu_matter_nsi_exp_density(**common, **NSI5_NONZERO)
+    assert maxabs(np.asarray(P1) - np.asarray(P0)) > 1e-6
+
+
+def test_5nu_sun_nsi_applies_nsi():
+    """osc_prob_5nu_sun_nsi delegates to the function fixed above."""
+    common = dict(energy=ENERGY, L=0.5*gd.SUN_RADIUS*gd.UNIT_KM, L0=0.0,
+                  **S5, validate_input=False)
+    P0 = op.osc_prob_5nu_sun_nsi(**common, **NSI5_ZERO)
+    P1 = op.osc_prob_5nu_sun_nsi(**common, **NSI5_NONZERO)
+    assert maxabs(np.asarray(P1) - np.asarray(P0)) > 1e-6
+
+
+@pytest.mark.parametrize("name", ['osc_prob_2nu_sun_liv', 'osc_prob_3nu_sun_liv',
+                                  'osc_prob_4nu_sun_liv', 'osc_prob_5nu_sun_liv'])
+def test_sun_liv_atol_independent_of_rtol(name):
+    """Regression test for B1: these four functions used to pass
+    atol=rtol to the inner call, silently discarding the requested atol.
+    Not directly observable from outputs (both are now just **kwargs
+    passthrough, with no per-family atol= line left to typo at all), so
+    this test inspects the source directly -- the same check that would
+    have caught the original bug."""
+    import inspect
+    fn = getattr(op, name)
+    src = inspect.getsource(fn)
+    assert 'atol=rtol' not in src
+
+
+@pytest.mark.parametrize("name", ['osc_prob_3nu_matter_nsi_constant_density',
+                                  'osc_prob_4nu_matter_nsi_constant_density',
+                                  'osc_prob_5nu_matter_nsi_constant_density'])
+def test_matter_nsi_constant_density_nubar_has_effect(name):
+    """Regression test for B2: these three were missing nubar entirely."""
+    fn = getattr(op, name)
+    import inspect
+    params = inspect.signature(fn).parameters
+    assert 'nubar' in params
+    kwargs = dict(energy=ENERGY, L=BASELINE, rho=RHO_C, eps_ee=0.1, eps_em=0.05j,
+                 validate_input=False)
+    if 's14' in params:
+        kwargs.update(S5 if 's15' in params else
+                      {k: v for k, v in S5.items() if k not in ('s15', 'd15', 's25', 's35', 'd35', 'D51')})
+    P_nu = fn(**kwargs, nubar=False)
+    P_nubar = fn(**kwargs, nubar=True)
+    assert maxabs(np.asarray(P_nu) - np.asarray(P_nubar)) > 1e-6
+
+
+def test_matter_liv_constant_density_2nu_nubar_has_effect():
+    """Regression test for B3: osc_prob_2nu_matter_liv_constant_density was
+    uniquely missing nubar among its family (the matter potential is
+    nonzero here, so nubar has a real, physical effect unlike the pure-LIV
+    or pure-vacuum 2nu cases)."""
+    import inspect
+    assert 'nubar' in inspect.signature(op.osc_prob_2nu_matter_liv_constant_density).parameters
+    common = dict(energy=ENERGY, L=BASELINE, rho=RHO_C, sth=0.3, Dm2=2.5e-3,
+                 sxi=0.2, b1=gd.B1, b2=gd.B2, Lambda=gd.LAMBDA, n_liv=1,
+                 validate_input=False)
+    P_nu = op.osc_prob_2nu_matter_liv_constant_density(**common, nubar=False)
+    P_nubar = op.osc_prob_2nu_matter_liv_constant_density(**common, nubar=True)
+    assert maxabs(np.asarray(P_nu) - np.asarray(P_nubar)) > 1e-6
+
+
+@pytest.mark.parametrize("name", ['osc_prob_2nu_matter_nsi_exp_density',
+                                  'osc_prob_3nu_matter_nsi_exp_density',
+                                  'osc_prob_4nu_matter_nsi_exp_density',
+                                  'osc_prob_5nu_matter_nsi_exp_density'])
+def test_nsi_exp_density_accepts_zero_rho_central(name):
+    """Regression test for B4: the NSI exp-density family rejected
+    rho_central == 0.0 (`<= 0.0` check) while the plain and LIV exp-density
+    families correctly allow it (`< 0.0`)."""
+    fn = getattr(op, name)
+    import inspect
+    params = inspect.signature(fn).parameters
+    kwargs = dict(energy=ENERGY, L=BASELINE, L0=0.0, rho_central=0.0,
+                 l_scale=L_SCALE, validate_input=True)
+    if 'sth' in params:
+        kwargs.update(sth=0.3, Dm2=2.5e-3, eps_aa=0.1, eps_ab=0.0)
+    else:
+        # 3/4/5nu: NSI eps parameters default to 0.0 already
+        pass
+    # Should not raise / sys.exit
+    P = fn(**kwargs)
+    assert np.all(np.isfinite(np.asarray(P)))
+
+
+# ----------------------------------------------------------------------
+# Structural smoke test (G1): every physics wrapper family, called once
+# per flavor count, must run without error and return a valid, unitary
+# probability matrix. Exercises code paths the targeted tests above don't.
+# ----------------------------------------------------------------------
+
+@pytest.mark.parametrize("num_flavors", [2, 3, 4, 5])
+@pytest.mark.parametrize("family", ['vacuum', 'matter_constant_density', 'matter_exp_density',
+                                    'earth', 'sun'])
+def test_every_standard_wrapper_runs_and_is_unitary(family, num_flavors):
+    fn = getattr(op, f'osc_prob_{num_flavors}nu_{family}')
+    kwargs = dict(validate_input=False)
+    if num_flavors == 2:
+        kwargs.update(sth=0.3, Dm2=2.5e-3)
+    elif num_flavors == 4:
+        kwargs.update({k: v for k, v in S5.items()
+                      if k not in ('s15', 'd15', 's25', 's35', 'd35', 'D51')})
+    elif num_flavors == 5:
+        kwargs.update(S5)
+
+    if family == 'vacuum':
+        P = fn(ENERGY, BASELINE, **kwargs)
+    elif family == 'matter_constant_density':
+        P = fn(ENERGY, BASELINE, RHO_C, **kwargs)
+    elif family == 'matter_exp_density':
+        P = fn(ENERGY, BASELINE, 0.0, RHO_C, L_SCALE, **kwargs)
+    elif family == 'earth':
+        P = fn(ENERGY, costhz=-0.8, L=2.0*6371.0*0.8*gd.UNIT_KM, **kwargs)
+    elif family == 'sun':
+        P = fn(ENERGY, 0.5*gd.SUN_RADIUS*gd.UNIT_KM, 0.0, **kwargs)
+
+    P = np.asarray(P)
+    assert np.allclose(np.sum(P, axis=-1), 1.0, atol=1e-6)
+    assert np.all((P >= -1e-9) & (P <= 1.0 + 1e-9))
+
+
+# ----------------------------------------------------------------------
+# Permanent API-consistency guard (see the G1 write-up): every bug in
+# category B was a sibling wrapper silently drifting from its family's
+# convention (a stray default, a missing parameter, an inconsistent
+# validation bound). This test inspects the *shape* of the whole wrapper
+# family at once, the same way the audit that found those bugs did, so
+# a future copy-pasted wrapper cannot silently reintroduce the pattern.
+# ----------------------------------------------------------------------
+
+def test_no_wrapper_redeclares_standard_refinement_kwargs():
+    """None of the osc_prob_{2,3,4,5}nu_* physics wrappers should declare
+    the standard refinement/logging kwargs in their own signature -- they
+    must flow through **kwargs from the single middle-layer default.
+    Guards against the 'fat wrapper' pattern (G1) recurring, which is
+    where every B1/E6-E8 bug hid. (Restricted to the {N}nu_* wrapper
+    functions themselves -- the middle-layer functions they delegate to,
+    e.g. osc_prob_vacuum/osc_prob_matter_nsi/osc_prob_liv, and the
+    primordial osc_prob/osc_prob_energy_baseline, are the canonical
+    source of these defaults and are expected to declare them.)"""
+    import inspect
+    import re
+    standard_params = {
+        'magnus_exp_order', 'n_jobs', 'integration_method', 'rtol', 'atol',
+        'growth_factor_n_slabs', 'growth_factor_n_tpts_per_slab', 'max_num_loops',
+        'min_n_slabs', 'max_n_slabs', 'min_n_tpts_per_slab', 'max_n_tpts_per_slab',
+        'iterate_over_magnus_exp_order', 'min_magnus_exp_order', 'max_magnus_exp_order',
+        'new_recursion_limit',
+    }
+    wrapper_pattern = re.compile(r'^osc_prob_[2345]nu_')
+    offenders = {}
+    for name in dir(op):
+        if not wrapper_pattern.match(name):
+            continue
+        fn = getattr(op, name)
+        if not inspect.isfunction(fn):
+            continue
+        params = set(inspect.signature(fn).parameters)
+        hit = params & standard_params
+        if hit:
+            offenders[name] = hit
+    assert not offenders, offenders
+    # Sanity check that the pattern actually matched a substantial number of
+    # real wrapper functions (i.e., the test isn't vacuously passing)
+    n_matched = sum(1 for name in dir(op) if wrapper_pattern.match(name))
+    assert n_matched >= 50, n_matched
+
+
+@pytest.mark.parametrize("family_prefix", ['osc_prob_{n}nu_matter_nsi_constant_density',
+                                           'osc_prob_{n}nu_matter_nsi_exp_density',
+                                           'osc_prob_{n}nu_matter_liv_constant_density',
+                                           'osc_prob_{n}nu_matter_liv_exp_density',
+                                           'osc_prob_{n}nu_earth_nsi', 'osc_prob_{n}nu_earth_liv',
+                                           'osc_prob_{n}nu_sun_nsi', 'osc_prob_{n}nu_sun_liv'])
+def test_nubar_present_across_all_flavor_counts_in_matter_families(family_prefix):
+    """Every matter/NSI/LIV family (where the potential is generically
+    nonzero, so nubar always has a real physical effect) must expose
+    nubar for all four flavor counts, not just some (the exact shape of
+    bugs B2/B3)."""
+    import inspect
+    missing = []
+    for n in (2, 3, 4, 5):
+        name = family_prefix.format(n=n)
+        fn = getattr(op, name)
+        if 'nubar' not in inspect.signature(fn).parameters:
+            missing.append(name)
+    assert not missing, missing
