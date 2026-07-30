@@ -77,9 +77,10 @@ source_suffix = '.rst'
 
 html_theme = 'sphinx_rtd_theme'
 html_static_path = ['_static']
+html_logo = '_static/magnus_logo.png'
 
 html_theme_options = {
-    'logo_only': False,
+    'logo_only': True,
     'navigation_depth': 4,
     'vcs_pageview_mode': 'edit',
 }
