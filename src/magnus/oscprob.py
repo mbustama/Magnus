@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""__init__.py
+"""oscprob.py
 
 Contains routines to compute the neutrino oscillation probability.
 
@@ -15659,8 +15659,96 @@ if __name__ == "__main__":
         n_liv=n_liv, verbose=0))
 
 
-name = 'oscprob'
+from .oscprobstd import (
+    osc_prob_2nu_vacuum_std,
+    osc_prob_2nu_matter_std,
+    delta,
+    J,
+    osc_prob_3nu_vacuum_std,
+)
 
-from .oscprobstd import *
-
-__all__ = [s for s in dir() if not s.startswith('_')]
+__all__ = [
+    # re-exported from oscprobstd.py
+    'osc_prob_2nu_vacuum_std',
+    'osc_prob_2nu_matter_std',
+    'delta',
+    'J',
+    'osc_prob_3nu_vacuum_std',
+    'ToleranceNotAchievedWarning',
+    'print_banner',
+    'print_run_parameters',
+    'validate_input_battery',
+    'validate_input_osc_prob_earth',
+    'valid_flavor_indices_2nu',
+    'values_to_unspecified_osc_params',
+    'unpack_oscillation_params_from_dict',
+    'unpack_nsi_params_from_dict',
+    'unpack_liv_params_from_dict',
+    'compute_evolution_operator',
+    'compute_evolution_operator_multiple_slabs',
+    'osc_prob',
+    'osc_prob_iterate_over_magnus_exp_order',
+    'osc_prob_energy_baseline',
+    'osc_prob_vacuum',
+    'osc_prob_matter_std_potential',
+    'osc_prob_matter_nsi',
+    'osc_prob_liv',
+    'osc_prob_2nu_vacuum',
+    'osc_prob_3nu_vacuum',
+    'osc_prob_4nu_vacuum',
+    'osc_prob_5nu_vacuum',
+    'osc_prob_2nu_matter_constant_density',
+    'osc_prob_3nu_matter_constant_density',
+    'osc_prob_4nu_matter_constant_density',
+    'osc_prob_5nu_matter_constant_density',
+    'osc_prob_2nu_matter_exp_density',
+    'osc_prob_3nu_matter_exp_density',
+    'osc_prob_4nu_matter_exp_density',
+    'osc_prob_5nu_matter_exp_density',
+    'osc_prob_2nu_earth',
+    'osc_prob_3nu_earth',
+    'osc_prob_4nu_earth',
+    'osc_prob_5nu_earth',
+    'osc_prob_earth',
+    'osc_prob_2nu_sun',
+    'osc_prob_3nu_sun',
+    'osc_prob_4nu_sun',
+    'osc_prob_5nu_sun',
+    'osc_prob_sun',
+    'osc_prob_2nu_matter_nsi_constant_density',
+    'osc_prob_3nu_matter_nsi_constant_density',
+    'osc_prob_4nu_matter_nsi_constant_density',
+    'osc_prob_5nu_matter_nsi_constant_density',
+    'osc_prob_2nu_matter_nsi_exp_density',
+    'osc_prob_3nu_matter_nsi_exp_density',
+    'osc_prob_4nu_matter_nsi_exp_density',
+    'osc_prob_5nu_matter_nsi_exp_density',
+    'osc_prob_2nu_earth_nsi',
+    'osc_prob_3nu_earth_nsi',
+    'osc_prob_4nu_earth_nsi',
+    'osc_prob_5nu_earth_nsi',
+    'osc_prob_2nu_sun_nsi',
+    'osc_prob_3nu_sun_nsi',
+    'osc_prob_4nu_sun_nsi',
+    'osc_prob_5nu_sun_nsi',
+    'osc_prob_2nu_vacuum_liv',
+    'osc_prob_3nu_vacuum_liv',
+    'osc_prob_4nu_vacuum_liv',
+    'osc_prob_5nu_vacuum_liv',
+    'osc_prob_2nu_matter_liv_constant_density',
+    'osc_prob_3nu_matter_liv_constant_density',
+    'osc_prob_4nu_matter_liv_constant_density',
+    'osc_prob_5nu_matter_liv_constant_density',
+    'osc_prob_2nu_matter_liv_exp_density',
+    'osc_prob_3nu_matter_liv_exp_density',
+    'osc_prob_4nu_matter_liv_exp_density',
+    'osc_prob_5nu_matter_liv_exp_density',
+    'osc_prob_2nu_earth_liv',
+    'osc_prob_3nu_earth_liv',
+    'osc_prob_4nu_earth_liv',
+    'osc_prob_5nu_earth_liv',
+    'osc_prob_2nu_sun_liv',
+    'osc_prob_3nu_sun_liv',
+    'osc_prob_4nu_sun_liv',
+    'osc_prob_5nu_sun_liv',
+]

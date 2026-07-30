@@ -50,7 +50,7 @@ def osc_prob_2nu_vacuum_std(sth: float, Dm2: float, energy: float, L: float) -> 
 
     Returns
     -------
-    list
+    np.ndarray
         List of probabilities [Pee, Pem, Pme, Pmm].
     """
     # arg = 1.27*Dm2*L/energy#/4.0
@@ -91,7 +91,7 @@ def osc_prob_2nu_matter_std(sth: float, Dm2: float, VCC: float, energy: float,
 
     Returns
     -------
-    list
+    np.ndarray
         List of probabilities [Pee, Pem, Pme, Pmm].
     """
     # x = 2.0*VCC*(energy*1.e9)/Dm2
@@ -152,7 +152,7 @@ def J(U: Union[list, np.ndarray], alpha: int, beta: int, k: int, j: int) -> comp
 
     Parameters
     ----------
-    U : list
+    U : list or np.ndarray
         3x3 PMNS complex mixing matrix.
     alpha : int
         Index of the initial flavor (0: e, 1: mu, 2: tau).
@@ -161,12 +161,12 @@ def J(U: Union[list, np.ndarray], alpha: int, beta: int, k: int, j: int) -> comp
     k : int
         First index of the sum over mass eigenstates (k = 0, 1, 2).
     j : int
-        First index of the sum over mass eigenstates (k = 0, 1, 2).
+        Second index of the sum over mass eigenstates (j = 0, 1, 2).
 
     Returns
     -------
-    float
-        J(U, alpha, beta, j, j)
+    complex
+        J(U, alpha, beta, k, j)
     """
     return np.conj(U[alpha][k])*U[beta][k]*U[alpha][j]*np.conj(U[beta][j])
 
@@ -182,7 +182,7 @@ def osc_prob_3nu_vacuum_std(U: Union[list, np.ndarray], D21: float, D31: float, 
 
     Parameters
     ----------
-    U : list
+    U : list or np.ndarray
         3x3 PMNS complex mixing matrix.
     D21 : float
         Mass-squared difference :math:`\Delta m_{21}^2`.
@@ -198,7 +198,7 @@ def osc_prob_3nu_vacuum_std(U: Union[list, np.ndarray], D21: float, D31: float, 
 
     Returns
     -------
-    list
+    np.ndarray
         List of probabilities [Pee, Pem, Pet, Pme, Pmm, Pmt, Pte, Ptm, Ptt].
     """
     D32 = D31-D21
@@ -227,3 +227,12 @@ def osc_prob_3nu_vacuum_std(U: Union[list, np.ndarray], D21: float, D31: float, 
 
     # [[Pee, Pem, Pet], [Pme, Pmm, Pmt], [Pte, Ptm, Ptt]]
     return np.array(prob).reshape((3,3))
+
+
+__all__ = [
+    'osc_prob_2nu_vacuum_std',
+    'osc_prob_2nu_matter_std',
+    'delta',
+    'J',
+    'osc_prob_3nu_vacuum_std',
+]

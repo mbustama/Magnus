@@ -275,7 +275,7 @@ def hamiltonian_5nu_vacuum_energy_independent(s12: float, s23: float, s13:float,
 
     Returns
     -------
-    list
+    np.ndarray
         Hamiltonian 5x5 matrix.
     """
     # 5x5 mixing matrix
@@ -323,7 +323,7 @@ def hamiltonian_5nu_vacuum_energy_independent_td(l: float, s12: float, s23: floa
 
     Returns
     -------
-    list
+    np.ndarray
         Hamiltonian 5x5 matrix.
     """
     return hamiltonian_5nu_vacuum_energy_independent(s12, s23, s13, d13, s14, d14, s15, d15, s24,
@@ -362,7 +362,7 @@ def hamiltonian_5nu_vacuum(energy: float, s12: float, s23: float, s13:float, d13
 
     Returns
     -------
-    list
+    np.ndarray
         Hamiltonian 5x5 matrix.
     """
     return (1/energy)*hamiltonian_5nu_vacuum_energy_independent(s12, s23, s13, d13, s14, d14, s15,
@@ -405,7 +405,7 @@ def hamiltonian_5nu_vacuum_td(l: float, energy: float, s12: float, s23: float, s
 
     Returns
     -------
-    list
+    np.ndarray
         Hamiltonian 5x5 matrix.
     """
     return hamiltonian_5nu_vacuum(energy, s12, s23, s13, d13, s14, d14, s15, d15, s24, d24, s25,
@@ -429,7 +429,7 @@ def hamiltonian_5nu_matter(VCC: float) -> np.ndarray:
 
     Returns
     -------
-    list
+    np.ndarray
         Hamiltonian 5x5 matrix.
     """
     return np.diag([VCC, 0.0, 0.0, 0.0, 0.0])
@@ -453,7 +453,7 @@ def hamiltonian_5nu_matter_td(l: float, VCC_func: Callable) -> np.ndarray:
 
     Returns
     -------
-    list
+    np.ndarray
         Hamiltonian 5x5 matrix.
     """
     return hamiltonian_5nu_matter(VCC_func(l))
@@ -522,7 +522,7 @@ def hamiltonian_5nu_nsi(
 
     Returns
     -------
-    list
+    np.ndarray
         Hamiltonian 5x5 matrix.
     """
     return VCC * np.array([
@@ -579,7 +579,7 @@ def hamiltonian_5nu_liv(energy: float, sxi12: float, sxi23: float, sxi13:float, 
 
     Returns
     -------
-    list
+    np.ndarray
         Hamiltonian 5x5 matrix.
     """
 
@@ -630,7 +630,7 @@ def hamiltonian_5nu_liv_energy_independent(sxi12: float, sxi23: float, sxi13:flo
 
     Returns
     -------
-    list
+    np.ndarray
         Hamiltonian 5x5 matrix.
     """
     # 5x5 mixing matrix

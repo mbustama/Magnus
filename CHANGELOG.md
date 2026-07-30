@@ -24,6 +24,34 @@ and the project uses [Semantic Versioning](https://semver.org/).
   covering quantum decoherence, open-system/bath coupling, neutrino decay,
   and self-consistent collective oscillations.
 
+### Changed
+
+- Restructured the package to be flatter: `earth`, `globaldefs`, `magnus`
+  (the numerical core), `matter`, `oscprob` (the main wrapper API), and
+  `oscprobstd` are now flat sibling modules directly under `src/magnus/`,
+  instead of each living inside its own single-file subpackage directory.
+  `hamiltonians` remains a genuine subpackage (four distinct
+  flavor-count-specific modules). Every `__init__.py` (top-level and
+  `hamiltonians/`) now uses explicit, named imports and a hand-written
+  `__all__` instead of `from .module import *` plus a `dir()`-computed
+  `__all__`, which had been silently leaking implementation-detail names
+  (`np`, `Optional`, `Callable`, ...) into the public namespace.
+- `magnus.authors` and `magnus.version` are no longer part of the public
+  API surface (excluded from `__all__` and from the Sphinx autoapi-generated
+  docs), though they remain importable internally for the CLI's
+  `--version` flag and `oscprob`'s banner-printing.
+
+### Fixed
+
+- ~47 docstring/type-annotation mismatches across the codebase, found by
+  a systematic audit comparing every function's actual return/parameter
+  type against what its docstring documented (not just the
+  `numpy.ndarray`-documented-as-`list` case originally flagged in
+  `hamiltonians{2,3,4,5}nu.py` and `oscprobstd.py`, but every such
+  disagreement anywhere in `src/magnus`). Also fixes two unrelated
+  copy-paste errors caught along the way in `oscprobstd.J()`'s docstring
+  (a mislabeled parameter description and a wrong worked example).
+
 ### Removed
 
 - `docs/source/sandbox/`, an untracked, unused pydata-theme experiment

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-r"""__init__.py
+r"""earth.py
 
 Contains helper functions related to the Earth: its internal matter
 density and the geometry of neutrino trajectories through it.
@@ -435,6 +435,15 @@ if __name__ == "__main__":
     # print(coord_cern_dms['lon'])
 
 
-name = 'earth'
-
-__all__ = [s for s in dir() if not s.startswith('_')]
+__all__ = [
+    'loc_coords_dms',
+    'PREM_BOUNDARIES',
+    'density_matter_func_prem',
+    'distance_traveled_inside_earth',
+    'earth_radial_distance_from_depth',
+    'prem_layer_edges_along_chord',
+    'dms_to_decimal',
+    'chord_length_inside_earth',
+    'costhz_between_points_on_surface',
+    'coordinates_of_named_location',
+]

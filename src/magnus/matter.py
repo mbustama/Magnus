@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-r"""__init__.py
+r"""matter.py
 
 Contains helper functions to compute the oscillation probability in
 matter.
@@ -257,6 +257,10 @@ if __name__ == "__main__":
     pass
 
 
-name = 'matter'
-
-__all__ = [s for s in dir() if not s.startswith('_')]
+__all__ = [
+    'density_matter_func_const',
+    'density_matter_func_exp',
+    'num_density_e_func',
+    'VCC_func',
+    'vcc_func_from_rho_func',
+]

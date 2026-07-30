@@ -69,7 +69,14 @@ autoapi_options = [
     'show-module-summary',
 ]
 # Skip the packaging-only version/authors modules and the 'old' prototypes
-autoapi_ignore = ['*/old/*']
+autoapi_ignore = ['*/old/*', '*/authors.py', '*/version.py']
+
+# Excluding version.py/authors.py above is deliberate (they are internal
+# metadata modules, not part of the public API), but other modules still
+# import from them (e.g. magnus/__init__.py, oscprob.py, cli.py), and
+# autoapi warns that it cannot resolve those imports since it never scans
+# the excluded modules. That warning is expected here, not a real problem.
+suppress_warnings = ['autoapi.python_import_resolution']
 
 napoleon_google_docstring = False
 napoleon_numpy_docstring = True

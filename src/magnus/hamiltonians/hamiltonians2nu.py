@@ -51,7 +51,7 @@ def mixing_matrix_2nu(sth: float) -> np.ndarray:
 
     Returns
     -------
-    list
+    np.ndarray
         Rotation matrix [[cth, sth], [-sth, cth]], with cth = cos(theta) and sth = sin(theta).
     """
     cth = np.sqrt(1.0-sth*sth)
@@ -82,7 +82,7 @@ def hamiltonian_2nu_vacuum_energy_independent(sth: float, Dm2: float,
 
     Returns
     -------
-    list
+    np.ndarray
         Hamiltonian 2x2 matrix.
     """
     cth = np.sqrt(1.0-sth*sth)
@@ -137,7 +137,7 @@ def hamiltonian_2nu_vacuum_energy_independent_td(l: float, sth: float, Dm2: floa
 
     Returns
     -------
-    list
+    np.ndarray
         Hamiltonian 2x2 matrix.
     """
 
@@ -167,7 +167,7 @@ def hamiltonian_2nu_vacuum(energy: float, sth: float, Dm2: float,
 
     Returns
     -------
-    list
+    np.ndarray
         Hamiltonian 2x2 matrix.
     """
     return (1/energy)*hamiltonian_2nu_vacuum_energy_independent(sth, Dm2,
@@ -204,7 +204,7 @@ def hamiltonian_2nu_vacuum_td(l: float, energy: float, sth: float, Dm2: float,
 
     Returns
     -------
-    list
+    np.ndarray
         Hamiltonian 2x2 matrix.
     """
 
@@ -227,7 +227,7 @@ def hamiltonian_2nu_matter(VCC: float) -> np.ndarray:
 
     Returns
     -------
-    list
+    np.ndarray
         Hamiltonian 2x2 matrix.
     """
     # The matter Hamiltonian is [[VCC,0],[0,0]]
@@ -259,7 +259,7 @@ def hamiltonian_2nu_matter_td(l: float, VCC_func: Callable) -> np.ndarray:
 
     Returns
     -------
-    list
+    np.ndarray
         Hamiltonian 2x2 matrix.
     """
     return hamiltonian_2nu_matter(VCC_func(l))
@@ -364,7 +364,7 @@ def hamiltonian_2nu_liv(energy: float, sxi: float, b1: float, b2: float, Lambda:
 
     Returns
     -------
-    list
+    np.ndarray
         Hamiltonian 2x2 matrix.
     """
     return pow(energy, n_liv) * hamiltonian_2nu_liv_energy_independent(sxi, b1, b2, Lambda, n_liv)
@@ -395,7 +395,7 @@ def hamiltonian_2nu_liv_energy_independent(sxi: float, b1: float, b2: float,
 
     Returns
     -------
-    list
+    np.ndarray
         Hamiltonian 2x2 matrix.
     """
     # H = R . diag(b1, b2) . R^T, with R = mixing_matrix_2nu(sxi) -- the same convention used by

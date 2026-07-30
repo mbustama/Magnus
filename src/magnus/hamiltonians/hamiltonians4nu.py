@@ -195,7 +195,7 @@ def hamiltonian_4nu_vacuum_energy_independent(s12: float, s23: float, s13:float,
 
     Returns
     -------
-    list
+    np.ndarray
         Hamiltonian 4x4 matrix.
     """
     # 4x4 mixing matrix
@@ -241,7 +241,7 @@ def hamiltonian_4nu_vacuum_energy_independent_td(l: float, s12: float, s23: floa
 
     Returns
     -------
-    list
+    np.ndarray
         Hamiltonian 4x4 matrix.
     """
     return hamiltonian_4nu_vacuum_energy_independent(s12, s23, s13, d13, s14, d14, s24, d24, s34,
@@ -276,7 +276,7 @@ def hamiltonian_4nu_vacuum(energy: float, s12: float, s23: float, s13:float, d13
 
     Returns
     -------
-    list
+    np.ndarray
         Hamiltonian 4x4 matrix.
     """
     return (1/energy)*hamiltonian_4nu_vacuum_energy_independent(s12, s23, s13, d13, s14, d14, s24,
@@ -316,7 +316,7 @@ def hamiltonian_4nu_vacuum_td(l: float, energy: float, s12: float, s23: float, s
 
     Returns
     -------
-    list
+    np.ndarray
         Hamiltonian 4x4 matrix.
     """
     return hamiltonian_4nu_vacuum(energy, s12, s23, s13, d13, s14, d14, s24, d24, s34, D21, D31,
@@ -339,7 +339,7 @@ def hamiltonian_4nu_matter(VCC: float) -> np.ndarray:
 
     Returns
     -------
-    list
+    np.ndarray
         Hamiltonian 4x4 matrix.
     """
     return np.diag([VCC, 0.0, 0.0, 0.0])
@@ -363,7 +363,7 @@ def hamiltonian_4nu_matter_td(l: float, VCC_func: Callable) -> np.ndarray:
 
     Returns
     -------
-    list
+    np.ndarray
         Hamiltonian 4x4 matrix.
     """
     return hamiltonian_4nu_matter(VCC_func(l))
@@ -417,7 +417,7 @@ def hamiltonian_4nu_nsi(
 
     Returns
     -------
-    list
+    np.ndarray
         Hamiltonian 4x4 matrix.
     """
     return VCC * np.array([
@@ -450,7 +450,7 @@ def hamiltonian_4nu_nsi_td(l: float, VCC_func: Callable, eps_ee: float, eps_em: 
 
     Returns
     -------
-    list
+    np.ndarray
         Hamiltonian 4x4 matrix.
     """
     return hamiltonian_4nu_nsi(VCC_func(l), eps_ee, eps_em, eps_et, eps_es, eps_mm, eps_mt, eps_ms,
@@ -499,7 +499,7 @@ def hamiltonian_4nu_liv(energy: float, sxi12: float, sxi23: float, sxi13: float,
 
     Returns
     -------
-    list
+    np.ndarray
         Hamiltonian 4x4 matrix.
     """
 
@@ -547,7 +547,7 @@ def hamiltonian_4nu_liv_energy_independent(sxi12: float, sxi23: float, sxi13: fl
 
     Returns
     -------
-    list
+    np.ndarray
         Hamiltonian 4x4 matrix.
     """
     # 4x4 mixing matrix

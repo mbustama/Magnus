@@ -11,8 +11,9 @@ itself); this page is about the *code*, not the *math*.
 Module layout
 ---------------
 
-Magνs is split into six subpackages under ``src/magnus/``, each with a
-single, non-overlapping responsibility:
+Magνs is split into seven modules under ``src/magnus/``, each with a
+single, non-overlapping responsibility, all explicitly listed in
+``magnus/__init__.py``'s ``submodules``/``__all__``:
 
 .. mermaid::
 
@@ -52,16 +53,21 @@ easy to break by accident when adding code:
   place instead of scattering it across the physics and numerical
   modules.
 
-``magnus.earth``, ``magnus.globaldefs``, ``magnus.magnus``, ``magnus.matter``,
-and ``magnus.oscprob``'s wrapper API each hold a single implementation, so
-their code lives directly in the subpackage's ``__init__.py`` — there is
-no separate, identically-named submodule to click through to find it.
-``magnus.hamiltonians`` genuinely holds four distinct, flavor-count-specific
-modules (``hamiltonians2nu.py`` through ``hamiltonians5nu.py``), and
-``magnus.oscprob`` additionally re-exports ``oscprobstd.py`` (the
-closed-form validation counterpart to the wrapper API); for these,
-``__init__.py`` keeps a thin ``from .module import *`` re-export alongside
-its own content.
+``earth.py``, ``globaldefs.py``, ``magnus.py``, ``matter.py``,
+``oscprob.py``, and ``oscprobstd.py`` are flat sibling files directly
+under ``src/magnus/`` -- there is no subpackage directory wrapping any of
+them. Only ``magnus.hamiltonians`` is a genuine subpackage, since it
+holds four distinct, flavor-count-specific modules
+(``hamiltonians2nu.py`` through ``hamiltonians5nu.py``); its
+``__init__.py`` explicitly imports and re-exports each one's public
+names (no ``from .module import *``). ``magnus/__init__.py`` itself
+explicitly imports all seven top-level modules (again, no wildcard
+imports) so that ``import magnus`` alone makes ``magnus.earth``,
+``magnus.oscprob``, etc. immediately accessible. ``magnus.oscprob``
+additionally imports and re-exports ``oscprobstd.py``'s five names (the
+closed-form validation counterpart to the wrapper API), so both
+``magnus.oscprob.osc_prob_3nu_vacuum_std`` and
+``magnus.oscprobstd.osc_prob_3nu_vacuum_std`` work.
 
 The three-layer structure of ``magnus.oscprob``
 ----------------------------------------------------
@@ -337,7 +343,7 @@ Where things live: a quick lookup
    * - A default tolerance, the refinement/adaptive-slab-growth logic,
        or anything every scenario shares
      - ``osc_prob`` / ``osc_prob_energy_baseline``
-       (``src/magnus/oscprob/__init__.py``)
+       (``src/magnus/oscprob.py``)
    * - How a physics scenario's Hamiltonian is assembled from mixing
        angles/NSI epsilons/LIV coefficients
      - ``osc_prob_vacuum`` / ``osc_prob_matter_std_potential`` /

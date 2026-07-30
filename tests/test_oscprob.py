@@ -9,7 +9,7 @@ from scipy.integrate import solve_ivp
 import magnus.globaldefs as gd
 import magnus.hamiltonians as hams
 import magnus.oscprob as op
-import magnus.oscprob.oscprobstd as opstd
+import magnus.oscprobstd as opstd
 
 RNG = np.random.default_rng(7)
 

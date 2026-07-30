@@ -103,17 +103,23 @@ File Tree
    │   └── 10_magnus_matrix_exponential.ipynb
    ├── src/
    │   ├── magnus/                      # Main Python package
-   │   │   ├── magnus/                  # Magnus-expansion numerical core
-   │   │   │   └── __init__.py          # Term recursion, Gauss-Legendre integrators, batched kernel
-   │   │   ├── oscprob/                 # Oscillation probabilities: main API
-   │   │   │   ├── __init__.py          # osc_prob and every physics-scenario wrapper
-   │   │   │   └── oscprobstd.py        # Closed-form 2nu/3nu probabilities (used to validate the wrapper API)
-   │   │   ├── hamiltonians/            # 2nu-5nu Hamiltonians: vacuum, matter, NSI, LIV
-   │   │   ├── earth/                   # PREM density profile, chord/zenith-angle geometry
-   │   │   ├── matter/                  # Density profiles, electron number density, CC potential
-   │   │   ├── globaldefs/              # Units, physical constants, NuFit parameter sets
+   │   │   ├── __init__.py              # Explicitly imports/exposes the 7 modules below
+   │   │   ├── magnus.py                # Magnus-expansion numerical core: term recursion, GL integrators, batched kernel
+   │   │   ├── oscprob.py                # osc_prob and every physics-scenario wrapper (main API)
+   │   │   ├── oscprobstd.py            # Closed-form 2nu/3nu probabilities (used to validate the wrapper API)
+   │   │   ├── hamiltonians/            # 2nu-5nu Hamiltonians: vacuum, matter, NSI, LIV (the one true subpackage)
+   │   │   │   ├── __init__.py          # Explicit named imports from the four hamiltonians{2,3,4,5}nu.py modules
+   │   │   │   ├── hamiltonians2nu.py
+   │   │   │   ├── hamiltonians3nu.py
+   │   │   │   ├── hamiltonians4nu.py
+   │   │   │   └── hamiltonians5nu.py
+   │   │   ├── earth.py                 # PREM density profile, chord/zenith-angle geometry
+   │   │   ├── matter.py                # Density profiles, electron number density, CC potential
+   │   │   ├── globaldefs.py            # Units, physical constants, NuFit parameter sets
    │   │   ├── cli.py                   # `magnus` command-line calculator (also `python -m magnus`)
-   │   │   └── __main__.py              # Entry point for `python -m magnus`
+   │   │   ├── __main__.py              # Entry point for `python -m magnus`
+   │   │   ├── authors.py               # Package author string (internal; not part of the public API)
+   │   │   └── version.py               # Package version string (internal; not part of the public API)
    │   └── requirements.txt
    ├── tests/                           # Test suite (pytest; runs in CI)
    │   ├── conftest.py                  # Path setup so magnus is importable without installation

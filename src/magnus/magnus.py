@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-r"""__init__.py
+r"""magnus.py
 
 Compute the time-evolution operator using the Magnus expansion.
 
@@ -765,7 +765,7 @@ def evolution_operators_from_samples(
         included).  For 'gl', they lie on the Gauss-Legendre nodes
         (m = 1, 2, or 3 for orders <= 2, <= 4, <= 6; see
         :func:`gl_nodes`).
-    widths : np.ndarray
+    widths : list or np.ndarray
         Slab widths, shape (n_slabs,) (or broadcastable to the leading
         axes of ``At`` without the last three).
     order : int, optional
@@ -904,6 +904,20 @@ if __name__ == "__main__":
     print(exp_Omega_1 - exp_Omega_3)
 
 
-name = 'magnus'
-
-__all__ = [s for s in dir() if not s.startswith('_')]
+__all__ = [
+    'MagnusConvergenceWarning',
+    'B',
+    'F1',
+    'F2',
+    'f1',
+    'f2',
+    'MAGNUS_EXP_ORDER_MAX',
+    'valid_integration_methods',
+    'commutator',
+    'probe_eval_mode',
+    'suggest_n_slabs',
+    'magnus_expansion',
+    'evolution_operators_from_samples',
+    'gl_nodes',
+    'magnus_expansion_multislab',
+]

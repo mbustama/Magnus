@@ -66,7 +66,7 @@ def pmns_mixing_matrix(s12: float, s23: float, s13:float, dCP: float) -> np.ndar
 
     Returns
     -------
-    list
+    np.ndarray
         3x3 PMNS mixing matrix.
     """
     c12 = np.sqrt(1.0-s12*s12)
@@ -113,7 +113,7 @@ def mixing_matrix_3x3(s12: float, s23: float, s13:float, dCP: float) -> np.ndarr
 
     Returns
     -------
-    list
+    np.ndarray
         3x3 PMNS mixing matrix.
     """
     return pmns_mixing_matrix(s12, s23, s13, dCP)
@@ -155,7 +155,7 @@ def hamiltonian_3nu_vacuum_energy_independent(s12: float, s23: float, s13: float
 
     Returns
     -------
-    list
+    np.ndarray
         Hamiltonian 3x3 matrix.
     """
 
@@ -238,7 +238,7 @@ def hamiltonian_3nu_vacuum_energy_independent_td(l: float, s12: float, s23: floa
 
     Returns
     -------
-    list
+    np.ndarray
         Hamiltonian 3x3 matrix.
     """
     return hamiltonian_3nu_vacuum_energy_independent(s12, s23, s13, dCP, D21, D31,
@@ -278,7 +278,7 @@ def hamiltonian_3nu_vacuum(energy: float, s12: float, s23: float, s13: float, dC
 
     Returns
     -------
-    list
+    np.ndarray
         Hamiltonian 3x3 matrix.
     """
     return (1/energy)*hamiltonian_3nu_vacuum_energy_independent(s12, s23, s13, dCP, D21, D31,
@@ -319,7 +319,7 @@ def hamiltonian_3nu_vacuum_td(l: float, energy: float, s12: float, s23: float, s
 
     Returns
     -------
-    list
+    np.ndarray
         Hamiltonian 3x3 matrix.
     """
     return hamiltonian_3nu_vacuum(energy, s12, s23, s13, dCP, D21, D31,
@@ -342,7 +342,7 @@ def hamiltonian_3nu_matter(VCC: float) -> np.ndarray:
 
     Returns
     -------
-    list
+    np.ndarray
         Hamiltonian 3x3 matrix.
     """
     return np.diag([VCC, 0.0, 0.0])
@@ -366,7 +366,7 @@ def hamiltonian_3nu_matter_td(l: float, VCC_func: Callable) -> np.ndarray:
 
     Returns
     -------
-    list
+    np.ndarray
         Hamiltonian 3x3 matrix.
     """
     return hamiltonian_3nu_matter(VCC_func(l))
@@ -407,7 +407,7 @@ def hamiltonian_3nu_nsi(
 
     Returns
     -------
-    list
+    np.ndarray
         Hamiltonian 3x3 matrix.
     """
     return VCC * np.array([
@@ -448,7 +448,7 @@ def hamiltonian_3nu_nsi_td(l: float, VCC_func: Callable, eps_ee: float, eps_em: 
 
     Returns
     -------
-    list
+    np.ndarray
         Hamiltonian 3x3 matrix.
     """
     return hamiltonian_3nu_nsi(VCC_func(l), eps_ee, eps_em, eps_et, eps_mm, eps_mt, eps_tt)
@@ -500,7 +500,7 @@ def hamiltonian_3nu_liv(energy: float, sxi12: float, sxi23: float, sxi13: float,
 
     Returns
     -------
-    list
+    np.ndarray
         Hamiltonian 3x3 matrix.
     """
     return pow(energy, n_liv) * hamiltonian_3nu_liv_energy_independent(sxi12, sxi23, sxi13, dxiCP,
@@ -550,7 +550,7 @@ def hamiltonian_3nu_liv_energy_independent(sxi12: float, sxi23: float, sxi13: fl
 
     Returns
     -------
-    list
+    np.ndarray
         Hamiltonian 3x3 matrix.
     """
     R = pmns_mixing_matrix(sxi12, sxi23, sxi13, dxiCP) if nubar == False \
