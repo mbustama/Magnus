@@ -14,6 +14,26 @@ construction** — probabilities are non-negative and sum to one at machine
 precision, at any accuracy setting.  See
 [Mathematical method](#mathematical-method) below for the full derivation.
 
+## Table of Contents
+
+- [When is Magνs a win?](#when-is-magnus-a-win)
+- [File Tree](#file-tree)
+- [Two ways to use Magνs](#two-ways-to-use-magnus)
+  - [As a Python module](#as-a-python-module)
+  - [As a command-line calculator](#as-a-command-line-calculator)
+- [What Magνs computes](#what-magnus-computes)
+- [Available oscillation-probability functions](#available-oscillation-probability-functions)
+- [Code architecture](#code-architecture)
+- [Mathematical method](#mathematical-method)
+- [Numerical engine](#numerical-engine)
+- [Performance](#performance)
+- [Accuracy and validation](#accuracy-and-validation)
+- [Continuous Integration](#continuous-integration)
+- [Requirements](#requirements)
+- [Changelog](#changelog)
+- [How to Cite](#how-to-cite)
+- [Author](#author)
+
 ## When is Mag$`\nu`$s a win?
 
 Compared to solving the propagation ODE directly (e.g., with an adaptive
@@ -76,14 +96,18 @@ Magnus/
 │       └── tests.yml                # GitHub Actions CI testing pipeline (Python 3.10-3.12)
 ├── docs/                            # Sphinx documentation configuration and source
 │   ├── source/
-│   │   ├── conf.py                  # Sphinx build configuration (sphinx-autoapi + napoleon + bibtex)
+│   │   ├── conf.py                  # Sphinx build configuration (autoapi + napoleon + bibtex + mermaid + myst)
 │   │   ├── index.rst                # Master documentation page: overview, features, when Magnus wins
 │   │   ├── installation.rst         # Requirements, install instructions, file tree
-│   │   ├── quickstart.rst           # Worked code examples for every entry point
+│   │   ├── quickstart.rst           # Worked Python-API code examples for every entry point
+│   │   ├── cli.rst                  # Command-line calculator: flag reference and examples
+│   │   ├── functions.rst            # Full osc_prob_{2,3,4,5}nu_* listing, grouped by environment/scenario
+│   │   ├── architecture.rst         # The wrapper/middle/primordial layering, with diagrams
 │   │   ├── methodology.rst          # The Magnus expansion, integrators, and performance engineering
 │   │   ├── tutorials.rst            # Guide to the numbered example notebooks in notebooks/
 │   │   ├── references.rst           # Bibliography page rendering
-│   │   └── refs.bib                 # BibTeX citations for the Magnus-expansion and PREM literature
+│   │   ├── refs.bib                 # BibTeX citations for the Magnus-expansion and PREM literature
+│   │   └── changelog.rst            # Renders the root CHANGELOG.md via myst-parser
 │   ├── requirements.txt             # Sphinx + theme + extensions needed to build the docs
 │   ├── Makefile                     # Build commands for Unix
 │   └── make.bat                     # Build commands for Windows
@@ -112,21 +136,35 @@ Magnus/
 │       ├── earth/                   # PREM density profile, chord/zenith-angle geometry
 │       ├── matter/                  # Density profiles, electron number density, CC potential
 │       ├── globaldefs/              # Units, physical constants, NuFit parameter sets
+│       ├── cli.py                   # `magnus` command-line calculator (also `python -m magnus`)
+│       ├── __main__.py              # Entry point for `python -m magnus`
 │       ├── authors.py               # Package author string
 │       └── version.py               # Package version string
 ├── tests/                           # Test suite (pytest; runs in CI)
 │   ├── conftest.py                  # Path setup so magnus is importable without installation
 │   ├── test_magnus_expansion.py     # Magnus-core correctness (terms, orders, GL rates, unitarity)
 │   ├── test_oscprob.py              # Oscillation-probability engine, closed-form and ODE cross-checks
-│   └── test_earth_matter.py         # PREM profile, chord geometry, electron density
+│   ├── test_earth_matter.py         # PREM profile, chord geometry, electron density
+│   ├── test_hamiltonians.py         # Hamiltonian/mixing-matrix builders
+│   └── test_cli.py                  # magnus command-line calculator
 ├── .gitignore
-├── pyproject.toml                   # Build system and dependency specifications
+├── CHANGELOG.md                     # Version history (Keep a Changelog format)
+├── pyproject.toml                   # Build system, dependencies, and the `magnus` console-script entry point
 └── README.md                        # This file
 ```
 
 ---
 
-## Quick start
+## Two ways to use Mag$`\nu`$s
+
+Mag$`\nu`$s works both as an **importable Python module** (the full API —
+arbitrary Hamiltonians, energy/direction scans, NSI, LIV, steriles) and as a
+**command-line calculator** (`magnus prob ...` — one probability, no Python
+required). Use the module for anything programmatic (scans, plots, fitting);
+use the CLI for a quick one-off number, a shell script, or to sanity-check a
+parameter choice.
+
+### As a Python module
 
 ```python
 import sys
@@ -165,6 +203,64 @@ pass `s12`, `D31`, `dCP`, ..., or `nubar=True`, to change them.  Find many
 worked examples — vacuum, matter, Earth, Sun, oscillograms, biprobability
 plots, steriles, NSI, LIV — in the [Jupyter notebooks](notebooks/).
 
+### As a command-line calculator
+
+Installing the package (`pip install -e .`) also installs a `magnus` command
+(equivalently, `python -m magnus`), for computing a single probability
+without writing any Python. `magnus prob --help` lists every flag; the
+[full CLI reference](https://mbustama.github.io/Magnus/cli.html) documents
+all of them. A few real examples (verified output, this version):
+
+```bash
+$ magnus prob --flavors 3 --environment vacuum \
+    --energy 1 --energy-unit GeV --baseline 1300 --baseline-unit km
+Magνs 0.10.0 -- osc_prob_3nu_vacuum
+E = 1 GeV, L = 1300 km
+
+            nu_e   nu_mu  nu_tau
+nu_e      0.9297  0.0085  0.0618
+nu_mu     0.0311  0.3885  0.5804
+nu_tau    0.0393  0.6029  0.3578
+```
+
+```bash
+$ magnus prob --flavors 3 --environment earth \
+    --energy 1 --energy-unit GeV --costhz -0.8 --baseline 10193.6 --baseline-unit km
+Magνs 0.10.0 -- osc_prob_3nu_earth
+E = 1 GeV, L = 10193.6 km
+
+            nu_e   nu_mu  nu_tau
+nu_e      0.9128  0.0863  0.0009
+nu_mu     0.0629  0.6681  0.2690
+nu_tau    0.0243  0.2456  0.7301
+```
+
+A single channel (rather than the full matrix), and NSI/LIV/sterile flags,
+work the same way:
+
+```bash
+$ magnus prob --flavors 3 --environment vacuum --energy 1 --energy-unit GeV \
+    --baseline 1300 --baseline-unit km --nu-i e --nu-f mu
+Magνs 0.10.0 -- osc_prob_3nu_vacuum
+E = 1 GeV, L = 1300 km
+
+P = 0.0085
+
+$ magnus prob --flavors 3 --environment matter --scenario nsi --rho 2.7 \
+    --eps-ee 0.06 --eps-em -0.06 \
+    --energy 1 --energy-unit GeV --baseline 1000 --baseline-unit km
+Magνs 0.10.0 -- osc_prob_3nu_matter_nsi_constant_density
+E = 1 GeV, L = 1000 km
+
+            nu_e   nu_mu  nu_tau
+nu_e      0.9898  0.0093  0.0009
+nu_mu     0.0093  0.9906  0.0001
+nu_tau    0.0009  0.0001  0.9990
+```
+
+Pass `--json` for machine-readable output (e.g., to pipe into `jq` or another
+script) instead of the table.
+
 ## What Mag$`\nu`$s computes
 
 - **Flavors:** 2ν, 3ν, 4ν (3+1), 5ν (3+2) via dedicated wrappers; any number
@@ -177,6 +273,37 @@ plots, steriles, NSI, LIV — in the [Jupyter notebooks](notebooks/).
   `osc_prob_earth`, `osc_prob_sun` — arbitrary user Hamiltonians.
 - **Neutrinos and antineutrinos**, single energies or arrays, full probability
   matrices or single channels.
+
+## Available oscillation-probability functions
+
+Every combination of environment and scenario below has a dedicated,
+explicitly-named `osc_prob_{N}nu_...` function for `N` in `{2, 3, 4, 5}`
+(e.g. `osc_prob_3nu_matter_nsi_constant_density`) — see
+[the full listing with signatures](https://mbustama.github.io/Magnus/functions.html)
+in the docs. For anything not covered here — any other number of flavors,
+or a Hamiltonian this table doesn't anticipate — use the generic
+`osc_prob`/`osc_prob_earth`/`osc_prob_sun` entry points directly (see
+[Quick start](#two-ways-to-use-magnus) above).
+
+| Environment | Scenario | Function pattern (`{N}` = 2, 3, 4, 5) |
+|---|---|---|
+| Vacuum | Standard | `osc_prob_{N}nu_vacuum` |
+| Vacuum | LIV | `osc_prob_{N}nu_vacuum_liv` |
+| Matter, constant density | Standard | `osc_prob_{N}nu_matter_constant_density` |
+| Matter, constant density | NSI | `osc_prob_{N}nu_matter_nsi_constant_density` |
+| Matter, constant density | LIV | `osc_prob_{N}nu_matter_liv_constant_density` |
+| Matter, exponential density | Standard | `osc_prob_{N}nu_matter_exp_density` |
+| Matter, exponential density | NSI | `osc_prob_{N}nu_matter_nsi_exp_density` |
+| Matter, exponential density | LIV | `osc_prob_{N}nu_matter_liv_exp_density` |
+| Earth (PREM) | Standard | `osc_prob_{N}nu_earth` |
+| Earth (PREM) | NSI | `osc_prob_{N}nu_earth_nsi` |
+| Earth (PREM) | LIV | `osc_prob_{N}nu_earth_liv` |
+| Sun | Standard | `osc_prob_{N}nu_sun` |
+| Sun | NSI | `osc_prob_{N}nu_sun_nsi` |
+| Sun | LIV | `osc_prob_{N}nu_sun_liv` |
+
+The [command-line calculator](#as-a-command-line-calculator) exposes this
+same table via `--environment`/`--scenario`/`--flavors`.
 
 ## Code architecture
 
@@ -590,6 +717,11 @@ Four GitHub Actions workflows run under [`.github/workflows/`](.github/workflows
     the 4×4 and 5×5 mixing matrices, exact reduction to the 3ν PMNS matrix
     when sterile mixing is off, NSI/LIV convention checks, and the
     position-dependent `_td` convenience wrappers.
+  - [`test_cli.py`](tests/test_cli.py) — the `magnus` command-line
+    calculator: dispatch to the right `osc_prob_*` function for every
+    environment/scenario/flavor-count combination, JSON output matching
+    the equivalent direct Python call, and the CLI's own input-validation
+    error paths (e.g. rejecting `--scenario nsi` with `--environment vacuum`).
 - **[`lint.yml`](.github/workflows/lint.yml)** — runs Ruff (`ruff check` and
   `ruff format --check`) on every push/PR to `main`. Currently informational
   (`continue-on-error: true`): it reports style/static-analysis issues
@@ -608,6 +740,12 @@ Four GitHub Actions workflows run under [`.github/workflows/`](.github/workflows
 ```bash
 pip install -r src/requirements.txt pytest && pytest tests/
 ```
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) (also rendered in the
+[docs](https://mbustama.github.io/Magnus/changelog.html)) for a
+version-by-version history of what changed and why.
 
 ## How to Cite
 
