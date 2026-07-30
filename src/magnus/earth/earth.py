@@ -32,13 +32,8 @@ __email__ = "mbustamante@gmail.com"
 
 
 import numpy as np
+import sys
 from typing import Optional, Callable, Union
-
-# TO-DO: remove this once setup.py and pip are working
-import os, sys
-sys.path.append(os.path.split(os.path.split(os.getcwd())[0])[0])
-# sys.path.append('/home/mbustamante/Research/magnus/src/')
-# print(os.path.split(os.path.split(os.getcwd())[0])[0])
 
 import magnus.globaldefs as gd
 
