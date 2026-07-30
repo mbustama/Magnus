@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "magnus"
+version = "0.10.0"
+description = "Neutrino oscillation probabilities via the Magnus expansion, for an arbitrary number of flavors and any Hamiltonian, time-dependent or not."
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "TBD"}
+authors = [
+    {name = "Mauricio Bustamante", email = "mbustamante@gmail.com"}
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Physics",
+    "Topic :: Scientific/Engineering :: Mathematics"
+]
+dependencies = [
+    "numpy>=1.22",
+    "scipy>=1.9",
+    "joblib>=1.2"
+]
+
+[project.optional-dependencies]
+test = ["pytest"]
+dev = ["pytest", "twine", "build", "ruff"]
+docs = ["sphinx", "sphinx-autoapi", "sphinx-rtd-theme", "sphinx-copybutton", "sphinxcontrib-bibtex", "sphinxcontrib-mermaid", "myst-parser", "jupyter-sphinx", "ipykernel"]
+
+[project.scripts]
+magnus = "magnus.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/mbustama/Magnus"
+Repository = "https://github.com/mbustama/Magnus.git"
+Issues = "https://github.com/mbustama/Magnus/issues"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]

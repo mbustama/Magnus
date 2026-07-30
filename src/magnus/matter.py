@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
-r"""Contains helper functions to compute the oscillation probability in
+r"""matter.py
+
+Contains helper functions to compute the oscillation probability in
 matter.
 
 This module contains routines to common matter density profiles (e.g.,
@@ -9,19 +11,17 @@ coherent forward scattering potential.
 Routine listings
 ----------------
 
-    * density_matter_func_const - Returns the density for a constant 
+    * density_matter_func_const - Returns the density for a constant
            matter density profile
     * density_matter_func_exp - Returns the density for an exponentially
            decreasing matter density profile
-    * density_matter_prem - Returns the density inside the Earth using
-           the Preliminary Reference Earth Model
     * num_density_e_func - Converts a matter density to an electron
            number density
     * VCC_func - Returns the potential for coherent forward electron
            scattering
-
-Created: 2024/11/30 15:42
-Last modified: 2024/11/30 21:23
+    * vcc_func_from_rho_func - Builds a VCC function (or constant) from
+           a density profile, handling neutrino/antineutrino sign and
+           unit conversion
 """
 
 __version__ = "1.0"
@@ -32,12 +32,6 @@ __email__ = "mbustamante@gmail.com"
 import numpy as np
 from typing import Optional, Callable, Union, Tuple, List, Dict
 
-# TO-DO: remove this once setup.py and pip are working
-import os, sys
-sys.path.append(os.path.split(os.path.split(os.getcwd())[0])[0])
-# sys.path.append('/home/mbustamante/Research/magnus/src/')
-# print(os.path.split(os.path.split(os.getcwd())[0])[0])
-
 import magnus.globaldefs as gd
 
 
@@ -46,8 +40,10 @@ def density_matter_func_const(l: float,
     r"""Returns the matter density as a function of position, assuming a 
     constant density. Used for testing purposes.
 
-    Returns the matter density as a function of position, assuming a 
+    Returns the matter density as a function of position, assuming a
     constant density. Used for testing purposes.
+
+    .. versionadded:: 0.10.0
 
     Parameters
     ----------
@@ -76,12 +72,12 @@ def density_matter_func_exp(l: float, density_matter_central:float , l_scale: fl
     rho(l) = density_matter_central*exp(-l/l_scale), for given values
     of density_matter_central and l_scale.
 
+    .. versionadded:: 0.10.0
+
     Parameters
     ----------
     l : float
-        Position at which the density profile is evaluated (in this
-        case, the profile is uniform, so any value of l returns the same
-        constant density).
+        Position at which the density profile is evaluated.
     density_matter_central : float
         Matter density at the center of the profile (l = 0) [g cm^{-3}]
     l_scale : float
@@ -108,16 +104,24 @@ def num_density_e_func(l: float, density_matter_func: Callable,
     and position, l. Matter is assumed to be isoscalar, with the
     fraction of electrons given by electron_fraction.
 
+    .. versionadded:: 0.10.0
+
     Parameters
     ----------
     l : float
-        Position at which the density profile is evaluated (in this
-        case, the profile is uniform, so any value of l returns the same
-        constant density).
-    density_matter_funct : float(l)
-        Matter density as a function of l [g cm^{-3}].
-    electron_fraction : float
-        Electron fraction.
+        Position at which the density profile is evaluated.
+    density_matter_func : Callable
+        Matter density as a function of l [g cm^{-3}] (or, if
+        ``density_matter_is_in_g_per_cm3`` is False, already in natural units).
+    ratio_number_neutrons_to_protons : float, optional
+        Ratio of the number of neutrons to protons in matter, used to compute the average
+        nucleon mass. Default: 1.0.
+    electron_fraction : float, optional
+        Electron fraction. Default: 0.5.
+    density_matter_is_in_g_per_cm3 : bool, optional
+        If True, ``density_matter_func`` returns the density in g cm^{-3} and it is converted to
+        natural units internally; if False, it is assumed to already be in natural units.
+        Default: False.
 
     Returns
     -------
@@ -145,17 +149,17 @@ def VCC_func(l: float, num_density_e_func: Callable) -> float:
     num_density_e_func.
 
     Computes and returns the coherent forward electron potential, V_CC,
-    at position l, for a given electron number density profile, 
+    at position l, for a given electron number density profile,
     num_density_e_func.
+
+    .. versionadded:: 0.10.0
 
     Parameters
     ----------
     l : float
-        Position at which the density profile is evaluated (in this
-        case, the profile is uniform, so any value of l returns the same
-        constant density).
-    num_density_e_func : float(l)
-        Electron number density [eV^3].
+        Position at which the density profile is evaluated.
+    num_density_e_func : Callable
+        Electron number density as a function of l [eV^3].
 
     Returns
     -------
@@ -169,13 +173,53 @@ def VCC_func(l: float, num_density_e_func: Callable) -> float:
 def vcc_func_from_rho_func(
     rho_func: Union[Callable, int, float],
     L0: Optional[Union[int, float]]=0.0,
-    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0, 
-    electron_fraction: Optional[Union[int, float]]=0.5, 
-    nubar: Optional[bool]=False, 
+    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
+    electron_fraction: Optional[Union[int, float]]=0.5,
+    nubar: Optional[bool]=False,
     density_matter_is_in_g_per_cm3: Optional[bool]=False,
     density_is_of_number_of_electrons: Optional[bool]=False,
 ) -> Union[int, float, Callable]:
+    r"""Builds a V_CC function (or constant) from a density profile.
 
+    Builds the coherent forward-scattering potential, V_CC, from a matter- or electron-density
+    profile, handling the neutrino/antineutrino sign of V_CC and the unit conversion in one place.
+    This is the function that :func:`magnus.oscprob.osc_prob_matter_std_potential` and
+    its NSI/LIV counterparts call to turn a user- or environment-supplied density (e.g., a
+    constant, an exponential profile, or the Earth's PREM profile) into the ``VCC_func`` consumed
+    by the ``hamiltonian_*nu_matter_td``/``hamiltonian_*nu_nsi_td`` functions.
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    rho_func : Callable or int or float
+        Matter density (or, if ``density_is_of_number_of_electrons`` is True, electron number
+        density directly), either as a function of position, l, or as a single constant value.
+    L0 : int or float, optional
+        Reference position at which to evaluate a constant ``rho_func`` (irrelevant when
+        ``rho_func`` is a genuine constant, since the returned V_CC is then position-independent
+        by construction). Default: 0.0.
+    ratio_number_neutrons_to_protons : int or float, optional
+        Ratio of the number of neutrons to protons in matter. Default: 1.0.
+    electron_fraction : int or float, optional
+        Electron fraction. Default: 0.5.
+    nubar : bool, optional
+        If True, flip the sign of V_CC (electrons couple to nu_e and nu_e-bar with opposite-sign
+        weak charge). Default: False.
+    density_matter_is_in_g_per_cm3 : bool, optional
+        If True, ``rho_func`` returns the matter density in g cm^{-3}; if False, it is assumed to
+        already be in natural units. Ignored if ``density_is_of_number_of_electrons`` is True.
+        Default: False.
+    density_is_of_number_of_electrons : bool, optional
+        If True, ``rho_func`` directly returns the electron number density [eV^3], skipping the
+        matter-density-to-electron-density conversion. Default: False.
+
+    Returns
+    -------
+    int, float, or Callable
+        V_CC [eV], as a function of position if ``rho_func`` is a function, or as a constant
+        (evaluated once, at ``L0``) if ``rho_func`` is a constant.
+    """
     s = 1.0 if not nubar else -1.0
 
     # If the provided rho_func is the matter density (e.g., g cm^{-3}), convert rho_func to a 
@@ -211,3 +255,12 @@ def vcc_func_from_rho_func(
 if __name__ == "__main__":
 
     pass
+
+
+__all__ = [
+    'density_matter_func_const',
+    'density_matter_func_exp',
+    'num_density_e_func',
+    'VCC_func',
+    'vcc_func_from_rho_func',
+]

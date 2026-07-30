@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
-r"""Compute three-neutrino Hamiltonians for selected scenarios.
+r"""hamiltonians3nu.py
+
+Compute three-neutrino Hamiltonians for selected scenarios.
 
 This module contains the routines to compute the three-neutrino
 Hamiltonians for the following scenarios: oscillations in vacuum, in
@@ -9,17 +11,20 @@ matter of constant density, in matter with non-standard interactions
 Routine listings
 ----------------
 
-    * mixing_matrix_2nu - Returns 2x2 rotation matrix
-    * hamiltonian_2nu_vacuum_energy_independent - Returns H_vac (no 1/E)
-    * delta - Kronecker delta
-    * J - Product of four elements of PMNS matrix
-    * probabilities_3nu_vacuum_std - Vacuum probability, std. formula
-    * hamiltonian_2nu_matter - Returns H_matter
-    * hamiltonian_2nu_nsi - Returns H_NSI
-    * hamiltonian_2nu_liv - Returns H_LIV
-
-Created: 2019/04/17 17:14
-Last modified: 2019/04/30 01:03
+    * pmns_mixing_matrix - Returns the 3x3 PMNS mixing matrix
+    * mixing_matrix_3x3 - Alias of pmns_mixing_matrix
+    * hamiltonian_3nu_vacuum_energy_independent - Returns H_vac (no 1/E)
+    * hamiltonian_3nu_vacuum_energy_independent_td - Returns H_vac (no
+           1/E), as a function of position
+    * hamiltonian_3nu_vacuum - Returns H_vac
+    * hamiltonian_3nu_vacuum_td - Returns H_vac, as a function of position
+    * hamiltonian_3nu_matter - Returns H_matter
+    * hamiltonian_3nu_matter_td - Returns H_matter, as a function of position
+    * hamiltonian_3nu_nsi - Returns H_NSI
+    * hamiltonian_3nu_nsi_td - Returns H_NSI, as a function of position
+    * hamiltonian_3nu_liv - Returns H_LIV
+    * hamiltonian_3nu_liv_energy_independent - Returns H_LIV (no energy
+           dependence)
 """
 
 
@@ -43,23 +48,25 @@ from typing import Optional, Callable, Union
 def pmns_mixing_matrix(s12: float, s23: float, s13:float, dCP: float) -> np.ndarray:
     r"""Returns the 3x3 PMNS mixing matrix.
 
-    Computes and returns the 3x3 complex PMNS mixing matrix parametrized by three rotation angles, 
-    theta_12, theta_23, theta_13, and one CP-violation phase, delta_CP.
+    Computes and returns the 3x3 complex PMNS mixing matrix parametrized by three rotation angles,
+    :math:`\theta_{12}`, :math:`\theta_{23}`, :math:`\theta_{13}`, and one CP-violation phase, :math:`\delta_\text{CP}`.
+
+    .. versionadded:: 0.10.0
 
     Parameters
     ----------
     s12 : float
-        Sin(theta_12).
+        Sine of the mixing angle :math:`\theta_{12}`.
     s23 : float
-        Sin(theta_23).
+        Sine of the mixing angle :math:`\theta_{23}`.
     s13 : float
-        Sin(theta_13).
+        Sine of the mixing angle :math:`\theta_{13}`.
     dCP : float
-        delta_CP [radian].
+        :math:`\delta_\text{CP}` [radian].
 
     Returns
     -------
-    list
+    np.ndarray
         3x3 PMNS mixing matrix.
     """
     c12 = np.sqrt(1.0-s12*s12)
@@ -85,42 +92,72 @@ def pmns_mixing_matrix(s12: float, s23: float, s13:float, dCP: float) -> np.ndar
 
 
 def mixing_matrix_3x3(s12: float, s23: float, s13:float, dCP: float) -> np.ndarray:
+    r"""Returns the 3x3 PMNS mixing matrix.
 
-    return pmns_mixing_matrix(s12, s23, s13, dCP)
+    Alias of :func:`pmns_mixing_matrix`, kept for naming parity with
+    :func:`hamiltonians4nu.mixing_matrix_4x4` and
+    :func:`hamiltonians5nu.mixing_matrix_5x5`.
 
-
-def hamiltonian_3nu_vacuum_energy_independent(s12: float, s23: float, s13: float, dCP: float, 
-    D21: float, D31: float, nubar: Optional[bool]=False,
-    compute_matrix_multiplication: Optional[bool]=False) -> np.ndarray:
-    r"""Returns the three-neutrino Hamiltonian for vacuum oscillations.
-
-    Computes and returns the 3x3 complex three-neutrino Hamiltonian for oscillations in vacuum, 
-    parametrized by three mixing angles (theta_12, theta_23, theta_13), one CP-violation phase 
-    (delta_CP), and two mass-squared difference (Delta m^2_21, Delta m^2_31).  The Hamiltonian is
-    H = (1/2)*R.M2.R^dagger, with R the 3x3 PMNS matrix and M2 the mass matrix.  The multiplicative
-    factor 1/E is not applied.
+    .. versionadded:: 0.10.0
 
     Parameters
     ----------
     s12 : float
-        Sin(theta_12).
+        Sine of the mixing angle :math:`\theta_{12}`.
     s23 : float
-        Sin(theta_23).
+        Sine of the mixing angle :math:`\theta_{23}`.
     s13 : float
-        Sin(theta_13).
+        Sine of the mixing angle :math:`\theta_{13}`.
+    dCP : float
+        :math:`\delta_\text{CP}` [radian].
+
+    Returns
+    -------
+    np.ndarray
+        3x3 PMNS mixing matrix.
+    """
+    return pmns_mixing_matrix(s12, s23, s13, dCP)
+
+
+def hamiltonian_3nu_vacuum_energy_independent(s12: float, s23: float, s13: float, dCP: float,
+    D21: float, D31: float, nubar: Optional[bool]=False,
+    compute_matrix_multiplication: Optional[bool]=False) -> np.ndarray:
+    r"""Returns the three-neutrino Hamiltonian for vacuum oscillations.
+
+    Computes and returns the 3x3 complex three-neutrino Hamiltonian for oscillations in vacuum,
+    parametrized by three mixing angles (:math:`\theta_{12}`, :math:`\theta_{23}`, :math:`\theta_{13}`), one CP-violation phase
+    (:math:`\delta_\text{CP}`), and two mass-squared difference (:math:`\Delta m_{21}^2`, :math:`\Delta m_{31}^2`).  The Hamiltonian is
+    H = (1/2)*R.M2.R^dagger, with R the 3x3 PMNS matrix and M2 the mass matrix.  The multiplicative
+    factor 1/E is not applied.
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    s12 : float
+        Sine of the mixing angle :math:`\theta_{12}`.
+    s23 : float
+        Sine of the mixing angle :math:`\theta_{23}`.
+    s13 : float
+        Sine of the mixing angle :math:`\theta_{13}`.
+    dCP : float
+        :math:`\delta_\text{CP}` [radian].
     D21 : float
-        Mass-squared difference Delta m^2_21.
+        Mass-squared difference :math:`\Delta m_{21}^2`.
     D31 : float
-        Mass-squared difference Delta m^2_31.
+        Mass-squared difference :math:`\Delta m_{31}^2`.
+    nubar : bool, optional
+        If True, compute the Hamiltonian for antineutrinos (conjugates the PMNS matrix, equivalent
+        to :math:`\delta_\text{CP}` -> -:math:`\delta_\text{CP}`). Default: False.
     compute_matrix_multiplication : bool, optional
-        If False (default), use the pre-computed expressions; otherwise, multiply R.M2.R^dagger 
+        If False (default), use the pre-computed expressions; otherwise, multiply R.M2.R^dagger
         live.
 
     Returns
     -------
-    list
+    np.ndarray
         Hamiltonian 3x3 matrix.
-    """    
+    """
 
     # f = 0.5
 
@@ -157,7 +194,7 @@ def hamiltonian_3nu_vacuum_energy_independent(s12: float, s23: float, s13: float
 
         # PMNS matrix
         # if nubar == False:
-        #     R = pmns_mixing_matrix(s12, s23, s13, dCP) 
+        #     R = pmns_mixing_matrix(s12, s23, s13, dCP)
         # else:
         #     R = np.conj(pmns_mixing_matrix(s12, s23, s13, dCP))
         R = pmns_mixing_matrix(s12, s23, s13, dCP) if nubar == False \
@@ -168,31 +205,124 @@ def hamiltonian_3nu_vacuum_energy_independent(s12: float, s23: float, s13: float
         return 0.5 * R @ M2 @ np.conj(R.T)
 
 
-def hamiltonian_3nu_vacuum_energy_independent_td(l: float, s12: float, s23: float, s13: float, 
-    dCP: float, D21: float, D31: float, 
+def hamiltonian_3nu_vacuum_energy_independent_td(l: float, s12: float, s23: float, s13: float,
+    dCP: float, D21: float, D31: float,
     compute_matrix_multiplication: Optional[bool]=False) -> np.ndarray:
     r"""Returns the three-neutrino Hamiltonian for vacuum oscillations, as a function of distance,
     even if it does not depend on it.
+
+    Same as :func:`hamiltonian_3nu_vacuum_energy_independent`, included for interface parity with
+    the other, genuinely position-dependent Hamiltonians (see, e.g., :func:`hamiltonian_3nu_matter_td`).
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    l : float
+        Position at which the Hamiltonian is evaluated.
+    s12 : float
+        Sine of the mixing angle :math:`\theta_{12}`.
+    s23 : float
+        Sine of the mixing angle :math:`\theta_{23}`.
+    s13 : float
+        Sine of the mixing angle :math:`\theta_{13}`.
+    dCP : float
+        :math:`\delta_\text{CP}` [radian].
+    D21 : float
+        Mass-squared difference :math:`\Delta m_{21}^2`.
+    D31 : float
+        Mass-squared difference :math:`\Delta m_{31}^2`.
+    compute_matrix_multiplication : bool, optional
+        If False (default), use the pre-computed expressions; otherwise, multiply R.M2.R^dagger
+        live.
+
+    Returns
+    -------
+    np.ndarray
+        Hamiltonian 3x3 matrix.
     """
-    return hamiltonian_3nu_vacuum_energy_independent(s12, s23, s13, dCP, D21, D31, 
+    return hamiltonian_3nu_vacuum_energy_independent(s12, s23, s13, dCP, D21, D31,
         compute_matrix_multiplication=compute_matrix_multiplication)
 
 
-def hamiltonian_3nu_vacuum(energy: float, s12: float, s23: float, s13: float, dCP: float, 
-    D21: float, D31: float, nubar: Optional[bool]=False, 
+def hamiltonian_3nu_vacuum(energy: float, s12: float, s23: float, s13: float, dCP: float,
+    D21: float, D31: float, nubar: Optional[bool]=False,
     compute_matrix_multiplication: Optional[bool]=False) -> np.ndarray:
     r"""Returns the three-neutrino Hamiltonian for vacuum oscillations.
+
+    Same as :func:`hamiltonian_3nu_vacuum_energy_independent`, but with the 1/E factor applied.
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    energy : float
+        Neutrino energy.
+    s12 : float
+        Sine of the mixing angle :math:`\theta_{12}`.
+    s23 : float
+        Sine of the mixing angle :math:`\theta_{23}`.
+    s13 : float
+        Sine of the mixing angle :math:`\theta_{13}`.
+    dCP : float
+        :math:`\delta_\text{CP}` [radian].
+    D21 : float
+        Mass-squared difference :math:`\Delta m_{21}^2`.
+    D31 : float
+        Mass-squared difference :math:`\Delta m_{31}^2`.
+    nubar : bool, optional
+        If True, compute the Hamiltonian for antineutrinos. Default: False.
+    compute_matrix_multiplication : bool, optional
+        If False (default), use the pre-computed expressions; otherwise, multiply R.M2.R^dagger
+        live.
+
+    Returns
+    -------
+    np.ndarray
+        Hamiltonian 3x3 matrix.
     """
-    return (1/energy)*hamiltonian_3nu_vacuum_energy_independent(s12, s23, s13, dCP, D21, D31, 
+    return (1/energy)*hamiltonian_3nu_vacuum_energy_independent(s12, s23, s13, dCP, D21, D31,
         nubar=nubar, compute_matrix_multiplication=compute_matrix_multiplication)
 
 
-def hamiltonian_3nu_vacuum_td(l: float, energy: float, s12: float, s23: float, s13: float, dCP: float, 
+def hamiltonian_3nu_vacuum_td(l: float, energy: float, s12: float, s23: float, s13: float, dCP: float,
     D21: float, D31: float, compute_matrix_multiplication: Optional[bool]=False) -> np.ndarray:
     r"""Returns the three-neutrino Hamiltonian for vacuum oscillations, as a function of distance,
     even if it does not depend on it.
+
+    Same as :func:`hamiltonian_3nu_vacuum`, included for interface parity with the other,
+    genuinely position-dependent Hamiltonians.
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    l : float
+        Position at which the Hamiltonian is evaluated.
+    energy : float
+        Neutrino energy.
+    s12 : float
+        Sine of the mixing angle :math:`\theta_{12}`.
+    s23 : float
+        Sine of the mixing angle :math:`\theta_{23}`.
+    s13 : float
+        Sine of the mixing angle :math:`\theta_{13}`.
+    dCP : float
+        :math:`\delta_\text{CP}` [radian].
+    D21 : float
+        Mass-squared difference :math:`\Delta m_{21}^2`.
+    D31 : float
+        Mass-squared difference :math:`\Delta m_{31}^2`.
+    compute_matrix_multiplication : bool, optional
+        If False (default), use the pre-computed expressions; otherwise, multiply R.M2.R^dagger
+        live.
+
+    Returns
+    -------
+    np.ndarray
+        Hamiltonian 3x3 matrix.
     """
-    return hamiltonian_3nu_vacuum(energy, s12, s23, s13, dCP, D21, D31, 
+    return hamiltonian_3nu_vacuum(energy, s12, s23, s13, dCP, D21, D31,
         compute_matrix_multiplication=compute_matrix_multiplication)
 
 
@@ -202,87 +332,142 @@ def hamiltonian_3nu_matter(VCC: float) -> np.ndarray:
     Computes and returns the 3x3 real three-neutrino Hamiltonian for
     oscillations in matter with constant density.
 
+    .. versionadded:: 0.10.0
+
     Parameters
     ----------
-    h_vacuum_energy_independent : list
-        Energy-independent part of the three-neutrino Hamiltonian for
-        oscillations in vacuum.  This is computed by the routine
-        hamiltonian_3nu_vacuum_energy_independent.
-    energy : float
-        Neutrino energy.
     VCC : float
         Potential due to charged-current interactions of nu_e with
         electrons.
 
     Returns
     -------
-    list
+    np.ndarray
         Hamiltonian 3x3 matrix.
     """
-    return np.diag([VCC, 0.0, 0.0]) 
+    return np.diag([VCC, 0.0, 0.0])
 
 
 def hamiltonian_3nu_matter_td(l: float, VCC_func: Callable) -> np.ndarray:
+    r"""Returns the three-neutrino Hamiltonian for matter oscillations, as a function of distance.
+
+    Computes and returns the 3x3 real three-neutrino Hamiltonian for oscillations in matter with a
+    given density as a function of position.
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    l : float
+        Position at which the Hamiltonian is evaluated.
+    VCC_func : Callable
+        Potential due to charged-current interactions of nu_e with electrons, as a function of
+        position, l.
+
+    Returns
+    -------
+    np.ndarray
+        Hamiltonian 3x3 matrix.
+    """
     return hamiltonian_3nu_matter(VCC_func(l))
 
 
 def hamiltonian_3nu_nsi(
-    VCC: float, 
-    eps_ee: float, 
-    eps_em: complex, 
-    eps_et: complex, 
-    eps_mm: float, 
-    eps_mt: complex, 
+    VCC: float,
+    eps_ee: float,
+    eps_em: complex,
+    eps_et: complex,
+    eps_mm: float,
+    eps_mt: complex,
     eps_tt: float
 ) -> np.ndarray:
     r"""Returns the three-neutrino Hamiltonian for oscillations w/ NSI.
 
-    Computes and returns the 3x3 complex three-neutrino Hamiltonian for oscillations with 
+    Computes and returns the 3x3 complex three-neutrino Hamiltonian for oscillations with
     non-standard interactions (NSI) in matter with constant density.
+
+    .. versionadded:: 0.10.0
 
     Parameters
     ----------
-    h_vacuum_energy_independent : list
-        Energy-independent part of the two-neutrino Hamiltonian for oscillations in vacuum.  This is
-        computed by the routine hamiltonian_2nu_vacuum_energy_independent.
-    energy : float
-        Neutrino energy.
     VCC : float
         Potential due to charged-current interactions of nu_e with electrons.
-    eps : list
-        Vector of NSI strength parameters: eps = eps_ee, eps_em, eps_et, eps_mm, eps_mt, eps_tt.
+    eps_ee : float
+        Diagonal NSI coupling of nu_e.
+    eps_em : complex
+        Flavor-off-diagonal (nu_e-nu_mu) NSI coupling.
+    eps_et : complex
+        Flavor-off-diagonal (nu_e-nu_tau) NSI coupling.
+    eps_mm : float
+        Diagonal NSI coupling of nu_mu.
+    eps_mt : complex
+        Flavor-off-diagonal (nu_mu-nu_tau) NSI coupling.
+    eps_tt : float
+        Diagonal NSI coupling of nu_tau.
 
     Returns
     -------
-    list
+    np.ndarray
         Hamiltonian 3x3 matrix.
     """
     return VCC * np.array([
-        [eps_ee, eps_em, eps_et], 
+        [eps_ee, eps_em, eps_et],
         [np.conj(eps_em), eps_mm, eps_mt],
         [np.conj(eps_et), np.conj(eps_mt), eps_tt],
         ], dtype=np.complex128)
 
 
-def hamiltonian_3nu_nsi_td(l: float, VCC_func: Callable, 
-    eps: Union[list, np.ndarray]) -> np.ndarray:
+def hamiltonian_3nu_nsi_td(l: float, VCC_func: Callable, eps_ee: float, eps_em: complex,
+    eps_et: complex, eps_mm: float, eps_mt: complex, eps_tt: float) -> np.ndarray:
+    r"""Returns the three-neutrino NSI Hamiltonian as a function of position.
 
-    return hamiltonian_3nu_nsi(VCC_func(l), eps)
+    Same as :func:`hamiltonian_3nu_nsi`, but evaluates the position-dependent matter potential
+    ``VCC_func(l)`` first.
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    l : float
+        Position at which the Hamiltonian is evaluated.
+    VCC_func : Callable
+        Potential due to charged-current interactions of nu_e with electrons, as a function of
+        position, l.
+    eps_ee : float
+        Diagonal NSI coupling of nu_e.
+    eps_em : complex
+        Flavor-off-diagonal (nu_e-nu_mu) NSI coupling.
+    eps_et : complex
+        Flavor-off-diagonal (nu_e-nu_tau) NSI coupling.
+    eps_mm : float
+        Diagonal NSI coupling of nu_mu.
+    eps_mt : complex
+        Flavor-off-diagonal (nu_mu-nu_tau) NSI coupling.
+    eps_tt : float
+        Diagonal NSI coupling of nu_tau.
+
+    Returns
+    -------
+    np.ndarray
+        Hamiltonian 3x3 matrix.
+    """
+    return hamiltonian_3nu_nsi(VCC_func(l), eps_ee, eps_em, eps_et, eps_mm, eps_mt, eps_tt)
 
 
-def hamiltonian_3nu_liv(energy: float, sxi12: float, sxi23: float, sxi13: float, dxiCP: float, b1: float, 
+def hamiltonian_3nu_liv(energy: float, sxi12: float, sxi23: float, sxi13: float, dxiCP: float, b1: float,
     b2: float, b3: float, Lambda: float, n_liv: int, nubar: Optional[bool]=False,
     compute_matrix_multiplication: Optional[bool]=False) -> np.ndarray:
     r"""Returns the three-neutrino Hamiltonian for oscillations w/ LIV.
 
-    Computes and returns the 3x3 complex three-neutrino Hamiltonian for oscillations in a CPT-odd 
-    Lorentz invariance-violating background.
+    Computes and returns the 3x3 complex three-neutrino Hamiltonian for oscillations in a CPT-odd
+    Lorentz invariance-violating background.  Same as
+    :func:`hamiltonian_3nu_liv_energy_independent`, but with the
+    :math:`E^{n_{\rm liv}}` energy dependence of the LIV operator applied.
+
+    .. versionadded:: 0.10.0
 
     Parameters
     ----------
-    h_vacuum_energy_independent : list
-        Energy-independent part of the two-neutrino Hamiltonian for oscillations in vacuum.  This is
-        computed by the routine hamiltonian_2nu_vacuum_energy_independent.
     energy : float
         Neutrino energy.
     sxi12 : float
@@ -292,9 +477,9 @@ def hamiltonian_3nu_liv(energy: float, sxi12: float, sxi23: float, sxi13: float,
         Sin(xi_23), with xi_23 the one of the mixing angles between the space of the eigenvectors of
         B3 and the flavor states.
     sxi13 : float
-        Sin(xi_12), with xi_13 the one of the mixing angles between the space of the eigenvectors of
+        Sin(xi_13), with xi_13 the one of the mixing angles between the space of the eigenvectors of
         B3 and the flavor states.
-    dciCP : float
+    dxiCP : float
         CP-violation angle of the LIV operator B3 [radian].
     b1 : float
         Eigenvalue b1 of the LIV operator B3.
@@ -303,15 +488,24 @@ def hamiltonian_3nu_liv(energy: float, sxi12: float, sxi23: float, sxi13: float,
     b3 : float
         Eigenvalue b3 of the LIV operator B3.
     Lambda : float
-        Energy scale of the LIV operator B2.
+        Energy scale of the LIV operator B3.
+    n_liv : int
+        Power of the energy dependence of the LIV operator (dimension of the operator minus 3).
+    nubar : bool, optional
+        If True, compute the Hamiltonian for antineutrinos (conjugates the LIV mixing matrix,
+        equivalent to dxiCP -> -dxiCP). Default: False.
+    compute_matrix_multiplication : bool, optional
+        Forwarded to :func:`hamiltonian_3nu_liv_energy_independent` (currently unused there; kept
+        for interface parity with the vacuum Hamiltonian).
 
     Returns
     -------
-    list
+    np.ndarray
         Hamiltonian 3x3 matrix.
     """
-    return pow(energy, n_liv) * hamiltonian_3nu_liv_energy_independent(sxi12, sxi23, sxi13, dxiCP, 
-        b1, b2, b3, Lambda, compute_matrix_multiplication=compute_matrix_multiplication)
+    return pow(energy, n_liv) * hamiltonian_3nu_liv_energy_independent(sxi12, sxi23, sxi13, dxiCP,
+        b1, b2, b3, Lambda, n_liv, nubar=nubar,
+        compute_matrix_multiplication=compute_matrix_multiplication)
 
 
 def hamiltonian_3nu_liv_energy_independent(sxi12: float, sxi23: float, sxi13: float, dxiCP: float,
@@ -319,16 +513,13 @@ def hamiltonian_3nu_liv_energy_independent(sxi12: float, sxi23: float, sxi13: fl
     compute_matrix_multiplication: Optional[bool]=False) -> np.ndarray:
     r"""Returns the three-neutrino Hamiltonian for oscillations w/ LIV.
 
-    Computes and returns the 3x3 complex three-neutrino Hamiltonian for oscillations in a CPT-odd 
-    Lorentz invariance-violating background.
+    Computes and returns the 3x3 complex three-neutrino Hamiltonian for oscillations in a CPT-odd
+    Lorentz invariance-violating background, without the energy-dependent prefactor.
+
+    .. versionadded:: 0.10.0
 
     Parameters
     ----------
-    h_vacuum_energy_independent : list
-        Energy-independent part of the two-neutrino Hamiltonian for oscillations in vacuum.  This is
-        computed by the routine hamiltonian_2nu_vacuum_energy_independent.
-    energy : float
-        Neutrino energy.
     sxi12 : float
         Sin(xi_12), with xi_12 the one of the mixing angles between the space of the eigenvectors of
         B3 and the flavor states.
@@ -336,9 +527,9 @@ def hamiltonian_3nu_liv_energy_independent(sxi12: float, sxi23: float, sxi13: fl
         Sin(xi_23), with xi_23 the one of the mixing angles between the space of the eigenvectors of
         B3 and the flavor states.
     sxi13 : float
-        Sin(xi_12), with xi_13 the one of the mixing angles between the space of the eigenvectors of
+        Sin(xi_13), with xi_13 the one of the mixing angles between the space of the eigenvectors of
         B3 and the flavor states.
-    dciCP : float
+    dxiCP : float
         CP-violation angle of the LIV operator B3 [radian].
     b1 : float
         Eigenvalue b1 of the LIV operator B3.
@@ -347,14 +538,22 @@ def hamiltonian_3nu_liv_energy_independent(sxi12: float, sxi23: float, sxi13: fl
     b3 : float
         Eigenvalue b3 of the LIV operator B3.
     Lambda : float
-        Energy scale of the LIV operator B2.
+        Energy scale of the LIV operator B3.
+    n_liv : int
+        Power of the energy dependence of the LIV operator (dimension of the operator minus 3);
+        enters here through the :math:`\Lambda^{-n_{\rm liv}}` normalization of the eigenvalues.
+    nubar : bool, optional
+        If True, compute the Hamiltonian for antineutrinos (conjugates the LIV mixing matrix,
+        equivalent to dxiCP -> -dxiCP). Default: False.
+    compute_matrix_multiplication : bool, optional
+        Currently unused; accepted for interface parity with the vacuum Hamiltonian.
 
     Returns
     -------
-    list
+    np.ndarray
         Hamiltonian 3x3 matrix.
     """
     R = pmns_mixing_matrix(sxi12, sxi23, sxi13, dxiCP) if nubar == False \
             else np.conj(pmns_mixing_matrix(sxi12, sxi23, sxi13, dxiCP))
-            
+
     return pow(1.0/Lambda, n_liv) * R @ np.diag([b1, b2, b3]) @ np.conj(R.T)

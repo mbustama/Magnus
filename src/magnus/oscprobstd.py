@@ -1,3 +1,30 @@
+# -*- coding: utf-8 -*-
+r"""oscprobstd.py
+
+Closed-form (non-Magnus) two- and three-neutrino oscillation
+probabilities, computed from the standard analytical expressions rather
+than from the Magnus expansion.  Used by the test suite to validate
+oscprob.py's Magnus-based results against an independent method, not
+intended as a general-purpose replacement for it (it does not cover
+matter with non-constant density, NSI, LIV, or more than three flavors).
+
+Routine listings
+----------------
+
+    * osc_prob_2nu_vacuum_std - Returns 2nu vacuum probabilities, closed form
+    * osc_prob_2nu_matter_std - Returns 2nu constant-density matter
+           probabilities, closed form
+    * delta - Kronecker delta
+    * J - Returns U*_ak * U_bk * U_aj * U*_bj, a building block of the
+           3nu vacuum probability
+    * osc_prob_3nu_vacuum_std - Returns 3nu vacuum probabilities, closed form
+"""
+
+__version__ = "1.0"
+__author__ = "Mauricio Bustamante"
+__email__ = "mbustamante@gmail.com"
+
+
 import numpy as np
 from typing import Optional, Union
 
@@ -8,12 +35,14 @@ def osc_prob_2nu_vacuum_std(sth: float, Dm2: float, energy: float, L: float) -> 
     Returns the probabilities for two-neutrino oscillations in vacuum, computed using the standard
     analytical expression of the probabilities.
 
+    .. versionadded:: 0.10.0
+
     Parameters
     ----------
     sth : float
-        Sin(theta).
+        Sine of the mixing angle :math:`\theta`.
     Dm2 : float
-        Mass-squared difference Delta m^2.
+        Mass-squared difference :math:`\Delta m^2`.
     energy : float
         Neutrino energy.
     L : float
@@ -21,7 +50,7 @@ def osc_prob_2nu_vacuum_std(sth: float, Dm2: float, energy: float, L: float) -> 
 
     Returns
     -------
-    list
+    np.ndarray
         List of probabilities [Pee, Pem, Pme, Pmm].
     """
     # arg = 1.27*Dm2*L/energy#/4.0
@@ -45,12 +74,14 @@ def osc_prob_2nu_matter_std(sth: float, Dm2: float, VCC: float, energy: float,
     Returns the probabilities for two-neutrino oscillations in matter, computed using the standard
     analytical expression of the probabilities.
 
+    .. versionadded:: 0.10.0
+
     Parameters
     ----------
     sth : float
-        Sin(theta).
+        Sine of the mixing angle :math:`\theta`.
     Dm2 : float
-        Mass-squared difference Delta m^2.
+        Mass-squared difference :math:`\Delta m^2`.
     VCC : float
         Potential due to charged-current interactions of nu_e with electrons.
     energy : float
@@ -60,7 +91,7 @@ def osc_prob_2nu_matter_std(sth: float, Dm2: float, VCC: float, energy: float,
 
     Returns
     -------
-    list
+    np.ndarray
         List of probabilities [Pee, Pem, Pme, Pmm].
     """
     # x = 2.0*VCC*(energy*1.e9)/Dm2
@@ -89,6 +120,8 @@ def delta(a: int, b: int) -> int:
 
     Returns the delta function delta(a, b) = 1 if a == b and 0 if a != b.
 
+    .. versionadded:: 0.10.0
+
     Parameters
     ----------
     a : int
@@ -115,9 +148,11 @@ def J(U: Union[list, np.ndarray], alpha: int, beta: int, k: int, j: int) -> comp
     product appears in the standard expression for the three-neutrino oscillation probability in
     vacuum.
 
+    .. versionadded:: 0.10.0
+
     Parameters
     ----------
-    U : list
+    U : list or np.ndarray
         3x3 PMNS complex mixing matrix.
     alpha : int
         Index of the initial flavor (0: e, 1: mu, 2: tau).
@@ -126,12 +161,12 @@ def J(U: Union[list, np.ndarray], alpha: int, beta: int, k: int, j: int) -> comp
     k : int
         First index of the sum over mass eigenstates (k = 0, 1, 2).
     j : int
-        First index of the sum over mass eigenstates (k = 0, 1, 2).
+        Second index of the sum over mass eigenstates (j = 0, 1, 2).
 
     Returns
     -------
-    float
-        J(U, alpha, beta, j, j)
+    complex
+        J(U, alpha, beta, k, j)
     """
     return np.conj(U[alpha][k])*U[beta][k]*U[alpha][j]*np.conj(U[beta][j])
 
@@ -143,22 +178,27 @@ def osc_prob_3nu_vacuum_std(U: Union[list, np.ndarray], D21: float, D31: float, 
     Returns the probabilities for three-neutrino oscillations in vacuum, computed using the standard
     analytical expression of the probabilities.
 
+    .. versionadded:: 0.10.0
+
     Parameters
     ----------
-    U : list
+    U : list or np.ndarray
         3x3 PMNS complex mixing matrix.
     D21 : float
-        Mass-squared difference Delta m^2_21.
+        Mass-squared difference :math:`\Delta m_{21}^2`.
     D31 : float
-        Mass-squared difference Delta m^2_31.
+        Mass-squared difference :math:`\Delta m_{31}^2`.
     energy : float
         Neutrino energy.
     L : float
         Baseline.
+    nubar : bool, optional
+        If True, compute the probability for antineutrinos (flips the
+        sign of the CP-violating term). Default: False.
 
     Returns
     -------
-    list
+    np.ndarray
         List of probabilities [Pee, Pem, Pet, Pme, Pmm, Pmt, Pte, Ptm, Ptt].
     """
     D32 = D31-D21
@@ -187,3 +227,12 @@ def osc_prob_3nu_vacuum_std(U: Union[list, np.ndarray], D21: float, D31: float, 
 
     # [[Pee, Pem, Pet], [Pme, Pmm, Pmt], [Pte, Ptm, Ptt]]
     return np.array(prob).reshape((3,3))
+
+
+__all__ = [
+    'osc_prob_2nu_vacuum_std',
+    'osc_prob_2nu_matter_std',
+    'delta',
+    'J',
+    'osc_prob_3nu_vacuum_std',
+]

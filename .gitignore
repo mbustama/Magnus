@@ -1,7 +1,11 @@
 *.pyc
+__pycache__/
 *.pdf
 *.jpg
 *.jpeg
 old/
 .ipynb_checkpoints
 docs/build
+build/
+dist/
+*.egg-info/
