@@ -91,7 +91,7 @@ def mixing_matrix_5x5(s12: float, s23: float, s13:float, d13: float, s14: float,
         f6 = -s13*exp_d13_p*f5
         U20 = -s12*f3 + c12*(f6 + c13*f4)
         U21 = c12*f3 + s12*(f6 + c13*f4)
-        U22 = c13*(f5 + s13*exp_d13_m*f4)
+        U22 = c13*f5 + s13*exp_d13_m*f4
         U23 = -c25*s14*s15*s35*exp_d14_m*exp_d15_p*exp_d35_m \
                 + c14*(c24*c35*s34-s24*s25*s35*exp_d24_m*exp_d35_m)
         U24 = c15*c25*s35*exp_d35_m
@@ -175,9 +175,9 @@ def mixing_matrix_5x5(s12: float, s23: float, s13:float, d13: float, s14: float,
             [0, 0, -s34, c34, 0],
             [0, 0, 0, 0, 1]])
         R35 = np.array([
-            [1, 0, 0, 0, 0], 
-            [0, 1, 0, 0, 0], 
-            [0, 0, c35, 0, s35*exp_d35_p], 
+            [1, 0, 0, 0, 0],
+            [0, 1, 0, 0, 0],
+            [0, 0, c35, 0, s35*exp_d35_m],
             [0, 0, 0, 1, 0],
             [0, 0, -s35*exp_d35_p, 0, c35]])
 

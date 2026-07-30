@@ -230,44 +230,45 @@ def hamiltonian_2nu_matter_td(l: float, VCC_func: Callable) -> np.ndarray:
 def hamiltonian_2nu_nsi(VCC: float, eps_aa: float, eps_ab: complex) -> np.ndarray:
     r"""Returns the two-neutrino Hamiltonian for oscillations with NSI.
 
-    Computes and returns the 2x2 real two-neutrino Hamiltonian for oscillations with non-standard 
-    interactions (NSI) in matter with constant density.
+    Computes and returns the 2x2 complex two-neutrino Hamiltonian for oscillations with
+    non-standard interactions (NSI) in matter with constant density.
+
+    Two flavors admit only one physically meaningful diagonal NSI degree of freedom: an overall
+    (flavor-universal) diagonal shift is proportional to the identity matrix, so it commutes with
+    everything, contributes only an unobservable global phase to the evolution operator, and cannot
+    affect any oscillation probability.  ``eps_aa`` is therefore defined here as the non-universal
+    (flavor-off-diagonal-*difference*) coupling, following the convention eps_mumu = 0, i.e., it
+    parametrizes the coupling of :math:`\nu_e` alone, relative to :math:`\nu_\mu`.  [Earlier
+    versions of this function placed eps_aa on *both* diagonal entries, making it a pure multiple
+    of the identity and therefore a no-op on every oscillation probability -- this was a bug, not a
+    convention choice, confirmed by direct calculation.]
 
     Parameters
     ----------
-    h_vacuum_energy_independent : list
-        Energy-independent part of the two-neutrino Hamiltonian for oscillations in vacuum.  This is
-        computed by the routine hamiltonian_2nu_vacuum_energy_independent.
-    energy : float
-        Neutrino energy.
     VCC : float
         Potential due to charged-current interactions of nu_e with electrons.
-    eps : list
-        Vector of NSI strength parameters: eps = eps_ee, eps_em, eps_mm.
+    eps_aa : float
+        Non-universal diagonal NSI coupling of nu_e (relative to nu_mu, whose diagonal coupling is
+        fixed to 0 by this convention).
+    eps_ab : complex
+        Flavor-off-diagonal (nu_e-nu_mu) NSI coupling.
 
     Returns
     -------
-    list
+    np.ndarray
         Hamiltonian 2x2 matrix.
     """
-    return VCC * np.array([[eps_aa, eps_ab], [np.conj(eps_ab), eps_aa]], dtype=np.complex128)
-
-    # h_nsi = np.zeros((2,2))
-
-    # eps_ee, eps_em, eps_mm = eps
-
-    # h_nsi[0][0] = VCC*(1.0+eps_ee)
-    # h_nsi[0][1] = VCC*eps_em
-    # h_nsi[1][0] = VCC*np.conj(eps_em)
-    # h_nsi[1][1] = VCC*eps_mm
-
-    # return h_nsi
+    return VCC * np.array([[eps_aa, eps_ab], [np.conj(eps_ab), 0.0]], dtype=np.complex128)
 
 
-def hamiltonian_2nu_nsi_td(l: float, VCC_func: Callable, 
-    eps: Union[list, np.ndarray]) -> np.ndarray:
+def hamiltonian_2nu_nsi_td(l: float, VCC_func: Callable, eps_aa: float,
+    eps_ab: complex) -> np.ndarray:
+    r"""Returns the two-neutrino NSI Hamiltonian as a function of position.
 
-    return hamiltonian_2nu_nsi(VCC_func(l), eps)
+    Same as :func:`hamiltonian_2nu_nsi`, but evaluates the position-dependent matter potential
+    ``VCC_func(l)`` first.
+    """
+    return hamiltonian_2nu_nsi(VCC_func(l), eps_aa, eps_ab)
 
 
 def hamiltonian_2nu_liv(energy: float, sxi: float, b1: float, b2: float, Lambda: float, n_liv: int,
@@ -331,11 +332,14 @@ def hamiltonian_2nu_liv_energy_independent(sxi: float, b1: float, b2: float,
     list
         Hamiltonian 2x2 matrix.
     """
+    # H = R . diag(b1, b2) . R^T, with R = mixing_matrix_2nu(sxi) -- the same convention used by
+    # every sibling Hamiltonian (2nu vacuum's slow path, and the 3/4/5nu LIV Hamiltonians).  The
+    # off-diagonal sign below was previously flipped relative to this convention (a confirmed bug).
     cxi = np.sqrt(1.0 - sxi * sxi)
     delta_b = b2 - b1
 
     return pow(1.0 / Lambda, n_liv) * np.array([
-        [b1 * cxi * cxi + b2 * sxi * sxi, -delta_b * cxi * sxi],
-        [-delta_b * cxi * sxi, b2 * cxi * cxi + b1 * sxi * sxi]
+        [b1 * cxi * cxi + b2 * sxi * sxi, delta_b * cxi * sxi],
+        [delta_b * cxi * sxi, b2 * cxi * cxi + b1 * sxi * sxi]
     ], dtype=np.float64)
 

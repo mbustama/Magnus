@@ -72,14 +72,14 @@ def mixing_matrix_4x4(s12: float, s23: float, s13:float, d13: float, s14: float,
 
         f2 = -c34*s23 - c23*s24*s34*exp_d24_p
         f3 = -c13*c24*s14*s34*exp_d14_p - s13*exp_d13_p*(c23*c34-s23*s24*s34*exp_d24_p)
-        U20 = -s13*f2 + c12*f3
+        U20 = -s12*f2 + c12*f3
         U21 = c12*f2 + s12*f3
         U22 = -c24*s13*s14*s34*exp_d13_m*exp_d14_p + c13*(c23*c34-s23*s24*s34*exp_d24_p)
         U23 = c14*c24*s34
 
         f4 = -c23*c34*s24*exp_d24_p + s23*s34
         f5 = -c13*c24*c34*s14*exp_d14_p - s13*exp_d13_p*(-c34*s23*s24*exp_d24_p - c23*s34)
-        U30 = -s12*f4 + s12*f5
+        U30 = -s12*f4 + c12*f5
         U31 = c12*f4 + s12*f5
         U32 = -c24*c34*s13*s14*exp_d13_m*exp_d14_p + c13*(-c34*s23*s24*exp_d24_p - c23*s34)
         U33 = c14*c24*c34
@@ -250,10 +250,16 @@ def hamiltonian_4nu_nsi(
         ], dtype=np.complex128)
 
 
-def hamiltonian_4nu_nsi_td(l: float, VCC_func: Callable, 
-    eps: Union[list, np.ndarray]) -> np.ndarray:
+def hamiltonian_4nu_nsi_td(l: float, VCC_func: Callable, eps_ee: float, eps_em: complex,
+    eps_et: complex, eps_es: complex, eps_mm: float, eps_mt: complex, eps_ms: complex,
+    eps_tt: float, eps_ts: complex, eps_ss: float) -> np.ndarray:
+    r"""Returns the four-neutrino NSI Hamiltonian as a function of position.
 
-    return hamiltonian_4nu_nsi(VCC_func(l), eps)
+    Same as :func:`hamiltonian_4nu_nsi`, but evaluates the position-dependent matter potential
+    ``VCC_func(l)`` first.
+    """
+    return hamiltonian_4nu_nsi(VCC_func(l), eps_ee, eps_em, eps_et, eps_es, eps_mm, eps_mt, eps_ms,
+        eps_tt, eps_ts, eps_ss)
 
 
 def hamiltonian_4nu_liv(energy: float, sxi12: float, sxi23: float, sxi13: float, dxi13: float, 

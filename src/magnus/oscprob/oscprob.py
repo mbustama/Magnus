@@ -1009,6 +1009,9 @@ def unpack_nsi_params_from_dict(
                 "h_nsi is None.")
             print("Aborting execution...")
             sys.exit(1)
+        # num_flavors exceeds the predefined range: the caller builds its Hamiltonian directly from
+        # h_nsi instead of from a flat parameter list, so there is nothing to unpack here.
+        return None
     elif (num_flavors < 1):
         print(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + ": num_flavors must be " + \
             ">= 2.")
@@ -1162,6 +1165,9 @@ def unpack_liv_params_from_dict(
                 "h_liv is None.")
             print("Aborting execution...")
             sys.exit(1)
+        # num_flavors exceeds the predefined range: the caller builds its Hamiltonian directly from
+        # h_liv instead of from a flat parameter list, so there is nothing to unpack here.
+        return None
     elif (num_flavors < 1):
         print(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + ": num_flavors must be " + \
             ">= 2.")

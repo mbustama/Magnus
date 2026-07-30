@@ -264,10 +264,14 @@ def hamiltonian_3nu_nsi(
         ], dtype=np.complex128)
 
 
-def hamiltonian_3nu_nsi_td(l: float, VCC_func: Callable, 
-    eps: Union[list, np.ndarray]) -> np.ndarray:
+def hamiltonian_3nu_nsi_td(l: float, VCC_func: Callable, eps_ee: float, eps_em: complex,
+    eps_et: complex, eps_mm: float, eps_mt: complex, eps_tt: float) -> np.ndarray:
+    r"""Returns the three-neutrino NSI Hamiltonian as a function of position.
 
-    return hamiltonian_3nu_nsi(VCC_func(l), eps)
+    Same as :func:`hamiltonian_3nu_nsi`, but evaluates the position-dependent matter potential
+    ``VCC_func(l)`` first.
+    """
+    return hamiltonian_3nu_nsi(VCC_func(l), eps_ee, eps_em, eps_et, eps_mm, eps_mt, eps_tt)
 
 
 def hamiltonian_3nu_liv(energy: float, sxi12: float, sxi23: float, sxi13: float, dxiCP: float, b1: float, 
