@@ -17,6 +17,7 @@ precision, at any accuracy setting.  See
 ## Table of Contents
 
 - [When is Magνs a win?](#when-is-magnus-a-win)
+- [When is Magνs not the right tool?](#when-is-magnus-not-the-right-tool)
 - [File Tree](#file-tree)
 - [Two ways to use Magνs](#two-ways-to-use-magnus)
   - [As a Python module](#as-a-python-module)
@@ -76,6 +77,44 @@ should raise `max_n_slabs` (or use an adiabatic approximation, which is the
 natural method in that regime).  And a tight-tolerance ODE solver remains the
 best *reference* for validation — Mag$`\nu`$s's own test suite uses
 `scipy.integrate.solve_ivp` at `rtol=1e-12` as ground truth.
+
+## When is Mag$`\nu`$s not the right tool?
+
+Mag$`\nu`$s solves the **unitary** Schrödinger equation for a Hermitian
+Hamiltonian: any truncation of the Magnus series lives in the Lie algebra, so
+the package is architecturally committed to norm-preserving, reversible
+evolution.  That rules out several classes of problems that show up in
+neutrino phenomenology:
+
+1. **Quantum decoherence.**  Wave-packet separation, quantum-gravity-induced
+   decoherence, or any model where coherence between mass eigenstates is
+   damped over the baseline requires evolving a density matrix under a
+   non-unitary master equation (e.g., Lindblad/GKSL), not a state vector
+   under a Hamiltonian.  Mag$`\nu`$s has no dissipative term and cannot
+   represent one.
+
+2. **Open-system coupling to a bath.**  Any scenario where the neutrino
+   exchanges energy or phase information with an environment — collisional
+   decoherence, thermal baths, stochastic scattering beyond the mean-field
+   matter potential — needs a reduced density matrix with dissipators,
+   which is again outside a Hermitian-Hamiltonian, pure-state framework.
+
+3. **Neutrino decay.**  Invisible or visible decay into lighter states
+   removes probability from the system, so the evolution is no longer
+   norm-preserving.  A Hermitian effective Hamiltonian cannot encode a decay
+   width — that requires an anti-Hermitian term, which breaks the unitarity
+   the whole method relies on.
+
+4. **Self-consistent collective oscillations.**  Dense-environment (e.g.,
+   supernova) neutrino self-interactions, where the effective Hamiltonian
+   depends on the (unknown, evolving) neutrino/antineutrino flavor content
+   itself, are a nonlinear, self-consistent problem.  Mag$`\nu`$s assumes the
+   Hamiltonian is a *known* function of energy and position supplied by the
+   caller, not a functional of the solution.
+
+If your problem needs any of the above, look instead at packages built
+around density-matrix/Lindblad evolution (for decoherence or decay) or
+dedicated collective-oscillation codes (for self-interaction problems).
 
 ---
 

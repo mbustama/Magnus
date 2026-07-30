@@ -77,7 +77,7 @@ napoleon_numpy_docstring = True
 bibtex_bibfiles = ['refs.bib']
 
 templates_path = ['_templates']
-exclude_patterns = ['_build', 'sandbox']
+exclude_patterns = ['_build']
 
 # The master toctree document.
 master_doc = 'index'

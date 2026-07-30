@@ -73,6 +73,48 @@ suite uses ``scipy.integrate.solve_ivp`` at ``rtol=1e-12`` as ground truth.
 See :doc:`methodology` for the full numerical story, including how these
 numbers were measured.
 
+.. _when-is-magnus-not-the-right-tool:
+
+When is Magνs not the right tool?
+-------------------------------------
+
+Magνs solves the **unitary** Schrödinger equation for a Hermitian
+Hamiltonian: any truncation of the Magnus series lives in the Lie algebra, so
+the package is architecturally committed to norm-preserving, reversible
+evolution.  That rules out several classes of problems that show up in
+neutrino phenomenology:
+
+#. **Quantum decoherence.**  Wave-packet separation, quantum-gravity-induced
+   decoherence, or any model where coherence between mass eigenstates is
+   damped over the baseline requires evolving a density matrix under a
+   non-unitary master equation (e.g., Lindblad/GKSL), not a state vector
+   under a Hamiltonian.  Magνs has no dissipative term and cannot represent
+   one.
+
+#. **Open-system coupling to a bath.**  Any scenario where the neutrino
+   exchanges energy or phase information with an environment --
+   collisional decoherence, thermal baths, stochastic scattering beyond the
+   mean-field matter potential -- needs a reduced density matrix with
+   dissipators, which is again outside a Hermitian-Hamiltonian, pure-state
+   framework.
+
+#. **Neutrino decay.**  Invisible or visible decay into lighter states
+   removes probability from the system, so the evolution is no longer
+   norm-preserving.  A Hermitian effective Hamiltonian cannot encode a decay
+   width -- that requires an anti-Hermitian term, which breaks the
+   unitarity the whole method relies on.
+
+#. **Self-consistent collective oscillations.**  Dense-environment (e.g.,
+   supernova) neutrino self-interactions, where the effective Hamiltonian
+   depends on the (unknown, evolving) neutrino/antineutrino flavor content
+   itself, are a nonlinear, self-consistent problem.  Magνs assumes the
+   Hamiltonian is a *known* function of energy and position supplied by the
+   caller, not a functional of the solution.
+
+If your problem needs any of the above, look instead at packages built
+around density-matrix/Lindblad evolution (for decoherence or decay) or
+dedicated collective-oscillation codes (for self-interaction problems).
+
 Salient Features
 -----------------
 
