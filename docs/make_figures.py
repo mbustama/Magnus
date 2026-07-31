@@ -40,6 +40,8 @@ SVG_METADATA = {'Date': None}
 STATIC = Path(__file__).resolve().parent / 'source' / '_static'
 
 # Palette matching the hand-authored figures on the same page.
+BLUE = '#1c71d8'    # the oscillating probability
+ORANGE = '#e66100'  # its phase-averaged value
 GREEN = '#2ec27e'   # purely adiabatic cases (no Magnus patch needed)
 RED = '#c01c28'     # cases needing one or more Magnus patches
 INK = '#333333'
@@ -99,9 +101,69 @@ def speedup_chart(path):
     print(f'wrote {path}')
 
 
+def averaging_regimes(path):
+    """The three regimes a pair of eigenvalues can be in, and where averaging applies.
+
+    Data-driven rather than hand-drawn: the curve is a real two-flavour vacuum
+    probability, so the figure cannot drift away from the formula it illustrates.
+
+    The phase axis is logarithmic because the three regimes span decades -- on a linear
+    axis the coherent one (below ~1e-2 rad) is an invisible sliver against the many
+    cycles of the decohered one.
+    """
+    import numpy as np
+
+    # P = 1 - sin^2(2 theta) sin^2(Delta), with Delta the accumulated relative phase.
+    sin2_2theta = 0.85
+    phase = np.logspace(-3.0, np.log10(40.0), 6000)
+    prob = 1.0 - sin2_2theta*np.sin(phase)**2
+    averaged = 1.0 - 0.5*sin2_2theta
+
+    coherent_edge, decohered_edge = 1.0e-2, 2.0*np.pi
+
+    fig, ax = plt.subplots(figsize=(7.8, 3.6))
+
+    ax.axvspan(1.0e-3, coherent_edge, color=GREEN, alpha=0.13)
+    ax.axvspan(coherent_edge, decohered_edge, color=RED, alpha=0.11)
+    ax.axvspan(decohered_edge, 40.0, color=GRID, alpha=0.45)
+
+    ax.plot(phase, prob, color=BLUE, lw=1.0, label='Oscillation probability')
+    ax.axhline(averaged, color=ORANGE, lw=1.6, ls='--', label='Phase-averaged value')
+
+    ax.axvline(coherent_edge, color=INK, lw=0.8, ls=':')
+    ax.axvline(decohered_edge, color=INK, lw=0.8, ls=':')
+
+    # Annotations sit below the oscillation's minimum (1 - sin^2 2theta = 0.15), so they
+    # never overlap the curve however many cycles are drawn.
+    for x, text in [(3.0e-3, 'coherent:\nnothing to average'),
+                    (0.22, 'neither limit:\nno averaged expression\ndescribes this'),
+                    (13.0, 'decohered:\nthe average is exact')]:
+        ax.annotate(text, (x, 0.015), fontsize=8.5, color=INK, ha='center', va='bottom')
+
+    ax.set_xlabel(r'Accumulated relative phase, $(\lambda_i-\lambda_j)\,L$  [rad]', fontsize=9)
+    ax.set_ylabel('Probability', fontsize=9)
+    ax.set_xscale('log')
+    ax.set_xlim(1.0e-3, 40.0)
+    ax.set_ylim(0.0, 1.05)
+    ax.tick_params(colors=INK, labelsize=9)
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    for side in ('left', 'bottom'):
+        ax.spines[side].set_color(INK)
+
+    # Above the axes: inside, it sits on top of the oscillation at large phase.
+    ax.legend(loc='lower center', bbox_to_anchor=(0.5, 1.02), frameon=False, fontsize=9, ncol=2)
+
+    fig.subplots_adjust(left=0.09, right=0.98, top=0.87, bottom=0.19)
+    fig.savefig(path, metadata=SVG_METADATA)
+    plt.close(fig)
+    print(f'wrote {path}')
+
+
 def main():
     STATIC.mkdir(parents=True, exist_ok=True)
     speedup_chart(STATIC / 'adiabatic_speedup.svg')
+    averaging_regimes(STATIC / 'averaging_regimes.svg')
     return 0
 
 

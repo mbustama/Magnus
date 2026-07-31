@@ -303,6 +303,7 @@ import magnus.hamiltonians as hamiltonians
 import magnus.matter as matter
 import magnus.earth as earth
 import magnus.adiabatic as adiabatic
+import magnus.avgprob as avgprob
 from magnus import version
 from magnus import authors
 
@@ -416,6 +417,26 @@ class HybridCertificationWarning(ToleranceNotAchievedWarning):
     *it* also fails to converge), so this warning fires only when
     ``strategy='hybrid'`` was explicitly requested. See
     :doc:`/adiabatic_strategy`.
+
+    .. versionadded:: 1.0.0
+    """
+
+
+class PhaseAveragingWarning(UserWarning):
+    r"""Warns that ``average=True`` was requested at an (energy, L) point
+    where the oscillation has not, in fact, averaged.
+
+    The phase-averaged probability is the exact limit reached when every
+    pair of eigenvalues has accumulated many cycles of relative phase (see
+    :mod:`magnus.avgprob`).  A pair whose relative phase is neither much
+    larger than :math:`2\pi` nor much smaller than one radian is in
+    neither limit, and no averaged expression describes it -- the
+    oscillation probability itself is the meaningful quantity there.
+
+    This is not a statement about numerical accuracy: the returned matrix
+    is still a valid, doubly stochastic probability matrix.  It is a
+    statement that the *question* does not apply at that baseline, which
+    is why it warns rather than refining anything.
 
     .. versionadded:: 1.0.0
     """
@@ -2092,6 +2113,169 @@ def osc_prob(
             loop_count += 1
 
 
+def _avg_prob_dispatch(
+    htot: Callable,
+    htot_is_function_only_of_energy: bool,
+    energy: Union[int, float, list, np.ndarray],
+    L: Union[int, float, list, np.ndarray],
+    L0: Union[int, float],
+    nu_i: Optional[int],
+    nu_f: Optional[int],
+    average: bool,
+    source_func_name: str,
+    smooth_profile: Optional[bool] = True,
+    engine_kwargs: Optional[dict] = None
+):
+    r"""Phase-averaged probabilities, for the position-independent Hamiltonians.
+
+    Returns ``NotImplemented`` when ``average`` is falsy, so a caller can place this ahead of
+    its ordinary dispatch chain and fall through untouched in the default case.
+
+    Averaging is exact here and costs one eigendecomposition per energy: with the Hamiltonian
+    independent of position, the evolution is a fixed set of phases whose averages are known in
+    closed form (see :mod:`magnus.avgprob`).  Which pairs of eigenvalues have actually averaged
+    is decided from the baseline rather than assumed, so a request made where the oscillation
+    has not decohered is warned about instead of being answered with an expression that does not
+    describe it.
+
+    .. versionadded:: 1.0.0
+
+    Parameters
+    ----------
+    htot : Callable
+        Total Hamiltonian as a function of energy alone [eV].
+    htot_is_function_only_of_energy : bool
+        Whether ``htot`` is independent of position.  Averaging a position-dependent
+        Hamiltonian needs the adiabatic treatment, which this does not yet implement.
+    energy : int, float, list, or np.ndarray
+        Neutrino energy/energies [eV].
+    L : int, float, list, or np.ndarray
+        Baseline(s) [:math:`\text{eV}^{-1}`], used to decide which eigenvalue pairs have
+        decohered.
+    nu_i, nu_f : int or None
+        Initial and final flavor; if both are given, the single probability is returned.
+    average : bool
+        Whether the caller asked for the averaged probability.
+    source_func_name : str
+        Name of the calling function, for error messages.
+
+    Returns
+    -------
+    np.ndarray, float, or NotImplemented
+        The averaged probabilities, shaped as the caller's ordinary return value, or
+        ``NotImplemented`` if ``average`` is falsy.
+    """
+    if not average:
+        return NotImplemented
+
+    sample_numerically = (not htot_is_function_only_of_energy) and (not smooth_profile)
+    if sample_numerically and (engine_kwargs is None):
+        raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": average=True "
+            "needs a Hamiltonian that is either constant along the trajectory or smooth enough "
+            "to have an instantaneous eigenbasis, and this caller cannot fall back to sampling.")
+
+    energy_arr, L_arr, return_float, ok = _normalize_energy_L(energy, L)
+    if not ok:
+        raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": the energy "
+            "and L arrays must have the same length, or one of them must be a single value.")
+    if len(energy_arr) == 1 and len(L_arr) > 1:
+        energy_arr = np.repeat(energy_arr, len(L_arr))
+    if len(L_arr) == 1 and len(energy_arr) > 1:
+        L_arr = np.repeat(L_arr, len(energy_arr))
+
+    n_pts = len(energy_arr)
+    undecided_points = 0
+    uncertified_points = 0
+
+    if htot_is_function_only_of_energy:
+        # Constant along the trajectory: the averaged limit is closed-form, one
+        # eigendecomposition per energy.
+        H = np.stack([np.asarray(htot(float(enu)), dtype=complex) for enu in energy_arr])
+        eigenvalues, eigenvectors = np.linalg.eigh(H)
+        d = H.shape[-1]
+        P_out = np.empty((n_pts, d, d))
+        for i in range(n_pts):
+            blocks, undecided = avgprob.coherence_report(eigenvalues[i], float(L_arr[i]))
+            if undecided: undecided_points += 1
+            P_out[i] = avgprob.averaged_probabilities_from_eigenbasis(eigenvectors[i],
+                blocks=blocks)
+    elif sample_numerically:
+        # No closed form: the profile steps through discontinuities (PREM layer boundaries),
+        # so there is no instantaneous eigenbasis to decohere in.  The probability is instead
+        # propagated for real across an energy window and averaged over it.
+        #
+        # This is a different quantity from the two branches above.  They return the exact
+        # L/E -> infinity limit, which needs no window; this returns the average over one
+        # particular window, and the answer depends on its width.  That is why it is warned
+        # about below, and why the width is a named constant rather than a literal.
+        d = np.asarray(htot(float(energy_arr[0]), float(L0)), dtype=complex).shape[-1]
+        P_out = np.empty((n_pts, d, d))
+        eng = dict(engine_kwargs)
+        extra = eng.pop('kwargs', None) or {}
+        worst_sem = 0.0
+        for i in range(n_pts):
+            L_i = float(L_arr[i])
+
+            def prob_of_energy(enu, L_i=L_i):
+                return osc_prob_energy_baseline(htot, enu, L_i, L0, None, None,
+                    htot_is_function_only_of_energy, **eng, **extra)
+
+            P_out[i], sem = avgprob.averaged_probabilities_numerically(prob_of_energy,
+                float(energy_arr[i]))
+            worst_sem = max(worst_sem, sem)
+
+        warnings.warn(gd.WARNING_MSG_NO_COLOR + " oscprob." + source_func_name + ": average=True "
+            "on a profile with discontinuities has no closed form, so the probability was "
+            "propagated across an energy window of +/-" +
+            str(100.0*avgprob.AVG_DEFAULT_ENERGY_SPREAD) + "% and averaged over " +
+            str(avgprob.AVG_DEFAULT_N_SAMPLES) + " samples.  This is the average over that "
+            "window, not the L/E -> infinity limit, and it depends on the window: the largest "
+            "standard error of the mean here is " + format(worst_sem, '.2e') + ".  Pass an "
+            "explicit width via magnus.avgprob.averaged_probabilities_numerically if the "
+            "measurement has a known resolution.  Shown once per session.",
+            PhaseAveragingWarning, stacklevel=3)
+
+    else:
+        # Position-dependent and smooth: decohere in the eigenbasis at production, transport
+        # along the levels of the instantaneous Hamiltonian (with the exact crossing
+        # probabilities wherever the evolution stops being adiabatic), and read out in the
+        # eigenbasis at detection.  See magnus.avgprob.averaged_probabilities_adiabatic.
+        d = np.asarray(htot(float(energy_arr[0]), float(L0)), dtype=complex).shape[-1]
+        P_out = np.empty((n_pts, d, d))
+        for i in range(n_pts):
+            enu = float(energy_arr[i])
+
+            def H_of_l(l, enu=enu):
+                return htot(enu, l)
+
+            P_out[i], report = avgprob.averaged_probabilities_adiabatic(H_of_l, float(L0),
+                float(L_arr[i]))
+            if report['undecided'] or report['undecided_between_crossings']:
+                undecided_points += 1
+            if not report['patches_converged']:
+                uncertified_points += 1
+
+    if uncertified_points > 0:
+        warnings.warn(gd.WARNING_MSG_NO_COLOR + " oscprob." + source_func_name + ": the local "
+            "Magnus patch across a non-adiabatic crossing did not converge at " +
+            str(uncertified_points) + " of " + str(n_pts) + " (energy, L) point(s), so the "
+            "level-crossing probabilities there are not trustworthy.  Shown once per session.",
+            HybridCertificationWarning, stacklevel=3)
+
+    if undecided_points > 0:
+        warnings.warn(gd.WARNING_MSG_NO_COLOR + " oscprob." + source_func_name + ": the averaged "
+            "probability was requested at " + str(undecided_points) + " of " +
+            str(len(energy_arr)) + " (energy, L) point(s) where at least one pair of eigenvalues "
+            "has neither decohered nor stayed coherent, so no averaged expression describes it.  "
+            "The oscillation probability itself (average=False) is the meaningful quantity there. "
+            "Shown once per session.", PhaseAveragingWarning, stacklevel=3)
+
+    if (nu_i is not None) and (nu_f is not None):
+        P_out = P_out[:, nu_i, nu_f]
+
+    return P_out.__getitem__(0 if return_float else slice(None))
+
+
 def _normalize_energy_L(
     energy: Union[int, float, list, np.ndarray],
     L: Union[int, float, list, np.ndarray]
@@ -3355,6 +3539,7 @@ def osc_prob_vacuum(
     L: Union[int, float, list, np.ndarray], 
     osc_params: Dict,
     h_vac_energy_indep: Union[list, np.ndarray]=None,
+    average: Optional[bool]=False,
     nubar: Optional[bool]=False, 
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
@@ -3513,6 +3698,15 @@ def osc_prob_vacuum(
 
     htot_is_function_only_of_energy = True
 
+    # Phase-averaged limit, requested with average=True: exact and closed-form whenever the
+    # Hamiltonian does not depend on position, so it is tried before any of the propagation
+    # machinery below, all of which would resolve phases that the average discards (see
+    # _avg_prob_dispatch and :mod:`magnus.avgprob`).
+    P_avg = _avg_prob_dispatch(htot, htot_is_function_only_of_energy, energy, L, 0.0, nu_i, nu_f,
+        average, 'osc_prob_vacuum')
+    if P_avg is not NotImplemented:
+        return P_avg
+
     # Generate the probabilities for all pairs of energy and baseline in zip(energy, L).  (The
     # Hamiltonian is constant in position, so osc_prob computes each point exactly with a single
     # slab; the tolerance and refinement parameters play no role and are not forwarded.)
@@ -3537,6 +3731,7 @@ def osc_prob_matter_std_potential(
     density_matter_is_in_g_per_cm3: Optional[bool]=False,
     density_is_of_number_of_electrons: Optional[bool]=False,
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
+    average: Optional[bool]=False,
     strategy: Optional[str]='auto',
     t_slab_edges: Optional[Union[list, np.ndarray]]=None,
     magnus_exp_order: Optional[int]=4,
@@ -3777,6 +3972,7 @@ def osc_prob_matter_std_potential(
             return (1/enu)*h_vac_energy_indep+h_matt
         htot_is_function_only_of_energy = True
 
+
     scan_kwargs = dict(t_slab_edges=t_slab_edges, magnus_exp_order=magnus_exp_order, n_jobs=n_jobs,
         integration_method=integration_method, rtol=rtol, atol=atol,
         growth_factor_n_slabs=growth_factor_n_slabs,
@@ -3784,6 +3980,19 @@ def osc_prob_matter_std_potential(
         max_num_loops=max_num_loops, min_n_slabs=min_n_slabs, max_n_slabs=max_n_slabs,
         min_n_tpts_per_slab=min_n_tpts_per_slab, max_n_tpts_per_slab=max_n_tpts_per_slab,
         save_log=save_log, file_log=file_log, kwargs=kwargs)
+
+    # Phase-averaged limit, requested with average=True: exact and closed-form whenever the
+    # Hamiltonian does not depend on position, so it is tried before any of the propagation
+    # machinery below, all of which would resolve phases that the average discards (see
+    # _avg_prob_dispatch and :mod:`magnus.avgprob`).
+    # `or` on an array would ask for its truth value, so the emptiness test is explicit.
+    _breakpoints = kwargs.get('t_breakpoints')
+    _profile_is_smooth = ((_breakpoints is None or len(np.atleast_1d(_breakpoints)) == 0)
+                          and (t_slab_edges is None))
+    P_avg = _avg_prob_dispatch(htot, htot_is_function_only_of_energy, energy, L, L0, nu_i, nu_f,
+        average, 'osc_prob_matter_std_potential', smooth_profile=_profile_is_smooth, engine_kwargs=scan_kwargs)
+    if P_avg is not NotImplemented:
+        return P_avg
 
     # Fast path for a genuine exponential density profile (e.g., the Sun): factor out the
     # (possibly huge, at low energy) fast vacuum phase analytically in the interaction picture,
@@ -3846,6 +4055,7 @@ def osc_prob_matter_nsi(
     density_matter_is_in_g_per_cm3: Optional[bool]=False,
     density_is_of_number_of_electrons: Optional[bool]=False,
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
+    average: Optional[bool]=False,
     strategy: Optional[str]='auto',
     t_slab_edges: Optional[Union[list, np.ndarray]]=None,
     magnus_exp_order: Optional[int]=4,
@@ -4099,6 +4309,7 @@ def osc_prob_matter_nsi(
             return (1/enu)*h_vac_energy_indep+h_matt
         htot_is_function_only_of_energy = True
 
+
     scan_kwargs = dict(t_slab_edges=t_slab_edges, magnus_exp_order=magnus_exp_order, n_jobs=n_jobs,
         integration_method=integration_method, rtol=rtol, atol=atol,
         growth_factor_n_slabs=growth_factor_n_slabs,
@@ -4106,6 +4317,19 @@ def osc_prob_matter_nsi(
         max_num_loops=max_num_loops, min_n_slabs=min_n_slabs, max_n_slabs=max_n_slabs,
         min_n_tpts_per_slab=min_n_tpts_per_slab, max_n_tpts_per_slab=max_n_tpts_per_slab,
         save_log=save_log, file_log=file_log, kwargs=kwargs)
+
+    # Phase-averaged limit, requested with average=True: exact and closed-form whenever the
+    # Hamiltonian does not depend on position, so it is tried before any of the propagation
+    # machinery below, all of which would resolve phases that the average discards (see
+    # _avg_prob_dispatch and :mod:`magnus.avgprob`).
+    # `or` on an array would ask for its truth value, so the emptiness test is explicit.
+    _breakpoints = kwargs.get('t_breakpoints')
+    _profile_is_smooth = ((_breakpoints is None or len(np.atleast_1d(_breakpoints)) == 0)
+                          and (t_slab_edges is None))
+    P_avg = _avg_prob_dispatch(htot, htot_is_function_only_of_energy, energy, L, L0, nu_i, nu_f,
+        average, 'osc_prob_matter_nsi', smooth_profile=_profile_is_smooth, engine_kwargs=scan_kwargs)
+    if P_avg is not NotImplemented:
+        return P_avg
 
     # Fast path for a genuine exponential density profile (e.g., the Sun): see
     # _osc_prob_ip_exp_dispatch and the matching comment in osc_prob_matter_std_potential.
@@ -4161,6 +4385,7 @@ def osc_prob_liv(
     density_matter_is_in_g_per_cm3: Optional[bool]=False,
     density_is_of_number_of_electrons: Optional[bool]=False,
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
+    average: Optional[bool]=False,
     strategy: Optional[str]='auto',
     t_slab_edges: Optional[Union[list, np.ndarray]]=None,
     magnus_exp_order: Optional[int]=4,
@@ -4424,20 +4649,37 @@ def osc_prob_liv(
             return (1/enu)*h_vac_energy_indep + pow(enu,n_liv)*h_liv_energy_indep
         htot_is_function_only_of_energy = True
 
+
+    # Built unconditionally: every entry is a parameter of this function, and the averaging
+    # dispatch below needs them on the zero-density path too, where the rest of this block
+    # does not apply.
+    scan_kwargs = dict(t_slab_edges=t_slab_edges, magnus_exp_order=magnus_exp_order,
+        n_jobs=n_jobs, integration_method=integration_method, rtol=rtol, atol=atol,
+        growth_factor_n_slabs=growth_factor_n_slabs,
+        growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
+        max_num_loops=max_num_loops, min_n_slabs=min_n_slabs, max_n_slabs=max_n_slabs,
+        min_n_tpts_per_slab=min_n_tpts_per_slab, max_n_tpts_per_slab=max_n_tpts_per_slab,
+        save_log=save_log, file_log=file_log, kwargs=kwargs)
+
+    # Phase-averaged limit, requested with average=True: exact and closed-form whenever the
+    # Hamiltonian does not depend on position, so it is tried before any of the propagation
+    # machinery below, all of which would resolve phases that the average discards (see
+    # _avg_prob_dispatch and :mod:`magnus.avgprob`).
+    # `or` on an array would ask for its truth value, so the emptiness test is explicit.
+    _breakpoints = kwargs.get('t_breakpoints')
+    _profile_is_smooth = ((_breakpoints is None or len(np.atleast_1d(_breakpoints)) == 0)
+                          and (t_slab_edges is None))
+    P_avg = _avg_prob_dispatch(htot, htot_is_function_only_of_energy, energy, L, L0, nu_i, nu_f,
+        average, 'osc_prob_liv', smooth_profile=_profile_is_smooth, engine_kwargs=scan_kwargs)
+    if P_avg is not NotImplemented:
+        return P_avg
+
     # Energy-batched fast path: when many energies share a single baseline and the Hamiltonian
     # is position-dependent, compute the whole scan in one batched pipeline, with the potential
     # samples shared across energies (see _osc_prob_scan_separable).  If the request does not fit
     # the engine, fall back to the generic per-point path below.
     P_scan = NotImplemented
     if (rho_func != 0.0):  # VCC_func and h_matt exist only when there is matter
-        scan_kwargs = dict(t_slab_edges=t_slab_edges, magnus_exp_order=magnus_exp_order,
-            n_jobs=n_jobs, integration_method=integration_method, rtol=rtol, atol=atol,
-            growth_factor_n_slabs=growth_factor_n_slabs,
-            growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
-            max_num_loops=max_num_loops, min_n_slabs=min_n_slabs, max_n_slabs=max_n_slabs,
-            min_n_tpts_per_slab=min_n_tpts_per_slab, max_n_tpts_per_slab=max_n_tpts_per_slab,
-            save_log=save_log, file_log=file_log, kwargs=kwargs)
-
         # Fast path for a genuine exponential density profile (e.g., the Sun): see
         # _osc_prob_ip_exp_dispatch and the matching comment in osc_prob_matter_std_potential.
         P_scan = _osc_prob_ip_exp_dispatch(h_vac_energy_indep, VCC_func, h_matt,

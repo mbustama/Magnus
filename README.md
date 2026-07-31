@@ -30,6 +30,7 @@ precision, at any accuracy setting.  See
 
 - [When is Magνs a win?](#when-is-magnus-a-win)
 - [Adiabatic + Magnus hybrid strategy for extreme accumulated phases](#adiabatic--magnus-hybrid-strategy-for-extreme-accumulated-phases)
+- [Phase-averaged probabilities for astrophysical neutrinos](#phase-averaged-probabilities-for-astrophysical-neutrinos)
 - [When is Magνs not the right tool?](#when-is-magnus-not-the-right-tool)
 - [File Tree](#file-tree)
 - [Two ways to use Magνs](#two-ways-to-use-magnus)
@@ -134,6 +135,49 @@ P = oscprob.osc_prob_3nu_sun(8.0*gd.UNIT_MEV, 0.9*gd.SUN_RADIUS*gd.UNIT_KM, 0.0)
 See the [full derivation, validation, and worked examples](https://mbustama.github.io/Magnus/adiabatic_strategy.html)
 in the docs.
 
+## Phase-averaged probabilities for astrophysical neutrinos
+
+A neutrino from an astrophysical source arrives with an oscillation phase of
+order 10¹⁵ — far beyond what the source distance, the production region, or the
+detector's energy resolution pin down. Every oscillatory term is averaged away
+by the measurement, and the probability collapses to the exact
+$`L/E \to \infty`$ limit,
+
+```math
+P(\nu_\alpha \to \nu_\beta) = \sum_i |V_{\alpha i}|^2 |V_{\beta i}|^2
+```
+
+Pass `average=True` to any oscillation-probability function to get it:
+
+```python
+import magnus.oscprob as oscprob
+import magnus.globaldefs as gd
+
+osc = gd.load_nufit_params('NuFIT 6.1')
+P = oscprob.osc_prob_3nu_vacuum(1.0*gd.UNIT_TEV, 1.0e8*gd.UNIT_KM,
+                                average=True, **osc)
+```
+
+This is not an approximation to be refined — it is the exact limit, and it
+costs one matrix product (~20 μs) instead of resolving 10¹⁵ radians of phase.
+For vacuum it does not depend on energy or baseline at all, so one matrix
+serves an entire flux calculation. Matter, NSI and LIV are covered too, and a
+position-dependent profile decoheres in the eigenbasis at production, is
+carried along the levels of the instantaneous Hamiltonian — with exact
+level-crossing probabilities where the evolution stops being adiabatic — and is
+read out at detection.
+
+Whether the average *applies* is checked rather than assumed: a pair of
+eigenvalues whose relative phase is neither ≫ 2π nor ≪ 1 is in no valid limit,
+and the request warns instead of returning a number the physics does not
+support. Asking for an averaged probability at a 1000 km beamline does exactly
+that.
+
+See the [full derivation, diagram, and validation](https://mbustama.github.io/Magnus/averaged_probability.html)
+in the docs, and
+[notebook 12](notebooks/12_magnus_averaged_probability.ipynb) for worked
+examples across 2–5 flavors and a custom Hamiltonian.
+
 ## When is Mag$`\nu`$s not the right tool?
 
 Mag$`\nu`$s solves the **unitary** Schrödinger equation for a Hermitian
@@ -200,6 +244,7 @@ Magnus/
 │   │   ├── architecture.rst         # The wrapper/middle/primordial layering, with diagrams
 │   │   ├── methodology.rst          # The Magnus expansion, integrators, and performance engineering
 │   │   ├── adiabatic_strategy.rst   # The adiabatic + Magnus hybrid strategy: derivation, diagrams, validation
+│   │   ├── averaged_probability.rst # Phase-averaged probabilities: derivation, diagram, validation
 │   │   ├── tutorials.rst            # Guide to the numbered example notebooks in notebooks/
 │   │   ├── references.rst           # Bibliography page rendering
 │   │   ├── refs.bib                 # BibTeX citations for the Magnus-expansion and PREM literature
@@ -222,6 +267,7 @@ Magnus/
 │   ├── 09_magnus_bsm_liv.ipynb
 │   ├── 10_magnus_matrix_exponential.ipynb
 │   ├── 11_magnus_adiabatic_hybrid_strategy.ipynb
+│   ├── 12_magnus_averaged_probability.ipynb
 │   ├── matplotlibrc                 # Shared plot styling for the notebooks
 │   └── README.md                    # Per-notebook description and suggested reading order
 ├── src/
