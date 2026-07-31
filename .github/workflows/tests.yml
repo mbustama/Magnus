@@ -26,8 +26,64 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -e .
-          pip install pytest
+          pip install -e '.[test]'
 
       - name: Run test suite
         run: pytest tests/ -v
+
+  coverage:
+    # Deliberately a separate job rather than a fourth axis of the matrix above, or a flag
+    # added to it.  Instrumentation is not cheap here: measured locally, the suite goes
+    # from 188 s to 394 s, a factor of 2.1 -- an unusually large penalty, because the hot
+    # path is a per-slab Python loop rather than time spent inside numpy.  Since what a
+    # line or branch is exercised by does not depend on the interpreter, running it on all
+    # three would pay that cost three times for one number.  As its own job it runs in
+    # parallel with the matrix, so it does not delay the pass/fail signal from the tests
+    # themselves, but note it is the longest job in the workflow.
+    #
+    # (Python 3.12's sys.monitoring backend, COVERAGE_CORE=sysmon, does not help: it
+    # cannot measure branches before 3.14, so coverage warns and silently falls back to
+    # the tracing core.  Verified -- it made no difference to the wall time.)
+    name: Coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e '.[test]'
+
+      - name: Run test suite with coverage
+        # Settings (branch coverage, which sources, what is omitted) live in
+        # [tool.coverage.run] in pyproject.toml, so a local `pytest --cov` measures exactly
+        # what CI measures.  There is no --cov-fail-under: this job reports, it does not
+        # gate, until a threshold has been chosen from a real measurement.
+        run: pytest tests/ -q --cov --cov-report=term-missing --cov-report=xml
+
+      - name: Publish coverage summary
+        # Puts the table on the workflow run's summary page, so the number is readable
+        # without opening the log or downloading anything.
+        run: |
+          {
+            echo '### Coverage (statements and branches)'
+            echo
+            python -m coverage report --format=markdown
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload coverage report
+        # coverage.xml is the standard Cobertura format every coverage service consumes.
+        # Publishing it as an artifact keeps the report available now, while the repo is
+        # private and a badge is not yet possible; when the repo goes public, adding a
+        # codecov/codecov-action step here that uploads this same file is the whole change.
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-xml
+          path: coverage.xml
+          if-no-files-found: error

@@ -9,3 +9,7 @@ docs/build
 build/
 dist/
 *.egg-info/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/

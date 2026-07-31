@@ -30,8 +30,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-test = ["pytest"]
-dev = ["pytest", "twine", "build", "ruff"]
+test = ["pytest", "pytest-cov"]
+dev = ["pytest", "pytest-cov", "twine", "build", "ruff"]
 docs = ["sphinx", "sphinx-autoapi", "sphinx-rtd-theme", "sphinx-copybutton", "sphinxcontrib-bibtex", "sphinxcontrib-mermaid", "myst-parser", "jupyter-sphinx", "ipykernel"]
 
 [project.scripts]
@@ -82,3 +82,32 @@ ignore = [
 "docs/source/conf.py" = ["E402"]
 # Throwaway lambdas are idiomatic when building a one-off callable for a single assertion.
 "tests/*" = ["E731"]
+
+[tool.coverage.run]
+# `magnus` is the import package; `magnuspy` is only the distribution name, and coverage
+# measures imported source, so the directory below is what it has to be pointed at.
+source = ["src/magnus"]
+
+# Branch coverage, not just line coverage.  Line coverage flatters this codebase badly:
+# oscprob.py is ~15k lines, of which some 60 are near-identical thin wrappers that a single
+# parametrized test sweeps in one go.  What is actually worth knowing is whether the
+# dispatch chain (ip_exp -> hybrid -> scan_separable -> general), the refinement caps and
+# the warning paths are each exercised in both directions, and only branch coverage
+# reports that.
+branch = true
+
+# `python -m magnus` is a two-line delegation to cli.main, guarded by `if __name__ ==
+# "__main__"`, which is by construction never true under pytest.  Counting it would report
+# a permanent miss that no test can ever close.
+omit = ["src/magnus/__main__.py"]
+
+[tool.coverage.report]
+show_missing = true
+
+# Deliberately no `fail_under`.  A threshold picked before the first measurement either
+# sits below the real number and never fires, or above it and blocks unrelated work; the
+# number to pin is the one the suite actually reaches.
+exclude_also = [
+    # Import-time guards for running a module as a script; unreachable under pytest.
+    "if __name__ == .__main__.:",
+]
