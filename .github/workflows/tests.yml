@@ -1,15 +1,42 @@
 name: tests
 
+# Every commit is tested exactly once, whether or not it belongs to a pull request.
+#
+# Both events used to be unfiltered, so a branch with an open PR ran the whole workflow
+# twice per push -- two identical builds of the same commit, which with the Coverage job
+# is around twelve minutes of duplicated runner time. GitHub attaches check runs to the
+# commit, not to the event, so the push-triggered run already appears on the pull request:
+# the second run bought nothing.
+#
+# `push` matches every branch, so any branch is covered, including one with no pull
+# request open (an earlier [main, dev] filter silently skipped every push to
+# dev-plotting) and one whose name follows no convention. Tags are excluded because a
+# release tag points at a commit that was already tested on its branch.
 on:
   push:
-    # Development happens on dev and on dev-* topic branches (currently dev-plotting),
-    # so those must be covered too -- an exact [main, dev] filter silently skipped every
-    # push to dev-plotting.
-    branches: [main, dev, "dev-*"]
+    # '**' matches every branch, including names containing a slash. It has to be spelled
+    # out: a push filter naming only tags (even `tags-ignore: ['**']`) makes GitHub treat
+    # the workflow as tag-only and run it for no branch push at all -- which silently
+    # disabled every push build here until a pull request showed zero runs. Naming only
+    # branches has the mirror effect, which is the intent: tags do not build, since a
+    # release tag points at a commit its branch already tested.
+    branches: ['**']
   pull_request:
+
+# Superseded runs are not worth paying for: pushing twice to a branch in quick succession
+# cancels the older build. Not on main, where each commit is a merge that deserves its own
+# verification.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   pytest:
+    # Pull-request events are kept only for forks. A branch in this repository fires a
+    # push event, which is what runs the job above; a fork's branch does not, so without
+    # this its pull requests would get no CI at all -- a hole that would open silently the
+    # day the repository goes public and accepts an outside contribution.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -45,6 +72,8 @@ jobs:
     # cannot measure branches before 3.14, so coverage warns and silently falls back to
     # the tracing core.  Verified -- it made no difference to the wall time.)
     name: Coverage
+    # Same fork-only rule as the matrix job above.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:

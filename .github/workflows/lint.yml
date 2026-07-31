@@ -1,13 +1,28 @@
 name: Code Quality
 
+# Triggers match tests.yml exactly; see the explanation there. In short: a commit is
+# checked once, the push-triggered run is what appears on a pull request, and
+# pull_request events are kept only so that a fork's branches -- which never fire a push
+# event here -- are still covered.
 on:
   push:
-    branches: [main, dev, "dev-*"]
+    # '**' matches every branch, including names containing a slash. It has to be spelled
+    # out: a push filter naming only tags (even `tags-ignore: ['**']`) makes GitHub treat
+    # the workflow as tag-only and run it for no branch push at all -- which silently
+    # disabled every push build here until a pull request showed zero runs. Naming only
+    # branches has the mirror effect, which is the intent: tags do not build, since a
+    # release tag points at a commit its branch already tested.
+    branches: ['**']
   pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   lint:
     name: Run Ruff Linter
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -37,6 +52,7 @@ jobs:
 
   cli-docs:
     name: CLI reference is up to date
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -58,6 +74,7 @@ jobs:
 
   docs:
     name: Documentation builds
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
