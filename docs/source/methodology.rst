@@ -34,11 +34,14 @@ nested commutators of :math:`A(l) \equiv -i H(l)` :cite:p:`Blanes2009`:
 with :math:`B_j` the Bernoulli numbers (:math:`B_1 = -1/2` convention) and
 :math:`S_n^{(j)}` sums of :math:`j`-fold nested commutators of the
 lower-order terms with :math:`A`.  Magνs implements this recursion through
-:math:`n = 6` (odd Bernoulli numbers :math:`B_3 = B_5 = 0` vanish
+:math:`n = 10` (odd Bernoulli numbers :math:`B_3 = B_5 = 0` vanish
 identically, so only even-index commutator groups appear beyond
 :math:`\Omega_3`); the coefficients and every term were verified
 independently, term by term, against this recursion (see
-:ref:`validation`).
+:ref:`validation`).  Orders 1 to 6 are written out inline; beyond that the
+terms are generated from the recursion, since their number roughly doubles
+per order.  :doc:`expansion_terms` derives them symbolically at any order,
+which is what the verification checks against.
 
 **Truncating the series is exact for the group, not just approximate for
 the answer.**  Whatever order the sum stops at, :math:`\Omega` remains
@@ -201,6 +204,86 @@ more natural tool — see :doc:`adiabatic_strategy` for the
 built directly on top of the machinery described on this page (its local
 patches call the same :func:`magnus.magnus.magnus_expansion_multislab`
 kernel).
+
+Choosing the expansion order
+-------------------------------
+
+``magnus_exp_order`` defaults to 4, and for the tolerances most calculations
+ask for that is the right choice.  The adaptive refinement already turns a
+higher order into fewer slabs on its own, so the order and the requested
+tolerance interact: raising the order pays only once the tolerance is tight
+enough to make the extra work per slab worthwhile.
+
+Measured wall time relative to order 4 on the same problem (greater than 1
+means order 6 is faster):
+
+.. list-table::
+   :header-rows: 1
+   :widths: 16 17 17 15 17 18
+
+   * - Tolerance
+     - Earth 3ν, 1 GeV
+     - Earth 3ν, 10 GeV
+     - Earth 5ν
+     - Exponential density
+     - 200-energy scan
+   * - :math:`10^{-4}`
+     - 0.89
+     - 0.91
+     - 0.89
+     - 1.04
+     - 0.70
+   * - :math:`10^{-6}`
+     - 0.98
+     - 1.03
+     - 1.07
+     - 1.02
+     - 1.05
+   * - :math:`10^{-8}`
+     - 1.25
+     - 1.42
+     - 1.08
+     - 1.51
+     - 1.93
+
+So: leave the order alone for everyday work, and raise it to 6 if you are
+asking for :math:`10^{-7}` or tighter, where it runs up to twice as fast.
+Dropping to order 2 is almost never worthwhile -- at :math:`10^{-8}` on the
+Earth cases it needs thousands of slabs where order 6 needs about a hundred,
+and runs roughly twenty times slower.
+
+Beyond order 6 the terms are generated rather than written out, the count
+roughly doubles per order, and ``'gl'`` has no scheme at all (see
+:doc:`expansion_terms`), so orders 7 to 10 require ``'trapezoid'`` or
+``'simpson'`` and warn about their cost.  They are there for accuracy
+studies rather than production runs.
+
+.. note::
+   How these numbers were obtained, since they are the basis for leaving the
+   defaults alone.  Three measurements, all against a tight-tolerance
+   reference computed at order 6 with the slab cap raised:
+
+   #. **Cheapest configuration sweep.**  For each of seven cases -- Earth
+      PREM 3ν at 0.5, 1 and 10 GeV; Earth PREM 5ν; an exponential density
+      profile; the Sun at 100 MeV; and Earth 3ν with NSI -- and each of the
+      targets :math:`10^{-4}`, :math:`10^{-6}`, :math:`10^{-8}`, the smallest
+      slab count reaching that accuracy was found by explicit sweep at orders
+      2, 4 and 6, with the adaptive loop switched off.  Counted in
+      *Hamiltonian evaluations*, the optimal order rose monotonically with
+      tolerance in every case.
+   #. **Wall-time confirmation.**  Evaluation count turned out to be a poor
+      proxy: the fixed per-slab overhead (array setup, the eigendecomposition
+      for the matrix exponential, the slab product) outweighs the node count,
+      so fewer slabs matters more than fewer evaluations.  Re-timing the same
+      optima is what produced the table above, and it moved the crossover --
+      order 2 wins on evaluations at :math:`10^{-4}` but loses on wall time.
+   #. **Seed prototype, rejected.**  Because the starting slab count comes
+      from a phase target that is order-independent (:math:`2\pi` radians per
+      slab), an order-aware target was prototyped and A/B tested over 45
+      configurations (five cases × three orders × three tolerances).  It gave
+      no speed-up, and cost up to 20% on the energy scan: the final slab
+      count is set by the refinement loop, not the seed, so starting coarser
+      only adds an iteration.  The seed was left as it is.
 
 Silent vectorization and the energy-batched scan engine
 -------------------------------------------------------------
