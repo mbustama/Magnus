@@ -463,9 +463,6 @@ def print_run_parameters(
     max_n_slabs: Optional[int]=None, 
     min_n_tpts_per_slab: Optional[int]=2, 
     max_n_tpts_per_slab: Optional[int]=500,
-    iterate_over_magnus_exp_order: Optional[bool]=False,
-    min_magnus_exp_order: Optional[int]=1,
-    max_magnus_exp_order: Optional[int]=gd.MAGNUS_EXP_ORDER_MAX, 
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log', 
@@ -518,12 +515,6 @@ def print_run_parameters(
         Forwarded verbatim from the calling :func:`osc_prob`; see its docstring.
     max_n_tpts_per_slab : int
         Forwarded verbatim from the calling :func:`osc_prob`; see its docstring.
-    iterate_over_magnus_exp_order : bool
-        Forwarded verbatim from the calling :func:`osc_prob`; see its docstring.
-    min_magnus_exp_order : int
-        Forwarded verbatim from the calling :func:`osc_prob`; see its docstring.
-    max_magnus_exp_order : int
-        Forwarded verbatim from the calling :func:`osc_prob`; see its docstring.
     validate_input : bool
         Forwarded verbatim from the calling :func:`osc_prob`; see its docstring.
     save_log : bool
@@ -574,9 +565,6 @@ def print_run_parameters(
         print("   max_n_slabs = " + str(max_n_slabs), file=f)
         print("   min_n_tpts_per_slab = " + str(min_n_tpts_per_slab), file=f)
         print("   max_n_tpts_per_slab = " + str(max_n_tpts_per_slab), file=f)
-        print("   iterate_over_magnus_exp_order = " + str(iterate_over_magnus_exp_order), file=f)
-        print("   min_magnus_exp_order = " + str(min_magnus_exp_order), file=f)
-        print("   max_magnus_exp_order = " + str(max_magnus_exp_order), file=f)
         print("   validate_input = " + str(validate_input), file=f)
         print("   save_log = " + str(save_log), file=f)
         print("   filename_log = " + filename_log, file=f)
@@ -1582,9 +1570,6 @@ def osc_prob(
     max_n_slabs: Optional[int]=None, 
     min_n_tpts_per_slab: Optional[int]=2, 
     max_n_tpts_per_slab: Optional[int]=500, 
-    iterate_over_magnus_exp_order: Optional[bool]=False,
-    min_magnus_exp_order: Optional[int]=1,
-    max_magnus_exp_order: Optional[int]=gd.MAGNUS_EXP_ORDER_MAX, 
     validate_input: Optional[bool]=True,
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
@@ -1683,14 +1668,6 @@ def osc_prob(
         Number of time points per slab in the first refinement loop.
     max_n_tpts_per_slab : int, optional
         Maximum allowed number of time points per slab.
-    iterate_over_magnus_exp_order : bool, optional
-        If True, additionally increase ``magnus_exp_order`` from
-        ``min_magnus_exp_order`` to ``max_magnus_exp_order`` until the
-        requested tolerance is achieved.
-    min_magnus_exp_order : int, optional
-        Lowest expansion order tried when iterating over the order.
-    max_magnus_exp_order : int, optional
-        Highest expansion order tried when iterating over the order.
     validate_input : bool, optional
         If True, validate the input parameters (set to False for a
         small speed-up once a call is known to be well-formed).
@@ -1823,55 +1800,23 @@ def osc_prob(
         print_run_parameters(H_func, t_ini, t_fin, n_slabs, n_tpts_per_slab, t_slab_edges,
             magnus_exp_order, n_jobs, integration_method, rtol, atol, growth_factor_n_slabs,
             growth_factor_n_tpts_per_slab, max_num_loops, min_n_slabs, max_n_slabs, 
-            min_n_tpts_per_slab, max_n_tpts_per_slab, iterate_over_magnus_exp_order,
-            min_magnus_exp_order, max_magnus_exp_order, validate_input, save_log, filename_log, 
+            min_n_tpts_per_slab, max_n_tpts_per_slab, validate_input, save_log, filename_log, 
             new_recursion_limit, verbose, file_log)
 
     # Note: new_recursion_limit is accepted for backward compatibility but no longer used; the
     # probability calculation is fully iterative (nothing recurses), so there is no need to raise
     # Python's recursion limit.
 
-    # By default, osc_prob is run using a fixed order of the Magnus expansion (magnus_exp_order),
-    # and the tolerance is achieved (see below) only by changing the number of slabs (n_slabs), of
-    # time-points per slab (n_tpts_per_slab), or both, but not by changing the expansion order, 
-    # since doing that can be computationally taxing. However, if iterate_over_magnus_exp_order is
-    # True, then magnus_exp_order will be progressively increased, from min_magnus_exp_order to
-    # max_magnus_exp_order, until the requested tolerance (rtol, atol) is achieved.  This is done
-    # by calling the function osc_prob_iterate_over_magnus_exp_order, which in turn calls osc_prob
-    # with varying values of magnus_exp_order.
-    if ((rtol is not None) and (atol is not None) and iterate_over_magnus_exp_order):
-        if (max_magnus_exp_order == min_magnus_exp_order):
-            magnus_exp_order = min_magnus_exp_order
-            if verbose > 0:
-                for f in [None, file_log] if save_log else [None]:
-                    warn_msg = gd.WARNING_MSG_IN_COLOR if f is None else gd.WARNING_MSG_NO_COLOR
-                    print("\n" + warn_msg + "The flag iterate_over_magnus_exp_order has been " + \
-                        "set to True, but with min_magnus_exp_order = max_magnus_exp_order. " + \
-                        "Bypassing iteration over magnus_exp_order and calling osc_prob with " + \
-                        "fixed magnus_exp_order = " + str(magnus_exp_order) + ".", file=f)
-        else: # max_magnus_exp_order == min_magnus_exp_order (further input validation in function)
-            if verbose > 0:
-                for f in [None, file_log] if save_log else [None]:
-                    warn_msg = gd.WARNING_MSG_IN_COLOR if f is None else gd.WARNING_MSG_NO_COLOR
-                    print("\n" + warn_msg + " The flag iterate_over_magnus_exp_order has been " + \
-                        "set to True, so the calculation of the probability will increase the" + \
-                        " value of magnus_exp_order progressively from min_magnus_exp_order = " + \
-                        str(magnus_exp_order) + " to max_magnus_exp_order = " + \
-                        str(max_magnus_exp_order) + " until the requested tolerance is achieved.", 
-                        file=f)
-            P = osc_prob_iterate_over_magnus_exp_order(H_func, t_ini, t_fin, n_slabs, 
-                n_tpts_per_slab, t_slab_edges, magnus_exp_order, n_jobs, integration_method,
-                rtol, atol, growth_factor_n_slabs, growth_factor_n_tpts_per_slab,
-                max_num_loops, min_n_slabs, max_n_slabs, min_n_tpts_per_slab, 
-                max_n_tpts_per_slab, min_magnus_exp_order, 
-                max_magnus_exp_order, validate_input, save_log, filename_log, verbose, 
-                file_log, **kwargs)
-            if save_log and close_file_log_upon_exit: file_log.close()
-            return P
+    # osc_prob runs at a fixed magnus_exp_order; the requested tolerance is reached by
+    # refining the number of slabs (and, for the quadrature methods, the points per
+    # slab), never by raising the order.  See the note on choosing an order in
+    # docs/source/methodology.rst.
 
     loop_count = 1 # Loop counter
-    # Probability matrix from the previous refinement loop, against which the current one is
-    # compared to decide convergence.  None until the first loop has produced one.
+    # Probability matrix of the current and the previous refinement loop; the two are compared
+    # to decide convergence.  Both are None until the first loop has produced a matrix, which is
+    # why the early-exit checks inside the loop are guarded on loop_count > 1.
+    P = None
     P_old = None
     # Copy this to remember whether the function was originally called with predefine slab edges,
     # or whether we can increase the number of edges (n_slabs) progressively to reach tolerance
@@ -1945,8 +1890,12 @@ def osc_prob(
         # These checks only apply when osc_prob is run with a requested tolerance (rtol, atol) that
         # should be achieved.
         if ((rtol is not None) and (atol is not None)):
-            # Reached maximum allowed number of loops: exit loop, return the probability matrix
-            if (loop_count > max_num_loops):
+            # Reached maximum allowed number of loops: exit loop, return the probability matrix.
+            # Guarded on loop_count > 1 because these are refinement limits: there is nothing to
+            # return until at least one loop has produced a probability matrix.  Without the
+            # guard, max_num_loops < 1 with validate_input=False (the validator rejects it
+            # otherwise) reached this return before P existed and raised UnboundLocalError.
+            if (loop_count > 1) and (loop_count > max_num_loops):
                 warnings.warn("osc_prob: requested tolerance not achieved "
                     "(max_num_loops reached); the returned probabilities may be "
                     "inaccurate. Try increasing max_num_loops. Shown once per "
@@ -1980,7 +1929,7 @@ def osc_prob(
                         warned_reached_max_n_tpts_per_slab = True
             # Reached maximum allowed number of slabs and maximum allowed number of time-points per
             # slab: exit loop, return the probability matrix
-            if (ran_with_max_n_slabs and ran_with_max_n_tpts_per_slab):
+            if (loop_count > 1) and ran_with_max_n_slabs and ran_with_max_n_tpts_per_slab:
                 # 'gl' pins n_tpts_per_slab (it uses a fixed 1-3 nodes per slab), so only
                 # max_n_slabs is a meaningful knob for it; naming max_n_tpts_per_slab in the
                 # message would send the reader after a setting that cannot help them.
@@ -2103,170 +2052,6 @@ def osc_prob(
                 (n_tpts_per_slab < max_n_tpts_per_slab) and \
                 (n_tpts_per_slab == n_tpts_per_slab_old)): n_tpts_per_slab += 1
             loop_count += 1
-
-
-def osc_prob_iterate_over_magnus_exp_order(
-    H_func: Union[Callable, np.ndarray],
-    t_ini: Union[int, float], 
-    t_fin: Union[int, float],
-    n_slabs: Optional[int]=1,
-    n_tpts_per_slab: Optional[int]=100, 
-    t_slab_edges: Optional[Union[list, np.ndarray]]=None,
-    magnus_exp_order: Optional[int]=4, 
-    n_jobs: Optional[int]=1,
-    integration_method: Optional[str]='gl', 
-    rtol: Optional[Union[int, float]]=1.e-3,
-    atol: Optional[Union[int, float]]=1.e-3, 
-    growth_factor_n_slabs: Optional[Union[int, float]]=1.5, 
-    growth_factor_n_tpts_per_slab: Optional[Union[int, float]]=1.5, 
-    max_num_loops: Optional[int]=50,
-    min_n_slabs: Optional[int]=1, 
-    max_n_slabs: Optional[int]=None, 
-    min_n_tpts_per_slab: Optional[int]=2,
-    max_n_tpts_per_slab: Optional[int]=500, 
-    min_magnus_exp_order: Optional[int]=1, 
-    max_magnus_exp_order: Optional[int]=gd.MAGNUS_EXP_ORDER_MAX, 
-    validate_input: Optional[bool]=True,
-    save_log: Optional[bool]=False,
-    filename_log: Optional[str]='./out.log',
-    verbose: Optional[int]=0,
-    file_log: Optional[TextIOWrapper]=None,
-    **kwargs
-) -> np.ndarray:
-    r"""Computes the neutrino oscillation probability until a requested
-    tolerance is achieved, including progressively increasing the order
-    of the Magnus expansion.
-
-    Calls :func:`osc_prob` (with ``iterate_over_magnus_exp_order=False``, to prevent infinite
-    recursion) once per Magnus order from ``min_magnus_exp_order`` to ``max_magnus_exp_order``,
-    stopping as soon as two successive orders agree to within ``rtol``/``atol``. This is the
-    order-refinement counterpart to the slab/time-point refinement that :func:`osc_prob` performs
-    internally when ``iterate_over_magnus_exp_order=True``.
-
-    .. versionadded:: 1.0.0
-
-    Parameters
-    ----------
-    H_func : Callable or np.ndarray
-        The Hamiltonian; see :func:`osc_prob`.
-    t_ini, t_fin : int or float
-        Integration limits; see :func:`osc_prob`.
-    n_slabs : int
-        Forwarded to :func:`osc_prob` on each call; see its docstring.
-    n_tpts_per_slab : int
-        Forwarded to :func:`osc_prob` on each call; see its docstring.
-    t_slab_edges : list or np.ndarray, optional
-        Forwarded to :func:`osc_prob` on each call; see its docstring.
-    magnus_exp_order : int
-        Forwarded to :func:`osc_prob` on each call; see its docstring.
-    n_jobs : int
-        Forwarded to :func:`osc_prob` on each call; see its docstring.
-    integration_method : str
-        Forwarded to :func:`osc_prob` on each call; see its docstring.
-    rtol : int or float, optional
-        Forwarded to :func:`osc_prob` on each call; see its docstring.
-    atol : int or float, optional
-        Forwarded to :func:`osc_prob` on each call; see its docstring.
-    growth_factor_n_slabs : int or float
-        Forwarded to :func:`osc_prob` on each call; see its docstring.
-    growth_factor_n_tpts_per_slab : int or float
-        Forwarded to :func:`osc_prob` on each call; see its docstring.
-    max_num_loops : int
-        Forwarded to :func:`osc_prob` on each call; see its docstring.
-    min_n_slabs : int
-        Forwarded to :func:`osc_prob` on each call; see its docstring.
-    max_n_slabs : int
-        Forwarded to :func:`osc_prob` on each call; see its docstring.
-    min_n_tpts_per_slab : int
-        Forwarded to :func:`osc_prob` on each call; see its docstring.
-    max_n_tpts_per_slab : int
-        Forwarded to :func:`osc_prob` on each call; see its docstring.
-    min_magnus_exp_order : int
-        Forwarded to :func:`osc_prob` on each call; see its docstring.
-    max_magnus_exp_order : int
-        Forwarded to :func:`osc_prob` on each call; see its docstring.
-    validate_input : bool
-        Forwarded to :func:`osc_prob` on each call; see its docstring.
-    save_log : bool
-        Forwarded to :func:`osc_prob` on each call; see its docstring.
-    filename_log : str
-        Forwarded to :func:`osc_prob` on each call; see its docstring.
-    verbose : int
-        Forwarded to :func:`osc_prob` on each call; see its docstring.
-    file_log : TextIOWrapper, optional
-        Forwarded to :func:`osc_prob` on each call; see its docstring.
-    \**kwargs
-        Additional arguments forwarded to :func:`osc_prob`.
-
-    Returns
-    -------
-    np.ndarray
-        The oscillation probability at the Magnus order at which two successive orders agreed to
-        within tolerance (or at ``max_magnus_exp_order``, with a warning if ``verbose > 0``, if
-        the tolerance was never achieved).
-    """
-
-    # Validate input; set validate_input to False for speed-up.
-    # None means 'use the cap appropriate to this integration method'
-    # (see MAX_N_SLABS_DEFAULT); an explicit value always wins.
-    max_n_slabs = _resolve_max_n_slabs(max_n_slabs, integration_method)
-    if validate_input:
-
-        if (max_magnus_exp_order > gd.MAGNUS_EXP_ORDER_MAX): 
-            raise ValueError(gd.ERROR_MSG_NO_COLOR + \
-                " oscprob.osc_prob_iterate_over_magnus_exp_order: max_magnus_exp_order must" + \
-                " be <= globaldefs.MAGNUS_EXP_ORDER_MAX = " + str(gd.MAGNUS_EXP_ORDER_MAX) + \
-                ".")
-
-        if (min_magnus_exp_order < 1): 
-            raise ValueError(gd.ERROR_MSG_NO_COLOR + \
-                " oscprob.osc_prob_iterate_over_magnus_exp_order: max_magnus_exp_order must" + \
-                " be >= 1.")
-
-    # Do this to prevent printing the Magnus header multiple times
-    # verbose = 1 if verbose > 0 else verbose
-
-    # Call osc_prob to compute the probabilities using increasing order of the Magnus expansion
-    # (magnus_exp_order) until, ideally, the requested tolerance (rtol, atol) is reached.  See
-    # additional comments in the osc_prob function.  (We call osc_prob below with 
-    # iterate_over_magnus_exp_order=False to prevent infinite recursion.)
-    iterate_over_magnus_exp_order = False
-    # close_file_log_upon_exit = False
-    for magnus_exp_order in range(min_magnus_exp_order, max_magnus_exp_order+1):
-        if (verbose > 0):
-            for f in [None, file_log] if save_log else [None]:
-                print("\nComputing probabilities using magnus_exp_order = " + \
-                    str(magnus_exp_order) + ": \n", file=f)
-        P = osc_prob(H_func, t_ini, t_fin, n_slabs, n_tpts_per_slab, t_slab_edges, magnus_exp_order,
-            n_jobs, integration_method, rtol, atol, growth_factor_n_slabs, 
-            growth_factor_n_tpts_per_slab, max_num_loops, min_n_slabs, max_n_slabs, 
-            min_n_tpts_per_slab, max_n_tpts_per_slab, iterate_over_magnus_exp_order,
-            min_magnus_exp_order, max_magnus_exp_order, validate_input, save_log, filename_log,
-            file_log=file_log, close_file_log_upon_exit=False, verbose=verbose)
-        if (magnus_exp_order == min_magnus_exp_order):
-            P_old = np.ndarray.copy(P)
-        else: # magnus_exp_order > min_magnus_exp_order
-            if np.allclose(P, P_old, rtol=rtol, atol=atol):
-                if (verbose > 0):
-                    for f in [None, file_log] if save_log else [None]:
-                        tol_msg = gd.TOL_MSG_IN_COLOR if f is None else gd.TOL_MSG_NO_COLOR
-                        print(tol_msg + " using magnus_exp_order = " + str(magnus_exp_order) + \
-                            "\n", file=f)
-                if save_log: file_log.close()
-                return P
-    
-    # If the for loop finishes, then it means that the requested tolerance could not be achieved
-    # using even the maximum magnus_exp_order allowed for the run.  Return the probability matrix,
-    # but show a warning (if verbose).
-    if (verbose > 0):
-        for f in [None, file_log] if save_log else [None]:
-            warn_msg = gd.WARNING_MSG_IN_COLOR if f is None else gd.WARNING_MSG_NO_COLOR
-            print(warn_msg + " returning probability, but requested tolerance not achieved using" +\
-                " even the maximum allowed order of the Magnus expansion for this run " + \
-                "(max_magnus_exp_order = " + str(max_magnus_exp_order) + ").  Try increasing " + \
-                "max_n_slabs, max_n_tpts_per_slab, or max_num_loops.\n", file=f)
-    if save_log and (file_log is not None): file_log.close()
-    return P
 
 
 def _normalize_energy_L(
@@ -2551,7 +2336,7 @@ def _osc_prob_scan_separable_dispatch(
     scan_kwargs : dict
         The refinement/logging keyword arguments of :func:`osc_prob_energy_baseline` (rtol, atol,
         magnus_exp_order, integration_method, growth factors, loop/slab/time-point bounds,
-        t_slab_edges, iterate_over_magnus_exp_order, n_jobs, save_log, file_log) plus a nested
+        t_slab_edges, n_jobs, save_log, file_log) plus a nested
         'kwargs' dict of any remaining, unrecognized keyword arguments.
 
     Returns
@@ -2569,8 +2354,6 @@ def _osc_prob_scan_separable_dispatch(
     if not isinstance(VCC_func, Callable):
         return NotImplemented
     if scan_kwargs['t_slab_edges'] is not None:
-        return NotImplemented
-    if scan_kwargs['iterate_over_magnus_exp_order']:
         return NotImplemented
     if (scan_kwargs['n_jobs'] != 1) or scan_kwargs['save_log'] or \
             (scan_kwargs['file_log'] is not None):
@@ -2866,7 +2649,7 @@ def _osc_prob_ip_exp_dispatch(
     scan_kwargs : dict
         The refinement/logging keyword arguments of :func:`osc_prob_energy_baseline` (rtol, atol,
         growth_factor_n_slabs, max_num_loops, min_n_slabs, max_n_slabs, t_slab_edges,
-        iterate_over_magnus_exp_order, save_log, file_log) plus a nested 'kwargs' dict of any
+        save_log, file_log) plus a nested 'kwargs' dict of any
         remaining, unrecognized keyword arguments.
 
     Returns
@@ -2899,8 +2682,6 @@ def _osc_prob_ip_exp_dispatch(
         # back to the general method unconditionally.
         return NotImplemented
     if scan_kwargs['t_slab_edges'] is not None:
-        return NotImplemented
-    if scan_kwargs['iterate_over_magnus_exp_order']:
         return NotImplemented
     if scan_kwargs['save_log'] or (scan_kwargs['file_log'] is not None):
         return NotImplemented
@@ -2993,7 +2774,7 @@ def _osc_prob_hybrid_dispatch(
         Final flavor index; see ``nu_i``.
     scan_kwargs : dict
         The refinement/logging keyword arguments of :func:`osc_prob_energy_baseline` (rtol, atol,
-        magnus_exp_order, integration_method, t_slab_edges, iterate_over_magnus_exp_order,
+        magnus_exp_order, integration_method, t_slab_edges,
         save_log, file_log) plus a nested 'kwargs' dict of any remaining, unrecognized keyword
         arguments.
     strategy : str
@@ -3022,8 +2803,6 @@ def _osc_prob_hybrid_dispatch(
     if not isinstance(VCC_func, Callable):
         return NotImplemented
     if scan_kwargs['t_slab_edges'] is not None:
-        return NotImplemented
-    if scan_kwargs['iterate_over_magnus_exp_order']:
         return NotImplemented
     if scan_kwargs['save_log'] or (scan_kwargs['file_log'] is not None):
         return NotImplemented
@@ -3281,9 +3060,6 @@ def osc_prob_energy_baseline(
     max_n_slabs: Optional[int]=None, 
     min_n_tpts_per_slab: Optional[int]=2, 
     max_n_tpts_per_slab: Optional[int]=500, 
-    iterate_over_magnus_exp_order: Optional[bool]=False,
-    min_magnus_exp_order: Optional[int]=1,
-    max_magnus_exp_order: Optional[int]=gd.MAGNUS_EXP_ORDER_MAX, 
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
@@ -3351,12 +3127,6 @@ def osc_prob_energy_baseline(
     min_n_tpts_per_slab : int
         Forwarded to :func:`osc_prob` for each (energy, L) point; see its docstring.
     max_n_tpts_per_slab : int
-        Forwarded to :func:`osc_prob` for each (energy, L) point; see its docstring.
-    iterate_over_magnus_exp_order : bool
-        Forwarded to :func:`osc_prob` for each (energy, L) point; see its docstring.
-    min_magnus_exp_order : int
-        Forwarded to :func:`osc_prob` for each (energy, L) point; see its docstring.
-    max_magnus_exp_order : int
         Forwarded to :func:`osc_prob` for each (energy, L) point; see its docstring.
     validate_input : bool
         Forwarded to :func:`osc_prob` for each (energy, L) point; see its docstring.
@@ -3438,8 +3208,6 @@ def osc_prob_energy_baseline(
         growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
         max_num_loops=max_num_loops, min_n_slabs=min_n_slabs, max_n_slabs=max_n_slabs,
         min_n_tpts_per_slab=min_n_tpts_per_slab, max_n_tpts_per_slab=max_n_tpts_per_slab,
-        iterate_over_magnus_exp_order=iterate_over_magnus_exp_order,
-        min_magnus_exp_order=min_magnus_exp_order, max_magnus_exp_order=max_magnus_exp_order,
         validate_input=validate_input, save_log=save_log, filename_log=filename_log,
         file_log=file_log, close_file_log_upon_exit=close_file_log_upon_exit,
         new_recursion_limit=new_recursion_limit, verbose=verbose, **kwargs)
@@ -3554,9 +3322,6 @@ def osc_prob_vacuum(
     max_n_slabs: Optional[int]=None, 
     min_n_tpts_per_slab: Optional[int]=2, 
     max_n_tpts_per_slab: Optional[int]=500, 
-    iterate_over_magnus_exp_order: Optional[bool]=False,
-    min_magnus_exp_order: Optional[int]=1,
-    max_magnus_exp_order: Optional[int]=gd.MAGNUS_EXP_ORDER_MAX, 
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
@@ -3625,12 +3390,6 @@ def osc_prob_vacuum(
     min_n_tpts_per_slab : int
         Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
     max_n_tpts_per_slab : int
-        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
-    iterate_over_magnus_exp_order : bool
-        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
-    min_magnus_exp_order : int
-        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
-    max_magnus_exp_order : int
         Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
     validate_input : bool
         Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
@@ -3742,9 +3501,6 @@ def osc_prob_matter_std_potential(
     max_n_slabs: Optional[int]=None,
     min_n_tpts_per_slab: Optional[int]=2,
     max_n_tpts_per_slab: Optional[int]=500,
-    iterate_over_magnus_exp_order: Optional[bool]=False,
-    min_magnus_exp_order: Optional[int]=1,
-    max_magnus_exp_order: Optional[int]=gd.MAGNUS_EXP_ORDER_MAX,
     validate_input: Optional[bool]=True,
     save_log: Optional[bool]=False,
     filename_log: Optional[str]='./out.log',
@@ -3858,12 +3614,6 @@ def osc_prob_matter_std_potential(
     min_n_tpts_per_slab : int
         Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
     max_n_tpts_per_slab : int
-        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
-    iterate_over_magnus_exp_order : bool
-        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
-    min_magnus_exp_order : int
-        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
-    max_magnus_exp_order : int
         Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
     validate_input : bool
         Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
@@ -3983,7 +3733,6 @@ def osc_prob_matter_std_potential(
         growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
         max_num_loops=max_num_loops, min_n_slabs=min_n_slabs, max_n_slabs=max_n_slabs,
         min_n_tpts_per_slab=min_n_tpts_per_slab, max_n_tpts_per_slab=max_n_tpts_per_slab,
-        iterate_over_magnus_exp_order=iterate_over_magnus_exp_order,
         save_log=save_log, file_log=file_log, kwargs=kwargs)
 
     # Fast path for a genuine exponential density profile (e.g., the Sun): factor out the
@@ -4024,8 +3773,6 @@ def osc_prob_matter_std_potential(
         growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
         max_num_loops=max_num_loops, min_n_slabs=min_n_slabs, max_n_slabs=max_n_slabs,
         min_n_tpts_per_slab=min_n_tpts_per_slab, max_n_tpts_per_slab=max_n_tpts_per_slab,
-        iterate_over_magnus_exp_order=iterate_over_magnus_exp_order,
-        min_magnus_exp_order=min_magnus_exp_order, max_magnus_exp_order=max_magnus_exp_order,
         validate_input=validate_input, save_log=save_log, filename_log=filename_log,
         file_log=file_log, close_file_log_upon_exit=close_file_log_upon_exit,
         new_recursion_limit=new_recursion_limit, verbose=verbose, **kwargs)
@@ -4063,9 +3810,6 @@ def osc_prob_matter_nsi(
     max_n_slabs: Optional[int]=None,
     min_n_tpts_per_slab: Optional[int]=2,
     max_n_tpts_per_slab: Optional[int]=500,
-    iterate_over_magnus_exp_order: Optional[bool]=False,
-    min_magnus_exp_order: Optional[int]=1,
-    max_magnus_exp_order: Optional[int]=gd.MAGNUS_EXP_ORDER_MAX,
     validate_input: Optional[bool]=True,
     save_log: Optional[bool]=False,
     filename_log: Optional[str]='./out.log',
@@ -4166,12 +3910,6 @@ def osc_prob_matter_nsi(
     min_n_tpts_per_slab : int
         Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
     max_n_tpts_per_slab : int
-        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
-    iterate_over_magnus_exp_order : bool
-        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
-    min_magnus_exp_order : int
-        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
-    max_magnus_exp_order : int
         Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
     validate_input : bool
         Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
@@ -4317,7 +4055,6 @@ def osc_prob_matter_nsi(
         growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
         max_num_loops=max_num_loops, min_n_slabs=min_n_slabs, max_n_slabs=max_n_slabs,
         min_n_tpts_per_slab=min_n_tpts_per_slab, max_n_tpts_per_slab=max_n_tpts_per_slab,
-        iterate_over_magnus_exp_order=iterate_over_magnus_exp_order,
         save_log=save_log, file_log=file_log, kwargs=kwargs)
 
     # Fast path for a genuine exponential density profile (e.g., the Sun): see
@@ -4351,8 +4088,6 @@ def osc_prob_matter_nsi(
         growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
         max_num_loops=max_num_loops, min_n_slabs=min_n_slabs, max_n_slabs=max_n_slabs,
         min_n_tpts_per_slab=min_n_tpts_per_slab, max_n_tpts_per_slab=max_n_tpts_per_slab,
-        iterate_over_magnus_exp_order=iterate_over_magnus_exp_order,
-        min_magnus_exp_order=min_magnus_exp_order, max_magnus_exp_order=max_magnus_exp_order,
         validate_input=validate_input, save_log=save_log, filename_log=filename_log,
         file_log=file_log, close_file_log_upon_exit=close_file_log_upon_exit,
         new_recursion_limit=new_recursion_limit, verbose=verbose, **kwargs)
@@ -4390,9 +4125,6 @@ def osc_prob_liv(
     max_n_slabs: Optional[int]=None,
     min_n_tpts_per_slab: Optional[int]=2,
     max_n_tpts_per_slab: Optional[int]=500,
-    iterate_over_magnus_exp_order: Optional[bool]=False,
-    min_magnus_exp_order: Optional[int]=1,
-    max_magnus_exp_order: Optional[int]=gd.MAGNUS_EXP_ORDER_MAX,
     validate_input: Optional[bool]=True,
     save_log: Optional[bool]=False,
     filename_log: Optional[str]='./out.log',
@@ -4494,12 +4226,6 @@ def osc_prob_liv(
     min_n_tpts_per_slab : int
         Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
     max_n_tpts_per_slab : int
-        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
-    iterate_over_magnus_exp_order : bool
-        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
-    min_magnus_exp_order : int
-        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
-    max_magnus_exp_order : int
         Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
     validate_input : bool
         Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
@@ -4660,7 +4386,6 @@ def osc_prob_liv(
             growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
             max_num_loops=max_num_loops, min_n_slabs=min_n_slabs, max_n_slabs=max_n_slabs,
             min_n_tpts_per_slab=min_n_tpts_per_slab, max_n_tpts_per_slab=max_n_tpts_per_slab,
-            iterate_over_magnus_exp_order=iterate_over_magnus_exp_order,
             save_log=save_log, file_log=file_log, kwargs=kwargs)
 
         # Fast path for a genuine exponential density profile (e.g., the Sun): see
@@ -4686,8 +4411,6 @@ def osc_prob_liv(
         growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
         max_num_loops=max_num_loops, min_n_slabs=min_n_slabs, max_n_slabs=max_n_slabs,
         min_n_tpts_per_slab=min_n_tpts_per_slab, max_n_tpts_per_slab=max_n_tpts_per_slab,
-        iterate_over_magnus_exp_order=iterate_over_magnus_exp_order,
-        min_magnus_exp_order=min_magnus_exp_order, max_magnus_exp_order=max_magnus_exp_order,
         validate_input=validate_input, save_log=save_log, filename_log=filename_log,
         file_log=file_log, close_file_log_upon_exit=close_file_log_upon_exit,
         new_recursion_limit=new_recursion_limit, verbose=verbose, **kwargs)
@@ -15316,7 +15039,6 @@ __all__ = [
     'compute_evolution_operator',
     'compute_evolution_operator_multiple_slabs',
     'osc_prob',
-    'osc_prob_iterate_over_magnus_exp_order',
     'osc_prob_energy_baseline',
     'osc_prob_vacuum',
     'osc_prob_matter_std_potential',

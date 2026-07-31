@@ -10,8 +10,8 @@ roughly what you want ("3-flavor, matter, with NSI") but not the exact name.
 
 The internal middle layer these wrappers dispatch through
 (``osc_prob_vacuum``, ``osc_prob_matter_std_potential``,
-``osc_prob_matter_nsi``, ``osc_prob_liv``, ``osc_prob_energy_baseline``,
-and ``osc_prob_iterate_over_magnus_exp_order``) is deliberately not listed
+``osc_prob_matter_nsi``, ``osc_prob_liv``, and
+``osc_prob_energy_baseline``) is deliberately not listed
 here; see :doc:`architecture` for what it does and when you would call it
 directly.
 

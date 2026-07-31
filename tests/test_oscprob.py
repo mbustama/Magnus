@@ -786,7 +786,6 @@ def test_no_wrapper_redeclares_standard_refinement_kwargs():
         'magnus_exp_order', 'n_jobs', 'integration_method', 'rtol', 'atol',
         'growth_factor_n_slabs', 'growth_factor_n_tpts_per_slab', 'max_num_loops',
         'min_n_slabs', 'max_n_slabs', 'min_n_tpts_per_slab', 'max_n_tpts_per_slab',
-        'iterate_over_magnus_exp_order', 'min_magnus_exp_order', 'max_magnus_exp_order',
         'new_recursion_limit',
     }
     wrapper_pattern = re.compile(r'^osc_prob_[2345]nu_')
