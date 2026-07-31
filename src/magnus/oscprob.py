@@ -339,6 +339,38 @@ Passing ``max_n_slabs`` explicitly always wins; this is only the fallback.
 """
 
 
+IP_EXP_N_SLABS_CAP = 2_000_000
+r"""int: Module-level constant
+
+Slab ceiling for the closed-form interaction-picture integrator
+(``_osc_prob_ip_exp_core``), deliberately decoupled from the caller's
+``max_n_slabs``, which is calibrated for the far more expensive quadrature slabs of
+the general method.  Each slab here costs one 2x2 eigendecomposition, so even the
+full ceiling completes in a couple of seconds.
+
+Named rather than inlined so that the method's give-up behaviour at the ceiling can
+be exercised by a test at a small cap: reaching two million slabs to check what
+happens at the boundary would cost gigabytes and minutes, so with the value buried
+in the function body those branches could not be tested at all.
+
+.. versionadded:: 1.0.0
+"""
+
+
+IP_EXP_LOOP_CAP = 30
+r"""int: Module-level constant
+
+Maximum number of refinement loops in ``_osc_prob_ip_exp_core``.
+
+Note this ceiling is not what stops the loop in practice: the slab count doubles
+each pass, so it reaches :data:`IP_EXP_N_SLABS_CAP` after about twenty passes and
+returns there, well before a thirtieth pass could occur.  It is a backstop against a
+future change to the growth factor or the slab ceiling, not a live limit.
+
+.. versionadded:: 1.0.0
+"""
+
+
 def _resolve_max_n_slabs(max_n_slabs, integration_method):
     """Fills in the per-method default cap when ``max_n_slabs`` is None.
 
@@ -2528,8 +2560,8 @@ def _osc_prob_ip_exp_core(
     # slabs of the general method): each slab here costs one 2x2 eigendecomposition, so even the
     # full ceiling completes in a couple of seconds.
     omega_trust_threshold = min(0.1, np.sqrt((atol + rtol)/2.0)) if tol_requested else 0.1
-    n_slabs_cap = 2_000_000
-    loop_cap = 30
+    n_slabs_cap = IP_EXP_N_SLABS_CAP
+    loop_cap = IP_EXP_LOOP_CAP
     growth = 2.0
 
     P_prev = None

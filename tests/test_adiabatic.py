@@ -323,3 +323,72 @@ def test_hybrid_propagator_does_not_certify_when_iterations_run_out():
 
     assert certified is False
     assert maxabs(U.conj().T @ U - np.eye(3)) < 1e-12
+
+
+# ----------------------------------------------------------------------
+# The two remaining refusals: a local Magnus patch that does not converge.
+#
+# hybrid_propagator already refuses to certify when its knobs saturate and
+# when it runs out of iterations (both tested above). It has two further
+# refusals, for when an evaluation reports that the patch across a
+# non-adiabatic window did not itself converge, and a coverage run found
+# neither was ever taken. Reaching them honestly means driving
+# _local_evolution_operator to its 500,000-slab ceiling, so instead the
+# single evaluation is replaced: what is under test here is the
+# certification contract -- one non-converged patch anywhere means the
+# whole result is uncertified -- not the numerics of the patch, which the
+# solve_ivp cross-checks above already cover.
+# ----------------------------------------------------------------------
+
+def _flat_2level_H():
+    """Any smooth H will do; these tests never reach the real numerics."""
+    def H_func(l):
+        return np.array([[1.0e-12, 1.0e-13], [1.0e-13, -1.0e-12]], dtype=complex)
+    return H_func, 0.0, 1.0e3
+
+
+def test_hybrid_propagator_does_not_certify_when_the_first_patch_fails(monkeypatch):
+    """A non-converged patch on the very first evaluation is fatal at once:
+    there is no point tightening the knobs and paying for another pass when
+    the answer already cannot be certified."""
+    calls = []
+
+    def fake_once(H_func, l0, l1, threshold, n_probe, n_points, fd_step_frac,
+                  magnus_exp_order, integration_method):
+        calls.append((threshold, n_probe, n_points))
+        return np.eye(2, dtype=complex), [(1.0, 2.0)], False
+
+    monkeypatch.setattr(ad, '_hybrid_propagator_once', fake_once)
+    H_func, l0, l1 = _flat_2level_H()
+
+    U, windows, certified = ad.hybrid_propagator(H_func, l0, l1)
+
+    assert certified is False
+    assert len(calls) == 1, "it kept refining after a result it already knew it could not certify"
+    assert windows == [(1.0, 2.0)], "the windows found must still be reported back to the caller"
+    assert maxabs(U.conj().T @ U - np.eye(2)) < 1e-12
+
+
+def test_hybrid_propagator_does_not_certify_when_a_later_patch_fails(monkeypatch):
+    """The same refusal from inside the refinement loop. The first pass
+    converged, so the loop tightened its knobs and tried again; that second
+    pass reports a failed patch, and one failure is enough to withhold
+    certification even though a comparison was available."""
+    results = [True, False]
+    calls = []
+
+    def fake_once(H_func, l0, l1, threshold, n_probe, n_points, fd_step_frac,
+                  magnus_exp_order, integration_method):
+        calls.append((threshold, n_probe, n_points))
+        return np.eye(2, dtype=complex), [], results[len(calls) - 1]
+
+    monkeypatch.setattr(ad, '_hybrid_propagator_once', fake_once)
+    H_func, l0, l1 = _flat_2level_H()
+
+    U, _, certified = ad.hybrid_propagator(H_func, l0, l1)
+
+    assert certified is False, \
+        "identical operators from two passes must not certify when the second reported failure"
+    assert len(calls) == 2
+    assert calls[1] != calls[0], "the second pass must run at genuinely tightened knobs"
+    assert maxabs(U.conj().T @ U - np.eye(2)) < 1e-12

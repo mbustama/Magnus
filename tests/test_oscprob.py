@@ -1049,3 +1049,277 @@ def test_validation_still_rejects_max_num_loops_below_two():
     with pytest.raises(ValueError, match="max_num_loops"):
         op.osc_prob_3nu_earth(ENERGY, costhz=-0.8, L=2.0*6371.0*0.8*gd.UNIT_KM,
                               rtol=1e-4, atol=1e-4, max_num_loops=0)
+
+
+# ----------------------------------------------------------------------
+# The give-up paths of the closed-form interaction-picture integrator.
+#
+# _osc_prob_ip_exp_core has five exits that report "I could not verify
+# this"; a coverage run found none of them was ever taken. That is the
+# worst place in this codebase for a blind spot: its whole design premise
+# is that agreement between two refinements is only evidence when the two
+# were genuinely different computations, and the surrounding machinery has
+# already produced one false-certification bug (hybrid_propagator, fixed
+# with its own regression test). The success paths were well covered; the
+# refusals were not covered at all.
+#
+# Reaching the ceiling honestly would mean two million slabs -- gigabytes
+# and minutes -- so the ceiling itself is monkeypatched down. That is why
+# IP_EXP_N_SLABS_CAP and IP_EXP_LOOP_CAP are named module constants rather
+# than numbers inlined in the function body.
+#
+# Two of the five refusals are deliberately left without a test, because
+# neither can be reached:
+#
+#   * the `is_repeat` return is unreachable by construction. It fires when
+#     a refinement lands on the same slab count as the previous pass, which
+#     can only happen at the ceiling -- and every branch below returns when
+#     `at_cap` is true, so the loop never survives a pass at the ceiling to
+#     make the comparison.
+#
+#   * the "trusted comparison that disagreed" return is unreachable for
+#     every input the dispatcher admits. The trust threshold is
+#     sqrt((atol+rtol)/2) and the two-flavor error constant is ~0.005, so
+#     trust implies a successive difference of ~0.0019*tol -- already well
+#     inside the tolerance, hence agreement. Measured directly by scanning
+#     the potential strength: the behaviour goes straight from "trusted and
+#     agreeing" to "not trusted", never passing through the branch between.
+#
+# Both are honest defensive code, worth keeping against a future change to
+# the growth factor, the ceiling, or the trust threshold. Writing tests
+# that reach them would mean contriving inputs the library cannot produce.
+# ----------------------------------------------------------------------
+
+def _ip_exp_inputs(nE=1, d=2):
+    """A minimal, genuinely exponential 2-level problem of the shape
+    _osc_prob_ip_exp_dispatch feeds to the core: a constant H_E, an
+    exponential VCC_func, and the constant matrix it multiplies."""
+    l_scale = 100.0*gd.UNIT_KM
+    H_E = np.array([[[1.0e-12, 0.0], [0.0, -1.0e-12]]]*nE, dtype=complex)
+    h_matt = np.array([[1.0, 0.0], [0.0, 0.0]], dtype=complex)
+
+    def VCC_func(l):
+        return 1.0e-12*np.exp(-np.asarray(l, dtype=float)/l_scale)
+
+    return dict(H_E=H_E, l_scale=l_scale, VCC_func=VCC_func, h_matt=h_matt,
+                L0=0.0, L_val=5.0*l_scale)
+
+
+def _call_ip_exp_core(rtol, atol, n_slabs=8, min_n_slabs=8, max_n_slabs=64):
+    return op._osc_prob_ip_exp_core(
+        **_ip_exp_inputs(), rtol=rtol, atol=atol, growth_factor_n_slabs=2.0,
+        max_num_loops=10, min_n_slabs=min_n_slabs, max_n_slabs=max_n_slabs,
+        n_slabs=n_slabs)
+
+
+def test_ip_exp_core_without_a_tolerance_returns_after_one_pass():
+    """With neither rtol nor atol there is nothing to converge *to*: the
+    method runs once at the given n_slabs and reports success, because the
+    caller asked for a fixed-cost evaluation rather than a certified one."""
+    P, converged = _call_ip_exp_core(rtol=None, atol=None)
+
+    assert converged is True
+    P = np.asarray(P)
+    assert np.allclose(np.sum(P, axis=-1), 1.0, atol=1e-12)
+
+
+def test_ip_exp_core_refuses_to_certify_at_the_slab_ceiling(monkeypatch):
+    """At the ceiling the method has had its one genuine comparison. If that
+    comparison did not satisfy both safeguards, no further refinement can
+    supply more evidence -- growing is a no-op there -- so it must return
+    the probabilities it has and report them as unverified rather than let
+    a comparison of a result with itself stand in for convergence."""
+    monkeypatch.setattr(op, 'IP_EXP_N_SLABS_CAP', 16)
+
+    # A tolerance no number of slabs can meet, so the refusal is the only
+    # honest outcome available at the ceiling.
+    P, converged = _call_ip_exp_core(rtol=1e-300, atol=1e-300, n_slabs=8, min_n_slabs=8)
+
+    assert converged is False
+    P = np.asarray(P)
+    assert np.allclose(np.sum(P, axis=-1), 1.0, atol=1e-12), \
+        "unitarity is structural here and must survive a failure to certify"
+
+
+def test_ip_exp_core_refuses_to_certify_when_the_loop_budget_runs_out(monkeypatch):
+    """The loop-count backstop. With the slab ceiling raised out of the way
+    and the loop budget cut to a few passes, the method runs out of passes
+    before it runs out of slabs, and must again refuse rather than return
+    its last guess as certified.
+
+    With the production constants this branch cannot be reached at all --
+    the slab count doubles each pass, so the two-million-slab ceiling
+    arrives around the twentieth pass and returns there, long before a
+    thirtieth. It is a backstop against a future change to the growth
+    factor or the ceiling, and this test is what keeps it honest if that
+    change ever happens."""
+    monkeypatch.setattr(op, 'IP_EXP_N_SLABS_CAP', 10_000_000)
+    monkeypatch.setattr(op, 'IP_EXP_LOOP_CAP', 3)
+
+    P, converged = _call_ip_exp_core(rtol=1e-300, atol=1e-300, n_slabs=8, min_n_slabs=8)
+
+    assert converged is False
+    assert np.allclose(np.sum(np.asarray(P), axis=-1), 1.0, atol=1e-12)
+
+
+# ----------------------------------------------------------------------
+# What the dispatch layer does with an uncertified hybrid result.
+#
+# adiabatic.hybrid_propagator returning certified=False is the signal that
+# the strategy could not verify its own answer, and the two strategies are
+# meant to react differently: 'auto' silently abandons the whole batch and
+# lets the general Magnus path produce the answer, while 'hybrid' keeps the
+# result and warns. A coverage run found neither reaction was ever
+# exercised -- the entire HybridCertificationWarning path included.
+#
+# The propagator is replaced rather than driven to a genuine failure: what
+# is under test is the dispatch layer's reaction, and manufacturing a real
+# non-certifying case would test adiabatic.py's numerics instead, which
+# tests/test_adiabatic.py already does against solve_ivp.
+# ----------------------------------------------------------------------
+
+def _force_uncertified(monkeypatch, dim=3):
+    """Makes every hybrid_propagator call report an uncertified result."""
+    def fake(H_func, l0, l1, **kwargs):
+        return np.eye(dim, dtype=complex), [], False
+    monkeypatch.setattr(op.adiabatic, 'hybrid_propagator', fake)
+
+
+def test_hybrid_strategy_warns_when_a_point_cannot_be_certified(monkeypatch):
+    """strategy='hybrid' is an explicit request for this method, so it keeps
+    the best-effort answer -- still exactly unitary -- but must say out loud
+    that the accuracy is not certified."""
+    _force_uncertified(monkeypatch)
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        P = op.osc_prob_3nu_sun(ENERGY, 0.1*gd.SUN_RADIUS*gd.UNIT_KM, 0.0,
+                                rtol=1e-3, atol=1e-3, strategy='hybrid',
+                                validate_input=False)
+
+    assert any(issubclass(w.category, op.HybridCertificationWarning) for w in caught), \
+        "returned an uncertified hybrid result without warning"
+    P = np.asarray(P)
+    assert np.allclose(np.sum(P, axis=-1), 1.0, atol=1e-9)
+
+
+def test_auto_strategy_falls_back_silently_when_a_point_cannot_be_certified(monkeypatch):
+    """strategy='auto' never promised the hybrid method, only a correct
+    answer, so an uncertified point makes it abandon the whole batch and let
+    the general Magnus path compute the result instead -- without a
+    certification warning, because nothing uncertified is being returned.
+
+    The fake propagator returns the identity, so if its output were kept the
+    probability matrix would be the identity too; a genuine 3-flavor solar
+    result is not, which is what makes the fallback observable here."""
+    _force_uncertified(monkeypatch)
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        P = np.asarray(op.osc_prob_3nu_sun(ENERGY, 0.1*gd.SUN_RADIUS*gd.UNIT_KM, 0.0,
+                                           rtol=1e-3, atol=1e-3, strategy='auto',
+                                           validate_input=False))
+
+    assert not any(issubclass(w.category, op.HybridCertificationWarning) for w in caught), \
+        "warned about certification for a result the hybrid path did not produce"
+    assert np.allclose(np.sum(P, axis=-1), 1.0, atol=1e-9)
+    assert maxabs(P - np.eye(3)) > 1e-6, \
+        "the identity from the stubbed propagator was returned instead of falling back"
+
+
+# ----------------------------------------------------------------------
+# The verbose-output helpers.
+#
+# These print; they compute nothing, which is why nothing called them and
+# why they are the last large block of unexecuted statements in this
+# module. They are still reachable from the public API through verbose=1
+# and save_log=True, and the colour question is not cosmetic: ANSI escapes
+# are correct on a terminal and are noise in a log file, a notebook, or
+# this package's own rendered documentation, which is where the codebase
+# has already been bitten once.
+# ----------------------------------------------------------------------
+
+def test_banner_prints_the_real_version_in_colour_on_stdout(capsys):
+    op.print_banner()
+    out = capsys.readouterr().out
+
+    assert op.version.__version__ in out, "the banner does not show the resolved version"
+    assert '\x1b[' in out, "expected ANSI colour when printing to a terminal"
+
+
+def test_banner_written_to_a_file_carries_no_ansi_escapes(tmp_path):
+    """A banner written to a log file must be plain text: escape codes in a
+    file are unreadable noise, not colour."""
+    path = tmp_path/'run.log'
+    with open(path, 'w') as handle:
+        op.print_banner(file=handle)
+
+    text = path.read_text()
+    assert op.version.__version__ in text
+    assert '\x1b[' not in text, "ANSI escapes leaked into a log file"
+
+
+def test_run_parameters_are_reported_verbatim(capsys):
+    """The point of the parameter dump is that a run can be reproduced from
+    its own output, so the values it prints must be the ones passed in."""
+    def H_func(t):
+        return np.zeros((3, 3), dtype=complex)
+
+    op.print_run_parameters(H_func, 0.0, BASELINE, n_slabs=7, n_tpts_per_slab=13,
+                            magnus_exp_order=6, integration_method='simpson',
+                            rtol=1.5e-4, atol=2.5e-6)
+    out = capsys.readouterr().out
+
+    for expected in ['7', '13', '6', 'simpson']:
+        assert expected in out, f"{expected!r} missing from the reported run parameters"
+
+
+def test_verbose_run_prints_a_banner_and_parameters(capsys):
+    """The public route into both helpers. Note the threshold is verbose=2,
+    not 1: verbose=1 emits warnings only, which is what makes the banner and
+    the parameter dump easy to leave unexercised."""
+    op.has_magnus_header_been_printed = False
+    op.osc_prob_3nu_matter_constant_density(ENERGY, BASELINE, RHO_C, verbose=2,
+                                            validate_input=False)
+    out = capsys.readouterr().out
+
+    assert op.version.__version__ in out, "no banner in verbose=2 output"
+    assert 'magnus_exp_order' in out, "no run-parameter dump in verbose=2 output"
+
+
+# ----------------------------------------------------------------------
+# compute_evolution_operator: documented, exported, and called by nothing.
+#
+# Its own docstring says it is meant to be called internally by osc_prob,
+# but osc_prob reaches for the multi-slab variant instead, so the suite
+# found it with an entirely unexecuted body. It is still public API.
+# ----------------------------------------------------------------------
+
+def test_single_slab_evolution_operator_is_unitary_and_matches_the_multislab_chain():
+    """One slab computed on its own must equal the same slab computed as a
+    one-element chain -- otherwise the two entry points disagree about the
+    convention they share."""
+    def H_func(t):
+        return np.array([[1.0e-12, 2.0e-13], [2.0e-13, -1.0e-12]], dtype=complex)
+
+    t_slab = [0.0, BASELINE]
+    U = np.asarray(op.compute_evolution_operator(H_func, t_slab, n_tpts_per_slab=2,
+                                                 magnus_exp_order=4))
+
+    assert maxabs(U.conj().T @ U - np.eye(2)) < 1e-12
+
+    U_chain = op.compute_evolution_operator_multiple_slabs(
+        H_func, [t_slab], n_tpts_per_slab=2, magnus_exp_order=4)
+    assert maxabs(U - np.asarray(U_chain)[0]) < 1e-12
+
+
+def test_zero_width_slab_evolution_operator_is_the_identity():
+    """A slab of zero width evolves nothing. This is the guard that lets a
+    caller pass a degenerate slab -- an empty segment either side of a
+    non-adiabatic window, say -- without special-casing it."""
+    def H_func(t):
+        return np.array([[1.0e-12, 2.0e-13], [2.0e-13, -1.0e-12]], dtype=complex)
+
+    U = np.asarray(op.compute_evolution_operator(H_func, [5.0, 5.0], n_tpts_per_slab=2,
+                                                 magnus_exp_order=4))
+    assert maxabs(U - np.eye(2)) == 0.0

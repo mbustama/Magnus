@@ -251,7 +251,8 @@ Magnus/
 │   ├── test_earth_matter.py         # PREM profile, chord geometry, electron density
 │   ├── test_hamiltonians.py         # Hamiltonian/mixing-matrix builders
 │   ├── test_cli.py                  # magnus command-line calculator
-│   └── test_globaldefs.py           # NuFit historical parameter dict/loader
+│   ├── test_globaldefs.py           # NuFit historical parameter dict/loader
+│   └── test_version.py              # Version resolution from pyproject.toml / installed metadata
 ├── .gitignore
 ├── CHANGELOG.md                     # Version history (Keep a Changelog format)
 ├── LICENSE                          # GNU GPL v3 (GPL-3.0-only), the full license text
@@ -832,7 +833,8 @@ crossings (verified against 10⁻⁷-tolerance references).
 Four GitHub Actions workflows run under [`.github/workflows/`](.github/workflows/):
 
 - **[`tests.yml`](.github/workflows/tests.yml)** — runs on every push to
-  `main`/`dev` and on every pull request. Runs `pytest tests/ -v` on a
+  `main`, `dev` and any `dev-*` topic branch, and on every pull request. Runs
+  `pytest tests/ -v` on a
   matrix of Python 3.10, 3.11, and 3.12. The suite (see
   [`tests/`](tests/)) covers:
   - [`test_magnus_expansion.py`](tests/test_magnus_expansion.py) — the
@@ -874,8 +876,23 @@ Four GitHub Actions workflows run under [`.github/workflows/`](.github/workflows
     parameter data: every release in `NUFIT_GLOBAL_FITS` has finite,
     physically sensible values with the correct `D31` sign per ordering,
     `load_nufit_params`'s version/ordering/category validation and default
-    selection, and that its output feeds directly into `osc_prob_3nu_vacuum`
-    to produce a unitary probability matrix.
+    selection, that its output feeds directly into `osc_prob_3nu_vacuum`
+    to produce a unitary probability matrix, and that `set_color_output`
+    round-trips so ANSI escapes can be kept out of logs and rendered docs.
+  - [`test_adiabatic.py`](tests/test_adiabatic.py) — the adiabatic +
+    Magnus-patch hybrid strategy: resonance detection, window merging,
+    unitarity, agreement with `scipy.integrate.solve_ivp` on real 3ν solar
+    Hamiltonians, and the four ways the propagator can refuse to certify
+    its own answer (saturated knobs, exhausted iterations, and a
+    non-converged patch on either the first or a later evaluation).
+  - [`test_expansionterms.py`](tests/test_expansionterms.py) — the symbolic
+    generation of Magnus expansion terms in exact rational arithmetic,
+    checked against the numerical core's hand-written coefficients.
+  - [`test_version.py`](tests/test_version.py) — version resolution by both
+    routes, the installed distribution's metadata and a direct read of
+    `pyproject.toml`, which must agree; the distribution is `magnuspy` while
+    the import package is `magnus`, and querying the wrong one reports
+    `0.0.0+unknown` to installed users while a source checkout looks fine.
 
   The same workflow also has a separate **Coverage** job: it runs the suite
   once more under `pytest --cov`, prints the per-module statement and branch
@@ -889,10 +906,17 @@ Four GitHub Actions workflows run under [`.github/workflows/`](.github/workflows
   unless a `CODECOV_TOKEN` repository secret exists, so nothing is sent
   anywhere today. Creating that secret is the whole act of switching public
   coverage reporting on, which is deferred until the repository goes public.
-- **[`lint.yml`](.github/workflows/lint.yml)** — runs Ruff (`ruff check` and
-  `ruff format --check`) on every push/PR to `main`. Currently informational
-  (`continue-on-error: true`): it reports style/static-analysis issues
-  without blocking merges.
+- **[`lint.yml`](.github/workflows/lint.yml)** (named "Code Quality") — three
+  jobs, on every push to `main`/`dev`/`dev-*` and on every pull request.
+  `ruff check` is **blocking**: a new finding fails the build rather than
+  being reported into a green checkmark, and the rule selection is pinned in
+  `[tool.ruff.lint]` rather than left to whichever ruff version CI installs.
+  `ruff format --check` stays informational (`continue-on-error: true`), since
+  the codebase predates `ruff format` and reformatting it wholesale would bury
+  real changes in diff noise. The other two jobs check that
+  [`docs/source/cli.rst`](docs/source/cli.rst) still matches the actual
+  argument parser, and that the documentation builds with `-W`, so a broken
+  cross-reference or a page dropped from the toctree fails the PR.
 - **[`pages.yml`](.github/workflows/pages.yml)** — on every push to `main`,
   builds the Sphinx documentation (`docs/`) and deploys it to GitHub Pages.
   Several API docstrings (e.g. `osc_prob_3nu_vacuum`, `osc_prob_earth`)
