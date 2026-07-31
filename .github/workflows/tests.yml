@@ -95,10 +95,10 @@ jobs:
           pip install -e '.[test]'
 
       - name: Run test suite with coverage
-        # Settings (branch coverage, which sources, what is omitted) live in
-        # [tool.coverage.run] in pyproject.toml, so a local `pytest --cov` measures exactly
-        # what CI measures.  There is no --cov-fail-under: this job reports, it does not
-        # gate, until a threshold has been chosen from a real measurement.
+        # Settings (branch coverage, which sources, what is omitted, and the 90% floor)
+        # live in [tool.coverage] in pyproject.toml, so a local `pytest --cov` measures and
+        # gates exactly as CI does -- no threshold is passed on the command line here,
+        # which would let the two drift apart.
         run: pytest tests/ -q --cov --cov-report=term-missing --cov-report=xml
 
       - name: Publish coverage summary

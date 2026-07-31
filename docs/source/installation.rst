@@ -108,6 +108,18 @@ that one parametrized test sweeps in a single pass, so the number to read is
 whether the dispatch chain, the refinement caps and the warning paths are each
 taken in *both* directions.
 
+The run fails below **90%**, which is a floor rather than a target: the suite
+measures 92%, and the two points of headroom keep the check from tripping on
+the fraction of a percent that moves between interpreters while still catching
+a module added without tests or a test file deleted.  The floor is in
+``pyproject.toml``, so it applies to *every* coverage run -- measuring a single
+test file therefore reports far below 90 and exits non-zero.  That is expected;
+pass ``--cov-fail-under=0`` when deliberately measuring part of the suite:
+
+.. code-block:: bash
+
+   pytest tests/test_cli.py --cov --cov-report=term-missing --cov-fail-under=0
+
 Instrumentation is expensive for this suite: measured on one machine, the run
 goes from 188 s to 394 s, a factor of 2.1.  That is more than the usual
 coverage overhead, and it is what one would expect here, since the cost is
