@@ -910,10 +910,15 @@ Four GitHub Actions workflows run under [`.github/workflows/`](.github/workflows
   The same workflow also has a separate **Coverage** job: it runs the suite
   once more under `pytest --cov`, prints the per-module statement and branch
   coverage on the run's summary page, and uploads `coverage.xml` as a build
-  artifact. It reports rather than gates — there is no `--cov-fail-under`
-  threshold — and it is its own job rather than a fourth entry in the matrix
-  because coverage does not depend on the interpreter, so measuring it three
-  times would only pay the instrumentation cost three times.
+  artifact. It fails below **90%** — a floor rather than a target, two points
+  under the current 92% so that it catches a regression (an untested module
+  added, a test file deleted) without tripping on the fraction of a percent
+  that moves between interpreters. The floor lives in `pyproject.toml`, so a
+  local `pytest --cov` gates identically; raise it as coverage climbs, and
+  never lower it to turn a red build green. The job is its own rather than a
+  fourth entry in the matrix because coverage does not depend on the
+  interpreter, so measuring it three times would only pay the instrumentation
+  cost three times.
 
   It also carries a Codecov upload step that is **dormant**: it is skipped
   unless a `CODECOV_TOKEN` repository secret exists, so nothing is sent

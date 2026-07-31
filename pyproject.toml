@@ -104,9 +104,26 @@ omit = ["src/magnus/__main__.py"]
 [tool.coverage.report]
 show_missing = true
 
-# Deliberately no `fail_under`.  A threshold picked before the first measurement either
-# sits below the real number and never fires, or above it and blocks unrelated work; the
-# number to pin is the one the suite actually reaches.
+# A floor, not a target, and one that only ever moves up: the suite measures 92%, so this
+# holds the ground already gained without failing on noise.  Coverage is not perfectly
+# reproducible -- a test taking a different dispatch path on a different interpreter moves
+# the total by a fraction of a percent -- and a threshold pinned at exactly the current
+# number fails on that jitter rather than on a regression.  Two points of headroom
+# tolerates the jitter while still catching what this is for: an untested module added, or
+# a test file deleted.
+#
+# It was deliberately left unset until now.  A threshold chosen before the first
+# measurement either sits below the real number and never fires, or above it and blocks
+# unrelated work; the number worth pinning is one the suite has actually reached.
+#
+# Raise it when coverage climbs and stays there.  Never lower it to make a red build
+# green -- at that point it stops being a floor and merely certifies whatever happened to
+# be true.
+#
+# Note this applies to every coverage run, not just CI, so measuring a single test file
+# reports far below 90 and exits non-zero.  Pass --cov-fail-under=0 for that.
+fail_under = 90
+
 exclude_also = [
     # Import-time guards for running a module as a script; unreachable under pytest.
     "if __name__ == .__main__.:",

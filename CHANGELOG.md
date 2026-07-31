@@ -76,10 +76,12 @@ that history is the most useful record of *why* the code looks the way it does.
   overstates how well this package is tested, because `oscprob.py` is largely
   thin wrappers that one parametrized test sweeps in a single pass, whereas what
   matters is whether the dispatch chain, the refinement caps and the warning
-  paths are each taken in both directions. The job reports rather than gates --
-  there is deliberately no `--cov-fail-under`, since a threshold invented before
-  the first measurement either sits below the real figure and never fires, or
-  above it and blocks unrelated work. The job also carries a Codecov upload step
+  paths are each taken in both directions. The build fails below 90%, a floor set
+  two points under the measured 92% so that it catches a regression without
+  tripping on the fraction of a percent that moves between interpreters; it was
+  left unset until the figure had settled, since a threshold invented before the
+  first measurement either sits below the real figure and never fires, or above
+  it and blocks unrelated work. The job also carries a Codecov upload step
   that stays dormant until a `CODECOV_TOKEN` secret exists, so nothing leaves the
   repository until public coverage reporting is deliberately switched on.
 - Two structural sweeps closing what that first coverage run found: 23 of the 36
