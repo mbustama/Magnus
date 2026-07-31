@@ -6,7 +6,6 @@
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![Code style: ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
-[![Maturity: beta](https://img.shields.io/badge/maturity-beta-orange.svg)](https://github.com/mbustama/Magnus/blob/main/CHANGELOG.md)
 
 Code to compute neutrino oscillation probabilities between an arbitrary number
 of flavors, for any given Hamiltonian, time-dependent or -independent.

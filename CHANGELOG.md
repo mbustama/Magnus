@@ -37,9 +37,8 @@ that history is the most useful record of *why* the code looks the way it does.
   Referenced from the README, the docs landing page, and both file trees.
 - Status badges on the README and the docs landing page: CI tests, code quality,
   documentation, license, the supported Python version (3.10+, matching
-  `requires-python` and the CI matrix rather than a copied-in default), the code
-  style (ruff, which `lint.yml` actually enforces), and maturity (beta, matching
-  the `Development Status` classifier and the `rc` version).
+  `requires-python` and the CI matrix rather than a copied-in default), and the code
+  style (ruff, which `lint.yml` actually enforces).
 - `magnus.expansionterms`: derives the terms of the Magnus expansion from the
   Bernoulli-number recursion symbolically, at any order, in exact rational
   arithmetic (`bernoulli`, `bernoulli_factor`, `omega_terms`, `magnus_terms`,
