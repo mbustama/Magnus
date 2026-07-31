@@ -6,7 +6,13 @@ name: Code Quality
 # event here -- are still covered.
 on:
   push:
-    tags-ignore: ['**']
+    # '**' matches every branch, including names containing a slash. It has to be spelled
+    # out: a push filter naming only tags (even `tags-ignore: ['**']`) makes GitHub treat
+    # the workflow as tag-only and run it for no branch push at all -- which silently
+    # disabled every push build here until a pull request showed zero runs. Naming only
+    # branches has the mirror effect, which is the intent: tags do not build, since a
+    # release tag points at a commit its branch already tested.
+    branches: ['**']
   pull_request:
 
 concurrency:

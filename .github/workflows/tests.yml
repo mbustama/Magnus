@@ -8,13 +8,19 @@ name: tests
 # commit, not to the event, so the push-triggered run already appears on the pull request:
 # the second run bought nothing.
 #
-# `push` carries no branch filter, so any branch is covered, including one with no pull
+# `push` matches every branch, so any branch is covered, including one with no pull
 # request open (an earlier [main, dev] filter silently skipped every push to
 # dev-plotting) and one whose name follows no convention. Tags are excluded because a
 # release tag points at a commit that was already tested on its branch.
 on:
   push:
-    tags-ignore: ['**']
+    # '**' matches every branch, including names containing a slash. It has to be spelled
+    # out: a push filter naming only tags (even `tags-ignore: ['**']`) makes GitHub treat
+    # the workflow as tag-only and run it for no branch push at all -- which silently
+    # disabled every push build here until a pull request showed zero runs. Naming only
+    # branches has the mirror effect, which is the intent: tags do not build, since a
+    # release tag points at a commit its branch already tested.
+    branches: ['**']
   pull_request:
 
 # Superseded runs are not worth paying for: pushing twice to a branch in quick succession
