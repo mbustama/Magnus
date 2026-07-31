@@ -147,10 +147,11 @@ Salient Features
   and CPT-odd Lorentz-invariance violation (LIV), for every flavor count and
   environment above.
 * **Magnus expansion to order 6**, with the term recursion verified
-  term-by-term against the literature, and three integration methods —
-  cumulative trapezoid/Simpson quadrature, and **Gauss-Legendre
-  commutator-free integrators** that reach orders 2/4/6 from only 1/2/3
-  Hamiltonian evaluations per slab.
+  term-by-term against the literature, and three integration methods.  The
+  default, **Gauss-Legendre commutator-free integrators**, reaches orders
+  2/4/6 from only 1/2/3 Hamiltonian evaluations per slab; cumulative
+  trapezoid/Simpson quadrature remains available for Hamiltonians that are
+  not smooth within a slab.
 * **Exact unitarity**, adaptive refinement to a requested tolerance with
   physics-informed starting slab counts and warm starts across scans, slab
   edges aligned with density discontinuities, and an energy-batched scan

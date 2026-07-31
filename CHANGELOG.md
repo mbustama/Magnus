@@ -170,6 +170,26 @@ that history is the most useful record of *why* the code looks the way it does.
 
 ### Changed
 
+- **Breaking:** `integration_method` now defaults to `'gl'`
+  (Gauss-Legendre commutator-free collocation) instead of `'trapezoid'`,
+  everywhere it appears -- the 13 signature defaults across `magnus` and
+  `oscprob`, and `magnus prob --integration-method`. For a Hamiltonian that
+  is smooth within each slab, which layer-aligned slab edges make the common
+  case, `'gl'` is simultaneously the faster and the more accurate choice: it
+  needs only 1, 2, or 3 Hamiltonian evaluations per slab for orders <= 2,
+  <= 4, <= 6, with its quadrature order matched exactly to the truncation
+  order, where the cumulative-quadrature methods sample `n_tpts_per_slab`
+  points and can let quadrature error dominate the truncation error. Numbers
+  computed without passing `integration_method` explicitly will therefore
+  change slightly, and two further behaviors switch on with it, both of which
+  were already implemented and gated on `'gl'`: `n_tpts_per_slab` no longer
+  participates in the adaptive refinement (accuracy is set by the slab count
+  alone), and the physics-informed starting slab count from
+  `magnus.suggest_n_slabs` is now applied by default. `'trapezoid'` and
+  `'simpson'` remain fully supported and are the better choice when the
+  Hamiltonian has a kink or a discontinuity *inside* a slab, where
+  Gauss-Legendre loses its order advantage.
+
 - Collapsed roughly 1,150 lines of duplicated refinement/logging
   keyword-argument declarations across ~60 wrapper functions into a single
   source of truth (internally called the "G1" refactor), with a permanent

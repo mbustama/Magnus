@@ -281,10 +281,10 @@ P = oscprob.osc_prob_3nu_vacuum(energy, L)   # 3x3 matrix, P[i][j] = P(nu_i -> n
 
 # --- Energy scan through the Earth (PREM), nu_e -> nu_mu ---
 energies = np.logspace(-0.3, 1.3, 200)*gd.UNIT_GEV
+# integration_method defaults to 'gl' (Gauss-Legendre): fastest and most accurate
 P_scan = oscprob.osc_prob_3nu_earth(
     energies, costhz=-0.8, L=2.0*6371.0*0.8*gd.UNIT_KM,
-    nu_i=gd.NUE, nu_f=gd.NUMU,
-    integration_method='gl')  # Gauss-Legendre: fastest method
+    nu_i=gd.NUE, nu_f=gd.NUMU)
 
 # --- Your own Hamiltonian through the Earth ---
 # H(energy, l, VCC): VCC is the PREM charged-current potential at position l
@@ -657,14 +657,7 @@ same physical requirement.
 Computing the nested integrals of Section 3 requires sampling $A(l)$ inside
 each slab. Mag$`\nu`$s offers two families:
 
-**(a) Cumulative quadrature** (`'trapezoid'`, `'simpson'`). Sample $A$ on a
-uniform grid of points spanning the slab and evaluate the nested integrals
-via cumulative trapezoid or Simpson quadrature. Fully general, but the
-quadrature error ($O(h^2)$ or $O(h^4)$ in the grid spacing $h$) can dominate
-the Magnus truncation error at high expansion orders unless the number of
-grid points grows accordingly.
-
-**(b) Gauss–Legendre commutator-free integrators** (`'gl'`). Following
+**(a) Gauss–Legendre commutator-free integrators** (`'gl'`, the default). Following
 Blanes, Casas & Ros (2000), orders 2, 4, and 6 can each be reached from only
 1, 2, or 3 evaluations of $A$ *per slab*, sampled at the Gauss–Legendre
 nodes, with the quadrature order matched exactly to the truncation order —
@@ -689,10 +682,23 @@ $C_1=[a_1,a_2]$, and $C_2=-\tfrac{1}{60}[a_1,2a_3+C_1]$:
 ```
 
 Because it needs far fewer Hamiltonian evaluations for the same accuracy,
-`'gl'` is the fastest method and the recommended default whenever the
-Hamiltonian is smooth within a slab (which slab edges aligned to density
-discontinuities, e.g. at the PREM layer boundaries inside the Earth, make
-the common case).
+`'gl'` is simultaneously the fastest and the most accurate method whenever
+the Hamiltonian is smooth within a slab — which slab edges aligned to
+density discontinuities, e.g. at the PREM layer boundaries inside the Earth,
+make the common case. That is why it is the default.
+
+Note that `'gl'` uses a fixed 1, 2, or 3 nodes per slab, so
+`n_tpts_per_slab` plays no role for it: accuracy is set by the slab count
+alone, and the adaptive refinement grows only `n_slabs`.
+
+**(b) Cumulative quadrature** (`'trapezoid'`, `'simpson'`). Sample $A$ on a
+uniform grid of `n_tpts_per_slab` points spanning the slab and evaluate the
+nested integrals via cumulative trapezoid or Simpson quadrature. Slower for
+the same accuracy on a smooth profile, but fully general, and so the safer
+choice if $A(l)$ has a kink or a discontinuity *inside* a slab, where
+Gauss–Legendre loses its order advantage. The quadrature error ($O(h^2)$ or
+$O(h^4)$ in the grid spacing $h$) can dominate the Magnus truncation error at
+high expansion orders unless the number of grid points grows accordingly.
 
 ### 8. From $\Omega$ to $U$: an exactly unitary matrix exponential
 
@@ -752,11 +758,14 @@ Magnus machinery above then applies unchanged.
 - Magnus expansion to **order 6**, with the term recursion verified
   term-by-term against Blanes, Casas, Oteo & Ros,
   [Phys. Rep. 470, 151 (2009)](https://doi.org/10.1016/j.physrep.2008.11.001).
-- Three integration methods: `'trapezoid'`, `'simpson'` (cumulative
-  quadrature), and `'gl'` — **Gauss–Legendre commutator-free integrators**
-  of orders 2/4/6 that need only 1/2/3 Hamiltonian evaluations per slab
-  (Blanes, Casas & Ros, BIT 40, 434 (2000)).  `'gl'` is the fastest and the
-  recommended choice for smooth-per-slab profiles.
+- Three integration methods.  The default, `'gl'` — **Gauss–Legendre
+  commutator-free integrators** of orders 2/4/6 that need only 1/2/3
+  Hamiltonian evaluations per slab (Blanes, Casas & Ros, BIT 40, 434
+  (2000)) — is both the fastest and the most accurate for a
+  smooth-per-slab profile, which layer-aligned slabs make the common case.
+  `'trapezoid'` and `'simpson'` (cumulative quadrature over
+  `n_tpts_per_slab` points) remain available, and are the safer choice if
+  the Hamiltonian has a kink or a discontinuity *inside* a slab.
 - **Exactly unitary exponentials** from the eigendecomposition of the
   (anti-Hermitian) Magnus operator, batched over slabs and energies.
 - **Adaptive refinement** to a requested tolerance (`rtol`, `atol`), with a

@@ -114,9 +114,16 @@ def test_terms_match_independent_reference(order):
     Same quadrature and same grid, so any difference is a term/coefficient
     bug (this is the regression test for the operator-precedence bug that
     dropped the 1/12 and -1/720 factors at orders >= 4, and for the
-    order-6 array rebinding bug)."""
+    order-6 array rebinding bug).
+
+    ``integration_method`` is pinned to 'trapezoid' to match
+    ``reference_magnus_terms``, which is a trapezoid implementation.  It also
+    has to be a quadrature method at all: 'gl' (the package default) is
+    commutator-free and never forms the individual Omega_k, returning only
+    their sum, so there would be nothing term-by-term to compare."""
     _, terms_code = magnus_expansion(A_scalar, 0.0, 1.0, n_tpts=1001,
-                                     order=order, return_magnus_terms=True)
+                                     order=order, return_magnus_terms=True,
+                                     integration_method='trapezoid')
     terms_ref = reference_magnus_terms(A_scalar, 0.0, 1.0, 1001, order)
     for k in range(order):
         assert maxabs(terms_code[k] - terms_ref[k]) < 1e-10

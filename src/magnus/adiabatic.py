@@ -550,7 +550,7 @@ def hybrid_propagator(H_func: Callable, l0: float, l1: float, rtol: Optional[flo
         Magnus expansion order used for the local patch inside each non-adiabatic window.
         Default: 6.
     integration_method : str, optional
-        Integration method used for the local patch ('trapezoid', 'simpson', or 'gl').
+        Integration method used for the local patch ('gl', 'trapezoid', or 'simpson').
         Default: 'gl'.
     threshold0 : float, optional
         Starting adiabaticity threshold. Default: 0.1.

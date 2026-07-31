@@ -412,7 +412,7 @@ def print_run_parameters(
     t_slab_edges: Optional[Union[list, np.ndarray]]=None, 
     magnus_exp_order: Optional[int]=4, 
     n_jobs: Optional[int]=1, 
-    integration_method: Optional[str]='trapezoid', 
+    integration_method: Optional[str]='gl', 
     rtol: Optional[Union[int, float]]=None, 
     atol: Optional[Union[int, float]]=None, 
     growth_factor_n_slabs: Optional[Union[int, float]]=1.5, 
@@ -1531,7 +1531,7 @@ def osc_prob(
     t_slab_edges: Optional[Union[list, np.ndarray]]=None, 
     magnus_exp_order: Optional[int]=4, 
     n_jobs: Optional[int]=1, 
-    integration_method: Optional[str]='trapezoid', 
+    integration_method: Optional[str]='gl', 
     rtol: Optional[Union[int, float]]=1.e-3, 
     atol: Optional[Union[int, float]]=1.e-3, 
     growth_factor_n_slabs: Optional[Union[int, float]]=1.5, 
@@ -1611,11 +1611,10 @@ def osc_prob(
         is usually fastest; use ``n_jobs > 1`` only for very expensive
         Hamiltonian functions.
     integration_method : str, optional
-        'trapezoid' or 'simpson' for cumulative quadrature over
-        ``n_tpts_per_slab`` points per slab, or 'gl' for Gauss-Legendre
-        collocation, which needs only 1, 2, or 3 Hamiltonian
-        evaluations per slab for orders <= 2, <= 4, <= 6, and ignores
-        ``n_tpts_per_slab``.
+        'gl' for Gauss-Legendre collocation, which needs only 1, 2, or 3
+        Hamiltonian evaluations per slab for orders <= 2, <= 4, <= 6, and
+        ignores ``n_tpts_per_slab``; or 'trapezoid'/'simpson' for cumulative
+        quadrature over ``n_tpts_per_slab`` points per slab. Default: 'gl'.
     rtol : int or float, optional
         Target relative tolerance of the probability matrix between
         successive refinement loops.  Set both ``rtol`` and ``atol`` to
@@ -1934,12 +1933,18 @@ def osc_prob(
             # Reached maximum allowed number of slabs and maximum allowed number of time-points per
             # slab: exit loop, return the probability matrix
             if (ran_with_max_n_slabs and ran_with_max_n_tpts_per_slab):
-                warnings.warn("osc_prob: requested tolerance not achieved "
-                    "(max_n_slabs and max_n_tpts_per_slab reached); the returned "
-                    "probabilities may be inaccurate. Try increasing max_n_slabs "
-                    "or max_n_tpts_per_slab. This can happen for very large "
+                # 'gl' pins n_tpts_per_slab (it uses a fixed 1-3 nodes per slab), so only
+                # max_n_slabs is a meaningful knob for it; naming max_n_tpts_per_slab in the
+                # message would send the reader after a setting that cannot help them.
+                knobs = ("max_n_slabs" if integration_method == 'gl'
+                         else "max_n_slabs and max_n_tpts_per_slab")
+                warnings.warn("osc_prob: requested tolerance not achieved (" + knobs +
+                    " reached), so convergence could not be verified by successive "
+                    "refinement; the returned probabilities may be inaccurate. Try "
+                    "increasing " + knobs + ". This can happen for very large "
                     "accumulated phases, e.g., low-energy neutrinos over very "
-                    "long baselines. Shown once per session.",
+                    "long baselines, or eV-scale sterile splittings over Earth-crossing "
+                    "baselines. Shown once per session.",
                     ToleranceNotAchievedWarning, stacklevel=2)
                 if (verbose > 0):
                     for f in [None, file_log] if save_log else [None]:
@@ -2061,7 +2066,7 @@ def osc_prob_iterate_over_magnus_exp_order(
     t_slab_edges: Optional[Union[list, np.ndarray]]=None,
     magnus_exp_order: Optional[int]=4, 
     n_jobs: Optional[int]=1,
-    integration_method: Optional[str]='trapezoid', 
+    integration_method: Optional[str]='gl', 
     rtol: Optional[Union[int, float]]=1.e-3,
     atol: Optional[Union[int, float]]=1.e-3, 
     growth_factor_n_slabs: Optional[Union[int, float]]=1.5, 
@@ -2314,7 +2319,7 @@ def _osc_prob_scan_separable(
     magnus_exp_order : int
         Highest order of the Magnus expansion.
     integration_method : str
-        'trapezoid', 'simpson', or 'gl'.
+        'gl', 'trapezoid', or 'simpson'.
     rtol, atol : float, optional
         Target relative/absolute tolerance between successive refinement levels. If both None,
         run once with the given fixed ``n_slabs``/``n_tpts_per_slab``.
@@ -3204,7 +3209,7 @@ def osc_prob_energy_baseline(
     t_slab_edges: Optional[Union[list, np.ndarray]]=None, 
     magnus_exp_order: Optional[int]=4, 
     n_jobs: Optional[int]=1, 
-    integration_method: Optional[str]='trapezoid', 
+    integration_method: Optional[str]='gl', 
     rtol: Optional[Union[int, float]]=1.e-3, 
     atol: Optional[Union[int, float]]=1.e-3, 
     growth_factor_n_slabs: Optional[Union[int, float]]=1.5, 
@@ -3477,7 +3482,7 @@ def osc_prob_vacuum(
     t_slab_edges: Optional[Union[list, np.ndarray]]=None, 
     magnus_exp_order: Optional[int]=4, 
     n_jobs: Optional[int]=1, 
-    integration_method: Optional[str]='trapezoid', 
+    integration_method: Optional[str]='gl', 
     rtol: Optional[Union[int, float]]=1.e-3, 
     atol: Optional[Union[int, float]]=1.e-3, 
     growth_factor_n_slabs: Optional[Union[int, float]]=1.5, 
@@ -3665,7 +3670,7 @@ def osc_prob_matter_std_potential(
     t_slab_edges: Optional[Union[list, np.ndarray]]=None,
     magnus_exp_order: Optional[int]=4,
     n_jobs: Optional[int]=1,
-    integration_method: Optional[str]='trapezoid',
+    integration_method: Optional[str]='gl',
     rtol: Optional[Union[int, float]]=1.e-3,
     atol: Optional[Union[int, float]]=1.e-3,
     growth_factor_n_slabs: Optional[Union[int, float]]=1.5,
@@ -3986,7 +3991,7 @@ def osc_prob_matter_nsi(
     t_slab_edges: Optional[Union[list, np.ndarray]]=None,
     magnus_exp_order: Optional[int]=4,
     n_jobs: Optional[int]=1,
-    integration_method: Optional[str]='trapezoid',
+    integration_method: Optional[str]='gl',
     rtol: Optional[Union[int, float]]=1.e-3,
     atol: Optional[Union[int, float]]=1.e-3,
     growth_factor_n_slabs: Optional[Union[int, float]]=1.5,
@@ -4313,7 +4318,7 @@ def osc_prob_liv(
     t_slab_edges: Optional[Union[list, np.ndarray]]=None,
     magnus_exp_order: Optional[int]=4,
     n_jobs: Optional[int]=1,
-    integration_method: Optional[str]='trapezoid',
+    integration_method: Optional[str]='gl',
     rtol: Optional[Union[int, float]]=1.e-3,
     atol: Optional[Union[int, float]]=1.e-3,
     growth_factor_n_slabs: Optional[Union[int, float]]=1.5,
@@ -7361,7 +7366,7 @@ def osc_prob_earth(
     electron_fraction: Optional[Union[int, float]]=0.5,
     magnus_exp_order: Optional[int]=4,
     n_jobs: Optional[int]=1,
-    integration_method: Optional[str]='trapezoid',
+    integration_method: Optional[str]='gl',
     rtol: Optional[Union[int, float]]=1.e-3,
     atol: Optional[Union[int, float]]=1.e-3,
     validate_input: Optional[bool]=True,
@@ -7438,7 +7443,7 @@ def osc_prob_earth(
     n_jobs : int, optional
         Number of parallel joblib workers. Default: 1.
     integration_method : str, optional
-        'trapezoid', 'simpson', or 'gl'. Default: 'trapezoid'.
+        'gl', 'trapezoid', or 'simpson'. Default: 'gl'.
     rtol, atol : int or float, optional
         Target relative/absolute tolerance for the adaptive slab refinement. Default: 1e-3 each.
     validate_input : bool, optional
@@ -7584,7 +7589,7 @@ def _osc_prob_with_potential(
     n_jobs : int
         Number of parallel joblib workers.
     integration_method : str
-        'trapezoid', 'simpson', or 'gl'.
+        'gl', 'trapezoid', or 'simpson'.
     rtol, atol : int or float, optional
         Target relative/absolute tolerance for the adaptive slab refinement.
     validate_input : bool
@@ -8335,7 +8340,7 @@ def osc_prob_sun(
     nu_f: Optional[int]=None,
     magnus_exp_order: Optional[int]=4,
     n_jobs: Optional[int]=1,
-    integration_method: Optional[str]='trapezoid',
+    integration_method: Optional[str]='gl',
     rtol: Optional[Union[int, float]]=1.e-3,
     atol: Optional[Union[int, float]]=1.e-3,
     validate_input: Optional[bool]=True,
@@ -8398,7 +8403,7 @@ def osc_prob_sun(
     n_jobs : int, optional
         Number of parallel joblib workers. Default: 1.
     integration_method : str, optional
-        'trapezoid', 'simpson', or 'gl'. Default: 'trapezoid'.
+        'gl', 'trapezoid', or 'simpson'. Default: 'gl'.
     rtol, atol : int or float, optional
         Target relative/absolute tolerance for the adaptive slab refinement. Default: 1e-3 each.
     validate_input : bool, optional

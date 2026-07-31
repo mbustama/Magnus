@@ -253,8 +253,13 @@ def build_parser() -> argparse.ArgumentParser:
     g_num = p.add_argument_group('Advanced numerics')
     g_num.add_argument('--magnus-exp-order', type=int, default=4, dest='magnus_exp_order',
         help='Highest order of the Magnus expansion (1-6). Default: 4.')
-    g_num.add_argument('--integration-method', choices=['trapezoid', 'simpson', 'gl'], default='trapezoid',
-        help="Quadrature method ('gl' = Gauss-Legendre, fastest). Default: trapezoid.")
+    g_num.add_argument('--integration-method', choices=['gl', 'trapezoid', 'simpson'], default='gl',
+        help="Quadrature method. 'gl' (Gauss-Legendre collocation) needs only 1-3 Hamiltonian "
+             "evaluations per slab and matches its quadrature order to the expansion order, so "
+             "it is both the fastest and the most accurate for a smooth Hamiltonian. "
+             "'trapezoid'/'simpson' sample a uniform grid of --n-tpts-per-slab points instead, "
+             "and are the safer choice if the Hamiltonian is not smooth within a slab. "
+             "Default: gl.")
     g_num.add_argument('--rtol', type=float, default=1.e-3, help='Target relative tolerance. Default: 1e-3.')
     g_num.add_argument('--atol', type=float, default=1.e-3, help='Target absolute tolerance. Default: 1e-3.')
     g_num.add_argument('--n-jobs', type=int, default=1, dest='n_jobs',

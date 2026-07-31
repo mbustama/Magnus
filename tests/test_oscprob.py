@@ -137,29 +137,39 @@ def test_asymmetric_profile_matches_ode_solution():
 # osc_prob interface behavior
 # ----------------------------------------------------------------------
 
-def test_user_t_slab_edges_are_all_used():
+@pytest.mark.parametrize("method", ['gl', 'trapezoid', 'simpson'])
+def test_user_t_slab_edges_are_all_used(method):
     """Regression test: with user-provided t_slab_edges, all slabs (not just
-    the first) must enter the product."""
+    the first) must enter the product.
+
+    Stated as a ratio rather than an absolute tolerance.  The two-slab result
+    must land far closer to the well-resolved 50-slab answer than to the
+    first-slab-only answer; if the second slab were dropped, P_edges would
+    *equal* P_first_only and the ratio would blow up.  An absolute threshold
+    would have to be retuned for every integration method and expansion order
+    (two Gauss-Legendre nodes per slab resolve a two-slab interval a little
+    less finely than 101 trapezoid points do), while the property actually
+    being tested -- that the second slab is in the product at all -- is the
+    same for all of them."""
     H0, H1 = random_hermitian(3), random_hermitian(3)
 
     def H_ramp(l):
         lr = np.asarray(l)
         return H0 + lr[..., None, None]*H1 if lr.ndim else H0 + float(lr)*H1
 
+    kwargs = dict(n_tpts_per_slab=101, magnus_exp_order=4, rtol=None,
+                  atol=None, validate_input=False, integration_method=method)
     edges = [[0.0, 0.3], [0.3, 1.0]]
-    P_edges = op.osc_prob(H_ramp, 0.0, 1.0, t_slab_edges=edges,
-                          n_tpts_per_slab=101, magnus_exp_order=4,
-                          rtol=None, atol=None, validate_input=False)
-    P_auto = op.osc_prob(H_ramp, 0.0, 1.0, n_slabs=50, n_tpts_per_slab=101,
-                         magnus_exp_order=4, rtol=None, atol=None,
-                         validate_input=False)
-    # Same interval, different slabbings: results must agree well, and in
-    # particular P_edges must NOT equal the single-slab [0, 0.3] result
-    assert maxabs(P_edges - P_auto) < 1e-3
-    P_first_only = op.osc_prob(H_ramp, 0.0, 0.3, n_slabs=1,
-                               n_tpts_per_slab=101, magnus_exp_order=4,
-                               rtol=None, atol=None, validate_input=False)
-    assert maxabs(P_edges - P_first_only) > 1e-2
+    P_edges = op.osc_prob(H_ramp, 0.0, 1.0, t_slab_edges=edges, **kwargs)
+    P_auto = op.osc_prob(H_ramp, 0.0, 1.0, n_slabs=50, **kwargs)
+    P_first_only = op.osc_prob(H_ramp, 0.0, 0.3, n_slabs=1, **kwargs)
+
+    gap_to_resolved = maxabs(P_edges - P_auto)
+    gap_to_first_only = maxabs(P_edges - P_first_only)
+    assert gap_to_first_only > 1e-2
+    assert gap_to_resolved < 0.1*gap_to_first_only, (
+        f"{method}: two-slab result is not close to the 50-slab answer "
+        f"({gap_to_resolved:.3e} vs {gap_to_first_only:.3e} to first-slab-only)")
 
 
 def test_single_none_tolerance_is_accepted():

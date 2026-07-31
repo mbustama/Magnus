@@ -31,18 +31,23 @@ terms with :math:`A`.  Orders 1--6 are implemented (:math:`B_3 = B_5 =
 Two families of methods are available, selected via
 ``integration_method``:
 
+* ``'gl'`` (the default): Gauss-Legendre commutator-free collocation
+  [1]_ [2]_.  For a slab of width :math:`h` it needs only 1, 2, or 3
+  evaluations of :math:`A` to reach order 2, 4, or 6, respectively, with
+  quadrature error matched to the truncation order.  ``n_tpts`` is
+  ignored.  Both faster and more accurate than the alternatives whenever
+  :math:`A(t)` is smooth within each slab, which is the common case --
+  and, for the Earth, is what aligning slab edges with the PREM layer
+  boundaries is for.
+
 * ``'trapezoid'`` / ``'simpson'``: sample :math:`A(t)` on a uniform grid
   of ``n_tpts`` points and evaluate the nested integrals with cumulative
-  quadrature.  Fully general, but the quadrature error
+  quadrature.  Fully general, and so the safer choice if :math:`A(t)`
+  has a kink or a discontinuity *inside* a slab, where Gauss-Legendre
+  loses its order advantage.  The quadrature error
   (:math:`\mathcal{O}(h^2)` or :math:`\mathcal{O}(h^4)`) can dominate
-  the Magnus truncation error at high orders.
-
-* ``'gl'``: Gauss-Legendre commutator-free collocation [1]_ [2]_.  For a
-  slab of width :math:`h` it needs only 1, 2, or 3 evaluations of
-  :math:`A` to reach order 2, 4, or 6, respectively, with quadrature
-  error matched to the truncation order.  ``n_tpts`` is ignored.  This
-  is the recommended method when :math:`A(t)` is smooth within each
-  slab.
+  the Magnus truncation error at high orders unless ``n_tpts`` grows
+  accordingly.
 
 References
 ----------
@@ -111,7 +116,7 @@ f2 = F2
 MAGNUS_EXP_ORDER_MAX = 6
 
 # Valid values of integration_method
-valid_integration_methods = ['trapezoid', 'simpson', 'gl']
+valid_integration_methods = ['gl', 'trapezoid', 'simpson']
 
 # Gauss-Legendre nodes on [0, 1] used by the 'gl' method
 _GL1_NODES = np.array([0.5])
@@ -681,7 +686,7 @@ def magnus_expansion(
     t1: float,
     n_tpts: Optional[int] = 50,
     order: Optional[int] = 2,
-    integration_method: Optional[str] = 'trapezoid',
+    integration_method: Optional[str] = 'gl',
     return_magnus_terms: Optional[bool] = False,
     validate_input: Optional[bool] = True,
     A_eval_mode: Optional[str] = None
@@ -707,9 +712,9 @@ def magnus_expansion(
     order : int, optional
         Highest Magnus order (1 to 6).
     integration_method : str, optional
-        'trapezoid', 'simpson', or 'gl' (Gauss-Legendre collocation;
-        ignores ``n_tpts`` and uses 1, 2, or 3 nodes for orders <= 2,
-        <= 4, <= 6, respectively).
+        'gl' (Gauss-Legendre collocation; ignores ``n_tpts`` and uses 1, 2,
+        or 3 nodes for orders <= 2, <= 4, <= 6, respectively), 'trapezoid',
+        or 'simpson'. Default: 'gl'.
     return_magnus_terms : bool, optional
         If True, also return the individual Magnus terms.  For the
         'gl' method the terms are not separable, and a single-element
@@ -758,7 +763,7 @@ def evolution_operators_from_samples(
     At: np.ndarray,
     widths: Union[list, np.ndarray],
     order: Optional[int] = 2,
-    integration_method: Optional[str] = 'trapezoid',
+    integration_method: Optional[str] = 'gl',
     A_is_const: Optional[bool] = False,
     validate_input: Optional[bool] = True
 ) -> np.ndarray:
@@ -786,7 +791,7 @@ def evolution_operators_from_samples(
     order : int, optional
         Highest Magnus order (1 to 6).
     integration_method : str, optional
-        'trapezoid', 'simpson', or 'gl'.
+        'gl', 'trapezoid', or 'simpson'. Default: 'gl'.
     A_is_const : bool, optional
         Set to True if A is constant in time to skip the (inapplicable)
         slab-width convergence warning.
@@ -834,7 +839,7 @@ def magnus_expansion_multislab(
     t_slab_edges: Union[list, np.ndarray],
     n_tpts_per_slab: Optional[int] = 50,
     order: Optional[int] = 2,
-    integration_method: Optional[str] = 'trapezoid',
+    integration_method: Optional[str] = 'gl',
     validate_input: Optional[bool] = True,
     A_eval_mode: Optional[str] = None
 ) -> np.ndarray:
@@ -861,7 +866,7 @@ def magnus_expansion_multislab(
     order : int, optional
         Highest Magnus order (1 to 6).
     integration_method : str, optional
-        'trapezoid', 'simpson', or 'gl'.
+        'gl', 'trapezoid', or 'simpson'. Default: 'gl'.
     validate_input : bool, optional
         If True, validate input (raises ValueError on invalid input).
     A_eval_mode : str, optional

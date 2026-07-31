@@ -276,7 +276,7 @@ configures):
                       [--dxi35 DXI35] [--b1 B1] [--b2 B2] [--b3 B3] [--b4 B4] [--b5 B5]
                       [--liv-lambda LAMBDA] [--n-liv N_LIV] [--nu-i NU_I] [--nu-f NU_F]
                       [--magnus-exp-order MAGNUS_EXP_ORDER]
-                      [--integration-method {trapezoid,simpson,gl}] [--rtol RTOL]
+                      [--integration-method {gl,trapezoid,simpson}] [--rtol RTOL]
                       [--atol ATOL] [--n-jobs N_JOBS] [--strategy {auto,hybrid,magnus}]
                       [--verbose {0,1,2}] [--json] [--precision PRECISION]
 
@@ -422,9 +422,14 @@ configures):
    Advanced numerics:
      --magnus-exp-order MAGNUS_EXP_ORDER
                            Highest order of the Magnus expansion (1-6). Default: 4.
-     --integration-method {trapezoid,simpson,gl}
-                           Quadrature method ('gl' = Gauss-Legendre, fastest). Default:
-                           trapezoid.
+     --integration-method {gl,trapezoid,simpson}
+                           Quadrature method. 'gl' (Gauss-Legendre collocation) needs only
+                           1-3 Hamiltonian evaluations per slab and matches its quadrature
+                           order to the expansion order, so it is both the fastest and the
+                           most accurate for a smooth Hamiltonian. 'trapezoid'/'simpson'
+                           sample a uniform grid of --n-tpts-per-slab points instead, and
+                           are the safer choice if the Hamiltonian is not smooth within a
+                           slab. Default: gl.
      --rtol RTOL           Target relative tolerance. Default: 1e-3.
      --atol ATOL           Target absolute tolerance. Default: 1e-3.
      --n-jobs N_JOBS       Number of parallel joblib workers. Default: 1.

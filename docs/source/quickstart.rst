@@ -67,8 +67,7 @@ The same pattern applies to :func:`~magnus.oscprob.osc_prob_2nu_vacuum`,
 
    # By direction (cosine of the zenith angle) and baseline
    P = oscprob.osc_prob_3nu_earth(energy, costhz=-0.8,
-                                   L=2.0*6371.0*0.8*gd.UNIT_KM,
-                                   integration_method='gl')  # fastest method
+                                   L=2.0*6371.0*0.8*gd.UNIT_KM)
 
    # By source and detector location (the chord through the Earth is
    # computed automatically; see magnus.earth.loc_coords_dms for the
@@ -80,16 +79,18 @@ The same pattern applies to :func:`~magnus.oscprob.osc_prob_2nu_vacuum`,
    energies = np.logspace(-0.3, 1.3, 200)*gd.UNIT_GEV
    P_scan = oscprob.osc_prob_3nu_earth(
        energies, costhz=-0.8, L=2.0*6371.0*0.8*gd.UNIT_KM,
-       nu_i=gd.NUE, nu_f=gd.NUMU, integration_method='gl')
+       nu_i=gd.NUE, nu_f=gd.NUMU)
 
    # The Sun, with its built-in exponential electron-density profile
    P = oscprob.osc_prob_2nu_sun(10.0*gd.UNIT_MEV, 0.3*gd.SUN_RADIUS*gd.UNIT_KM,
                                  L0=0.0, sth=np.sqrt(0.308), Dm2=7.5e-5)
 
-``integration_method='gl'`` selects the Gauss-Legendre commutator-free
-integrators (see :doc:`methodology`); it is the fastest option and is
-recommended whenever the Hamiltonian is smooth within each slab, which is
-the common case.
+None of these pass ``integration_method``, so they use the default,
+``'gl'`` -- the Gauss-Legendre commutator-free integrators (see
+:doc:`methodology`), which are both the fastest and the most accurate choice
+whenever the Hamiltonian is smooth within each slab, the common case.  Pass
+``integration_method='trapezoid'`` (or ``'simpson'``) for a Hamiltonian with
+a kink or a discontinuity *inside* a slab.
 
 4. Beyond the Standard Model: NSI and LIV
 ---------------------------------------------
@@ -148,7 +149,7 @@ internally.  It accepts any square, Hermitian-valued function of position
        ...
 
    P = oscprob.osc_prob(H_func, t_ini=0.0, t_fin=L,
-                         magnus_exp_order=4, integration_method='gl',
+                         magnus_exp_order=4,
                          rtol=1e-4, atol=1e-4)
 
 Find a full worked example of using :func:`~magnus.oscprob.osc_prob` directly for a
