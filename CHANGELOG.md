@@ -37,8 +37,12 @@ that history is the most useful record of *why* the code looks the way it does.
   Referenced from the README, the docs landing page, and both file trees.
 - Status badges on the README and the docs landing page: CI tests, code quality,
   documentation, license, the supported Python version (3.10+, matching
-  `requires-python` and the CI matrix rather than a copied-in default), and the code
-  style (ruff, which `lint.yml` actually enforces).
+  `requires-python` and the CI matrix rather than a copied-in default), the code
+  style (ruff, which `lint.yml` actually enforces), and PyPI downloads via
+  pepy.tech. The downloads badge reports on the distribution name, `magnuspy`,
+  and stays blank until the first release is published -- pepy serves a 404 for a
+  project PyPI does not know, so it renders as a broken image rather than as a
+  count of zero.
 - `magnus.expansionterms`: derives the terms of the Magnus expansion from the
   Bernoulli-number recursion symbolically, at any order, in exact rational
   arithmetic (`bernoulli`, `bernoulli_factor`, `omega_terms`, `magnus_terms`,
