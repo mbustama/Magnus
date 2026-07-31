@@ -115,6 +115,28 @@ that history is the most useful record of *why* the code looks the way it does.
   routes, which must agree; the CLI's argument-error paths; the unknown-location
   error in `earth.coordinates_of_named_location`; the `verbose=2` banner and
   run-parameter dump; and `globaldefs.set_color_output`.
+- `magnus.avgprob`, and the `average` keyword that reaches it from every
+  oscillation-probability function through the shared `**kwargs` chain: the
+  phase-averaged (fully decohered) probability, which is the exact
+  `L/E -> infinity` limit astrophysical neutrinos arrive in. For a
+  position-independent Hamiltonian it is closed-form, one eigendecomposition
+  rather than the resolution of some 10^15 radians of phase, and for vacuum it
+  depends on neither energy nor baseline, so one matrix serves an entire flux
+  calculation. A position-dependent profile decoheres in the eigenbasis at
+  production and is carried along the levels of the instantaneous Hamiltonian,
+  with level-crossing probabilities taken from the convergence-checked Magnus
+  patches of `magnus.adiabatic` rather than from a Landau-Zener formula -- they
+  reproduce that formula to a few parts in a thousand, which is the check rather
+  than the method. A profile with discontinuities (PREM) has no closed form and
+  is averaged over an energy window instead, which is a different quantity and
+  says so.
+  Whether the averaged limit applies at all is decided per pair of eigenvalues
+  from the phase they accumulate, not assumed: pairs that have neither decohered
+  nor stayed coherent raise `magnus.oscprob.PhaseAveragingWarning`, and
+  near-degenerate ones are summed coherently within blocks, since the naive
+  incoherent sum returns a spurious mixture where the correct answer is that
+  nothing oscillates. Documented in `docs/source/averaged_probability.rst`, with
+  worked examples in `notebooks/12_magnus_averaged_probability.ipynb`.
 - `magnus.oscprob.IP_EXP_N_SLABS_CAP` and `magnus.oscprob.IP_EXP_LOOP_CAP`: the
   interaction-picture integrator's slab and loop ceilings, previously written as
   bare numbers inside the function. Naming them changes no behaviour, and makes

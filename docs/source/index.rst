@@ -196,6 +196,7 @@ Salient Features
    methodology
    expansion_terms
    adiabatic_strategy
+   averaged_probability
    tutorials
    references
    changelog
