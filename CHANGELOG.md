@@ -320,6 +320,14 @@ that history is the most useful record of *why* the code looks the way it does.
   used by anything: every call site hardcoded the colored variant, so there
   was no supported way to get clean output into a log file or a rendered
   notebook.
+- The documentation build now runs on pull requests, not only on pushes to
+  `main`. It was previously built only by `pages.yml`, so a page that failed to
+  build, or silently dropped out of the sidebar, was not caught until after it
+  had been merged. The pull-request build is deliberately stricter than the
+  deploy build -- `-W` turns Sphinx warnings into errors, which is what catches
+  a broken cross-reference or a page missing from the toctree -- while the
+  deploy build stays permissive, so a late warning can never be what stops a
+  release from publishing.
 - `ruff check` is now blocking in CI rather than `continue-on-error`, with
   the rule configuration in `[tool.ruff.lint]` in `pyproject.toml`, including an
   explicit `select`. Leaving the selection to ruff's default is not safe for a
