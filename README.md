@@ -877,6 +877,11 @@ Four GitHub Actions workflows run under [`.github/workflows/`](.github/workflows
   threshold — and it is its own job rather than a fourth entry in the matrix
   because coverage does not depend on the interpreter, so measuring it three
   times would only pay the instrumentation cost three times.
+
+  It also carries a Codecov upload step that is **dormant**: it is skipped
+  unless a `CODECOV_TOKEN` repository secret exists, so nothing is sent
+  anywhere today. Creating that secret is the whole act of switching public
+  coverage reporting on, which is deferred until the repository goes public.
 - **[`lint.yml`](.github/workflows/lint.yml)** — runs Ruff (`ruff check` and
   `ruff format --check`) on every push/PR to `main`. Currently informational
   (`continue-on-error: true`): it reports style/static-analysis issues

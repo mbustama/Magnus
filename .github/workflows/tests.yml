@@ -47,6 +47,11 @@ jobs:
     name: Coverage
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      # Read here at job level rather than on the upload step itself, because a step's own
+      # `env:` block is not visible to that step's `if:` condition -- this is what lets the
+      # Codecov step below switch itself off cleanly when the secret does not exist.
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
     steps:
       - uses: actions/checkout@v4
 
@@ -77,11 +82,30 @@ jobs:
             python -m coverage report --format=markdown
           } >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Upload coverage to Codecov
+        # Dormant until a CODECOV_TOKEN repository secret exists: without one the condition
+        # is false and the step is skipped, so this costs nothing and cannot fail while the
+        # repository is private and no badge is wanted yet.  Creating that secret is the
+        # entire act of switching coverage reporting on -- at which point Codecov also
+        # starts commenting per-PR diff coverage, which is the part that actually changes
+        # behaviour, since it shows the coverage of the lines in front of you.
+        #
+        # Nothing is sent anywhere until the secret is deliberately added.
+        #
+        # fail_ci_if_error is on for the same reason ruff is blocking: an upload that
+        # quietly fails would leave a badge frozen at a stale number under a green
+        # checkmark, which is worse than a visible failure.  It cannot affect the tests'
+        # own pass/fail signal, which comes from the matrix job above.
+        if: env.CODECOV_TOKEN != ''
+        uses: codecov/codecov-action@v5
+        with:
+          files: ./coverage.xml
+          fail_ci_if_error: true
+
       - name: Upload coverage report
         # coverage.xml is the standard Cobertura format every coverage service consumes.
-        # Publishing it as an artifact keeps the report available now, while the repo is
-        # private and a badge is not yet possible; when the repo goes public, adding a
-        # codecov/codecov-action step here that uploads this same file is the whole change.
+        # Publishing it as an artifact keeps the report available regardless of whether the
+        # Codecov step above is active, and is what makes the figure inspectable today.
         uses: actions/upload-artifact@v4
         with:
           name: coverage-xml
