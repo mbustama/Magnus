@@ -16,6 +16,16 @@ that history is the most useful record of *why* the code looks the way it does.
 
 ### Added
 
+- The PyPI distribution is named **magnuspy**; the import package remains
+  `magnus`. Plain `magnus` was already taken on PyPI by an unrelated project, so
+  `pip install magnus` would have fetched someone else's package and the release
+  workflow would have failed on upload. The two names are independent in Python
+  packaging, so `pip install magnuspy` then `import magnus` is all that changes,
+  and the console script is still `magnus`. `version.py` looks the distribution
+  up under the new name: querying the import name would have raised
+  PackageNotFoundError and fallen through to parsing `pyproject.toml`, which is
+  absent from an installed wheel, so every installed user would have reported
+  `0.0.0+unknown`.
 - A license. Magνs is released under the GNU General Public License v3.0 only;
   `LICENSE` carries the full text, and it is declared in `pyproject.toml` as the
   PEP 639 SPDX expression `license = "GPL-3.0-only"`, which is what appears in

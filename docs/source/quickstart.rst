@@ -15,8 +15,9 @@ script.
    the matching constant to convert it, e.g. ``100.0*gd.UNIT_KM`` for a
    100 km baseline.
 
-Install Magνs with ``pip install --pre magnus`` (see :doc:`installation`),
-then:
+Install Magνs with ``pip install --pre magnuspy`` -- the distribution is
+``magnuspy`` on PyPI, the import package is ``magnus`` (see
+:doc:`installation`) -- then:
 
 .. code-block:: python
 

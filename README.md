@@ -271,9 +271,11 @@ required). Use the module for anything programmatic (scans, plots, fitting);
 use the CLI for a quick one-off number, a shell script, or to sanity-check a
 parameter choice.
 
-Install it with `pip install --pre magnus` (the `--pre` is needed while the
+Install it with `pip install --pre magnuspy` (the `--pre` is needed while the
 current release is a release candidate; drop it once 1.0.0 final is out), or
-`pip install -e .` from a checkout.
+`pip install -e .` from a checkout. The distribution is called **magnuspy** on
+PyPI because plain `magnus` was already taken by an unrelated project, but the
+import package is `magnus`, as below.
 
 ### As a Python module
 

@@ -12,7 +12,7 @@ output, and the docs.
 Resolution order:
 
 #. ``importlib.metadata``, when Magnus is installed (``pip install .`` /
-   ``pip install -e .``).  This is the normal case and costs one cheap
+   ``pip install -e .``), looked up under the distribution name ``magnuspy``.  This is the normal case and costs one cheap
    lookup of the installed distribution metadata.
 #. ``pyproject.toml``, read directly, when Magnus is *not* installed and
    is merely being imported off ``src/`` on ``sys.path`` (the layout used
@@ -43,7 +43,11 @@ def _version_from_metadata() -> str:
     except ImportError:                                       # pragma: no cover
         return ''
     try:
-        return version('magnus')
+        # The *distribution* is `magnuspy`; the import package is `magnus`.  Looking up
+        # the import name here would raise PackageNotFoundError and silently fall
+        # through to the pyproject.toml branch -- which does not exist in an installed
+        # wheel, so every installed user would report '0.0.0+unknown'.
+        return version('magnuspy')
     except PackageNotFoundError:
         return ''
 
