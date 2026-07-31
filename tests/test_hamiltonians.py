@@ -13,6 +13,7 @@ asserting the code equals itself.
 import numpy as np
 import pytest
 
+import magnus.globaldefs as gd
 import magnus.hamiltonians as hams
 import magnus.hamiltonians.hamiltonians2nu as h2
 import magnus.hamiltonians.hamiltonians3nu as h3
@@ -182,3 +183,104 @@ def test_hamiltonians_package_exposes_all_flavor_counts():
                  'mixing_matrix_4x4', 'hamiltonian_4nu_vacuum_energy_independent',
                  'mixing_matrix_5x5', 'hamiltonian_5nu_vacuum_energy_independent']:
         assert hasattr(hams, name), name
+
+
+# ----------------------------------------------------------------------
+# Every exported builder, called once and checked for Hermiticity.
+#
+# A coverage run found 25 of the builders re-exported in this package's
+# __all__ were executed by nothing: not by the tests, and not by the
+# library either, since oscprob reaches for the *_energy_independent and
+# *_nsi variants instead. They are public, documented API with no caller
+# anywhere, which is the state in which a wrong sign or a transposed index
+# survives indefinitely.
+#
+# Hermiticity is the one invariant every Hamiltonian here must satisfy
+# regardless of flavor count or scenario, and it is a genuine physical
+# constraint rather than an assertion that the code equals itself: it fails
+# if a term is added to one triangle and not conjugated into the other,
+# which is exactly the shape of the mixing-matrix bugs found in the audit.
+# ----------------------------------------------------------------------
+
+# One value per parameter *name*; each builder takes the subset its own
+# signature asks for. Angles and phases are deliberately non-trivial, so a
+# term dropped from the off-diagonal cannot pass by being zero anyway.
+BUILDER_ARGS = {
+    'l': 100.0*gd.UNIT_KM, 'energy': 1.0*gd.UNIT_GEV,
+    'VCC': 1.0e-13, 'VCC_func': lambda l: 1.0e-13,
+    'sth': 0.4, 'Dm2': 2.5e-3,
+    's12': 0.55, 's23': 0.68, 's13': 0.15, 'dCP': 3.7, 'd13': 3.7,
+    's14': 0.10, 'd14': 1.1, 's24': 0.05, 'd24': 2.2, 's34': 0.02,
+    's15': 0.05, 'd15': 0.7, 's25': 0.02, 's35': 0.01, 'd35': 1.9,
+    'D21': 7.5e-5, 'D31': 2.5e-3, 'D41': 1.0, 'D51': 2.0,
+    'sxi': 0.2, 'sxi12': 0.2, 'sxi23': 0.1, 'sxi13': 0.05,
+    'dxiCP': 1.3, 'dxi13': 1.3, 'sxi14': 0.05, 'dxi14': 0.4,
+    'sxi24': 0.03, 'dxi24': 0.9, 'sxi34': 0.02,
+    'sxi15': 0.03, 'dxi15': 0.6, 'sxi25': 0.02, 'sxi35': 0.01, 'dxi35': 1.5,
+    'b1': gd.B1, 'b2': gd.B2, 'b3': gd.B3, 'b4': 3.0e-9, 'b5': 4.0e-9,
+    'Lambda': gd.LAMBDA, 'n_liv': 1,
+    # NSI: diagonal entries must be real for H to be Hermitian at all, but the
+    # off-diagonal ones are deliberately complex -- a term placed in the upper
+    # triangle without its conjugate in the lower one is invisible if every
+    # epsilon is real, which is precisely the bug this check is here to catch.
+    'eps_aa': 0.1, 'eps_ab': 0.05 + 0.02j,
+    'eps_ee': 0.2, 'eps_em': 0.1 + 0.03j, 'eps_et': 0.05 - 0.01j,
+    'eps_mm': 0.05, 'eps_mt': 0.02 + 0.01j, 'eps_tt': 0.01,
+    # The 4nu builders name their single sterile row without an index
+    # (eps_es), the 5nu ones number theirs (eps_es1, eps_es2).
+    'eps_es': 0.02 + 0.005j, 'eps_ms': 0.01 - 0.003j, 'eps_ts': 0.005 + 0.002j,
+    'eps_ss': 0.01,
+    'eps_es1': 0.02 + 0.005j, 'eps_ms1': 0.01 - 0.003j, 'eps_ts1': 0.005 + 0.002j,
+    'eps_es2': 0.01 - 0.004j, 'eps_ms2': 0.005 + 0.001j, 'eps_ts2': 0.002 - 0.001j,
+    'eps_s1s1': 0.01, 'eps_s1s2': 0.005 + 0.001j, 'eps_s2s2': 0.01,
+}
+
+
+def exported_hamiltonian_builders():
+    """Every `hamiltonian_*` name in the package's own __all__.
+
+    Read from __all__ rather than hand-listed: __all__ is the package's
+    statement about what is public, so anything added there is swept here
+    without a second edit, and the test cannot drift from the API it is
+    supposed to be guarding.
+    """
+    return sorted(n for n in hams.__all__ if n.startswith('hamiltonian_'))
+
+
+@pytest.mark.parametrize("name", exported_hamiltonian_builders())
+def test_every_exported_hamiltonian_builder_is_hermitian(name):
+    import inspect
+    fn = getattr(hams, name)
+    params = inspect.signature(fn).parameters
+    # Required parameters only; the optional ones (e.g. the
+    # compute_matrix_multiplication fast/slow-path flag) are left at their
+    # defaults, which is how the library itself calls these.
+    required = [p for p, v in params.items() if v.default is inspect.Parameter.empty]
+    missing = [p for p in required if p not in BUILDER_ARGS]
+    assert not missing, f"{name}: no test value for {missing} -- add it to BUILDER_ARGS"
+
+    H = np.asarray(fn(**{p: BUILDER_ARGS[p] for p in required}))
+    dim = int(name[len('hamiltonian_')])
+    assert H.shape == (dim, dim), f"{name}: expected {dim}x{dim}, got {H.shape}"
+    assert np.all(np.isfinite(H)), f"{name}: non-finite entries"
+
+    # Relative to the size of H itself, with no absolute floor. A floor of 1.0
+    # would make this vacuous for exactly the builders most worth checking: the
+    # matter and NSI Hamiltonians are proportional to VCC ~ 1e-13 eV, so an
+    # absolute 1e-12 tolerance exceeds every entry in the matrix and the
+    # assertion can never fail. Verified by deleting a conjugation in
+    # hamiltonian_3nu_nsi: with the floor the test still passed, without it the
+    # test fails as it should.
+    scale = maxabs(H)
+    assert scale > 0.0, f"{name}: returned an all-zero matrix"
+    assert maxabs(H - H.conj().T) <= 1e-12*scale, f"{name}: not Hermitian"
+
+
+def test_mixing_matrix_3x3_is_unitary_and_matches_pmns():
+    """mixing_matrix_3x3 is exported alongside pmns_mixing_matrix and had no
+    caller of its own. If the two ever disagree, one of them is building a
+    different convention than the wrappers assume."""
+    args = (0.55, 0.68, 0.15, 3.7)
+    U = hams.mixing_matrix_3x3(*args)
+    assert is_unitary(U)
+    assert maxabs(U - hams.pmns_mixing_matrix(*args)) == 0.0

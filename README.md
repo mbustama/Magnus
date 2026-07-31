@@ -841,9 +841,13 @@ Four GitHub Actions workflows run under [`.github/workflows/`](.github/workflows
     exact unitarity of the resulting evolution operators, and the
     single-slab/multi-slab chaining logic.
   - [`test_oscprob.py`](tests/test_oscprob.py) — the oscillation-probability
-    engine: every `osc_prob_{2,3,4,5}nu_*` wrapper family runs and returns
+    engine: every `osc_prob_{2,3,4,5}nu_*` wrapper runs and returns
     unitary probabilities (rows sum to 1) across vacuum, constant- and
-    exponential-density matter, Earth, and Sun; probabilities are
+    exponential-density matter, Earth, and Sun, in the standard, NSI and
+    LIV scenarios alike — the standard wrappers and the BSM ones are swept
+    by two companion tests, the second of which discovers its own list from
+    the module, so a wrapper added later cannot quietly go unexercised;
+    probabilities are
     cross-checked against closed-form expressions and against
     `scipy.integrate.solve_ivp`; NSI/LIV parameters and `nubar` are checked
     to have a real, non-degenerate effect where physically expected; and
@@ -856,8 +860,11 @@ Four GitHub Actions workflows run under [`.github/workflows/`](.github/workflows
   - [`test_hamiltonians.py`](tests/test_hamiltonians.py) — the Hamiltonian
     and mixing-matrix builders: unitarity and fast/slow-path agreement of
     the 4×4 and 5×5 mixing matrices, exact reduction to the 3ν PMNS matrix
-    when sterile mixing is off, NSI/LIV convention checks, and the
-    position-dependent `_td` convenience wrappers.
+    when sterile mixing is off, NSI/LIV convention checks, the
+    position-dependent `_td` convenience wrappers, and a sweep over every
+    `hamiltonian_*` name the package exports, each built once with
+    complex off-diagonal couplings and checked for Hermiticity — the one
+    invariant all of them share, and the one a dropped conjugation breaks.
   - [`test_cli.py`](tests/test_cli.py) — the `magnus` command-line
     calculator: dispatch to the right `osc_prob_*` function for every
     environment/scenario/flavor-count combination, JSON output matching
