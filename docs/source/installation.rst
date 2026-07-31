@@ -190,7 +190,8 @@ File Tree
    │   ├── test_earth_matter.py         # PREM profile, chord geometry, electron density
    │   ├── test_hamiltonians.py         # Hamiltonian/mixing-matrix builders
    │   ├── test_cli.py                  # magnus command-line calculator
-   │   └── test_globaldefs.py           # NuFit historical parameter dict/loader
+   │   ├── test_globaldefs.py           # NuFit historical parameter dict/loader
+   │   └── test_version.py              # Version resolution from pyproject.toml / installed metadata
    ├── .gitignore
    ├── CHANGELOG.md                     # Version history (Keep a Changelog format)
    ├── LICENSE                          # GNU GPL v3 (GPL-3.0-only), the full license text

@@ -152,3 +152,39 @@ def test_vcc_sign_flips_for_antineutrinos():
                                               density_matter_is_in_g_per_cm3=True)
     assert vcc_nu > 0.0
     assert vcc_nubar == pytest.approx(-vcc_nu)
+
+
+# ----------------------------------------------------------------------
+# Error and convenience paths a coverage run found unexercised.
+# ----------------------------------------------------------------------
+
+def test_named_location_lookup_is_case_and_space_insensitive():
+    """The lookup normalizes case and spaces, so the same detector can be
+    named the way a person would write it."""
+    canonical = earth.coordinates_of_named_location('test', loc_name='gran_sasso')
+    for variant in ['Gran Sasso', 'GRAN SASSO', 'gran sasso', 'Gran_Sasso']:
+        assert np.array_equal(earth.coordinates_of_named_location('test', loc_name=variant),
+                              canonical), variant
+
+
+def test_unknown_named_location_raises_and_lists_the_known_ones():
+    """An unrecognized site name must fail loudly, and the message must name
+    the alternatives -- this is the one error a user hits by typing a
+    detector name slightly wrong, so the list is the whole remedy."""
+    with pytest.raises(ValueError) as excinfo:
+        earth.coordinates_of_named_location('test', loc_name='not_a_detector')
+
+    message = str(excinfo.value)
+    assert 'not_a_detector' in message, "the rejected name is not echoed back"
+    for known in earth.loc_coords_dms:
+        assert known in message, f"the available location {known!r} is not offered"
+
+
+def test_constant_density_profile_is_constant():
+    rho = 4.5
+    assert matter.density_matter_func_const(0.0, rho) == rho
+    assert matter.density_matter_func_const(1.0e9, rho) == rho
+
+
+def test_constant_density_profile_defaults_to_the_crust():
+    assert matter.density_matter_func_const(0.0) == gd.DENSITY_MATTER_CRUST_G_PER_CM3

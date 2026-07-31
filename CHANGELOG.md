@@ -97,6 +97,24 @@ that history is the most useful record of *why* the code looks the way it does.
   `__all__` respectively -- so a name added later is swept without anyone
   remembering to extend a list. Both were verified to fail against a deliberately
   broken library before being kept.
+- Tests for the paths that report failure rather than a result: the refusals of
+  the closed-form interaction-picture integrator, both ways
+  `adiabatic.hybrid_propagator` can decline to certify a non-converged patch,
+  and what the dispatch layer then does with an uncertified point --
+  `strategy='auto'` abandoning the batch for the general Magnus path,
+  `strategy='hybrid'` keeping the answer and raising
+  `HybridCertificationWarning`. None of these had ever been executed, which is a
+  poor place for a blind spot in a package whose central claim is that it knows
+  when it cannot verify its own answer. Also `magnus.version`'s two resolution
+  routes, which must agree; the CLI's argument-error paths; the unknown-location
+  error in `earth.coordinates_of_named_location`; the `verbose=2` banner and
+  run-parameter dump; and `globaldefs.set_color_output`.
+- `magnus.oscprob.IP_EXP_N_SLABS_CAP` and `magnus.oscprob.IP_EXP_LOOP_CAP`: the
+  interaction-picture integrator's slab and loop ceilings, previously written as
+  bare numbers inside the function. Naming them changes no behaviour, and makes
+  the method's conduct at the ceiling testable at a small cap -- reaching two
+  million slabs to observe what happens at the boundary costs gigabytes and
+  minutes, so with the values inlined those paths could not be tested at all.
 - Gauss-Legendre commutator-free integrators (`integration_method='gl'`),
   silent vectorization of Hamiltonian/density-profile evaluation, an
   energy-batched scan engine for separable Hamiltonians, adaptive slab

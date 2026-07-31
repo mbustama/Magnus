@@ -122,3 +122,54 @@ def test_load_nufit_params_returns_independent_copy():
     p1['s12'] = -999.0
     p2 = gd.load_nufit_params('NuFIT 6.1')
     assert p2['s12'] != -999.0
+
+
+# ----------------------------------------------------------------------
+# set_color_output: the supported way to suppress ANSI escapes.
+#
+# Every call site in the package references the *_IN_COLOR names, so this
+# function rebinding them is the only mechanism there is for turning
+# colour off. It had no test and no caller, while the docs build worked
+# around its absence by assigning gd.WARNING_MSG_IN_COLOR by hand to stop
+# raw escape codes appearing in the rendered HTML.
+# ----------------------------------------------------------------------
+
+def test_set_color_output_round_trips():
+    """Disabling must give exactly the plain-text constants, and enabling
+    again must restore escapes -- a one-way switch would leave any process
+    that turned colour off unable to get it back."""
+    try:
+        gd.set_color_output(False)
+        assert gd.WARNING_MSG_IN_COLOR == gd.WARNING_MSG_NO_COLOR
+        assert gd.ERROR_MSG_IN_COLOR == gd.ERROR_MSG_NO_COLOR
+        assert gd.TOL_MSG_IN_COLOR == gd.TOL_MSG_NO_COLOR
+        for msg in [gd.WARNING_MSG_IN_COLOR, gd.ERROR_MSG_IN_COLOR, gd.TOL_MSG_IN_COLOR]:
+            assert '\x1b[' not in msg
+
+        gd.set_color_output(True)
+        for msg in [gd.WARNING_MSG_IN_COLOR, gd.ERROR_MSG_IN_COLOR, gd.TOL_MSG_IN_COLOR]:
+            assert '\x1b[' in msg
+    finally:
+        # Whatever this test does, the rest of the session sees the default.
+        gd.set_color_output(True)
+
+
+def test_warnings_respect_set_color_output(recwarn):
+    """The point of the switch is the message text actually emitted, not
+    just the constant: a call site that had captured the coloured string at
+    import time would keep printing escapes regardless."""
+    import warnings
+
+    import magnus.oscprob as op
+
+    try:
+        gd.set_color_output(False)
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            op.osc_prob_3nu_vacuum(1.0*gd.UNIT_GEV, 1300.0*gd.UNIT_KM, verbose=0)
+            # A warning is not guaranteed here; what must never happen is an
+            # escape code in one that is emitted.
+            for w in caught:
+                assert '\x1b[' not in str(w.message)
+    finally:
+        gd.set_color_output(True)
