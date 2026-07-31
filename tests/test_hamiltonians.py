@@ -284,3 +284,59 @@ def test_mixing_matrix_3x3_is_unitary_and_matches_pmns():
     U = hams.mixing_matrix_3x3(*args)
     assert is_unitary(U)
     assert maxabs(U - hams.pmns_mixing_matrix(*args)) == 0.0
+
+
+# ----------------------------------------------------------------------
+# The two construction routes must agree.
+#
+# Most builders can be evaluated either from a hardcoded expression for
+# each matrix entry (the default, and the fast path) or by multiplying the
+# mixing matrix, the mass matrix and the conjugate transpose together.  The
+# hardcoded form was derived from that product, so agreement is the only
+# thing keeping the two from drifting -- and a coverage run found the
+# product route unexecuted for several builders, including both vacuum
+# energy-independent Hamiltonians that oscprob itself calls on every run.
+#
+# Existing tests cover this for mixing_matrix_4x4/5x5; this extends the
+# same check to every exported builder that offers the choice, discovered
+# from the signature rather than listed, so a new one is included for free.
+# ----------------------------------------------------------------------
+
+def builders_with_two_construction_paths():
+    import inspect
+    names = []
+    for name in exported_hamiltonian_builders() + ['mixing_matrix_4x4', 'mixing_matrix_5x5']:
+        fn = getattr(hams, name, None)
+        if fn is None: continue
+        if 'compute_matrix_multiplication' in inspect.signature(fn).parameters:
+            names.append(name)
+    return sorted(set(names))
+
+
+@pytest.mark.parametrize("name", builders_with_two_construction_paths())
+def test_both_construction_paths_agree(name):
+    import inspect
+    fn = getattr(hams, name)
+    params = inspect.signature(fn).parameters
+    required = [p for p, v in params.items() if v.default is inspect.Parameter.empty]
+    missing = [p for p in required if p not in BUILDER_ARGS]
+    assert not missing, f"{name}: no test value for {missing} -- add it to BUILDER_ARGS"
+    args = {p: BUILDER_ARGS[p] for p in required}
+
+    # Antineutrinos conjugate the mixing matrix, which is a separate line in
+    # several builders and would otherwise never run.
+    nubar_values = [False, True] if 'nubar' in params else [False]
+
+    for nubar in nubar_values:
+        extra = {'nubar': nubar} if 'nubar' in params else {}
+        fast = np.asarray(fn(**args, **extra, compute_matrix_multiplication=False))
+        slow = np.asarray(fn(**args, **extra, compute_matrix_multiplication=True))
+
+        assert fast.shape == slow.shape, f"{name}: shapes differ (nubar={nubar})"
+        scale = max(maxabs(fast), maxabs(slow))
+        assert scale > 0.0, f"{name}: both paths returned an all-zero matrix (nubar={nubar})"
+        # Relative to the entries themselves: these span from ~1e-21 for a LIV
+        # term (1/Lambda^n times b) to O(1) for a mixing matrix, so any absolute
+        # tolerance would be vacuous at one end and impossible at the other.
+        assert maxabs(fast - slow) <= 1e-12*scale, \
+            f"{name}: the hardcoded expression and the matrix product disagree (nubar={nubar})"

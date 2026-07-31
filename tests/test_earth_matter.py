@@ -188,3 +188,28 @@ def test_constant_density_profile_is_constant():
 
 def test_constant_density_profile_defaults_to_the_crust():
     assert matter.density_matter_func_const(0.0) == gd.DENSITY_MATTER_CRUST_G_PER_CM3
+
+
+def test_constant_electron_number_density_gives_a_constant_potential():
+    """When the profile is already an electron number density *and* a
+    constant, the potential is a number rather than a callable: there is
+    nothing for it to depend on. This is the one route through
+    vcc_func_from_rho_func that neither converts units nor wraps a
+    function, and it is what a caller passing a fixed n_e gets."""
+    n_e = 1.0e-6   # [eV^3]
+    vcc = matter.vcc_func_from_rho_func(n_e, density_is_of_number_of_electrons=True)
+
+    assert not callable(vcc)
+    assert vcc > 0.0
+
+    # The antineutrino potential is the same number with the opposite sign.
+    vcc_bar = matter.vcc_func_from_rho_func(n_e, nubar=True,
+                                            density_is_of_number_of_electrons=True)
+    assert vcc_bar == pytest.approx(-vcc)
+
+    # And it is the constant that the callable form returns at every position.
+    vcc_of_l = matter.vcc_func_from_rho_func(lambda l: n_e,
+                                             density_is_of_number_of_electrons=True)
+    assert callable(vcc_of_l)
+    assert vcc_of_l(0.0) == pytest.approx(vcc)
+    assert vcc_of_l(1.0e9) == pytest.approx(vcc)

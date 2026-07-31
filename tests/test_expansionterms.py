@@ -259,3 +259,18 @@ def test_magnus_exp_order_max_is_defined_once():
     import magnus.globaldefs as gd
     assert gd.MAGNUS_EXP_ORDER_MAX is mg.MAGNUS_EXP_ORDER_MAX
     assert mg.MAGNUS_EXP_ORDER_MAX == 10
+
+
+def test_format_term_can_omit_the_coefficient():
+    """``with_coeff=False`` prints the commutator word alone, which is what
+    a caller assembling its own coefficient column wants. The default keeps
+    the sign and magnitude in front."""
+    term = et.omega_terms(2)[0]
+
+    body = et.format_term(term, with_coeff=False)
+    full = et.format_term(term)
+
+    assert body, "the formatted word is empty"
+    assert not body.startswith(('+', '-')), "the coefficient was not omitted"
+    assert full.endswith(body), "the two forms disagree about the word itself"
+    assert full[0] in '+-', "the default form dropped the sign"

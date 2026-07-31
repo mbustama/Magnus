@@ -316,7 +316,16 @@ def vcc_func_from_rho_func(
                 return s*VCC_func(l, num_density_e_func=rho_func)
             return _tag(vcc)
         else:
-            return s*VCC_func(l=L0, num_density_e_func=rho_func)
+            # Wrapped for the same reason as the constant density above: VCC_func evaluates
+            # what it is given at a position, so handing it the bare number raised
+            # TypeError: 'float' object is not callable.  The branch above wraps its
+            # constant and this one did not, so a constant electron number density -- the
+            # documented way to use density_is_of_number_of_electrons -- could not be used
+            # at all.
+            def num_density_e_const(l):
+                return rho_func
+
+            return s*VCC_func(l=L0, num_density_e_func=num_density_e_const)
 
 
 __all__ = [
