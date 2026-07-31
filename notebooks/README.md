@@ -78,3 +78,7 @@
 ## 11. The adiabatic + Magnus hybrid strategy [[`11_magnus_adiabatic_hybrid_strategy.ipynb`](11_magnus_adiabatic_hybrid_strategy.ipynb)]
 
    Contains a live comparison of the three `strategy` values (`'auto'`, `'hybrid'`, `'magnus'`) accepted by every matter/NSI/LIV oscillation-probability function, for 2- through 5-neutrino systems, both for standard oscillations and for an engineered BSM (NSI) resonance. Every case is cross-checked against a tight-tolerance `scipy.integrate.solve_ivp` solution, comparing both runtime and accuracy, and reproduces the validation described in `docs/source/adiabatic_strategy.rst`.
+
+## 12. Phase-averaged (decohered) probabilities [[`12_magnus_averaged_probability.ipynb`](12_magnus_averaged_probability.ipynb)]
+
+   Contains worked examples of the `average=True` keyword, which returns the exact $L/E \to \infty$ limit reached by astrophysical neutrinos: $P_{\alpha\beta} = \sum_i |V_{\alpha i}|^2 |V_{\beta i}|^2$. Covers $2\nu$ through $5\nu$ and a hand-built custom Hamiltonian that is not one of the ones Mag$`\nu`$s ships with, plotting in each case the oscillating probability against baseline together with its averaged value. Ends with the pion-decay flavor composition at Earth, the coherence check that refuses the averaged limit where it does not apply, and a cost comparison against averaging the engine numerically.

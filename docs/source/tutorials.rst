@@ -2,7 +2,7 @@ Tutorial Notebooks
 ===================
 
 The ``notebooks/`` directory in the repository contains eleven runnable
-Jupyter notebooks, numbered ``01``-``11`` in the order we'd suggest reading
+Jupyter notebooks, numbered ``01``-``12`` in the order we'd suggest reading
 them.
 
 .. note::
@@ -62,3 +62,7 @@ them.
      - `magnus_adiabatic_hybrid_strategy.ipynb <https://github.com/mbustama/Magnus/blob/main/notebooks/11_magnus_adiabatic_hybrid_strategy.ipynb>`_
      - Live comparison of ``strategy='auto'``/``'hybrid'``/``'magnus'`` for 2-5 flavors, standard oscillations and an engineered BSM (NSI) resonance, each cross-checked against ``solve_ivp`` in both runtime and accuracy. Reproduces the validation in :doc:`adiabatic_strategy`.
      - You want to see the extreme-accumulated-phase problem (and its fix) reproduced live, or need a template for benchmarking your own Hamiltonian.
+   * - 12
+     - `magnus_averaged_probability.ipynb <https://github.com/mbustama/Magnus/blob/main/notebooks/12_magnus_averaged_probability.ipynb>`_
+     - The phase-averaged (decohered) limit reached by astrophysical neutrinos, via ``average=True``: 2-5 flavors and a hand-built custom Hamiltonian, each plotted as the oscillating probability against baseline with its averaged value overlaid.  Includes the pion-decay flavor composition at Earth, the check that refuses the limit where it does not apply, and the cost against averaging the engine numerically.  Accompanies :doc:`averaged_probability`.
+     - You work with astrophysical neutrinos, or with any baseline long enough that the oscillation is averaged out by the measurement.
