@@ -49,7 +49,7 @@ def mixing_matrix_5x5(s12: float, s23: float, s13:float, d13: float, s14: float,
     \tilde R_{13} R_{12}` of Kopp, Machado, Maltoni & Schwetz, arXiv:1103.4570 (see also
     arXiv:1105.3911).
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -251,7 +251,7 @@ def hamiltonian_5nu_vacuum_energy_independent(s12: float, s23: float, s13:float,
     The Hamiltonian is H = (1/2)*R.M2.R^dagger, with R the 5x5 mixing matrix and M2 the mass
     matrix.  The multiplicative factor 1/E is not applied.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -299,7 +299,7 @@ def hamiltonian_5nu_vacuum_energy_independent_td(l: float, s12: float, s23: floa
     Same as :func:`hamiltonian_5nu_vacuum_energy_independent`, included for interface parity with
     the other, genuinely position-dependent Hamiltonians.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -338,7 +338,7 @@ def hamiltonian_5nu_vacuum(energy: float, s12: float, s23: float, s13:float, d13
 
     Same as :func:`hamiltonian_5nu_vacuum_energy_independent`, but with the 1/E factor applied.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -379,7 +379,7 @@ def hamiltonian_5nu_vacuum_td(l: float, energy: float, s12: float, s23: float, s
     Same as :func:`hamiltonian_5nu_vacuum`, included for interface parity with the other,
     genuinely position-dependent Hamiltonians.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -418,7 +418,7 @@ def hamiltonian_5nu_matter(VCC: float) -> np.ndarray:
     Computes and returns the 5x5 real five-neutrino Hamiltonian for
     oscillations in matter with constant density.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -440,7 +440,7 @@ def hamiltonian_5nu_matter_td(l: float, VCC_func: Callable) -> np.ndarray:
     Computes and returns the 5x5 real five-neutrino Hamiltonian for oscillations in matter with a
     given density as a function of position.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -482,7 +482,7 @@ def hamiltonian_5nu_nsi(
     non-standard interactions (NSI) in matter with constant density.  The 's1'/'s2' subscripts
     denote the two sterile flavors.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -545,7 +545,7 @@ def hamiltonian_5nu_liv(energy: float, sxi12: float, sxi23: float, sxi13:float, 
     :func:`hamiltonian_5nu_liv_energy_independent`, but with the
     :math:`E^{n_{\rm liv}}` energy dependence of the LIV operator applied.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -597,7 +597,7 @@ def hamiltonian_5nu_liv_energy_independent(sxi12: float, sxi23: float, sxi13:flo
     Computes and returns the 5x5 complex five-neutrino Hamiltonian for oscillations in a CPT-odd
     Lorentz invariance-violating background, without the energy-dependent prefactor.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------

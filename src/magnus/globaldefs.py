@@ -50,7 +50,7 @@ class cstyle():
     ``os.system("")`` has been called first, which this module does at
     import time.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
     """
 
     CEND      = '\33[0m'
@@ -132,7 +132,7 @@ def set_color_output(enabled: bool) -> None:
     existing call sites (which all reference the ``*_IN_COLOR`` names) print unadorned text
     with no further change.  Calling it with ``True`` restores the colored versions.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -1025,7 +1025,7 @@ def load_nufit_params(version='NuFIT 6.1', ordering='NO', category=None):
 
         no['D31'] > 0 and io['D31'] < 0
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
     """
     if version not in NUFIT_GLOBAL_FITS:
         available = ', '.join(NUFIT_GLOBAL_FITS.keys())

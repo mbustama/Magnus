@@ -298,7 +298,7 @@ closest sibling to copy from. The recipe:
            r"""Compute the 3nu NSI oscillation probability for a
            user-supplied radial matter density profile.
 
-           .. versionadded:: 0.10.0
+           .. versionadded:: 1.0.0
            """
            return osc_prob_matter_nsi(
                num_flavors=3,

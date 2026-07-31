@@ -5,10 +5,35 @@ All notable changes to Magνs are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project uses [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.0.0rc1] - 2026-07-31
+
+First public release candidate.  Magνs was developed privately up to this
+point, so everything below is new to anyone outside the project.  The entries
+are still grouped as Added/Changed/Fixed/Removed, describing the development
+history that produced this release -- "Changed" and "Fixed" are relative to
+earlier private states of the code, not to any published version -- because
+that history is the most useful record of *why* the code looks the way it does.
 
 ### Added
 
+- Command-line calculator (`magnus prob`, also runnable as `python -m magnus`)
+  for computing a single oscillation probability from the shell, covering
+  vacuum, matter (constant/exponential density), Earth, and Sun, with
+  standard, NSI, and LIV scenarios, for 2-5 flavors. See `docs/source/cli.rst`.
+- Full `pytest` suite (`tests/`) and GitHub Actions CI: `tests.yml` (matrix
+  across Python 3.10-3.12), `lint.yml` (Ruff), `pages.yml` (Sphinx ->
+  GitHub Pages), `publish.yml` (PyPI on release).
+- Gauss-Legendre commutator-free integrators (`integration_method='gl'`),
+  silent vectorization of Hamiltonian/density-profile evaluation, an
+  energy-batched scan engine for separable Hamiltonians, adaptive slab
+  refinement with warm-starting across scan points, and slab edges aligned
+  with PREM layer boundaries.
+- `osc_prob_earth` and `osc_prob_sun`: generic entry points that accept an
+  arbitrary user-supplied Hamiltonian in the Earth/Sun environments.
+- Sphinx documentation (published to GitHub Pages) covering installation,
+  quick start, the CLI, the full function listing, code architecture,
+  methodology, and this changelog.
+- Root-cause regression tests for every bug listed under Fixed below.
 - `magnus.globaldefs.NUFIT_GLOBAL_FITS`: best-fit standard three-flavor
   oscillation parameters from every NuFit global-analysis release, v1.0
   (2012) through v6.1 (2025), by mass ordering and by each release's
@@ -145,6 +170,16 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Collapsed roughly 1,150 lines of duplicated refinement/logging
+  keyword-argument declarations across ~60 wrapper functions into a single
+  source of truth (internally called the "G1" refactor), with a permanent
+  test (`test_no_wrapper_redeclares_standard_refinement_kwargs`) guarding
+  against the pattern recurring.
+- Rewrote the Magnus-expansion numerical core: corrected higher-order term
+  coefficients, added order-6 support, and restructured the term recursion
+  and matrix exponentiation for batched/vectorized evaluation.
+- Package layout consolidated under `src/magnus/` (src-layout) with proper
+  `__init__.py` files; version metadata unified to a single source of truth.
 - Restructured the package to be flatter: `earth`, `globaldefs`, `magnus`
   (the numerical core), `matter`, `oscprob` (the main wrapper API), and
   `oscprobstd` are now flat sibling modules directly under `src/magnus/`,
@@ -231,6 +266,29 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Two mixing-matrix formula bugs (`mixing_matrix_4x4` and `mixing_matrix_5x5`)
+  that invalidated every sterile-neutrino (3+1, 3+2) calculation.
+- `hamiltonian_2nu_nsi`'s `eps_aa` parameter was a silent no-op: it sat on
+  both diagonal entries, making it a pure multiple of the identity (an
+  unobservable global phase) with zero effect on any probability.
+- `osc_prob_5nu_matter_nsi_exp_density` called the non-NSI inner function
+  instead of the NSI one.
+- A sign error in `hamiltonian_2nu_liv_energy_independent`'s off-diagonal
+  term.
+- Several `_nsi_td`/`_liv_td` position-dependent convenience functions
+  crashed with `TypeError` on any call.
+- `unpack_nsi_params_from_dict`/`unpack_liv_params_from_dict` silently
+  returned `None` instead of raising for unsupported flavor counts.
+- Missing `nubar` parameter on several matter/LIV wrapper functions.
+- A boundary bug incorrectly rejecting `rho_central == 0.0` in the NSI
+  exponential-density wrappers.
+- `hamiltonian_3nu_liv` crashed with `TypeError` on every call (it forwarded
+  an incomplete argument list to its own energy-independent helper).
+- Dead/unreachable code and stale, copy-pasted docstrings (wrong flavor
+  count, wrong matrix dimensions, description of the wrong scenario) across
+  `hamiltonians{2,3,4,5}nu.py` and `oscprob.py`, found while writing complete
+  docstrings for every function.
+- NumPy 2.0 compatibility (removed deprecated type aliases).
 - ~47 docstring/type-annotation mismatches across the codebase, found by
   a systematic audit comparing every function's actual return/parameter
   type against what its docstring documented (not just the
@@ -309,75 +367,18 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 - `docs/source/sandbox/`, an untracked, unused pydata-theme experiment
   directory.
-- 1,238 lines of commented-out, ad-hoc scratch code in the
-  `if __name__ == "__main__":` blocks of `oscprob` (1,218 lines, ~8% of the
-  file), `earth`, and `matter`. None of it could run: executing those modules
-  as scripts fails at import under the flattened package layout. `magnus.py`'s
-  small `__main__` demo does still run and is left alone.
-
-## [0.10.0] - 2026-07-30
-
-This is the first version with a maintained changelog, and serves as the
-project's baseline "first fully documented and tested" release: the entries
-below summarize a single, large audit-and-modernization pass rather than
-day-to-day incremental changes.
-
-### Added
-
-- Command-line calculator (`magnus prob`, also runnable as `python -m magnus`)
-  for computing a single oscillation probability from the shell, covering
-  vacuum, matter (constant/exponential density), Earth, and Sun, with
-  standard, NSI, and LIV scenarios, for 2-5 flavors. See `docs/source/cli.rst`.
-- Full `pytest` suite (`tests/`) and GitHub Actions CI: `tests.yml` (matrix
-  across Python 3.10-3.12), `lint.yml` (Ruff), `pages.yml` (Sphinx ->
-  GitHub Pages), `publish.yml` (PyPI on release).
-- Gauss-Legendre commutator-free integrators (`integration_method='gl'`),
-  silent vectorization of Hamiltonian/density-profile evaluation, an
-  energy-batched scan engine for separable Hamiltonians, adaptive slab
-  refinement with warm-starting across scan points, and slab edges aligned
-  with PREM layer boundaries.
-- `osc_prob_earth` and `osc_prob_sun`: generic entry points that accept an
-  arbitrary user-supplied Hamiltonian in the Earth/Sun environments.
-- Sphinx documentation (published to GitHub Pages) covering installation,
-  quick start, the CLI, the full function listing, code architecture,
-  methodology, and this changelog.
-- Root-cause regression tests for every bug listed under Fixed below.
-
-### Changed
-
-- Collapsed roughly 1,150 lines of duplicated refinement/logging
-  keyword-argument declarations across ~60 wrapper functions into a single
-  source of truth (internally called the "G1" refactor), with a permanent
-  test (`test_no_wrapper_redeclares_standard_refinement_kwargs`) guarding
-  against the pattern recurring.
-- Rewrote the Magnus-expansion numerical core: corrected higher-order term
-  coefficients, added order-6 support, and restructured the term recursion
-  and matrix exponentiation for batched/vectorized evaluation.
-- Package layout consolidated under `src/magnus/` (src-layout) with proper
-  `__init__.py` files; version metadata unified to a single source of truth.
-
-### Fixed
-
-- Two mixing-matrix formula bugs (`mixing_matrix_4x4` and `mixing_matrix_5x5`)
-  that invalidated every sterile-neutrino (3+1, 3+2) calculation.
-- `hamiltonian_2nu_nsi`'s `eps_aa` parameter was a silent no-op: it sat on
-  both diagonal entries, making it a pure multiple of the identity (an
-  unobservable global phase) with zero effect on any probability.
-- `osc_prob_5nu_matter_nsi_exp_density` called the non-NSI inner function
-  instead of the NSI one.
-- A sign error in `hamiltonian_2nu_liv_energy_independent`'s off-diagonal
-  term.
-- Several `_nsi_td`/`_liv_td` position-dependent convenience functions
-  crashed with `TypeError` on any call.
-- `unpack_nsi_params_from_dict`/`unpack_liv_params_from_dict` silently
-  returned `None` instead of raising for unsupported flavor counts.
-- Missing `nubar` parameter on several matter/LIV wrapper functions.
-- A boundary bug incorrectly rejecting `rho_central == 0.0` in the NSI
-  exponential-density wrappers.
-- `hamiltonian_3nu_liv` crashed with `TypeError` on every call (it forwarded
-  an incomplete argument list to its own energy-independent helper).
-- Dead/unreachable code and stale, copy-pasted docstrings (wrong flavor
-  count, wrong matrix dimensions, description of the wrong scenario) across
-  `hamiltonians{2,3,4,5}nu.py` and `oscprob.py`, found while writing complete
-  docstrings for every function.
-- NumPy 2.0 compatibility (removed deprecated type aliases).
+- 1,257 lines of ad-hoc scratch code in the `if __name__ == "__main__":`
+  blocks of `oscprob` (1,218 lines, ~8% of the file), `earth`, `matter`, and
+  `magnus`. The first three could not run at all: executing those modules as
+  scripts fails at import under the flattened package layout. `magnus`'s block
+  did run, but it printed an unasserted comparison of the three integration
+  methods that `tests/test_magnus_expansion.py` already parametrizes over with
+  real assertions. The only `__main__` blocks left are the two genuine console
+  entry points, `cli.py` and `__main__.py`.
+- All `.. versionchanged::` directives. This being the first public release,
+  there is no earlier published version for behavior to have changed *from*,
+  so the six of them described how the code works rather than what changed.
+  Their content is kept, reworded as `.. note::` blocks on the same functions.
+- The eleven decorative per-module `__version__` strings, and the separate
+  `[Unreleased]`/`[0.10.0]` changelog sections, which are consolidated here:
+  nothing was published before this release, so the split served no reader.

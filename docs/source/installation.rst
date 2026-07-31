@@ -17,11 +17,20 @@ See :download:`src/requirements.txt <../../src/requirements.txt>`.
 Installation
 ------------
 
-Magνs is not yet published on PyPI.  Clone the repository and install it
-in editable mode, using the ``pyproject.toml`` at the repository root.
-This is the recommended route: it pulls in the dependencies, makes
-``magnus`` importable from anywhere, and installs the ``magnus``
-command-line calculator (see :doc:`cli`):
+Install the current release candidate from PyPI:
+
+.. code-block:: bash
+
+   pip install --pre magnus
+
+The ``--pre`` flag is needed while the current release is a release
+candidate (see :doc:`changelog`); it can be dropped once 1.0.0 final is
+out.  This installs the dependencies and the ``magnus`` command-line
+calculator (see :doc:`cli`).
+
+To work from a checkout instead -- to follow development, or to modify the
+code -- install it in editable mode using the ``pyproject.toml`` at the
+repository root:
 
 .. code-block:: bash
 

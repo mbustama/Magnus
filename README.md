@@ -263,12 +263,13 @@ required). Use the module for anything programmatic (scans, plots, fitting);
 use the CLI for a quick one-off number, a shell script, or to sanity-check a
 parameter choice.
 
+Install it with `pip install --pre magnus` (the `--pre` is needed while the
+current release is a release candidate; drop it once 1.0.0 final is out), or
+`pip install -e .` from a checkout.
+
 ### As a Python module
 
 ```python
-import sys
-sys.path.insert(0, 'src')   # or: pip install -e .
-
 import numpy as np
 import magnus.oscprob as oscprob
 import magnus.globaldefs as gd
@@ -304,7 +305,7 @@ plots, steriles, NSI, LIV — in the [Jupyter notebooks](notebooks/).
 
 ### As a command-line calculator
 
-Installing the package (`pip install -e .`) also installs a `magnus` command
+Installing the package also installs a `magnus` command
 (equivalently, `python -m magnus`), for computing a single probability
 without writing any Python. `magnus prob --help` lists every flag; the
 [full CLI reference](https://mbustama.github.io/Magnus/cli.html) documents
@@ -313,7 +314,7 @@ all of them. A few real examples (verified output, this version):
 ```bash
 $ magnus prob --flavors 3 --environment vacuum \
     --energy 1 --energy-unit GeV --baseline 1300 --baseline-unit km
-Magνs 0.10.0 -- osc_prob_3nu_vacuum
+Magνs 1.0.0rc1 -- osc_prob_3nu_vacuum
 E = 1 GeV, L = 1300 km
 
             nu_e   nu_mu  nu_tau
@@ -325,7 +326,7 @@ nu_tau    0.0393  0.6029  0.3578
 ```bash
 $ magnus prob --flavors 3 --environment earth \
     --energy 1 --energy-unit GeV --costhz -0.8 --baseline 10193.6 --baseline-unit km
-Magνs 0.10.0 -- osc_prob_3nu_earth
+Magνs 1.0.0rc1 -- osc_prob_3nu_earth
 E = 1 GeV, L = 10193.6 km
 
             nu_e   nu_mu  nu_tau
@@ -340,7 +341,7 @@ work the same way:
 ```bash
 $ magnus prob --flavors 3 --environment vacuum --energy 1 --energy-unit GeV \
     --baseline 1300 --baseline-unit km --nu-i e --nu-f mu
-Magνs 0.10.0 -- osc_prob_3nu_vacuum
+Magνs 1.0.0rc1 -- osc_prob_3nu_vacuum
 E = 1 GeV, L = 1300 km
 
 P = 0.0085
@@ -348,7 +349,7 @@ P = 0.0085
 $ magnus prob --flavors 3 --environment matter --scenario nsi --rho 2.7 \
     --eps-ee 0.06 --eps-em -0.06 \
     --energy 1 --energy-unit GeV --baseline 1000 --baseline-unit km
-Magνs 0.10.0 -- osc_prob_3nu_matter_nsi_constant_density
+Magνs 1.0.0rc1 -- osc_prob_3nu_matter_nsi_constant_density
 E = 1 GeV, L = 1000 km
 
             nu_e   nu_mu  nu_tau
@@ -864,8 +865,8 @@ pip install -e . pytest && pytest tests/
 ```
 
 (`tests/conftest.py` puts `src/` on the path, so `pip install -r
-src/requirements.txt pytest` works too; installing the package is what CI
-does, and it additionally exercises the `magnus` console script.)
+src/requirements.txt pytest` works too; installing the package is what CI does,
+and it additionally exercises the `magnus` console script.)
 
 ## Changelog
 

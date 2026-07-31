@@ -15,10 +15,10 @@ script.
    the matching constant to convert it, e.g. ``100.0*gd.UNIT_KM`` for a
    100 km baseline.
 
-.. code-block:: python
+Install Magνs with ``pip install --pre magnus`` (see :doc:`installation`),
+then:
 
-   import sys
-   sys.path.insert(0, 'src')   # or: pip install -e .
+.. code-block:: python
 
    import numpy as np
    import magnus.oscprob as oscprob

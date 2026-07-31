@@ -86,7 +86,7 @@ def density_matter_func_prem(r: Union[float, np.ndarray],
     Accepts a single radial distance or an array of radial distances;
     array input is evaluated in a single vectorized pass.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -151,7 +151,7 @@ def distance_traveled_inside_earth(costhz: float) -> float:
     the Earth, not underground. As a result, the distance is zero for
     all values of costhz > 0.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -178,7 +178,7 @@ def earth_radial_distance_from_depth(costhz: float, l: Union[float, np.ndarray],
     l.  Accepts a single distance or an array of distances; array input
     is evaluated in a single vectorized pass.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -247,7 +247,7 @@ def prem_layer_edges_along_chord(costhz: float) -> np.ndarray:
 
        u^2 + 2 R \cos\theta_z\, u + \left(R^2 - r_b^2\right) = 0 .
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -284,7 +284,7 @@ def prem_layer_edges_along_chord(costhz: float) -> np.ndarray:
 def dms_to_decimal(degrees: float, minutes: float, seconds: float) -> float:
     r"""Converts (degree, minute, second) coordinates to decimal degrees.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -313,7 +313,7 @@ def chord_length_inside_earth(lat1_dms: tuple[float, float, float],
     Earth, assumed spherical, using the haversine formula for the central angle between the two
     locations and converting it to a chord length.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -370,7 +370,7 @@ def costhz_between_points_on_surface(lat1_dms: tuple[float, float, float],
     surface, not underground, so the returned value is always non-positive (an upward- or
     horizontally-traveling neutrino, i.e. costhz > 0, would not cross the Earth's interior at all).
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -401,7 +401,7 @@ def coordinates_of_named_location(source_func_name: str, loc_name: str) -> np.nd
     ``loc_coords_dms`` dictionary of predefined locations (neutrino telescopes/detector sites and
     a few reference points) and returns its latitude and longitude.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------

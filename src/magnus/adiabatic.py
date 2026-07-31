@@ -142,7 +142,7 @@ def adiabatic_propagator(H_func: Callable, l0: float, l1: float,
     unitary. See :func:`hybrid_propagator` for what to do when the trajectory does cross a
     resonance.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -246,7 +246,7 @@ def find_resonance_candidates(H_func: Callable, l0: float, l1: float,
     whether it is actually non-adiabatic (whether it needs a Magnus patch) is a separate question,
     answered by :func:`find_nonadiabatic_windows`.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -382,7 +382,7 @@ def find_nonadiabatic_windows(H_func: Callable, l0: float, l1: float,
     (worse) silently dropped. This works for any number of simultaneous or sequential resonances,
     between any pair of levels.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -531,7 +531,7 @@ def hybrid_propagator(H_func: Callable, l0: float, l1: float, rtol: Optional[flo
        reports ``certified=False`` rather than certifying on the strength of a comparison that
        carries no information.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------

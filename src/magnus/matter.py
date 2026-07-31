@@ -44,7 +44,7 @@ def density_matter_func_const(l: float,
     Returns the matter density as a function of position, assuming a
     constant density. Used for testing purposes.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -79,7 +79,7 @@ def density_matter_func_exp(l: float, density_matter_central:float , l_scale: fl
     (``density_matter_central``) and the length scale
     :math:`l_\text{scale}` (``l_scale``).
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -116,7 +116,7 @@ def exp_density_profile(density_matter_central: float, l_scale: float) -> Callab
     would silently skip the fast path -- always build exponential profiles through this function (or
     ``osc_prob_*_exp_density``/``osc_prob_*_sun*``, which already do) to get the speed-up.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -150,7 +150,7 @@ def num_density_e_func(l: float, density_matter_func: Callable,
     and position, l. Matter is assumed to be isoscalar, with the
     fraction of electrons given by electron_fraction.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -198,7 +198,7 @@ def VCC_func(l: float, num_density_e_func: Callable) -> float:
     at position l, for a given electron number density profile,
     num_density_e_func.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -234,7 +234,7 @@ def vcc_func_from_rho_func(
     constant, an exponential profile, or the Earth's PREM profile) into the ``VCC_func`` consumed
     by the ``hamiltonian_*nu_matter_td``/``hamiltonian_*nu_nsi_td`` functions.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------

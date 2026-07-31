@@ -84,7 +84,7 @@ def _flavor_index(value: str) -> int:
 def build_parser() -> argparse.ArgumentParser:
     r"""Builds the ``magnus`` command-line argument parser.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Returns
     -------
@@ -408,7 +408,7 @@ def _format_table(P: np.ndarray, flavors: int, precision: int) -> str:
 def main(argv=None) -> int:
     r"""Entry point for the ``magnus`` console script / ``python -m magnus``.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------

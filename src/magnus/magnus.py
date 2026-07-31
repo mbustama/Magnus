@@ -89,7 +89,7 @@ class MagnusConvergenceWarning(UserWarning):
     (narrower) slabs instead.  The norm comes for free from the
     eigenvalues already computed for the matrix exponential.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
     """
 
 
@@ -128,7 +128,7 @@ def commutator(X: np.ndarray, Y: np.ndarray) -> np.ndarray:
     Works on single matrices and on stacks of matrices (the matrix
     product broadcasts over all leading axes).
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -246,7 +246,7 @@ def probe_eval_mode(A: Callable, t0: float, t1: float,
     :func:`magnus_expansion` and :func:`magnus_expansion_multislab` to
     avoid re-probing A on every call.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -292,7 +292,7 @@ def suggest_n_slabs(
     arbiter of accuracy -- grows the slab count from here when the
     requested tolerance demands it.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -689,7 +689,7 @@ def magnus_expansion(
     r"""Compute :math:`\exp(\Omega_1 + \cdots + \Omega_\text{order})` of :math:`A(t)` from
     ``t0`` to ``t1``.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -769,7 +769,7 @@ def evolution_operators_from_samples(
     energy) in front of the slab axis, which this routine broadcasts
     through all operations.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -813,7 +813,7 @@ def evolution_operators_from_samples(
 def gl_nodes(order: int) -> np.ndarray:
     r"""Returns the Gauss-Legendre nodes on [0, 1] used by the 'gl' method.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -847,7 +847,7 @@ def magnus_expansion_multislab(
     operations with the slab axis leading.  This is much faster than
     calling :func:`magnus_expansion` slab by slab.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -902,25 +902,6 @@ def magnus_expansion_multislab(
     return evolution_operators_from_samples(At, widths, order,
         integration_method, A_is_const=(used_mode == 'constant'),
         validate_input=False)
-
-
-if __name__ == "__main__":
-
-    def A(t):
-        return np.array([[1.0*t, 2.0 + 3j*t], [2.0 - 3j*t, 2.0]])
-
-    t0, t1 = 0.0, 1.0
-    exp_Omega_1 = magnus_expansion(A, t0, t1, n_tpts=100, order=4,
-                                   integration_method='trapezoid')
-    print(exp_Omega_1)
-    exp_Omega_2 = magnus_expansion(A, t0, t1, n_tpts=100, order=4,
-                                   integration_method='simpson')
-    print(exp_Omega_2)
-    exp_Omega_3 = magnus_expansion(A, t0, t1, order=4,
-                                   integration_method='gl')
-    print(exp_Omega_3)
-    print(exp_Omega_1 - exp_Omega_2)
-    print(exp_Omega_1 - exp_Omega_3)
 
 
 __all__ = [

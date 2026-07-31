@@ -321,7 +321,7 @@ class ToleranceNotAchievedWarning(UserWarning):
     wider applicability methods for extreme-phase problems (e.g., many
     more slabs for low-energy solar neutrinos).
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
     """
 
 
@@ -344,7 +344,7 @@ class HybridCertificationWarning(ToleranceNotAchievedWarning):
     ``strategy='hybrid'`` was explicitly requested. See
     :doc:`/adiabatic_strategy`.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
     """
 
 
@@ -361,7 +361,7 @@ def print_banner(file: TextIOWrapper=None):
     rather than as cross-references.  Uses ANSI color codes when printing to
     stdout (``file is None``); plain text otherwise (e.g., when writing to a log file).
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -439,7 +439,7 @@ def print_run_parameters(
     values of every refinement/logging parameter for the current call, to help reproduce or debug
     a specific run.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -571,7 +571,7 @@ def validate_input_battery(
     invalid input propagate into a cryptic NumPy/linear-algebra error deep inside the Magnus
     core.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -759,7 +759,7 @@ def validate_input_osc_prob_earth(
     their coordinates), or give ``costhz`` and ``L`` directly. Aborts with a descriptive error if
     exactly one location is given, or if neither locations nor (costhz, L) are given.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -858,7 +858,7 @@ def valid_flavor_indices_2nu(nu_i: int, nu_f: int) -> Tuple[int, int]:
     not being used) onto the other valid index, so that, e.g., requesting the nu_e-nu_tau channel
     of a system parametrized by :math:`\theta_{13}` (which is really a nu_e-nu_x system) resolves correctly.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -902,7 +902,7 @@ def values_to_unspecified_osc_params(
     predefined ones (see validation above).  Only the values of the parameters passed as None are
     assigned from the predefined set; other parameters are not modified.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -982,7 +982,7 @@ def unpack_oscillation_params_from_dict(
     ``hamiltonians.hamiltonian_{N}nu_vacuum_energy_independent`` function. Aborts with a
     descriptive error if a required key is missing.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -1107,7 +1107,7 @@ def unpack_nsi_params_from_dict(
     ``hamiltonians.hamiltonian_{N}nu_nsi`` function. Aborts with a descriptive error if a required
     key is missing.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -1232,7 +1232,7 @@ def unpack_liv_params_from_dict(
     ``hamiltonians.hamiltonian_{N}nu_liv_energy_independent`` function. Validates that ``Lambda``
     is positive and aborts with a descriptive error if a required key is missing.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -1434,7 +1434,7 @@ def compute_evolution_operator(
     r"""Computes the evolution operator inside a given time slab.  This functions is not designed to
     be called directly by the user, but rather internally by :func:`osc_prob`.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -1486,7 +1486,7 @@ def compute_evolution_operator_multiple_slabs(
     batches the Hamiltonian evaluation, the quadrature, the commutator algebra, and the matrix
     exponentials over the slab axis.  Slabs of zero width yield identity operators.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -1561,7 +1561,7 @@ def osc_prob(
     Computes the oscillation probability of neutrinos starting at time
     (or position) ``t_ini`` and ending at time (or position) ``t_fin``.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -2090,7 +2090,7 @@ def osc_prob_iterate_over_magnus_exp_order(
     order-refinement counterpart to the slab/time-point refinement that :func:`osc_prob` performs
     internally when ``iterate_over_magnus_exp_order=True``.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -2219,7 +2219,7 @@ def _normalize_energy_L(
 ) -> Tuple[np.ndarray, np.ndarray, bool, bool]:
     r"""Normalize energy and L to same-length 1D arrays.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -2293,7 +2293,7 @@ def _osc_prob_scan_separable(
     within (rtol, atol); converged energies drop out of the batch.  Energies
     are processed in chunks to bound the memory of the sample array.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -2463,7 +2463,7 @@ def _osc_prob_scan_separable_dispatch(
     runs, iteration over the expansion order, or unknown extra arguments), in
     which case the caller falls back to the generic per-point path.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -2601,7 +2601,7 @@ def _osc_prob_ip_exp_core(
     refinements converge to the exact solution; the loop mirrors :func:`osc_prob`'s own
     successive-refinement comparison, batched over the leading energy axis of ``H_E``.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -2771,7 +2771,7 @@ def _osc_prob_ip_exp_dispatch(
     ``_osc_prob_scan_separable_dispatch``, this applies equally to a single (energy, L) point (the
     common case for :func:`osc_prob_sun`-family calls) and to a multi-energy scan at a shared baseline.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -2898,7 +2898,7 @@ def _osc_prob_hybrid_dispatch(
     with ``strategy='hybrid'``, the best-effort result is returned together with
     ``HybridCertificationWarning``.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -3018,7 +3018,7 @@ def _hybrid_propagator_scan(
     ``_osc_prob_hybrid_dispatch_generic`` (an arbitrary user-supplied Hamiltonian, as accepted
     by :func:`osc_prob_earth`/:func:`osc_prob_sun`).
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -3111,7 +3111,7 @@ def _osc_prob_hybrid_dispatch_generic(
     trajectory; :func:`osc_prob_sun` has no such restriction, since its density profile has no
     breakpoints.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -3237,7 +3237,7 @@ def osc_prob_energy_baseline(
     (``n_slabs``, ``n_tpts_per_slab``). Called directly by :func:`osc_prob_vacuum`,
     :func:`osc_prob_matter_std_potential`, :func:`osc_prob_matter_nsi`, and :func:`osc_prob_liv`.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -3507,7 +3507,7 @@ def osc_prob_vacuum(
     :func:`osc_prob_energy_baseline`. Called by :func:`osc_prob_2nu_vacuum`,
     :func:`osc_prob_3nu_vacuum`, :func:`osc_prob_4nu_vacuum`, and :func:`osc_prob_5nu_vacuum`.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -3700,7 +3700,7 @@ def osc_prob_matter_std_potential(
     ``osc_prob_{2,3,4,5}nu_matter_{constant,exp}_density`` and
     ``osc_prob_{2,3,4,5}nu_earth``/``osc_prob_{2,3,4,5}nu_sun`` wrapper.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -3765,7 +3765,7 @@ def osc_prob_matter_std_potential(
         Hamiltonians; see :doc:`/adiabatic_strategy` for the full derivation, validation, and
         performance comparison. Default: 'auto'.
 
-        .. versionadded:: 0.10.0
+        .. versionadded:: 1.0.0
     t_slab_edges : list or np.ndarray, optional
         Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
     magnus_exp_order : int
@@ -4021,7 +4021,7 @@ def osc_prob_matter_nsi(
     ``osc_prob_{2,3,4,5}nu_matter_nsi_{constant,exp}_density`` and
     ``osc_prob_{2,3,4,5}nu_earth_nsi``/``osc_prob_{2,3,4,5}nu_sun_nsi`` wrapper.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -4073,7 +4073,7 @@ def osc_prob_matter_nsi(
         the ``'hybrid'``/``'auto'`` strategies (adiabatic transport with a Magnus patch at any
         non-adiabatic window, applicable to any number of flavors). Default: 'auto'.
 
-        .. versionadded:: 0.10.0
+        .. versionadded:: 1.0.0
     t_slab_edges : list or np.ndarray, optional
         Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
     magnus_exp_order : int
@@ -4348,7 +4348,7 @@ def osc_prob_liv(
     ``osc_prob_{2,3,4,5}nu_matter_liv_{constant,exp}_density``, and
     ``osc_prob_{2,3,4,5}nu_earth_liv``/``osc_prob_{2,3,4,5}nu_sun_liv`` wrapper.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -4401,7 +4401,7 @@ def osc_prob_liv(
         ``rho_func`` is nonzero (there is no position dependence, hence no resonance, in pure
         vacuum + LIV). Default: 'auto'.
 
-        .. versionadded:: 0.10.0
+        .. versionadded:: 1.0.0
     t_slab_edges : list or np.ndarray, optional
         Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
     magnus_exp_order : int
@@ -4699,7 +4699,7 @@ def osc_prob_2nu_vacuum(
     input arguments before calculating the probability, by calling the
     function :func:`validate_input_battery`.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -4848,7 +4848,7 @@ def osc_prob_3nu_vacuum(
     input arguments before calculating the probability, by calling the
     function :func:`validate_input_battery`.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -5056,7 +5056,7 @@ def osc_prob_4nu_vacuum(
     input arguments before calculating the probability, by calling the
     function :func:`validate_input_battery`.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -5283,7 +5283,7 @@ def osc_prob_5nu_vacuum(
     input arguments before calculating the probability, by calling the
     function :func:`validate_input_battery`.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -5466,7 +5466,7 @@ def osc_prob_2nu_matter_constant_density(
     r"""Compute and return the two-neutrino oscillation probability in
     matter with a constant density profile.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -5566,7 +5566,7 @@ def osc_prob_3nu_matter_constant_density(
     r"""Compute and return the three-neutrino oscillation probability in
     matter with a constant density profile.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -5683,7 +5683,7 @@ def osc_prob_4nu_matter_constant_density(
     r"""Compute and return the four-neutrino oscillation probability in
     matter with a constant density profile.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -5819,7 +5819,7 @@ def osc_prob_5nu_matter_constant_density(
     r"""Compute and return the five-neutrino oscillation probability in
     matter with a constant density profile.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -5957,16 +5957,16 @@ def osc_prob_2nu_matter_exp_density(
     r"""Compute and return the two-neutrino oscillation 
     probability in matter with an exponentially falling density profile.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
-    .. versionchanged:: 0.10.0
-        Now dispatches to a fast, closed-form interaction-picture Magnus
+    .. note::
+        Dispatches to a fast, closed-form interaction-picture Magnus
         integrator whenever the accumulated matter phase stays small enough
-        to certify (see ``_osc_prob_ip_exp_dispatch``),
-        giving warning-free results in a fraction of a second across the
-        realistic solar-neutrino energy range for baselines up to a few
-        e-folds of ``l_scale``; longer baselines fall back transparently to
-        the general slab-refinement method, unchanged from before.
+        to certify (see ``_osc_prob_ip_exp_dispatch``), giving warning-free
+        results in a fraction of a second across the realistic solar-neutrino
+        energy range for baselines up to a few e-folds of ``l_scale``. Longer
+        baselines fall back transparently to the general slab-refinement
+        method.
 
     Parameters
     ----------
@@ -6082,7 +6082,7 @@ def osc_prob_3nu_matter_exp_density(
     r"""Compute and return the three-neutrino oscillation 
     probability in matter with an exponentially falling density profile.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -6212,7 +6212,7 @@ def osc_prob_4nu_matter_exp_density(
     r"""Compute and return the four-neutrino (3+1) oscillation 
     probability in matter with an exponentially falling density profile.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -6361,7 +6361,7 @@ def osc_prob_5nu_matter_exp_density(
     r"""Compute and return the five-neutrino (3+2) oscillation 
     probability in matter with an exponentially falling density profile.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -6571,7 +6571,7 @@ def osc_prob_2nu_earth(
             P = oscprob.osc_prob_2nu_earth(energy, sth, Dm2, costhz=costhz, L=baseline)
         P
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -6766,7 +6766,7 @@ def osc_prob_3nu_earth(
             P = oscprob.osc_prob_3nu_earth(energy, costhz=costhz, L=baseline)
         P
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -6977,7 +6977,7 @@ def osc_prob_4nu_earth(
                                         d14=np.radians(10.0), d24=np.radians(20.0), D41=0.1)
         P
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -7209,7 +7209,7 @@ def osc_prob_5nu_earth(
                                         D41=0.1, D51=0.05)
         P
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -7402,7 +7402,7 @@ def osc_prob_earth(
     The slab edges used internally are aligned with the crossings of
     the PREM layer boundaries along the chord.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -7454,7 +7454,7 @@ def osc_prob_earth(
         (see :doc:`/adiabatic_strategy`), so a real Earth-crossing trajectory almost always falls
         back to the ``'magnus'`` strategies regardless of what is requested. Default: 'auto'.
 
-        .. versionadded:: 0.10.0
+        .. versionadded:: 1.0.0
     \**kwargs
         Additional arguments forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`
         (e.g., the refinement-loop bounds).
@@ -7549,11 +7549,11 @@ def _osc_prob_with_potential(
     potential ``VCC_func`` and hand it to
     :func:`osc_prob_energy_baseline`.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
-    .. versionchanged:: 0.10.0
-        Added the ``strategy`` parameter: with ``'auto'`` (default) or ``'hybrid'``, also tries
-        the adiabatic-transport-plus-Magnus-patch hybrid strategy (see
+    .. note::
+        With ``strategy='auto'`` (the default) or ``'hybrid'``, this also tries the
+        adiabatic-transport-plus-Magnus-patch hybrid strategy (see
         ``_osc_prob_hybrid_dispatch_generic`` and :doc:`/adiabatic_strategy`) whenever
         ``t_breakpoints`` is empty and a target tolerance is requested, before falling back to
         the general slab-refinement method.
@@ -7597,7 +7597,7 @@ def _osc_prob_with_potential(
         the full description and :doc:`/adiabatic_strategy` for the derivation and validation.
         Default: 'auto'.
 
-        .. versionadded:: 0.10.0
+        .. versionadded:: 1.0.0
     \**kwargs
         Additional arguments forwarded to :func:`osc_prob_energy_baseline`.
 
@@ -7710,20 +7710,20 @@ def osc_prob_2nu_sun(
             P = oscprob.osc_prob_2nu_sun(energy, L, L0, sth, Dm2)
         P
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
-    .. versionchanged:: 0.10.0
-        Now dispatches to a fast, closed-form interaction-picture Magnus
+    .. note::
+        Dispatches to a fast, closed-form interaction-picture Magnus
         integrator whenever the accumulated matter phase stays small enough
-        to certify (see ``_osc_prob_ip_exp_dispatch``),
-        giving warning-free results in a fraction of a second across the
-        realistic solar-neutrino energy range for baselines up to a few
-        e-folds of ``l_scale``; longer baselines fall back transparently to
-        the general slab-refinement method, unchanged from before.
+        to certify (see ``_osc_prob_ip_exp_dispatch``), giving warning-free
+        results in a fraction of a second across the realistic solar-neutrino
+        energy range for baselines up to a few e-folds of ``l_scale``. Longer
+        baselines fall back transparently to the general slab-refinement
+        method.
 
-    .. versionchanged:: 0.10.0
-        Added the ``strategy`` parameter: with the default ``'auto'``, also tries the more
-        general adiabatic-transport-plus-Magnus-patch hybrid strategy (see
+    .. note::
+        With the default ``strategy='auto'``, this also tries the more general
+        adiabatic-transport-plus-Magnus-patch hybrid strategy (see
         :func:`magnus.adiabatic.hybrid_propagator` and :doc:`/adiabatic_strategy`) for baselines
         beyond the interaction-picture integrator's reach (e.g., low-energy neutrinos over most
         of the Sun's radius), before falling back to the general slab-refinement method.
@@ -7752,7 +7752,7 @@ def osc_prob_2nu_sun(
         full description and :doc:`/adiabatic_strategy` for the derivation and validation.
         Default: 'auto'.
 
-        .. versionadded:: 0.10.0
+        .. versionadded:: 1.0.0
     validate_input : bool, optional
         If True, validate the input parameters. Default: True.
     save_log : bool, optional
@@ -7862,7 +7862,7 @@ def osc_prob_3nu_sun(
             P = oscprob.osc_prob_3nu_sun(energy, L, L0)
         P
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -7898,7 +7898,7 @@ def osc_prob_3nu_sun(
         :func:`osc_prob_matter_std_potential` for the full description and
         :doc:`/adiabatic_strategy` for the derivation and validation. Default: 'auto'.
 
-        .. versionadded:: 0.10.0
+        .. versionadded:: 1.0.0
     validate_input : bool, optional
         If True, validate the input parameters. Default: True.
     save_log : bool, optional
@@ -8019,7 +8019,7 @@ def osc_prob_4nu_sun(
                                       d14=np.radians(10.0), d24=np.radians(20.0), D41=0.1)
         P
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -8067,7 +8067,7 @@ def osc_prob_4nu_sun(
         :func:`osc_prob_matter_std_potential` for the full description and
         :doc:`/adiabatic_strategy` for the derivation and validation. Default: 'auto'.
 
-        .. versionadded:: 0.10.0
+        .. versionadded:: 1.0.0
     validate_input : bool, optional
         If True, validate the input parameters. Default: True.
     save_log : bool, optional
@@ -8203,7 +8203,7 @@ def osc_prob_5nu_sun(
                                       D41=0.1, D51=0.05)
         P
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -8263,7 +8263,7 @@ def osc_prob_5nu_sun(
         :func:`osc_prob_matter_std_potential` for the full description and
         :doc:`/adiabatic_strategy` for the derivation and validation. Default: 'auto'.
 
-        .. versionadded:: 0.10.0
+        .. versionadded:: 1.0.0
     validate_input : bool, optional
         If True, validate the input parameters. Default: True.
     save_log : bool, optional
@@ -8373,7 +8373,7 @@ def osc_prob_sun(
     <https://academic.oup.com/book/3490>`_ by Carlo Giunti and Chung
     Wook Kim.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -8412,7 +8412,7 @@ def osc_prob_sun(
         (adiabatic transport with a Magnus patch at any non-adiabatic window, applicable to any
         ``H_func`` regardless of its internal structure). Default: 'auto'.
 
-        .. versionadded:: 0.10.0
+        .. versionadded:: 1.0.0
     \**kwargs
         Additional arguments forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`
         (e.g., the refinement-loop bounds).
@@ -8503,7 +8503,7 @@ def osc_prob_2nu_matter_nsi_constant_density(
     matter with a constant density profile, including non-standard
     interactions (NSI).
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -8615,7 +8615,7 @@ def osc_prob_3nu_matter_nsi_constant_density(
     matter with a constant density profile, including non-standard
     interactions (NSI).
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -8754,7 +8754,7 @@ def osc_prob_4nu_matter_nsi_constant_density(
     matter with a constant density profile, including non-standard
     interactions (NSI).
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -8926,7 +8926,7 @@ def osc_prob_5nu_matter_nsi_constant_density(
     matter with a constant density profile, including non-standard
     interactions (NSI).
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -9098,17 +9098,16 @@ def osc_prob_2nu_matter_nsi_exp_density(
     matter with an exponentially falling density profile, including
     non-standard interactions (NSI).
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
-    .. versionchanged:: 0.10.0
-        Now dispatches to a fast, closed-form interaction-picture Magnus
+    .. note::
+        Dispatches to a fast, closed-form interaction-picture Magnus
         integrator whenever the accumulated matter phase stays small enough
-        to certify (see ``_osc_prob_ip_exp_dispatch``),
-        giving warning-free results in a fraction of a second across the
-        realistic solar-neutrino energy range for baselines up to a few
-        e-folds of ``l_scale`` (the NSI couplings are folded into the same
-        fast path); longer baselines fall back transparently to the general
-        slab-refinement method, unchanged from before.
+        to certify (see ``_osc_prob_ip_exp_dispatch``), giving warning-free
+        results in a fraction of a second across the realistic solar-neutrino
+        energy range for baselines up to a few e-folds of ``l_scale`` (the NSI
+        couplings are folded into the same fast path). Longer baselines fall
+        back transparently to the general slab-refinement method.
 
     Parameters
     ----------
@@ -9236,7 +9235,7 @@ def osc_prob_3nu_matter_nsi_exp_density(
     matter with an exponentially falling density profile, including
     non-standard interactions (NSI).
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -9391,7 +9390,7 @@ def osc_prob_4nu_matter_nsi_exp_density(
     probability in matter with an exponentially falling density profile,
     including non-standard interactions (NSI).
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -9579,7 +9578,7 @@ def osc_prob_5nu_matter_nsi_exp_density(
     probability in matter with an exponentially falling density profile,
     including non-standard interactions (NSI).
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -9823,7 +9822,7 @@ def osc_prob_2nu_earth_nsi(
                                                 costhz=costhz, L=baseline)
         P
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -10027,7 +10026,7 @@ def osc_prob_3nu_earth_nsi(
                                             eps_ee=0.05, eps_em=-0.03, eps_et=0.01)
         P
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -10260,7 +10259,7 @@ def osc_prob_4nu_earth_nsi(
                 eps_ee=0.05, eps_em=-0.03, eps_et=0.01, eps_es=0.02, eps_ms=0.01, eps_ts=0.01)
         P
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -10529,7 +10528,7 @@ def osc_prob_5nu_earth_nsi(
                 eps_ms1=0.01, eps_ms2=0.01, eps_ts1=0.01, eps_ts2=0.01)
         P
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -10764,17 +10763,16 @@ def osc_prob_2nu_sun_nsi(
             P = oscprob.osc_prob_2nu_sun_nsi(energy, L, L0, sth, Dm2, eps_aa=0.05, eps_ab=0.02)
         P
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
-    .. versionchanged:: 0.10.0
-        Now dispatches to a fast, closed-form interaction-picture Magnus
+    .. note::
+        Dispatches to a fast, closed-form interaction-picture Magnus
         integrator whenever the accumulated matter phase stays small enough
-        to certify (see ``_osc_prob_ip_exp_dispatch``),
-        giving warning-free results in a fraction of a second across the
-        realistic solar-neutrino energy range for baselines up to a few
-        e-folds of ``l_scale`` (the NSI couplings are folded into the same
-        fast path); longer baselines fall back transparently to the general
-        slab-refinement method, unchanged from before.
+        to certify (see ``_osc_prob_ip_exp_dispatch``), giving warning-free
+        results in a fraction of a second across the realistic solar-neutrino
+        energy range for baselines up to a few e-folds of ``l_scale`` (the NSI
+        couplings are folded into the same fast path). Longer baselines fall
+        back transparently to the general slab-refinement method.
 
     Parameters
     ----------
@@ -10804,7 +10802,7 @@ def osc_prob_2nu_sun_nsi(
         :func:`osc_prob_matter_std_potential` for the full description and
         :doc:`/adiabatic_strategy` for the derivation and validation. Default: 'auto'.
 
-        .. versionadded:: 0.10.0
+        .. versionadded:: 1.0.0
     validate_input : bool, optional
         If True, validate the input parameters. Default: True.
     save_log : bool, optional
@@ -10917,7 +10915,7 @@ def osc_prob_3nu_sun_nsi(
             P = oscprob.osc_prob_3nu_sun_nsi(energy, L, L0, eps_ee=0.05, eps_em=-0.03, eps_et=0.01)
         P
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -10965,7 +10963,7 @@ def osc_prob_3nu_sun_nsi(
         :func:`osc_prob_matter_std_potential` for the full description and
         :doc:`/adiabatic_strategy` for the derivation and validation. Default: 'auto'.
 
-        .. versionadded:: 0.10.0
+        .. versionadded:: 1.0.0
     validate_input : bool, optional
         If True, validate the input parameters. Default: True.
     save_log : bool, optional
@@ -11100,7 +11098,7 @@ def osc_prob_4nu_sun_nsi(
                 eps_ee=0.05, eps_em=-0.03, eps_et=0.01, eps_es=0.02, eps_ms=0.01, eps_ts=0.01)
         P
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -11168,7 +11166,7 @@ def osc_prob_4nu_sun_nsi(
         :func:`osc_prob_matter_std_potential` for the full description and
         :doc:`/adiabatic_strategy` for the derivation and validation. Default: 'auto'.
 
-        .. versionadded:: 0.10.0
+        .. versionadded:: 1.0.0
     validate_input : bool, optional
         If True, validate the input parameters. Default: True.
     save_log : bool, optional
@@ -11327,7 +11325,7 @@ def osc_prob_5nu_sun_nsi(
                 eps_ms1=0.01, eps_ms2=0.01, eps_ts1=0.01, eps_ts2=0.01)
         P
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -11417,7 +11415,7 @@ def osc_prob_5nu_sun_nsi(
         :func:`osc_prob_matter_std_potential` for the full description and
         :doc:`/adiabatic_strategy` for the derivation and validation. Default: 'auto'.
 
-        .. versionadded:: 0.10.0
+        .. versionadded:: 1.0.0
     validate_input : bool, optional
         If True, validate the input parameters. Default: True.
     save_log : bool, optional
@@ -11521,7 +11519,7 @@ def osc_prob_2nu_vacuum_liv(
     r"""Compute and return the two-neutrino oscillation probability in
     vacuum under (one form of) Lorentz-invariance violation.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -11621,7 +11619,7 @@ def osc_prob_3nu_vacuum_liv(
     r"""Compute and return the three-neutrino oscillation probability in
     vacuum under (one form of) Lorentz-invariance violation.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -11751,7 +11749,7 @@ def osc_prob_4nu_vacuum_liv(
     r"""Compute and return the four-neutrino oscillation probability in
     vacuum under (one form of) Lorentz-invariance violation.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -11919,7 +11917,7 @@ def osc_prob_5nu_vacuum_liv(
     r"""Compute and return the five-neutrino oscillation probability in
     vacuum under (one form of) Lorentz-invariance violation.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -12091,7 +12089,7 @@ def osc_prob_2nu_matter_liv_constant_density(
     matter with a constant density profile, under (one form of)
     Lorentz-invariance violation.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -12215,7 +12213,7 @@ def osc_prob_3nu_matter_liv_constant_density(
     matter with a constant density profile, under (one form of) 
     Lorentz-invariance violation.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -12369,7 +12367,7 @@ def osc_prob_4nu_matter_liv_constant_density(
     matter with a constant density profile, under (one form of) 
     Lorentz-invariance violation.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -12561,7 +12559,7 @@ def osc_prob_5nu_matter_liv_constant_density(
     matter with a constant density profile, under (one form of) 
     Lorentz-invariance violation.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -12752,7 +12750,7 @@ def osc_prob_2nu_matter_liv_exp_density(
     matter with an exponentially falling density profile, under (one 
     form of) Lorentz-invariance violation.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -12888,7 +12886,7 @@ def osc_prob_3nu_matter_liv_exp_density(
     matter with an exponentially falling density profile, under (one 
     form of) Lorentz-invariance violation.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -13050,7 +13048,7 @@ def osc_prob_4nu_matter_liv_exp_density(
     matter with an exponentially falling density profile, under (one 
     form of) Lorentz-invariance violation.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -13250,7 +13248,7 @@ def osc_prob_5nu_matter_liv_exp_density(
     matter with an exponentially falling density profile, under (one 
     form of) Lorentz-invariance violation.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -13506,7 +13504,7 @@ def osc_prob_2nu_earth_liv(
                                                 Lambda=1.e9, n_liv=1, costhz=costhz, L=baseline)
         P
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -13721,7 +13719,7 @@ def osc_prob_3nu_earth_liv(
                 b1=1.e-13, b2=2.e-13, b3=3.e-13, Lambda=1.e9, n_liv=1)
         P
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -13965,7 +13963,7 @@ def osc_prob_4nu_earth_liv(
                 b1=1.e-13, b2=2.e-13, b3=3.e-13, b4=1.e-13, Lambda=1.e9, n_liv=1)
         P
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -14248,7 +14246,7 @@ def osc_prob_5nu_earth_liv(
                 b1=1.e-13, b2=2.e-13, b3=3.e-13, b4=1.e-13, b5=1.e-13, Lambda=1.e9, n_liv=1)
         P
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -14475,7 +14473,7 @@ def osc_prob_2nu_sun_liv(
     <https://academic.oup.com/book/3490>`_ by Carlo Giunti and Chung 
     Wook Kim.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -14519,7 +14517,7 @@ def osc_prob_2nu_sun_liv(
         :func:`osc_prob_matter_std_potential` for the full description and
         :doc:`/adiabatic_strategy` for the derivation and validation. Default: 'auto'.
 
-        .. versionadded:: 0.10.0
+        .. versionadded:: 1.0.0
     validate_input : bool, optional
         If True, validate the input parameters. Default: True.
     save_log : bool, optional
@@ -14619,7 +14617,7 @@ def osc_prob_3nu_sun_liv(
     <https://academic.oup.com/book/3490>`_ by Carlo Giunti and Chung 
     Wook Kim.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -14679,7 +14677,7 @@ def osc_prob_3nu_sun_liv(
         :func:`osc_prob_matter_std_potential` for the full description and
         :doc:`/adiabatic_strategy` for the derivation and validation. Default: 'auto'.
 
-        .. versionadded:: 0.10.0
+        .. versionadded:: 1.0.0
     validate_input : bool, optional
         If True, validate the input parameters. Default: True.
     save_log : bool, optional
@@ -14799,7 +14797,7 @@ def osc_prob_4nu_sun_liv(
     <https://academic.oup.com/book/3490>`_ by Carlo Giunti and Chung 
     Wook Kim.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -14883,7 +14881,7 @@ def osc_prob_4nu_sun_liv(
         :func:`osc_prob_matter_std_potential` for the full description and
         :doc:`/adiabatic_strategy` for the derivation and validation. Default: 'auto'.
 
-        .. versionadded:: 0.10.0
+        .. versionadded:: 1.0.0
     validate_input : bool, optional
         If True, validate the input parameters. Default: True.
     save_log : bool, optional
@@ -15027,7 +15025,7 @@ def osc_prob_5nu_sun_liv(
     <https://academic.oup.com/book/3490>`_ by Carlo Giunti and Chung 
     Wook Kim.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -15135,7 +15133,7 @@ def osc_prob_5nu_sun_liv(
         :func:`osc_prob_matter_std_potential` for the full description and
         :doc:`/adiabatic_strategy` for the derivation and validation. Default: 'auto'.
 
-        .. versionadded:: 0.10.0
+        .. versionadded:: 1.0.0
     validate_input : bool, optional
         If True, validate the input parameters. Default: True.
     save_log : bool, optional
