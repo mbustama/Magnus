@@ -321,7 +321,10 @@ that history is the most useful record of *why* the code looks the way it does.
   was no supported way to get clean output into a log file or a rendered
   notebook.
 - `ruff check` is now blocking in CI rather than `continue-on-error`, with
-  the rule configuration in `[tool.ruff.lint]` in `pyproject.toml`. Two
+  the rule configuration in `[tool.ruff.lint]` in `pyproject.toml`, including an
+  explicit `select`. Leaving the selection to ruff's default is not safe for a
+  blocking check: the default widened in ruff 0.16 and turned CI red on a
+  codebase that had not changed. Two
   codebase-wide conventions are exempted explicitly (`E741`, since `l` is the
   standard symbol for position here, and `E701` for the one-line cleanup
   guards); everything else was fixed, so the tree is clean and a new finding
