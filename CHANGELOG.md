@@ -82,6 +82,21 @@ that history is the most useful record of *why* the code looks the way it does.
   above it and blocks unrelated work. The job also carries a Codecov upload step
   that stays dormant until a `CODECOV_TOKEN` secret exists, so nothing leaves the
   repository until public coverage reporting is deliberately switched on.
+- Two structural sweeps closing what that first coverage run found: 23 of the 36
+  NSI/LIV `osc_prob_*` wrappers, and 25 of the `hamiltonian_*` builders the
+  package exports, were executed by nothing at all -- not by the tests, and not
+  by the library either, which reaches for the `*_energy_independent` variants
+  instead. Several of the wrappers even appeared in a parametrize list, but in
+  tests that inspect a signature or the source text without ever calling the
+  function, so a mistyped keyword in any of them would have shipped unnoticed.
+  `test_every_bsm_wrapper_runs_and_is_unitary` now calls every one of them with
+  non-zero NSI/LIV parameters and checks the result is a valid probability
+  matrix, and `test_every_exported_hamiltonian_builder_is_hermitian` builds every
+  exported Hamiltonian once, with complex off-diagonal couplings, and checks
+  Hermiticity. Both discover their own subjects -- from the module and from
+  `__all__` respectively -- so a name added later is swept without anyone
+  remembering to extend a list. Both were verified to fail against a deliberately
+  broken library before being kept.
 - Gauss-Legendre commutator-free integrators (`integration_method='gl'`),
   silent vectorization of Hamiltonian/density-profile evaluation, an
   energy-batched scan engine for separable Hamiltonians, adaptive slab

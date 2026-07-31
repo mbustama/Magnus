@@ -762,6 +762,107 @@ def test_every_standard_wrapper_runs_and_is_unitary(family, num_flavors):
 
 
 # ----------------------------------------------------------------------
+# Structural smoke test (G2): the BSM counterpart of G1 above, covering
+# every NSI and LIV wrapper.
+#
+# G1 sweeps only the standard wrappers, and the targeted regression tests
+# above reach a scattered subset of the BSM ones, so a coverage run found
+# 23 of the 36 NSI/LIV wrappers were executed by nothing at all -- several
+# of them while *appearing* in a parametrize list above, because those
+# tests inspect the source or the signature without ever calling the
+# function. A typo in one of their kwargs would have shipped unnoticed.
+# ----------------------------------------------------------------------
+
+# Deliberately non-zero, so the scenario actually perturbs the Hamiltonian
+# rather than reducing to the standard case (every eps and every b default
+# to 0.0, which would make this a re-run of G1 in disguise). Values are
+# superset dicts: each call filters them against its own signature, which
+# is what keeps one test honest across four flavor counts.
+NSI_SWEEP_PARAMS = dict(
+    eps_aa=0.1, eps_ab=0.05,                                    # 2nu naming
+    eps_ee=0.2, eps_em=0.1, eps_et=0.05,                        # 3nu and up
+    eps_mm=0.05, eps_mt=0.02, eps_tt=0.01,
+    eps_es1=0.02, eps_ms1=0.01, eps_ts1=0.005, eps_s1s1=0.01,   # 4nu sterile
+    eps_es2=0.01, eps_ms2=0.005, eps_ts2=0.002,                 # 5nu sterile
+    eps_s1s2=0.005, eps_s2s2=0.01,
+)
+LIV_SWEEP_PARAMS = dict(
+    sxi=0.2,                                                    # 2nu naming
+    sxi12=0.2, sxi23=0.1, sxi13=0.05, dxiCP=0.0, dxi13=0.0,
+    sxi14=0.05, dxi14=0.0, sxi24=0.03, dxi24=0.0, sxi34=0.02,
+    sxi15=0.03, dxi15=0.0, sxi25=0.02, sxi35=0.01, dxi35=0.0,
+    b1=gd.B1, b2=gd.B2, b3=gd.B3, b4=3.0e-9, b5=4.0e-9,
+    Lambda=gd.LAMBDA, n_liv=1,
+)
+
+
+def bsm_wrapper_names():
+    """Every osc_prob_{2,3,4,5}nu_* wrapper carrying an `nsi` or `liv`
+    segment in its name.
+
+    Discovered from the module rather than hand-listed, so a wrapper added
+    later is swept without anyone remembering to extend a list here -- the
+    gap this test exists to close was exactly that kind of omission.
+
+    Matching is on '_'-separated segments, not on substrings: 'nsi' occurs
+    inside 'de-nsi-ty', so a substring test silently pulls in every
+    *_exp_density and *_constant_density wrapper as well.
+    """
+    import re
+    names = []
+    for name in dir(op):
+        match = re.match(r'osc_prob_([2-5])nu_(.+)$', name)
+        if match is None: continue
+        if {'nsi', 'liv'} & set(match.group(2).split('_')):
+            names.append(name)
+    return sorted(names)
+
+
+@pytest.mark.parametrize("name", bsm_wrapper_names())
+def test_every_bsm_wrapper_runs_and_is_unitary(name):
+    import inspect
+    fn = getattr(op, name)
+    params = inspect.signature(fn).parameters
+    parts = name.split('_')
+    num_flavors = int(name[len('osc_prob_')])
+
+    kwargs = dict(validate_input=False)
+    if num_flavors == 2:
+        kwargs.update(sth=0.3, Dm2=2.5e-3)
+    elif num_flavors == 4:
+        kwargs.update({k: v for k, v in S5.items()
+                      if k not in ('s15', 'd15', 's25', 's35', 'd35', 'D51')})
+    elif num_flavors == 5:
+        kwargs.update(S5)
+
+    scenario = NSI_SWEEP_PARAMS if 'nsi' in parts else LIV_SWEEP_PARAMS
+    kwargs.update({k: v for k, v in scenario.items() if k in params})
+
+    if 'vacuum' in parts:
+        P = fn(ENERGY, BASELINE, **kwargs)
+    elif name.endswith('constant_density'):
+        P = fn(ENERGY, BASELINE, RHO_C, **kwargs)
+    elif name.endswith('exp_density'):
+        P = fn(ENERGY, BASELINE, 0.0, RHO_C, L_SCALE, **kwargs)
+    elif 'earth' in parts:
+        P = fn(ENERGY, costhz=-0.8, L=2.0*6371.0*0.8*gd.UNIT_KM, **kwargs)
+    elif 'sun' in parts:
+        # 0.1 R_sun, where G1 above uses 0.5. The two-flavor solar path costs
+        # time in proportion to the baseline (measured for osc_prob_2nu_sun_nsi:
+        # 9.8 s at 0.5 R_sun, 5.1 s at 0.25, 2.5 s at 0.1), and it executes the
+        # same lines either way -- this test asks whether the wrapper runs and
+        # returns a unitary matrix, not how accurate it is over a long baseline,
+        # which is what the solve_ivp cross-checks above are for.
+        P = fn(ENERGY, 0.1*gd.SUN_RADIUS*gd.UNIT_KM, 0.0, **kwargs)
+    else:
+        raise AssertionError(f"unclassified wrapper: {name}")
+
+    P = np.asarray(P)
+    assert np.allclose(np.sum(P, axis=-1), 1.0, atol=1e-6)
+    assert np.all((P >= -1e-9) & (P <= 1.0 + 1e-9))
+
+
+# ----------------------------------------------------------------------
 # Permanent API-consistency guard (see the G1 write-up): every bug in
 # category B was a sibling wrapper silently drifting from its family's
 # convention (a stray default, a missing parameter, an inconsistent
