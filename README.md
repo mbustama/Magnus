@@ -1,6 +1,10 @@
 # Mag$`\nu`$s
 
-[![tests](https://github.com/mbustama/Magnus/actions/workflows/tests.yml/badge.svg)](https://github.com/mbustama/Magnus/actions/workflows/tests.yml)
+[![CI Tests](https://github.com/mbustama/Magnus/actions/workflows/tests.yml/badge.svg)](https://github.com/mbustama/Magnus/actions/workflows/tests.yml)
+[![Code Quality](https://github.com/mbustama/Magnus/actions/workflows/lint.yml/badge.svg)](https://github.com/mbustama/Magnus/actions/workflows/lint.yml)
+[![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-blue.svg)](https://mbustama.github.io/Magnus/)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 
 Code to compute neutrino oscillation probabilities between an arbitrary number
 of flavors, for any given Hamiltonian, time-dependent or -independent.
@@ -40,6 +44,7 @@ precision, at any accuracy setting.  See
 - [Requirements](#requirements)
 - [Changelog](#changelog)
 - [How to Cite](#how-to-cite)
+- [License](#license)
 - [Author](#author)
 
 ## When is Mag$`\nu`$s a win?
@@ -248,6 +253,7 @@ Magnus/
 │   └── test_globaldefs.py           # NuFit historical parameter dict/loader
 ├── .gitignore
 ├── CHANGELOG.md                     # Version history (Keep a Changelog format)
+├── LICENSE                          # GNU GPL v3 (GPL-3.0-only), the full license text
 ├── pyproject.toml                   # Build system, dependencies, and the `magnus` console-script entry point
 └── README.md                        # This file
 ```
@@ -912,6 +918,16 @@ https://github.com/mbustama/Magnus.
 * Adam M. Dziewonski & Don L. Anderson (1981). Preliminary reference Earth
   model. *Physics of the Earth and Planetary Interiors, 25*(4), 297-356.
   [doi:10.1016/0031-9201(81)90046-7](https://doi.org/10.1016/0031-9201(81)90046-7).
+
+## License
+
+Mag$`\nu`$s is released under the **GNU General Public License v3.0 only**
+(`GPL-3.0-only`). The full text is in [LICENSE](LICENSE).
+
+In short: you are free to use, study, modify, and redistribute it, including
+for commercial purposes, provided that derivative works are distributed under
+the same license and with source available. If you are unsure whether your
+intended use is compatible, read the license itself rather than this summary.
 
 ## Author
 

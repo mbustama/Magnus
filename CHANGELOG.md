@@ -16,6 +16,18 @@ that history is the most useful record of *why* the code looks the way it does.
 
 ### Added
 
+- A license. Magνs is released under the GNU General Public License v3.0 only;
+  `LICENSE` carries the full text, and it is declared in `pyproject.toml` as the
+  PEP 639 SPDX expression `license = "GPL-3.0-only"`, which is what appears in
+  the built distribution's metadata as `License-Expression`. It previously read
+  `TBD`, so a `pip install` would have shipped the license text while declaring
+  no license at all. The build requirement moves to `setuptools>=77`, the first
+  version that understands the SPDX expression form; note that PEP 639 forbids
+  pairing it with a `License ::` classifier, so there is deliberately none.
+  Referenced from the README, the docs landing page, and both file trees.
+- Status badges on the README and the docs landing page: CI tests, code quality,
+  documentation, license, and the supported Python version (3.10+, matching
+  `requires-python` and the CI matrix rather than a copied-in default).
 - `magnus.expansionterms`: derives the terms of the Magnus expansion from the
   Bernoulli-number recursion symbolically, at any order, in exact rational
   arithmetic (`bernoulli`, `bernoulli_factor`, `omega_terms`, `magnus_terms`,

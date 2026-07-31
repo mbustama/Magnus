@@ -14,6 +14,11 @@ Magνs requires **Python 3.10+**.  Dependencies:
 
 See :download:`src/requirements.txt <../../src/requirements.txt>`.
 
+Magνs is licensed under the GNU General Public License v3.0 only
+(``GPL-3.0-only``); see :doc:`index` for a summary, and the ``LICENSE``
+file in the repository root, which is also shipped inside the installed
+distribution, for the full text.
+
 Installation
 ------------
 
@@ -153,5 +158,6 @@ File Tree
    │   └── test_globaldefs.py           # NuFit historical parameter dict/loader
    ├── .gitignore
    ├── CHANGELOG.md                     # Version history (Keep a Changelog format)
+   ├── LICENSE                          # GNU GPL v3 (GPL-3.0-only), the full license text
    ├── pyproject.toml                   # Build system, dependencies, and the `magnus` console-script entry point
    └── README.md

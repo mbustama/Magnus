@@ -1,5 +1,6 @@
 [build-system]
-requires = ["setuptools>=61.0"]
+# setuptools >= 77 is required for the PEP 639 SPDX `license` expression below.
+requires = ["setuptools>=77.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -8,7 +9,7 @@ version = "1.0.0rc1"
 description = "Neutrino oscillation probabilities via the Magnus expansion, for an arbitrary number of flavors and any Hamiltonian, time-dependent or not."
 readme = "README.md"
 requires-python = ">=3.10"
-license = {text = "TBD"}
+license = "GPL-3.0-only"
 authors = [
     {name = "Mauricio Bustamante", email = "mbustamante@gmail.com"}
 ]
