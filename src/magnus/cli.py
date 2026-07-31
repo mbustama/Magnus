@@ -18,7 +18,8 @@ Routine listings
     * build_parser - Builds the argparse.ArgumentParser
     * FLAVOR_NAME_TO_INDEX - Maps flavor names (e, mu, tau, s, s1, s2)
            to their globaldefs index
-    * ENERGY_UNITS, LENGTH_UNITS - Unit-name to eV/eV^-1 conversion factors
+    * ENERGY_UNITS, LENGTH_UNITS - Unit-name to :math:`\text{eV}` / :math:`\text{eV}^{-1}`
+           conversion factors
 """
 
 __author__ = "Mauricio Bustamante"
@@ -62,7 +63,8 @@ FLAVOR_LABELS = {
 # Refinement/logging/numerics kwargs that every osc_prob_* wrapper accepts via
 # **kwargs even where they are not explicit named parameters (see the "layer
 # contract" in docs/source/architecture.rst) -- always safe to forward.
-ALWAYS_FORWARD = {'magnus_exp_order', 'n_jobs', 'integration_method', 'rtol', 'atol'}
+ALWAYS_FORWARD = {'magnus_exp_order', 'n_jobs', 'integration_method', 'rtol', 'atol',
+                  'strategy'}
 
 
 def _flavor_index(value: str) -> int:
@@ -81,6 +83,8 @@ def _flavor_index(value: str) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     r"""Builds the ``magnus`` command-line argument parser.
+
+    .. versionadded:: 1.0.0
 
     Returns
     -------
@@ -249,12 +253,23 @@ def build_parser() -> argparse.ArgumentParser:
     g_num = p.add_argument_group('Advanced numerics')
     g_num.add_argument('--magnus-exp-order', type=int, default=4, dest='magnus_exp_order',
         help='Highest order of the Magnus expansion (1-6). Default: 4.')
-    g_num.add_argument('--integration-method', choices=['trapezoid', 'simpson', 'gl'], default='trapezoid',
-        help="Quadrature method ('gl' = Gauss-Legendre, fastest). Default: trapezoid.")
+    g_num.add_argument('--integration-method', choices=['gl', 'trapezoid', 'simpson'], default='gl',
+        help="Quadrature method. 'gl' (Gauss-Legendre collocation) needs only 1-3 Hamiltonian "
+             "evaluations per slab and matches its quadrature order to the expansion order, so "
+             "it is both the fastest and the most accurate for a smooth Hamiltonian. "
+             "'trapezoid'/'simpson' sample a uniform grid of --n-tpts-per-slab points instead, "
+             "and are the safer choice if the Hamiltonian is not smooth within a slab. "
+             "Default: gl.")
     g_num.add_argument('--rtol', type=float, default=1.e-3, help='Target relative tolerance. Default: 1e-3.')
     g_num.add_argument('--atol', type=float, default=1.e-3, help='Target absolute tolerance. Default: 1e-3.')
     g_num.add_argument('--n-jobs', type=int, default=1, dest='n_jobs',
         help='Number of parallel joblib workers. Default: 1.')
+    g_num.add_argument('--strategy', choices=['auto', 'hybrid', 'magnus'], default='auto',
+        help="How to propagate a position-dependent Hamiltonian: 'magnus' uses only the "
+             "Magnus-expansion machinery; 'hybrid' also tries adiabatic transport with a "
+             "Magnus patch at each non-adiabatic window, warning if it cannot certify the "
+             "result; 'auto' tries hybrid and falls back to magnus silently. Ignored for "
+             "vacuum and constant-density environments. Default: auto.")
     g_num.add_argument('--verbose', type=int, default=0, choices=[0, 1, 2],
         help='Verbosity level. Default: 0.')
 
@@ -398,6 +413,8 @@ def _format_table(P: np.ndarray, flavors: int, precision: int) -> str:
 def main(argv=None) -> int:
     r"""Entry point for the ``magnus`` console script / ``python -m magnus``.
 
+    .. versionadded:: 1.0.0
+
     Parameters
     ----------
     argv : list of str, optional
@@ -441,8 +458,20 @@ def main(argv=None) -> int:
         'magnus_exp_order': args.magnus_exp_order, 'n_jobs': args.n_jobs,
         'integration_method': args.integration_method, 'rtol': args.rtol, 'atol': args.atol,
     })
+    # `strategy` selects how a *position-dependent* Hamiltonian is propagated, so it is only
+    # forwarded where the Hamiltonian actually depends on position.  Vacuum and constant-density
+    # environments have no such dependence and their wrappers forward unknown keywords all the
+    # way down to the Magnus core, which would reject it.
+    if environment in ('earth', 'sun') or (environment == 'matter'
+                                           and args.density_profile == 'exp'):
+        candidate['strategy'] = args.strategy
 
-    P = _call(fn, candidate)
+    try:
+        P = _call(fn, candidate)
+    except ValueError as error:
+        # The library validates its own inputs and raises; surface that as a clean CLI error
+        # (exit code 2, like any other argument problem) rather than a raw traceback.
+        parser.error(str(error))
 
     if args.json:
         payload = {

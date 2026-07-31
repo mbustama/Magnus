@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 """Tests of the oscillation-probability engine (magnus.oscprob)."""
 
+import warnings
+
 import numpy as np
 import pytest
 import scipy as sp
@@ -8,6 +10,8 @@ from scipy.integrate import solve_ivp
 
 import magnus.globaldefs as gd
 import magnus.hamiltonians as hams
+import magnus.magnus as mg
+import magnus.matter as matter
 import magnus.oscprob as op
 import magnus.oscprobstd as opstd
 
@@ -133,29 +137,39 @@ def test_asymmetric_profile_matches_ode_solution():
 # osc_prob interface behavior
 # ----------------------------------------------------------------------
 
-def test_user_t_slab_edges_are_all_used():
+@pytest.mark.parametrize("method", ['gl', 'trapezoid', 'simpson'])
+def test_user_t_slab_edges_are_all_used(method):
     """Regression test: with user-provided t_slab_edges, all slabs (not just
-    the first) must enter the product."""
+    the first) must enter the product.
+
+    Stated as a ratio rather than an absolute tolerance.  The two-slab result
+    must land far closer to the well-resolved 50-slab answer than to the
+    first-slab-only answer; if the second slab were dropped, P_edges would
+    *equal* P_first_only and the ratio would blow up.  An absolute threshold
+    would have to be retuned for every integration method and expansion order
+    (two Gauss-Legendre nodes per slab resolve a two-slab interval a little
+    less finely than 101 trapezoid points do), while the property actually
+    being tested -- that the second slab is in the product at all -- is the
+    same for all of them."""
     H0, H1 = random_hermitian(3), random_hermitian(3)
 
     def H_ramp(l):
         lr = np.asarray(l)
         return H0 + lr[..., None, None]*H1 if lr.ndim else H0 + float(lr)*H1
 
+    kwargs = dict(n_tpts_per_slab=101, magnus_exp_order=4, rtol=None,
+                  atol=None, validate_input=False, integration_method=method)
     edges = [[0.0, 0.3], [0.3, 1.0]]
-    P_edges = op.osc_prob(H_ramp, 0.0, 1.0, t_slab_edges=edges,
-                          n_tpts_per_slab=101, magnus_exp_order=4,
-                          rtol=None, atol=None, validate_input=False)
-    P_auto = op.osc_prob(H_ramp, 0.0, 1.0, n_slabs=50, n_tpts_per_slab=101,
-                         magnus_exp_order=4, rtol=None, atol=None,
-                         validate_input=False)
-    # Same interval, different slabbings: results must agree well, and in
-    # particular P_edges must NOT equal the single-slab [0, 0.3] result
-    assert maxabs(P_edges - P_auto) < 1e-3
-    P_first_only = op.osc_prob(H_ramp, 0.0, 0.3, n_slabs=1,
-                               n_tpts_per_slab=101, magnus_exp_order=4,
-                               rtol=None, atol=None, validate_input=False)
-    assert maxabs(P_edges - P_first_only) > 1e-2
+    P_edges = op.osc_prob(H_ramp, 0.0, 1.0, t_slab_edges=edges, **kwargs)
+    P_auto = op.osc_prob(H_ramp, 0.0, 1.0, n_slabs=50, **kwargs)
+    P_first_only = op.osc_prob(H_ramp, 0.0, 0.3, n_slabs=1, **kwargs)
+
+    gap_to_resolved = maxabs(P_edges - P_auto)
+    gap_to_first_only = maxabs(P_edges - P_first_only)
+    assert gap_to_first_only > 1e-2
+    assert gap_to_resolved < 0.1*gap_to_first_only, (
+        f"{method}: two-slab result is not close to the 50-slab answer "
+        f"({gap_to_resolved:.3e} vs {gap_to_first_only:.3e} to first-slab-only)")
 
 
 def test_single_none_tolerance_is_accepted():
@@ -430,15 +444,155 @@ def test_generic_osc_prob_sun_matches_wrapper():
     assert np.allclose(np.sum(P_gen, axis=1), 1.0, atol=1e-9)
 
 
+def test_generic_osc_prob_sun_hybrid_strategy_resolves_hard_case():
+    """The fully generic osc_prob_sun (arbitrary user H_func, no separable
+    vacuum/matter decomposition available to the dispatcher) must also pick up the hybrid
+    strategy: at 10 MeV over 0.9 R_sun (the same hard case as test_tolerance_cap_warns /
+    test_sun_2nu_default_strategy_avoids_tolerance_cap), strategy='magnus' should still hit
+    ToleranceNotAchievedWarning with tight caps, while the default strategy='auto' resolves
+    warning-free and matches solve_ivp -- confirming _osc_prob_hybrid_dispatch_generic (used by
+    osc_prob_sun/osc_prob_earth) works independently of _osc_prob_hybrid_dispatch (used by the
+    standard/NSI/LIV wrappers)."""
+    sth, Dm2 = np.sqrt(0.308), 7.5e-5
+    hvac = hams.hamiltonian_2nu_vacuum_energy_independent(sth, Dm2)
+    e00 = np.diag([1.0, 0.0])
+
+    def H(energy, l, VCC):
+        vcc = np.asarray(VCC)
+        return (1.0/energy)*hvac + vcc[..., None, None]*e00
+
+    energy, L = 10.0*gd.UNIT_MEV, 0.9*gd.SUN_RADIUS*gd.UNIT_KM
+
+    with pytest.warns(op.ToleranceNotAchievedWarning):
+        op.osc_prob_sun(H, energy, L, integration_method='gl', max_n_slabs=64,
+                        max_num_loops=8, strategy='magnus', validate_input=False)
+
+    with warnings.catch_warnings(record=True) as wlist:
+        warnings.simplefilter("always")
+        P_auto = op.osc_prob_sun(H, energy, L, strategy='auto', validate_input=False)
+    assert not any(issubclass(w.category, (op.ToleranceNotAchievedWarning,
+                                           op.HybridCertificationWarning,
+                                           mg.MagnusConvergenceWarning)) for w in wlist)
+    assert np.allclose(np.sum(P_auto, axis=1), 1.0, atol=1e-9)
+
+    rho_func = matter.exp_density_profile(gd.NUM_DENSITY_E_SUN_CENTRAL, gd.L_SCALE_SUN)
+    VCC_func = matter.vcc_func_from_rho_func(rho_func, 0.0, 1.0, 0.5, False, False, True)
+
+    def rhs(l, y):
+        Hl = (1.0/energy)*hvac + VCC_func(l)*e00
+        return (-1j*Hl @ y.reshape(2, 2)).ravel()
+
+    sol = solve_ivp(rhs, (0.0, L), np.eye(2, dtype=complex).ravel(),
+                    rtol=1e-11, atol=1e-13, method='DOP853')
+    P_exact = np.abs(sol.y[:, -1].reshape(2, 2)).T**2
+    assert maxabs(np.asarray(P_auto) - P_exact) < 1e-2
+
+
+def test_generic_osc_prob_earth_strategy_falls_back_to_magnus():
+    """osc_prob_earth's PREM density profile always carries layer-boundary breakpoints, which the
+    hybrid strategy does not support (see docs/source/adiabatic_strategy.rst): strategy='auto'
+    and strategy='hybrid' must therefore give results identical to strategy='magnus' for a real
+    Earth-crossing trajectory -- confirming that wiring strategy into osc_prob_earth introduced
+    no behavior change, only a (here, inert) new code path."""
+    hvac = hams.hamiltonian_3nu_vacuum_energy_independent(S12, S23, S13, DCP, D21, D31)
+    e00 = np.diag([1.0, 0.0, 0.0])
+
+    def H(energy, l, VCC):
+        vcc = np.asarray(VCC)
+        return (1.0/energy)*hvac + vcc[..., None, None]*e00
+
+    common = dict(loc_ini='fermilab', loc_fin='homestake', validate_input=False)
+    P_magnus = op.osc_prob_earth(H, 1.0*gd.UNIT_GEV, strategy='magnus', **common)
+    P_auto = op.osc_prob_earth(H, 1.0*gd.UNIT_GEV, strategy='auto', **common)
+    P_hybrid = op.osc_prob_earth(H, 1.0*gd.UNIT_GEV, strategy='hybrid', **common)
+    assert maxabs(np.asarray(P_auto) - np.asarray(P_magnus)) == 0.0
+    assert maxabs(np.asarray(P_hybrid) - np.asarray(P_magnus)) == 0.0
+
+
 def test_tolerance_cap_warns():
     """Hitting the refinement caps must warn even at verbose=0 (the result
-    can look plausible while being unconverged)."""
+    can look plausible while being unconverged).
+
+    strategy='magnus' is required here: with the default strategy='auto' (added in 0.11.0), this
+    exact (energy, baseline) case is precisely the one the hybrid strategy exists to fix (see
+    test_sun_2nu_default_strategy_avoids_tolerance_cap below) and no longer hits the general
+    method's refinement caps at all, so forcing strategy='magnus' is what still exercises the
+    warning path being tested here."""
     sth, Dm2 = np.sqrt(0.308), 7.5e-5
     with pytest.warns(op.ToleranceNotAchievedWarning):
         op.osc_prob_2nu_sun(10.0*gd.UNIT_MEV, 0.9*gd.SUN_RADIUS*gd.UNIT_KM,
                             0.0, sth, Dm2, integration_method='gl',
                             max_n_slabs=64, max_num_loops=8,
-                            validate_input=False)
+                            strategy='magnus', validate_input=False)
+
+
+def test_sun_2nu_default_strategy_avoids_tolerance_cap():
+    """The default strategy='auto' must resolve, warning-free, exactly the case that
+    test_tolerance_cap_warns shows still hits the refinement caps under strategy='magnus': 10 MeV
+    over 0.9 R_sun is deep enough into the accumulated-phase regime that even the 2-flavor
+    interaction-picture fast path (_osc_prob_ip_exp_dispatch) does not certify, so this also
+    confirms the hybrid strategy (_osc_prob_hybrid_dispatch) is the one resolving it, not the
+    pre-existing fast path."""
+    sth, Dm2 = np.sqrt(0.308), 7.5e-5
+    energy = 10.0*gd.UNIT_MEV
+    L = 0.9*gd.SUN_RADIUS*gd.UNIT_KM
+
+    with warnings.catch_warnings(record=True) as wlist:
+        warnings.simplefilter("always")
+        P = op.osc_prob_2nu_sun(energy, L, 0.0, sth, Dm2, strategy='auto', validate_input=False)
+    assert not any(issubclass(w.category, (op.ToleranceNotAchievedWarning,
+                                           op.HybridCertificationWarning,
+                                           mg.MagnusConvergenceWarning)) for w in wlist)
+    assert np.allclose(np.sum(P, axis=1), 1.0, atol=1e-9)
+
+    hvac = hams.hamiltonian_2nu_vacuum_energy_independent(sth, Dm2)
+    e00 = np.diag([1.0, 0.0])
+    rho_func = matter.exp_density_profile(gd.NUM_DENSITY_E_SUN_CENTRAL, gd.L_SCALE_SUN)
+    VCC_func = matter.vcc_func_from_rho_func(rho_func, 0.0, 1.0, 0.5, False, False, True)
+
+    def rhs(l, y):
+        H = (1.0/energy)*hvac + VCC_func(l)*e00
+        return (-1j*H @ y.reshape(2, 2)).ravel()
+
+    sol = solve_ivp(rhs, (0.0, L), np.eye(2, dtype=complex).ravel(),
+                    rtol=1e-11, atol=1e-13, method='DOP853')
+    P_exact = np.abs(sol.y[:, -1].reshape(2, 2)).T**2
+    assert maxabs(np.asarray(P) - P_exact) < 1e-2
+
+
+@pytest.mark.parametrize("energy_mev", [1.0, 5.0, 15.0])
+def test_sun_2nu_fast_path_matches_solve_ivp(energy_mev):
+    """The interaction-picture fast path for a genuine exponential density profile (Sun-like)
+    must reproduce the exact (solve_ivp) probability at realistic, low solar-neutrino energies,
+    without hitting the refinement caps or emitting the slab-width convergence warning -- this is
+    the regime (large accumulated vacuum phase, far below the 1 GeV point that already saturates
+    the general method's default max_n_slabs) the fast path exists to fix. A short baseline (a
+    fraction of an e-fold of the density profile) keeps solve_ivp itself tractable at these
+    energies while still exercising a genuinely varying matter potential."""
+    sth, Dm2 = np.sqrt(0.308), 7.5e-5
+    energy = energy_mev*gd.UNIT_MEV
+    L = 0.3*gd.L_SCALE_SUN
+
+    with warnings.catch_warnings(record=True) as wlist:
+        warnings.simplefilter("always")
+        P = op.osc_prob_2nu_sun(energy, L, 0.0, sth, Dm2, validate_input=False)
+    assert not any(issubclass(w.category, (op.ToleranceNotAchievedWarning,
+                                           mg.MagnusConvergenceWarning)) for w in wlist)
+    assert np.allclose(np.sum(P, axis=1), 1.0, atol=1e-9)
+
+    hvac = hams.hamiltonian_2nu_vacuum_energy_independent(sth, Dm2)
+    e00 = np.diag([1.0, 0.0])
+    rho_func = matter.exp_density_profile(gd.NUM_DENSITY_E_SUN_CENTRAL, gd.L_SCALE_SUN)
+    VCC_func = matter.vcc_func_from_rho_func(rho_func, 0.0, 1.0, 0.5, False, False, True)
+
+    def rhs(l, y):
+        H = (1.0/energy)*hvac + VCC_func(l)*e00
+        return (-1j*H @ y.reshape(2, 2)).ravel()
+
+    sol = solve_ivp(rhs, (0.0, L), np.eye(2, dtype=complex).ravel(),
+                    rtol=1e-12, atol=1e-14, method='DOP853')
+    P_exact = np.abs(sol.y[:, -1].reshape(2, 2)).T**2
+    assert maxabs(np.asarray(P) - P_exact) < 1e-3
 
 
 def test_vectorized_profile_matches_scalar_profile():
@@ -673,3 +827,84 @@ def test_nubar_present_across_all_flavor_counts_in_matter_families(family_prefix
         if 'nubar' not in inspect.signature(fn).parameters:
             missing.append(name)
     assert not missing, missing
+
+
+# ----------------------------------------------------------------------
+# Input validation raises rather than terminating the interpreter
+# ----------------------------------------------------------------------
+
+@pytest.mark.parametrize("call", [
+    pytest.param(lambda: op.osc_prob_3nu_vacuum("not-a-number", 1.0*gd.UNIT_KM),
+                 id="energy-wrong-type"),
+    pytest.param(lambda: op.osc_prob_3nu_vacuum(1.0*gd.UNIT_GEV, 1.0*gd.UNIT_KM,
+                                                nu_i=99, nu_f=0),
+                 id="flavor-index-out-of-range"),
+    pytest.param(lambda: op.osc_prob_3nu_vacuum(1.0*gd.UNIT_GEV, 1.0*gd.UNIT_KM,
+                                                default_osc_params_set_name="NO_SUCH_SET"),
+                 id="unknown-parameter-set"),
+    pytest.param(lambda: op.osc_prob_3nu_vacuum(np.zeros((2, 2)), 1.0*gd.UNIT_KM),
+                 id="energy-not-1d"),
+])
+def test_invalid_input_raises_valueerror_and_does_not_exit(call):
+    """Invalid input must raise a catchable ValueError.
+
+    These validation failures used to print a message and call ``sys.exit(1)``, which tears down
+    the whole interpreter -- unusable from a notebook, a scan loop, or any caller that wants to
+    recover, and impossible to assert on in a test.  ``pytest.raises(ValueError)`` here would
+    also catch a regression back to SystemExit, since SystemExit derives from BaseException and
+    would propagate out of the test rather than being caught."""
+    with pytest.raises(ValueError):
+        call()
+
+
+def test_validate_input_battery_returns_none_on_valid_input():
+    """The battery signals failure by raising, so a passing run simply returns None."""
+    result = op.validate_input_battery(
+        'test', energy=1.0*gd.UNIT_GEV, L=1.0*gd.UNIT_KM, num_flavors=3, nu_i=0, nu_f=1,
+        osc_params=[0.55, 0.69, 0.15, 3.7, 7.49e-5, 2.513e-3],
+        validate_energy_and_L=True, validate_flavor_indices=True, validate_osc_params=True)
+    assert result is None
+
+
+# ----------------------------------------------------------------------
+# Method-aware slab cap
+# ----------------------------------------------------------------------
+
+def test_max_n_slabs_default_is_method_aware():
+    """'gl' costs 1-3 Hamiltonian evaluations per slab against the quadrature methods'
+    n_tpts_per_slab, so a cap that bounds cost has to differ between them."""
+    assert op.MAX_N_SLABS_DEFAULT['gl'] > op.MAX_N_SLABS_DEFAULT['trapezoid']
+    assert op.MAX_N_SLABS_DEFAULT['trapezoid'] == op.MAX_N_SLABS_DEFAULT['simpson']
+
+
+def test_explicit_max_n_slabs_overrides_the_per_method_default():
+    """An explicitly passed cap must be used as given, never silently widened."""
+    info = {}
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        op.osc_prob_5nu_earth(ENERGY, costhz=-0.8, L=2.0*6371.0*0.8*gd.UNIT_KM,
+                              validate_input=False, max_n_slabs=2000,
+                              convergence_info=info, **S5)
+    assert info['n_slabs'] <= 2000
+
+
+def test_hard_sterile_earth_case_converges_without_warning_by_default():
+    """Regression test for the shared 2000-slab cap.
+
+    With eV-scale sterile splittings over an Earth-crossing baseline, 'gl' needs a few
+    thousand slabs -- more than the cap tuned for the quadrature methods, whose per-slab
+    cost is over an order of magnitude higher.  Under the shared cap this raised
+    ToleranceNotAchievedWarning while returning an answer that was in fact far more
+    accurate than the quadrature methods reached within that same cap: the warning was
+    about not being able to *verify* convergence, having no room left to refine, and it
+    pointed the reader at the wrong knob."""
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        info = {}
+        P = op.osc_prob_5nu_earth(ENERGY, costhz=-0.8, L=2.0*6371.0*0.8*gd.UNIT_KM,
+                                  validate_input=False, convergence_info=info, **S5)
+    tol_warnings = [w for w in caught
+                    if issubclass(w.category, op.ToleranceNotAchievedWarning)]
+    assert not tol_warnings, f"unexpected {tol_warnings[0].message}"
+    assert info['n_slabs'] < op.MAX_N_SLABS_DEFAULT['gl'], "converged only by hitting the cap"
+    assert np.allclose(np.sum(np.asarray(P), axis=-1), 1.0, atol=1e-9)

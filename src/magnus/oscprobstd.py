@@ -20,7 +20,6 @@ Routine listings
     * osc_prob_3nu_vacuum_std - Returns 3nu vacuum probabilities, closed form
 """
 
-__version__ = "1.0"
 __author__ = "Mauricio Bustamante"
 __email__ = "mbustamante@gmail.com"
 
@@ -35,7 +34,7 @@ def osc_prob_2nu_vacuum_std(sth: float, Dm2: float, energy: float, L: float) -> 
     Returns the probabilities for two-neutrino oscillations in vacuum, computed using the standard
     analytical expression of the probabilities.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -74,7 +73,7 @@ def osc_prob_2nu_matter_std(sth: float, Dm2: float, VCC: float, energy: float,
     Returns the probabilities for two-neutrino oscillations in matter, computed using the standard
     analytical expression of the probabilities.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -83,7 +82,7 @@ def osc_prob_2nu_matter_std(sth: float, Dm2: float, VCC: float, energy: float,
     Dm2 : float
         Mass-squared difference :math:`\Delta m^2`.
     VCC : float
-        Potential due to charged-current interactions of nu_e with electrons.
+        Potential due to charged-current interactions of :math:`\nu_e` with electrons.
     energy : float
         Neutrino energy.
     L : float
@@ -120,7 +119,7 @@ def delta(a: int, b: int) -> int:
 
     Returns the delta function delta(a, b) = 1 if a == b and 0 if a != b.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -148,7 +147,7 @@ def J(U: Union[list, np.ndarray], alpha: int, beta: int, k: int, j: int) -> comp
     product appears in the standard expression for the three-neutrino oscillation probability in
     vacuum.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -178,7 +177,7 @@ def osc_prob_3nu_vacuum_std(U: Union[list, np.ndarray], D21: float, D31: float, 
     Returns the probabilities for three-neutrino oscillations in vacuum, computed using the standard
     analytical expression of the probabilities.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------

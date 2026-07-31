@@ -1,12 +1,19 @@
 Available Oscillation-Probability Functions
 ==============================================
 
-This page lists every ``osc_prob_*`` function Magνs ships, grouped by
-environment and scenario, with the exact function name for each flavor
-count. It complements the API reference (generated from the docstrings
-directly, see the *API Reference* section in the sidebar) by showing the
-*shape* of the whole family at a glance -- useful when you know roughly
-what you want ("3-flavor, matter, with NSI") but not the exact name.
+This page lists every user-facing ``osc_prob_*`` function Magνs ships,
+grouped by environment and scenario, with the exact function name for each
+flavor count. It complements the API reference (generated from the
+docstrings directly, see the *API Reference* section in the sidebar) by
+showing the *shape* of the whole family at a glance -- useful when you know
+roughly what you want ("3-flavor, matter, with NSI") but not the exact name.
+
+The internal middle layer these wrappers dispatch through
+(``osc_prob_vacuum``, ``osc_prob_matter_std_potential``,
+``osc_prob_matter_nsi``, ``osc_prob_liv``, ``osc_prob_energy_baseline``,
+and ``osc_prob_iterate_over_magnus_exp_order``) is deliberately not listed
+here; see :doc:`architecture` for what it does and when you would call it
+directly.
 
 See :doc:`architecture` for how these functions are organized internally
 (the wrapper/middle/primordial layering), and :doc:`cli` for the
@@ -53,7 +60,7 @@ Matter, constant density
 ---------------------------
 
 A user-supplied matter density, uniform along the trajectory (``rho``,
-in g cm\ :sup:`-3` by default).
+in :math:`\text{g cm}^{-3}` by default).
 
 .. list-table::
    :header-rows: 1

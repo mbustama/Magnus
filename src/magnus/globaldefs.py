@@ -15,6 +15,10 @@ Routine listings
 ----------------
 
     * cstyle - ANSI terminal color-code constants
+    * set_color_output - Enables or disables ANSI color in the warning
+           and error message prefixes
+    * load_nufit_params - Loads one NuFit release/ordering/category as a
+           dict of standard oscillation parameters
 
 The remaining module-level names are physical constants and
 unit-conversion factors, not routines; see the module source for the
@@ -22,7 +26,6 @@ full list.
 """
 
 
-__version__ = "1.0"
 __author__ = "Mauricio Bustamante"
 __email__ = "mbustamante@gmail.com"
 
@@ -47,7 +50,7 @@ class cstyle():
     ``os.system("")`` has been called first, which this module does at
     import time.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
     """
 
     CEND      = '\33[0m'
@@ -118,6 +121,49 @@ TOL_MSG_NO_COLOR = "Requested tolerance achieved"
 TOL_MSG_IN_COLOR = cstyle.CGREENBG + "Requested tolerance achieved" + cstyle.CEND
 
 
+def set_color_output(enabled: bool) -> None:
+    r"""Enables or disables ANSI color in the warning/error/tolerance message prefixes.
+
+    The ``*_IN_COLOR`` constants above wrap their text in ANSI escape codes, which read
+    correctly in a terminal but appear as literal escape-code noise anywhere that does not
+    interpret them -- a captured log file, a Jupyter notebook rendered to HTML, or the
+    ``jupyter-execute`` cells in this package's own documentation.  Calling this function with
+    ``False`` rebinds every ``*_IN_COLOR`` constant to its plain-text counterpart, so the
+    existing call sites (which all reference the ``*_IN_COLOR`` names) print unadorned text
+    with no further change.  Calling it with ``True`` restores the colored versions.
+
+    .. versionadded:: 1.0.0
+
+    Parameters
+    ----------
+    enabled : bool
+        True to emit ANSI-colored message prefixes (the default at import time), False to emit
+        plain text.
+
+    Returns
+    -------
+    None
+
+    Examples
+    --------
+    .. jupyter-execute::
+
+        import magnus.globaldefs as gd
+
+        gd.set_color_output(False)
+        gd.WARNING_MSG_IN_COLOR
+    """
+    global WARNING_MSG_IN_COLOR, ERROR_MSG_IN_COLOR, TOL_MSG_IN_COLOR
+    if enabled:
+        WARNING_MSG_IN_COLOR = cstyle.CVIOLETBG + "Warning:" + cstyle.CEND
+        ERROR_MSG_IN_COLOR = cstyle.CREDBG + "Error in magnus:" + cstyle.CEND
+        TOL_MSG_IN_COLOR = cstyle.CGREENBG + "Requested tolerance achieved" + cstyle.CEND
+    else:
+        WARNING_MSG_IN_COLOR = WARNING_MSG_NO_COLOR
+        ERROR_MSG_IN_COLOR = ERROR_MSG_NO_COLOR
+        TOL_MSG_IN_COLOR = TOL_MSG_NO_COLOR
+
+
 MAGNUS_MAX_PREDEFINED_NUM_FLAVORS = 5
 r"""float: Module-level constant
 
@@ -137,78 +183,78 @@ Units: [Adimensional]
 CONV_KM_TO_INV_EV = 5.06773e9
 r"""float: Module-level constant
 
-Multiplicative conversion factor from km to eV^{-1}.
-Units: [km^{-1} eV^{-1}].
+Multiplicative conversion factor from km to :math:`\text{eV}^{-1}`.
+Units: [:math:`\text{km}^{-1}~\text{eV}^{-1}`].
 """
 
 UNIT_KM = CONV_KM_TO_INV_EV
 r"""float: Module-level constant
 
-Multiplicative conversion factor from km to eV^{-1}.  Alias for CONV_KM_TO_INV_EV.
-Units: [km^{-1} eV^{-1}].
+Multiplicative conversion factor from km to :math:`\text{eV}^{-1}`.  Alias for CONV_KM_TO_INV_EV.
+Units: [:math:`\text{km}^{-1}~\text{eV}^{-1}`].
 """
 
 CONV_CM_TO_INV_EV = CONV_KM_TO_INV_EV*1.e-5
 r"""float: Module-level constant
 
-Multiplicative conversion factor from cm to eV^{-1}.
-Units: [cm^{-1} eV^{-1}]
+Multiplicative conversion factor from cm to :math:`\text{eV}^{-1}`.
+Units: [:math:`\text{cm}^{-1}~\text{eV}^{-1}`]
 """
 
 UNIT_CM = CONV_CM_TO_INV_EV
 r"""float: Module-level constant
 
-Multiplicative conversion factor from cm to eV^{-1}.  Alias for CONV_CM_TO_INV_EV.
-Units: [cm^{-1} eV^{-1}]
+Multiplicative conversion factor from cm to :math:`\text{eV}^{-1}`.  Alias for CONV_CM_TO_INV_EV.
+Units: [:math:`\text{cm}^{-1}~\text{eV}^{-1}`]
 """
 
 CONV_CM3_TO_INV_EV3 = np.power(CONV_CM_TO_INV_EV, 3.0)
 r"""float: Module-level constant
 
-Multiplicative conversion factor from cm^3 to eV^{-3}.
-Units: [cm^{-3} eV^{-3}]
+Multiplicative conversion factor from :math:`\text{cm}^{3}` to :math:`\text{eV}^{-3}`.
+Units: [:math:`\text{cm}^{-3}~\text{eV}^{-3}`]
 """
 
 UNIT_CM3 = CONV_CM3_TO_INV_EV3
 r"""float: Module-level constant
 
-Multiplicative conversion factor from cm^3 to eV^{-3}.  Alias for CONV_CM3_TO_INV_EV3.
-Units: [cm^{-3} eV^{-3}]
+Multiplicative conversion factor from :math:`\text{cm}^{3}` to :math:`\text{eV}^{-3}`.  Alias for CONV_CM3_TO_INV_EV3.
+Units: [:math:`\text{cm}^{-3}~\text{eV}^{-3}`]
 """
 
 CONV_INV_EV_TO_CM = 1./CONV_CM_TO_INV_EV
 r"""float: Module-level constant
 
-Multiplicative conversion factor from eV^{-1} to cm.
+Multiplicative conversion factor from :math:`\text{eV}^{-1}` to cm.
 Units: [eV cm]
 """
 
 UNIT_PER_CM3 = 1.0/CONV_CM3_TO_INV_EV3
 r"""float: Module-level constant
 
-Multiplicative conversion factor from cm^{-3} to eV^3. 
-Units: [cm^3 eV^3]
+Multiplicative conversion factor from :math:`\text{cm}^{-3}` to :math:`\text{eV}^{3}`. 
+Units: [:math:`\text{cm}^{3}~\text{eV}^{3}`]
 """
 
 CONV_EV_TO_G = 1.783e-33
 r"""float: Module-level constant
 
-Multiplicative conversion factor from eV^{-1} to grams.
-Units: [g eV^{-1}]
+Multiplicative conversion factor from :math:`\text{eV}^{-1}` to grams.
+Units: [:math:`\text{g eV}^{-1}`]
 """
 
 CONV_G_TO_EV = 1./CONV_EV_TO_G
 r"""float: Module-level constant
 
-Multiplicative conversion factor from grams to eV^{-1}.
-Units: [eV g^{-1}]
+Multiplicative conversion factor from grams to :math:`\text{eV}^{-1}`.
+Units: [:math:`\text{eV g}^{-1}`]
 """
 
 UNIT_G_PER_CM3 = CONV_G_TO_EV/CONV_CM3_TO_INV_EV3
 r"""float: Module-level constant
 
-Multiplicative conversion factor from g cm^{-3} to eV^4.
-Units: [g^{-1} cm^3 eV^4]
+Multiplicative conversion factor from :math:`\text{g cm}^{-3}` to :math:`\text{eV}^{4}`.
+Units: [:math:`\text{g}^{-1}~\text{cm}^{3}~\text{eV}^{4}`]
 """
 
 
@@ -223,7 +269,7 @@ GF = 1.1663787e-23
 r"""float: Module-level constant
 
 Fermi constant.
-Units: [eV^{-2}]
+Units: [:math:`\text{eV}^{-2}`]
 """
 
 MASS_ELECTRON = 0.5109989461e6
@@ -258,14 +304,14 @@ DENSITY_MATTER_CRUST_G_PER_CM3 = 3.0
 r"""float: Module-level constant
 
 Average matter density in the Earth's crust.
-Units: [g cm^{-3}]
+Units: [:math:`\text{g cm}^{-3}`]
 """
 
 N_AV = 6.02214076e23
 r"""float: Module-level constant
 
 Avogadro constant
-Units: [mol^{-1}]
+Units: [:math:`\text{mol}^{-1}`]
 """
 
 # NUM_DENSITY_E_EARTH_CRUST = DENSITY_MATTER_CRUST_G_PER_CM3 * CONV_G_TO_EV \
@@ -279,7 +325,7 @@ NUM_DENSITY_E_EARTH_CRUST = DENSITY_MATTER_CRUST_G_PER_CM3 * CONV_G_TO_EV \
 r"""float: Module-level constant
 
 Electron number density in the Earth's crust
-Units: [eV^3]
+Units: [:math:`\text{eV}^{3}`]
 """
 
 VCC_EARTH_CRUST = np.sqrt(2.0)*GF*NUM_DENSITY_E_EARTH_CRUST
@@ -307,14 +353,14 @@ NUM_DENSITY_E_SUN_CENTRAL = 245.0*N_AV*UNIT_PER_CM3
 r"""float: Module-level constant
 
 Electron number density at the center of the Sun.
-Units: [eV^3]
+Units: [:math:`\text{eV}^{3}`]
 """
 
 L_SCALE_SUN = SUN_RADIUS/10.54*UNIT_KM
 r"""float: Module-level constant
 
 Electron number density at the center of the Sun.
-Units: [eV^{-1}]
+Units: [:math:`\text{eV}^{-1}`]
 """
 
 NUE = 0
@@ -408,7 +454,7 @@ r"""float: Module-level constant
 
 Mass-squared difference :math:`\Delta m_{21}^2`, best fit from NuFit 6.0, assuming
 normal ordering with SK atmospheric data.
-Units: [eV^2]
+Units: [:math:`\text{eV}^{2}`]
 """
 
 D31_NO_BF_NUFIT_6_0 = 2.513e-3
@@ -416,7 +462,7 @@ r"""float: Module-level constant
 
 Mass-squared difference :math:`\Delta m_{31}^2`, best fit from NuFit 6.0, assuming
 normal ordering with SK atmospheric data.
-Units: [eV^2]
+Units: [:math:`\text{eV}^{2}`]
 """
 
 S12_IO_BF_NUFIT_6_0 = np.sqrt(0.308)
@@ -456,7 +502,7 @@ r"""float: Module-level constant
 
 Mass-squared difference :math:`\Delta m_{21}^2`, best fit from NuFit 6.0, assuming
 normal ordering with SK atmospheric data.
-Units: [eV^2]
+Units: [:math:`\text{eV}^{2}`]
 """
 
 D32_IO_BF_NUFIT_6_0 = -2.484e-3
@@ -464,7 +510,7 @@ r"""float: Module-level constant
 
 Mass-squared difference :math:`\Delta m_{32}^2`, best fit from NuFit 6.0, assuming
 normal ordering with SK atmospheric data.
-Units: [eV^2]
+Units: [:math:`\text{eV}^{2}`]
 """
 
 D31_IO_BF_NUFIT_6_0 = D32_IO_BF_NUFIT_6_0+D21_IO_BF_NUFIT_6_0
@@ -472,7 +518,7 @@ r"""float: Module-level constant
 
 Mass-squared difference :math:`\Delta m_{31}^2`, best fit from NuFit 6.0, assuming
 inverted ordering with SK atmospheric data.
-Units: [eV^2]
+Units: [:math:`\text{eV}^{2}`]
 """
 
 OSC_PARAMS_NU_FIT_6_0_SK_NO = {
@@ -941,7 +987,7 @@ def load_nufit_params(version='NuFIT 6.1', ordering='NO', category=None):
     -------
     dict
         Dict with keys ``s12``, ``s23``, ``s13`` (:math:`\sin\theta_{ij}`,
-        adimensional), ``dCP`` (radian), ``D21`` and ``D31`` (eV^2).
+        adimensional), ``dCP`` (radian), ``D21`` and ``D31`` (:math:`\text{eV}^{2}`).
 
     Raises
     ------
@@ -952,22 +998,34 @@ def load_nufit_params(version='NuFIT 6.1', ordering='NO', category=None):
 
     Examples
     --------
-    >>> import magnus.globaldefs as gd
-    >>> import magnus.oscprob as oscprob
-    >>> params = gd.load_nufit_params('NuFIT 6.1', ordering='NO')
-    >>> sorted(params.keys())
-    ['D21', 'D31', 'dCP', 's12', 's13', 's23']
-    >>> oscprob.osc_prob_3nu_vacuum(1.0 * gd.UNIT_GEV, 100.0 * gd.UNIT_KM,
-    ...                             **params) # doctest: +SKIP
+    Load a release and feed it straight into a probability function (the
+    code below runs when these docs are built, so the output shown is
+    always current):
+
+    .. jupyter-execute::
+
+        import magnus.globaldefs as gd
+        import magnus.oscprob as oscprob
+
+        params = gd.load_nufit_params('NuFIT 6.1', ordering='NO')
+
+        sorted(params.keys())
+
+    .. jupyter-execute::
+
+        oscprob.osc_prob_3nu_vacuum(1.0 * gd.UNIT_GEV, 100.0 * gd.UNIT_KM,
+                                    **params)
 
     Comparing normal- and inverted-ordering best fits from an older release:
 
-    >>> no = gd.load_nufit_params('NuFIT 4.0', ordering='NO', category='with_SK')
-    >>> io = gd.load_nufit_params('NuFIT 4.0', ordering='IO', category='with_SK')
-    >>> no['D31'] > 0 and io['D31'] < 0
-    True
+    .. jupyter-execute::
 
-    .. versionadded:: 0.11.0
+        no = gd.load_nufit_params('NuFIT 4.0', ordering='NO', category='with_SK')
+        io = gd.load_nufit_params('NuFIT 4.0', ordering='IO', category='with_SK')
+
+        no['D31'] > 0 and io['D31'] < 0
+
+    .. versionadded:: 1.0.0
     """
     if version not in NUFIT_GLOBAL_FITS:
         available = ', '.join(NUFIT_GLOBAL_FITS.keys())
@@ -995,6 +1053,7 @@ def load_nufit_params(version='NuFIT 6.1', ordering='NO', category=None):
 
 __all__ = [
     'cstyle',
+    'set_color_output',
     'WARNING_MSG_NO_COLOR',
     'WARNING_MSG_IN_COLOR',
     'ERROR_MSG_NO_COLOR',

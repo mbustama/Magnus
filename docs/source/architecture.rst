@@ -11,7 +11,7 @@ itself); this page is about the *code*, not the *math*.
 Module layout
 ---------------
 
-Magνs is split into seven modules under ``src/magnus/``, each with a
+Magνs is split into eight modules under ``src/magnus/``, each with a
 single, non-overlapping responsibility, all explicitly listed in
 ``magnus/__init__.py``'s ``submodules``/``__all__``:
 
@@ -25,15 +25,18 @@ single, non-overlapping responsibility, all explicitly listed in
        gd["magnus.globaldefs<br/>physical constants, unit conversions,<br/>NuFit parameter sets"]
        earth["magnus.earth<br/>PREM density profile,<br/>chord/zenith-angle geometry"]
        matter["magnus.matter<br/>density profiles, electron number density,<br/>V_CC construction"]
+       adiabatic["magnus.adiabatic<br/>adiabatic transport + Magnus-patch<br/>hybrid_propagator"]
        osc["magnus.oscprob<br/>the public API + oscprobstd.py<br/>(closed-form validation)"]
 
        gd --> earth
        gd --> matter
        magnuscore --> osc
+       magnuscore --> adiabatic
        ham --> osc
        earth --> osc
        matter --> osc
        gd --> osc
+       adiabatic --> osc
 
 Two consequences of this layout are worth calling out because they are
 easy to break by accident when adding code:
@@ -46,6 +49,12 @@ easy to break by accident when adding code:
   needs to change when the other does, and both are independently unit
   tested (``tests/test_magnus_expansion.py`` /
   ``tests/test_hamiltonians.py``) without touching ``oscprob`` at all.
+  ``magnus.adiabatic`` follows the same rule: it depends only on
+  ``magnus.magnus`` (for the local Magnus patch), never on ``oscprob``, so
+  it is independently unit tested (``tests/test_adiabatic.py``) and usable
+  directly on any Hamiltonian function, entirely outside the
+  oscillation-probability API. See :doc:`adiabatic_strategy` for its
+  numerical method.
 * ``magnus.oscprob`` is the only module that imports everything else. It
   is where physics scenarios (vacuum/matter/NSI/LIV), environments
   (constant density/exponential density/Earth/Sun), and the Magnus core
@@ -53,15 +62,15 @@ easy to break by accident when adding code:
   place instead of scattering it across the physics and numerical
   modules.
 
-``earth.py``, ``globaldefs.py``, ``magnus.py``, ``matter.py``,
-``oscprob.py``, and ``oscprobstd.py`` are flat sibling files directly
-under ``src/magnus/`` -- there is no subpackage directory wrapping any of
-them. Only ``magnus.hamiltonians`` is a genuine subpackage, since it
-holds four distinct, flavor-count-specific modules
+``earth.py``, ``globaldefs.py``, ``magnus.py``, ``adiabatic.py``,
+``matter.py``, ``oscprob.py``, and ``oscprobstd.py`` are flat sibling
+files directly under ``src/magnus/`` -- there is no subpackage directory
+wrapping any of them. Only ``magnus.hamiltonians`` is a genuine
+subpackage, since it holds four distinct, flavor-count-specific modules
 (``hamiltonians2nu.py`` through ``hamiltonians5nu.py``); its
 ``__init__.py`` explicitly imports and re-exports each one's public
 names (no ``from .module import *``). ``magnus/__init__.py`` itself
-explicitly imports all seven top-level modules (again, no wildcard
+explicitly imports all eight top-level modules (again, no wildcard
 imports) so that ``import magnus`` alone makes ``magnus.earth``,
 ``magnus.oscprob``, etc. immediately accessible. ``magnus.oscprob``
 additionally imports and re-exports ``oscprobstd.py``'s five names (the
@@ -124,7 +133,7 @@ all -- this is the escape hatch for Hamiltonians the package does not
 already know about. ``osc_prob_energy_baseline`` sits just above it:
 given arrays of ``energy`` and ``L``, it builds the right
 energy-dependent closure over ``H_func``, decides whether to parallelize
-over points (:func:`joblib.Parallel`) or hand a single call straight to
+over points (``joblib.Parallel``) or hand a single call straight to
 ``osc_prob``, and carries the *warm start* logic that seeds each point's
 refinement from the previous point's converged (``n_slabs``,
 ``n_tpts_per_slab``).
@@ -289,7 +298,7 @@ closest sibling to copy from. The recipe:
            r"""Compute the 3nu NSI oscillation probability for a
            user-supplied radial matter density profile.
 
-           .. versionadded:: 0.11.0
+           .. versionadded:: 1.0.0
            """
            return osc_prob_matter_nsi(
                num_flavors=3,

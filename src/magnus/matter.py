@@ -15,6 +15,8 @@ Routine listings
            matter density profile
     * density_matter_func_exp - Returns the density for an exponentially
            decreasing matter density profile
+    * exp_density_profile - Builds an exponential density-profile
+           callable tagged for the fast interaction-picture integrator
     * num_density_e_func - Converts a matter density to an electron
            number density
     * VCC_func - Returns the potential for coherent forward electron
@@ -24,13 +26,12 @@ Routine listings
            unit conversion
 """
 
-__version__ = "1.0"
 __author__ = "Mauricio Bustamante"
 __email__ = "mbustamante@gmail.com"
 
 
 import numpy as np
-from typing import Optional, Callable, Union, Tuple, List, Dict
+from typing import Optional, Callable, Union
 
 import magnus.globaldefs as gd
 
@@ -43,7 +44,7 @@ def density_matter_func_const(l: float,
     Returns the matter density as a function of position, assuming a
     constant density. Used for testing purposes.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -52,12 +53,12 @@ def density_matter_func_const(l: float,
         case, the profile is uniform, so any value of l returns the same
         constant density).
     density_matter_const : float
-        Matter density [g cm^{-3}]
+        Matter density [:math:`\text{g cm}^{-3}`]
 
     Returns
     -------
     float
-        Matter density [g cm^{-3}]
+        Matter density [:math:`\text{g cm}^{-3}`]
     """
 
     return density_matter_const
@@ -69,49 +70,94 @@ def density_matter_func_exp(l: float, density_matter_central:float , l_scale: fl
 
     Returns the matter density as a function of position, assuming  
     an exponentially decreasing density profile of the form
-    rho(l) = density_matter_central*exp(-l/l_scale), for given values
-    of density_matter_central and l_scale.
 
-    .. versionadded:: 0.10.0
+    .. math::
+
+       \rho(l) = \rho_0\, e^{-l/l_\text{scale}} ,
+
+    for given values of the central density :math:`\rho_0`
+    (``density_matter_central``) and the length scale
+    :math:`l_\text{scale}` (``l_scale``).
+
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
     l : float
         Position at which the density profile is evaluated.
     density_matter_central : float
-        Matter density at the center of the profile (l = 0) [g cm^{-3}]
+        Matter density at the center of the profile (l = 0) [:math:`\text{g cm}^{-3}`]
     l_scale : float
         Length scale of the exponential density decrease.
 
     Returns
     -------
     float
-        Matter density [g cm^{-3}]
+        Matter density [:math:`\text{g cm}^{-3}`]
     """
 
     return density_matter_central*np.exp(-l/l_scale)
 
 
-def num_density_e_func(l: float, density_matter_func: Callable, 
+def exp_density_profile(density_matter_central: float, l_scale: float) -> Callable:
+    r"""Builds an exponential density-profile callable tagged for the fast interaction-picture
+    integrator.
+
+    Same functional form as :func:`density_matter_func_exp` (curried over ``density_matter_central``
+    and ``l_scale`` so it can be passed directly as ``rho_func``), but the returned callable also
+    carries an ``l_scale`` attribute and an ``is_exp_density_profile`` marker set to ``True``.
+    :func:`magnus.oscprob.osc_prob_matter_std_potential`, :func:`magnus.oscprob.osc_prob_matter_nsi`,
+    and :func:`magnus.oscprob.osc_prob_liv` look for this marker (propagated through
+    :func:`vcc_func_from_rho_func`) to detect a genuine exponential profile and automatically switch
+    to the much faster interaction-picture Magnus integrator (see
+    ``_osc_prob_ip_exp_dispatch``), with a transparent fallback to the general
+    slab-refinement method whenever the fast method does not converge (e.g., near an MSW resonance).
+    A plain lambda with the same functional form would work numerically but, lacking the marker,
+    would silently skip the fast path -- always build exponential profiles through this function (or
+    ``osc_prob_*_exp_density``/``osc_prob_*_sun*``, which already do) to get the speed-up.
+
+    .. versionadded:: 1.0.0
+
+    Parameters
+    ----------
+    density_matter_central : float
+        Matter density (or electron number density) at the center of the profile (l = 0).
+    l_scale : float
+        Length scale of the exponential density decrease.
+
+    Returns
+    -------
+    Callable
+        Function of position, l, tagged with ``is_exp_density_profile = True`` and
+        ``l_scale = l_scale``.
+    """
+    def rho_func(l: Union[int, float, np.ndarray]) -> Union[float, np.ndarray]:
+        return density_matter_func_exp(l, density_matter_central, l_scale)
+    rho_func.is_exp_density_profile = True
+    rho_func.l_scale = float(l_scale)
+    return rho_func
+
+
+def num_density_e_func(l: float, density_matter_func: Callable,
     ratio_number_neutrons_to_protons: Optional[float]=1.0,
     electron_fraction: Optional[float]=0.5,
-    density_matter_is_in_g_per_cm3=False) -> float:
-    r"""Converts matter density [g cm^{-3}] to electron number density
-    [eV^3], for a given matter density profile and position.
+    density_matter_is_in_g_per_cm3: Optional[bool]=False) -> float:
+    r"""Converts matter density [:math:`\text{g cm}^{-3}`] to electron number density
+    [:math:`\text{eV}^{3}`], for a given matter density profile and position.
 
-    Converts the matter density [g cm^{-3}] to electron number density
-    [eV^3], for a given matter density profile, density_matter_func,
+    Converts the matter density [:math:`\text{g cm}^{-3}`] to electron number density
+    [:math:`\text{eV}^{3}`], for a given matter density profile, density_matter_func,
     and position, l. Matter is assumed to be isoscalar, with the
     fraction of electrons given by electron_fraction.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
     l : float
         Position at which the density profile is evaluated.
     density_matter_func : Callable
-        Matter density as a function of l [g cm^{-3}] (or, if
+        Matter density as a function of l [:math:`\text{g cm}^{-3}`] (or, if
         ``density_matter_is_in_g_per_cm3`` is False, already in natural units).
     ratio_number_neutrons_to_protons : float, optional
         Ratio of the number of neutrons to protons in matter, used to compute the average
@@ -119,14 +165,14 @@ def num_density_e_func(l: float, density_matter_func: Callable,
     electron_fraction : float, optional
         Electron fraction. Default: 0.5.
     density_matter_is_in_g_per_cm3 : bool, optional
-        If True, ``density_matter_func`` returns the density in g cm^{-3} and it is converted to
+        If True, ``density_matter_func`` returns the density in :math:`\text{g cm}^{-3}` and it is converted to
         natural units internally; if False, it is assumed to already be in natural units.
         Default: False.
 
     Returns
     -------
     float
-        Number density of electrons [eV^3]
+        Number density of electrons [:math:`\text{eV}^{3}`]
     """
     avg_mass_nucleon = (gd.MASS_PROTON+gd.MASS_NEUTRON*ratio_number_neutrons_to_protons) \
                         / (1.0+ratio_number_neutrons_to_protons)
@@ -135,7 +181,7 @@ def num_density_e_func(l: float, density_matter_func: Callable,
     #                     / avg_mass_nucleon * electron_fraction \
     #                     / gd.CONV_CM3_TO_INV_EV3 # [eV^3]
 
-    # If the matter density is given in g cm^{-3} (density_matter_in_g_per_cm3 == True), convert it
+    # If the matter density is given in g cm^{-3} (density_matter_is_in_g_per_cm3 == True), convert it
     # natural units of eV^4.  Otherwise, it is assumed that the matter density is in natural units
     # already.
     
@@ -152,14 +198,14 @@ def VCC_func(l: float, num_density_e_func: Callable) -> float:
     at position l, for a given electron number density profile,
     num_density_e_func.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
     l : float
         Position at which the density profile is evaluated.
     num_density_e_func : Callable
-        Electron number density as a function of l [eV^3].
+        Electron number density as a function of l [:math:`\text{eV}^{3}`].
 
     Returns
     -------
@@ -188,7 +234,7 @@ def vcc_func_from_rho_func(
     constant, an exponential profile, or the Earth's PREM profile) into the ``VCC_func`` consumed
     by the ``hamiltonian_*nu_matter_td``/``hamiltonian_*nu_nsi_td`` functions.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -204,14 +250,14 @@ def vcc_func_from_rho_func(
     electron_fraction : int or float, optional
         Electron fraction. Default: 0.5.
     nubar : bool, optional
-        If True, flip the sign of V_CC (electrons couple to nu_e and nu_e-bar with opposite-sign
-        weak charge). Default: False.
+        If True, flip the sign of :math:`V_\text{CC}` (electrons couple to :math:`\nu_e` and
+        :math:`\bar{\nu}_e` with opposite-sign weak charge). Default: False.
     density_matter_is_in_g_per_cm3 : bool, optional
-        If True, ``rho_func`` returns the matter density in g cm^{-3}; if False, it is assumed to
+        If True, ``rho_func`` returns the matter density in :math:`\text{g cm}^{-3}`; if False, it is assumed to
         already be in natural units. Ignored if ``density_is_of_number_of_electrons`` is True.
         Default: False.
     density_is_of_number_of_electrons : bool, optional
-        If True, ``rho_func`` directly returns the electron number density [eV^3], skipping the
+        If True, ``rho_func`` directly returns the electron number density [:math:`\text{eV}^{3}`], skipping the
         matter-density-to-electron-density conversion. Default: False.
 
     Returns
@@ -222,44 +268,61 @@ def vcc_func_from_rho_func(
     """
     s = 1.0 if not nubar else -1.0
 
-    # If the provided rho_func is the matter density (e.g., g cm^{-3}), convert rho_func to a 
+    # If rho_func is a genuine exponential profile (tagged by exp_density_profile), propagate the
+    # tag to the returned VCC_func: every conversion below (unit conversion, electron fraction,
+    # sqrt(2)*G_F, the antineutrino sign s) is a plain scalar rescaling of rho_func(l), which leaves
+    # the exponential functional form and l_scale unchanged.  Callers (osc_prob_matter_std_potential,
+    # osc_prob_matter_nsi, osc_prob_liv) use this tag to detect the profile and switch to the fast
+    # interaction-picture integrator.
+    l_scale_tag = getattr(rho_func, 'l_scale', None) if isinstance(rho_func, Callable) else None
+
+    def _tag(vcc: Callable) -> Callable:
+        if l_scale_tag is not None:
+            vcc.is_exp_density_profile = True
+            vcc.l_scale = l_scale_tag
+        return vcc
+
+    # If the provided rho_func is the matter density (e.g., g cm^{-3}), convert rho_func to a
     # function that returns the electron number density [eV^3]
-    if not density_is_of_number_of_electrons: 
-        # if isinstance(rho_func, Callable):
-        #     density_matter_func = rho_func
-        # else:
-        #     density_matter_func = lambda r: rho_func # If rho_func is constant, pass a dummy function 
+    if not density_is_of_number_of_electrons:
+        # If rho_func is a constant rather than a callable, wrap it in a dummy function so that
+        # num_density_e_func always receives a density it can evaluate at a position.
+        if isinstance(rho_func, Callable):
+            density_matter_func = rho_func
+        else:
+            def density_matter_func(r):
+                return rho_func
+
         # Number density of electrons [eV^3]
-        num_density_e = lambda l: num_density_e_func(l, 
-            # density_matter_func=density_matter_func,
-            density_matter_func=rho_func if isinstance(rho_func, Callable) \
-                else (lambda r: rho_func), # If rho_func is constant, pass a dummy function 
-            ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons, 
-            electron_fraction=electron_fraction, 
-            density_matter_is_in_g_per_cm3=density_matter_is_in_g_per_cm3) 
+        def num_density_e(l):
+            return num_density_e_func(l,
+                density_matter_func=density_matter_func,
+                ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
+                electron_fraction=electron_fraction,
+                density_matter_is_in_g_per_cm3=density_matter_is_in_g_per_cm3)
         # Coherent forward potential, VCC [eV]
         if isinstance(rho_func, Callable):
             # Return VCC as a function, since the density is a function
-            return lambda l: s*VCC_func(l, num_density_e_func=num_density_e)
+            def vcc(l):
+                return s*VCC_func(l, num_density_e_func=num_density_e)
+            return _tag(vcc)
         else:
             # Return VCC as a constant, since the density is a constant. Its value when evaluated at
             # L0 is the same at any other l.
             return s*VCC_func(l=L0, num_density_e_func=num_density_e)
     else: # rho_func is directly the electron number density [eV^3]
         if isinstance(rho_func, Callable):
-            return lambda l: s*VCC_func(l, num_density_e_func=rho_func) 
+            def vcc(l):
+                return s*VCC_func(l, num_density_e_func=rho_func)
+            return _tag(vcc)
         else:
-            return s*VCC_func(l=L0, num_density_e_func=rho_func) 
-
-
-if __name__ == "__main__":
-
-    pass
+            return s*VCC_func(l=L0, num_density_e_func=rho_func)
 
 
 __all__ = [
     'density_matter_func_const',
     'density_matter_func_exp',
+    'exp_density_profile',
     'num_density_e_func',
     'VCC_func',
     'vcc_func_from_rho_func',

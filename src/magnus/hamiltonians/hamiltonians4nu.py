@@ -27,14 +27,13 @@ Routine listings
 """
 
 
-__version__ = "1.0"
 __author__ = "Mauricio Bustamante"
 __email__ = "mbustamante@gmail.com"
 
 
 # from numpy import *
 import numpy as np
-from typing import Optional, Callable, Union
+from typing import Optional, Callable
 
 
 def mixing_matrix_4x4(s12: float, s23: float, s13:float, d13: float, s14: float, d14: float,
@@ -49,7 +48,7 @@ def mixing_matrix_4x4(s12: float, s23: float, s13:float, d13: float, s14: float,
     parametrization :math:`U = R_{34} \tilde R_{24} \tilde R_{14} R_{23} \tilde R_{13} R_{12}` of
     Kopp, Machado, Maltoni & Schwetz, arXiv:1103.4570 (see also arXiv:1105.3911).
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -158,7 +157,7 @@ def hamiltonian_4nu_vacuum_energy_independent(s12: float, s23: float, s13:float,
     H = (1/2)*R.M2.R^dagger, with R the 4x4 mixing matrix and M2 the mass matrix.  The
     multiplicative factor 1/E is not applied.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -200,7 +199,7 @@ def hamiltonian_4nu_vacuum_energy_independent(s12: float, s23: float, s13:float,
     """
     # 4x4 mixing matrix
     R = mixing_matrix_4x4(s12, s23, s13, d13, s14, d14, s24, d24, s34,
-        compute_matrix_multiplication=compute_matrix_multiplication) if nubar == False else \
+        compute_matrix_multiplication=compute_matrix_multiplication) if not nubar else \
             np.conj(mixing_matrix_4x4(s12, s23, s13, d13, s14, d14, s24, d24, s34,
                 compute_matrix_multiplication=compute_matrix_multiplication))
     # Mass matrix
@@ -220,7 +219,7 @@ def hamiltonian_4nu_vacuum_energy_independent_td(l: float, s12: float, s23: floa
     Same as :func:`hamiltonian_4nu_vacuum_energy_independent`, included for interface parity with
     the other, genuinely position-dependent Hamiltonians.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -255,7 +254,7 @@ def hamiltonian_4nu_vacuum(energy: float, s12: float, s23: float, s13:float, d13
 
     Same as :func:`hamiltonian_4nu_vacuum_energy_independent`, but with the 1/E factor applied.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -293,7 +292,7 @@ def hamiltonian_4nu_vacuum_td(l: float, energy: float, s12: float, s23: float, s
     Same as :func:`hamiltonian_4nu_vacuum`, included for interface parity with the other,
     genuinely position-dependent Hamiltonians.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -329,7 +328,7 @@ def hamiltonian_4nu_matter(VCC: float) -> np.ndarray:
     Computes and returns the 4x4 real four-neutrino Hamiltonian for
     oscillations in matter with constant density.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -351,7 +350,7 @@ def hamiltonian_4nu_matter_td(l: float, VCC_func: Callable) -> np.ndarray:
     Computes and returns the 4x4 real four-neutrino Hamiltonian for oscillations in matter with a
     given density as a function of position.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -388,7 +387,7 @@ def hamiltonian_4nu_nsi(
     non-standard interactions (NSI) in matter with constant density.  The additional 's' subscript
     denotes the sterile flavor.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -436,7 +435,7 @@ def hamiltonian_4nu_nsi_td(l: float, VCC_func: Callable, eps_ee: float, eps_em: 
     Same as :func:`hamiltonian_4nu_nsi`, but evaluates the position-dependent matter potential
     ``VCC_func(l)`` first.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -468,7 +467,7 @@ def hamiltonian_4nu_liv(energy: float, sxi12: float, sxi23: float, sxi13: float,
     :func:`hamiltonian_4nu_liv_energy_independent`, but with the
     :math:`E^{n_{\rm liv}}` energy dependence of the LIV operator applied.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -517,7 +516,7 @@ def hamiltonian_4nu_liv_energy_independent(sxi12: float, sxi23: float, sxi13: fl
     Computes and returns the 4x4 complex four-neutrino Hamiltonian for oscillations in a CPT-odd
     Lorentz invariance-violating background, without the energy-dependent prefactor.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -552,7 +551,7 @@ def hamiltonian_4nu_liv_energy_independent(sxi12: float, sxi23: float, sxi13: fl
     """
     # 4x4 mixing matrix
     R = mixing_matrix_4x4(sxi12, sxi23, sxi13, dxi13, sxi14, dxi14, sxi24, dxi24, sxi34,
-        compute_matrix_multiplication=compute_matrix_multiplication) if nubar == False else \
+        compute_matrix_multiplication=compute_matrix_multiplication) if not nubar else \
             np.conj(mixing_matrix_4x4(sxi12, sxi23, sxi13, dxi13, sxi14, dxi14, sxi24, dxi24, sxi34,
                 compute_matrix_multiplication=compute_matrix_multiplication))
 

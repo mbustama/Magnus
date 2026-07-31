@@ -2,9 +2,8 @@ name: Code Quality
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [main, dev, "dev-*"]
   pull_request:
-    branches: [ "main" ]
 
 jobs:
   lint:
@@ -23,11 +22,36 @@ jobs:
         run: pip install ruff
 
       - name: Run Ruff Linter
-        # Checks for logical errors, undefined variables, and unused imports
-        run: ruff check src/magnus/ tests/
-        continue-on-error: true # The workflow will turn green even if Ruff complains
+        # Checks for logical errors, undefined variables, and unused imports.  The rule
+        # selection and the two codebase-wide exemptions (E741 for `l`, E701 for one-line
+        # guards) live in [tool.ruff.lint] in pyproject.toml.  This step is blocking: a
+        # new finding should fail the build, not be reported into a green checkmark.
+        run: ruff check src/magnus/ tests/ docs/
 
       - name: Run Ruff Formatter (Check Only)
-        # Fails the CI if the code is not formatted cleanly
+        # Informational only.  The codebase predates ruff format and is not formatted to
+        # its style; reformatting it wholesale would bury real changes in diff noise.
+        # Left here so the current gap stays visible without blocking CI.
         run: ruff format --check .
-        continue-on-error: true # The workflow will turn green even if Ruff complains
+        continue-on-error: true
+
+  cli-docs:
+    name: CLI reference is up to date
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install package
+        run: pip install -e .
+
+      - name: Check docs/source/cli.rst matches the actual parser
+        # docs/source/cli.rst quotes `magnus prob --help` verbatim.  Hand-copied output
+        # goes stale the moment a flag is added, so this fails if the page and the parser
+        # have diverged; run `python3 docs/regen_cli_help.py` to fix.
+        run: python3 docs/regen_cli_help.py --check

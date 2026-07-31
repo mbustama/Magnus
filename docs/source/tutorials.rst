@@ -1,8 +1,9 @@
 Tutorial Notebooks
 ===================
 
-The ``notebooks/`` directory in the repository contains ten runnable Jupyter
-notebooks, numbered ``01``-``10`` in the order we'd suggest reading them.
+The ``notebooks/`` directory in the repository contains eleven runnable
+Jupyter notebooks, numbered ``01``-``11`` in the order we'd suggest reading
+them.
 
 .. note::
    These pages are static documentation and do not execute the notebooks
@@ -57,3 +58,7 @@ notebooks, numbered ``01``-``10`` in the order we'd suggest reading them.
      - `magnus_matrix_exponential.ipynb <https://github.com/mbustama/Magnus/blob/main/notebooks/10_magnus_matrix_exponential.ipynb>`_
      - Using Magνs as a general-purpose tool: computing the Magnus expansion and matrix exponential of an arbitrary time-dependent matrix :math:`A(t)`, i.e. :math:`\exp\!\left(\int_{t_i}^{t_f} A(t)\, dt\right)`, decoupled from any neutrino-physics interpretation.
      - You want to call :func:`magnus.magnus.magnus_expansion` directly, outside of the oscillation-probability wrappers.
+   * - 11
+     - `magnus_adiabatic_hybrid_strategy.ipynb <https://github.com/mbustama/Magnus/blob/main/notebooks/11_magnus_adiabatic_hybrid_strategy.ipynb>`_
+     - Live comparison of ``strategy='auto'``/``'hybrid'``/``'magnus'`` for 2-5 flavors, standard oscillations and an engineered BSM (NSI) resonance, each cross-checked against ``solve_ivp`` in both runtime and accuracy. Reproduces the validation in :doc:`adiabatic_strategy`.
+     - You want to see the extreme-accumulated-phase problem (and its fix) reproduced live, or need a template for benchmarking your own Hamiltonian.

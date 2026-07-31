@@ -28,14 +28,13 @@ Routine listings
 """
 
 
-__version__ = "1.0"
 __author__ = "Mauricio Bustamante"
 __email__ = "mbustamante@gmail.com"
 
 
 # from numpy import *
 import numpy as np
-from typing import Optional, Callable, Union
+from typing import Optional, Callable
 
 # import cmath
 # import cmath as cmath
@@ -51,7 +50,7 @@ def pmns_mixing_matrix(s12: float, s23: float, s13:float, dCP: float) -> np.ndar
     Computes and returns the 3x3 complex PMNS mixing matrix parametrized by three rotation angles,
     :math:`\theta_{12}`, :math:`\theta_{23}`, :math:`\theta_{13}`, and one CP-violation phase, :math:`\delta_\text{CP}`.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -95,10 +94,10 @@ def mixing_matrix_3x3(s12: float, s23: float, s13:float, dCP: float) -> np.ndarr
     r"""Returns the 3x3 PMNS mixing matrix.
 
     Alias of :func:`pmns_mixing_matrix`, kept for naming parity with
-    :func:`hamiltonians4nu.mixing_matrix_4x4` and
-    :func:`hamiltonians5nu.mixing_matrix_5x5`.
+    :func:`magnus.hamiltonians.hamiltonians4nu.mixing_matrix_4x4` and
+    :func:`magnus.hamiltonians.hamiltonians5nu.mixing_matrix_5x5`.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -130,7 +129,7 @@ def hamiltonian_3nu_vacuum_energy_independent(s12: float, s23: float, s13: float
     H = (1/2)*R.M2.R^dagger, with R the 3x3 PMNS matrix and M2 the mass matrix.  The multiplicative
     factor 1/E is not applied.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -170,7 +169,7 @@ def hamiltonian_3nu_vacuum_energy_independent(s12: float, s23: float, s13: float
         # sdCP = np.sqrt(1.0-cdCP*cdCP)
         sdCP = np.sin(dCP)
         # exp_dCP_p = complex(cdCP, sdCP)
-        exp_dCP_p = complex(cdCP, sdCP) if nubar == False else complex(cdCP, -sdCP)
+        exp_dCP_p = complex(cdCP, sdCP) if not nubar else complex(cdCP, -sdCP)
         exp_dCP_m = np.conj(exp_dCP_p)
 
         # All Hij have units of [eV^2]
@@ -193,11 +192,11 @@ def hamiltonian_3nu_vacuum_energy_independent(s12: float, s23: float, s13: float
     else:
 
         # PMNS matrix
-        # if nubar == False:
+        # if not nubar:
         #     R = pmns_mixing_matrix(s12, s23, s13, dCP)
         # else:
         #     R = np.conj(pmns_mixing_matrix(s12, s23, s13, dCP))
-        R = pmns_mixing_matrix(s12, s23, s13, dCP) if nubar == False \
+        R = pmns_mixing_matrix(s12, s23, s13, dCP) if not nubar \
                 else np.conj(pmns_mixing_matrix(s12, s23, s13, dCP))
         # Mass matrix
         M2 = np.diag([0.0, D21, D31])
@@ -214,7 +213,7 @@ def hamiltonian_3nu_vacuum_energy_independent_td(l: float, s12: float, s23: floa
     Same as :func:`hamiltonian_3nu_vacuum_energy_independent`, included for interface parity with
     the other, genuinely position-dependent Hamiltonians (see, e.g., :func:`hamiltonian_3nu_matter_td`).
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -252,7 +251,7 @@ def hamiltonian_3nu_vacuum(energy: float, s12: float, s23: float, s13: float, dC
 
     Same as :func:`hamiltonian_3nu_vacuum_energy_independent`, but with the 1/E factor applied.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -293,7 +292,7 @@ def hamiltonian_3nu_vacuum_td(l: float, energy: float, s12: float, s23: float, s
     Same as :func:`hamiltonian_3nu_vacuum`, included for interface parity with the other,
     genuinely position-dependent Hamiltonians.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -332,7 +331,7 @@ def hamiltonian_3nu_matter(VCC: float) -> np.ndarray:
     Computes and returns the 3x3 real three-neutrino Hamiltonian for
     oscillations in matter with constant density.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -354,7 +353,7 @@ def hamiltonian_3nu_matter_td(l: float, VCC_func: Callable) -> np.ndarray:
     Computes and returns the 3x3 real three-neutrino Hamiltonian for oscillations in matter with a
     given density as a function of position.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -386,7 +385,7 @@ def hamiltonian_3nu_nsi(
     Computes and returns the 3x3 complex three-neutrino Hamiltonian for oscillations with
     non-standard interactions (NSI) in matter with constant density.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -424,7 +423,7 @@ def hamiltonian_3nu_nsi_td(l: float, VCC_func: Callable, eps_ee: float, eps_em: 
     Same as :func:`hamiltonian_3nu_nsi`, but evaluates the position-dependent matter potential
     ``VCC_func(l)`` first.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -464,7 +463,7 @@ def hamiltonian_3nu_liv(energy: float, sxi12: float, sxi23: float, sxi13: float,
     :func:`hamiltonian_3nu_liv_energy_independent`, but with the
     :math:`E^{n_{\rm liv}}` energy dependence of the LIV operator applied.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -516,7 +515,7 @@ def hamiltonian_3nu_liv_energy_independent(sxi12: float, sxi23: float, sxi13: fl
     Computes and returns the 3x3 complex three-neutrino Hamiltonian for oscillations in a CPT-odd
     Lorentz invariance-violating background, without the energy-dependent prefactor.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -553,7 +552,7 @@ def hamiltonian_3nu_liv_energy_independent(sxi12: float, sxi23: float, sxi13: fl
     np.ndarray
         Hamiltonian 3x3 matrix.
     """
-    R = pmns_mixing_matrix(sxi12, sxi23, sxi13, dxiCP) if nubar == False \
+    R = pmns_mixing_matrix(sxi12, sxi23, sxi13, dxiCP) if not nubar \
             else np.conj(pmns_mixing_matrix(sxi12, sxi23, sxi13, dxiCP))
 
     return pow(1.0/Lambda, n_liv) * R @ np.diag([b1, b2, b3]) @ np.conj(R.T)

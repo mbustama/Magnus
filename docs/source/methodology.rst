@@ -67,16 +67,9 @@ Two integration methods
 
 Evaluating the nested integrals above requires sampling :math:`A(l)` inside
 each slab.  Magνs offers two families, selected via
-``integration_method``:
+``integration_method``, which defaults to ``'gl'``:
 
-**Cumulative quadrature (** ``'trapezoid'`` **,** ``'simpson'`` **).**
-Sample :math:`A` on a uniform grid of ``n_tpts_per_slab`` points and
-integrate with cumulative trapezoid or Simpson's rule.  General-purpose,
-but the quadrature error (:math:`O(h^2)` or :math:`O(h^4)` in the grid
-spacing :math:`h`) can dominate the Magnus truncation error at high orders
-unless ``n_tpts_per_slab`` grows accordingly.
-
-**Gauss-Legendre commutator-free integrators (** ``'gl'`` **).**
+**Gauss-Legendre commutator-free integrators (** ``'gl'`` **, the default).**
 Following :cite:t:`Blanes2000`, orders 2, 4, and 6 can be reached from only
 1, 2, or 3 evaluations of :math:`A` per slab, at the Gauss-Legendre nodes,
 with no cumulative quadrature and no separate commutator bookkeeping:
@@ -90,9 +83,27 @@ with no cumulative quadrature and no separate commutator bookkeeping:
 with :math:`h` the slab width and :math:`A_i` the Hamiltonian sampled at
 the corresponding node.  Because the quadrature order is matched exactly
 to the truncation order, this method needs far fewer Hamiltonian
-evaluations for the same accuracy and is the recommended default whenever
-the Hamiltonian is smooth within a slab (which layer-aligned slabs, below,
-make the common case even across the Earth).
+evaluations for the same accuracy -- it is simultaneously the fastest and
+the most accurate choice whenever the Hamiltonian is smooth within a slab,
+which is why it is the default.  Layer-aligned slabs (below) make that the
+common case even across the Earth.
+
+Because ``'gl'`` uses a fixed 1, 2, or 3 nodes per slab, ``n_tpts_per_slab``
+plays no role for it: accuracy is controlled by the slab count alone, and the
+adaptive refinement below grows only ``n_slabs``.  The physics-informed
+starting slab count is likewise applied only for ``'gl'``, since for the
+quadrature methods accuracy is governed jointly by ``n_slabs`` and
+``n_tpts_per_slab``, and seeding only the slab count unbalances that ladder.
+
+**Cumulative quadrature (** ``'trapezoid'`` **,** ``'simpson'`` **).**
+Sample :math:`A` on a uniform grid of ``n_tpts_per_slab`` points and
+integrate with cumulative trapezoid or Simpson's rule.  Slower for the same
+accuracy on a smooth profile, but fully general, and so the safer choice if
+:math:`A(l)` has a kink or a discontinuity *inside* a slab, where
+Gauss-Legendre loses its order advantage.  The quadrature error
+(:math:`O(h^2)` or :math:`O(h^4)` in the grid spacing :math:`h`) can dominate
+the Magnus truncation error at high orders unless ``n_tpts_per_slab`` grows
+accordingly.
 
 Exact unitarity from the eigendecomposition
 ------------------------------------------------
@@ -160,6 +171,22 @@ practice:
   zenith angle) and insert them as mandatory slab edges at every
   refinement level.
 
+The slab cap itself is method-aware.  ``max_n_slabs`` defaults to None,
+meaning "use the cap appropriate to ``integration_method``": 20000 for
+``'gl'`` and 2000 for the cumulative-quadrature methods (see
+``magnus.oscprob.MAX_N_SLABS_DEFAULT``; an explicit value is always used as
+given).  A single cap cannot serve both families, because their cost per
+slab differs by more than an order of magnitude -- ``'gl'`` evaluates the
+Hamiltonian 1 to 3 times per slab, the quadrature methods
+``n_tpts_per_slab`` times.  With a shared cap of 2000, ``'gl'`` hit the
+ceiling on problems it could resolve comfortably (eV-scale sterile
+splittings over an Earth-crossing baseline need about 8,600 slabs) and
+reported that it could not verify convergence, on answers that were in fact
+far more accurate than the quadrature methods reached within the same cap.
+Even at 20000 slabs, ``'gl'`` is the cheaper worst case: 40,000-60,000
+Hamiltonian evaluations, against the ~200,000 that 2000 quadrature slabs at
+100 points per slab already permit.
+
 If a refinement cap (``max_n_slabs``, ``max_n_tpts_per_slab``,
 ``max_num_loops``) is reached before the tolerance is met, ``osc_prob``
 returns its best available estimate but raises
@@ -169,7 +196,11 @@ so they can look entirely plausible while still being inaccurate.  This is
 the practical manifestation of the convergence criterion above: it is the
 expected behavior for extreme accumulated phases, such as low-energy solar
 neutrinos traversing most of the Sun, where an adiabatic treatment is the
-more natural tool.
+more natural tool — see :doc:`adiabatic_strategy` for the
+``strategy='hybrid'``/``'auto'`` alternative that automates exactly this,
+built directly on top of the machinery described on this page (its local
+patches call the same :func:`magnus.magnus.magnus_expansion_multislab`
+kernel).
 
 Silent vectorization and the energy-batched scan engine
 -------------------------------------------------------------

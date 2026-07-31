@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "magnus"
-version = "0.10.0"
+version = "1.0.0rc1"
 description = "Neutrino oscillation probabilities via the Magnus expansion, for an arbitrary number of flavors and any Hamiltonian, time-dependent or not."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -13,7 +13,7 @@ authors = [
     {name = "Mauricio Bustamante", email = "mbustamante@gmail.com"}
 ]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Science/Research",
     "Programming Language :: Python :: 3",
     "Topic :: Scientific/Engineering :: Physics",
@@ -43,3 +43,34 @@ package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+# Ruff's default rule set (E4/E7/E9 + F), minus two checks that flag deliberate,
+# codebase-wide conventions rather than defects.  Everything else is enforced in CI
+# (.github/workflows/lint.yml), so a new finding fails the build instead of being
+# reported into a green checkmark.
+ignore = [
+    # `l` is the standard symbol for position along the neutrino trajectory in the physics
+    # this package implements; renaming it everywhere would make the code harder to read
+    # against the equations in docs/source/methodology.rst.
+    "E741",
+    # Single-statement guards on one line (`if save_log: file_log.close()`) are used
+    # consistently here, and only ever for short cleanup or clamping statements.
+    "E701",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# The package __init__ deliberately re-exports its submodules; `__all__` is built from a
+# list of strings, which ruff cannot connect back to the import statements.
+"src/magnus/__init__.py" = ["F401"]
+# oscprob re-exports oscprobstd's closed-form helpers at the end of the module, next to
+# the `__all__` they belong to rather than at the top.
+"src/magnus/oscprob.py" = ["E402"]
+# conf.py must extend sys.path before it can import the package's version module.
+"docs/source/conf.py" = ["E402"]
+# Throwaway lambdas are idiomatic when building a one-off callable for a single assertion.
+"tests/*" = ["E731"]

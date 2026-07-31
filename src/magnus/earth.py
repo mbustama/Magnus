@@ -25,14 +25,12 @@ Routine listings
            predefined location (e.g., a neutrino detector site)
 """
 
-__version__ = "1.0"
 __author__ = "Mauricio Bustamante"
 __email__ = "mbustamante@gmail.com"
 
 
 import numpy as np
-import sys
-from typing import Optional, Callable, Union
+from typing import Optional, Union
 
 import magnus.globaldefs as gd
 
@@ -88,17 +86,22 @@ def density_matter_func_prem(r: Union[float, np.ndarray],
     Accepts a single radial distance or an array of radial distances;
     array input is evaluated in a single vectorized pass.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
     r : float or np.ndarray
         Radial distance(s) measured from the center of the Earth [km].
+    tol : float, optional
+        Relative tolerance by which a radial distance may exceed
+        ``globaldefs.EARTH_RADIUS`` before a ValueError is raised;
+        radii within the tolerance are clamped onto the surface.
+        Default: 1e-8.
 
     Returns
     -------
     float or np.ndarray
-        Matter density [g cm^{-3}].
+        Matter density [:math:`\text{g cm}^{-3}`].
 
     Raises
     ------
@@ -148,7 +151,7 @@ def distance_traveled_inside_earth(costhz: float) -> float:
     the Earth, not underground. As a result, the distance is zero for
     all values of costhz > 0.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -175,7 +178,7 @@ def earth_radial_distance_from_depth(costhz: float, l: Union[float, np.ndarray],
     l.  Accepts a single distance or an array of distances; array input
     is evaluated in a single vectorized pass.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -184,6 +187,11 @@ def earth_radial_distance_from_depth(costhz: float, l: Union[float, np.ndarray],
     l : float or np.ndarray
         Distance(s) of the neutrino from its point of entry into the
         Earth [km].
+    tol : float, optional
+        Absolute tolerance by which ``l`` may exceed the distance
+        traveled inside the Earth before a ValueError is raised;
+        distances within the tolerance are clamped onto the exit point.
+        Default: 1e-8.
 
     Returns
     -------
@@ -221,8 +229,9 @@ def prem_layer_edges_along_chord(costhz: float) -> np.ndarray:
     r"""Returns the positions along a chord through the Earth at which
     the chord crosses the PREM layer boundaries.
 
-    A neutrino entering the Earth with direction costhz travels along a
-    chord from l = 0 to l = distance_traveled_inside_earth(costhz).
+    A neutrino entering the Earth with direction ``costhz`` travels along
+    a chord from :math:`l = 0` to
+    :math:`l =` :func:`distance_traveled_inside_earth` (``costhz``).
     The matter density along the chord is piecewise-smooth, with
     discontinuities (or kinks) where the chord crosses the boundaries
     between PREM shells.  This routine returns those crossing positions,
@@ -230,11 +239,15 @@ def prem_layer_edges_along_chord(costhz: float) -> np.ndarray:
     high-order quadrature converges at its nominal order only if the
     Hamiltonian is smooth within each slab.
 
-    The crossing positions solve r(l) = r_b for each boundary radius
-    r_b, which is a quadratic equation in l: with u = d - l and
-    d = -2 R costhz, one has u^2 + 2 R costhz u + (R^2 - r_b^2) = 0.
+    The crossing positions solve :math:`r(l) = r_b` for each boundary
+    radius :math:`r_b`, which is a quadratic equation in :math:`l`: with
+    :math:`u = d - l` and :math:`d = -2 R \cos\theta_z`, one has
 
-    .. versionadded:: 0.10.0
+    .. math::
+
+       u^2 + 2 R \cos\theta_z\, u + \left(R^2 - r_b^2\right) = 0 .
+
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -271,7 +284,7 @@ def prem_layer_edges_along_chord(costhz: float) -> np.ndarray:
 def dms_to_decimal(degrees: float, minutes: float, seconds: float) -> float:
     r"""Converts (degree, minute, second) coordinates to decimal degrees.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -300,7 +313,7 @@ def chord_length_inside_earth(lat1_dms: tuple[float, float, float],
     Earth, assumed spherical, using the haversine formula for the central angle between the two
     locations and converting it to a chord length.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -357,7 +370,7 @@ def costhz_between_points_on_surface(lat1_dms: tuple[float, float, float],
     surface, not underground, so the returned value is always non-positive (an upward- or
     horizontally-traveling neutrino, i.e. costhz > 0, would not cross the Earth's interior at all).
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -388,7 +401,7 @@ def coordinates_of_named_location(source_func_name: str, loc_name: str) -> np.nd
     ``loc_coords_dms`` dictionary of predefined locations (neutrino telescopes/detector sites and
     a few reference points) and returns its latitude and longitude.
 
-    .. versionadded:: 0.10.0
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -410,29 +423,12 @@ def coordinates_of_named_location(source_func_name: str, loc_name: str) -> np.nd
         lat = loc_coords_dms[loc_name.lower().replace(" ", "_")]['lat']
         lon = loc_coords_dms[loc_name.lower().replace(" ", "_")]['lon']
     except KeyError:
-        print(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + ": the given name of the" + \
-                " the location (" + loc_name + ") is not one of the predefined named locations" + \
+        raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": the given name of the" + \
+                " location (" + loc_name + ") is not one of the predefined named locations" + \
                 " in Magnus.  The available predefined named locations (in" + \
                 " earth.loc_coords_dms)" + " are: " + str(list(loc_coords_dms.keys())) + ".")
-        print("Aborting execution...")
-        sys.exit(1)
 
     return np.array([lat, lon])
-
-
-if __name__ == "__main__":
-
-    lat1_dms = (52, 31, 12)  # Berlin latitude: 52°31'12"
-    lon1_dms = (13, 24, 18)  # Berlin longitude: 13°24'18"
-    lat2_dms = (48, 51, 24)  # Paris latitude: 48°51'24"
-    lon2_dms = (2, 21, 7)    # Paris longitude: 2°21'7"
-
-    distance = chord_length_inside_earth(lat1_dms, lon1_dms, lat2_dms, lon2_dms)
-    costhz = costhz_between_points_on_surface(lat1_dms, lon1_dms, lat2_dms, lon2_dms)
-    print(distance)
-    print(costhz)
-
-    # print(coord_cern_dms['lon'])
 
 
 __all__ = [
