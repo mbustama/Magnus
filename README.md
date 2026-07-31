@@ -832,8 +832,12 @@ crossings (verified against 10⁻⁷-tolerance references).
 
 Four GitHub Actions workflows run under [`.github/workflows/`](.github/workflows/):
 
-- **[`tests.yml`](.github/workflows/tests.yml)** — runs on every push to
-  `main`, `dev` and any `dev-*` topic branch, and on every pull request. Runs
+- **[`tests.yml`](.github/workflows/tests.yml)** — runs on every push, to any
+  branch, and so on every commit whether or not it belongs to a pull request:
+  GitHub attaches check runs to the commit, so a pull request displays the run
+  its branch already triggered. (`pull_request` is kept as a trigger, but its
+  jobs run only for forks, whose branches never push here. Without that, a
+  commit on a branch with an open PR was built twice, identically.) Runs
   `pytest tests/ -v` on a
   matrix of Python 3.10, 3.11, and 3.12. The suite (see
   [`tests/`](tests/)) covers:
@@ -907,7 +911,7 @@ Four GitHub Actions workflows run under [`.github/workflows/`](.github/workflows
   anywhere today. Creating that secret is the whole act of switching public
   coverage reporting on, which is deferred until the repository goes public.
 - **[`lint.yml`](.github/workflows/lint.yml)** (named "Code Quality") — three
-  jobs, on every push to `main`/`dev`/`dev-*` and on every pull request.
+  jobs, on the same triggers as `tests.yml` above.
   `ruff check` is **blocking**: a new finding fails the build rather than
   being reported into a green checkmark, and the rule selection is pinned in
   `[tool.ruff.lint]` rather than left to whichever ruff version CI installs.
