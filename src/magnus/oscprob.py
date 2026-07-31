@@ -174,8 +174,8 @@ is always current.
 
     # Warnings are normally prefixed with an ANSI-colored "Warning:", which is
     # meant for a terminal and renders as escape-code noise in HTML.  These docs
-    # therefore switch to the plain-text prefix; in a terminal, leave this alone.
-    gd.WARNING_MSG_IN_COLOR = gd.WARNING_MSG_NO_COLOR
+    # therefore switch to plain text; in a terminal, leave this alone.
+    gd.set_color_output(False)
 
 Calling :func:`osc_prob_3nu_vacuum` returns a :math:`3 \\times 3` NumPy array
 of probabilities whose entry ``[i][j]`` is the probability of a neutrino
@@ -282,17 +282,15 @@ See :doc:`/architecture` for how the ``osc_prob_*`` functions listed above
 are layered internally (primordial/middle/wrapper) and how to add a new one.
 """
 
-__version__ = '0.10.0'
 __author__ = 'Mauricio Bustamante'
 
 
 import numpy as np
 import sys
-import platform
 import warnings
 from functools import reduce
 from joblib import Parallel, delayed
-from typing import Optional, Callable, Union, Tuple, List, Dict
+from typing import Optional, Callable, Union, Tuple, Dict
 from io import TextIOWrapper
 from inspect import signature
 # import numba as nb
@@ -346,7 +344,7 @@ class HybridCertificationWarning(ToleranceNotAchievedWarning):
     ``strategy='hybrid'`` was explicitly requested. See
     :doc:`/adiabatic_strategy`.
 
-    .. versionadded:: 0.11.0
+    .. versionadded:: 0.10.0
     """
 
 
@@ -357,8 +355,10 @@ class HybridCertificationWarning(ToleranceNotAchievedWarning):
 def print_banner(file: TextIOWrapper=None):
     r"""Prints the Magnus ASCII banner, version, and author string.
 
-    Prints an ASCII-art banner followed by the package version (:data:`magnus.version.__version__`)
-    and author (:data:`magnus.authors.__authors__`).  Uses ANSI color codes when printing to
+    Prints an ASCII-art banner followed by the package version (``magnus.__version__``, resolved
+    from ``pyproject.toml``) and author (``magnus.authors.__authors__``).  Both live in internal
+    metadata modules that are excluded from the API reference, so they are shown as literals
+    rather than as cross-references.  Uses ANSI color codes when printing to
     stdout (``file is None``); plain text otherwise (e.g., when writing to a log file).
 
     .. versionadded:: 0.10.0
@@ -562,13 +562,14 @@ def validate_input_battery(
     validate_osc_params: Optional[bool]=True,
     validate_initial_position: Optional[bool]= False,
     validate_density: Optional[bool]=False
-) -> int:
+) -> None:
     r"""Validates the inputs common to the ``osc_prob_*`` family of functions.
 
     Runs a battery of type/shape/value checks (selected by the ``validate_*`` flags below) and
-    prints a descriptive error message identifying the offending argument and the calling function
-    (via ``source_func_name``) if any check fails, rather than letting an invalid input propagate
-    into a cryptic NumPy/linear-algebra error deep inside the Magnus core.
+    raises :class:`ValueError` with a descriptive message identifying the offending argument and
+    the calling function (via ``source_func_name``) if any check fails, rather than letting an
+    invalid input propagate into a cryptic NumPy/linear-algebra error deep inside the Magnus
+    core.
 
     .. versionadded:: 0.10.0
 
@@ -612,213 +613,135 @@ def validate_input_battery(
 
     Returns
     -------
-    int
-        0 if every requested check passed; 1 if any check failed (after printing a descriptive
-        error message).
+    None
+
+    Raises
+    ------
+    ValueError
+        If any requested check fails.  The message names the offending argument and the calling
+        function.
     """
     if validate_energy_and_L:
 
-        try:
-            if ( (not isinstance(energy, int)) and (not isinstance(energy, float)) and \
-                (not isinstance(energy, list)) and (not isinstance(energy, np.ndarray)) ):
-                raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + \
-                    ": energy must be an int, a float, a 1D list, or a 1D NumPy array.")
-        except ValueError as error:
-            print(error)
-            print("Aborting execution...")
-            return 1
+        if ( (not isinstance(energy, int)) and (not isinstance(energy, float)) and \
+            (not isinstance(energy, list)) and (not isinstance(energy, np.ndarray)) ):
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + \
+                ": energy must be an int, a float, a 1D list, or a 1D NumPy array.")
 
-        try:
-            if ( (isinstance(energy, list) or isinstance(energy, np.ndarray)) and \
-                (np.array(energy).ndim != 1) ):
-                raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + \
-                    ": if energy is a list or NumPy array, it must be 1D.")
-        except ValueError as error:
-            print(error)
-            print("Aborting execution...")
-            return 1
+        if ( (isinstance(energy, list) or isinstance(energy, np.ndarray)) and \
+            (np.array(energy).ndim != 1) ):
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + \
+                ": if energy is a list or NumPy array, it must be 1D.")
 
-        try:
-            if ( (isinstance(energy, list) or isinstance(energy, np.ndarray)) ):
-                # (np.issubdtype is used instead of the np.float_/np.int_ aliases, which were
-                # removed in NumPy 2.0)
-                if not (np.issubdtype(np.asarray(energy).dtype, np.floating) or \
-                    np.issubdtype(np.asarray(energy).dtype, np.integer)):
-                    raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + \
-                        ": since energy is a list or NumPy array, all of its elements must be int" + \
-                        " or float.")
-        except ValueError as error:
-            print(error)
-            print("Aborting execution...")
-            return 1
+        if ( (isinstance(energy, list) or isinstance(energy, np.ndarray)) ):
+            # (np.issubdtype is used instead of the np.float_/np.int_ aliases, which were
+            # removed in NumPy 2.0)
+            if not (np.issubdtype(np.asarray(energy).dtype, np.floating) or \
+                np.issubdtype(np.asarray(energy).dtype, np.integer)):
+                raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + \
+                    ": since energy is a list or NumPy array, all of its elements must be int" + \
+                    " or float.")
 
-        try:
-            if ( (not isinstance(L, int)) and (not isinstance(L, float)) and \
-                (not isinstance(L, list)) and (not isinstance(L, np.ndarray)) ):
-                raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + \
-                    ": L must be an int, a float, a 1D list, or a 1D NumPy array.")
-        except ValueError as error:
-            print(error)
-            print("Aborting execution...")
-            return 1
+        if ( (not isinstance(L, int)) and (not isinstance(L, float)) and \
+            (not isinstance(L, list)) and (not isinstance(L, np.ndarray)) ):
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + \
+                ": L must be an int, a float, a 1D list, or a 1D NumPy array.")
 
-        try:
-            if ( (isinstance(L, list) or isinstance(L, np.ndarray)) and \
-                (np.array(L).ndim != 1) ):
-                raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + \
-                    ": if L is a list or NumPy array, it must be 1D.")
-        except ValueError as error:
-            print(error)
-            print("Aborting execution...")
-            return 1
+        if ( (isinstance(L, list) or isinstance(L, np.ndarray)) and \
+            (np.array(L).ndim != 1) ):
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + \
+                ": if L is a list or NumPy array, it must be 1D.")
 
-        try:
-            if ( (isinstance(L, list) or isinstance(L, np.ndarray)) ):
-                if not (np.issubdtype(np.asarray(L).dtype, np.floating) or \
-                    np.issubdtype(np.asarray(L).dtype, np.integer)):
-                    raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + \
-                        ": since L is a list or NumPy array, all of its elements must be int or float.")
-        except ValueError as error:
-            print(error)
-            print("Aborting execution...")
-            return 1
+        if ( (isinstance(L, list) or isinstance(L, np.ndarray)) ):
+            if not (np.issubdtype(np.asarray(L).dtype, np.floating) or \
+                np.issubdtype(np.asarray(L).dtype, np.integer)):
+                raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + \
+                    ": since L is a list or NumPy array, all of its elements must be int or float.")
 
-        try:
-            if ( (isinstance(energy, list) or isinstance(energy, np.ndarray)) and \
-                (isinstance(L, list) or isinstance(L, np.ndarray)) and \
-                (len(energy) != len(L)) ):
-                raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + \
-                    ": since the input energy and L are both lists or NumPy arrays, they must have " + \
-                    "the same length.")
-        except ValueError as error:
-            print(error)
-            print("Aborting execution...")
-            return 1
+        if ( (isinstance(energy, list) or isinstance(energy, np.ndarray)) and \
+            (isinstance(L, list) or isinstance(L, np.ndarray)) and \
+            (len(energy) != len(L)) ):
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + \
+                ": since the input energy and L are both lists or NumPy arrays, they must have " + \
+                "the same length.")
 
-        try:
-            if (((nu_i is not None) and (nu_f is None)) or ((nu_i is None) and (nu_f is not None))):
-                raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + \
-                    ": if either nu_i or nu_f is not None, the other flavor must also be not None.")
-        except ValueError as error:
-            print(error)
-            print("Aborting execution...")
-            return 1
+        if (((nu_i is not None) and (nu_f is None)) or ((nu_i is None) and (nu_f is not None))):
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + \
+                ": if either nu_i or nu_f is not None, the other flavor must also be not None.")
 
     if validate_flavor_indices:
 
-        try:
-            if ((nu_i is not None) and (nu_f is not None)):
-                if (num_flavors <= gd.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS):
+        if ((nu_i is not None) and (nu_f is not None)):
+            if (num_flavors <= gd.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS):
+                if ((num_flavors == 2) or (num_flavors == 3)):
+                    flavors = set([gd.NUE, gd.NUMU, gd.NUTAU])
+                elif (num_flavors == 4):
+                    flavors = set([gd.NUE, gd.NUMU, gd.NUTAU, gd.NUS])
+                elif (num_flavors == 5):
+                    flavors = set([gd.NUE, gd.NUMU, gd.NUTAU, gd.NUS1, gd.NUS2])
+                if ((nu_i not in flavors) or (nu_f not in flavors)):
                     if ((num_flavors == 2) or (num_flavors == 3)):
-                        flavors = set([gd.NUE, gd.NUMU, gd.NUTAU])
+                        raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + \
+                            ": if nu_i and nu_f are not None, they must be either gd.NUE (" + \
+                            str(gd.NUE) + "), gd.NUMU (" + str(gd.NUMU) + "), or gd.NUTAU (" + \
+                            str(gd.NUTAU) + ") only.")
                     elif (num_flavors == 4):
-                        flavors = set([gd.NUE, gd.NUMU, gd.NUTAU, gd.NUS])
+                        raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + \
+                            ": if nu_i and nu_f are not None, they must be either gd.NUE (" + \
+                            str(gd.NUE) + "), gd.NUMU (" + str(gd.NUMU) + "), gd.NUTAU (" + \
+                            str(gd.NUTAU) + "), or gd.NUS (" + str(gd.NUS) + ") only.")
                     elif (num_flavors == 5):
-                        flavors = set([gd.NUE, gd.NUMU, gd.NUTAU, gd.NUS1, gd.NUS2])
-                    if ((not (nu_i in flavors)) or (not (nu_f in flavors))):
-                        if ((num_flavors == 2) or (num_flavors == 3)):
-                            raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + \
-                                ": if nu_i and nu_f are not None, they must be either gd.NUE (" + \
-                                str(gd.NUE) + "), gd.NUMU (" + str(gd.NUMU) + "), or gd.NUTAU (" + \
-                                str(gd.NUTAU) + ") only.")
-                        elif (num_flavors == 4):
-                            raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + \
-                                ": if nu_i and nu_f are not None, they must be either gd.NUE (" + \
-                                str(gd.NUE) + "), gd.NUMU (" + str(gd.NUMU) + "), gd.NUTAU (" + \
-                                str(gd.NUTAU) + "), or gd.NUS (" + str(gd.NUS) + ") only.")
-                        elif (num_flavors == 5):
-                            raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + \
-                                ": if nu_i and nu_f are not None, they must be either gd.NUE (" + \
-                                str(gd.NUE) + "), gd.NUMU (" + str(gd.NUMU) + "), gd.NUTAU (" + \
-                                str(gd.NUTAU) + "), gd.NUS1 (" + str(gd.NUS1) + "), or gd.NUS2 (" + \
-                                str(gd.NUS2) + ") only.")
-                else:
-                    print(gd.WARNING_MSG_IN_COLOR + " " + source_func_name + \
-                        ": nu_i and nu_f are not None, but, since num_flavors = " + str(num_flavors) + \
-                        " > globaldefs.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS = " + \
-                        str(gd.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS) + ", input validation cannot " + \
-                        "check if nu_e and nu_f are valid indices.")
-        except ValueError as error:
-            print(error)
-            print("Aborting execution...")
-            return 1
+                        raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + \
+                            ": if nu_i and nu_f are not None, they must be either gd.NUE (" + \
+                            str(gd.NUE) + "), gd.NUMU (" + str(gd.NUMU) + "), gd.NUTAU (" + \
+                            str(gd.NUTAU) + "), gd.NUS1 (" + str(gd.NUS1) + "), or gd.NUS2 (" + \
+                            str(gd.NUS2) + ") only.")
+            else:
+                print(gd.WARNING_MSG_IN_COLOR + " " + source_func_name + \
+                    ": nu_i and nu_f are not None, but, since num_flavors = " + str(num_flavors) + \
+                    " > globaldefs.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS = " + \
+                    str(gd.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS) + ", input validation cannot " + \
+                    "check if nu_e and nu_f are valid indices.")
 
     if validate_osc_params:
 
-        try:
-            ttest = [(isinstance(x, int) or isinstance(x, float) or (x is None)) 
-                for x in osc_params]
-            if (not np.all(ttest)):
-                raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + ":"+\
-                    " the oscillation parameters must be int or float.")
-        except ValueError as error:
-            print(error)
-            print("Aborting execution...")
-            return 1
+        ttest = [(isinstance(x, int) or isinstance(x, float) or (x is None)) 
+            for x in osc_params]
+        if (not np.all(ttest)):
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ":"+\
+                " the oscillation parameters must be int or float.")
 
     if validate_initial_position:
 
-        try:
-            if not ((isinstance(L0, int) or (isinstance(L0, float)))):
-                raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob_matter_std_potential:"+\
-                    " the initial neutrino position (L0) must be an int or float.")
-        except ValueError as error:
-            print(error)
-            print("Aborting execution...")
-            return 1
+        if not ((isinstance(L0, int) or (isinstance(L0, float)))):
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob_matter_std_potential:"+\
+                " the initial neutrino position (L0) must be an int or float.")
 
     if validate_density:
 
-        try:
-            if (ratio_number_neutrons_to_protons < 0.0):
-                raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob_matter_std_potential:"+\
-                    " the ratio of neutrinos to protons (ratio_number_neutrons_to_protons) must" + \
-                    " be non-negative.")
-        except ValueError as error:
-            print(error)
-            print("Aborting execution...")
-            return 1
+        if (ratio_number_neutrons_to_protons < 0.0):
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob_matter_std_potential:"+\
+                " the ratio of neutrinos to protons (ratio_number_neutrons_to_protons) must" + \
+                " be non-negative.")
 
-        try:
-            if (electron_fraction < 0.0):
-                raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob_matter_std_potential:"+\
-                    " the ratio of electrons to protons + neutrons (electron_fraction) must be " + \
-                    "non-negative.")
-        except ValueError as error:
-            print(error)
-            print("Aborting execution...")
-            return 1
+        if (electron_fraction < 0.0):
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob_matter_std_potential:"+\
+                " the ratio of electrons to protons + neutrons (electron_fraction) must be " + \
+                "non-negative.")
 
-        try:
-            if ((callable(rho_func)) and (len(signature(rho_func).parameters) > 1)):
-                raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob_matter_std_potential:"+\
-                    " the provided rho_func is a function of more than one parameter.")
-        except ValueError as error:
-            print(error)
-            print("Aborting execution...")
-            return 1
+        if ((callable(rho_func)) and (len(signature(rho_func).parameters) > 1)):
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob_matter_std_potential:"+\
+                " the provided rho_func is a function of more than one parameter.")
 
         rho_test = rho_func(L0) if callable(rho_func) else rho_func
 
-        try:
-            if (rho_test < 0.0):
-                raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob_matter_std_potential:"+\
-                    " rho_func must be non-negative.")
-        except ValueError as error:
-            print(error)
-            print("Aborting execution...")
-            return 1
+        if (rho_test < 0.0):
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob_matter_std_potential:"+\
+                " rho_func must be non-negative.")
 
-        try:
-            if not (isinstance(rho_test, int) or isinstance(rho_test, float)):
-                raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob_matter_std_potential:"+\
-                    " rho_func must be a float (or int) or must return a float (or int).")
-        except ValueError as error:
-            print(error)
-            print("Aborting execution...")
-            return 1
-
-    return 0
+        if not (isinstance(rho_test, int) or isinstance(rho_test, float)):
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob_matter_std_potential:"+\
+                " rho_func must be a float (or int) or must return a float (or int).")
 
 
 def validate_input_osc_prob_earth(
@@ -869,13 +792,11 @@ def validate_input_osc_prob_earth(
     if ( ((loc_ini is None) and (loc_fin is not None)) or \
         ((loc_ini is not None) and (loc_fin is None)) ):
 
-        print(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + ": only of the two " + \
+        raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": only one of the two " + \
             "locations on Earth (loc_ini or loc_fin) has been given. If one location is " + \
             "given (i.e., is not None), the other one must also be given.  Alternatively, " + \
             "both locations can be set to None, and the given value of costhz will be used " +\
             "(if it is not None).")
-        print("Aborting execution...")
-        sys.exit(1)
 
     elif ((loc_ini is not None) and (loc_fin is not None)):
 
@@ -884,20 +805,16 @@ def validate_input_osc_prob_earth(
         try:
             lat_ini, lon_ini = loc_ini
         except KeyError:
-            print(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + ": if the initial " + \
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": if the initial " + \
                     "location (loc_ini) is given as coordinates, it must be a two-entry tuple," + \
                     " list, or NumPy array.")
-            print("Aborting execution...")
-            sys.exit(1)
     
         try:
             lat_fin, lon_fin = loc_fin
         except KeyError:
-            print(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + ": if the final " + \
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": if the final " + \
                     "location (loc_fin) is given as coordinates, it must be a two-entry tuple," + \
                     " list, or NumPy array.")
-            print("Aborting execution...")
-            sys.exit(1)
 
         # We use the function earth.costhz_between_points_on_surface to compute the cosine of the
         # zenith angle of the chord that joins two locations on the surface of the Earth, measured 
@@ -916,27 +833,17 @@ def validate_input_osc_prob_earth(
 
     else: # (loc_ini is None) and (loc_fin is None)
 
-        try:
-            if costhz is None:
-                raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + ": no" + \
-                    " initial and final locations on the surface of the Earth give, and no " + \
-                    "value of costhz given.  This function requires either the two locations " + \
-                    "or, alternatively, the value of costhz.")
-        except ValueError as error:
-            print(error)
-            print("Aborting execution...")
-            sys.exit(1)
+        if costhz is None:
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": no" + \
+                " initial and final locations on the surface of the Earth given, and no " + \
+                "value of costhz given.  This function requires either the two locations " + \
+                "or, alternatively, the value of costhz.")
 
-        try:
-            if L is None:
-                raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + \
-                    ": since two locations on the surface of the Earth have not been given, " + \
-                    "the value of costhz wil be used to define the chord lengh, but the" + \
-                    " baseline, L, cannot be None.")
-        except ValueError as error:
-            print(error)
-            print("Aborting execution...")
-            sys.exit(1)
+        if L is None:
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + \
+                ": since two locations on the surface of the Earth have not been given, " + \
+                "the value of costhz will be used to define the chord length, but the" + \
+                " baseline, L, cannot be None.")
 
         return costhz, L
 
@@ -1024,16 +931,11 @@ def values_to_unspecified_osc_params(
         predefined set.
     """
 
-    try:
-        if not (default_osc_params_set_name in list(gd.OSC_PARAMS_PREDEFINED.keys()) ):
-            raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprobvalues_to_unspecified_osc_params:"+ \
-                ": the requested oscillation parameter set (default_osc_params_set_name = " + \
-                default_osc_params_set_name + ") is not among the predefined sets in Magnus. " + \
-                "Available sets are " + str(list(gd.OSC_PARAMS_PREDEFINED.keys())) + ".")
-    except ValueError as error:
-        print(error)
-        print("Aborting execution...")
-        sys.exit(1)
+    if default_osc_params_set_name not in list(gd.OSC_PARAMS_PREDEFINED.keys()):
+        raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.values_to_unspecified_osc_params"+ \
+            ": the requested oscillation parameter set (default_osc_params_set_name = " + \
+            default_osc_params_set_name + ") is not among the predefined sets in Magnus. " + \
+            "Available sets are " + str(list(gd.OSC_PARAMS_PREDEFINED.keys())) + ".")
 
     global has_magnus_header_been_printed
 
@@ -1111,11 +1013,9 @@ def unpack_oscillation_params_from_dict(
             Dm2 = osc_params['Dm2']
             return np.array([sth, Dm2])
         except KeyError:
-            print(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + ": since "+ \
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": since "+ \
                     "num_flavors == 2, the dictionary of oscillation parameters " + \
                     "(osc_params) must contain the keys 'sth' and 'Dm2'.")
-            print("Aborting execution...")
-            sys.exit(1)
     elif (num_flavors == 3):
         try:
             s12 = osc_params['s12']
@@ -1126,12 +1026,10 @@ def unpack_oscillation_params_from_dict(
             D31 = osc_params['D31']
             return np.array([s12, s23, s13, dCP, D21, D31])
         except KeyError:
-            print(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + ": since " + \
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": since " + \
                     "num_flavors == 3, the dictionary of oscillation parameters " + \
                     "(osc_params) must contain the keys 's12', 's23', 's13', 'dCP', 'D21', and " + \
                     "'D31', even if they are None.")
-            print("Aborting execution...")
-            sys.exit(1)
     elif (num_flavors == 4):
         try:
             s12 = osc_params['s12']
@@ -1148,13 +1046,11 @@ def unpack_oscillation_params_from_dict(
             D41 = osc_params['D41']
             return np.array([s12, s23, s13, dCP, s14, d14, s24, d24, s34, D21, D31, D41])
         except KeyError:
-            print(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + ": since " + \
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": since " + \
                     "num_flavors == 4, the dictionary of oscillation parameters " + \
                     "(osc_params) must contain the keys 's12', 's23', 's13', 'dCP', 'D21', and " + \
                     "'D31' (even if they are None); and 's14', 'd14', 's24', 'd24', 's34', and " + \
                     "'D41'.")
-            print("Aborting execution...")
-            sys.exit(1)
     elif (num_flavors == 5):
         try:
             s12 = osc_params['s12']
@@ -1178,13 +1074,11 @@ def unpack_oscillation_params_from_dict(
             return np.array([s12, s23, s13, dCP, s14, d14, s15, d15, s24, d24, s25, s34, s35, d35, \
                 D21, D31, D41, D51])
         except KeyError:
-            print(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + ": since " + \
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": since " + \
                     "num_flavors == 5, the dictionary of oscillation parameters " + \
                     "(osc_params) must contain the keys 's12', 's23', 's13', 'dCP', 'D21', and " + \
                     "'D31' (even if they are None); and 's14', 'd14', 's15', 'd15', 's24', " + \
                     "'d24', 's25', 's34', 's35', 'd35', 'D41', and 'D51'.")
-            print("Aborting execution...")
-            sys.exit(1)
     elif (num_flavors > gd.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS):
         print(gd.WARNING_MSG_IN_COLOR + " oscprob." + source_func_name + ": the number of " + \
             "flavors passed (num_flavors = " + str(num_flavors) + \
@@ -1193,15 +1087,11 @@ def unpack_oscillation_params_from_dict(
             str(gd.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS) + "). Will use the Hamiltonian provided " + \
             "in h_vac_energy_indep.")
         if (h_vac_energy_indep is None):
-            print(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + ": provided " + \
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": provided " + \
                 "h_vac_energy_indep is None.")
-            print("Aborting execution...")
-            sys.exit(1)
     elif (num_flavors < 1):
-        print(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + ": num_flavors must be " + \
+        raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": num_flavors must be " + \
             ">= 2.")
-        print("Aborting execution...")
-        sys.exit(1)
 
 
 def unpack_nsi_params_from_dict(
@@ -1250,11 +1140,9 @@ def unpack_nsi_params_from_dict(
             eps_ab = nsi_params['eps_ab']
             return np.array([eps_aa, eps_ab])
         except KeyError :
-            print(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + ": since "+ \
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": since "+ \
                     "num_flavors == 2, the dictionary of NSI parameters " + \
                     "(nsi_params) must contain the keys 'eps_aa' and 'eps_ab'.")
-            print("Aborting execution...")
-            sys.exit(1)
     elif (num_flavors == 3):
         try:
             eps_ee = nsi_params['eps_ee']
@@ -1265,12 +1153,10 @@ def unpack_nsi_params_from_dict(
             eps_tt = nsi_params['eps_tt']
             return np.array([eps_ee, eps_em, eps_et, eps_mm, eps_mt, eps_tt])
         except KeyError:
-            print(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + ": since " + \
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": since " + \
                     "num_flavors == 3, the dictionary of NSI parameters " + \
                     "(nsi_params) must contain the keys 'eps_ee', 'eps_em', 'eps_et', 'eps_mm'," + \
                     " 'eps_mt', and 'eps_tt'.")
-            print("Aborting execution...")
-            sys.exit(1)
     elif (num_flavors == 4):
         try:
             eps_ee = nsi_params['eps_ee']
@@ -1286,12 +1172,10 @@ def unpack_nsi_params_from_dict(
             return np.array([eps_ee, eps_em, eps_et, eps_es, eps_mm, eps_mt, eps_ms, eps_tt, eps_ts,
                 eps_ss])
         except KeyError:
-            print(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + ": since " + \
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": since " + \
                     "num_flavors == 4, the dictionary of NSI parameters " + \
                     "(nsi_params) must contain the keys 'eps_ee', 'eps_em', 'eps_et', 'eps_es'," + \
                     " 'eps_mm', 'eps_mt', 'eps_ms', 'eps_tt', 'eps_ts', and 'eps_ss'.")
-            print("Aborting execution...")
-            sys.exit(1)
     elif (num_flavors == 5):
         try:
             eps_ee = nsi_params['eps_ee']
@@ -1312,13 +1196,11 @@ def unpack_nsi_params_from_dict(
             return np.array([eps_ee, eps_em, eps_et, eps_es1, eps_es2, eps_mm, eps_mt, eps_ms1,
                 eps_ms2, eps_tt, eps_ts1, eps_ts2, eps_s1s1, eps_s1s2, eps_s2s2])
         except KeyError:
-            print(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + ": since " + \
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": since " + \
                     "num_flavors == 5, the dictionary of NSI parameters " + \
                     "(nsi_params) must contain the keys 'eps_ee', 'eps_em', 'eps_et', " + \
                     "'eps_es1', 'eps_es2', 'eps_mm', 'eps_mt', 'eps_ms1', 'eps_ms2', 'eps_tt', " + \
                     "'eps_ts1', 'eps_ts2', 'eps_s1s1', 'eps_s1s2', and 'eps_s2s2'.")
-            print("Aborting execution...")
-            sys.exit(1)
     elif (num_flavors > gd.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS):
         print(gd.WARNING_MSG_IN_COLOR + " oscprob." + source_func_name + ": the number of " + \
             "flavors passed (num_flavors = " + str(num_flavors) + \
@@ -1327,18 +1209,14 @@ def unpack_nsi_params_from_dict(
             str(gd.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS) + "). Will use the Hamiltonian provided " + \
             "in h_nsi.")
         if (h_nsi is None):
-            print(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + ": provided " + \
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": provided " + \
                 "h_nsi is None.")
-            print("Aborting execution...")
-            sys.exit(1)
         # num_flavors exceeds the predefined range: the caller builds its Hamiltonian directly from
         # h_nsi instead of from a flat parameter list, so there is nothing to unpack here.
         return None
     elif (num_flavors < 1):
-        print(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + ": num_flavors must be " + \
+        raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": num_flavors must be " + \
             ">= 2.")
-        print("Aborting execution...")
-        sys.exit(1)
 
 
 def unpack_liv_params_from_dict(
@@ -1384,36 +1262,24 @@ def unpack_liv_params_from_dict(
     if (num_flavors == 2):
         try:
             Lambda = liv_params['Lambda']
-            try:
-                if (Lambda <= 0.0):
-                    raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + \
-                        ": Lambda must be positive.")
-            except ValueError as error:
-                print(error)
-                print("Aborting execution...")
-                sys.exit(1)            
+            if (Lambda <= 0.0):
+                raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + \
+                    ": Lambda must be positive.")
             sxi = liv_params['sxi']
             b1 = liv_params['b1']
             b2 = liv_params['b2']
             n_liv = liv_params['n_liv']
             return np.array([sxi, b1, b2, Lambda, n_liv])
         except KeyError :
-            print(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + ": since "+ \
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": since "+ \
                     "num_flavors == 2, the dictionary of LIV parameters " + \
                     "(liv_params) must contain the keys 'sxi', 'b1', 'b2', 'Lambda', 'n_liv'.")
-            print("Aborting execution...")
-            sys.exit(1)
     elif (num_flavors == 3):
         try:
             Lambda = liv_params['Lambda']
-            try:
-                if (Lambda <= 0.0):
-                    raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + \
-                        ": Lambda must be positive.")
-            except ValueError as error:
-                print(error)
-                print("Aborting execution...")
-                sys.exit(1)            
+            if (Lambda <= 0.0):
+                raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + \
+                    ": Lambda must be positive.")
             sxi12 = liv_params['sxi12']
             sxi23 = liv_params['sxi23']
             sxi13 = liv_params['sxi13']
@@ -1424,23 +1290,16 @@ def unpack_liv_params_from_dict(
             n_liv = liv_params['n_liv']
             return np.array([sxi12, sxi23, sxi13, dxiCP, b1, b2, b3, Lambda, n_liv])
         except KeyError:
-            print(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + ": since " + \
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": since " + \
                     "num_flavors == 3, the dictionary of LIV parameters " + \
                     "(liv_params) must contain the keys 'sxi12', 'sxi23', 'sxi13', 'dxiCP'," + \
                     " 'b1', 'b2', 'b3', 'Lambda', and 'n_liv'.")
-            print("Aborting execution...")
-            sys.exit(1)
     elif (num_flavors == 4):
         try:
             Lambda = liv_params['Lambda']
-            try:
-                if (Lambda <= 0.0):
-                    raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + \
-                        ": Lambda must be positive.")
-            except ValueError as error:
-                print(error)
-                print("Aborting execution...")
-                sys.exit(1)            
+            if (Lambda <= 0.0):
+                raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + \
+                    ": Lambda must be positive.")
             sxi12 = liv_params['sxi12']
             sxi23 = liv_params['sxi23']
             sxi13 = liv_params['sxi13']
@@ -1458,24 +1317,17 @@ def unpack_liv_params_from_dict(
             return np.array([sxi12, sxi23, sxi13, dxi13, sxi14, dxi14, sxi24, dxi24, sxi34, b1, b2,
                 b3, b4, Lambda, n_liv])
         except KeyError:
-            print(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + ": since " + \
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": since " + \
                     "num_flavors == 4, the dictionary of LIV parameters " + \
                     "(liv_params) must contain the keys 'sxi12', 'sxi23', 'sxi13', 'dxi13'," + \
                     " 'sxi14', 'dxi14', 'sxi24', 'dxi24', 'sxi34', 'b1', 'b2', 'b3', 'b4'," + \
                     " 'Lambda', and 'n_liv'.")
-            print("Aborting execution...")
-            sys.exit(1)
     elif (num_flavors == 5):
         try:
             Lambda = liv_params['Lambda']
-            try:
-                if (Lambda <= 0.0):
-                    raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + \
-                        ": Lambda must be positive.")
-            except ValueError as error:
-                print(error)
-                print("Aborting execution...")
-                sys.exit(1)            
+            if (Lambda <= 0.0):
+                raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + \
+                    ": Lambda must be positive.")
             sxi12 = liv_params['sxi12']
             sxi23 = liv_params['sxi23']
             sxi13 = liv_params['sxi13']
@@ -1499,13 +1351,11 @@ def unpack_liv_params_from_dict(
             return np.array([sxi12, sxi23, sxi13, dxi13, sxi14, dxi14, sxi15, dxi15, sxi24, dxi24, 
                 sxi25, sxi34, sxi35, dxi35, b1, b2, b3, b4, b5, Lambda, n_liv])
         except KeyError:
-            print(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + ": since " + \
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": since " + \
                     "num_flavors == 5, the dictionary of LIV parameters " + \
                     "(liv_params) must contain the keys 'sxi12', 'sxi23', 'sxi13', 'dxi13'," + \
                     " 'sxi14', 'dxi14', 'sxi15', 'dxi15', 'sxi24', 'dxi24', 'sxi25' 'sxi34', " + \
                     " 'sxi35', 'dxi35', 'b1', 'b2', 'b3', 'b4', 'b5', 'Lambda', and 'n_liv'.")
-            print("Aborting execution...")
-            sys.exit(1)
     elif (num_flavors > gd.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS):
         print(gd.WARNING_MSG_IN_COLOR + " oscprob." + source_func_name + ": the number of " + \
             "flavors passed (num_flavors = " + str(num_flavors) + \
@@ -1514,18 +1364,14 @@ def unpack_liv_params_from_dict(
             str(gd.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS) + "). Will use the Hamiltonian provided " + \
             "in h_liv.")
         if (h_liv is None):
-            print(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + ": provided " + \
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": provided " + \
                 "h_liv is None.")
-            print("Aborting execution...")
-            sys.exit(1)
         # num_flavors exceeds the predefined range: the caller builds its Hamiltonian directly from
         # h_liv instead of from a flat parameter list, so there is nothing to unpack here.
         return None
     elif (num_flavors < 1):
-        print(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + ": num_flavors must be " + \
+        raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": num_flavors must be " + \
             ">= 2.")
-        print("Aborting execution...")
-        sys.exit(1)
 
 
 # def chunkify(lst, n):
@@ -1719,15 +1565,15 @@ def osc_prob(
 
     Parameters
     ----------
-    H_func
+    H_func : Callable or np.ndarray
         The Hamiltonian, which is a function of time or position that 
         returns a square matrix (a NumPy array). The Hamiltonian can 
         have complex-valued entries.
-    t_ini
+    t_ini : int or float
         Initial time or position of the neutrino.
-    t_fin
+    t_fin : int or float
         Final time or position of the neutrino.
-    n_slabs
+    n_slabs : int, optional
         Number of slabs, or subintervals, into which the interval 
         [``t_ini``, ``t_fin``] is partitioned in order to compute the 
         neutrino evolution operators. A higher value of ``n_slabs`` 
@@ -1743,92 +1589,92 @@ def osc_prob(
         progressively, starting from ``min_n_slabs``, until the 
         tolerance is achieved or until we hit ``max_n_slabs``, whichever
         happens first.
-    n_tpts_per_slab
+    n_tpts_per_slab : int, optional
         Number of time-points inside the slab at which to evaluate 
         H_func in order to numerically compute the integrals over time 
         required by the Magnus expansion. A higher value of 
         ``n_tpts_per_slab`` yields a more accurate probability.
-    t_slab_edges
+    t_slab_edges : list or np.ndarray, optional
         Optional list of pairs [[t0, t1], [t1, t2], ...] with the edges
         of each time slab.  If given, it overrides ``n_slabs`` and the
         uniform partitioning of [``t_ini``, ``t_fin``]; the user must
         ensure that the slabs chain without gaps.  If a tolerance is
         requested, only ``n_tpts_per_slab`` is grown (the user-provided
         edges are kept fixed).
-    magnus_exp_order
+    magnus_exp_order : int, optional
         Order at which the Magnus expansion is truncated (1 to
         ``globaldefs.MAGNUS_EXP_ORDER_MAX``).
-    n_jobs
+    n_jobs : int, optional
         Number of parallel joblib workers used to compute the per-slab
         evolution operators.  With the default, ``n_jobs = 1``, all
         slabs are computed in a single vectorized (batched) call, which
         is usually fastest; use ``n_jobs > 1`` only for very expensive
         Hamiltonian functions.
-    integration_method
+    integration_method : str, optional
         'trapezoid' or 'simpson' for cumulative quadrature over
         ``n_tpts_per_slab`` points per slab, or 'gl' for Gauss-Legendre
         collocation, which needs only 1, 2, or 3 Hamiltonian
         evaluations per slab for orders <= 2, <= 4, <= 6, and ignores
         ``n_tpts_per_slab``.
-    rtol
+    rtol : int or float, optional
         Target relative tolerance of the probability matrix between
         successive refinement loops.  Set both ``rtol`` and ``atol`` to
         ``None`` to run once with the given fixed parameters.  If only
         one of the two is ``None``, it is treated as 0.
-    atol
+    atol : int or float, optional
         Target absolute tolerance; see ``rtol``.
-    growth_factor_n_slabs
+    growth_factor_n_slabs : int or float, optional
         Factor by which ``n_slabs`` is multiplied on each refinement
         loop (used only when a tolerance is requested).
-    growth_factor_n_tpts_per_slab
+    growth_factor_n_tpts_per_slab : int or float, optional
         Factor by which ``n_tpts_per_slab`` is multiplied on each
         refinement loop (used only when a tolerance is requested).
-    max_num_loops
+    max_num_loops : int, optional
         Maximum number of refinement loops.
-    min_n_slabs
+    min_n_slabs : int, optional
         Number of slabs used in the first refinement loop.
-    max_n_slabs
+    max_n_slabs : int, optional
         Maximum allowed number of slabs.
-    min_n_tpts_per_slab
+    min_n_tpts_per_slab : int, optional
         Number of time points per slab in the first refinement loop.
-    max_n_tpts_per_slab
+    max_n_tpts_per_slab : int, optional
         Maximum allowed number of time points per slab.
-    iterate_over_magnus_exp_order
+    iterate_over_magnus_exp_order : bool, optional
         If True, additionally increase ``magnus_exp_order`` from
         ``min_magnus_exp_order`` to ``max_magnus_exp_order`` until the
         requested tolerance is achieved.
-    min_magnus_exp_order
+    min_magnus_exp_order : int, optional
         Lowest expansion order tried when iterating over the order.
-    max_magnus_exp_order
+    max_magnus_exp_order : int, optional
         Highest expansion order tried when iterating over the order.
-    validate_input
+    validate_input : bool, optional
         If True, validate the input parameters (set to False for a
         small speed-up once a call is known to be well-formed).
-    save_log
+    save_log : bool, optional
         If True, also write all messages to the log file.
-    filename_log
+    filename_log : str, optional
         Name of the log file (used if ``save_log`` is True and no
         ``file_log`` object is given).
-    file_log
+    file_log : TextIOWrapper, optional
         Optional file object to write log messages to.
-    close_file_log_upon_exit
+    close_file_log_upon_exit : bool, optional
         If True, close the log file before returning.
-    new_recursion_limit
+    new_recursion_limit : int, optional
         If not None, raise Python's recursion limit to this value.
-    verbose
+    verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the
         refinement loops).
-    A_eval_mode
+    A_eval_mode : str, optional
         How the Hamiltonian can be evaluated: 'vector' (accepts an
         array of positions), 'constant', or 'scalar'.  Determined
         automatically when None; pass it explicitly (e.g., from
         :func:`magnus.magnus.probe_eval_mode`) to skip the probe.
-    convergence_info
+    convergence_info : Dict, optional
         If a dict is passed, it is filled in place with the refinement
         parameters of the returned probability ('n_slabs',
         'n_tpts_per_slab'), which callers can use to warm-start
         neighboring computations.
-    t_breakpoints
+    t_breakpoints : list or np.ndarray, optional
         Optional positions at which the Hamiltonian is known to be
         non-smooth (e.g., density discontinuities such as the PREM
         layer boundaries).  They are inserted as mandatory slab edges
@@ -1849,127 +1695,62 @@ def osc_prob(
     # Validate input; set validate_input to False for speed-up.
     if validate_input:
 
-        try:
-            if (t_fin < t_ini): 
-                raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob: t_fin must be >=" + \
-                    " t_ini.")
-        except ValueError as error:
-            print(error)
-            print("Aborting execution...")
-            sys.exit(1)
+        if (t_fin < t_ini): 
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob: t_fin must be >=" + \
+                " t_ini.")
 
-        try:
-            if (magnus_exp_order < 1): 
-                raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob: magnus_exp_order " + \
-                    "must be >= 1.")
-        except ValueError as error:
-            print(error)
-            print("Aborting execution...")
-            sys.exit(1)
+        if (magnus_exp_order < 1): 
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob: magnus_exp_order " + \
+                "must be >= 1.")
 
-        try:
-            if ((rtol is not None) and (rtol <= 0.0)): 
-                raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob: rtol must be None " + \
-                    "or > 0.0.")
-        except ValueError as error:
-            print(error)
-            print("Aborting execution...")
-            sys.exit(1)
+        if ((rtol is not None) and (rtol <= 0.0)): 
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob: rtol must be None " + \
+                "or > 0.0.")
 
-        try:
-            if ((atol is not None) and (atol <= 0.0)): 
-                raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob: atol must be None " + \
-                    "or > 0.0.")
-        except ValueError as error:
-            print(error)
-            print("Aborting execution...")
-            sys.exit(1)
+        if ((atol is not None) and (atol <= 0.0)): 
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob: atol must be None " + \
+                "or > 0.0.")
 
-        try:
-            if ((rtol is not None) and (atol is not None) and (growth_factor_n_slabs < 1.0)): 
-                raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob: " + \
-                    "growth_factor_n_slabs must be >= 1.0.")
-        except ValueError as error:
-            print(error)
-            print("Aborting execution...")
-            sys.exit(1)
+        if ((rtol is not None) and (atol is not None) and (growth_factor_n_slabs < 1.0)): 
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob: " + \
+                "growth_factor_n_slabs must be >= 1.0.")
 
-        try:
-            if ((rtol is not None) and (atol is not None) and (growth_factor_n_tpts_per_slab < 1.0)): 
-                raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob: " + \
-                    "growth_factor_n_tpts_per_slab must be >= 1.0.") 
-        except ValueError as error:
-            print(error)
-            print("Aborting execution...")
-            sys.exit(1)
+        if ((rtol is not None) and (atol is not None) and (growth_factor_n_tpts_per_slab < 1.0)): 
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob: " + \
+                "growth_factor_n_tpts_per_slab must be >= 1.0.") 
 
-        try:
-            if ( ((rtol is not None) and (atol is not None)) and \
-                ((growth_factor_n_slabs == 1.0) and (growth_factor_n_tpts_per_slab == 1.0)) ): 
-                raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob: since a target " + \
-                    "tolerance has been requested, either growth_factor_n_slabs, " + \
-                    "growth_factor_n_tpts_per_slab, or both must be > 1.")
-        except ValueError as error:
-            print(error)
-            print("Aborting execution...")
-            sys.exit(1)
+        if ( ((rtol is not None) and (atol is not None)) and \
+            ((growth_factor_n_slabs == 1.0) and (growth_factor_n_tpts_per_slab == 1.0)) ): 
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob: since a target " + \
+                "tolerance has been requested, either growth_factor_n_slabs, " + \
+                "growth_factor_n_tpts_per_slab, or both must be > 1.")
 
-        try:
-            if ((rtol is not None) and (atol is not None) and (max_num_loops <= 1)): 
-                raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob: max_num_loops must" + \
-                    " be > 1.")
-        except ValueError as error:
-            print(error)
-            print("Aborting execution...")
-            sys.exit(1)
+        if ((rtol is not None) and (atol is not None) and (max_num_loops <= 1)): 
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob: max_num_loops must" + \
+                " be > 1.")
 
-        try:
-            if ((rtol is not None) and (atol is not None) and (max_n_slabs <= 1)): 
-                raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob: max_n_slabs must " + \
-                    "be > 1.")
-        except ValueError as error:
-            print(error)
-            print("Aborting execution...")
-            sys.exit(1)
+        if ((rtol is not None) and (atol is not None) and (max_n_slabs <= 1)): 
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob: max_n_slabs must " + \
+                "be > 1.")
 
-        try:
-            if ((rtol is not None) and (atol is not None) and (max_n_slabs <= 2)): 
-                raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob: max_n_tpts_per_slab" +\
-                    " must be > 2.")
-        except ValueError as error:
-            print(error)
-            print("Aborting execution...")
-            sys.exit(1)
+        if ((rtol is not None) and (atol is not None) and (max_n_slabs <= 2)): 
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob: max_n_tpts_per_slab" +\
+                " must be > 2.")
 
-        try:
-            if ((callable(H_func)) and (len(signature(H_func).parameters) > 1)):
-                raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob: the provided H_func" +\
-                    " is a function of more than one parameter")
-        except ValueError as error:
-            print(error)
-            print("Aborting execution...")
-            sys.exit(1)
+        if ((callable(H_func)) and (len(signature(H_func).parameters) > 1)):
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob: the provided H_func" +\
+                " is a function of more than one parameter")
 
         H_test = H_func(t_ini) if callable(H_func) else H_func
 
-        try:
-            if not isinstance(H_test, np.ndarray):
-                raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob: H_func must be a " + \
-                    "NumPy (if the Hamiltonian is time-independent) or must return a NumPy array.")
-        except ValueError as error:
-            print(error)
-            print("Aborting execution...")
-            sys.exit(1)
+        if not isinstance(H_test, np.ndarray):
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob: H_func must be a " + \
+                "NumPy (if the Hamiltonian is time-independent) or must return a NumPy array.")
 
-        try:
-            if H_test.shape[0] != H_test.shape[1]:
-                raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob: H_func must be a " + \
-                    "square matrix (if the Hamiltonian is time-independent) or must return a " + \
-                    "square matrix.")
-        except ValueError as error:
-            print(error)
-            print("Aborting execution...")
-            sys.exit(1)
+        if H_test.shape[0] != H_test.shape[1]:
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob: H_func must be a " + \
+                "square matrix (if the Hamiltonian is time-independent) or must return a " + \
+                "square matrix.")
 
     # If only one of rtol and atol was given (i.e., the other one is None), set the missing one to
     # 0.0, so that the requested tolerance is driven by the one that was given.  (Internally, the
@@ -2042,7 +1823,10 @@ def osc_prob(
             return P
 
     loop_count = 1 # Loop counter
-    # Copy this to remember whether the function was originally called with predefine slab edges, 
+    # Probability matrix from the previous refinement loop, against which the current one is
+    # compared to decide convergence.  None until the first loop has produced one.
+    P_old = None
+    # Copy this to remember whether the function was originally called with predefine slab edges,
     # or whether we can increase the number of edges (n_slabs) progressively to reach tolerance
     t_slab_edges_original = t_slab_edges 
     # Flags to signal whether a loop has been run with n_slabs == max_n_slabs or 
@@ -2234,7 +2018,7 @@ def osc_prob(
                     print("      magnus_exp_order = " + str(magnus_exp_order), file=f)                    
                     print("      n_slabs = " + str(n_slabs), file=f)
                     print("      n_tpts_per_slab = " + str(n_tpts_per_slab), file=f)
-            if loop_count > 1:
+            if P_old is not None:
                 # Compare the new and old probability matrices element-wise
                 if np.allclose(P, P_old, rtol=rtol, atol=atol):
                     if (verbose > 0):
@@ -2245,10 +2029,7 @@ def osc_prob(
                                 ", atol = " + str(atol) + ".\n", file=f)
                     if save_log and close_file_log_upon_exit: file_log.close()
                     return P
-                else:
-                    P_old = np.ndarray.copy(P)
-            else: # loop_count == 1
-                P_old = np.ndarray.copy(P)
+            P_old = np.ndarray.copy(P)
             # Increase the number of slabs approximately by growth_factor_n_slabs.  Do it only
             # if the slab edges have *not* been explicitly provided by the user in t_slab_edges.
             if t_slab_edges_original is None:
@@ -2375,26 +2156,16 @@ def osc_prob_iterate_over_magnus_exp_order(
     # Validate input; set validate_input to False for speed-up.
     if validate_input:
 
-        try:
-            if (max_magnus_exp_order > gd.MAGNUS_EXP_ORDER_MAX): 
-                raise ValueError(gd.ERROR_MSG_IN_COLOR + \
-                    " oscprob.osc_prob_iterate_over_magnus_exp_order: max_magnus_exp_order must" + \
-                    " be <= globaldefs.MAGNUS_EXP_ORDER_MAX = " + str(gd.MAGNUS_EXP_ORDER_MAX) + \
-                    ".")
-        except ValueError as error:
-            print(error)
-            print("Aborting execution...")
-            sys.exit(1)
+        if (max_magnus_exp_order > gd.MAGNUS_EXP_ORDER_MAX): 
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + \
+                " oscprob.osc_prob_iterate_over_magnus_exp_order: max_magnus_exp_order must" + \
+                " be <= globaldefs.MAGNUS_EXP_ORDER_MAX = " + str(gd.MAGNUS_EXP_ORDER_MAX) + \
+                ".")
 
-        try:
-            if (min_magnus_exp_order < 1): 
-                raise ValueError(gd.ERROR_MSG_IN_COLOR + \
-                    " oscprob.osc_prob_iterate_over_magnus_exp_order: max_magnus_exp_order must" + \
-                    " be >= 1.")
-        except ValueError as error:
-            print(error)
-            print("Aborting execution...")
-            sys.exit(1)
+        if (min_magnus_exp_order < 1): 
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + \
+                " oscprob.osc_prob_iterate_over_magnus_exp_order: max_magnus_exp_order must" + \
+                " be >= 1.")
 
     # Do this to prevent printing the Magnus header multiple times
     # verbose = 1 if verbose > 0 else verbose
@@ -2823,14 +2594,14 @@ def _osc_prob_ip_exp_core(
     comparable to the *vacuum* splitting :math:`\Delta_{jk}`, rather than merely small) and improves,
     rather than worsens, at lower neutrino energy (:math:`\Delta_{jk}` grows as :math:`1/E`). Both
     factors (``exp(-i H_E h)`` and :math:`\exp(\Omega_1)`) are exactly unitary by construction (the
-    former is a diagonal phase, the latter is exponentiated via :func:`magnus.magnus._expm_stack` from an
+    former is a diagonal phase, the latter is exponentiated via ``_expm_stack`` from an
     anti-Hermitian generator), so the returned probabilities remain exactly unitary regardless of how
     good the approximation is. Accuracy is controlled the usual way: growing ``n_slabs`` shrinks the
     per-slab truncation error (which vanishes faster than the slab width itself), so successive
     refinements converge to the exact solution; the loop mirrors :func:`osc_prob`'s own
     successive-refinement comparison, batched over the leading energy axis of ``H_E``.
 
-    .. versionadded:: 0.11.0
+    .. versionadded:: 0.10.0
 
     Parameters
     ----------
@@ -2868,7 +2639,6 @@ def _osc_prob_ip_exp_core(
         method; this happens when the matter term is not a small perturbation on the vacuum
         splitting anywhere along the trajectory (e.g., at an MSW resonance).
     """
-    dim = H_E.shape[-1]
     tol_requested = (rtol is not None) and (atol is not None)
 
     # Diagonalize the position-independent part of H once; this eigenbasis is shared by every slab,
@@ -2998,10 +2768,10 @@ def _osc_prob_ip_exp_dispatch(
     fails to converge within the requested tolerance (signaling that the matter term is not a small
     perturbation on the vacuum splitting somewhere along the trajectory, e.g., an MSW resonance); the
     caller falls back to the general per-point path in either case. Unlike
-    :func:`_osc_prob_scan_separable_dispatch`, this applies equally to a single (energy, L) point (the
+    ``_osc_prob_scan_separable_dispatch``, this applies equally to a single (energy, L) point (the
     common case for :func:`osc_prob_sun`-family calls) and to a multi-energy scan at a shared baseline.
 
-    .. versionadded:: 0.11.0
+    .. versionadded:: 0.10.0
 
     Parameters
     ----------
@@ -3110,7 +2880,7 @@ def _osc_prob_hybrid_dispatch(
     r"""Decide whether the adiabatic-transport-plus-Magnus-patch ("hybrid") strategy applies; run
     it if so.
 
-    Unlike :func:`_osc_prob_ip_exp_dispatch`, this is not restricted to a genuine exponential
+    Unlike ``_osc_prob_ip_exp_dispatch``, this is not restricted to a genuine exponential
     profile or to two flavors: :func:`magnus.adiabatic.hybrid_propagator` locates non-adiabatic
     windows via an exact Hellmann-Feynman diagnostic that makes no assumption about the profile's
     functional form or the Hamiltonian's dimension (see :doc:`/adiabatic_strategy`). It is still
@@ -3121,14 +2891,14 @@ def _osc_prob_hybrid_dispatch(
 
     Each requested (energy, L) point is handled by an independent call to
     :func:`magnus.adiabatic.hybrid_propagator`, since the position of a resonance (if any) is
-    generally energy-dependent -- unlike :func:`_osc_prob_ip_exp_dispatch`, this applies equally
+    generally energy-dependent -- unlike ``_osc_prob_ip_exp_dispatch``, this applies equally
     to a scan with per-point baselines, not only a shared one. If any requested point fails to
     self-certify, the whole batch is treated as not fitting this method with ``strategy='auto'``
     (returns ``NotImplemented``, so the caller falls back to the general per-point path);
     with ``strategy='hybrid'``, the best-effort result is returned together with
     ``HybridCertificationWarning``.
 
-    .. versionadded:: 0.11.0
+    .. versionadded:: 0.10.0
 
     Parameters
     ----------
@@ -3244,11 +3014,11 @@ def _hybrid_propagator_scan(
     d: int
 ):
     r"""Shared per-(energy, L)-point hybrid-propagator loop, used by both
-    :func:`_osc_prob_hybrid_dispatch` (separable vacuum + matter potential Hamiltonians) and
-    :func:`_osc_prob_hybrid_dispatch_generic` (an arbitrary user-supplied Hamiltonian, as accepted
+    ``_osc_prob_hybrid_dispatch`` (separable vacuum + matter potential Hamiltonians) and
+    ``_osc_prob_hybrid_dispatch_generic`` (an arbitrary user-supplied Hamiltonian, as accepted
     by :func:`osc_prob_earth`/:func:`osc_prob_sun`).
 
-    .. versionadded:: 0.11.0
+    .. versionadded:: 0.10.0
 
     Parameters
     ----------
@@ -3327,9 +3097,9 @@ def _osc_prob_hybrid_dispatch_generic(
     r"""Decide whether the hybrid strategy applies to an arbitrary, user-supplied Hamiltonian (as
     accepted by :func:`osc_prob_earth`/:func:`osc_prob_sun`); run it if so.
 
-    Same method and gating philosophy as :func:`_osc_prob_hybrid_dispatch` (see its docstring and
+    Same method and gating philosophy as ``_osc_prob_hybrid_dispatch`` (see its docstring and
     :doc:`/adiabatic_strategy`), adapted to ``htot(energy, l)`` -- the Hamiltonian already unified
-    into a single two-argument function by :func:`_osc_prob_with_potential`, regardless of
+    into a single two-argument function by ``_osc_prob_with_potential``, regardless of
     whether the user's own ``H_func`` takes ``(energy, l, VCC)`` or ``(energy, l)`` -- instead of
     a separable ``h_vac_energy_indep``/``VCC_func``/``h_matt`` decomposition, since no such
     decomposition is available (or needed: the resonance detector and adiabatic propagator make
@@ -3341,13 +3111,13 @@ def _osc_prob_hybrid_dispatch_generic(
     trajectory; :func:`osc_prob_sun` has no such restriction, since its density profile has no
     breakpoints.
 
-    .. versionadded:: 0.11.0
+    .. versionadded:: 0.10.0
 
     Parameters
     ----------
     htot : Callable
         The Hamiltonian, as a function of ``(energy, l)`` -- already unified by
-        :func:`_osc_prob_with_potential` from the user's own ``H_func(energy, l, VCC)`` or
+        ``_osc_prob_with_potential`` from the user's own ``H_func(energy, l, VCC)`` or
         ``H_func(energy, l)``.
     VCC_func : Callable or float
         The environment's matter potential, as a function of position (required for this method
@@ -3545,17 +3315,12 @@ def osc_prob_energy_baseline(
         each (energy, L) point; a single value/matrix if both ``energy`` and ``L`` were floats.
     """
 
-    try:
-        if (isinstance(H_func, Callable) and (len(signature(H_func).parameters) > 2)):
-            raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob_energy_baseline:"+\
-                " H_func can be energy- and position-dependent, only energy-dependent, or only" + \
-                " position-dependent. H_func cannot depend on more than two parameters. To vary" + \
-                " the third parameter, call osc_prob_energy_baseline within a loop where it is" + \
-                " varied.")
-    except ValueError as error:
-        print(error)
-        print("Aborting execution...")
-        sys.exit(1)
+    if (isinstance(H_func, Callable) and (len(signature(H_func).parameters) > 2)):
+        raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob_energy_baseline:"+\
+            " H_func can be energy- and position-dependent, only energy-dependent, or only" + \
+            " position-dependent. H_func cannot depend on more than two parameters. To vary" + \
+            " the third parameter, call osc_prob_energy_baseline within a loop where it is" + \
+            " varied.")
 
     # Turn int into float
     energy = float(energy) if isinstance(energy, int) else energy
@@ -3575,18 +3340,13 @@ def osc_prob_energy_baseline(
     # exception may be raised earlier in routines that call osc_prob_energy_baseline if they are
     # called wih validate_input == True, but we check below in case it osc_prob_energy_baseline was
     # set to False.
-    try:
-        if not ((len(energy) == len(L)) or (len(energy) == 1 and len(L) > 1) or \
-            (len(energy) > 1 and len(L) == 1)):
-            raise ValueError(gd.ERROR_MSG_IN_COLOR + \
-                " oscprob.osc_prob_energy_baseline: energy and L must be both " + \
-                "int or float; or, if lists (or NumPy arrays), they must have the same length;" + \
-                " or, if one is a float or single-entry list, the other must be a list with " + \
-                "multiple entries.")
-    except ValueError as error:
-        print(error)
-        print("Aborting execution...")
-        sys.exit(1)
+    if not ((len(energy) == len(L)) or (len(energy) == 1 and len(L) > 1) or \
+        (len(energy) > 1 and len(L) == 1)):
+        raise ValueError(gd.ERROR_MSG_NO_COLOR + \
+            " oscprob.osc_prob_energy_baseline: energy and L must be both " + \
+            "int or float; or, if lists (or NumPy arrays), they must have the same length;" + \
+            " or, if one is a float or single-entry list, the other must be a list with " + \
+            "multiple entries.")
 
     # If energy is a single value, then transform it into an array containing the value energy
     # repeated a number of times equal to the length of the L, and vice versa, in order to zip them.
@@ -3842,11 +3602,10 @@ def osc_prob_vacuum(
             osc_params_list
 
     if validate_input:
-        if validate_input_battery(sys._getframe().f_code.co_name, energy=energy, L=L, L0=0.0,
+        validate_input_battery(sys._getframe().f_code.co_name, energy=energy, L=L, L0=0.0,
             num_flavors=num_flavors, nu_i=nu_i, nu_f=nu_f, osc_params=osc_params_list, 
             validate_energy_and_L=True, validate_flavor_indices=True, validate_osc_params=True, 
-            validate_initial_position=False, validate_density=False) == 1:
-            sys.exit(1)
+            validate_initial_position=False, validate_density=False)
 
     # If any of the standard oscillation parameters has not been given a value, assign to it the 
     # value from the specified parameter set with name default_osc_params_set_name.  Only the values
@@ -3987,7 +3746,8 @@ def osc_prob_matter_std_potential(
         * ``'magnus'`` uses only the traditional Magnus-expansion machinery (the closed-form
           two-flavor interaction-picture integrator when it applies, the energy-batched scan
           engine, or the general adaptive slab-refinement method) -- this reproduces the exact
-          behavior of Magνs before version 0.11.0, unconditionally.
+          behavior of Magνs as it was before the adiabatic strategy was added,
+          unconditionally.
         * ``'hybrid'`` additionally tries :func:`magnus.adiabatic.hybrid_propagator` (adiabatic
           transport, with a Magnus patch at any non-adiabatic window; see
           :doc:`/adiabatic_strategy`) for any requested (energy, L) point where ``rho_func`` is
@@ -4005,7 +3765,7 @@ def osc_prob_matter_std_potential(
         Hamiltonians; see :doc:`/adiabatic_strategy` for the full derivation, validation, and
         performance comparison. Default: 'auto'.
 
-        .. versionadded:: 0.11.0
+        .. versionadded:: 0.10.0
     t_slab_edges : list or np.ndarray, optional
         Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
     magnus_exp_order : int
@@ -4063,13 +3823,8 @@ def osc_prob_matter_std_potential(
     """
 
     if validate_input and (strategy not in ('auto', 'hybrid', 'magnus')):
-        try:
-            raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob_matter_std_potential:" + \
-                " strategy must be 'auto', 'hybrid', or 'magnus'.")
-        except ValueError as error:
-            print(error)
-            print("Aborting execution...")
-            sys.exit(1)
+        raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob_matter_std_potential:" + \
+            " strategy must be 'auto', 'hybrid', or 'magnus'.")
 
     # Unpack oscillation parameters from the osc_params dict, check if all values are available
     # The function name is sys._getframe().f_code.co_name
@@ -4086,13 +3841,12 @@ def osc_prob_matter_std_potential(
             osc_params_list
 
     if validate_input:
-        if validate_input_battery(sys._getframe().f_code.co_name, energy=energy, L=L, L0=L0,
+        validate_input_battery(sys._getframe().f_code.co_name, energy=energy, L=L, L0=L0,
             num_flavors=num_flavors, nu_i=nu_i, nu_f=nu_f, osc_params=osc_params_list,
             rho_func=rho_func, ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
             electron_fraction=electron_fraction, validate_energy_and_L=True,
             validate_flavor_indices=True, validate_osc_params=True, validate_initial_position=True,
-            validate_density=True) == 1:
-            sys.exit(1)
+            validate_density=True)
 
     # If any of the standard oscillation parameters has not been given a value, assign to it the
     # value from the specified parameter set with name default_osc_params_set_name.  Only the values
@@ -4319,7 +4073,7 @@ def osc_prob_matter_nsi(
         the ``'hybrid'``/``'auto'`` strategies (adiabatic transport with a Magnus patch at any
         non-adiabatic window, applicable to any number of flavors). Default: 'auto'.
 
-        .. versionadded:: 0.11.0
+        .. versionadded:: 0.10.0
     t_slab_edges : list or np.ndarray, optional
         Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
     magnus_exp_order : int
@@ -4377,13 +4131,8 @@ def osc_prob_matter_nsi(
     """
 
     if validate_input and (strategy not in ('auto', 'hybrid', 'magnus')):
-        try:
-            raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob_matter_nsi: strategy" + \
-                " must be 'auto', 'hybrid', or 'magnus'.")
-        except ValueError as error:
-            print(error)
-            print("Aborting execution...")
-            sys.exit(1)
+        raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob_matter_nsi: strategy" + \
+            " must be 'auto', 'hybrid', or 'magnus'.")
 
     # Unpack oscillation parameters from the osc_params dict, check if all values are available
     # The function name is sys._getframe().f_code.co_name
@@ -4408,13 +4157,12 @@ def osc_prob_matter_nsi(
             eps_ts1, eps_ts2, eps_s1s1, eps_s1s2, eps_s2s2 = nsi_params_list
 
     if validate_input:
-        if validate_input_battery(sys._getframe().f_code.co_name, energy=energy, L=L, L0=L0,
+        validate_input_battery(sys._getframe().f_code.co_name, energy=energy, L=L, L0=L0,
             num_flavors=num_flavors, nu_i=nu_i, nu_f=nu_f, osc_params=osc_params_list, 
             rho_func=rho_func, ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
             electron_fraction=electron_fraction, validate_energy_and_L=True, 
             validate_flavor_indices=True, validate_osc_params=True, validate_initial_position=True,
-            validate_density=True) == 1:
-            sys.exit(1)
+            validate_density=True)
 
     # If any of the standard oscillation parameters has not been given a value, assign to it the 
     # value from the specified parameter set with name default_osc_params_set_name.  Only the values
@@ -4653,7 +4401,7 @@ def osc_prob_liv(
         ``rho_func`` is nonzero (there is no position dependence, hence no resonance, in pure
         vacuum + LIV). Default: 'auto'.
 
-        .. versionadded:: 0.11.0
+        .. versionadded:: 0.10.0
     t_slab_edges : list or np.ndarray, optional
         Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
     magnus_exp_order : int
@@ -4711,13 +4459,8 @@ def osc_prob_liv(
     """
 
     if validate_input and (strategy not in ('auto', 'hybrid', 'magnus')):
-        try:
-            raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob_liv: strategy must be" + \
-                " 'auto', 'hybrid', or 'magnus'.")
-        except ValueError as error:
-            print(error)
-            print("Aborting execution...")
-            sys.exit(1)
+        raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob_liv: strategy must be" + \
+            " 'auto', 'hybrid', or 'magnus'.")
 
     # Unpack oscillation parameters from the osc_params dict, check if all values are available
     # The function name is sys._getframe().f_code.co_name
@@ -4742,13 +4485,12 @@ def osc_prob_liv(
             dxi35, b1, b2, b3, b4, b5, Lambda, n_liv = liv_params_list
 
     if validate_input:
-        if validate_input_battery(sys._getframe().f_code.co_name, energy=energy, L=L, L0=L0,
+        validate_input_battery(sys._getframe().f_code.co_name, energy=energy, L=L, L0=L0,
             num_flavors=num_flavors, nu_i=nu_i, nu_f=nu_f, osc_params=osc_params_list, 
             rho_func=rho_func, ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
             electron_fraction=electron_fraction, validate_energy_and_L=True, 
             validate_flavor_indices=True, validate_osc_params=True, validate_initial_position=True,
-            validate_density=True) == 1:
-            sys.exit(1)
+            validate_density=True)
     
     # If any of the standard oscillation parameters has not been given a value, assign to it the 
     # value from the specified parameter set with name default_osc_params_set_name.  Only the values
@@ -4961,30 +4703,30 @@ def osc_prob_2nu_vacuum(
 
     Parameters
     ----------
-    energy
+    energy : int, float, list, or np.ndarray
         Neutrino energy, single value or array.
-    L
+    L : int, float, list, or np.ndarray
         Neutrino baseline, single value or array.
-    sth
+    sth : int or float
         Sine of the mixing angle :math:`\theta`.
-    Dm2
+    Dm2 : int or float
         Mass-squared difference :math:`\Delta m^2`.
-    nu_i
+    nu_i : int, optional
         Initial neutrino flavor, either ``NUE``, ``NUMU``, or ``NUTAU``
         from the :py:mod:`magnus.globaldefs` module.
-    nu_f
+    nu_f : int, optional
         Final neutrino flavor, either ``NUE``, ``NUMU``, or ``NUTAU``
         from the :py:mod:`magnus.globaldefs` module.
-    validate_input
+    validate_input : bool, optional
         True to validate input (default); False not to, which is faster
         but riskier.
-    verbose
+    verbose : int, optional
         0 not to print warnings and errors; 1 to print them; 2 to print
         progress.
 
     Returns
     -------
-    Union[float, np.narray]
+    Union[float, np.ndarray]
         Neutrino oscillation probability matrix or probability for a 
         single oscillation channel, for the values of `energy` and `L`.
 
@@ -5110,43 +4852,43 @@ def osc_prob_3nu_vacuum(
 
     Parameters
     ----------
-    energy
+    energy : int, float, list, or np.ndarray
         Neutrino energy, single value or array.
-    L
+    L : int, float, list, or np.ndarray
         Neutrino baseline, single value or array.
-    s12
+    s12 : int or float, optional
         Sine of the mixing angle :math:`\theta_{12}`.
-    s23
+    s23 : int or float, optional
         Sine of the mixing angle :math:`\theta_{23}`.
-    s13
+    s13 : int or float, optional
         Sine of the mixing angle :math:`\theta_{13}`.
-    dCP
+    dCP : int or float, optional
         CP-violation phase, :math:`\delta_\text{CP}`.
-    D21
+    D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`.
-    D31
+    D31 : int or float, optional
         Mass-squared difference :math:`\Delta m_{31}^2`.
-    nubar
+    nubar : bool, optional
         False (default) for neutrinos; True for anti-neutrinos.
-    nu_i
+    nu_i : int, optional
         Initial neutrino flavor, either ``NUE``, ``NUMU``, or ``NUTAU``
         from the :py:mod:`magnus.globaldefs` module.
-    nu_f
+    nu_f : int, optional
         Final neutrino flavor, either ``NUE``, ``NUMU``, or ``NUTAU``
         from the :py:mod:`magnus.globaldefs` module.
-    default_osc_params_set_name
+    default_osc_params_set_name : str, optional
         Name of the predefined set of oscillation parameters to use when
         assigning default values to unspecified parameters.
-    validate_input
+    validate_input : bool, optional
         True to validate input (default); False not to, which is faster
         but riskier.
-    verbose
+    verbose : int, optional
         0 not to print warnings and errors; 1 to print them; 2 to print
         progress.
 
     Returns
     -------
-    Union[float, np.narray]
+    Union[float, np.ndarray]
         Neutrino oscillation probability matrix or probability for a 
         single oscillation channel, for the values of `energy` and `L`.
 
@@ -5318,55 +5060,55 @@ def osc_prob_4nu_vacuum(
 
     Parameters
     ----------
-    energy
+    energy : int, float, list, or np.ndarray
         Neutrino energy, single value or array.
-    L
+    L : int, float, list, or np.ndarray
         Neutrino baseline, single value or array.
-    s14
+    s14 : int or float, optional
         Sine of the mixing angle :math:`\theta_{14}`.
-    s24
+    s24 : int or float, optional
         Sine of the mixing angle :math:`\theta_{24}`.
-    s34
+    s34 : int or float, optional
         Sine of the mixing angle :math:`\theta_{34}`.
-    d14
+    d14 : int or float, optional
         CP-violation phase, :math:`\delta_{14}`.
-    d24
+    d24 : int or float, optional
         CP-violation phase, :math:`\delta_{24}`.
-    D41
+    D41 : int or float, optional
         Mass-squared difference :math:`\Delta m_{41}^2`.
-    s12
+    s12 : int or float, optional
         Sine of the mixing angle :math:`\theta_{12}`.
-    s23
+    s23 : int or float, optional
         Sine of the mixing angle :math:`\theta_{23}`.
-    s13
+    s13 : int or float, optional
         Sine of the mixing angle :math:`\theta_{13}`.
-    dCP
+    dCP : int or float, optional
         CP-violation phase, :math:`\delta_\text{CP}`.
-    D21
+    D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`.
-    D31
+    D31 : int or float, optional
         Mass-squared difference :math:`\Delta m_{31}^2`.
-    nubar
+    nubar : bool, optional
         False (default) for neutrinos; True for anti-neutrinos.
-    nu_i
+    nu_i : int, optional
         Initial neutrino flavor, either ``NUE``, ``NUMU``, ``NUTAU``,
         or ``NUS`` from the :py:mod:`magnus.globaldefs` module.
-    nu_f
+    nu_f : int, optional
         Final neutrino flavor, either ``NUE``, ``NUMU``, ``NUTAU``,
         or ``NUS`` from the :py:mod:`magnus.globaldefs` module.
-    default_osc_params_set_name
+    default_osc_params_set_name : str, optional
         Name of the predefined set of standard oscillation parameters to
         use when assigning default values to unspecified parameters.
-    validate_input
+    validate_input : bool, optional
         True to validate input (default); False not to, which is faster
         but riskier.
-    verbose
+    verbose : int, optional
         0 not to print warnings and errors; 1 to print them; 2 to print
         progress.
 
     Returns
     -------
-    Union[float, np.narray]
+    Union[float, np.ndarray]
         Neutrino oscillation probability matrix or probability for a 
         single oscillation channel, for the values of `energy` and `L`.
 
@@ -5545,69 +5287,69 @@ def osc_prob_5nu_vacuum(
 
     Parameters
     ----------
-    energy
+    energy : int, float, list, or np.ndarray
         Neutrino energy, single value or array.
-    L
+    L : int, float, list, or np.ndarray
         Neutrino baseline, single value or array.
-    s14
+    s14 : int or float, optional
         Sine of the mixing angle :math:`\theta_{14}`.
-    s15
+    s15 : int or float, optional
         Sine of the mixing angle :math:`\theta_{15}`.
-    s24
+    s24 : int or float, optional
         Sine of the mixing angle :math:`\theta_{24}`.
-    s25
+    s25 : int or float, optional
         Sine of the mixing angle :math:`\theta_{25}`.
-    s34
+    s34 : int or float, optional
         Sine of the mixing angle :math:`\theta_{34}`.
-    s35
+    s35 : int or float, optional
         Sine of the mixing angle :math:`\theta_{35}`.
-    d14
+    d14 : int or float, optional
         CP-violation phase, :math:`\delta_{14}`.
-    d15
+    d15 : int or float, optional
         CP-violation phase, :math:`\delta_{15}`.
-    d24
+    d24 : int or float, optional
         CP-violation phase, :math:`\delta_{24}`.
-    d35
+    d35 : int or float, optional
         CP-violation phase, :math:`\delta_{35}`.
-    D41
+    D41 : int or float, optional
         Mass-squared difference :math:`\Delta m_{41}^2`.
-    D51
+    D51 : int or float, optional
         Mass-squared difference :math:`\Delta m_{51}^2`.
-    s12
+    s12 : int or float, optional
         Sine of the mixing angle :math:`\theta_{12}`.
-    s23
+    s23 : int or float, optional
         Sine of the mixing angle :math:`\theta_{23}`.
-    s13
+    s13 : int or float, optional
         Sine of the mixing angle :math:`\theta_{13}`.
-    dCP
+    dCP : int or float, optional
         CP-violation phase, :math:`\delta_\text{CP}`.
-    D21
+    D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`.
-    D31
+    D31 : int or float, optional
         Mass-squared difference :math:`\Delta m_{31}^2`.
-    nubar
+    nubar : bool, optional
         False (default) for neutrinos; True for anti-neutrinos.
-    nu_i
+    nu_i : int, optional
         Initial neutrino flavor, either ``NUE``, ``NUMU``, ``NUTAU``,
         ``NUS1``, or ``NUS2`` from the :py:mod:`magnus.globaldefs`
         module.
-    nu_f
+    nu_f : int, optional
         Final neutrino flavor, either ``NUE``, ``NUMU``, ``NUTAU``,
         ``NUS1``, or ``NUS2`` from the :py:mod:`magnus.globaldefs`
         module.
-    default_osc_params_set_name
+    default_osc_params_set_name : str, optional
         Name of the predefined set of standard oscillation parameters to
         use when assigning default values to unspecified parameters.
-    validate_input
+    validate_input : bool, optional
         True to validate input (default); False not to, which is faster
         but riskier.
-    verbose
+    verbose : int, optional
         0 not to print warnings and errors; 1 to print them; 2 to print
         progress.
 
     Returns
     -------
-    Union[float, np.narray]
+    Union[float, np.ndarray]
         Neutrino oscillation probability matrix or probability for a 
         single oscillation channel, for the values of `energy` and `L`.
 
@@ -6217,10 +5959,10 @@ def osc_prob_2nu_matter_exp_density(
 
     .. versionadded:: 0.10.0
 
-    .. versionchanged:: 0.11.0
+    .. versionchanged:: 0.10.0
         Now dispatches to a fast, closed-form interaction-picture Magnus
         integrator whenever the accumulated matter phase stays small enough
-        to certify (see :func:`magnus.oscprob._osc_prob_ip_exp_dispatch`),
+        to certify (see ``_osc_prob_ip_exp_dispatch``),
         giving warning-free results in a fraction of a second across the
         realistic solar-neutrino energy range for baselines up to a few
         e-folds of ``l_scale``; longer baselines fall back transparently to
@@ -6277,15 +6019,10 @@ def osc_prob_2nu_matter_exp_density(
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
-    try:
-        if (rho_central < 0.0 or l_scale <= 0.0):
-            raise ValueError(gd.ERROR_MSG_IN_COLOR + \
-                " oscprob.osc_prob_2nu_matter_exp_density: rho_central must be non-negative" + \
-                " and l_scale must be positive.")
-    except ValueError as error:
-        print(error)
-        print("Aborting execution...")
-        sys.exit(1)
+    if (rho_central < 0.0 or l_scale <= 0.0):
+        raise ValueError(gd.ERROR_MSG_NO_COLOR + \
+            " oscprob.osc_prob_2nu_matter_exp_density: rho_central must be non-negative" + \
+            " and l_scale must be positive.")
 
     # If any of the flavor indices is > 1, fix it (read the docstring above).
     nu_i, nu_f = valid_flavor_indices_2nu(nu_i, nu_f)
@@ -6408,15 +6145,10 @@ def osc_prob_3nu_matter_exp_density(
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
-    try:
-        if (rho_central < 0.0 or l_scale <= 0.0):
-            raise ValueError(gd.ERROR_MSG_IN_COLOR + \
-                " oscprob.osc_prob_3nu_matter_exp_density: rho_central must be non-negative" + \
-                " and l_scale must be positive.")
-    except ValueError as error:
-        print(error)
-        print("Aborting execution...")
-        sys.exit(1)
+    if (rho_central < 0.0 or l_scale <= 0.0):
+        raise ValueError(gd.ERROR_MSG_NO_COLOR + \
+            " oscprob.osc_prob_3nu_matter_exp_density: rho_central must be non-negative" + \
+            " and l_scale must be positive.")
 
     return osc_prob_matter_std_potential(
         num_flavors=3,
@@ -6555,15 +6287,10 @@ def osc_prob_4nu_matter_exp_density(
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
-    try:
-        if (rho_central < 0.0 or l_scale <= 0.0):
-            raise ValueError(gd.ERROR_MSG_IN_COLOR + \
-                " oscprob.osc_prob_4nu_matter_exp_density: rho_central must be non-negative" + \
-                " and l_scale must be positive.")
-    except ValueError as error:
-        print(error)
-        print("Aborting execution...")
-        sys.exit(1)
+    if (rho_central < 0.0 or l_scale <= 0.0):
+        raise ValueError(gd.ERROR_MSG_NO_COLOR + \
+            " oscprob.osc_prob_4nu_matter_exp_density: rho_central must be non-negative" + \
+            " and l_scale must be positive.")
 
     return osc_prob_matter_std_potential(
         num_flavors=4,
@@ -6721,15 +6448,10 @@ def osc_prob_5nu_matter_exp_density(
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
-    try:
-        if (rho_central < 0.0 or l_scale <= 0.0):
-            raise ValueError(gd.ERROR_MSG_IN_COLOR + \
-                " oscprob.osc_prob_5nu_matter_exp_density: rho_central must be non-negative" + \
-                " and l_scale must be positive.")
-    except ValueError as error:
-        print(error)
-        print("Aborting execution...")
-        sys.exit(1)
+    if (rho_central < 0.0 or l_scale <= 0.0):
+        raise ValueError(gd.ERROR_MSG_NO_COLOR + \
+            " oscprob.osc_prob_5nu_matter_exp_density: rho_central must be non-negative" + \
+            " and l_scale must be positive.")
 
     return osc_prob_matter_std_potential(
         num_flavors=5,
@@ -7732,7 +7454,7 @@ def osc_prob_earth(
         (see :doc:`/adiabatic_strategy`), so a real Earth-crossing trajectory almost always falls
         back to the ``'magnus'`` strategies regardless of what is requested. Default: 'auto'.
 
-        .. versionadded:: 0.11.0
+        .. versionadded:: 0.10.0
     \**kwargs
         Additional arguments forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`
         (e.g., the refinement-loop bounds).
@@ -7829,10 +7551,10 @@ def _osc_prob_with_potential(
 
     .. versionadded:: 0.10.0
 
-    .. versionchanged:: 0.11.0
+    .. versionchanged:: 0.10.0
         Added the ``strategy`` parameter: with ``'auto'`` (default) or ``'hybrid'``, also tries
         the adiabatic-transport-plus-Magnus-patch hybrid strategy (see
-        :func:`_osc_prob_hybrid_dispatch_generic` and :doc:`/adiabatic_strategy`) whenever
+        ``_osc_prob_hybrid_dispatch_generic`` and :doc:`/adiabatic_strategy`) whenever
         ``t_breakpoints`` is empty and a target tolerance is requested, before falling back to
         the general slab-refinement method.
 
@@ -7875,7 +7597,7 @@ def _osc_prob_with_potential(
         the full description and :doc:`/adiabatic_strategy` for the derivation and validation.
         Default: 'auto'.
 
-        .. versionadded:: 0.11.0
+        .. versionadded:: 0.10.0
     \**kwargs
         Additional arguments forwarded to :func:`osc_prob_energy_baseline`.
 
@@ -7887,23 +7609,18 @@ def _osc_prob_with_potential(
     """
 
     if validate_input:
-        try:
-            if not isinstance(H_func, Callable):
-                raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + \
-                    ": H_func must be a function of (energy, l, VCC) or of (energy, l).")
-            n_params_H = len(signature(H_func).parameters)
-            if n_params_H not in (2, 3):
-                raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + \
-                    ": H_func must be a function of either three arguments (energy, l, VCC) or" + \
-                    " two arguments (energy, l); the provided H_func takes " + \
-                    str(n_params_H) + " argument(s).")
-            if strategy not in ('auto', 'hybrid', 'magnus'):
-                raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + \
-                    ": strategy must be 'auto', 'hybrid', or 'magnus'.")
-        except ValueError as error:
-            print(error)
-            print("Aborting execution...")
-            sys.exit(1)
+        if not isinstance(H_func, Callable):
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + \
+                ": H_func must be a function of (energy, l, VCC) or of (energy, l).")
+        n_params_H = len(signature(H_func).parameters)
+        if n_params_H not in (2, 3):
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + \
+                ": H_func must be a function of either three arguments (energy, l, VCC) or" + \
+                " two arguments (energy, l); the provided H_func takes " + \
+                str(n_params_H) + " argument(s).")
+        if strategy not in ('auto', 'hybrid', 'magnus'):
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + \
+                ": strategy must be 'auto', 'hybrid', or 'magnus'.")
 
     n_params_H = len(signature(H_func).parameters)
     if n_params_H == 3:
@@ -7995,16 +7712,16 @@ def osc_prob_2nu_sun(
 
     .. versionadded:: 0.10.0
 
-    .. versionchanged:: 0.11.0
+    .. versionchanged:: 0.10.0
         Now dispatches to a fast, closed-form interaction-picture Magnus
         integrator whenever the accumulated matter phase stays small enough
-        to certify (see :func:`magnus.oscprob._osc_prob_ip_exp_dispatch`),
+        to certify (see ``_osc_prob_ip_exp_dispatch``),
         giving warning-free results in a fraction of a second across the
         realistic solar-neutrino energy range for baselines up to a few
         e-folds of ``l_scale``; longer baselines fall back transparently to
         the general slab-refinement method, unchanged from before.
 
-    .. versionchanged:: 0.11.0
+    .. versionchanged:: 0.10.0
         Added the ``strategy`` parameter: with the default ``'auto'``, also tries the more
         general adiabatic-transport-plus-Magnus-patch hybrid strategy (see
         :func:`magnus.adiabatic.hybrid_propagator` and :doc:`/adiabatic_strategy`) for baselines
@@ -8035,7 +7752,7 @@ def osc_prob_2nu_sun(
         full description and :doc:`/adiabatic_strategy` for the derivation and validation.
         Default: 'auto'.
 
-        .. versionadded:: 0.11.0
+        .. versionadded:: 0.10.0
     validate_input : bool, optional
         If True, validate the input parameters. Default: True.
     save_log : bool, optional
@@ -8181,7 +7898,7 @@ def osc_prob_3nu_sun(
         :func:`osc_prob_matter_std_potential` for the full description and
         :doc:`/adiabatic_strategy` for the derivation and validation. Default: 'auto'.
 
-        .. versionadded:: 0.11.0
+        .. versionadded:: 0.10.0
     validate_input : bool, optional
         If True, validate the input parameters. Default: True.
     save_log : bool, optional
@@ -8350,7 +8067,7 @@ def osc_prob_4nu_sun(
         :func:`osc_prob_matter_std_potential` for the full description and
         :doc:`/adiabatic_strategy` for the derivation and validation. Default: 'auto'.
 
-        .. versionadded:: 0.11.0
+        .. versionadded:: 0.10.0
     validate_input : bool, optional
         If True, validate the input parameters. Default: True.
     save_log : bool, optional
@@ -8546,7 +8263,7 @@ def osc_prob_5nu_sun(
         :func:`osc_prob_matter_std_potential` for the full description and
         :doc:`/adiabatic_strategy` for the derivation and validation. Default: 'auto'.
 
-        .. versionadded:: 0.11.0
+        .. versionadded:: 0.10.0
     validate_input : bool, optional
         If True, validate the input parameters. Default: True.
     save_log : bool, optional
@@ -8695,7 +8412,7 @@ def osc_prob_sun(
         (adiabatic transport with a Magnus patch at any non-adiabatic window, applicable to any
         ``H_func`` regardless of its internal structure). Default: 'auto'.
 
-        .. versionadded:: 0.11.0
+        .. versionadded:: 0.10.0
     \**kwargs
         Additional arguments forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`
         (e.g., the refinement-loop bounds).
@@ -9383,10 +9100,10 @@ def osc_prob_2nu_matter_nsi_exp_density(
 
     .. versionadded:: 0.10.0
 
-    .. versionchanged:: 0.11.0
+    .. versionchanged:: 0.10.0
         Now dispatches to a fast, closed-form interaction-picture Magnus
         integrator whenever the accumulated matter phase stays small enough
-        to certify (see :func:`magnus.oscprob._osc_prob_ip_exp_dispatch`),
+        to certify (see ``_osc_prob_ip_exp_dispatch``),
         giving warning-free results in a fraction of a second across the
         realistic solar-neutrino energy range for baselines up to a few
         e-folds of ``l_scale`` (the NSI couplings are folded into the same
@@ -9448,15 +9165,10 @@ def osc_prob_2nu_matter_nsi_exp_density(
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
-    try:
-        if (rho_central < 0.0 or l_scale <= 0.0):
-            raise ValueError(gd.ERROR_MSG_IN_COLOR + \
-                " oscprob.osc_prob_2nu_matter_nsi_exp_density: rho_central and l_scale must be " + \
-                "non-negative.")
-    except ValueError as error:
-        print(error)
-        print("Aborting execution...")
-        sys.exit(1)
+    if (rho_central < 0.0 or l_scale <= 0.0):
+        raise ValueError(gd.ERROR_MSG_NO_COLOR + \
+            " oscprob.osc_prob_2nu_matter_nsi_exp_density: rho_central and l_scale must be " + \
+            "non-negative.")
 
     # If any of the flavor indices is > 1, fix it (read the docstring above).
     nu_i, nu_f = valid_flavor_indices_2nu(nu_i, nu_f)
@@ -9599,15 +9311,10 @@ def osc_prob_3nu_matter_nsi_exp_density(
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
-    try:
-        if (rho_central < 0.0 or l_scale <= 0.0):
-            raise ValueError(gd.ERROR_MSG_IN_COLOR + \
-                " oscprob.osc_prob_3nu_matter_nsi_exp_density: rho_central and l_scale must be " + \
-                "non-negative.")
-    except ValueError as error:
-        print(error)
-        print("Aborting execution...")
-        sys.exit(1)
+    if (rho_central < 0.0 or l_scale <= 0.0):
+        raise ValueError(gd.ERROR_MSG_NO_COLOR + \
+            " oscprob.osc_prob_3nu_matter_nsi_exp_density: rho_central and l_scale must be " + \
+            "non-negative.")
 
     return osc_prob_matter_nsi(
         num_flavors=3,
@@ -9779,15 +9486,10 @@ def osc_prob_4nu_matter_nsi_exp_density(
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
-    try:
-        if (rho_central < 0.0 or l_scale <= 0.0):
-            raise ValueError(gd.ERROR_MSG_IN_COLOR + \
-                " oscprob.osc_prob_4nu_matter_nsi_exp_density: rho_central and l_scale must be " + \
-                "non-negative.")
-    except ValueError as error:
-        print(error)
-        print("Aborting execution...")
-        sys.exit(1)
+    if (rho_central < 0.0 or l_scale <= 0.0):
+        raise ValueError(gd.ERROR_MSG_NO_COLOR + \
+            " oscprob.osc_prob_4nu_matter_nsi_exp_density: rho_central and l_scale must be " + \
+            "non-negative.")
 
     return osc_prob_matter_nsi(
         num_flavors=4,
@@ -9994,15 +9696,10 @@ def osc_prob_5nu_matter_nsi_exp_density(
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
-    try:
-        if (rho_central < 0.0 or l_scale <= 0.0):
-            raise ValueError(gd.ERROR_MSG_IN_COLOR + \
-                " oscprob.osc_prob_5nu_matter_nsi_exp_density: rho_central and l_scale must be " + \
-                "non-negative.")
-    except ValueError as error:
-        print(error)
-        print("Aborting execution...")
-        sys.exit(1)
+    if (rho_central < 0.0 or l_scale <= 0.0):
+        raise ValueError(gd.ERROR_MSG_NO_COLOR + \
+            " oscprob.osc_prob_5nu_matter_nsi_exp_density: rho_central and l_scale must be " + \
+            "non-negative.")
 
     return osc_prob_matter_nsi(
         num_flavors=5,
@@ -11069,10 +10766,10 @@ def osc_prob_2nu_sun_nsi(
 
     .. versionadded:: 0.10.0
 
-    .. versionchanged:: 0.11.0
+    .. versionchanged:: 0.10.0
         Now dispatches to a fast, closed-form interaction-picture Magnus
         integrator whenever the accumulated matter phase stays small enough
-        to certify (see :func:`magnus.oscprob._osc_prob_ip_exp_dispatch`),
+        to certify (see ``_osc_prob_ip_exp_dispatch``),
         giving warning-free results in a fraction of a second across the
         realistic solar-neutrino energy range for baselines up to a few
         e-folds of ``l_scale`` (the NSI couplings are folded into the same
@@ -11107,7 +10804,7 @@ def osc_prob_2nu_sun_nsi(
         :func:`osc_prob_matter_std_potential` for the full description and
         :doc:`/adiabatic_strategy` for the derivation and validation. Default: 'auto'.
 
-        .. versionadded:: 0.11.0
+        .. versionadded:: 0.10.0
     validate_input : bool, optional
         If True, validate the input parameters. Default: True.
     save_log : bool, optional
@@ -11268,7 +10965,7 @@ def osc_prob_3nu_sun_nsi(
         :func:`osc_prob_matter_std_potential` for the full description and
         :doc:`/adiabatic_strategy` for the derivation and validation. Default: 'auto'.
 
-        .. versionadded:: 0.11.0
+        .. versionadded:: 0.10.0
     validate_input : bool, optional
         If True, validate the input parameters. Default: True.
     save_log : bool, optional
@@ -11471,7 +11168,7 @@ def osc_prob_4nu_sun_nsi(
         :func:`osc_prob_matter_std_potential` for the full description and
         :doc:`/adiabatic_strategy` for the derivation and validation. Default: 'auto'.
 
-        .. versionadded:: 0.11.0
+        .. versionadded:: 0.10.0
     validate_input : bool, optional
         If True, validate the input parameters. Default: True.
     save_log : bool, optional
@@ -11720,7 +11417,7 @@ def osc_prob_5nu_sun_nsi(
         :func:`osc_prob_matter_std_potential` for the full description and
         :doc:`/adiabatic_strategy` for the derivation and validation. Default: 'auto'.
 
-        .. versionadded:: 0.11.0
+        .. versionadded:: 0.10.0
     validate_input : bool, optional
         If True, validate the input parameters. Default: True.
     save_log : bool, optional
@@ -13118,15 +12815,10 @@ def osc_prob_2nu_matter_liv_exp_density(
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
-    try:
-        if (rho_central < 0.0 or l_scale <= 0.0):
-            raise ValueError(gd.ERROR_MSG_IN_COLOR + \
-                " oscprob.osc_prob_2nu_matter_liv_exp_density: rho_central must be non-negative" + \
-                " and l_scale must be positive.")
-    except ValueError as error:
-        print(error)
-        print("Aborting execution...")
-        sys.exit(1)
+    if (rho_central < 0.0 or l_scale <= 0.0):
+        raise ValueError(gd.ERROR_MSG_NO_COLOR + \
+            " oscprob.osc_prob_2nu_matter_liv_exp_density: rho_central must be non-negative" + \
+            " and l_scale must be positive.")
 
     # If any of the flavor indices is > 1, fix it (read the docstring above).
     nu_i, nu_f = valid_flavor_indices_2nu(nu_i, nu_f)
@@ -13275,15 +12967,10 @@ def osc_prob_3nu_matter_liv_exp_density(
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
-    try:
-        if (rho_central < 0.0 or l_scale <= 0.0):
-            raise ValueError(gd.ERROR_MSG_IN_COLOR + \
-                " oscprob.osc_prob_3nu_matter_liv_exp_density: rho_central must be non-negative" + \
-                " and l_scale must be positive.")
-    except ValueError as error:
-        print(error)
-        print("Aborting execution...")
-        sys.exit(1)
+    if (rho_central < 0.0 or l_scale <= 0.0):
+        raise ValueError(gd.ERROR_MSG_NO_COLOR + \
+            " oscprob.osc_prob_3nu_matter_liv_exp_density: rho_central must be non-negative" + \
+            " and l_scale must be positive.")
 
     return osc_prob_liv(
         num_flavors=3,
@@ -13466,15 +13153,10 @@ def osc_prob_4nu_matter_liv_exp_density(
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
-    try:
-        if (rho_central < 0.0 or l_scale <= 0.0):
-            raise ValueError(gd.ERROR_MSG_IN_COLOR + \
-                " oscprob.osc_prob_4nu_matter_liv_exp_density: rho_central must be non-negative" + \
-                " and l_scale must be positive.")
-    except ValueError as error:
-        print(error)
-        print("Aborting execution...")
-        sys.exit(1)
+    if (rho_central < 0.0 or l_scale <= 0.0):
+        raise ValueError(gd.ERROR_MSG_NO_COLOR + \
+            " oscprob.osc_prob_4nu_matter_liv_exp_density: rho_central must be non-negative" + \
+            " and l_scale must be positive.")
 
     return osc_prob_liv(
         num_flavors=4,
@@ -13695,15 +13377,10 @@ def osc_prob_5nu_matter_liv_exp_density(
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
-    try:
-        if (rho_central < 0.0 or l_scale <= 0.0):
-            raise ValueError(gd.ERROR_MSG_IN_COLOR + \
-                " oscprob.osc_prob_5nu_matter_liv_exp_density: rho_central must be non-negative" + \
-                " and l_scale must be positive.")
-    except ValueError as error:
-        print(error)
-        print("Aborting execution...")
-        sys.exit(1)
+    if (rho_central < 0.0 or l_scale <= 0.0):
+        raise ValueError(gd.ERROR_MSG_NO_COLOR + \
+            " oscprob.osc_prob_5nu_matter_liv_exp_density: rho_central must be non-negative" + \
+            " and l_scale must be positive.")
 
     return osc_prob_liv(
         num_flavors=5,
@@ -14842,7 +14519,7 @@ def osc_prob_2nu_sun_liv(
         :func:`osc_prob_matter_std_potential` for the full description and
         :doc:`/adiabatic_strategy` for the derivation and validation. Default: 'auto'.
 
-        .. versionadded:: 0.11.0
+        .. versionadded:: 0.10.0
     validate_input : bool, optional
         If True, validate the input parameters. Default: True.
     save_log : bool, optional
@@ -15002,7 +14679,7 @@ def osc_prob_3nu_sun_liv(
         :func:`osc_prob_matter_std_potential` for the full description and
         :doc:`/adiabatic_strategy` for the derivation and validation. Default: 'auto'.
 
-        .. versionadded:: 0.11.0
+        .. versionadded:: 0.10.0
     validate_input : bool, optional
         If True, validate the input parameters. Default: True.
     save_log : bool, optional
@@ -15206,7 +14883,7 @@ def osc_prob_4nu_sun_liv(
         :func:`osc_prob_matter_std_potential` for the full description and
         :doc:`/adiabatic_strategy` for the derivation and validation. Default: 'auto'.
 
-        .. versionadded:: 0.11.0
+        .. versionadded:: 0.10.0
     validate_input : bool, optional
         If True, validate the input parameters. Default: True.
     save_log : bool, optional
@@ -15458,7 +15135,7 @@ def osc_prob_5nu_sun_liv(
         :func:`osc_prob_matter_std_potential` for the full description and
         :doc:`/adiabatic_strategy` for the derivation and validation. Default: 'auto'.
 
-        .. versionadded:: 0.11.0
+        .. versionadded:: 0.10.0
     validate_input : bool, optional
         If True, validate the input parameters. Default: True.
     save_log : bool, optional
@@ -15544,1224 +15221,6 @@ def osc_prob_5nu_sun_liv(
 
 
 
-if __name__ == "__main__":
-    def H_2nu_func(t):
-        return np.array([[1+1j*t, 2*t], [2*t, 4-1j*t]], dtype=np.complex128)
-    def H_3nu_func(t):
-        return np.array([[1+1j*t, 2*t, 3j*t], [2*t, 4-1j*t, 5+2j*t], [-3j*t, 5-2j*t, 1]], 
-            dtype=np.complex128)
-
-    t_ini, t_fin = 0.0, 1.0
-
-    # prob = osc_prob(H_2nu_func, t_ini, t_fin, n_slabs=100, n_tpts_per_slab=100, magnus_exp_order=6,
-    #     integration_method='simpson', n_jobs=1, save_log=True, verbose=2)
-    # print(prob)
-    # prob = osc_prob(H_3nu_func, t_ini, t_fin, n_slabs=100, n_tpts_per_slab=100, magnus_exp_order=6,
-    #     integration_method='simpson', n_jobs=1)
-    # print(prob)
-
-    # prob = osc_prob(H_3nu_func, t_ini, t_fin, n_slabs=10, n_tpts_per_slab=20, magnus_exp_order=4,
-    #     integration_method='simpson', n_jobs=10, rtol=1e-5, atol=1.e-5, 
-    #     growth_factor_n_slabs=1.5, growth_factor_n_tpts_per_slab=1.5, 
-    #     max_num_loops=50, max_n_slabs=200, max_n_tpts_per_slab=150, 
-    #     save_log=True, filename_log='./out.log', verbose=2)
-    # print(prob)
-
-    # # Test iteration over magnus_exp_order
-    # prob = osc_prob(H_3nu_func, t_ini, t_fin, 
-    #     integration_method='simpson', n_jobs=10, rtol=1e-3, atol=1.e-3, 
-    #     max_n_slabs=10, max_n_tpts_per_slab=10, 
-    #     iterate_over_magnus_exp_order=True, min_magnus_exp_order=1, 
-    #     max_magnus_exp_order=gd.MAGNUS_EXP_ORDER_MAX,
-    #     save_log=True, filename_log='./out.log', verbose=2)
-    # print(prob)
-
-    # Test use of default values of oscillation parameters: vacuum
-    # print(osc_prob_3nu_vacuum(1.*gd.UNIT_MEV, 100*gd.UNIT_KM, 
-    #     validate_input=True, verbose=0), end='\n\n')
-    # print(osc_prob_3nu_vacuum(1.*gd.UNIT_MEV, 100*gd.UNIT_KM, nu_i=gd.NUE, nu_f=gd.NUMU,
-    #     validate_input=True, verbose=0), end='\n\n')
-    # print(osc_prob_3nu_vacuum(1.*gd.UNIT_MEV, 100*gd.UNIT_KM, nu_i=gd.NUE, nu_f=gd.NUMU,
-    #     validate_input=True, verbose=1), end='\n\n')
-    # print(osc_prob_3nu_vacuum(1.*gd.UNIT_MEV, 100*gd.UNIT_KM, nu_i=gd.NUE, nu_f=gd.NUMU,
-    #     s13=0.0, s23=0.0, dCP=0.0, D31=0.0, validate_input=True, verbose=1), end='\n\n')
-    # print(osc_prob_3nu_vacuum(1.*gd.UNIT_MEV, 100*gd.UNIT_KM, nu_i=gd.NUE, nu_f=gd.NUMU,
-    #     default_osc_params_set_name='xxx', validate_input=True, verbose=1), end='\n\n')
-
-    # Test use of default values of oscillation parameters: constant-density matter
-    # print(osc_prob_3nu_matter_constant_density(1.*gd.UNIT_MEV, 100*gd.UNIT_KM, 
-    #     10.0*gd.UNIT_G_PER_CM3, validate_input=True, verbose=0), end='\n\n')
-    # print(osc_prob_3nu_matter_constant_density(1.*gd.UNIT_MEV, 100*gd.UNIT_KM, 
-    #     10.0*gd.UNIT_G_PER_CM3, nu_i=gd.NUE, nu_f=gd.NUMU, validate_input=True, verbose=0), 
-    # end='\n\n')
-    # print(osc_prob_3nu_matter_constant_density(1.*gd.UNIT_MEV, 100*gd.UNIT_KM, 
-    #     10.0*gd.UNIT_G_PER_CM3, nu_i=gd.NUE, nu_f=gd.NUMU, validate_input=True, verbose=1), 
-    # end='\n\n')
-    # print(osc_prob_3nu_matter_constant_density(1.*gd.UNIT_MEV, 100*gd.UNIT_KM,
-    #     10.0*gd.UNIT_G_PER_CM3, nu_i=gd.NUE, nu_f=gd.NUMU,
-    #     s13=0.0, s23=0.0, dCP=0.0, D31=0.0, validate_input=True, verbose=1), end='\n\n')
-    # print(osc_prob_3nu_matter_constant_density(1.*gd.UNIT_MEV, 100*gd.UNIT_KM, 
-    #     10.0*gd.UNIT_G_PER_CM3, nu_i=gd.NUE, nu_f=gd.NUMU,
-    #     default_osc_params_set_name='xxx', validate_input=True, verbose=1), end='\n\n')
-
-    # prob = osc_prob_2nu_vacuum('x', 1.0*gd.UNIT_KM, 0.5, 1.e-4)
-    # print(prob)
-
-    baseline = 10.*gd.UNIT_KM # 10 km in natural units [eV^{-1}]
-    energy = 1.*gd.UNIT_MEV # [eV]
-
-    # np.set_printoptions(precision=3)
-    # prob = osc_prob_3nu_vacuum(energy, baseline)
-    # print(prob)
-
-    # print(gd.OSC_PARAMS_PREDEFINED['OSC_PARAMS_DEFAULT'])
-
-    # np.set_printoptions(precision=3)
-    # print(osc_prob_3nu_vacuum(energy, baseline, s12=0.0, verbose=1))
-
-    # Two-neutrino oscillations in vacuum
-    # np.set_printoptions(precision=3)
-    # sth = 0.1
-    # Dm2 = 0.1 # [eV^2]
-    # print(osc_prob_2nu_vacuum(energy, baseline, sth, Dm2, verbose=1))
-    # print(osc_prob_2nu_vacuum(energy, baseline, sth, Dm2, nu_i=gd.NUE, nu_f=gd.NUMU, verbose=1))
-    # print(osc_prob_2nu_vacuum(energy, baseline, sth, Dm2, nu_i=gd.NUE, nu_f=gd.NUTAU, verbose=1))
-    # print(osc_prob_2nu_vacuum(energy, baseline, sth, Dm2, nu_i=gd.NUMU, nu_f=gd.NUTAU, verbose=1))
-
-    # Three-neutrino oscillations in vacuum
-    # np.set_printoptions(precision=3)
-    # print(osc_prob_3nu_vacuum(energy, [baseline, baseline], verbose=1))
-
-    # Four-neutrino oscillations in vacuum
-    # np.set_printoptions(precision=3)
-    # s14, s24, s34 = 0.1, 0.2, 0.3
-    # d14, d24 = np.radians(10.0), np.radians(100.0)
-    # D41 = 0.1 # [eV^2]
-    # print(osc_prob_4nu_vacuum(energy, baseline, s14, s24, s34, d14, d24, D41, verbose=1))
-
-    # # Five-neutrino oscillations in vacuum
-    # np.set_printoptions(precision=3)
-    # s14, s15, s24, s25, s34, s35 = 0.1, 0.1, 0.2, 0.2, 0.3, 0.3
-    # d14, d15, d24, d35 = np.radians([10.0, 20.0, 30.0, 40.0])
-    # D41, D51 = 0.1, 0.01 # [eV^2]
-    # print(osc_prob_5nu_vacuum(energy, baseline, s14, s15, s24, s25, s34, s35, d14, d15, d24, d35,
-    #     D41, D51, verbose=1))
-
-    # Two-neutrino oscillations in constant-density matter
-    # np.set_printoptions(precision=3)
-    # rho = 10.0*gd.UNIT_G_PER_CM3
-    # sth = 0.1
-    # Dm2 = 0.1 # [eV^2]
-    # print(osc_prob_2nu_matter_constant_density(energy, baseline, rho, sth, Dm2, verbose=1))
-    # print(osc_prob_2nu_matter_constant_density(energy, gd.UNIT_KM*np.array([1.0, 10.0]), 
-    #     rho, sth, Dm2, verbose=1))
-    # print(osc_prob_2nu_matter_constant_density(gd.UNIT_MEV*np.array([1.0, 10.0]), baseline, 
-    #     rho, sth, Dm2, verbose=1))
-    # print(osc_prob_2nu_matter_constant_density(gd.UNIT_MEV*np.array([1.0, 5.0]), 
-    #     gd.UNIT_KM*np.array([1.0, 10.0]), rho, sth, Dm2, nu_i=gd.NUE, nu_f=gd.NUMU, verbose=1))
-    # print(osc_prob_2nu_matter_constant_density(energy, baseline, rho, sth, Dm2, nu_i=gd.NUE, 
-    #     nu_f=gd.NUMU, verbose=1))
-    # print(osc_prob_2nu_matter_constant_density(energy, baseline, rho, sth, Dm2, nu_i=gd.NUE, 
-    #     nu_f=gd.NUTAU, verbose=1))
-    # print(osc_prob_2nu_matter_constant_density(energy, baseline, rho, sth, Dm2, nu_i=gd.NUMU, 
-    #     nu_f=gd.NUTAU, verbose=1))
-
-    # Three-neutrino oscillations in constant-density matter
-    # np.set_printoptions(precision=3)
-    # rho = 10.0*gd.UNIT_G_PER_CM3
-    # print(osc_prob_3nu_matter_constant_density(energy, baseline, rho, verbose=1))
-
-    # # Four-neutrino oscillations in constant-density matter
-    # np.set_printoptions(precision=3)
-    # rho = 10.0*gd.UNIT_G_PER_CM3
-    # s14, s24, s34 = 0.1, 0.2, 0.3
-    # d14, d24 = np.radians(10.0), np.radians(100.0)
-    # D41 = 0.1 # [eV^2]
-    # print(osc_prob_4nu_matter_constant_density(energy, baseline, rho, s14, s24, s34, d14, d24, D41,
-    #     verbose=1))
-
-    # # Five-neutrino oscillations in constant-density matter
-    # np.set_printoptions(precision=3)
-    # rho = 10.0*gd.UNIT_G_PER_CM3
-    # s14, s15, s24, s25, s34, s35 = 0.1, 0.1, 0.2, 0.2, 0.3, 0.3
-    # d14, d15, d24, d35 = np.radians([10.0, 20.0, 30.0, 40.0])
-    # D41, D51 = 0.1, 0.01 # [eV^2]
-    # print(osc_prob_5nu_matter_constant_density(energy, baseline, rho, s14, s15, s24, s25, s34, s35,
-    #     d14, d15, d24, d35, D41, D51, verbose=2))
-    # print(osc_prob_5nu_matter_constant_density(energy, baseline, rho, s14, s15, s24, s25, s34, s35,
-    #     d14, d15, d24, d35, D41, D51, nubar=True, verbose=1))
-
-    # Two-neutrino oscillations in exponentially falling matter density profile
-    # np.set_printoptions(precision=3)
-    # sth = 0.5
-    # Dm2 = 1.e-3 # [eV^2]
-    # rho_central = 10.0*gd.UNIT_G_PER_CM3
-    # l_scale = 200.0*gd.UNIT_KM
-    # baseline = 50.*gd.UNIT_KM # km in natural units [eV^{-1}]
-    # energy = 10.*gd.UNIT_MEV # [eV]
-    # print(osc_prob_2nu_matter_exp_density(energy, baseline, 0.0, rho_central, l_scale, sth, Dm2,
-    #     verbose=2))
-    # print(osc_prob_2nu_vacuum(energy, baseline, sth, Dm2, nu_i=gd.NUE, nu_f=gd.NUE, verbose=0))
-    # print(osc_prob_2nu_matter_constant_density(energy, baseline, rho_central, sth, Dm2, nu_i=gd.NUE, 
-    #     nu_f=gd.NUE, verbose=0))
-    # print(osc_prob_2nu_matter_exp_density(energy, baseline, 0.0, rho_central, 1.0*gd.UNIT_KM,
-    #     sth, Dm2, nu_i=gd.NUE, nu_f=gd.NUE, verbose=0))
-    # print(osc_prob_2nu_matter_exp_density(energy, baseline, 10.0*gd.UNIT_KM, rho_central, 
-    #     1.0*gd.UNIT_KM, sth, Dm2, nu_i=gd.NUE, nu_f=gd.NUE, verbose=0))
-    # print(osc_prob_2nu_matter_exp_density(energy, baseline, 0.0, rho_central, 100.0*gd.UNIT_KM,
-    #     sth, Dm2, nu_i=gd.NUE, nu_f=gd.NUE, verbose=0))
-
-    # # Three-neutrino oscillations in exponentially falling matter density profile
-    # np.set_printoptions(precision=3)
-    # rho_central = 10.0*gd.UNIT_G_PER_CM3
-    # l_scale = 200.0*gd.UNIT_KM
-    # baseline = 50.*gd.UNIT_KM # km in natural units [eV^{-1}]
-    # energy = 10.*gd.UNIT_MEV # [eV]
-    # print(osc_prob_3nu_matter_exp_density(energy, baseline, 0.0, rho_central, l_scale, verbose=2))
-    # print(osc_prob_3nu_vacuum(energy, baseline, nu_i=gd.NUE, nu_f=gd.NUE, verbose=0))
-    # print(osc_prob_3nu_matter_constant_density(energy, baseline, rho_central, nu_i=gd.NUE, 
-    #     nu_f=gd.NUE, verbose=0))
-    # print(osc_prob_3nu_matter_exp_density(energy, baseline, 0.0, rho_central, 
-    #     l_scale=1.0*gd.UNIT_KM, nu_i=gd.NUE, nu_f=gd.NUE, verbose=0))
-    # print(osc_prob_3nu_matter_exp_density(energy, baseline, 10.0*gd.UNIT_KM, rho_central, 
-    #     l_scale=1.0*gd.UNIT_KM, nu_i=gd.NUE, nu_f=gd.NUE, verbose=0))
-    # print(osc_prob_3nu_matter_exp_density(energy, baseline, 0.0, rho_central, 
-    #     l_scale=100.0*gd.UNIT_KM, nu_i=gd.NUE, nu_f=gd.NUE, verbose=0))
-
-    # # Four-neutrino oscillations in exponentially falling matter density profile
-    # np.set_printoptions(precision=3)
-    # s14, s24, s34 = 0.1, 0.2, 0.3
-    # d14, d24 = np.radians(10.0), np.radians(100.0)
-    # D41 = 0.1 # [eV^2]
-    # rho_central = 10.0*gd.UNIT_G_PER_CM3
-    # l_scale = 200.0*gd.UNIT_KM
-    # baseline = 50.*gd.UNIT_KM # km in natural units [eV^{-1}]
-    # energy = 10.*gd.UNIT_MEV # [eV]
-    # # print(osc_prob_4nu_matter_exp_density(energy, baseline, 0.0, rho_central, l_scale, 
-    # #     s14, s24, s34, d14, d24, D41, verbose=2))
-    # # print(osc_prob_4nu_vacuum(energy, baseline, s14, s24, s34, d14, d24, D41, nu_i=gd.NUE, 
-    # #     nu_f=gd.NUE, verbose=0))
-    # print(osc_prob_4nu_matter_constant_density(energy, baseline, rho_central, 
-    #     s14, s24, s34, d14, d24, D41, nu_i=gd.NUE, nu_f=gd.NUE, verbose=0))
-    # print(osc_prob_4nu_matter_exp_density(energy, baseline, 0.0, rho_central, 
-    #     1.0*gd.UNIT_KM, s14, s24, s34, d14, d24, D41, nu_i=gd.NUE, nu_f=gd.NUE, verbose=0))
-    # print(osc_prob_4nu_matter_exp_density(energy, baseline, 10.0*gd.UNIT_KM, rho_central, 
-    #     1.0*gd.UNIT_KM, s14, s24, s34, d14, d24, D41, nu_i=gd.NUE, nu_f=gd.NUE, verbose=0))
-    # print(osc_prob_4nu_matter_exp_density(energy, baseline, 0.0, rho_central, 
-    #     100.0*gd.UNIT_KM, s14, s24, s34, d14, d24, D41, nu_i=gd.NUE, nu_f=gd.NUE, verbose=0))
-
-    # # Five-neutrino oscillations in exponentially falling matter density profile
-    # np.set_printoptions(precision=3)
-    # s14, s15, s24, s25, s34, s35 = 0.1, 0.1, 0.2, 0.2, 0.3, 0.3
-    # d14, d15, d24, d35 = np.radians([10.0, 20.0, 30.0, 40.0])
-    # D41, D51 = 0.1, 0.01 # [eV^2]
-    # rho_central = 10.0*gd.UNIT_G_PER_CM3
-    # l_scale = 200.0*gd.UNIT_KM
-    # baseline = 50.*gd.UNIT_KM # km in natural units [eV^{-1}]
-    # energy = 10.*gd.UNIT_MEV # [eV]
-    # # print(osc_prob_5nu_matter_exp_density(energy, baseline, 0.0, rho_central, l_scale, 
-    # #     s14, s15, s24, s25, s34, s35, d14, d15, d24, d35, D41, D51, verbose=2))
-    # # print(osc_prob_5nu_vacuum(energy, baseline, s14, s15, s24, s25, s34, s35, d14, d15, d24, d35, 
-    # #     D41, D51, nu_i=gd.NUE, nu_f=gd.NUE, verbose=0))
-    # print(osc_prob_5nu_matter_constant_density(energy, baseline, rho_central, 
-    #     s14, s15, s24, s25, s34, s35, d14, d15, d24, d35, D41, D51, nu_i=gd.NUE, nu_f=gd.NUE, 
-    #     verbose=0))
-    # print(osc_prob_5nu_matter_exp_density(energy, baseline, 0.0, rho_central, 
-    #     1.0*gd.UNIT_KM, s14, s15, s24, s25, s34, s35, d14, d15, d24, d35, D41, D51, nu_i=gd.NUE, 
-    #     nu_f=gd.NUE, verbose=0))
-    # print(osc_prob_5nu_matter_exp_density(energy, baseline, 10.0*gd.UNIT_KM, rho_central, 
-    #     1.0*gd.UNIT_KM, s14, s15, s24, s25, s34, s35, d14, d15, d24, d35, D41, D51, nu_i=gd.NUE, 
-    #     nu_f=gd.NUE, verbose=0))
-    # print(osc_prob_5nu_matter_exp_density(energy, baseline, 0.0, rho_central, 
-    #     100.0*gd.UNIT_KM, s14, s15, s24, s25, s34, s35, d14, d15, d24, d35, D41, D51, nu_i=gd.NUE, 
-    #     nu_f=gd.NUE, verbose=0))
-
-    # # Two-neutrino oscillations in the Sun
-    # np.set_printoptions(precision=3)
-    # sth = gd.S12_NO_BF_NUFIT_6_0
-    # Dm2 = gd.D21_NO_BF_NUFIT_6_0 # [eV^2]
-    # L0 = 0.1*gd.SUN_RADIUS*gd.UNIT_KM # km in natural units [eV^{-1}]
-    # baseline = 1.0*gd.SUN_RADIUS*gd.UNIT_KM # km in natural units [eV^{-1}]
-    # energy = 10.0*gd.UNIT_MEV # [eV]
-    # print(osc_prob_2nu_sun(energy, baseline, L0, sth, Dm2, n_jobs=10, verbose=1))
-    # energy = (10.0+1.e-4)*gd.UNIT_MEV # [eV]
-    # print(osc_prob_2nu_sun(energy, baseline, L0, sth, Dm2, n_jobs=10, verbose=2))
-
-    # Three-neutrino oscillations in the Sun
-    # np.set_printoptions(precision=3)
-    # L0 = 0.1*gd.SUN_RADIUS*gd.UNIT_KM # km in natural units [eV^{-1}]
-    # baseline = 1.0*gd.SUN_RADIUS*gd.UNIT_KM # km in natural units [eV^{-1}]
-    # energy = 10.0*gd.UNIT_MEV # [eV]
-    # print(osc_prob_3nu_sun(energy, baseline, L0, n_jobs=10, verbose=1))
-
-    # # Four-neutrino oscillations in exponentially falling matter density profile
-    # np.set_printoptions(precision=3)
-    # baseline = 1.0*gd.SUN_RADIUS*gd.UNIT_KM # km in natural units [eV^{-1}]
-    # energy = 10.0*gd.UNIT_MEV # [eV]
-    # L0 = 0.1*gd.SUN_RADIUS*gd.UNIT_KM # km in natural units [eV^{-1}]
-    # s14, s24, s34 = 0.1, 0.2, 0.3
-    # d14, d24 = np.radians(10.0), np.radians(100.0)
-    # D41 = 0.1 # [eV^2]
-    # print(osc_prob_4nu_sun(energy, baseline, L0, s14, s24, s34, d14, d24, D41, 
-    #     n_jobs=10, verbose=1))
-
-    # # Five-neutrino oscillations in exponentially falling matter density profile
-    # np.set_printoptions(precision=3)
-    # baseline = 1.0*gd.SUN_RADIUS*gd.UNIT_KM # km in natural units [eV^{-1}]
-    # energy = 10.0*gd.UNIT_MEV # [eV]
-    # L0 = 0.1*gd.SUN_RADIUS*gd.UNIT_KM # km in natural units [eV^{-1}]
-    # s14, s15, s24, s25, s34, s35 = 0.1, 0.1, 0.2, 0.2, 0.3, 0.3
-    # d14, d15, d24, d35 = np.radians([10.0, 20.0, 30.0, 40.0])
-    # D41, D51 = 0.1, 0.01 # [eV^2]
-    # print(osc_prob_5nu_sun(energy, baseline, L0, s14, s15, s24, s25, s34, s35, d14, d15, d24, d35, 
-    #     D41, D51, n_jobs=10, verbose=1))
-
-    # # Two-neutrino oscillations in constant-density matter, NSI
-    # np.set_printoptions(precision=3)
-    # rho = 100.0*gd.UNIT_G_PER_CM3
-    # sth = gd.S12_NO_BF_NUFIT_6_0
-    # Dm2 = gd.D21_NO_BF_NUFIT_6_0 # [eV^2]
-    # energy = 1.0*gd.UNIT_MEV
-    # eps_aa = 0.1 #gd.EPS_EE
-    # eps_ab = 0.2 #gd.EPS_EM
-    # print(osc_prob_2nu_matter_nsi_constant_density(energy, baseline, rho, sth, Dm2, eps_aa, eps_ab,
-    #     verbose=0))
-    # print(osc_prob_2nu_matter_nsi_constant_density(energy, baseline, rho, sth, Dm2, 0.0, 0.0,
-    #     verbose=0))
-    # print(osc_prob_2nu_matter_constant_density(energy, baseline, rho, sth, Dm2, verbose=0))
-    # # print(osc_prob_2nu_matter_nsi_constant_density(energy, gd.UNIT_KM*np.array([1.0, 10.0]), 
-    # #     rho, sth, Dm2, eps_aa, eps_ab, verbose=1))
-    # # print(osc_prob_2nu_matter_nsi_constant_density(gd.UNIT_MEV*np.array([1.0, 10.0]), baseline, 
-    # #     rho, sth, Dm2, eps_aa, eps_ab, verbose=1))
-    # # print(osc_prob_2nu_matter_nsi_constant_density(gd.UNIT_MEV*np.array([1.0, 5.0]), 
-    # #     gd.UNIT_KM*np.array([1.0, 10.0]), rho, sth, Dm2, eps_aa, eps_ab, nu_i=gd.NUE, nu_f=gd.NUMU,
-    # #     verbose=1))
-    # # print(osc_prob_2nu_matter_nsi_constant_density(energy, baseline, rho, sth, Dm2, eps_aa, eps_ab,
-    # #     nu_i=gd.NUE, nu_f=gd.NUMU, verbose=1))
-    # # print(osc_prob_2nu_matter_nsi_constant_density(energy, baseline, rho, sth, Dm2, eps_aa, eps_ab,
-    # #     nu_i=gd.NUE, nu_f=gd.NUTAU, verbose=1))
-    # # print(osc_prob_2nu_matter_nsi_constant_density(energy, baseline, rho, sth, Dm2, eps_aa, eps_ab,
-    # #     nu_i=gd.NUMU, nu_f=gd.NUTAU, verbose=1))
-
-    # # Three-neutrino oscillations in constant-density matter, NSI
-    # np.set_printoptions(precision=3)
-    # rho = 100.0*gd.UNIT_G_PER_CM3
-    # energy = 1.0*gd.UNIT_MEV
-    # eps_ee, eps_em, eps_et, eps_mm, eps_mt, eps_tt = 0.1, 0.1, 1.1, 0.1, 0.1, 0.1
-    # print(osc_prob_3nu_matter_nsi_constant_density(energy, baseline, rho, eps_ee, eps_em, eps_et, 
-    #     eps_mm, eps_mt, eps_tt, verbose=0))
-    # print(osc_prob_3nu_matter_constant_density(energy, baseline, rho, verbose=1))
-
-    # # Four-neutrino oscillations in constant-density matter, NSI
-    # np.set_printoptions(precision=3)
-    # rho = 10.0*gd.UNIT_G_PER_CM3
-    # energy = 1.0*gd.UNIT_GEV
-    # baseline = 100.*gd.UNIT_KM
-    # s14, s24, s34 = 0.1, 0.2, 0.3
-    # d14, d24 = np.radians(10.0), np.radians(100.0)
-    # D41 = 0.1 # [eV^2]
-    # eps_ee, eps_em, eps_et, eps_es, eps_mm, eps_mt, eps_ms, eps_tt, eps_ts, eps_ss \
-    #     = 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1
-    # print(osc_prob_4nu_matter_nsi_constant_density(energy, baseline, rho, s14, s24, s34, d14, d24, 
-    #     D41, eps_ee, eps_em, eps_et, eps_es, eps_mm, eps_mt, eps_ms, eps_tt, eps_ts, eps_ss,
-    #     verbose=0))
-    # print(osc_prob_4nu_matter_constant_density(energy, baseline, rho, s14, s24, s34, d14, d24, D41,
-    #     verbose=0))
-
-    # # Five-neutrino oscillations in constant-density matter, NSI
-    # np.set_printoptions(precision=3)
-    # rho = 10.0*gd.UNIT_G_PER_CM3
-    # energy = 1.0*gd.UNIT_GEV
-    # baseline = 1000.*gd.UNIT_KM
-    # s14, s15, s24, s25, s34, s35 = 0.1, 0.1, 0.2, 0.2, 0.3, 0.3
-    # d14, d15, d24, d35 = np.radians([10.0, 20.0, 30.0, 40.0])
-    # D41, D51 = 0.1, 0.01 # [eV^2]
-    # eps_ee, eps_em, eps_et, eps_es1, eps_es2, eps_mm, eps_mt, eps_ms1, eps_ms2, eps_tt, eps_ts1, \
-    #     eps_ts2, eps_s1s1, eps_s1s2, eps_s2s2 \
-    #     = 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1
-    # print(osc_prob_5nu_matter_nsi_constant_density(energy, baseline, rho, s14, s15, s24, s25, s34, 
-    #     s35, d14, d15, d24, d35, D41, D51, eps_ee, eps_em, eps_et, eps_es1, eps_es2, eps_mm, eps_mt,
-    #     eps_ms1, eps_ms2, eps_tt, eps_ts1, eps_ts2, eps_s1s1, eps_s1s2, eps_s2s2, verbose=0))
-    # print(osc_prob_5nu_matter_constant_density(energy, baseline, rho, s14, s15, s24, s25, s34, s35,
-    #     d14, d15, d24, d35, D41, D51, verbose=0))
-
-    # # Two-neutrino oscillations in exponentially falling matter density profile, NSI
-    # np.set_printoptions(precision=3)
-    # sth = gd.S12_NO_BF_NUFIT_6_0
-    # Dm2 = gd.D21_NO_BF_NUFIT_6_0 # [eV^2]
-    # eps_aa = 0.1 #gd.EPS_EE
-    # eps_ab = 0.2 #gd.EPS_EM
-    # rho_central = 12.0*gd.UNIT_G_PER_CM3
-    # l_scale = 200.0*gd.UNIT_KM
-    # baseline = 50.*gd.UNIT_KM # km in natural units [eV^{-1}]
-    # energy = 10.*gd.UNIT_MEV # [eV]
-    # print(osc_prob_2nu_matter_nsi_exp_density(energy, baseline, 0.0, rho_central, l_scale, sth, Dm2,
-    #     eps_aa, eps_ab, verbose=0))
-    # print(osc_prob_2nu_matter_exp_density(energy, baseline, 0.0, rho_central, l_scale, sth, Dm2,
-    #     verbose=0))
-    # print(osc_prob_2nu_vacuum(energy, baseline, sth, Dm2, verbose=0))
-
-    # Three-neutrino oscillations in exponentially falling matter density profile, NSI
-    # np.set_printoptions(precision=3)
-    # rho_central = 1000.0*gd.UNIT_G_PER_CM3
-    # l_scale = 100.0*gd.UNIT_KM
-    # baseline = 50.*gd.UNIT_KM # km in natural units [eV^{-1}]
-    # energy = 10.*gd.UNIT_MEV # [eV]
-    # eps_ee, eps_em, eps_et, eps_mm, eps_mt, eps_tt = 0.1, 0.1, 1.1, 0.1, 0.1, 0.1
-    # print(osc_prob_3nu_matter_nsi_exp_density(energy, baseline, 0.0, rho_central, l_scale, 
-    #     eps_ee, eps_em, eps_et, eps_mm, eps_mt, eps_tt, verbose=0))
-    # quit()
-    # print(osc_prob_3nu_matter_exp_density(energy, baseline, 0.0, rho_central, l_scale, verbose=0))
-    # print(osc_prob_3nu_vacuum(energy, baseline, verbose=0))
-        # print(osc_prob_3nu_matter_nsi_exp_density(energy, baseline, 0.0, rho_central, l_scale, 
-        # eps_ee, eps_em, eps_et, eps_mm, eps_mt, eps_tt, n_jobs=5, verbose=0))
-    
-    # import time
-    # duration = 0
-    # n_loops = 30
-    # for i in range(n_loops):
-    #     start = time.time()
-    #     osc_prob_3nu_matter_nsi_exp_density(gd.UNIT_MEV*np.linspace(1,10000,100), 
-    #         gd.UNIT_KM*np.linspace(0.1,1000,100), 0.0, rho_central, l_scale, 
-    #         eps_ee, eps_em, eps_et, eps_mm, eps_mt, eps_tt, rtol=1.e-3, atol=1.e-3, n_jobs=1, 
-    #         verbose=0)
-    #     end = time.time()
-    #     duration += end-start
-    # print("Average time, n_jobs = 1: " + str(duration/n_loops) + " s")
-
-    # duration = 0
-    # n_loops = 30
-    # for i in range(n_loops):
-    #     start = time.time()
-    #     osc_prob_3nu_matter_nsi_exp_density(gd.UNIT_MEV*np.linspace(1,10000,100), 
-    #         gd.UNIT_KM*np.linspace(0.1,1000,100), 0.0, rho_central, l_scale, 
-    #         eps_ee, eps_em, eps_et, eps_mm, eps_mt, eps_tt, rtol=1.e-3, atol=1.e-3, n_jobs=4, 
-    #         verbose=0)
-    #     end = time.time()
-    #     duration += end-start
-    # print("Average time, n_jobs = 10: " + str(duration/n_loops) + " s")
-
-
-    # # Four-neutrino oscillations in exponentially falling matter density profile, NSI
-    # np.set_printoptions(precision=3)
-    # rho_central = 10.0*gd.UNIT_G_PER_CM3
-    # l_scale = 200.0*gd.UNIT_KM
-    # baseline = 50.*gd.UNIT_KM # km in natural units [eV^{-1}]
-    # energy = 10.*gd.UNIT_MEV # [eV]
-    # s14, s24, s34 = 0.1, 0.2, 0.3
-    # d14, d24 = np.radians(10.0), np.radians(100.0)
-    # D41 = 0.1 # [eV^2]
-    # eps_ee, eps_em, eps_et, eps_es, eps_mm, eps_mt, eps_ms, eps_tt, eps_ts, eps_ss \
-    #     = 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1
-    # print(osc_prob_4nu_matter_nsi_exp_density(energy, baseline, 0.0, rho_central, l_scale, 
-    #     s14, s24, s34, d14, d24, D41, eps_ee, eps_em, eps_et, eps_es, eps_mm, eps_mt, eps_ms, 
-    #     eps_tt, eps_ts, eps_ss, validate_input=False, verbose=0))
-    # print(osc_prob_4nu_matter_exp_density(energy, baseline, 0.0, rho_central, l_scale, s14, s24, 
-    #     s34, d14, d24, D41,verbose=0))
-    # print(osc_prob_4nu_vacuum(energy, baseline, s14, s24, s34, d14, d24, D41, verbose=0))
-
-    # # Five-neutrino oscillations in exponentially falling matter density profile, NSI
-    # np.set_printoptions(precision=3)
-    # rho_central = 10.0*gd.UNIT_G_PER_CM3
-    # l_scale = 200.0*gd.UNIT_KM
-    # baseline = 1000.*gd.UNIT_KM # km in natural units [eV^{-1}]
-    # energy = 10.*gd.UNIT_MEV # [eV]
-    # s14, s15, s24, s25, s34, s35 = 0.1, 0.1, 0.2, 0.2, 0.3, 0.3
-    # d14, d15, d24, d35 = np.radians([10.0, 20.0, 30.0, 40.0])
-    # D41, D51 = 0.1, 0.01 # [eV^2]
-    # eps_ee, eps_em, eps_et, eps_es1, eps_es2, eps_mm, eps_mt, eps_ms1, eps_ms2, eps_tt, eps_ts1, \
-    #     eps_ts2, eps_s1s1, eps_s1s2, eps_s2s2 \
-    #     = 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1
-    # print(osc_prob_5nu_matter_nsi_exp_density(energy, baseline, 0.0, rho_central, l_scale, 
-    #     s14, s15, s24, s25, s34, s35, d14, d15, d24, d35, D41, D51, eps_ee, eps_em, eps_et, eps_es1,
-    #     eps_es2, eps_mm, eps_mt, eps_ms1, eps_ms2, eps_tt, eps_ts1, eps_ts2, eps_s1s1, eps_s1s2,
-    #     eps_s2s2, verbose=1))
-    # print(osc_prob_5nu_matter_exp_density(energy, baseline, 0.0, rho_central, l_scale, s14, s15, 
-    #     s24, s25, s34, s35, d14, d15, d24, d35, D41, D51, verbose=1))
-    # print(osc_prob_5nu_vacuum(energy, baseline, s14, s15, s24, s25, s34, s35, d14, d15, d24, d35,
-    #     D41, D51, verbose=1))
-
-    # # Two-neutrino oscillations in the Sun, NSI
-    # np.set_printoptions(precision=3)
-    # sth = gd.S12_NO_BF_NUFIT_6_0
-    # Dm2 = gd.D21_NO_BF_NUFIT_6_0 # [eV^2]
-    # eps_aa = 0.1 #gd.EPS_EE
-    # eps_ab = 0.2 #gd.EPS_EM
-    # L0 = 0.1*gd.SUN_RADIUS*gd.UNIT_KM # km in natural units [eV^{-1}]
-    # baseline = 1.0*gd.SUN_RADIUS*gd.UNIT_KM # km in natural units [eV^{-1}]
-    # energy = 10.0*gd.UNIT_MEV # [eV]
-    # print(osc_prob_2nu_sun_nsi(energy, baseline, L0, sth, Dm2, eps_aa, eps_ab,
-    #     n_jobs=10, verbose=1))
-    # # print(osc_prob_2nu_sun_nsi(energy, baseline, L0, sth, Dm2, eps_aa, eps_ab,
-    # #     rtol=1.e-2, atol=1.e-2, magnus_exp_order=4, max_n_slabs=2000, n_jobs=10, verbose=1))
-
-    # # Three-neutrino oscillations in the Sun, NSI
-    # np.set_printoptions(precision=3)
-    # L0 = 0.1*gd.SUN_RADIUS*gd.UNIT_KM # km in natural units [eV^{-1}]
-    # baseline = 1.0*gd.SUN_RADIUS*gd.UNIT_KM # km in natural units [eV^{-1}]
-    # energy = 10.*gd.UNIT_MEV # [eV]
-    # eps_ee, eps_em, eps_et, eps_mm, eps_mt, eps_tt = 0.1, 0.1, 1.1, 0.1, 0.1, 0.1
-    # print(osc_prob_3nu_sun_nsi(energy, baseline, L0, eps_ee, eps_em, eps_et, eps_mm, 
-    #     eps_mt, eps_tt, n_jobs=10, verbose=1))
-
-    # # Four-neutrino oscillations in the Sun, NSI
-    # np.set_printoptions(precision=3)
-    # L0 = 0.1*gd.SUN_RADIUS*gd.UNIT_KM # km in natural units [eV^{-1}]
-    # baseline = 1.0*gd.SUN_RADIUS*gd.UNIT_KM # km in natural units [eV^{-1}]
-    # energy = 10.*gd.UNIT_MEV # [eV]
-    # s14, s24, s34 = 0.1, 0.2, 0.3
-    # d14, d24 = np.radians(10.0), np.radians(100.0)
-    # D41 = 0.1 # [eV^2]
-    # eps_ee, eps_em, eps_et, eps_es, eps_mm, eps_mt, eps_ms, eps_tt, eps_ts, eps_ss \
-    #     = 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1
-    # print(osc_prob_4nu_sun_nsi(energy, baseline, L0, s14, s24, s34, d14, d24, D41, eps_ee, eps_em,
-    #     eps_et, eps_es, eps_mm, eps_mt, eps_ms, eps_tt, eps_ts, eps_ss, n_jobs=10, verbose=1))
-
-    # # Five-neutrino oscillations in the Sun, NSI
-    # np.set_printoptions(precision=3)
-    # L0 = 0.1*gd.SUN_RADIUS*gd.UNIT_KM # km in natural units [eV^{-1}]
-    # baseline = 1.0*gd.SUN_RADIUS*gd.UNIT_KM # km in natural units [eV^{-1}]
-    # energy = 10.*gd.UNIT_MEV # [eV]
-    # s14, s15, s24, s25, s34, s35 = 0.1, 0.1, 0.2, 0.2, 0.3, 0.3
-    # d14, d15, d24, d35 = np.radians([10.0, 20.0, 30.0, 40.0])
-    # D41, D51 = 0.1, 0.01 # [eV^2]
-    # eps_ee, eps_em, eps_et, eps_es1, eps_es2, eps_mm, eps_mt, eps_ms1, eps_ms2, eps_tt, eps_ts1, \
-    #     eps_ts2, eps_s1s1, eps_s1s2, eps_s2s2 \
-    #     = 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1
-    # # print(osc_prob_5nu_sun_nsi(energy, baseline, L0, s14, s15, s24, s25, s34, s35, d14, d15, d24, 
-    # #     d35, D41, D51, eps_ee, eps_em, eps_et, eps_es1, eps_es2, eps_mm, eps_mt, eps_ms1, eps_ms2,
-    # #     eps_tt, eps_ts1, eps_ts2, eps_s1s1, eps_s1s2, eps_s2s2, n_jobs=10, verbose=1))
-    # print(osc_prob_5nu_sun_nsi(energy, baseline, L0, s14=s14, s15=s15, D41=D41, D51=D51, 
-    #     eps_ee=eps_ee, eps_em=eps_em, eps_es1=eps_es1, eps_es2=eps_es2, n_jobs=10, verbose=1))
-
-    # # Two-neutrino oscillations, vacuum, LIV
-    # np.set_printoptions(precision=3)
-    # baseline = 10.*gd.UNIT_KM # 10 km in natural units [eV^{-1}]
-    # energy = 1.*gd.UNIT_MEV # [eV]
-    # sth = gd.S12_NO_BF_NUFIT_6_0
-    # Dm2 = gd.D21_NO_BF_NUFIT_6_0 # [eV^2]
-    # sxi = 0.01
-    # b1 = 1.e-2
-    # b2 = 1.e-3
-    # Lambda = 10.*gd.UNIT_GEV
-    # n_liv = 3
-    # print(osc_prob_2nu_vacuum(energy, baseline, sth, Dm2, verbose=1))
-    # print(osc_prob_2nu_vacuum_liv(energy, baseline, sth, Dm2, sxi, b1, b2, Lambda, n_liv, 
-    #     verbose=1))
-
-    # # Three-neutrino oscillations, vacuum, LIV
-    # np.set_printoptions(precision=3)
-    # baseline = 10.*gd.UNIT_KM # 10 km in natural units [eV^{-1}]
-    # energy = 1.*gd.UNIT_MEV # [eV]
-    # sxi12, sxi23, sxi13, dxiCP = 0.001, 0.002, 0.003, np.radians(10.0)
-    # b1, b2, b3 = 2.e-10, 1.e-10, 3.e-10
-    # Lambda = 10.*gd.UNIT_GEV
-    # n_liv = 0
-    # print(osc_prob_3nu_vacuum(energy, baseline, verbose=0))
-    # print(osc_prob_3nu_vacuum_liv(energy, baseline, sxi12=sxi12, sxi23=sxi23, sxi13=sxi13, 
-    #     dxiCP=dxiCP, b1=b1, b2=b2, b3=b3, Lambda=Lambda, n_liv=n_liv, verbose=0))
-
-    # # Four-neutrino oscillations, vacuum, LIV
-    # np.set_printoptions(precision=3)
-    # baseline = 10.*gd.UNIT_KM # 10 km in natural units [eV^{-1}]
-    # energy = 1.*gd.UNIT_MEV # [eV]
-    # s14, s24, s34 = 0.1, 0.2, 0.3
-    # d14, d24 = np.radians(10.0), np.radians(100.0)
-    # D41 = 0.1 # [eV^2]
-    # sxi12, sxi23, sxi13, sxi14, sxi24, sxi34 = 0.01, 0.05, 0.06, 0.1, 0.9, 0.02
-    # dxi13, dxi14, dxi24 = np.radians([10,20,30])
-    # b1, b2, b3, b4 = 1.e-2, 1.e-3, 5.e-3, 4.e-2
-    # Lambda = 10.*gd.UNIT_GEV
-    # n_liv = 3
-    # print(osc_prob_4nu_vacuum(energy, baseline, s14=s14, s24=s24, s34=s34, d14=d14, d24=d24,
-    #     D41=D41, verbose=0))
-    # print(osc_prob_4nu_vacuum_liv(energy, baseline, s14=s14, s24=s24, s34=s34, d14=d14, d24=d24,
-    #     D41=D41, sxi12=sxi12, sxi23=sxi23, sxi13=sxi13, sxi14=sxi14, sxi24=sxi24, sxi34=sxi34,
-    #     dxi13=dxi13, dxi14=dxi14, dxi24=dxi24, b1=b1, b2=b2, b3=b3, b4=b4, Lambda=Lambda,
-    #     n_liv=n_liv, verbose=0))
-
-    # # Five-neutrino oscillations, vacuum, LIV
-    # np.set_printoptions(precision=3)
-    # baseline = 10.*gd.UNIT_KM # 10 km in natural units [eV^{-1}]
-    # energy = 1.*gd.UNIT_MEV # [eV]
-    # s14, s15, s24, s25, s34, s35 = 0.1, 0.1, 0.2, 0.2, 0.3, 0.3
-    # d14, d15, d24, d35 = np.radians([10.0, 20.0, 30.0, 40.0])
-    # D41, D51 = 0.1, 0.01 # [eV^2]
-    # sxi12, sxi23, sxi13, sxi14, sxi15, sxi24, sxi25, sxi34, sxi35 = \
-    #     0.01, 0.05, 0.06, 0.1, 0.9, 0.02, 0.04, 0.1, 0.05
-    # dxi13, dxi14, dxi15, dxi24, dxi35 = np.radians([10, 20, 30, 40, 50])
-    # b1, b2, b3, b4, b5 = 1.e-2, 1.e-3, 5.e-3, 4.e-2, 1.e-1
-    # Lambda = 10.*gd.UNIT_GEV
-    # n_liv = 2
-    # print(osc_prob_5nu_vacuum(energy, baseline, s14=s14, s15=s15, s24=s24, s25=s25, s34=s34, 
-    #     s35=s35, d14=d14, d15=d15, d24=d24, d35=d35, D41=D41, D51=D51, verbose=0))
-    # print(osc_prob_5nu_vacuum_liv(energy, baseline, s14=s14, s15=s15, s24=s24, s25=s25, s34=s34, 
-    #     s35=s35, d14=d14, d15=d15, d24=d24, d35=d35, D41=D41, D51=D51, sxi12=sxi12, sxi23=sxi23,
-    #     sxi13=sxi13, sxi14=sxi14, sxi15=sxi15, sxi24=sxi24, sxi25=sxi25, sxi34=sxi34, sxi35=sxi35,
-    #     dxi13=dxi13, dxi14=dxi14, dxi15=dxi15, dxi24=dxi24, dxi35=dxi35, b1=b1, b2=b2, b3=b3, b4=b4,
-    #     b5=b5, Lambda=Lambda, n_liv=n_liv, verbose=0))
-
-    # # Two-neutrino oscillations in constant-density matter, LIV
-    # np.set_printoptions(precision=3)
-    # baseline = 10.*gd.UNIT_KM # 10 km in natural units [eV^{-1}]
-    # energy = 10.*gd.UNIT_GEV # [eV]
-    # rho = 10.0*gd.UNIT_G_PER_CM3 # [g cm^{-3}]
-    # sth = gd.S12_NO_BF_NUFIT_6_0
-    # Dm2 = gd.D21_NO_BF_NUFIT_6_0 # [eV^2]
-    # sxi = 0.5
-    # b1 = 1.e-2
-    # b2 = 1.e-3
-    # Lambda = 10.*gd.UNIT_GEV
-    # n_liv = 3
-    # print(osc_prob_2nu_matter_constant_density(energy, baseline, rho, sth, Dm2, verbose=0))
-    # print(osc_prob_2nu_matter_liv_constant_density(energy, baseline, rho, sth, Dm2, sxi=sxi, 
-    #     b1=b1, b2=b2, Lambda=Lambda, n_liv=n_liv, verbose=0))
-
-    # # Three-neutrino oscillations in constant-density matter, LIV
-    # np.set_printoptions(precision=3)
-    # baseline = 10.*gd.UNIT_KM # 10 km in natural units [eV^{-1}]
-    # energy = 1.*gd.UNIT_GEV # [eV]
-    # rho = 10.0*gd.UNIT_G_PER_CM3 # [g cm^{-3}]
-    # sxi12, sxi23, sxi13, dxiCP = 0.01, 0.02, 0.03, np.radians(10.0)
-    # b1, b2, b3 = 1.e-2, 1.e-3, 5.e-3
-    # Lambda = 10.*gd.UNIT_GEV
-    # n_liv = 3
-    # print(osc_prob_3nu_matter_constant_density(energy, baseline, rho, verbose=0))
-    # print(osc_prob_3nu_matter_liv_constant_density(energy, baseline, rho, sxi12=sxi12, sxi23=sxi23,
-    #     sxi13=sxi13, dxiCP=dxiCP, b1=b1, b2=b2, b3=b3, Lambda=Lambda, n_liv=n_liv, verbose=0))
-
-    # # Four-neutrino oscillations in constant-density matter, LIV
-    # np.set_printoptions(precision=3)
-    # baseline = 10.*gd.UNIT_KM # 10 km in natural units [eV^{-1}]
-    # energy = 1.*gd.UNIT_GEV # [eV]
-    # rho = 10.0*gd.UNIT_G_PER_CM3 # [g cm^{-3}]
-    # s14, s24, s34 = 0.1, 0.2, 0.3
-    # d14, d24 = np.radians(10.0), np.radians(100.0)
-    # D41 = 0.1 # [eV^2]
-    # sxi12, sxi23, sxi13, sxi14, sxi24, sxi34 = 0.01, 0.05, 0.06, 0.1, 0.9, 0.02
-    # dxi13, dxi14, dxi24 = np.radians([10,20,30])
-    # b1, b2, b3, b4 = 1.e-2, 1.e-3, 5.e-3, 4.e-2
-    # Lambda = 10.*gd.UNIT_GEV
-    # n_liv = 3
-    # print(osc_prob_4nu_matter_constant_density(energy, baseline, rho, s14=s14, s24=s24, s34=s34,
-    #     d14=d14, d24=d24, D41=D41, verbose=0))
-    # print(osc_prob_4nu_matter_liv_constant_density(energy, baseline, rho, s14=s14, s24=s24, s34=s34,
-    #     d14=d14, d24=d24, D41=D41, sxi12=sxi12, sxi23=sxi23, sxi13=sxi13, sxi14=sxi14, sxi24=sxi24, 
-    #     sxi34=sxi34, dxi13=dxi13, dxi14=dxi14, dxi24=dxi24, b1=b1, b2=b2, b3=b3, b4=b4, 
-    #     Lambda=Lambda, n_liv=n_liv, verbose=0))
-
-    # # Five-neutrino oscillations in constant-density matter, LIV
-    # np.set_printoptions(precision=3)
-    # baseline = 10.*gd.UNIT_KM # 10 km in natural units [eV^{-1}]
-    # energy = 1.*gd.UNIT_GEV # [eV]
-    # rho = 10.0*gd.UNIT_G_PER_CM3 # [g cm^{-3}]
-    # s14, s15, s24, s25, s34, s35 = 0.1, 0.1, 0.2, 0.2, 0.3, 0.3
-    # d14, d15, d24, d35 = np.radians([10.0, 20.0, 30.0, 40.0])
-    # D41, D51 = 0.1, 0.01 # [eV^2]
-    # sxi12, sxi23, sxi13, sxi14, sxi15, sxi24, sxi25, sxi34, sxi35 = \
-    #     0.01, 0.05, 0.06, 0.1, 0.9, 0.02, 0.04, 0.1, 0.05
-    # dxi13, dxi14, dxi15, dxi24, dxi35 = np.radians([10, 20, 30, 40, 50])
-    # b1, b2, b3, b4, b5 = 1.e-2, 1.e-3, 5.e-3, 4.e-2, 1.e-1
-    # Lambda = 10.*gd.UNIT_GEV
-    # n_liv = 2
-    # print(osc_prob_5nu_matter_constant_density(energy, baseline, rho, s14=s14, s15=s15, s24=s24, 
-    #     s25=s25, s34=s34, s35=s35, d14=d14, d15=d15, d24=d24, d35=d35, D41=D41, D51=D51, verbose=0))
-    # print(osc_prob_5nu_matter_liv_constant_density(energy, baseline, rho, s14=s14, s15=s15, s24=s24,
-    #     s25=s25, s34=s34, s35=s35, d14=d14, d15=d15, d24=d24, d35=d35, D41=D41, D51=D51, 
-    #     sxi12=sxi12, sxi23=sxi23, sxi13=sxi13, sxi14=sxi14, sxi15=sxi15, sxi24=sxi24, sxi25=sxi25, 
-    #     sxi34=sxi34, sxi35=sxi35, dxi13=dxi13, dxi14=dxi14, dxi15=dxi15, dxi24=dxi24, dxi35=dxi35, 
-    #     b1=b1, b2=b2, b3=b3, b4=b4, b5=b5, Lambda=Lambda, n_liv=n_liv, verbose=0))
-
-    # # Two-neutrino oscillations in exponentially falling matter density profile, LIV
-    # np.set_printoptions(precision=3)
-    # baseline = 20.*gd.UNIT_KM # 10 km in natural units [eV^{-1}]
-    # energy = 1.*gd.UNIT_MEV # [eV]
-    # L0 = 0.0
-    # sth = gd.S12_NO_BF_NUFIT_6_0
-    # Dm2 = gd.D21_NO_BF_NUFIT_6_0 # [eV^2]
-    # rho_central = 12.0*gd.UNIT_G_PER_CM3
-    # l_scale = 4.0*gd.UNIT_KM
-    # sxi = 0.5
-    # b1 = 1.e-3#1.e-2
-    # b2 = 1.e-4#1.e-3
-    # Lambda = 10.*gd.UNIT_GEV
-    # n_liv = 1
-    # print(osc_prob_2nu_matter_constant_density(energy, baseline, rho_central, sth, Dm2, 
-    #     verbose=0))
-    # print(osc_prob_2nu_matter_exp_density(energy, baseline, L0, rho_central, l_scale, sth, Dm2, 
-    #     verbose=0))
-    # print(osc_prob_2nu_matter_liv_constant_density(energy, baseline, rho_central, sth, Dm2,
-    #     sxi=sxi, b1=b1, b2=b2, Lambda=Lambda, n_liv=n_liv, rtol=1.e-3, atol=1.e-3, verbose=0))
-    # print(osc_prob_2nu_matter_liv_exp_density(energy, baseline, L0, rho_central, l_scale, sth, Dm2,
-    #     sxi=sxi, b1=b1, b2=b2, Lambda=Lambda, n_liv=n_liv, rtol=1.e-3, atol=1.e-3, n_jobs=1, 
-    #     verbose=0))
-
-
-    # # Three-neutrino oscillations in exponentially falling matter density profile, LIV
-    # np.set_printoptions(precision=3)
-    # baseline = 20.*gd.UNIT_KM # 10 km in natural units [eV^{-1}]
-    # energy = 1.*gd.UNIT_MEV # [eV]
-    # L0 = 0.0
-    # rho_central = 12.0*gd.UNIT_G_PER_CM3
-    # l_scale = 4.0*gd.UNIT_KM
-    # sxi12, sxi23, sxi13, dxiCP = 0.001, 0.002, 0.003, np.radians(10.0)
-    # b1, b2, b3 = 1.e-6, 2.e-6, 3.e-6 #1.e-2, 1.e-3, 5.e-3
-    # Lambda = 100.*gd.UNIT_GEV
-    # n_liv = 1
-    # print(osc_prob_3nu_matter_constant_density(energy, baseline, rho_central, verbose=0))
-    # print(osc_prob_3nu_matter_exp_density(energy, baseline, L0, rho_central, l_scale, verbose=0))
-    # print(osc_prob_3nu_matter_liv_constant_density(energy, baseline, rho_central, 
-    #     sxi12=sxi12, sxi23=sxi23, sxi13=sxi13, dxiCP=dxiCP, b1=b1, b2=b2, b3=b3, Lambda=Lambda,
-    #     n_liv=n_liv, rtol=1.e-3, atol=1.e-3, verbose=0))
-    # print(osc_prob_3nu_matter_liv_exp_density(energy, baseline, L0, rho_central, l_scale,
-    #     sxi12=sxi12, sxi23=sxi23, sxi13=sxi13, dxiCP=dxiCP, b1=b1, b2=b2, b3=b3, Lambda=Lambda, 
-    #     n_liv=n_liv, rtol=1.e-3, atol=1.e-3, n_jobs=1, verbose=0))
-
-
-    # # Four-neutrino oscillations in exponentially falling matter density profile, LIV
-    # np.set_printoptions(precision=3)
-    # baseline = 20.*gd.UNIT_KM # 10 km in natural units [eV^{-1}]
-    # energy = 1.*gd.UNIT_MEV # [eV]
-    # L0 = 0.0
-    # rho_central = 12.0*gd.UNIT_G_PER_CM3
-    # l_scale = 4.0*gd.UNIT_KM
-    # s14, s24, s34 = 0.1, 0.2, 0.3
-    # d14, d24 = np.radians(10.0), np.radians(100.0)
-    # D41 = 0.1 # [eV^2]
-    # sxi12, sxi23, sxi13, sxi14, sxi24, sxi34 = 0.01, 0.05, 0.06, 0.01, 0.01, 0.02
-    # dxi13, dxi14, dxi24 = np.radians([10,20,30])
-    # b1, b2, b3, b4 = 2.e-8, 1.e-8, 5.e-8, 4.e-8 #1.e-2, 1.e-3, 5.e-3, 4.e-2
-    # Lambda = 100.*gd.UNIT_GEV
-    # n_liv = 1
-    # print(osc_prob_4nu_matter_constant_density(energy, baseline, rho_central, 
-    #     s14=s14, s24=s24, s34=s34, d14=d14, d24=d24, D41=D41, verbose=0))
-    # print(osc_prob_4nu_matter_exp_density(energy, baseline, L0, rho_central, l_scale, 
-    #     s14=s14, s24=s24, s34=s34, d14=d14, d24=d24, D41=D41, verbose=0))
-    # print(osc_prob_4nu_matter_liv_constant_density(energy, baseline, rho_central, 
-    #     s14=s14, s24=s24, s34=s34, d14=d14, d24=d24, D41=D41,
-    #     sxi12=sxi12, sxi23=sxi23, sxi13=sxi13, sxi14=sxi14, sxi24=sxi24, sxi34=sxi34, 
-    #     dxi13=dxi13, dxi14=dxi14, dxi24=dxi24, b1=b1, b2=b2, b3=b3, b4=b4, Lambda=Lambda,
-    #     n_liv=n_liv, rtol=1.e-3, atol=1.e-3, verbose=0))
-    # print(osc_prob_4nu_matter_liv_exp_density(energy, baseline, L0, rho_central, l_scale,
-    #     s14=s14, s24=s24, s34=s34, d14=d14, d24=d24, D41=D41,
-    #     sxi12=sxi12, sxi23=sxi23, sxi13=sxi13, sxi14=sxi14, sxi24=sxi24, sxi34=sxi34, 
-    #     dxi13=dxi13, dxi14=dxi14, dxi24=dxi24, b1=b1, b2=b2, b3=b3, b4=b4, Lambda=Lambda,
-    #     n_liv=n_liv, rtol=1.e-3, atol=1.e-3, verbose=0))
-
-
-    # # Five-neutrino oscillations in exponentially falling matter density profile, LIV
-    # np.set_printoptions(precision=3)
-    # baseline = 20.*gd.UNIT_KM # 10 km in natural units [eV^{-1}]
-    # energy = 1.*gd.UNIT_MEV # [eV]
-    # L0 = 0.0
-    # rho_central = 12.0*gd.UNIT_G_PER_CM3
-    # l_scale = 4.0*gd.UNIT_KM
-    # s14, s15, s24, s25, s34, s35 = 0.1, 0.1, 0.2, 0.2, 0.3, 0.3
-    # d14, d15, d24, d35 = np.radians([10.0, 20.0, 30.0, 40.0])
-    # D41, D51 = 0.1, 0.01 # [eV^2]
-    # sxi12, sxi23, sxi13, sxi14, sxi15, sxi24, sxi25, sxi34, sxi35 = \
-    #     0.01, 0.05, 0.06, 0.1, 0.9, 0.02, 0.04, 0.1, 0.05
-    # dxi13, dxi14, dxi15, dxi24, dxi35 = np.radians([10, 20, 30, 40, 50])
-    # b1, b2, b3, b4, b5 = 1.e-2, 1.e-3, 5.e-3, 4.e-2, 1.e-1
-    # Lambda = 100.*gd.UNIT_GEV
-    # n_liv = 1
-    # print(osc_prob_5nu_matter_constant_density(energy, baseline, rho_central, 
-    #     s14=s14, s15=s15, s24=s24, s25=s25, s34=s34, s35=s35, d14=d14, d15=d15, d24=d24, d35=d35, 
-    #     D41=D41, D51=D51, verbose=0))
-    # print(osc_prob_5nu_matter_exp_density(energy, baseline, L0, rho_central, l_scale, 
-    #     s14=s14, s15=s15, s24=s24, s25=s25, s34=s34, s35=s35, d14=d14, d15=d15, d24=d24, d35=d35, 
-    #     D41=D41, D51=D51, verbose=0))
-    # print(osc_prob_5nu_matter_liv_constant_density(energy, baseline, rho_central, 
-    #     s14=s14, s15=s15, s24=s24, s25=s25, s34=s34, s35=s35, d14=d14, d15=d15, d24=d24, d35=d35, 
-    #     D41=D41, D51=D51,
-    #     sxi12=sxi12, sxi23=sxi23, sxi13=sxi13, sxi14=sxi14, sxi15=sxi15, sxi24=sxi24, sxi25=sxi25,
-    #     sxi34=sxi34, sxi35=sxi35, 
-    #     dxi13=dxi13, dxi14=dxi14, dxi15=dxi15, dxi24=dxi24, dxi35=dxi35, 
-    #     b1=b1, b2=b2, b3=b3, b4=b4, b5=b5, Lambda=Lambda,
-    #     n_liv=n_liv, rtol=1.e-3, atol=1.e-3, verbose=0))
-    # print(osc_prob_5nu_matter_liv_exp_density(energy, baseline, L0, rho_central, l_scale,
-    #     s14=s14, s15=s15, s24=s24, s25=s25, s34=s34, s35=s35, d14=d14, d15=d15, d24=d24, d35=d35, 
-    #     D41=D41, D51=D51,
-    #     sxi12=sxi12, sxi23=sxi23, sxi13=sxi13, sxi14=sxi14, sxi15=sxi15, sxi24=sxi24, sxi25=sxi25,
-    #     sxi34=sxi34, sxi35=sxi35, 
-    #     dxi13=dxi13, dxi14=dxi14, dxi15=dxi15, dxi24=dxi24, dxi35=dxi35, 
-    #     b1=b1, b2=b2, b3=b3, b4=b4, b5=b5, Lambda=Lambda,
-    #     n_liv=n_liv, rtol=1.e-3, atol=1.e-3, verbose=0))
-
-
-    # # Two-neutrino oscillations in the Sun, LIV
-    # np.set_printoptions(precision=3)
-    # baseline = gd.SUN_RADIUS*gd.UNIT_KM # [eV^{-1}]
-    # energy = 10.*gd.UNIT_MEV # [eV]
-    # L0 = 0.1*gd.SUN_RADIUS*gd.UNIT_KM # [eV^{-1}]
-    # sth = gd.S12_NO_BF_NUFIT_6_0
-    # Dm2 = gd.D21_NO_BF_NUFIT_6_0 # [eV^2]
-    # sxi = 0.001
-    # b1 = 2.e-4#1.e-2
-    # b2 = 1.e-4#1.e-3
-    # Lambda = 1000.*gd.UNIT_GEV
-    # n_liv = 2
-    # print(osc_prob_2nu_sun(energy, baseline, L0, sth, Dm2, verbose=0))
-    # print(osc_prob_2nu_sun_liv(energy, baseline, L0, sth, Dm2, 
-    #     sxi=sxi, b1=b1, b2=b2, Lambda=Lambda, n_liv=n_liv, verbose=0))
-
-
-    # # Three-neutrino oscillations in the Sun, LIV
-    # np.set_printoptions(precision=3)
-    # baseline = gd.SUN_RADIUS*gd.UNIT_KM # [eV^{-1}]
-    # energy = 10.*gd.UNIT_MEV # [eV]
-    # L0 = 0.1*gd.SUN_RADIUS*gd.UNIT_KM # [eV^{-1}]
-    # sxi12, sxi23, sxi13, dxiCP = 0.001, 0.002, 0.003, np.radians(10.0)
-    # b1, b2, b3 = 1.e-6, 2.e-6, 3.e-6 #1.e-2, 1.e-3, 5.e-3
-    # Lambda = 100.*gd.UNIT_GEV
-    # n_liv = 1
-    # print(osc_prob_3nu_sun(energy, baseline, L0, verbose=0))
-    # print(osc_prob_3nu_sun_liv(energy, baseline, L0,
-    #     sxi12=sxi12, sxi23=sxi23, sxi13=sxi13, dxiCP=dxiCP, b1=b1, b2=b2, b3=b3, Lambda=Lambda,
-    #     n_liv=n_liv, rtol=1.e-3, atol=1.e-3, verbose=0))
-
-
-    # # Four-neutrino oscillations in the Sun, LIV
-    # np.set_printoptions(precision=3)
-    # baseline = gd.SUN_RADIUS*gd.UNIT_KM # [eV^{-1}]
-    # energy = 10.*gd.UNIT_MEV # [eV]
-    # L0 = 0.1*gd.SUN_RADIUS*gd.UNIT_KM # [eV^{-1}]
-    # s14, s24, s34 = 0.1, 0.2, 0.3
-    # d14, d24 = np.radians(10.0), np.radians(100.0)
-    # D41 = 0.1 # [eV^2]
-    # sxi12, sxi23, sxi13, sxi14, sxi24, sxi34 = 0.01, 0.05, 0.06, 0.01, 0.01, 0.02
-    # dxi13, dxi14, dxi24 = np.radians([10,20,30])
-    # b1, b2, b3, b4 = 2.e-8, 1.e-8, 5.e-8, 4.e-8 #1.e-2, 1.e-3, 5.e-3, 4.e-2
-    # Lambda = 100.*gd.UNIT_GEV
-    # n_liv = 2
-    # print(osc_prob_4nu_sun(energy, baseline, L0, 
-    #     s14=s14, s24=s24, s34=s34, d14=d14, d24=d24, D41=D41, verbose=2))
-    # print(osc_prob_4nu_sun_liv(energy, baseline, L0, 
-    #     s14=s14, s24=s24, s34=s34, d14=d14, d24=d24, D41=D41,
-    #     sxi12=sxi12, sxi23=sxi23, sxi13=sxi13, sxi14=sxi14, sxi24=sxi24, sxi34=sxi34, 
-    #     dxi13=dxi13, dxi14=dxi14, dxi24=dxi24, b1=b1, b2=b2, b3=b3, b4=b4, Lambda=Lambda,
-    #     n_liv=n_liv, rtol=1.e-3, atol=1.e-3, verbose=2))
-
-
-    # # Five-neutrino oscillations in the Sun, LIV
-    # np.set_printoptions(precision=3)
-    # baseline = gd.SUN_RADIUS*gd.UNIT_KM # [eV^{-1}]
-    # energy = 10.*gd.UNIT_MEV # [eV]
-    # L0 = 0.1*gd.SUN_RADIUS*gd.UNIT_KM # [eV^{-1}]
-    # s14, s15, s24, s25, s34, s35 = 0.1, 0.1, 0.2, 0.2, 0.3, 0.3
-    # d14, d15, d24, d35 = np.radians([10.0, 20.0, 30.0, 40.0])
-    # D41, D51 = 0.1, 0.01 # [eV^2]
-    # sxi12, sxi23, sxi13, sxi14, sxi15, sxi24, sxi25, sxi34, sxi35 = \
-    #     0.01, 0.05, 0.06, 0.05, 0.01, 0.02, 0.04, 0.01, 0.05
-    # dxi13, dxi14, dxi15, dxi24, dxi35 = np.radians([10, 20, 30, 40, 50])
-    # b1, b2, b3, b4, b5 = 1.e-3, 2.e-3, 3.e-3, 4.e-3, 5.e-3
-    # Lambda = 100.*gd.UNIT_GEV
-    # n_liv = 1
-    # print(osc_prob_5nu_sun(energy, baseline, L0, 
-    #     s14=s14, s15=s15, s24=s24, s25=s25, s34=s34, s35=s35, d14=d14, d15=d15, d24=d24, d35=d35, 
-    #     D41=D41, D51=D51, verbose=0))
-    # print(osc_prob_5nu_sun_liv(energy, baseline, L0, 
-    #     s14=s14, s15=s15, s24=s24, s25=s25, s34=s34, s35=s35, d14=d14, d15=d15, d24=d24, d35=d35, 
-    #     D41=D41, D51=D51,
-    #     sxi12=sxi12, sxi23=sxi23, sxi13=sxi13, sxi14=sxi14, sxi15=sxi15, sxi24=sxi24, sxi25=sxi25,
-    #     sxi34=sxi34, sxi35=sxi35, 
-    #     dxi13=dxi13, dxi14=dxi14, dxi15=dxi15, dxi24=dxi24, dxi35=dxi35, 
-    #     b1=b1, b2=b2, b3=b3, b4=b4, b5=b5, Lambda=Lambda,
-    #     n_liv=n_liv, rtol=1.e-2, atol=1.e-2, verbose=0))
-
-
-    # Two-neutrino oscillations in Earth
-    # np.set_printoptions(precision=3)
-    # energy = 10.*gd.UNIT_MEV # [eV]
-    # sth = gd.S12_NO_BF_NUFIT_6_0
-    # Dm2 = gd.D21_NO_BF_NUFIT_6_0 # [eV^2]
-    ###
-    # L = earth.distance_traveled_inside_earth(-0.05)
-    # print(osc_prob_2nu_earth(energy, sth, Dm2, costhz=-0.05, L=L*gd.UNIT_KM, verbose=0))
-    # print(osc_prob_2nu_earth(energy, sth, Dm2, costhz=-1, L=L*gd.UNIT_KM, verbose=0))
-    ###
-    # for costhz in np.linspace(-0.5, -1.0, 2):
-    #     print(earth.distance_traveled_inside_earth(costhz))
-    #     print(osc_prob_2nu_earth(energy, sth, Dm2, costhz=costhz,
-    #         L=earth.distance_traveled_inside_earth(costhz)*gd.UNIT_KM,
-    #         # L=6371*gd.UNIT_KM, 
-    #         verbose=0))
-    ###
-    # loc_fin = 'fermilab'
-    # for loc_ini in ['SNOLAB', 'Homestake', 'CERN', "South Pole"]:
-    #     print(loc_ini)
-    #     print(osc_prob_2nu_earth(energy, sth, Dm2, nu_i=gd.NUE, nu_f=gd.NUMU, 
-    #         loc_ini=loc_ini, loc_fin=loc_fin, verbose=0))
-    #     print(osc_prob_3nu_earth(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
-    #         loc_ini=loc_ini, loc_fin=loc_fin, verbose=0))
-    #     print()
-
-
-    # # Three-neutrino oscillations in Earth
-    # np.set_printoptions(precision=3)
-    # energy = 10.*gd.UNIT_MEV # [eV]
-    # ###
-    # # L = earth.distance_traveled_inside_earth(-0.05)
-    # # print(osc_prob_3nu_earth(energy, costhz=-0.05, L=L*gd.UNIT_KM, verbose=0))
-    # # print(osc_prob_3nu_earth(energy, costhz=-1, L=L*gd.UNIT_KM, verbose=0))
-    # ###
-    # # L = earth.distance_traveled_inside_earth(0)
-    # # print(osc_prob_3nu_earth(energy, costhz=0, L=L*gd.UNIT_KM, verbose=0))
-    # ###
-    # # for costhz in np.linspace(-0.5, -1.0, 2):
-    # #     print(earth.distance_traveled_inside_earth(costhz))
-    # #     print(osc_prob_3nu_earth(energy, costhz=costhz,
-    # #         L=earth.distance_traveled_inside_earth(costhz)*gd.UNIT_KM,
-    # #         # L=6371*gd.UNIT_KM, 
-    # #         verbose=0))
-    # ###
-    # # costhz = -0.8
-    # # print(osc_prob_3nu_earth(energy, costhz=costhz, L=1000*gd.UNIT_KM, magnus_exp_order=4, 
-    # #     verbose=0))
-    # # print(osc_prob_3nu_earth(energy, costhz=costhz, L=1200*gd.UNIT_KM, magnus_exp_order=4, 
-    # #     verbose=0))
-    # # print(osc_prob_3nu_earth(energy, costhz=costhz, L=1000*gd.UNIT_KM, magnus_exp_order=5, 
-    # #     verbose=0))
-    # # print(osc_prob_3nu_earth(energy, costhz=costhz, L=1000*gd.UNIT_KM, magnus_exp_order=4, 
-    # #     rtol=1.e-4, atol=1.e-4, verbose=0))
-    # ###
-    # loc_fin = 'fermilab'
-    # for loc_ini in ['SNOLAB', 'Homestake', 'CERN', "South Pole"]:
-    #     print(loc_ini)
-    #     print(osc_prob_3nu_earth(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
-    #         loc_ini=loc_ini, loc_fin=loc_fin, verbose=0))
-
-
-    # # Four-neutrino oscillations in Earth
-    # np.set_printoptions(precision=3)
-    # energy = 10.*gd.UNIT_MEV # [eV]
-    # s14, s24, s34 = 0.1, 0.2, 0.3
-    # d14, d24 = np.radians(10.0), np.radians(100.0)
-    # D41 = 0.1 # [eV^2]
-    # ###
-    # L = earth.distance_traveled_inside_earth(-0.05)
-    # print(osc_prob_4nu_earth(energy, s14=s14, s24=s24, s34=s34, d14=d14, d24=d24, D41=D41,
-    #     costhz=-0.05, L=L*gd.UNIT_KM, verbose=0))
-    # print(osc_prob_4nu_earth(energy, s14=s14, s24=s24, s34=s34, d14=d14, d24=d24, D41=D41,
-    #     costhz=-1, L=L*gd.UNIT_KM, verbose=0))
-    # ###
-    # loc_fin = 'fermilab'
-    # for loc_ini in ['SNOLAB', 'Homestake', 'CERN', "South Pole"]:
-    #     print(loc_ini)
-    #     print(osc_prob_3nu_earth(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
-    #         loc_ini=loc_ini, loc_fin=loc_fin, verbose=0))
-    #     print(osc_prob_4nu_earth(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
-    #         s14=s14, s24=s24, s34=s34, d14=d14, d24=d24, D41=D41,
-    #         loc_ini=loc_ini, loc_fin=loc_fin, verbose=0))
-
-
-    # # Five-neutrino oscillations in Earth
-    # np.set_printoptions(precision=3)
-    # energy = 10.*gd.UNIT_MEV # [eV]
-    # s14, s15, s24, s25, s34, s35 = 0.1, 0.1, 0.2, 0.2, 0.3, 0.3
-    # d14, d15, d24, d35 = np.radians([10.0, 20.0, 30.0, 40.0])
-    # D41, D51 = 0.1, 0.01 # [eV^2]
-    # ###
-    # L = earth.distance_traveled_inside_earth(-0.05)
-    # print(osc_prob_5nu_earth(energy, 
-    #     s14=s14, s15=s15, s24=s24, s25=s25, s34=s34, s35=s35, d14=d14, d15=d15, d24=d24, d35=d35, 
-    #     D41=D41, D51=D51, costhz=-0.05, L=L*gd.UNIT_KM, verbose=0))
-    # print(osc_prob_5nu_earth(energy, 
-    #     s14=s14, s15=s15, s24=s24, s25=s25, s34=s34, s35=s35, d14=d14, d15=d15, d24=d24, d35=d35, 
-    #     D41=D41, D51=D51, costhz=-1, L=L*gd.UNIT_KM, verbose=0))
-    # ###
-    # loc_fin = 'fermilab'
-    # for loc_ini in ['SNOLAB', 'Homestake', 'CERN', "South Pole"]:
-    #     print(loc_ini)
-    #     print(osc_prob_4nu_earth(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
-    #          s14=s14, s24=s24, s34=s34, d14=d14, d24=d24, D41=D41,
-    #         loc_ini=loc_ini, loc_fin=loc_fin, verbose=0))
-    #     print(osc_prob_5nu_earth(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
-    #         s14=s14, s15=s15, s24=s24, s25=s25, s34=s34, s35=s35, d14=d14, d15=d15, d24=d24,
-    #         d35=d35, D41=D41, D51=D51,
-    #         loc_ini=loc_ini, loc_fin=loc_fin, verbose=0))
-
-
-    # # Two-neutrino oscillations in Earth, NSI
-    # np.set_printoptions(precision=3)
-    # energy = 10.*gd.UNIT_MEV # [eV]
-    # sth = gd.S12_NO_BF_NUFIT_6_0
-    # Dm2 = gd.D21_NO_BF_NUFIT_6_0 # [eV^2]
-    # eps_aa, eps_ab = 0.05, 0.02
-    # ###
-    # # costhz = -1.0
-    # # L = earth.distance_traveled_inside_earth(costhz)
-    # # print(L)
-    # # print(osc_prob_2nu_vacuum(energy, L*gd.UNIT_KM, sth, Dm2, verbose=0))
-    # # print(osc_prob_2nu_earth(energy, sth, Dm2, 
-    # #     costhz=costhz, L=L*gd.UNIT_KM, verbose=0, rtol=1.e-3, atol=1.e-3, n_jobs=1))
-    # # print(osc_prob_2nu_earth_nsi(energy, sth, Dm2, eps_aa=0, eps_ab=0, 
-    # #     costhz=costhz, L=L*gd.UNIT_KM, verbose=0))
-    # # print(osc_prob_2nu_earth_nsi(energy, sth, Dm2, eps_aa=eps_aa, eps_ab=eps_ab, 
-    # #     costhz=-1, L=L*gd.UNIT_KM, rtol=1.e-3, atol=1.e-3, verbose=0))
-    # ###
-    # loc_fin = 'fermilab'
-    # for loc_ini in ['SNOLAB', 'Homestake', 'CERN', "South Pole"]:
-    #     print(loc_ini)
-    #     print(osc_prob_2nu_earth(energy, sth, Dm2, nu_i=gd.NUE, nu_f=gd.NUMU, 
-    #         loc_ini=loc_ini, loc_fin=loc_fin, verbose=0))
-    #     print(osc_prob_2nu_earth_nsi(energy, sth, Dm2, nu_i=gd.NUE, nu_f=gd.NUMU, 
-    #         eps_aa=eps_aa, eps_ab=eps_ab, loc_ini=loc_ini, loc_fin=loc_fin, verbose=0))
-    #     print()
-
-
-    # # Three-neutrino oscillations in Earth, NSI
-    # np.set_printoptions(precision=3)
-    # energy = 10.*gd.UNIT_MEV # [eV]
-    # eps_ee, eps_em, eps_et, eps_mm, eps_mt, eps_tt = 0.1, 0, 0, 0, 0, 0# 0.2, 1.1, 0.4, 0.6, 0.5
-    # ###
-    # costhz = -1.0
-    # L = earth.distance_traveled_inside_earth(costhz)
-    # print(L)
-    # print("3nu, std: " + str(osc_prob_3nu_earth(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
-    #     costhz=costhz, L=L*gd.UNIT_KM, verbose=0, n_jobs=10, magnus_exp_order=3)))
-    # print("3nu, nsi: " + str(osc_prob_3nu_earth_nsi(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
-    #     eps_ee=eps_ee, eps_em=eps_em, eps_et=eps_et, eps_mm=eps_mm, eps_mt=eps_mt, 
-    #     eps_tt=eps_tt, costhz=costhz, L=L*gd.UNIT_KM, verbose=0, magnus_exp_order=3, n_jobs=10)))
-    # print()
-    # print("3nu, std: " + str(osc_prob_3nu_earth(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
-    #     costhz=costhz, L=L*gd.UNIT_KM, verbose=0, n_jobs=10, magnus_exp_order=4)))
-    # print("3nu, nsi: " + str(osc_prob_3nu_earth_nsi(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
-    #     eps_ee=eps_ee, eps_em=eps_em, eps_et=eps_et, eps_mm=eps_mm, eps_mt=eps_mt, 
-    #     eps_tt=eps_tt, costhz=costhz, L=L*gd.UNIT_KM, verbose=0, magnus_exp_order=4, n_jobs=10)))
-    # ###
-    # # loc_fin = 'fermilab'
-    # # for loc_ini in ['South Pole']: #['SNOLAB', 'Homestake', 'CERN', "South Pole"]:
-    # #     print(loc_ini)
-    # #     print("3nu, std: " + str(osc_prob_3nu_earth(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
-    # #         loc_ini=loc_ini, loc_fin=loc_fin, verbose=0, n_jobs=10, max_magnus_exp_order=5,
-    # #         iterate_over_magnus_exp_order=True)))
-    # #     print("3nu, nsi: " + str(osc_prob_3nu_earth_nsi(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
-    # #         eps_ee=eps_ee, eps_em=eps_em, eps_et=eps_et, eps_mm=eps_mm, eps_mt=eps_mt, 
-    # #         eps_tt=eps_tt, loc_ini=loc_ini, loc_fin=loc_fin, verbose=0, max_magnus_exp_order=5,
-    # #         iterate_over_magnus_exp_order=True, n_jobs=10)))
-    # #     print()
-
-    # a = np.array([[1., 2.], [3., 4.]])
-    # b = np.array([[5., 6.], [7., 8.]])
-    # c = np.array([[9., 10.], [11., 12.]])
-    # d = np.array([[13., 14.], [15., 16.]])
-    # e = np.array([[17., 18.], [19., 20.]])
-    # f = np.array([[21., 22.], [23., 24.]])
-    # X = np.array([a,b,c])
-    # Y = np.array([d,e,f])
-
-    # def commutator(X: np.ndarray, Y: np.ndarray) -> np.ndarray:
-    #     return X @ Y - Y @ X
-
-    # Z = commutator(X, Y)
-    # print(Z)
-
-    # Z = np.stack([commutator(X[i], Y[i]) for i in range(3)], axis=0)
-    # print(Z)
-
-    # quit()
-
-    # # Four-neutrino oscillations in Earth, NSI
-    # np.set_printoptions(precision=3)
-    # energy = 10.*gd.UNIT_MEV # [eV]
-    # s14, s24, s34 = 0.01, 0.02, 0.0
-    # d14, d24 = np.radians(10.0), np.radians(100.0)
-    # D41 = 0.02 # [eV^2]
-    # eps_ee, eps_em, eps_et, eps_es, eps_mm, eps_mt, eps_ms, eps_tt, eps_ts, eps_ss \
-    #     = 0.0, 0.01, 0.0, 0.0, 0.0, 0.0, 0.02, 0.0, 0.02, 0.03
-    # print("4nu")
-    # ###
-    # costhz = -0.20#-1.0
-    # L = earth.distance_traveled_inside_earth(costhz)
-    # print(L)
-    # print("4nu, std: " + str(osc_prob_4nu_earth(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
-    #     s14=s14, s24=s24, s34=s34, d14=d14, d24=d24, D41=D41,
-    #     costhz=costhz, L=L*gd.UNIT_KM, verbose=0, n_jobs=1, magnus_exp_order=3)))
-    # # print("4nu, nsi: " + str(osc_prob_4nu_earth_nsi(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
-    # #     s14=s14, s24=s24, s34=s34, d14=d14, d24=d24, D41=D41,
-    # #     eps_ee=eps_ee, eps_em=eps_em, eps_et=eps_et, eps_es=eps_es, eps_mm=eps_mm, eps_mt=eps_mt, 
-    # #     eps_ms=eps_ms, eps_tt=eps_tt, eps_ts=eps_ts, eps_ss=eps_ss,
-    # #     costhz=costhz, L=L*gd.UNIT_KM, verbose=0, n_jobs=12, magnus_exp_order=3)))
-    # # print()
-    # # print("4nu, std: " + str(osc_prob_4nu_earth(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
-    # #     s14=s14, s24=s24, s34=s34, d14=d14, d24=d24, D41=D41,
-    # #     costhz=costhz, L=L*gd.UNIT_KM, verbose=0, n_jobs=10, magnus_exp_order=4)))
-    # # print("4nu, nsi: " + str(osc_prob_4nu_earth_nsi(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
-    # #     s14=s14, s24=s24, s34=s34, d14=d14, d24=d24, D41=D41,
-    # #     eps_ee=eps_ee, eps_em=eps_em, eps_et=eps_et, eps_es=eps_es, eps_mm=eps_mm, eps_mt=eps_mt, 
-    # #     eps_ms=eps_ms, eps_tt=eps_tt, eps_ts=eps_ts, eps_ss=eps_ss,
-    # #     costhz=costhz, L=L*gd.UNIT_KM, verbose=0, n_jobs=10, magnus_exp_order=4)))
-    # print()
-    # ###
-    # loc_fin = 'fermilab'
-    # import time
-    # for integration_method in ['trapezoid', 'simpson']:
-    #     print(integration_method)
-    #     for loc_ini in ['SNOLAB', 'Homestake', 'CERN']:#, "South Pole"]:
-    #         print(loc_ini)
-    #         start = time.time()
-    #         for i in range(5):
-    #             osc_prob_4nu_earth(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
-    #                 s14=s14, s24=s24, s34=s34, d14=d14, d24=d24, D41=D41,
-    #                 loc_ini=loc_ini, loc_fin=loc_fin, verbose=0, n_jobs=1, max_magnus_exp_order=3,
-    #                 integration_method=integration_method)
-    #             # print("4nu, std: " + str(osc_prob_4nu_earth(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
-    #             #     s14=s14, s24=s24, s34=s34, d14=d14, d24=d24, D41=D41,
-    #             #     loc_ini=loc_ini, loc_fin=loc_fin, verbose=0, n_jobs=12, max_magnus_exp_order=3,
-    #             #     integration_method=integration_method)))
-    #         # print("4nu, nsi: " + str(osc_prob_4nu_earth_nsi(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
-    #         #     s14=s14, s24=s24, s34=s34, d14=d14, d24=d24, D41=D41,
-    #         #     eps_ee=eps_ee, eps_em=eps_em, eps_et=eps_et, eps_es=eps_es, eps_mm=eps_mm,
-    #         #     eps_mt=eps_mt, eps_ms=eps_ms, eps_tt=eps_tt, eps_ts=eps_ts, eps_ss=eps_ss,
-    #         #     loc_ini=loc_ini, loc_fin=loc_fin, verbose=0, max_magnus_exp_order=3, n_jobs=12,
-    #         #     integration_method=integration_method)))
-    #         print((time.time()-start)/5)
-    #         print()
-
-
-    # # Five-neutrino oscillations in Earth, NSI
-    # np.set_printoptions(precision=3)
-    # energy = 10.*gd.UNIT_MEV # [eV]
-    # s14, s15, s24, s25, s34, s35 = 0.01, 0.0, 0.0, 0.02, 0.03, 0.0
-    # d14, d15, d24, d35 = np.radians([10.0, 20.0, 30.0, 40.0])
-    # D41, D51 = 0.01, 0.02 # [eV^2]
-    # eps_ee, eps_em, eps_et, eps_es1, eps_es2, eps_mm, eps_mt, eps_ms1, eps_ms2, eps_tt, eps_ts1, \
-    #     eps_ts2, eps_s1s1, eps_s1s2, eps_s2s2 \
-    #     = 0.0, 0.02, 0.0, 0.01, 0.0, 0.0, 0.0, 0.02, 0.02, 0.0, 0.01, 0.01, 0.02, 0.0, 0.01
-    # print("5nu")
-    # ###
-    # costhz = -0.20
-    # L = earth.distance_traveled_inside_earth(costhz)
-    # print(L)
-    # print("5nu, std: " + str(osc_prob_5nu_earth(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
-    #     s14=s14, s15=s15, s24=s24, s25=s25, s34=s34, s35=s35, 
-    #     d14=d14, d15=d15, d24=d24, d35=d35, D41=D41, D51=D51,
-    #     costhz=costhz, L=L*gd.UNIT_KM, verbose=0, n_jobs=12, magnus_exp_order=3)))
-    # print("5nu, nsi: " + str(osc_prob_5nu_earth_nsi(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
-    #     s14=s14, s24=s24, s34=s34, d14=d14, d24=d24, D41=D41,
-    #     eps_ee=eps_ee, eps_em=eps_em, eps_et=eps_et, eps_es1=eps_es1, eps_es2=eps_es2, 
-    #     eps_mm=eps_mm, eps_mt=eps_mt, eps_ms1=eps_ms1, eps_ms2=eps_ms2, eps_tt=eps_tt, 
-    #     eps_ts1=eps_ts1, eps_ts2=eps_ts2, eps_s1s1=eps_s1s1, eps_s1s2=eps_s1s2, eps_s2s2=eps_s2s2,
-    #     costhz=costhz, L=L*gd.UNIT_KM, verbose=0, n_jobs=12, magnus_exp_order=3)))
-    # # print()
-    # # print("5nu, std: " + str(osc_prob_5nu_earth(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
-    # #     s14=s14, s15=s15, s24=s24, s25=s25, s34=s34, s35=s35, 
-    # #     d14=d14, d15=d15, d24=d24, d35=d35, D41=D41, D51=D51,
-    # #     costhz=costhz, L=L*gd.UNIT_KM, verbose=0, n_jobs=10, magnus_exp_order=4)))
-    # # print("5nu, nsi: " + str(osc_prob_5nu_earth_nsi(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
-    # #     s14=s14, s15=s15, s24=s24, s25=s25, s34=s34, s35=s35, 
-    # #     d14=d14, d15=d15, d24=d24, d35=d35, D41=D41, D51=D51,
-    # #     eps_ee=eps_ee, eps_em=eps_em, eps_et=eps_et, eps_es1=eps_es1, eps_es2=eps_es2, 
-    # #     eps_mm=eps_mm, eps_mt=eps_mt, eps_ms1=eps_ms1, eps_ms2=eps_ms2, eps_tt=eps_tt, 
-    # #     eps_ts1=eps_ts1, eps_ts2=eps_ts2, eps_s1s1=eps_s1s1, eps_s1s2=eps_s1s2, eps_s2s2=eps_s2s2,
-    # #     costhz=costhz, L=L*gd.UNIT_KM, verbose=0, n_jobs=10, magnus_exp_order=4)))
-    # print()
-    # ###
-    # loc_fin = 'fermilab'
-    # for loc_ini in ['SNOLAB', 'Homestake', 'CERN', "South Pole"]:
-    #     print(loc_ini)
-    #     print("5nu, std: " + str(osc_prob_5nu_earth(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
-    #         s14=s14, s15=s15, s24=s24, s25=s25, s34=s34, s35=s35, 
-    #         d14=d14, d15=d15, d24=d24, d35=d35, D41=D41, D51=D51,
-    #         loc_ini=loc_ini, loc_fin=loc_fin, verbose=0, n_jobs=12, max_magnus_exp_order=3)))
-    #     print("5nu, nsi: " + str(osc_prob_5nu_earth_nsi(energy, nu_i=gd.NUE, nu_f=gd.NUMU, 
-    #         s14=s14, s15=s15, s24=s24, s25=s25, s34=s34, s35=s35, 
-    #         d14=d14, d15=d15, d24=d24, d35=d35, D41=D41, D51=D51,
-    #         eps_ee=eps_ee, eps_em=eps_em, eps_et=eps_et, eps_es1=eps_es1, eps_es2=eps_es2, 
-    #         eps_mm=eps_mm, eps_mt=eps_mt, eps_ms1=eps_ms1, eps_ms2=eps_ms2, eps_tt=eps_tt, 
-    #         eps_ts1=eps_ts1, eps_ts2=eps_ts2, eps_s1s1=eps_s1s1, eps_s1s2=eps_s1s2, 
-    #         eps_s2s2=eps_s2s2,
-    #         loc_ini=loc_ini, loc_fin=loc_fin, verbose=0, max_magnus_exp_order=3, n_jobs=12)))
-    #     print()
-
-    # LIV in the Earth
-    np.set_printoptions(precision=3)
-    energy = 1.*gd.UNIT_GEV # [eV]
-    costhz = -1.0
-    L = earth.distance_traveled_inside_earth(costhz)
-    # Two-neutrino
-    sth = gd.S12_NO_BF_NUFIT_6_0
-    Dm2 = gd.D21_NO_BF_NUFIT_6_0 # [eV^2]
-    sxi = 0.1
-    b1 = 2.e-4
-    b2 = 1.e-4
-    Lambda = 1000.*gd.UNIT_GEV
-    n_liv = 2
-    print("Two-neutrino:")
-    print(osc_prob_2nu_earth_liv(energy, sth, Dm2, 
-        costhz=costhz, L=L,
-        sxi=sxi, b1=b1, b2=b2, Lambda=Lambda, n_liv=n_liv, verbose=0))
-    print(osc_prob_2nu_earth_liv(energy, sth, Dm2, 
-        loc_ini='fermilab', loc_fin='homestake',
-        sxi=sxi, b1=b1, b2=b2, Lambda=Lambda, n_liv=n_liv, verbose=0))
-    print()
-    # Three-neutrino
-    sxi12, sxi23, sxi13, dxiCP = 0.1, 0.02, 0.03, np.radians(10.0)
-    b1, b2, b3 = 1.e-4, 2.e-4, 3.e-4 
-    Lambda = 1000.*gd.UNIT_GEV
-    n_liv = 2
-    print("Three-neutrino:")
-    print(osc_prob_3nu_earth_liv(energy, costhz=costhz, L=L,
-        sxi12=sxi12, sxi23=sxi23, sxi13=sxi13, dxiCP=dxiCP, 
-        b1=b1, b2=b2, b3=b3, Lambda=Lambda, n_liv=n_liv, verbose=0))
-    print(osc_prob_3nu_earth_liv(energy, 
-        loc_ini='fermilab', loc_fin='homestake',
-        sxi12=sxi12, sxi23=sxi23, sxi13=sxi13, dxiCP=dxiCP, 
-        b1=b1, b2=b2, b3=b3, Lambda=Lambda, n_liv=n_liv, verbose=0))
-    print()
-    # Four-neutrino
-    s14, s24, s34 = 0.1, 0.2, 0.3
-    d14, d24 = np.radians(10.0), np.radians(100.0)
-    D41 = 0.1 # [eV^2]
-    sxi12, sxi23, sxi13, sxi14, sxi24, sxi34 = 0.1, 0.05, 0.06, 0.01, 0.01, 0.02
-    dxi13, dxi14, dxi24 = np.radians([10,20,30])
-    b1, b2, b3, b4 = 2.e-8, 1.e-8, 5.e-8, 4.e-8 
-    Lambda = 1000.*gd.UNIT_GEV
-    n_liv = 2
-    print("Four-neutrino:")
-    print(osc_prob_4nu_earth_liv(energy, costhz=costhz, L=L,
-        s14=s14, s24=s24, s34=s34, d14=d14, d24=d24, D41=D41,
-        sxi12=sxi12, sxi23=sxi23, sxi13=sxi13, sxi14=sxi14, sxi24=sxi24, sxi34=sxi34, 
-        dxi13=dxi13, dxi14=dxi14, dxi24=dxi24, b1=b1, b2=b2, b3=b3, b4=b4, Lambda=Lambda,
-        n_liv=n_liv, verbose=0))
-    print(osc_prob_4nu_earth_liv(energy,
-        loc_ini='fermilab', loc_fin='homestake',
-        s14=s14, s24=s24, s34=s34, d14=d14, d24=d24, D41=D41,
-        sxi12=sxi12, sxi23=sxi23, sxi13=sxi13, sxi14=sxi14, sxi24=sxi24, sxi34=sxi34, 
-        dxi13=dxi13, dxi14=dxi14, dxi24=dxi24, b1=b1, b2=b2, b3=b3, b4=b4, Lambda=Lambda,
-        n_liv=n_liv, verbose=0))
-    print()
-    # Five-neutrino
-    s14, s15, s24, s25, s34, s35 = 0.1, 0.1, 0.2, 0.2, 0.3, 0.3
-    d14, d15, d24, d35 = np.radians([10.0, 20.0, 30.0, 40.0])
-    D41, D51 = 0.1, 0.01 # [eV^2]
-    sxi12, sxi23, sxi13, sxi14, sxi15, sxi24, sxi25, sxi34, sxi35 = \
-        0.1, 0.05, 0.6, 0.05, 0.01, 0.2, 0.4, 0.01, 0.05
-    dxi13, dxi14, dxi15, dxi24, dxi35 = np.radians([10, 20, 30, 40, 50])
-    b1, b2, b3, b4, b5 = 1.e-3, 2.e-3, 3.e-3, 4.e-3, 5.e-3
-    Lambda = 1000.*gd.UNIT_GEV
-    n_liv = 2
-    print("Five-neutrino:")
-    print(osc_prob_5nu_earth_liv(energy, costhz=costhz, L=L,
-        s14=s14, s15=s15, s24=s24, s25=s25, s34=s34, s35=s35, d14=d14, d15=d15, d24=d24, d35=d35, 
-        D41=D41, D51=D51,
-        sxi12=sxi12, sxi23=sxi23, sxi13=sxi13, sxi14=sxi14, sxi15=sxi15, sxi24=sxi24, sxi25=sxi25,
-        sxi34=sxi34, sxi35=sxi35, 
-        dxi13=dxi13, dxi14=dxi14, dxi15=dxi15, dxi24=dxi24, dxi35=dxi35, 
-        b1=b1, b2=b2, b3=b3, b4=b4, b5=b5, Lambda=Lambda,
-        n_liv=n_liv, verbose=0))
-    print(osc_prob_5nu_earth_liv(energy, 
-        loc_ini='fermilab', loc_fin='homestake',
-        s14=s14, s15=s15, s24=s24, s25=s25, s34=s34, s35=s35, d14=d14, d15=d15, d24=d24, d35=d35, 
-        D41=D41, D51=D51,
-        sxi12=sxi12, sxi23=sxi23, sxi13=sxi13, sxi14=sxi14, sxi15=sxi15, sxi24=sxi24, sxi25=sxi25,
-        sxi34=sxi34, sxi35=sxi35, 
-        dxi13=dxi13, dxi14=dxi14, dxi15=dxi15, dxi24=dxi24, dxi35=dxi35, 
-        b1=b1, b2=b2, b3=b3, b4=b4, b5=b5, Lambda=Lambda,
-        n_liv=n_liv, verbose=0))
-
-
 from .oscprobstd import (
     osc_prob_2nu_vacuum_std,
     osc_prob_2nu_matter_std,
@@ -16778,6 +15237,7 @@ __all__ = [
     'J',
     'osc_prob_3nu_vacuum_std',
     'ToleranceNotAchievedWarning',
+    'HybridCertificationWarning',
     'print_banner',
     'print_run_parameters',
     'validate_input_battery',

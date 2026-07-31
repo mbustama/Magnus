@@ -15,6 +15,10 @@ Routine listings
 ----------------
 
     * cstyle - ANSI terminal color-code constants
+    * set_color_output - Enables or disables ANSI color in the warning
+           and error message prefixes
+    * load_nufit_params - Loads one NuFit release/ordering/category as a
+           dict of standard oscillation parameters
 
 The remaining module-level names are physical constants and
 unit-conversion factors, not routines; see the module source for the
@@ -22,7 +26,6 @@ full list.
 """
 
 
-__version__ = "1.0"
 __author__ = "Mauricio Bustamante"
 __email__ = "mbustamante@gmail.com"
 
@@ -116,6 +119,49 @@ ERROR_MSG_IN_COLOR = cstyle.CREDBG + "Error in magnus:" + cstyle.CEND
 TOL_MSG_NO_COLOR = "Requested tolerance achieved"
 
 TOL_MSG_IN_COLOR = cstyle.CGREENBG + "Requested tolerance achieved" + cstyle.CEND
+
+
+def set_color_output(enabled: bool) -> None:
+    r"""Enables or disables ANSI color in the warning/error/tolerance message prefixes.
+
+    The ``*_IN_COLOR`` constants above wrap their text in ANSI escape codes, which read
+    correctly in a terminal but appear as literal escape-code noise anywhere that does not
+    interpret them -- a captured log file, a Jupyter notebook rendered to HTML, or the
+    ``jupyter-execute`` cells in this package's own documentation.  Calling this function with
+    ``False`` rebinds every ``*_IN_COLOR`` constant to its plain-text counterpart, so the
+    existing call sites (which all reference the ``*_IN_COLOR`` names) print unadorned text
+    with no further change.  Calling it with ``True`` restores the colored versions.
+
+    .. versionadded:: 0.10.0
+
+    Parameters
+    ----------
+    enabled : bool
+        True to emit ANSI-colored message prefixes (the default at import time), False to emit
+        plain text.
+
+    Returns
+    -------
+    None
+
+    Examples
+    --------
+    .. jupyter-execute::
+
+        import magnus.globaldefs as gd
+
+        gd.set_color_output(False)
+        gd.WARNING_MSG_IN_COLOR
+    """
+    global WARNING_MSG_IN_COLOR, ERROR_MSG_IN_COLOR, TOL_MSG_IN_COLOR
+    if enabled:
+        WARNING_MSG_IN_COLOR = cstyle.CVIOLETBG + "Warning:" + cstyle.CEND
+        ERROR_MSG_IN_COLOR = cstyle.CREDBG + "Error in magnus:" + cstyle.CEND
+        TOL_MSG_IN_COLOR = cstyle.CGREENBG + "Requested tolerance achieved" + cstyle.CEND
+    else:
+        WARNING_MSG_IN_COLOR = WARNING_MSG_NO_COLOR
+        ERROR_MSG_IN_COLOR = ERROR_MSG_NO_COLOR
+        TOL_MSG_IN_COLOR = TOL_MSG_NO_COLOR
 
 
 MAGNUS_MAX_PREDEFINED_NUM_FLAVORS = 5
@@ -979,7 +1025,7 @@ def load_nufit_params(version='NuFIT 6.1', ordering='NO', category=None):
 
         no['D31'] > 0 and io['D31'] < 0
 
-    .. versionadded:: 0.11.0
+    .. versionadded:: 0.10.0
     """
     if version not in NUFIT_GLOBAL_FITS:
         available = ', '.join(NUFIT_GLOBAL_FITS.keys())
@@ -1007,6 +1053,7 @@ def load_nufit_params(version='NuFIT 6.1', ordering='NO', category=None):
 
 __all__ = [
     'cstyle',
+    'set_color_output',
     'WARNING_MSG_NO_COLOR',
     'WARNING_MSG_IN_COLOR',
     'ERROR_MSG_NO_COLOR',

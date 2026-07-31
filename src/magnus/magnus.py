@@ -67,13 +67,12 @@ Routine listings
            guaranteed Magnus convergence
 """
 
-__version__ = "2.0"
 __author__ = "Mauricio Bustamante"
 __email__ = "mbustamante@gmail.com"
 
 
 import warnings
-from typing import Optional, Callable, Union, Tuple, List
+from typing import Optional, Callable, Union, Tuple
 
 import numpy as np
 import scipy as sp
@@ -365,7 +364,7 @@ def _cumulative_integral(y: np.ndarray, ds: float, method: str) -> np.ndarray:
 def _full_integral(y: np.ndarray, ds: float, method: str) -> np.ndarray:
     r"""Integral of y along axis -3 over the full grid (endpoint only).
 
-    Cheaper than :func:`_cumulative_integral` when only the total
+    Cheaper than ``_cumulative_integral`` when only the total
     integral is needed (i.e., for the highest requested Magnus order).
 
     Parameters
@@ -665,7 +664,7 @@ def _validate(order: int, integration_method: str):
     ValueError
         If ``order`` or ``integration_method`` is invalid.
     """
-    if not (integration_method in valid_integration_methods):
+    if integration_method not in valid_integration_methods:
         raise ValueError(
             "magnus.magnus_expansion: integration_method must be one of "
             + str(valid_integration_methods) + ", not '"
@@ -718,6 +717,10 @@ def magnus_expansion(
     validate_input : bool, optional
         If True, validate ``order`` and ``integration_method``
         (raises ValueError on invalid input).
+    A_eval_mode : str, optional
+        Skip probing how ``A`` can be evaluated by declaring it up front
+        ('vector', 'scalar', or 'constant'); see :func:`probe_eval_mode`.
+        If None (default), it is probed once and detected automatically.
 
     Returns
     -------
@@ -861,6 +864,10 @@ def magnus_expansion_multislab(
         'trapezoid', 'simpson', or 'gl'.
     validate_input : bool, optional
         If True, validate input (raises ValueError on invalid input).
+    A_eval_mode : str, optional
+        Skip probing how ``A`` can be evaluated by declaring it up front
+        ('vector', 'scalar', or 'constant'); see :func:`probe_eval_mode`.
+        If None (default), it is probed once and detected automatically.
 
     Returns
     -------

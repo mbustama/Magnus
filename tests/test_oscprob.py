@@ -817,3 +817,40 @@ def test_nubar_present_across_all_flavor_counts_in_matter_families(family_prefix
         if 'nubar' not in inspect.signature(fn).parameters:
             missing.append(name)
     assert not missing, missing
+
+
+# ----------------------------------------------------------------------
+# Input validation raises rather than terminating the interpreter
+# ----------------------------------------------------------------------
+
+@pytest.mark.parametrize("call", [
+    pytest.param(lambda: op.osc_prob_3nu_vacuum("not-a-number", 1.0*gd.UNIT_KM),
+                 id="energy-wrong-type"),
+    pytest.param(lambda: op.osc_prob_3nu_vacuum(1.0*gd.UNIT_GEV, 1.0*gd.UNIT_KM,
+                                                nu_i=99, nu_f=0),
+                 id="flavor-index-out-of-range"),
+    pytest.param(lambda: op.osc_prob_3nu_vacuum(1.0*gd.UNIT_GEV, 1.0*gd.UNIT_KM,
+                                                default_osc_params_set_name="NO_SUCH_SET"),
+                 id="unknown-parameter-set"),
+    pytest.param(lambda: op.osc_prob_3nu_vacuum(np.zeros((2, 2)), 1.0*gd.UNIT_KM),
+                 id="energy-not-1d"),
+])
+def test_invalid_input_raises_valueerror_and_does_not_exit(call):
+    """Invalid input must raise a catchable ValueError.
+
+    These validation failures used to print a message and call ``sys.exit(1)``, which tears down
+    the whole interpreter -- unusable from a notebook, a scan loop, or any caller that wants to
+    recover, and impossible to assert on in a test.  ``pytest.raises(ValueError)`` here would
+    also catch a regression back to SystemExit, since SystemExit derives from BaseException and
+    would propagate out of the test rather than being caught."""
+    with pytest.raises(ValueError):
+        call()
+
+
+def test_validate_input_battery_returns_none_on_valid_input():
+    """The battery signals failure by raising, so a passing run simply returns None."""
+    result = op.validate_input_battery(
+        'test', energy=1.0*gd.UNIT_GEV, L=1.0*gd.UNIT_KM, num_flavors=3, nu_i=0, nu_f=1,
+        osc_params=[0.55, 0.69, 0.15, 3.7, 7.49e-5, 2.513e-3],
+        validate_energy_and_L=True, validate_flavor_indices=True, validate_osc_params=True)
+    assert result is None

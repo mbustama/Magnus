@@ -73,8 +73,8 @@ energy, any method is fast enough.  For **extreme accumulated phases** —
 e.g., ~10 MeV neutrinos crossing most of the Sun (~1e4 rad of
 matter-dominated phase) — the plain Magnus slab-refinement method can need
 a very large slab count, and warns (``ToleranceNotAchievedWarning``)
-instead of failing silently if it hits its caps first.  Since v0.11.0, this
-regime is handled automatically by ``strategy='auto'`` (the default for
+instead of failing silently if it hits its caps first.  This regime is now
+handled automatically by ``strategy='auto'`` (the default for
 ``osc_prob_matter_std_potential``, ``osc_prob_matter_nsi``, ``osc_prob_liv``,
 and every wrapper built on them, including every ``osc_prob_*_sun*``
 function): an adiabatic-transport-plus-Magnus-patch strategy that stays

@@ -272,3 +272,54 @@ def test_hybrid_propagator_handles_higher_dimensions(num_flavors):
     assert certified
     assert windows == []  # standard mixing stays adiabatic at this energy, as in the 3nu case
     assert maxabs(U.conj().T @ U - np.eye(num_flavors)) < 1e-10
+
+
+# ----------------------------------------------------------------------
+# hybrid_propagator: the uncertified path
+# ----------------------------------------------------------------------
+
+def _sun_like_3nu_H():
+    """A standard 3nu solar Hamiltonian, adiabatic over the whole range (0 windows)."""
+    osc = gd.OSC_PARAMS_PREDEFINED['OSC_PARAMS_DEFAULT']
+    hvac = hams.hamiltonian_3nu_vacuum_energy_independent(
+        osc['s12'], osc['s23'], osc['s13'], osc['dCP'], osc['D21'], osc['D31'])
+    e00 = np.diag([1.0, 0.0, 0.0])
+    rho_func = matter.exp_density_profile(gd.NUM_DENSITY_E_SUN_CENTRAL, gd.L_SCALE_SUN)
+    VCC_func = matter.vcc_func_from_rho_func(rho_func, 0.0, 1.0, 0.5, False, False, True)
+    energy = 18.0*gd.UNIT_MEV
+
+    def H_func(l):
+        return (1.0/energy)*hvac + np.asarray(VCC_func(l))*e00
+
+    return H_func, 0.0, 4.0*gd.L_SCALE_SUN
+
+
+def test_hybrid_propagator_does_not_certify_when_every_knob_is_saturated():
+    """Regression test: with all three refinement knobs pinned at their ceilings from the very
+    first iteration, successive iterations recompute bit-identical inputs.  The agreement test
+    would then compare a result with itself and pass trivially, so the loop must refuse to
+    certify rather than report success on the strength of a comparison carrying no information.
+    The returned operator is still exactly unitary -- that never depended on certification."""
+    H_func, l0, l1 = _sun_like_3nu_H()
+
+    U, _, certified = ad.hybrid_propagator(
+        H_func, l0, l1,
+        rtol=1e-300, atol=1e-300,          # unreachable, so it can never certify honestly
+        threshold0=0.1, min_threshold=0.1,  # already at its floor
+        n_probe0=200, max_n_probe=200,      # already at its ceiling
+        n_points0=201, max_n_points=201)    # already at its ceiling
+
+    assert certified is False
+    assert maxabs(U.conj().T @ U - np.eye(3)) < 1e-12
+
+
+def test_hybrid_propagator_does_not_certify_when_iterations_run_out():
+    """An unreachable tolerance with room left to refine must exhaust ``max_iters`` and report
+    ``certified=False``, again while staying exactly unitary."""
+    H_func, l0, l1 = _sun_like_3nu_H()
+
+    U, _, certified = ad.hybrid_propagator(
+        H_func, l0, l1, rtol=1e-300, atol=1e-300, max_iters=2)
+
+    assert certified is False
+    assert maxabs(U.conj().T @ U - np.eye(3)) < 1e-12

@@ -26,14 +26,13 @@ Routine listings
 """
 
 
-__version__ = "1.0"
 __author__ = "Mauricio Bustamante"
 __email__ = "mbustamante@gmail.com"
 
 
 # from numpy import *
 import numpy as np
-from typing import Optional, Callable, Union
+from typing import Optional, Callable
 
 
 def mixing_matrix_5x5(s12: float, s23: float, s13:float, d13: float, s14: float, d14: float,
@@ -280,7 +279,7 @@ def hamiltonian_5nu_vacuum_energy_independent(s12: float, s23: float, s13:float,
     """
     # 5x5 mixing matrix
     R = mixing_matrix_5x5(s12, s23, s13, d13, s14, d14, s15, d15, s24, d24, s25, s34, s35, d35,
-        compute_matrix_multiplication=compute_matrix_multiplication) if nubar == False else \
+        compute_matrix_multiplication=compute_matrix_multiplication) if not nubar else \
             np.conj(mixing_matrix_5x5(s12, s23, s13, d13, s14, d14, s15, d15, s24, d24, s25, s34,
                 s35, d35, compute_matrix_multiplication=compute_matrix_multiplication))
     # Mass matrix

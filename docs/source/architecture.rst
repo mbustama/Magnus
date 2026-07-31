@@ -133,7 +133,7 @@ all -- this is the escape hatch for Hamiltonians the package does not
 already know about. ``osc_prob_energy_baseline`` sits just above it:
 given arrays of ``energy`` and ``L``, it builds the right
 energy-dependent closure over ``H_func``, decides whether to parallelize
-over points (:func:`joblib.Parallel`) or hand a single call straight to
+over points (``joblib.Parallel``) or hand a single call straight to
 ``osc_prob``, and carries the *warm start* logic that seeds each point's
 refinement from the previous point's converged (``n_slabs``,
 ``n_tpts_per_slab``).
@@ -298,7 +298,7 @@ closest sibling to copy from. The recipe:
            r"""Compute the 3nu NSI oscillation probability for a
            user-supplied radial matter density profile.
 
-           .. versionadded:: 0.11.0
+           .. versionadded:: 0.10.0
            """
            return osc_prob_matter_nsi(
                num_flavors=3,

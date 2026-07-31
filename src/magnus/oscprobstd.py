@@ -20,7 +20,6 @@ Routine listings
     * osc_prob_3nu_vacuum_std - Returns 3nu vacuum probabilities, closed form
 """
 
-__version__ = "1.0"
 __author__ = "Mauricio Bustamante"
 __email__ = "mbustamante@gmail.com"
 

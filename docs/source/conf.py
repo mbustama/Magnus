@@ -3,7 +3,6 @@
 # For the full list of built-in configuration values, see the documentation:
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
 
-import os
 import sys
 from pathlib import Path
 
@@ -13,7 +12,6 @@ from pathlib import Path
 project = 'Magnus'
 copyright = '2026, Mauricio Bustamante'
 author = 'Mauricio Bustamante'
-release = '0.10.0'
 
 # -- General configuration ----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
@@ -25,6 +23,13 @@ release = '0.10.0'
 # would need to).  sphinx-autoapi instead parses the source with static
 # analysis, so it needs only a path to the source tree, never an import.
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'src'))
+
+# Read the version from the same single source everything else uses -- the
+# ``version`` field of pyproject.toml, resolved by magnus/version.py -- rather
+# than repeating the number here, where it would silently go stale.  This is a
+# leaf module with no third-party imports, so it is safe to import even though
+# the rest of the package is not (see the note above).
+from magnus.version import __version__ as release  # noqa: E402,F401
 
 extensions = [
     'sphinx.ext.napoleon',      # NumPy/Google-style docstrings

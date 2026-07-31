@@ -27,14 +27,13 @@ Routine listings
 """
 
 
-__version__ = "1.0"
 __author__ = "Mauricio Bustamante"
 __email__ = "mbustamante@gmail.com"
 
 
 # from numpy import *
 import numpy as np
-from typing import Optional, Callable, Union
+from typing import Optional, Callable
 
 
 def mixing_matrix_4x4(s12: float, s23: float, s13:float, d13: float, s14: float, d14: float,
@@ -200,7 +199,7 @@ def hamiltonian_4nu_vacuum_energy_independent(s12: float, s23: float, s13:float,
     """
     # 4x4 mixing matrix
     R = mixing_matrix_4x4(s12, s23, s13, d13, s14, d14, s24, d24, s34,
-        compute_matrix_multiplication=compute_matrix_multiplication) if nubar == False else \
+        compute_matrix_multiplication=compute_matrix_multiplication) if not nubar else \
             np.conj(mixing_matrix_4x4(s12, s23, s13, d13, s14, d14, s24, d24, s34,
                 compute_matrix_multiplication=compute_matrix_multiplication))
     # Mass matrix
@@ -552,7 +551,7 @@ def hamiltonian_4nu_liv_energy_independent(sxi12: float, sxi23: float, sxi13: fl
     """
     # 4x4 mixing matrix
     R = mixing_matrix_4x4(sxi12, sxi23, sxi13, dxi13, sxi14, dxi14, sxi24, dxi24, sxi34,
-        compute_matrix_multiplication=compute_matrix_multiplication) if nubar == False else \
+        compute_matrix_multiplication=compute_matrix_multiplication) if not nubar else \
             np.conj(mixing_matrix_4x4(sxi12, sxi23, sxi13, dxi13, sxi14, dxi14, sxi24, dxi24, sxi34,
                 compute_matrix_multiplication=compute_matrix_multiplication))
 

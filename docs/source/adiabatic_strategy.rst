@@ -196,7 +196,7 @@ assembled by the **exact composition law** of quantum evolution,
 which holds regardless of which method computed each factor -- the same
 principle the plain Magnus engine already relies on to chain ordinary
 slabs (:doc:`methodology`). Every factor here (:math:`U_{\rm ad}` from
-:func:`adiabatic_propagator`, :math:`U_{\rm patch}` from the Magnus kernel)
+:func:`~magnus.adiabatic.adiabatic_propagator`, :math:`U_{\rm patch}` from the Magnus kernel)
 is exactly unitary by construction, so the composed :math:`U` is exactly
 unitary too, regardless of how accurate the adiabatic approximation
 actually is anywhere along the way.
@@ -251,7 +251,8 @@ point:
    restricted to genuinely two-level Hamiltonians and a tagged exponential
    profile -- see :doc:`methodology`), the energy-batched scan engine, or
    the general adaptive slab-refinement method. This reproduces the exact
-   behavior of Magνs before v0.11.0, unconditionally.
+   behavior of Magνs as it was before the adiabatic strategy was added,
+   unconditionally.
 
 ``'hybrid'``
    Additionally try :func:`magnus.adiabatic.hybrid_propagator` for any
@@ -358,14 +359,16 @@ both real and genuinely complex (CP-violating) Hamiltonians.
    :width: 96%
    :align: center
    :alt: Bar chart of measured speedup versus solve_ivp across the
-         validation grid, log scale, ranging from about 25,800x for the
-         fastest case down to about 52x for the slowest.
+         validation grid, log scale, ranging from about 4,800x for the
+         fastest case down to about 30x for the slowest.
 
    Measured speedup versus a tight-tolerance ``solve_ivp`` ground truth
-   across the validation grid (log scale). Purely adiabatic cases (green)
-   are fastest, since no exact patch is ever computed; cases needing one
-   or more Magnus patches (red) are still 50-90x faster than direct
-   integration, dominated by the (still cheap, since the window is
+   across the validation grid (log scale), plotting exactly the numbers in
+   the table above -- both come from ``VALIDATION_GRID`` in
+   ``docs/make_figures.py``, so they cannot drift apart. Purely adiabatic
+   cases (green) are fastest, since no exact patch is ever computed; cases
+   needing one or more Magnus patches (red) are still 30-90x faster than
+   direct integration, dominated by the (still cheap, since the window is
    narrow) patch computation and the self-certification refinement loop.
 
 Speedups for the patched cases are smaller than the purely adiabatic ones
@@ -396,7 +399,7 @@ Limitations and scope
 :func:`magnus.oscprob.osc_prob_sun` and :func:`magnus.oscprob.osc_prob_earth`
 (the fully generic entry points, which accept an arbitrary user-supplied
 ``H_func`` without assuming the separable vacuum-plus-matter-potential
-structure) also accept ``strategy``, via :func:`_osc_prob_hybrid_dispatch_generic`
+structure) also accept ``strategy``, via ``_osc_prob_hybrid_dispatch_generic``
 -- nothing about :func:`magnus.adiabatic.hybrid_propagator` requires the
 separable structure the other wrappers build (it operates on any callable
 ``H_func(l)``), so the same gating logic (smooth profile, requested

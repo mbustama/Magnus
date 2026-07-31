@@ -89,7 +89,7 @@ and the project uses [Semantic Versioning](https://semver.org/).
   internal grid densities together until two successive results agree.
   Validated against `solve_ivp` on standard and BSM (NSI) 3-, 4-, and
   5-flavor Hamiltonians, and on synthetic cases with two independent and
-  two merging resonances: 0-window cases match to ~2e-4 at 3,600x-25,800x
+  two merging resonances: 0-window cases match to ~2e-4 at 3,600x-4,800x
   the speed of `solve_ivp`; 1-2-window (patched) cases match to
   9e-4-2.9e-3 at 30x-91x the speed. See `docs/source/adiabatic_strategy.rst`
   for the full derivation and validation.
@@ -102,7 +102,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
   entry points, via a new `_osc_prob_hybrid_dispatch_generic`/
   `_osc_prob_with_potential` code path, since these bypass
   `osc_prob_matter_std_potential`/`_nsi`/`osc_prob_liv` entirely).
-  `'magnus'` reproduces the exact pre-0.11.0 behavior; `'hybrid'`
+  `'magnus'` reproduces the exact behavior from before the adiabatic
+  strategy was added; `'hybrid'`
   additionally tries `magnus.adiabatic.hybrid_propagator` for any
   position-dependent, breakpoint-free potential with a requested
   tolerance, returning a best-effort result plus the new
@@ -188,6 +189,45 @@ and the project uses [Semantic Versioning](https://semver.org/).
   checked by anything, and had silently drifted out of sync with the code
   (see "Fixed" below). As executed cells they now show genuine, always-current
   output and will fail the docs build if they ever break again.
+- **Breaking:** invalid input now raises `ValueError` instead of printing a
+  message and calling `sys.exit(1)`. There were 62 such aborts across
+  `oscprob` and `earth`; a library that terminates the interpreter cannot be
+  recovered from in a notebook, a scan loop, or a caller that wants to fall
+  back, and it made the failures impossible to assert on in tests. Most were
+  already `raise ValueError(...)` inside a `try` block whose `except`
+  immediately swallowed it and exited, so the messages are unchanged — they
+  now propagate instead of being printed. `validate_input_battery` follows
+  suit: it raises rather than returning `1`, so its return type is now `None`
+  (it previously returned `0`/`1`, and every caller compared against `1`).
+  Error messages raised as exceptions use the plain-text
+  `gd.ERROR_MSG_NO_COLOR` prefix, since ANSI codes are meant for a terminal
+  and end up in tracebacks and logs. The `magnus` CLI catches these and
+  reports them as ordinary argument errors, so its behavior is unchanged.
+- A single source of truth for the version number: the `version` field of
+  `pyproject.toml`. `magnus/version.py` now resolves it via
+  `importlib.metadata` when installed, falling back to parsing
+  `pyproject.toml` when running off `src/` on the path, and
+  `docs/source/conf.py` imports it rather than repeating it. The eleven
+  decorative per-module `__version__` strings (which disagreed with each
+  other — `"2.0"` in `magnus.py`, `"0.10.0"` in `oscprob.py`, `"1.0"`
+  elsewhere — and which nothing ever read) are gone.
+- The `strategy` keyword is now reachable from the command line as
+  `magnus prob --strategy {auto,hybrid,magnus}`, for the environments where
+  the Hamiltonian actually depends on position (`sun`, `earth`, and `matter`
+  with `--density-profile exp`). It was previously Python-API-only, so CLI
+  users silently got `'auto'` with no way to opt out or to force it.
+- `globaldefs.set_color_output(enabled)` turns the ANSI color in the
+  warning/error/tolerance prefixes on or off. `WARNING_MSG_NO_COLOR` and its
+  siblings had existed and been exported since the beginning but were never
+  used by anything: every call site hardcoded the colored variant, so there
+  was no supported way to get clean output into a log file or a rendered
+  notebook.
+- `ruff check` is now blocking in CI rather than `continue-on-error`, with
+  the rule configuration in `[tool.ruff.lint]` in `pyproject.toml`. Two
+  codebase-wide conventions are exempted explicitly (`E741`, since `l` is the
+  standard symbol for position here, and `E701` for the one-line cleanup
+  guards); everything else was fixed, so the tree is clean and a new finding
+  fails the build instead of being reported into a green checkmark.
 
 ### Fixed
 
@@ -205,10 +245,75 @@ and the project uses [Semantic Versioning](https://semver.org/).
   was called without its `oscprob.` prefix (a `NameError`), and the flavor
   indices were listed as "`NUE`, `NUMU`, and `NUMU`" instead of `NUTAU`.
 
+- `adiabatic.hybrid_propagator` could report `certified=True` without having
+  certified anything. Its three refinement knobs saturate at different
+  iterations (`n_probe` at 5, `n_points` at 6, `threshold` at 11), so by
+  iteration 12 all three were pinned: that iteration recomputed bit-identical
+  inputs and the agreement test compared a result with itself. The loop now
+  stops as soon as every knob has saturated and reports `certified=False`,
+  which is the honest answer. Covered by a regression test that fails against
+  the old code.
+- `adiabatic.find_resonance_candidates` (and everything built on it) no longer
+  evaluates the user's `H_func` outside the requested `[l0, l1]`. The
+  finite-difference stencil reached to `l0 - h` and `l1 + h` at the endpoints,
+  which can raise or return nonsense for a Hamiltonian defined only on its
+  physical domain -- `earth.density_matter_func_prem`, for one, raises beyond
+  `EARTH_RADIUS`. The stencil is now one-sided at the boundaries.
+- The speedup chart in `docs/source/adiabatic_strategy.rst` disagreed with the
+  validation table directly above it: it showed a 25,800x bar for the case the
+  table reports as ~30x (25,800x was a different, unlisted measurement). Both
+  now come from `VALIDATION_GRID` in the new `docs/make_figures.py`, so they
+  cannot drift apart again.
+- `docs/source/installation.rst` claimed `src/magnus/` had to be on the Python
+  path "for a few modules that resolve sibling imports directly". No such
+  import has existed since the package was flattened; only `src/` is needed.
+  The README and `quickstart.rst` also still carried
+  `sys.path.extend(['src', 'src/magnus'])  # until pip packaging lands`, long
+  after packaging landed.
+- `HybridCertificationWarning` is exported from `magnus.oscprob.__all__`. It
+  was the only public class or function in the package missing from its
+  module's `__all__`, despite being raised, documented, and cross-referenced.
+- Four `Returns` sections said `np.narray` instead of `np.ndarray`, and
+  `earth.coordinates_of_named_location`'s message said "the given name of the
+  the location". Several other error messages had typos (`wil`, `lengh`, "only
+  of the two", and a mangled function name in
+  `values_to_unspecified_osc_params`).
+- Every `:func:`/`:class:` cross-reference in the docs now resolves. Bare names
+  in `quickstart.rst` and `adiabatic_strategy.rst` are qualified;
+  sibling-module references in `hamiltonians{2,3}nu.py` are qualified; and
+  references to private helpers (for which autoapi never emits targets, so they
+  rendered as plain text) are now inline literals, which is what they should
+  have been.
+- Undocumented parameters: `tol` in `earth.density_matter_func_prem` and
+  `earth.earth_radial_distance_from_depth`, and `A_eval_mode` in
+  `magnus.magnus_expansion` and `magnus.magnus_expansion_multislab`.
+- `osc_prob` and the four `osc_prob_{2,3,4,5}nu_vacuum` wrappers documented
+  their parameters without types, unlike the other 167 functions in the
+  package, so the rendered docs dropped the type column for the single most
+  important function in the API. All 99 entries now carry the type from the
+  signature.
+- Stale "Routine listings": `globaldefs` was missing `load_nufit_params` and
+  `matter` was missing `exp_density_profile`. `cli.build_parser` and `cli.main`
+  were the only public functions with no `.. versionadded::` tag.
+- `.github/workflows/tests.yml` only ran on pushes to `main` and `dev`, so
+  every push to `dev-plotting` -- the branch this work happens on -- got no CI
+  at all. It now covers `dev-*` too, and installs the package with
+  `pip install -e .` rather than only its requirements, so the console script
+  and the version lookup are exercised the way a user's install is.
+- `docs/source/cli.rst` quoted `magnus prob --help` from a hand-copied paste
+  that had gone stale (it never mentioned `--version`). It is now generated by
+  `docs/regen_cli_help.py`, with a CI job that fails if the page and the parser
+  disagree.
+
 ### Removed
 
 - `docs/source/sandbox/`, an untracked, unused pydata-theme experiment
   directory.
+- 1,238 lines of commented-out, ad-hoc scratch code in the
+  `if __name__ == "__main__":` blocks of `oscprob` (1,218 lines, ~8% of the
+  file), `earth`, and `matter`. None of it could run: executing those modules
+  as scripts fails at import under the flattened package layout. `magnus.py`'s
+  small `__main__` demo does still run and is left alone.
 
 ## [0.10.0] - 2026-07-30
 

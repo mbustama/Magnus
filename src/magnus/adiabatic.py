@@ -39,7 +39,13 @@ the oscillation-probability API. :mod:`magnus.oscprob` calls
 :func:`magnus.oscprob.osc_prob_matter_std_potential`,
 :func:`magnus.oscprob.osc_prob_matter_nsi`, or
 :func:`magnus.oscprob.osc_prob_liv` (and, transitively, to every
-``osc_prob_*_sun``/``osc_prob_*_sun_nsi``/``osc_prob_*_sun_liv`` wrapper).
+``osc_prob_*_sun``/``osc_prob_*_sun_nsi``/``osc_prob_*_sun_liv`` wrapper),
+and also when it is passed to the fully generic user-Hamiltonian entry
+points :func:`magnus.oscprob.osc_prob_sun` and
+:func:`magnus.oscprob.osc_prob_earth` (via
+``magnus.oscprob._osc_prob_with_potential``).  For ``osc_prob_earth``
+the hybrid path is normally declined, since a real Earth trajectory
+supplies PREM layer breakpoints; see :doc:`/adiabatic_strategy`.
 
 Routine listings
 ----------------
@@ -55,7 +61,6 @@ Routine listings
            refinement of every internal tolerance knob
 """
 
-__version__ = "1.0"
 __author__ = "Mauricio Bustamante"
 __email__ = "mbustamante@gmail.com"
 
@@ -128,7 +133,7 @@ def adiabatic_propagator(H_func: Callable, l0: float, l1: float,
        U(l_1, l_0) \approx W(l_1)\, \mathrm{diag}\!\left(e^{-i\Phi_k}\right)\, W(l_0)^\dagger ,
        \qquad \Phi_k = \int_{l_0}^{l_1} \lambda_k(l)\, dl ,
 
-    with :math:`W(l)` the (parallel-transported; see :func:`_eigs_along`) matrix of instantaneous
+    with :math:`W(l)` the (parallel-transported; see ``_eigs_along``) matrix of instantaneous
     eigenvectors of :math:`H(l)` and :math:`\lambda_k(l)` its eigenvalues. This is *exact* in the
     strict adiabatic limit (no eigenvalue crossing or narrowly-avoided crossing along the
     trajectory) and remains unitary by construction (a diagonal phase conjugated by unitary
@@ -137,7 +142,7 @@ def adiabatic_propagator(H_func: Callable, l0: float, l1: float,
     unitary. See :func:`hybrid_propagator` for what to do when the trajectory does cross a
     resonance.
 
-    .. versionadded:: 0.11.0
+    .. versionadded:: 0.10.0
 
     Parameters
     ----------
@@ -167,7 +172,8 @@ def adiabatic_propagator(H_func: Callable, l0: float, l1: float,
     return W[-1] @ np.diag(np.exp(-1j * Phi)) @ W[0].conj().T
 
 
-def _dH_dl(H_func: Callable, l: float, h: float) -> np.ndarray:
+def _dH_dl(H_func: Callable, l: float, h: float,
+    bounds: Optional[Tuple[float, float]] = None) -> np.ndarray:
     r"""Ordinary real central finite difference of ``H_func`` at ``l``, step ``h``.
 
     Deliberately **not** complex-step differentiation (``Im[H(l+ih)]/h``): that technique is
@@ -178,7 +184,7 @@ def _dH_dl(H_func: Callable, l: float, h: float) -> np.ndarray:
     against this real, always-valid alternative. This real finite difference is robust because
     ``dH/dl`` is always smooth (tied to the smoothness of the underlying density/potential
     profile), independent of how sharp the resulting *eigenvalue* crossing is -- the sharpness
-    lives entirely in the gap, in the denominator of :func:`_point_adiabaticity`, never in
+    lives entirely in the gap, in the denominator of ``_point_adiabaticity``, never in
     ``dH/dl`` itself.
 
     Parameters
@@ -189,15 +195,33 @@ def _dH_dl(H_func: Callable, l: float, h: float) -> np.ndarray:
         Position at which to evaluate the derivative.
     h : float
         Absolute finite-difference step.
+    bounds : (float, float), optional
+        Interval ``(l0, l1)`` outside which ``H_func`` must never be evaluated. At a position
+        within ``h`` of either end, the stencil is made one-sided so that it stays inside,
+        rather than reaching past the boundary. Callers should pass this whenever ``H_func``
+        is only defined on the physical domain -- a radial profile undefined for negative
+        radius, or one that raises beyond a maximum radius, as
+        :func:`magnus.earth.density_matter_func_prem` does. If None, an unclamped central
+        difference is used.
 
     Returns
     -------
     np.ndarray
         Approximation to :math:`dH/dl` at ``l``.
     """
-    Hp = np.asarray(H_func(l + h), dtype=complex)
-    Hm = np.asarray(H_func(l - h), dtype=complex)
-    return (Hp - Hm) / (2.0 * h)
+    lm, lp = l - h, l + h
+    if bounds is not None:
+        lo, hi = bounds
+        if lm < lo:
+            lm, lp = lo, min(lo + 2.0 * h, hi)
+        elif lp > hi:
+            lm, lp = max(hi - 2.0 * h, lo), hi
+    span = lp - lm
+    if span <= 0.0:
+        return np.zeros_like(np.asarray(H_func(l), dtype=complex))
+    Hp = np.asarray(H_func(lp), dtype=complex)
+    Hm = np.asarray(H_func(lm), dtype=complex)
+    return (Hp - Hm) / span
 
 
 def find_resonance_candidates(H_func: Callable, l0: float, l1: float,
@@ -222,7 +246,7 @@ def find_resonance_candidates(H_func: Callable, l0: float, l1: float,
     whether it is actually non-adiabatic (whether it needs a Magnus patch) is a separate question,
     answered by :func:`find_nonadiabatic_windows`.
 
-    .. versionadded:: 0.11.0
+    .. versionadded:: 0.10.0
 
     Parameters
     ----------
@@ -235,7 +259,7 @@ def find_resonance_candidates(H_func: Callable, l0: float, l1: float,
     n_probe : int, optional
         Number of positions on the initial scan grid used to bracket sign changes. Default: 200.
     fd_step_frac : float, optional
-        Finite-difference step for :func:`_dH_dl`, as a fraction of ``l1 - l0``. Default: 1e-6.
+        Finite-difference step for ``_dH_dl``, as a fraction of ``l1 - l0``. Default: 1e-6.
 
     Returns
     -------
@@ -252,14 +276,15 @@ def find_resonance_candidates(H_func: Callable, l0: float, l1: float,
     lam = np.empty((n, d))
     W = np.empty((n, d, d), dtype=complex)
     dH = np.empty((n, d, d), dtype=complex)
+    bounds = (l0, l1)
     for i in range(n):
         lam[i], W[i] = np.linalg.eigh(Hs[i])
-        dH[i] = _dH_dl(H_func, ls[i], h)
+        dH[i] = _dH_dl(H_func, ls[i], h, bounds)
 
     def f_pair(l: float, j: int, k: int) -> float:
         H = np.asarray(H_func(l), dtype=complex)
         _, Wi = np.linalg.eigh(H)
-        dHl = _dH_dl(H_func, l, h)
+        dHl = _dH_dl(H_func, l, h, bounds)
         vj, vk = Wi[:, j], Wi[:, k]
         return float(np.real(np.vdot(vj, dHl @ vj) - np.vdot(vk, dHl @ vk)))
 
@@ -294,17 +319,19 @@ def find_resonance_candidates(H_func: Callable, l0: float, l1: float,
     return candidates
 
 
-def _point_adiabaticity(H_func: Callable, l: float, j: int, k: int, fd_step: float) -> float:
+def _point_adiabaticity(H_func: Callable, l: float, j: int, k: int, fd_step: float,
+    bounds: Optional[Tuple[float, float]] = None) -> float:
     r"""Adiabaticity parameter :math:`\gamma_{jk}(l) = |\langle v_j|\, dH/dl\, |v_k\rangle| / (\lambda_k - \lambda_j)^2`
     (Landau-Zener form), computed exactly from the Hellmann-Feynman off-diagonal matrix element --
     no eigenvector finite difference. Large :math:`\gamma` signals a narrowly-avoided (or exact)
     crossing where the adiabatic approximation breaks down; ``fd_step`` is an *absolute* step
     (unlike ``fd_step_frac`` elsewhere), since callers evaluate this at positions found by
-    bisection, arbitrarily close together.
+    bisection, arbitrarily close together. ``bounds``, if given, keeps the finite-difference
+    stencil inside the physical domain (see ``_dH_dl``).
     """
     H = np.asarray(H_func(l), dtype=complex)
     lam, W = np.linalg.eigh(H)
-    dH = _dH_dl(H_func, l, fd_step)
+    dH = _dH_dl(H_func, l, fd_step, bounds)
     vj, vk = W[:, j], W[:, k]
     coupling = np.abs(np.vdot(vj, dH @ vk))
     gap = abs(lam[k] - lam[j])
@@ -330,7 +357,7 @@ def _estimate_window_bounds(H_func: Callable, l_star: float, j: int, k: int, l0:
                 return l1
             if sign < 0 and l_try <= l0:
                 return l0
-            if _point_adiabaticity(H_func, l_try, j, k, fd_step) < threshold:
+            if _point_adiabaticity(H_func, l_try, j, k, fd_step, (l0, l1)) < threshold:
                 l_edge = l_try
                 break
             step *= 2.0
@@ -348,14 +375,14 @@ def find_nonadiabatic_windows(H_func: Callable, l0: float, l1: float,
     r"""Finds every position window along ``[l0, l1]`` where ``H_func`` needs a Magnus patch.
 
     Calls :func:`find_resonance_candidates`, evaluates the adiabaticity parameter
-    :math:`\gamma_{jk}` (see :func:`_point_adiabaticity`) at each candidate, grows a window around
-    every candidate with :math:`\gamma_{jk} > \text{threshold}` (see :func:`_estimate_window_bounds`),
+    :math:`\gamma_{jk}` (see ``_point_adiabaticity``) at each candidate, grows a window around
+    every candidate with :math:`\gamma_{jk} > \text{threshold}` (see ``_estimate_window_bounds``),
     and merges any windows that overlap or touch -- so two (or more) resonances close enough
     together are correctly folded into a single patch, rather than either double-counted or
     (worse) silently dropped. This works for any number of simultaneous or sequential resonances,
     between any pair of levels.
 
-    .. versionadded:: 0.11.0
+    .. versionadded:: 0.10.0
 
     Parameters
     ----------
@@ -384,7 +411,7 @@ def find_nonadiabatic_windows(H_func: Callable, l0: float, l1: float,
     fd_step = (l1 - l0) * fd_step_frac
     windows = []
     for c in candidates:
-        gamma = _point_adiabaticity(H_func, c['l'], c['j'], c['k'], fd_step)
+        gamma = _point_adiabaticity(H_func, c['l'], c['j'], c['k'], fd_step, (l0, l1))
         c['gamma'] = gamma
         if gamma > threshold:
             l_b, l_c = _estimate_window_bounds(H_func, c['l'], c['j'], c['k'], l0, l1, threshold,
@@ -483,7 +510,7 @@ def hybrid_propagator(H_func: Callable, l0: float, l1: float, rtol: Optional[flo
     #. If there are none, returns the pure adiabatic-transport operator (see
        :func:`adiabatic_propagator`).
     #. Otherwise, composes adiabatic transport between windows with an exact local Magnus patch
-       *inside* each window (see :func:`_local_evolution_operator`), using the exact composition
+       *inside* each window (see ``_local_evolution_operator``), using the exact composition
        law of quantum evolution, :math:`U(l_2, l_0) = U(l_2, l_1)\, U(l_1, l_0)`, so the result is
        exactly unitary regardless of any approximation's accuracy.
     #. Self-certifies the result: a single fixed adiabaticity ``threshold`` (deciding which
@@ -491,12 +518,20 @@ def hybrid_propagator(H_func: Callable, l0: float, l1: float, rtol: Optional[flo
        resonance is patched too narrowly or missed; too tight, and windows are patched
        needlessly, at some (still usually modest) extra cost. Rather than trust one fixed value,
        the whole computation (window threshold, adiabatic-transport grid density, and the probe
-       grid used to *locate* candidates) is repeated with all three knobs tightened together
+       grid used to *locate* candidates) is repeated with the knobs tightened together
        (threshold divided by 3, ``n_points``/``n_probe`` doubled) until two successive results
        agree within ``rtol``/``atol``, mirroring the successive-refinement discipline
        :func:`magnus.oscprob.osc_prob` already uses for the number of slabs.
 
-    .. versionadded:: 0.11.0
+       Each knob stops at its own ceiling (``min_threshold``, ``max_n_probe``,
+       ``max_n_points``), which they reach at different iterations, so the later iterations
+       tighten fewer knobs than the earlier ones. Once *all* of them have saturated, a further
+       iteration would recompute bit-identical inputs and the agreement test would pass
+       trivially, comparing a result with itself; the loop therefore stops at that point and
+       reports ``certified=False`` rather than certifying on the strength of a comparison that
+       carries no information.
+
+    .. versionadded:: 0.10.0
 
     Parameters
     ----------
@@ -539,11 +574,12 @@ def hybrid_propagator(H_func: Callable, l0: float, l1: float, rtol: Optional[flo
     -------
     (np.ndarray, list of (float, float), bool)
         The evolution operator (exactly unitary regardless of ``certified``), the non-adiabatic
-        windows used in the last iteration, and whether the result is certified (``True``) or the
-        refinement exhausted ``max_iters``/a local patch failed to converge within its own slab
-        cap without two successive results agreeing (``False`` -- the returned operator is the
-        best available estimate, still exactly unitary, but its accuracy is not certified to the
-        requested tolerance).
+        windows used in the last iteration, and whether the result is certified (``True``).
+        ``certified`` is ``False`` if the refinement exhausted ``max_iters``, if every knob
+        reached its ceiling before two successive results agreed, or if a local patch failed to
+        converge within its own slab cap -- in all three cases the returned operator is the best
+        available estimate, still exactly unitary, but its accuracy is not certified to the
+        requested tolerance.
     """
     threshold, n_probe, n_points = threshold0, n_probe0, n_points0
     U_prev, windows_prev, ok_prev = _hybrid_propagator_once(H_func, l0, l1, threshold, n_probe,
@@ -552,9 +588,16 @@ def hybrid_propagator(H_func: Callable, l0: float, l1: float, rtol: Optional[flo
         return U_prev, windows_prev, False
 
     for _ in range(max_iters):
+        knobs_prev = (threshold, n_probe, n_points)
         threshold = max(threshold / 3.0, min_threshold)
         n_probe = min(n_probe * 2, max_n_probe)
         n_points = min(n_points * 2, max_n_points)
+        if (threshold, n_probe, n_points) == knobs_prev:
+            # Every knob has hit its ceiling. _hybrid_propagator_once is deterministic, so
+            # rerunning it here would reproduce U_prev exactly and the agreement test below
+            # would pass on a comparison of a result with itself -- which is no evidence of
+            # convergence at all. Stop and report the result as uncertified instead.
+            break
         U_next, windows_next, ok_next = _hybrid_propagator_once(H_func, l0, l1, threshold,
             n_probe, n_points, fd_step_frac, magnus_exp_order, integration_method)
         if not ok_next:

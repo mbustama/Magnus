@@ -28,14 +28,13 @@ Routine listings
 """
 
 
-__version__ = "1.0"
 __author__ = "Mauricio Bustamante"
 __email__ = "mbustamante@gmail.com"
 
 
 # from numpy import *
 import numpy as np
-from typing import Optional, Callable, Union
+from typing import Optional, Callable
 
 # import cmath
 # import cmath as cmath
@@ -95,8 +94,8 @@ def mixing_matrix_3x3(s12: float, s23: float, s13:float, dCP: float) -> np.ndarr
     r"""Returns the 3x3 PMNS mixing matrix.
 
     Alias of :func:`pmns_mixing_matrix`, kept for naming parity with
-    :func:`hamiltonians4nu.mixing_matrix_4x4` and
-    :func:`hamiltonians5nu.mixing_matrix_5x5`.
+    :func:`magnus.hamiltonians.hamiltonians4nu.mixing_matrix_4x4` and
+    :func:`magnus.hamiltonians.hamiltonians5nu.mixing_matrix_5x5`.
 
     .. versionadded:: 0.10.0
 
@@ -170,7 +169,7 @@ def hamiltonian_3nu_vacuum_energy_independent(s12: float, s23: float, s13: float
         # sdCP = np.sqrt(1.0-cdCP*cdCP)
         sdCP = np.sin(dCP)
         # exp_dCP_p = complex(cdCP, sdCP)
-        exp_dCP_p = complex(cdCP, sdCP) if nubar == False else complex(cdCP, -sdCP)
+        exp_dCP_p = complex(cdCP, sdCP) if not nubar else complex(cdCP, -sdCP)
         exp_dCP_m = np.conj(exp_dCP_p)
 
         # All Hij have units of [eV^2]
@@ -193,11 +192,11 @@ def hamiltonian_3nu_vacuum_energy_independent(s12: float, s23: float, s13: float
     else:
 
         # PMNS matrix
-        # if nubar == False:
+        # if not nubar:
         #     R = pmns_mixing_matrix(s12, s23, s13, dCP)
         # else:
         #     R = np.conj(pmns_mixing_matrix(s12, s23, s13, dCP))
-        R = pmns_mixing_matrix(s12, s23, s13, dCP) if nubar == False \
+        R = pmns_mixing_matrix(s12, s23, s13, dCP) if not nubar \
                 else np.conj(pmns_mixing_matrix(s12, s23, s13, dCP))
         # Mass matrix
         M2 = np.diag([0.0, D21, D31])
@@ -553,7 +552,7 @@ def hamiltonian_3nu_liv_energy_independent(sxi12: float, sxi23: float, sxi13: fl
     np.ndarray
         Hamiltonian 3x3 matrix.
     """
-    R = pmns_mixing_matrix(sxi12, sxi23, sxi13, dxiCP) if nubar == False \
+    R = pmns_mixing_matrix(sxi12, sxi23, sxi13, dxiCP) if not nubar \
             else np.conj(pmns_mixing_matrix(sxi12, sxi23, sxi13, dxiCP))
 
     return pow(1.0/Lambda, n_liv) * R @ np.diag([b1, b2, b3]) @ np.conj(R.T)

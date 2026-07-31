@@ -30,6 +30,10 @@ This installs the ``magnus`` console script. If you would rather not
 install the package, ``python -m magnus`` works identically from the
 repository root once ``src/`` is on ``PYTHONPATH``.
 
+``magnus --version`` (or ``-V``) prints the installed version and exits;
+it reports the same number as ``magnus.__version__``, which is read
+from the ``version`` field of ``pyproject.toml``.
+
 Usage pattern
 ---------------
 
@@ -181,6 +185,44 @@ sterile states stay perfectly decoupled from the three active flavors and
 from each other, as expected -- this exact check is one of the CLI's
 regression tests (``tests/test_cli.py``).
 
+Choosing a propagation strategy
+------------------------------------
+
+For a position-dependent Hamiltonian -- ``--environment sun``,
+``--environment earth``, or ``--environment matter --density-profile exp`` --
+``--strategy`` selects how the evolution operator is propagated, exactly as the
+``strategy`` keyword does in the Python API (see :doc:`adiabatic_strategy` for
+the full description of the three values).  It defaults to ``auto`` and is
+ignored for vacuum and constant-density environments, whose Hamiltonians do not
+depend on position at all.
+
+This matters most for low-energy solar neutrinos, where the accumulated phase is
+extreme.  ``magnus`` is not merely slower there -- it can hit its refinement caps
+and return a confidently wrong number:
+
+.. code-block:: bash
+
+   magnus prob --flavors 3 --environment sun --energy 10 --energy-unit MeV \
+       --baseline 626000 --nu-i e --nu-f e --strategy magnus
+
+.. code-block:: text
+
+   P = 0.6560
+
+.. code-block:: bash
+
+   magnus prob --flavors 3 --environment sun --energy 10 --energy-unit MeV \
+       --baseline 626000 --nu-i e --nu-f e --strategy auto
+
+.. code-block:: text
+
+   P = 0.2905
+
+The second value is the correct one.  Since ``auto`` is the default, you only
+need this flag to *opt out* of the hybrid strategy (``--strategy magnus``, to
+reproduce the older behavior) or to force it and be warned when it cannot
+certify its own result (``--strategy hybrid``).
+
 Errors are explicit rather than silent
 ------------------------------------------
 
@@ -207,8 +249,7 @@ configures):
 
 .. code-block:: text
 
-   usage: magnus prob [-h] [--flavors {2,3,4,5}]
-                      [--environment {vacuum,matter,earth,sun}]
+   usage: magnus prob [-h] [--flavors {2,3,4,5}] [--environment {vacuum,matter,earth,sun}]
                       [--scenario {std,nsi,liv}] [--density-profile {constant,exp}]
                       [--nubar] --energy ENERGY [--energy-unit {eV,keV,MeV,GeV,TeV,PeV}]
                       [--baseline BASELINE] [--l0 L0] [--baseline-unit {eV-1,km,cm}]
@@ -236,8 +277,8 @@ configures):
                       [--liv-lambda LAMBDA] [--n-liv N_LIV] [--nu-i NU_I] [--nu-f NU_F]
                       [--magnus-exp-order MAGNUS_EXP_ORDER]
                       [--integration-method {trapezoid,simpson,gl}] [--rtol RTOL]
-                      [--atol ATOL] [--n-jobs N_JOBS] [--verbose {0,1,2}] [--json]
-                      [--precision PRECISION]
+                      [--atol ATOL] [--n-jobs N_JOBS] [--strategy {auto,hybrid,magnus}]
+                      [--verbose {0,1,2}] [--json] [--precision PRECISION]
 
    options:
      -h, --help            show this help message and exit
@@ -249,23 +290,21 @@ configures):
      --scenario {std,nsi,liv}
                            Physics scenario on top of the environment: 'std' (Standard
                            Model), 'nsi' (non-standard interactions), or 'liv' (Lorentz-
-                           invariance violation). 'nsi' is not available with
-                           --environment vacuum. Default: std.
+                           invariance violation). 'nsi' is not available with --environment
+                           vacuum. Default: std.
      --density-profile {constant,exp}
                            Matter density profile, only used with --environment matter:
-                           'constant' (requires --rho) or 'exp' (requires --rho-central
-                           and --l-scale). Default: constant.
-     --nubar               Compute the probability for antineutrinos instead of
-                           neutrinos.
+                           'constant' (requires --rho) or 'exp' (requires --rho-central and
+                           --l-scale). Default: constant.
+     --nubar               Compute the probability for antineutrinos instead of neutrinos.
 
    Energy and baseline:
      --energy ENERGY       Neutrino energy.
      --energy-unit {eV,keV,MeV,GeV,TeV,PeV}
                            Unit of --energy (default: GeV).
-     --baseline BASELINE   Baseline / final position. Required for vacuum, matter, and
-                           sun, and for earth when using --costhz. Only computed
-                           automatically for earth when both --loc-ini and --loc-fin are
-                           given instead.
+     --baseline BASELINE   Baseline / final position. Required for vacuum, matter, and sun,
+                           and for earth when using --costhz. Only computed automatically
+                           for earth when both --loc-ini and --loc-fin are given instead.
      --l0 L0               Initial position (used by --environment sun and --density-
                            profile exp). Default: 0.0.
      --baseline-unit {eV-1,km,cm}
@@ -290,8 +329,8 @@ configures):
    Earth (--environment earth):
      --costhz COSTHZ       Cosine of the neutrino zenith angle.
      --loc-ini LOC_INI     Initial location name (e.g. fermilab); see
-                           magnus.earth.loc_coords_dms. Must be given together with
-                           --loc-fin, as an alternative to --costhz.
+                           magnus.earth.loc_coords_dms. Must be given together with --loc-
+                           fin, as an alternative to --costhz.
      --loc-fin LOC_FIN     Final location name; see --loc-ini.
 
    Standard oscillation parameters (2-flavor):
@@ -372,13 +411,12 @@ configures):
      --b4 B4               LIV eigenvalue b4.
      --b5 B5               LIV eigenvalue b5.
      --liv-lambda LAMBDA   LIV energy scale Lambda. Default: 1.0.
-     --n-liv N_LIV         Power of the energy dependence of the LIV operator. Default:
-                           0.
+     --n-liv N_LIV         Power of the energy dependence of the LIV operator. Default: 0.
 
    Channel selection:
-     --nu-i NU_I           Initial flavor (index or name: e, mu, tau, s, s1, s2). If
-                           given with --nu-f, prints a single probability instead of the
-                           full matrix.
+     --nu-i NU_I           Initial flavor (index or name: e, mu, tau, s, s1, s2). If given
+                           with --nu-f, prints a single probability instead of the full
+                           matrix.
      --nu-f NU_F           Final flavor; see --nu-i.
 
    Advanced numerics:
@@ -390,6 +428,13 @@ configures):
      --rtol RTOL           Target relative tolerance. Default: 1e-3.
      --atol ATOL           Target absolute tolerance. Default: 1e-3.
      --n-jobs N_JOBS       Number of parallel joblib workers. Default: 1.
+     --strategy {auto,hybrid,magnus}
+                           How to propagate a position-dependent Hamiltonian: 'magnus' uses
+                           only the Magnus-expansion machinery; 'hybrid' also tries
+                           adiabatic transport with a Magnus patch at each non-adiabatic
+                           window, warning if it cannot certify the result; 'auto' tries
+                           hybrid and falls back to magnus silently. Ignored for vacuum and
+                           constant-density environments. Default: auto.
      --verbose {0,1,2}     Verbosity level. Default: 0.
 
    Output:
@@ -403,9 +448,9 @@ Implementation notes
 ``magnus prob`` does not reimplement any physics: it builds a keyword-argument
 dictionary from the flags you passed and calls straight into the matching
 ``osc_prob_{N}nu_*`` function (see :func:`magnus.cli.main` and
-:func:`magnus.cli._wrapper_name`). Physics keyword arguments that a given
+``_wrapper_name``). Physics keyword arguments that a given
 function does not explicitly accept (for example, ``default_osc_params_set_name``
 is not defined on every LIV wrapper) are filtered out via
 :func:`inspect.signature` before the call, rather than being silently
 forwarded through ``**kwargs`` to a layer that does not expect them -- see
-:func:`magnus.cli._call`.
+``_call``.

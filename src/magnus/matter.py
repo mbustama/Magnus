@@ -15,6 +15,8 @@ Routine listings
            matter density profile
     * density_matter_func_exp - Returns the density for an exponentially
            decreasing matter density profile
+    * exp_density_profile - Builds an exponential density-profile
+           callable tagged for the fast interaction-picture integrator
     * num_density_e_func - Converts a matter density to an electron
            number density
     * VCC_func - Returns the potential for coherent forward electron
@@ -24,13 +26,12 @@ Routine listings
            unit conversion
 """
 
-__version__ = "1.0"
 __author__ = "Mauricio Bustamante"
 __email__ = "mbustamante@gmail.com"
 
 
 import numpy as np
-from typing import Optional, Callable, Union, Tuple, List, Dict
+from typing import Optional, Callable, Union
 
 import magnus.globaldefs as gd
 
@@ -109,13 +110,13 @@ def exp_density_profile(density_matter_central: float, l_scale: float) -> Callab
     and :func:`magnus.oscprob.osc_prob_liv` look for this marker (propagated through
     :func:`vcc_func_from_rho_func`) to detect a genuine exponential profile and automatically switch
     to the much faster interaction-picture Magnus integrator (see
-    :func:`magnus.oscprob._osc_prob_ip_exp_dispatch`), with a transparent fallback to the general
+    ``_osc_prob_ip_exp_dispatch``), with a transparent fallback to the general
     slab-refinement method whenever the fast method does not converge (e.g., near an MSW resonance).
     A plain lambda with the same functional form would work numerically but, lacking the marker,
     would silently skip the fast path -- always build exponential profiles through this function (or
     ``osc_prob_*_exp_density``/``osc_prob_*_sun*``, which already do) to get the speed-up.
 
-    .. versionadded:: 0.11.0
+    .. versionadded:: 0.10.0
 
     Parameters
     ----------
@@ -140,7 +141,7 @@ def exp_density_profile(density_matter_central: float, l_scale: float) -> Callab
 def num_density_e_func(l: float, density_matter_func: Callable,
     ratio_number_neutrons_to_protons: Optional[float]=1.0,
     electron_fraction: Optional[float]=0.5,
-    density_matter_is_in_g_per_cm3=False) -> float:
+    density_matter_is_in_g_per_cm3: Optional[bool]=False) -> float:
     r"""Converts matter density [:math:`\text{g cm}^{-3}`] to electron number density
     [:math:`\text{eV}^{3}`], for a given matter density profile and position.
 
@@ -180,7 +181,7 @@ def num_density_e_func(l: float, density_matter_func: Callable,
     #                     / avg_mass_nucleon * electron_fraction \
     #                     / gd.CONV_CM3_TO_INV_EV3 # [eV^3]
 
-    # If the matter density is given in g cm^{-3} (density_matter_in_g_per_cm3 == True), convert it
+    # If the matter density is given in g cm^{-3} (density_matter_is_in_g_per_cm3 == True), convert it
     # natural units of eV^4.  Otherwise, it is assumed that the matter density is in natural units
     # already.
     
@@ -284,18 +285,21 @@ def vcc_func_from_rho_func(
     # If the provided rho_func is the matter density (e.g., g cm^{-3}), convert rho_func to a
     # function that returns the electron number density [eV^3]
     if not density_is_of_number_of_electrons:
-        # if isinstance(rho_func, Callable):
-        #     density_matter_func = rho_func
-        # else:
-        #     density_matter_func = lambda r: rho_func # If rho_func is constant, pass a dummy function
+        # If rho_func is a constant rather than a callable, wrap it in a dummy function so that
+        # num_density_e_func always receives a density it can evaluate at a position.
+        if isinstance(rho_func, Callable):
+            density_matter_func = rho_func
+        else:
+            def density_matter_func(r):
+                return rho_func
+
         # Number density of electrons [eV^3]
-        num_density_e = lambda l: num_density_e_func(l,
-            # density_matter_func=density_matter_func,
-            density_matter_func=rho_func if isinstance(rho_func, Callable) \
-                else (lambda r: rho_func), # If rho_func is constant, pass a dummy function
-            ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
-            electron_fraction=electron_fraction,
-            density_matter_is_in_g_per_cm3=density_matter_is_in_g_per_cm3)
+        def num_density_e(l):
+            return num_density_e_func(l,
+                density_matter_func=density_matter_func,
+                ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
+                electron_fraction=electron_fraction,
+                density_matter_is_in_g_per_cm3=density_matter_is_in_g_per_cm3)
         # Coherent forward potential, VCC [eV]
         if isinstance(rho_func, Callable):
             # Return VCC as a function, since the density is a function
@@ -313,11 +317,6 @@ def vcc_func_from_rho_func(
             return _tag(vcc)
         else:
             return s*VCC_func(l=L0, num_density_e_func=rho_func)
-
-
-if __name__ == "__main__":
-
-    pass
 
 
 __all__ = [

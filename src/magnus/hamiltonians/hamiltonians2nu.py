@@ -27,13 +27,12 @@ Routine listings
 """
 
 
-__version__ = "1.0"
 __author__ = "Mauricio Bustamante"
 __email__ = "mbustamante@gmail.com"
 
 
 import numpy as np
-from typing import Optional, Callable, Union
+from typing import Optional, Callable
 # from globaldefs import *
 
 
@@ -357,7 +356,7 @@ def hamiltonian_2nu_liv(energy: float, sxi: float, b1: float, b2: float, Lambda:
     n_liv : int
         Power of the energy dependence of the LIV operator (dimension of the operator minus 3).
     nubar : bool, optional
-        Accepted for interface parity with :func:`hamiltonians3nu.hamiltonian_3nu_liv` and its
+        Accepted for interface parity with :func:`magnus.hamiltonians.hamiltonians3nu.hamiltonian_3nu_liv` and its
         4nu/5nu siblings, which conjugate their (complex) LIV mixing matrix for antineutrinos.  The
         2-flavor LIV rotation has no CP-violating phase (only the real angle ``sxi``), so there is
         nothing to conjugate and this parameter currently has no effect. Default: False.

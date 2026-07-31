@@ -25,14 +25,12 @@ Routine listings
            predefined location (e.g., a neutrino detector site)
 """
 
-__version__ = "1.0"
 __author__ = "Mauricio Bustamante"
 __email__ = "mbustamante@gmail.com"
 
 
 import numpy as np
-import sys
-from typing import Optional, Callable, Union
+from typing import Optional, Union
 
 import magnus.globaldefs as gd
 
@@ -94,6 +92,11 @@ def density_matter_func_prem(r: Union[float, np.ndarray],
     ----------
     r : float or np.ndarray
         Radial distance(s) measured from the center of the Earth [km].
+    tol : float, optional
+        Relative tolerance by which a radial distance may exceed
+        ``globaldefs.EARTH_RADIUS`` before a ValueError is raised;
+        radii within the tolerance are clamped onto the surface.
+        Default: 1e-8.
 
     Returns
     -------
@@ -184,6 +187,11 @@ def earth_radial_distance_from_depth(costhz: float, l: Union[float, np.ndarray],
     l : float or np.ndarray
         Distance(s) of the neutrino from its point of entry into the
         Earth [km].
+    tol : float, optional
+        Absolute tolerance by which ``l`` may exceed the distance
+        traveled inside the Earth before a ValueError is raised;
+        distances within the tolerance are clamped onto the exit point.
+        Default: 1e-8.
 
     Returns
     -------
@@ -415,29 +423,12 @@ def coordinates_of_named_location(source_func_name: str, loc_name: str) -> np.nd
         lat = loc_coords_dms[loc_name.lower().replace(" ", "_")]['lat']
         lon = loc_coords_dms[loc_name.lower().replace(" ", "_")]['lon']
     except KeyError:
-        print(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + ": the given name of the" + \
-                " the location (" + loc_name + ") is not one of the predefined named locations" + \
+        raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": the given name of the" + \
+                " location (" + loc_name + ") is not one of the predefined named locations" + \
                 " in Magnus.  The available predefined named locations (in" + \
                 " earth.loc_coords_dms)" + " are: " + str(list(loc_coords_dms.keys())) + ".")
-        print("Aborting execution...")
-        sys.exit(1)
 
     return np.array([lat, lon])
-
-
-if __name__ == "__main__":
-
-    lat1_dms = (52, 31, 12)  # Berlin latitude: 52°31'12"
-    lon1_dms = (13, 24, 18)  # Berlin longitude: 13°24'18"
-    lat2_dms = (48, 51, 24)  # Paris latitude: 48°51'24"
-    lon2_dms = (2, 21, 7)    # Paris longitude: 2°21'7"
-
-    distance = chord_length_inside_earth(lat1_dms, lon1_dms, lat2_dms, lon2_dms)
-    costhz = costhz_between_points_on_surface(lat1_dms, lon1_dms, lat2_dms, lon2_dms)
-    print(distance)
-    print(costhz)
-
-    # print(coord_cern_dms['lon'])
 
 
 __all__ = [
