@@ -23,6 +23,14 @@ Magνs: Neutrino Oscillations via the Magnus Expansion
    :target: https://www.python.org/downloads/
    :alt: Python 3.10+
 
+.. image:: https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json
+   :target: https://github.com/astral-sh/ruff
+   :alt: Code style: ruff
+
+.. image:: https://img.shields.io/badge/maturity-beta-orange.svg
+   :target: changelog.html
+   :alt: Maturity: beta
+
 .. hint::
    **How do I say that?** Just like the name **Magnus** — the Greek letter
    **ν** (nu), the neutrino's symbol, simply stands in for the "nu"
