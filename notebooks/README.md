@@ -73,6 +73,8 @@
 
    Contains example of how to use Mag$`\nu`$s to compute the Magnus expansion of the matrix exponential of the exponential of a time-dependent matrix, $A(t)$, such as the ones that appear in the calculation of the time-evolution operator of a time-dependent Hamiltonian, i.e., $\exp\left(\int_{t_i}^{t_f} A(t)\right)$.
 
+   Ends with the coefficients themselves: how `magnus.expansionterms` derives the expansion from the Bernoulli recursion at any order, in exact rational arithmetic, how those coefficients relate to the constants the numerical core hard-codes, and how quickly the number of terms grows with order.
+
 ## 11. The adiabatic + Magnus hybrid strategy [[`11_magnus_adiabatic_hybrid_strategy.ipynb`](11_magnus_adiabatic_hybrid_strategy.ipynb)]
 
    Contains a live comparison of the three `strategy` values (`'auto'`, `'hybrid'`, `'magnus'`) accepted by every matter/NSI/LIV oscillation-probability function, for 2- through 5-neutrino systems, both for standard oscillations and for an engineered BSM (NSI) resonance. Every case is cross-checked against a tight-tolerance `scipy.integrate.solve_ivp` solution, comparing both runtime and accuracy, and reproduces the validation described in `docs/source/adiabatic_strategy.rst`.
