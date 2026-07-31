@@ -30,10 +30,29 @@ __author__ = "Mauricio Bustamante"
 __email__ = "mbustamante@gmail.com"
 
 
+import warnings
+
 import numpy as np
 from typing import Optional, Callable, Union
 
 import magnus.globaldefs as gd
+
+
+class DensityUnitWarning(UserWarning):
+    r"""Warns that a matter density declared to be in
+    :math:`\text{g cm}^{-3}` is too large to be one, and was most likely
+    already converted to natural units.
+
+    The conversion factor is :math:`4.3 \times 10^{18}`, so converting a
+    second time inflates the matter potential far beyond anything physical.
+    What makes it worth a warning is that the result does not look wrong:
+    the matter term dominates every other scale, :math:`\nu_e` becomes an
+    exact eigenstate of the Hamiltonian, and the calculation returns a
+    perfectly self-consistent :math:`P_{ee} = 1`.  That reads as a broken
+    formula rather than as a bad input.
+
+    .. versionadded:: 1.0.0
+    """
 
 
 def density_matter_func_const(l: float, 
@@ -138,6 +157,60 @@ def exp_density_profile(density_matter_central: float, l_scale: float) -> Callab
     return rho_func
 
 
+IMPLAUSIBLE_DENSITY_G_PER_CM3 = 1.0e16
+r"""float: Module-level constant
+
+Matter density [:math:`\text{g cm}^{-3}`] above which a value declared to be in
+g cm^-3 is almost certainly already in natural units, and about to be converted a
+second time.
+
+The two scales do not overlap.  The densest matter anyone models is a neutron
+star interior at some :math:`10^{15}\ \text{g cm}^{-3}`, while *any* density from
+water upwards becomes :math:`4.3 \times 10^{18}` or more once multiplied by
+``gd.UNIT_G_PER_CM3`` -- so a converted value re-declared as g cm^-3 lands at
+least three orders of magnitude above anything physical.
+
+Double conversion is silent and its consequences do not look like a unit
+mistake: it inflates the matter potential by ~18 orders of magnitude, which makes
+:math:`\nu_e` an exact eigenstate everywhere and returns a perfectly
+self-consistent :math:`P_{ee} = 1`.  That reads as a broken formula, not as a
+bad input, so it is worth catching where it happens.
+
+.. versionadded:: 1.0.0
+"""
+
+
+def _warn_if_density_was_probably_already_converted(
+    density: Union[int, float, np.ndarray],
+    source_func_name: str
+) -> None:
+    r"""Warns when a density declared as g cm^-3 is too large to be one.
+
+    Called only when ``density_matter_is_in_g_per_cm3`` is True, so a value above
+    :data:`IMPLAUSIBLE_DENSITY_G_PER_CM3` means the caller has very likely
+    multiplied by ``gd.UNIT_G_PER_CM3`` already.
+
+    A warning rather than an error: the threshold sits above anything physical,
+    but "above anything physical" is a statement about the matter people
+    currently model, not a law, and this should not stand in the way of someone
+    deliberately exploring past it.
+
+    .. versionadded:: 1.0.0
+    """
+    largest = float(np.max(np.abs(np.asarray(density, dtype=float))))
+    if largest <= IMPLAUSIBLE_DENSITY_G_PER_CM3:
+        return
+
+    warnings.warn(gd.WARNING_MSG_NO_COLOR + " matter." + source_func_name + ": a matter density "
+        "of " + format(largest, '.3e') + " g cm^-3 was declared to be in g cm^-3, which is "
+        "far denser than a neutron star (~1e15).  It was most likely already converted to "
+        "natural units, in which case it is about to be converted a second time -- inflating "
+        "the matter potential by ~18 orders of magnitude and returning a self-consistent but "
+        "meaningless result (nu_e becomes an exact eigenstate, so P_ee = 1).  Either pass the "
+        "density in g cm^-3, or leave density_matter_is_in_g_per_cm3 at False.  Shown once per "
+        "session.", DensityUnitWarning, stacklevel=3)
+
+
 def num_density_e_func(l: float, density_matter_func: Callable,
     ratio_number_neutrons_to_protons: Optional[float]=1.0,
     electron_fraction: Optional[float]=0.5,
@@ -185,7 +258,12 @@ def num_density_e_func(l: float, density_matter_func: Callable,
     # natural units of eV^4.  Otherwise, it is assumed that the matter density is in natural units
     # already.
     
-    return density_matter_func(l) / avg_mass_nucleon * electron_fraction * \
+    density = density_matter_func(l)
+
+    if density_matter_is_in_g_per_cm3:
+        _warn_if_density_was_probably_already_converted(density, 'num_density_e_func')
+
+    return density / avg_mass_nucleon * electron_fraction * \
         (gd.UNIT_G_PER_CM3 if density_matter_is_in_g_per_cm3 else 1.0) # num_density_e [eV^3]
 
 
@@ -329,6 +407,8 @@ def vcc_func_from_rho_func(
 
 
 __all__ = [
+    'DensityUnitWarning',
+    'IMPLAUSIBLE_DENSITY_G_PER_CM3',
     'density_matter_func_const',
     'density_matter_func_exp',
     'exp_density_profile',

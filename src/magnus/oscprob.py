@@ -1772,6 +1772,11 @@ def osc_prob(
         dimensions as the Hamiltonian, ``H_func``.
     """
 
+    # Checked before anything forwards **kwargs onwards, and regardless of validate_input:
+    # these two keys are rejected several hops away otherwise, by a function the caller never
+    # named (see _reject_parameter_set_metadata).
+    _reject_parameter_set_metadata(kwargs, 'osc_prob')
+
     # Validate input; set validate_input to False for speed-up.
     # None means 'use the cap appropriate to this integration method'
     # (see MAX_N_SLABS_DEFAULT); an explicit value always wins.
@@ -2274,6 +2279,49 @@ def _avg_prob_dispatch(
         P_out = P_out[:, nu_i, nu_f]
 
     return P_out.__getitem__(0 if return_float else slice(None))
+
+
+PARAMETER_SET_METADATA_KEYS = ('name', 'description')
+r"""tuple: Module-level constant
+
+Keys carried by the entries of :data:`magnus.globaldefs.OSC_PARAMS_PREDEFINED` that
+label the parameter set rather than parameterize the physics.
+
+They are the reason ``**OSC_PARAMS_PREDEFINED['OSC_PARAMS_DEFAULT']`` cannot be
+splatted into a probability function: the two strings travel down the shared
+``**kwargs`` chain and are rejected at the far end by
+``magnus_expansion_multislab``, whose complaint names neither the caller nor the
+parameter set it came from.  :func:`magnus.globaldefs.load_nufit_params` returns
+the same numbers without them.
+
+.. versionadded:: 1.0.0
+"""
+
+
+def _reject_parameter_set_metadata(kwargs: dict, source_func_name: str) -> None:
+    r"""Rejects the label keys of a predefined parameter set, with the remedy.
+
+    Splatting a whole ``OSC_PARAMS_PREDEFINED`` entry is the natural thing to
+    write and it does not work: ``name`` and ``description`` are not oscillation
+    parameters, so they flow through every ``**kwargs`` hop until the Magnus core
+    raises ``TypeError: magnus_expansion_multislab() got an unexpected keyword
+    argument 'name'`` -- a message that points at the one function in the chain
+    that has nothing to do with the mistake.
+
+    Caught here instead, where the caller and the fix can both be named.
+
+    .. versionadded:: 1.0.0
+    """
+    found = [key for key in PARAMETER_SET_METADATA_KEYS if key in kwargs]
+    if not found:
+        return
+
+    raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": received " +
+        str(found) + ", which label a predefined parameter set rather than parameterize the "
+        "physics.  This happens when an entry of globaldefs.OSC_PARAMS_PREDEFINED is passed "
+        "whole, as **OSC_PARAMS_PREDEFINED['OSC_PARAMS_DEFAULT'].  Use "
+        "globaldefs.load_nufit_params(...), which returns the same numbers without the labels, "
+        "or drop the labelling keys.")
 
 
 def _normalize_energy_L(
@@ -3698,6 +3746,11 @@ def osc_prob_vacuum(
 
     htot_is_function_only_of_energy = True
 
+    # Checked here, rather than only in osc_prob: the averaged path returns before anything
+    # forwards **kwargs onwards, so a check further down would see these keys on the ordinary
+    # path and silently ignore them on the averaged one.
+    _reject_parameter_set_metadata(kwargs, 'osc_prob_vacuum')
+
     # Phase-averaged limit, requested with average=True: exact and closed-form whenever the
     # Hamiltonian does not depend on position, so it is tried before any of the propagation
     # machinery below, all of which would resolve phases that the average discards (see
@@ -3980,6 +4033,11 @@ def osc_prob_matter_std_potential(
         max_num_loops=max_num_loops, min_n_slabs=min_n_slabs, max_n_slabs=max_n_slabs,
         min_n_tpts_per_slab=min_n_tpts_per_slab, max_n_tpts_per_slab=max_n_tpts_per_slab,
         save_log=save_log, file_log=file_log, kwargs=kwargs)
+
+    # Checked here, rather than only in osc_prob: the averaged path returns before anything
+    # forwards **kwargs onwards, so a check further down would see these keys on the ordinary
+    # path and silently ignore them on the averaged one.
+    _reject_parameter_set_metadata(kwargs, 'osc_prob_matter_std_potential')
 
     # Phase-averaged limit, requested with average=True: exact and closed-form whenever the
     # Hamiltonian does not depend on position, so it is tried before any of the propagation
@@ -4317,6 +4375,11 @@ def osc_prob_matter_nsi(
         max_num_loops=max_num_loops, min_n_slabs=min_n_slabs, max_n_slabs=max_n_slabs,
         min_n_tpts_per_slab=min_n_tpts_per_slab, max_n_tpts_per_slab=max_n_tpts_per_slab,
         save_log=save_log, file_log=file_log, kwargs=kwargs)
+
+    # Checked here, rather than only in osc_prob: the averaged path returns before anything
+    # forwards **kwargs onwards, so a check further down would see these keys on the ordinary
+    # path and silently ignore them on the averaged one.
+    _reject_parameter_set_metadata(kwargs, 'osc_prob_matter_nsi')
 
     # Phase-averaged limit, requested with average=True: exact and closed-form whenever the
     # Hamiltonian does not depend on position, so it is tried before any of the propagation
@@ -4660,6 +4723,11 @@ def osc_prob_liv(
         max_num_loops=max_num_loops, min_n_slabs=min_n_slabs, max_n_slabs=max_n_slabs,
         min_n_tpts_per_slab=min_n_tpts_per_slab, max_n_tpts_per_slab=max_n_tpts_per_slab,
         save_log=save_log, file_log=file_log, kwargs=kwargs)
+
+    # Checked here, rather than only in osc_prob: the averaged path returns before anything
+    # forwards **kwargs onwards, so a check further down would see these keys on the ordinary
+    # path and silently ignore them on the averaged one.
+    _reject_parameter_set_metadata(kwargs, 'osc_prob_liv')
 
     # Phase-averaged limit, requested with average=True: exact and closed-form whenever the
     # Hamiltonian does not depend on position, so it is tried before any of the propagation

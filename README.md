@@ -1021,6 +1021,21 @@ whether the dispatch chain, the refinement caps and the warning paths are each
 taken in both directions. Expect the suite to run measurably slower under
 instrumentation.
 
+The documentation's code examples are executed for real at build time, so a
+broken one fails CI — but only in the full Sphinx build, which takes minutes.
+To check them directly, in about a second per page:
+
+```bash
+python3 docs/check_doc_snippets.py --rst-only
+```
+
+It runs every `.. jupyter-execute::` block, in the RST pages and in the
+docstrings autoapi renders. Drop `--rst-only` to include the docstrings, which
+is thorough but as slow as the examples themselves. This exists because the
+fast documentation build stubs those blocks out: it validates the prose and the
+cross-references while saying nothing about the code, so a page can build
+cleanly and still be broken.
+
 ## Changelog
 
 See [CHANGELOG.md](CHANGELOG.md) (also rendered in the
