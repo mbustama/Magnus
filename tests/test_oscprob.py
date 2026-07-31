@@ -864,3 +864,47 @@ def test_validate_input_battery_returns_none_on_valid_input():
         osc_params=[0.55, 0.69, 0.15, 3.7, 7.49e-5, 2.513e-3],
         validate_energy_and_L=True, validate_flavor_indices=True, validate_osc_params=True)
     assert result is None
+
+
+# ----------------------------------------------------------------------
+# Method-aware slab cap
+# ----------------------------------------------------------------------
+
+def test_max_n_slabs_default_is_method_aware():
+    """'gl' costs 1-3 Hamiltonian evaluations per slab against the quadrature methods'
+    n_tpts_per_slab, so a cap that bounds cost has to differ between them."""
+    assert op.MAX_N_SLABS_DEFAULT['gl'] > op.MAX_N_SLABS_DEFAULT['trapezoid']
+    assert op.MAX_N_SLABS_DEFAULT['trapezoid'] == op.MAX_N_SLABS_DEFAULT['simpson']
+
+
+def test_explicit_max_n_slabs_overrides_the_per_method_default():
+    """An explicitly passed cap must be used as given, never silently widened."""
+    info = {}
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        op.osc_prob_5nu_earth(ENERGY, costhz=-0.8, L=2.0*6371.0*0.8*gd.UNIT_KM,
+                              validate_input=False, max_n_slabs=2000,
+                              convergence_info=info, **S5)
+    assert info['n_slabs'] <= 2000
+
+
+def test_hard_sterile_earth_case_converges_without_warning_by_default():
+    """Regression test for the shared 2000-slab cap.
+
+    With eV-scale sterile splittings over an Earth-crossing baseline, 'gl' needs a few
+    thousand slabs -- more than the cap tuned for the quadrature methods, whose per-slab
+    cost is over an order of magnitude higher.  Under the shared cap this raised
+    ToleranceNotAchievedWarning while returning an answer that was in fact far more
+    accurate than the quadrature methods reached within that same cap: the warning was
+    about not being able to *verify* convergence, having no room left to refine, and it
+    pointed the reader at the wrong knob."""
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        info = {}
+        P = op.osc_prob_5nu_earth(ENERGY, costhz=-0.8, L=2.0*6371.0*0.8*gd.UNIT_KM,
+                                  validate_input=False, convergence_info=info, **S5)
+    tol_warnings = [w for w in caught
+                    if issubclass(w.category, op.ToleranceNotAchievedWarning)]
+    assert not tol_warnings, f"unexpected {tol_warnings[0].message}"
+    assert info['n_slabs'] < op.MAX_N_SLABS_DEFAULT['gl'], "converged only by hitting the cap"
+    assert np.allclose(np.sum(np.asarray(P), axis=-1), 1.0, atol=1e-9)

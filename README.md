@@ -768,6 +768,12 @@ Magnus machinery above then applies unchanged.
   the Hamiltonian has a kink or a discontinuity *inside* a slab.
 - **Exactly unitary exponentials** from the eigendecomposition of the
   (anti-Hermitian) Magnus operator, batched over slabs and energies.
+- **Method-aware refinement caps**: `max_n_slabs` defaults to the cap that
+  suits the integration method (20000 for `'gl'`, 2000 for the quadrature
+  methods), since `'gl'` costs 1–3 Hamiltonian evaluations per slab against
+  the others' `n_tpts_per_slab`. A shared cap made `'gl'` report
+  non-convergence on problems it had in fact resolved more accurately than
+  the quadrature methods managed within the same cap.
 - **Adaptive refinement** to a requested tolerance (`rtol`, `atol`), with a
   phase-based starting slab count, warm starts across scan points, and an
   always-on warning if the refinement caps are hit before convergence.

@@ -310,6 +310,47 @@ from magnus import authors
 has_magnus_header_been_printed = False
 
 
+MAX_N_SLABS_DEFAULT = {'gl': 20000, 'trapezoid': 2000, 'simpson': 2000}
+r"""dict: Module-level constant
+
+Default cap on the number of slabs, per ``integration_method``, used when
+``max_n_slabs`` is left as None.
+
+The cap exists to bound cost, and cost per slab differs by more than an order of
+magnitude between the two families of integrators.  ``'gl'`` evaluates the Hamiltonian
+1, 2, or 3 times per slab (set by the expansion order), while ``'trapezoid'`` and
+``'simpson'`` evaluate it ``n_tpts_per_slab`` times (100 by default, up to 500).  A
+single cap tuned for one family therefore starves the other: at 2000 slabs -- the
+quadrature cap, unchanged here -- ``'gl'`` was hitting the ceiling on cases it could
+resolve comfortably, and reporting that it could not verify convergence, on answers
+that were in fact far more accurate than the quadrature methods managed within their
+own cap.
+
+The ``'gl'`` value is set from both directions.  The hardest case in the validation
+suite (5 flavors, eV-scale sterile splittings, Earth-crossing baseline) converges at
+about 8,600 slabs, so 20000 leaves better than a factor of two of headroom.  At the
+same time, 20000 slabs at 2-3 nodes is roughly 40,000-60,000 Hamiltonian evaluations,
+still well under the ~200,000 that 2000 quadrature slabs at 100 points per slab
+already permit -- so the more generous cap is also the cheaper worst case.
+
+Passing ``max_n_slabs`` explicitly always wins; this is only the fallback.
+
+.. versionadded:: 1.0.0
+"""
+
+
+def _resolve_max_n_slabs(max_n_slabs, integration_method):
+    """Fills in the per-method default cap when ``max_n_slabs`` is None.
+
+    An explicitly passed value always wins.  Unknown method names fall back to the
+    quadrature cap, so an invalid ``integration_method`` still fails in the validator that
+    is meant to report it, rather than here with a KeyError.
+    """
+    if max_n_slabs is not None:
+        return max_n_slabs
+    return MAX_N_SLABS_DEFAULT.get(integration_method, MAX_N_SLABS_DEFAULT['trapezoid'])
+
+
 class ToleranceNotAchievedWarning(UserWarning):
     r"""Warns that the probability returned by :func:`osc_prob` did not
     reach the requested tolerance because a refinement cap was hit
@@ -419,7 +460,7 @@ def print_run_parameters(
     growth_factor_n_tpts_per_slab: Optional[Union[int, float]]=1.5, 
     max_num_loops: Optional[int]=50, 
     min_n_slabs: Optional[int]=1, 
-    max_n_slabs: Optional[int]=2000, 
+    max_n_slabs: Optional[int]=None, 
     min_n_tpts_per_slab: Optional[int]=2, 
     max_n_tpts_per_slab: Optional[int]=500,
     iterate_over_magnus_exp_order: Optional[bool]=False,
@@ -1538,7 +1579,7 @@ def osc_prob(
     growth_factor_n_tpts_per_slab: Optional[Union[int, float]]=1.5, 
     max_num_loops: Optional[int]=50, 
     min_n_slabs: Optional[int]=1, 
-    max_n_slabs: Optional[int]=2000, 
+    max_n_slabs: Optional[int]=None, 
     min_n_tpts_per_slab: Optional[int]=2, 
     max_n_tpts_per_slab: Optional[int]=500, 
     iterate_over_magnus_exp_order: Optional[bool]=False,
@@ -1633,7 +1674,11 @@ def osc_prob(
     min_n_slabs : int, optional
         Number of slabs used in the first refinement loop.
     max_n_slabs : int, optional
-        Maximum allowed number of slabs.
+        Maximum allowed number of slabs.  If None (default), a cap appropriate to
+        ``integration_method`` is used: 20000 for 'gl', 2000 for the cumulative-quadrature
+        methods (see :data:`MAX_N_SLABS_DEFAULT`).  'gl' costs 1-3 Hamiltonian evaluations
+        per slab against the quadrature methods' ``n_tpts_per_slab``, so the same cost
+        budget buys it far more slabs.  An explicit value is always used as given.
     min_n_tpts_per_slab : int, optional
         Number of time points per slab in the first refinement loop.
     max_n_tpts_per_slab : int, optional
@@ -1692,6 +1737,9 @@ def osc_prob(
     """
 
     # Validate input; set validate_input to False for speed-up.
+    # None means 'use the cap appropriate to this integration method'
+    # (see MAX_N_SLABS_DEFAULT); an explicit value always wins.
+    max_n_slabs = _resolve_max_n_slabs(max_n_slabs, integration_method)
     if validate_input:
 
         if (t_fin < t_ini): 
@@ -2073,7 +2121,7 @@ def osc_prob_iterate_over_magnus_exp_order(
     growth_factor_n_tpts_per_slab: Optional[Union[int, float]]=1.5, 
     max_num_loops: Optional[int]=50,
     min_n_slabs: Optional[int]=1, 
-    max_n_slabs: Optional[int]=2000, 
+    max_n_slabs: Optional[int]=None, 
     min_n_tpts_per_slab: Optional[int]=2,
     max_n_tpts_per_slab: Optional[int]=500, 
     min_magnus_exp_order: Optional[int]=1, 
@@ -2159,6 +2207,9 @@ def osc_prob_iterate_over_magnus_exp_order(
     """
 
     # Validate input; set validate_input to False for speed-up.
+    # None means 'use the cap appropriate to this integration method'
+    # (see MAX_N_SLABS_DEFAULT); an explicit value always wins.
+    max_n_slabs = _resolve_max_n_slabs(max_n_slabs, integration_method)
     if validate_input:
 
         if (max_magnus_exp_order > gd.MAGNUS_EXP_ORDER_MAX): 
@@ -2328,7 +2379,8 @@ def _osc_prob_scan_separable(
     max_num_loops : int
         Maximum number of refinement loops.
     min_n_slabs, max_n_slabs : int
-        Bounds on the number of slabs.
+        Bounds on the number of slabs.  ``max_n_slabs=None`` selects the per-method cap;
+        see :data:`MAX_N_SLABS_DEFAULT`.
     min_n_tpts_per_slab, max_n_tpts_per_slab : int
         Bounds on the number of time points per slab.
     n_slabs, n_tpts_per_slab : int
@@ -2339,6 +2391,9 @@ def _osc_prob_scan_separable(
     np.ndarray
         Stacked probability matrices, shape (nE, d, d).
     """
+    # None means 'use the cap appropriate to this integration method'
+    # (see MAX_N_SLABS_DEFAULT); an explicit value always wins.
+    max_n_slabs = _resolve_max_n_slabs(max_n_slabs, integration_method)
     nE, dim = H_E.shape[0], H_E.shape[-1]
     tol_requested = ((rtol is not None) and (atol is not None))
 
@@ -2631,7 +2686,9 @@ def _osc_prob_ip_exp_core(
     max_num_loops : int
         Maximum number of refinement loops.
     min_n_slabs, max_n_slabs : int
-        Bounds on the number of slabs.
+        Bounds on the number of slabs.  ``max_n_slabs=None`` selects the 'gl' entry of
+        :data:`MAX_N_SLABS_DEFAULT`, this integrator being closed-form per slab and so
+        comparably cheap.
     n_slabs : int
         Starting number of slabs (or fixed count, if no tolerance is requested).
 
@@ -2644,6 +2701,11 @@ def _osc_prob_ip_exp_core(
         method; this happens when the matter term is not a small perturbation on the vacuum
         splitting anywhere along the trajectory (e.g., at an MSW resonance).
     """
+    # This integrator has no `integration_method`: within each slab it is closed-form, with
+    # no quadrature at all, so its cost per slab is comparable to 'gl' rather than to the
+    # cumulative-quadrature methods.  It therefore takes the 'gl' cap when none is given.
+    if max_n_slabs is None:
+        max_n_slabs = MAX_N_SLABS_DEFAULT['gl']
     tol_requested = (rtol is not None) and (atol is not None)
 
     # Diagonalize the position-independent part of H once; this eigenbasis is shared by every slab,
@@ -3216,7 +3278,7 @@ def osc_prob_energy_baseline(
     growth_factor_n_tpts_per_slab: Optional[Union[int, float]]=1.5, 
     max_num_loops: Optional[int]=50, 
     min_n_slabs: Optional[int]=1, 
-    max_n_slabs: Optional[int]=2000, 
+    max_n_slabs: Optional[int]=None, 
     min_n_tpts_per_slab: Optional[int]=2, 
     max_n_tpts_per_slab: Optional[int]=500, 
     iterate_over_magnus_exp_order: Optional[bool]=False,
@@ -3489,7 +3551,7 @@ def osc_prob_vacuum(
     growth_factor_n_tpts_per_slab: Optional[Union[int, float]]=1.5, 
     max_num_loops: Optional[int]=50, 
     min_n_slabs: Optional[int]=1, 
-    max_n_slabs: Optional[int]=2000, 
+    max_n_slabs: Optional[int]=None, 
     min_n_tpts_per_slab: Optional[int]=2, 
     max_n_tpts_per_slab: Optional[int]=500, 
     iterate_over_magnus_exp_order: Optional[bool]=False,
@@ -3677,7 +3739,7 @@ def osc_prob_matter_std_potential(
     growth_factor_n_tpts_per_slab: Optional[Union[int, float]]=1.5,
     max_num_loops: Optional[int]=50,
     min_n_slabs: Optional[int]=1,
-    max_n_slabs: Optional[int]=2000,
+    max_n_slabs: Optional[int]=None,
     min_n_tpts_per_slab: Optional[int]=2,
     max_n_tpts_per_slab: Optional[int]=500,
     iterate_over_magnus_exp_order: Optional[bool]=False,
@@ -3998,7 +4060,7 @@ def osc_prob_matter_nsi(
     growth_factor_n_tpts_per_slab: Optional[Union[int, float]]=1.5,
     max_num_loops: Optional[int]=50,
     min_n_slabs: Optional[int]=1,
-    max_n_slabs: Optional[int]=2000,
+    max_n_slabs: Optional[int]=None,
     min_n_tpts_per_slab: Optional[int]=2,
     max_n_tpts_per_slab: Optional[int]=500,
     iterate_over_magnus_exp_order: Optional[bool]=False,
@@ -4325,7 +4387,7 @@ def osc_prob_liv(
     growth_factor_n_tpts_per_slab: Optional[Union[int, float]]=1.5,
     max_num_loops: Optional[int]=50,
     min_n_slabs: Optional[int]=1,
-    max_n_slabs: Optional[int]=2000,
+    max_n_slabs: Optional[int]=None,
     min_n_tpts_per_slab: Optional[int]=2,
     max_n_tpts_per_slab: Optional[int]=500,
     iterate_over_magnus_exp_order: Optional[bool]=False,
@@ -15239,6 +15301,7 @@ __all__ = [
     'delta',
     'J',
     'osc_prob_3nu_vacuum_std',
+    'MAX_N_SLABS_DEFAULT',
     'ToleranceNotAchievedWarning',
     'HybridCertificationWarning',
     'print_banner',

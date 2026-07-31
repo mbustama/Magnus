@@ -171,6 +171,22 @@ practice:
   zenith angle) and insert them as mandatory slab edges at every
   refinement level.
 
+The slab cap itself is method-aware.  ``max_n_slabs`` defaults to None,
+meaning "use the cap appropriate to ``integration_method``": 20000 for
+``'gl'`` and 2000 for the cumulative-quadrature methods (see
+``magnus.oscprob.MAX_N_SLABS_DEFAULT``; an explicit value is always used as
+given).  A single cap cannot serve both families, because their cost per
+slab differs by more than an order of magnitude -- ``'gl'`` evaluates the
+Hamiltonian 1 to 3 times per slab, the quadrature methods
+``n_tpts_per_slab`` times.  With a shared cap of 2000, ``'gl'`` hit the
+ceiling on problems it could resolve comfortably (eV-scale sterile
+splittings over an Earth-crossing baseline need about 8,600 slabs) and
+reported that it could not verify convergence, on answers that were in fact
+far more accurate than the quadrature methods reached within the same cap.
+Even at 20000 slabs, ``'gl'`` is the cheaper worst case: 40,000-60,000
+Hamiltonian evaluations, against the ~200,000 that 2000 quadrature slabs at
+100 points per slab already permit.
+
 If a refinement cap (``max_n_slabs``, ``max_n_tpts_per_slab``,
 ``max_num_loops``) is reached before the tolerance is met, ``osc_prob``
 returns its best available estimate but raises

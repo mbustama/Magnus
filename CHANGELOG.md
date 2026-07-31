@@ -170,6 +170,20 @@ that history is the most useful record of *why* the code looks the way it does.
 
 ### Changed
 
+- `max_n_slabs` is now method-aware: it defaults to None, meaning "use the cap
+  that suits `integration_method`" -- 20000 for `'gl'`, 2000 for the
+  cumulative-quadrature methods (`magnus.oscprob.MAX_N_SLABS_DEFAULT`). An
+  explicit value is always used as given, so this changes nothing for callers
+  who set it. A single cap could not serve both families: `'gl'` costs 1-3
+  Hamiltonian evaluations per slab against the quadrature methods'
+  `n_tpts_per_slab`, so at a shared cap of 2000 it hit the ceiling on problems
+  it could resolve comfortably -- eV-scale sterile splittings over an
+  Earth-crossing baseline need about 8,600 slabs -- and emitted
+  `ToleranceNotAchievedWarning` on answers that were roughly 1,600x *more*
+  accurate than the quadrature methods achieved within that same cap. Even at
+  20000, `'gl'` remains the cheaper worst case (40,000-60,000 evaluations
+  against the ~200,000 that 2000 quadrature slabs at 100 points already
+  permit).
 - **Breaking:** `integration_method` now defaults to `'gl'`
   (Gauss-Legendre commutator-free collocation) instead of `'trapezoid'`,
   everywhere it appears -- the 13 signature defaults across `magnus` and
