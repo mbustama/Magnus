@@ -1068,26 +1068,21 @@ def test_validation_still_rejects_max_num_loops_below_two():
 # IP_EXP_N_SLABS_CAP and IP_EXP_LOOP_CAP are named module constants rather
 # than numbers inlined in the function body.
 #
-# Two of the five refusals are deliberately left without a test, because
-# neither can be reached:
+# One of the five refusals has no test here, because it cannot be reached:
+# the `is_repeat` return fires when a refinement lands on the same slab
+# count as the previous pass, which can only happen at the ceiling -- and
+# every branch there returns within the same iteration, so the loop never
+# survives a pass at the ceiling to make that comparison. It is marked
+# `# pragma: no cover` at the source, with the argument written out, and it
+# becomes live again the moment the growth factor or the ceiling changes.
 #
-#   * the `is_repeat` return is unreachable by construction. It fires when
-#     a refinement lands on the same slab count as the previous pass, which
-#     can only happen at the ceiling -- and every branch below returns when
-#     `at_cap` is true, so the loop never survives a pass at the ceiling to
-#     make the comparison.
-#
-#   * the "trusted comparison that disagreed" return is unreachable for
-#     every input the dispatcher admits. The trust threshold is
-#     sqrt((atol+rtol)/2) and the two-flavor error constant is ~0.005, so
-#     trust implies a successive difference of ~0.0019*tol -- already well
-#     inside the tolerance, hence agreement. Measured directly by scanning
-#     the potential strength: the behaviour goes straight from "trusted and
-#     agreeing" to "not trusted", never passing through the branch between.
-#
-# Both are honest defensive code, worth keeping against a future change to
-# the growth factor, the ceiling, or the trust threshold. Writing tests
-# that reach them would mean contriving inputs the library cannot produce.
+# The "trusted comparison that disagreed" return needs no test here either,
+# but for the opposite reason: the real two-flavor solar cases elsewhere in
+# this file reach it, at the production ceiling and a realistic 1e-3
+# tolerance. An earlier reading of this code claimed it was unreachable,
+# generalizing from a synthetic probe whose potential was too weak to leave
+# the trust region while disagreeing; the coverage data says otherwise, and
+# the coverage data is the evidence.
 # ----------------------------------------------------------------------
 
 def _ip_exp_inputs(nE=1, d=2):

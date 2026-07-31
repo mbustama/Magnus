@@ -863,16 +863,22 @@ def validate_input_osc_prob_earth(
 
         # Check that the location is a two-entry tuple, list, or array
 
+        # Unpacking a sequence of the wrong length raises ValueError, and unpacking
+        # something that is not iterable at all raises TypeError; neither is a KeyError,
+        # which is what this used to catch, so the message below could never be reached.
+        # A three-entry tuple reported "too many values to unpack (expected 2)", and an
+        # int escaped as a TypeError -- breaking the convention that bad input to this
+        # package raises ValueError with a message naming the parameter at fault.
         try:
             lat_ini, lon_ini = loc_ini
-        except KeyError:
+        except (TypeError, ValueError):
             raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": if the initial " + \
                     "location (loc_ini) is given as coordinates, it must be a two-entry tuple," + \
                     " list, or NumPy array.")
-    
+
         try:
             lat_fin, lon_fin = loc_fin
-        except KeyError:
+        except (TypeError, ValueError):
             raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": if the final " + \
                     "location (loc_fin) is given as coordinates, it must be a two-entry tuple," + \
                     " list, or NumPy array.")
@@ -2598,7 +2604,14 @@ def _osc_prob_ip_exp_core(
         # the last, truly smaller, n_slabs); if that one comparison does not already satisfy both
         # safeguards, there is no more evidence to be had, and the fast method must give up.
         is_repeat = (n_slabs == n_slabs_prev)
-        if is_repeat:
+        if is_repeat:  # pragma: no cover - unreachable; see below
+            # Unreachable as the loop currently stands, and kept as a guard rather than
+            # deleted.  Below the cap the slab count strictly increases (the growth factor
+            # is 2, and the clause at the foot of the loop forces progress even if it were
+            # not); at the cap every branch below returns within the same iteration.  So
+            # the loop never survives a pass at the cap to make a repeated comparison, and
+            # n_slabs never equals n_slabs_prev.  It becomes live again the moment the
+            # growth factor, the cap, or the returns below change.
             return P_new, False
 
         max_omega = float(np.max(np.abs(Omega_t)))
@@ -2624,7 +2637,12 @@ def _osc_prob_ip_exp_core(
 
         n_slabs_old = n_slabs
         n_slabs = min(round(growth*n_slabs), n_slabs_cap)
-        if (n_slabs == n_slabs_old) and (n_slabs < n_slabs_cap):
+        if (n_slabs == n_slabs_old) and (n_slabs < n_slabs_cap):  # pragma: no cover
+            # The no-progress guard, and unreachable while the growth factor is 2:
+            # round(2n) == n has no solution for n >= 1.  It exists so that a smaller
+            # growth factor -- 1.1, say, which rounds to no change at small n -- cannot
+            # turn this into an infinite loop, which is precisely when it stops being
+            # dead code.
             n_slabs += 1
         loop_count += 1
 

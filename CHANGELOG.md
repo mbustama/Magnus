@@ -115,6 +115,23 @@ that history is the most useful record of *why* the code looks the way it does.
   the method's conduct at the ceiling testable at a small cap -- reaching two
   million slabs to observe what happens at the boundary costs gigabytes and
   minutes, so with the values inlined those paths could not be tested at all.
+- `tests/test_validation.py`, covering the guards that reject bad input: the
+  per-flavour parameter dictionaries, flavour indices and expansion orders out
+  of range, mismatched energy/baseline arrays, negative densities and
+  composition ratios, and the Earth entry point's location, zenith-angle and
+  baseline combinations. Each asserts that the input is refused as a
+  `ValueError` naming the parameter at fault, rather than as whatever the
+  interpreter happened to raise further downstream; writing them is what
+  uncovered the `except KeyError` bug listed under Fixed.
+- Three branches that cannot be reached are now marked `# pragma: no cover`,
+  each with the argument for why written beside it: the `is_repeat` return in
+  the interaction-picture integrator (below the ceiling the slab count strictly
+  increases, at the ceiling every branch returns, so a repeat can never be
+  compared), its no-progress guard (`round(2n) == n` has no solution for
+  `n >= 1`, and it exists only to make a smaller growth factor safe), and the
+  CLI's solar baseline check (the general one rejects that input first). The
+  Windows-only ANSI setup line in `globaldefs` is marked too. They are kept
+  rather than deleted: each becomes live again if a nearby constant changes.
 - Gauss-Legendre commutator-free integrators (`integration_method='gl'`),
   silent vectorization of Hamiltonian/density-profile evaluation, an
   energy-batched scan engine for separable Hamiltonians, adaptive slab
@@ -409,6 +426,14 @@ that history is the most useful record of *why* the code looks the way it does.
 
 ### Fixed
 
+- The two guards in `validate_input_osc_prob_earth` that reject a malformed
+  `loc_ini`/`loc_fin` caught `KeyError`, which unpacking a sequence never raises,
+  so neither could fire. A three-entry coordinate escaped as `too many values to
+  unpack (expected 2)` and a non-iterable as `TypeError` -- the latter breaking
+  the convention, established across the rest of the package, that bad input
+  raises `ValueError` with a message naming the parameter at fault. They now
+  catch `TypeError` and `ValueError`. Found by writing the first test that ever
+  reached them.
 - `osc_prob` raised `UnboundLocalError` instead of returning a probability when
   `max_num_loops < 1` was passed together with `validate_input=False` (the
   validator rejects that combination otherwise). The refinement-limit checks at

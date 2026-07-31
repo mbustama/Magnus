@@ -252,6 +252,7 @@ Magnus/
 │   ├── test_hamiltonians.py         # Hamiltonian/mixing-matrix builders
 │   ├── test_cli.py                  # magnus command-line calculator
 │   ├── test_globaldefs.py           # NuFit historical parameter dict/loader
+│   ├── test_validation.py           # Input-validation guards and their error messages
 │   └── test_version.py              # Version resolution from pyproject.toml / installed metadata
 ├── .gitignore
 ├── CHANGELOG.md                     # Version history (Keep a Changelog format)
@@ -897,6 +898,14 @@ Four GitHub Actions workflows run under [`.github/workflows/`](.github/workflows
     `pyproject.toml`, which must agree; the distribution is `magnuspy` while
     the import package is `magnus`, and querying the wrong one reports
     `0.0.0+unknown` to installed users while a source checkout looks fine.
+  - [`test_validation.py`](tests/test_validation.py) — the input-validation
+    guards: incomplete or malformed parameter dictionaries per flavor count,
+    out-of-range flavor indices and expansion orders, mismatched
+    energy/baseline arrays, negative densities and composition ratios, and
+    the Earth entry point's location/zenith-angle/baseline combinations.
+    Each asserts that bad input is refused as a `ValueError` naming the
+    parameter at fault, rather than as whatever the interpreter happened to
+    raise further downstream.
 
   The same workflow also has a separate **Coverage** job: it runs the suite
   once more under `pytest --cov`, prints the per-module statement and branch

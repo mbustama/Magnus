@@ -191,6 +191,7 @@ File Tree
    │   ├── test_hamiltonians.py         # Hamiltonian/mixing-matrix builders
    │   ├── test_cli.py                  # magnus command-line calculator
    │   ├── test_globaldefs.py           # NuFit historical parameter dict/loader
+   │   ├── test_validation.py           # Input-validation guards and their error messages
    │   └── test_version.py              # Version resolution from pyproject.toml / installed metadata
    ├── .gitignore
    ├── CHANGELOG.md                     # Version history (Keep a Changelog format)

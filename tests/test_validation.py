@@ -1,0 +1,294 @@
+# -*- coding: utf-8 -*-
+"""Tests of the input-validation guards (magnus.oscprob's validators).
+
+These are the branches a user meets by getting an argument wrong, and a
+coverage run found essentially none of them executed: 53 `raise` sites in
+oscprob.py alone had never run. A guard that has never been taken is not
+obviously a working guard -- writing these found one that could not fire at
+all, because it caught the wrong exception type (see
+test_earth_locations_of_the_wrong_shape_are_rejected_clearly).
+
+What is asserted here is deliberately narrow: that the wrong input is
+rejected, as ValueError rather than as whatever the interpreter happened to
+raise, and that the message names the parameter at fault. Asserting the
+full text would make these tests a transcription of the source, and they
+would then fail on every reworded message rather than on a real change of
+behaviour.
+"""
+
+import numpy as np
+import pytest
+
+import magnus.globaldefs as gd
+import magnus.oscprob as op
+
+ENERGY = 1.0*gd.UNIT_GEV
+BASELINE = 1000.0*gd.UNIT_KM
+
+
+# ----------------------------------------------------------------------
+# unpack_*_params_from_dict: the dictionary routes into the Hamiltonians
+# ----------------------------------------------------------------------
+
+@pytest.mark.parametrize("num_flavors", [2, 3, 4, 5])
+def test_incomplete_oscillation_parameter_dict_names_the_missing_keys(num_flavors):
+    """Every flavor count needs its own set of keys, and the message has to
+    say which -- the caller cannot guess that 4 flavors wants D41 as well."""
+    with pytest.raises(ValueError, match="osc_params"):
+        op.unpack_oscillation_params_from_dict('t', num_flavors, {'sth': 0.3}, None)
+
+
+@pytest.mark.parametrize("num_flavors", [2, 3, 4, 5])
+def test_incomplete_nsi_parameter_dict_names_the_missing_keys(num_flavors):
+    with pytest.raises(ValueError, match="nsi_params"):
+        op.unpack_nsi_params_from_dict('t', num_flavors, {'eps_ee': 0.1}, None)
+
+
+@pytest.mark.parametrize("num_flavors", [2, 3, 4, 5])
+def test_incomplete_liv_parameter_dict_names_the_missing_keys(num_flavors):
+    with pytest.raises(ValueError, match="liv_params"):
+        op.unpack_liv_params_from_dict('t', num_flavors, {'Lambda': 1.0}, None)
+
+
+@pytest.mark.parametrize("num_flavors", [2, 3, 4, 5])
+def test_non_positive_liv_scale_is_rejected(num_flavors):
+    """Lambda is a scale that divides the LIV term, so zero or negative is
+    not a physical choice; it is checked before the other keys are read, so
+    the diagnostic is about Lambda rather than about a missing key."""
+    liv_params = dict(Lambda=0.0, sxi=0.1, b1=1e-9, b2=1e-9, b3=1e-9, b4=1e-9, b5=1e-9,
+                      n_liv=1, sxi12=0.1, sxi23=0.1, sxi13=0.1, dxiCP=0.0, dxi13=0.0,
+                      sxi14=0.1, dxi14=0.0, sxi24=0.1, dxi24=0.0, sxi34=0.1,
+                      sxi15=0.1, dxi15=0.0, sxi25=0.1, sxi35=0.1, dxi35=0.0)
+    with pytest.raises(ValueError, match="Lambda"):
+        op.unpack_liv_params_from_dict('t', num_flavors, liv_params, None)
+
+
+@pytest.mark.parametrize("unpack, kind", [
+    (op.unpack_oscillation_params_from_dict, 'oscillation'),
+    (op.unpack_nsi_params_from_dict, 'nsi'),
+    (op.unpack_liv_params_from_dict, 'liv'),
+])
+def test_more_flavors_than_predefined_requires_an_explicit_hamiltonian(unpack, kind):
+    """Above five flavors there are no built-in Hamiltonians, so the caller
+    has to supply the matrix itself; omitting it must be refused rather than
+    silently producing a wrong-sized array."""
+    with pytest.raises(ValueError):
+        unpack('t', gd.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS + 1, {}, None)
+
+
+@pytest.mark.parametrize("unpack", [
+    op.unpack_oscillation_params_from_dict,
+    op.unpack_nsi_params_from_dict,
+    op.unpack_liv_params_from_dict,
+])
+@pytest.mark.parametrize("num_flavors", [0, -3])
+def test_fewer_than_one_flavor_is_rejected(unpack, num_flavors):
+    with pytest.raises(ValueError):
+        unpack('t', num_flavors, {}, None)
+
+
+# ----------------------------------------------------------------------
+# validate_input_osc_prob_earth: locations, zenith angle, baseline
+# ----------------------------------------------------------------------
+
+@pytest.mark.parametrize("loc_ini, loc_fin", [
+    (None, (0.0, 0.0)),
+    ((0.0, 0.0), None),
+])
+def test_a_single_earth_location_is_rejected(loc_ini, loc_fin):
+    """A chord needs both ends. Accepting one would leave the other end
+    silently defaulted, which is a wrong baseline rather than an error."""
+    with pytest.raises(ValueError, match="loc_ini|loc_fin"):
+        op.validate_input_osc_prob_earth('t', loc_ini=loc_ini, loc_fin=loc_fin)
+
+
+@pytest.mark.parametrize("bad", [(1.0, 2.0, 3.0), 42])
+def test_earth_locations_of_the_wrong_shape_are_rejected_clearly(bad):
+    """Regression test. These two guards caught KeyError, which unpacking
+    never raises: a three-entry tuple escaped as `too many values to unpack
+    (expected 2)`, and a non-iterable as TypeError -- breaking the
+    package-wide convention that bad input raises ValueError naming the
+    parameter at fault.
+
+    The message is asserted, not just the exception type. Checking only for
+    ValueError would let the three-entry case pass against the old code,
+    since `too many values to unpack` is itself a ValueError -- the test
+    would then be green for a reason that has nothing to do with the guard
+    working."""
+    with pytest.raises(ValueError, match="loc_ini"):
+        op.validate_input_osc_prob_earth('t', loc_ini=bad, loc_fin=(0.0, 0.0))
+
+    with pytest.raises(ValueError, match="loc_fin"):
+        op.validate_input_osc_prob_earth('t', loc_ini=((0, 0, 0), (0, 0, 0)), loc_fin=bad)
+
+
+def test_a_single_earth_location_given_as_none_takes_the_costhz_path():
+    """Both locations None is not an error -- it is the costhz route -- so
+    it must not be swept up by the shape check above."""
+    costhz, L = op.validate_input_osc_prob_earth('t', loc_ini=None, loc_fin=None,
+                                                 costhz=-0.8, L=BASELINE)
+    assert costhz == -0.8
+    assert L == BASELINE
+
+
+def test_earth_without_locations_requires_costhz():
+    with pytest.raises(ValueError, match="costhz"):
+        op.validate_input_osc_prob_earth('t', loc_ini=None, loc_fin=None, costhz=None,
+                                         L=BASELINE)
+
+
+def test_earth_with_costhz_requires_a_baseline():
+    """costhz fixes the direction, not the distance."""
+    with pytest.raises(ValueError, match="L|baseline"):
+        op.validate_input_osc_prob_earth('t', loc_ini=None, loc_fin=None, costhz=-0.8, L=None)
+
+
+def test_earth_with_two_locations_computes_the_chord():
+    """The success path of the same function: two locations override costhz
+    and define the baseline themselves. Coordinates are (degrees, minutes,
+    seconds) per axis, the same form as earth.loc_coords_dms."""
+    costhz, L = op.validate_input_osc_prob_earth(
+        't', loc_ini=((51, 45, 54), (104, 24, 54)), loc_fin=((46, 14, 1.8), (6, 3, 11.4)),
+        costhz=0.5, L=None)
+    assert -1.0 <= costhz <= 1.0
+    assert L > 0.0
+
+
+# ----------------------------------------------------------------------
+# validate_input_battery: the shared guard every wrapper delegates to
+# ----------------------------------------------------------------------
+
+def test_energy_must_be_a_number_or_a_flat_sequence():
+    with pytest.raises(ValueError, match="energy"):
+        op.validate_input_battery('t', energy='1 GeV', L=BASELINE)
+    with pytest.raises(ValueError, match="energy"):
+        op.validate_input_battery('t', energy=[[1.0, 2.0], [3.0, 4.0]], L=BASELINE)
+    with pytest.raises(ValueError, match="energy"):
+        op.validate_input_battery('t', energy=[1.0, 'two'], L=BASELINE)
+
+
+def test_baseline_must_be_a_number_or_a_flat_sequence():
+    with pytest.raises(ValueError, match="L"):
+        op.validate_input_battery('t', energy=ENERGY, L='1000 km')
+    with pytest.raises(ValueError, match="L"):
+        op.validate_input_battery('t', energy=ENERGY, L=[[1.0], [2.0]])
+    with pytest.raises(ValueError, match="L"):
+        op.validate_input_battery('t', energy=ENERGY, L=[1.0, None])
+
+
+def test_energy_and_baseline_arrays_must_be_the_same_length():
+    """Paired arrays are consumed point by point, so mismatched lengths are
+    a silent truncation rather than a broadcast."""
+    with pytest.raises(ValueError):
+        op.validate_input_battery('t', energy=[1.0, 2.0, 3.0], L=[1.0, 2.0])
+
+
+def test_flavor_indices_must_be_given_together():
+    with pytest.raises(ValueError, match="nu_i|nu_f"):
+        op.validate_input_battery('t', energy=ENERGY, L=BASELINE, nu_i=0, nu_f=None)
+    with pytest.raises(ValueError, match="nu_i|nu_f"):
+        op.validate_input_battery('t', energy=ENERGY, L=BASELINE, nu_i=None, nu_f=1)
+
+
+@pytest.mark.parametrize("nu_i, nu_f", [(-1, 0), (0, 99)])
+def test_flavor_indices_must_be_in_range(nu_i, nu_f):
+    with pytest.raises(ValueError, match="nu_i|nu_f"):
+        op.validate_input_battery('t', energy=ENERGY, L=BASELINE, num_flavors=3,
+                                  nu_i=nu_i, nu_f=nu_f)
+
+
+def test_oscillation_parameters_must_be_numbers():
+    with pytest.raises(ValueError):
+        op.validate_input_battery('t', energy=ENERGY, L=BASELINE, osc_params=[0.3, 'big'])
+
+
+def test_initial_position_must_be_a_number():
+    """Only checked when the caller asks for it: the wrappers that take an
+    L0 set validate_initial_position, the ones that do not, do not."""
+    with pytest.raises(ValueError, match="L0"):
+        op.validate_input_battery('t', energy=ENERGY, L=BASELINE, osc_params=[0.3, 2.5e-3],
+                                  L0='surface', validate_initial_position=True)
+
+
+def test_matter_composition_ratios_must_be_non_negative():
+    """Both are number ratios of constituents, so a negative value is not a
+    physical composition; they are only checked under validate_density."""
+    common = dict(energy=ENERGY, L=BASELINE, osc_params=[0.3, 2.5e-3], L0=0.0,
+                  rho_func=3.0, validate_density=True)
+    with pytest.raises(ValueError, match="ratio_number_neutrons_to_protons"):
+        op.validate_input_battery('t', ratio_number_neutrons_to_protons=-1.0, **common)
+    with pytest.raises(ValueError, match="electron_fraction"):
+        op.validate_input_battery('t', electron_fraction=-0.5, **common)
+
+
+def test_a_negative_matter_density_is_rejected():
+    with pytest.raises(ValueError, match="rho|density"):
+        op.validate_input_battery('t', energy=ENERGY, L=BASELINE, osc_params=[0.3, 2.5e-3],
+                                  L0=0.0, rho_func=-3.0, validate_density=True)
+
+
+def test_a_density_profile_of_more_than_one_argument_is_rejected():
+    """rho_func is called as rho_func(l) internally, so a two-argument
+    callable would fail later, inside the integration, with no indication
+    that the profile was the problem."""
+    with pytest.raises(ValueError, match="rho_func"):
+        op.validate_input_battery('t', energy=ENERGY, L=BASELINE, osc_params=[0.3, 2.5e-3],
+                                  L0=0.0, rho_func=lambda l, extra: 3.0, validate_density=True)
+
+
+def test_a_valid_battery_call_raises_nothing_and_returns_none():
+    """The contract changed in 1.0.0: this used to return 1 on failure, and
+    now raises instead, so success must be a plain None rather than a code
+    the caller is expected to compare against."""
+    assert op.validate_input_battery('t', energy=ENERGY, L=BASELINE, num_flavors=3,
+                                     nu_i=0, nu_f=1, osc_params=[0.5, 0.6, 0.1, 0.0, 7.5e-5,
+                                                                 2.5e-3]) is None
+
+
+# ----------------------------------------------------------------------
+# osc_prob's own guards
+# ----------------------------------------------------------------------
+
+def _flat_H(t):
+    return np.array([[1.0e-12, 2.0e-13], [2.0e-13, -1.0e-12]], dtype=complex)
+
+
+def test_osc_prob_rejects_a_backwards_interval():
+    with pytest.raises(ValueError, match="t_fin"):
+        op.osc_prob(_flat_H, t_ini=BASELINE, t_fin=0.0)
+
+
+@pytest.mark.parametrize("order", [0, -2])
+def test_osc_prob_rejects_an_out_of_range_expansion_order(order):
+    """Zero and negative are meaningless, and silently clamping would return
+    a different calculation from the one asked for."""
+    with pytest.raises(ValueError, match="magnus_exp_order"):
+        op.osc_prob(_flat_H, t_ini=0.0, t_fin=BASELINE, magnus_exp_order=order)
+
+
+def test_osc_prob_rejects_an_order_above_the_implemented_maximum():
+    """Above MAGNUS_EXP_ORDER_MAX there is no implementation at all. Checked
+    with a quadrature method, because 'gl' refuses earlier and for its own
+    reason: its schemes are separately derived integrators that stop at
+    order 6 rather than continuing with the Magnus recursion."""
+    with pytest.raises(ValueError, match="magnus_exp_order|order"):
+        op.osc_prob(_flat_H, t_ini=0.0, t_fin=BASELINE, integration_method='trapezoid',
+                    magnus_exp_order=gd.MAGNUS_EXP_ORDER_MAX + 1)
+
+
+# ----------------------------------------------------------------------
+# expansionterms' guards
+# ----------------------------------------------------------------------
+
+@pytest.mark.parametrize("order", [0, -1])
+def test_omega_terms_rejects_orders_below_one(order):
+    import magnus.expansionterms as et
+    with pytest.raises(ValueError, match="order"):
+        et.omega_terms(order)
+
+
+@pytest.mark.parametrize("max_order", [0, -1])
+def test_magnus_terms_rejects_orders_below_one(max_order):
+    import magnus.expansionterms as et
+    with pytest.raises(ValueError, match="max_order"):
+        et.magnus_terms(max_order)
