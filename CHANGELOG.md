@@ -23,6 +23,10 @@ and the project uses [Semantic Versioning](https://semver.org/).
 - A "When is Magνs not the right tool?" section in the README and docs,
   covering quantum decoherence, open-system/bath coupling, neutrino decay,
   and self-consistent collective oscillations.
+- A short pronunciation note at the top of the README and of the docs
+  landing page: Magνs is said just like "Magnus", with the neutrino symbol
+  **ν** standing in for the "nu" syllable (with a nod to the Danish
+  pronunciation, given where most of it was written).
 - `magnus.matter.exp_density_profile(density_matter_central, l_scale)`: builds
   an exponential density-profile callable tagged for the new fast
   interaction-picture integrator (see below); `osc_prob_2nu_matter_exp_density`
@@ -154,6 +158,36 @@ and the project uses [Semantic Versioning](https://semver.org/).
   API surface (excluded from `__all__` and from the Sphinx autoapi-generated
   docs), though they remain importable internally for the CLI's
   `--version` flag and `oscprob`'s banner-printing.
+- Docstring equations that were still written as indented plain text now
+  render as real LaTeX. The commit that converted ~600 instances of
+  plain-text *symbol* notation to `:math:` roles left the bare *equations*
+  alone; `magnus.py`'s module docstring (the Magnus expansion and its
+  Bernoulli-number recursion), `MagnusConvergenceWarning`'s convergence
+  criterion, `earth.prem_layer_edges_along_chord`'s chord-crossing
+  quadratic, `matter.density_matter_func_exp`'s profile, and
+  `oscprob._osc_prob_ip_exp_core`'s two interaction-picture equations are
+  now `.. math::` blocks whose LaTeX matches `docs/source/methodology.rst`
+  for the identical mathematics.
+- Physical units carrying exponents are now math-mode throughout the
+  docstrings, so they render as eV², g cm⁻³ rather than as the literal
+  text `eV^2`, `g cm^{-3}`. The convention adopted, and applied uniformly
+  across `oscprob`, `globaldefs`, `matter`, `earth`, and `cli`, is to
+  math-wrap a whole unit group when — and only when — it carries an
+  exponent (``[:math:`\text{g cm}^{-3}`]``), matching the pre-existing
+  `\text{cm}^{-3}` usage in `oscprob`'s module docstring; exponent-free
+  units (`[eV]`, `[radian]`) stay plain text, since they already render
+  correctly. `docs/source/functions.rst`'s lone `:sup:`-based unit was
+  converted to match. This also normalizes the `eV^-1`/`eV^{-1}` spelling
+  inconsistency.
+- All 70 remaining `>>>` doctest-style prompts (in `oscprob`'s module
+  docstring and in `globaldefs.load_nufit_params`) are now
+  `.. jupyter-execute::` blocks, the convention already used by the ~60
+  `osc_prob_*` wrapper docstrings. No doctest runner has ever existed in
+  this project — no `--doctest-modules`, no doctest CI step, no
+  `doctest_namespace` fixture — so these examples were never executed or
+  checked by anything, and had silently drifted out of sync with the code
+  (see "Fixed" below). As executed cells they now show genuine, always-current
+  output and will fail the docs build if they ever break again.
 
 ### Fixed
 
@@ -165,6 +199,11 @@ and the project uses [Semantic Versioning](https://semver.org/).
   disagreement anywhere in `src/magnus`). Also fixes two unrelated
   copy-paste errors caught along the way in `oscprobstd.J()`'s docstring
   (a mislabeled parameter description and a wrong worked example).
+- Three latent errors in `oscprob`'s module-docstring examples, exposed by
+  converting them to executed cells: `np.array([1.0, 10.0 100.0])` was
+  missing a comma (a `SyntaxError`), `osc_prob_3nu_matter_constant_density`
+  was called without its `oscprob.` prefix (a `NameError`), and the flavor
+  indices were listed as "`NUE`, `NUMU`, and `NUMU`" instead of `NUTAU`.
 
 ### Removed
 

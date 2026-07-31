@@ -53,7 +53,7 @@ Matter, constant density
 ---------------------------
 
 A user-supplied matter density, uniform along the trajectory (``rho``,
-in g cm\ :sup:`-3` by default).
+in :math:`\text{g cm}^{-3}` by default).
 
 .. list-table::
    :header-rows: 1

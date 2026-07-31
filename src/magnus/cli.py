@@ -18,7 +18,8 @@ Routine listings
     * build_parser - Builds the argparse.ArgumentParser
     * FLAVOR_NAME_TO_INDEX - Maps flavor names (e, mu, tau, s, s1, s2)
            to their globaldefs index
-    * ENERGY_UNITS, LENGTH_UNITS - Unit-name to eV/eV^-1 conversion factors
+    * ENERGY_UNITS, LENGTH_UNITS - Unit-name to :math:`\text{eV}` / :math:`\text{eV}^{-1}`
+           conversion factors
 """
 
 __author__ = "Mauricio Bustamante"

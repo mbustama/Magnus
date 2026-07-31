@@ -52,12 +52,12 @@ def density_matter_func_const(l: float,
         case, the profile is uniform, so any value of l returns the same
         constant density).
     density_matter_const : float
-        Matter density [g cm^{-3}]
+        Matter density [:math:`\text{g cm}^{-3}`]
 
     Returns
     -------
     float
-        Matter density [g cm^{-3}]
+        Matter density [:math:`\text{g cm}^{-3}`]
     """
 
     return density_matter_const
@@ -69,8 +69,14 @@ def density_matter_func_exp(l: float, density_matter_central:float , l_scale: fl
 
     Returns the matter density as a function of position, assuming  
     an exponentially decreasing density profile of the form
-    rho(l) = density_matter_central*exp(-l/l_scale), for given values
-    of density_matter_central and l_scale.
+
+    .. math::
+
+       \rho(l) = \rho_0\, e^{-l/l_\text{scale}} ,
+
+    for given values of the central density :math:`\rho_0`
+    (``density_matter_central``) and the length scale
+    :math:`l_\text{scale}` (``l_scale``).
 
     .. versionadded:: 0.10.0
 
@@ -79,14 +85,14 @@ def density_matter_func_exp(l: float, density_matter_central:float , l_scale: fl
     l : float
         Position at which the density profile is evaluated.
     density_matter_central : float
-        Matter density at the center of the profile (l = 0) [g cm^{-3}]
+        Matter density at the center of the profile (l = 0) [:math:`\text{g cm}^{-3}`]
     l_scale : float
         Length scale of the exponential density decrease.
 
     Returns
     -------
     float
-        Matter density [g cm^{-3}]
+        Matter density [:math:`\text{g cm}^{-3}`]
     """
 
     return density_matter_central*np.exp(-l/l_scale)
@@ -135,11 +141,11 @@ def num_density_e_func(l: float, density_matter_func: Callable,
     ratio_number_neutrons_to_protons: Optional[float]=1.0,
     electron_fraction: Optional[float]=0.5,
     density_matter_is_in_g_per_cm3=False) -> float:
-    r"""Converts matter density [g cm^{-3}] to electron number density
-    [eV^3], for a given matter density profile and position.
+    r"""Converts matter density [:math:`\text{g cm}^{-3}`] to electron number density
+    [:math:`\text{eV}^{3}`], for a given matter density profile and position.
 
-    Converts the matter density [g cm^{-3}] to electron number density
-    [eV^3], for a given matter density profile, density_matter_func,
+    Converts the matter density [:math:`\text{g cm}^{-3}`] to electron number density
+    [:math:`\text{eV}^{3}`], for a given matter density profile, density_matter_func,
     and position, l. Matter is assumed to be isoscalar, with the
     fraction of electrons given by electron_fraction.
 
@@ -150,7 +156,7 @@ def num_density_e_func(l: float, density_matter_func: Callable,
     l : float
         Position at which the density profile is evaluated.
     density_matter_func : Callable
-        Matter density as a function of l [g cm^{-3}] (or, if
+        Matter density as a function of l [:math:`\text{g cm}^{-3}`] (or, if
         ``density_matter_is_in_g_per_cm3`` is False, already in natural units).
     ratio_number_neutrons_to_protons : float, optional
         Ratio of the number of neutrons to protons in matter, used to compute the average
@@ -158,14 +164,14 @@ def num_density_e_func(l: float, density_matter_func: Callable,
     electron_fraction : float, optional
         Electron fraction. Default: 0.5.
     density_matter_is_in_g_per_cm3 : bool, optional
-        If True, ``density_matter_func`` returns the density in g cm^{-3} and it is converted to
+        If True, ``density_matter_func`` returns the density in :math:`\text{g cm}^{-3}` and it is converted to
         natural units internally; if False, it is assumed to already be in natural units.
         Default: False.
 
     Returns
     -------
     float
-        Number density of electrons [eV^3]
+        Number density of electrons [:math:`\text{eV}^{3}`]
     """
     avg_mass_nucleon = (gd.MASS_PROTON+gd.MASS_NEUTRON*ratio_number_neutrons_to_protons) \
                         / (1.0+ratio_number_neutrons_to_protons)
@@ -198,7 +204,7 @@ def VCC_func(l: float, num_density_e_func: Callable) -> float:
     l : float
         Position at which the density profile is evaluated.
     num_density_e_func : Callable
-        Electron number density as a function of l [eV^3].
+        Electron number density as a function of l [:math:`\text{eV}^{3}`].
 
     Returns
     -------
@@ -243,14 +249,14 @@ def vcc_func_from_rho_func(
     electron_fraction : int or float, optional
         Electron fraction. Default: 0.5.
     nubar : bool, optional
-        If True, flip the sign of V_CC (electrons couple to nu_e and nu_e-bar with opposite-sign
-        weak charge). Default: False.
+        If True, flip the sign of :math:`V_\text{CC}` (electrons couple to :math:`\nu_e` and
+        :math:`\bar{\nu}_e` with opposite-sign weak charge). Default: False.
     density_matter_is_in_g_per_cm3 : bool, optional
-        If True, ``rho_func`` returns the matter density in g cm^{-3}; if False, it is assumed to
+        If True, ``rho_func`` returns the matter density in :math:`\text{g cm}^{-3}`; if False, it is assumed to
         already be in natural units. Ignored if ``density_is_of_number_of_electrons`` is True.
         Default: False.
     density_is_of_number_of_electrons : bool, optional
-        If True, ``rho_func`` directly returns the electron number density [eV^3], skipping the
+        If True, ``rho_func`` directly returns the electron number density [:math:`\text{eV}^{3}`], skipping the
         matter-density-to-electron-density conversion. Default: False.
 
     Returns

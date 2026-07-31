@@ -98,7 +98,7 @@ def density_matter_func_prem(r: Union[float, np.ndarray],
     Returns
     -------
     float or np.ndarray
-        Matter density [g cm^{-3}].
+        Matter density [:math:`\text{g cm}^{-3}`].
 
     Raises
     ------
@@ -221,8 +221,9 @@ def prem_layer_edges_along_chord(costhz: float) -> np.ndarray:
     r"""Returns the positions along a chord through the Earth at which
     the chord crosses the PREM layer boundaries.
 
-    A neutrino entering the Earth with direction costhz travels along a
-    chord from l = 0 to l = distance_traveled_inside_earth(costhz).
+    A neutrino entering the Earth with direction ``costhz`` travels along
+    a chord from :math:`l = 0` to
+    :math:`l =` :func:`distance_traveled_inside_earth` (``costhz``).
     The matter density along the chord is piecewise-smooth, with
     discontinuities (or kinks) where the chord crosses the boundaries
     between PREM shells.  This routine returns those crossing positions,
@@ -230,9 +231,13 @@ def prem_layer_edges_along_chord(costhz: float) -> np.ndarray:
     high-order quadrature converges at its nominal order only if the
     Hamiltonian is smooth within each slab.
 
-    The crossing positions solve r(l) = r_b for each boundary radius
-    r_b, which is a quadratic equation in l: with u = d - l and
-    d = -2 R costhz, one has u^2 + 2 R costhz u + (R^2 - r_b^2) = 0.
+    The crossing positions solve :math:`r(l) = r_b` for each boundary
+    radius :math:`r_b`, which is a quadratic equation in :math:`l`: with
+    :math:`u = d - l` and :math:`d = -2 R \cos\theta_z`, one has
+
+    .. math::
+
+       u^2 + 2 R \cos\theta_z\, u + \left(R^2 - r_b^2\right) = 0 .
 
     .. versionadded:: 0.10.0
 

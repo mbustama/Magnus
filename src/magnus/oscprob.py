@@ -160,8 +160,22 @@ Examples
    <https://github.com/mbustama/Magnus/tree/main/notebooks>`_ that are 
    distributed with :math:`{\\rm Mag}{\\nu}s`.
 
->>> import magnus.oscprob as oscprob
->>> import magnus.globaldefs as gd
+The code blocks below run when these docs are built, so the output shown
+is always current.
+
+.. jupyter-execute::
+
+    import numpy as np
+
+    import magnus.oscprob as oscprob
+    import magnus.globaldefs as gd
+
+    np.set_printoptions(precision=3)
+
+    # Warnings are normally prefixed with an ANSI-colored "Warning:", which is
+    # meant for a terminal and renders as escape-code noise in HTML.  These docs
+    # therefore switch to the plain-text prefix; in a terminal, leave this alone.
+    gd.WARNING_MSG_IN_COLOR = gd.WARNING_MSG_NO_COLOR
 
 Calling :func:`osc_prob_3nu_vacuum` returns a :math:`3 \\times 3` NumPy array
 of probabilities whose entry ``[i][j]`` is the probability of a neutrino
@@ -169,14 +183,12 @@ produced with flavor ``i`` being detected with flavor ``j``
 
 For a single neutrino energy and baseline:
 
->>> baseline = 10.*gd.UNIT_KM # 10 km in natural units [eV^{-1}]
->>> energy = 1.*gd.UNIT_MEV # [eV]
->>> import numpy as np
->>> np.set_printoptions(precision=3)
->>> oscprob.osc_prob_3nu_vacuum(energy, baseline)
-[[0.445 0.299 0.257]
- [0.251 0.639 0.11 ]
- [0.304 0.062 0.634]]
+.. jupyter-execute::
+
+    baseline = 10.0 * gd.UNIT_KM  # 10 km in natural units [eV^-1]
+    energy = 1.0 * gd.UNIT_MEV    # [eV]
+
+    oscprob.osc_prob_3nu_vacuum(energy, baseline)
 
 The probabilities returned by :func:`osc_prob_3nu_vacuum` (and also
 :func:`osc_prob_2nu_vacuum`, 
@@ -188,15 +200,18 @@ compute them.
 Pick one channel only, e.g., :math:`\\nu_e \\to \\nu_\\mu`, by passing
 an initial flavor, ``nu_i``, and a final flavor ``nu_f``:
 
->>> oscprob.osc_prob_3nu_vacuum(energy, baseline, nu_i=gd.NUE, \
-nu_f=gd.NUMU)
+.. jupyter-execute::
 
-The flavor indices ``NUE``, ``NUMU``, and ``NUMU`` are defined in the 
-:py:mod:`magnus.globaldefs` module. For anti-neutrinos, i.e., 
+    oscprob.osc_prob_3nu_vacuum(energy, baseline, nu_i=gd.NUE, nu_f=gd.NUMU)
+
+The flavor indices ``NUE``, ``NUMU``, and ``NUTAU`` are defined in the
+:py:mod:`magnus.globaldefs` module. For anti-neutrinos, i.e.,
 :math:`\\bar{\\nu}_e \\to \\bar{\\nu}_\\mu`:
 
->>> oscprob.osc_prob_3nu_vacuum(energy, baseline, nu_i=gd.NUE, \
-nu_f=gd.NUMU, nubar=True)
+.. jupyter-execute::
+
+    oscprob.osc_prob_3nu_vacuum(energy, baseline, nu_i=gd.NUE, nu_f=gd.NUMU,
+                                nubar=True)
 
 Calling :func:`osc_prob_3nu_vacuum` without specifying the values of the
 oscillation parameters will compute probabilities using the default 
@@ -207,43 +222,41 @@ We can specify values of the oscillation parameters. Unspecified values
 are set to their defaults (pass nonzero ``verbose`` to see this and 
 other warnings):
 
->>> oscprob.osc_prob_3nu_vacuum(energy, baseline, s12=0.0, verbose=1)
-Warning: Setting unspecified oscillation parameters to default values \
-from the predefined set\n OSC_PARAMS_NU_FIT_6_0_NO (NuFit 6.0, NO, with \
-SK atmospheric data):
-s23 = 0.6855654600401044
-s13 = 0.14882876066137216
-dCP = 3.7000980142279785 rad
-D21 = 7.49e-05 eV^2
-D31 = 0.002513 eV^2
-<BLANKLINE>
-[[0.985 0.007 0.008]
- [0.007 0.736 0.257]
- [0.008 0.257 0.735]]
+.. jupyter-execute::
+
+    oscprob.osc_prob_3nu_vacuum(energy, baseline, s12=0.0, verbose=1)
 
 Fixed energy, multiple baselines:
 
->>> baselines = gd.UNIT_KM*np.array([1.0, 10.0 100.0])
->>> oscprob.osc_prob_3nu_vacuum(energy, baselines, nu_i=gd.NUE, \
-nu_f=gd.NUMU)
+.. jupyter-execute::
+
+    baselines = gd.UNIT_KM * np.array([1.0, 10.0, 100.0])
+
+    oscprob.osc_prob_3nu_vacuum(energy, baselines, nu_i=gd.NUE, nu_f=gd.NUMU)
 
 Fixed baseline, multiple energies:
 
->>> energies = gd.UNIT_MEV*np.array([1.0, 10.0, 100.0])
->>> oscprob.osc_prob_3nu_vacuum(energies, baseline, nu_i=gd.NUE, \
-nu_f=gd.NUMU)
+.. jupyter-execute::
+
+    energies = gd.UNIT_MEV * np.array([1.0, 10.0, 100.0])
+
+    oscprob.osc_prob_3nu_vacuum(energies, baseline, nu_i=gd.NUE, nu_f=gd.NUMU)
 
 Multiple energies and baselines:
 
->>> oscprob.osc_prob_3nu_vacuum(energies, baselines, nu_i=gd.NUE, \
-nu_f=gd.NUMU)
+.. jupyter-execute::
+
+    oscprob.osc_prob_3nu_vacuum(energies, baselines, nu_i=gd.NUE, nu_f=gd.NUMU)
 
 To compute the oscillation probabilities in constant-density matter, we
 need to specify the matter density, ``rho``, i.e.,
 
->>> rho = 10.0*gd.UNIT_G_PER_CM3
->>> osc_prob_3nu_matter_constant_density(energy, baseline, rho, \
-nu_i=gd.NUE, nu_f=gd.NUMU)
+.. jupyter-execute::
+
+    rho = 10.0 * gd.UNIT_G_PER_CM3
+
+    oscprob.osc_prob_3nu_matter_constant_density(energy, baseline, rho,
+                                                 nu_i=gd.NUE, nu_f=gd.NUMU)
 
 To compute oscillation probabilities for a time-dependent Hamiltonian,
 we need to call :func:`osc_prob` directly which, while still 
@@ -2786,23 +2799,31 @@ def _osc_prob_ip_exp_core(
     only the matter-potential envelope to be integrated. Within each slab ``[l0, l0+h]``, the
     first-order Magnus term of the resulting interaction-picture generator,
 
-        Omega_1(h) = -i \int_0^h e^{i H_E s} VCC_func(l0+s) h_matt e^{-i H_E s} ds ,
+    .. math::
+
+       \Omega_1(h) = -i \int_0^h e^{i H_E s}\, V_\text{CC}(l_0+s)\,
+       h_\text{matt}\, e^{-i H_E s}\, ds ,
 
     has a closed form because ``VCC_func(l0+s) = VCC_func(l0) exp(-s/l_scale)`` is itself an
-    exponential: in the eigenbasis of ``H_E`` (eigenvalues ``lambda_j``, so
-    ``Delta_jk = lambda_j - lambda_k``),
+    exponential: in the eigenbasis of ``H_E`` (eigenvalues :math:`\lambda_j`, so
+    :math:`\Delta_{jk} = \lambda_j - \lambda_k`),
 
-        (Omega_1)~_{jk}(h) = -i (h_matt)~_{jk} VCC_func(l0)
-            [exp((i Delta_jk - 1/l_scale) h) - 1] / (i Delta_jk - 1/l_scale) ,
+    .. math::
 
-    valid uniformly for j == k too (the j == k denominator, -1/l_scale, is never zero for finite
+       \left(\tilde{\Omega}_1\right)_{jk}(h) = -i \left(\tilde{h}_\text{matt}\right)_{jk}
+       V_\text{CC}(l_0)\,
+       \frac{e^{\left(i \Delta_{jk} - 1/l_\text{scale}\right) h} - 1}
+            {i \Delta_{jk} - 1/l_\text{scale}} ,
+
+    valid uniformly for :math:`j = k` too (the :math:`j = k` denominator,
+    :math:`-1/l_\text{scale}`, is never zero for finite
     ``l_scale``). This is exact in the envelope (no local-constant or local-linear approximation of
     ``VCC_func`` is made); the only approximation is truncating the interaction-picture Magnus series
     at first order, which is accurate away from an MSW resonance (where the matter term becomes
-    comparable to the *vacuum* splitting ``Delta_jk``, rather than merely small) and improves, rather
-    than worsens, at lower neutrino energy (``Delta_jk`` grows as 1/E). Both factors
-    (``exp(-i H_E h)`` and ``exp(Omega_1)``) are exactly unitary by construction (the former is a
-    diagonal phase, the latter is exponentiated via :func:`magnus.magnus._expm_stack` from an
+    comparable to the *vacuum* splitting :math:`\Delta_{jk}`, rather than merely small) and improves,
+    rather than worsens, at lower neutrino energy (:math:`\Delta_{jk}` grows as :math:`1/E`). Both
+    factors (``exp(-i H_E h)`` and :math:`\exp(\Omega_1)`) are exactly unitary by construction (the
+    former is a diagonal phase, the latter is exponentiated via :func:`magnus.magnus._expm_stack` from an
     anti-Hermitian generator), so the returned probabilities remain exactly unitary regardless of how
     good the approximation is. Accuracy is controlled the usual way: growing ``n_slabs`` shrinks the
     per-slab truncation error (which vanishes faster than the slab width itself), so successive
@@ -3953,9 +3974,9 @@ def osc_prob_matter_std_potential(
     nu_f : int, optional
         Final flavor index; see ``nu_i``.
     density_matter_is_in_g_per_cm3 : bool, optional
-        If True, ``rho_func`` returns the density in g cm^{-3}. Default: False.
+        If True, ``rho_func`` returns the density in :math:`\text{g cm}^{-3}`. Default: False.
     density_is_of_number_of_electrons : bool, optional
-        If True, ``rho_func`` directly returns the electron number density [eV^3]. Default: False.
+        If True, ``rho_func`` directly returns the electron number density [:math:`\text{eV}^{3}`]. Default: False.
     default_osc_params_set_name : str, optional
         Name of the predefined oscillation-parameter set used to fill in any parameter left as
         None in ``osc_params``. Default: 'OSC_PARAMS_DEFAULT'.
@@ -4285,9 +4306,9 @@ def osc_prob_matter_nsi(
     nu_f : int, optional
         Final flavor index; see ``nu_i``.
     density_matter_is_in_g_per_cm3 : bool, optional
-        If True, ``rho_func`` returns the density in g cm^{-3}. Default: False.
+        If True, ``rho_func`` returns the density in :math:`\text{g cm}^{-3}`. Default: False.
     density_is_of_number_of_electrons : bool, optional
-        If True, ``rho_func`` directly returns the electron number density [eV^3]. Default: False.
+        If True, ``rho_func`` directly returns the electron number density [:math:`\text{eV}^{3}`]. Default: False.
     default_osc_params_set_name : str, optional
         Name of the predefined oscillation-parameter set used to fill in any parameter left as
         None in ``osc_params``. Default: 'OSC_PARAMS_DEFAULT'.
@@ -4617,9 +4638,9 @@ def osc_prob_liv(
     nu_f : int, optional
         Final flavor index; see ``nu_i``.
     density_matter_is_in_g_per_cm3 : bool, optional
-        If True, ``rho_func`` returns the density in g cm^{-3}. Default: False.
+        If True, ``rho_func`` returns the density in :math:`\text{g cm}^{-3}`. Default: False.
     density_is_of_number_of_electrons : bool, optional
-        If True, ``rho_func`` directly returns the electron number density [eV^3]. Default: False.
+        If True, ``rho_func`` directly returns the electron number density [:math:`\text{eV}^{3}`]. Default: False.
     default_osc_params_set_name : str, optional
         Name of the predefined oscillation-parameter set used to fill in any parameter left as
         None in ``osc_params``. Default: 'OSC_PARAMS_DEFAULT'.
@@ -5068,13 +5089,18 @@ def osc_prob_3nu_vacuum(
     The names of the predefined parameter sets included in 
     :math:`\text{Mag}\nu\text{s}` can be seen by printing
 
-    >>> import magnus.globaldefs as gd
-    >>> list(gd.OSC_PARAMS_PREDEFINED.keys())
+    .. jupyter-execute::
+
+        import magnus.globaldefs as gd
+
+        list(gd.OSC_PARAMS_PREDEFINED.keys())
 
     And the default parameter values are from the set with name 
     ``'OSC_PARAMS_DEFAULT'``:
 
-    >>> gd.OSC_PARAMS_PREDEFINED['OSC_PARAMS_DEFAULT']
+    .. jupyter-execute::
+
+        gd.OSC_PARAMS_PREDEFINED['OSC_PARAMS_DEFAULT']
 
     If ``validate_input`` is set to True, the function validates the 
     input arguments before calculating the probability, by calling the
@@ -5271,13 +5297,18 @@ def osc_prob_4nu_vacuum(
     The names of the predefined parameter sets included in 
     :math:`\text{Mag}\nu\text{s}` can be seen by printing
 
-    >>> import magnus.globaldefs as gd
-    >>> list(gd.OSC_PARAMS_PREDEFINED.keys())
+    .. jupyter-execute::
+
+        import magnus.globaldefs as gd
+
+        list(gd.OSC_PARAMS_PREDEFINED.keys())
 
     And the default parameter values are from the set with name 
     ``'OSC_PARAMS_DEFAULT'``:
 
-    >>> gd.OSC_PARAMS_PREDEFINED['OSC_PARAMS_DEFAULT']
+    .. jupyter-execute::
+
+        gd.OSC_PARAMS_PREDEFINED['OSC_PARAMS_DEFAULT']
 
     If ``validate_input`` is set to True, the function validates the 
     input arguments before calculating the probability, by calling the
@@ -5493,13 +5524,18 @@ def osc_prob_5nu_vacuum(
     The names of the predefined parameter sets included in 
     :math:`\text{Mag}\nu\text{s}` can be seen by printing
 
-    >>> import magnus.globaldefs as gd
-    >>> list(gd.OSC_PARAMS_PREDEFINED.keys())
+    .. jupyter-execute::
+
+        import magnus.globaldefs as gd
+
+        list(gd.OSC_PARAMS_PREDEFINED.keys())
 
     And the default parameter values are from the set with name 
     ``'OSC_PARAMS_DEFAULT'``:
 
-    >>> gd.OSC_PARAMS_PREDEFINED['OSC_PARAMS_DEFAULT']
+    .. jupyter-execute::
+
+        gd.OSC_PARAMS_PREDEFINED['OSC_PARAMS_DEFAULT']
 
     If ``validate_input`` is set to True, the function validates the 
     input arguments before calculating the probability, by calling the
@@ -5713,9 +5749,9 @@ def osc_prob_2nu_matter_constant_density(
     nu_f : int, optional
         Final flavor index; see ``nu_i``. Default: None.
     density_matter_is_in_g_per_cm3 : bool, optional
-        If True, the density is given in g cm^{-3}. Default: False.
+        If True, the density is given in :math:`\text{g cm}^{-3}`. Default: False.
     density_is_of_number_of_electrons : bool, optional
-        If True, the density parameter directly gives the electron number density [eV^3]. Default: False.
+        If True, the density parameter directly gives the electron number density [:math:`\text{eV}^{3}`]. Default: False.
     validate_input : bool, optional
         If True, validate the input parameters. Default: True.
     save_log : bool, optional
@@ -5821,9 +5857,9 @@ def osc_prob_3nu_matter_constant_density(
     nu_f : int, optional
         Final flavor index; see ``nu_i``. Default: None.
     density_matter_is_in_g_per_cm3 : bool, optional
-        If True, the density is given in g cm^{-3}. Default: False.
+        If True, the density is given in :math:`\text{g cm}^{-3}`. Default: False.
     density_is_of_number_of_electrons : bool, optional
-        If True, the density parameter directly gives the electron number density [eV^3]. Default: False.
+        If True, the density parameter directly gives the electron number density [:math:`\text{eV}^{3}`]. Default: False.
     default_osc_params_set_name : str, optional
         Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
     validate_input : bool, optional
@@ -5950,9 +5986,9 @@ def osc_prob_4nu_matter_constant_density(
     nu_f : int, optional
         Final flavor index; see ``nu_i``. Default: None.
     density_matter_is_in_g_per_cm3 : bool, optional
-        If True, the density is given in g cm^{-3}. Default: False.
+        If True, the density is given in :math:`\text{g cm}^{-3}`. Default: False.
     density_is_of_number_of_electrons : bool, optional
-        If True, the density parameter directly gives the electron number density [eV^3]. Default: False.
+        If True, the density parameter directly gives the electron number density [:math:`\text{eV}^{3}`]. Default: False.
     default_osc_params_set_name : str, optional
         Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
     validate_input : bool, optional
@@ -6098,9 +6134,9 @@ def osc_prob_5nu_matter_constant_density(
     nu_f : int, optional
         Final flavor index; see ``nu_i``. Default: None.
     density_matter_is_in_g_per_cm3 : bool, optional
-        If True, the density is given in g cm^{-3}. Default: False.
+        If True, the density is given in :math:`\text{g cm}^{-3}`. Default: False.
     density_is_of_number_of_electrons : bool, optional
-        If True, the density parameter directly gives the electron number density [eV^3]. Default: False.
+        If True, the density parameter directly gives the electron number density [:math:`\text{eV}^{3}`]. Default: False.
     default_osc_params_set_name : str, optional
         Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
     validate_input : bool, optional
@@ -6217,9 +6253,9 @@ def osc_prob_2nu_matter_exp_density(
     nu_f : int, optional
         Final flavor index; see ``nu_i``. Default: None.
     density_matter_is_in_g_per_cm3 : bool, optional
-        If True, the density is given in g cm^{-3}. Default: False.
+        If True, the density is given in :math:`\text{g cm}^{-3}`. Default: False.
     density_is_of_number_of_electrons : bool, optional
-        If True, the density parameter directly gives the electron number density [eV^3]. Default: False.
+        If True, the density parameter directly gives the electron number density [:math:`\text{eV}^{3}`]. Default: False.
     validate_input : bool, optional
         If True, validate the input parameters. Default: True.
     save_log : bool, optional
@@ -6346,9 +6382,9 @@ def osc_prob_3nu_matter_exp_density(
     nu_f : int, optional
         Final flavor index; see ``nu_i``. Default: None.
     density_matter_is_in_g_per_cm3 : bool, optional
-        If True, the density is given in g cm^{-3}. Default: False.
+        If True, the density is given in :math:`\text{g cm}^{-3}`. Default: False.
     density_is_of_number_of_electrons : bool, optional
-        If True, the density parameter directly gives the electron number density [eV^3]. Default: False.
+        If True, the density parameter directly gives the electron number density [:math:`\text{eV}^{3}`]. Default: False.
     default_osc_params_set_name : str, optional
         Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
     validate_input : bool, optional
@@ -6493,9 +6529,9 @@ def osc_prob_4nu_matter_exp_density(
     nu_f : int, optional
         Final flavor index; see ``nu_i``. Default: None.
     density_matter_is_in_g_per_cm3 : bool, optional
-        If True, the density is given in g cm^{-3}. Default: False.
+        If True, the density is given in :math:`\text{g cm}^{-3}`. Default: False.
     density_is_of_number_of_electrons : bool, optional
-        If True, the density parameter directly gives the electron number density [eV^3]. Default: False.
+        If True, the density parameter directly gives the electron number density [:math:`\text{eV}^{3}`]. Default: False.
     default_osc_params_set_name : str, optional
         Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
     validate_input : bool, optional
@@ -6659,9 +6695,9 @@ def osc_prob_5nu_matter_exp_density(
     nu_f : int, optional
         Final flavor index; see ``nu_i``. Default: None.
     density_matter_is_in_g_per_cm3 : bool, optional
-        If True, the density is given in g cm^{-3}. Default: False.
+        If True, the density is given in :math:`\text{g cm}^{-3}`. Default: False.
     density_is_of_number_of_electrons : bool, optional
-        If True, the density parameter directly gives the electron number density [eV^3]. Default: False.
+        If True, the density parameter directly gives the electron number density [:math:`\text{eV}^{3}`]. Default: False.
     default_osc_params_set_name : str, optional
         Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
     validate_input : bool, optional
@@ -6768,9 +6804,15 @@ def osc_prob_2nu_earth(
     location.  The predefined locations are in the earth.loc_coords_dms
     dictionary:
 
-    >>> import magnus.earth as earth
-    >>> list(earth.loc_coords_dms.keys())
-    >>> print(earth.loc_coords_dms['fermilab'])
+    .. jupyter-execute::
+
+        import magnus.earth as earth
+
+        list(earth.loc_coords_dms.keys())
+
+    .. jupyter-execute::
+
+        print(earth.loc_coords_dms['fermilab'])
 
     See the example below.
 
@@ -6959,9 +7001,15 @@ def osc_prob_3nu_earth(
     location.  The predefined locations are in the earth.loc_coords_dms
     dictionary:
 
-    >>> import magnus.earth as earth
-    >>> list(earth.loc_coords_dms.keys())
-    >>> print(earth.loc_coords_dms['fermilab'])
+    .. jupyter-execute::
+
+        import magnus.earth as earth
+
+        list(earth.loc_coords_dms.keys())
+
+    .. jupyter-execute::
+
+        print(earth.loc_coords_dms['fermilab'])
 
     See the example below.
 
@@ -7161,9 +7209,15 @@ def osc_prob_4nu_earth(
     location.  The predefined locations are in the earth.loc_coords_dms
     dictionary:
 
-    >>> import magnus.earth as earth
-    >>> list(earth.loc_coords_dms.keys())
-    >>> print(earth.loc_coords_dms['fermilab'])
+    .. jupyter-execute::
+
+        import magnus.earth as earth
+
+        list(earth.loc_coords_dms.keys())
+
+    .. jupyter-execute::
+
+        print(earth.loc_coords_dms['fermilab'])
 
     See the example below.
 
@@ -7385,9 +7439,15 @@ def osc_prob_5nu_earth(
     location.  The predefined locations are in the earth.loc_coords_dms
     dictionary:
 
-    >>> import magnus.earth as earth
-    >>> list(earth.loc_coords_dms.keys())
-    >>> print(earth.loc_coords_dms['fermilab'])
+    .. jupyter-execute::
+
+        import magnus.earth as earth
+
+        list(earth.loc_coords_dms.keys())
+
+    .. jupyter-execute::
+
+        print(earth.loc_coords_dms['fermilab'])
 
     See the example below.
 
@@ -7610,7 +7670,7 @@ def osc_prob_earth(
     the position axis leading; this is detected automatically.
 
     The trajectory can be specified either by the cosine of the zenith
-    angle (``costhz``) together with the baseline ``L`` [eV^{-1}], or
+    angle (``costhz``) together with the baseline ``L`` [:math:`\text{eV}^{-1}`], or
     by an initial and a final location on the surface of the Earth
     (``loc_ini``, ``loc_fin``), given as (degree, minute, second)
     latitude/longitude tuples or as the names of predefined locations
@@ -7637,7 +7697,7 @@ def osc_prob_earth(
     loc_fin : tuple, list, np.ndarray, or str, optional
         Final location, same format as ``loc_ini``. Must be given with ``loc_ini``.
     L : float, list, or np.ndarray, optional
-        Baseline(s) [eV^{-1}]. Used together with ``costhz``, as an alternative to
+        Baseline(s) [:math:`\text{eV}^{-1}`]. Used together with ``costhz``, as an alternative to
         ``loc_ini``/``loc_fin``.
     nubar : bool, optional
         If True, compute the probability for antineutrinos (flips the sign of the PREM-based
@@ -8586,7 +8646,7 @@ def osc_prob_sun(
     position axis leading; this is detected automatically.
 
     The neutrino travels radially outward from ``L0`` to ``L`` (both in
-    eV^{-1}, measured from the center of the Sun).
+    :math:`\text{eV}^{-1}`, measured from the center of the Sun).
 
     For the electron density inside the Sun, it assumes an exponentially
     falling density profile: :math:`N_e(r) = N_e(0) \exp(-r/r_0)`,
@@ -8605,9 +8665,9 @@ def osc_prob_sun(
     energy : int, float, list, or np.ndarray
         Neutrino energy/energies.
     L : float, list, or np.ndarray
-        Final radial position(s) [eV^{-1}], measured from the center of the Sun.
+        Final radial position(s) [:math:`\text{eV}^{-1}`], measured from the center of the Sun.
     L0 : int or float, optional
-        Initial radial position [eV^{-1}]. Default: 0.0.
+        Initial radial position [:math:`\text{eV}^{-1}`]. Default: 0.0.
     nubar : bool, optional
         If True, compute the probability for antineutrinos (flips the sign of the solar matter
         potential passed to ``H_func``). Default: False.
@@ -8755,9 +8815,9 @@ def osc_prob_2nu_matter_nsi_constant_density(
     nu_f : int, optional
         Final flavor index; see ``nu_i``. Default: None.
     density_matter_is_in_g_per_cm3 : bool, optional
-        If True, the density is given in g cm^{-3}. Default: False.
+        If True, the density is given in :math:`\text{g cm}^{-3}`. Default: False.
     density_is_of_number_of_electrons : bool, optional
-        If True, the density parameter directly gives the electron number density [eV^3]. Default: False.
+        If True, the density parameter directly gives the electron number density [:math:`\text{eV}^{3}`]. Default: False.
     validate_input : bool, optional
         If True, validate the input parameters. Default: True.
     save_log : bool, optional
@@ -8883,9 +8943,9 @@ def osc_prob_3nu_matter_nsi_constant_density(
     nu_f : int, optional
         Final flavor index; see ``nu_i``. Default: None.
     density_matter_is_in_g_per_cm3 : bool, optional
-        If True, the density is given in g cm^{-3}. Default: False.
+        If True, the density is given in :math:`\text{g cm}^{-3}`. Default: False.
     density_is_of_number_of_electrons : bool, optional
-        If True, the density parameter directly gives the electron number density [eV^3]. Default: False.
+        If True, the density parameter directly gives the electron number density [:math:`\text{eV}^{3}`]. Default: False.
     default_osc_params_set_name : str, optional
         Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
     validate_input : bool, optional
@@ -9042,9 +9102,9 @@ def osc_prob_4nu_matter_nsi_constant_density(
     nu_f : int, optional
         Final flavor index; see ``nu_i``. Default: None.
     density_matter_is_in_g_per_cm3 : bool, optional
-        If True, the density is given in g cm^{-3}. Default: False.
+        If True, the density is given in :math:`\text{g cm}^{-3}`. Default: False.
     density_is_of_number_of_electrons : bool, optional
-        If True, the density parameter directly gives the electron number density [eV^3]. Default: False.
+        If True, the density parameter directly gives the electron number density [:math:`\text{eV}^{3}`]. Default: False.
     default_osc_params_set_name : str, optional
         Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
     validate_input : bool, optional
@@ -9236,9 +9296,9 @@ def osc_prob_5nu_matter_nsi_constant_density(
     nu_f : int, optional
         Final flavor index; see ``nu_i``. Default: None.
     density_matter_is_in_g_per_cm3 : bool, optional
-        If True, the density is given in g cm^{-3}. Default: False.
+        If True, the density is given in :math:`\text{g cm}^{-3}`. Default: False.
     density_is_of_number_of_electrons : bool, optional
-        If True, the density parameter directly gives the electron number density [eV^3]. Default: False.
+        If True, the density parameter directly gives the electron number density [:math:`\text{eV}^{3}`]. Default: False.
     default_osc_params_set_name : str, optional
         Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
     validate_input : bool, optional
@@ -9364,9 +9424,9 @@ def osc_prob_2nu_matter_nsi_exp_density(
     nu_f : int, optional
         Final flavor index; see ``nu_i``. Default: None.
     density_matter_is_in_g_per_cm3 : bool, optional
-        If True, the density is given in g cm^{-3}. Default: False.
+        If True, the density is given in :math:`\text{g cm}^{-3}`. Default: False.
     density_is_of_number_of_electrons : bool, optional
-        If True, the density parameter directly gives the electron number density [eV^3]. Default: False.
+        If True, the density parameter directly gives the electron number density [:math:`\text{eV}^{3}`]. Default: False.
     validate_input : bool, optional
         If True, validate the input parameters. Default: True.
     save_log : bool, optional
@@ -9513,9 +9573,9 @@ def osc_prob_3nu_matter_nsi_exp_density(
     nu_f : int, optional
         Final flavor index; see ``nu_i``. Default: None.
     density_matter_is_in_g_per_cm3 : bool, optional
-        If True, the density is given in g cm^{-3}. Default: False.
+        If True, the density is given in :math:`\text{g cm}^{-3}`. Default: False.
     density_is_of_number_of_electrons : bool, optional
-        If True, the density parameter directly gives the electron number density [eV^3]. Default: False.
+        If True, the density parameter directly gives the electron number density [:math:`\text{eV}^{3}`]. Default: False.
     default_osc_params_set_name : str, optional
         Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
     validate_input : bool, optional
@@ -9693,9 +9753,9 @@ def osc_prob_4nu_matter_nsi_exp_density(
     nu_f : int, optional
         Final flavor index; see ``nu_i``. Default: None.
     density_matter_is_in_g_per_cm3 : bool, optional
-        If True, the density is given in g cm^{-3}. Default: False.
+        If True, the density is given in :math:`\text{g cm}^{-3}`. Default: False.
     density_is_of_number_of_electrons : bool, optional
-        If True, the density parameter directly gives the electron number density [eV^3]. Default: False.
+        If True, the density parameter directly gives the electron number density [:math:`\text{eV}^{3}`]. Default: False.
     default_osc_params_set_name : str, optional
         Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
     validate_input : bool, optional
@@ -9908,9 +9968,9 @@ def osc_prob_5nu_matter_nsi_exp_density(
     nu_f : int, optional
         Final flavor index; see ``nu_i``. Default: None.
     density_matter_is_in_g_per_cm3 : bool, optional
-        If True, the density is given in g cm^{-3}. Default: False.
+        If True, the density is given in :math:`\text{g cm}^{-3}`. Default: False.
     density_is_of_number_of_electrons : bool, optional
-        If True, the density parameter directly gives the electron number density [eV^3]. Default: False.
+        If True, the density parameter directly gives the electron number density [:math:`\text{eV}^{3}`]. Default: False.
     default_osc_params_set_name : str, optional
         Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
     validate_input : bool, optional
@@ -10020,9 +10080,15 @@ def osc_prob_2nu_earth_nsi(
     location.  The predefined locations are in the earth.loc_coords_dms
     dictionary:
 
-    >>> import magnus.earth as earth
-    >>> list(earth.loc_coords_dms.keys())
-    >>> print(earth.loc_coords_dms['fermilab'])
+    .. jupyter-execute::
+
+        import magnus.earth as earth
+
+        list(earth.loc_coords_dms.keys())
+
+    .. jupyter-execute::
+
+        print(earth.loc_coords_dms['fermilab'])
 
     See the example below.
 
@@ -10219,9 +10285,15 @@ def osc_prob_3nu_earth_nsi(
     location.  The predefined locations are in the earth.loc_coords_dms
     dictionary:
 
-    >>> import magnus.earth as earth
-    >>> list(earth.loc_coords_dms.keys())
-    >>> print(earth.loc_coords_dms['fermilab'])
+    .. jupyter-execute::
+
+        import magnus.earth as earth
+
+        list(earth.loc_coords_dms.keys())
+
+    .. jupyter-execute::
+
+        print(earth.loc_coords_dms['fermilab'])
 
     See the example below.
 
@@ -10444,9 +10516,15 @@ def osc_prob_4nu_earth_nsi(
     location.  The predefined locations are in the earth.loc_coords_dms
     dictionary:
 
-    >>> import magnus.earth as earth
-    >>> list(earth.loc_coords_dms.keys())
-    >>> print(earth.loc_coords_dms['fermilab'])
+    .. jupyter-execute::
+
+        import magnus.earth as earth
+
+        list(earth.loc_coords_dms.keys())
+
+    .. jupyter-execute::
+
+        print(earth.loc_coords_dms['fermilab'])
 
     See the example below.
 
@@ -10704,9 +10782,15 @@ def osc_prob_5nu_earth_nsi(
     location.  The predefined locations are in the earth.loc_coords_dms
     dictionary:
 
-    >>> import magnus.earth as earth
-    >>> list(earth.loc_coords_dms.keys())
-    >>> print(earth.loc_coords_dms['fermilab'])
+    .. jupyter-execute::
+
+        import magnus.earth as earth
+
+        list(earth.loc_coords_dms.keys())
+
+    .. jupyter-execute::
+
+        print(earth.loc_coords_dms['fermilab'])
 
     See the example below.
 
@@ -12345,9 +12429,9 @@ def osc_prob_2nu_matter_liv_constant_density(
     nu_f : int, optional
         Final flavor index; see ``nu_i``. Default: None.
     density_matter_is_in_g_per_cm3 : bool, optional
-        If True, the density is given in g cm^{-3}. Default: False.
+        If True, the density is given in :math:`\text{g cm}^{-3}`. Default: False.
     density_is_of_number_of_electrons : bool, optional
-        If True, the density parameter directly gives the electron number density [eV^3]. Default: False.
+        If True, the density parameter directly gives the electron number density [:math:`\text{eV}^{3}`]. Default: False.
     validate_input : bool, optional
         If True, validate the input parameters. Default: True.
     save_log : bool, optional
@@ -12485,9 +12569,9 @@ def osc_prob_3nu_matter_liv_constant_density(
     nu_f : int, optional
         Final flavor index; see ``nu_i``. Default: None.
     density_matter_is_in_g_per_cm3 : bool, optional
-        If True, the density is given in g cm^{-3}. Default: False.
+        If True, the density is given in :math:`\text{g cm}^{-3}`. Default: False.
     density_is_of_number_of_electrons : bool, optional
-        If True, the density parameter directly gives the electron number density [eV^3]. Default: False.
+        If True, the density parameter directly gives the electron number density [:math:`\text{eV}^{3}`]. Default: False.
     default_osc_params_set_name : str, optional
         Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
     validate_input : bool, optional
@@ -12663,9 +12747,9 @@ def osc_prob_4nu_matter_liv_constant_density(
     nu_f : int, optional
         Final flavor index; see ``nu_i``. Default: None.
     density_matter_is_in_g_per_cm3 : bool, optional
-        If True, the density is given in g cm^{-3}. Default: False.
+        If True, the density is given in :math:`\text{g cm}^{-3}`. Default: False.
     density_is_of_number_of_electrons : bool, optional
-        If True, the density parameter directly gives the electron number density [eV^3]. Default: False.
+        If True, the density parameter directly gives the electron number density [:math:`\text{eV}^{3}`]. Default: False.
     default_osc_params_set_name : str, optional
         Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
     validate_input : bool, optional
@@ -12879,9 +12963,9 @@ def osc_prob_5nu_matter_liv_constant_density(
     nu_f : int, optional
         Final flavor index; see ``nu_i``. Default: None.
     density_matter_is_in_g_per_cm3 : bool, optional
-        If True, the density is given in g cm^{-3}. Default: False.
+        If True, the density is given in :math:`\text{g cm}^{-3}`. Default: False.
     density_is_of_number_of_electrons : bool, optional
-        If True, the density parameter directly gives the electron number density [eV^3]. Default: False.
+        If True, the density parameter directly gives the electron number density [:math:`\text{eV}^{3}`]. Default: False.
     default_osc_params_set_name : str, optional
         Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
     validate_input : bool, optional
@@ -13010,9 +13094,9 @@ def osc_prob_2nu_matter_liv_exp_density(
     nu_f : int, optional
         Final flavor index; see ``nu_i``. Default: None.
     density_matter_is_in_g_per_cm3 : bool, optional
-        If True, the density is given in g cm^{-3}. Default: False.
+        If True, the density is given in :math:`\text{g cm}^{-3}`. Default: False.
     density_is_of_number_of_electrons : bool, optional
-        If True, the density parameter directly gives the electron number density [eV^3]. Default: False.
+        If True, the density parameter directly gives the electron number density [:math:`\text{eV}^{3}`]. Default: False.
     validate_input : bool, optional
         If True, validate the input parameters. Default: True.
     save_log : bool, optional
@@ -13167,9 +13251,9 @@ def osc_prob_3nu_matter_liv_exp_density(
     nu_f : int, optional
         Final flavor index; see ``nu_i``. Default: None.
     density_matter_is_in_g_per_cm3 : bool, optional
-        If True, the density is given in g cm^{-3}. Default: False.
+        If True, the density is given in :math:`\text{g cm}^{-3}`. Default: False.
     density_is_of_number_of_electrons : bool, optional
-        If True, the density parameter directly gives the electron number density [eV^3]. Default: False.
+        If True, the density parameter directly gives the electron number density [:math:`\text{eV}^{3}`]. Default: False.
     validate_input : bool, optional
         If True, validate the input parameters. Default: True.
     save_log : bool, optional
@@ -13358,9 +13442,9 @@ def osc_prob_4nu_matter_liv_exp_density(
     nu_f : int, optional
         Final flavor index; see ``nu_i``. Default: None.
     density_matter_is_in_g_per_cm3 : bool, optional
-        If True, the density is given in g cm^{-3}. Default: False.
+        If True, the density is given in :math:`\text{g cm}^{-3}`. Default: False.
     density_is_of_number_of_electrons : bool, optional
-        If True, the density parameter directly gives the electron number density [eV^3]. Default: False.
+        If True, the density parameter directly gives the electron number density [:math:`\text{eV}^{3}`]. Default: False.
     validate_input : bool, optional
         If True, validate the input parameters. Default: True.
     save_log : bool, optional
@@ -13587,9 +13671,9 @@ def osc_prob_5nu_matter_liv_exp_density(
     nu_f : int, optional
         Final flavor index; see ``nu_i``. Default: None.
     density_matter_is_in_g_per_cm3 : bool, optional
-        If True, the density is given in g cm^{-3}. Default: False.
+        If True, the density is given in :math:`\text{g cm}^{-3}`. Default: False.
     density_is_of_number_of_electrons : bool, optional
-        If True, the density parameter directly gives the electron number density [eV^3]. Default: False.
+        If True, the density parameter directly gives the electron number density [:math:`\text{eV}^{3}`]. Default: False.
     validate_input : bool, optional
         If True, validate the input parameters. Default: True.
     save_log : bool, optional
@@ -13699,9 +13783,15 @@ def osc_prob_2nu_earth_liv(
     location.  The predefined locations are in the earth.loc_coords_dms
     dictionary:
 
-    >>> import magnus.earth as earth
-    >>> list(earth.loc_coords_dms.keys())
-    >>> print(earth.loc_coords_dms['fermilab'])
+    .. jupyter-execute::
+
+        import magnus.earth as earth
+
+        list(earth.loc_coords_dms.keys())
+
+    .. jupyter-execute::
+
+        print(earth.loc_coords_dms['fermilab'])
 
     See the example below.
 
@@ -13907,9 +13997,15 @@ def osc_prob_3nu_earth_liv(
     location.  The predefined locations are in the earth.loc_coords_dms
     dictionary:
 
-    >>> import magnus.earth as earth
-    >>> list(earth.loc_coords_dms.keys())
-    >>> print(earth.loc_coords_dms['fermilab'])
+    .. jupyter-execute::
+
+        import magnus.earth as earth
+
+        list(earth.loc_coords_dms.keys())
+
+    .. jupyter-execute::
+
+        print(earth.loc_coords_dms['fermilab'])
 
     See the example below.
 
@@ -14145,9 +14241,15 @@ def osc_prob_4nu_earth_liv(
     location.  The predefined locations are in the earth.loc_coords_dms
     dictionary:
 
-    >>> import magnus.earth as earth
-    >>> list(earth.loc_coords_dms.keys())
-    >>> print(earth.loc_coords_dms['fermilab'])
+    .. jupyter-execute::
+
+        import magnus.earth as earth
+
+        list(earth.loc_coords_dms.keys())
+
+    .. jupyter-execute::
+
+        print(earth.loc_coords_dms['fermilab'])
 
     See the example below.
 
@@ -14421,9 +14523,15 @@ def osc_prob_5nu_earth_liv(
     location.  The predefined locations are in the earth.loc_coords_dms
     dictionary:
 
-    >>> import magnus.earth as earth
-    >>> list(earth.loc_coords_dms.keys())
-    >>> print(earth.loc_coords_dms['fermilab'])
+    .. jupyter-execute::
+
+        import magnus.earth as earth
+
+        list(earth.loc_coords_dms.keys())
+
+    .. jupyter-execute::
+
+        print(earth.loc_coords_dms['fermilab'])
 
     See the example below.
 
@@ -14725,9 +14833,9 @@ def osc_prob_2nu_sun_liv(
     nu_f : int, optional
         Final flavor index; see ``nu_i``. Default: None.
     density_matter_is_in_g_per_cm3 : bool, optional
-        If True, the density is given in g cm^{-3}. Default: False.
+        If True, the density is given in :math:`\text{g cm}^{-3}`. Default: False.
     density_is_of_number_of_electrons : bool, optional
-        If True, the density parameter directly gives the electron number density [eV^3]. Default: False.
+        If True, the density parameter directly gives the electron number density [:math:`\text{eV}^{3}`]. Default: False.
     strategy : str, optional
         Numerical strategy used to compute the evolution operator: 'auto' (default),
         'hybrid', or 'magnus'; see the ``strategy`` parameter of
@@ -14885,9 +14993,9 @@ def osc_prob_3nu_sun_liv(
     nu_f : int, optional
         Final flavor index; see ``nu_i``. Default: None.
     density_matter_is_in_g_per_cm3 : bool, optional
-        If True, the density is given in g cm^{-3}. Default: False.
+        If True, the density is given in :math:`\text{g cm}^{-3}`. Default: False.
     density_is_of_number_of_electrons : bool, optional
-        If True, the density parameter directly gives the electron number density [eV^3]. Default: False.
+        If True, the density parameter directly gives the electron number density [:math:`\text{eV}^{3}`]. Default: False.
     strategy : str, optional
         Numerical strategy used to compute the evolution operator: 'auto' (default),
         'hybrid', or 'magnus'; see the ``strategy`` parameter of
@@ -15089,9 +15197,9 @@ def osc_prob_4nu_sun_liv(
     nu_f : int, optional
         Final flavor index; see ``nu_i``. Default: None.
     density_matter_is_in_g_per_cm3 : bool, optional
-        If True, the density is given in g cm^{-3}. Default: False.
+        If True, the density is given in :math:`\text{g cm}^{-3}`. Default: False.
     density_is_of_number_of_electrons : bool, optional
-        If True, the density parameter directly gives the electron number density [eV^3]. Default: False.
+        If True, the density parameter directly gives the electron number density [:math:`\text{eV}^{3}`]. Default: False.
     strategy : str, optional
         Numerical strategy used to compute the evolution operator: 'auto' (default),
         'hybrid', or 'magnus'; see the ``strategy`` parameter of
@@ -15341,9 +15449,9 @@ def osc_prob_5nu_sun_liv(
     nu_f : int, optional
         Final flavor index; see ``nu_i``. Default: None.
     density_matter_is_in_g_per_cm3 : bool, optional
-        If True, the density is given in g cm^{-3}. Default: False.
+        If True, the density is given in :math:`\text{g cm}^{-3}`. Default: False.
     density_is_of_number_of_electrons : bool, optional
-        If True, the density parameter directly gives the electron number density [eV^3]. Default: False.
+        If True, the density parameter directly gives the electron number density [:math:`\text{eV}^{3}`]. Default: False.
     strategy : str, optional
         Numerical strategy used to compute the evolution operator: 'auto' (default),
         'hybrid', or 'magnus'; see the ``strategy`` parameter of

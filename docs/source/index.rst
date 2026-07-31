@@ -7,6 +7,13 @@ Magνs: Neutrino Oscillations via the Magnus Expansion
    :target: https://github.com/mbustama/Magnus/actions
    :alt: CI Tests
 
+.. hint::
+   **How do I say that?** Just like the name **Magnus** — the Greek letter
+   **ν** (nu), the neutrino's symbol, simply stands in for the "nu"
+   syllable.  (And since most of this package was written while the author
+   was based in Denmark, you are equally welcome to say it `the Danish way
+   <https://translate.google.com/?sl=da&tl=en&text=Magnus&op=translate>`_.)
+
 .. important::
    **Important Links:**
 

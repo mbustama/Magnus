@@ -83,7 +83,7 @@ def osc_prob_2nu_matter_std(sth: float, Dm2: float, VCC: float, energy: float,
     Dm2 : float
         Mass-squared difference :math:`\Delta m^2`.
     VCC : float
-        Potential due to charged-current interactions of nu_e with electrons.
+        Potential due to charged-current interactions of :math:`\nu_e` with electrons.
     energy : float
         Neutrino energy.
     L : float

@@ -5,38 +5,44 @@ Compute the time-evolution operator using the Magnus expansion.
 
 This module contains the numerical core of Magnus: routines to compute
 the matrix exponential of the Magnus expansion of a (possibly
-time-dependent) matrix function A(t), i.e.,
+time-dependent) matrix function :math:`A(t)`, i.e.,
 
-    U(t1, t0) = exp[Omega_1 + Omega_2 + ... + Omega_k] ,
+.. math::
 
-where the terms Omega_k are built from time-ordered integrals of nested
-commutators of A(t).  For neutrino oscillations, A(t) = -i H(t), with
-H(t) the Hamiltonian, but the routines below work for arbitrary
-matrix-valued A(t).
+   U(t_1, t_0) = \exp\!\left[\Omega_1 + \Omega_2 + \cdots + \Omega_k\right] ,
+
+where the terms :math:`\Omega_k` are built from time-ordered integrals
+of nested commutators of :math:`A(t)`.  For neutrino oscillations,
+:math:`A(t) = -i H(t)`, with :math:`H(t)` the Hamiltonian, but the
+routines below work for arbitrary matrix-valued :math:`A(t)`.
 
 The terms are generated with the standard recursion based on Bernoulli
-numbers [1]_ (in the B_1 = -1/2 convention):
+numbers [1]_ (in the :math:`B_1 = -1/2` convention):
 
-    Omega_1(t) = int_0^t A(s) ds
-    Omega_n(t) = sum_{j=1}^{n-1} (B_j / j!) int_0^t S_n^(j)(s) ds
+.. math::
 
-with S_n^(j) the sums of nested commutators of the lower-order terms
-with A.  Orders 1--6 are implemented (B_3 = B_5 = 0, so those groups
-vanish identically).
+   \Omega_1(t) &= \int_0^t A(s)\, ds \\
+   \Omega_n(t) &= \sum_{j=1}^{n-1} \frac{B_j}{j!} \int_0^t S_n^{(j)}(s)\, ds ,
+
+with :math:`S_n^{(j)}` the sums of nested commutators of the lower-order
+terms with :math:`A`.  Orders 1--6 are implemented (:math:`B_3 = B_5 =
+0`, so those groups vanish identically).
 
 Two families of methods are available, selected via
 ``integration_method``:
 
-* ``'trapezoid'`` / ``'simpson'``: sample A(t) on a uniform grid of
-  ``n_tpts`` points and evaluate the nested integrals with cumulative
-  quadrature.  Fully general, but the quadrature error (O(h^2) or
-  O(h^4)) can dominate the Magnus truncation error at high orders.
+* ``'trapezoid'`` / ``'simpson'``: sample :math:`A(t)` on a uniform grid
+  of ``n_tpts`` points and evaluate the nested integrals with cumulative
+  quadrature.  Fully general, but the quadrature error
+  (:math:`\mathcal{O}(h^2)` or :math:`\mathcal{O}(h^4)`) can dominate
+  the Magnus truncation error at high orders.
 
 * ``'gl'``: Gauss-Legendre commutator-free collocation [1]_ [2]_.  For a
-  slab of width h it needs only 1, 2, or 3 evaluations of A to reach
-  order 2, 4, or 6, respectively, with quadrature error matched to the
-  truncation order.  ``n_tpts`` is ignored.  This is the recommended
-  method when A(t) is smooth within each slab.
+  slab of width :math:`h` it needs only 1, 2, or 3 evaluations of
+  :math:`A` to reach order 2, 4, or 6, respectively, with quadrature
+  error matched to the truncation order.  ``n_tpts`` is ignored.  This
+  is the recommended method when :math:`A(t)` is smooth within each
+  slab.
 
 References
 ----------
@@ -51,7 +57,7 @@ Routine listings
     * commutator - Returns [X, Y] = XY - YX
     * probe_eval_mode - Determines how a matrix function can be evaluated
     * suggest_n_slabs - Suggests a starting number of time slabs
-    * magnus_expansion - Computes exp(Omega) for a single time slab
+    * magnus_expansion - Computes :math:`\exp(\Omega)` for a single time slab
     * evolution_operators_from_samples - Evolution operators of a chain
            of slabs from precomputed samples of A
     * gl_nodes - Returns the Gauss-Legendre nodes used by the 'gl' method
@@ -77,12 +83,12 @@ class MagnusConvergenceWarning(UserWarning):
     r"""Warns that a time slab may be too wide for the Magnus series.
 
     The Magnus series is guaranteed to converge when
-    int_{t0}^{t1} ||A(t)||_2 dt < pi.  We use ||Omega||_2 >= pi as a
-    cheap (necessary, not sufficient) proxy to flag slabs that are
-    likely too wide; raising the expansion order will not help in that
-    regime -- use more (narrower) slabs instead.  The norm comes for
-    free from the eigenvalues already computed for the matrix
-    exponential.
+    :math:`\int_{t_0}^{t_1} \lVert A(t)\rVert_2\, dt < \pi`.  We use
+    :math:`\lVert\Omega\rVert_2 \geq \pi` as a cheap (necessary, not
+    sufficient) proxy to flag slabs that are likely too wide; raising
+    the expansion order will not help in that regime -- use more
+    (narrower) slabs instead.  The norm comes for free from the
+    eigenvalues already computed for the matrix exponential.
 
     .. versionadded:: 0.10.0
     """
@@ -272,16 +278,16 @@ def suggest_n_slabs(
 ) -> int:
     r"""Suggest a starting number of time slabs for [t0, t1].
 
-    Estimates the accumulated phase ||Omega_1||_2 over the whole
-    interval from a coarse sample of A (with the trace removed, since a
+    Estimates the accumulated phase :math:`\lVert\Omega_1\rVert_2` over
+    the whole interval from a coarse sample of A (with the trace removed, since a
     global phase does not affect the probabilities) and suggests enough
     slabs to keep roughly ``phase_per_slab`` (radians) of phase per
     slab.  Starting an adaptive refinement from this estimate skips
     most of the geometric ladder that would otherwise climb from a
     single slab.
 
-    The default of 2 pi radians per slab is deliberately *looser* than
-    the Magnus convergence guarantee (pi): empirically, for smooth
+    The default of :math:`2\pi` radians per slab is deliberately
+    *looser* than the Magnus convergence guarantee (:math:`\pi`): empirically, for smooth
     profiles, order-4 methods reach ~1e-3 accuracy already at this slab
     width, and the adaptive refinement loop -- which remains the sole
     arbiter of accuracy -- grows the slab count from here when the
@@ -300,7 +306,7 @@ def suggest_n_slabs(
     n_probe : int, optional
         Number of sample points used to estimate the accumulated phase. Default: 17.
     phase_per_slab : float, optional
-        Target accumulated phase per slab, in radians. Default: 2*pi.
+        Target accumulated phase per slab, in radians. Default: :math:`2\pi`.
 
     Returns
     -------
@@ -387,14 +393,15 @@ def _magnus_terms_quadrature(
     order: int,
     integration_method: str
 ) -> np.ndarray:
-    r"""Magnus terms Omega_1..Omega_order from samples of A.
+    r"""Magnus terms :math:`\Omega_1 \ldots \Omega_\text{order}` from samples of :math:`A`.
 
     Parameters
     ----------
     Bt : np.ndarray
         Samples of the rescaled matrix function, shape (..., m, d, d):
-        Bt = width * A(t(s)) on the uniform normalized grid s in [0, 1]
-        with m points, so that all integrals run over [0, 1].  Any
+        :math:`B(t) = \text{width} \times A(t(s))` on the uniform
+        normalized grid :math:`s \in [0, 1]`
+        with m points, so that all integrals run over :math:`[0, 1]`.  Any
         leading axes (e.g., a slab axis) broadcast through.
     order : int
         Highest Magnus order to compute (1 <= order <= 6).
@@ -409,7 +416,7 @@ def _magnus_terms_quadrature(
     Notes
     -----
     Implements the Bernoulli-number recursion (see module docstring).
-    The commutators C_k = [Omega_k(s), A(s)] and the nested combinations
+    The commutators :math:`C_k = [\Omega_k(s), A(s)]` and the nested combinations
     that repeat across orders are computed once and reused.  For the
     highest requested order only the endpoint integral is computed.
     """
@@ -480,7 +487,7 @@ def _magnus_gl(
     widths: Union[float, np.ndarray],
     order: int
 ) -> np.ndarray:
-    r"""Magnus operator Omega from Gauss-Legendre collocation.
+    r"""Magnus operator :math:`\Omega` from Gauss-Legendre collocation.
 
     Commutator-free Magnus integrators of order 2, 4, and 6 based on
     Gauss-Legendre nodes (Blanes, Casas & Ros 2000; Blanes et al. 2009,
@@ -490,9 +497,9 @@ def _magnus_gl(
     Parameters
     ----------
     An : np.ndarray
-        A evaluated at the GL nodes, shape (..., n_nodes, d, d).
+        :math:`A` evaluated at the GL nodes, shape (..., n_nodes, d, d).
     widths : float or np.ndarray
-        Slab widths h, broadcastable against the leading axes of An.
+        Slab widths :math:`h`, broadcastable against the leading axes of ``An``.
     order : int
         Requested order; mapped to the smallest GL scheme with at least
         that order (1-2 -> GL1, 3-4 -> GL2, 5-6 -> GL3).
@@ -500,7 +507,7 @@ def _magnus_gl(
     Returns
     -------
     np.ndarray
-        The total Magnus operator Omega, shape (..., d, d).
+        The total Magnus operator :math:`\Omega`, shape (..., d, d).
     """
     h = np.asarray(widths)[..., None, None]
 
@@ -548,13 +555,14 @@ def _gl_nodes(order: int) -> np.ndarray:
 
 
 def _warn_slab_norm(nmax: float):
-    r"""Warn if the slab norm proxy nmax = max ||Omega||_2 is >= pi (see
-    :class:`MagnusConvergenceWarning`).
+    r"""Warn if the slab norm proxy ``nmax`` :math:`= \max \lVert\Omega\rVert_2` is
+    :math:`\geq \pi` (see :class:`MagnusConvergenceWarning`).
 
     Parameters
     ----------
     nmax : float
-        Largest ||Omega||_2 (or a proxy for it) encountered across the slab(s) just evaluated.
+        Largest :math:`\lVert\Omega\rVert_2` (or a proxy for it) encountered across the slab(s)
+        just evaluated.
 
     Returns
     -------
@@ -577,18 +585,21 @@ def _expm_stack(Om: np.ndarray, warn_wide: bool = False,
                 A_is_const: bool = False) -> np.ndarray:
     r"""Matrix exponential of one matrix or a stack of matrices.
 
-    If Om is anti-Hermitian (as is always the case for A = -i H with a
-    Hermitian Hamiltonian H), the exponential is computed from the
-    eigendecomposition of the Hermitian matrix K = i Om:
-    exp(Om) = V diag(exp(-i lambda)) V^dagger.  This is faster than
-    scipy's Pade-based expm for stacks of small matrices, and it yields
-    an exactly unitary result (probabilities that sum to 1 by
-    construction).  Otherwise it falls back to scipy.linalg.expm.
+    If ``Om`` is anti-Hermitian (as is always the case for
+    :math:`A = -i H` with a Hermitian Hamiltonian :math:`H`), the
+    exponential is computed from the eigendecomposition of the Hermitian
+    matrix :math:`K = i\Omega`:
+    :math:`\exp(\Omega) = V\, \mathrm{diag}\!\left(e^{-i\lambda}\right)\, V^\dagger`.
+    This is faster than scipy's Pade-based expm for stacks of small
+    matrices, and it yields an exactly unitary result (probabilities
+    that sum to 1 by construction).  Otherwise it falls back to
+    scipy.linalg.expm.
 
     If ``warn_wide`` is True, the eigenvalues (whose maximum modulus is
-    ||Om||_2) are also used to warn about slabs too wide for the Magnus
-    series to converge; for a constant A (``A_is_const``) the series
-    terminates exactly and the check is skipped.
+    :math:`\lVert\Omega\rVert_2`) are also used to warn about slabs too
+    wide for the Magnus series to converge; for a constant :math:`A`
+    (``A_is_const``) the series terminates exactly and the check is
+    skipped.
 
     Parameters
     ----------
@@ -604,7 +615,7 @@ def _expm_stack(Om: np.ndarray, warn_wide: bool = False,
     Returns
     -------
     np.ndarray
-        exp(Om), same shape as Om.
+        :math:`\exp(\Omega)`, same shape as ``Om``.
     """
     Om = np.asarray(Om)
     K = 1j*Om
@@ -676,7 +687,8 @@ def magnus_expansion(
     validate_input: Optional[bool] = True,
     A_eval_mode: Optional[str] = None
 ) -> np.ndarray:
-    r"""Compute exp(Omega_1 + ... + Omega_order) of A(t) from t0 to t1.
+    r"""Compute :math:`\exp(\Omega_1 + \cdots + \Omega_\text{order})` of :math:`A(t)` from
+    ``t0`` to ``t1``.
 
     .. versionadded:: 0.10.0
 
@@ -702,7 +714,7 @@ def magnus_expansion(
     return_magnus_terms : bool, optional
         If True, also return the individual Magnus terms.  For the
         'gl' method the terms are not separable, and a single-element
-        list containing the total Omega is returned instead.
+        list containing the total :math:`\Omega` is returned instead.
     validate_input : bool, optional
         If True, validate ``order`` and ``integration_method``
         (raises ValueError on invalid input).
@@ -710,7 +722,7 @@ def magnus_expansion(
     Returns
     -------
     np.ndarray, or (np.ndarray, np.ndarray)
-        The evolution operator U = exp(sum_k Omega_k); if
+        The evolution operator :math:`U = \exp(\sum_k \Omega_k)`; if
         ``return_magnus_terms`` is True, also the stacked terms.
     """
     if validate_input:
