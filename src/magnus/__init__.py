@@ -2,9 +2,9 @@
 r"""__init__.py
 
 Top-level package initializer for magnus. Exposes the package version and
-explicitly imports the eight modules that make up Magnus's public API:
-adiabatic, earth, globaldefs, hamiltonians, magnus, matter, oscprob, and
-oscprobstd. See :doc:`/architecture` for how they fit together.
+explicitly imports the nine modules that make up Magnus's public API:
+adiabatic, earth, expansionterms, globaldefs, hamiltonians, magnus, matter,
+oscprob, and oscprobstd. See :doc:`/architecture` for how they fit together.
 
 ``authors`` and ``version`` are internal metadata modules (used by
 :func:`magnus.oscprob.print_banner` and the ``magnus`` command-line
@@ -27,6 +27,7 @@ from .version import __version__
 
 from . import adiabatic
 from . import earth
+from . import expansionterms
 from . import globaldefs
 from . import hamiltonians
 from . import magnus
@@ -37,6 +38,7 @@ from . import oscprobstd
 submodules = [
     'adiabatic',
     'earth',
+    'expansionterms',
     'globaldefs',
     'hamiltonians',
     'magnus',

@@ -170,6 +170,12 @@ that history is the most useful record of *why* the code looks the way it does.
 
 ### Changed
 
+- `integration_method='gl'` now raises for orders above 6 rather than silently
+  computing an order-6 result. The Gauss-Legendre commutator-free schemes are
+  separately derived integrators, not products of the Magnus recursion, so they
+  do not extend along with it. The check sits in `_gl_nodes` as well as in the
+  input validator, since the validator is skipped when `validate_input=False` and
+  that flag would otherwise reopen the silent-degradation path.
 - `max_n_slabs` is now method-aware: it defaults to None, meaning "use the cap
   that suits `integration_method`" -- 20000 for `'gl'`, 2000 for the
   cumulative-quadrature methods (`magnus.oscprob.MAX_N_SLABS_DEFAULT`). An

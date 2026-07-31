@@ -83,6 +83,25 @@ import numpy as np
 import scipy as sp
 
 
+class MagnusHighOrderCostWarning(UserWarning):
+    r"""Warns that a Magnus order above 6 costs substantially more per slab.
+
+    Orders 1-6 are written out inline with their shared subexpressions named and reused.
+    Above that the terms are generated from the recursion, and their number roughly doubles
+    per order (9 terms at order 6; 17, 33, 65, 129 at orders 7-10), so the work per slab
+    grows with it -- measured at roughly 2.7x order 6 at order 7, rising to about 17x at
+    order 10, for the same grid.
+
+    Higher order buys a genuinely faster convergence rate in the slab width, so this is a
+    trade rather than a mistake.  But it is often the worse side of the trade: narrowing
+    the slabs at order 4 or 6 usually reaches a given accuracy for less total work, and
+    beyond the Magnus series' convergence radius no order helps at all (see
+    :class:`MagnusConvergenceWarning`).
+
+    .. versionadded:: 1.0.0
+    """
+
+
 class MagnusConvergenceWarning(UserWarning):
     r"""Warns that a time slab may be too wide for the Magnus series.
 
@@ -104,16 +123,31 @@ B = {
     0: 1.0, 1: -0.5, 2: 1.0/6.0, 3: 0.0, 4: -1.0/30.0, 5: 0.0, 6: 1.0/42.0,
 }
 
-# Multiplicative factors of the commutator groups in the recursion
-F1 = 1.0 / 12.0    # B_2 / 2!
-F2 = -1.0 / 720.0  # B_4 / 4!
+# Multiplicative factors B_j/j! of the commutator groups in the recursion.  Only j = 1 and
+# the even j contribute, since B_j = 0 for every odd j >= 3.  These are the numbers
+# magnus.expansionterms.bernoulli_factor() derives from the Bernoulli recursion in exact
+# rational arithmetic; tests/test_expansionterms.py checks them against it.
+F1 = 1.0 / 12.0          # B_2 / 2!
+F2 = -1.0 / 720.0        # B_4 / 4!
+F3 = 1.0 / 30240.0       # B_6 / 6!   (first needed at order 7)
+F4 = -1.0 / 1209600.0    # B_8 / 8!   (first needed at order 9)
 
 # Backward-compatible aliases
 f1 = F1
 f2 = F2
 
-# Highest order of the Magnus expansion implemented here
-MAGNUS_EXP_ORDER_MAX = 6
+# Coefficient of each commutator group, keyed by the group index j.  Used by the
+# composition-driven path for orders 7 and above; orders 1-6 spell these out inline.
+_GROUP_FACTORS = {1: -0.5, 2: F1, 4: F2, 6: F3, 8: F4}
+
+# Highest order of the Magnus expansion implemented here.  Re-exported by globaldefs so
+# there is one definition rather than two that have to be kept in step by hand.
+MAGNUS_EXP_ORDER_MAX = 10
+
+# Highest order for which the Gauss-Legendre commutator-free schemes exist.  These are
+# separately derived integrators (Blanes, Casas & Ros 2000), not products of the Magnus
+# recursion, so they do not extend along with it: there is no 3-node scheme of order 8.
+MAGNUS_EXP_ORDER_MAX_GL = 6
 
 # Valid values of integration_method
 valid_integration_methods = ['gl', 'trapezoid', 'simpson']
@@ -392,6 +426,65 @@ def _full_integral(y: np.ndarray, ds: float, method: str) -> np.ndarray:
     return (np.sum(y, axis=-3) - 0.5*(y[..., 0, :, :] + y[..., -1, :, :]))*ds
 
 
+def _compositions(total: int, parts: int):
+    r"""Yields every ordered tuple of ``parts`` positive integers summing to ``total``.
+
+    These index the terms of one commutator group: the :math:`j`-th group of
+    :math:`\Omega_n` has one term per composition of :math:`n-1` into :math:`j` parts,
+    so it holds :math:`\binom{n-2}{j-1}` terms.
+    """
+    if parts == 1:
+        yield (total,)
+        return
+    for first in range(1, total - parts + 2):
+        for rest in _compositions(total - first, parts - 1):
+            yield (first,) + rest
+
+
+def _nested_chain(comp, om, Bt, cache):
+    r"""Evaluates :math:`[\Omega_{m_1}, [\Omega_{m_2}, \ldots [\Omega_{m_j}, A] \ldots]]`.
+
+    Memoized on the composition, which is what makes this affordable: distinct terms share
+    long suffixes (every term of the :math:`j`-th group ending in the same tail reuses one
+    stored array), so each distinct nested commutator is built once no matter how many
+    terms contain it.  This is the same reuse the hand-written orders 1-6 get from naming
+    ``C1``, ``D11`` and friends, done automatically.
+    """
+    hit = cache.get(comp)
+    if hit is not None:
+        return hit
+    if len(comp) == 1:
+        value = commutator(om[comp[0]], Bt)
+    else:
+        value = commutator(om[comp[0]], _nested_chain(comp[1:], om, Bt, cache))
+    cache[comp] = value
+    return value
+
+
+def _omega_integrand(n: int, om: dict, Bt: np.ndarray, cache: dict) -> np.ndarray:
+    r"""Integrand of :math:`\Omega_n`, summed over every commutator group.
+
+    Uses the closed form of the Bernoulli recursion: each term is a right-nested chain of
+    lower-order :math:`\Omega_m` around :math:`A`, with the indices running over the
+    compositions of :math:`n-1`, and the whole :math:`j`-th group scaled by
+    :math:`B_j/j!`.  Orders 1-6 are written out inline in
+    :func:`_magnus_terms_quadrature` instead, both because that path is hot and because
+    keeping the published low-order expressions literal makes them checkable by eye; the
+    two agree exactly, which ``tests/test_expansionterms.py`` verifies.
+    """
+    total = None
+    for j, factor in _GROUP_FACTORS.items():
+        if j > n - 1:
+            continue
+        group = None
+        for comp in _compositions(n - 1, j):
+            chain = _nested_chain(comp, om, Bt, cache)
+            group = chain if group is None else group + chain
+        contribution = factor*group
+        total = contribution if total is None else total + contribution
+    return total
+
+
 def _magnus_terms_quadrature(
     Bt: np.ndarray,
     order: int,
@@ -483,6 +576,18 @@ def _magnus_terms_quadrature(
             6)
         terms.append(last(o6t, 6))
 
+    if order >= 7:
+        # Beyond order 6 the number of terms (17, 33, 65, 129 at orders 7-10) makes writing
+        # them out unreadable, so they are generated from the same recursion instead.  The
+        # cache is shared across orders: a nested chain built for Omega_7 is reused by
+        # Omega_8 and beyond rather than rebuilt.
+        om = {1: o1t, 2: o2t, 3: o3t, 4: o4t, 5: o5t, 6: o6t}
+        chain_cache = {}
+        for n in range(7, order + 1):
+            ont = integ(_omega_integrand(n, om, Bt, chain_cache), n)
+            om[n] = ont
+            terms.append(last(ont, n))
+
     return np.stack(terms, axis=0)
 
 
@@ -551,6 +656,15 @@ def _gl_nodes(order: int) -> np.ndarray:
     np.ndarray
         GL nodes on [0, 1] (1, 2, or 3 of them).
     """
+    if order > MAGNUS_EXP_ORDER_MAX_GL:
+        # Backstop.  _validate() reports this with a fuller message, but it is skipped when
+        # validate_input=False, and silently returning the 3-node (order-6) scheme for a
+        # higher requested order would be exactly the kind of quiet wrong answer that is
+        # worse than an exception.
+        raise ValueError(
+            "magnus._gl_nodes: no Gauss-Legendre scheme of order " + str(order)
+            + " exists (the highest is " + str(MAGNUS_EXP_ORDER_MAX_GL)
+            + "); use integration_method='trapezoid' or 'simpson'.")
     if order <= 2:
         return _GL1_NODES
     if order <= 4:
@@ -669,6 +783,25 @@ def _validate(order: int, integration_method: str):
     ValueError
         If ``order`` or ``integration_method`` is invalid.
     """
+    if (order > 6) and (integration_method in ('trapezoid', 'simpson')):
+        warnings.warn(
+            "magnus: Magnus order " + str(order) + " costs substantially more per slab "
+            "than order 6 (roughly 2.7x at order 7, rising to about 17x at order 10, for "
+            "the same grid), because the number of commutator terms roughly doubles per "
+            "order. It does converge faster in the slab width, so this may still be the "
+            "right trade; but narrowing the slabs at order 4 or 6 often reaches a given "
+            "accuracy for less total work. Shown once per session.",
+            MagnusHighOrderCostWarning, stacklevel=3)
+
+    if (integration_method == 'gl') and (order > MAGNUS_EXP_ORDER_MAX_GL):
+        raise ValueError(
+            "magnus._validate: integration_method 'gl' supports orders up to "
+            + str(MAGNUS_EXP_ORDER_MAX_GL) + ", not " + str(order) + ". The "
+            "Gauss-Legendre commutator-free schemes are separately derived integrators, "
+            "not products of the Magnus recursion, so they do not extend with it. Use "
+            "integration_method='trapezoid' or 'simpson' for orders above "
+            + str(MAGNUS_EXP_ORDER_MAX_GL) + ", or lower the order.")
+
     if integration_method not in valid_integration_methods:
         raise ValueError(
             "magnus.magnus_expansion: integration_method must be one of "
@@ -911,6 +1044,7 @@ def magnus_expansion_multislab(
 
 __all__ = [
     'MagnusConvergenceWarning',
+    'MagnusHighOrderCostWarning',
     'B',
     'F1',
     'F2',
