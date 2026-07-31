@@ -14,6 +14,11 @@ Magνs requires **Python 3.10+**.  Dependencies:
 
 See :download:`src/requirements.txt <../../src/requirements.txt>`.
 
+Magνs is licensed under the GNU General Public License v3.0 only
+(``GPL-3.0-only``); see :doc:`index` for a summary, and the ``LICENSE``
+file in the repository root, which is also shipped inside the installed
+distribution, for the full text.
+
 Installation
 ------------
 
@@ -21,12 +26,19 @@ Install the current release candidate from PyPI:
 
 .. code-block:: bash
 
-   pip install --pre magnus
+   pip install --pre magnuspy
 
 The ``--pre`` flag is needed while the current release is a release
 candidate (see :doc:`changelog`); it can be dropped once 1.0.0 final is
 out.  This installs the dependencies and the ``magnus`` command-line
 calculator (see :doc:`cli`).
+
+.. note::
+   The distribution is published as **magnuspy**, but the import package is
+   **magnus** -- so you ``pip install magnuspy`` and then ``import magnus``.
+   The two names are independent in Python packaging, and they differ here
+   only because ``magnus`` was already taken on PyPI by an unrelated project.
+   The command-line tool is ``magnus`` as well.
 
 To work from a checkout instead -- to follow development, or to modify the
 code -- install it in editable mode using the ``pyproject.toml`` at the
@@ -153,5 +165,6 @@ File Tree
    │   └── test_globaldefs.py           # NuFit historical parameter dict/loader
    ├── .gitignore
    ├── CHANGELOG.md                     # Version history (Keep a Changelog format)
+   ├── LICENSE                          # GNU GPL v3 (GPL-3.0-only), the full license text
    ├── pyproject.toml                   # Build system, dependencies, and the `magnus` console-script entry point
    └── README.md

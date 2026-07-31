@@ -16,6 +16,29 @@ that history is the most useful record of *why* the code looks the way it does.
 
 ### Added
 
+- The PyPI distribution is named **magnuspy**; the import package remains
+  `magnus`. Plain `magnus` was already taken on PyPI by an unrelated project, so
+  `pip install magnus` would have fetched someone else's package and the release
+  workflow would have failed on upload. The two names are independent in Python
+  packaging, so `pip install magnuspy` then `import magnus` is all that changes,
+  and the console script is still `magnus`. `version.py` looks the distribution
+  up under the new name: querying the import name would have raised
+  PackageNotFoundError and fallen through to parsing `pyproject.toml`, which is
+  absent from an installed wheel, so every installed user would have reported
+  `0.0.0+unknown`.
+- A license. Magνs is released under the GNU General Public License v3.0 only;
+  `LICENSE` carries the full text, and it is declared in `pyproject.toml` as the
+  PEP 639 SPDX expression `license = "GPL-3.0-only"`, which is what appears in
+  the built distribution's metadata as `License-Expression`. It previously read
+  `TBD`, so a `pip install` would have shipped the license text while declaring
+  no license at all. The build requirement moves to `setuptools>=77`, the first
+  version that understands the SPDX expression form; note that PEP 639 forbids
+  pairing it with a `License ::` classifier, so there is deliberately none.
+  Referenced from the README, the docs landing page, and both file trees.
+- Status badges on the README and the docs landing page: CI tests, code quality,
+  documentation, license, the supported Python version (3.10+, matching
+  `requires-python` and the CI matrix rather than a copied-in default), and the code
+  style (ruff, which `lint.yml` actually enforces).
 - `magnus.expansionterms`: derives the terms of the Magnus expansion from the
   Bernoulli-number recursion symbolically, at any order, in exact rational
   arithmetic (`bernoulli`, `bernoulli_factor`, `omega_terms`, `magnus_terms`,
@@ -320,6 +343,14 @@ that history is the most useful record of *why* the code looks the way it does.
   used by anything: every call site hardcoded the colored variant, so there
   was no supported way to get clean output into a log file or a rendered
   notebook.
+- The documentation build now runs on pull requests, not only on pushes to
+  `main`. It was previously built only by `pages.yml`, so a page that failed to
+  build, or silently dropped out of the sidebar, was not caught until after it
+  had been merged. The pull-request build is deliberately stricter than the
+  deploy build -- `-W` turns Sphinx warnings into errors, which is what catches
+  a broken cross-reference or a page missing from the toctree -- while the
+  deploy build stays permissive, so a late warning can never be what stops a
+  release from publishing.
 - `ruff check` is now blocking in CI rather than `continue-on-error`, with
   the rule configuration in `[tool.ruff.lint]` in `pyproject.toml`, including an
   explicit `select`. Leaving the selection to ruff's default is not safe for a

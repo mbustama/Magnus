@@ -4,8 +4,28 @@ Magνs: Neutrino Oscillations via the Magnus Expansion
 ========================================================
 
 .. image:: https://github.com/mbustama/Magnus/actions/workflows/tests.yml/badge.svg
-   :target: https://github.com/mbustama/Magnus/actions
+   :target: https://github.com/mbustama/Magnus/actions/workflows/tests.yml
    :alt: CI Tests
+
+.. image:: https://github.com/mbustama/Magnus/actions/workflows/lint.yml/badge.svg
+   :target: https://github.com/mbustama/Magnus/actions/workflows/lint.yml
+   :alt: Code Quality
+
+.. image:: https://img.shields.io/badge/docs-GitHub%20Pages-blue.svg
+   :target: https://mbustama.github.io/Magnus/
+   :alt: Documentation
+
+.. image:: https://img.shields.io/badge/License-GPLv3-blue.svg
+   :target: https://www.gnu.org/licenses/gpl-3.0
+   :alt: License: GPL v3
+
+.. image:: https://img.shields.io/badge/python-3.10+-blue.svg
+   :target: https://www.python.org/downloads/
+   :alt: Python 3.10+
+
+.. image:: https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json
+   :target: https://github.com/astral-sh/ruff
+   :alt: Code style: ruff
 
 .. hint::
    **How do I say that?** Just like the name **Magnus** — the Greek letter
@@ -181,6 +201,19 @@ Salient Features
    :caption: API Reference:
 
    api/magnus/index
+
+License
+=========
+
+Magνs is released under the `GNU General Public License v3.0 only
+<https://www.gnu.org/licenses/gpl-3.0>`_ (``GPL-3.0-only``).  The full text
+ships with the source, as ``LICENSE`` in the repository root, and inside the
+installed distribution.
+
+You are free to use, study, modify, and redistribute it, including for
+commercial purposes, provided that derivative works are distributed under the
+same license and with source available.  If you are unsure whether your
+intended use is compatible, read the license itself rather than this summary.
 
 Indices and tables
 ==================
