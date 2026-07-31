@@ -16,6 +16,29 @@ that history is the most useful record of *why* the code looks the way it does.
 
 ### Added
 
+- `magnus.expansionterms`: derives the terms of the Magnus expansion from the
+  Bernoulli-number recursion symbolically, at any order, in exact rational
+  arithmetic (`bernoulli`, `bernoulli_factor`, `omega_terms`, `magnus_terms`,
+  `count_terms`, `format_term`, `print_magnus_terms`). The numerical core's
+  coefficients were typed in and nothing checked them against the recursion they
+  come from; the test suite now regenerates them and compares, order by order, at
+  machine precision. See `docs/source/expansion_terms.rst`.
+- Magnus orders 7 through 10. `MAGNUS_EXP_ORDER_MAX` rises from 6 to 10, and is
+  now defined once in `magnus.magnus` and re-exported by `globaldefs`, which used
+  to carry its own copy of the number. The default expansion order is unchanged.
+  Orders 1-6 keep their hand-written expressions, which are hot and worth reading;
+  7-10 are generated from the closed form of the recursion (every term is a
+  right-nested chain of lower-order `Omega_m` around `A`, indexed by the
+  compositions of `n-1`), with shared suffixes memoized so each distinct nested
+  commutator is built once. Verified two ways: exact agreement with the symbolic
+  generator, and measured convergence rates that keep improving with order (order
+  8 reaches ~h^10 against an ODE ground truth where order 6 reaches ~h^8).
+- `magnus.magnus.MagnusHighOrderCostWarning`, raised when an order above 6 is
+  requested with a quadrature method. The number of terms roughly doubles per
+  order, and the measured cost per slab is 2.7x order 6 at order 7, rising to
+  ~17x at order 10. Higher order does converge faster in the slab width, so it is
+  a trade rather than a mistake -- but narrowing the slabs at order 4 or 6 often
+  reaches a given accuracy for less total work.
 - Command-line calculator (`magnus prob`, also runnable as `python -m magnus`)
   for computing a single oscillation probability from the shell, covering
   vacuum, matter (constant/exponential density), Earth, and Sun, with
@@ -170,6 +193,12 @@ that history is the most useful record of *why* the code looks the way it does.
 
 ### Changed
 
+- `integration_method='gl'` now raises for orders above 6 rather than silently
+  computing an order-6 result. The Gauss-Legendre commutator-free schemes are
+  separately derived integrators, not products of the Magnus recursion, so they
+  do not extend along with it. The check sits in `_gl_nodes` as well as in the
+  input validator, since the validator is skipped when `validate_input=False` and
+  that flag would otherwise reopen the silent-degradation path.
 - `max_n_slabs` is now method-aware: it defaults to None, meaning "use the cap
   that suits `integration_method`" -- 20000 for `'gl'`, 2000 for the
   cumulative-quadrature methods (`magnus.oscprob.MAX_N_SLABS_DEFAULT`). An
@@ -292,7 +321,10 @@ that history is the most useful record of *why* the code looks the way it does.
   was no supported way to get clean output into a log file or a rendered
   notebook.
 - `ruff check` is now blocking in CI rather than `continue-on-error`, with
-  the rule configuration in `[tool.ruff.lint]` in `pyproject.toml`. Two
+  the rule configuration in `[tool.ruff.lint]` in `pyproject.toml`, including an
+  explicit `select`. Leaving the selection to ruff's default is not safe for a
+  blocking check: the default widened in ruff 0.16 and turned CI red on a
+  codebase that had not changed. Two
   codebase-wide conventions are exempted explicitly (`E741`, since `l` is the
   standard symbol for position here, and `E701` for the one-line cleanup
   guards); everything else was fixed, so the tree is clean and a new finding
@@ -300,6 +332,14 @@ that history is the most useful record of *why* the code looks the way it does.
 
 ### Fixed
 
+- `osc_prob` raised `UnboundLocalError` instead of returning a probability when
+  `max_num_loops < 1` was passed together with `validate_input=False` (the
+  validator rejects that combination otherwise). The refinement-limit checks at
+  the top of the loop could `return P` before the first iteration had produced
+  one; they are refinement limits and only mean anything after a loop has run,
+  so they are now guarded on that. The dead `iterate_over_magnus_exp_order`
+  dispatch had been assigning `P` early, which hid the problem from static
+  analysis until it was removed.
 - Two mixing-matrix formula bugs (`mixing_matrix_4x4` and `mixing_matrix_5x5`)
   that invalidated every sterile-neutrino (3+1, 3+2) calculation.
 - `hamiltonian_2nu_nsi`'s `eps_aa` parameter was a silent no-op: it sat on

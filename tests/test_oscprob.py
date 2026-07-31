@@ -786,7 +786,6 @@ def test_no_wrapper_redeclares_standard_refinement_kwargs():
         'magnus_exp_order', 'n_jobs', 'integration_method', 'rtol', 'atol',
         'growth_factor_n_slabs', 'growth_factor_n_tpts_per_slab', 'max_num_loops',
         'min_n_slabs', 'max_n_slabs', 'min_n_tpts_per_slab', 'max_n_tpts_per_slab',
-        'iterate_over_magnus_exp_order', 'min_magnus_exp_order', 'max_magnus_exp_order',
         'new_recursion_limit',
     }
     wrapper_pattern = re.compile(r'^osc_prob_[2345]nu_')
@@ -908,3 +907,44 @@ def test_hard_sterile_earth_case_converges_without_warning_by_default():
     assert not tol_warnings, f"unexpected {tol_warnings[0].message}"
     assert info['n_slabs'] < op.MAX_N_SLABS_DEFAULT['gl'], "converged only by hitting the cap"
     assert np.allclose(np.sum(np.asarray(P), axis=-1), 1.0, atol=1e-9)
+
+
+# ----------------------------------------------------------------------
+# Refinement caps below one loop
+# ----------------------------------------------------------------------
+
+@pytest.mark.parametrize("max_num_loops", [0, -5])
+def test_max_num_loops_below_one_returns_a_probability_rather_than_crashing(max_num_loops):
+    """Regression test: osc_prob used to raise UnboundLocalError here.
+
+    The refinement-limit checks sit at the top of the loop and ``return P``, but on the
+    first pass no loop has produced a P yet.  A cap below 1 reached that return before the
+    variable existed.  It went unnoticed for two reasons: ``validate_input=True`` (the
+    default) rejects ``max_num_loops <= 1`` up front, and the since-removed
+    ``iterate_over_magnus_exp_order`` dispatch assigned P early, which hid the flaw from
+    static analysis.
+
+    The contract being pinned is not merely "does not crash": one refinement loop must
+    still run -- there is no probability to return otherwise -- the result must be exactly
+    unitary, and the caller must be *told* the requested tolerance was not reached rather
+    than handed an unconverged number silently."""
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        P = op.osc_prob_3nu_earth(ENERGY, costhz=-0.8, L=2.0*6371.0*0.8*gd.UNIT_KM,
+                                  validate_input=False, rtol=1e-4, atol=1e-4,
+                                  max_num_loops=max_num_loops)
+
+    P = np.asarray(P)
+    assert P.shape == (3, 3)
+    assert np.allclose(np.sum(P, axis=-1), 1.0, atol=1e-12)
+    assert np.all((P >= -1e-12) & (P <= 1.0 + 1e-12))
+    assert any(issubclass(w.category, op.ToleranceNotAchievedWarning) for w in caught), \
+        "returned an unconverged result without warning that the tolerance was missed"
+
+
+def test_validation_still_rejects_max_num_loops_below_two():
+    """The guard above is a safety net for validate_input=False; with validation on, the
+    invalid cap is still refused up front rather than quietly degraded."""
+    with pytest.raises(ValueError, match="max_num_loops"):
+        op.osc_prob_3nu_earth(ENERGY, costhz=-0.8, L=2.0*6371.0*0.8*gd.UNIT_KM,
+                              rtol=1e-4, atol=1e-4, max_num_loops=0)

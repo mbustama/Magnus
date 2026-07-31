@@ -768,6 +768,10 @@ Magnus machinery above then applies unchanged.
   the Hamiltonian has a kink or a discontinuity *inside* a slab.
 - **Exactly unitary exponentials** from the eigendecomposition of the
   (anti-Hermitian) Magnus operator, batched over slabs and energies.
+- **Magnus expansion terms at any order**: `magnus.expansionterms` derives
+  them from the Bernoulli recursion symbolically, in exact rational
+  arithmetic, which is what verifies the hard-coded coefficients rather than
+  taking them on trust. Orders 1–6 are written out inline, 7–10 generated.
 - **Method-aware refinement caps**: `max_n_slabs` defaults to the cap that
   suits the integration method (20000 for `'gl'`, 2000 for the quadrature
   methods), since `'gl'` costs 1–3 Hamiltonian evaluations per slab against

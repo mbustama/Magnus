@@ -172,10 +172,13 @@ Units: [Adimensional]
 """
 
 
-MAGNUS_EXP_ORDER_MAX = 6
-r"""float: Module-level constant
+from magnus.magnus import MAGNUS_EXP_ORDER_MAX  # noqa: E402,F401
+r"""int: Module-level constant
 
-Maximum order of the Magnus expansion currently supported.
+Maximum order of the Magnus expansion currently supported.  Re-exported from
+:mod:`magnus.magnus`, which is where the expansion is implemented and therefore the only
+place the ceiling is defined; it used to be written out here as well, and the two copies
+had to be kept in step by hand.
 Units: [Adimensional]
 """
 

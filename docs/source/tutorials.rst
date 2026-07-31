@@ -56,7 +56,7 @@ them.
      - You need a CPT-odd LIV term in the Hamiltonian.
    * - 10
      - `magnus_matrix_exponential.ipynb <https://github.com/mbustama/Magnus/blob/main/notebooks/10_magnus_matrix_exponential.ipynb>`_
-     - Using Magνs as a general-purpose tool: computing the Magnus expansion and matrix exponential of an arbitrary time-dependent matrix :math:`A(t)`, i.e. :math:`\exp\!\left(\int_{t_i}^{t_f} A(t)\, dt\right)`, decoupled from any neutrino-physics interpretation.
+     - Using Magνs as a general-purpose tool: computing the Magnus expansion and matrix exponential of an arbitrary time-dependent matrix :math:`A(t)`, i.e. :math:`\exp\!\left(\int_{t_i}^{t_f} A(t)\, dt\right)`, decoupled from any neutrino-physics interpretation.  Closes with the expansion's own coefficients: deriving them from the Bernoulli recursion at any order with :mod:`magnus.expansionterms` (see :doc:`expansion_terms`).
      - You want to call :func:`magnus.magnus.magnus_expansion` directly, outside of the oscillation-probability wrappers.
    * - 11
      - `magnus_adiabatic_hybrid_strategy.ipynb <https://github.com/mbustama/Magnus/blob/main/notebooks/11_magnus_adiabatic_hybrid_strategy.ipynb>`_

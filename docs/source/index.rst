@@ -170,6 +170,7 @@ Salient Features
    functions
    architecture
    methodology
+   expansion_terms
    adiabatic_strategy
    tutorials
    references
