@@ -362,7 +362,12 @@ def _env_kwargs(environment: str, density_profile: str, args: argparse.Namespace
         return {'costhz': args.costhz, 'loc_ini': args.loc_ini, 'loc_fin': args.loc_fin,
                 'L': baseline_ev}
     if environment == 'sun':
-        if baseline_ev is None:
+        if baseline_ev is None:  # pragma: no cover - pre-empted, see below
+            # Unreachable from the command line: main() rejects a missing --baseline for
+            # every environment except earth before it calls this function, so a solar run
+            # without one has already exited.  Kept because this function is the one that
+            # knows what the sun branch needs, and a future caller reaching it by another
+            # route should still get a clear message rather than a KeyError downstream.
             raise SystemExit("magnus prob: --baseline is required for --environment sun.")
         return {'L': baseline_ev, 'L0': l0_ev}
     raise AssertionError(environment)  # pragma: no cover

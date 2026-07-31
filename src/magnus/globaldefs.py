@@ -37,7 +37,7 @@ import os
 import platform
 
 # If on Windows, need to call os.system() to print in color in stdout
-if platform.system() == 'Windows':
+if platform.system() == 'Windows':  # pragma: no cover - Windows only
     os.system("")
 
 # Class of different styles
