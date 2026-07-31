@@ -132,6 +132,15 @@ that history is the most useful record of *why* the code looks the way it does.
   CLI's solar baseline check (the general one rejects that input first). The
   Windows-only ANSI setup line in `globaldefs` is marked too. They are kept
   rather than deleted: each becomes live again if a nearby constant changes.
+- A sweep asserting that both construction routes of every builder offering the
+  choice agree: the hardcoded expression for each matrix entry, and the explicit
+  product of the mixing matrix, the mass matrix and the conjugate transpose that
+  it was derived from. Nothing had been keeping the two from drifting apart for
+  the Hamiltonian builders -- the existing checks covered only the 4x4 and 5x5
+  mixing matrices -- and the product route was unexecuted for both vacuum
+  energy-independent Hamiltonians, which `oscprob` calls on every run.
+  Antineutrinos are included, since conjugating the mixing matrix is a separate
+  line in several builders.
 - Gauss-Legendre commutator-free integrators (`integration_method='gl'`),
   silent vectorization of Hamiltonian/density-profile evaluation, an
   energy-batched scan engine for separable Hamiltonians, adaptive slab
@@ -426,6 +435,13 @@ that history is the most useful record of *why* the code looks the way it does.
 
 ### Fixed
 
+- `matter.vcc_func_from_rho_func` raised `TypeError: 'float' object is not
+  callable` when given a constant electron number density together with
+  `density_is_of_number_of_electrons=True`. `VCC_func` evaluates whatever it is
+  handed at a position, and the sibling branch for a matter density wraps its
+  constant in a function for exactly that reason; this one passed the bare number
+  through. The documented way to supply a fixed electron number density therefore
+  did not work at all. Found by the first test to reach the line.
 - The two guards in `validate_input_osc_prob_earth` that reject a malformed
   `loc_ini`/`loc_fin` caught `KeyError`, which unpacking a sequence never raises,
   so neither could fire. A three-entry coordinate escaped as `too many values to
