@@ -329,6 +329,14 @@ that history is the most useful record of *why* the code looks the way it does.
 
 ### Fixed
 
+- `osc_prob` raised `UnboundLocalError` instead of returning a probability when
+  `max_num_loops < 1` was passed together with `validate_input=False` (the
+  validator rejects that combination otherwise). The refinement-limit checks at
+  the top of the loop could `return P` before the first iteration had produced
+  one; they are refinement limits and only mean anything after a loop has run,
+  so they are now guarded on that. The dead `iterate_over_magnus_exp_order`
+  dispatch had been assigning `P` early, which hid the problem from static
+  analysis until it was removed.
 - Two mixing-matrix formula bugs (`mixing_matrix_4x4` and `mixing_matrix_5x5`)
   that invalidated every sterile-neutrino (3+1, 3+2) calculation.
 - `hamiltonian_2nu_nsi`'s `eps_aa` parameter was a silent no-op: it sat on
