@@ -64,12 +64,18 @@ Runge–Kutta solver), Magνs wins when one or more of these apply:
 When is it *not* the best tool?  For a single probability at a single
 energy, any method is fast enough.  For **extreme accumulated phases** —
 e.g., ~10 MeV neutrinos crossing most of the Sun (~1e4 rad of
-matter-dominated phase) — the required slab count can exceed the default
-caps; Magνs then warns (``ToleranceNotAchievedWarning``) instead of
-failing silently, and you should raise ``max_n_slabs`` (or use an adiabatic
-approximation, the natural method in that regime).  And a tight-tolerance
-ODE solver remains the best *reference* for validation — Magνs's own test
-suite uses ``scipy.integrate.solve_ivp`` at ``rtol=1e-12`` as ground truth.
+matter-dominated phase) — the plain Magnus slab-refinement method can need
+a very large slab count, and warns (``ToleranceNotAchievedWarning``)
+instead of failing silently if it hits its caps first.  Since v0.11.0, this
+regime is handled automatically by ``strategy='auto'`` (the default for
+``osc_prob_matter_std_potential``, ``osc_prob_matter_nsi``, ``osc_prob_liv``,
+and every wrapper built on them, including every ``osc_prob_*_sun*``
+function): an adiabatic-transport-plus-Magnus-patch strategy that stays
+exactly unitary and is 50-25,000x faster than direct integration across the
+validation grid — see :doc:`adiabatic_strategy` for the full derivation.
+And a tight-tolerance ODE solver remains the best *reference* for
+validation regardless — Magνs's own test suite uses
+``scipy.integrate.solve_ivp`` at ``rtol=1e-12`` as ground truth.
 See :doc:`methodology` for the full numerical story, including how these
 numbers were measured.
 
@@ -156,6 +162,7 @@ Salient Features
    functions
    architecture
    methodology
+   adiabatic_strategy
    tutorials
    references
    changelog

@@ -291,6 +291,7 @@ import magnus.globaldefs as gd
 import magnus.hamiltonians as hamiltonians
 import magnus.matter as matter
 import magnus.earth as earth
+import magnus.adiabatic as adiabatic
 from magnus import version
 from magnus import authors
 
@@ -310,6 +311,29 @@ class ToleranceNotAchievedWarning(UserWarning):
     more slabs for low-energy solar neutrinos).
 
     .. versionadded:: 0.10.0
+    """
+
+
+class HybridCertificationWarning(ToleranceNotAchievedWarning):
+    r"""Warns that ``strategy='hybrid'`` was requested (forcing
+    :func:`magnus.adiabatic.hybrid_propagator`) but the self-certifying
+    refinement of at least one requested (energy, L) point did not
+    converge within its internal iteration/slab caps.
+
+    The returned probabilities remain exactly unitary (every piece of the
+    hybrid propagator -- the adiabatic transport and the local Magnus
+    patches -- is unitary by construction) but their accuracy relative to
+    the requested ``rtol``/``atol`` is not certified. This subclasses
+    :class:`ToleranceNotAchievedWarning` so existing code that filters on
+    the parent class also catches this warning; it is issued regardless
+    of the verbosity setting. With the default ``strategy='auto'``, this
+    situation instead falls back silently to the general slab-refinement
+    method (which raises :class:`ToleranceNotAchievedWarning` itself if
+    *it* also fails to converge), so this warning fires only when
+    ``strategy='hybrid'`` was explicitly requested. See
+    :doc:`/adiabatic_strategy`.
+
+    .. versionadded:: 0.11.0
     """
 
 
@@ -3048,6 +3072,336 @@ def _osc_prob_ip_exp_dispatch(
     return P.__getitem__(0 if return_float else slice(None))
 
 
+def _osc_prob_hybrid_dispatch(
+    h_vac_energy_indep: np.ndarray,
+    VCC_func: Union[Callable, float],
+    h_matt: np.ndarray,
+    h_liv_energy_indep: Optional[np.ndarray],
+    n_liv: Optional[Union[int, float]],
+    energy: Union[int, float, list, np.ndarray],
+    L: Union[int, float, list, np.ndarray],
+    L0: Union[int, float],
+    nu_i: Optional[int],
+    nu_f: Optional[int],
+    scan_kwargs: Dict,
+    strategy: str
+):
+    r"""Decide whether the adiabatic-transport-plus-Magnus-patch ("hybrid") strategy applies; run
+    it if so.
+
+    Unlike :func:`_osc_prob_ip_exp_dispatch`, this is not restricted to a genuine exponential
+    profile or to two flavors: :func:`magnus.adiabatic.hybrid_propagator` locates non-adiabatic
+    windows via an exact Hellmann-Feynman diagnostic that makes no assumption about the profile's
+    functional form or the Hamiltonian's dimension (see :doc:`/adiabatic_strategy`). It is still
+    restricted to a smooth ``VCC_func`` (no user-supplied slab edges or breakpoints -- a
+    piecewise-discontinuous profile such as PREM breaks the finite-difference diagnostics this
+    method relies on) and, since the method is fundamentally adaptive, to a genuinely requested
+    tolerance (``rtol``/``atol`` not both ``None``).
+
+    Each requested (energy, L) point is handled by an independent call to
+    :func:`magnus.adiabatic.hybrid_propagator`, since the position of a resonance (if any) is
+    generally energy-dependent -- unlike :func:`_osc_prob_ip_exp_dispatch`, this applies equally
+    to a scan with per-point baselines, not only a shared one. If any requested point fails to
+    self-certify, the whole batch is treated as not fitting this method with ``strategy='auto'``
+    (returns ``NotImplemented``, so the caller falls back to the general per-point path);
+    with ``strategy='hybrid'``, the best-effort result is returned together with
+    ``HybridCertificationWarning``.
+
+    .. versionadded:: 0.11.0
+
+    Parameters
+    ----------
+    h_vac_energy_indep : np.ndarray
+        Energy-independent part of the vacuum Hamiltonian.
+    VCC_func : Callable or float
+        Matter potential, as a function of position (required for this method to apply; a
+        constant potential falls back to the generic path, since there is then no position
+        dependence for a resonance to hide in).
+    h_matt : np.ndarray
+        Constant matrix multiplying ``VCC_func(l)``.
+    h_liv_energy_indep : np.ndarray, optional
+        Energy-independent part of the LIV Hamiltonian, if any.
+    n_liv : int or float, optional
+        Power of the energy dependence of the LIV operator, if ``h_liv_energy_indep`` is given.
+    energy : int, float, list, or np.ndarray
+        Neutrino energy/energies.
+    L : int, float, list, or np.ndarray
+        Baseline(s).
+    L0 : int or float
+        Initial position.
+    nu_i : int, optional
+        Initial flavor index. If given together with ``nu_f``, a single channel is returned.
+    nu_f : int, optional
+        Final flavor index; see ``nu_i``.
+    scan_kwargs : dict
+        The refinement/logging keyword arguments of :func:`osc_prob_energy_baseline` (rtol, atol,
+        magnus_exp_order, integration_method, t_slab_edges, iterate_over_magnus_exp_order,
+        save_log, file_log) plus a nested 'kwargs' dict of any remaining, unrecognized keyword
+        arguments.
+    strategy : str
+        'auto', 'hybrid', or 'magnus'; see the ``strategy`` parameter of
+        :func:`osc_prob_matter_std_potential`. If 'magnus', this function always returns
+        ``NotImplemented`` without doing any work.
+
+    Returns
+    -------
+    np.ndarray or NotImplemented
+        The oscillation probability (or single channel), computed via the hybrid strategy; or the
+        ``NotImplemented`` singleton if the request does not fit it, ``strategy == 'magnus'``, or
+        (only with ``strategy == 'auto'``) it failed to self-certify for at least one point.
+    """
+    if strategy == 'magnus':
+        return NotImplemented
+
+    kwargs = dict(scan_kwargs.get('kwargs', {}))
+    t_breakpoints = kwargs.pop('t_breakpoints', None)
+    kwargs.pop('n_slabs', None)
+    kwargs.pop('n_tpts_per_slab', None)
+    if len(kwargs) > 0:
+        return NotImplemented
+    if (t_breakpoints is not None) and (len(np.atleast_1d(t_breakpoints)) > 0):
+        return NotImplemented
+    if not isinstance(VCC_func, Callable):
+        return NotImplemented
+    if scan_kwargs['t_slab_edges'] is not None:
+        return NotImplemented
+    if scan_kwargs['iterate_over_magnus_exp_order']:
+        return NotImplemented
+    if scan_kwargs['save_log'] or (scan_kwargs['file_log'] is not None):
+        return NotImplemented
+
+    rtol, atol = scan_kwargs['rtol'], scan_kwargs['atol']
+    if (rtol is None) and (atol is None):
+        # The hybrid method is fundamentally adaptive (self-certifying); "run once with a fixed,
+        # non-adaptive number of slabs" has no hybrid analogue, so fall back to the general path,
+        # which does support it.
+        return NotImplemented
+    rtol = 0.0 if rtol is None else rtol
+    atol = 0.0 if atol is None else atol
+
+    energy_arr, L_arr, return_float, ok = _normalize_energy_L(energy, L)
+    if not ok:
+        return NotImplemented
+
+    magnus_exp_order = scan_kwargs['magnus_exp_order']
+    integration_method = scan_kwargs['integration_method']
+    h_vac_energy_indep = np.asarray(h_vac_energy_indep, dtype=complex)
+    h_matt = np.asarray(h_matt, dtype=complex)
+    if h_liv_energy_indep is not None:
+        h_liv_energy_indep = np.asarray(h_liv_energy_indep, dtype=complex)
+    d = h_vac_energy_indep.shape[-1]
+
+    def H_at_energy(enu):
+        def H_of_l(l, enu=enu):
+            vcc = np.asarray(VCC_func(l))
+            H = (1.0/enu)*h_vac_energy_indep + vcc[..., None, None]*h_matt
+            if h_liv_energy_indep is not None:
+                H = H + (enu**n_liv)*h_liv_energy_indep
+            return H
+        return H_of_l
+
+    P_out = _hybrid_propagator_scan(H_at_energy, energy_arr, L_arr, L0, rtol, atol,
+        magnus_exp_order, integration_method, strategy, d)
+    if P_out is NotImplemented:
+        return NotImplemented
+
+    if (nu_i is not None) and (nu_f is not None):
+        P_out = P_out[:, nu_i, nu_f]
+    return P_out.__getitem__(0 if return_float else slice(None))
+
+
+def _hybrid_propagator_scan(
+    H_at_energy: Callable,
+    energy_arr: np.ndarray,
+    L_arr: np.ndarray,
+    L0: Union[int, float],
+    rtol: float,
+    atol: float,
+    magnus_exp_order: int,
+    integration_method: str,
+    strategy: str,
+    d: int
+):
+    r"""Shared per-(energy, L)-point hybrid-propagator loop, used by both
+    :func:`_osc_prob_hybrid_dispatch` (separable vacuum + matter potential Hamiltonians) and
+    :func:`_osc_prob_hybrid_dispatch_generic` (an arbitrary user-supplied Hamiltonian, as accepted
+    by :func:`osc_prob_earth`/:func:`osc_prob_sun`).
+
+    .. versionadded:: 0.11.0
+
+    Parameters
+    ----------
+    H_at_energy : Callable
+        Given a neutrino energy, returns ``H_of_l(l)``, the Hamiltonian at that energy as a
+        function of position only, suitable for :func:`magnus.adiabatic.hybrid_propagator`.
+    energy_arr : np.ndarray
+        Neutrino energies, one per requested point.
+    L_arr : np.ndarray
+        Baselines, one per requested point (same length as ``energy_arr``).
+    L0 : int or float
+        Initial position (shared by every point).
+    rtol, atol : float
+        Target relative/absolute tolerance, already coerced to non-``None`` floats by the caller.
+    magnus_exp_order : int
+        Magnus expansion order used for the local patch inside each non-adiabatic window.
+    integration_method : str
+        Integration method used for the local patch.
+    strategy : str
+        'auto' or 'hybrid' (never 'magnus'; the caller already handles that case). If 'auto', any
+        point that fails to self-certify aborts the whole scan (returns ``NotImplemented``); if
+        'hybrid', the best-effort result is kept and ``HybridCertificationWarning`` is raised once
+        at the end if at least one point was uncertified.
+    d : int
+        Hamiltonian dimension (number of flavors).
+
+    Returns
+    -------
+    np.ndarray or NotImplemented
+        Stacked probability matrices, shape ``(len(energy_arr), d, d)``; or ``NotImplemented`` if
+        ``strategy == 'auto'`` and at least one point failed to self-certify.
+    """
+    n_pts = len(energy_arr)
+    P_out = np.empty((n_pts, d, d))
+    any_uncertified = False
+
+    for i in range(n_pts):
+        H_of_l = H_at_energy(energy_arr[i])
+
+        U, _, certified = adiabatic.hybrid_propagator(H_of_l, float(L0), float(L_arr[i]),
+            rtol=rtol, atol=atol, magnus_exp_order=magnus_exp_order,
+            integration_method=integration_method)
+
+        if not certified:
+            if strategy == 'auto':
+                return NotImplemented
+            any_uncertified = True
+
+        P_out[i] = np.swapaxes(U.real**2 + U.imag**2, -1, -2)
+
+    if any_uncertified:
+        warnings.warn("osc_prob (hybrid strategy): requested tolerance not achieved for at "
+            "least one (energy, L) point; the returned probabilities remain exactly unitary "
+            "but their accuracy is not certified. Shown once per session.",
+            HybridCertificationWarning, stacklevel=3)
+
+    return P_out
+
+
+def _osc_prob_hybrid_dispatch_generic(
+    htot: Callable,
+    VCC_func: Union[Callable, float],
+    energy: Union[int, float, list, np.ndarray],
+    L: Union[int, float, list, np.ndarray],
+    L0: Union[int, float],
+    nu_i: Optional[int],
+    nu_f: Optional[int],
+    t_breakpoints: Optional[np.ndarray],
+    rtol: Optional[Union[int, float]],
+    atol: Optional[Union[int, float]],
+    magnus_exp_order: int,
+    integration_method: str,
+    strategy: str,
+    kwargs: Dict
+):
+    r"""Decide whether the hybrid strategy applies to an arbitrary, user-supplied Hamiltonian (as
+    accepted by :func:`osc_prob_earth`/:func:`osc_prob_sun`); run it if so.
+
+    Same method and gating philosophy as :func:`_osc_prob_hybrid_dispatch` (see its docstring and
+    :doc:`/adiabatic_strategy`), adapted to ``htot(energy, l)`` -- the Hamiltonian already unified
+    into a single two-argument function by :func:`_osc_prob_with_potential`, regardless of
+    whether the user's own ``H_func`` takes ``(energy, l, VCC)`` or ``(energy, l)`` -- instead of
+    a separable ``h_vac_energy_indep``/``VCC_func``/``h_matt`` decomposition, since no such
+    decomposition is available (or needed: the resonance detector and adiabatic propagator make
+    no assumption about the Hamiltonian's internal structure) for a fully generic ``H_func``.
+
+    In practice, this means :func:`osc_prob_earth` almost always falls back to the ``'magnus'``
+    strategies regardless of what ``strategy`` is requested, since ``t_breakpoints`` (the PREM
+    layer-boundary crossings) is essentially always non-empty for a real Earth-crossing
+    trajectory; :func:`osc_prob_sun` has no such restriction, since its density profile has no
+    breakpoints.
+
+    .. versionadded:: 0.11.0
+
+    Parameters
+    ----------
+    htot : Callable
+        The Hamiltonian, as a function of ``(energy, l)`` -- already unified by
+        :func:`_osc_prob_with_potential` from the user's own ``H_func(energy, l, VCC)`` or
+        ``H_func(energy, l)``.
+    VCC_func : Callable or float
+        The environment's matter potential, as a function of position (required for this method
+        to apply; a constant potential falls back to the generic path).
+    energy : int, float, list, or np.ndarray
+        Neutrino energy/energies.
+    L : int, float, list, or np.ndarray
+        Baseline(s).
+    L0 : int or float
+        Initial position.
+    nu_i : int, optional
+        Initial flavor index. If given together with ``nu_f``, a single channel is returned.
+    nu_f : int, optional
+        Final flavor index; see ``nu_i``.
+    t_breakpoints : np.ndarray, optional
+        Mandatory slab edges (e.g., PREM layer boundaries); a non-empty array disables the hybrid
+        dispatch (see above).
+    rtol, atol : int or float, optional
+        Target relative/absolute tolerance requested by the caller.
+    magnus_exp_order : int
+        Magnus expansion order used for the local patch inside each non-adiabatic window.
+    integration_method : str
+        Integration method used for the local patch.
+    strategy : str
+        'auto', 'hybrid', or 'magnus'; see the ``strategy`` parameter of
+        :func:`osc_prob_matter_std_potential`. If 'magnus', this function always returns
+        ``NotImplemented`` without doing any work.
+    kwargs : dict
+        Any additional, unrecognized keyword arguments the caller received (e.g., forwarded from
+        :func:`osc_prob_earth`/:func:`osc_prob_sun`'s own ``**kwargs``); any entry other than
+        ``n_slabs``/``n_tpts_per_slab`` disables the hybrid dispatch, signaling that the caller
+        wants low-level control of the general slab-refinement method specifically.
+
+    Returns
+    -------
+    np.ndarray or NotImplemented
+        The oscillation probability (or single channel), computed via the hybrid strategy; or the
+        ``NotImplemented`` singleton if the request does not fit it, ``strategy == 'magnus'``, or
+        (only with ``strategy == 'auto'``) it failed to self-certify for at least one point.
+    """
+    if strategy == 'magnus':
+        return NotImplemented
+
+    if (t_breakpoints is not None) and (len(np.atleast_1d(t_breakpoints)) > 0):
+        return NotImplemented
+    if not isinstance(VCC_func, Callable):
+        return NotImplemented
+    if len(set(kwargs) - {'n_slabs', 'n_tpts_per_slab'}) > 0:
+        return NotImplemented
+    if (rtol is None) and (atol is None):
+        return NotImplemented
+    rtol = 0.0 if rtol is None else rtol
+    atol = 0.0 if atol is None else atol
+
+    energy_arr, L_arr, return_float, ok = _normalize_energy_L(energy, L)
+    if not ok:
+        return NotImplemented
+
+    def H_at_energy(enu):
+        def H_of_l(l, enu=enu):
+            return htot(enu, l)
+        return H_of_l
+
+    d = np.asarray(htot(energy_arr[0], L0)).shape[-1]
+
+    P_out = _hybrid_propagator_scan(H_at_energy, energy_arr, L_arr, L0, rtol, atol,
+        magnus_exp_order, integration_method, strategy, d)
+    if P_out is NotImplemented:
+        return NotImplemented
+
+    if (nu_i is not None) and (nu_f is not None):
+        P_out = P_out[:, nu_i, nu_f]
+    return P_out.__getitem__(0 if return_float else slice(None))
+
+
 def osc_prob_energy_baseline(
     H_func: Union[Callable, np.ndarray],
     energy: Union[int, float, list, np.ndarray], 
@@ -3527,26 +3881,27 @@ def osc_prob_matter_std_potential(
     density_matter_is_in_g_per_cm3: Optional[bool]=False,
     density_is_of_number_of_electrons: Optional[bool]=False,
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
-    t_slab_edges: Optional[Union[list, np.ndarray]]=None, 
-    magnus_exp_order: Optional[int]=4, 
-    n_jobs: Optional[int]=1, 
-    integration_method: Optional[str]='trapezoid', 
-    rtol: Optional[Union[int, float]]=1.e-3, 
-    atol: Optional[Union[int, float]]=1.e-3, 
-    growth_factor_n_slabs: Optional[Union[int, float]]=1.5, 
-    growth_factor_n_tpts_per_slab: Optional[Union[int, float]]=1.5, 
-    max_num_loops: Optional[int]=50, 
-    min_n_slabs: Optional[int]=1, 
-    max_n_slabs: Optional[int]=2000, 
-    min_n_tpts_per_slab: Optional[int]=2, 
-    max_n_tpts_per_slab: Optional[int]=500, 
+    strategy: Optional[str]='auto',
+    t_slab_edges: Optional[Union[list, np.ndarray]]=None,
+    magnus_exp_order: Optional[int]=4,
+    n_jobs: Optional[int]=1,
+    integration_method: Optional[str]='trapezoid',
+    rtol: Optional[Union[int, float]]=1.e-3,
+    atol: Optional[Union[int, float]]=1.e-3,
+    growth_factor_n_slabs: Optional[Union[int, float]]=1.5,
+    growth_factor_n_tpts_per_slab: Optional[Union[int, float]]=1.5,
+    max_num_loops: Optional[int]=50,
+    min_n_slabs: Optional[int]=1,
+    max_n_slabs: Optional[int]=2000,
+    min_n_tpts_per_slab: Optional[int]=2,
+    max_n_tpts_per_slab: Optional[int]=500,
     iterate_over_magnus_exp_order: Optional[bool]=False,
     min_magnus_exp_order: Optional[int]=1,
-    max_magnus_exp_order: Optional[int]=gd.MAGNUS_EXP_ORDER_MAX, 
-    validate_input: Optional[bool]=True, 
-    save_log: Optional[bool]=False, 
+    max_magnus_exp_order: Optional[int]=gd.MAGNUS_EXP_ORDER_MAX,
+    validate_input: Optional[bool]=True,
+    save_log: Optional[bool]=False,
     filename_log: Optional[str]='./out.log',
-    file_log: Optional[TextIOWrapper]=None, 
+    file_log: Optional[TextIOWrapper]=None,
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
     new_recursion_limit: Optional[int]=5000,
@@ -3604,6 +3959,32 @@ def osc_prob_matter_std_potential(
     default_osc_params_set_name : str, optional
         Name of the predefined oscillation-parameter set used to fill in any parameter left as
         None in ``osc_params``. Default: 'OSC_PARAMS_DEFAULT'.
+    strategy : str, optional
+        Numerical strategy used to compute the evolution operator: 'auto' (default), 'hybrid',
+        or 'magnus'.
+
+        * ``'magnus'`` uses only the traditional Magnus-expansion machinery (the closed-form
+          two-flavor interaction-picture integrator when it applies, the energy-batched scan
+          engine, or the general adaptive slab-refinement method) -- this reproduces the exact
+          behavior of Magνs before version 0.11.0, unconditionally.
+        * ``'hybrid'`` additionally tries :func:`magnus.adiabatic.hybrid_propagator` (adiabatic
+          transport, with a Magnus patch at any non-adiabatic window; see
+          :doc:`/adiabatic_strategy`) for any requested (energy, L) point where ``rho_func`` is
+          position-dependent and no ``t_slab_edges``/breakpoints are given, and a target
+          tolerance (``rtol``/``atol``) is requested. If it fails to self-certify for at least
+          one point, the best-effort result is still returned, together with
+          :class:`HybridCertificationWarning`.
+        * ``'auto'`` tries the hybrid strategy first, under the same conditions, but falls back
+          silently to the ``'magnus'`` strategies above (no warning about the hybrid attempt
+          itself) for any point where it does not apply or fails to self-certify.
+
+        The hybrid strategy is the natural tool exactly where the plain Magnus refinement needs
+        very many slabs (an extreme accumulated phase, e.g., low-energy solar neutrinos crossing
+        an MSW resonance), and applies to any number of flavors and to genuinely complex
+        Hamiltonians; see :doc:`/adiabatic_strategy` for the full derivation, validation, and
+        performance comparison. Default: 'auto'.
+
+        .. versionadded:: 0.11.0
     t_slab_edges : list or np.ndarray, optional
         Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
     magnus_exp_order : int
@@ -3660,6 +4041,15 @@ def osc_prob_matter_std_potential(
         each (energy, L) point.
     """
 
+    if validate_input and (strategy not in ('auto', 'hybrid', 'magnus')):
+        try:
+            raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob_matter_std_potential:" + \
+                " strategy must be 'auto', 'hybrid', or 'magnus'.")
+        except ValueError as error:
+            print(error)
+            print("Aborting execution...")
+            sys.exit(1)
+
     # Unpack oscillation parameters from the osc_params dict, check if all values are available
     # The function name is sys._getframe().f_code.co_name
     osc_params_list = unpack_oscillation_params_from_dict(sys._getframe().f_code.co_name,
@@ -3676,19 +4066,19 @@ def osc_prob_matter_std_potential(
 
     if validate_input:
         if validate_input_battery(sys._getframe().f_code.co_name, energy=energy, L=L, L0=L0,
-            num_flavors=num_flavors, nu_i=nu_i, nu_f=nu_f, osc_params=osc_params_list, 
+            num_flavors=num_flavors, nu_i=nu_i, nu_f=nu_f, osc_params=osc_params_list,
             rho_func=rho_func, ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
-            electron_fraction=electron_fraction, validate_energy_and_L=True, 
+            electron_fraction=electron_fraction, validate_energy_and_L=True,
             validate_flavor_indices=True, validate_osc_params=True, validate_initial_position=True,
             validate_density=True) == 1:
             sys.exit(1)
 
-    # If any of the standard oscillation parameters has not been given a value, assign to it the 
+    # If any of the standard oscillation parameters has not been given a value, assign to it the
     # value from the specified parameter set with name default_osc_params_set_name.  Only the values
-    # of the parameters passed as None are assigned from the predefined set; others are not 
+    # of the parameters passed as None are assigned from the predefined set; others are not
     # modified.
     if num_flavors > 2:
-        s12, s23, s13, dCP, D21, D31 = values_to_unspecified_osc_params(s12, s23, s13, dCP, D21, 
+        s12, s23, s13, dCP, D21, D31 = values_to_unspecified_osc_params(s12, s23, s13, dCP, D21,
             D31, default_osc_params_set_name, verbose)
 
     # Compute the energy-independent part of the vacuum Hamiltonian, i.e., everything but the 1/E 
@@ -3765,6 +4155,16 @@ def osc_prob_matter_std_potential(
     if P_ip is not NotImplemented:
         return P_ip
 
+    # Hybrid strategy (adiabatic transport + Magnus patch at any non-adiabatic window; see
+    # _osc_prob_hybrid_dispatch and :doc:`/adiabatic_strategy`): broader than the fast path above
+    # (any number of flavors, any smooth position-dependent profile), tried next unless
+    # strategy == 'magnus'.  Falls back transparently (returns NotImplemented) if it does not
+    # apply or (with strategy == 'auto' only) fails to self-certify.
+    P_hybrid = _osc_prob_hybrid_dispatch(h_vac_energy_indep, VCC_func, h_matt_proj, None, None,
+        energy, L, L0, nu_i, nu_f, scan_kwargs, strategy)
+    if P_hybrid is not NotImplemented:
+        return P_hybrid
+
     # Energy-batched fast path: when many energies share a single baseline and the Hamiltonian
     # is position-dependent, compute the whole scan in one batched pipeline, with the potential
     # samples shared across energies (see _osc_prob_scan_separable).  If the request does not fit
@@ -3776,7 +4176,7 @@ def osc_prob_matter_std_potential(
 
     # Generate the probabilities for all pairs of energy and baseline in zip(energy, L).
     return osc_prob_energy_baseline(htot, energy, L, L0, nu_i, nu_f,
-        htot_is_function_only_of_energy, t_slab_edges=t_slab_edges, 
+        htot_is_function_only_of_energy, t_slab_edges=t_slab_edges,
         magnus_exp_order=magnus_exp_order, n_jobs=n_jobs, integration_method=integration_method,
         rtol=rtol, atol=atol, growth_factor_n_slabs=growth_factor_n_slabs,
         growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
@@ -3807,26 +4207,27 @@ def osc_prob_matter_nsi(
     density_matter_is_in_g_per_cm3: Optional[bool]=False,
     density_is_of_number_of_electrons: Optional[bool]=False,
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
-    t_slab_edges: Optional[Union[list, np.ndarray]]=None, 
-    magnus_exp_order: Optional[int]=4, 
-    n_jobs: Optional[int]=1, 
-    integration_method: Optional[str]='trapezoid', 
-    rtol: Optional[Union[int, float]]=1.e-3, 
-    atol: Optional[Union[int, float]]=1.e-3, 
-    growth_factor_n_slabs: Optional[Union[int, float]]=1.5, 
-    growth_factor_n_tpts_per_slab: Optional[Union[int, float]]=1.5, 
-    max_num_loops: Optional[int]=50, 
-    min_n_slabs: Optional[int]=1, 
-    max_n_slabs: Optional[int]=2000, 
-    min_n_tpts_per_slab: Optional[int]=2, 
-    max_n_tpts_per_slab: Optional[int]=500, 
+    strategy: Optional[str]='auto',
+    t_slab_edges: Optional[Union[list, np.ndarray]]=None,
+    magnus_exp_order: Optional[int]=4,
+    n_jobs: Optional[int]=1,
+    integration_method: Optional[str]='trapezoid',
+    rtol: Optional[Union[int, float]]=1.e-3,
+    atol: Optional[Union[int, float]]=1.e-3,
+    growth_factor_n_slabs: Optional[Union[int, float]]=1.5,
+    growth_factor_n_tpts_per_slab: Optional[Union[int, float]]=1.5,
+    max_num_loops: Optional[int]=50,
+    min_n_slabs: Optional[int]=1,
+    max_n_slabs: Optional[int]=2000,
+    min_n_tpts_per_slab: Optional[int]=2,
+    max_n_tpts_per_slab: Optional[int]=500,
     iterate_over_magnus_exp_order: Optional[bool]=False,
     min_magnus_exp_order: Optional[int]=1,
-    max_magnus_exp_order: Optional[int]=gd.MAGNUS_EXP_ORDER_MAX, 
-    validate_input: Optional[bool]=True, 
-    save_log: Optional[bool]=False, 
+    max_magnus_exp_order: Optional[int]=gd.MAGNUS_EXP_ORDER_MAX,
+    validate_input: Optional[bool]=True,
+    save_log: Optional[bool]=False,
     filename_log: Optional[str]='./out.log',
-    file_log: Optional[TextIOWrapper]=None, 
+    file_log: Optional[TextIOWrapper]=None,
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
     new_recursion_limit: Optional[int]=5000,
@@ -3890,6 +4291,14 @@ def osc_prob_matter_nsi(
     default_osc_params_set_name : str, optional
         Name of the predefined oscillation-parameter set used to fill in any parameter left as
         None in ``osc_params``. Default: 'OSC_PARAMS_DEFAULT'.
+    strategy : str, optional
+        Numerical strategy used to compute the evolution operator: 'auto' (default), 'hybrid',
+        or 'magnus'; see the ``strategy`` parameter of :func:`osc_prob_matter_std_potential` for
+        the full description and :doc:`/adiabatic_strategy` for the derivation and validation of
+        the ``'hybrid'``/``'auto'`` strategies (adiabatic transport with a Magnus patch at any
+        non-adiabatic window, applicable to any number of flavors). Default: 'auto'.
+
+        .. versionadded:: 0.11.0
     t_slab_edges : list or np.ndarray, optional
         Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
     magnus_exp_order : int
@@ -3945,6 +4354,15 @@ def osc_prob_matter_nsi(
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for
         each (energy, L) point.
     """
+
+    if validate_input and (strategy not in ('auto', 'hybrid', 'magnus')):
+        try:
+            raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob_matter_nsi: strategy" + \
+                " must be 'auto', 'hybrid', or 'magnus'.")
+        except ValueError as error:
+            print(error)
+            print("Aborting execution...")
+            sys.exit(1)
 
     # Unpack oscillation parameters from the osc_params dict, check if all values are available
     # The function name is sys._getframe().f_code.co_name
@@ -4073,6 +4491,13 @@ def osc_prob_matter_nsi(
     if P_ip is not NotImplemented:
         return P_ip
 
+    # Hybrid strategy: see _osc_prob_hybrid_dispatch and the matching comment in
+    # osc_prob_matter_std_potential.
+    P_hybrid = _osc_prob_hybrid_dispatch(h_vac_energy_indep, VCC_func, h_matt, None, None,
+        energy, L, L0, nu_i, nu_f, scan_kwargs, strategy)
+    if P_hybrid is not NotImplemented:
+        return P_hybrid
+
     # Energy-batched fast path: when many energies share a single baseline and the Hamiltonian
     # is position-dependent, compute the whole scan in one batched pipeline, with the potential
     # samples shared across energies (see _osc_prob_scan_separable).  If the request does not fit
@@ -4115,26 +4540,27 @@ def osc_prob_liv(
     density_matter_is_in_g_per_cm3: Optional[bool]=False,
     density_is_of_number_of_electrons: Optional[bool]=False,
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
-    t_slab_edges: Optional[Union[list, np.ndarray]]=None, 
-    magnus_exp_order: Optional[int]=4, 
-    n_jobs: Optional[int]=1, 
-    integration_method: Optional[str]='trapezoid', 
-    rtol: Optional[Union[int, float]]=1.e-3, 
-    atol: Optional[Union[int, float]]=1.e-3, 
-    growth_factor_n_slabs: Optional[Union[int, float]]=1.5, 
-    growth_factor_n_tpts_per_slab: Optional[Union[int, float]]=1.5, 
-    max_num_loops: Optional[int]=50, 
-    min_n_slabs: Optional[int]=1, 
-    max_n_slabs: Optional[int]=2000, 
-    min_n_tpts_per_slab: Optional[int]=2, 
-    max_n_tpts_per_slab: Optional[int]=500, 
+    strategy: Optional[str]='auto',
+    t_slab_edges: Optional[Union[list, np.ndarray]]=None,
+    magnus_exp_order: Optional[int]=4,
+    n_jobs: Optional[int]=1,
+    integration_method: Optional[str]='trapezoid',
+    rtol: Optional[Union[int, float]]=1.e-3,
+    atol: Optional[Union[int, float]]=1.e-3,
+    growth_factor_n_slabs: Optional[Union[int, float]]=1.5,
+    growth_factor_n_tpts_per_slab: Optional[Union[int, float]]=1.5,
+    max_num_loops: Optional[int]=50,
+    min_n_slabs: Optional[int]=1,
+    max_n_slabs: Optional[int]=2000,
+    min_n_tpts_per_slab: Optional[int]=2,
+    max_n_tpts_per_slab: Optional[int]=500,
     iterate_over_magnus_exp_order: Optional[bool]=False,
     min_magnus_exp_order: Optional[int]=1,
-    max_magnus_exp_order: Optional[int]=gd.MAGNUS_EXP_ORDER_MAX, 
-    validate_input: Optional[bool]=True, 
-    save_log: Optional[bool]=False, 
+    max_magnus_exp_order: Optional[int]=gd.MAGNUS_EXP_ORDER_MAX,
+    validate_input: Optional[bool]=True,
+    save_log: Optional[bool]=False,
     filename_log: Optional[str]='./out.log',
-    file_log: Optional[TextIOWrapper]=None, 
+    file_log: Optional[TextIOWrapper]=None,
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
     new_recursion_limit: Optional[int]=5000,
@@ -4197,6 +4623,16 @@ def osc_prob_liv(
     default_osc_params_set_name : str, optional
         Name of the predefined oscillation-parameter set used to fill in any parameter left as
         None in ``osc_params``. Default: 'OSC_PARAMS_DEFAULT'.
+    strategy : str, optional
+        Numerical strategy used to compute the evolution operator: 'auto' (default), 'hybrid',
+        or 'magnus'; see the ``strategy`` parameter of :func:`osc_prob_matter_std_potential` for
+        the full description and :doc:`/adiabatic_strategy` for the derivation and validation of
+        the ``'hybrid'``/``'auto'`` strategies (adiabatic transport with a Magnus patch at any
+        non-adiabatic window, applicable to any number of flavors). Only relevant when
+        ``rho_func`` is nonzero (there is no position dependence, hence no resonance, in pure
+        vacuum + LIV). Default: 'auto'.
+
+        .. versionadded:: 0.11.0
     t_slab_edges : list or np.ndarray, optional
         Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
     magnus_exp_order : int
@@ -4252,6 +4688,15 @@ def osc_prob_liv(
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for
         each (energy, L) point.
     """
+
+    if validate_input and (strategy not in ('auto', 'hybrid', 'magnus')):
+        try:
+            raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob.osc_prob_liv: strategy must be" + \
+                " 'auto', 'hybrid', or 'magnus'.")
+        except ValueError as error:
+            print(error)
+            print("Aborting execution...")
+            sys.exit(1)
 
     # Unpack oscillation parameters from the osc_params dict, check if all values are available
     # The function name is sys._getframe().f_code.co_name
@@ -4392,6 +4837,11 @@ def osc_prob_liv(
         # _osc_prob_ip_exp_dispatch and the matching comment in osc_prob_matter_std_potential.
         P_scan = _osc_prob_ip_exp_dispatch(h_vac_energy_indep, VCC_func, h_matt,
             h_liv_energy_indep, n_liv, energy, L, L0, nu_i, nu_f, scan_kwargs)
+        if P_scan is NotImplemented:
+            # Hybrid strategy: see _osc_prob_hybrid_dispatch and the matching comment in
+            # osc_prob_matter_std_potential.
+            P_scan = _osc_prob_hybrid_dispatch(h_vac_energy_indep, VCC_func, h_matt,
+                h_liv_energy_indep, n_liv, energy, L, L0, nu_i, nu_f, scan_kwargs, strategy)
         if P_scan is NotImplemented:
             P_scan = _osc_prob_scan_separable_dispatch(h_vac_energy_indep, VCC_func, h_matt,
                 h_liv_energy_indep, n_liv, energy, L, L0, nu_i, nu_f, scan_kwargs)
@@ -7134,6 +7584,7 @@ def osc_prob_earth(
     atol: Optional[Union[int, float]]=1.e-3,
     validate_input: Optional[bool]=True,
     verbose: Optional[int]=0,
+    strategy: Optional[str]='auto',
     **kwargs
 ) -> Union[float, np.ndarray]:
     r"""Compute and return the neutrino oscillation probability inside
@@ -7212,6 +7663,16 @@ def osc_prob_earth(
         If True, validate the input parameters. Default: True.
     verbose : int, optional
         Verbosity level. Default: 0.
+    strategy : str, optional
+        Numerical strategy used to compute the evolution operator: 'auto' (default), 'hybrid',
+        or 'magnus'; see the ``strategy`` parameter of :func:`osc_prob_matter_std_potential` for
+        the full description and :doc:`/adiabatic_strategy` for the derivation and validation. In
+        practice, ``'hybrid'``/``'auto'`` rarely engage here: the PREM density profile has
+        layer-boundary discontinuities (``t_breakpoints``), which this strategy does not support
+        (see :doc:`/adiabatic_strategy`), so a real Earth-crossing trajectory almost always falls
+        back to the ``'magnus'`` strategies regardless of what is requested. Default: 'auto'.
+
+        .. versionadded:: 0.11.0
     \**kwargs
         Additional arguments forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`
         (e.g., the refinement-loop bounds).
@@ -7277,7 +7738,7 @@ def osc_prob_earth(
 
     return _osc_prob_with_potential(source_func_name, H_func, VCC_func, energy, L, 0.0, nu_i,
         nu_f, t_breakpoints, magnus_exp_order, n_jobs, integration_method, rtol, atol,
-        validate_input, verbose, **kwargs)
+        validate_input, verbose, strategy=strategy, **kwargs)
 
 
 def _osc_prob_with_potential(
@@ -7297,6 +7758,7 @@ def _osc_prob_with_potential(
     atol: Optional[Union[int, float]],
     validate_input: bool,
     verbose: int,
+    strategy: Optional[str] = 'auto',
     **kwargs
 ) -> Union[float, np.ndarray]:
     r"""Common machinery of :func:`osc_prob_earth` and
@@ -7306,6 +7768,13 @@ def _osc_prob_with_potential(
     :func:`osc_prob_energy_baseline`.
 
     .. versionadded:: 0.10.0
+
+    .. versionchanged:: 0.11.0
+        Added the ``strategy`` parameter: with ``'auto'`` (default) or ``'hybrid'``, also tries
+        the adiabatic-transport-plus-Magnus-patch hybrid strategy (see
+        :func:`_osc_prob_hybrid_dispatch_generic` and :doc:`/adiabatic_strategy`) whenever
+        ``t_breakpoints`` is empty and a target tolerance is requested, before falling back to
+        the general slab-refinement method.
 
     Parameters
     ----------
@@ -7340,6 +7809,13 @@ def _osc_prob_with_potential(
         If True, validate that ``H_func`` has the expected signature.
     verbose : int
         Verbosity level.
+    strategy : str, optional
+        Numerical strategy used to compute the evolution operator: 'auto' (default), 'hybrid',
+        or 'magnus'; see the ``strategy`` parameter of :func:`osc_prob_matter_std_potential` for
+        the full description and :doc:`/adiabatic_strategy` for the derivation and validation.
+        Default: 'auto'.
+
+        .. versionadded:: 0.11.0
     \**kwargs
         Additional arguments forwarded to :func:`osc_prob_energy_baseline`.
 
@@ -7361,6 +7837,9 @@ def _osc_prob_with_potential(
                     ": H_func must be a function of either three arguments (energy, l, VCC) or" + \
                     " two arguments (energy, l); the provided H_func takes " + \
                     str(n_params_H) + " argument(s).")
+            if strategy not in ('auto', 'hybrid', 'magnus'):
+                raise ValueError(gd.ERROR_MSG_IN_COLOR + " oscprob." + source_func_name + \
+                    ": strategy must be 'auto', 'hybrid', or 'magnus'.")
         except ValueError as error:
             print(error)
             print("Aborting execution...")
@@ -7373,6 +7852,16 @@ def _osc_prob_with_potential(
     else:
         def htot(enu: Union[int, float], l: Union[int, float, np.ndarray]) -> np.ndarray:
             return H_func(enu, l)
+
+    # Hybrid strategy (adiabatic transport + Magnus patch at any non-adiabatic window; see
+    # _osc_prob_hybrid_dispatch_generic and :doc:`/adiabatic_strategy`). Falls back transparently
+    # (returns NotImplemented) if it does not apply -- in particular, this is essentially always
+    # the case for osc_prob_earth, since t_breakpoints (the PREM layer crossings) is virtually
+    # never empty for a real trajectory -- or (with strategy == 'auto' only) fails to certify.
+    P_hybrid = _osc_prob_hybrid_dispatch_generic(htot, VCC_func, energy, L, L0, nu_i, nu_f,
+        t_breakpoints, rtol, atol, magnus_exp_order, integration_method, strategy, kwargs)
+    if P_hybrid is not NotImplemented:
+        return P_hybrid
 
     return osc_prob_energy_baseline(htot, energy, L, L0, nu_i, nu_f, False,
         t_breakpoints=t_breakpoints, magnus_exp_order=magnus_exp_order, n_jobs=n_jobs,
@@ -7390,18 +7879,19 @@ def osc_prob_2nu_sun(
     L0: Union[int, float], 
     sth: Union[int, float],
     Dm2: Union[int, float],
-    nubar: Optional[bool]=False, 
-    nu_i: Optional[int]=None, 
+    nubar: Optional[bool]=False,
+    nu_i: Optional[int]=None,
     nu_f: Optional[int]=None,
-    validate_input: Optional[bool]=True, 
-    save_log: Optional[bool]=False, 
+    strategy: Optional[str]='auto',
+    validate_input: Optional[bool]=True,
+    save_log: Optional[bool]=False,
     filename_log: Optional[str]='./out.log',
-    file_log: Optional[TextIOWrapper]=None, 
+    file_log: Optional[TextIOWrapper]=None,
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
     **kwargs
 ) -> Union[float, np.ndarray]:
-    r"""Compute and return the two-neutrino oscillation probability 
+    r"""Compute and return the two-neutrino oscillation probability
     for neutrinos inside the Sun.
 
     Assumes that the matter potential is due only to the standard 
@@ -7454,6 +7944,13 @@ def osc_prob_2nu_sun(
         e-folds of ``l_scale``; longer baselines fall back transparently to
         the general slab-refinement method, unchanged from before.
 
+    .. versionchanged:: 0.11.0
+        Added the ``strategy`` parameter: with the default ``'auto'``, also tries the more
+        general adiabatic-transport-plus-Magnus-patch hybrid strategy (see
+        :func:`magnus.adiabatic.hybrid_propagator` and :doc:`/adiabatic_strategy`) for baselines
+        beyond the interaction-picture integrator's reach (e.g., low-energy neutrinos over most
+        of the Sun's radius), before falling back to the general slab-refinement method.
+
     Parameters
     ----------
     energy : float, list, or np.ndarray
@@ -7472,6 +7969,13 @@ def osc_prob_2nu_sun(
         Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
     nu_f : int, optional
         Final flavor index; see ``nu_i``. Default: None.
+    strategy : str, optional
+        Numerical strategy used to compute the evolution operator: 'auto' (default), 'hybrid', or
+        'magnus'; see the ``strategy`` parameter of :func:`osc_prob_matter_std_potential` for the
+        full description and :doc:`/adiabatic_strategy` for the derivation and validation.
+        Default: 'auto'.
+
+        .. versionadded:: 0.11.0
     validate_input : bool, optional
         If True, validate the input parameters. Default: True.
     save_log : bool, optional
@@ -7507,6 +8011,7 @@ def osc_prob_2nu_sun(
         nu_i=nu_i,
         nu_f=nu_f,
         density_is_of_number_of_electrons=True,
+        strategy=strategy,
         validate_input=validate_input,
         save_log=save_log,
         filename_log=filename_log,
@@ -7530,6 +8035,7 @@ def osc_prob_3nu_sun(
     nubar: Optional[bool]=False, 
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
+    strategy: Optional[str]='auto',
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
@@ -7609,6 +8115,13 @@ def osc_prob_3nu_sun(
         Final flavor index; see ``nu_i``. Default: None.
     default_osc_params_set_name : str, optional
         Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
+    strategy : str, optional
+        Numerical strategy used to compute the evolution operator: 'auto' (default),
+        'hybrid', or 'magnus'; see the ``strategy`` parameter of
+        :func:`osc_prob_matter_std_potential` for the full description and
+        :doc:`/adiabatic_strategy` for the derivation and validation. Default: 'auto'.
+
+        .. versionadded:: 0.11.0
     validate_input : bool, optional
         If True, validate the input parameters. Default: True.
     save_log : bool, optional
@@ -7647,6 +8160,7 @@ def osc_prob_3nu_sun(
         nu_f=nu_f,
         density_is_of_number_of_electrons=True,
         default_osc_params_set_name=default_osc_params_set_name,
+        strategy=strategy,
         validate_input=validate_input,
         save_log=save_log,
         filename_log=filename_log,
@@ -7676,6 +8190,7 @@ def osc_prob_4nu_sun(
     nubar: Optional[bool]=False, 
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
+    strategy: Optional[str]='auto',
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
@@ -7769,6 +8284,13 @@ def osc_prob_4nu_sun(
         Final flavor index; see ``nu_i``. Default: None.
     default_osc_params_set_name : str, optional
         Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
+    strategy : str, optional
+        Numerical strategy used to compute the evolution operator: 'auto' (default),
+        'hybrid', or 'magnus'; see the ``strategy`` parameter of
+        :func:`osc_prob_matter_std_potential` for the full description and
+        :doc:`/adiabatic_strategy` for the derivation and validation. Default: 'auto'.
+
+        .. versionadded:: 0.11.0
     validate_input : bool, optional
         If True, validate the input parameters. Default: True.
     save_log : bool, optional
@@ -7813,6 +8335,7 @@ def osc_prob_4nu_sun(
         nu_f=nu_f,
         density_is_of_number_of_electrons=True,
         default_osc_params_set_name=default_osc_params_set_name,
+        strategy=strategy,
         validate_input=validate_input,
         save_log=save_log,
         filename_log=filename_log,
@@ -7848,6 +8371,7 @@ def osc_prob_5nu_sun(
     nubar: Optional[bool]=False, 
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
+    strategy: Optional[str]='auto',
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
@@ -7956,6 +8480,13 @@ def osc_prob_5nu_sun(
         Final flavor index; see ``nu_i``. Default: None.
     default_osc_params_set_name : str, optional
         Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
+    strategy : str, optional
+        Numerical strategy used to compute the evolution operator: 'auto' (default),
+        'hybrid', or 'magnus'; see the ``strategy`` parameter of
+        :func:`osc_prob_matter_std_potential` for the full description and
+        :doc:`/adiabatic_strategy` for the derivation and validation. Default: 'auto'.
+
+        .. versionadded:: 0.11.0
     validate_input : bool, optional
         If True, validate the input parameters. Default: True.
     save_log : bool, optional
@@ -8006,6 +8537,7 @@ def osc_prob_5nu_sun(
         nu_f=nu_f,
         density_is_of_number_of_electrons=True,
         default_osc_params_set_name=default_osc_params_set_name,
+        strategy=strategy,
         validate_input=validate_input,
         save_log=save_log,
         filename_log=filename_log,
@@ -8031,6 +8563,7 @@ def osc_prob_sun(
     atol: Optional[Union[int, float]]=1.e-3,
     validate_input: Optional[bool]=True,
     verbose: Optional[int]=0,
+    strategy: Optional[str]='auto',
     **kwargs
 ) -> Union[float, np.ndarray]:
     r"""Compute and return the neutrino oscillation probability inside
@@ -8095,6 +8628,14 @@ def osc_prob_sun(
         If True, validate the input parameters. Default: True.
     verbose : int, optional
         Verbosity level. Default: 0.
+    strategy : str, optional
+        Numerical strategy used to compute the evolution operator: 'auto' (default), 'hybrid',
+        or 'magnus'; see the ``strategy`` parameter of :func:`osc_prob_matter_std_potential` for
+        the full description and :doc:`/adiabatic_strategy` for the derivation and validation
+        (adiabatic transport with a Magnus patch at any non-adiabatic window, applicable to any
+        ``H_func`` regardless of its internal structure). Default: 'auto'.
+
+        .. versionadded:: 0.11.0
     \**kwargs
         Additional arguments forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`
         (e.g., the refinement-loop bounds).
@@ -8151,7 +8692,7 @@ def osc_prob_sun(
 
     return _osc_prob_with_potential(source_func_name, H_func, VCC_func, energy, L, L0, nu_i,
         nu_f, None, magnus_exp_order, n_jobs, integration_method, rtol, atol,
-        validate_input, verbose, **kwargs)
+        validate_input, verbose, strategy=strategy, **kwargs)
 
 
 #-----------------------------------------------------------------------
@@ -10394,6 +10935,7 @@ def osc_prob_2nu_sun_nsi(
     nubar: Optional[bool]=False, 
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
+    strategy: Optional[str]='auto',
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
@@ -10475,6 +11017,13 @@ def osc_prob_2nu_sun_nsi(
         Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
     nu_f : int, optional
         Final flavor index; see ``nu_i``. Default: None.
+    strategy : str, optional
+        Numerical strategy used to compute the evolution operator: 'auto' (default),
+        'hybrid', or 'magnus'; see the ``strategy`` parameter of
+        :func:`osc_prob_matter_std_potential` for the full description and
+        :doc:`/adiabatic_strategy` for the derivation and validation. Default: 'auto'.
+
+        .. versionadded:: 0.11.0
     validate_input : bool, optional
         If True, validate the input parameters. Default: True.
     save_log : bool, optional
@@ -10510,6 +11059,7 @@ def osc_prob_2nu_sun_nsi(
         nu_i=nu_i,
         nu_f=nu_f,
         density_is_of_number_of_electrons=True,
+        strategy=strategy,
         validate_input=validate_input,
         save_log=save_log,
         filename_log=filename_log,
@@ -10539,6 +11089,7 @@ def osc_prob_3nu_sun_nsi(
     nubar: Optional[bool]=False, 
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
+    strategy: Optional[str]='auto',
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
@@ -10627,6 +11178,13 @@ def osc_prob_3nu_sun_nsi(
         Final flavor index; see ``nu_i``. Default: None.
     default_osc_params_set_name : str, optional
         Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
+    strategy : str, optional
+        Numerical strategy used to compute the evolution operator: 'auto' (default),
+        'hybrid', or 'magnus'; see the ``strategy`` parameter of
+        :func:`osc_prob_matter_std_potential` for the full description and
+        :doc:`/adiabatic_strategy` for the derivation and validation. Default: 'auto'.
+
+        .. versionadded:: 0.11.0
     validate_input : bool, optional
         If True, validate the input parameters. Default: True.
     save_log : bool, optional
@@ -10671,6 +11229,7 @@ def osc_prob_3nu_sun_nsi(
         nu_f=nu_f,
         density_is_of_number_of_electrons=True,
         default_osc_params_set_name=default_osc_params_set_name,
+        strategy=strategy,
         validate_input=validate_input,
         save_log=save_log,
         filename_log=filename_log,
@@ -10710,6 +11269,7 @@ def osc_prob_4nu_sun_nsi(
     nubar: Optional[bool]=False, 
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
+    strategy: Optional[str]='auto',
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
@@ -10821,6 +11381,13 @@ def osc_prob_4nu_sun_nsi(
         Final flavor index; see ``nu_i``. Default: None.
     default_osc_params_set_name : str, optional
         Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
+    strategy : str, optional
+        Numerical strategy used to compute the evolution operator: 'auto' (default),
+        'hybrid', or 'magnus'; see the ``strategy`` parameter of
+        :func:`osc_prob_matter_std_potential` for the full description and
+        :doc:`/adiabatic_strategy` for the derivation and validation. Default: 'auto'.
+
+        .. versionadded:: 0.11.0
     validate_input : bool, optional
         If True, validate the input parameters. Default: True.
     save_log : bool, optional
@@ -10875,6 +11442,7 @@ def osc_prob_4nu_sun_nsi(
         nu_f=nu_f,
         density_is_of_number_of_electrons=True,
         default_osc_params_set_name=default_osc_params_set_name,
+        strategy=strategy,
         validate_input=validate_input,
         save_log=save_log,
         filename_log=filename_log,
@@ -10925,6 +11493,7 @@ def osc_prob_5nu_sun_nsi(
     nubar: Optional[bool]=False, 
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
+    strategy: Optional[str]='auto',
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
@@ -11061,6 +11630,13 @@ def osc_prob_5nu_sun_nsi(
         Final flavor index; see ``nu_i``. Default: None.
     default_osc_params_set_name : str, optional
         Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
+    strategy : str, optional
+        Numerical strategy used to compute the evolution operator: 'auto' (default),
+        'hybrid', or 'magnus'; see the ``strategy`` parameter of
+        :func:`osc_prob_matter_std_potential` for the full description and
+        :doc:`/adiabatic_strategy` for the derivation and validation. Default: 'auto'.
+
+        .. versionadded:: 0.11.0
     validate_input : bool, optional
         If True, validate the input parameters. Default: True.
     save_log : bool, optional
@@ -11126,6 +11702,7 @@ def osc_prob_5nu_sun_nsi(
         nu_f=nu_f,
         density_is_of_number_of_electrons=True,
         default_osc_params_set_name=default_osc_params_set_name,
+        strategy=strategy,
         validate_input=validate_input,
         save_log=save_log,
         filename_log=filename_log,
@@ -14090,6 +14667,7 @@ def osc_prob_2nu_sun_liv(
     nubar: Optional[bool]=False, 
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
+    strategy: Optional[str]='auto',
     density_matter_is_in_g_per_cm3: Optional[bool]=False,
     density_is_of_number_of_electrons: Optional[bool]=False,
     validate_input: Optional[bool]=True, 
@@ -14150,6 +14728,13 @@ def osc_prob_2nu_sun_liv(
         If True, the density is given in g cm^{-3}. Default: False.
     density_is_of_number_of_electrons : bool, optional
         If True, the density parameter directly gives the electron number density [eV^3]. Default: False.
+    strategy : str, optional
+        Numerical strategy used to compute the evolution operator: 'auto' (default),
+        'hybrid', or 'magnus'; see the ``strategy`` parameter of
+        :func:`osc_prob_matter_std_potential` for the full description and
+        :doc:`/adiabatic_strategy` for the derivation and validation. Default: 'auto'.
+
+        .. versionadded:: 0.11.0
     validate_input : bool, optional
         If True, validate the input parameters. Default: True.
     save_log : bool, optional
@@ -14191,6 +14776,7 @@ def osc_prob_2nu_sun_liv(
         nu_f=nu_f,
         density_matter_is_in_g_per_cm3=density_matter_is_in_g_per_cm3,
         density_is_of_number_of_electrons=density_is_of_number_of_electrons,
+        strategy=strategy,
         validate_input=validate_input,
         save_log=save_log,
         filename_log=filename_log,
@@ -14225,6 +14811,7 @@ def osc_prob_3nu_sun_liv(
     nubar: Optional[bool]=False, 
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
+    strategy: Optional[str]='auto',
     density_matter_is_in_g_per_cm3: Optional[bool]=False,
     density_is_of_number_of_electrons: Optional[bool]=False,
     validate_input: Optional[bool]=True, 
@@ -14301,6 +14888,13 @@ def osc_prob_3nu_sun_liv(
         If True, the density is given in g cm^{-3}. Default: False.
     density_is_of_number_of_electrons : bool, optional
         If True, the density parameter directly gives the electron number density [eV^3]. Default: False.
+    strategy : str, optional
+        Numerical strategy used to compute the evolution operator: 'auto' (default),
+        'hybrid', or 'magnus'; see the ``strategy`` parameter of
+        :func:`osc_prob_matter_std_potential` for the full description and
+        :doc:`/adiabatic_strategy` for the derivation and validation. Default: 'auto'.
+
+        .. versionadded:: 0.11.0
     validate_input : bool, optional
         If True, validate the input parameters. Default: True.
     save_log : bool, optional
@@ -14350,6 +14944,7 @@ def osc_prob_3nu_sun_liv(
         nu_f=nu_f,
         density_matter_is_in_g_per_cm3=density_matter_is_in_g_per_cm3,
         density_is_of_number_of_electrons=density_is_of_number_of_electrons,
+        strategy=strategy,
         validate_input=validate_input,
         save_log=save_log,
         filename_log=filename_log,
@@ -14396,6 +14991,7 @@ def osc_prob_4nu_sun_liv(
     nubar: Optional[bool]=False, 
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
+    strategy: Optional[str]='auto',
     density_matter_is_in_g_per_cm3: Optional[bool]=False,
     density_is_of_number_of_electrons: Optional[bool]=False,
     validate_input: Optional[bool]=True, 
@@ -14496,6 +15092,13 @@ def osc_prob_4nu_sun_liv(
         If True, the density is given in g cm^{-3}. Default: False.
     density_is_of_number_of_electrons : bool, optional
         If True, the density parameter directly gives the electron number density [eV^3]. Default: False.
+    strategy : str, optional
+        Numerical strategy used to compute the evolution operator: 'auto' (default),
+        'hybrid', or 'magnus'; see the ``strategy`` parameter of
+        :func:`osc_prob_matter_std_potential` for the full description and
+        :doc:`/adiabatic_strategy` for the derivation and validation. Default: 'auto'.
+
+        .. versionadded:: 0.11.0
     validate_input : bool, optional
         If True, validate the input parameters. Default: True.
     save_log : bool, optional
@@ -14557,6 +15160,7 @@ def osc_prob_4nu_sun_liv(
         nu_f=nu_f,
         density_matter_is_in_g_per_cm3=density_matter_is_in_g_per_cm3,
         density_is_of_number_of_electrons=density_is_of_number_of_electrons,
+        strategy=strategy,
         validate_input=validate_input,
         save_log=save_log,
         filename_log=filename_log,
@@ -14615,6 +15219,7 @@ def osc_prob_5nu_sun_liv(
     nubar: Optional[bool]=False, 
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
+    strategy: Optional[str]='auto',
     density_matter_is_in_g_per_cm3: Optional[bool]=False,
     density_is_of_number_of_electrons: Optional[bool]=False,
     validate_input: Optional[bool]=True, 
@@ -14739,6 +15344,13 @@ def osc_prob_5nu_sun_liv(
         If True, the density is given in g cm^{-3}. Default: False.
     density_is_of_number_of_electrons : bool, optional
         If True, the density parameter directly gives the electron number density [eV^3]. Default: False.
+    strategy : str, optional
+        Numerical strategy used to compute the evolution operator: 'auto' (default),
+        'hybrid', or 'magnus'; see the ``strategy`` parameter of
+        :func:`osc_prob_matter_std_potential` for the full description and
+        :doc:`/adiabatic_strategy` for the derivation and validation. Default: 'auto'.
+
+        .. versionadded:: 0.11.0
     validate_input : bool, optional
         If True, validate the input parameters. Default: True.
     save_log : bool, optional
@@ -14812,6 +15424,7 @@ def osc_prob_5nu_sun_liv(
         nu_f=nu_f,
         density_matter_is_in_g_per_cm3=density_matter_is_in_g_per_cm3,
         density_is_of_number_of_electrons=density_is_of_number_of_electrons,
+        strategy=strategy,
         validate_input=validate_input,
         save_log=save_log,
         filename_log=filename_log,

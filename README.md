@@ -17,6 +17,7 @@ precision, at any accuracy setting.  See
 ## Table of Contents
 
 - [When is Magνs a win?](#when-is-magnus-a-win)
+- [Adiabatic + Magnus hybrid strategy for extreme accumulated phases](#adiabatic--magnus-hybrid-strategy-for-extreme-accumulated-phases)
 - [When is Magνs not the right tool?](#when-is-magnus-not-the-right-tool)
 - [File Tree](#file-tree)
 - [Two ways to use Magνs](#two-ways-to-use-magnus)
@@ -71,12 +72,52 @@ Runge–Kutta solver), Mag$`\nu`$s wins when one or more of these apply:
 When is it *not* the best tool?  For a single probability at a single energy,
 any method is fast enough.  For **extreme accumulated phases** — e.g.,
 ~10-MeV neutrinos crossing most of the Sun (~10⁴ rad of matter-dominated
-phase) — the required slab count can exceed the default caps; Mag$`\nu`$s then
-warns (`ToleranceNotAchievedWarning`) instead of failing silently, and you
-should raise `max_n_slabs` (or use an adiabatic approximation, which is the
-natural method in that regime).  And a tight-tolerance ODE solver remains the
-best *reference* for validation — Mag$`\nu`$s's own test suite uses
+phase) — the plain Magnus slab-refinement method can need a very large slab
+count, and warns (`ToleranceNotAchievedWarning`) instead of failing silently
+if it hits its caps first.  Since v0.11.0, `osc_prob_matter_std_potential`,
+`osc_prob_matter_nsi`, `osc_prob_liv`, and every wrapper built on them
+(including all `osc_prob_*_sun*` functions) handle exactly this regime
+automatically, via `strategy='auto'` (the default): see [Adiabatic + Magnus
+hybrid strategy](#adiabatic--magnus-hybrid-strategy-for-extreme-accumulated-phases)
+below.  A tight-tolerance ODE solver remains the best *reference* for
+validation regardless — Mag$`\nu`$s's own test suite uses
 `scipy.integrate.solve_ivp` at `rtol=1e-12` as ground truth.
+
+## Adiabatic + Magnus hybrid strategy for extreme accumulated phases
+
+For a position-dependent Hamiltonian with no user-supplied slab edges, every
+matter/NSI/LIV oscillation-probability function accepts a `strategy` keyword:
+`'auto'` (default), `'hybrid'`, or `'magnus'`.
+
+- **`'magnus'`** uses only the Magnus-expansion machinery described above —
+  the exact behavior of Mag$`\nu`$s before v0.11.0.
+- **`'hybrid'`** additionally tries an adiabatic-transport-plus-Magnus-patch
+  propagator (`magnus.adiabatic.hybrid_propagator`): away from an eigenvalue
+  crossing of the instantaneous Hamiltonian, the evolution operator is
+  computed via the *instantaneous eigenbasis* (a dynamical + geometric phase,
+  cheap regardless of how large the accumulated phase is); near a genuine MSW
+  resonance, a short, exact Magnus patch is stitched in via the exact
+  composition law of quantum evolution.  The result is exactly unitary
+  regardless of the approximation's accuracy, and the whole computation is
+  self-certified by tightening every internal tolerance knob until two
+  successive results agree.  Works for **any number of flavors** and **any
+  number of simultaneous or sequential resonances** — not just the
+  two-flavor case.
+- **`'auto'`** tries `'hybrid'` first, silently falling back to `'magnus'`
+  for any point where it does not apply or fails to self-certify.
+
+```python
+import magnus.oscprob as oscprob
+import magnus.globaldefs as gd
+
+# 8 MeV, most of the way through the Sun: deep in the regime that used to
+# need a very large slab count under strategy='magnus'.
+P = oscprob.osc_prob_3nu_sun(8.0*gd.UNIT_MEV, 0.9*gd.SUN_RADIUS*gd.UNIT_KM, 0.0)
+# strategy='auto' by default: warning-free, and matches solve_ivp to ~1e-4.
+```
+
+See the [full derivation, validation, and worked examples](https://mbustama.github.io/Magnus/adiabatic_strategy.html)
+in the docs.
 
 ## When is Mag$`\nu`$s not the right tool?
 
@@ -143,6 +184,7 @@ Magnus/
 │   │   ├── functions.rst            # Full osc_prob_{2,3,4,5}nu_* listing, grouped by environment/scenario
 │   │   ├── architecture.rst         # The wrapper/middle/primordial layering, with diagrams
 │   │   ├── methodology.rst          # The Magnus expansion, integrators, and performance engineering
+│   │   ├── adiabatic_strategy.rst   # The adiabatic + Magnus hybrid strategy: derivation, diagrams, validation
 │   │   ├── tutorials.rst            # Guide to the numbered example notebooks in notebooks/
 │   │   ├── references.rst           # Bibliography page rendering
 │   │   ├── refs.bib                 # BibTeX citations for the Magnus-expansion and PREM literature
@@ -162,12 +204,14 @@ Magnus/
 │   ├── 08_magnus_bsm_nsi.ipynb
 │   ├── 09_magnus_bsm_liv.ipynb
 │   ├── 10_magnus_matrix_exponential.ipynb
+│   ├── 11_magnus_adiabatic_hybrid_strategy.ipynb
 │   ├── matplotlibrc                 # Shared plot styling for the notebooks
 │   └── README.md                    # Per-notebook description and suggested reading order
 ├── src/
 │   └── magnus/                      # Main Python package
-│       ├── __init__.py              # Explicitly imports/exposes the 7 modules below
+│       ├── __init__.py              # Explicitly imports/exposes the 8 modules below
 │       ├── magnus.py                # Magnus-expansion numerical core: term recursion, GL integrators, batched kernel
+│       ├── adiabatic.py             # Adiabatic transport + Magnus-patch hybrid strategy (strategy='hybrid'/'auto')
 │       ├── oscprob.py                # osc_prob and every physics-scenario wrapper (main API)
 │       ├── oscprobstd.py            # Closed-form 2nu/3nu probabilities (used to validate the wrapper API)
 │       ├── hamiltonians/            # 2nu-5nu Hamiltonians: vacuum, matter, NSI, LIV (the one true subpackage)
@@ -186,6 +230,7 @@ Magnus/
 ├── tests/                           # Test suite (pytest; runs in CI)
 │   ├── conftest.py                  # Path setup so magnus is importable without installation
 │   ├── test_magnus_expansion.py     # Magnus-core correctness (terms, orders, GL rates, unitarity)
+│   ├── test_adiabatic.py            # Adiabatic + Magnus hybrid strategy: detection, merging, ODE cross-checks
 │   ├── test_oscprob.py              # Oscillation-probability engine, closed-form and ODE cross-checks
 │   ├── test_earth_matter.py         # PREM profile, chord geometry, electron density
 │   ├── test_hamiltonians.py         # Hamiltonian/mixing-matrix builders
@@ -378,15 +423,28 @@ flowchart TD
     M["Middle layer<br/>osc_prob_vacuum · osc_prob_matter_std_potential · osc_prob_matter_nsi · osc_prob_liv"]
     P["Primordial layer<br/>osc_prob_energy_baseline → osc_prob"]
     K["Magnus core (magnus.py)<br/>magnus_expansion_multislab"]
+    A["Adiabatic + Magnus hybrid (adiabatic.py)<br/>hybrid_propagator"]
     H["Hamiltonians<br/>(hamiltonians2nu..5nu.py)"]
     E["Earth / Sun / matter density<br/>(VCC_func)"]
     U["Your own H_func(l)"]
 
     W --> M --> P --> K
+    M -. "strategy='hybrid'/'auto'" .-> A
+    A -. local patches use .-> K
     H --> M
     E --> M
     U -. bypasses the wrapper and middle layers .-> P
 ```
+
+`magnus.adiabatic` is a self-contained sibling of `magnus.magnus` (it depends
+only on the Magnus core, never on `oscprob.py`): the middle layer calls into
+it directly, at the same point where it would otherwise hand off to the
+primordial layer, whenever `strategy` allows it and the Hamiltonian is
+position-dependent. See [Adiabatic + Magnus hybrid
+strategy](#adiabatic--magnus-hybrid-strategy-for-extreme-accumulated-phases)
+above and the [dedicated docs
+page](https://mbustama.github.io/Magnus/adiabatic_strategy.html) for the
+full derivation.
 
 See [Code architecture](https://mbustama.github.io/Magnus/architecture.html)
 in the full documentation for the naming conventions, the `**kwargs`

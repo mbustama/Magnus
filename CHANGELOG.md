@@ -58,6 +58,85 @@ and the project uses [Semantic Versioning](https://semver.org/).
   wrappers therefore still use the general method unconditionally, exactly
   as before -- a natural target for a follow-up (e.g., a genuine adiabatic/
   WKB treatment, which does not have this scaling problem).
+- `magnus.adiabatic`: a new module implementing exactly the adiabatic/WKB
+  follow-up flagged above, generalized to *any* number of flavors and *any*
+  Hamiltonian (not just the 2-flavor case the interaction-picture fast path
+  above is restricted to). `adiabatic_propagator(H_func, l0, l1)` computes
+  the evolution operator via pure adiabatic (instantaneous-eigenbasis)
+  transport -- a dynamical phase (Simpson-integrated) plus a geometric
+  (Berry) phase, captured implicitly via discrete parallel transport of the
+  eigenvectors, with no restriction on the accumulated phase or on the
+  Hamiltonian being real. `find_resonance_candidates`/
+  `find_nonadiabatic_windows(H_func, l0, l1, threshold=0.1)` locate every
+  position where adiabatic transport breaks down, for any pair of levels,
+  via an *exact* Hellmann-Feynman diagnostic (no eigenvector finite
+  differencing, which is gauge-ambiguous): candidates are exact critical
+  points of each pairwise eigenvalue gap, and the adiabaticity verdict is
+  the Landau-Zener-like `gamma_jk = |<v_j|dH/dl|v_k>| / gap_jk^2`; windows
+  are grown to their physical width (independent of the search-grid
+  spacing) and merged when they overlap, so any number of simultaneous or
+  sequential resonances are handled uniformly.
+  `hybrid_propagator(H_func, l0, l1, rtol=1e-3, atol=1e-3)` composes
+  adiabatic transport with an exact local Magnus patch
+  (`magnus.magnus.magnus_expansion_multislab`) at each non-adiabatic
+  window, stitched via the exact composition law of quantum evolution
+  (so the result is exactly unitary regardless of approximation accuracy),
+  and self-certifies by tightening the adiabaticity threshold and two
+  internal grid densities together until two successive results agree.
+  Validated against `solve_ivp` on standard and BSM (NSI) 3-, 4-, and
+  5-flavor Hamiltonians, and on synthetic cases with two independent and
+  two merging resonances: 0-window cases match to ~2e-4 at 3,600x-25,800x
+  the speed of `solve_ivp`; 1-2-window (patched) cases match to
+  9e-4-2.9e-3 at 30x-91x the speed. See `docs/source/adiabatic_strategy.rst`
+  for the full derivation and validation.
+- `strategy` parameter (`'auto'` (default), `'hybrid'`, or `'magnus'`) on
+  `osc_prob_matter_std_potential`, `osc_prob_matter_nsi`, `osc_prob_liv`,
+  and every wrapper built on them (every `osc_prob_{2,3,4,5}nu_sun`,
+  `osc_prob_{2,3,4,5}nu_sun_nsi`, and `osc_prob_{2,3,4,5}nu_sun_liv`
+  function explicitly; every other wrapper via `**kwargs`), and also on
+  `osc_prob_sun`/`osc_prob_earth` (the fully generic, arbitrary-Hamiltonian
+  entry points, via a new `_osc_prob_hybrid_dispatch_generic`/
+  `_osc_prob_with_potential` code path, since these bypass
+  `osc_prob_matter_std_potential`/`_nsi`/`osc_prob_liv` entirely).
+  `'magnus'` reproduces the exact pre-0.11.0 behavior; `'hybrid'`
+  additionally tries `magnus.adiabatic.hybrid_propagator` for any
+  position-dependent, breakpoint-free potential with a requested
+  tolerance, returning a best-effort result plus the new
+  `HybridCertificationWarning` if it fails to self-certify; `'auto'` tries
+  `'hybrid'` first and falls back silently to the `'magnus'` strategies
+  otherwise. Unlike the interaction-picture fast path, this applies to any
+  number of flavors and does not require a tagged exponential profile. For
+  `osc_prob_earth`, `'hybrid'`/`'auto'` almost always fall back to
+  `'magnus'` in practice, since the PREM density profile's layer-boundary
+  breakpoints are essentially always non-empty for a real trajectory --
+  the general breakpoint-free requirement above, not a special case.
+- `magnus.oscprob.HybridCertificationWarning` (subclasses
+  `ToleranceNotAchievedWarning`): raised only when `strategy='hybrid'` is
+  explicitly requested and the hybrid propagator fails to self-certify for
+  at least one requested point.
+- `tests/test_adiabatic.py`: unit tests for `magnus.adiabatic` (unitarity,
+  resonance-candidate detection, window growth/merging in both directions,
+  and `solve_ivp` cross-checks for 3-5 flavor Hamiltonians), plus new
+  regression tests in `tests/test_oscprob.py`:
+  `test_sun_2nu_default_strategy_avoids_tolerance_cap` demonstrates the fix
+  directly through `osc_prob_2nu_sun` (the same (energy, baseline) point
+  that `test_tolerance_cap_warns` shows still hits the refinement caps
+  under `strategy='magnus'` is resolved, warning-free and matching
+  `solve_ivp`, under the new default);
+  `test_generic_osc_prob_sun_hybrid_strategy_resolves_hard_case` confirms
+  the same fix through the fully generic `osc_prob_sun` entry point (a
+  separate code path, `_osc_prob_hybrid_dispatch_generic`, not exercised
+  by the other test); `test_generic_osc_prob_earth_strategy_falls_back_to_magnus`
+  confirms `osc_prob_earth` is unaffected (PREM breakpoints disable the
+  hybrid dispatch).
+- `notebooks/11_magnus_adiabatic_hybrid_strategy.ipynb`: live comparison of
+  `strategy='auto'`/`'hybrid'`/`'magnus'` for 2- through 5-flavor
+  Hamiltonians (standard oscillations and an engineered BSM/NSI
+  resonance), each cross-checked against a tight-tolerance `solve_ivp`
+  ground truth in both runtime and accuracy, plus a real-data plot of the
+  instantaneous eigenvalues and detected non-adiabatic window for the 3ν
+  BSM case. Reproduces, live, the validation described in
+  `docs/source/adiabatic_strategy.rst`.
 
 ### Changed
 

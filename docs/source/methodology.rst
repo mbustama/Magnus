@@ -169,7 +169,11 @@ so they can look entirely plausible while still being inaccurate.  This is
 the practical manifestation of the convergence criterion above: it is the
 expected behavior for extreme accumulated phases, such as low-energy solar
 neutrinos traversing most of the Sun, where an adiabatic treatment is the
-more natural tool.
+more natural tool — see :doc:`adiabatic_strategy` for the
+``strategy='hybrid'``/``'auto'`` alternative that automates exactly this,
+built directly on top of the machinery described on this page (its local
+patches call the same :func:`magnus.magnus.magnus_expansion_multislab`
+kernel).
 
 Silent vectorization and the energy-batched scan engine
 -------------------------------------------------------------
