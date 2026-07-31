@@ -16,6 +16,29 @@ that history is the most useful record of *why* the code looks the way it does.
 
 ### Added
 
+- `magnus.expansionterms`: derives the terms of the Magnus expansion from the
+  Bernoulli-number recursion symbolically, at any order, in exact rational
+  arithmetic (`bernoulli`, `bernoulli_factor`, `omega_terms`, `magnus_terms`,
+  `count_terms`, `format_term`, `print_magnus_terms`). The numerical core's
+  coefficients were typed in and nothing checked them against the recursion they
+  come from; the test suite now regenerates them and compares, order by order, at
+  machine precision. See `docs/source/expansion_terms.rst`.
+- Magnus orders 7 through 10. `MAGNUS_EXP_ORDER_MAX` rises from 6 to 10, and is
+  now defined once in `magnus.magnus` and re-exported by `globaldefs`, which used
+  to carry its own copy of the number. The default expansion order is unchanged.
+  Orders 1-6 keep their hand-written expressions, which are hot and worth reading;
+  7-10 are generated from the closed form of the recursion (every term is a
+  right-nested chain of lower-order `Omega_m` around `A`, indexed by the
+  compositions of `n-1`), with shared suffixes memoized so each distinct nested
+  commutator is built once. Verified two ways: exact agreement with the symbolic
+  generator, and measured convergence rates that keep improving with order (order
+  8 reaches ~h^10 against an ODE ground truth where order 6 reaches ~h^8).
+- `magnus.magnus.MagnusHighOrderCostWarning`, raised when an order above 6 is
+  requested with a quadrature method. The number of terms roughly doubles per
+  order, and the measured cost per slab is 2.7x order 6 at order 7, rising to
+  ~17x at order 10. Higher order does converge faster in the slab width, so it is
+  a trade rather than a mistake -- but narrowing the slabs at order 4 or 6 often
+  reaches a given accuracy for less total work.
 - Command-line calculator (`magnus prob`, also runnable as `python -m magnus`)
   for computing a single oscillation probability from the shell, covering
   vacuum, matter (constant/exponential density), Earth, and Sun, with
