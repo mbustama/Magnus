@@ -187,7 +187,7 @@ Magnus/
 │       ├── lint.yml                 # Ruff lint (blocking) + CLI-reference drift check
 │       ├── pages.yml                # GitHub Pages deployment for the Sphinx documentation
 │       ├── publish.yml              # PyPI (OIDC) automated publishing workflow, on GitHub Release
-│       └── tests.yml                # GitHub Actions CI testing pipeline (Python 3.10-3.12)
+│       └── tests.yml                # GitHub Actions CI testing pipeline (Python 3.10-3.12) + coverage
 ├── docs/                            # Sphinx documentation configuration and source
 │   ├── source/
 │   │   ├── conf.py                  # Sphinx build configuration (autoapi + napoleon + bibtex + mermaid + myst)
@@ -869,6 +869,19 @@ Four GitHub Actions workflows run under [`.github/workflows/`](.github/workflows
     `load_nufit_params`'s version/ordering/category validation and default
     selection, and that its output feeds directly into `osc_prob_3nu_vacuum`
     to produce a unitary probability matrix.
+
+  The same workflow also has a separate **Coverage** job: it runs the suite
+  once more under `pytest --cov`, prints the per-module statement and branch
+  coverage on the run's summary page, and uploads `coverage.xml` as a build
+  artifact. It reports rather than gates — there is no `--cov-fail-under`
+  threshold — and it is its own job rather than a fourth entry in the matrix
+  because coverage does not depend on the interpreter, so measuring it three
+  times would only pay the instrumentation cost three times.
+
+  It also carries a Codecov upload step that is **dormant**: it is skipped
+  unless a `CODECOV_TOKEN` repository secret exists, so nothing is sent
+  anywhere today. Creating that secret is the whole act of switching public
+  coverage reporting on, which is deferred until the repository goes public.
 - **[`lint.yml`](.github/workflows/lint.yml)** — runs Ruff (`ruff check` and
   `ruff format --check`) on every push/PR to `main`. Currently informational
   (`continue-on-error: true`): it reports style/static-analysis issues
@@ -889,12 +902,28 @@ Four GitHub Actions workflows run under [`.github/workflows/`](.github/workflows
 [src/requirements.txt](src/requirements.txt).  Run the tests with:
 
 ```bash
-pip install -e . pytest && pytest tests/
+pip install -e '.[test]' && pytest tests/
 ```
 
 (`tests/conftest.py` puts `src/` on the path, so `pip install -r
 src/requirements.txt pytest` works too; installing the package is what CI does,
 and it additionally exercises the `magnus` console script.)
+
+The `test` extra also pulls in `pytest-cov`, so the same suite can report what
+it covers:
+
+```bash
+pytest tests/ --cov --cov-report=term-missing
+```
+
+Branch coverage, the measured source tree and the omitted files are configured
+in `[tool.coverage.run]` in `pyproject.toml`, so a bare `--cov` measures the
+same thing locally and in CI. Branch coverage is on deliberately: line coverage
+alone flatters this package, because `oscprob.py` is mostly thin wrappers that a
+single parametrized test sweeps in one pass, and the interesting question is
+whether the dispatch chain, the refinement caps and the warning paths are each
+taken in both directions. Expect the suite to run measurably slower under
+instrumentation.
 
 ## Changelog
 

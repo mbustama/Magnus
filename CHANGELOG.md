@@ -69,6 +69,19 @@ that history is the most useful record of *why* the code looks the way it does.
 - Full `pytest` suite (`tests/`) and GitHub Actions CI: `tests.yml` (matrix
   across Python 3.10-3.12), `lint.yml` (Ruff), `pages.yml` (Sphinx ->
   GitHub Pages), `publish.yml` (PyPI on release).
+- Test-coverage measurement. `pytest-cov` joins the `test` extra, the settings
+  live in `[tool.coverage.run]` in `pyproject.toml`, and a separate Coverage job
+  in `tests.yml` reports the figure on each run's summary page and uploads
+  `coverage.xml` as an artifact. Branch coverage is enabled: line coverage alone
+  overstates how well this package is tested, because `oscprob.py` is largely
+  thin wrappers that one parametrized test sweeps in a single pass, whereas what
+  matters is whether the dispatch chain, the refinement caps and the warning
+  paths are each taken in both directions. The job reports rather than gates --
+  there is deliberately no `--cov-fail-under`, since a threshold invented before
+  the first measurement either sits below the real figure and never fires, or
+  above it and blocks unrelated work. The job also carries a Codecov upload step
+  that stays dormant until a `CODECOV_TOKEN` secret exists, so nothing leaves the
+  repository until public coverage reporting is deliberately switched on.
 - Gauss-Legendre commutator-free integrators (`integration_method='gl'`),
   silent vectorization of Hamiltonian/density-profile evaluation, an
   energy-batched scan engine for separable Hamiltonians, adaptive slab

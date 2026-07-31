@@ -80,11 +80,39 @@ is configured correctly for your system:
 
 .. code-block:: bash
 
-   pip install pytest
+   pip install -e '.[test]'
    pytest tests/ -v
 
 The same suite runs in CI on Python 3.10-3.12 on every push; see the badge
 on the :doc:`index` page.
+
+Measuring test coverage
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+The ``test`` extra also installs ``pytest-cov``, so the same suite can report
+which lines and branches of the package it exercises:
+
+.. code-block:: bash
+
+   pytest tests/ --cov --cov-report=term-missing
+
+What to measure -- the source tree, the omitted files, and branch coverage --
+is configured once in ``[tool.coverage.run]`` in ``pyproject.toml``, so a bare
+``--cov`` here measures exactly what CI measures.  ``--cov-report=html`` writes
+a browsable ``htmlcov/`` tree instead, which is the more useful form when the
+question is *which* branch of a particular function is untested.
+
+Branch coverage is on deliberately.  A plain line-coverage figure overstates
+how well this package is tested: ``oscprob.py`` is dominated by thin wrappers
+that one parametrized test sweeps in a single pass, so the number to read is
+whether the dispatch chain, the refinement caps and the warning paths are each
+taken in *both* directions.
+
+Instrumentation is expensive for this suite: measured on one machine, the run
+goes from 188 s to 394 s, a factor of 2.1.  That is more than the usual
+coverage overhead, and it is what one would expect here, since the cost is
+dominated by a per-slab Python loop rather than by time spent inside numpy.
+Run it when you want the number, not on every iteration.
 
 File Tree
 ---------
@@ -97,7 +125,7 @@ File Tree
    │       ├── lint.yml                 # Ruff lint (blocking) + CLI-reference drift check
    │       ├── pages.yml                # GitHub Pages deployment for this documentation
    │       ├── publish.yml              # PyPI (OIDC) automated publishing workflow, on GitHub Release
-   │       └── tests.yml                # GitHub Actions CI testing pipeline (Python 3.10-3.12)
+   │       └── tests.yml                # GitHub Actions CI testing pipeline (Python 3.10-3.12) + coverage
    ├── docs/                            # Sphinx documentation configuration and source
    │   ├── source/
    │   │   ├── conf.py                  # Sphinx build configuration (autoapi + napoleon + bibtex + mermaid + myst)
