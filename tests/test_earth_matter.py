@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 """Tests of the earth and matter helper modules."""
 
+import warnings
+
 import numpy as np
 import pytest
 
@@ -213,3 +215,50 @@ def test_constant_electron_number_density_gives_a_constant_potential():
     assert callable(vcc_of_l)
     assert vcc_of_l(0.0) == pytest.approx(vcc)
     assert vcc_of_l(1.0e9) == pytest.approx(vcc)
+
+
+# ----------------------------------------------------------------------
+# The double-conversion guard
+# ----------------------------------------------------------------------
+
+def test_a_density_already_in_natural_units_is_flagged():
+    """Passing an already-converted density while declaring it to be in
+    g/cm^3 converts it twice, inflating the matter potential by some
+    eighteen orders of magnitude.
+
+    What makes this worth catching is that the result does not look like a
+    unit error: the matter term swamps everything, nu_e becomes an exact
+    eigenstate of the Hamiltonian, and the calculation returns a perfectly
+    self-consistent P_ee = 1 -- which reads as a broken formula rather
+    than as bad input."""
+    rho_internal = 100.0*gd.UNIT_G_PER_CM3
+
+    with pytest.warns(matter.DensityUnitWarning, match="natural units|neutron star"):
+        vcc = matter.vcc_func_from_rho_func(matter.exp_density_profile(rho_internal, 1.0e5),
+                                            density_matter_is_in_g_per_cm3=True)
+        np.asarray(vcc(0.0))
+
+
+@pytest.mark.parametrize("rho, in_g_per_cm3", [
+    (100.0, True),                       # a real density, correctly declared
+    (100.0*gd.UNIT_G_PER_CM3, False),    # already converted, correctly declared
+    (13.0, True),                        # Earth's core
+    (150.0, True),                       # the centre of the Sun
+])
+def test_plausible_densities_are_not_flagged(rho, in_g_per_cm3):
+    """The threshold sits three orders of magnitude above the densest
+    matter anyone models, so nothing physical trips it."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", matter.DensityUnitWarning)
+        vcc = matter.vcc_func_from_rho_func(matter.exp_density_profile(rho, 1.0e5),
+                                            density_matter_is_in_g_per_cm3=in_g_per_cm3)
+        np.asarray(vcc(0.0))
+
+
+def test_the_guard_only_applies_when_g_per_cm3_is_declared():
+    """A large number in natural units is perfectly ordinary; it is only
+    suspicious when the caller says it is a density in g/cm^3."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", matter.DensityUnitWarning)
+        vcc = matter.vcc_func_from_rho_func(matter.exp_density_profile(1.0e30, 1.0e5))
+        np.asarray(vcc(0.0))

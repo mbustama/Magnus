@@ -292,3 +292,50 @@ def test_magnus_terms_rejects_orders_below_one(max_order):
     import magnus.expansionterms as et
     with pytest.raises(ValueError, match="max_order"):
         et.magnus_terms(max_order)
+
+
+# ----------------------------------------------------------------------
+# Predefined parameter sets carry labels, not just parameters
+# ----------------------------------------------------------------------
+
+@pytest.mark.parametrize("extra", [{}, {'average': True}])
+def test_splatting_a_predefined_parameter_set_is_rejected_with_the_remedy(extra):
+    """`**OSC_PARAMS_PREDEFINED['...']` is the natural thing to write and it
+    does not work: the entries carry 'name' and 'description' strings
+    alongside the six mixing parameters.
+
+    Left unchecked, those two travel down the shared **kwargs chain until
+    the Magnus core rejects them, naming the one function in the chain that
+    has nothing to do with the mistake. Both the ordinary and the averaged
+    path are checked here, because they diverge before the core is reached:
+    the averaged one returns early, so a guard placed further down would
+    catch the strings on one path and silently ignore them on the other --
+    which is exactly what happened first time round."""
+    predefined = gd.OSC_PARAMS_PREDEFINED['OSC_PARAMS_DEFAULT']
+
+    with pytest.raises(ValueError, match="load_nufit_params|label"):
+        op.osc_prob_3nu_vacuum(ENERGY, 1.0e8*gd.UNIT_KM, **extra, **predefined)
+
+
+@pytest.mark.parametrize("extra", [{}, {'average': True}])
+def test_load_nufit_params_is_the_form_that_works(extra):
+    """The documented remedy has to actually run, on both paths."""
+    osc = gd.load_nufit_params('NuFIT 6.1')
+
+    P = np.asarray(op.osc_prob_3nu_vacuum(ENERGY, 1.0e8*gd.UNIT_KM, **extra, **osc))
+
+    assert np.allclose(P.sum(axis=-1), 1.0, atol=1e-9)
+
+
+def test_only_the_labelling_keys_are_rejected():
+    """The guard names two specific keys. An unrelated unexpected keyword is
+    still the Magnus core's business to reject, and must not be swept into
+    this diagnostic."""
+    osc = gd.load_nufit_params('NuFIT 6.1')
+
+    with pytest.raises(ValueError, match="name|description"):
+        op.osc_prob_3nu_vacuum(ENERGY, BASELINE, name='mine', **osc)
+
+    with pytest.raises((TypeError, ValueError)) as excinfo:
+        op.osc_prob_3nu_vacuum(ENERGY, BASELINE, not_a_real_option=1, **osc)
+    assert 'load_nufit_params' not in str(excinfo.value)

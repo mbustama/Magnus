@@ -143,6 +143,15 @@ that history is the most useful record of *why* the code looks the way it does.
   the method's conduct at the ceiling testable at a small cap -- reaching two
   million slabs to observe what happens at the boundary costs gigabytes and
   minutes, so with the values inlined those paths could not be tested at all.
+- `docs/check_doc_snippets.py`, which executes every `.. jupyter-execute::`
+  block in the documentation -- in the RST pages and in the docstrings autoapi
+  renders -- and reports the page, line and traceback of any that fails. The
+  documentation's examples are already run at build time, so a broken one fails
+  CI; what this adds is the ability to find out in about a second, rather than
+  from a full Sphinx build. The fast build used while writing docs stubs those
+  directives out, so it validates the prose and the cross-references while
+  saying nothing at all about the code, and a page can build cleanly while being
+  broken.
 - `tests/test_validation.py`, covering the guards that reject bad input: the
   per-flavour parameter dictionaries, flavour indices and expansion orders out
   of range, mismatched energy/baseline arrays, negative densities and
@@ -463,6 +472,27 @@ that history is the most useful record of *why* the code looks the way it does.
 
 ### Fixed
 
+- A matter density that has already been converted to natural units, but is then
+  declared to be in g cm^-3, is now flagged with `matter.DensityUnitWarning`
+  instead of being converted a second time in silence. The two scales do not
+  overlap -- the densest matter anyone models is some 1e15 g cm^-3, while any
+  density from water upwards becomes 4.3e18 or more once converted -- so the
+  check has three orders of magnitude of margin. It is worth having because the
+  consequences do not look like a unit error: the matter term swamps every other
+  scale, nu_e becomes an exact eigenstate, and the calculation returns a
+  perfectly self-consistent `P_ee = 1`, which reads as a broken formula rather
+  than as bad input.
+- Passing a whole entry of `globaldefs.OSC_PARAMS_PREDEFINED` to a probability
+  function, as `**OSC_PARAMS_PREDEFINED['OSC_PARAMS_DEFAULT']`, now raises a
+  `ValueError` naming the two offending keys and pointing at
+  `globaldefs.load_nufit_params`. Those entries carry `name` and `description`
+  strings alongside the six mixing parameters; unchecked, they travelled the
+  shared `**kwargs` chain until `magnus_expansion_multislab` rejected them,
+  naming the one function in the chain with nothing to do with the mistake. The
+  check sits in the four middle-layer functions rather than further down,
+  because the averaged and ordinary paths diverge before the Magnus core is
+  reached -- a guard placed later caught the strings on one path and ignored
+  them on the other.
 - `matter.vcc_func_from_rho_func` raised `TypeError: 'float' object is not
   callable` when given a constant electron number density together with
   `density_is_of_number_of_electrons=True`. `VCC_func` evaluates whatever it is
