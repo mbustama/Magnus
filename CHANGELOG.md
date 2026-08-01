@@ -15,6 +15,18 @@ earlier private states of the code, not to any published version -- because
 that history is the most useful record of *why* the code looks the way it does.
 
 ### Added
+- **Notebook 09 is now a Lorentz-invariance-violation notebook.** It had been a
+  scratch pad: no markdown, no figures, and no LIV content at all -- just
+  `print(module.__all__)` and a `print(sys.path)` that had stopped working. It
+  is now built around the one thing that makes LIV findable, the energy
+  scaling: the vacuum term falls as `1/E` and the matter term is flat, so both
+  switch *off* at high energy, while the LIV term grows as `E^n` and switches
+  *on*. Four figures follow from that -- where standard oscillations stop and
+  LIV keeps going, how the operator dimension `n_liv` sets that crossover, that
+  matter does not rescue the standard prediction (`V_CC` does not grow with
+  energy either), and how a null result at high energy becomes a limit on the
+  LIV eigenvalue, with the `b*L*E^n = 1` estimate landing where the curve
+  visibly departs.
 - A `magnus.plotting` module of pre-packaged figures, so that a plot in the
   notebooks costs one call rather than the twenty-five to forty lines of
   `gridspec_kw`, tick locators, legend keywords and `savefig` that each figure
