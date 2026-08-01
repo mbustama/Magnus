@@ -24,10 +24,10 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
@@ -48,14 +48,21 @@ jobs:
           make html
 
       - name: Setup GitHub Pages
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@v6
 
       - name: Upload HTML artifact
-        uses: actions/upload-pages-artifact@v3
+        # This action stopped including dotfiles in v4.  Checked rather than assumed: the
+        # build here produces exactly one, `.buildinfo`, which is Sphinx's incremental-build
+        # cache -- a full rebuild happens when it is absent, and CI builds from scratch every
+        # time, so losing it changes nothing.  There is no `.nojekyll`, and none is needed:
+        # deploying through Actions serves the artifact as-is rather than passing it to
+        # Jekyll, which is why `_static/` works despite the leading underscore.  If a page
+        # ever does need a dotfile, v5 added an `include-hidden-files` input.
+        uses: actions/upload-pages-artifact@v5
         with:
           # Ensure this path matches where Sphinx outputs your HTML files
           path: 'docs/build/html'
 
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5

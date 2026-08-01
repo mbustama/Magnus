@@ -43,10 +43,10 @@ jobs:
       matrix:
         python-version: ['3.10', '3.11', '3.12']
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
 
@@ -82,10 +82,10 @@ jobs:
       # Codecov step below switch itself off cleanly when the secret does not exist.
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: '3.12'
 
@@ -126,7 +126,7 @@ jobs:
         # checkmark, which is worse than a visible failure.  It cannot affect the tests'
         # own pass/fail signal, which comes from the matrix job above.
         if: env.CODECOV_TOKEN != ''
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v7
         with:
           files: ./coverage.xml
           fail_ci_if_error: true
@@ -135,7 +135,7 @@ jobs:
         # coverage.xml is the standard Cobertura format every coverage service consumes.
         # Publishing it as an artifact keeps the report available regardless of whether the
         # Codecov step above is active, and is what makes the figure inspectable today.
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-xml
           path: coverage.xml
