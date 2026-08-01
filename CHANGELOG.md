@@ -472,6 +472,41 @@ that history is the most useful record of *why* the code looks the way it does.
 
 ### Fixed
 
+- **Every notebook that used matter effects was computing vacuum.** Notebooks
+  01-10 built the coherent forward potential by calling
+  `matter.num_density_e_func` with a density in g cm^-3 but without
+  `density_matter_is_in_g_per_cm3=True` -- for constant densities and for
+  `earth.density_matter_func_prem` alike. That yields `VCC = 8.8e-32 eV`
+  instead of `3.8e-13 eV`, a factor of 4.3e18, so the matter term was ~20
+  orders of magnitude below the vacuum one. In notebook 02 the "matter"
+  probability came out bit-identical to the vacuum one. 19 call sites.
+- **The matter potential was subtracted where it should be added.** For
+  neutrinos the library computes `H_vac + h_matt(VCC)`; the antineutrino sign
+  flip lives inside `VCC` (`matter.vcc_func_from_rho_func` applies
+  `s = 1 if not nubar else -1`), and `matter.VCC_func` -- which the notebooks
+  used -- always returns a positive potential. 45 sites in notebooks 02, 03,
+  04, 07 and 08 carried a leading minus on a neutrino Hamiltonian. Checked
+  against the closed-form `oscprobstd` result: the corrected sign agrees to
+  2.4e-14, the old one is wrong by up to 135%. These two bugs masked each
+  other -- with the matter term 20 orders down the sign was invisible, and the
+  notebooks' own relative-error subpanels read a healthy 1e-12 because the
+  standard formula was being fed the same wrong potential.
+- **PREM was sampled at the centre of the Earth.** Notebooks 04, 05 and 07
+  wrote `VCC_func_prem(r/gd.CONV_KM_TO_INV_EV)` where `r` was already in km,
+  evaluating the profile at r ~ 1e-6 km and so using a constant 13.09 g cm^-3
+  everywhere instead of the layered profile. The same notebooks used the
+  correct `VCC_func_prem(r)` for their density *panels*, so the plotted profile
+  disagreed with the physics behind it. Cross-checked against
+  `osc_prob_3nu_earth`: the corrected Hamiltonian agrees to 3.2e-6, while the
+  old one gave P(nu_mu -> nu_e) = 0.0001 against a true 0.0047. 7 sites.
+- **A matter term discarded as dead code.** Eight Hamiltonians across notebooks
+  05 and 07 read `return H_vac(...)` followed by a bare `+ H_matt` on the next
+  line, which Python evaluates and throws away, so those Hamiltonians were pure
+  vacuum. Joined onto the `return`.
+- Notebook 07 had never run top to bottom: cell 14 referenced `baseline`, which
+  is first assigned three cells later. Five figure titles in notebooks 07 and
+  08 named the swept variable instead of the fixed one.
+
 - A matter density that has already been converted to natural units, but is then
   declared to be in g cm^-3, is now flagged with `matter.DensityUnitWarning`
   instead of being converted a second time in silence. The two scales do not
