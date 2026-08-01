@@ -7,11 +7,14 @@ every commutator group, following the Bernoulli-number recursion of
 Blanes, Casas, Oteo & Ros, Phys. Rep. 470, 151 (2009), Eq. (2.16).
 """
 
+import warnings
+
 import numpy as np
 import pytest
 import scipy as sp
 from scipy.integrate import cumulative_trapezoid, solve_ivp
 
+import magnus.magnus as mg
 from magnus.magnus import (MagnusConvergenceWarning, commutator,
                            magnus_expansion, magnus_expansion_multislab)
 
@@ -238,3 +241,85 @@ def test_no_convergence_warning_for_constant_A():
     with warnings.catch_warnings():
         warnings.simplefilter("error", MagnusConvergenceWarning)
         magnus_expansion(A, 0.0, 5.0, n_tpts=2, order=1)
+
+
+# ----------------------------------------------------------------------
+# Vectorization of the Hamiltonian (ScalarHamiltonianWarning)
+# ----------------------------------------------------------------------
+
+def _h_pieces():
+    """A constant part and a position-dependent potential, for the H below."""
+    h0 = np.diag([0.0, 1.0e-12, 2.0e-12])
+    e00 = np.diag([1.0, 0.0, 0.0])
+    return h0, e00
+
+
+def test_scalar_only_hamiltonian_warns_and_names_the_fix():
+    """The scalar fallback is correct but slow, and silent without this."""
+    h0, e00 = _h_pieces()
+
+    def H_scalar(l):
+        return h0 + float(np.exp(-l)) * e00      # float() rejects an array
+
+    with pytest.warns(mg.ScalarHamiltonianWarning, match='accepts an array'):
+        mg.magnus_expansion(lambda t: -1j * H_scalar(t), 0.0, 1.0,
+                            n_tpts=8, order=2, integration_method='trapezoid')
+
+
+def test_array_capable_hamiltonian_does_not_warn():
+    h0, e00 = _h_pieces()
+
+    def H_array(l):
+        l = np.asarray(l, dtype=float)
+        return h0 + np.exp(-l)[..., None, None] * e00
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('error', mg.ScalarHamiltonianWarning)
+        mg.magnus_expansion(lambda t: -1j * H_array(t), 0.0, 1.0,
+                            n_tpts=8, order=2, integration_method='trapezoid')
+
+
+def test_constant_hamiltonian_does_not_warn():
+    """A Hamiltonian that ignores its argument is detected and broadcast, so
+    it is already on a fast path and must not be told otherwise."""
+    h0, _ = _h_pieces()
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('error', mg.ScalarHamiltonianWarning)
+        mg.magnus_expansion(lambda t: -1j * h0, 0.0, 1.0,
+                            n_tpts=8, order=2, integration_method='trapezoid')
+
+
+def test_scalar_and_array_hamiltonians_give_the_same_answer():
+    """The warning is about speed only: the two paths must agree exactly."""
+    h0, e00 = _h_pieces()
+
+    def H_scalar(l):
+        return h0 + float(np.exp(-l)) * e00
+
+    def H_array(l):
+        l = np.asarray(l, dtype=float)
+        return h0 + np.exp(-l)[..., None, None] * e00
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore', mg.ScalarHamiltonianWarning)
+        a = mg.magnus_expansion(lambda t: -1j * H_scalar(t), 0.0, 1.0,
+                                n_tpts=32, order=4, integration_method='trapezoid')
+    b = mg.magnus_expansion(lambda t: -1j * H_array(t), 0.0, 1.0,
+                            n_tpts=32, order=4, integration_method='trapezoid')
+    assert np.allclose(a, b, rtol=0.0, atol=0.0)
+
+
+def test_wrong_vector_mode_hint_falls_back_and_warns():
+    """A caller-supplied A_eval_mode='vector' that turns out to be wrong must
+    degrade safely rather than return a mis-shaped result."""
+    h0, e00 = _h_pieces()
+
+    def H_scalar(l):
+        return h0 + float(np.exp(-l)) * e00
+
+    with pytest.warns(mg.ScalarHamiltonianWarning):
+        At, mode = mg._evaluate_A(lambda t: -1j * H_scalar(t),
+                                  np.linspace(0.0, 1.0, 5), 'vector')
+    assert mode == 'scalar'
+    assert At.shape == (5, 3, 3)

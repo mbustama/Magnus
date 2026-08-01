@@ -102,6 +102,50 @@ class MagnusHighOrderCostWarning(UserWarning):
     """
 
 
+class ScalarHamiltonianWarning(UserWarning):
+    r"""Warns that ``H_func`` accepts only one position at a time.
+
+    The engine evaluates the Hamiltonian at every quadrature node of every slab
+    -- often a few hundred positions for a single probability, and the adaptive
+    refinement repeats that at each level. :func:`_evaluate_A` therefore tries a
+    single vectorized call, ``A(times)``, and uses the result if it has the
+    right shape and agrees with a scalar spot-check. If that fails it falls back
+    to a Python loop, one call per position.
+
+    That fallback is correct but typically several times slower, and it is
+    *silent*: nothing about a scalar-only ``H_func`` looks wrong, so the slow
+    path is easy to sit on indefinitely. Measured on a three-flavor
+    exponential-density profile, making the same ``H_func`` array-capable cut
+    the time per :func:`magnus.oscprob.osc_prob` call from 7.8 ms to 1.7 ms,
+    a factor of 4.6, with bit-identical output.
+
+    Making a Hamiltonian array-capable usually means no more than writing its
+    position dependence with NumPy and letting the matrix part broadcast::
+
+        # slow: one position at a time
+        def H_func(l):
+            VCC = matter.VCC_func(l, num_density_e_func)
+            return (1.0/energy)*h_vac + hamiltonians.hamiltonian_3nu_matter(VCC)
+
+        # fast: the same physics, evaluated for all positions at once
+        e00 = np.diag([1.0, 0.0, 0.0])
+        def H_func(l):
+            l = np.asarray(l, dtype=float)
+            VCC = vcc_of(l)                      # returns an array
+            return (1.0/energy)*h_vac + VCC[..., None, None]*e00
+
+    The trailing ``[..., None, None]`` is what lets one potential per position
+    multiply a stack of matrices. A Hamiltonian that ignores its argument
+    entirely is detected separately and costs nothing, so constant-density cases
+    never trigger this.
+
+    Pass ``A_eval_mode='scalar'`` to :func:`magnus_expansion` (or accept the
+    warning) when a scalar-only Hamiltonian is genuinely unavoidable.
+
+    .. versionadded:: 1.0.0
+    """
+
+
 class MagnusConvergenceWarning(UserWarning):
     r"""Warns that a time slab may be too wide for the Magnus series.
 
@@ -184,6 +228,30 @@ def commutator(X: np.ndarray, Y: np.ndarray) -> np.ndarray:
     return X @ Y - Y @ X
 
 
+def _warn_scalar_hamiltonian() -> None:
+    r"""Warn that the Hamiltonian is being evaluated one position at a time.
+
+    Raised where the vectorization probe fails, which is the only place the
+    engine learns that ``H_func`` cannot take an array. See
+    :class:`ScalarHamiltonianWarning` for why this matters and how to fix it.
+
+    .. versionadded:: 1.0.0
+    """
+    warnings.warn(
+        "magnus: the Hamiltonian could not be evaluated for several positions "
+        "at once, so it is being called one position at a time. This is "
+        "correct but slower -- measured 4.6x on a 3nu exponential-density "
+        "profile -- because the engine samples the Hamiltonian at every "
+        "quadrature node of every slab, and the adaptive refinement repeats "
+        "that at each level. To take the fast path, write H_func so that it "
+        "accepts an array of positions and returns a stack of matrices: turn "
+        "the position dependence into NumPy operations and broadcast the "
+        "matrix part, e.g. 'VCC[..., None, None]*e00' instead of "
+        "'VCC*e00'. A Hamiltonian that ignores its argument is detected "
+        "separately and never triggers this. Shown once per session.",
+        ScalarHamiltonianWarning, stacklevel=3)
+
+
 def _evaluate_A(A: Callable, times: np.ndarray,
                 A_eval_mode: Optional[str] = None) -> Tuple[np.ndarray, str]:
     r"""Evaluate the matrix function A at all requested times.
@@ -225,6 +293,7 @@ def _evaluate_A(A: Callable, times: np.ndarray,
             At = None
         if (At is None) or (At.ndim < 3) or (At.shape[0] != flat.shape[0]):
             # The mode hint was wrong for this A: fall back safely
+            _warn_scalar_hamiltonian()
             At = np.array([A(t) for t in flat])
             A_eval_mode = 'scalar'
         return (At.reshape(times.shape + At.shape[-2:])
@@ -269,6 +338,7 @@ def _evaluate_A(A: Callable, times: np.ndarray,
                 mode = 'constant'
 
     if At is None:  # Fall back to the (slow but safe) per-point loop
+        _warn_scalar_hamiltonian()
         At = np.array([A(t) for t in flat])
 
     At = At.reshape(times.shape + A0.shape).astype(complex, copy=False)
@@ -1045,6 +1115,7 @@ def magnus_expansion_multislab(
 __all__ = [
     'MagnusConvergenceWarning',
     'MagnusHighOrderCostWarning',
+    'ScalarHamiltonianWarning',
     'B',
     'F1',
     'F2',

@@ -230,7 +230,15 @@ def hamiltonian_2nu_matter(VCC: float) -> np.ndarray:
         Hamiltonian 2x2 matrix.
     """
     # The matter Hamiltonian is [[VCC,0],[0,0]]
-    return np.diag([VCC, 0.0])
+    # Built by broadcasting rather than np.diag so that VCC may be an array of
+    # positions: VCC[..., None, None] turns one potential per position into a
+    # stack of matrices, which is what lets a caller's H_func take the engine's
+    # vectorized path (see magnus.magnus.ScalarHamiltonianWarning). A scalar VCC
+    # still returns a plain (2, 2) matrix.
+    VCC = np.asarray(VCC, dtype=float)
+    e00 = np.zeros((2, 2))
+    e00[0, 0] = 1.0
+    return VCC[..., None, None] * e00
     # h_matter = np.zeros((2,2))
 
     # # Add the matter potential to the ee term to find the matter Hamiltonian

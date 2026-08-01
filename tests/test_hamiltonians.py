@@ -340,3 +340,55 @@ def test_both_construction_paths_agree(name):
         # tolerance would be vacuous at one end and impossible at the other.
         assert maxabs(fast - slow) <= 1e-12*scale, \
             f"{name}: the hardcoded expression and the matrix product disagree (nubar={nubar})"
+
+
+# ----------------------------------------------------------------------
+# Matter Hamiltonians accept an array of potentials
+# ----------------------------------------------------------------------
+
+@pytest.mark.parametrize('dim, builder', [
+    (2, hams.hamiltonian_2nu_matter),
+    (3, hams.hamiltonian_3nu_matter),
+    (4, hams.hamiltonian_4nu_matter),
+    (5, hams.hamiltonian_5nu_matter),
+])
+def test_matter_hamiltonian_scalar_potential_is_unchanged(dim, builder):
+    """A scalar potential must still give a plain (d, d) matrix with the
+    potential on the ee entry and nothing else."""
+    H = builder(1.5)
+    assert H.shape == (dim, dim)
+    assert H[0, 0] == pytest.approx(1.5)
+    assert np.sum(np.abs(H)) == pytest.approx(1.5)
+
+
+@pytest.mark.parametrize('dim, builder', [
+    (2, hams.hamiltonian_2nu_matter),
+    (3, hams.hamiltonian_3nu_matter),
+    (4, hams.hamiltonian_4nu_matter),
+    (5, hams.hamiltonian_5nu_matter),
+])
+def test_matter_hamiltonian_accepts_an_array_of_potentials(dim, builder):
+    """One potential per position must give a stack of matrices. This is what
+    lets a caller's H_func take the engine's vectorized path instead of being
+    called once per position."""
+    VCC = np.array([1.0, 2.0, 3.0])
+    H = builder(VCC)
+    assert H.shape == (len(VCC), dim, dim)
+    for k, v in enumerate(VCC):
+        assert H[k, 0, 0] == pytest.approx(v)
+        assert np.sum(np.abs(H[k])) == pytest.approx(v)
+
+
+@pytest.mark.parametrize('dim, builder', [
+    (2, hams.hamiltonian_2nu_matter),
+    (3, hams.hamiltonian_3nu_matter),
+    (4, hams.hamiltonian_4nu_matter),
+    (5, hams.hamiltonian_5nu_matter),
+])
+def test_matter_hamiltonian_array_matches_the_scalar_route(dim, builder):
+    """The batched result must be exactly what looping would have produced --
+    this is a speed change, not a numerical one."""
+    VCC = np.linspace(0.5, 4.0, 7)
+    batched = builder(VCC)
+    looped = np.array([builder(v) for v in VCC])
+    assert np.array_equal(batched, looped)
