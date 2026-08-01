@@ -7633,8 +7633,12 @@ def osc_prob_earth(
         h_vac = hamiltonians.hamiltonian_3nu_vacuum_energy_independent(
             s12, s23, s13, dCP, D21, D31)
 
+        # Written so that it accepts an array of positions: VCC[..., None, None]
+        # turns one potential per position into a stack of matrices, which keeps
+        # osc_prob on its vectorized path (see ScalarHamiltonianWarning).
+        e00 = np.diag([1.0, 0.0, 0.0])
         def H(energy, l, VCC):
-            return (1 / energy) * h_vac + VCC * np.diag([1.0, 0.0, 0.0])
+            return (1 / energy) * h_vac + np.asarray(VCC)[..., None, None] * e00
 
         oscprob.osc_prob_earth(H, energy=1.0 * gd.UNIT_GEV, loc_ini='fermilab',
                                 loc_fin='homestake')
@@ -8591,8 +8595,11 @@ def osc_prob_sun(
         Dm2 = gd.D21_NO_BF_NUFIT_6_0
         h_vac = hamiltonians.hamiltonian_2nu_vacuum_energy_independent(sth, Dm2)
 
+        # Array-capable: VCC[..., None, None] broadcasts one potential per
+        # position over a stack of matrices, keeping the vectorized path.
+        e00 = np.diag([1.0, 0.0])
         def H(energy, l, VCC):
-            return (1 / energy) * h_vac + VCC * np.diag([1.0, 0.0])
+            return (1 / energy) * h_vac + np.asarray(VCC)[..., None, None] * e00
 
         # A trajectory through most of the Sun accumulates a large phase, so the
         # adaptive refinement needs a few loops to narrow the slabs; this is the

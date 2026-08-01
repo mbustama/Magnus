@@ -416,7 +416,9 @@ def plot_curves(
         import numpy as np
         from magnus.plotting import plot_curves
 
-        L = np.linspace(0.0, 1000.0, 200)
+        # starts away from zero: the reference appears in a denominator below,
+        # and sin(0)**2 is exactly 0
+        L = np.linspace(50.0, 1000.0, 200)
         exact = np.sin(L / 200.0) ** 2
         approx = exact + 1e-3 * np.cos(L / 50.0)
 
