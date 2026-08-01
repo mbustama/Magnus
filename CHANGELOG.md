@@ -16,6 +16,43 @@ that history is the most useful record of *why* the code looks the way it does.
 
 ### Added
 
+- **Notebook 09 is now a Lorentz-invariance-violation notebook.** It had been a
+  scratch pad: no markdown, no figures, and no LIV content at all -- just
+  `print(module.__all__)` and a `print(sys.path)` that had stopped working. It
+  is now built around the one thing that makes LIV findable, the energy
+  scaling: the vacuum term falls as `1/E` and the matter term is flat, so both
+  switch *off* at high energy, while the LIV term grows as `E^n` and switches
+  *on*. Four figures follow from that -- where standard oscillations stop and
+  LIV keeps going, how the operator dimension `n_liv` sets that crossover, that
+  matter does not rescue the standard prediction (`V_CC` does not grow with
+  energy either), and how a null result at high energy becomes a limit on the
+  LIV eigenvalue, with the `b*L*E^n = 1` estimate landing where the curve
+  visibly departs.
+- A `magnus.plotting` module of pre-packaged figures, so that a plot in the
+  notebooks costs one call rather than the twenty-five to forty lines of
+  `gridspec_kw`, tick locators, legend keywords and `savefig` that each figure
+  used to carry. Taking stock of the fifty-odd notebook figures first showed
+  that most are the same figure with different data: curves against baseline,
+  against energy, against a sterile mixing angle, and the matrix-exponential
+  convergence studies all reduce to one shape -- curves against a swept
+  variable over an optional relative-error subpanel -- which is `plot_curves`,
+  with `plot_probability_vs_baseline` and `plot_probability_vs_energy` as
+  presets over it. Only three layouts are genuinely distinct and get their own
+  functions: `plot_probability_with_profile`, `plot_biprobability` and
+  `plot_oscillogram`, plus `plot_probability_with_average` for the decohered
+  overlay. Defaults reproduce the existing house style exactly, and every
+  function returns `(fig, ax)` so a packaged figure is a starting point rather
+  than a dead end. `prob_label` absorbs the helper that had been copied into
+  several notebooks, extended to cover the sterile states those notebooks
+  needed but it did not.
+- **Matplotlib is an optional dependency**, declared as the `plot` extra
+  (`pip install 'magnuspy[plot]'`). The engine still needs only NumPy, SciPy
+  and joblib: someone computing probabilities inside their own analysis code
+  should not have to install a plotting stack. `magnus.plotting` imports
+  cleanly without Matplotlib -- it defers the import into the calls that draw
+  -- so `import magnus` works on a core-only install and only a plotting call
+  raises, as `MatplotlibNotFoundError`, naming the command to fix it.
+
 - The PyPI distribution is named **magnuspy**; the import package remains
   `magnus`. Plain `magnus` was already taken on PyPI by an unrelated project, so
   `pip install magnus` would have fetched someone else's package and the release
@@ -136,7 +173,7 @@ that history is the most useful record of *why* the code looks the way it does.
   near-degenerate ones are summed coherently within blocks, since the naive
   incoherent sum returns a spurious mixture where the correct answer is that
   nothing oscillates. Documented in `docs/source/averaged_probability.rst`, with
-  worked examples in `notebooks/12_magnus_averaged_probability.ipynb`.
+  worked examples in `notebooks/10_magnus_averaged_probability.ipynb`.
 - `magnus.oscprob.IP_EXP_N_SLABS_CAP` and `magnus.oscprob.IP_EXP_LOOP_CAP`: the
   interaction-picture integrator's slab and loop ceilings, previously written as
   bare numbers inside the function. Naming them changes no behaviour, and makes
@@ -314,7 +351,7 @@ that history is the most useful record of *why* the code looks the way it does.
   by the other test); `test_generic_osc_prob_earth_strategy_falls_back_to_magnus`
   confirms `osc_prob_earth` is unaffected (PREM breakpoints disable the
   hybrid dispatch).
-- `notebooks/11_magnus_adiabatic_hybrid_strategy.ipynb`: live comparison of
+- `notebooks/12_magnus_adiabatic_hybrid_strategy.ipynb`: live comparison of
   `strategy='auto'`/`'hybrid'`/`'magnus'` for 2- through 5-flavor
   Hamiltonians (standard oscillations and an engineered BSM/NSI
   resonance), each cross-checked against a tight-tolerance `solve_ivp`
@@ -471,6 +508,41 @@ that history is the most useful record of *why* the code looks the way it does.
   fails the build instead of being reported into a green checkmark.
 
 ### Fixed
+
+- **Every notebook that used matter effects was computing vacuum.** Notebooks
+  01-10 built the coherent forward potential by calling
+  `matter.num_density_e_func` with a density in g cm^-3 but without
+  `density_matter_is_in_g_per_cm3=True` -- for constant densities and for
+  `earth.density_matter_func_prem` alike. That yields `VCC = 8.8e-32 eV`
+  instead of `3.8e-13 eV`, a factor of 4.3e18, so the matter term was ~20
+  orders of magnitude below the vacuum one. In notebook 02 the "matter"
+  probability came out bit-identical to the vacuum one. 19 call sites.
+- **The matter potential was subtracted where it should be added.** For
+  neutrinos the library computes `H_vac + h_matt(VCC)`; the antineutrino sign
+  flip lives inside `VCC` (`matter.vcc_func_from_rho_func` applies
+  `s = 1 if not nubar else -1`), and `matter.VCC_func` -- which the notebooks
+  used -- always returns a positive potential. 45 sites in notebooks 02, 03,
+  04, 07 and 08 carried a leading minus on a neutrino Hamiltonian. Checked
+  against the closed-form `oscprobstd` result: the corrected sign agrees to
+  2.4e-14, the old one is wrong by up to 135%. These two bugs masked each
+  other -- with the matter term 20 orders down the sign was invisible, and the
+  notebooks' own relative-error subpanels read a healthy 1e-12 because the
+  standard formula was being fed the same wrong potential.
+- **PREM was sampled at the centre of the Earth.** Notebooks 04, 05 and 07
+  wrote `VCC_func_prem(r/gd.CONV_KM_TO_INV_EV)` where `r` was already in km,
+  evaluating the profile at r ~ 1e-6 km and so using a constant 13.09 g cm^-3
+  everywhere instead of the layered profile. The same notebooks used the
+  correct `VCC_func_prem(r)` for their density *panels*, so the plotted profile
+  disagreed with the physics behind it. Cross-checked against
+  `osc_prob_3nu_earth`: the corrected Hamiltonian agrees to 3.2e-6, while the
+  old one gave P(nu_mu -> nu_e) = 0.0001 against a true 0.0047. 7 sites.
+- **A matter term discarded as dead code.** Eight Hamiltonians across notebooks
+  05 and 07 read `return H_vac(...)` followed by a bare `+ H_matt` on the next
+  line, which Python evaluates and throws away, so those Hamiltonians were pure
+  vacuum. Joined onto the `return`.
+- Notebook 07 had never run top to bottom: cell 14 referenced `baseline`, which
+  is first assigned three cells later. Five figure titles in notebooks 07 and
+  08 named the swept variable instead of the fixed one.
 
 - A matter density that has already been converted to natural units, but is then
   declared to be in g cm^-3, is now flagged with `matter.DensityUnitWarning`

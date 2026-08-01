@@ -344,7 +344,15 @@ def hamiltonian_3nu_matter(VCC: float) -> np.ndarray:
     np.ndarray
         Hamiltonian 3x3 matrix.
     """
-    return np.diag([VCC, 0.0, 0.0])
+    # Built by broadcasting rather than np.diag so that VCC may be an array of
+    # positions: VCC[..., None, None] turns one potential per position into a
+    # stack of matrices, which is what lets a caller's H_func take the engine's
+    # vectorized path (see magnus.magnus.ScalarHamiltonianWarning). A scalar VCC
+    # still returns a plain (3, 3) matrix.
+    VCC = np.asarray(VCC, dtype=float)
+    e00 = np.zeros((3, 3))
+    e00[0, 0] = 1.0
+    return VCC[..., None, None] * e00
 
 
 def hamiltonian_3nu_matter_td(l: float, VCC_func: Callable) -> np.ndarray:

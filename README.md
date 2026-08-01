@@ -175,7 +175,7 @@ that.
 
 See the [full derivation, diagram, and validation](https://mbustama.github.io/Magnus/averaged_probability.html)
 in the docs, and
-[notebook 12](notebooks/12_magnus_averaged_probability.ipynb) for worked
+[notebook 10](notebooks/10_magnus_averaged_probability.ipynb) for worked
 examples across 2–5 flavors and a custom Hamiltonian.
 
 ## When is Mag$`\nu`$s not the right tool?
@@ -265,14 +265,14 @@ Magnus/
 │   ├── 07_magnus_bsm_sterile_nu.ipynb
 │   ├── 08_magnus_bsm_nsi.ipynb
 │   ├── 09_magnus_bsm_liv.ipynb
-│   ├── 10_magnus_matrix_exponential.ipynb
-│   ├── 11_magnus_adiabatic_hybrid_strategy.ipynb
-│   ├── 12_magnus_averaged_probability.ipynb
+│   ├── 10_magnus_averaged_probability.ipynb
+│   ├── 11_magnus_matrix_exponential.ipynb
+│   ├── 12_magnus_adiabatic_hybrid_strategy.ipynb
 │   ├── matplotlibrc                 # Shared plot styling for the notebooks
 │   └── README.md                    # Per-notebook description and suggested reading order
 ├── src/
 │   └── magnus/                      # Main Python package
-│       ├── __init__.py              # Explicitly imports/exposes the 8 modules below
+│       ├── __init__.py              # Explicitly imports/exposes the modules below
 │       ├── magnus.py                # Magnus-expansion numerical core: term recursion, GL integrators, batched kernel
 │       ├── adiabatic.py             # Adiabatic transport + Magnus-patch hybrid strategy (strategy='hybrid'/'auto')
 │       ├── oscprob.py                # osc_prob and every physics-scenario wrapper (main API)
@@ -286,6 +286,7 @@ Magnus/
 │       ├── earth.py                 # PREM density profile, chord/zenith-angle geometry
 │       ├── matter.py                # Density profiles, electron number density, CC potential
 │       ├── globaldefs.py            # Units, physical constants, NuFit parameter sets
+│       ├── plotting.py              # Pre-packaged figures for the notebooks (needs the optional `plot` extra)
 │       ├── cli.py                   # `magnus` command-line calculator (also `python -m magnus`)
 │       ├── __main__.py              # Entry point for `python -m magnus`
 │       ├── authors.py               # Package author string (internal; not part of the public API)
@@ -300,6 +301,7 @@ Magnus/
 │   ├── test_cli.py                  # magnus command-line calculator
 │   ├── test_globaldefs.py           # NuFit historical parameter dict/loader
 │   ├── test_validation.py           # Input-validation guards and their error messages
+│   ├── test_plotting.py             # Pre-packaged figures: house-style defaults, layouts, optional dependency
 │   └── test_version.py              # Version resolution from pyproject.toml / installed metadata
 ├── .gitignore
 ├── CHANGELOG.md                     # Version history (Keep a Changelog format)
@@ -857,6 +859,49 @@ Measured on a laptop, 3ν through the Earth (PREM), default tolerance 10⁻³:
 | 100 × 100 oscillogram (energy × direction) | ~2 s |
 | Reference: `solve_ivp` DOP853, single probability, rtol 10⁻⁶ | ~360 ms |
 
+### Write your `H_func` so it accepts an array of positions
+
+Those figures assume the fast path. If you pass your own Hamiltonian to
+`osc_prob`, the single largest factor under your control is whether it can be
+evaluated for many positions at once.
+
+The engine samples the Hamiltonian at every quadrature node of every slab —
+often a few hundred positions for one probability, repeated at each level of
+the adaptive refinement. It therefore tries a single vectorized call,
+`H_func(array_of_positions)`, and uses the result if it has the right shape and
+agrees with a scalar spot-check. If that fails it falls back to a Python loop,
+one call per position: correct, but measured **4.6× slower** on a 3ν
+exponential-density profile (7.8 ms → 1.7 ms per `osc_prob` call), with
+bit-identical output.
+
+```python
+# Slow: one position at a time
+def H_func(l):
+    VCC = matter.VCC_func(l, num_density_e_func)
+    return (1.0/energy)*h_vac + hamiltonians.hamiltonian_3nu_matter(VCC)
+
+# Fast: the same physics, all positions at once
+e00 = np.diag([1.0, 0.0, 0.0])
+def H_func(l):
+    l = np.asarray(l, dtype=float)
+    VCC = VCC_central*np.exp(-(l/gd.UNIT_KM)/l_scale)   # an array
+    return (1.0/energy)*h_vac + VCC[..., None, None]*e00
+```
+
+The `[..., None, None]` is the whole trick: it turns one potential per position
+into a stack of matrices, so NumPy broadcasts instead of Python looping. Note
+that this is a property of *your* function, not of `osc_prob` — the engine's own
+inner loops are already vectorized.
+
+Two things worth knowing:
+
+- A Hamiltonian that **ignores** its argument (constant density) is detected
+  separately and broadcast, so it is already fast and needs no change.
+- Since 1.0.0 the fallback raises `magnus.magnus.ScalarHamiltonianWarning`
+  once per session, naming the fix. Before that it was silent, which is why the
+  slow path is easy to sit on indefinitely — the shipped example notebooks all
+  did.
+
 ## Accuracy and validation
 
 The [test suite](tests/) (running in CI on Python 3.10–3.12) validates:
@@ -940,6 +985,14 @@ Four GitHub Actions workflows run under [`.github/workflows/`](.github/workflows
   - [`test_expansionterms.py`](tests/test_expansionterms.py) — the symbolic
     generation of Magnus expansion terms in exact rational arithmetic,
     checked against the numerical core's hand-written coefficients.
+  - [`test_plotting.py`](tests/test_plotting.py) — the pre-packaged figures:
+    that the house-style defaults survived the move out of the notebooks
+    (legend keywords, figure size, tick spacings), that the multi-panel
+    layouts stay aligned and suppress the right tick labels, that a
+    misspelled keyword raises instead of being swallowed, and that the
+    optional Matplotlib dependency fails with an error naming the extra to
+    install. Assertions are on the returned `fig`/`ax` objects rather than
+    on pixels.
   - [`test_version.py`](tests/test_version.py) — version resolution by both
     routes, the installed distribution's metadata and a direct read of
     `pyproject.toml`, which must agree; the distribution is `magnuspy` while
@@ -995,7 +1048,23 @@ Four GitHub Actions workflows run under [`.github/workflows/`](.github/workflows
 ## Requirements
 
 `numpy`, `scipy (>= 1.9)`, `joblib` — see
-[src/requirements.txt](src/requirements.txt).  Run the tests with:
+[src/requirements.txt](src/requirements.txt).
+
+`matplotlib` is **not** among them. It is needed only by
+[`magnus.plotting`](src/magnus/plotting.py), the module of pre-packaged figures
+the notebooks use, and is declared as the optional `plot` extra so that anyone
+computing probabilities inside their own analysis code does not have to install
+a plotting stack:
+
+```bash
+pip install 'magnuspy[plot]'
+```
+
+`import magnus` works with or without it; `magnus.plotting` imports Matplotlib
+lazily, inside the calls that draw, so only a plotting call raises, and it
+raises an error naming the command above.
+
+Run the tests with:
 
 ```bash
 pip install -e '.[test]' && pytest tests/

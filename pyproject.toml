@@ -30,9 +30,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-test = ["pytest", "pytest-cov"]
-dev = ["pytest", "pytest-cov", "twine", "build", "ruff"]
-docs = ["sphinx", "sphinx-autoapi", "sphinx-rtd-theme", "sphinx-copybutton", "sphinxcontrib-bibtex", "sphinxcontrib-mermaid", "myst-parser", "jupyter-sphinx", "ipykernel"]
+plot = ["matplotlib>=3.5"]
+test = ["pytest", "pytest-cov", "matplotlib>=3.5"]
+dev = ["pytest", "pytest-cov", "twine", "build", "ruff", "matplotlib>=3.5"]
+docs = ["sphinx", "sphinx-autoapi", "sphinx-rtd-theme", "sphinx-copybutton", "sphinxcontrib-bibtex", "sphinxcontrib-mermaid", "myst-parser", "jupyter-sphinx", "ipykernel", "matplotlib>=3.5"]
 
 [project.scripts]
 magnus = "magnus.cli:main"

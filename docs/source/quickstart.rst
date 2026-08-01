@@ -155,4 +155,4 @@ internally.  It accepts any square, Hermitian-valued function of position
 
 Find a full worked example of using :func:`~magnus.oscprob.osc_prob` directly for a
 time-dependent matrix exponential (not necessarily a physical Hamiltonian)
-in notebook 10; see :doc:`tutorials`.
+in notebook 11; see :doc:`tutorials`.

@@ -7,3 +7,8 @@ sphinxcontrib-mermaid
 myst-parser
 jupyter-sphinx
 ipykernel
+# Needed because docs/source/plotting.rst executes jupyter-execute blocks that
+# draw figures. This file, not pyproject's [docs] extra, is what pages.yml and
+# lint.yml install, so magnus.plotting's optional dependency has to be named here
+# too or the -W docs build fails on 'No module named matplotlib'.
+matplotlib

@@ -69,16 +69,18 @@
 
    Contains examples of how to compute $2\nu$ and $3\nu$ oscillation probabilities including an additional effective, energy-dependent Hamiltonian that represents the effect of Lorentz-invariance violation.
 
-## 10. Using Mag$`\nu`$s to expand time-dependent matrix exponentials [[`10_magnus_matrix_exponential.ipynb`](10_magnus_matrix_exponential.ipynb)]
+   The organizing idea is the energy dependence.  The vacuum term falls as $1/E$ and the matter term is flat in $E$, so both switch *off* at high energy, while the LIV term grows as $E^n$ and switches *on*.  The notebook shows where standard oscillations stop and LIV keeps going, how the operator dimension `n_liv` sets the energy at which that happens, that matter does not rescue the standard prediction, and how a null result at high energy turns into a limit on the LIV eigenvalue.
+
+## 10. Phase-averaged (decohered) probabilities [[`10_magnus_averaged_probability.ipynb`](10_magnus_averaged_probability.ipynb)]
+
+   Contains worked examples of the `average=True` keyword, which returns the exact $L/E \to \infty$ limit reached by astrophysical neutrinos: $P_{\alpha\beta} = \sum_i |V_{\alpha i}|^2 |V_{\beta i}|^2$. Covers $2\nu$ through $5\nu$ and a hand-built custom Hamiltonian that is not one of the ones Mag$`\nu`$s ships with, plotting in each case the oscillating probability against baseline together with its averaged value. Ends with the pion-decay flavor composition at Earth, the coherence check that refuses the averaged limit where it does not apply, and a cost comparison against averaging the engine numerically.
+## 11. Using Mag$`\nu`$s to expand time-dependent matrix exponentials [[`11_magnus_matrix_exponential.ipynb`](11_magnus_matrix_exponential.ipynb)]
 
    Contains example of how to use Mag$`\nu`$s to compute the Magnus expansion of the matrix exponential of the exponential of a time-dependent matrix, $A(t)$, such as the ones that appear in the calculation of the time-evolution operator of a time-dependent Hamiltonian, i.e., $\exp\left(\int_{t_i}^{t_f} A(t)\right)$.
 
    Ends with the coefficients themselves: how `magnus.expansionterms` derives the expansion from the Bernoulli recursion at any order, in exact rational arithmetic, how those coefficients relate to the constants the numerical core hard-codes, and how quickly the number of terms grows with order.
 
-## 11. The adiabatic + Magnus hybrid strategy [[`11_magnus_adiabatic_hybrid_strategy.ipynb`](11_magnus_adiabatic_hybrid_strategy.ipynb)]
+## 12. The adiabatic + Magnus hybrid strategy [[`12_magnus_adiabatic_hybrid_strategy.ipynb`](12_magnus_adiabatic_hybrid_strategy.ipynb)]
 
    Contains a live comparison of the three `strategy` values (`'auto'`, `'hybrid'`, `'magnus'`) accepted by every matter/NSI/LIV oscillation-probability function, for 2- through 5-neutrino systems, both for standard oscillations and for an engineered BSM (NSI) resonance. Every case is cross-checked against a tight-tolerance `scipy.integrate.solve_ivp` solution, comparing both runtime and accuracy, and reproduces the validation described in `docs/source/adiabatic_strategy.rst`.
 
-## 12. Phase-averaged (decohered) probabilities [[`12_magnus_averaged_probability.ipynb`](12_magnus_averaged_probability.ipynb)]
-
-   Contains worked examples of the `average=True` keyword, which returns the exact $L/E \to \infty$ limit reached by astrophysical neutrinos: $P_{\alpha\beta} = \sum_i |V_{\alpha i}|^2 |V_{\beta i}|^2$. Covers $2\nu$ through $5\nu$ and a hand-built custom Hamiltonian that is not one of the ones Mag$`\nu`$s ships with, plotting in each case the oscillating probability against baseline together with its averaged value. Ends with the pion-decay flavor composition at Earth, the coherence check that refuses the averaged limit where it does not apply, and a cost comparison against averaging the engine numerically.
