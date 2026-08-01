@@ -15,6 +15,7 @@ earlier private states of the code, not to any published version -- because
 that history is the most useful record of *why* the code looks the way it does.
 
 ### Added
+
 - **Notebook 09 is now a Lorentz-invariance-violation notebook.** It had been a
   scratch pad: no markdown, no figures, and no LIV content at all -- just
   `print(module.__all__)` and a `print(sys.path)` that had stopped working. It
@@ -51,7 +52,6 @@ that history is the most useful record of *why* the code looks the way it does.
   cleanly without Matplotlib -- it defers the import into the calls that draw
   -- so `import magnus` works on a core-only install and only a plotting call
   raises, as `MatplotlibNotFoundError`, naming the command to fix it.
-
 
 - The PyPI distribution is named **magnuspy**; the import package remains
   `magnus`. Plain `magnus` was already taken on PyPI by an unrelated project, so
@@ -173,7 +173,7 @@ that history is the most useful record of *why* the code looks the way it does.
   near-degenerate ones are summed coherently within blocks, since the naive
   incoherent sum returns a spurious mixture where the correct answer is that
   nothing oscillates. Documented in `docs/source/averaged_probability.rst`, with
-  worked examples in `notebooks/12_magnus_averaged_probability.ipynb`.
+  worked examples in `notebooks/10_magnus_averaged_probability.ipynb`.
 - `magnus.oscprob.IP_EXP_N_SLABS_CAP` and `magnus.oscprob.IP_EXP_LOOP_CAP`: the
   interaction-picture integrator's slab and loop ceilings, previously written as
   bare numbers inside the function. Naming them changes no behaviour, and makes
@@ -351,7 +351,7 @@ that history is the most useful record of *why* the code looks the way it does.
   by the other test); `test_generic_osc_prob_earth_strategy_falls_back_to_magnus`
   confirms `osc_prob_earth` is unaffected (PREM breakpoints disable the
   hybrid dispatch).
-- `notebooks/11_magnus_adiabatic_hybrid_strategy.ipynb`: live comparison of
+- `notebooks/12_magnus_adiabatic_hybrid_strategy.ipynb`: live comparison of
   `strategy='auto'`/`'hybrid'`/`'magnus'` for 2- through 5-flavor
   Hamiltonians (standard oscillations and an engineered BSM/NSI
   resonance), each cross-checked against a tight-tolerance `solve_ivp`

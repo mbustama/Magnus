@@ -169,13 +169,14 @@ File Tree
    │   ├── 07_magnus_bsm_sterile_nu.ipynb
    │   ├── 08_magnus_bsm_nsi.ipynb
    │   ├── 09_magnus_bsm_liv.ipynb
-   │   ├── 10_magnus_matrix_exponential.ipynb
-   │   ├── 11_magnus_adiabatic_hybrid_strategy.ipynb
+   │   ├── 10_magnus_averaged_probability.ipynb
+   │   ├── 11_magnus_matrix_exponential.ipynb
+   │   ├── 12_magnus_adiabatic_hybrid_strategy.ipynb
    │   ├── matplotlibrc                 # Shared plot styling for the notebooks
    │   └── README.md                    # Per-notebook description and suggested reading order
    ├── src/
    │   ├── magnus/                      # Main Python package
-   │   │   ├── __init__.py              # Explicitly imports/exposes the 8 public modules below
+   │   │   ├── __init__.py              # Explicitly imports/exposes the public modules below
    │   │   ├── magnus.py                # Magnus-expansion numerical core: term recursion, GL integrators, batched kernel
    │   │   ├── adiabatic.py             # Adiabatic transport + Magnus-patch hybrid strategy (strategy='hybrid'/'auto')
    │   │   ├── oscprob.py               # osc_prob and every physics-scenario wrapper (main API)
@@ -189,6 +190,7 @@ File Tree
    │   │   ├── earth.py                 # PREM density profile, chord/zenith-angle geometry
    │   │   ├── matter.py                # Density profiles, electron number density, CC potential
    │   │   ├── globaldefs.py            # Units, physical constants, NuFit parameter sets
+   │   │   ├── plotting.py              # Pre-packaged figures for the notebooks (optional `plot` extra)
    │   │   ├── cli.py                   # `magnus` command-line calculator (also `python -m magnus`)
    │   │   ├── __main__.py              # Entry point for `python -m magnus`
    │   │   ├── authors.py               # Package author string (internal; not part of the public API)

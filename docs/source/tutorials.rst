@@ -1,7 +1,7 @@
 Tutorial Notebooks
 ===================
 
-The ``notebooks/`` directory in the repository contains eleven runnable
+The ``notebooks/`` directory in the repository contains twelve runnable
 Jupyter notebooks, numbered ``01``-``12`` in the order we'd suggest reading
 them.
 
@@ -52,17 +52,17 @@ them.
      - You need non-standard interactions (NSI) in matter.
    * - 09
      - `magnus_bsm_liv.ipynb <https://github.com/mbustama/Magnus/blob/main/notebooks/09_magnus_bsm_liv.ipynb>`_
-     - 2ν and 3ν probabilities with an additional effective, energy-dependent Hamiltonian representing Lorentz-invariance violation (LIV).
-     - You need a CPT-odd LIV term in the Hamiltonian.
+     - 2ν and 3ν probabilities with an additional effective, energy-dependent Hamiltonian representing Lorentz-invariance violation (LIV).  Built around the energy scaling: the vacuum term falls as :math:`1/E` and the matter term is flat, so both switch off at high energy, while the LIV term grows as :math:`E^n` and switches on.  Covers where standard oscillations stop and LIV continues, how the operator dimension sets that crossover, why matter does not rescue the standard prediction, and how a null result becomes a limit on the LIV eigenvalue.
+     - You need a CPT-odd LIV term in the Hamiltonian, or want to know at what energy new physics of a given operator dimension would first show up.
    * - 10
-     - `magnus_matrix_exponential.ipynb <https://github.com/mbustama/Magnus/blob/main/notebooks/10_magnus_matrix_exponential.ipynb>`_
-     - Using Magνs as a general-purpose tool: computing the Magnus expansion and matrix exponential of an arbitrary time-dependent matrix :math:`A(t)`, i.e. :math:`\exp\!\left(\int_{t_i}^{t_f} A(t)\, dt\right)`, decoupled from any neutrino-physics interpretation.  Closes with the expansion's own coefficients: deriving them from the Bernoulli recursion at any order with :mod:`magnus.expansionterms` (see :doc:`expansion_terms`).
-     - You want to call :func:`magnus.magnus.magnus_expansion` directly, outside of the oscillation-probability wrappers.
-   * - 11
-     - `magnus_adiabatic_hybrid_strategy.ipynb <https://github.com/mbustama/Magnus/blob/main/notebooks/11_magnus_adiabatic_hybrid_strategy.ipynb>`_
-     - Live comparison of ``strategy='auto'``/``'hybrid'``/``'magnus'`` for 2-5 flavors, standard oscillations and an engineered BSM (NSI) resonance, each cross-checked against ``solve_ivp`` in both runtime and accuracy. Reproduces the validation in :doc:`adiabatic_strategy`.
-     - You want to see the extreme-accumulated-phase problem (and its fix) reproduced live, or need a template for benchmarking your own Hamiltonian.
-   * - 12
-     - `magnus_averaged_probability.ipynb <https://github.com/mbustama/Magnus/blob/main/notebooks/12_magnus_averaged_probability.ipynb>`_
+     - `magnus_averaged_probability.ipynb <https://github.com/mbustama/Magnus/blob/main/notebooks/10_magnus_averaged_probability.ipynb>`_
      - The phase-averaged (decohered) limit reached by astrophysical neutrinos, via ``average=True``: 2-5 flavors and a hand-built custom Hamiltonian, each plotted as the oscillating probability against baseline with its averaged value overlaid.  Includes the pion-decay flavor composition at Earth, the check that refuses the limit where it does not apply, and the cost against averaging the engine numerically.  Accompanies :doc:`averaged_probability`.
      - You work with astrophysical neutrinos, or with any baseline long enough that the oscillation is averaged out by the measurement.
+   * - 11
+     - `magnus_matrix_exponential.ipynb <https://github.com/mbustama/Magnus/blob/main/notebooks/11_magnus_matrix_exponential.ipynb>`_
+     - Using Magνs as a general-purpose tool: computing the Magnus expansion and matrix exponential of an arbitrary time-dependent matrix :math:`A(t)`, i.e. :math:`\exp\!\left(\int_{t_i}^{t_f} A(t)\, dt\right)`, decoupled from any neutrino-physics interpretation.  Closes with the expansion's own coefficients: deriving them from the Bernoulli recursion at any order with :mod:`magnus.expansionterms` (see :doc:`expansion_terms`).
+     - You want to call :func:`magnus.magnus.magnus_expansion` directly, outside of the oscillation-probability wrappers.
+   * - 12
+     - `magnus_adiabatic_hybrid_strategy.ipynb <https://github.com/mbustama/Magnus/blob/main/notebooks/12_magnus_adiabatic_hybrid_strategy.ipynb>`_
+     - Live comparison of ``strategy='auto'``/``'hybrid'``/``'magnus'`` for 2-5 flavors, standard oscillations and an engineered BSM (NSI) resonance, each cross-checked against ``solve_ivp`` in both runtime and accuracy. Reproduces the validation in :doc:`adiabatic_strategy`.
+     - You want to see the extreme-accumulated-phase problem (and its fix) reproduced live, or need a template for benchmarking your own Hamiltonian.
