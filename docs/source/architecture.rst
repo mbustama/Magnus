@@ -63,16 +63,25 @@ easy to break by accident when adding code:
   modules.
 
 ``earth.py``, ``globaldefs.py``, ``magnus.py``, ``adiabatic.py``,
-``matter.py``, ``oscprob.py``, and ``oscprobstd.py`` are flat sibling
-files directly under ``src/magnus/`` -- there is no subpackage directory
+``avgprob.py``, ``expansionterms.py``, ``matter.py``, ``oscprob.py``,
+``oscprobstd.py``, and ``plotting.py`` are flat sibling files directly
+under ``src/magnus/`` -- there is no subpackage directory
 wrapping any of them. Only ``magnus.hamiltonians`` is a genuine
 subpackage, since it holds four distinct, flavor-count-specific modules
 (``hamiltonians2nu.py`` through ``hamiltonians5nu.py``); its
 ``__init__.py`` explicitly imports and re-exports each one's public
 names (no ``from .module import *``). ``magnus/__init__.py`` itself
-explicitly imports all eight top-level modules (again, no wildcard
+explicitly imports all eleven top-level modules (again, no wildcard
 imports) so that ``import magnus`` alone makes ``magnus.earth``,
-``magnus.oscprob``, etc. immediately accessible. ``magnus.oscprob``
+``magnus.oscprob``, etc. immediately accessible.
+
+``plotting.py`` is the one module outside this dependency picture: it
+imports nothing from the rest of the package except
+``globaldefs`` (for the flavor constants), and nothing imports it. It is
+also the only module needing a dependency beyond NumPy/SciPy/joblib --
+Matplotlib, declared as the optional ``plot`` extra and imported lazily
+inside the drawing calls, so that ``import magnus`` still works without
+it. See :doc:`plotting`. ``magnus.oscprob``
 additionally imports and re-exports ``oscprobstd.py``'s five names (the
 closed-form validation counterpart to the wrapper API), so both
 ``magnus.oscprob.osc_prob_3nu_vacuum_std`` and

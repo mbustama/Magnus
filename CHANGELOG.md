@@ -15,6 +15,31 @@ earlier private states of the code, not to any published version -- because
 that history is the most useful record of *why* the code looks the way it does.
 
 ### Added
+- A `magnus.plotting` module of pre-packaged figures, so that a plot in the
+  notebooks costs one call rather than the twenty-five to forty lines of
+  `gridspec_kw`, tick locators, legend keywords and `savefig` that each figure
+  used to carry. Taking stock of the fifty-odd notebook figures first showed
+  that most are the same figure with different data: curves against baseline,
+  against energy, against a sterile mixing angle, and the matrix-exponential
+  convergence studies all reduce to one shape -- curves against a swept
+  variable over an optional relative-error subpanel -- which is `plot_curves`,
+  with `plot_probability_vs_baseline` and `plot_probability_vs_energy` as
+  presets over it. Only three layouts are genuinely distinct and get their own
+  functions: `plot_probability_with_profile`, `plot_biprobability` and
+  `plot_oscillogram`, plus `plot_probability_with_average` for the decohered
+  overlay. Defaults reproduce the existing house style exactly, and every
+  function returns `(fig, ax)` so a packaged figure is a starting point rather
+  than a dead end. `prob_label` absorbs the helper that had been copied into
+  several notebooks, extended to cover the sterile states those notebooks
+  needed but it did not.
+- **Matplotlib is an optional dependency**, declared as the `plot` extra
+  (`pip install 'magnuspy[plot]'`). The engine still needs only NumPy, SciPy
+  and joblib: someone computing probabilities inside their own analysis code
+  should not have to install a plotting stack. `magnus.plotting` imports
+  cleanly without Matplotlib -- it defers the import into the calls that draw
+  -- so `import magnus` works on a core-only install and only a plotting call
+  raises, as `MatplotlibNotFoundError`, naming the command to fix it.
+
 
 - The PyPI distribution is named **magnuspy**; the import package remains
   `magnus`. Plain `magnus` was already taken on PyPI by an unrelated project, so

@@ -2,9 +2,16 @@
 r"""__init__.py
 
 Top-level package initializer for magnus. Exposes the package version and
-explicitly imports the ten modules that make up Magnus's public API:
+explicitly imports the eleven modules that make up Magnus's public API:
 adiabatic, avgprob, earth, expansionterms, globaldefs, hamiltonians, magnus,
-matter, oscprob, and oscprobstd. See :doc:`/architecture` for how they fit together.
+matter, oscprob, oscprobstd, and plotting. See :doc:`/architecture` for how they
+fit together.
+
+:mod:`magnus.plotting` needs Matplotlib, which is an optional dependency
+(``pip install 'magnuspy[plot]'``). Importing it here is nonetheless safe
+without Matplotlib: the module imports it lazily, inside the calls that draw,
+so ``import magnus`` keeps working on a core-only install and only the plotting
+calls themselves raise.
 
 ``authors`` and ``version`` are internal metadata modules (used by
 :func:`magnus.oscprob.print_banner` and the ``magnus`` command-line
@@ -35,6 +42,7 @@ from . import magnus
 from . import matter
 from . import oscprob
 from . import oscprobstd
+from . import plotting
 
 submodules = [
     'adiabatic',
@@ -47,6 +55,7 @@ submodules = [
     'matter',
     'oscprob',
     'oscprobstd',
+    'plotting',
 ]
 
 __all__ = submodules
