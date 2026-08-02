@@ -45,6 +45,21 @@ that history is the most useful record of *why* the code looks the way it does.
   than a dead end. `prob_label` absorbs the helper that had been copied into
   several notebooks, extended to cover the sterile states those notebooks
   needed but it did not.
+- **`plotting.plot_curves_stacked`, for small multiples.** Auditing which
+  notebook figures still built their own axes turned up one shape the module
+  had missed: the same plot repeated once per case down a shared abscissa --
+  notebook 07's four panels, one per detector. It is worth packaging for the
+  same reason as the rest: the reader compares *between* panels, so every panel
+  must carry identical limits, scales and tick spacings, while the abscissa
+  labels, title, legend and ordinate label belong to exactly one panel each.
+  Hand-built that is four formatting loops plus a frameless full-figure subplot
+  added purely to hang a shared label on, and it is where a stack quietly stops
+  being readable once one panel drifts. `legend_proxies` also retires a trick
+  the notebook used: plotting dummy points outside the axis limits to
+  manufacture legend handles for entries that describe a line *style* rather
+  than any one curve. Notebook 07's two remaining hand-built figures now use
+  this and `plot_curves`; the second turned out to need no new function at all,
+  only a `gridspec_kw` that had never done anything.
 - **Matplotlib is an optional dependency**, declared as the `plot` extra
   (`pip install 'magnuspy[plot]'`). The engine still needs only NumPy, SciPy
   and joblib: someone computing probabilities inside their own analysis code
