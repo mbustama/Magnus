@@ -242,9 +242,50 @@ grid union are ~40 lines, written and validated to 1.5e-14 (§3.4).
 the scalar-`H` fallback (the prototype assumes an array-capable Hamiltonian), and plumbing
 for `convergence_info`, logging and `n_jobs`.
 
-One defect in the prototype worth carrying forward: it stores a matrix at *every* grid edge,
-not just the N output points. Harmless at these sizes, but at large `n_acc` it wastes memory
-for no reason — a shipped version should snapshot only at the output indices.
+### 6.1 Memory: a design requirement, not a footnote
+
+The per-point path frees each baseline's slab chain as it goes, so the natural worry is
+that a cumulative scan trades an O(1) working set for an O(N) one. Measured (2nu,
+`tracemalloc` peak, castle wall, `n_acc = 2000`), with **every** column keeping all N
+results, which is what the notebooks actually do:
+
+| N | per-point | prototype | chunked (block 8192) |
+|---|---|---|---|
+| 1,000 | 0.85 MB | 1.91 MB (2.2×) | 1.94 MB (2.3×) |
+| 6,000 | 2.25 MB | 4.92 MB (2.2×) | 5.15 MB (2.3×) |
+| 20,000 | 6.88 MB | 13.47 MB (2.0×) | 6.01 MB (**0.9×**) |
+| 60,000 | — | 37.88 MB | 7.84 MB |
+
+The per-point path is **not** O(1) once the caller stores the answers — it is O(N) too, and
+the prototype sits at a flat **2.2×** on top of it, not a growing multiple. (An earlier
+version of this measurement capped the per-point loop at 2 000 points while letting the
+cumulative scan run the full N, which made the per-point column look flat and the ratio look
+like 18×. It is 2.2×.)
+
+Where the prototype *is* genuinely wasteful is in `n_acc`: it holds every slab operator at
+once and snapshots a complex unitary at *every grid edge* rather than at the N output
+points, so the solar case stores 21 000 snapshots to answer 1 000 queries.
+
+Both are artifacts, and the fixes are what a shipped version wants anyway:
+
+1. **Chunk the traversal.** The running product is sequential, but nothing requires holding
+   all M slab operators simultaneously: compute a block, fold it in, snapshot, discard.
+2. **Convert at the snapshot.** Never store N unitaries — take `|U|^2` straight into the
+   output array, so the snapshot term collapses into the result the caller already wanted
+   instead of sitting beside it.
+
+With both, output is bit-identical (max |ΔP| = 0.00e+00 against the prototype) and peak
+memory is `O(block) + O(output)`. Below N ≈ block the fixed block dominates and chunking
+looks no better than the prototype (2.3× at N = 1 000, on an absolute cost of 2 MB); above
+it, the chunked scan is *cheaper than the per-point path it replaces* — 6.01 MB against
+6.88 MB at N = 20 000, because both are then dominated by the N results and the chunked scan
+carries little else. Extrapolated to N = 10^6 for 3nu: ~80 MB, of which 72 MB *is* the
+answer. The prototype would have needed ~360 MB there.
+
+**So memory is O(output) either way, and chunking makes the cumulative scan no worse than
+what it replaces.** But chunking and on-the-fly conversion belong in the v1 scope, not in a
+later optimisation pass: without them the scan carries a 2.2× multiplier it has no reason to,
+and a `n_acc`-sized snapshot array it has no use for.
 
 **No composition with the energy axis.** A cumulative scan is per-energy by construction.
 That is a documented limitation, not a defect.
