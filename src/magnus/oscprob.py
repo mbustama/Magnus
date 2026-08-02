@@ -1668,12 +1668,16 @@ def osc_prob(
         ``atol`` are both ``None``), then the given value of ``n_slabs`` 
         is the final number of slabs used in the computation.
 
-        If a target tolerance is requested (i.e., if either ``rtol`` or 
-        ``atol`` is not ``None``), then the given value of ``n_slabs`` 
-        is ignored. Instead, the number of slabs is increased 
-        progressively, starting from ``min_n_slabs``, until the 
-        tolerance is achieved or until we hit ``max_n_slabs``, whichever
-        happens first.
+        If a target tolerance is requested (i.e., if either ``rtol`` or
+        ``atol`` is not ``None``), then the given value of ``n_slabs``
+        acts as a *floor*: the number of slabs is increased
+        progressively, starting from ``max(min_n_slabs, n_slabs)``,
+        until the tolerance is achieved or until we hit ``max_n_slabs``,
+        whichever happens first.  The refinement never runs coarser than
+        what was asked for, so a caller who knows the feature scale of
+        their profile can state it here and have it respected.  With the
+        default, ``n_slabs = 1``, the floor is inactive and refinement
+        starts at ``min_n_slabs`` as before.
     n_tpts_per_slab : int, optional
         Number of time-points inside the slab at which to evaluate 
         H_func in order to numerically compute the integrals over time 
@@ -1892,9 +1896,24 @@ def osc_prob(
     # n_slabs == max_n_slabs or n_tpts_per_slab = max_n_tpts_per_slab, so as not to print it again
     warned_reached_max_n_slabs, warned_reached_max_n_tpts_per_slab = False, False
 
-    # If a tolerance is requested, start the iterations with a number of slabs equal to the given
-    # value of min_n_slabs.
+    # If a tolerance is requested, start the iterations at the floor on the slab count.  That floor
+    # used to be min_n_slabs alone, with the caller's n_slabs discarded outright; it is now the
+    # larger of the two.  Discarding it was how a profile with 50 density walls, called with
+    # n_slabs=150, came to be integrated on 4 slabs and declared converged.  The seed that replaced
+    # the caller's number, magnus.suggest_n_slabs, measures the *integral* of the Hamiltonian along
+    # the path, and an integral is blind to structure that averages out: that profile accumulates
+    # only ~9 radians over the whole trajectory, so it was seeded with 2 slabs.  Below the count
+    # that resolves the walls the ladder does not converge, it thrashes -- 0.43, 0.13, 0.13, 0.64,
+    # 0.12 at 2, 3, 4, 5, 6 slabs -- and np.allclose fired on the accidental 3-vs-4 agreement,
+    # returning an answer wrong by 0.855 in probability.  A stricter rtol is the wrong lever: it
+    # tightens a comparison between two answers that both failed to see the profile.  Resolving the
+    # profile is the right one, and the caller is who knows its feature scale (t_breakpoints is the
+    # sharper tool still, where the features sit at known positions).  With the default n_slabs=1
+    # the floor is inactive and nothing changes.  Clipped at max_n_slabs so that a floor above the
+    # cap cannot make the ladder step *down* on its first growth; the usual "reached max_n_slabs"
+    # warning then fires, as it should.
     if ((rtol is not None) and (atol is not None)):
+        min_n_slabs = int(min(max(min_n_slabs, n_slabs), max_n_slabs))
         n_slabs = min_n_slabs
         n_tpts_per_slab = min_n_tpts_per_slab
 
@@ -2439,7 +2458,8 @@ def _osc_prob_scan_separable(
     min_n_tpts_per_slab, max_n_tpts_per_slab : int
         Bounds on the number of time points per slab.
     n_slabs, n_tpts_per_slab : int
-        Starting number of slabs/time points per slab.
+        Starting number of slabs/time points per slab.  Under a tolerance, ``n_slabs`` is a
+        floor on the refinement ladder rather than a discarded argument; see :func:`osc_prob`.
 
     Returns
     -------
@@ -2459,6 +2479,9 @@ def _osc_prob_scan_separable(
         s_nodes = magnus.gl_nodes(magnus_exp_order)
 
     if tol_requested:
+        # The caller's n_slabs is a floor on the refinement ladder, not something to discard; see
+        # the corresponding note in osc_prob.
+        min_n_slabs = int(min(max(min_n_slabs, n_slabs), max_n_slabs))
         n_tpts_per_slab = min_n_tpts_per_slab
         # Physics-informed starting number of slabs (see magnus.suggest_n_slabs):
         # integral of the traceless Hamiltonian over the trajectory, maximized
@@ -2771,7 +2794,11 @@ def _osc_prob_ip_exp_core(
     denom = 1j*Delta - (1.0/l_scale)                                # never zero (l_scale finite)
 
     if tol_requested:
-        n_slabs = min_n_slabs
+        # The caller's n_slabs is a floor on the refinement ladder, not something to discard; see
+        # the corresponding note in osc_prob.  Clipped at this method's own ceiling, not at
+        # max_n_slabs: the slab budget here is decoupled from the caller's cap (see the note
+        # below), so max_n_slabs is not the bound the growth step will respect.
+        n_slabs = int(min(max(min_n_slabs, n_slabs), IP_EXP_N_SLABS_CAP))
 
     # The part of h_matt that is diagonal in the H_E eigenbasis commutes with H_E and does not
     # oscillate: it accumulates an ordinary, unsuppressed phase (proportional to the matter

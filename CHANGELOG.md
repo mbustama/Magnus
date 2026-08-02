@@ -509,6 +509,47 @@ that history is the most useful record of *why* the code looks the way it does.
 
 ### Fixed
 
+- **A requested `n_slabs` was silently discarded whenever a tolerance was on,
+  and that certified wrong answers.** `osc_prob` documented and implemented
+  "if `rtol` or `atol` is given, `n_slabs` is ignored": the adaptive ladder
+  started at `min_n_slabs = 1` regardless of what the caller asked for. The
+  seed that replaced it, `magnus.suggest_n_slabs`, measures the *integral* of
+  the Hamiltonian along the path, which is blind to structure that averages
+  out. On notebook 03's castle-wall profile -- 50 square density walls -- the
+  whole trajectory accumulates only ~9 radians, so a call asking for
+  `n_slabs=150` was seeded with 2 slabs and stopped at 4. Four slabs cannot see
+  fifty walls, and the ladder they sit on does not converge, it thrashes:
+  0.43, 0.13, 0.13, 0.64, 0.12 at 2, 3, 4, 5, 6 slabs. The successive-iterate
+  test fired on the accidental 3-vs-4 agreement and returned a probability
+  wrong by **0.855**, with no warning. Tightening `rtol` does not help -- the
+  comparison is between two answers that both failed to see the profile.
+  `n_slabs` is now a *floor* on the ladder, in `osc_prob` and in both batched
+  scan engines: refinement starts at `max(min_n_slabs, n_slabs)` and only ever
+  climbs, clipped at `max_n_slabs` so a floor above the cap raises the existing
+  not-achieved warning instead of stepping the ladder back down. With the
+  default `n_slabs=1` the floor is inactive and nothing changes. The regression
+  test is built on a `solve_ivp` oracle, not on agreement between two `osc_prob`
+  grids -- that kind of agreement is what let this through.
+- **Notebooks 02 and 03 shipped castle-wall figures drawn from those wrong
+  probabilities.** Across a 6000-point baseline scan, 7.2% of points were off
+  by more than 1e-2. The scans now get their `n_slabs=150` honoured, and they
+  also pass the wall positions as `t_breakpoints`: the profile is a step
+  function, and high-order quadrature reaches its nominal order only when the
+  Hamiltonian is smooth inside each slab. Against a converged reference the
+  worst point improves from 0.855 to 1.0e-3 -- and the scans run faster than
+  the wrong version did, because slab edges placed on the discontinuities buy
+  more accuracy per slab than piling on uniform slabs.
+- **Eight cells in notebooks 02 and 03 taught a performance lesson that is not
+  true.** They asserted that an `osc_prob` call costs "~4.5 ms, almost entirely
+  fixed entry-path cost", evidenced by "n_slabs=1 and n_slabs=150 both measure
+  4.5 ms per call, which is how you can tell the physics is not what costs",
+  and predicted that looping instead of passing an array would turn a 2 s cell
+  into 45 s. Measured: 0.26-0.46 ms per call, and on a profile that actually
+  varies the same call costs 0.34 ms at `n_slabs=1` against 10.4 ms at
+  `n_slabs=2000` -- the integration is nearly all of it. The loop-vs-array
+  ratios are 1.4x-2.3x, not the ~22x claimed. Passing the array is still the
+  right advice and the cells still do it; the numbers and the reasoning behind
+  them are now the measured ones.
 - **Every notebook that used matter effects was computing vacuum.** Notebooks
   01-10 built the coherent forward potential by calling
   `matter.num_density_e_func` with a density in g cm^-3 but without
