@@ -221,14 +221,30 @@ This is the structural asymmetry between the two axes, and it is worth stating p
 The 26× recorded elsewhere for the separable engine is specific to **constant density**,
 where the profile needs exactly one slab, so there is nothing to scale.
 
-**The real energy-axis lead is elsewhere, and is not this proposal.** `osc_prob` — the entry
-point the notebooks loop over — never dispatches to `_osc_prob_ip_exp_dispatch` or
-`_osc_prob_hybrid_dispatch`; both are reachable only from the wrapper layer (`oscprob.py`
+**The obvious energy-axis lead is a trap, and measuring it found a serious bug.** `osc_prob`
+— the entry point the notebooks loop over — never dispatches to `_osc_prob_ip_exp_dispatch`
+or `_osc_prob_hybrid_dispatch`; both are reachable only from the wrapper layer (`oscprob.py`
 lines 4088/4098, 4426/4433, 4780/4785, 7819). Notebook 03 cell 104 — at 117.4 s the single
 most expensive cell in either notebook — is a **solar** energy scan written as a raw
 `osc_prob` loop, so it runs the general Magnus path while the package holds two dedicated
-fast paths for exactly that case. **This is structurally confirmed but its magnitude is
-unmeasured**, and it should be measured before anyone relies on it.
+fast paths for exactly that case. Routing it through `osc_prob_2nu_sun` looked like free
+money.
+
+It is not. See `BUG_IP_EXP_MEMORY.md`: `_osc_prob_ip_exp_core` allocates several arrays of
+shape `(nE, n_slabs, d, d)` per refinement level while its ladder doubles `n_slabs` toward
+`IP_EXP_N_SLABS_CAP = 2_000_000`, so a batched solar call costs **~1.3 GB per energy** and
+takes ~10 s per energy without converging. Measured peak RSS: 1.56 GB at nE = 1, 2.84 GB at
+nE = 2, 5.34 GB at nE = 4, `MemoryError` at nE = 8 under a 6 GB cap, with the failing
+allocation reported as shape `(8, 2000000, 2, 2)`.
+
+Notebook 03 cell 104 uses **1000** energies over exactly this range. Rewriting it to use the
+wrapper — which is what §6.3 of the earlier document points at, and what this section first
+recommended — would have tried to allocate on the order of a terabyte. The bug predates the
+`n_slabs` floor (verified at `155e01e`: same 2840 MB at nE = 2), and the notebooks have never
+hit it only because they use raw `osc_prob` loops.
+
+**So the energy axis has no available win at all right now, and the apparent one is
+dangerous until that bug is fixed.**
 
 ---
 
