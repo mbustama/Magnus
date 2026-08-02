@@ -60,6 +60,30 @@ that history is the most useful record of *why* the code looks the way it does.
   than any one curve. Notebook 07's two remaining hand-built figures now use
   this and `plot_curves`; the second turned out to need no new function at all,
   only a `gridspec_kw` that had never done anything.
+- **`osc_prob_energy_baseline(..., cumulative=True)`: a whole baseline scan from one
+  traversal of the profile.** The evolution operator is a time-ordered product, so
+  `U(0->L2) = U(L1->L2) U(0->L1)`: every requested baseline is a *prefix* of the next,
+  and recording the running product yields the whole scan at once instead of re-walking
+  the profile N times. It is the `reduce` already in `osc_prob` with its intermediates
+  kept rather than discarded.
+
+  The grid is the union of the requested baselines (so each answer lands on a slab edge
+  and is read off, never interpolated), a uniform accuracy grid, and any
+  `t_breakpoints`. Sizing that accuracy grid is the one way a cumulative scan goes
+  *silently* wrong — the traversal has nothing to compare itself against — so it is not
+  guessed: one ordinary adaptive `osc_prob` call at the longest baseline reports the
+  slab count it needed, which is the definition of the accuracy grid, and brings the
+  existing safeguards and warnings with it. On a solar profile a plausible-looking guess
+  of 2000 slabs is wrong by 1.6e-2 where the inherited number is right.
+
+  Chunked traversal and conversion to probabilities at each snapshot are requirements
+  rather than optimisations: they keep peak memory at `O(block) + O(result)` instead of
+  holding N complex unitaries beside the answer.
+
+  Measured against `solve_ivp`: a 1000-point solar scan takes 12.0 s per-point for an
+  error of 5.6e-5, and 0.10 s cumulative for 5.1e-6 — **124x faster and 11x more
+  accurate**. Opt-in rather than automatic: the two paths use different grids, so results
+  differ within the requested tolerance.
 - **Matplotlib is an optional dependency**, declared as the `plot` extra
   (`pip install 'magnuspy[plot]'`). The engine still needs only NumPy, SciPy
   and joblib: someone computing probabilities inside their own analysis code

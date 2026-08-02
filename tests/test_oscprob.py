@@ -1364,6 +1364,144 @@ def test_certification_known_impossible_is_refused_without_climbing(monkeypatch)
         f"climbed the ladder ({total_slabs} slabs) instead of refusing up front"
 
 
+# ----------------------------------------------------------------------
+# The cumulative baseline scan.
+#
+# U(0->L2) = U(L1->L2) U(0->L1), so every requested baseline is a prefix of
+# the next and one traversal yields the whole scan. The characteristic way a
+# cumulative product goes wrong is transposition and off-by-one, which no
+# accuracy test would catch -- hence the identical-grid oracle below, which
+# pins bookkeeping rather than physics. Accuracy is checked separately, and
+# against solve_ivp, never against the per-point path: agreement between two
+# configurations of the same scheme is what this project has been burned by.
+# ----------------------------------------------------------------------
+
+def test_cumulative_scan_matches_expm_for_a_constant_hamiltonian():
+    """The ordering test. A constant H has a closed-form propagator at every baseline, so
+    this catches a transposed or reversed product outright, at machine precision."""
+    H = np.array([[1.2e-13, 3.0e-14], [3.0e-14, -0.7e-13]])
+    L = np.linspace(1.0e12, 6.0e13, 400)
+
+    P = np.asarray(op.osc_prob_energy_baseline(H, 1.0, L, cumulative=True, rtol=None,
+                                               atol=None, n_slabs=400))
+
+    worst = max(maxabs(P[i] - np.abs(sp.linalg.expm(-1j*H*L[i])).T**2)
+                for i in range(0, len(L), 17))
+    assert worst < 1e-11
+    assert np.allclose(np.sum(P, axis=-1), 1.0, atol=1e-11)
+
+
+def test_cumulative_scan_agrees_with_the_per_point_path_on_an_identical_grid():
+    """The sound oracle for a cumulative product, per the project's own history.
+
+    Pinning rtol=atol=None and handing the per-point path the exact grid prefix the scan
+    used makes the two computations arithmetically the same problem, so anything but
+    agreement to near machine precision is a bookkeeping error -- a mis-ordered product, an
+    off-by-one in where the running product is snapshotted. This deliberately does *not*
+    test accuracy: two configurations of one scheme agreeing proves nothing about that."""
+    H = castle_wall_H()
+    L = np.linspace(200.0, 2000.0, 60)*gd.UNIT_KM
+    n_acc = 3000
+
+    P = np.asarray(op.osc_prob_energy_baseline(
+        H, CW_ENERGY, L, cumulative=True, rtol=None, atol=None, n_slabs=n_acc,
+        magnus_exp_order=3))
+
+    edges, out_idx = op._cumulative_scan_grid(L, 0.0, n_acc, None)
+    for i in range(0, len(L), 11):
+        k = out_idx[i]
+        prefix = np.column_stack([edges[:k], edges[1:k + 1]])
+        P_ref = op.osc_prob(H, 0.0, L[i], t_slab_edges=prefix, magnus_exp_order=3,
+                            rtol=None, atol=None, n_tpts_per_slab=2)
+        assert maxabs(np.asarray(P_ref) - P[i]) < 1e-12
+
+
+def test_cumulative_scan_returns_results_in_the_callers_order():
+    """The scan must sort internally to walk the profile once, and undo that on the way
+    out: a caller who passed unsorted baselines gets answers against *their* order."""
+    H = np.array([[1.2e-13, 3.0e-14], [3.0e-14, -0.7e-13]])
+    L = np.linspace(1.0e12, 6.0e13, 120)
+    shuffled = RNG.permutation(len(L))
+
+    common = dict(cumulative=True, rtol=None, atol=None, n_slabs=200)
+    P_sorted = np.asarray(op.osc_prob_energy_baseline(H, 1.0, L, **common))
+    P_shuffled = np.asarray(op.osc_prob_energy_baseline(H, 1.0, L[shuffled], **common))
+
+    assert np.array_equal(P_shuffled, P_sorted[shuffled])
+
+
+def test_cumulative_scan_sizes_its_accuracy_grid_from_the_adaptive_path():
+    """The one way a cumulative scan goes *silently* wrong is an under-resolved accuracy
+    grid: the traversal itself never notices, because there is nothing to compare against.
+
+    So the grid is not guessed. One ordinary adaptive osc_prob call at the longest baseline
+    reports the slab count it needed -- which is the definition of the accuracy grid -- and
+    brings the existing safeguards with it. This pins that the scan really is at least that
+    fine, which is what makes it safe."""
+    H = castle_wall_H()
+    L = np.linspace(200.0, 2000.0, 40)*gd.UNIT_KM
+
+    info = {}
+    op.osc_prob(H, 0.0, L[-1], magnus_exp_order=3, convergence_info=info)
+    edges, _ = op._cumulative_scan_grid(
+        L, 0.0, info['n_slabs']*op.CUMULATIVE_N_ACC_SAFETY, None)
+
+    assert len(edges) - 1 >= info['n_slabs']*op.CUMULATIVE_N_ACC_SAFETY
+
+
+def test_cumulative_scan_puts_every_requested_baseline_on_a_slab_edge():
+    """Answers are read off the running product, never interpolated, so each requested
+    baseline has to *be* an edge. Includes breakpoints and a logarithmic spacing, which is
+    where a grid built only from the requested points goes coarse exactly where the
+    integration needs it fine."""
+    L = np.logspace(2.0, 4.0, 500)*gd.UNIT_KM
+    bp = np.linspace(150.0, 9000.0, 37)*gd.UNIT_KM
+
+    edges, out_idx = op._cumulative_scan_grid(L, 0.0, 700, bp)
+
+    assert np.array_equal(edges, np.unique(edges))
+    assert np.allclose(edges[out_idx], L, rtol=0, atol=0)
+    assert set(np.round(bp, 6)).issubset(set(np.round(edges, 6)))
+
+
+@pytest.mark.parametrize("kwargs,match", [
+    (dict(t_slab_edges=[[0.0, 1.0]]), "t_slab_edges"),
+    (dict(), "energies differ"),
+])
+def test_cumulative_scan_refuses_what_it_cannot_honour(kwargs, match):
+    """Two requests it must reject rather than quietly reinterpret: its own grid cannot
+    coexist with caller-supplied slab edges, and there is no nesting to exploit across
+    energies, so a multi-energy request is a misunderstanding worth naming."""
+    H = np.array([[1.2e-13, 3.0e-14], [3.0e-14, -0.7e-13]])
+    energy = 1.0 if 't_slab_edges' in kwargs else np.array([1.0, 2.0])
+    L = np.array([1.0e12, 2.0e12]) if 't_slab_edges' in kwargs else np.array([1.0e12, 1.0e12])
+
+    with pytest.raises(ValueError, match=match):
+        op.osc_prob_energy_baseline(H, energy, L, cumulative=True, **kwargs)
+
+
+def test_cumulative_scan_memory_does_not_scale_with_the_baseline_count():
+    """Peak allocation must be bounded by the block and the result, not by the grid.
+
+    The traversal is chunked and each snapshot is converted to a probability on the spot,
+    so the recorded term collapses into the answer the caller asked for rather than sitting
+    beside it as N complex unitaries."""
+    H = np.array([[1.2e-13, 3.0e-14], [3.0e-14, -0.7e-13]])
+
+    def peak_mib(n):
+        L = np.linspace(1.0e12, 6.0e13, n)
+        tracemalloc.start()
+        op.osc_prob_energy_baseline(H, 1.0, L, cumulative=True, rtol=None, atol=None,
+                                    n_slabs=20000)
+        peak = tracemalloc.get_traced_memory()[1]/2**20
+        tracemalloc.stop()
+        return peak
+
+    small, large = peak_mib(200), peak_mib(20000)
+    assert large < 4.0*small + 20.0, \
+        f"peak scaled with the baseline count: {small:.1f} -> {large:.1f} MiB"
+
+
 def test_tile_for_working_set_stays_within_its_budget():
     """The tiling arithmetic itself, over the shapes the engines actually pass.
 

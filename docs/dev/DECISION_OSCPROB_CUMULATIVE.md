@@ -9,6 +9,15 @@ was touched to produce any number here.
 
 ---
 
+> **Status: BUILT** (2026-08-03, branch `fix-ip-exp-memory`), as
+> `osc_prob_energy_baseline(..., cumulative=True)`. Two things this document expected
+> turned out differently, and both are recorded in §8:
+>
+> * the `n_acc` criterion did **not** need inventing — it is inherited from one ordinary
+>   adaptive `osc_prob` call at the longest baseline, which is what makes it safe;
+> * that inherited count needs a **safety factor of 2**, without which the scan meets the
+>   requested tolerance but is *less* accurate than the path it replaces.
+
 ## 1. The call
 
 **Build it — but for accuracy, not for speed.**
@@ -318,3 +327,66 @@ That is a documented limitation, not a defect.
   energy scans through the wrapper layer takes a 117 s cell to single digits, that is a
   bigger prize than this proposal on a bigger share of the runtime, and it should go first.
   It needs no new algorithm — only reaching code that already exists.
+
+---
+
+## 8. What building it changed about this document
+
+### The `n_acc` criterion did not need inventing
+
+§4 called this "the whole job" and the blocking condition, and expected a successive-refinement
+ladder with all the thrashing hazards `NOTES_ADAPTIVE_REFINEMENT.md` §1 describes. It turned
+out to be unnecessary. Unlike the per-point path, a cumulative scan can **inherit** a trusted
+slab count instead of deriving one: a single ordinary adaptive `osc_prob` call at the longest
+baseline reports the count *it* converged at, and "slabs needed for a uniform grid over the
+whole path" is exactly what `n_acc` means. It costs one extra point out of N, and it brings
+the existing safeguards — the `n_slabs` floor, the tolerance ladder, the not-achieved
+warning — rather than needing new ones.
+
+Checked against this document's own counterexample: the adaptive call at 5 MeV returns
+**14 883**, which is precisely the figure §4 identified as the requirement where a guessed
+2000 was wrong by 1.6e-2.
+
+### But the inherited count is not enough on its own
+
+Applied unmultiplied it is thinner than what the per-point path would have chosen for the
+*shorter* baselines in the same scan, and the result — while inside the requested tolerance —
+came out **less** accurate than the path it replaces. That contradicts §1's claim that
+accuracy is the reason to build this, so it mattered. Measured on a 1000-point solar scan
+against `solve_ivp`, per-point being 12.0 s for 5.6e-5:
+
+| safety | `n_acc` | time | error |
+|---|---|---|---|
+| 1 | 14 883 | 0.049 s | 2.35e-04 |
+| **2** | **29 766** | **0.097 s** | **5.10e-06** |
+| 4 | 59 532 | 0.173 s | 3.34e-07 |
+| 8 | 119 064 | 0.346 s | 1.80e-08 |
+
+Two is where the scan becomes strictly better on both axes at once — **124× faster and 11×
+more accurate** — for a doubling of a cost that is negligible either way. `CUMULATIVE_N_ACC_SAFETY`.
+
+### Measured end to end, on the real thing
+
+Notebook 03 cell 57's castle-wall scan, 6000 baselines, against `solve_ivp`:
+
+| | time | error |
+|---|---|---|
+| per-point | 7.19 s | 5.12e-04 |
+| cumulative | **0.037 s** | **4.27e-11** |
+
+195× faster, and seven orders of magnitude more accurate — the latter because that profile is
+piecewise *constant*, so with breakpoints on the walls each slab is exact.
+
+### Everything §3.3 and §6.1 predicted held
+
+The speedup plateau (~200–400×, not 1500×), the memory result (chunked, `O(block) + O(result)`,
+flat in the baseline count), and the bookkeeping oracles all reproduced. The identical-grid
+oracle agrees to **1e-12** and constant-`H` matches `expm` to **1e-11**, both now permanent tests.
+
+### Still opt-in
+
+`cumulative=False` by default. The two paths use different grids, so results differ within the
+requested tolerance, and flipping the default would move every baseline scan in the package —
+including the notebook figures regenerated two commits ago. That is the same call the project
+made for `integration_method='gl'`: implement, measure, and flip in a separate decision with its
+own evidence. **Flipping it is the obvious next question**, and the numbers above are the case for it.

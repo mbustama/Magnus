@@ -384,6 +384,38 @@ to the result arrays on any machine that can hold them.
 """
 
 
+CUMULATIVE_N_ACC_SAFETY = 2
+r"""int: Module-level constant
+
+Multiple of the inherited slab count used for the accuracy grid of a cumulative baseline
+scan (``osc_prob_energy_baseline(..., cumulative=True)``).
+
+The grid is sized from one ordinary adaptive :func:`osc_prob` call at the longest baseline,
+which reports the slab count *that* baseline needed.  Applied unmultiplied, the same uniform
+density is then thinner than what the per-point path would have chosen for the shorter
+baselines in the scan, and the result -- while inside the requested tolerance -- comes out
+less accurate than the path it replaces.  Measured on a 1000-point solar scan against
+``solve_ivp``, where the per-point path takes 12.0 s for an error of 5.6e-5:
+
+===========  ==========  =========  ==========
+safety       ``n_acc``   time       error
+===========  ==========  =========  ==========
+1            14 883      0.049 s    2.35e-04
+**2**        **29 766**  0.097 s    **5.10e-06**
+4            59 532      0.173 s    3.34e-07
+8            119 064     0.346 s    1.80e-08
+===========  ==========  =========  ==========
+
+Two is where the scan becomes strictly better than what it replaces on both axes at once --
+124x faster *and* 11x more accurate -- for a doubling of a cost that is negligible either
+way.  Beyond it the accuracy is bought at a proportional price with no correctness argument
+behind it, which is a choice for the caller (via ``n_slabs`` with the tolerance off) rather
+than a default.
+
+.. versionadded:: 1.0.0
+"""
+
+
 OUTPUT_GUARD_MIN_BYTES = 64*1024*1024
 r"""int: Module-level constant
 
@@ -3584,10 +3616,123 @@ def _osc_prob_hybrid_dispatch_generic(
     return P_out.__getitem__(0 if return_float else slice(None))
 
 
+def _cumulative_scan_grid(L_out, L0, n_acc, t_breakpoints):
+    """Slab edges for a cumulative baseline scan, and where each output sits in them.
+
+    The grid is the union of three things, and each is there for a different reason:
+
+    * the **requested baselines**, so that every answer lands exactly on a slab edge and is
+      read off the running product rather than interpolated;
+    * a **uniform accuracy grid** of ``n_acc`` slabs, because the requested baselines are
+      typically logarithmically spaced and so are dense where accuracy is cheap and sparse
+      where it is expensive -- the opposite of what the integration needs;
+    * the **breakpoints**, for the usual reason: a slab straddling a density discontinuity
+      degrades the quadrature no matter how high ``magnus_exp_order`` is.
+
+    Returns
+    -------
+    (np.ndarray, np.ndarray)
+        Sorted, unique edges spanning ``[L0, max(L_out)]``, and the index into them of each
+        entry of ``L_out``.
+
+    .. versionadded:: 1.0.0
+    """
+    L_out = np.asarray(L_out, dtype=float)
+    parts = [np.linspace(L0, float(L_out[-1]), int(n_acc) + 1), L_out, np.array([L0])]
+    if (t_breakpoints is not None) and (len(np.atleast_1d(t_breakpoints)) > 0):
+        bp = np.atleast_1d(np.asarray(t_breakpoints, dtype=float))
+        parts.append(bp[(bp > L0) & (bp < L_out[-1])])
+    edges = np.unique(np.concatenate(parts))
+    return edges, np.searchsorted(edges, L_out)
+
+
+def _osc_prob_cumulative_scan(H_func, L_out, L0, n_acc, magnus_exp_order,
+                              n_tpts_per_slab, integration_method, t_breakpoints,
+                              A_eval_mode, **kwargs):
+    r"""Every baseline in ``L_out`` from a single traversal of the profile.
+
+    The evolution operator is a time-ordered product, so each requested answer is a *prefix*
+    of the next: :math:`U(0 \to L_2) = U(L_1 \to L_2)\,U(0 \to L_1)`.  Computing N baselines
+    independently therefore re-walks the profile N times over.  This walks it once and
+    records the running product wherever an answer was asked for -- the ``reduce`` in
+    :func:`osc_prob` with its intermediates kept rather than discarded.
+
+    Two properties are requirements rather than optimisations, and both are about memory:
+
+    * the traversal is **chunked**, so the slab operators are never all live at once;
+    * each snapshot is converted to a probability **immediately**, so the recorded term
+      collapses into the result the caller asked for instead of sitting beside it as N
+      complex unitaries.
+
+    Together they make peak memory ``O(block) + O(result)``, which above the block size is
+    less than the per-point path uses for the same scan.
+
+    Parameters
+    ----------
+    H_func : Callable
+        Hamiltonian as a function of position alone; the energy is already bound.
+    L_out : np.ndarray
+        Requested baselines, strictly ascending and all greater than ``L0``.
+    n_acc : int
+        Slabs the accuracy grid would use over the whole path on its own; see
+        :func:`_cumulative_scan_grid`.
+
+    Returns
+    -------
+    np.ndarray
+        Probability matrices, shape ``(len(L_out), d, d)``.
+
+    .. versionadded:: 1.0.0
+    """
+    edges, out_idx = _cumulative_scan_grid(L_out, L0, n_acc, t_breakpoints)
+    n_slabs = len(edges) - 1
+
+    # A position-independent Hamiltonian arrives here as a bare array, as it does in
+    # osc_prob; wrap it in the array-capable function the slab kernel expects.  A single slab
+    # would be exact for it, but the caller asked for a scan and the extra slabs cost little
+    # -- and keeping one code path avoids a second place where the time ordering could differ.
+    if not callable(H_func):
+        H_const = np.asarray(H_func)
+
+        def H_func(l, _H=H_const):
+            return np.broadcast_to(_H, np.shape(l) + _H.shape) if np.ndim(l) else _H
+
+        A_eval_mode = 'vector'
+
+    dim = np.asarray(H_func(L0)).shape[-1]
+    P = np.empty((len(L_out), dim, dim))
+    running = np.eye(dim, dtype=complex)
+
+    # A baseline equal to L0 is the identity: no slab precedes it.
+    for j in np.flatnonzero(out_idx == 0):
+        P[j] = np.transpose(running.real**2 + running.imag**2)
+
+    _, block = _tile_for_working_set(1, n_slabs, dim*dim, live_arrays=8)
+    for start in range(0, n_slabs, block):
+        stop = min(start + block, n_slabs)
+        U = compute_evolution_operator_multiple_slabs(
+            H_func, np.column_stack([edges[start:stop], edges[start + 1:stop + 1]]),
+            n_tpts_per_slab, magnus_exp_order, integration_method=integration_method,
+            A_eval_mode=A_eval_mode, **kwargs)
+        # Outputs landing inside this block, in edge order, so the running product is
+        # snapshotted at the right moment without a second pass.
+        here = np.flatnonzero((out_idx > start) & (out_idx <= stop))
+        order = here[np.argsort(out_idx[here], kind='stable')]
+        pos = 0
+        for k in range(stop - start):
+            running = U[k] @ running
+            while (pos < len(order)) and (out_idx[order[pos]] == start + k + 1):
+                j = order[pos]
+                P[j] = np.transpose(running.real**2 + running.imag**2)
+                pos += 1
+        del U
+    return P
+
+
 def osc_prob_energy_baseline(
     H_func: Union[Callable, np.ndarray],
-    energy: Union[int, float, list, np.ndarray], 
-    L: Union[int, float, list, np.ndarray], 
+    energy: Union[int, float, list, np.ndarray],
+    L: Union[int, float, list, np.ndarray],
     L0: Optional[Union[int, float]]=0.0,
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
@@ -3612,6 +3757,7 @@ def osc_prob_energy_baseline(
     close_file_log_upon_exit: Optional[bool]=True,
     new_recursion_limit: Optional[int]=5000,
     verbose: Optional[int]=0,
+    cumulative: Optional[bool]=False,
     **kwargs
 ) -> Union[int, float, np.ndarray]:
     r"""Compute and return oscillation probabilities for given arrays of
@@ -3687,6 +3833,25 @@ def osc_prob_energy_baseline(
         Forwarded to :func:`osc_prob` for each (energy, L) point; see its docstring.
     verbose : int
         Forwarded to :func:`osc_prob` for each (energy, L) point; see its docstring.
+    cumulative : bool, optional
+        Compute a whole baseline scan from **one** traversal of the profile instead of one
+        traversal per baseline.  The evolution operator is a time-ordered product, so
+        :math:`U(0 \to L_2) = U(L_1 \to L_2)\,U(0 \to L_1)`: each requested answer is a
+        prefix of the next, and recording the running product yields all of them at once.
+
+        Applies to a **baseline scan at a single energy**, and raises otherwise.  The
+        nesting it exploits belongs to the baseline axis alone -- :math:`P(E_1)` shares
+        nothing with :math:`P(E_2)`, since each energy needs its own propagation through the
+        whole profile -- so there is no energy-axis counterpart to this.
+
+        Not compatible with ``t_slab_edges``, which it would have to override: the scan
+        builds a grid that is the union of the requested baselines, an accuracy grid, and
+        any ``t_breakpoints``.  The accuracy grid is sized by one ordinary adaptive
+        :func:`osc_prob` call at the longest baseline, so the usual tolerance machinery and
+        its warnings apply unchanged.
+
+        Default False.  Results differ from the per-point path within the requested
+        tolerance -- the two use different grids -- so this is opt-in rather than automatic.
     \**kwargs
         Additional arguments forwarded to :func:`osc_prob`.
 
@@ -3797,6 +3962,63 @@ def osc_prob_energy_baseline(
         n_points,
         np.asarray(H_first(L0) if isinstance(H_first, Callable) else H_first).shape[-1],
         'osc_prob_energy_baseline')
+
+    # Cumulative baseline scan: one traversal of the profile for every requested baseline,
+    # instead of one traversal per baseline.  Applicable only when the Hamiltonian is the same
+    # for every requested point -- i.e. a single energy, scanned over baselines -- because the
+    # nesting it exploits is a property of the baseline axis alone: P(0->L1) is a prefix of
+    # P(0->L2), while P(E1) shares nothing with P(E2).
+    if cumulative:
+        if t_slab_edges is not None:
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob_energy_baseline: "
+                "cumulative=True builds its own slab grid and cannot also honour "
+                "t_slab_edges.")
+        if not np.all(energy == energy[0]):
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob_energy_baseline: "
+                "cumulative=True scans baselines at one energy; the given energies differ. "
+                "Baselines nest and energies do not, so there is nothing to reuse across "
+                "energies.")
+        if np.any(np.asarray(L, dtype=float) < L0):
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob_energy_baseline: "
+                "cumulative=True requires every baseline to be at or beyond L0.")
+
+        H_fixed = H_at_energy(energy[0])
+        order = np.argsort(np.asarray(L, dtype=float), kind='stable')
+        L_sorted = np.asarray(L, dtype=float)[order]
+
+        # The accuracy grid is inherited, not invented.  One ordinary adaptive osc_prob call
+        # at the longest baseline reports the slab count at which *it* converged -- which is
+        # precisely "slabs needed for a uniform grid over the whole path", the definition of
+        # n_acc -- and brings with it every safeguard that path already has, including the
+        # n_slabs floor and the tolerance-not-achieved warning.  Getting this wrong is the
+        # one way a cumulative scan goes silently wrong: on a solar profile an n_acc of 2000
+        # is off by 1.6e-2 where 14883 is right, and nothing in the traversal itself notices.
+        if (rtol is None) and (atol is None):
+            n_acc = kwargs.get('n_slabs', 1)
+        else:
+            probe_info = {}
+            probe_kwargs = dict(osc_prob_kwargs)
+            probe_kwargs['convergence_info'] = probe_info
+            probe_kwargs.pop('A_eval_mode', None)
+            osc_prob(H_fixed, L0, float(L_sorted[-1]),
+                     A_eval_mode=osc_prob_kwargs.get('A_eval_mode'), **probe_kwargs)
+            # Scaled up because that count is what the *longest* baseline needed, and the
+            # same uniform density is thinner than the shorter baselines in the scan would
+            # have chosen for themselves; see CUMULATIVE_N_ACC_SAFETY for the measurement.
+            n_acc = probe_info['n_slabs']*CUMULATIVE_N_ACC_SAFETY
+
+        P_sorted = _osc_prob_cumulative_scan(
+            H_fixed, L_sorted, L0, n_acc, magnus_exp_order,
+            kwargs.get('n_tpts_per_slab', 100), integration_method,
+            kwargs.get('t_breakpoints'), osc_prob_kwargs.get('A_eval_mode'),
+            **{k: v for k, v in kwargs.items()
+               if k not in ('n_slabs', 'n_tpts_per_slab', 't_breakpoints')})
+
+        P_all = np.empty_like(P_sorted)
+        P_all[order] = P_sorted
+        if (nu_i is not None) and (nu_f is not None):
+            P_all = P_all[:, nu_i, nu_f]
+        return P_all
 
     # Warm starts: osc_prob reports the refinement parameters at which each point converged
     # (conv_info), and the next point starts its refinement from there (divided by one growth
