@@ -524,6 +524,39 @@ that history is the most useful record of *why* the code looks the way it does.
 
 ### Fixed
 
+- **A batched solar call could exhaust the machine's memory.**
+  `_osc_prob_ip_exp_core` — the closed-form interaction-picture integrator behind
+  `osc_prob_2nu_sun` and its NSI/LIV siblings — built temporaries of shape
+  `(n_energies, n_slabs, d, d)` while its ladder doubled `n_slabs` toward
+  `IP_EXP_N_SLABS_CAP = 2_000_000`. The reasoning recorded beside that ceiling was
+  about time only ("each slab costs one 2x2 eigendecomposition"), and never
+  accounted for the energy count multiplying the working set. Measured, on the
+  documented solar use case: **~1.3 GB per energy** — 1.56 GB at one energy, 5.34 GB
+  at four, and a `MemoryError` of shape `(8, 2000000, 2, 2)` at eight. Nothing about
+  the call is pathological; it is the advertised batched form of a public wrapper, and
+  notebook 03 scans 1000 energies over exactly that range. The notebooks never hit it
+  only because they use raw `osc_prob` loops. The working set is now tiled over both
+  axes against a fixed budget (`BATCH_WORKING_ENTRIES`), giving a peak that is **flat
+  in the energy count** — 79 MiB at 4 energies and 79 MiB at 256. The tiling is exact:
+  the slab product is folded in the same order with the same parenthesis nesting, and
+  a test pins the output at *bit equality* against an untiled run. Found while
+  measuring the energy axis, and pre-existing — reproduced unchanged at `155e01e`.
+- **The same integrator burned twenty-one refinement levels to reach refusals it could
+  have predicted.** Certification requires `max|Omega_t|` below a trust threshold, and
+  that maximum is bounded below by the diagonal entries, which have a closed form. When
+  even that bound exceeds the threshold at the slab ceiling, no reachable slab count can
+  certify. Two evaluations of the potential and no allocation now detect it, and the
+  method refuses immediately instead of doubling its way to the same answer. It is a
+  bound rather than an estimate, so it can only report "impossible" and cannot abandon a
+  case that would have converged. At 10 MeV over a solar radius it fires for any
+  tolerance of 1e-4 or tighter, or any baseline beyond two solar radii.
+- **A scan whose result could not fit reported it as an out-of-memory kill.** Tiling
+  bounds the engines' working set, but nothing shrinks the answer: N points over d
+  flavors is `N*d*d` floats either way. `osc_prob_energy_baseline` now checks that
+  against the operating system's free-memory figure and raises a `MemoryError` naming
+  the size, rather than letting an overcommitting kernel take the machine down instead
+  of the process. The check costs one multiply below a 64 MiB floor, and never blocks
+  where free memory cannot be read.
 - **A requested `n_slabs` was silently discarded whenever a tolerance was on,
   and that certified wrong answers.** `osc_prob` documented and implemented
   "if `rtol` or `atol` is given, `n_slabs` is ignored": the adaptive ladder

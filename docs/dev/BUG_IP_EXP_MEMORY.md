@@ -1,9 +1,9 @@
 # Bug: a batched solar call can allocate hundreds of gigabytes
 
 **Found:** 2026-08-02, while measuring the energy axis for `DECISION_OSCPROB_CUMULATIVE.md`.
-**Status:** not fixed. Pre-existing — reproduced unchanged at `155e01e`, before the
-`n_slabs` floor landed.
-**Severity:** takes the machine down, not just the process. It OOM-killed the desktop
+**Status: FIXED** on branch `fix-ip-exp-memory`; see §"The fix" below.
+Pre-existing — reproduced unchanged at `155e01e`, before the `n_slabs` floor landed.
+**Severity:** took the machine down, not just the process. It OOM-killed the desktop
 application it was running under three times before it was tracked down.
 
 ---
@@ -69,16 +69,91 @@ runs all the way to the cap without converging, taking ~10 s per energy. The per
 answers the same query in **72 ms**. So on this configuration the "fast path" is also about
 130× *slower* than the general one.
 
-## Suggested directions (not yet evaluated)
+## The fix
 
-- Bound the working set rather than the slab count: process the energy batch in chunks sized
-  so that `nE_chunk * n_slabs * d^2` stays under a budget, or stream slabs the way
-  `DECISION_OSCPROB_CUMULATIVE.md` §6.1 describes for the cumulative scan.
-- Reconsider `IP_EXP_N_SLABS_CAP = 2_000_000` in light of `nE`: a cap that is defensible for
-  one energy is not defensible for a thousand.
-- Investigate why the ladder does not converge here at all, since that is what drives it to
-  the cap; the trust threshold is tied to `sqrt((atol+rtol)/2)` and may simply be
-  unreachable for this profile at these energies.
-- Whatever the fix, a regression test should pin peak memory for a batched solar call, not
-  only its accuracy — this failure is invisible to every existing test because the suite
-  never batches enough energies to make the allocation large.
+**A. Tile the working set over (energy, slab).** The per-level temporaries are now built one
+tile at a time against a fixed entry budget (`BATCH_WORKING_ENTRIES`, via
+`_tile_for_working_set`), so peak memory is a property of the library rather than of the
+call. Measured, at 65 536 slabs:
+
+| energies | 4 | 16 | 64 | 256 |
+|---|---|---|---|---|
+| peak | 79.3 MiB | 78.7 MiB | 78.6 MiB | 78.6 MiB |
+
+Flat across a 64-fold increase in the energy count. The call that used to die — eight solar
+energies over a full solar radius — now completes.
+
+The tiling is **exact, not approximate**. Within a tile the arithmetic is elementwise, so
+slicing moves no value; and the slab product is folded in the same descending order with the
+accumulator on the left, so the parenthesis nesting — the only thing that could shift a
+floating-point result — is unchanged. Verified across a 2000-fold range of budgets, with the
+peak tracking the budget (2.3 MiB at a 16 384-entry budget, 627 MiB at 33 554 432) and the
+result bit-identical at every one of them:
+
+| budget (entries) | 16 384 | 131 072 | 1 048 576 | 4 194 304 | 33 554 432 |
+|---|---|---|---|---|---|
+| peak | 2.3 MiB | 4.5 MiB | 21.5 MiB | 80.1 MiB | 626.8 MiB |
+| identical to untiled | yes | yes | yes | yes | yes |
+
+Time is flat across that range (12–16 s, no trend), because the cost is dominated by the
+per-slab Python fold rather than by array size. There is no speed/memory trade to make here.
+
+Two traps met while verifying this, both worth carrying forward:
+
+- **A module constant consumed as a default argument cannot be monkeypatched.**
+  `_tile_for_working_set` first took `max_entries=BATCH_WORKING_ENTRIES`, which binds at
+  import; the test that varied the budget was therefore comparing two identical runs and
+  passed for free. It now defaults to `None` and reads the constant at call time. The budget
+  sweep above is what exposed it — the peak was suspiciously identical at every budget.
+- **Check that a passing test can fail.** With the correct block order the tiled product is
+  exactly equal; with the blocks walked the wrong way it is off by O(1) — so `array_equal` is
+  a genuine discriminator here, not an assertion that happens to hold.
+
+One subtlety worth recording, because the first attempt got it wrong: the budget has to
+bound the engine's **whole** working set, not one array of it. Eight temporaries of the same
+shape are live at the peak (the argument, the `exp` temporary, the slab integral, `Omega`,
+the matrix exponential's eigenvectors and workspace, the slab operators, and the
+accumulator's operand), so a budget applied per array overshoots eightfold — 625 MiB where
+79 MiB was intended. `_tile_for_working_set` now takes `live_arrays` explicitly.
+
+**B. Refuse up front when certification is provably impossible.** Certification requires
+`max|Omega_t|` below the trust threshold, and that maximum is bounded below by the diagonal
+entries, which have a closed form here (`Delta_jj = 0`, so the slab integral collapses to
+`l_scale*(1 - exp(-w/l_scale))`). If that bound still exceeds the threshold at the slab
+ceiling, no reachable slab count can certify, and the twenty-one doublings that follow are
+guaranteed waste. Two evaluations of `VCC_func` and no allocation detect it.
+
+It is a bound, never an estimate: it can only say *impossible*, so it cannot abandon a case
+that would have worked. Where it bites, at 10 MeV over a solar radius:
+
+| requested tolerance | 1e-2 | 1e-3 | **1e-4** | **1e-6** |
+|---|---|---|---|---|
+| slabs needed | 455 558 | 1 440 611 | **4 555 621** | **45 556 251** |
+| vs cap 2 000 000 | climbs | climbs | **refuses at once** | **refuses at once** |
+
+Note honestly that it does **not** fire at the default tolerance below one solar radius:
+`n_min = 1 440 611` sits just under the ceiling, and — because `max|Mt_jj|` is the matter
+mixing angle, which stays near 1 — that number is the same at every energy from 0.1 to
+100 MeV. Fix B covers tighter tolerances and longer baselines; Fix A is what makes the
+default case safe.
+
+**C. Refuse a result that cannot fit, before allocating it.** Tiling bounds the engines;
+nothing shrinks the answer. `osc_prob_energy_baseline` now checks the requested
+`N*d*d` against the operating system's free-memory figure and raises a `MemoryError` naming
+the size, rather than letting an overcommitting kernel turn it into a machine-wide kill. The
+check costs one multiply below a 64 MiB floor, and never blocks on a platform where free
+memory cannot be read.
+
+## Still open
+
+- **The ladder still climbs to ~1.44M slabs at the default tolerance**, taking ~10 s per
+  energy against the per-point path's 72 ms. That is now merely slow rather than dangerous,
+  but it means the fast path is ~130x *slower* than the general one on the case it exists
+  for. Whether `_osc_prob_ip_exp_dispatch`'s gate should be narrowed — or the method given a
+  second interaction picture that absorbs the diagonal matter phase exactly, which would
+  destroy its closed-form slab integral and is therefore research — is a separate question,
+  and should be settled by measuring `ip_exp` against `hybrid` and per-point across the
+  solar range now that doing so is safe.
+- The suite still has no memory coverage outside these tests. `_osc_prob_scan_separable` was
+  measured safe (100 MiB at 10 energies to 330 MiB at 4000) because it already tiled; it now
+  shares the same helper and constant, so the knob is in one place.

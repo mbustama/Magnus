@@ -286,6 +286,7 @@ __author__ = 'Mauricio Bustamante'
 
 
 import numpy as np
+import os
 import sys
 import warnings
 from functools import reduce
@@ -346,13 +347,66 @@ r"""int: Module-level constant
 Slab ceiling for the closed-form interaction-picture integrator
 (``_osc_prob_ip_exp_core``), deliberately decoupled from the caller's
 ``max_n_slabs``, which is calibrated for the far more expensive quadrature slabs of
-the general method.  Each slab here costs one 2x2 eigendecomposition, so even the
-full ceiling completes in a couple of seconds.
+the general method.  Each slab here costs one 2x2 eigendecomposition, so the ceiling
+is affordable in *time*.
+
+It is not, on its own, affordable in *memory*: the integrator works on arrays of
+shape ``(n_energies, n_slabs, d, d)``, so the working set scales with the number of
+energies as well as the slab count, and at this ceiling it reached ~1.3 GB **per
+energy** -- enough for a batched solar call to exhaust the machine.  The working set
+is now tiled to :data:`BATCH_WORKING_ENTRIES` independently of both, so this ceiling
+bounds only time.  See ``docs/dev/BUG_IP_EXP_MEMORY.md``.
 
 Named rather than inlined so that the method's give-up behaviour at the ceiling can
 be exercised by a test at a small cap: reaching two million slabs to check what
-happens at the boundary would cost gigabytes and minutes, so with the value buried
-in the function body those branches could not be tested at all.
+happens at the boundary would cost minutes, so with the value buried in the function
+body those branches could not be tested at all.
+
+.. versionadded:: 1.0.0
+"""
+
+
+BATCH_WORKING_ENTRIES = 4_194_304
+r"""int: Module-level constant
+
+Ceiling on the number of complex entries in any one temporary array of the batched
+scan engines -- about 64 MB at 16 bytes each.  Both batched engines work on arrays
+indexed by (energy, slab, ...), whose size is the product of quantities the caller
+controls independently, so neither a slab cap nor an energy count bounds them on its
+own.  Tiling against a fixed entry budget does, and it makes peak memory a property
+of the library rather than of the call.
+
+The value is a compromise: large enough that the tiles stay well inside the regime
+where batched BLAS calls amortize their overhead, small enough to be invisible next
+to the result arrays on any machine that can hold them.
+
+.. versionadded:: 1.0.0
+"""
+
+
+OUTPUT_GUARD_MIN_BYTES = 64*1024*1024
+r"""int: Module-level constant
+
+Requested-output size below which :func:`osc_prob_energy_baseline` does not bother
+checking whether the result will fit in memory.  The check itself costs one integer
+multiply below this threshold and a single read of the operating system's free-memory
+figure above it, so the floor exists to keep even that off the path of ordinary calls.
+
+.. versionadded:: 1.0.0
+"""
+
+
+OUTPUT_GUARD_SAFETY = 2.0
+r"""float: Module-level constant
+
+Multiple of the requested result size that must fit in available memory before
+:func:`osc_prob_energy_baseline` will attempt a scan.  Greater than one because the
+adaptive engines hold at least the current and the previous probability matrices at
+once, plus the caller's own input arrays.
+
+Deliberately not larger: the guard exists to turn an out-of-memory kill into a
+diagnosable error, not to second-guess a caller who knows their machine.  It refuses
+only when the answer alone would claim more than half of what is free.
 
 .. versionadded:: 1.0.0
 """
@@ -382,6 +436,119 @@ def _resolve_max_n_slabs(max_n_slabs, integration_method):
     if max_n_slabs is not None:
         return max_n_slabs
     return MAX_N_SLABS_DEFAULT.get(integration_method, MAX_N_SLABS_DEFAULT['trapezoid'])
+
+
+def _tile_for_working_set(n_energies, n_inner, cell_entries, live_arrays=1,
+                          max_entries=None):
+    """Split an ``(n_energies, n_inner, ...)`` batch into tiles under a fixed entry budget.
+
+    The batched engines build temporaries indexed by (energy, slab); their size is a
+    product of two quantities the caller sets independently, so bounding either one alone
+    does not bound the array.  This returns the tile to iterate in instead.
+
+    Parameters
+    ----------
+    n_energies, n_inner : int
+        Extent of the two batched axes.
+    cell_entries : int
+        Complex entries per (energy, inner) cell -- ``d*d`` for a stack of matrices,
+        ``d*d*n_tpts_per_slab`` when each cell also carries quadrature samples.
+    live_arrays : int, optional
+        How many temporaries of this shape exist at once at the peak of the caller's
+        loop.  The budget is divided by it, so that :data:`BATCH_WORKING_ENTRIES` bounds
+        the engine's whole working set rather than one array of it -- the distinction is
+        an eightfold one for the interaction-picture integrator, which holds the argument,
+        the slab integral, ``Omega``, the slab operators and the matrix-exponential's own
+        workspace simultaneously.  Default 1, which reproduces a budget stated per array.
+    max_entries : int, optional
+        Budget; defaults to :data:`BATCH_WORKING_ENTRIES`, read at call time rather than
+        bound as a default argument so that the constant can be varied -- a test that
+        monkeypatches a module attribute consumed as a default would pass trivially,
+        comparing two identical runs.
+
+    Returns
+    -------
+    (int, int)
+        ``(energy_chunk, inner_block)``, both at least 1, whose product times
+        ``cell_entries`` times ``live_arrays`` stays within the budget whenever that is
+        possible at all.  A single cell larger than the whole budget cannot be split
+        further and is returned as ``(1, 1)``: there is no tiling that helps, and refusing
+        to proceed would be worse than a large allocation the caller can at least see.
+
+    .. versionadded:: 1.0.0
+    """
+    if max_entries is None:
+        max_entries = BATCH_WORKING_ENTRIES
+    per_cell = max(1, int(cell_entries))*max(1, int(live_arrays))
+    budget_cells = max(1, int(max_entries)//per_cell)
+    n_energies = max(1, int(n_energies))
+    n_inner = max(1, int(n_inner))
+    inner_block = min(n_inner, max(1, budget_cells//n_energies))
+    energy_chunk = min(n_energies, max(1, budget_cells//inner_block))
+    return energy_chunk, inner_block
+
+
+def _available_memory_bytes():
+    """Best-effort free physical memory, or None if it cannot be had cheaply.
+
+    ``MemAvailable`` is preferred where it exists because it accounts for reclaimable
+    page cache, which the raw free-page count does not: on a machine with a warm cache
+    the latter understates what a large allocation can actually get, and a guard built on
+    it would refuse work that would have succeeded.
+
+    Returns None rather than guessing on platforms that expose neither.  A guard that
+    cannot measure must not block.
+
+    .. versionadded:: 1.0.0
+    """
+    try:
+        with open('/proc/meminfo') as f:
+            for line in f:
+                if line.startswith('MemAvailable:'):
+                    return int(line.split()[1])*1024
+    except (OSError, ValueError, IndexError):
+        pass
+    try:
+        return os.sysconf('SC_AVPHYS_PAGES')*os.sysconf('SC_PAGE_SIZE')
+    except (AttributeError, ValueError, OSError):
+        return None
+
+
+def _check_output_fits(n_points, dim, source_func_name):
+    """Refuse a scan whose *result* cannot fit in memory, before allocating anything.
+
+    Tiling bounds the engines' working set, but nothing can shrink the answer itself: a
+    scan of N points over d flavors returns ``N*d*d`` floats, and if that does not fit,
+    no strategy helps.  Left unchecked, the failure arrives as an out-of-memory kill from
+    somewhere deep in an engine -- or, on an overcommitting kernel, as the machine going
+    down rather than the process.  Checking up front turns that into a message naming the
+    number that is too large.
+
+    Costs one multiply for ordinary calls: the free-memory figure is only consulted once
+    the request passes :data:`OUTPUT_GUARD_MIN_BYTES`.
+
+    Raises
+    ------
+    MemoryError
+        If the result would claim more than 1/:data:`OUTPUT_GUARD_SAFETY` of available
+        memory.  Never raised when free memory cannot be determined.
+
+    .. versionadded:: 1.0.0
+    """
+    needed = int(n_points)*int(dim)*int(dim)*8          # float64 probability matrices
+    if needed < OUTPUT_GUARD_MIN_BYTES:
+        return
+    available = _available_memory_bytes()
+    if available is None:
+        return
+    if needed*OUTPUT_GUARD_SAFETY > available:
+        raise MemoryError(
+            gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": the requested "
+            "scan would return " + f"{n_points:,}" + " probability matrices of size " +
+            f"{dim}x{dim}" + " (" + f"{needed/2**30:.2f}" + " GiB), against " +
+            f"{available/2**30:.2f}" + " GiB of available memory. The result alone would "
+            "not fit, so no choice of method or tolerance can help. Split the scan into "
+            "batches and concatenate the results.")
 
 
 class ToleranceNotAchievedWarning(UserWarning):
@@ -2528,7 +2695,7 @@ def _osc_prob_scan_separable(
 
         # Batched kernel over the active energies, chunked so that each
         # sample array At holds at most ~4M complex entries (~64 MB)
-        chunk = max(1, int(4_194_304 // max(1, tgrid.size*dim*dim)))
+        chunk, _ = _tile_for_working_set(len(active), 1, tgrid.size*dim*dim)
         P_new = np.empty((len(active), dim, dim))
         for i0 in range(0, len(active), chunk):
             sel = active[i0:i0+chunk]
@@ -2828,33 +2995,104 @@ def _osc_prob_ip_exp_core(
     n_slabs_cap = IP_EXP_N_SLABS_CAP
     loop_cap = IP_EXP_LOOP_CAP
     growth = 2.0
+    nE, dim = H_E.shape[0], H_E.shape[-1]
+
+    # Can the trust gate above ever open, at any slab count this method is allowed?
+    #
+    # Certification requires max|Omega_t| < omega_trust_threshold, and that maximum is bounded
+    # below by the largest *diagonal* entry, which has a closed form here.  On the diagonal
+    # Delta_jj = 0, so denom_jj = -1/l_scale and the slab integral collapses to
+    # l_scale*(1 - exp(-w/l_scale)) for slab width w, giving
+    #
+    #     max|Omega_jj| = max_ej|Mt[e,j,j]| * max_s|V(l_s)| * l_scale*(1 - exp(-w/l_scale)),
+    #
+    # decreasing in the slab count and independent of it otherwise.  If that alone still
+    # exceeds the threshold at the ceiling, then max|Omega_t| does too at every reachable slab
+    # count, no comparison is ever trusted, and the ladder is guaranteed to climb to the cap
+    # and refuse.  Detecting it costs two evaluations of VCC_func and no allocation.
+    #
+    # This is a bound, not an estimate: it can only ever say "certification is impossible",
+    # never "certification will succeed", so it cannot abandon a case that would have worked.
+    # The pass below still runs once, at the starting slab count, because an uncertified result
+    # is still required to be a genuine unitary probability matrix -- see the tests on this
+    # function's give-up exits.
+    certifiable = True
+    if tol_requested:
+        v_max = max(abs(float(np.real(np.asarray(VCC_func(L0))))),
+                    abs(float(np.real(np.asarray(VCC_func(L_val))))))
+        mt_diag_max = float(np.max(np.abs(np.diagonal(Mt, axis1=-2, axis2=-1))))
+        scale = mt_diag_max*v_max
+        if scale > 0.0:
+            c = omega_trust_threshold/scale
+            if c < l_scale:                       # otherwise the bound is below threshold at any w
+                w_max = -l_scale*np.log1p(-c/l_scale)
+                certifiable = np.ceil((L_val - L0)/w_max) <= n_slabs_cap
 
     P_prev = None
     n_slabs_prev = None
     consecutive_agreements = 0
     loop_count = 1
     while True:
+        # The full edge grid is O(n_slabs) floats and independent of the energy count, so it
+        # is affordable at any slab cap; it is built whole rather than per tile because
+        # np.linspace's endpoint handling is not reproduced by arithmetic on a sub-range,
+        # and the tiling below must not perturb a single slab edge.
         grid = np.linspace(L0, L_val, n_slabs + 1)
-        edges = np.column_stack([grid[:-1], grid[1:]])
-        widths = edges[:, 1] - edges[:, 0]                          # (n_slabs,)
-        V0 = np.asarray(VCC_func(edges[:, 0]), dtype=complex)       # VCC at each slab's start
 
-        arg = denom[:, None, :, :]*widths[None, :, None, None]      # (nE, n_slabs, d, d)
-        I = (np.exp(arg) - 1.0)/denom[:, None, :, :]
-        Omega_t = -1j*Mt[:, None, :, :]*V0[None, :, None, None]*I   # anti-Hermitian, per slab
+        # Everything below is tiled over (energy, slab).  The arrays this replaces --
+        # (nE, n_slabs, d, d) complex, several live at once -- are the whole of the memory
+        # bug: at the slab ceiling they reached ~1.3 GB per energy, so a batched solar call
+        # could exhaust the machine.  See docs/dev/BUG_IP_EXP_MEMORY.md.
+        #
+        # The tiling is exact, not approximate.  Within a tile the arithmetic is elementwise,
+        # so slicing changes no value; and the product is folded slab-by-slab in the same
+        # descending order as before, with the accumulator on the left, so the parenthesis
+        # nesting -- the only thing that could move a floating-point result -- is unchanged.
+        # Blocks are therefore walked from the *last* slab backwards. A test pins the output
+        # of a tiled run against an untiled one at exact equality.
+        # live_arrays: arg, the exp() temporary, I, Omega_t, _expm_stack's eigenvectors and
+        # its workspace, U_slab, and the accumulator's operand -- eight of this shape at the
+        # peak, which is why the budget has to be divided rather than applied per array.
+        e_chunk, blk = _tile_for_working_set(nE, n_slabs, dim*dim, live_arrays=8)
+        Utot = np.empty((nE, dim, dim), dtype=complex)
+        max_omega = 0.0
 
-        U_free_diag = np.exp(-1j*Lam[:, None, :]*widths[None, :, None])   # (nE, n_slabs, d)
-        U_slab = U_free_diag[..., :, None]*magnus._expm_stack(Omega_t, warn_wide=False)
+        for e0 in range(0, nE, e_chunk):
+            esel = slice(e0, min(e0 + e_chunk, nE))
+            acc = None
+            for b1 in range(n_slabs, 0, -blk):                      # descending slab blocks
+                b0 = max(0, b1 - blk)
+                edges0 = grid[b0:b1]                                # (nb,) slab starts
+                widths = grid[b0 + 1:b1 + 1] - edges0               # (nb,)
+                V0 = np.asarray(VCC_func(edges0), dtype=complex)    # VCC at each slab's start
 
-        Utot = U_slab[:, -1]
-        for k in range(U_slab.shape[1] - 2, -1, -1):
-            Utot = Utot @ U_slab[:, k]
+                arg = denom[esel, None, :, :]*widths[None, :, None, None]
+                I = (np.exp(arg) - 1.0)/denom[esel, None, :, :]
+                Omega_t = -1j*Mt[esel, None, :, :]*V0[None, :, None, None]*I
+                max_omega = max(max_omega, float(np.max(np.abs(Omega_t))))
+
+                U_free_diag = np.exp(-1j*Lam[esel, None, :]*widths[None, :, None])
+                U_slab = U_free_diag[..., :, None]*magnus._expm_stack(
+                    Omega_t, warn_wide=False)
+
+                for k in range(U_slab.shape[1] - 1, -1, -1):
+                    acc = U_slab[:, k] if acc is None else acc @ U_slab[:, k]
+                del arg, I, Omega_t, U_free_diag, U_slab
+            Utot[esel] = acc
+
         Utot = W @ Utot @ Wd                                        # back to the flavor basis
 
         P_new = np.swapaxes(Utot.real**2 + Utot.imag**2, -1, -2)
 
         if not tol_requested:
             return P_new, True
+
+        # Certification is provably out of reach (see the bound above): refuse now rather
+        # than doubling the slab count twenty more times to arrive at the same refusal.  The
+        # caller's dispatcher discards this result and falls back to the general method, as
+        # it would have anyway -- identically, and roughly a thousand times sooner.
+        if not certifiable:
+            return P_new, False
 
         at_cap = (n_slabs >= n_slabs_cap)
         # Once n_slabs is pinned at the cap, growth is a no-op: a further "refinement" would just
@@ -2872,8 +3110,6 @@ def _osc_prob_ip_exp_core(
             # n_slabs never equals n_slabs_prev.  It becomes live again the moment the
             # growth factor, the cap, or the returns below change.
             return P_new, False
-
-        max_omega = float(np.max(np.abs(Omega_t)))
 
         if (P_prev is not None) and (max_omega < omega_trust_threshold):
             if np.all(np.abs(P_new - P_prev) <= atol + rtol*np.abs(P_prev)):
@@ -3549,6 +3785,18 @@ def osc_prob_energy_baseline(
     if isinstance(H_first, Callable):
         osc_prob_kwargs['A_eval_mode'] = magnus.probe_eval_mode(
             lambda t: -1j*H_first(t), L0, np.max(L))
+
+    # Refuse a request whose *result* cannot fit, before the scan allocates anything.  Every
+    # batched engine either runs from here or falls back to here, and their working sets are
+    # now tiled to a fixed budget, which leaves the result array as the only quantity still
+    # free to grow without bound.  Placed here because this is the first point at which the
+    # flavor count is known without evaluating the Hamiltonian specially for it: H_first has
+    # been built already, and probe_eval_mode has just called it if it is a function of
+    # position.  Costs one multiply for ordinary requests; see _check_output_fits.
+    _check_output_fits(
+        n_points,
+        np.asarray(H_first(L0) if isinstance(H_first, Callable) else H_first).shape[-1],
+        'osc_prob_energy_baseline')
 
     # Warm starts: osc_prob reports the refinement parameters at which each point converged
     # (conv_info), and the next point starts its refinement from there (divided by one growth
