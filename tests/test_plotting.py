@@ -264,6 +264,198 @@ def test_plot_curves_applies_x_tick_spacings_to_both_panels(sample):
 
 
 # ----------------------------------------------------------------------
+# plot_curves_stacked: small multiples
+#
+# The point of this layout is that the reader compares panels against each
+# other, so the tests below are mostly about what every panel has in common --
+# limits, scales, tick spacings -- and about which single panel gets the parts
+# that must not repeat: the abscissa labels, the title, the legend.
+# ----------------------------------------------------------------------
+
+@pytest.fixture
+def stack():
+    """An abscissa and three panels of two curves each."""
+    E = np.linspace(1.0, 40.0, 64)
+    panels = [[np.sin(k*E/8.0)**2, 0.8*np.sin(k*E/8.0)**2]
+              for k in (0.5, 1.0, 2.0)]
+    return E, panels
+
+
+def test_stacked_returns_one_axes_per_panel(stack):
+    E, panels = stack
+    fig, ax = mp.plot_curves_stacked(E, panels)
+    assert ax.shape == (3,)
+    assert all(len(axx.get_lines()) == 2 for axx in ax)
+
+
+def test_stacked_returns_an_array_even_for_one_panel(stack):
+    """A one-panel stack must index like any other, so callers that loop or
+    subscript do not need a special case for it."""
+    E, _ = stack
+    fig, ax = mp.plot_curves_stacked(E, [[np.sin(E)]])
+    assert ax.shape == (1,)
+
+
+def test_stacked_mutes_every_panel_but_the_bottom(stack):
+    """Repeating the tick labels on every panel is what makes a hand-built
+    stack read as separate figures rather than one."""
+    E, panels = stack
+    fig, ax = mp.plot_curves_stacked(E, panels)
+    assert all(t.get_text() == '' for axx in ax[:-1]
+               for t in axx.get_xticklabels())
+    assert any(t.get_text() != '' for t in ax[-1].get_xticklabels())
+
+
+def test_stacked_shares_limits_scales_and_ticks_across_panels(stack):
+    """The comparison is between panels, so any axis that differs is a bug."""
+    E, panels = stack
+    fig, ax = mp.plot_curves_stacked(
+        E, panels, xlim=(1.0, 40.0), ylim=(0.0, 1.0), xmajor=10.0, ymajor=0.1)
+    assert len({axx.get_xlim() for axx in ax}) == 1
+    assert len({axx.get_ylim() for axx in ax}) == 1
+    for axx in ax:
+        assert np.diff(axx.xaxis.get_major_locator().tick_values(
+            0.0, 40.0))[0] == pytest.approx(10.0)
+
+
+def test_stacked_puts_the_xlabel_and_title_on_one_panel_each(stack):
+    E, panels = stack
+    fig, ax = mp.plot_curves_stacked(E, panels, xlabel='X', title='T')
+    assert [axx.get_xlabel() for axx in ax] == ['', '', 'X']
+    assert [axx.get_title() for axx in ax] == ['T', '', '']
+
+
+def test_stacked_ylabel_is_one_figure_level_label(stack):
+    """Every panel shows the same quantity, so the ordinate is labelled once
+    for the stack -- the notebooks did this by adding a frameless full-figure
+    subplot purely to hang a label on."""
+    E, panels = stack
+    fig, ax = mp.plot_curves_stacked(E, panels, ylabel='P')
+    assert fig.get_supylabel() == 'P'
+    assert all(axx.get_ylabel() == '' for axx in ax)
+
+
+def test_stacked_shared_ylabel_matches_the_axis_label_size(stack):
+    """supylabel takes rcParams['figure.labelsize'], every axis label takes
+    rcParams['axes.labelsize'], and the notebooks set the latter to 25. Left on
+    the default the shared ordinate label renders visibly smaller than the
+    abscissa label under it -- caught by looking at the rendered figure, not by
+    the code running."""
+    E, panels = stack
+    with matplotlib.rc_context({'axes.labelsize': 25, 'figure.labelsize': 11}):
+        fig, ax = mp.plot_curves_stacked(E, panels, ylabel='P', xlabel='X')
+    assert fig._supylabel.get_fontsize() == 25
+
+
+def test_stacked_shared_ylabel_size_can_be_overridden(stack):
+    E, panels = stack
+    fig, ax = mp.plot_curves_stacked(E, panels, ylabel='P',
+                                     ylabel_kw=dict(fontsize=8))
+    assert fig._supylabel.get_fontsize() == 8
+
+
+def test_stacked_colour_cycle_restarts_in_each_panel(stack):
+    """The n-th curve of every panel must match, or the panels cannot be read
+    against each other."""
+    E, panels = stack
+    fig, ax = mp.plot_curves_stacked(E, panels)
+    first = [axx.get_lines()[0].get_color() for axx in ax]
+    second = [axx.get_lines()[1].get_color() for axx in ax]
+    assert set(first) == {'C0'}
+    assert set(second) == {'C1'}
+
+
+def test_stacked_labels_each_panel(stack):
+    E, panels = stack
+    fig, ax = mp.plot_curves_stacked(E, panels,
+                                     panel_labels=['a', 'b', 'c'])
+    assert [axx.texts[0].get_text() for axx in ax] == ['a', 'b', 'c']
+
+
+def test_stacked_rejects_a_panel_label_count_mismatch(stack):
+    E, panels = stack
+    with pytest.raises(ValueError, match='one label per panel'):
+        mp.plot_curves_stacked(E, panels, panel_labels=['a'])
+
+
+def test_stacked_rejects_an_empty_stack():
+    with pytest.raises(ValueError, match='at least'):
+        mp.plot_curves_stacked(np.linspace(0.0, 1.0, 4), [])
+
+
+def test_stacked_rejects_a_legend_panel_out_of_range(stack):
+    E, panels = stack
+    with pytest.raises(ValueError, match='legend_panel'):
+        mp.plot_curves_stacked(E, panels, legend_panel=7)
+
+
+def test_stacked_annotation_can_name_its_panel(stack):
+    E, panels = stack
+    fig, ax = mp.plot_curves_stacked(
+        E, panels, annotations=[dict(text='params', xy=(0.5, 0.5), panel=1)])
+    assert ax[1].texts[0].get_text() == 'params'
+    assert len(ax[0].texts) == 0
+
+
+def test_stacked_legend_proxies_describe_a_style_not_a_curve(stack):
+    """When colour varies panel to panel, the legend has to describe line style
+    instead. The proxy handles replace the notebooks' trick of plotting dummy
+    points outside the axis limits to manufacture legend entries -- so no curve
+    carries a label here, and the legend is still correct."""
+    E, panels = stack
+    fig, ax = mp.plot_curves_stacked(
+        E, panels, legend_panel=0,
+        legend_proxies=[dict(label='3+1', color='k', ls='-'),
+                        dict(label='standard', color='k', ls='--')])
+    leg = ax[0].get_legend()
+    assert [t.get_text() for t in leg.get_texts()] == ['3+1', 'standard']
+    assert all(axx.get_legend() is None for axx in ax[1:])
+    assert all(len(axx.get_lines()) == 2 for axx in ax)
+
+
+def test_stacked_legend_falls_back_to_curve_labels(stack):
+    E, panels = stack
+    labelled = [[dict(y=panels[0][0], label='first'), panels[0][1]]] + panels[1:]
+    fig, ax = mp.plot_curves_stacked(E, labelled)
+    assert [t.get_text() for t in ax[0].get_legend().get_texts()] == ['first']
+
+
+def test_stacked_draws_no_legend_when_there_is_nothing_to_say(stack):
+    E, panels = stack
+    fig, ax = mp.plot_curves_stacked(E, panels)
+    assert all(axx.get_legend() is None for axx in ax)
+
+
+def test_stacked_legend_defaults_match_the_house_style(stack):
+    E, panels = stack
+    fig, ax = mp.plot_curves_stacked(
+        E, panels, legend_proxies=[dict(label='a', color='k')])
+    leg = ax[0].get_legend()
+    assert leg.get_frame_on() is mp.HOUSE_LEGEND_KW['frameon']
+    assert leg.get_texts()[0].get_fontsize() == mp.HOUSE_LEGEND_KW['fontsize']
+
+
+def test_stacked_default_figsize_scales_with_the_panel_count(stack):
+    E, panels = stack
+    fig, ax = mp.plot_curves_stacked(E, panels)
+    assert tuple(fig.get_size_inches()) == (
+        mp.HOUSE_FIGSIZE[0], 0.5*mp.HOUSE_FIGSIZE[1]*3)
+
+
+def test_stacked_rejects_an_unknown_keyword(stack):
+    E, panels = stack
+    with pytest.raises(TypeError):
+        mp.plot_curves_stacked(E, panels, colour='red')
+
+
+def test_stacked_saves_when_asked(stack, tmp_path):
+    E, panels = stack
+    out = tmp_path / 'stack.pdf'
+    mp.plot_curves_stacked(E, panels, savefig=str(out))
+    assert out.exists() and out.stat().st_size > 0
+
+
+# ----------------------------------------------------------------------
 # the probability presets
 # ----------------------------------------------------------------------
 

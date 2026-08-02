@@ -12,9 +12,11 @@ curves against a mixing angle, and the convergence studies of the
 matrix-exponential notebook all share one shape: a set of curves plotted
 against a swept variable, optionally over a short relative-error subpanel.
 :func:`plot_curves` is that shape, and the ``plot_probability_vs_*`` helpers
-are thin wrappers that only preset labels and limits. The genuinely distinct
-layouts are the profile-plus-probability stack, the bi-probability plane, and
-the oscillogram.
+are thin wrappers that only preset labels and limits.
+:func:`plot_curves_stacked` is its small-multiples form: the same plot repeated
+once per case down a shared abscissa, where the comparison is between panels.
+The genuinely distinct layouts are the profile-plus-probability stack, the
+bi-probability plane, and the oscillogram.
 
 API conventions
 ---------------
@@ -69,6 +71,7 @@ __all__ = [
     'HOUSE_RESIDUAL_HEIGHT',
     'prob_label',
     'plot_curves',
+    'plot_curves_stacked',
     'plot_probability_vs_baseline',
     'plot_probability_vs_energy',
     'plot_probability_with_profile',
@@ -508,6 +511,269 @@ def plot_curves(
         gkw.update(grid_kw or {})
         for axx in ([main, res] if has_res else [main]):
             axx.grid(**gkw)
+
+    _finish(fig, savefig, savefig_kw, tight_layout)
+    return fig, ax
+
+
+def plot_curves_stacked(
+    x: Sequence[float],
+    panels: Sequence[Sequence[Union[Sequence[float], Dict[str, Any]]]],
+    *,
+    xlabel: Optional[str] = None,
+    ylabel: Optional[str] = None,
+    title: Optional[str] = None,
+    xlim: Optional[Tuple[float, float]] = None,
+    ylim: Optional[Tuple[float, float]] = None,
+    xscale: str = 'linear',
+    yscale: str = 'linear',
+    xmajor: Optional[float] = None,
+    xminor: Optional[float] = None,
+    ymajor: Optional[float] = None,
+    yminor: Optional[float] = None,
+    panel_labels: Optional[Sequence[str]] = None,
+    panel_label_xy: Tuple[float, float] = (0.02, 0.10),
+    panel_label_kw: Optional[Dict[str, Any]] = None,
+    annotations: Optional[Sequence[Dict[str, Any]]] = None,
+    legend: bool = True,
+    legend_panel: int = 0,
+    legend_proxies: Optional[Sequence[Dict[str, Any]]] = None,
+    legend_title: Optional[str] = None,
+    legend_loc: Optional[str] = None,
+    legend_kw: Optional[Dict[str, Any]] = None,
+    grid: bool = False,
+    grid_kw: Optional[Dict[str, Any]] = None,
+    ylabel_kw: Optional[Dict[str, Any]] = None,
+    title_fontsize: float = 23.0,
+    figsize: Optional[Tuple[float, float]] = None,
+    height_ratios: Optional[Sequence[float]] = None,
+    subplots_kw: Optional[Dict[str, Any]] = None,
+    savefig: Optional[str] = None,
+    savefig_kw: Optional[Dict[str, Any]] = None,
+    tight_layout: bool = True,
+):
+    r"""Plot small multiples: one panel per case, stacked over a shared abscissa.
+
+    The layout for "the same quantity, once per configuration" -- one panel per
+    detector, per baseline, per zenith angle -- where the comparison the reader
+    makes is *between* panels, so every panel must share limits, scales and tick
+    spacings exactly. Only the bottom panel keeps its tick labels and abscissa
+    label, and the ordinate label is a single figure-level label spanning the
+    stack.
+
+    This differs from :func:`plot_probability_with_profile`, whose panels show
+    *different* quantities (a density profile above a probability), and from
+    :func:`plot_curves`, whose optional second panel is a relative error rather
+    than another instance of the same plot.
+
+    .. versionadded:: 1.0.0
+
+    Parameters
+    ----------
+    x : sequence of float
+        Abscissa, shared by every panel.
+    panels : sequence of sequence
+        One entry per panel, each a sequence of curves in the form
+        :func:`plot_curves` accepts: a bare ordinate array, or a dict carrying
+        the ordinate under ``'y'`` plus any
+        :class:`~matplotlib.lines.Line2D` keyword. Curves without an explicit
+        colour take the ``'C0'``, ``'C1'``, ... cycle *within* their panel, so
+        the n-th curve of every panel matches by default.
+    xlabel : str, optional
+        Abscissa label, placed on the bottom panel only.
+    ylabel : str, optional
+        Ordinate label. Drawn once for the whole stack with
+        :meth:`~matplotlib.figure.Figure.supylabel`, since every panel shows
+        the same quantity. Being figure-level, it takes no ``labelpad``; use
+        ``ylabel_kw`` for its placement.
+    title : str, optional
+        Title, placed above the top panel.
+    xlim, ylim : tuple of float, optional
+        Axis limits, applied to every panel.
+    xscale, yscale : str, optional
+        Matplotlib axis scales, applied to every panel. Default ``'linear'``.
+    xmajor, xminor, ymajor, yminor : float, optional
+        Major/minor tick spacings, applied to every panel.
+    panel_labels : sequence of str, optional
+        One caption per panel, annotated inside it -- the usual way of saying
+        which case a panel is. Must match the number of panels.
+    panel_label_xy : tuple of float, optional
+        Position of those captions, in axes fractions. Default ``(0.02, 0.10)``.
+    panel_label_kw : dict, optional
+        Extra :meth:`~matplotlib.axes.Axes.annotate` keywords for them.
+    annotations : sequence of dict, optional
+        Free-form text. Each entry needs ``'text'`` and ``'xy'``, may name a
+        ``'panel'`` (index, default 0), and may carry any other
+        :meth:`~matplotlib.axes.Axes.annotate` keyword.
+    legend : bool, optional
+        Whether to draw a legend. Default ``True``; drawn only if there is
+        something to put in it.
+    legend_panel : int, optional
+        Which panel carries the legend. Default ``0``.
+    legend_proxies : sequence of dict, optional
+        Legend entries that describe a *style* shared across panels rather than
+        any one curve -- e.g. "solid: 3+1, dashed: standard" when the colour
+        varies from panel to panel. Each entry is a set of
+        :class:`~matplotlib.lines.Line2D` keywords including ``label``, drawn
+        as an empty proxy artist. When given, these replace the labels picked
+        up from the curves themselves. This exists because the alternative, and
+        what the notebooks did, is plotting dummy points outside the axis
+        limits to manufacture legend handles.
+    legend_title, legend_loc : str, optional
+        Legend title and location.
+    legend_kw : dict, optional
+        Extra keywords merged over :data:`HOUSE_LEGEND_KW`.
+    grid : bool, optional
+        Whether to draw a grid on every panel. Default ``False``.
+    grid_kw : dict, optional
+        Extra keywords merged over :data:`HOUSE_GRID_KW`.
+    ylabel_kw : dict, optional
+        Extra keywords for :meth:`~matplotlib.figure.Figure.supylabel`.
+    title_fontsize : float, optional
+        Title font size. Default ``23.0``.
+    figsize : tuple of float, optional
+        Figure size in inches. Defaults to :data:`HOUSE_FIGSIZE`'s width and
+        half its height per panel, which reproduces the notebooks' proportions.
+    height_ratios : sequence of float, optional
+        Relative panel heights. Default: equal.
+    subplots_kw : dict, optional
+        Extra keywords for :func:`~matplotlib.pyplot.subplots`.
+    savefig : str, optional
+        If given, the figure is written here.
+    savefig_kw : dict, optional
+        Extra keywords merged over :data:`HOUSE_SAVEFIG_KW`.
+    tight_layout : bool, optional
+        Whether to call :meth:`~matplotlib.figure.Figure.tight_layout`.
+        Default ``True``.
+
+    Returns
+    -------
+    fig : matplotlib.figure.Figure
+        The figure, ready for further customisation or saving.
+    ax : numpy.ndarray of Axes
+        One axes per panel, top to bottom. Always an array, including for a
+        single panel, so that indexing does not depend on the panel count.
+
+    Examples
+    --------
+    .. jupyter-execute::
+
+        import matplotlib
+        matplotlib.use('Agg')
+        import numpy as np
+        from magnus.plotting import plot_curves_stacked
+
+        E = np.linspace(1.0, 40.0, 200)
+        cases = [0.5, 1.0, 2.0]
+        panels = [
+            [dict(y=np.sin(k*E/8.0)**2, color=f'C{i}'),
+             dict(y=np.sin(k*E/8.0)**2*0.8, color='0.7', ls='--')]
+            for i, k in enumerate(cases)
+        ]
+
+        fig, ax = plot_curves_stacked(
+            E, panels,
+            xlabel=r'Neutrino energy, $E_\nu$ [GeV]', ylabel='Probability',
+            ylim=(0, 1), xlim=(1.0, 40.0),
+            panel_labels=[f'baseline {k:.1f} kton-yr' for k in cases],
+            legend_proxies=[dict(label='3+1', color='k', ls='-'),
+                            dict(label=r'standard', color='k', ls='--')],
+        )
+        print(ax.shape, ax[0].get_xticklabels()[0].get_text() == '')
+    """
+    mpl, plt = _mpl()
+
+    n = len(panels)
+    if n == 0:
+        raise ValueError(
+            'plotting.plot_curves_stacked: panels is empty; it needs at least '
+            'one panel, each a sequence of curves'
+        )
+    if panel_labels is not None and len(panel_labels) != n:
+        raise ValueError(
+            f'plotting.plot_curves_stacked: got {len(panel_labels)} panel_labels '
+            f'for {n} panels; there must be exactly one label per panel'
+        )
+    if not (-n <= legend_panel < n):
+        raise ValueError(
+            f'plotting.plot_curves_stacked: legend_panel={legend_panel} is out of '
+            f'range for {n} panels'
+        )
+
+    if figsize is None:
+        figsize = (HOUSE_FIGSIZE[0], 0.5*HOUSE_FIGSIZE[1]*n)
+    skw = dict(subplots_kw or {})
+    gs_kw = skw.pop('gridspec_kw', None) or dict(
+        height_ratios=list(height_ratios) if height_ratios is not None else [1.0]*n,
+        width_ratios=[1.0])
+    # squeeze=False so a one-panel stack still indexes like every other one.
+    fig, ax = plt.subplots(ncols=1, nrows=n, gridspec_kw=gs_kw, figsize=figsize,
+                           squeeze=False, **skw)
+    ax = ax[:, 0]
+    fig.subplots_adjust(hspace=_HSPACE, wspace=_WSPACE)
+
+    for panel, axx in zip(panels, ax):
+        for i, (y, kw) in enumerate(_as_curve_list(panel)):
+            kw.setdefault('lw', 1)
+            kw.setdefault('color', f'C{i}')
+            axx.plot(x, y, **kw)
+
+    for i, axx in enumerate(ax):
+        axx.set_xscale(xscale)
+        axx.set_yscale(yscale)
+        if xlim is not None:
+            axx.set_xlim(*xlim)
+        if ylim is not None:
+            axx.set_ylim(*ylim)
+        _apply_locators(axx.xaxis, xmajor, xminor)
+        _apply_locators(axx.yaxis, ymajor, yminor)
+        if grid:
+            gkw = dict(HOUSE_GRID_KW)
+            gkw.update(grid_kw or {})
+            axx.grid(**gkw)
+        if i != n - 1:
+            axx.xaxis.set_ticklabels([])
+
+    for axx, text in zip(ax, panel_labels or []):
+        akw = dict(xycoords='axes fraction', ha='left', fontsize=20)
+        akw.update(panel_label_kw or {})
+        axx.annotate(text, xy=panel_label_xy, **akw)
+
+    for a in (annotations or []):
+        a = dict(a)
+        text, xy = a.pop('text'), a.pop('xy')
+        panel = a.pop('panel', 0)
+        a.setdefault('xycoords', 'axes fraction')
+        a.setdefault('ha', 'left')
+        ax[panel].annotate(text, xy=xy, **a)
+
+    if legend:
+        lkw = dict(HOUSE_LEGEND_KW)
+        if legend_title is not None:
+            lkw['title'] = legend_title
+        if legend_loc is not None:
+            lkw['loc'] = legend_loc
+        lkw.update(legend_kw or {})
+        if legend_proxies:
+            handles = [mpl.lines.Line2D([], [], **dict(kw)) for kw in legend_proxies]
+            ax[legend_panel].legend(handles=handles, **lkw)
+        elif any('label' in kw for _, kw in _as_curve_list(panels[legend_panel])):
+            ax[legend_panel].legend(**lkw)
+
+    if title is not None:
+        ax[0].set_title(title, fontsize=title_fontsize, pad=10)
+    if xlabel is not None:
+        ax[-1].set_xlabel(xlabel)
+    if ylabel is not None:
+        # Match the abscissa label rather than Matplotlib's figure-label default:
+        # supylabel takes its size from rcParams['figure.labelsize'] ('large'),
+        # while every axis label in these figures takes rcParams['axes.labelsize']
+        # (the notebooks' matplotlibrc sets it to 25). Left alone, the shared
+        # ordinate label comes out visibly smaller than the abscissa label beneath
+        # it, which is not what the hand-built version did.
+        ykw = {'fontsize': plt.rcParams['axes.labelsize']}
+        ykw.update(ylabel_kw or {})
+        fig.supylabel(ylabel, **ykw)
 
     _finish(fig, savefig, savefig_kw, tight_layout)
     return fig, ax

@@ -1052,6 +1052,168 @@ def test_validation_still_rejects_max_num_loops_below_two():
 
 
 # ----------------------------------------------------------------------
+# n_slabs is a floor on the adaptive ladder, not a discarded argument
+#
+# Requesting a tolerance used to make osc_prob throw the caller's n_slabs
+# away and start refining from min_n_slabs=1.  On a profile whose feature
+# scale the caller knows and the refinement criterion does not, that is
+# how a wrong answer gets certified: suggest_n_slabs measures the
+# *integral* of the Hamiltonian along the path, which is blind to
+# structure that averages out, so a castle-wall profile with 50 density
+# walls accumulates only ~9 radians of phase and is seeded with 2 slabs.
+# The resulting ladder does not converge, it thrashes -- 0.43, 0.13,
+# 0.13, 0.64, 0.12 at 2, 3, 4, 5, 6 slabs -- and the successive-iterate
+# test fires on the accidental 3-vs-4 agreement, returning an answer
+# wrong by 0.48 in probability with no warning.  Tightening rtol does not
+# help: the comparison is between two answers that both failed to see the
+# profile.  Resolving the profile does, and the caller is the one who
+# knows how.
+#
+# The oracle here is solve_ivp, deliberately.  Comparing one osc_prob
+# grid against another osc_prob grid is what let this through in the
+# first place -- two runs of an under-resolved scheme agree with each
+# other and disagree with reality.
+# ----------------------------------------------------------------------
+
+# Castle-wall parameters shared by the tests below; the walls span a fixed
+# interval and each baseline crosses a prefix of them, as in notebook 03.
+CW_N_WALLS = 50
+CW_L_INI, CW_L_FIN = 1.e2, 1.e4      # [km]
+CW_ENERGY = 50.0*gd.UNIT_MEV
+# A baseline at which the unfloored ladder certifies 0.268 against a truth
+# of 0.749.  Found by scanning; nothing about it is special beyond being
+# short enough to keep the solve_ivp reference cheap.
+CW_L_KM = 2070.18
+
+
+def castle_wall_H():
+    """2nu Hamiltonian with a square-wave (castle-wall) electron density.
+
+    The mixing parameters are the notebook's, not this module's S12/D21: the baseline
+    below was located against these, and a faithful reproduction of the reported failure
+    is worth more here than consistency with the rest of the file."""
+    hvac = hams.hamiltonian_2nu_vacuum_energy_independent(
+        gd.S12_NO_BF_NUFIT_6_0, gd.D21_NO_BF_NUFIT_6_0)
+    n_lo = 1*gd.N_AV/gd.CONV_CM_TO_INV_EV**3
+    n_hi = 10*n_lo
+
+    def num_density_e(l):
+        l_scaled = ((np.asarray(l)/gd.CONV_KM_TO_INV_EV - CW_L_INI)
+                    / (CW_L_FIN - CW_L_INI))
+        index_slab = l_scaled//(1.0/CW_N_WALLS)
+        return np.where(index_slab % 2 == 0, n_lo, n_hi)
+
+    def H(l):
+        VCC = matter.VCC_func(l, num_density_e)
+        return (1.0/CW_ENERGY)*hvac + hams.hamiltonian_2nu_matter(VCC)
+
+    return H
+
+
+def castle_wall_reference(H, L):
+    """P from an independent integrator: DOP853, stepping inside every wall."""
+    def rhs(l, y):
+        return (-1j*H(l) @ y.reshape(2, 2)).ravel()
+
+    sol = solve_ivp(rhs, (0.0, L), np.eye(2, dtype=complex).ravel(),
+                    method='DOP853', rtol=1e-11, atol=1e-13,
+                    max_step=(CW_L_FIN - CW_L_INI)*gd.UNIT_KM/(8*CW_N_WALLS))
+    return np.abs(sol.y[:, -1].reshape(2, 2)).T**2
+
+
+def test_requested_n_slabs_is_honoured_as_a_floor_under_a_tolerance():
+    """The headline regression: a requested n_slabs must not be discarded.
+
+    Without the floor this call refines from 2 slabs, stops at 3, and returns 0.268 for a
+    probability that is 0.749 -- silently, and with the default rtol=atol=1e-3 nominally
+    satisfied."""
+    H = castle_wall_H()
+    L = CW_L_KM*gd.UNIT_KM
+    P_ref = castle_wall_reference(H, L)
+
+    info = {}
+    P = op.osc_prob(H, 0.0, L, n_slabs=150, magnus_exp_order=3,
+                    convergence_info=info)
+
+    assert info['n_slabs'] >= 150, \
+        "the requested n_slabs was discarded; the ladder started below it"
+    assert maxabs(np.asarray(P) - P_ref) < 1e-3
+
+
+def test_unfloored_ladder_is_what_the_floor_protects_against():
+    """Companion to the test above: the same call *without* n_slabs is still wrong.
+
+    This pins the scope of the fix rather than a bug.  The floor makes a caller-supplied
+    feature scale authoritative; it does not teach the phase-based seed to see structure
+    that averages out of the integral it measures.  A caller who names no scale still gets
+    the old, under-resolved ladder here.  If a future change to the refinement criterion
+    makes this pass on its own, delete the test -- do not weaken it."""
+    H = castle_wall_H()
+    L = CW_L_KM*gd.UNIT_KM
+    P_ref = castle_wall_reference(H, L)
+
+    P = op.osc_prob(H, 0.0, L, magnus_exp_order=3)
+    assert maxabs(np.asarray(P) - P_ref) > 0.1
+
+
+@pytest.mark.parametrize("integration_method", ['gl', 'simpson'])
+def test_floor_is_honoured_by_every_integration_method(integration_method):
+    """The floor is applied before the method-specific seeding, so it holds for the
+    phase-seeded 'gl' ladder and the plain min_n_slabs ladder of the quadrature methods
+    alike."""
+    H = castle_wall_H()
+    info = {}
+    op.osc_prob(H, 0.0, CW_L_KM*gd.UNIT_KM, n_slabs=64, magnus_exp_order=2,
+                integration_method=integration_method, max_num_loops=2,
+                convergence_info=info)
+    assert info['n_slabs'] >= 64
+
+
+def test_default_n_slabs_leaves_the_ladder_untouched():
+    """n_slabs defaults to 1, so the floor is inactive unless the caller opts in: every
+    call that does not pass n_slabs must behave exactly as it did before."""
+    H = castle_wall_H()
+    L = CW_L_KM*gd.UNIT_KM
+    info_default, info_explicit = {}, {}
+    P_default = op.osc_prob(H, 0.0, L, magnus_exp_order=3,
+                            convergence_info=info_default)
+    P_explicit = op.osc_prob(H, 0.0, L, n_slabs=1, magnus_exp_order=3,
+                             convergence_info=info_explicit)
+    assert info_default == info_explicit
+    assert np.array_equal(np.asarray(P_default), np.asarray(P_explicit))
+
+
+def test_floor_above_the_slab_cap_is_clipped_rather_than_stepped_down():
+    """A floor larger than max_n_slabs must clip to the cap.
+
+    Left unclipped it would make the ladder's first 'growth' step *down* to the cap, and
+    the caller would never be told they had asked for more than the cap allows.  Clipped,
+    the existing not-achieved warning fires, which is the honest report."""
+    H = castle_wall_H()
+    info = {}
+    with pytest.warns(op.ToleranceNotAchievedWarning):
+        op.osc_prob(H, 0.0, CW_L_KM*gd.UNIT_KM, n_slabs=10000, max_n_slabs=32,
+                    magnus_exp_order=2, convergence_info=info)
+    assert info['n_slabs'] == 32
+
+
+def test_energy_batched_scan_honours_the_floor_too():
+    """The batched scan engine keeps its own refinement ladder; it must read n_slabs the
+    same way osc_prob does, or the two paths disagree on what the caller asked for."""
+    energies = np.array([0.8, 1.5, 3.0])*gd.UNIT_GEV
+    L = 2.0*6371.0*0.7*gd.UNIT_KM
+    common = dict(costhz=-0.7, L=L, magnus_exp_order=4, validate_input=False,
+                  max_num_loops=2, rtol=1e-3, atol=1e-3)
+    P_floor = np.asarray(op.osc_prob_3nu_earth(energies, n_slabs=4096, **common))
+    P_plain = np.asarray(op.osc_prob_3nu_earth(energies, **common))
+    # Same physics, different grids: agreement to the requested tolerance shows the floored
+    # run is a genuine refinement of the same problem, while disagreement at 1e-12 shows it
+    # really ran on a different (finer) grid rather than ignoring the argument.
+    assert np.allclose(P_floor, P_plain, rtol=1e-2, atol=1e-2)
+    assert not np.allclose(P_floor, P_plain, rtol=1e-12, atol=1e-12)
+
+
+# ----------------------------------------------------------------------
 # The give-up paths of the closed-form interaction-picture integrator.
 #
 # _osc_prob_ip_exp_core has five exits that report "I could not verify

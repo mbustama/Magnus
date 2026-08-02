@@ -30,9 +30,23 @@ share one shape:
 :func:`magnus.plotting.plot_curves` is that shape.
 :func:`~magnus.plotting.plot_probability_vs_baseline` and
 :func:`~magnus.plotting.plot_probability_vs_energy` are thin presets over it
-that fix labels, scales and tick spacings.  Only three layouts are genuinely
-distinct: the density profile stacked over one or more probability panels,
-the bi-probability plane, and the oscillogram.
+that fix labels, scales and tick spacings.
+
+One further shape earns its own function:
+:func:`~magnus.plotting.plot_curves_stacked`, the *small-multiples* form --
+the same plot repeated once per configuration down a shared abscissa, as the
+sterile-neutrino notebook does with one panel per detector.  What makes it
+worth packaging is that the reader's comparison runs *between* panels, so
+every panel must carry identical limits, scales and tick spacings, while the
+parts that must not repeat -- the abscissa labels, the title, the legend, the
+ordinate label -- belong to exactly one panel each.  Hand-built, that is four
+formatting loops and a frameless full-figure subplot added purely to hang a
+shared label on; it is also where a stack quietly stops being readable when
+one panel drifts.
+
+Only three layouts beyond these are genuinely distinct: the density profile
+stacked over one or more probability panels, the bi-probability plane, and the
+oscillogram.
 
 .. list-table::
    :header-rows: 1
@@ -47,6 +61,10 @@ the bi-probability plane, and the oscillogram.
      - The same, preset to a logarithmic baseline axis and a unit ordinate.
    * - :func:`~magnus.plotting.plot_probability_vs_energy`
      - The same, against neutrino energy.
+   * - :func:`~magnus.plotting.plot_curves_stacked`
+     - Small multiples: one panel per case, stacked over a shared abscissa,
+       with the axes forced to match so the panels can be read against each
+       other.
    * - :func:`~magnus.plotting.plot_probability_with_profile`
      - Matter-density panel above one or more probability panels sharing an
        abscissa.

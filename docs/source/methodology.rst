@@ -173,6 +173,35 @@ practice:
   trajectory crosses a PREM layer boundary (a closed-form quadratic in the
   zenith angle) and insert them as mandatory slab edges at every
   refinement level.
+* **A caller-supplied floor.**  Passing ``n_slabs`` together with a
+  tolerance sets a lower bound on the ladder: refinement starts at
+  ``max(min_n_slabs, n_slabs)`` and only ever climbs from there (clipped at
+  ``max_n_slabs``).  With the default ``n_slabs = 1`` the floor is inactive.
+
+.. _refinement-blind-spot:
+
+.. warning::
+
+   The phase estimate that seeds the ladder is an *integral* of the
+   Hamiltonian along the trajectory, and an integral is blind to structure
+   that averages out.  A profile that oscillates rapidly about its mean --
+   a castle wall, a periodically layered medium -- can accumulate very
+   little net phase while still demanding many slabs to resolve, and will
+   then be seeded with far too few.  The successive-iterate test is no
+   protection here: refinements that all fail to see the profile can agree
+   with each other while disagreeing with the truth, and a tighter ``rtol``
+   only compares two answers that are both wrong.  Tightening the tolerance
+   is the wrong lever; resolving the profile is the right one.
+
+   If you know your profile's feature scale, say so, in either of two ways.
+   Pass ``n_slabs`` (a floor, per the bullet above) so the ladder cannot
+   start below it.  Better, where the features are discontinuities at known
+   positions, pass those positions as ``t_breakpoints``: they become
+   mandatory slab edges, which both resolves the profile and restores the
+   quadrature's nominal order, and so costs less than the equivalent number
+   of uniform slabs.  On a 50-wall castle-wall profile the two together
+   reduce the worst-case error over a baseline scan from 0.855 to 1.9e-3,
+   while running faster than the under-resolved version did.
 
 The slab cap itself is method-aware.  ``max_n_slabs`` defaults to None,
 meaning "use the cap appropriate to ``integration_method``": 20000 for
