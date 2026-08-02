@@ -286,6 +286,7 @@ __author__ = 'Mauricio Bustamante'
 
 
 import numpy as np
+import os
 import sys
 import warnings
 from functools import reduce
@@ -346,13 +347,98 @@ r"""int: Module-level constant
 Slab ceiling for the closed-form interaction-picture integrator
 (``_osc_prob_ip_exp_core``), deliberately decoupled from the caller's
 ``max_n_slabs``, which is calibrated for the far more expensive quadrature slabs of
-the general method.  Each slab here costs one 2x2 eigendecomposition, so even the
-full ceiling completes in a couple of seconds.
+the general method.  Each slab here costs one 2x2 eigendecomposition, so the ceiling
+is affordable in *time*.
+
+It is not, on its own, affordable in *memory*: the integrator works on arrays of
+shape ``(n_energies, n_slabs, d, d)``, so the working set scales with the number of
+energies as well as the slab count, and at this ceiling it reached ~1.3 GB **per
+energy** -- enough for a batched solar call to exhaust the machine.  The working set
+is now tiled to :data:`BATCH_WORKING_ENTRIES` independently of both, so this ceiling
+bounds only time.  See ``docs/dev/BUG_IP_EXP_MEMORY.md``.
 
 Named rather than inlined so that the method's give-up behaviour at the ceiling can
 be exercised by a test at a small cap: reaching two million slabs to check what
-happens at the boundary would cost gigabytes and minutes, so with the value buried
-in the function body those branches could not be tested at all.
+happens at the boundary would cost minutes, so with the value buried in the function
+body those branches could not be tested at all.
+
+.. versionadded:: 1.0.0
+"""
+
+
+BATCH_WORKING_ENTRIES = 4_194_304
+r"""int: Module-level constant
+
+Ceiling on the number of complex entries in any one temporary array of the batched
+scan engines -- about 64 MB at 16 bytes each.  Both batched engines work on arrays
+indexed by (energy, slab, ...), whose size is the product of quantities the caller
+controls independently, so neither a slab cap nor an energy count bounds them on its
+own.  Tiling against a fixed entry budget does, and it makes peak memory a property
+of the library rather than of the call.
+
+The value is a compromise: large enough that the tiles stay well inside the regime
+where batched BLAS calls amortize their overhead, small enough to be invisible next
+to the result arrays on any machine that can hold them.
+
+.. versionadded:: 1.0.0
+"""
+
+
+CUMULATIVE_N_ACC_SAFETY = 2
+r"""int: Module-level constant
+
+Multiple of the inherited slab count used for the accuracy grid of a cumulative baseline
+scan (``osc_prob_energy_baseline(..., cumulative=True)``).
+
+The grid is sized from one ordinary adaptive :func:`osc_prob` call at the longest baseline,
+which reports the slab count *that* baseline needed.  Applied unmultiplied, the same uniform
+density is then thinner than what the per-point path would have chosen for the shorter
+baselines in the scan, and the result -- while inside the requested tolerance -- comes out
+less accurate than the path it replaces.  Measured on a 1000-point solar scan against
+``solve_ivp``, where the per-point path takes 12.0 s for an error of 5.6e-5:
+
+===========  ==========  =========  ==========
+safety       ``n_acc``   time       error
+===========  ==========  =========  ==========
+1            14 883      0.049 s    2.35e-04
+**2**        **29 766**  0.097 s    **5.10e-06**
+4            59 532      0.173 s    3.34e-07
+8            119 064     0.346 s    1.80e-08
+===========  ==========  =========  ==========
+
+Two is where the scan becomes strictly better than what it replaces on both axes at once --
+124x faster *and* 11x more accurate -- for a doubling of a cost that is negligible either
+way.  Beyond it the accuracy is bought at a proportional price with no correctness argument
+behind it, which is a choice for the caller (via ``n_slabs`` with the tolerance off) rather
+than a default.
+
+.. versionadded:: 1.0.0
+"""
+
+
+OUTPUT_GUARD_MIN_BYTES = 64*1024*1024
+r"""int: Module-level constant
+
+Requested-output size below which :func:`osc_prob_energy_baseline` does not bother
+checking whether the result will fit in memory.  The check itself costs one integer
+multiply below this threshold and a single read of the operating system's free-memory
+figure above it, so the floor exists to keep even that off the path of ordinary calls.
+
+.. versionadded:: 1.0.0
+"""
+
+
+OUTPUT_GUARD_SAFETY = 2.0
+r"""float: Module-level constant
+
+Multiple of the requested result size that must fit in available memory before
+:func:`osc_prob_energy_baseline` will attempt a scan.  Greater than one because the
+adaptive engines hold at least the current and the previous probability matrices at
+once, plus the caller's own input arrays.
+
+Deliberately not larger: the guard exists to turn an out-of-memory kill into a
+diagnosable error, not to second-guess a caller who knows their machine.  It refuses
+only when the answer alone would claim more than half of what is free.
 
 .. versionadded:: 1.0.0
 """
@@ -382,6 +468,119 @@ def _resolve_max_n_slabs(max_n_slabs, integration_method):
     if max_n_slabs is not None:
         return max_n_slabs
     return MAX_N_SLABS_DEFAULT.get(integration_method, MAX_N_SLABS_DEFAULT['trapezoid'])
+
+
+def _tile_for_working_set(n_energies, n_inner, cell_entries, live_arrays=1,
+                          max_entries=None):
+    """Split an ``(n_energies, n_inner, ...)`` batch into tiles under a fixed entry budget.
+
+    The batched engines build temporaries indexed by (energy, slab); their size is a
+    product of two quantities the caller sets independently, so bounding either one alone
+    does not bound the array.  This returns the tile to iterate in instead.
+
+    Parameters
+    ----------
+    n_energies, n_inner : int
+        Extent of the two batched axes.
+    cell_entries : int
+        Complex entries per (energy, inner) cell -- ``d*d`` for a stack of matrices,
+        ``d*d*n_tpts_per_slab`` when each cell also carries quadrature samples.
+    live_arrays : int, optional
+        How many temporaries of this shape exist at once at the peak of the caller's
+        loop.  The budget is divided by it, so that :data:`BATCH_WORKING_ENTRIES` bounds
+        the engine's whole working set rather than one array of it -- the distinction is
+        an eightfold one for the interaction-picture integrator, which holds the argument,
+        the slab integral, ``Omega``, the slab operators and the matrix-exponential's own
+        workspace simultaneously.  Default 1, which reproduces a budget stated per array.
+    max_entries : int, optional
+        Budget; defaults to :data:`BATCH_WORKING_ENTRIES`, read at call time rather than
+        bound as a default argument so that the constant can be varied -- a test that
+        monkeypatches a module attribute consumed as a default would pass trivially,
+        comparing two identical runs.
+
+    Returns
+    -------
+    (int, int)
+        ``(energy_chunk, inner_block)``, both at least 1, whose product times
+        ``cell_entries`` times ``live_arrays`` stays within the budget whenever that is
+        possible at all.  A single cell larger than the whole budget cannot be split
+        further and is returned as ``(1, 1)``: there is no tiling that helps, and refusing
+        to proceed would be worse than a large allocation the caller can at least see.
+
+    .. versionadded:: 1.0.0
+    """
+    if max_entries is None:
+        max_entries = BATCH_WORKING_ENTRIES
+    per_cell = max(1, int(cell_entries))*max(1, int(live_arrays))
+    budget_cells = max(1, int(max_entries)//per_cell)
+    n_energies = max(1, int(n_energies))
+    n_inner = max(1, int(n_inner))
+    inner_block = min(n_inner, max(1, budget_cells//n_energies))
+    energy_chunk = min(n_energies, max(1, budget_cells//inner_block))
+    return energy_chunk, inner_block
+
+
+def _available_memory_bytes():
+    """Best-effort free physical memory, or None if it cannot be had cheaply.
+
+    ``MemAvailable`` is preferred where it exists because it accounts for reclaimable
+    page cache, which the raw free-page count does not: on a machine with a warm cache
+    the latter understates what a large allocation can actually get, and a guard built on
+    it would refuse work that would have succeeded.
+
+    Returns None rather than guessing on platforms that expose neither.  A guard that
+    cannot measure must not block.
+
+    .. versionadded:: 1.0.0
+    """
+    try:
+        with open('/proc/meminfo') as f:
+            for line in f:
+                if line.startswith('MemAvailable:'):
+                    return int(line.split()[1])*1024
+    except (OSError, ValueError, IndexError):
+        pass
+    try:
+        return os.sysconf('SC_AVPHYS_PAGES')*os.sysconf('SC_PAGE_SIZE')
+    except (AttributeError, ValueError, OSError):
+        return None
+
+
+def _check_output_fits(n_points, dim, source_func_name):
+    """Refuse a scan whose *result* cannot fit in memory, before allocating anything.
+
+    Tiling bounds the engines' working set, but nothing can shrink the answer itself: a
+    scan of N points over d flavors returns ``N*d*d`` floats, and if that does not fit,
+    no strategy helps.  Left unchecked, the failure arrives as an out-of-memory kill from
+    somewhere deep in an engine -- or, on an overcommitting kernel, as the machine going
+    down rather than the process.  Checking up front turns that into a message naming the
+    number that is too large.
+
+    Costs one multiply for ordinary calls: the free-memory figure is only consulted once
+    the request passes :data:`OUTPUT_GUARD_MIN_BYTES`.
+
+    Raises
+    ------
+    MemoryError
+        If the result would claim more than 1/:data:`OUTPUT_GUARD_SAFETY` of available
+        memory.  Never raised when free memory cannot be determined.
+
+    .. versionadded:: 1.0.0
+    """
+    needed = int(n_points)*int(dim)*int(dim)*8          # float64 probability matrices
+    if needed < OUTPUT_GUARD_MIN_BYTES:
+        return
+    available = _available_memory_bytes()
+    if available is None:
+        return
+    if needed*OUTPUT_GUARD_SAFETY > available:
+        raise MemoryError(
+            gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": the requested "
+            "scan would return " + f"{n_points:,}" + " probability matrices of size " +
+            f"{dim}x{dim}" + " (" + f"{needed/2**30:.2f}" + " GiB), against " +
+            f"{available/2**30:.2f}" + " GiB of available memory. The result alone would "
+            "not fit, so no choice of method or tolerance can help. Split the scan into "
+            "batches and concatenate the results.")
 
 
 class ToleranceNotAchievedWarning(UserWarning):
@@ -2528,7 +2727,7 @@ def _osc_prob_scan_separable(
 
         # Batched kernel over the active energies, chunked so that each
         # sample array At holds at most ~4M complex entries (~64 MB)
-        chunk = max(1, int(4_194_304 // max(1, tgrid.size*dim*dim)))
+        chunk, _ = _tile_for_working_set(len(active), 1, tgrid.size*dim*dim)
         P_new = np.empty((len(active), dim, dim))
         for i0 in range(0, len(active), chunk):
             sel = active[i0:i0+chunk]
@@ -2828,33 +3027,104 @@ def _osc_prob_ip_exp_core(
     n_slabs_cap = IP_EXP_N_SLABS_CAP
     loop_cap = IP_EXP_LOOP_CAP
     growth = 2.0
+    nE, dim = H_E.shape[0], H_E.shape[-1]
+
+    # Can the trust gate above ever open, at any slab count this method is allowed?
+    #
+    # Certification requires max|Omega_t| < omega_trust_threshold, and that maximum is bounded
+    # below by the largest *diagonal* entry, which has a closed form here.  On the diagonal
+    # Delta_jj = 0, so denom_jj = -1/l_scale and the slab integral collapses to
+    # l_scale*(1 - exp(-w/l_scale)) for slab width w, giving
+    #
+    #     max|Omega_jj| = max_ej|Mt[e,j,j]| * max_s|V(l_s)| * l_scale*(1 - exp(-w/l_scale)),
+    #
+    # decreasing in the slab count and independent of it otherwise.  If that alone still
+    # exceeds the threshold at the ceiling, then max|Omega_t| does too at every reachable slab
+    # count, no comparison is ever trusted, and the ladder is guaranteed to climb to the cap
+    # and refuse.  Detecting it costs two evaluations of VCC_func and no allocation.
+    #
+    # This is a bound, not an estimate: it can only ever say "certification is impossible",
+    # never "certification will succeed", so it cannot abandon a case that would have worked.
+    # The pass below still runs once, at the starting slab count, because an uncertified result
+    # is still required to be a genuine unitary probability matrix -- see the tests on this
+    # function's give-up exits.
+    certifiable = True
+    if tol_requested:
+        v_max = max(abs(float(np.real(np.asarray(VCC_func(L0))))),
+                    abs(float(np.real(np.asarray(VCC_func(L_val))))))
+        mt_diag_max = float(np.max(np.abs(np.diagonal(Mt, axis1=-2, axis2=-1))))
+        scale = mt_diag_max*v_max
+        if scale > 0.0:
+            c = omega_trust_threshold/scale
+            if c < l_scale:                       # otherwise the bound is below threshold at any w
+                w_max = -l_scale*np.log1p(-c/l_scale)
+                certifiable = np.ceil((L_val - L0)/w_max) <= n_slabs_cap
 
     P_prev = None
     n_slabs_prev = None
     consecutive_agreements = 0
     loop_count = 1
     while True:
+        # The full edge grid is O(n_slabs) floats and independent of the energy count, so it
+        # is affordable at any slab cap; it is built whole rather than per tile because
+        # np.linspace's endpoint handling is not reproduced by arithmetic on a sub-range,
+        # and the tiling below must not perturb a single slab edge.
         grid = np.linspace(L0, L_val, n_slabs + 1)
-        edges = np.column_stack([grid[:-1], grid[1:]])
-        widths = edges[:, 1] - edges[:, 0]                          # (n_slabs,)
-        V0 = np.asarray(VCC_func(edges[:, 0]), dtype=complex)       # VCC at each slab's start
 
-        arg = denom[:, None, :, :]*widths[None, :, None, None]      # (nE, n_slabs, d, d)
-        I = (np.exp(arg) - 1.0)/denom[:, None, :, :]
-        Omega_t = -1j*Mt[:, None, :, :]*V0[None, :, None, None]*I   # anti-Hermitian, per slab
+        # Everything below is tiled over (energy, slab).  The arrays this replaces --
+        # (nE, n_slabs, d, d) complex, several live at once -- are the whole of the memory
+        # bug: at the slab ceiling they reached ~1.3 GB per energy, so a batched solar call
+        # could exhaust the machine.  See docs/dev/BUG_IP_EXP_MEMORY.md.
+        #
+        # The tiling is exact, not approximate.  Within a tile the arithmetic is elementwise,
+        # so slicing changes no value; and the product is folded slab-by-slab in the same
+        # descending order as before, with the accumulator on the left, so the parenthesis
+        # nesting -- the only thing that could move a floating-point result -- is unchanged.
+        # Blocks are therefore walked from the *last* slab backwards. A test pins the output
+        # of a tiled run against an untiled one at exact equality.
+        # live_arrays: arg, the exp() temporary, I, Omega_t, _expm_stack's eigenvectors and
+        # its workspace, U_slab, and the accumulator's operand -- eight of this shape at the
+        # peak, which is why the budget has to be divided rather than applied per array.
+        e_chunk, blk = _tile_for_working_set(nE, n_slabs, dim*dim, live_arrays=8)
+        Utot = np.empty((nE, dim, dim), dtype=complex)
+        max_omega = 0.0
 
-        U_free_diag = np.exp(-1j*Lam[:, None, :]*widths[None, :, None])   # (nE, n_slabs, d)
-        U_slab = U_free_diag[..., :, None]*magnus._expm_stack(Omega_t, warn_wide=False)
+        for e0 in range(0, nE, e_chunk):
+            esel = slice(e0, min(e0 + e_chunk, nE))
+            acc = None
+            for b1 in range(n_slabs, 0, -blk):                      # descending slab blocks
+                b0 = max(0, b1 - blk)
+                edges0 = grid[b0:b1]                                # (nb,) slab starts
+                widths = grid[b0 + 1:b1 + 1] - edges0               # (nb,)
+                V0 = np.asarray(VCC_func(edges0), dtype=complex)    # VCC at each slab's start
 
-        Utot = U_slab[:, -1]
-        for k in range(U_slab.shape[1] - 2, -1, -1):
-            Utot = Utot @ U_slab[:, k]
+                arg = denom[esel, None, :, :]*widths[None, :, None, None]
+                I = (np.exp(arg) - 1.0)/denom[esel, None, :, :]
+                Omega_t = -1j*Mt[esel, None, :, :]*V0[None, :, None, None]*I
+                max_omega = max(max_omega, float(np.max(np.abs(Omega_t))))
+
+                U_free_diag = np.exp(-1j*Lam[esel, None, :]*widths[None, :, None])
+                U_slab = U_free_diag[..., :, None]*magnus._expm_stack(
+                    Omega_t, warn_wide=False)
+
+                for k in range(U_slab.shape[1] - 1, -1, -1):
+                    acc = U_slab[:, k] if acc is None else acc @ U_slab[:, k]
+                del arg, I, Omega_t, U_free_diag, U_slab
+            Utot[esel] = acc
+
         Utot = W @ Utot @ Wd                                        # back to the flavor basis
 
         P_new = np.swapaxes(Utot.real**2 + Utot.imag**2, -1, -2)
 
         if not tol_requested:
             return P_new, True
+
+        # Certification is provably out of reach (see the bound above): refuse now rather
+        # than doubling the slab count twenty more times to arrive at the same refusal.  The
+        # caller's dispatcher discards this result and falls back to the general method, as
+        # it would have anyway -- identically, and roughly a thousand times sooner.
+        if not certifiable:
+            return P_new, False
 
         at_cap = (n_slabs >= n_slabs_cap)
         # Once n_slabs is pinned at the cap, growth is a no-op: a further "refinement" would just
@@ -2872,8 +3142,6 @@ def _osc_prob_ip_exp_core(
             # n_slabs never equals n_slabs_prev.  It becomes live again the moment the
             # growth factor, the cap, or the returns below change.
             return P_new, False
-
-        max_omega = float(np.max(np.abs(Omega_t)))
 
         if (P_prev is not None) and (max_omega < omega_trust_threshold):
             if np.all(np.abs(P_new - P_prev) <= atol + rtol*np.abs(P_prev)):
@@ -3348,10 +3616,123 @@ def _osc_prob_hybrid_dispatch_generic(
     return P_out.__getitem__(0 if return_float else slice(None))
 
 
+def _cumulative_scan_grid(L_out, L0, n_acc, t_breakpoints):
+    """Slab edges for a cumulative baseline scan, and where each output sits in them.
+
+    The grid is the union of three things, and each is there for a different reason:
+
+    * the **requested baselines**, so that every answer lands exactly on a slab edge and is
+      read off the running product rather than interpolated;
+    * a **uniform accuracy grid** of ``n_acc`` slabs, because the requested baselines are
+      typically logarithmically spaced and so are dense where accuracy is cheap and sparse
+      where it is expensive -- the opposite of what the integration needs;
+    * the **breakpoints**, for the usual reason: a slab straddling a density discontinuity
+      degrades the quadrature no matter how high ``magnus_exp_order`` is.
+
+    Returns
+    -------
+    (np.ndarray, np.ndarray)
+        Sorted, unique edges spanning ``[L0, max(L_out)]``, and the index into them of each
+        entry of ``L_out``.
+
+    .. versionadded:: 1.0.0
+    """
+    L_out = np.asarray(L_out, dtype=float)
+    parts = [np.linspace(L0, float(L_out[-1]), int(n_acc) + 1), L_out, np.array([L0])]
+    if (t_breakpoints is not None) and (len(np.atleast_1d(t_breakpoints)) > 0):
+        bp = np.atleast_1d(np.asarray(t_breakpoints, dtype=float))
+        parts.append(bp[(bp > L0) & (bp < L_out[-1])])
+    edges = np.unique(np.concatenate(parts))
+    return edges, np.searchsorted(edges, L_out)
+
+
+def _osc_prob_cumulative_scan(H_func, L_out, L0, n_acc, magnus_exp_order,
+                              n_tpts_per_slab, integration_method, t_breakpoints,
+                              A_eval_mode, **kwargs):
+    r"""Every baseline in ``L_out`` from a single traversal of the profile.
+
+    The evolution operator is a time-ordered product, so each requested answer is a *prefix*
+    of the next: :math:`U(0 \to L_2) = U(L_1 \to L_2)\,U(0 \to L_1)`.  Computing N baselines
+    independently therefore re-walks the profile N times over.  This walks it once and
+    records the running product wherever an answer was asked for -- the ``reduce`` in
+    :func:`osc_prob` with its intermediates kept rather than discarded.
+
+    Two properties are requirements rather than optimisations, and both are about memory:
+
+    * the traversal is **chunked**, so the slab operators are never all live at once;
+    * each snapshot is converted to a probability **immediately**, so the recorded term
+      collapses into the result the caller asked for instead of sitting beside it as N
+      complex unitaries.
+
+    Together they make peak memory ``O(block) + O(result)``, which above the block size is
+    less than the per-point path uses for the same scan.
+
+    Parameters
+    ----------
+    H_func : Callable
+        Hamiltonian as a function of position alone; the energy is already bound.
+    L_out : np.ndarray
+        Requested baselines, strictly ascending and all greater than ``L0``.
+    n_acc : int
+        Slabs the accuracy grid would use over the whole path on its own; see
+        :func:`_cumulative_scan_grid`.
+
+    Returns
+    -------
+    np.ndarray
+        Probability matrices, shape ``(len(L_out), d, d)``.
+
+    .. versionadded:: 1.0.0
+    """
+    edges, out_idx = _cumulative_scan_grid(L_out, L0, n_acc, t_breakpoints)
+    n_slabs = len(edges) - 1
+
+    # A position-independent Hamiltonian arrives here as a bare array, as it does in
+    # osc_prob; wrap it in the array-capable function the slab kernel expects.  A single slab
+    # would be exact for it, but the caller asked for a scan and the extra slabs cost little
+    # -- and keeping one code path avoids a second place where the time ordering could differ.
+    if not callable(H_func):
+        H_const = np.asarray(H_func)
+
+        def H_func(l, _H=H_const):
+            return np.broadcast_to(_H, np.shape(l) + _H.shape) if np.ndim(l) else _H
+
+        A_eval_mode = 'vector'
+
+    dim = np.asarray(H_func(L0)).shape[-1]
+    P = np.empty((len(L_out), dim, dim))
+    running = np.eye(dim, dtype=complex)
+
+    # A baseline equal to L0 is the identity: no slab precedes it.
+    for j in np.flatnonzero(out_idx == 0):
+        P[j] = np.transpose(running.real**2 + running.imag**2)
+
+    _, block = _tile_for_working_set(1, n_slabs, dim*dim, live_arrays=8)
+    for start in range(0, n_slabs, block):
+        stop = min(start + block, n_slabs)
+        U = compute_evolution_operator_multiple_slabs(
+            H_func, np.column_stack([edges[start:stop], edges[start + 1:stop + 1]]),
+            n_tpts_per_slab, magnus_exp_order, integration_method=integration_method,
+            A_eval_mode=A_eval_mode, **kwargs)
+        # Outputs landing inside this block, in edge order, so the running product is
+        # snapshotted at the right moment without a second pass.
+        here = np.flatnonzero((out_idx > start) & (out_idx <= stop))
+        order = here[np.argsort(out_idx[here], kind='stable')]
+        pos = 0
+        for k in range(stop - start):
+            running = U[k] @ running
+            while (pos < len(order)) and (out_idx[order[pos]] == start + k + 1):
+                j = order[pos]
+                P[j] = np.transpose(running.real**2 + running.imag**2)
+                pos += 1
+        del U
+    return P
+
+
 def osc_prob_energy_baseline(
     H_func: Union[Callable, np.ndarray],
-    energy: Union[int, float, list, np.ndarray], 
-    L: Union[int, float, list, np.ndarray], 
+    energy: Union[int, float, list, np.ndarray],
+    L: Union[int, float, list, np.ndarray],
     L0: Optional[Union[int, float]]=0.0,
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
@@ -3376,6 +3757,7 @@ def osc_prob_energy_baseline(
     close_file_log_upon_exit: Optional[bool]=True,
     new_recursion_limit: Optional[int]=5000,
     verbose: Optional[int]=0,
+    cumulative: Optional[bool]=False,
     **kwargs
 ) -> Union[int, float, np.ndarray]:
     r"""Compute and return oscillation probabilities for given arrays of
@@ -3451,6 +3833,25 @@ def osc_prob_energy_baseline(
         Forwarded to :func:`osc_prob` for each (energy, L) point; see its docstring.
     verbose : int
         Forwarded to :func:`osc_prob` for each (energy, L) point; see its docstring.
+    cumulative : bool, optional
+        Compute a whole baseline scan from **one** traversal of the profile instead of one
+        traversal per baseline.  The evolution operator is a time-ordered product, so
+        :math:`U(0 \to L_2) = U(L_1 \to L_2)\,U(0 \to L_1)`: each requested answer is a
+        prefix of the next, and recording the running product yields all of them at once.
+
+        Applies to a **baseline scan at a single energy**, and raises otherwise.  The
+        nesting it exploits belongs to the baseline axis alone -- :math:`P(E_1)` shares
+        nothing with :math:`P(E_2)`, since each energy needs its own propagation through the
+        whole profile -- so there is no energy-axis counterpart to this.
+
+        Not compatible with ``t_slab_edges``, which it would have to override: the scan
+        builds a grid that is the union of the requested baselines, an accuracy grid, and
+        any ``t_breakpoints``.  The accuracy grid is sized by one ordinary adaptive
+        :func:`osc_prob` call at the longest baseline, so the usual tolerance machinery and
+        its warnings apply unchanged.
+
+        Default False.  Results differ from the per-point path within the requested
+        tolerance -- the two use different grids -- so this is opt-in rather than automatic.
     \**kwargs
         Additional arguments forwarded to :func:`osc_prob`.
 
@@ -3549,6 +3950,75 @@ def osc_prob_energy_baseline(
     if isinstance(H_first, Callable):
         osc_prob_kwargs['A_eval_mode'] = magnus.probe_eval_mode(
             lambda t: -1j*H_first(t), L0, np.max(L))
+
+    # Refuse a request whose *result* cannot fit, before the scan allocates anything.  Every
+    # batched engine either runs from here or falls back to here, and their working sets are
+    # now tiled to a fixed budget, which leaves the result array as the only quantity still
+    # free to grow without bound.  Placed here because this is the first point at which the
+    # flavor count is known without evaluating the Hamiltonian specially for it: H_first has
+    # been built already, and probe_eval_mode has just called it if it is a function of
+    # position.  Costs one multiply for ordinary requests; see _check_output_fits.
+    _check_output_fits(
+        n_points,
+        np.asarray(H_first(L0) if isinstance(H_first, Callable) else H_first).shape[-1],
+        'osc_prob_energy_baseline')
+
+    # Cumulative baseline scan: one traversal of the profile for every requested baseline,
+    # instead of one traversal per baseline.  Applicable only when the Hamiltonian is the same
+    # for every requested point -- i.e. a single energy, scanned over baselines -- because the
+    # nesting it exploits is a property of the baseline axis alone: P(0->L1) is a prefix of
+    # P(0->L2), while P(E1) shares nothing with P(E2).
+    if cumulative:
+        if t_slab_edges is not None:
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob_energy_baseline: "
+                "cumulative=True builds its own slab grid and cannot also honour "
+                "t_slab_edges.")
+        if not np.all(energy == energy[0]):
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob_energy_baseline: "
+                "cumulative=True scans baselines at one energy; the given energies differ. "
+                "Baselines nest and energies do not, so there is nothing to reuse across "
+                "energies.")
+        if np.any(np.asarray(L, dtype=float) < L0):
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob_energy_baseline: "
+                "cumulative=True requires every baseline to be at or beyond L0.")
+
+        H_fixed = H_at_energy(energy[0])
+        order = np.argsort(np.asarray(L, dtype=float), kind='stable')
+        L_sorted = np.asarray(L, dtype=float)[order]
+
+        # The accuracy grid is inherited, not invented.  One ordinary adaptive osc_prob call
+        # at the longest baseline reports the slab count at which *it* converged -- which is
+        # precisely "slabs needed for a uniform grid over the whole path", the definition of
+        # n_acc -- and brings with it every safeguard that path already has, including the
+        # n_slabs floor and the tolerance-not-achieved warning.  Getting this wrong is the
+        # one way a cumulative scan goes silently wrong: on a solar profile an n_acc of 2000
+        # is off by 1.6e-2 where 14883 is right, and nothing in the traversal itself notices.
+        if (rtol is None) and (atol is None):
+            n_acc = kwargs.get('n_slabs', 1)
+        else:
+            probe_info = {}
+            probe_kwargs = dict(osc_prob_kwargs)
+            probe_kwargs['convergence_info'] = probe_info
+            probe_kwargs.pop('A_eval_mode', None)
+            osc_prob(H_fixed, L0, float(L_sorted[-1]),
+                     A_eval_mode=osc_prob_kwargs.get('A_eval_mode'), **probe_kwargs)
+            # Scaled up because that count is what the *longest* baseline needed, and the
+            # same uniform density is thinner than the shorter baselines in the scan would
+            # have chosen for themselves; see CUMULATIVE_N_ACC_SAFETY for the measurement.
+            n_acc = probe_info['n_slabs']*CUMULATIVE_N_ACC_SAFETY
+
+        P_sorted = _osc_prob_cumulative_scan(
+            H_fixed, L_sorted, L0, n_acc, magnus_exp_order,
+            kwargs.get('n_tpts_per_slab', 100), integration_method,
+            kwargs.get('t_breakpoints'), osc_prob_kwargs.get('A_eval_mode'),
+            **{k: v for k, v in kwargs.items()
+               if k not in ('n_slabs', 'n_tpts_per_slab', 't_breakpoints')})
+
+        P_all = np.empty_like(P_sorted)
+        P_all[order] = P_sorted
+        if (nu_i is not None) and (nu_f is not None):
+            P_all = P_all[:, nu_i, nu_f]
+        return P_all
 
     # Warm starts: osc_prob reports the refinement parameters at which each point converged
     # (conv_info), and the next point starts its refinement from there (divided by one growth

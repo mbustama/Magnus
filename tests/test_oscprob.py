@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """Tests of the oscillation-probability engine (magnus.oscprob)."""
 
+import tracemalloc
 import warnings
 
 import numpy as np
@@ -1267,6 +1268,292 @@ def _call_ip_exp_core(rtol, atol, n_slabs=8, min_n_slabs=8, max_n_slabs=64):
         **_ip_exp_inputs(), rtol=rtol, atol=atol, growth_factor_n_slabs=2.0,
         max_num_loops=10, min_n_slabs=min_n_slabs, max_n_slabs=max_n_slabs,
         n_slabs=n_slabs)
+
+
+# ----------------------------------------------------------------------
+# The working set of the batched engines.
+#
+# _osc_prob_ip_exp_core builds arrays of shape (n_energies, n_slabs, d, d),
+# whose size is the product of two quantities the caller sets independently:
+# neither the slab ceiling nor the energy count bounds it alone. At the
+# two-million-slab ceiling that reached ~1.3 GB *per energy*, so a batched
+# solar call could exhaust the machine rather than the process -- it
+# OOM-killed the application it ran under three times before it was found.
+# See docs/dev/BUG_IP_EXP_MEMORY.md.
+#
+# Nothing in the suite noticed, because no test batched enough energies to
+# make the allocation large. These tests are the missing coverage: one pins
+# that tiling changed no number, one pins that the working set is bounded.
+# ----------------------------------------------------------------------
+
+@pytest.mark.parametrize("budget", [64, 4096, 1 << 16])
+def test_tiling_the_working_set_changes_no_number(budget, monkeypatch):
+    """Tiling must be exact, not approximate.
+
+    Within a tile the arithmetic is elementwise, so slicing moves no value; and the slab
+    product is folded in the same descending order with the accumulator on the left, so the
+    parenthesis nesting -- the only thing that could shift a floating-point result -- is
+    unchanged. Exact equality is therefore the right assertion, and a looser one would hide
+    precisely the bug this guards against."""
+    monkeypatch.setattr(op, 'BATCH_WORKING_ENTRIES', 1 << 40)
+    P_untiled, _ = _call_ip_exp_core(rtol=None, atol=None, n_slabs=512)
+
+    monkeypatch.setattr(op, 'BATCH_WORKING_ENTRIES', budget)
+    P_tiled, _ = _call_ip_exp_core(rtol=None, atol=None, n_slabs=512)
+
+    assert np.array_equal(np.asarray(P_tiled), np.asarray(P_untiled))
+
+
+def test_batched_working_set_does_not_scale_with_the_energy_count(monkeypatch):
+    """The regression: peak allocation must be flat in the number of energies.
+
+    Sized so that the *old* code cannot pass. At 64 energies and 65536 slabs one
+    (nE, n_slabs, d, d) complex array is 268 MB, and the loop held several at once; the
+    tiled version stays inside its entry budget no matter how the two axes grow."""
+    monkeypatch.setattr(op, 'IP_EXP_N_SLABS_CAP', 1 << 16)
+
+    def peak_mib(nE):
+        tracemalloc.start()
+        op._osc_prob_ip_exp_core(
+            **_ip_exp_inputs(nE=nE), rtol=None, atol=None, growth_factor_n_slabs=2.0,
+            max_num_loops=10, min_n_slabs=1 << 16, max_n_slabs=1 << 16, n_slabs=1 << 16)
+        peak = tracemalloc.get_traced_memory()[1]/2**20
+        tracemalloc.stop()
+        return peak
+
+    small, large = peak_mib(4), peak_mib(64)
+    # The old code needed 268 MiB for *one* of the several arrays it held at these
+    # parameters, so this bound is a clean discriminator rather than a tuned one.
+    assert large < 150.0, f"working set grew to {large:.0f} MiB at 64 energies"
+    # And it must be flat, not merely bounded: 16x the energies, no more memory. The
+    # slack covers the result arrays, which legitimately do scale with the energy count.
+    assert large < 1.5*small + 20.0, \
+        f"working set scaled with the energy count: {small:.0f} -> {large:.0f} MiB"
+
+
+def test_certification_known_impossible_is_refused_without_climbing(monkeypatch):
+    """A tolerance no reachable slab count can certify must be refused at once.
+
+    Certification needs max|Omega_t| under the trust threshold, and that maximum is bounded
+    below by the diagonal entries, which have a closed form. When even that bound exceeds
+    the threshold at the slab ceiling, every comparison below it is untrusted by the
+    method's own rule, so the climb to the ceiling is guaranteed waste -- twenty-one
+    doublings to reach a refusal that was computable up front.
+
+    The result must still be a genuine unitary probability matrix: an uncertified answer is
+    discarded by the dispatcher, but the contract that it is well-formed is what the other
+    give-up tests here pin, and bailing early must not quietly break it."""
+    monkeypatch.setattr(op, 'IP_EXP_N_SLABS_CAP', 64)
+
+    calls = []
+    real_expm = mg._expm_stack
+
+    def counting_expm(*args, **kwargs):
+        calls.append(args[0].shape)
+        return real_expm(*args, **kwargs)
+
+    monkeypatch.setattr(mg, '_expm_stack', counting_expm)
+
+    P, converged = _call_ip_exp_core(rtol=1e-300, atol=1e-300, n_slabs=8, min_n_slabs=8)
+
+    assert converged is False
+    assert np.allclose(np.sum(np.asarray(P), axis=-1), 1.0, atol=1e-12), \
+        "unitarity is structural here and must survive a failure to certify"
+    total_slabs = sum(s[1] for s in calls)
+    assert total_slabs <= 8, \
+        f"climbed the ladder ({total_slabs} slabs) instead of refusing up front"
+
+
+# ----------------------------------------------------------------------
+# The cumulative baseline scan.
+#
+# U(0->L2) = U(L1->L2) U(0->L1), so every requested baseline is a prefix of
+# the next and one traversal yields the whole scan. The characteristic way a
+# cumulative product goes wrong is transposition and off-by-one, which no
+# accuracy test would catch -- hence the identical-grid oracle below, which
+# pins bookkeeping rather than physics. Accuracy is checked separately, and
+# against solve_ivp, never against the per-point path: agreement between two
+# configurations of the same scheme is what this project has been burned by.
+# ----------------------------------------------------------------------
+
+def test_cumulative_scan_matches_expm_for_a_constant_hamiltonian():
+    """The ordering test. A constant H has a closed-form propagator at every baseline, so
+    this catches a transposed or reversed product outright, at machine precision."""
+    H = np.array([[1.2e-13, 3.0e-14], [3.0e-14, -0.7e-13]])
+    L = np.linspace(1.0e12, 6.0e13, 400)
+
+    P = np.asarray(op.osc_prob_energy_baseline(H, 1.0, L, cumulative=True, rtol=None,
+                                               atol=None, n_slabs=400))
+
+    worst = max(maxabs(P[i] - np.abs(sp.linalg.expm(-1j*H*L[i])).T**2)
+                for i in range(0, len(L), 17))
+    assert worst < 1e-11
+    assert np.allclose(np.sum(P, axis=-1), 1.0, atol=1e-11)
+
+
+def test_cumulative_scan_agrees_with_the_per_point_path_on_an_identical_grid():
+    """The sound oracle for a cumulative product, per the project's own history.
+
+    Pinning rtol=atol=None and handing the per-point path the exact grid prefix the scan
+    used makes the two computations arithmetically the same problem, so anything but
+    agreement to near machine precision is a bookkeeping error -- a mis-ordered product, an
+    off-by-one in where the running product is snapshotted. This deliberately does *not*
+    test accuracy: two configurations of one scheme agreeing proves nothing about that."""
+    H = castle_wall_H()
+    L = np.linspace(200.0, 2000.0, 60)*gd.UNIT_KM
+    n_acc = 3000
+
+    P = np.asarray(op.osc_prob_energy_baseline(
+        H, CW_ENERGY, L, cumulative=True, rtol=None, atol=None, n_slabs=n_acc,
+        magnus_exp_order=3))
+
+    edges, out_idx = op._cumulative_scan_grid(L, 0.0, n_acc, None)
+    for i in range(0, len(L), 11):
+        k = out_idx[i]
+        prefix = np.column_stack([edges[:k], edges[1:k + 1]])
+        P_ref = op.osc_prob(H, 0.0, L[i], t_slab_edges=prefix, magnus_exp_order=3,
+                            rtol=None, atol=None, n_tpts_per_slab=2)
+        assert maxabs(np.asarray(P_ref) - P[i]) < 1e-12
+
+
+def test_cumulative_scan_returns_results_in_the_callers_order():
+    """The scan must sort internally to walk the profile once, and undo that on the way
+    out: a caller who passed unsorted baselines gets answers against *their* order."""
+    H = np.array([[1.2e-13, 3.0e-14], [3.0e-14, -0.7e-13]])
+    L = np.linspace(1.0e12, 6.0e13, 120)
+    shuffled = RNG.permutation(len(L))
+
+    common = dict(cumulative=True, rtol=None, atol=None, n_slabs=200)
+    P_sorted = np.asarray(op.osc_prob_energy_baseline(H, 1.0, L, **common))
+    P_shuffled = np.asarray(op.osc_prob_energy_baseline(H, 1.0, L[shuffled], **common))
+
+    assert np.array_equal(P_shuffled, P_sorted[shuffled])
+
+
+def test_cumulative_scan_sizes_its_accuracy_grid_from_the_adaptive_path():
+    """The one way a cumulative scan goes *silently* wrong is an under-resolved accuracy
+    grid: the traversal itself never notices, because there is nothing to compare against.
+
+    So the grid is not guessed. One ordinary adaptive osc_prob call at the longest baseline
+    reports the slab count it needed -- which is the definition of the accuracy grid -- and
+    brings the existing safeguards with it. This pins that the scan really is at least that
+    fine, which is what makes it safe."""
+    H = castle_wall_H()
+    L = np.linspace(200.0, 2000.0, 40)*gd.UNIT_KM
+
+    info = {}
+    op.osc_prob(H, 0.0, L[-1], magnus_exp_order=3, convergence_info=info)
+    edges, _ = op._cumulative_scan_grid(
+        L, 0.0, info['n_slabs']*op.CUMULATIVE_N_ACC_SAFETY, None)
+
+    assert len(edges) - 1 >= info['n_slabs']*op.CUMULATIVE_N_ACC_SAFETY
+
+
+def test_cumulative_scan_puts_every_requested_baseline_on_a_slab_edge():
+    """Answers are read off the running product, never interpolated, so each requested
+    baseline has to *be* an edge. Includes breakpoints and a logarithmic spacing, which is
+    where a grid built only from the requested points goes coarse exactly where the
+    integration needs it fine."""
+    L = np.logspace(2.0, 4.0, 500)*gd.UNIT_KM
+    bp = np.linspace(150.0, 9000.0, 37)*gd.UNIT_KM
+
+    edges, out_idx = op._cumulative_scan_grid(L, 0.0, 700, bp)
+
+    assert np.array_equal(edges, np.unique(edges))
+    assert np.allclose(edges[out_idx], L, rtol=0, atol=0)
+    assert set(np.round(bp, 6)).issubset(set(np.round(edges, 6)))
+
+
+@pytest.mark.parametrize("kwargs,match", [
+    (dict(t_slab_edges=[[0.0, 1.0]]), "t_slab_edges"),
+    (dict(), "energies differ"),
+])
+def test_cumulative_scan_refuses_what_it_cannot_honour(kwargs, match):
+    """Two requests it must reject rather than quietly reinterpret: its own grid cannot
+    coexist with caller-supplied slab edges, and there is no nesting to exploit across
+    energies, so a multi-energy request is a misunderstanding worth naming."""
+    H = np.array([[1.2e-13, 3.0e-14], [3.0e-14, -0.7e-13]])
+    energy = 1.0 if 't_slab_edges' in kwargs else np.array([1.0, 2.0])
+    L = np.array([1.0e12, 2.0e12]) if 't_slab_edges' in kwargs else np.array([1.0e12, 1.0e12])
+
+    with pytest.raises(ValueError, match=match):
+        op.osc_prob_energy_baseline(H, energy, L, cumulative=True, **kwargs)
+
+
+def test_cumulative_scan_memory_does_not_scale_with_the_baseline_count():
+    """Peak allocation must be bounded by the block and the result, not by the grid.
+
+    The traversal is chunked and each snapshot is converted to a probability on the spot,
+    so the recorded term collapses into the answer the caller asked for rather than sitting
+    beside it as N complex unitaries."""
+    H = np.array([[1.2e-13, 3.0e-14], [3.0e-14, -0.7e-13]])
+
+    def peak_mib(n):
+        L = np.linspace(1.0e12, 6.0e13, n)
+        tracemalloc.start()
+        op.osc_prob_energy_baseline(H, 1.0, L, cumulative=True, rtol=None, atol=None,
+                                    n_slabs=20000)
+        peak = tracemalloc.get_traced_memory()[1]/2**20
+        tracemalloc.stop()
+        return peak
+
+    small, large = peak_mib(200), peak_mib(20000)
+    assert large < 4.0*small + 20.0, \
+        f"peak scaled with the baseline count: {small:.1f} -> {large:.1f} MiB"
+
+
+def test_tile_for_working_set_stays_within_its_budget():
+    """The tiling arithmetic itself, over the shapes the engines actually pass.
+
+    Includes the degenerate case where one cell alone exceeds the budget: there is no
+    tiling that helps, and returning (1, 1) so the caller proceeds with a visibly large
+    allocation is better than refusing work that might still fit."""
+    for nE, n_inner, cell, live in [(1, 2_000_000, 4, 8), (1000, 2_000_000, 4, 8),
+                                    (10**7, 100, 4, 8), (3, 7, 9, 1), (1, 1, 10**9, 8)]:
+        e_chunk, blk = op._tile_for_working_set(nE, n_inner, cell, live_arrays=live)
+        assert 1 <= e_chunk <= nE and 1 <= blk <= n_inner
+        if cell*live <= op.BATCH_WORKING_ENTRIES:
+            assert e_chunk*blk*cell*live <= op.BATCH_WORKING_ENTRIES
+        else:
+            assert (e_chunk, blk) == (1, 1)
+
+
+def test_output_guard_refuses_a_result_that_cannot_fit(monkeypatch):
+    """A scan whose *result* exceeds memory must fail with a diagnosable message.
+
+    Tiling bounds the engines' working set, but nothing shrinks the answer: N points over
+    d flavors is N*d*d floats either way. Left unchecked that surfaces as an out-of-memory
+    kill from deep inside an engine -- or, on an overcommitting kernel, as the machine
+    going down rather than the process, which is how this whole investigation started."""
+    monkeypatch.setattr(op, '_available_memory_bytes', lambda: 256*1024*1024)
+
+    with pytest.raises(MemoryError, match="would return"):
+        op._check_output_fits(50_000_000, 3, 'osc_prob_energy_baseline')
+
+
+def test_output_guard_is_silent_for_ordinary_requests(monkeypatch):
+    """It must cost nothing and refuse nothing on the scans people actually run.
+
+    The free-memory figure is not even consulted below the size floor; this asserts that
+    by making the probe explode if it is called."""
+    def exploding_probe():
+        raise AssertionError('free memory probed for a small request')
+
+    monkeypatch.setattr(op, '_available_memory_bytes', exploding_probe)
+    op._check_output_fits(10_000, 3, 'osc_prob_energy_baseline')      # ~0.7 MiB
+
+
+def test_output_guard_does_not_block_when_memory_cannot_be_measured(monkeypatch):
+    """A guard that cannot measure must not refuse: on a platform exposing neither
+    MemAvailable nor sysconf, the library keeps working exactly as before."""
+    monkeypatch.setattr(op, '_available_memory_bytes', lambda: None)
+    op._check_output_fits(10**9, 5, 'osc_prob_energy_baseline')
+
+
+def test_available_memory_is_a_plausible_positive_number_or_none():
+    """Whatever it reports on this machine, it must be usable as a bound."""
+    value = op._available_memory_bytes()
+    assert value is None or (isinstance(value, int) and value > 0)
 
 
 def test_ip_exp_core_without_a_tolerance_returns_after_one_pass():
