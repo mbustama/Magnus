@@ -441,6 +441,25 @@ Being the larger of the two thresholds also keeps the fall-through safe: wheneve
 dispatcher declines on this count, ``cumulative='auto'`` is guaranteed to engage, so a scan can
 never decline both paths and land on the general per-point method.
 
+**Accuracy steps at this threshold, and it is a large step.**  Because the two sides are
+different methods rather than two settings of one method, adding a single baseline to a
+24-point scan can change every answer in it.  Measured against ``solve_ivp``, ``err(N=24)``
+against ``err(N=26)``:
+
+========================= ========== ========== ==========
+profile                   N = 24     N = 26     step
+========================= ========== ========== ==========
+solar exponential         3.30e-05   2.13e-08   1 546x
+noisy                     6.27e-04   1.04e-08   60 418x
+multi-resonance           1.58e-03   2.86e-09   552 945x
+========================= ========== ========== ==========
+
+The step is always *toward* the truth -- above the threshold the scan is more accurate, not
+less -- so this is a discontinuity to know about rather than a defect.  But a caller sweeping N
+and watching the answer move by five orders of magnitude at N = 25 is seeing the routing change,
+not a numerical instability.  Pass ``cumulative=True`` to take the cumulative scan below the
+threshold as well, or ``cumulative=False`` to stay off it entirely.
+
 .. versionadded:: 1.0.0
 """
 
@@ -3497,6 +3516,49 @@ def _cumulative_scan_would_serve(energy_arr, L_arr, L0, min_points):
                 and np.all(np.asarray(L_arr, dtype=float) >= L0))
 
 
+def _resolve_cumulative_kwarg(kwargs, strategy):
+    r"""Pops a caller-supplied ``cumulative`` out of ``kwargs`` and decides what to forward.
+
+    The three scenario wrappers (:func:`osc_prob_matter_std_potential`,
+    :func:`osc_prob_matter_nsi`, :func:`osc_prob_liv`) each set ``cumulative`` themselves when
+    calling :func:`osc_prob_energy_baseline`, so a caller who also passed it in ``**kwargs``
+    used to get ``TypeError: got multiple values for keyword argument 'cumulative'`` --
+    which made ``cumulative=False`` unreachable from the entire wrapper layer, and that is the
+    one mitigation ``docs/dev/DECISION_CUMULATIVE_DEFAULT.md`` names for a caller who needs
+    bit-reproducibility against pre-1.0.0 results.
+
+    **An explicit value from the caller always wins**, including over the ``strategy='magnus'``
+    opt-out below: naming ``cumulative`` is a specific request about the scan engine, and
+    ``cumulative=True`` is documented to *raise* rather than fall back when it cannot be served,
+    so honouring it cannot silently do the wrong thing.
+
+    Otherwise ``strategy='magnus'`` resolves to ``False`` and everything else to ``'auto'``.
+    That strategy promises the behaviour Mag(nu)s had before the adiabatic strategy existed,
+    *unconditionally*; the cumulative scan is Magnus machinery but postdates the promise and
+    builds a different grid, so the escape hatch would quietly stop being one for exactly the
+    case -- a single-energy baseline scan -- where someone reproducing older numbers reaches
+    for it.
+
+    .. versionadded:: 1.0.0
+
+    Parameters
+    ----------
+    kwargs : dict
+        The wrapper's ``**kwargs``, modified in place: ``'cumulative'`` is removed if present.
+    strategy : str
+        'auto', 'hybrid' or 'magnus'; see the ``strategy`` parameter of
+        :func:`osc_prob_matter_std_potential`.
+
+    Returns
+    -------
+    bool or str
+        The value to forward to :func:`osc_prob_energy_baseline` as ``cumulative``.
+    """
+    if 'cumulative' in kwargs:
+        return kwargs.pop('cumulative')
+    return 'auto' if strategy != 'magnus' else False
+
+
 def _osc_prob_hybrid_dispatch(
     h_vac_energy_indep: np.ndarray,
     VCC_func: Union[Callable, float],
@@ -4914,13 +4976,11 @@ def osc_prob_matter_std_potential(
         validate_input=validate_input, save_log=save_log, filename_log=filename_log,
         file_log=file_log, close_file_log_upon_exit=close_file_log_upon_exit,
         new_recursion_limit=new_recursion_limit, verbose=verbose,
-        # strategy='magnus' promises the behaviour Mag(nu)s had before the adiabatic
-        # strategy existed, so it must opt out of the cumulative scan too -- that scan is
-        # Magnus machinery, but it postdates the promise and builds a different grid.
-        # Without this the escape hatch quietly stops being one for any single-energy
-        # baseline scan, which is exactly when someone reproducing older numbers would
-        # reach for it.
-        cumulative=('auto' if strategy != 'magnus' else False), **kwargs)
+        # An explicit cumulative= from the caller wins; otherwise strategy='magnus' opts out
+        # of the cumulative scan and everything else takes 'auto'.  See
+        # _resolve_cumulative_kwarg, which also removes it from kwargs so that passing it
+        # here is not a TypeError.
+        cumulative=_resolve_cumulative_kwarg(kwargs, strategy), **kwargs)
 
 
 def osc_prob_matter_nsi(
@@ -5257,13 +5317,11 @@ def osc_prob_matter_nsi(
         validate_input=validate_input, save_log=save_log, filename_log=filename_log,
         file_log=file_log, close_file_log_upon_exit=close_file_log_upon_exit,
         new_recursion_limit=new_recursion_limit, verbose=verbose,
-        # strategy='magnus' promises the behaviour Mag(nu)s had before the adiabatic
-        # strategy existed, so it must opt out of the cumulative scan too -- that scan is
-        # Magnus machinery, but it postdates the promise and builds a different grid.
-        # Without this the escape hatch quietly stops being one for any single-energy
-        # baseline scan, which is exactly when someone reproducing older numbers would
-        # reach for it.
-        cumulative=('auto' if strategy != 'magnus' else False), **kwargs)
+        # An explicit cumulative= from the caller wins; otherwise strategy='magnus' opts out
+        # of the cumulative scan and everything else takes 'auto'.  See
+        # _resolve_cumulative_kwarg, which also removes it from kwargs so that passing it
+        # here is not a TypeError.
+        cumulative=_resolve_cumulative_kwarg(kwargs, strategy), **kwargs)
 
 
 def osc_prob_liv(
@@ -5611,13 +5669,11 @@ def osc_prob_liv(
         validate_input=validate_input, save_log=save_log, filename_log=filename_log,
         file_log=file_log, close_file_log_upon_exit=close_file_log_upon_exit,
         new_recursion_limit=new_recursion_limit, verbose=verbose,
-        # strategy='magnus' promises the behaviour Mag(nu)s had before the adiabatic
-        # strategy existed, so it must opt out of the cumulative scan too -- that scan is
-        # Magnus machinery, but it postdates the promise and builds a different grid.
-        # Without this the escape hatch quietly stops being one for any single-energy
-        # baseline scan, which is exactly when someone reproducing older numbers would
-        # reach for it.
-        cumulative=('auto' if strategy != 'magnus' else False), **kwargs)
+        # An explicit cumulative= from the caller wins; otherwise strategy='magnus' opts out
+        # of the cumulative scan and everything else takes 'auto'.  See
+        # _resolve_cumulative_kwarg, which also removes it from kwargs so that passing it
+        # here is not a TypeError.
+        cumulative=_resolve_cumulative_kwarg(kwargs, strategy), **kwargs)
 
 
 #-----------------------------------------------------------------------
