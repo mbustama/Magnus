@@ -209,6 +209,52 @@ errors are **bit-identical** to main, which is the evidence that nothing changed
 | 2ν NSI | 106 → 129 ms, err identical | 529 → 91 ms, 2.4e-05 → 8.9e-07 | 4196 → 82 ms, 2.7e-05 → 1.6e-06 |
 | 2ν LIV | 126 → 125 ms, err identical | 602 → 114 ms, 1.7e-05 → 3.1e-07 | 5355 → 168 ms, 2.4e-05 → 2.7e-07 |
 
+## 4d. The accuracy sweep that found a regression, and the fix
+
+A wide sweep through the wrapper -- 48 configurations, 1-100 MeV, N of 8/40/150, over 0.4 and
+1.0 R_sun, each scored against `solve_ivp` -- looking for regressions rather than wins. At
+`CUMULATIVE_N_ACC_SAFETY = 2` it found three, all at high energy over the shorter baseline:
+
+| configuration | hybrid (main) | safety 2 | safety 4 |
+|---|---|---|---|
+| 60 MeV, N = 150, 0.4 R_sun | 1.57e-05 | **5.03e-05** | 8.56e-07 |
+| 100 MeV, N = 150, 0.4 R_sun | 2.51e-05 | **3.77e-05** | 6.11e-07 |
+| 100 MeV, N = 40, 0.4 R_sun | 9.13e-06 | **1.10e-05** | 5.58e-07 |
+
+The diagnosis contradicted the obvious guess. The error is *not* at the short baselines where a
+uniform grid would be expected to under-resolve: on the 60 MeV case it sits at the **longest**
+baselines (5.03e-05 there against 2.18e-06 over the shortest third), and a probe at the short
+end asks for a density within 1% of what the grid already provides. The scan was simply as
+accurate as a tolerance-1e-3 Magnus grid, while hybrid happened to be better there.
+
+So the lever is total resolution, and `CUMULATIVE_N_ACC_SAFETY` moved from 2 to 4. Two had been
+chosen when the alternative was the general per-point path, against which the scan was already
+124x faster and 11x more accurate; routing wrapper scans here makes the alternative *hybrid*,
+which is a higher bar. Four removes all three regressions and beats hybrid on each, improves the
+untouched configurations about twenty-fold as well, and costs ~1.4x on a path still tens of
+times faster than what it replaces.
+
+Re-run at safety 4, the same 48 configurations:
+
+| | safety 2 | safety 4 |
+|---|---|---|
+| branch more accurate | 28 | **32** |
+| effectively equal | 17 | 16 |
+| **branch less accurate** | **3** | **0** |
+| worst error (main 3.21e-05) | 5.03e-05 | **2.93e-05** |
+| outside the requested 1e-3 | 0 | 0 |
+
+And the threshold still holds at the higher cost -- across N from 2 to 400 at 5 and 10 MeV,
+**no configuration is more than 10% slower**, errors below the threshold are bit-identical to
+main, and at N = 25 the scan is already 1.3x faster with 190x-2800x better accuracy.
+
+**Unitarity loosens, from 8.9e-16 to 8.2e-12.** The hybrid strategy returns an exactly unitary
+operator by construction; the cumulative scan accumulates a product over tens of thousands of
+slabs, so it is unitary to roughly 1e-11 rather than to machine precision. Far inside the 1e-9
+the suite asserts, and inherent to a long product rather than fixable by tuning -- but it is a
+change in kind, not only in magnitude, and worth knowing before anyone tightens a unitarity
+assertion.
+
 ## 5. Cost, stated plainly
 
 **Results move.** The two paths build different grids, so any applicable baseline scan returns
@@ -231,7 +277,9 @@ inside tolerance.
 |---|---|
 | single-point wrapper call | unchanged (excluded by `CUMULATIVE_AUTO_MIN_POINTS`) |
 | vacuum / constant-density scan | unchanged (excluded: position-independent `H`) |
-| solar baseline scan via the wrappers | **23–31× faster**, 1e-05 → 1e-06, and 5.2e-03 → 1.0e-06 at 10 MeV (§4c) |
+| solar baseline scan via the wrappers, N >= 25 | **23–31× faster**, 1e-05 → 1e-06, and 5.2e-03 → 1.0e-06 at 10 MeV (§4c) |
+| solar baseline scan via the wrappers, N < 25 | unchanged — hybrid keeps it (§4c) |
+| accuracy across 48 wrapper configurations | **32 better, 16 equal, 0 worse**; unitarity 9e-16 → 8e-12 (§4d) |
 | baseline scan via `osc_prob_energy_baseline` | 2.65× at N = 25, 84× at N = 1000, and 1–3 orders more accurate at every N (§2) |
 | notebooks 02 and 03 | unchanged — their converted cells pass `cumulative=True` explicitly |
 

@@ -661,6 +661,41 @@ def test_baseline_scan_through_the_wrapper_uses_the_cumulative_path(monkeypatch)
     assert seen['hybrid'] == 1, "a single point no longer reaches the hybrid strategy"
 
 
+def test_strict_convergence_survives_a_baseline_scan():
+    """strict_convergence is a documented parameter of osc_prob, and **kwargs carries it down
+    through the wrapper layer and osc_prob_energy_baseline. The cumulative branch forwards those
+    kwargs to the traversal, which passes them to the Magnus engine -- so an unhandled one is not
+    ignored, it is a TypeError. Passing the flag to a baseline scan used to crash with
+    'magnus_expansion_multislab() got an unexpected keyword argument'.
+
+    The traversal walks a fixed grid and runs no ladder, so the flag has nothing to act on there;
+    it is dropped, and the probe that sizes the grid is strict regardless."""
+    sth, Dm2 = np.sqrt(0.308), 7.5e-5
+    RS = gd.SUN_RADIUS*gd.UNIT_KM
+    E = 5.0*gd.UNIT_MEV
+    H = _solar_2nu_H(E)
+    L = np.logspace(np.log10(1e-2*RS), np.log10(RS), 30)
+
+    for label, call in (
+            ('wrapper scan',
+             lambda: op.osc_prob_2nu_sun(np.full_like(L, E), L, 0.0, sth, Dm2,
+                                         strict_convergence=True, validate_input=False)),
+            ('explicit cumulative',
+             lambda: op.osc_prob_energy_baseline(H, E, L, 0.0, cumulative=True,
+                                                 strict_convergence=True,
+                                                 validate_input=False)),
+            ('explicit per-point',
+             lambda: op.osc_prob_energy_baseline(H, E, L, 0.0, cumulative=False,
+                                                 strict_convergence=True,
+                                                 validate_input=False)),
+            ('single point',
+             lambda: op.osc_prob_2nu_sun(E, RS, 0.0, sth, Dm2, strict_convergence=True,
+                                         validate_input=False))):
+        P = np.asarray(call())
+        assert np.all(np.isfinite(P)), f"{label}: non-finite probabilities"
+        assert np.allclose(np.sum(P, axis=-1), 1.0, atol=1e-7), f"{label}: not unitary"
+
+
 def test_cumulative_probe_is_strict_so_the_inherited_grid_is_trustworthy():
     """The cumulative scan sizes its whole grid from one adaptive osc_prob call, so that call's
     convergence decides every point in the scan. At 10 MeV over one solar radius the ordinary

@@ -252,7 +252,10 @@ point:
    profile -- see :doc:`methodology`), the energy-batched scan engine, or
    the general adaptive slab-refinement method. This reproduces the exact
    behavior of Magνs as it was before the adiabatic strategy was added,
-   unconditionally.
+   unconditionally. It therefore opts out of the cumulative baseline scan
+   as well, which postdates that behavior and builds a different slab grid:
+   ``strategy='magnus'`` is the way to reproduce older numbers exactly, on
+   a baseline scan as much as at a single point.
 
 ``'hybrid'``
    Additionally try :func:`magnus.adiabatic.hybrid_propagator` for any
@@ -272,6 +275,15 @@ point:
    silently to the ``'magnus'`` strategies above -- no warning about the
    hybrid attempt itself -- for any point where it does not apply or
    fails to self-certify.
+
+   It also stands aside for a **baseline scan at a single energy** with at
+   least ``HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS`` points. The hybrid
+   strategy handles such a scan one point at a time, whereas the cumulative
+   scan (see the ``cumulative`` parameter of
+   :func:`magnus.oscprob.osc_prob_energy_baseline`) answers every baseline
+   from a single traversal: measured on solar profiles, tens of times faster
+   at equal or better accuracy. Below that number of points the hybrid
+   strategy is the cheaper of the two and keeps the scan.
 
 Unlike the two-flavor interaction-picture fast path, the hybrid strategy
 has **no restriction on the number of flavors**: the resonance detector and

@@ -445,33 +445,54 @@ never decline both paths and land on the general per-point method.
 """
 
 
-CUMULATIVE_N_ACC_SAFETY = 2
+CUMULATIVE_N_ACC_SAFETY = 4
 r"""int: Module-level constant
 
 Multiple of the inherited slab count used for the accuracy grid of a cumulative baseline
 scan (``osc_prob_energy_baseline(..., cumulative=True)``).
 
-The grid is sized from one ordinary adaptive :func:`osc_prob` call at the longest baseline,
-which reports the slab count *that* baseline needed.  Applied unmultiplied, the same uniform
-density is then thinner than what the per-point path would have chosen for the shorter
-baselines in the scan, and the result -- while inside the requested tolerance -- comes out
-less accurate than the path it replaces.  Measured on a 1000-point solar scan against
-``solve_ivp``, where the per-point path takes 12.0 s for an error of 5.6e-5:
+The grid is sized from one adaptive :func:`osc_prob` call at the longest baseline, which
+reports the slab count *that* baseline needed.  Applied unmultiplied, the same uniform density
+is thinner than what a per-point path would have chosen for the shorter baselines in the scan,
+and the result -- while inside the requested tolerance -- comes out less accurate than the path
+it replaces.  Measured on a 1000-point solar scan against ``solve_ivp``, where the per-point
+path takes 12.0 s for an error of 5.6e-5:
 
 ===========  ==========  =========  ==========
 safety       ``n_acc``   time       error
 ===========  ==========  =========  ==========
 1            14 883      0.049 s    2.35e-04
-**2**        **29 766**  0.097 s    **5.10e-06**
-4            59 532      0.173 s    3.34e-07
+2            29 766      0.097 s    5.10e-06
+**4**        **59 532**  0.173 s    **3.34e-07**
 8            119 064     0.346 s    1.80e-08
 ===========  ==========  =========  ==========
 
-Two is where the scan becomes strictly better than what it replaces on both axes at once --
-124x faster *and* 11x more accurate -- for a doubling of a cost that is negligible either
-way.  Beyond it the accuracy is bought at a proportional price with no correctness argument
-behind it, which is a choice for the caller (via ``n_slabs`` with the tolerance off) rather
-than a default.
+**Why four rather than two.**  Two was chosen when the cumulative scan's only alternative was
+the general per-point path, against which it was already 124x faster and 11x more accurate.
+Since the dispatch chain routes wrapper baseline scans here (see
+``HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS``), the alternative is the *hybrid* strategy instead,
+which is considerably more accurate than the per-point path -- so the bar moved.  At two, a
+48-configuration sweep found three where the cumulative scan was less accurate than the hybrid
+answer it replaced, all at high energy over a short baseline:
+
+=========================  ==========  ==========  ==========
+configuration              hybrid      safety 2    safety 4
+=========================  ==========  ==========  ==========
+60 MeV, N = 150, 0.4 R_sun  1.57e-05   5.03e-05    8.56e-07
+100 MeV, N = 150, 0.4 R_sun 2.51e-05   3.77e-05    6.11e-07
+100 MeV, N = 40, 0.4 R_sun  9.13e-06   1.10e-05    5.58e-07
+=========================  ==========  ==========  ==========
+
+Four removes all three and beats the hybrid answer on each, while improving the unaffected
+configurations by roughly twenty times as well (5 MeV, N = 150: 8.4e-07 -> 3.7e-08).  It costs
+about 1.4x in wall time -- 28 ms -> 40 ms, 260 ms -> 366 ms on the cases above -- against a
+path it is still tens of times faster than.  Eight is better again but 2.4x, and buys accuracy
+no longer needed to clear the bar.
+
+Note that the error is **not** concentrated where the shape of this constant suggests: on the
+60 MeV case it sits at the *longest* baselines (5.03e-05 there against 2.18e-06 over the
+shortest third), and the grid density at the short end already matches what a probe there would
+ask for to within 1%.  What the multiplier buys is total resolution, not better placement.
 
 .. versionadded:: 1.0.0
 """
@@ -4270,8 +4291,15 @@ def osc_prob_energy_baseline(
             H_fixed, L_sorted, L0, n_acc, magnus_exp_order,
             kwargs.get('n_tpts_per_slab', 100), integration_method,
             kwargs.get('t_breakpoints'), osc_prob_kwargs.get('A_eval_mode'),
+            # strict_convergence is dropped rather than forwarded: the traversal walks a fixed
+            # grid and runs no refinement ladder, so the flag has nothing to act on here, and
+            # the engine below rejects unknown keywords.  The one adaptive step in a cumulative
+            # scan is the probe above, which is unconditionally strict already.  Without this a
+            # user who passes the flag to a baseline scan gets a TypeError out of
+            # magnus_expansion_multislab.
             **{k: v for k, v in kwargs.items()
-               if k not in ('n_slabs', 'n_tpts_per_slab', 't_breakpoints')})
+               if k not in ('n_slabs', 'n_tpts_per_slab', 't_breakpoints',
+                            'strict_convergence')})
 
         P_all = np.empty_like(P_sorted)
         P_all[order] = P_sorted
@@ -4624,7 +4652,9 @@ def osc_prob_matter_std_potential(
           two-flavor interaction-picture integrator when it applies, the energy-batched scan
           engine, or the general adaptive slab-refinement method) -- this reproduces the exact
           behavior of Magνs as it was before the adiabatic strategy was added,
-          unconditionally.
+          unconditionally.  It therefore also opts out of the cumulative baseline scan, which
+          postdates that behavior: pass ``strategy='magnus'`` to reproduce older numbers
+          exactly, on a baseline scan as well as at a single point.
         * ``'hybrid'`` additionally tries :func:`magnus.adiabatic.hybrid_propagator` (adiabatic
           transport, with a Magnus patch at any non-adiabatic window; see
           :doc:`/adiabatic_strategy`) for any requested (energy, L) point where ``rho_func`` is
@@ -4634,7 +4664,12 @@ def osc_prob_matter_std_potential(
           :class:`HybridCertificationWarning`.
         * ``'auto'`` tries the hybrid strategy first, under the same conditions, but falls back
           silently to the ``'magnus'`` strategies above (no warning about the hybrid attempt
-          itself) for any point where it does not apply or fails to self-certify.
+          itself) for any point where it does not apply or fails to self-certify.  It also
+          stands aside for a **baseline scan at a single energy** of at least
+          ``HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS`` points, which the cumulative scan
+          (see ``cumulative`` in :func:`osc_prob_energy_baseline`) answers from one traversal
+          instead of one hybrid call per point -- measured on solar profiles as tens of times
+          faster at equal or better accuracy.
 
         The hybrid strategy is the natural tool exactly where the plain Magnus refinement needs
         very many slabs (an extreme accumulated phase, e.g., low-energy solar neutrinos crossing
