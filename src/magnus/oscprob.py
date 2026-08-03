@@ -3388,6 +3388,41 @@ def _osc_prob_ip_exp_dispatch(
     return P.__getitem__(0 if return_float else slice(None))
 
 
+def _cumulative_scan_would_serve(energy_arr, L_arr, L0):
+    r"""Whether ``osc_prob_energy_baseline``'s cumulative path would take this request.
+
+    Used by ``_osc_prob_hybrid_dispatch`` to stand aside for a baseline scan it would otherwise
+    answer point by point.  Deliberately a separate predicate rather than a duplicated condition:
+    if the two ever disagree, the hybrid dispatcher declines a request the cumulative path then
+    also declines, and the scan falls all the way through to the general per-point method --
+    slower and less accurate than either, and silently so.
+
+    Mirrors the ``cumulative='auto'`` conditions that depend only on the requested points.  The
+    remaining ones there (a position-dependent Hamiltonian, no ``t_slab_edges``) are already
+    guaranteed by the time this is called: the hybrid dispatcher has returned ``NotImplemented``
+    for a non-callable ``VCC_func`` and for user-supplied slab edges or breakpoints above.
+
+    .. versionadded:: 1.0.0
+
+    Parameters
+    ----------
+    energy_arr : np.ndarray
+        Requested energies, one per point.
+    L_arr : np.ndarray
+        Requested baselines, one per point.
+    L0 : int or float
+        Initial position.
+
+    Returns
+    -------
+    bool
+        True when the cumulative scan applies to this set of points.
+    """
+    return bool(len(L_arr) >= CUMULATIVE_AUTO_MIN_POINTS
+                and np.all(energy_arr == energy_arr[0])
+                and np.all(np.asarray(L_arr, dtype=float) >= L0))
+
+
 def _osc_prob_hybrid_dispatch(
     h_vac_energy_indep: np.ndarray,
     VCC_func: Union[Callable, float],
@@ -3495,6 +3530,20 @@ def _osc_prob_hybrid_dispatch(
 
     energy_arr, L_arr, return_float, ok = _normalize_energy_L(energy, L)
     if not ok:
+        return NotImplemented
+
+    # Stand aside for a baseline scan at a single energy: the cumulative scan answers all of
+    # those baselines from one traversal, where this method calls hybrid_propagator once per
+    # point at its ~26 ms floor.  Measured on solar profiles against solve_ivp, at 5, 10 and
+    # 20 MeV and N from 50 to 800: 3.9x-85.6x faster at comparable or better accuracy.
+    #
+    # Only under strategy='auto', which promises the best available answer rather than this
+    # method in particular; strategy='hybrid' is an explicit request and still gets hybrid.
+    # Declining here is enough to reach the cumulative path: ip_exp needs every baseline equal
+    # and the separable engine needs a single shared baseline, so both decline a scan too, and
+    # the caller falls through to osc_prob_energy_baseline, where cumulative='auto' engages on
+    # exactly the conditions tested here.
+    if (strategy == 'auto') and _cumulative_scan_would_serve(energy_arr, L_arr, L0):
         return NotImplemented
 
     magnus_exp_order = scan_kwargs['magnus_exp_order']
@@ -4148,6 +4197,16 @@ def osc_prob_energy_baseline(
             probe_kwargs = dict(osc_prob_kwargs)
             probe_kwargs['convergence_info'] = probe_info
             probe_kwargs.pop('A_eval_mode', None)
+            # The probe is always strict, whatever the caller asked for their own points.  It is
+            # the one call whose convergence decides the grid for the *whole* scan, so its
+            # failure mode is not one bad point but N of them -- and the ladder's ordinary stop
+            # rule can end on a coincidental agreement between two levels that are both wrong
+            # (see the strict_convergence entry in osc_prob's docstring).  Measured on the solar
+            # profile at 10 MeV, where that is exactly what the ordinary ladder does: the scan
+            # came out at 5.2e-3 against a requested 1e-3 with a loose probe, and 1.0e-6 with a
+            # strict one.  It costs one extra refinement level on a single call, amortised over
+            # every baseline in the scan.
+            probe_kwargs['strict_convergence'] = True
             osc_prob(H_fixed, L0, float(L_sorted[-1]),
                      A_eval_mode=osc_prob_kwargs.get('A_eval_mode'), **probe_kwargs)
             # Scaled up because that count is what the *longest* baseline needed, and the

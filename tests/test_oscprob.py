@@ -587,6 +587,77 @@ def _spy_on(monkeypatch, name):
     return spy
 
 
+def test_baseline_scan_through_the_wrapper_uses_the_cumulative_path(monkeypatch):
+    """A single-energy baseline scan through the wrapper layer must reach the cumulative scan.
+
+    Before the hybrid dispatcher learned to stand aside, it answered such a scan point by point
+    at its ~26 ms floor and returned before osc_prob_energy_baseline was ever called, so the
+    cumulative default could not apply. Measured on solar profiles against solve_ivp, the
+    cumulative scan is 3.9x-85.6x faster there at comparable or better accuracy.
+
+    strategy='hybrid' is an explicit request and must still get hybrid; a single point must too,
+    since a scan of one has nothing to reuse."""
+    sth, Dm2 = np.sqrt(0.308), 7.5e-5
+    RS = gd.SUN_RADIUS*gd.UNIT_KM
+    L = np.logspace(np.log10(1e-2*RS), np.log10(RS), 12)
+
+    seen = {'hybrid': 0, 'cumulative': 0}
+    real_h, real_c = op._osc_prob_hybrid_dispatch, op._osc_prob_cumulative_scan
+
+    def spy_h(*a, **k):
+        out = real_h(*a, **k)
+        if out is not NotImplemented:
+            seen['hybrid'] += 1
+        return out
+
+    def spy_c(*a, **k):
+        seen['cumulative'] += 1
+        return real_c(*a, **k)
+    monkeypatch.setattr(op, '_osc_prob_hybrid_dispatch', spy_h)
+    monkeypatch.setattr(op, '_osc_prob_cumulative_scan', spy_c)
+
+    op.osc_prob_2nu_sun(np.full_like(L, 5.0*gd.UNIT_MEV), L, 0.0, sth, Dm2,
+                        validate_input=False)
+    assert seen == {'hybrid': 0, 'cumulative': 1}, \
+        f"a wrapper baseline scan did not reach the cumulative path: {seen}"
+
+    seen['hybrid'] = seen['cumulative'] = 0
+    op.osc_prob_2nu_sun(np.full_like(L, 5.0*gd.UNIT_MEV), L, 0.0, sth, Dm2,
+                        strategy='hybrid', validate_input=False)
+    assert seen['hybrid'] == 1, "strategy='hybrid' no longer gets the hybrid strategy"
+
+    seen['hybrid'] = seen['cumulative'] = 0
+    op.osc_prob_2nu_sun(5.0*gd.UNIT_MEV, RS, 0.0, sth, Dm2, validate_input=False)
+    assert seen['hybrid'] == 1, "a single point no longer reaches the hybrid strategy"
+
+
+def test_cumulative_probe_is_strict_so_the_inherited_grid_is_trustworthy():
+    """The cumulative scan sizes its whole grid from one adaptive osc_prob call, so that call's
+    convergence decides every point in the scan. At 10 MeV over one solar radius the ordinary
+    ladder stops on a coincidental agreement (see
+    test_strict_convergence_rejects_a_coincidental_agreement), and a scan built on that grid
+    came out at 5.2e-3 against a requested 1e-3. The probe is therefore always strict.
+
+    Scored against solve_ivp -- comparing the scan against a per-point Magnus result would only
+    show the two differ, not which is right."""
+    energy = 10.0*gd.UNIT_MEV
+    RS = gd.SUN_RADIUS*gd.UNIT_KM
+    H = _solar_2nu_H(energy)
+    L = np.logspace(np.log10(1e-3*RS), np.log10(RS), 40)
+
+    def rhs(l, y):
+        return (-1j*np.asarray(H(l)) @ y.reshape(2, 2)).ravel()
+
+    sol = solve_ivp(rhs, (0.0, float(L[-1])), np.eye(2, dtype=complex).ravel(),
+                    rtol=1e-11, atol=1e-13, method='DOP853', t_eval=L)
+    P_exact = np.array([np.abs(sol.y[:, k].reshape(2, 2)).T**2 for k in range(len(L))])
+
+    P = np.asarray(op.osc_prob_energy_baseline(H, energy, L, 0.0, cumulative=True,
+                                               validate_input=False))
+    assert maxabs(P - P_exact) < 1e-4, \
+        f"cumulative scan off by {maxabs(P - P_exact):.2e}; the probe grid is not trustworthy"
+
+
 def test_cumulative_auto_engages_on_a_real_scan_and_stands_aside_otherwise(monkeypatch):
     """cumulative='auto' is the default, so what it does and does not claim has to be pinned.
 

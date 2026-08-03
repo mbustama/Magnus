@@ -106,11 +106,65 @@ Where it does apply: direct `osc_prob_energy_baseline` callers, and any wrapper 
 dispatchers decline. The §2 table was measured through the direct entry point, so those numbers
 stand for that path — they are simply not what a `osc_prob_2nu_sun` user gets.
 
-**This is a missed win, not just a scoping note.** At N = 400 the wrapper spends ~11 s where the
-cumulative scan answers in ~0.3 s (§2, N = 500: 299 ms) and more accurately. Teaching the
-dispatch chain to prefer the cumulative scan for a single-energy baseline scan — before handing
-the points to hybrid one at a time — is the obvious follow-up, and it is a change to the
-dispatchers rather than to this default, so it is deliberately not made here.
+**This was a missed win, and it is now taken** — see §4c.
+
+## 4c. Reaching the wrapper layer, and the trap on the way
+
+`_osc_prob_hybrid_dispatch` now returns `NotImplemented` for a single-energy baseline scan when
+`strategy == 'auto'`, so the caller falls through to `osc_prob_energy_baseline` and
+`cumulative='auto'` engages. Declining there is sufficient: `ip_exp` requires every baseline
+equal and the separable engine a single shared baseline, so both decline a scan as well.
+`strategy='hybrid'` is an explicit request and still gets hybrid; a single point still gets
+hybrid, since a scan of one has nothing to reuse. Both are tested.
+
+The justification, on solar profiles against `solve_ivp`, hybrid versus cumulative:
+
+| E, N | hybrid | cumulative | |
+|---|---|---|---|
+| 5 MeV, 50 | 999 ms, 1.06e-05 | 170 ms, 5.36e-06 | 5.9× |
+| 5 MeV, 800 | 17 635 ms, 1.01e-05 | 206 ms, 4.03e-06 | 85.6× |
+| 20 MeV, 200 | 8 352 ms, 3.01e-05 | 220 ms, 8.37e-07 | 38.0× |
+
+**The trap.** Making hybrid stand aside on that evidence alone would have shipped a regression.
+At **10 MeV** — the configuration where the adaptive ladder stops on a coincidental agreement —
+the cumulative scan was **outside the requested tolerance at every scan size**:
+
+| 10 MeV | N = 2 | N = 5 | N = 50 | N = 400 |
+|---|---|---|---|---|
+| hybrid | 2.21e-07 | 1.42e-05 | 1.21e-05 | 1.66e-05 |
+| cumulative, loose probe | **3.10e-03** | **2.87e-03** | **6.68e-03** | **5.20e-03** |
+
+The cause is the coupling recorded in §7: the grid is sized by one ordinary adaptive `osc_prob`
+probe at the longest baseline, and at 10 MeV that probe returns `n_slabs = 3298` on a
+coincidence — 6596 after the safety factor, against the ~20 000 the case needs. Handing the
+whole scan to a grid built on one early-stopping call turns a single bad point into N of them.
+
+**The fix is `strict_convergence` on the probe**, which is now always applied there whatever the
+caller asked for their own points. It is the one call whose convergence decides the entire
+scan's grid, and its cost — one extra refinement level on a single call — amortises over every
+baseline:
+
+| E, N | loose probe | strict probe |
+|---|---|---|
+| 5 MeV, 400 | 1.5e-05 | 2.35e-06 |
+| **10 MeV, 400** | **5.20e-03** | **1.01e-06** |
+| 20 MeV, 400 | 3.3e-06 | 8.12e-07 |
+
+That is the feature this project shelved as too costly to enable by default, earning its place
+in the one spot where the economics invert.
+
+### Measured through the wrapper, alternating between `main` and the branch
+
+| case | main | branch |
+|---|---|---|
+| single-point solar wrapper | 20.5 / 40.8 / 25.7 ms | 26.5 / 25.5 / 27.9 ms |
+| **solar baseline scan, N = 400** | **7632 / 10178 / 10086 ms** | **328 / 325 / 328 ms** |
+| vacuum baseline scan, N = 300 | 37.9 / 38.2 / 37.9 ms | 52.4 / 37.7 / 40.3 ms |
+| constant-density scan, N = 300 | 39.4 / 37.9 / 38.3 ms | 54.6 / 37.7 / 39.2 ms |
+
+**23–31× on the baseline scan**, reproducible across all three rounds, with accuracy improving
+from ~1e-05 to ~1e-06 and the 10 MeV case from 5.2e-03 to 1.0e-06. Everything else is unchanged
+within scatter.
 
 ## 5. Cost, stated plainly
 
@@ -134,12 +188,12 @@ inside tolerance.
 |---|---|
 | single-point wrapper call | unchanged (excluded by `CUMULATIVE_AUTO_MIN_POINTS`) |
 | vacuum / constant-density scan | unchanged (excluded: position-independent `H`) |
-| solar baseline scan via the wrappers | **unchanged** — hybrid answers first (§4b) |
+| solar baseline scan via the wrappers | **23–31× faster**, 1e-05 → 1e-06, and 5.2e-03 → 1.0e-06 at 10 MeV (§4c) |
 | baseline scan via `osc_prob_energy_baseline` | 2.65× at N = 25, 84× at N = 1000, and 1–3 orders more accurate at every N (§2) |
 | notebooks 02 and 03 | unchanged — their converted cells pass `cumulative=True` explicitly |
 
-So the flip is a correctness-and-speed win **for direct callers of the primordial baseline-scan
-entry point**, and a no-op everywhere else until the dispatch chain is taught about it.
+So the flip is a correctness-and-speed win on both the primordial entry point and the wrapper
+families, and a deliberate no-op for single points and position-independent Hamiltonians.
 
 ## 7. What would change this call
 
