@@ -595,7 +595,7 @@ but only **2 of 150** are silently so, at 2.1e-03 and 1.4e-03, both at N = 80 on
 path rather than the hybrid one. That residue is a fair characterisation of what is left: a
 uniform grid that happens not to align with a jump, overrunning the tolerance by about 2×.
 
-### 9.3 Performance, measured by alternating — and the criterion fails, on `main`-vs-branch
+### 9.3 Performance, measured by alternating — a failure, then its cause, then a pass
 
 Seven rounds, three trees interleaved round-robin (never back to back), two workloads the branch
 cannot touch carried as controls. Medians, in ms, with the ratio against `main`:
@@ -627,11 +627,34 @@ fixes.** Hybrid-answered single points and sub-threshold scans are **1.40–1.52
 quantified at the entry point. The cause is commit 9c7945a's γ sweep, whose own commit message
 claims 1.31× measured inside the detector; 1.4–1.5× at the wrapper is consistent with that.
 
-This is a real criterion failure and is reported as one. It is also, on the evidence here, the
-right trade: that sweep is what makes the difference between certifying a 4.3e-02 error and
-detecting it, and the same code path now answers the multi-resonance point *faster* than `main`
-(0.92×) and a 400-point scan **100× faster**. But it should be a decision taken knowingly rather
-than an unmeasured side effect, which is what it was until now.
+**And then it turned out not to be a trade-off at all.** Asked to decide the 1.4× knowingly,
+the first step was to look at what the γ sweep actually costs — and it was a duplication. The
+sweep carried the comment *"Reuses the eigendecomposition already needed"*, but rebuilt `Hs`
+with 200 scalar calls, ran a second `np.linalg.eigh` over the whole grid, and rebuilt `dH` with
+400 more, all on the **identical** `np.linspace(l0, l1, n_probe)` with the **identical**
+`(l1-l0)*fd_step_frac` step `find_resonance_candidates` had just used.
+
+`find_resonance_candidates` now returns those quantities through an `info` out-parameter and the
+sweep uses them. Since both grids and both steps were already identical by construction this is
+an identity, and it is verified as one: 48 outputs — windows, candidate positions, candidate γ
+values and final probability matrices, over four profiles at d = 2, 3, 4 — are **bit-identical**,
+worst difference 0.000e+00. The same pass replaced two scalar loops with one vectorized
+evaluation and one batched `eigh`.
+
+Re-timed, seven fresh rounds, controls at exactly 1.00×:
+
+| workload | before | after |
+|---|---|---|
+| single point, solar (hybrid) | 1.45× | **0.79×** |
+| single point, 3ν solar | 1.36× | **0.83×** |
+| single point, multi-resonance | 0.90× | **0.76×** |
+| solar scan N = 8 (hybrid) | 1.56× | **0.78×** |
+| solar scan N = 400 (cumulative) | 0.01× | 0.01× |
+
+**Every configuration now meets the 10 % criterion**, and the ones that failed it are 17–22 %
+*faster* than `main` rather than 40–56 % slower. The γ sweep's correctness is untouched, because
+its numbers are untouched. The lesson worth keeping is the one the comment illustrates: a claim
+in a comment about what the code reuses is not evidence that it reuses it.
 
 ### 9.4 Quadrature methods
 
