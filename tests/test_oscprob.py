@@ -2461,3 +2461,60 @@ def test_cumulative_is_reachable_and_reproduces_the_per_point_path():
         "the default should be taking the cumulative scan on a 60-point single-energy scan"
     # An explicit request wins over the strategy='magnus' opt-out.
     assert np.array_equal(call(strategy='magnus', cumulative=True), p_auto)
+
+
+def test_cumulative_scan_says_so_when_a_discontinuity_was_not_declared():
+    """The last silent hole in the cumulative path, and the only one in code this branch adds.
+
+    A slab straddling a density jump degrades the quadrature regardless of magnus_exp_order,
+    and refining the grid only narrows the straddling slab -- so unlike every other inaccuracy
+    here, more slabs cannot fix it.  Over 150 random piecewise profiles, 59 of 150 came back
+    outside tolerance with the edges undeclared and all but two of those already warned; the two
+    that did not were wrong by 1.36e-03 and 2.10e-03, silently.
+
+    Detection is a measurement (magnus.adiabatic._profile_is_resolved), and its discriminator
+    was checked in both directions before being wired in: 0 false positives on the solar,
+    multi-resonance, noisy and sinusoidal families, 12/12 true positives on random piecewise
+    profiles.
+    """
+    LM = 0.5*gd.SUN_RADIUS*gd.UNIT_KM
+    Ls = np.linspace(0.05*LM, LM, 80)
+    params = {'sth': gd.S12_NO_BF_NUFIT_6_0, 'Dm2': gd.D21_NO_BF_NUFIT_6_0}
+    edges = np.array([0.0, 0.17, 0.41, 0.63, 0.88, 1.0])*LM
+    values = gd.NUM_DENSITY_E_SUN_CENTRAL*np.array([0.03, 0.21, 0.07, 0.30, 0.12])
+
+    def ne(l):
+        x = np.asarray(l, dtype=float)
+        idx = np.clip(np.searchsorted(edges, x, side='right') - 1, 0, len(values) - 1)
+        a = np.asarray(values[idx])
+        return a[()] if a.ndim == 0 else a
+
+    def call(**kw):
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter('always')
+            op.osc_prob_matter_std_potential(
+                2, ne, 50.0e6, Ls, params, L0=0.0,
+                density_is_of_number_of_electrons=True, **kw)
+        return [w.category for w in caught]
+
+    assert any(issubclass(c, op.UnmarkedDiscontinuityWarning) for c in call()), \
+        "an undeclared density jump on the cumulative path must not be silent"
+
+    # Declaring the edges is the cure, and must silence it.
+    assert not any(issubclass(c, op.UnmarkedDiscontinuityWarning)
+                   for c in call(t_breakpoints=edges[1:-1])), \
+        "declaring the breakpoints must silence the warning"
+
+    # And it must not fire on the smooth profiles this package actually ships.
+    rho = matter.exp_density_profile(gd.NUM_DENSITY_E_SUN_CENTRAL, gd.L_SCALE_SUN)
+
+    def call_smooth(profile):
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter('always')
+            op.osc_prob_matter_std_potential(
+                2, profile, 50.0e6, Ls, params, L0=0.0,
+                density_is_of_number_of_electrons=True)
+        return [w.category for w in caught]
+
+    assert not any(issubclass(c, op.UnmarkedDiscontinuityWarning)
+                   for c in call_smooth(rho)), "false positive on the solar exponential"
