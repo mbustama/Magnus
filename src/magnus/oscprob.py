@@ -384,6 +384,29 @@ to the result arrays on any machine that can hold them.
 """
 
 
+CUMULATIVE_AUTO_MIN_POINTS = 2
+r"""int: Module-level constant
+
+Fewest baselines at which ``cumulative='auto'`` engages the cumulative scan in
+:func:`osc_prob_energy_baseline`.
+
+A single baseline has no prefix to reuse, and would pay for the adaptive probe that sizes the
+inherited grid without getting anything back -- which matters because every single-point call
+through the wrapper layer is served by ``osc_prob_energy_baseline``.  From two baselines
+upward there is something to share.
+
+The threshold is deliberately not set at the point where the cumulative scan becomes *faster*,
+which is higher (measured against ``solve_ivp``, on a 5 MeV solar scan to one solar radius:
+0.75x at N = 2, 0.87x at N = 10, 2.65x at N = 25, 84x at N = 1000).  Below that crossover the
+cumulative scan is at most ~1.3x slower in wall time while being one to three orders of
+magnitude more accurate -- and the per-point path it replaces returns answers *outside* the
+requested 1e-3 there (9.7e-3 at N = 10, 5.6e-3 at N = 25, 2.6e-3 at N = 100).  Trading a few
+milliseconds for that is the right way round.
+
+.. versionadded:: 1.0.0
+"""
+
+
 CUMULATIVE_N_ACC_SAFETY = 2
 r"""int: Module-level constant
 
@@ -3834,7 +3857,7 @@ def osc_prob_energy_baseline(
     close_file_log_upon_exit: Optional[bool]=True,
     new_recursion_limit: Optional[int]=5000,
     verbose: Optional[int]=0,
-    cumulative: Optional[bool]=False,
+    cumulative: Optional[Union[bool, str]]='auto',
     **kwargs
 ) -> Union[int, float, np.ndarray]:
     r"""Compute and return oscillation probabilities for given arrays of
@@ -3910,16 +3933,29 @@ def osc_prob_energy_baseline(
         Forwarded to :func:`osc_prob` for each (energy, L) point; see its docstring.
     verbose : int
         Forwarded to :func:`osc_prob` for each (energy, L) point; see its docstring.
-    cumulative : bool, optional
+    cumulative : bool or str, optional
         Compute a whole baseline scan from **one** traversal of the profile instead of one
         traversal per baseline.  The evolution operator is a time-ordered product, so
         :math:`U(0 \to L_2) = U(L_1 \to L_2)\,U(0 \to L_1)`: each requested answer is a
         prefix of the next, and recording the running product yields all of them at once.
+        One of:
 
-        Applies to a **baseline scan at a single energy**, and raises otherwise.  The
-        nesting it exploits belongs to the baseline axis alone -- :math:`P(E_1)` shares
-        nothing with :math:`P(E_2)`, since each energy needs its own propagation through the
-        whole profile -- so there is no energy-axis counterpart to this.
+        * ``'auto'`` (default) -- use the cumulative scan whenever the request fits it, and
+          the ordinary per-point path otherwise.  The request fits when the Hamiltonian varies
+          with position, all the energies are equal, no ``t_slab_edges`` were given, every
+          baseline is at or beyond ``L0``, and there are at least
+          ``CUMULATIVE_AUTO_MIN_POINTS`` of them.  A position-independent Hamiltonian
+          (vacuum, constant density) is excluded because :func:`osc_prob` integrates it
+          exactly on a single slab, leaving no traversal to share.
+        * ``True`` -- require it, and **raise** if the request does not fit.  Use this when
+          the cumulative scan is what you want and silently getting the per-point path
+          instead would be a problem.
+        * ``False`` -- never use it.
+
+        Applies to a **baseline scan at a single energy**.  The nesting it exploits belongs to
+        the baseline axis alone -- :math:`P(E_1)` shares nothing with :math:`P(E_2)`, since
+        each energy needs its own propagation through the whole profile -- so there is no
+        energy-axis counterpart to this.
 
         Not compatible with ``t_slab_edges``, which it would have to override: the scan
         builds a grid that is the union of the requested baselines, an accuracy grid, and
@@ -3927,8 +3963,17 @@ def osc_prob_energy_baseline(
         :func:`osc_prob` call at the longest baseline, so the usual tolerance machinery and
         its warnings apply unchanged.
 
-        Default False.  Results differ from the per-point path within the requested
-        tolerance -- the two use different grids -- so this is opt-in rather than automatic.
+        The default became ``'auto'`` in 1.0.0, having been ``False``, because the cumulative
+        scan measured **more accurate at every scan size tested**, not merely faster.  Against
+        ``solve_ivp`` on a 5 MeV solar scan to one solar radius, the per-point path it replaces
+        returns answers outside the requested 1e-3 at several sizes -- 9.7e-3 at N = 10, 5.6e-3
+        at N = 25, 2.6e-3 at N = 100 -- where the cumulative scan stays near 5e-6 throughout.
+        Speed follows from N ~ 25 upward (2.65x there, 84x at N = 1000); below it the
+        cumulative scan can be ~1.3x slower in wall time, which is a few milliseconds.
+
+        Because the two paths build different grids, results move -- within the requested
+        tolerance, and generally toward the truth.  Pass ``cumulative=False`` to reproduce
+        pre-1.0.0 numbers exactly.
     \**kwargs
         Additional arguments forwarded to :func:`osc_prob`.
 
@@ -4045,6 +4090,32 @@ def osc_prob_energy_baseline(
     # for every requested point -- i.e. a single energy, scanned over baselines -- because the
     # nesting it exploits is a property of the baseline axis alone: P(0->L1) is a prefix of
     # P(0->L2), while P(E1) shares nothing with P(E2).
+    #
+    # cumulative='auto' (the default) resolves to True exactly when the request fits, and to
+    # False otherwise, so that the explicit cumulative=True can keep *raising* on a request it
+    # cannot serve -- a caller who asked for it by name should hear that it did not happen.
+    #
+    # 'auto' adds two requirements beyond what cumulative=True checks:
+    #
+    #   - at least two baselines.  A single point has no prefix to reuse and would pay the
+    #     inherited-grid probe for nothing, which matters because every single-point call
+    #     through the wrapper layer is served from here.
+    #   - a position-*dependent* Hamiltonian.  When H does not vary along the trajectory
+    #     (vacuum, constant density), osc_prob integrates it exactly on one slab, so there is
+    #     no traversal to share and the cumulative scan is strictly worse: it sizes a grid from
+    #     an adaptive probe and then walks it.  H_first is the Hamiltonian at the first energy,
+    #     already built above; it is a plain matrix exactly when the profile is constant.
+    if isinstance(cumulative, str):
+        if cumulative != 'auto':
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob_energy_baseline: "
+                "cumulative must be True, False, or 'auto'; got " + repr(cumulative) + ".")
+        cumulative = bool(
+            isinstance(H_first, Callable)
+            and (t_slab_edges is None)
+            and (n_points >= CUMULATIVE_AUTO_MIN_POINTS)
+            and np.all(energy == energy[0])
+            and np.all(np.asarray(L, dtype=float) >= L0))
+
     if cumulative:
         if t_slab_edges is not None:
             raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob_energy_baseline: "

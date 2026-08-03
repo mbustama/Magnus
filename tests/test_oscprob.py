@@ -587,6 +587,73 @@ def _spy_on(monkeypatch, name):
     return spy
 
 
+def test_cumulative_auto_engages_on_a_real_scan_and_stands_aside_otherwise(monkeypatch):
+    """cumulative='auto' is the default, so what it does and does not claim has to be pinned.
+
+    A spy on the traversal records whether the cumulative path actually ran. It must run for a
+    genuine single-energy baseline scan, and must stand aside -- without raising -- for each of
+    the four things it cannot serve: a single point, differing energies, explicit t_slab_edges,
+    and a baseline behind L0. The explicit cumulative=True still raises on those, which is the
+    distinction between 'auto' and 'required'."""
+    sth, Dm2 = np.sqrt(0.308), 7.5e-5
+    hvac = hams.hamiltonian_2nu_vacuum_energy_independent(sth, Dm2)
+    e00 = np.diag([1.0, 0.0])
+    rho_func = matter.exp_density_profile(gd.NUM_DENSITY_E_SUN_CENTRAL, gd.L_SCALE_SUN)
+    VCC_func = matter.vcc_func_from_rho_func(rho_func, 0.0, 1.0, 0.5, False, False, True)
+    E = 5.0*gd.UNIT_MEV
+
+    def H(l):
+        return (1.0/E)*hvac + np.asarray(VCC_func(l))[..., None, None]*e00
+
+    L = np.linspace(0.2, 1.0, 6)*0.3*gd.L_SCALE_SUN
+    calls = {'n': 0}
+    real = op._osc_prob_cumulative_scan
+
+    def spy(*a, **k):
+        calls['n'] += 1
+        return real(*a, **k)
+    monkeypatch.setattr(op, '_osc_prob_cumulative_scan', spy)
+
+    common = dict(validate_input=False)
+    op.osc_prob_energy_baseline(H, E, L, 0.0, **common)
+    assert calls['n'] == 1, "'auto' did not engage on a genuine single-energy baseline scan"
+
+    # Each of these must fall back silently rather than raise: the per-point path serves them.
+    calls['n'] = 0
+    op.osc_prob_energy_baseline(H, E, L[:1], 0.0, **common)
+    op.osc_prob_energy_baseline(H, np.array([E, 2*E]), L[:2], 0.0, **common)
+    op.osc_prob_energy_baseline(H, E, L, 0.0,
+                                t_slab_edges=[[0.0, float(L[-1])]], **common)
+    assert calls['n'] == 0, "'auto' engaged on a request the cumulative scan cannot serve"
+
+    # A position-independent Hamiltonian is excluded too: osc_prob integrates it exactly on one
+    # slab, so there is no traversal to share and the cumulative scan would only add an adaptive
+    # probe and a walk. Found by the docs build, where a three-baseline vacuum example started
+    # emitting MagnusConvergenceWarning once 'auto' became the default.
+    calls['n'] = 0
+    osc = {'s12': S12, 's23': S23, 's13': S13, 'dCP': DCP, 'D21': D21, 'D31': D31}
+    P_vac = op.osc_prob_3nu_vacuum(1.0*gd.UNIT_GEV,
+                                   np.array([1.0, 2.0, 3.0])*1000.0*gd.UNIT_KM, **osc)
+    assert calls['n'] == 0, "'auto' engaged on a position-independent (vacuum) Hamiltonian"
+    assert np.allclose(np.sum(np.asarray(P_vac), axis=-1), 1.0, atol=1e-9)
+
+    # A baseline behind L0 is a different case: the per-point path rejects it too, so 'auto'
+    # standing aside is not a rescue. What matters is that the explicit form still gives the
+    # specific diagnosis rather than letting it surface from deep inside the Magnus kernel.
+    with pytest.raises(ValueError, match="at or beyond L0"):
+        op.osc_prob_energy_baseline(H, E, L, float(L[-1]), cumulative=True, **common)
+
+    # ... and the explicit form says so for the others too.
+    with pytest.raises(ValueError, match="energies differ"):
+        op.osc_prob_energy_baseline(H, np.array([E, 2*E]), L[:2], 0.0,
+                                    cumulative=True, **common)
+    with pytest.raises(ValueError, match="t_slab_edges"):
+        op.osc_prob_energy_baseline(H, E, L, 0.0, cumulative=True,
+                                    t_slab_edges=[[0.0, float(L[-1])]], **common)
+    with pytest.raises(ValueError, match="must be True, False, or 'auto'"):
+        op.osc_prob_energy_baseline(H, E, L, 0.0, cumulative='sometimes', **common)
+
+
 def _solar_2nu_H(energy):
     """H(l) for the 2-flavor solar exponential profile, array-capable."""
     hvac = hams.hamiltonian_2nu_vacuum_energy_independent(np.sqrt(0.308), 7.5e-5)
