@@ -17,7 +17,7 @@ passes found no numerical errors, only a wrong test expectation of mine and one 
 reverting. **That convergence is not proof of correctness, and this brief exists because it
 should not be treated as such.**
 
-Build and run **at least five batteries** of hard tests: a full regression over cases already
+Build and run **at least six batteries** of hard tests: a full regression over cases already
 seen, cases that are hard and have never been run, and cases *designed to break this code*. Be
 aggressive. A battery that passes everything on the first attempt is more likely to be a weak
 battery than a correct codebase — six passes running at roughly two defects per pass says the
@@ -160,7 +160,7 @@ weighed against what was actually probed. **These are my honest suspicions, not 
 
 ## The batteries
 
-Five are required; six are sketched. Sub-tests are the unit of work. Each battery should state
+Six are required; seven are sketched. Sub-tests are the unit of work. Each battery should state
 its pass criterion **before** running, and report every configuration, not only failures.
 
 ### Battery 1 — Full regression: every past case, against the new code
@@ -185,6 +185,8 @@ Re-run everything this branch was ever measured on, and check nothing drifted.
    **not** monotone in `n_slabs`.
 5. **Cross-entry-point consistency**: `osc_prob` vs `osc_prob_energy_baseline` vs the wrappers on
    the same physics, within tolerance.
+6. **Every item above at d = 2, 3, 4 and 5.** The sweeps behind these commits were 2ν and 3ν
+   only; re-running them at 4ν and 5ν is regression testing, not new work. See Battery 6.
 
 ### Battery 2 — Aimed at the detector's fixed probe grid (most likely to break)
 
@@ -203,6 +205,8 @@ The premise: `n_probe = 200` linear samples cannot see structure narrower than t
 5. **Clustered crossings.** All crossings packed into 1% of the range, the rest quiet.
 6. For each: does refinement (`n_probe` doubling to 6400) rescue it, and does `certified` tell
    the truth? Score against `solve_ivp` throughout.
+7. Repeat the narrow-resonance sweep at d = 4 and 5. More level pairs means more chances for
+   one pair's window to mask another's missed crossing, which cannot happen at d = 2.
 
 ### Battery 3 — The routing seams
 
@@ -215,7 +219,9 @@ Every threshold is a discontinuity, and discontinuities are where behaviour hide
 2. The 2 ≤ N < 25 band on multi-resonance profiles specifically — see suspicion 2 above.
 3. Escape hatches at every N: `strategy='magnus'`, `strategy='hybrid'`, `cumulative=False`,
    `cumulative=True` (must raise when inapplicable, never fall back silently).
-4. Position-independent Hamiltonians must never reach the cumulative scan; confirm at every N.
+4. Position-independent Hamiltonians must never reach the cumulative scan; confirm at every N
+   and every d — the exclusion tests `isinstance(H_first, Callable)`, which is d-agnostic, so
+   a failure here would be a surprise worth having.
 5. `t_slab_edges` given (cumulative must decline); `t_breakpoints` given (cumulative must
    accept and honour them — verify they are actually in the grid, not silently dropped).
 
@@ -232,7 +238,7 @@ Every threshold is a discontinuity, and discontinuities are where behaviour hide
    the answer degrade silently? Suspicion 3.
 5. **Geometry**: `L0` ≠ 0 (including `L0` mid-profile); baselines spanning eight orders of
    magnitude; unsorted, duplicated and degenerate baseline arrays; `L == L0` exactly.
-6. **Flavors**: 2, 3, 4, 5 — including 4ν/5ν *with* NSI and LIV, which were never scanned.
+6. **Flavors**: see Battery 6, which makes this a first-class axis rather than a sub-test.
 7. Antineutrinos throughout, not as an afterthought.
 
 ### Battery 5 — Designed to break, not to confirm
@@ -254,12 +260,57 @@ Adversarial construction. The goal is a reproducible wrong answer.
    sums with controlled bandwidth), run each through every entry point, and score against
    `solve_ivp`. Report the empirical distribution of error, and every case outside its requested
    tolerance **that does not warn**. This is the highest-yield sub-test in the battery.
+   Draw the flavour count randomly too, from {2, 3, 4, 5}, with random sterile mixings — a
+   fuzzer restricted to 3ν would repeat the blind spot this brief is trying to close.
 5. **Adversarial `n_slabs`/`n_tpts_per_slab`** supplied by the caller, deliberately absurd
    (1, 2, 10⁶).
 6. **Concurrent/repeat determinism**: same call twice bit-identical; shuffled input order gives
    identical answers (last measured 0.00e+00); `n_jobs > 1` agrees with `n_jobs = 1`.
 
-### Battery 6 (optional but recommended) — Cross-module and oracle diversity
+### Battery 6 — Flavor count as a first-class axis (required)
+
+**Every measurement behind these eleven commits was 2ν or 3ν.** 4ν and 5ν were touched exactly
+once, in Pass 5, and only structurally — shape, finiteness and unitarity (1.8e-11 and 1.1e-11).
+**Neither was ever scored against `solve_ivp` on the new path.** There is therefore no accuracy
+evidence whatsoever for the sterile cases, and this battery exists to supply it.
+
+Why it is not merely "run the same thing with a bigger matrix":
+
+- The detector loops over **every level pair**: d(d−1)/2 = 1, 3, 6, 10 for d = 2…5. The γ sweep
+  added in 9c7945a runs per pair and appends windows from each, which are then merged across
+  pairs. Over-merging across *positions* was already a real bug at 3ν, caught by
+  `test_crossings_too_close_in_phase_are_reported`; over-merging across *pairs* is untested.
+- Sterile mixings put resonances at densities the three-flavour case has none at, so 3+1 and 3+2
+  are genuinely different physics, not bigger arithmetic.
+- `ip_exp` is gated to 2ν precisely because a neglected term's coefficient jumps three orders
+  from 2 to 3 flavours (see the gate comment in `oscprob.py`). Whether anything analogous grows
+  with d on the adiabatic or cumulative paths has never been asked.
+
+Sub-tests:
+
+1. **Accuracy against `solve_ivp`, 4ν and 5ν, on the new path** — single points and scans either
+   side of N = 25, standard matter, over a solar profile. This is the gap; do it first.
+2. **4ν/5ν with NSI**, and **with LIV** (`n_liv` = 0 and 1). The wrapper families reach
+   `_osc_prob_hybrid_dispatch` at every flavour count, so all three dispatch sites need it.
+3. **Multi-resonance at 4ν and 5ν.** Repeat Battery 2's constructions with sterile mixings large
+   enough to produce extra crossings; count windows per pair and check the merged set against a
+   dense per-pair γ scan. Confirm no crossing is swallowed by a window belonging to a different
+   pair.
+4. **Degenerate and near-degenerate levels.** Set two mass splittings equal, or nearly so, so
+   that a gap is ~0 over a stretch. `_point_adiabaticity` returns `inf` when the gap is exactly
+   zero — check what the sweep then does, and that `find_resonance_candidates`' bisection on
+   `f_jk` behaves.
+5. **Cost scaling.** One `eigh` per probe point plus a per-pair sweep: measure how the γ sweep's
+   1.31× at 2ν grows at d = 4 and 5, where there are 10× the pairs.
+6. **Antineutrinos at 4ν and 5ν**, which compounds two axes neither of which is covered.
+7. Confirm `ip_exp` still declines for d > 2 at every entry point — it is the reason 3ν/4ν/5ν
+   were unaffected by PR #23, and that must remain true.
+
+Pass criterion: same as the rest — met tolerance or a warning, and `certified=True` implying
+accuracy. Flag separately any case where accuracy *degrades monotonically with d*, which would
+suggest a d-dependent term is being neglected somewhere.
+
+### Battery 7 (optional but recommended) — Cross-module and oracle diversity
 
 1. `expm` for constant `H` across dimensions 2–5.
 2. The analytic two-flavour vacuum formula, where it applies.
