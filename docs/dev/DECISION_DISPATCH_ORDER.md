@@ -175,3 +175,74 @@ it now disables hybrid explicitly and asserts, via a spy, that the fast path is 
   here is single-point. `BUG_IP_EXP_MEMORY.md` makes the batched fast path look unattractive
   anyway (~1.3 GB and ~10 s per energy), but it is unmeasured against hybrid.
 - **Antineutrinos.** All measurements are `nubar=False`.
+
+---
+
+## Appendix: notebook adoption of `cumulative=True` (Task 2, partial)
+
+Measured on the same box, against `solve_ivp`/DOP853 at `rtol=1e-12`, sampling 200-250
+baselines across each scan rather than a handful -- the characteristic failure of a fixed grid
+here is a **spike at a few baselines**, not a uniform offset, and a sparse sample misses it.
+
+| sub-scan | time | max error | points over 1e-3 |
+|---|---|---|---|
+| 03/57 castle wall narrow | 8.45 s -> 0.03 s (246x) | 1.08e-03 -> **8.5e-12** | 2/200 -> 0 |
+| 03/57 castle wall wide | 10.18 s -> 0.04 s (245x) | 2.54e-03 -> **8.2e-12** | 9/200 -> 0 |
+| 03/71 noisy high-amplitude | 11.13 s -> 0.05 s (208x) | 4.26e-03 -> 1.78e-04 | 3/200 -> 0 |
+| 03/71 noisy low-amplitude | 14.22 s -> 0.04 s (324x) | 9.38e-03 -> 1.02e-03 | 8/200 -> **1** |
+| 02/50 castle wall narrow | 10.35 s -> 0.04 s (257x) | 1.08e-03 -> 8.5e-12 | 2/200 -> 0 |
+| 02/50 castle wall wide | 11.84 s -> 0.04 s (300x) | 2.54e-03 -> 8.2e-12 | 9/200 -> 0 |
+| 02/64 noisy high-amplitude | 11.18 s -> 0.05 s (210x) | 4.26e-03 -> 1.78e-04 | 3/200 -> 0 |
+| 02/64 noisy low-amplitude | 13.00 s -> 0.04 s (293x) | 9.38e-03 -> 1.02e-03 | 8/200 -> **1** |
+| 03/99 + 02/92 solar | 12.7 s -> 0.18 s (58-76x) | **1.59e-02** -> 6.14e-06 | 15/250 -> 0 |
+| 03/43 exponential | 1.50 s -> 0.01 s (144x) | 4.51e-06 -> 1.09e-06 | 0 -> 0 |
+| 03/43 Gaussian | 1.45 s -> 0.01 s (139x) | 1.21e-07 -> 1.35e-07 | 0 -> 0 |
+
+**The accuracy column is the reason, not the speed.** The published solar figure was wrong by
+up to 1.6e-02 at a scattered 6% of its baselines while being accurate to ~2e-06 at the median
+-- the non-monotonicity `NOTES_ADAPTIVE_REFINEMENT.md` §1 describes, now seen on a shipped
+figure rather than in a diagnostic.
+
+### End to end
+
+| | before | after | |
+|---|---|---|---|
+| notebook 02 | 409.6 s | **355.7 s** | -13.2% |
+| notebook 03 | 443.4 s | **382.8 s** | -13.7% |
+
+This is **short of the -21%/-24% the handover expected**, and the gap is structural rather than
+a measurement artifact: that estimate came from the *total* baseline-scanning share (25.9% and
+21.7%, both re-derived here and matching the decision doc), but roughly a third of that share
+sits in cells that cannot benefit -- constant-density loops at `n_slabs=1`, and the PREM cells,
+whose breakpoints were not converted -- and the convertible part does not go to zero either
+(79.0 s -> 11.8 s in notebook 02, 76.7 s -> 10.9 s in notebook 03).
+
+**Timing runs need a repeat before they are believed.** The first post-adoption run of notebook
+02 showed cells 55, 69 and 78 -- none of them edited -- inflating by +17.0 s, +53.5 s and
++7.8 s, which swamped the 67 s the edits saved and made the notebook look 5% *slower*. A second
+run put all three back within noise of baseline. The edited cells reproduced to within 0.8 s
+across both runs. Warning output on the untouched cells was byte-identical throughout, which is
+what first indicated the problem was the machine rather than the change.
+
+### Figures
+
+Hashing every embedded PNG: exactly three changed per notebook (02: cells 52, 66, 94; 03: cells
+59, 73, 101), each immediately downstream of an edited cell. None added, none removed. Each
+changed figure's underlying data was checked against `solve_ivp` directly, per the table above,
+rather than inferred from the figure.
+
+### Honest costs
+
+- **Notebook 03 cell 57 now emits a `MagnusConvergenceWarning` it did not emit before**, even
+  though that cell's accuracy improves from 1.08e-03 to 8.5e-12. The warning is about slab
+  width, not about the answer; it is new noise in a notebook that previously had none there.
+- **One sub-scan does not fully clear the default tolerance**: noisy low-amplitude still leaves
+  1 point in 200 at 1.02e-03, against 8 points before.
+
+### Not done
+
+- **PREM breakpoints** (`t_breakpoints` in 03/85, 03/90, 02/78, 02/83), which the handover asks
+  for and `tests/test_oscprob.py::test_prem_breakpoints_improve_accuracy` already supports.
+- **The `cumulative` default flip.** The evidence above strengthens the case considerably --
+  every sub-scan measured is better on both axes at once -- but flipping the default moves every
+  baseline scan in the package, and deserves its own decision with its own evidence.
