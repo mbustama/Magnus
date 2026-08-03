@@ -464,6 +464,24 @@ which is guaranteed because γ_max is measured on the same grid the threshold is
 rounded conservatively. `find_nonadiabatic_windows` reports γ_max through a new optional `info`
 dict, following the `convergence_info` convention already used in `osc_prob`.
 
+*This one also had to be bounded, and again the tests caught it.* Applied at exactly the
+requested tolerance the rule is too eager, and the refusal is not free: it ends by lowering the
+threshold until a window opens, and that window is then patched with an exact Magnus
+integration. On a solar profile over five density scale heights at `rtol = atol = 1e-4` —
+γ_max = 2.84e-04 against a tolerance of 2e-04, a factor of **1.42** — it patched **88 % of the
+trajectory**, which is precisely the large-accumulated-phase integration the module exists to
+avoid. A 0.03 s call became 2.2 s, and `tests/test_avgprob.py`, which makes 241 of them, went
+from 6.7 s to over three minutes.
+
+Coverage is not the discriminator and neither is patch count: the multi-resonance profile opens
+eight windows covering 99.3 % of its path and costs 0.52 s, because each patch spans little
+accumulated phase. What is expensive is *one* patch over a long path. Since `GAMMA_TO_ERROR`
+converts γ into an estimate good only to a factor of two, acting at exactly the tolerance is
+acting inside the estimate's own uncertainty — so `GAMMA_SLACK = 2.0` requires γ to exceed the
+tolerance by that same factor. The measured separation puts every silently-wrong case the
+batteries found on the refine side (ratios 2.16, 6.5, 16.2) and the marginal solar case on the
+certify side (1.42).
+
 ### 8.2 What it fixed, measured through the public entry point
 
 `osc_prob_matter_std_potential(..., strategy='auto')` — the default — against `solve_ivp`, or

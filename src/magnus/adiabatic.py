@@ -108,6 +108,41 @@ iterations on profiles that did not need them.
 """
 
 
+GAMMA_SLACK = 2.0
+r"""float: Module-level constant
+
+How far past the requested tolerance :math:`\gamma` must reach before
+:func:`hybrid_propagator` refuses to certify a result with no non-adiabatic window.
+
+:data:`GAMMA_TO_ERROR` converts :math:`\gamma_\max` into an error estimate, and that estimate
+is itself only good to about a factor of two (the measured ratio spans 0.30-0.55).  Acting on
+it at exactly the tolerance therefore forces refinement on calls whose adiabatic answer was
+fine, and the refinement is not cheap: it ends by patching whatever fraction of the path
+:math:`\gamma` exceeds the lowered threshold on, with an exact Magnus integration.  On a solar
+profile over five density scale heights at ``rtol = atol = 1e-4`` that meant patching **88% of
+the trajectory** -- precisely the large-accumulated-phase integration this module exists to
+avoid -- turning a 0.03 s call into 2.2 s.
+
+The measured separation, with tolerance meaning ``atol + rtol``:
+
+===================================== ============ ============ =================
+case                                  gamma_max    tolerance    gamma_max / tol
+===================================== ============ ============ =================
+solar, 5 scale heights, tol 1e-4      2.84e-04     2e-04        1.42  (certify)
+Gaussian resonance w = 3e-1 span      4.31e-03     2e-03        2.16  (refine)
+Gaussian resonance w = 1e-1 span      1.29e-02     2e-03        6.5   (refine)
+Gaussian resonance w = 4e-2 span      3.23e-02     2e-03        16.2  (refine)
+===================================== ============ ============ =================
+
+2.0 sits in the gap, and every silently-wrong case the batteries found is on the refine side of
+it while the marginal one is not.  It is the estimate's own precision expressed as a threshold,
+not a tuning knob: a value below ~1.5 reintroduces the cost, and above ~2.2 lets the first real
+defect through.
+
+.. versionadded:: 1.0.0
+"""
+
+
 RESOLUTION_RATIO = 0.75
 r"""float: Module-level constant
 
@@ -850,7 +885,7 @@ def hybrid_propagator(H_func: Callable, l0: float, l1: float, rtol: Optional[flo
         was: see :data:`GAMMA_TO_ERROR` for the measured relation between gamma_max and the
         error of the pure adiabatic answer.
         """
-        return bool(GAMMA_TO_ERROR*gamma_max <= atol + rtol)
+        return bool(GAMMA_TO_ERROR*gamma_max <= GAMMA_SLACK*(atol + rtol))
 
     for _ in range(max_iters):
         knobs_prev = (threshold, n_probe, n_points)
