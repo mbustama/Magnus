@@ -1,5 +1,21 @@
 # Handover: dispatch order, notebook adoption, and what to leave alone
 
+> **Task 1: DONE** (2026-08-03), see `DECISION_DISPATCH_ORDER.md`. Two things this brief
+> assumed turned out differently:
+>
+> * **The sequencing rationale does not hold.** "Task 1 before Task 2" rests on the reorder
+>   speeding up notebook 03 cell 104. It cannot: cell 104 is a raw `osc_prob` loop on a fixed
+>   grid, and `osc_prob` reaches neither dispatcher. Across all twelve notebooks only notebook
+>   12 cell 5 touches the reordered code. **Task 2 does not depend on Task 1.**
+> * **Hybrid does not weaken at low energy**, which was this brief's main worry. It certified
+>   50/50 across the standard, NSI and LIV families, 0.5-100 MeV; it is `ip_exp` that declines
+>   below ~10 MeV, 28 times out of 50, at a mean of 13.2 s each.
+>
+> Task 3's recommendation ("I recommend against doing it next") should be **re-derived, not
+> inherited**: measuring for Task 1 found the general path silently exceeding its requested
+> tolerance in 9 of 50 configurations, worst 2.0e-02 against 1e-3, which is new evidence for
+> exactly the safeguard Task 3 describes. See `DECISION_DISPATCH_ORDER.md` §5.
+
 **Written:** 2026-08-03, at the close of the session that produced PR #21 and PR #22.
 **Starting point:** `main` once PR #22 merges. Read `docs/dev/BUG_IP_EXP_MEMORY.md` and
 `docs/dev/DECISION_OSCPROB_CUMULATIVE.md` first; this brief assumes both.
