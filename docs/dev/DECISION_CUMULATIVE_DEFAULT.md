@@ -77,6 +77,41 @@ orders more accurate, and while removing the tolerance misses in §2. Trading mi
 that is the right way round, so the floor sits at "any genuine scan" rather than at the
 crossover. `CUMULATIVE_AUTO_MIN_POINTS` names it, and the reasoning is recorded there.
 
+## 4b. Its reach is narrower than it looks, because the reorder gets there first
+
+Measured after the fact, alternating between `main` and the branch to cancel machine drift
+(a whole-suite comparison cannot: `test_adiabatic.py` moved 124 s → 69 s between two runs of
+code neither state modifies):
+
+| case | main | branch |
+|---|---|---|
+| single-point solar wrapper | 27–208 ms | 28–33 ms |
+| **solar baseline scan through the wrapper, N = 400** | **8.9–11.5 s** | **9.7–14.8 s** |
+| vacuum baseline scan, N = 300 | 43–46 ms | 34–97 ms |
+| constant-density scan, N = 300 | 43–47 ms | 34–131 ms |
+
+The scan the flip exists for does not move. Spying on the dispatch chain shows why:
+
+```
+through osc_prob_2nu_sun:                hybrid=1, cumulative=0, osc_prob_energy_baseline never reached
+through osc_prob_energy_baseline direct: cumulative=1
+```
+
+Since `DECISION_DISPATCH_ORDER.md` put the hybrid strategy first, it answers a solar **baseline
+scan** too — one independent `hybrid_propagator` call per point, at its ~28 ms floor — and
+returns before `osc_prob_energy_baseline` is ever called. So on the wrapper families
+(`osc_prob_*_sun` and siblings) this default changes nothing at all.
+
+Where it does apply: direct `osc_prob_energy_baseline` callers, and any wrapper request the
+dispatchers decline. The §2 table was measured through the direct entry point, so those numbers
+stand for that path — they are simply not what a `osc_prob_2nu_sun` user gets.
+
+**This is a missed win, not just a scoping note.** At N = 400 the wrapper spends ~11 s where the
+cumulative scan answers in ~0.3 s (§2, N = 500: 299 ms) and more accurately. Teaching the
+dispatch chain to prefer the cumulative scan for a single-energy baseline scan — before handing
+the points to hybrid one at a time — is the obvious follow-up, and it is a change to the
+dispatchers rather than to this default, so it is deliberately not made here.
+
 ## 5. Cost, stated plainly
 
 **Results move.** The two paths build different grids, so any applicable baseline scan returns
@@ -93,7 +128,20 @@ look.
 compare batched scans against per-point ones, which is evidence that the movement really is
 inside tolerance.
 
-## 6. What would change this call
+## 6. Honest summary of the runtime effect
+
+| | before → after |
+|---|---|
+| single-point wrapper call | unchanged (excluded by `CUMULATIVE_AUTO_MIN_POINTS`) |
+| vacuum / constant-density scan | unchanged (excluded: position-independent `H`) |
+| solar baseline scan via the wrappers | **unchanged** — hybrid answers first (§4b) |
+| baseline scan via `osc_prob_energy_baseline` | 2.65× at N = 25, 84× at N = 1000, and 1–3 orders more accurate at every N (§2) |
+| notebooks 02 and 03 | unchanged — their converted cells pass `cumulative=True` explicitly |
+
+So the flip is a correctness-and-speed win **for direct callers of the primordial baseline-scan
+entry point**, and a no-op everywhere else until the dispatch chain is taught about it.
+
+## 7. What would change this call
 
 - **A caller who needs bit-reproducibility against pre-1.0.0 results** and does not know about
   `cumulative=False`. The changelog is the mitigation; if that proves insufficient, the
