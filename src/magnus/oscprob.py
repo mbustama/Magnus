@@ -407,6 +407,44 @@ milliseconds for that is the right way round.
 """
 
 
+HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS = 25
+r"""int: Module-level constant
+
+Fewest baselines at which ``_osc_prob_hybrid_dispatch`` stands aside, under
+``strategy='auto'``, so that a single-energy baseline scan reaches the cumulative scan instead.
+
+Deliberately **larger** than :data:`CUMULATIVE_AUTO_MIN_POINTS`, because the two thresholds
+guard different trades.  On the primordial entry point the cumulative scan's alternative is the
+general per-point path, which is not merely slower but returns answers outside the requested
+tolerance on solar profiles (9.7e-3 at N = 10); taking the cumulative scan from N = 2 is right
+there.  Reached through the wrapper layer the alternative is the *hybrid* strategy, which is
+both accurate (~1e-5, well inside a requested 1e-3) and cheap per point (~20 ms), so the
+cumulative scan's near-constant cost -- dominated by its strict probe -- only pays off once
+there are enough points to amortise it.
+
+Measured through ``osc_prob_2nu_sun`` on a solar profile, hybrid against the cumulative scan:
+
+===== =============== ===============
+N     5 MeV           10 MeV
+===== =============== ===============
+2     37 ms / 283 ms  39 ms / 297 ms
+10    184 ms / 282 ms 197 ms / 454 ms
+25    464 ms / 263 ms 489 ms / 432 ms
+400   7459 ms / 292 ms 7904 ms / 368 ms
+===== =============== ===============
+
+The crossover sits near N = 14 at 5 MeV and N = 22 at 10 MeV; 25 clears both.  Erring high only
+forgoes a speed-up, whereas erring low makes small scans several times slower for accuracy that
+was already two orders inside what was asked for.
+
+Being the larger of the two thresholds also keeps the fall-through safe: whenever the hybrid
+dispatcher declines on this count, ``cumulative='auto'`` is guaranteed to engage, so a scan can
+never decline both paths and land on the general per-point method.
+
+.. versionadded:: 1.0.0
+"""
+
+
 CUMULATIVE_N_ACC_SAFETY = 2
 r"""int: Module-level constant
 
@@ -3388,18 +3426,23 @@ def _osc_prob_ip_exp_dispatch(
     return P.__getitem__(0 if return_float else slice(None))
 
 
-def _cumulative_scan_would_serve(energy_arr, L_arr, L0):
-    r"""Whether ``osc_prob_energy_baseline``'s cumulative path would take this request.
+def _cumulative_scan_would_serve(energy_arr, L_arr, L0, min_points):
+    r"""Whether the cumulative scan applies to this set of requested points.
 
-    Used by ``_osc_prob_hybrid_dispatch`` to stand aside for a baseline scan it would otherwise
-    answer point by point.  Deliberately a separate predicate rather than a duplicated condition:
-    if the two ever disagree, the hybrid dispatcher declines a request the cumulative path then
-    also declines, and the scan falls all the way through to the general per-point method --
-    slower and less accurate than either, and silently so.
+    Used in two places with different ``min_points``, because the two guard different trades:
+    ``osc_prob_energy_baseline`` resolves ``cumulative='auto'`` with
+    :data:`CUMULATIVE_AUTO_MIN_POINTS`, while ``_osc_prob_hybrid_dispatch`` decides whether to
+    stand aside with the larger :data:`HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS`.  Sharing the
+    rest of the predicate keeps them from drifting apart on the conditions that are genuinely
+    the same.
 
-    Mirrors the ``cumulative='auto'`` conditions that depend only on the requested points.  The
-    remaining ones there (a position-dependent Hamiltonian, no ``t_slab_edges``) are already
-    guaranteed by the time this is called: the hybrid dispatcher has returned ``NotImplemented``
+    That the dispatcher's threshold is the larger one is what makes the fall-through safe: when
+    the hybrid dispatcher declines on this count, ``'auto'`` is guaranteed to accept, so a scan
+    can never be declined by both and land on the general per-point path -- slower and less
+    accurate than either, and silently so.
+
+    The remaining ``'auto'`` conditions (a position-dependent Hamiltonian, no ``t_slab_edges``)
+    are already guaranteed where the dispatcher calls this: it has returned ``NotImplemented``
     for a non-callable ``VCC_func`` and for user-supplied slab edges or breakpoints above.
 
     .. versionadded:: 1.0.0
@@ -3412,13 +3455,15 @@ def _cumulative_scan_would_serve(energy_arr, L_arr, L0):
         Requested baselines, one per point.
     L0 : int or float
         Initial position.
+    min_points : int
+        Fewest points at which the cumulative scan is worth taking, for this caller.
 
     Returns
     -------
     bool
         True when the cumulative scan applies to this set of points.
     """
-    return bool(len(L_arr) >= CUMULATIVE_AUTO_MIN_POINTS
+    return bool(len(L_arr) >= min_points
                 and np.all(energy_arr == energy_arr[0])
                 and np.all(np.asarray(L_arr, dtype=float) >= L0))
 
@@ -3532,18 +3577,26 @@ def _osc_prob_hybrid_dispatch(
     if not ok:
         return NotImplemented
 
-    # Stand aside for a baseline scan at a single energy: the cumulative scan answers all of
-    # those baselines from one traversal, where this method calls hybrid_propagator once per
-    # point at its ~26 ms floor.  Measured on solar profiles against solve_ivp, at 5, 10 and
-    # 20 MeV and N from 50 to 800: 3.9x-85.6x faster at comparable or better accuracy.
+    # Stand aside for a *large enough* baseline scan at a single energy: the cumulative scan
+    # answers all of those baselines from one traversal, where this method calls
+    # hybrid_propagator once per point at its ~20 ms floor.  Measured through osc_prob_2nu_sun
+    # on a solar profile at N = 400: 7.5 s -> 0.29 s, with the error improving from ~1e-5 to
+    # ~1e-6 as well.
+    #
+    # The threshold is not 2.  This method is accurate and cheap per point, so below
+    # HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS the cumulative scan's near-constant cost -- its
+    # strict probe -- is not yet amortised, and yielding would make a small scan several times
+    # slower (7.6x at N = 2) to buy accuracy that was already two orders inside what the caller
+    # asked for.  See that constant for the measurements.
     #
     # Only under strategy='auto', which promises the best available answer rather than this
     # method in particular; strategy='hybrid' is an explicit request and still gets hybrid.
     # Declining here is enough to reach the cumulative path: ip_exp needs every baseline equal
     # and the separable engine needs a single shared baseline, so both decline a scan too, and
-    # the caller falls through to osc_prob_energy_baseline, where cumulative='auto' engages on
-    # exactly the conditions tested here.
-    if (strategy == 'auto') and _cumulative_scan_would_serve(energy_arr, L_arr, L0):
+    # the caller falls through to osc_prob_energy_baseline, where cumulative='auto' engages --
+    # guaranteed, since its threshold is the smaller one.
+    if (strategy == 'auto') and _cumulative_scan_would_serve(
+            energy_arr, L_arr, L0, HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS):
         return NotImplemented
 
     magnus_exp_order = scan_kwargs['magnus_exp_order']
@@ -4161,9 +4214,8 @@ def osc_prob_energy_baseline(
         cumulative = bool(
             isinstance(H_first, Callable)
             and (t_slab_edges is None)
-            and (n_points >= CUMULATIVE_AUTO_MIN_POINTS)
-            and np.all(energy == energy[0])
-            and np.all(np.asarray(L, dtype=float) >= L0))
+            and _cumulative_scan_would_serve(np.asarray(energy), np.asarray(L), L0,
+                                             CUMULATIVE_AUTO_MIN_POINTS))
 
     if cumulative:
         if t_slab_edges is not None:
@@ -4809,7 +4861,14 @@ def osc_prob_matter_std_potential(
         min_n_tpts_per_slab=min_n_tpts_per_slab, max_n_tpts_per_slab=max_n_tpts_per_slab,
         validate_input=validate_input, save_log=save_log, filename_log=filename_log,
         file_log=file_log, close_file_log_upon_exit=close_file_log_upon_exit,
-        new_recursion_limit=new_recursion_limit, verbose=verbose, **kwargs)
+        new_recursion_limit=new_recursion_limit, verbose=verbose,
+        # strategy='magnus' promises the behaviour Mag(nu)s had before the adiabatic
+        # strategy existed, so it must opt out of the cumulative scan too -- that scan is
+        # Magnus machinery, but it postdates the promise and builds a different grid.
+        # Without this the escape hatch quietly stops being one for any single-energy
+        # baseline scan, which is exactly when someone reproducing older numbers would
+        # reach for it.
+        cumulative=('auto' if strategy != 'magnus' else False), **kwargs)
 
 
 def osc_prob_matter_nsi(
@@ -5145,7 +5204,14 @@ def osc_prob_matter_nsi(
         min_n_tpts_per_slab=min_n_tpts_per_slab, max_n_tpts_per_slab=max_n_tpts_per_slab,
         validate_input=validate_input, save_log=save_log, filename_log=filename_log,
         file_log=file_log, close_file_log_upon_exit=close_file_log_upon_exit,
-        new_recursion_limit=new_recursion_limit, verbose=verbose, **kwargs)
+        new_recursion_limit=new_recursion_limit, verbose=verbose,
+        # strategy='magnus' promises the behaviour Mag(nu)s had before the adiabatic
+        # strategy existed, so it must opt out of the cumulative scan too -- that scan is
+        # Magnus machinery, but it postdates the promise and builds a different grid.
+        # Without this the escape hatch quietly stops being one for any single-energy
+        # baseline scan, which is exactly when someone reproducing older numbers would
+        # reach for it.
+        cumulative=('auto' if strategy != 'magnus' else False), **kwargs)
 
 
 def osc_prob_liv(
@@ -5492,7 +5558,14 @@ def osc_prob_liv(
         min_n_tpts_per_slab=min_n_tpts_per_slab, max_n_tpts_per_slab=max_n_tpts_per_slab,
         validate_input=validate_input, save_log=save_log, filename_log=filename_log,
         file_log=file_log, close_file_log_upon_exit=close_file_log_upon_exit,
-        new_recursion_limit=new_recursion_limit, verbose=verbose, **kwargs)
+        new_recursion_limit=new_recursion_limit, verbose=verbose,
+        # strategy='magnus' promises the behaviour Mag(nu)s had before the adiabatic
+        # strategy existed, so it must opt out of the cumulative scan too -- that scan is
+        # Magnus machinery, but it postdates the promise and builds a different grid.
+        # Without this the escape hatch quietly stops being one for any single-energy
+        # baseline scan, which is exactly when someone reproducing older numbers would
+        # reach for it.
+        cumulative=('auto' if strategy != 'magnus' else False), **kwargs)
 
 
 #-----------------------------------------------------------------------

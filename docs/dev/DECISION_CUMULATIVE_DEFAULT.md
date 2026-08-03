@@ -153,6 +153,38 @@ baseline:
 That is the feature this project shelved as too costly to enable by default, earning its place
 in the one spot where the economics invert.
 
+### The threshold at the dispatcher is not the threshold at the entry point
+
+Yielding from N = 2 would have been a regression. Below the crossover the cumulative scan's
+near-constant cost -- its strict probe -- is not amortised, while hybrid is both accurate and
+~20 ms per point, so a short scan would have paid several times over for precision it did not
+need. Measured through `osc_prob_2nu_sun`, main against a branch that yielded from N = 2:
+
+| N | 2 | 3 | 5 | 10 | 25 | 400 |
+|---|---|---|---|---|---|---|
+| main | 37 ms | 58 ms | 93 ms | 184 ms | 464 ms | 7459 ms |
+| yield-from-2 | 283 ms | 259 ms | 269 ms | 282 ms | 263 ms | 292 ms |
+| | **7.6x slower** | 4.5x | 2.9x | 1.5x | 1.8x faster | 25.6x faster |
+
+Hence `HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS = 25`, larger than `CUMULATIVE_AUTO_MIN_POINTS`.
+The two guard different trades: at the entry point the alternative is the general per-point
+path, which is *wrong* on solar profiles at small N (9.7e-3 at N = 10), so taking the cumulative
+scan from N = 2 is right there; through the wrapper the alternative is hybrid, which is not.
+
+Being the larger of the two also keeps the fall-through safe: when the dispatcher declines on
+this count, `'auto'` is guaranteed to accept, so a scan can never be refused by both and land on
+the general per-point method.
+
+### `strategy='magnus'` opts out
+
+That strategy is documented to reproduce the behaviour Magνs had before the adiabatic strategy
+existed, *unconditionally*. The cumulative scan is Magnus machinery but postdates the promise
+and builds a different grid, so the three wrappers now pass `cumulative=False` under it.
+Without that, the escape hatch quietly stopped being one for exactly the case -- a baseline scan
+-- where someone reproducing older numbers would reach for it. The test suite did not catch
+this: the one test that pins `strategy='magnus'` uses a single point, where the cumulative scan
+never engaged anyway.
+
 ### Measured through the wrapper, alternating between `main` and the branch
 
 | case | main | branch |
@@ -165,6 +197,17 @@ in the one spot where the economics invert.
 **23–31× on the baseline scan**, reproducible across all three rounds, with accuracy improving
 from ~1e-05 to ~1e-06 and the 10 MeV case from 5.2e-03 to 1.0e-06. Everything else is unchanged
 within scatter.
+
+Confirmed across the families the gate actually serves, not just 2ν standard potential -- all
+three wrappers reach `_osc_prob_hybrid_dispatch` at every flavor count. Below the threshold the
+errors are **bit-identical** to main, which is the evidence that nothing changed there:
+
+| family | N = 5 | N = 25 | N = 200 |
+|---|---|---|---|
+| 2ν std | 90 → 92 ms, err identical | 448 → 70 ms, 2.2e-05 → 6.2e-07 | 3599 → 82 ms, 2.3e-05 → 2.2e-06 |
+| 3ν std | 127 → 156 ms, err identical | 889 → 331 ms, 5.2e-05 → 4.2e-07 | 5141 → 332 ms, 9.3e-05 → 2.1e-06 |
+| 2ν NSI | 106 → 129 ms, err identical | 529 → 91 ms, 2.4e-05 → 8.9e-07 | 4196 → 82 ms, 2.7e-05 → 1.6e-06 |
+| 2ν LIV | 126 → 125 ms, err identical | 602 → 114 ms, 1.7e-05 → 3.1e-07 | 5355 → 168 ms, 2.4e-05 → 2.7e-07 |
 
 ## 5. Cost, stated plainly
 

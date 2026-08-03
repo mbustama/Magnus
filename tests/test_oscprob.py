@@ -599,7 +599,10 @@ def test_baseline_scan_through_the_wrapper_uses_the_cumulative_path(monkeypatch)
     since a scan of one has nothing to reuse."""
     sth, Dm2 = np.sqrt(0.308), 7.5e-5
     RS = gd.SUN_RADIUS*gd.UNIT_KM
-    L = np.logspace(np.log10(1e-2*RS), np.log10(RS), 12)
+    # Expressed relative to the threshold rather than hard-coded, so that moving the constant
+    # moves the test with it instead of silently testing the wrong side of the boundary.
+    L = np.logspace(np.log10(1e-2*RS), np.log10(RS),
+                    op.HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS)
 
     seen = {'hybrid': 0, 'cumulative': 0}
     real_h, real_c = op._osc_prob_hybrid_dispatch, op._osc_prob_cumulative_scan
@@ -620,6 +623,33 @@ def test_baseline_scan_through_the_wrapper_uses_the_cumulative_path(monkeypatch)
                         validate_input=False)
     assert seen == {'hybrid': 0, 'cumulative': 1}, \
         f"a wrapper baseline scan did not reach the cumulative path: {seen}"
+
+    # Below the dispatcher's threshold hybrid must keep the scan: it is accurate and ~20 ms per
+    # point there, while the cumulative scan's strict probe is a near-constant cost that is not
+    # yet amortised. Measured at N = 2 the other way round would be 7.6x slower.
+    seen['hybrid'] = seen['cumulative'] = 0
+    L_small = np.logspace(np.log10(1e-2*RS), np.log10(RS),
+                          op.HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS - 1)
+    op.osc_prob_2nu_sun(np.full_like(L_small, 5.0*gd.UNIT_MEV), L_small, 0.0, sth, Dm2,
+                        validate_input=False)
+    assert seen == {'hybrid': 1, 'cumulative': 0}, \
+        f"a short scan was handed to the cumulative path, which is slower there: {seen}"
+
+    # strategy='magnus' is documented to reproduce the behaviour Magnus had before the adiabatic
+    # strategy existed, "unconditionally". The cumulative scan postdates that promise and builds
+    # a different grid, so the escape hatch has to opt out of it as well -- otherwise it quietly
+    # stops being an escape hatch for exactly the case (a baseline scan) where someone
+    # reproducing older numbers would reach for it.
+    seen['hybrid'] = seen['cumulative'] = 0
+    op.osc_prob_2nu_sun(np.full_like(L, 5.0*gd.UNIT_MEV), L, 0.0, sth, Dm2,
+                        strategy='magnus', validate_input=False)
+    assert seen['cumulative'] == 0, \
+        "strategy='magnus' reached the cumulative scan, so it no longer reproduces old behaviour"
+
+    # The dispatcher's threshold must stay the larger of the two, or a scan between them would
+    # be declined by hybrid and then by 'auto', landing on the general per-point path -- slower
+    # and less accurate than either, and silently.
+    assert op.HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS >= op.CUMULATIVE_AUTO_MIN_POINTS
 
     seen['hybrid'] = seen['cumulative'] = 0
     op.osc_prob_2nu_sun(np.full_like(L, 5.0*gd.UNIT_MEV), L, 0.0, sth, Dm2,
