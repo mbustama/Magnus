@@ -74,6 +74,161 @@ from scipy.integrate import simpson
 import magnus.magnus as magnuscore
 
 
+GAMMA_TO_ERROR = 1.0
+r"""float: Module-level constant
+
+How much probability error to budget per unit of the adiabaticity parameter
+:math:`\gamma`, when :func:`hybrid_propagator` decides whether a result with **no**
+non-adiabatic window may be certified.
+
+The pure adiabatic answer's error grows with the largest :math:`\gamma` anywhere along the
+path.  Measured on a Gaussian resonance whose width was swept so that :math:`\gamma_\max`
+crossed the default threshold from below (2nu, 10 MeV, solar-scale domain), against
+``solve_ivp``/DOP853:
+
+============ ============ =====================
+gamma_max    \|dP\|       \|dP\| / gamma_max
+============ ============ =====================
+2.59e-03     9.76e-04     0.38
+4.31e-03     2.22e-03     0.51
+8.63e-03     4.39e-03     0.51
+2.59e-02     7.70e-03     0.30
+3.23e-02     1.77e-02     0.55
+============ ============ =====================
+
+The ratio sits in 0.30-0.55 over two decades, so **1.0 is a deliberately conservative
+round number**: it asks for roughly a factor of two of headroom on the measured worst case.
+
+Raising it would let :func:`hybrid_propagator` certify pure-adiabatic answers it currently
+refines further -- faster, and wrong in exactly the way the adversarial-validation findings
+(``docs/dev/FINDINGS_ADVERSARIAL_VALIDATION.md``) describe.  Lowering it costs refinement
+iterations on profiles that did not need them.
+
+.. versionadded:: 1.0.0
+"""
+
+
+RESOLUTION_RATIO = 0.75
+r"""float: Module-level constant
+
+Threshold of the probe-scale resolution test in ``_profile_is_resolved``, which decides
+whether ``H_func`` is sampled finely enough for this module's finite-difference diagnostics
+to mean anything.
+
+The test halves the probe spacing and asks how much the largest adjacent change in ``H``
+shrinks.  For a :math:`C^1` Hamiltonian the change over a spacing :math:`h` is
+:math:`\approx |H'| h`, so halving the spacing halves it: the ratio tends to **0.5**.  Across
+a genuine jump discontinuity the change is the jump itself, which the finer grid still
+straddles: the ratio tends to **1.0**.
+
+0.75 is the midpoint of those two limits in ratio, and every profile measured falls decisively
+on one side or the other rather than near it.
+
+.. versionadded:: 1.0.0
+"""
+
+
+def _H_on_grid(H_func: Callable, ls: np.ndarray) -> np.ndarray:
+    r"""``H_func`` at every position in ``ls``, in one vectorized call where possible.
+
+    The Hamiltonians :mod:`magnus.oscprob` builds are written to accept an array of positions
+    and return a stack of matrices (``vcc[..., None, None]*h_matt``), which is the same fast
+    path :func:`magnus.magnus.magnus_expansion_multislab` relies on.  Calling such a function
+    once per position instead costs the interpreter overhead of a Python loop over the whole
+    grid -- measured at 1.2x on an ordinary single-point solar call, which is the difference
+    between the resolution test being free and being noticeable.
+
+    Falls back to the loop for a Hamiltonian that is only defined for scalar input, which is a
+    supported (if slower) way to write one; :mod:`magnus.magnus` detects the same case and warns
+    about it separately.
+
+    .. versionadded:: 1.0.0
+    """
+    ls = np.asarray(ls, dtype=float)
+    try:
+        stacked = np.asarray(H_func(ls), dtype=complex)
+        if stacked.ndim == 3 and stacked.shape[0] == len(ls):
+            return stacked
+    except Exception:                      # noqa: BLE001 -- any failure means "not vectorized"
+        pass
+    return np.array([np.asarray(H_func(l), dtype=complex) for l in ls])
+
+
+def _profile_is_resolved(H_func: Callable, l0: float, l1: float, n_probe: int) -> bool:
+    r"""Whether ``H_func`` is continuous at the scale this module samples it on.
+
+    Everything in this module -- the Hellmann-Feynman derivative ``dH/dl``, the adiabaticity
+    parameter built from it, and the parallel transport in :func:`adiabatic_propagator` -- assumes
+    ``H_func`` varies smoothly between probe points.  On a piecewise-discontinuous profile that
+    assumption fails silently rather than loudly: the finite differences return a finite number,
+    the windows come back empty, and the pure adiabatic answer is returned with full confidence.
+    Measured on an unmarked density step, that answer was wrong by **0.54** in probability while
+    reporting ``certified=True``.
+
+    :mod:`magnus.oscprob` guards this by declining the hybrid strategy when the caller passes
+    ``t_breakpoints`` or ``t_slab_edges``.  That guard **fails open**: it declines when the caller
+    *tells* it about the discontinuity and accepts when they do not, which is exactly backwards
+    with respect to the risk.  This test replaces asking with measuring.
+
+    Method: evaluate ``H`` on the probe grid and again at its midpoints, and compare the largest
+    adjacent change at spacing ``h`` with the largest at spacing ``h/2``.  For a :math:`C^1`
+    Hamiltonian the latter is about half the former; across a jump the two are equal, because a
+    finer grid still straddles the jump.  See :data:`RESOLUTION_RATIO`.
+
+    **What this cannot do.** A feature *narrower than the probe spacing* is generally not sampled
+    by either grid, so neither sees it and this test reports "resolved".  That is a limit of any
+    fixed grid, not of this test: the cure is a caller-supplied ``t_breakpoints`` at the feature,
+    or a larger ``n_probe``.  The test catches discontinuities, which are always straddled by
+    some interval, and sharp features comparable to the spacing.
+
+    **Why the caller must not stop at the first failure.**  At one density this test cannot tell
+    a genuine jump from a feature that is merely sharp *relative to that density*, and the two
+    want opposite treatment: refinement resolves the second and never resolves the first.
+    :func:`hybrid_propagator` therefore re-runs this at ``max_n_probe`` before concluding
+    anything, which is what distinguishes them.  Skipping that step made a Gaussian of width
+    :math:`10^{-3}(l_1-l_0)` -- which the refinement handles exactly, to 1.1e-11 -- get abandoned
+    as if it were a step function.
+
+    .. versionadded:: 1.0.0
+
+    Parameters
+    ----------
+    H_func : Callable
+        Hamiltonian, a function of position returning a square matrix.
+    l0, l1 : float
+        Interval over which ``H_func`` is used.
+    n_probe : int
+        Number of points on the coarse grid (the same grid
+        :func:`find_resonance_candidates` uses).
+
+    Returns
+    -------
+    bool
+        False when ``H_func`` shows a jump at this probe scale, True otherwise (including for a
+        constant Hamiltonian, where there is nothing to resolve).
+    """
+    ls = np.linspace(l0, l1, n_probe)
+    mids = 0.5*(ls[:-1] + ls[1:])
+    Hc = _H_on_grid(H_func, ls)
+    Hm = _H_on_grid(H_func, mids)
+
+    # Interleave into the fine grid: ls[0], mids[0], ls[1], mids[1], ...
+    fine = np.empty((2*n_probe - 1,) + Hc.shape[1:], dtype=complex)
+    fine[0::2], fine[1::2] = Hc, Hm
+
+    step_coarse = np.max(np.abs(np.diff(Hc, axis=0))) if n_probe > 1 else 0.0
+    step_fine = np.max(np.abs(np.diff(fine, axis=0))) if n_probe > 1 else 0.0
+
+    # A constant (or numerically constant) Hamiltonian has nothing to resolve.  Scale the
+    # floor to the Hamiltonian itself so this is not an absolute-units test: these matrices
+    # carry physical magnitudes spanning many orders.
+    scale = np.max(np.abs(Hc))
+    if step_coarse <= 1.0e-12*scale:
+        return True
+
+    return bool(step_fine <= RESOLUTION_RATIO*step_coarse)
+
+
 def _eigs_along(H_func: Callable, ls: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     r"""Diagonalizes ``H_func`` on a grid, with eigenvectors phase-fixed by discrete parallel
     transport.
@@ -371,7 +526,8 @@ def _estimate_window_bounds(H_func: Callable, l_star: float, j: int, k: int, l0:
 
 def find_nonadiabatic_windows(H_func: Callable, l0: float, l1: float,
     threshold: Optional[float] = 0.1, n_probe: Optional[int] = 200,
-    fd_step_frac: Optional[float] = 1e-6) -> Tuple[List[Tuple[float, float]], List[Dict]]:
+    fd_step_frac: Optional[float] = 1e-6,
+    info: Optional[Dict] = None) -> Tuple[List[Tuple[float, float]], List[Dict]]:
     r"""Finds every position window along ``[l0, l1]`` where ``H_func`` needs a Magnus patch.
 
     Calls :func:`find_resonance_candidates`, evaluates the adiabaticity parameter
@@ -398,6 +554,14 @@ def find_nonadiabatic_windows(H_func: Callable, l0: float, l1: float,
         Forwarded to :func:`find_resonance_candidates`. Default: 200.
     fd_step_frac : float, optional
         Forwarded to :func:`find_resonance_candidates`. Default: 1e-6.
+    info : dict, optional
+        If given, filled in place with diagnostics about this call, following the same
+        out-parameter convention as ``convergence_info`` in :func:`magnus.oscprob.osc_prob`.
+        Currently one key, ``'gamma_max'``: the largest adiabaticity parameter seen anywhere on
+        the probe grid or at any candidate, over every level pair. It is ``inf`` if some pair's
+        gap vanishes exactly. :func:`hybrid_propagator` uses it to decide whether an *empty*
+        window list may be certified -- without it, "no window opened" is indistinguishable from
+        "no window was looked for hard enough". Default: None.
 
     Returns
     -------
@@ -410,9 +574,11 @@ def find_nonadiabatic_windows(H_func: Callable, l0: float, l1: float,
         fd_step_frac=fd_step_frac)
     fd_step = (l1 - l0) * fd_step_frac
     windows = []
+    gamma_max = 0.0
     for c in candidates:
         gamma = _point_adiabaticity(H_func, c['l'], c['j'], c['k'], fd_step, (l0, l1))
         c['gamma'] = gamma
+        gamma_max = max(gamma_max, gamma)
         if gamma > threshold:
             l_b, l_c = _estimate_window_bounds(H_func, c['l'], c['j'], c['k'], l0, l1, threshold,
                 fd_step)
@@ -443,6 +609,8 @@ def find_nonadiabatic_windows(H_func: Callable, l0: float, l1: float,
             coupling = np.abs(np.einsum('ni,nij,nj->n', np.conj(vj), dH_p, vk))
             gap = np.abs(lam_p[:, k] - lam_p[:, j])
             gamma_p = np.where(gap > 0.0, coupling/np.where(gap > 0.0, gap, 1.0)**2, np.inf)
+            if gamma_p.size:
+                gamma_max = max(gamma_max, float(np.max(gamma_p)))
             over = np.where(gamma_p > threshold)[0]
             if over.size == 0:
                 continue
@@ -459,6 +627,9 @@ def find_nonadiabatic_windows(H_func: Callable, l0: float, l1: float,
                 l_b, l_c = _estimate_window_bounds(H_func, float(ls_probe[peak]), j, k, l0, l1,
                     threshold, fd_step)
                 windows.append([l_b, l_c])
+
+    if info is not None:
+        info['gamma_max'] = gamma_max
 
     if not windows:
         return [], candidates
@@ -512,13 +683,20 @@ def _local_evolution_operator(H_func: Callable, l_b: float, l_c: float, magnus_e
 
 def _hybrid_propagator_once(H_func: Callable, l0: float, l1: float, threshold: float,
     n_probe: int, n_points: int, fd_step_frac: float, magnus_exp_order: int,
-    integration_method: str) -> Tuple[np.ndarray, List[Tuple[float, float]], bool]:
+    integration_method: str) -> Tuple[np.ndarray, List[Tuple[float, float]], bool, float]:
     r"""One evaluation of the hybrid propagator at a fixed set of internal tolerance knobs (see
-    :func:`hybrid_propagator` for the self-certifying refinement built on top of this)."""
+    :func:`hybrid_propagator` for the self-certifying refinement built on top of this).
+
+    Returns the operator, the windows used, whether every local patch converged, and the largest
+    adiabaticity parameter seen on the probe grid (which the caller needs to judge an *empty*
+    window list -- see :data:`GAMMA_TO_ERROR`)."""
+    info = {}
     windows, _ = find_nonadiabatic_windows(H_func, l0, l1, threshold=threshold, n_probe=n_probe,
-        fd_step_frac=fd_step_frac)
+        fd_step_frac=fd_step_frac, info=info)
+    gamma_max = info.get('gamma_max', 0.0)
     if not windows:
-        return adiabatic_propagator(H_func, l0, l1, n_points=n_points), windows, True
+        return (adiabatic_propagator(H_func, l0, l1, n_points=n_points), windows, True,
+                gamma_max)
     d = np.asarray(H_func(l0), dtype=complex).shape[-1]
     U_total = np.eye(d, dtype=complex)
     cursor = l0
@@ -531,7 +709,7 @@ def _hybrid_propagator_once(H_func: Callable, l0: float, l1: float, threshold: f
         U_total = U_patch @ U_total
         cursor = l_c
     U_total = adiabatic_propagator(H_func, cursor, l1, n_points=n_points) @ U_total
-    return U_total, windows, all_patches_converged
+    return U_total, windows, all_patches_converged, gamma_max
 
 
 def hybrid_propagator(H_func: Callable, l0: float, l1: float, rtol: Optional[float] = 1.e-3,
@@ -619,16 +797,60 @@ def hybrid_propagator(H_func: Callable, l0: float, l1: float, rtol: Optional[flo
         The evolution operator (exactly unitary regardless of ``certified``), the non-adiabatic
         windows used in the last iteration, and whether the result is certified (``True``).
         ``certified`` is ``False`` if the refinement exhausted ``max_iters``, if every knob
-        reached its ceiling before two successive results agreed, or if a local patch failed to
-        converge within its own slab cap -- in all three cases the returned operator is the best
+        reached its ceiling before two successive results agreed, if a local patch failed to
+        converge within its own slab cap, or if ``H_func`` is not resolved at the probe scale
+        (see ``_profile_is_resolved``) -- in all of these the returned operator is the best
         available estimate, still exactly unitary, but its accuracy is not certified to the
         requested tolerance.
+
+    Notes
+    -----
+    Two successive results agreeing is **necessary but not sufficient**, and step 4 above states
+    the reason narrowly. When no window opens at all, successive iterations differ only in the
+    adiabatic-transport grid: they converge to the same adiabatic limit and agree with each
+    other whether or not that limit is the right answer. Certifying an empty window list
+    therefore additionally requires the adiabaticity parameter itself to be small enough for the
+    requested tolerance (see :data:`GAMMA_TO_ERROR`); otherwise the loop keeps lowering the
+    threshold until a window does open. Without that, a profile whose :math:`\gamma` stays just
+    below ``threshold0`` everywhere is certified while wrong -- measured at 1.8e-02 against a
+    requested 1e-3.
     """
     threshold, n_probe, n_points = threshold0, n_probe0, n_points0
-    U_prev, windows_prev, ok_prev = _hybrid_propagator_once(H_func, l0, l1, threshold, n_probe,
-        n_points, fd_step_frac, magnus_exp_order, integration_method)
-    if not ok_prev:
+
+    # Everything below finite-differences H_func between probe points and assumes the result
+    # means something.  On a piecewise-discontinuous profile it does not, and the failure is
+    # silent: no window opens, the adiabatic answers at successive n_points agree with each
+    # other, and this function would certify a result measured 0.54 wrong in probability.
+    # Refusing to certify is enough to make the package safe, because osc_prob's
+    # strategy='auto' treats an uncertified hybrid result as "this method does not fit" and
+    # falls through to the general Magnus path, which handles such profiles correctly.
+    #
+    # Confirmed at max_n_probe before it is believed.  The cheap test at n_probe0 cannot
+    # separate a genuine jump from a feature that is merely sharp at *that* density, and the
+    # refinement below resolves the second while never resolving the first -- so failing at
+    # one density is a reason to look harder, not a verdict.  Without the second stage a
+    # Gaussian of width 1e-3 (l1-l0), which this module otherwise answers to 1.1e-11, was
+    # abandoned as though it were a step.  The confirmation runs only on profiles that already
+    # failed the cheap test, so ordinary calls never pay for it.
+    resolved = (_profile_is_resolved(H_func, l0, l1, n_probe0)
+                or _profile_is_resolved(H_func, l0, l1, max_n_probe))
+
+    U_prev, windows_prev, ok_prev, gamma_prev = _hybrid_propagator_once(H_func, l0, l1,
+        threshold, n_probe, n_points, fd_step_frac, magnus_exp_order, integration_method)
+    if not ok_prev or not resolved:
         return U_prev, windows_prev, False
+
+    def adiabatic_is_good_enough(gamma_max: float) -> bool:
+        r"""Whether a result with NO window may be certified on the strength of gamma alone.
+
+        When no window opens, successive refinements differ only in the adiabatic-transport
+        grid, so they converge to the same adiabatic limit and agree with each other whether or
+        not that limit is right -- the agreement test carries no information about the thing
+        that actually went wrong.  What does carry information is how non-adiabatic the path
+        was: see :data:`GAMMA_TO_ERROR` for the measured relation between gamma_max and the
+        error of the pure adiabatic answer.
+        """
+        return bool(GAMMA_TO_ERROR*gamma_max <= atol + rtol)
 
     for _ in range(max_iters):
         knobs_prev = (threshold, n_probe, n_points)
@@ -641,13 +863,21 @@ def hybrid_propagator(H_func: Callable, l0: float, l1: float, rtol: Optional[flo
             # would pass on a comparison of a result with itself -- which is no evidence of
             # convergence at all. Stop and report the result as uncertified instead.
             break
-        U_next, windows_next, ok_next = _hybrid_propagator_once(H_func, l0, l1, threshold,
-            n_probe, n_points, fd_step_frac, magnus_exp_order, integration_method)
+        U_next, windows_next, ok_next, gamma_next = _hybrid_propagator_once(H_func, l0, l1,
+            threshold, n_probe, n_points, fd_step_frac, magnus_exp_order, integration_method)
         if not ok_next:
             return U_next, windows_next, False
         if np.max(np.abs(U_next - U_prev)) <= atol + rtol * np.max(np.abs(U_prev)):
-            return U_next, windows_next, True
-        U_prev, windows_prev, ok_prev = U_next, windows_next, ok_next
+            # Agreement is necessary but not sufficient. If neither result patched anything,
+            # both are pure adiabatic transport and their agreement is self-fulfilling; accept
+            # it only when gamma says the adiabatic approximation was itself good enough. If
+            # it does not, fall through and keep lowering the threshold, which is guaranteed to
+            # open a window eventually since gamma_max is measured on the same grid the
+            # threshold is compared against.
+            if windows_next or windows_prev or adiabatic_is_good_enough(
+                    max(gamma_next, gamma_prev)):
+                return U_next, windows_next, True
+        U_prev, windows_prev, ok_prev, gamma_prev = (U_next, windows_next, ok_next, gamma_next)
 
     return U_prev, windows_prev, False
 

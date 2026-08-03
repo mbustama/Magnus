@@ -121,9 +121,16 @@ the (smooth, gauge-independent) Hamiltonian itself, not of its eigenvectors.
 :func:`magnus.adiabatic.find_resonance_candidates` uses the first identity
 to locate every position where some pair of levels' gap is stationary
 (:math:`d(\lambda_j-\lambda_k)/dl = 0`, an exact critical point, refined to
-machine precision by bisection), scanning *every* pair :math:`(j,k)` so
-any number of simultaneous or sequential resonances are all found, for a
-Hamiltonian of any dimension. The second identity then gives an exact,
+machine precision by bisection), scanning *every* pair :math:`(j,k)`, for a
+Hamiltonian of any dimension. Because every pair is scanned, no number of
+*simultaneous* resonances defeats the search: a crossing between one pair is
+never masked by a window belonging to another (verified at 2, 3, 4 and 5
+flavors against a dense per-pair :math:`\gamma` scan). What bounds the search
+is instead the **probe grid**: candidates are bracketed on ``n_probe`` linear
+samples, so a feature much narrower than :math:`(l_1-l_0)/n_\text{probe}` can
+be stepped over entirely and reported as no resonance at all. Supply
+``t_breakpoints`` at a known narrow feature, or raise ``n_probe``. The second
+identity then gives an exact,
 gauge-independent **adiabaticity parameter**, the Landau-Zener-like
 
 .. math::
@@ -288,9 +295,31 @@ point:
 Unlike the two-flavor interaction-picture fast path, the hybrid strategy
 has **no restriction on the number of flavors**: the resonance detector and
 adiabatic propagator make no assumption about the Hamiltonian's dimension
-or structure. It also composes correctly with any number of simultaneous
-or sequential resonances, of any kind (standard MSW, NSI-induced, or
-otherwise), between any pair of levels.
+or structure. It composes correctly with any number of simultaneous or
+sequential resonances, of any kind (standard MSW, NSI-induced, or
+otherwise), between any pair of levels, **provided each is visible on the
+probe grid** -- see the two limits below.
+
+.. warning::
+
+   Two things this strategy cannot see, both of which make it return
+   ``certified=False`` or, in the second case, a wrong answer:
+
+   * **A profile that is not smooth at the probe scale.** Every diagnostic
+     here finite-differences :math:`H(l)` between probe points. On a density
+     step, a kink, or any feature sharp compared with the probe spacing,
+     those derivatives are meaningless. ``hybrid_propagator`` now measures
+     this directly (``magnus.adiabatic._profile_is_resolved``) and declines
+     to certify, so :func:`magnus.oscprob.osc_prob` falls through to the
+     general Magnus path, which handles such profiles correctly. Passing
+     ``t_breakpoints`` at the discontinuities is better still.
+   * **A feature narrower than the probe spacing**, which no fixed grid can
+     detect: neither the probe nor its refinement samples it, so
+     :math:`\gamma` looks small and no window opens. Measured on a Gaussian
+     resonance of width :math:`10^{-5}(l_1-l_0)`, the returned probability was
+     wrong by 2.9e-02 while reporting ``certified=True``. The general Magnus
+     path is no better here (it misses the feature too, though it does warn).
+     If a narrow feature's position is known, pass ``t_breakpoints``.
 
 .. note::
 

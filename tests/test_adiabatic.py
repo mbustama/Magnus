@@ -356,7 +356,7 @@ def test_hybrid_propagator_does_not_certify_when_the_first_patch_fails(monkeypat
     def fake_once(H_func, l0, l1, threshold, n_probe, n_points, fd_step_frac,
                   magnus_exp_order, integration_method):
         calls.append((threshold, n_probe, n_points))
-        return np.eye(2, dtype=complex), [(1.0, 2.0)], False
+        return np.eye(2, dtype=complex), [(1.0, 2.0)], False, 0.0
 
     monkeypatch.setattr(ad, '_hybrid_propagator_once', fake_once)
     H_func, l0, l1 = _flat_2level_H()
@@ -380,7 +380,7 @@ def test_hybrid_propagator_does_not_certify_when_a_later_patch_fails(monkeypatch
     def fake_once(H_func, l0, l1, threshold, n_probe, n_points, fd_step_frac,
                   magnus_exp_order, integration_method):
         calls.append((threshold, n_probe, n_points))
-        return np.eye(2, dtype=complex), [], results[len(calls) - 1]
+        return np.eye(2, dtype=complex), [], results[len(calls) - 1], 0.0
 
     monkeypatch.setattr(ad, '_hybrid_propagator_once', fake_once)
     H_func, l0, l1 = _flat_2level_H()
@@ -457,3 +457,188 @@ def test_windows_are_found_away_from_gap_extrema():
     P_exact = np.abs(U_exact).T**2
     err = np.max(np.abs(P - P_exact))
     assert err < 1e-3, f"certified but wrong by {err:.2e}"
+
+
+# ----------------------------------------------------------------------
+# Two ways the hybrid strategy used to certify a wrong answer.  Both were found by the
+# adversarial-validation batteries (docs/dev/FINDINGS_ADVERSARIAL_VALIDATION.md) and both are
+# pre-existing rather than introduced by the gamma sweep; see that document for the full
+# reproductions and for the third, undetectable, case these do not cover.
+# ----------------------------------------------------------------------
+
+def _solar_step_H(mid_frac=0.5, l1=None):
+    """2nu Hamiltonian on a density profile with one unmarked step, and its exact answer.
+
+    H is constant on each side of the step, so scipy.linalg.expm composed across the two
+    pieces is the *exact* evolution operator, not an approximation -- a stronger oracle than
+    solve_ivp, and one that cannot itself step over the discontinuity.
+    """
+    l1 = gd.L_SCALE_SUN if l1 is None else l1
+    mid = mid_frac*l1
+    lo, hi = 0.02*gd.NUM_DENSITY_E_SUN_CENTRAL, 0.30*gd.NUM_DENSITY_E_SUN_CENTRAL
+
+    def ne(l):
+        y = np.where(np.asarray(l, dtype=float) < mid, lo, hi)
+        a = np.asarray(y)
+        return a[()] if a.ndim == 0 else a
+
+    vcc = matter.vcc_func_from_rho_func(ne, 0.0, 1.0, 0.5, nubar=False,
+                                        density_matter_is_in_g_per_cm3=False,
+                                        density_is_of_number_of_electrons=True)
+    h_vac = np.asarray(hams.hamiltonian_2nu_vacuum_energy_independent(
+        gd.S12_NO_BF_NUFIT_6_0, gd.D21_NO_BF_NUFIT_6_0), dtype=complex)
+    proj = np.diag([1.0, 0.0]).astype(complex)
+    energy = 50.0e6
+
+    def H_func(l):
+        v = np.asarray(vcc(l))
+        return (1.0/energy)*h_vac + v[..., None, None]*proj
+
+    return H_func, mid, l1
+
+
+def _solar_bump_H(width_frac, energy=10.0e6, centre_frac=0.5):
+    """2nu solar-scale Hamiltonian with one Gaussian resonance of the given fractional width."""
+    l1 = gd.L_SCALE_SUN
+    h_vac = np.asarray(hams.hamiltonian_2nu_vacuum_energy_independent(
+        gd.S12_NO_BF_NUFIT_6_0, gd.D21_NO_BF_NUFIT_6_0), dtype=complex)
+    proj = np.diag([1.0, 0.0]).astype(complex)
+    ne0 = gd.NUM_DENSITY_E_SUN_CENTRAL
+    c_vcc = float(np.asarray(matter.vcc_func_from_rho_func(
+        lambda l: ne0, 0.0, 1.0, 0.5, nubar=False, density_matter_is_in_g_per_cm3=False,
+        density_is_of_number_of_electrons=True)(0.0)))/ne0
+
+    def gap(ne):
+        lam = np.linalg.eigvalsh(h_vac/energy + ne*c_vcc*proj)
+        return lam[1] - lam[0]
+
+    xs = np.geomspace(ne0*1e-6, ne0*10.0, 2000)
+    ne_res = float(xs[int(np.argmin([gap(x) for x in xs]))])
+    width = width_frac*l1
+
+    def ne(l):
+        x = np.asarray(l, dtype=float)
+        y = ne_res*(0.30 + 2.70*np.exp(-0.5*((x - centre_frac*l1)/width)**2))
+        a = np.asarray(y)
+        return a[()] if a.ndim == 0 else a
+
+    vcc = matter.vcc_func_from_rho_func(ne, 0.0, 1.0, 0.5, nubar=False,
+                                        density_matter_is_in_g_per_cm3=False,
+                                        density_is_of_number_of_electrons=True)
+
+    def H_func(l):
+        v = np.asarray(vcc(l))
+        return (1.0/energy)*h_vac + v[..., None, None]*proj
+
+    return H_func, l1
+
+
+def test_unmarked_discontinuity_is_detected_and_not_certified():
+    """A density step whose edge the caller did not declare.
+
+    The dispatcher's guard against a non-smooth profile used to be "did the caller pass
+    t_breakpoints", which fails open -- it declined when told about the discontinuity and
+    accepted when not.  Measured then: certified=True with the probability wrong by 0.54.
+    """
+    H_func, mid, l1 = _solar_step_H()
+
+    assert not ad._profile_is_resolved(H_func, 0.0, l1, 200), \
+        "the resolution test no longer sees an unmarked density step"
+    assert not ad._profile_is_resolved(H_func, 0.0, l1, 6400), \
+        "a genuine jump must stay unresolved at every probe density"
+
+    _, _, certified = ad.hybrid_propagator(H_func, 0.0, l1)
+    assert not certified, "hybrid certified an unmarked discontinuity"
+
+
+def test_a_smooth_profile_is_still_reported_as_resolved():
+    """The mirror of the test above: the resolution test must not fire on ordinary profiles,
+    or every solar call would abandon the hybrid strategy."""
+    l1 = gd.L_SCALE_SUN
+    vcc = matter.vcc_func_from_rho_func(
+        matter.exp_density_profile(gd.NUM_DENSITY_E_SUN_CENTRAL, gd.L_SCALE_SUN),
+        0.0, 1.0, 0.5, nubar=False, density_matter_is_in_g_per_cm3=False,
+        density_is_of_number_of_electrons=True)
+    h_vac = np.asarray(hams.hamiltonian_2nu_vacuum_energy_independent(
+        gd.S12_NO_BF_NUFIT_6_0, gd.D21_NO_BF_NUFIT_6_0), dtype=complex)
+    proj = np.diag([1.0, 0.0]).astype(complex)
+
+    def H_func(l):
+        v = np.asarray(vcc(l))
+        return (1.0/5.0e6)*h_vac + v[..., None, None]*proj
+
+    assert ad._profile_is_resolved(H_func, 0.0, l1, 200)
+    _, _, certified = ad.hybrid_propagator(H_func, 0.0, l1)
+    assert certified, "an ordinary solar profile stopped certifying"
+
+    # A constant Hamiltonian has nothing to resolve and must not be rejected either.
+    const = np.diag([1.0e-12, 2.0e-12]).astype(complex)
+    assert ad._profile_is_resolved(lambda l: const, 0.0, l1, 200)
+
+
+def test_a_sharp_but_smooth_feature_is_not_mistaken_for_a_discontinuity():
+    """Refinement must be allowed to rescue a feature that is merely sharp at the *starting*
+    probe density.
+
+    A Gaussian of width 1e-3 of the domain is unresolved at n_probe=200 and resolved at 6400,
+    and this module answers it to ~1e-11 once it is.  Testing at the starting density alone
+    abandoned it as though it were a step function, which is both a large accuracy regression
+    and the wrong diagnosis -- a jump stays unresolved at *every* density, which is exactly
+    what separates the two.
+    """
+    H_func, l1 = _solar_bump_H(1.0e-3, centre_frac=0.495)
+
+    assert not ad._profile_is_resolved(H_func, 0.0, l1, 200)
+    assert ad._profile_is_resolved(H_func, 0.0, l1, 6400)
+
+    U, windows, certified = ad.hybrid_propagator(H_func, 0.0, l1)
+    assert certified, "a feature the refinement resolves was abandoned as a discontinuity"
+    assert windows
+    P = np.abs(U).T**2
+    P_exact = np.abs(exact_U(H_func, 0.0, l1, 2)).T**2
+    assert np.max(np.abs(P - P_exact)) < 1e-6
+
+
+def test_subthreshold_nonadiabaticity_is_not_certified_on_agreement_alone():
+    """gamma just below threshold0 everywhere: no window opens, successive iterations differ
+    only in the transport grid, so they agree with each other and used to certify.
+
+    Measured then: 1.77e-02 against a requested 1e-3, certified, silent.  The fix requires
+    gamma itself to be small enough for the tolerance before an empty window list may be
+    certified, so the threshold keeps dropping until a window opens.
+    """
+    H_func, l1 = _solar_bump_H(0.04)
+
+    # The premise: nothing opens at the default threshold, and gamma stays under it.
+    info = {}
+    windows0, _ = ad.find_nonadiabatic_windows(H_func, 0.0, l1, threshold=0.1, info=info)
+    assert not windows0, "profile no longer sits below the default threshold"
+    assert info['gamma_max'] < 0.1, f"gamma_max {info['gamma_max']:.2e} is above threshold0"
+    # The property that makes this a hard case rather than an arbitrary number: gamma_max sits
+    # ABOVE the requested tolerance, so the pure adiabatic answer cannot be good enough and
+    # certifying on agreement alone would be certifying something wrong.
+    assert info['gamma_max'] > 1e-3, \
+        f"gamma_max {info['gamma_max']:.2e} no longer exceeds the tolerance; case has no teeth"
+
+    U, windows, certified = ad.hybrid_propagator(H_func, 0.0, l1, rtol=1e-3, atol=1e-3)
+    assert certified, "the case is recoverable by refinement and should still certify"
+    assert windows, "certified with no window on a profile that needed one"
+
+    P = np.abs(U).T**2
+    P_exact = np.abs(exact_U(H_func, 0.0, l1, 2)).T**2
+    err = np.max(np.abs(P - P_exact))
+    assert err < 1e-3, f"certified but wrong by {err:.2e}"
+
+
+def test_find_nonadiabatic_windows_reports_gamma_max_via_info():
+    """The out-parameter hybrid_propagator's certification rests on, pinned directly."""
+    H_func, _, l1 = _solar_step_H()
+    info = {}
+    windows, candidates = ad.find_nonadiabatic_windows(H_func, 0.0, l1, info=info)
+    assert 'gamma_max' in info
+    assert info['gamma_max'] >= 0.0
+    # It must dominate every candidate's own gamma, since it is a max over the probe grid too.
+    for c in candidates:
+        assert info['gamma_max'] >= c['gamma'] - 1e-30
+    # Omitting info must remain valid (backward compatibility of the public signature).
+    ad.find_nonadiabatic_windows(H_func, 0.0, l1)
