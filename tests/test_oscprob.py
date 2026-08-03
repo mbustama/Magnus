@@ -529,11 +529,14 @@ def test_tolerance_cap_warns():
 
 def test_sun_2nu_default_strategy_avoids_tolerance_cap():
     """The default strategy='auto' must resolve, warning-free, exactly the case that
-    test_tolerance_cap_warns shows still hits the refinement caps under strategy='magnus': 10 MeV
-    over 0.9 R_sun is deep enough into the accumulated-phase regime that even the 2-flavor
-    interaction-picture fast path (_osc_prob_ip_exp_dispatch) does not certify, so this also
-    confirms the hybrid strategy (_osc_prob_hybrid_dispatch) is the one resolving it, not the
-    pre-existing fast path."""
+    test_tolerance_cap_warns shows still hits the refinement caps under strategy='magnus'.
+
+    Since the dispatch reorder (docs/dev/DECISION_DISPATCH_ORDER.md) the hybrid strategy is tried
+    before the interaction-picture fast path, so it is trivially the path answering here; the
+    separate, measured fact that makes strategy='magnus' still hit the caps is that 10 MeV over
+    0.9 R_sun is deep enough into the accumulated-phase regime that the fast path
+    (_osc_prob_ip_exp_dispatch) does not certify it either -- it spends ~13 s climbing its ladder
+    and then declines, leaving the general method to answer."""
     sth, Dm2 = np.sqrt(0.308), 7.5e-5
     energy = 10.0*gd.UNIT_MEV
     L = 0.9*gd.SUN_RADIUS*gd.UNIT_KM
@@ -561,22 +564,94 @@ def test_sun_2nu_default_strategy_avoids_tolerance_cap():
     assert maxabs(np.asarray(P) - P_exact) < 1e-2
 
 
+class _DispatchSpy:
+    """Wraps a dispatcher so a test can assert *which* path produced the answer.
+
+    ``answered`` is None if the dispatcher was never called, True if it returned a result,
+    False if it declined with NotImplemented.
+    """
+
+    def __init__(self, real):
+        self.real = real
+        self.answered = None
+
+    def __call__(self, *args, **kwargs):
+        out = self.real(*args, **kwargs)
+        self.answered = out is not NotImplemented
+        return out
+
+
+def _spy_on(monkeypatch, name):
+    spy = _DispatchSpy(getattr(op, name))
+    monkeypatch.setattr(op, name, spy)
+    return spy
+
+
+def test_hybrid_strategy_precedes_the_interaction_picture_fast_path(monkeypatch):
+    """On a solar exponential profile both the hybrid strategy and the two-flavor
+    interaction-picture fast path apply, so which one runs is decided purely by dispatch order --
+    and that order is part of the documented meaning of strategy='auto' ("tries the hybrid
+    strategy first ... but falls back silently to the 'magnus' strategies", of which the fast
+    path is one; see the strategy docstring and docs/source/adiabatic_strategy.rst).
+
+    The order was the other way round until the measurements in
+    docs/dev/DECISION_DISPATCH_ORDER.md, so this pins the contract rather than restating the
+    implementation: the hybrid dispatcher must answer, and the fast path must not be reached at
+    all. Chosen at 40 MeV, where the fast path *would* certify if it were given the chance --
+    which is what makes the assertion on ip_spy.answered a real discriminator."""
+    sth, Dm2 = np.sqrt(0.308), 7.5e-5
+    hybrid_spy = _spy_on(monkeypatch, '_osc_prob_hybrid_dispatch')
+    ip_spy = _spy_on(monkeypatch, '_osc_prob_ip_exp_dispatch')
+
+    op.osc_prob_2nu_sun(40.0*gd.UNIT_MEV, 0.3*gd.L_SCALE_SUN, 0.0, sth, Dm2,
+                        validate_input=False)
+
+    assert hybrid_spy.answered is True, "the hybrid strategy did not answer a case it certifies"
+    assert ip_spy.answered is None, \
+        "the interaction-picture fast path was reached even though hybrid had already answered"
+
+
+def test_magnus_strategy_still_reaches_the_interaction_picture_fast_path(monkeypatch):
+    """strategy='magnus' makes the hybrid dispatcher decline without doing any work, so the
+    reorder must leave this route to the fast path exactly as it was: the fast path is still
+    reached, and still answers."""
+    sth, Dm2 = np.sqrt(0.308), 7.5e-5
+    ip_spy = _spy_on(monkeypatch, '_osc_prob_ip_exp_dispatch')
+
+    op.osc_prob_2nu_sun(40.0*gd.UNIT_MEV, 0.3*gd.L_SCALE_SUN, 0.0, sth, Dm2,
+                        strategy='magnus', validate_input=False)
+
+    assert ip_spy.answered is True, \
+        "strategy='magnus' no longer reaches the interaction-picture fast path"
+
+
 @pytest.mark.parametrize("energy_mev", [1.0, 5.0, 15.0])
-def test_sun_2nu_fast_path_matches_solve_ivp(energy_mev):
+def test_sun_2nu_fast_path_matches_solve_ivp(energy_mev, monkeypatch):
     """The interaction-picture fast path for a genuine exponential density profile (Sun-like)
     must reproduce the exact (solve_ivp) probability at realistic, low solar-neutrino energies,
     without hitting the refinement caps or emitting the slab-width convergence warning -- this is
     the regime (large accumulated vacuum phase, far below the 1 GeV point that already saturates
     the general method's default max_n_slabs) the fast path exists to fix. A short baseline (a
     fraction of an e-fold of the density profile) keeps solve_ivp itself tractable at these
-    energies while still exercising a genuinely varying matter potential."""
+    energies while still exercising a genuinely varying matter potential.
+
+    The hybrid strategy is disabled here deliberately. It is tried first (see
+    test_hybrid_strategy_precedes_the_interaction_picture_fast_path) and certifies all three of
+    these points, so without the monkeypatch every assertion below would still hold -- while
+    testing the hybrid strategy instead of the fast path this test is named for. The spy is what
+    keeps that honest: it fails if the fast path stops answering rather than letting the general
+    path quietly satisfy the assertions."""
     sth, Dm2 = np.sqrt(0.308), 7.5e-5
     energy = energy_mev*gd.UNIT_MEV
     L = 0.3*gd.L_SCALE_SUN
 
+    monkeypatch.setattr(op, '_osc_prob_hybrid_dispatch', lambda *a, **k: NotImplemented)
+    ip_spy = _spy_on(monkeypatch, '_osc_prob_ip_exp_dispatch')
+
     with warnings.catch_warnings(record=True) as wlist:
         warnings.simplefilter("always")
         P = op.osc_prob_2nu_sun(energy, L, 0.0, sth, Dm2, validate_input=False)
+    assert ip_spy.answered is True, "the interaction-picture fast path did not produce this answer"
     assert not any(issubclass(w.category, (op.ToleranceNotAchievedWarning,
                                            mg.MagnusConvergenceWarning)) for w in wlist)
     assert np.allclose(np.sum(P, axis=1), 1.0, atol=1e-9)

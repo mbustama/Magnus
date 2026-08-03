@@ -4549,26 +4549,39 @@ def osc_prob_matter_std_potential(
     if P_avg is not NotImplemented:
         return P_avg
 
+    # Hybrid strategy (adiabatic transport + Magnus patch at any non-adiabatic window; see
+    # _osc_prob_hybrid_dispatch and :doc:`/adiabatic_strategy`): broader than the interaction-
+    # picture fast path below (any number of flavors, any smooth position-dependent profile), and
+    # tried first unless strategy == 'magnus'.  Falls back transparently (returns NotImplemented)
+    # if it does not apply or (with strategy == 'auto' only) fails to self-certify.
+    #
+    # Tried *before* the fast path because that is what strategy='auto' has always been
+    # documented to mean ("tries the hybrid strategy first ... but falls back silently to the
+    # 'magnus' strategies", of which the interaction-picture integrator is one) -- and because
+    # measurement says the documented order is also the better one.  On solar configurations,
+    # across 50 (energy, baseline) points spanning the standard, NSI and LIV families and
+    # 0.5-100 MeV, scored against solve_ivp/DOP853: the hybrid strategy certified 50/50 with a
+    # worst error of 1.8e-04 against a requested 1e-3 and no warnings, while the fast path
+    # certified 22/50 and took a mean of 13.2 s to decline the other 28.  Where both answer,
+    # hybrid is 28-594x faster (median 397x).  The fast path is more accurate only at 40-100 MeV
+    # and only at the default tolerance -- at rtol/atol <= 1e-5 it declines outright at every
+    # energy measured.  See docs/dev/DECISION_DISPATCH_ORDER.md.
+    P_hybrid = _osc_prob_hybrid_dispatch(h_vac_energy_indep, VCC_func, h_matt_proj, None, None,
+        energy, L, L0, nu_i, nu_f, scan_kwargs, strategy)
+    if P_hybrid is not NotImplemented:
+        return P_hybrid
+
     # Fast path for a genuine exponential density profile (e.g., the Sun): factor out the
     # (possibly huge, at low energy) fast vacuum phase analytically in the interaction picture,
     # instead of resolving it slab by slab (see _osc_prob_ip_exp_dispatch).  Applies to a single
     # (energy, L) point as well as to a scan, and falls back transparently (returns
     # NotImplemented) if the profile is not exponential or if it fails to converge (e.g., near an
-    # MSW resonance), in which case the general methods below are used instead.
+    # MSW resonance), in which case the general methods below are used instead.  Reached only
+    # where the hybrid strategy declined, or with strategy == 'magnus'.
     P_ip = _osc_prob_ip_exp_dispatch(h_vac_energy_indep, VCC_func, h_matt_proj, None, None,
         energy, L, L0, nu_i, nu_f, scan_kwargs)
     if P_ip is not NotImplemented:
         return P_ip
-
-    # Hybrid strategy (adiabatic transport + Magnus patch at any non-adiabatic window; see
-    # _osc_prob_hybrid_dispatch and :doc:`/adiabatic_strategy`): broader than the fast path above
-    # (any number of flavors, any smooth position-dependent profile), tried next unless
-    # strategy == 'magnus'.  Falls back transparently (returns NotImplemented) if it does not
-    # apply or (with strategy == 'auto' only) fails to self-certify.
-    P_hybrid = _osc_prob_hybrid_dispatch(h_vac_energy_indep, VCC_func, h_matt_proj, None, None,
-        energy, L, L0, nu_i, nu_f, scan_kwargs, strategy)
-    if P_hybrid is not NotImplemented:
-        return P_hybrid
 
     # Energy-batched fast path: when many energies share a single baseline and the Hamiltonian
     # is position-dependent, compute the whole scan in one batched pipeline, with the potential
@@ -4891,19 +4904,20 @@ def osc_prob_matter_nsi(
     if P_avg is not NotImplemented:
         return P_avg
 
-    # Fast path for a genuine exponential density profile (e.g., the Sun): see
-    # _osc_prob_ip_exp_dispatch and the matching comment in osc_prob_matter_std_potential.
-    P_ip = _osc_prob_ip_exp_dispatch(h_vac_energy_indep, VCC_func, h_matt, None, None,
-        energy, L, L0, nu_i, nu_f, scan_kwargs)
-    if P_ip is not NotImplemented:
-        return P_ip
-
-    # Hybrid strategy: see _osc_prob_hybrid_dispatch and the matching comment in
-    # osc_prob_matter_std_potential.
+    # Hybrid strategy, tried first: see _osc_prob_hybrid_dispatch and the matching comment in
+    # osc_prob_matter_std_potential for why it precedes the interaction-picture fast path.
     P_hybrid = _osc_prob_hybrid_dispatch(h_vac_energy_indep, VCC_func, h_matt, None, None,
         energy, L, L0, nu_i, nu_f, scan_kwargs, strategy)
     if P_hybrid is not NotImplemented:
         return P_hybrid
+
+    # Fast path for a genuine exponential density profile (e.g., the Sun), reached only where the
+    # hybrid strategy declined: see _osc_prob_ip_exp_dispatch and the matching comment in
+    # osc_prob_matter_std_potential.
+    P_ip = _osc_prob_ip_exp_dispatch(h_vac_energy_indep, VCC_func, h_matt, None, None,
+        energy, L, L0, nu_i, nu_f, scan_kwargs)
+    if P_ip is not NotImplemented:
+        return P_ip
 
     # Energy-batched fast path: when many energies share a single baseline and the Hamiltonian
     # is position-dependent, compute the whole scan in one batched pipeline, with the potential
@@ -5245,15 +5259,16 @@ def osc_prob_liv(
     # the engine, fall back to the generic per-point path below.
     P_scan = NotImplemented
     if (rho_func != 0.0):  # VCC_func and h_matt exist only when there is matter
-        # Fast path for a genuine exponential density profile (e.g., the Sun): see
-        # _osc_prob_ip_exp_dispatch and the matching comment in osc_prob_matter_std_potential.
-        P_scan = _osc_prob_ip_exp_dispatch(h_vac_energy_indep, VCC_func, h_matt,
-            h_liv_energy_indep, n_liv, energy, L, L0, nu_i, nu_f, scan_kwargs)
+        # Hybrid strategy, tried first: see _osc_prob_hybrid_dispatch and the matching comment in
+        # osc_prob_matter_std_potential for why it precedes the interaction-picture fast path.
+        P_scan = _osc_prob_hybrid_dispatch(h_vac_energy_indep, VCC_func, h_matt,
+            h_liv_energy_indep, n_liv, energy, L, L0, nu_i, nu_f, scan_kwargs, strategy)
         if P_scan is NotImplemented:
-            # Hybrid strategy: see _osc_prob_hybrid_dispatch and the matching comment in
-            # osc_prob_matter_std_potential.
-            P_scan = _osc_prob_hybrid_dispatch(h_vac_energy_indep, VCC_func, h_matt,
-                h_liv_energy_indep, n_liv, energy, L, L0, nu_i, nu_f, scan_kwargs, strategy)
+            # Fast path for a genuine exponential density profile (e.g., the Sun), reached only
+            # where the hybrid strategy declined: see _osc_prob_ip_exp_dispatch and the matching
+            # comment in osc_prob_matter_std_potential.
+            P_scan = _osc_prob_ip_exp_dispatch(h_vac_energy_indep, VCC_func, h_matt,
+                h_liv_energy_indep, n_liv, energy, L, L0, nu_i, nu_f, scan_kwargs)
         if P_scan is NotImplemented:
             P_scan = _osc_prob_scan_separable_dispatch(h_vac_energy_indep, VCC_func, h_matt,
                 h_liv_energy_indep, n_liv, energy, L, L0, nu_i, nu_f, scan_kwargs)
