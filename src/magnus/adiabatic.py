@@ -417,6 +417,49 @@ def find_nonadiabatic_windows(H_func: Callable, l0: float, l1: float,
             l_b, l_c = _estimate_window_bounds(H_func, c['l'], c['j'], c['k'], l0, l1, threshold,
                 fd_step)
             windows.append([l_b, l_c])
+
+    # Sweep the probe grid as well, not only the gap extrema above.  A gap extremum is where the
+    # *gap* is stationary, which is not where gamma = |<v_j|dH/dl|v_k>| / gap^2 peaks: on a
+    # rapidly varying profile the coupling can be large between the extrema, and evaluating only
+    # at them understates the maximum badly -- measured at 196x on a 3nu NSI profile modulated by
+    # a strong sine (3.6e-04 at the extrema against 7.0e-02 along the path).
+    #
+    # Without this the failure is silent rather than merely inaccurate.  No window ever opens, so
+    # successive refinements differ only in the adiabatic-transport grid, converge to the same
+    # wrong adiabatic limit, agree with each other, and hybrid_propagator certifies a result that
+    # was off by 4.3e-02 against solve_ivp.  Lowering the threshold cannot rescue it, because the
+    # threshold is only ever compared against values sampled where gamma happens to be small.
+    #
+    # Reuses the eigendecomposition already needed for the sweep, so the cost is one extra pass
+    # over the probe grid rather than a new one per pair per point.
+    ls_probe = np.linspace(l0, l1, n_probe)
+    Hs = np.array([np.asarray(H_func(l), dtype=complex) for l in ls_probe])
+    lam_p, W_p = np.linalg.eigh(Hs)
+    dH_p = np.array([_dH_dl(H_func, l, fd_step, (l0, l1)) for l in ls_probe])
+    d_p = Hs.shape[-1]
+    for j in range(d_p):
+        for k in range(j + 1, d_p):
+            vj, vk = W_p[:, :, j], W_p[:, :, k]
+            coupling = np.abs(np.einsum('ni,nij,nj->n', np.conj(vj), dH_p, vk))
+            gap = np.abs(lam_p[:, k] - lam_p[:, j])
+            gamma_p = np.where(gap > 0.0, coupling/np.where(gap > 0.0, gap, 1.0)**2, np.inf)
+            over = np.where(gamma_p > threshold)[0]
+            if over.size == 0:
+                continue
+            # One window per *contiguous run* of exceedance, grown from that run's peak --
+            # not one per exceeding point.  Growing from every point and merging pads each
+            # window outward independently, and enough of them bridge the quiet stretch
+            # between two genuinely separate crossings: on the two-crossing fixture in
+            # tests/test_avgprob.py that collapsed 2 windows into 1 spanning almost the whole
+            # trajectory, which destroys the crossing structure the averaged-probability
+            # report is built on.  Runs also make this cheap: two growth searches there
+            # rather than forty-two.
+            for run in np.split(over, np.where(np.diff(over) != 1)[0] + 1):
+                peak = int(run[np.argmax(gamma_p[run])])
+                l_b, l_c = _estimate_window_bounds(H_func, float(ls_probe[peak]), j, k, l0, l1,
+                    threshold, fd_step)
+                windows.append([l_b, l_c])
+
     if not windows:
         return [], candidates
     windows.sort()

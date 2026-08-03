@@ -730,11 +730,18 @@ def test_baseline_scan_across_many_resonances_matches_solve_ivp():
     L = np.linspace(l0 + 0.02*(l1 - l0), l1,
                     op.HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS + 5)
 
-    # The profile really is multi-resonant: assert it, so a change to the detector that made
-    # this an ordinary single-crossing case would show up as a failure here rather than as a
-    # quietly weaker test.
+    # The profile really is multi-resonant: assert it, so a change that made this an ordinary
+    # single-crossing case would fail here rather than quietly weaken the test.
+    #
+    # Counted as gap extrema rather than as final windows. The extrema are a structural property
+    # of the Hamiltonian, whereas the window count depends on the merging policy: windows are now
+    # opened one per contiguous stretch of non-adiabaticity, so this profile reports 2 broad
+    # windows covering many crossings where an earlier policy reported one per crossing.
+    candidates = op.adiabatic.find_resonance_candidates(H, float(l0), float(l1))
+    assert len(candidates) >= 5, \
+        f"profile is no longer multi-resonant ({len(candidates)} gap extrema)"
     _, windows, _ = op.adiabatic.hybrid_propagator(H, float(l0), float(l1))
-    assert len(windows) >= 3, f"profile is no longer multi-resonant ({len(windows)} windows)"
+    assert windows, "no non-adiabatic window found on a multi-resonance profile"
 
     def rhs(l, y):
         return (-1j*np.asarray(H(l)) @ y.reshape(3, 3)).ravel()

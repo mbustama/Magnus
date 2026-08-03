@@ -392,3 +392,68 @@ def test_hybrid_propagator_does_not_certify_when_a_later_patch_fails(monkeypatch
     assert len(calls) == 2
     assert calls[1] != calls[0], "the second pass must run at genuinely tightened knobs"
     assert maxabs(U.conj().T @ U - np.eye(2)) < 1e-12
+
+
+def test_windows_are_found_away_from_gap_extrema():
+    """The adiabaticity parameter is not largest where the gap is stationary.
+
+    find_resonance_candidates locates gap *extrema* -- sign changes of the Hellmann-Feynman
+    derivative difference. Evaluating gamma only there understates its maximum badly on a
+    rapidly varying profile: measured on this one, 3.6e-04 at the extrema against 7.0e-02 along
+    the path, a factor of 196.
+
+    The consequence was not merely a loose estimate. No window ever opened, so successive
+    refinements of hybrid_propagator differed only in the adiabatic-transport grid, converged to
+    the same wrong adiabatic limit, agreed with each other to 8.3e-05, and certified a result
+    that was wrong by 4.3e-02 against solve_ivp -- the false-convergence failure class recorded
+    in docs/dev/NOTES_ADAPTIVE_REFINEMENT.md, on the adiabatic path.
+
+    The profile is a solar exponential modulated by a strong, fast sine, with an NSI coupling; it
+    is smooth, so nothing here is about discontinuities."""
+    osc = gd.OSC_PARAMS_PREDEFINED['OSC_PARAMS_DEFAULT']
+    hvac = hams.hamiltonian_3nu_vacuum_energy_independent(
+        osc['s12'], osc['s23'], osc['s13'], osc['dCP'], osc['D21'], osc['D31'])
+    h_matt = np.diag([1.0, 0.0, 0.0]) + hams.hamiltonian_3nu_nsi(1.0, 0.0, 0.0j, 3.0,
+                                                                 0.0, 0.0j, 0.0)
+    LS = gd.L_SCALE_SUN
+    energy = 18.0*gd.UNIT_MEV
+
+    def rho(l):
+        l = np.asarray(l)
+        return gd.NUM_DENSITY_E_SUN_CENTRAL*np.exp(-l/LS)*(
+            1.0 + 0.9*np.sin(2.0*np.pi*l/(0.45*LS)))
+
+    VCC_func = matter.vcc_func_from_rho_func(rho, 0.0, 1.0, 0.5, False, False, True)
+
+    def H_func(l):
+        return (1.0/energy)*hvac + np.asarray(VCC_func(l))[..., None, None]*h_matt
+
+    l0, l1 = 0.5*LS, 1.54*LS
+
+    # The gap extrema really are quiet here -- that is the point of the case, so assert it
+    # rather than trusting it, and the test degrades loudly if the profile ever changes.
+    fd_step = (l1 - l0)*1e-6
+    cands = ad.find_resonance_candidates(H_func, float(l0), float(l1))
+    gamma_at_extrema = max(
+        ad._point_adiabaticity(H_func, c['l'], c['j'], c['k'], fd_step, (float(l0), float(l1)))
+        for c in cands)
+    assert gamma_at_extrema < 1e-3, \
+        f"gap extrema are no longer quiet on this profile (gamma {gamma_at_extrema:.2e})"
+
+    # Probed at a threshold between the two scales: below the ~7e-2 that gamma reaches along the
+    # path, far above the ~3.6e-4 it reaches at the extrema. Only a sweep of the path can open a
+    # window here; extrema-only evaluation cannot, at any threshold above 3.6e-4.
+    #
+    # Not the default 0.1: gamma never exceeds that anywhere on this profile, so nothing opens on
+    # the first iteration and it is hybrid_propagator's own threshold refinement (0.1 -> 0.0333)
+    # that reaches the regime where the sweep matters.
+    windows, _ = ad.find_nonadiabatic_windows(H_func, float(l0), float(l1), threshold=0.03)
+    assert windows, "no window opened at threshold 0.03, though gamma reaches ~7e-2 on the path"
+
+    U, _, certified = ad.hybrid_propagator(H_func, float(l0), float(l1))
+    assert certified
+    U_exact = exact_U(H_func, float(l0), float(l1), 3)
+    P = np.abs(U).T**2
+    P_exact = np.abs(U_exact).T**2
+    err = np.max(np.abs(P - P_exact))
+    assert err < 1e-3, f"certified but wrong by {err:.2e}"

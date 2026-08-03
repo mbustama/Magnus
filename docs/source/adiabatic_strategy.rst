@@ -292,6 +292,28 @@ or structure. It also composes correctly with any number of simultaneous
 or sequential resonances, of any kind (standard MSW, NSI-induced, or
 otherwise), between any pair of levels.
 
+.. note::
+
+   That last sentence was, until version 1.0.0, true only of resonances
+   that sit at an extremum of the level gap.  The detector locates
+   candidates as gap extrema and evaluated the adiabaticity parameter
+   :math:`\gamma` only there -- but a gap extremum is where the *gap* is
+   stationary, which is not where
+   :math:`\gamma = |\langle v_j|\,dH/dl\,|v_k\rangle| / (\lambda_k - \lambda_j)^2`
+   peaks.  On a rapidly varying profile the two differ sharply: measured on
+   a solar exponential modulated by a strong sine with an NSI coupling,
+   :math:`\gamma` reached 3.6e-04 at the extrema against 7.0e-02 along the
+   path, a factor of 196.
+
+   The consequence was worse than a loose estimate.  No window opened, so
+   successive refinements differed only in the adiabatic-transport grid,
+   converged to the same wrong adiabatic limit, agreed with each other, and
+   the result was reported as **certified** while being wrong by 4.3e-02
+   against ``solve_ivp``.  :func:`magnus.adiabatic.find_nonadiabatic_windows`
+   now also sweeps :math:`\gamma` along the probe grid, opening one window
+   per contiguous stretch that exceeds the threshold, which brings that case
+   to 2.2e-04 and leaves well-behaved profiles bit-for-bit unchanged.
+
 .. code-block:: python
 
    import magnus.oscprob as oscprob
