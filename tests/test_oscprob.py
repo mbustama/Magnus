@@ -2281,3 +2281,183 @@ def test_zero_width_slab_evolution_operator_is_the_identity():
     U = np.asarray(op.compute_evolution_operator(H_func, [5.0, 5.0], n_tpts_per_slab=2,
                                                  magnus_exp_order=4))
     assert maxabs(U - np.eye(2)) == 0.0
+
+
+# ----------------------------------------------------------------------
+# Promoted from the adversarial-validation batteries (docs/dev/adversarial_batteries/).
+# Those scripts are diagnostics -- they print tables, take tens of minutes, and are not run by
+# CI -- so the silent-miss classes they found would otherwise be defended by nothing.  These
+# four are the cheapest configuration that still fails if the corresponding safeguard is
+# removed, and each states the number it was worth when it was broken.
+# ----------------------------------------------------------------------
+
+def _ne_step(mid, lo_frac=0.02, hi_frac=0.30):
+    """Piecewise-constant electron density with one jump: expm is EXACT for this."""
+    lo, hi = lo_frac*gd.NUM_DENSITY_E_SUN_CENTRAL, hi_frac*gd.NUM_DENSITY_E_SUN_CENTRAL
+
+    def ne(l):
+        y = np.where(np.asarray(l, dtype=float) < mid, lo, hi)
+        a = np.asarray(y)
+        return a[()] if a.ndim == 0 else a
+    return ne
+
+
+def _exact_step_P(mid, l1, energy, sth, Dm2):
+    """Exact probability matrix across a two-piece constant profile, via expm composition."""
+    h_vac = np.asarray(hams.hamiltonian_2nu_vacuum_energy_independent(sth, Dm2), dtype=complex)
+    proj = np.diag([1.0, 0.0]).astype(complex)
+    vcc = matter.vcc_func_from_rho_func(_ne_step(mid), 0.0, 1.0, 0.5, nubar=False,
+                                        density_matter_is_in_g_per_cm3=False,
+                                        density_is_of_number_of_electrons=True)
+    H_a = (1.0/energy)*h_vac + float(np.asarray(vcc(0.5*mid)))*proj
+    H_b = (1.0/energy)*h_vac + float(np.asarray(vcc(0.5*(mid + l1))))*proj
+    U = sp.linalg.expm(-1j*H_b*(l1 - mid)) @ sp.linalg.expm(-1j*H_a*mid)
+    return np.transpose(U.real**2 + U.imag**2)
+
+
+def test_unmarked_density_step_is_not_answered_silently_wrong():
+    """The headline finding of the adversarial validation, at the public entry point.
+
+    strategy='auto' returned P_ee = 0.589 against an exact expm answer of 0.0498 -- wrong by
+    **0.54** -- with no warning, because the hybrid strategy's only guard against a
+    discontinuous profile was "did the caller pass t_breakpoints", which fails open.  The guard
+    is now a measurement (magnus.adiabatic._profile_is_resolved), so hybrid declines to certify
+    and osc_prob falls through to the general Magnus path.
+    """
+    energy, l1 = 50.0e6, gd.L_SCALE_SUN
+    mid = 0.5*l1
+    sth, Dm2 = gd.S12_NO_BF_NUFIT_6_0, gd.D21_NO_BF_NUFIT_6_0
+    P_exact = _exact_step_P(mid, l1, energy, sth, Dm2)
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter('always')
+        P = np.asarray(op.osc_prob_matter_std_potential(
+            2, _ne_step(mid), energy, l1, {'sth': sth, 'Dm2': Dm2}, L0=0.0,
+            density_is_of_number_of_electrons=True))
+
+    err = np.max(np.abs(P - P_exact))
+    assert err < 1e-3, f"unmarked density step answered wrong by {err:.2e} (was 5.4e-01)"
+    assert caught, "an answer this hard-won must not come back silent"
+
+
+def test_subthreshold_nonadiabaticity_is_not_answered_silently_wrong():
+    """A sinusoidal density the probe resolves easily (~28 samples per period), on which gamma
+    stays below the 0.1 window threshold everywhere.
+
+    No window opened, successive refinements agreed with each other because they were all pure
+    adiabatic transport, and the answer came back certified and wrong by 1.67e-02 against a
+    requested 1e-3.  Certifying an empty window list now also requires gamma to be small enough
+    for the tolerance.
+    """
+    energy, l1 = 10.0e6, gd.L_SCALE_SUN
+    sth, Dm2 = gd.S12_NO_BF_NUFIT_6_0, gd.D21_NO_BF_NUFIT_6_0
+    h_vac = np.asarray(hams.hamiltonian_2nu_vacuum_energy_independent(sth, Dm2), dtype=complex)
+    proj = np.diag([1.0, 0.0]).astype(complex)
+    ne0 = gd.NUM_DENSITY_E_SUN_CENTRAL
+    c_vcc = float(np.asarray(matter.vcc_func_from_rho_func(
+        lambda l: ne0, 0.0, 1.0, 0.5, nubar=False, density_matter_is_in_g_per_cm3=False,
+        density_is_of_number_of_electrons=True)(0.0)))/ne0
+
+    xs = np.geomspace(ne0*1e-6, ne0*10.0, 2000)
+    gaps = [np.diff(np.linalg.eigvalsh(h_vac/energy + x*c_vcc*proj))[0] for x in xs]
+    ne_res = float(xs[int(np.argmin(gaps))])
+
+    def ne(l):
+        y = ne_res*(1.0 + 0.9*np.sin(2.0*np.pi*np.asarray(l, dtype=float)/(l1/7.0)))
+        a = np.asarray(y)
+        return a[()] if a.ndim == 0 else a
+
+    def H_func(l):
+        v = np.asarray(matter.vcc_func_from_rho_func(
+            ne, 0.0, 1.0, 0.5, nubar=False, density_matter_is_in_g_per_cm3=False,
+            density_is_of_number_of_electrons=True)(l))
+        return (1.0/energy)*h_vac + v[..., None, None]*proj
+
+    P = np.asarray(op.osc_prob_matter_std_potential(
+        2, ne, energy, l1, {'sth': sth, 'Dm2': Dm2}, L0=0.0,
+        density_is_of_number_of_electrons=True))
+
+    def rhs(l, y):
+        return (-1j*np.asarray(H_func(l)) @ y.reshape(2, 2)).ravel()
+    sol = solve_ivp(rhs, (0.0, l1), np.eye(2, dtype=complex).ravel(),
+                    rtol=1e-12, atol=1e-14, method='DOP853')
+    U = sol.y[:, -1].reshape(2, 2)
+    P_exact = np.transpose(U.real**2 + U.imag**2)
+
+    err = np.max(np.abs(P - P_exact))
+    assert err < 1e-3, f"sub-threshold non-adiabaticity wrong by {err:.2e} (was 1.67e-02)"
+
+
+def test_declared_breakpoints_make_a_piecewise_profile_essentially_exact():
+    """The other half of the piecewise story, and the advice the documentation now gives.
+
+    Over 150 random piecewise-constant profiles, declaring the edges gave a median error of
+    1.34e-12 and nothing outside tolerance, against a median 7.76e-04 without.  One
+    representative profile is enough to catch a regression in how t_breakpoints reaches the
+    slab grid.
+    """
+    energy, l1 = 50.0e6, gd.L_SCALE_SUN
+    edges = np.array([0.0, 0.17, 0.41, 0.63, 0.88, 1.0])*l1
+    values = gd.NUM_DENSITY_E_SUN_CENTRAL*np.array([0.03, 0.21, 0.07, 0.30, 0.12])
+
+    def ne(l):
+        x = np.asarray(l, dtype=float)
+        idx = np.clip(np.searchsorted(edges, x, side='right') - 1, 0, len(values) - 1)
+        y = values[idx]
+        a = np.asarray(y)
+        return a[()] if a.ndim == 0 else a
+
+    sth, Dm2 = gd.S12_NO_BF_NUFIT_6_0, gd.D21_NO_BF_NUFIT_6_0
+    h_vac = np.asarray(hams.hamiltonian_2nu_vacuum_energy_independent(sth, Dm2), dtype=complex)
+    proj = np.diag([1.0, 0.0]).astype(complex)
+    vcc = matter.vcc_func_from_rho_func(ne, 0.0, 1.0, 0.5, nubar=False,
+                                        density_matter_is_in_g_per_cm3=False,
+                                        density_is_of_number_of_electrons=True)
+
+    # Exact: H is constant on each segment, so expm composes exactly.
+    U = np.eye(2, dtype=complex)
+    for a, b in zip(edges[:-1], edges[1:]):
+        H_m = (1.0/energy)*h_vac + float(np.asarray(vcc(0.5*(a + b))))*proj
+        U = sp.linalg.expm(-1j*H_m*(b - a)) @ U
+    P_exact = np.transpose(U.real**2 + U.imag**2)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        P = np.asarray(op.osc_prob_matter_std_potential(
+            2, ne, energy, l1, {'sth': sth, 'Dm2': Dm2}, L0=0.0,
+            density_is_of_number_of_electrons=True, t_breakpoints=edges[1:-1]))
+
+    err = np.max(np.abs(P - P_exact))
+    assert err < 1e-8, f"declared breakpoints should be near-exact; got {err:.2e}"
+
+
+def test_cumulative_is_reachable_and_reproduces_the_per_point_path():
+    """`cumulative=False` used to raise TypeError from every wrapper, which made the one
+    documented route to pre-1.0.0 numbers unavailable at the layer where the change is visible.
+
+    Also pins the two directions apart: False must match strategy='magnus' bit for bit, and
+    'auto' must not (it takes the cumulative scan, which is the point).
+    """
+    energy = 50.0e6
+    LM = 0.5*gd.SUN_RADIUS*gd.UNIT_KM
+    Ls = np.linspace(0.05*LM, LM, 60)
+    rho = matter.exp_density_profile(gd.NUM_DENSITY_E_SUN_CENTRAL, gd.L_SCALE_SUN)
+    params = {'sth': gd.S12_NO_BF_NUFIT_6_0, 'Dm2': gd.D21_NO_BF_NUFIT_6_0}
+
+    def call(**kw):
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            return np.asarray(op.osc_prob_matter_std_potential(
+                2, rho, energy, Ls, params, L0=0.0,
+                density_is_of_number_of_electrons=True, **kw))
+
+    p_false = call(cumulative=False)
+    p_magnus = call(strategy='magnus')
+    p_auto = call()
+
+    assert np.array_equal(p_false, p_magnus), \
+        "cumulative=False must reproduce the pre-cumulative per-point path exactly"
+    assert not np.array_equal(p_auto, p_false), \
+        "the default should be taking the cumulative scan on a 60-point single-energy scan"
+    # An explicit request wins over the strategy='magnus' opt-out.
+    assert np.array_equal(call(strategy='magnus', cumulative=True), p_auto)
