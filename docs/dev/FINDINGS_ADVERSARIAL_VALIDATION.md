@@ -656,7 +656,42 @@ Re-timed, seven fresh rounds, controls at exactly 1.00×:
 its numbers are untouched. The lesson worth keeping is the one the comment illustrates: a claim
 in a comment about what the code reuses is not evidence that it reuses it.
 
-### 9.4 Quadrature methods
+### 9.4 The fuzzer, re-run against the fixed code
+
+§3.3b's 21 % was measured *before* the fixes and was the one headline number left stale. Re-run
+on the same seeded population (150 cases, 145 scored; cases 1–150 are identical to the first 150
+of the original run):
+
+| | before | after |
+|---|---|---|
+| median error | 6.27e-05 | **6.08e-08** |
+| p90 | 5.19e-03 | **7.14e-04** |
+| max | 4.00e-02 | **4.89e-03** |
+| outside 1e-3, **silent** | **51 / 243 (21 %)** | **6 / 145 (4.1 %)** |
+
+Median error improves by three orders, the worst silent miss by 8×, and the silent-miss rate by
+5×. By scan size:
+
+| N | cases | silent | median error |
+|---|---|---|---|
+| 1 | 21 | 1 (4.8 %) | 1.34e-04 |
+| 3 | 28 | **0** | 7.17e-05 |
+| 12 | 39 | 5 (12.8 %) | 2.50e-04 |
+| 30 | 28 | **0** | 6.43e-09 |
+| 80 | 29 | **0** | 8.22e-09 |
+
+The structural result is unchanged and now much sharper: **every remaining silent miss is still
+below the N = 25 seam**, none at N = 30 or 80, and none at d = 4 or 5 (four at d = 2, two at
+d = 3). The six survivors run 1.05e-03 to 2.78e-03 against a requested 1e-3 — one to three times
+over, where before they ran to 4.00e-02.
+
+What is left is therefore a *narrow* band: single points and short scans on random smooth
+profiles, overshooting tolerance by a factor of a few without saying so. That is the residue of
+the one mechanism nothing here can close — a feature the probe grid does not resolve — plus the
+γ estimate's own factor-of-two precision (see `GAMMA_SLACK`). It is no longer the 21 %,
+four-orders-of-magnitude exposure the validation opened with.
+
+### 9.5 Quadrature methods
 
 `gl`, `trapezoid` and `simpson` × `strategy` ∈ {auto, magnus}, on solar profiles: **no silent
 miss**. The one row outside tolerance (`trapezoid`/`magnus`, 4.893e-03) warns. Under `auto` all
