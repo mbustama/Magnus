@@ -494,6 +494,14 @@ Note that the error is **not** concentrated where the shape of this constant sug
 shortest third), and the grid density at the short end already matches what a probe there would
 ask for to within 1%.  What the multiplier buys is total resolution, not better placement.
 
+**The probe does not always converge**, and then this multiplier is doing more work than its
+name suggests.  Over a full solar radius at 5 and 10 MeV the strict probe reaches
+``max_n_slabs`` (20 000) without two successive levels agreeing, so the count it reports is the
+cap rather than a converged requirement, and ``n_acc`` is 80 000 by way of a ceiling.  The
+resulting scans are accurate (~5e-08 measured against ``solve_ivp``), but the safety margin is
+what makes that so.  A caller who lowers ``max_n_slabs`` lowers the scan's resolution with it,
+in proportion and without a separate warning.
+
 .. versionadded:: 1.0.0
 """
 
@@ -4280,8 +4288,17 @@ def osc_prob_energy_baseline(
             # strict one.  It costs one extra refinement level on a single call, amortised over
             # every baseline in the scan.
             probe_kwargs['strict_convergence'] = True
-            osc_prob(H_fixed, L0, float(L_sorted[-1]),
-                     A_eval_mode=osc_prob_kwargs.get('A_eval_mode'), **probe_kwargs)
+            # The probe's *probabilities* are discarded -- only its slab count is kept -- so a
+            # MagnusConvergenceWarning about its intermediate refinement levels describes a
+            # result nobody receives, and would be actively misleading: the grid this call
+            # sizes produces no such warning when it is actually traversed.  Suppressed here
+            # rather than globally, and only this one category: anything reporting that the
+            # count itself is unreliable (ToleranceNotAchievedWarning) still reaches the caller,
+            # because that does bear on the answer.
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore', magnus.MagnusConvergenceWarning)
+                osc_prob(H_fixed, L0, float(L_sorted[-1]),
+                         A_eval_mode=osc_prob_kwargs.get('A_eval_mode'), **probe_kwargs)
             # Scaled up because that count is what the *longest* baseline needed, and the
             # same uniform density is thinner than the shorter baselines in the scan would
             # have chosen for themselves; see CUMULATIVE_N_ACC_SAFETY for the measurement.

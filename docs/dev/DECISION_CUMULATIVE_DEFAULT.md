@@ -255,6 +255,35 @@ the suite asserts, and inherent to a long product rather than fixable by tuning 
 change in kind, not only in magnitude, and worth knowing before anyone tightens a unitarity
 assertion.
 
+## 4e. The probe must not warn about answers it throws away
+
+An ordinary wrapper baseline scan began emitting `MagnusConvergenceWarning` where `main`
+(hybrid) was silent. Tracing it: the warning comes from the **probe**, not the traversal --
+
+```
+probe alone      : ['MagnusConvergenceWarning']
+traversal alone  : (none)
+```
+
+-- and the probe keeps only a slab count; its probabilities are discarded. So the warning
+described a result nobody receives, while the grid it sizes produces no such warning when
+actually walked. That is misleading rather than merely noisy, so it is suppressed for that one
+call, for that one category. Verified narrow in both directions: a scan that genuinely cannot
+meet its tolerance still raises `ToleranceNotAchievedWarning`, and a deliberately coarse call
+elsewhere still raises `MagnusConvergenceWarning`.
+
+Re-running the notebooks afterwards: **no figure changed** (a warning cannot move a number), and
+warnings disappeared from exactly the cumulative cells -- notebook 02 cells 64 and 92, notebook
+03 cells 57, 71 and 99 -- with none gained. This also retires the cost recorded earlier on this
+branch, that notebook 03 cell 57 had started warning where it previously did not.
+
+**A related fact, documented rather than fixed.** Over a full solar radius at 5 and 10 MeV the
+strict probe reaches `max_n_slabs` (20 000) without two successive levels agreeing, so `n_acc`
+is derived from a ceiling rather than from a converged requirement. The resulting scans measure
+~5e-08 against `solve_ivp`, so the safety factor is carrying that; but a caller who lowers
+`max_n_slabs` lowers the scan's resolution in proportion, without a separate warning. Recorded
+in `CUMULATIVE_N_ACC_SAFETY`.
+
 ## 5. Cost, stated plainly
 
 **Results move.** The two paths build different grids, so any applicable baseline scan returns

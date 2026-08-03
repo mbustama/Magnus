@@ -308,10 +308,15 @@ profile, where the oscillating probability is what the caller wants.
   77.4%, but it is profile-specific rather than the general improvement §6.3 has in
   mind. Extending `_osc_prob_scan_separable`'s detection to more profile shapes is
   untouched.
-- **PREM cells could take breakpoints too.** Notebook 03 cells 85/90 scan PREM
-  per-point without `t_breakpoints`, though `earth.prem_layer_edges_along_chord`
-  exists and `tests/test_oscprob.py:303` already shows it improves accuracy there.
-  Left alone as out of scope for this brief.
-- **Proposal (3)**, held per the decision doc §6.5 and unchanged by any of the above
-  except that §3.1's cost split should be re-measured against the notebooks as they
-  now stand.
+- ~~**PREM cells could take breakpoints too.**~~ **Done** (2026-08-03): notebook 03 cells
+  85/90 and notebook 02 cells 78/83 now pass `earth.prem_layer_edges_along_chord`. Measured
+  against `solve_ivp` at the grid those cells use, at no cost in time: 1.28e-04 → 6.78e-11,
+  5.12e-04 → 1.42e-07, and 4.16e-03 → 3.30e-06 for the three directions — the through-the-core
+  one having been outside the default tolerance without them.
+- ~~**Proposal (3)**~~ **Done**: adopted in the notebooks, and `cumulative` now defaults to
+  `'auto'`. See `DECISION_CUMULATIVE_DEFAULT.md`, which also records that the accompanying
+  dispatch change makes the *hybrid* strategy the thing it must beat, not the per-point path.
+- **`strict_convergence` is load-bearing beyond its own flag.** The cumulative scan's grid is
+  sized by a probe that is always strict, because one early-stopping probe would misplace an
+  entire scan rather than one point. Removing or weakening the flag would silently degrade every
+  baseline scan in the package.

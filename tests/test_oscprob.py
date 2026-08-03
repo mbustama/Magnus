@@ -696,6 +696,44 @@ def test_strict_convergence_survives_a_baseline_scan():
         assert np.allclose(np.sum(P, axis=-1), 1.0, atol=1e-7), f"{label}: not unitary"
 
 
+def test_cumulative_probe_does_not_warn_about_answers_it_discards():
+    """The probe that sizes the cumulative grid keeps only a slab count -- its probabilities are
+    thrown away. A MagnusConvergenceWarning about its intermediate refinement levels therefore
+    describes a result nobody receives, and is misleading: the grid it sizes emits no such
+    warning when actually traversed. It is suppressed for that call only.
+
+    The suppression must be narrow in both directions: anything bearing on whether the answer met
+    its tolerance still has to reach the caller, and a genuinely coarse request elsewhere must
+    still warn."""
+    sth, Dm2 = np.sqrt(0.308), 7.5e-5
+    RS = gd.SUN_RADIUS*gd.UNIT_KM
+    E = 5.0*gd.UNIT_MEV
+    L = np.logspace(np.log10(1e-2*RS), np.log10(RS),
+                    op.HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS + 15)
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        op.osc_prob_2nu_sun(np.full_like(L, E), L, 0.0, sth, Dm2, validate_input=False)
+    assert not any(issubclass(w.category, mg.MagnusConvergenceWarning) for w in caught), \
+        "the calibration probe leaked a convergence warning about discarded probabilities"
+
+    # ... but a scan that genuinely cannot meet its tolerance must still say so.
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        op.osc_prob_2nu_sun(np.full_like(L, E), L, 0.0, sth, Dm2, max_n_slabs=32,
+                            max_num_loops=3, validate_input=False)
+    assert any(issubclass(w.category, op.ToleranceNotAchievedWarning) for w in caught), \
+        "suppressing the probe's warning also swallowed the tolerance signal"
+
+    # ... and the warning is not disabled globally.
+    H = _solar_2nu_H(E)
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        op.osc_prob(H, 0.0, float(RS), n_slabs=2, rtol=None, atol=None, validate_input=False)
+    assert any(issubclass(w.category, mg.MagnusConvergenceWarning) for w in caught), \
+        "MagnusConvergenceWarning no longer fires for a genuinely coarse grid"
+
+
 def test_cumulative_probe_is_strict_so_the_inherited_grid_is_trustworthy():
     """The cumulative scan sizes its whole grid from one adaptive osc_prob call, so that call's
     convergence decides every point in the scan. At 10 MeV over one solar radius the ordinary
