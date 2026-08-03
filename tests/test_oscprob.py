@@ -696,6 +696,52 @@ def test_strict_convergence_survives_a_baseline_scan():
         assert np.allclose(np.sum(P, axis=-1), 1.0, atol=1e-7), f"{label}: not unitary"
 
 
+def test_cumulative_routing_holds_for_quadrature_methods_and_a_shifted_origin():
+    """Two dimensions of the cumulative routing that nothing else exercises, both structural
+    rather than incidental because they change how the grid is built.
+
+    'trapezoid' and 'simpson' cannot reach the default tolerance on a full solar radius by any
+    route -- a single adaptive call at the far end gives 1.0e-01, having exhausted both
+    max_n_slabs and max_n_tpts_per_slab -- so the bar here is that the cumulative scan is no
+    worse than the per-point path it replaces, which it beats by about twentyfold.
+
+    A non-zero L0 matters because the traversal starts there and every requested baseline is a
+    prefix measured from it; an off-by-one origin would show up as a wholesale offset."""
+    sth, Dm2 = np.sqrt(0.308), 7.5e-5
+    RS = gd.SUN_RADIUS*gd.UNIT_KM
+    E = 8.0*gd.UNIT_MEV
+    H = _solar_2nu_H(E)
+    L = np.logspace(np.log10(1e-2*RS), np.log10(RS),
+                    op.HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS + 15)
+
+    def truth(Ls, start=0.0):
+        def rhs(l, y):
+            return (-1j*np.asarray(H(l)) @ y.reshape(2, 2)).ravel()
+        sol = solve_ivp(rhs, (start, float(Ls[-1])), np.eye(2, dtype=complex).ravel(),
+                        rtol=1e-11, atol=1e-13, method='DOP853', t_eval=Ls)
+        return np.array([np.abs(sol.y[:, k].reshape(2, 2)).T**2 for k in range(len(Ls))])
+
+    P_exact = truth(L)
+    for method in ('trapezoid', 'simpson'):
+        P_cum = np.asarray(op.osc_prob_2nu_sun(np.full_like(L, E), L, 0.0, sth, Dm2,
+                                               integration_method=method,
+                                               validate_input=False))
+        P_pp = np.asarray(op.osc_prob_energy_baseline(H, E, L, 0.0, cumulative=False,
+                                                      integration_method=method,
+                                                      validate_input=False))
+        e_cum, e_pp = maxabs(P_cum - P_exact), maxabs(P_pp - P_exact)
+        assert e_cum <= e_pp, \
+            f"{method}: cumulative {e_cum:.2e} is worse than per-point {e_pp:.2e}"
+        assert np.allclose(np.sum(P_cum, axis=-1), 1.0, atol=1e-8)
+
+    L0 = 0.2*RS
+    L_off = np.linspace(0.25*RS, RS, 40)
+    P_off = np.asarray(op.osc_prob_2nu_sun(np.full_like(L_off, E), L_off, L0, sth, Dm2,
+                                           validate_input=False))
+    assert maxabs(P_off - truth(L_off, start=L0)) < 1e-4, \
+        "a scan starting away from the origin does not match solve_ivp"
+
+
 def test_cumulative_probe_does_not_warn_about_answers_it_discards():
     """The probe that sizes the cumulative grid keeps only a slab count -- its probabilities are
     thrown away. A MagnusConvergenceWarning about its intermediate refinement levels therefore

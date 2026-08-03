@@ -284,6 +284,45 @@ is derived from a ceiling rather than from a converged requirement. The resultin
 `max_n_slabs` lowers the scan's resolution in proportion, without a separate warning. Recorded
 in `CUMULATIVE_N_ACC_SAFETY`.
 
+## 4f. What two further adversarial passes established
+
+Aimed at surfaces the earlier passes could not reach: parameter combinations the new path had
+never run on, and numerical oracles other than a single `solve_ivp` comparison.
+
+**Dimensions verified, all previously untested on this path.** Channel selection (`nu_i`/`nu_f`
+matches the full matrix exactly for all four channels), antineutrinos (6.84e-09 against
+`solve_ivp`), 4ν and 5ν scans (unitary to 1.8e-11 and 1.1e-11), Magnus orders 2/3/6
+(3.75e-07 to 2.13e-09), Python lists rather than arrays (bit-identical), and a **non-zero
+`L0`** -- a scan starting at 0.2 R_sun matches `solve_ivp` to 1.24e-07, so the traversal's
+origin handling is right.
+
+**Quadrature methods.** `trapezoid` and `simpson` cannot reach the default tolerance on a full
+solar radius by *any* route: a single adaptive call at the far end gives 1.0e-01, having
+exhausted both `max_n_slabs` (2000) and `max_n_tpts_per_slab` (500). Against that, the
+cumulative scan is a large improvement rather than a regression -- 5.19e-03 where the per-point
+path it replaces gives 1.00e-01. Recorded because the first reading of this measurement looked
+like a regression and was not.
+
+**Tighter tolerances are delivered.** Requested 1e-3, 1e-5 and 1e-7 all return ~1e-08, at a flat
+~368 ms: the probe is already capped, so a tighter request costs nothing and is already
+exceeded. Beyond what the cap can deliver the caller is still told -- at 1e-9 and 1e-12 the scan
+raises `ToleranceNotAchievedWarning`, confirming that suppressing the probe's convergence
+warning (§4e) did not swallow the signal that matters. On the same request the new path is 500x
+more accurate than the old one (1.13e-08 against 5.77e-06).
+
+**Independent oracles.** Against `expm` for a constant Hamiltonian -- the time-ordering and
+indexing check, not an accuracy one -- the cumulative scan agrees to **2.31e-14** over 60
+baselines. At extreme low energy, where the accumulated phase is largest, 0.5 MeV gives 2.74e-06
+and 0.2 MeV 5.49e-06.
+
+**One change was reverted for lack of evidence.** The traversal takes `n_tpts_per_slab` from a
+fixed default rather than from the probe, which looked like an oversight for the quadrature
+methods, where accuracy depends on it jointly with the slab count. Inheriting it was implemented
+and then measured across eight configurations: the probe reports the 500 cap every time, and the
+answer is identical either way, because the error is dominated by the slab count. The change was
+removed rather than kept on principle -- unmeasured complexity in a dispatch path is what this
+document exists to argue against.
+
 ## 5. Cost, stated plainly
 
 **Results move.** The two paths build different grids, so any applicable baseline scan returns
