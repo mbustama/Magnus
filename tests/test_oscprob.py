@@ -696,6 +696,59 @@ def test_strict_convergence_survives_a_baseline_scan():
         assert np.allclose(np.sum(P, axis=-1), 1.0, atol=1e-7), f"{label}: not unitary"
 
 
+def test_baseline_scan_across_many_resonances_matches_solve_ivp():
+    """A profile with many non-adiabatic crossings is the hardest case for the dispatch choice,
+    because the two candidates fail in opposite ways: the cumulative scan has no resonance
+    detection at all (one uniform grid), while the hybrid strategy locates and patches each
+    window but -- measured here -- self-certifies on this profile while being badly wrong.
+
+    The profile is an exponential decay modulated by a strong sine, so the resonance density is
+    crossed repeatedly; adiabatic.hybrid_propagator reports ten windows across the full range.
+    Scored against solve_ivp, the routing introduced with cumulative='auto' answers it to ~1e-05
+    where the hybrid answer it replaced was wrong by 2.9e-01.
+
+    Kept deliberately small (N just over the threshold, oracle sampled) so it costs a second or
+    two rather than the two minutes the full sweep took."""
+    osc = {'s12': S12, 's23': S23, 's13': S13, 'dCP': DCP, 'D21': D21, 'D31': D31}
+    hvac = hams.hamiltonian_3nu_vacuum_energy_independent(**osc)
+    h_matt = np.diag([1.0, 0.0, 0.0]) + hams.hamiltonian_3nu_nsi(1.0, 0.0, 0.0j, 3.0,
+                                                                 0.0, 0.0j, 0.0)
+    LS = gd.L_SCALE_SUN
+    energy = 18.0*gd.UNIT_MEV
+
+    def rho(l):
+        l = np.asarray(l)
+        return gd.NUM_DENSITY_E_SUN_CENTRAL*np.exp(-l/LS)*(
+            1.0 + 0.9*np.sin(2.0*np.pi*l/(0.45*LS)))
+
+    VCC_func = matter.vcc_func_from_rho_func(rho, 0.0, 1.0, 0.5, False, False, True)
+
+    def H(l):
+        return (1.0/energy)*hvac + np.asarray(VCC_func(l))[..., None, None]*h_matt
+
+    l0, l1 = 0.5*LS, 4.0*LS
+    L = np.linspace(l0 + 0.02*(l1 - l0), l1,
+                    op.HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS + 5)
+
+    # The profile really is multi-resonant: assert it, so a change to the detector that made
+    # this an ordinary single-crossing case would show up as a failure here rather than as a
+    # quietly weaker test.
+    _, windows, _ = op.adiabatic.hybrid_propagator(H, float(l0), float(l1))
+    assert len(windows) >= 3, f"profile is no longer multi-resonant ({len(windows)} windows)"
+
+    def rhs(l, y):
+        return (-1j*np.asarray(H(l)) @ y.reshape(3, 3)).ravel()
+
+    sol = solve_ivp(rhs, (float(l0), float(L[-1])), np.eye(3, dtype=complex).ravel(),
+                    rtol=1e-11, atol=1e-13, method='DOP853', t_eval=L)
+    P_exact = np.array([np.abs(sol.y[:, k].reshape(3, 3)).T**2 for k in range(len(L))])
+
+    P = np.asarray(op.osc_prob_energy_baseline(H, energy, L, float(l0), validate_input=False))
+    err = maxabs(P - P_exact)
+    assert err < 1e-3, f"multi-resonance baseline scan off by {err:.2e}"
+    assert np.allclose(np.sum(P, axis=-1), 1.0, atol=1e-8)
+
+
 def test_cumulative_routing_holds_for_quadrature_methods_and_a_shifted_origin():
     """Two dimensions of the cumulative routing that nothing else exercises, both structural
     rather than incidental because they change how the grid is built.

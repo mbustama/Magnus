@@ -323,6 +323,60 @@ answer is identical either way, because the error is dominated by the slab count
 removed rather than kept on principle -- unmeasured complexity in a dispatch path is what this
 document exists to argue against.
 
+## 4g. Multiple resonances, the hardest case for this dispatch choice
+
+The two candidate paths fail in opposite ways here, so a profile with many non-adiabatic
+crossings is the sharpest available test. The cumulative scan has **no resonance detection at
+all** -- one uniform grid, sized by a single probe. The hybrid strategy locates each window with
+a Hellmann-Feynman diagnostic and patches it. The obvious expectation is that hybrid wins.
+
+Profile: 3ν with NSI `eps_et = 3.0`, on an exponential solar decay modulated by a strong sine so
+the resonance density is crossed repeatedly. `hybrid_propagator` reports **ten windows** across
+0.5–7 l_scale. Baseline scan of N = 60, everything scored against `solve_ivp`/DOP853:
+
+| path | time | max error |
+|---|---|---|
+| **cumulative (the new default)** | **468 ms** | **1.02e-05** |
+| per-point general | 7.8 s | 4.00e-02 |
+| hybrid, one call per baseline | 101 s | **2.86e-01** |
+
+Through the user-facing wrapper, `main` against this branch:
+
+| N | main | branch |
+|---|---|---|
+| 8 (below the threshold) | 7.48e-02 | 7.48e-02 — unchanged, hybrid keeps it |
+| 60 (above it) | **2.86e-01** | **1.02e-05** |
+
+**A 28 000× improvement**, and the expectation was exactly backwards: the path with no resonance
+detection is the one that gets it right, because a grid fine enough for the whole trajectory
+resolves the crossings without needing to find them.
+
+### The reason hybrid loses is worse than being inaccurate
+
+It **certifies while wrong**. Per baseline, against `solve_ivp`:
+
+| L (l_scale) | windows found | certified | error |
+|---|---|---|---|
+| 1.54 | **0** | yes | 4.32e-02 |
+| 3.36 | 4 | yes | 6.48e-02 |
+| 5.18 | 6 | yes | 7.48e-02 |
+| 7.00 | 10 | yes | 7.40e-02 |
+
+Eight of eight sampled baselines certified, every one wrong by far more than the requested 1e-3.
+That it reports **zero** windows at 1.54 l_scale while being wrong by 4.3e-02 points at the
+detector missing crossings rather than mis-patching them. The certification is self-referential
+-- successive refinements of its own patches, never against truth -- so it can converge to its
+own wrong answer, which is the failure class `NOTES_ADAPTIVE_REFINEMENT.md` documents on the
+Magnus ladder, here on the adiabatic path.
+
+This is **pre-existing and not introduced by this branch**: on `main` every baseline scan went to
+hybrid, so `main` returns 2.86e-01 at N = 60. The routing here rescues scans of 25 points or
+more; single points and shorter scans still reach hybrid and are still exposed. Logged as
+separate work rather than fixed here, since the defect is in `magnus.adiabatic`, not in the
+dispatch. `docs/source/adiabatic_strategy.rst` currently claims this case works
+("composes correctly with any number of simultaneous or sequential resonances"), and that claim
+is false as measured.
+
 ## 5. Cost, stated plainly
 
 **Results move.** The two paths build different grids, so any applicable baseline scan returns
