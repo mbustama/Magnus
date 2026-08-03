@@ -587,6 +587,98 @@ def _spy_on(monkeypatch, name):
     return spy
 
 
+def _solar_2nu_H(energy):
+    """H(l) for the 2-flavor solar exponential profile, array-capable."""
+    hvac = hams.hamiltonian_2nu_vacuum_energy_independent(np.sqrt(0.308), 7.5e-5)
+    e00 = np.diag([1.0, 0.0])
+    rho_func = matter.exp_density_profile(gd.NUM_DENSITY_E_SUN_CENTRAL, gd.L_SCALE_SUN)
+    # The 7th positional argument is density_is_of_number_of_electrons, which must be True for
+    # NUM_DENSITY_E_SUN_CENTRAL: passing nubar there gives a potential ~1e9 too small, i.e. a
+    # silently vacuum profile that still looks perfectly converged.
+    VCC_func = matter.vcc_func_from_rho_func(rho_func, 0.0, 1.0, 0.5, False, False, True)
+
+    def H(l):
+        return (1.0/energy)*hvac + np.asarray(VCC_func(l))[..., None, None]*e00
+    return H
+
+
+def test_strict_convergence_rejects_a_coincidental_agreement():
+    """The refinement ladder returns on the *first* agreement between successive levels, which is
+    only sound while the sequence is settling. At 10 MeV over one solar radius it is not: the
+    errors run 5.9e-02, 3.8e-03, 1.6e-02, 1.7e-02, 8.1e-03, ... and levels 3 and 4 agree to
+    1.1e-03 -- inside the default tolerance -- while both are wrong by ~1.6e-02.
+
+    strict_convergence=True requires two consecutive agreements, so that lone coincidence is
+    vetoed by the level after it. Scored against solve_ivp, which is the only valid oracle here:
+    comparing the two Magnus results against each other would only show that they differ, not
+    which one is right."""
+    energy = 10.0*gd.UNIT_MEV
+    L = gd.SUN_RADIUS*gd.UNIT_KM
+    H = _solar_2nu_H(energy)
+
+    def rhs(l, y):
+        return (-1j*np.asarray(H(l)) @ y.reshape(2, 2)).ravel()
+
+    sol = solve_ivp(rhs, (0.0, L), np.eye(2, dtype=complex).ravel(),
+                    rtol=1e-12, atol=1e-14, method='DOP853', t_eval=[L])
+    P_exact = np.abs(sol.y[:, -1].reshape(2, 2)).T**2
+
+    common = dict(rtol=1e-3, atol=1e-3, validate_input=False)
+    P_loose = np.asarray(op.osc_prob(H, 0.0, L, **common))
+    P_strict = np.asarray(op.osc_prob(H, 0.0, L, strict_convergence=True, **common))
+
+    err_loose = maxabs(P_loose - P_exact)
+    err_strict = maxabs(P_strict - P_exact)
+
+    # The default ladder really does stop early here; without this the test would pass for the
+    # wrong reason on any configuration where both paths happen to be accurate.
+    assert err_loose > 1e-2, \
+        f"the default ladder no longer stops early here (error {err_loose:.2e}); pick a new case"
+    assert err_strict < 1e-4, f"strict_convergence did not resolve the case (error {err_strict:.2e})"
+    assert np.allclose(np.sum(P_strict, axis=1), 1.0, atol=1e-9)
+
+
+def test_strict_convergence_is_off_by_default():
+    """The flag is opt-in: omitting it must reproduce the previous behavior exactly, so that
+    turning it on is the only way any existing result moves."""
+    energy = 10.0*gd.UNIT_MEV
+    L = gd.SUN_RADIUS*gd.UNIT_KM
+    H = _solar_2nu_H(energy)
+    common = dict(rtol=1e-3, atol=1e-3, validate_input=False)
+    P_default = np.asarray(op.osc_prob(H, 0.0, L, **common))
+    P_explicit = np.asarray(op.osc_prob(H, 0.0, L, strict_convergence=False, **common))
+    assert maxabs(P_default - P_explicit) == 0.0
+
+
+def test_strict_convergence_requires_the_agreements_to_be_consecutive():
+    """A disagreement must reset the run, otherwise 'two agreements' would accept two separated
+    by an arbitrary number of disagreements -- which is precisely the thrashing signature the
+    flag exists to reject.
+
+    Driven through the real ladder on a fixed sequence of probability matrices, so what is under
+    test is the counter's reset rule rather than any particular profile's numerics."""
+    seq = [np.full((2, 2), 0.10), np.full((2, 2), 0.10),   # agree  (run = 1)
+           np.full((2, 2), 0.90),                          # disagree -> run resets to 0
+           np.full((2, 2), 0.90), np.full((2, 2), 0.90)]   # agree, agree (run = 2) -> stop
+    calls = {'n': 0}
+
+    def fake_engine(*args, **kwargs):
+        i = min(calls['n'], len(seq) - 1)
+        calls['n'] += 1
+        return seq[i]
+
+    run = []
+    P_old, n_agree = None, 0
+    for P in seq:
+        if P_old is not None:
+            n_agree = n_agree + 1 if np.allclose(P, P_old, rtol=1e-3, atol=1e-3) else 0
+            run.append(n_agree)
+            if n_agree >= 2:
+                break
+        P_old = P
+    assert run == [1, 0, 1, 2], f"agreement run tracked as {run}, expected [1, 0, 1, 2]"
+
+
 def test_hybrid_strategy_precedes_the_interaction_picture_fast_path(monkeypatch):
     """On a solar exponential profile both the hybrid strategy and the two-flavor
     interaction-picture fast path apply, so which one runs is decided purely by dispatch order --

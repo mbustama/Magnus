@@ -1838,6 +1838,7 @@ def osc_prob(
     A_eval_mode: Optional[str]=None,
     convergence_info: Optional[Dict]=None,
     t_breakpoints: Optional[Union[list, np.ndarray]]=None,
+    strict_convergence: Optional[bool]=False,
     **kwargs
 ) -> np.ndarray:
     r"""Computes and returns the neutrino oscillation probability.
@@ -1964,6 +1965,70 @@ def osc_prob(
         into the automatically generated slab grid at every refinement
         level, so that the quadrature never integrates across them.
         Ignored when ``t_slab_edges`` is given explicitly.
+    strict_convergence : bool, optional
+        Require the refinement ladder to agree **twice in a row** before
+        declaring convergence, instead of once.  Default: False.
+
+        *What the ladder normally does.*  With a tolerance requested,
+        ``osc_prob`` computes the probability on a grid of ``n_slabs``
+        slabs, then again on a finer one (``n_slabs`` grows by
+        ``growth_factor_n_slabs`` each time), and returns as soon as two
+        successive grids agree within ``rtol``/``atol``.  The assumption
+        is that agreement between successive refinements means the answer
+        has stopped changing because it has converged.
+
+        *When that assumption fails.*  It is only safe while the sequence
+        is settling down.  If the grid is still too coarse to resolve the
+        Hamiltonian, successive refinements do not approach the answer
+        smoothly -- they jump around it -- and two neighboring jumps can
+        land close together by coincidence.  ``np.allclose`` cannot tell
+        that apart from convergence, so the ladder stops early and returns
+        a plausible, exactly unitary, *wrong* answer with no warning.
+        Measured example (2 flavors, solar exponential profile, 10 MeV
+        over one solar radius, default ``rtol=atol=1e-3``): the errors at
+        successive levels run 5.9e-02, 3.8e-03, 1.6e-02, 1.7e-02, 8.1e-03,
+        4.5e-03, 3.5e-06.  Levels 3 and 4 agree to 1.1e-03 -- inside the
+        requested tolerance -- while both are wrong by ~1.6e-02, and the
+        next level moves by 2.5e-02.
+
+        *What this flag changes.*  Convergence is declared only after two
+        consecutive agreements, so a lone coincidence is vetoed by the
+        level that follows it.  On the example above the ladder continues
+        to ``n_slabs = 20000`` and an error of 6.8e-08.
+
+        *What it costs.*  One extra refinement level, each costing about
+        ``growth_factor_n_slabs`` times the last: measured median **1.53x**
+        (worst 1.75x) on calls whose first agreement was already genuine.
+        On calls this actually rescues it costs 3.5-8.6x, because there the
+        second agreement is several levels away -- that cost is paid only
+        where the answer would otherwise have been wrong.
+
+        *When you do not need it.*  If the quantity you care about is an
+        average over many oscillations -- the usual case for solar
+        neutrinos, where the survival probability oscillates thousands of
+        times along the trajectory -- most of the error this guards
+        against is in the *phase* and cancels in the average.  On the 10
+        MeV example the pointwise error of 2.5e-02 becomes 1.9e-04 once
+        averaged over 25 oscillations.  Prefer ``average=True`` on the
+        wrapper functions (see :func:`osc_prob_matter_std_potential`),
+        which computes the phase-averaged probability directly and far
+        more cheaply.  Use ``strict_convergence`` when the oscillating
+        probability itself is the answer you want -- a probability-versus-
+        baseline or versus-energy curve, an oscillogram, or a fixed
+        baseline and energy.
+
+        *What it does not fix.*  A refinement ladder of any strictness is
+        powerless against an **incomplete** ``t_breakpoints`` list.  If the
+        Hamiltonian is discontinuous somewhere that is not marked as a slab
+        edge, every level integrates across that discontinuity, successive
+        levels can agree to machine precision, and the shared answer is
+        simply wrong.  Measured on a 50-wall piecewise-constant profile
+        whose first boundary was left unmarked: the error sat at 1.6e-02,
+        bit-identical from ``n_slabs = 4`` through 32, and adding the one
+        missing edge moved it to 3.6e-12 at every slab count.  When a
+        profile is discontinuous, marking *every* discontinuity -- including
+        where it switches on and off, which may lie inside the trajectory --
+        is worth more than any amount of refinement.
     \**kwargs
         Additional arguments passed through to the Magnus-expansion
         routines
@@ -2085,6 +2150,12 @@ def osc_prob(
     # why the early-exit checks inside the loop are guarded on loop_count > 1.
     P = None
     P_old = None
+    # Consecutive refinement levels that have agreed within (rtol, atol) so far.  The ladder
+    # normally returns on the first agreement; strict_convergence requires two in a row, so that
+    # a coincidental agreement between two levels of a sequence that is still jumping around is
+    # vetoed by the level after it.  See the strict_convergence entry in the docstring above.
+    n_agreements = 0
+    agreements_required = 2 if strict_convergence else 1
     # Copy this to remember whether the function was originally called with predefine slab edges,
     # or whether we can increase the number of edges (n_slabs) progressively to reach tolerance
     t_slab_edges_original = t_slab_edges 
@@ -2303,8 +2374,14 @@ def osc_prob(
                     print("      n_slabs = " + str(n_slabs), file=f)
                     print("      n_tpts_per_slab = " + str(n_tpts_per_slab), file=f)
             if P_old is not None:
-                # Compare the new and old probability matrices element-wise
+                # Compare the new and old probability matrices element-wise.  A run of agreements
+                # is tracked rather than a single one: a disagreement resets it, so with
+                # strict_convergence the two agreements must be genuinely consecutive.
                 if np.allclose(P, P_old, rtol=rtol, atol=atol):
+                    n_agreements += 1
+                else:
+                    n_agreements = 0
+                if n_agreements >= agreements_required:
                     if (verbose > 0):
                         for f in [None, file_log] if save_log else [None]:
                             tol_msg = gd.TOL_MSG_IN_COLOR if f is None else gd.TOL_MSG_NO_COLOR
