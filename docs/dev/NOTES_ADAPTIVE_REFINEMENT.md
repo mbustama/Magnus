@@ -164,10 +164,99 @@ cost is genuinely per-point (0.13 ms/pt, flat from N=100 to N=40000), so the ent
 path is not a fixed cost waiting to be amortised. Passing the array is still the right
 advice, for a smaller and correctly-stated reason.
 
+## 4b. The two-consecutive-agreements safeguard, re-derived (2026-08-03)
+
+§3 estimated the cost at ~1.6× and left the trade undecided; `HANDOVER_DISPATCH_AND_ADOPTION.md`
+Task 3 then recommended against building it. Both predate the measurement below, which was
+prompted by finding the general path silently outside its requested tolerance at the **default**
+tolerance while measuring the dispatch reorder (`DECISION_DISPATCH_ORDER.md` §5).
+
+Method: replay the ladder rung by rung (seed from `suggest_n_slabs`, then
+`n_slabs <- round(1.5*n_slabs)`), scoring every rung against `solve_ivp`/DOP853 at `rtol=1e-12`.
+The replay was validated by checking that the rung where a *single* agreement first fires
+reproduces the shipped adaptive answer **bit-for-bit**; it does, on both points below.
+
+### The mechanism is confirmed, and it is a coincidence between two wrong rungs
+
+10 MeV over R_sun, `rtol=atol=1e-3`, seed 977:
+
+| k | 0 | 1 | 2 | **3** | 4 | 5 | 6 | 7 | 8 |
+|---|---|---|---|---|---|---|---|---|---|
+| `n_slabs` | 977 | 1466 | 2199 | **3298** | 4947 | 7420 | 11130 | 16695 | 20000 |
+| error | 5.9e-02 | 3.8e-03 | 1.6e-02 | **1.7e-02** | 8.1e-03 | 4.5e-03 | 3.5e-06 | 1.6e-07 | 6.8e-08 |
+
+`np.allclose` fires at k=3 because rungs 2 and 3 agree to 1.088e-03 — while both are wrong by
+~1.6e-02, and the next rung moves by 2.5e-02. Exactly the §1 mechanism, at the default tolerance
+on the package's most ordinary profile.
+
+### It works on the thrashing mode, and the ~1.6× estimate was right — for healthy calls
+
+15 configurations (solar 2nu at nine (E, L) points, castle wall narrow/wide with breakpoints,
+noisy high/low amplitude, 3nu exponential and Gaussian):
+
+| | |
+|---|---|
+| silently outside 1e-3 today | **6 / 15** |
+| fixed by two consecutive agreements | **4 / 6** |
+| time cost on calls that were already correct | median **1.53×**, max 1.75× |
+| time cost on the calls it fixes | 3.5× – 8.3× |
+
+The two costs are different quantities and §3 conflated them. ~1.6× is the *tax* on a call whose
+first agreement was genuine — one extra rung. On a call the safeguard actually rescues, the
+second agreement is several rungs away, because convergence genuinely has not happened: 8.26× at
+10 MeV, 8.25× on the low-amplitude noise. That asymmetry is a feature (the cost is paid where the
+answer was wrong), but it must not be quoted as 1.6×.
+
+### What it does *not* fix, and this is new
+
+§3 claimed the safeguard "works" on the castle wall: "3-vs-4 agrees, 4-vs-6 does not (1.4e-2), so
+the loop would keep climbing." That was measured **without** `t_breakpoints`. With them — which is
+what the notebooks now always pass — the failure changes character entirely. Castle wall narrow,
+49 breakpoints over 50 walls, seed 3:
+
+| `n_slabs` | 4 | 6 | 9 | 14 | 21 | 32 | 48 |
+|---|---|---|---|---|---|---|---|
+| error | 1.564e-02 | 1.564e-02 | 1.564e-02 | 1.564e-02 | 1.564e-02 | 1.564e-02 | 1.135e-03 |
+| \|ΔP\| vs previous | — | 4.7e-16 | 4.4e-16 | 5.6e-16 | 2.0e-15 | 5.1e-15 | 1.5e-02 |
+
+The grid is breakpoint-dominated, so the answer is **frozen**: six consecutive rungs are
+bit-identical and all wrong by 1.6e-02. This is not a coincidence between samples of a thrashing
+sequence — it is a stable fixed point of the discretisation that happens to be wrong, and **no
+consecutive-agreement count escapes it**. Two, three, six: all stop at 1.564e-02. The ladder only
+breaks out at `n_slabs=48`, when the uniform edges finally start subdividing *within* the
+breakpoint intervals.
+
+So the failure has two distinct modes, and the safeguard addresses one:
+
+- **thrashing** (§1) — successive rungs vary wildly, `allclose` fires on a coincidence.
+  Two agreements catches this: 4/4 of the measured cases.
+- **frozen grid** — successive rungs are identical because a user-supplied breakpoint set
+  dominates the grid, and that set under-resolves the profile. Agreement carries no information
+  at all here, at any streak length.
+
+### Recommendation, reversing the handover
+
+**Build it**, and stop describing it as a complete fix. 1.53× median on healthy calls, against
+eliminating two-thirds of the silent misses in a sample where 40% of configurations were
+silently wrong by up to 2.0e-02 at the default tolerance, in a package whose history already
+contains two false-convergence bugs, is a trade worth making.
+
+Two caveats to carry into that work:
+
+1. It is a partial fix. The frozen-grid mode needs something else — the natural candidate is to
+   compare against a rung whose grid is *not* a superset of the previous one (e.g. subdividing
+   every breakpoint interval), so that agreement means something when breakpoints dominate.
+2. Its practical reach is narrower than 6/15 suggests. Since the dispatch reorder the solar
+   points are answered by the hybrid strategy rather than the general path, and baseline scans
+   can opt into `cumulative=True`. What remains exposed is the case that matters most: a raw
+   `osc_prob` call on a user-supplied varying profile, which is the package's primary entry
+   point and what notebooks 02 and 03 use throughout.
+
 ## 5. Still open
 
-- **Two-consecutive-agreements in `osc_prob`'s adaptive loop.** §3 above. Needs its
-  own cost/benefit; ~1.6× on every adaptive call is the price.
+- **Two-consecutive-agreements in `osc_prob`'s adaptive loop.** Cost/benefit now derived in
+  §4b: recommended, at 1.53× median on healthy calls, fixing 4 of 6 measured silent misses.
+  Not yet built. The frozen-grid mode it does *not* fix needs a separate idea.
 - **The energy axis** (decision doc §6.3). Adding `t_breakpoints` to the castle-wall
   energy scans cut them 4.7× (33.7 → 7.2 ms/pt), which is a real bite out of the
   77.4%, but it is profile-specific rather than the general improvement §6.3 has in
