@@ -276,6 +276,37 @@ def test_cross_check_leaves_no_engine_disabled_after_a_raising_call():
     assert info['engine'] == 'hybrid'
 
 
+def test_a_short_baseline_scan_reaches_the_cumulative_engine():
+    """The N = 25 seam was lowered to 8, and this pins why rather than only that.
+
+    ``HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS`` used to be 25 on the grounds that yielding
+    earlier cost "several times slower ... to buy accuracy that was already two orders inside
+    what the caller asked for".  Measured over 42 workloads, both halves were wrong outside
+    solar: the cumulative scan is *cheaper* on median at every size (0.25x at N = 8) and its
+    worst error over the 28 workloads it serves is 1.13e-07 against the hybrid path's 1.68e-03
+    -- including two baseline scans at N = 8 that were outside the requested tolerance with no
+    warning at all.
+
+    Asserted as routing rather than accuracy so it needs no oracle: below the seam the hybrid
+    path keeps the request, at and above it the cumulative engine takes it."""
+    Ls_below = np.linspace(0.05*L1, L1, op.HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS - 1)
+    Ls_at = np.linspace(0.05*L1, L1, op.HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS)
+
+    info_below, info_at = {}, {}
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        call(solar_ne(), 10.0e6, Ls_below, strategy_info=info_below)
+        call(solar_ne(), 10.0e6, Ls_at, strategy_info=info_at)
+    assert info_below['engine'] == 'hybrid'
+    assert info_at['engine'] == 'cumulative'
+
+    # And the fall-through stays safe: the hybrid threshold must not drop below the one that
+    # makes cumulative='auto' engage, or a scan could be declined by both and land on the
+    # general per-point path, which is slower AND less accurate than either.
+    assert (op.HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS
+            >= op.CUMULATIVE_AUTO_MIN_POINTS)
+
+
 @pytest.mark.parametrize('profile,d,params,energy', [
     ('solar', 2, PARAMS_2NU, 10.0e6),
     ('solar', 3, PARAMS_3NU, 50.0e6),

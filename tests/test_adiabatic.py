@@ -740,14 +740,24 @@ def test_hidden_feature_scan_is_identical_on_the_scalar_potential_and_on_H():
     assert on_scalar['l_centre'] == pytest.approx(on_matrix['l_centre'], rel=1e-12)
 
 
-def test_hidden_feature_scan_declines_gracefully_on_a_scalar_only_profile():
-    """A profile that cannot be evaluated for many positions at once must not raise; the scan
-    is a diagnostic and has no business breaking a call it only meant to inspect."""
-    l1 = gd.L_SCALE_SUN
+@pytest.mark.parametrize('name,profile', [
+    # Cannot be evaluated for many positions at once: raises inside the scan.
+    ('scalar-only', lambda l: float(np.exp(-float(l)/gd.L_SCALE_SUN))),
+    # Evaluates fine but returns a bare scalar: this one used to raise IndexError, because the
+    # shape guard indexed a 0-d array.
+    ('returns a scalar', lambda l: 1.0),
+    # Returns the wrong length.
+    ('wrong length', lambda l: np.asarray(l, dtype=float)[:3]),
+    # Non-finite: the concentration came out nan and compared False by luck rather than design.
+    ('contains inf', lambda l: np.where(np.asarray(l, dtype=float) > 0.5, np.inf, 1.0)),
+    ('contains nan', lambda l: np.where(np.asarray(l, dtype=float) > 0.5, np.nan, 1.0)),
+])
+def test_hidden_feature_scan_refuses_quietly_rather_than_raising(name, profile):
+    """The scan is a diagnostic and has no business breaking a call it only meant to inspect.
 
-    def scalar_only(l):
-        return float(np.exp(-float(l)/l1))
-
-    out = ad.find_hidden_features(scalar_only, 0.0, l1)
+    Every one of these is a profile it cannot say anything about; the required behaviour is a
+    quiet refusal, not an exception and not a nan leaking into ``strategy_info``."""
+    out = ad.find_hidden_features(profile, 0.0, gd.L_SCALE_SUN)
     assert out['hidden'] is False
     assert out['concentration'] == 0.0
+    assert np.isfinite(out['l_centre'])

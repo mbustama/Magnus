@@ -224,6 +224,13 @@ def run_case(case, oracle):
 
 
 def collect(kind):
+    """Score a whole population.  Anything raising propagates: a ValueError from the package's
+    own validation would be correct behaviour on a profile the generator drove negative, so the
+    generators are written to stay positive and an exception here is a defect.
+
+    This used to be asserted separately by a third test that re-ran 16 of the same cases.  That
+    cost 72 s to re-establish what these two tests establish anyway -- they run 160 cases and
+    cannot pass if one of them raises -- so it is folded in here instead."""
     rows = []
     if kind == 'smooth':
         for c in smooth_cases():
@@ -285,16 +292,6 @@ def test_piecewise_profile_fuzz_statistics():
     rate = len(silent)/len(errs)
     assert rate <= 0.10, 'silent-miss rate %.1f%% (%d/%d)' % (100*rate, len(silent), len(errs))
     assert errs.max() <= 2.0e-1, 'worst error %.3e' % errs.max()
-
-
-def test_fuzzing_raises_nothing():
-    """Zero exceptions across both populations.  A ValueError from the package's own validation
-    would be correct behaviour on a profile the generator drove negative, so the generators
-    above are written to stay positive; anything raising here is therefore a defect."""
-    for c in smooth_cases(n=8):
-        run_case(c, lambda H: oracle_solve_ivp(H, 0.0, c['Ls'], c['d']))
-    for c in piecewise_cases(n=8):
-        run_case(c, lambda H: oracle_expm(H, c['edges'], c['Ls'], c['d']))
 
 
 if __name__ == '__main__':

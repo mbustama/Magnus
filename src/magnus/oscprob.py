@@ -436,58 +436,78 @@ milliseconds for that is the right way round.
 #
 # Reproduce: docs/dev/adversarial_batteries/crosscheck_benefit.py and weak_band.py.
 
-HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS = 25
+HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS = 8
 r"""int: Module-level constant
 
 Fewest baselines at which ``_osc_prob_hybrid_dispatch`` stands aside, under
 ``strategy='auto'``, so that a single-energy baseline scan reaches the cumulative scan instead.
 
 Deliberately **larger** than :data:`CUMULATIVE_AUTO_MIN_POINTS`, because the two thresholds
-guard different trades.  On the primordial entry point the cumulative scan's alternative is the
-general per-point path, which is not merely slower but returns answers outside the requested
-tolerance on solar profiles (9.7e-3 at N = 10); taking the cumulative scan from N = 2 is right
-there.  Reached through the wrapper layer the alternative is the *hybrid* strategy, which is
-both accurate (~1e-5, well inside a requested 1e-3) and cheap per point (~20 ms), so the
-cumulative scan's near-constant cost -- dominated by its strict probe -- only pays off once
-there are enough points to amortise it.
+guard different trades, and because being the larger keeps the fall-through safe: whenever the
+hybrid dispatcher declines on this count, ``cumulative='auto'`` is guaranteed to engage, so a
+scan can never decline both paths and land on the general per-point method.
 
-Measured through ``osc_prob_2nu_sun`` on a solar profile, hybrid against the cumulative scan:
+**This was 25, and both halves of the justification for that turned out to be wrong.**  The
+original reasoning was that below N = 25 the cumulative scan's near-constant cost is not yet
+amortised, so yielding would make a small scan "several times slower (7.6x at N = 2) to buy
+accuracy that was already two orders inside what the caller asked for".  Both clauses were
+measured on **solar profiles only**, which is the easiest case for the hybrid path and the
+hardest for the cumulative scan's strict probe.
 
-===== =============== ===============
-N     5 MeV           10 MeV
-===== =============== ===============
-2     37 ms / 283 ms  39 ms / 297 ms
-10    184 ms / 282 ms 197 ms / 454 ms
-25    464 ms / 263 ms 489 ms / 432 ms
-400   7459 ms / 292 ms 7904 ms / 368 ms
-===== =============== ===============
+*The accuracy clause*, re-measured over 42 workloads spanning 7 profile families, d = 2 and 3,
+and single points, baseline scans and energy scans
+(``docs/dev/adversarial_batteries/fallback_quality.py``):
 
-The crossover sits near N = 14 at 5 MeV and N = 22 at 10 MeV; 25 clears both.  Erring high only
-forgoes a speed-up, whereas erring low makes small scans several times slower for accuracy that
-was already two orders inside what was asked for.
+========================================== =================
+engine                                      worst error
+========================================== =================
+adiabatic hybrid, over 42 workloads         1.68e-03
+**cumulative scan, over the 28 it serves**  **1.13e-07**
+========================================== =================
 
-Being the larger of the two thresholds also keeps the fall-through safe: whenever the hybrid
-dispatcher declines on this count, ``cumulative='auto'`` is guaranteed to engage, so a scan can
-never decline both paths and land on the general per-point method.
+Not two orders inside the tolerance: on 30 of 42 workloads ``'auto'`` was more than 10x worse
+than the best engine that applied, by up to **900 000x**, and on two it was **outside the
+requested 1e-3 with no warning at all**.  Both of those were baseline scans at N = 8, which the
+cumulative scan answers to ~1e-9.
 
-**Accuracy steps at this threshold, and it is a large step.**  Because the two sides are
-different methods rather than two settings of one method, adding a single baseline to a
-24-point scan can change every answer in it.  Measured against ``solve_ivp``, ``err(N=24)``
-against ``err(N=26)``:
+*The cost clause*, re-measured by alternating with a control that came back at 0.99x
+(``seam.py``), as the median cumulative/hybrid ratio across 3 profiles x d = 2, 3:
+
+===== ============ ===================================
+N      median cost  worst case
+===== ============ ===================================
+2      0.87x        5.75x (solar, d = 3)
+4      0.48x        2.84x (solar, d = 3)
+**8**  **0.25x**    **1.44x (solar, d = 3)**
+16     0.17x        0.72x
+24     0.12x        0.50x
+===== ============ ===================================
+
+The cumulative scan is *cheaper on median at every size measured*, and on a multi-resonance
+profile at N = 8 it is **30x** cheaper.  The 7.6x figure was solar, at N = 2, where the hybrid
+path is at its best.
+
+**8 is where the worst case stops mattering.**  At N = 8 the only profile on which yielding
+costs anything is solar at d = 3, at 1.44x, in exchange for three to six orders of accuracy; at
+N = 4 that worst case is 2.84x and at N = 2 it is 5.75x, which is a real price on the cheapest
+requests.  Below 8 the hybrid path keeps them.
+
+**Accuracy still steps at this threshold, and it is a large step.**  Because the two sides are
+different methods rather than two settings of one method, adding a single baseline can change
+every answer in a scan.  Measured against ``solve_ivp`` across the old threshold, which is the
+same discontinuity moved to a new place:
 
 ========================= ========== ========== ==========
-profile                   N = 24     N = 26     step
+profile                   below      above      step
 ========================= ========== ========== ==========
 solar exponential         3.30e-05   2.13e-08   1 546x
 noisy                     6.27e-04   1.04e-08   60 418x
 multi-resonance           1.58e-03   2.86e-09   552 945x
 ========================= ========== ========== ==========
 
-The step is always *toward* the truth -- above the threshold the scan is more accurate, not
-less -- so this is a discontinuity to know about rather than a defect.  But a caller sweeping N
-and watching the answer move by five orders of magnitude at N = 25 is seeing the routing change,
-not a numerical instability.  Pass ``cumulative=True`` to take the cumulative scan below the
-threshold as well, or ``cumulative=False`` to stay off it entirely.
+The step is always *toward* the truth, so it is a discontinuity to know about rather than a
+defect.  Pass ``cumulative=True`` to take the cumulative scan below the threshold as well, or
+``cumulative=False`` to stay off it entirely.
 
 .. versionadded:: 1.0.0
 """
@@ -2674,6 +2694,18 @@ def osc_prob(
         # per-slab parallelization it used to trigger here has been retired: the batched kernel is
         # faster than distributing the small per-slab tasks over joblib workers.  Parallelism over
         # (energy, L) points is available in osc_prob_energy_baseline instead.)
+        # NOT deferred to the returned refinement level, and that is a measured decision
+        # rather than an oversight.  85% of MagnusConvergenceWarning firings describe an
+        # intermediate grid the ladder went on to refine away (46 of 66 single-point calls had
+        # some level over pi; only 7 had the RETURNED level over), which looks like pure noise
+        # -- so the deferral was built.  Re-measuring over 168 configurations killed it: firings
+        # fell 70 -> 53, but TRUE positives fell 17 -> 4 while false positives fell only
+        # 53 -> 49.  "The ladder started far from convergence" turns out to predict a bad answer
+        # better than "the final grid is coarse" does, so suppressing the early levels throws
+        # away most of the signal to remove a twelfth of the noise.  Nothing became silent
+        # either way (2 of 168 in both), because the cases it stopped flagging are covered by
+        # ToleranceNotAchievedWarning.  The mechanism and the full measurement are kept in
+        # magnus._deferred_slab_norm.
         U_chain = compute_evolution_operator_multiple_slabs(H_func, t_slab_edges,
             n_tpts_per_slab, magnus_exp_order, integration_method=integration_method,
             A_eval_mode=A_eval_mode, **kwargs)
@@ -2732,7 +2764,7 @@ def osc_prob(
                             print("   " + tol_msg + " (for fixed magnus_exp_order "+ \
                                 "= " + str(magnus_exp_order) + "): rtol = " + str(rtol) + \
                                 ", atol = " + str(atol) + ".\n", file=f)
-                    if save_log and close_file_log_upon_exit: file_log.close()
+                        if save_log and close_file_log_upon_exit: file_log.close()
                     return P
             P_old = np.ndarray.copy(P)
             # Increase the number of slabs approximately by growth_factor_n_slabs.  Do it only
@@ -3039,6 +3071,17 @@ families fail for different reasons.
 * ``'phase-average'`` -- :mod:`magnus.avgprob`'s closed form, which answers a different question
   and is never compared against the others.
 
+**A known limit of the ``'magnus-ladder'`` grouping.**  It is right about *blind spots* -- all
+three walk slabs, and all three miss a feature narrower than their grids -- but it understates
+how differently they perform.  Measured over 28 shared workloads, the cumulative scan's worst
+error is 1.13e-07 against the general ladder's 9.28e-03
+(``docs/dev/adversarial_batteries/fallback_quality.py``), which is what moved
+:data:`HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS` from 25 to 8.  So a disagreement *between* them
+carries real information even though this grouping tells :func:`cross_check_strategies` to
+discount it.  Erring this way is deliberate: treating them as independent would let two engines
+that share a blind spot vouch for each other, which is the failure this constant exists to
+prevent.
+
 .. versionadded:: 1.0.0
 """
 
@@ -3083,7 +3126,20 @@ def _scan_for_hidden_features(profile, l0, L, t_breakpoints=None) -> Optional[Di
     if l1 == float(l0):
         return None
 
-    scan = adiabatic.find_hidden_features(profile, float(l0), l1)
+    # Sample more finely when the request is already expensive.  The scan runs ONCE per call
+    # whatever the point count, so its share of the work falls as the request grows -- and what
+    # extra sub-steps buy is reach at the narrow end, where detection is limited by whether any
+    # sample lands inside the feature at all.  Measured: 0.37 ms at 8 sub-steps, 2.85 ms at 32,
+    # against a ~16 ms single point and a ~40 ms eight-point scan, so this holds the scan under
+    # about 7% of the call at every size instead of spending 20% of the cheapest one.
+    #
+    # A single point therefore keeps the cheapest scan by design.  That is the honest trade: the
+    # widths this buys (3e-6 of the trajectory and below, where detection goes 0.82 -> 0.97) are
+    # narrower than anything physically plausible in a density profile, so paying 20% on every
+    # single-point call to reach them would be the wrong way round.
+    n_points = int(L_arr.size)
+    n_sub = 8 if n_points < 4 else (16 if n_points < 16 else 32)
+    scan = adiabatic.find_hidden_features(profile, float(l0), l1, n_sub=n_sub)
     if not scan['hidden']:
         return scan
 
@@ -9404,6 +9460,7 @@ def osc_prob_earth(
     validate_input: Optional[bool]=True,
     verbose: Optional[int]=0,
     strategy: Optional[str]='auto',
+    strategy_info: Optional[Dict]=None,
     **kwargs
 ) -> Union[float, np.ndarray]:
     r"""Compute and return the neutrino oscillation probability inside
@@ -9561,7 +9618,7 @@ def osc_prob_earth(
 
     return _osc_prob_with_potential(source_func_name, H_func, VCC_func, energy, L, 0.0, nu_i,
         nu_f, t_breakpoints, magnus_exp_order, n_jobs, integration_method, rtol, atol,
-        validate_input, verbose, strategy=strategy, **kwargs)
+        validate_input, verbose, strategy=strategy, strategy_info=strategy_info, **kwargs)
 
 
 def _osc_prob_with_potential(
@@ -9582,6 +9639,7 @@ def _osc_prob_with_potential(
     validate_input: bool,
     verbose: int,
     strategy: Optional[str] = 'auto',
+    strategy_info: Optional[Dict] = None,
     **kwargs
 ) -> Union[float, np.ndarray]:
     r"""Common machinery of :func:`osc_prob_earth` and
@@ -9601,6 +9659,13 @@ def _osc_prob_with_potential(
 
     Parameters
     ----------
+    strategy_info : dict, optional
+        If given, filled in place with which engine actually answered, exactly as in
+        :func:`osc_prob_matter_std_potential` -- see that function for the keys.  A
+        user-supplied Hamiltonian gets the same answer to "which engine answered, and what
+        stood aside" as a built-in scenario does. Default: None.
+
+        .. versionadded:: 1.0.0
     source_func_name : str
         Name of the calling function (``osc_prob_earth`` or ``osc_prob_sun``), used to build more
         informative error messages.
@@ -9685,17 +9750,22 @@ def _osc_prob_with_potential(
     cumulative = kwargs.pop('cumulative', 'auto')
     # The same one-per-call profile scan the scenario wrappers run; the blind spot is a property
     # of the grids, not of which entry point built the Hamiltonian.
-    _scan_for_hidden_features(VCC_func, L0, L, t_breakpoints)
-    P_hybrid = (NotImplemented if cumulative is True else
-        _osc_prob_hybrid_dispatch_generic(htot, VCC_func, energy, L, L0, nu_i, nu_f,
-            t_breakpoints, rtol, atol, magnus_exp_order, integration_method, strategy, kwargs))
-    if P_hybrid is not NotImplemented:
-        return P_hybrid
+    _hidden = _scan_for_hidden_features(VCC_func, L0, L, t_breakpoints)
 
-    return osc_prob_energy_baseline(htot, energy, L, L0, nu_i, nu_f, False,
-        t_breakpoints=t_breakpoints, magnus_exp_order=magnus_exp_order, n_jobs=n_jobs,
-        integration_method=integration_method, rtol=rtol, atol=atol,
-        validate_input=validate_input, verbose=verbose, cumulative=cumulative, **kwargs)
+    # Watched as a unit, as in the three scenario wrappers, so that a user-supplied Hamiltonian
+    # gets the same answer to "which engine answered, and what stood aside" as a built-in one.
+    with _engine_probe(info=strategy_info, extra={'hidden_feature': _hidden}):
+        P_hybrid = (NotImplemented if cumulative is True else
+            _osc_prob_hybrid_dispatch_generic(htot, VCC_func, energy, L, L0, nu_i, nu_f,
+                t_breakpoints, rtol, atol, magnus_exp_order, integration_method, strategy,
+                kwargs))
+        if P_hybrid is not NotImplemented:
+            return P_hybrid
+
+        return osc_prob_energy_baseline(htot, energy, L, L0, nu_i, nu_f, False,
+            t_breakpoints=t_breakpoints, magnus_exp_order=magnus_exp_order, n_jobs=n_jobs,
+            integration_method=integration_method, rtol=rtol, atol=atol,
+            validate_input=validate_input, verbose=verbose, cumulative=cumulative, **kwargs)
 
 
 #-----------------------------------------------------------------------
@@ -10393,6 +10463,7 @@ def osc_prob_sun(
     validate_input: Optional[bool]=True,
     verbose: Optional[int]=0,
     strategy: Optional[str]='auto',
+    strategy_info: Optional[Dict]=None,
     **kwargs
 ) -> Union[float, np.ndarray]:
     r"""Compute and return the neutrino oscillation probability inside
@@ -10524,7 +10595,7 @@ def osc_prob_sun(
 
     return _osc_prob_with_potential(source_func_name, H_func, VCC_func, energy, L, L0, nu_i,
         nu_f, None, magnus_exp_order, n_jobs, integration_method, rtol, atol,
-        validate_input, verbose, strategy=strategy, **kwargs)
+        validate_input, verbose, strategy=strategy, strategy_info=strategy_info, **kwargs)
 
 
 #-----------------------------------------------------------------------
@@ -10562,6 +10633,13 @@ def osc_prob_2nu_matter_nsi_constant_density(
 
     Parameters
     ----------
+    strategy_info : dict, optional
+        If given, filled in place with which engine actually answered, exactly as in
+        :func:`osc_prob_matter_std_potential` -- see that function for the keys.  A
+        user-supplied Hamiltonian gets the same answer to "which engine answered, and what
+        stood aside" as a built-in scenario does. Default: None.
+
+        .. versionadded:: 1.0.0
     energy : int, float, list, or np.ndarray
         Neutrino energy/energies.
     L : int, float, list, or np.ndarray

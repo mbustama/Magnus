@@ -281,6 +281,13 @@ feature width detection at 0.2  detection at 0.3  detection at 0.5
 ceiling -- at the best detection the margin allows; 0.2 buys two points of detection for half
 the margin, and 0.5 costs thirteen.
 
+The caller now varies the sampling density with the size of the request (see
+:data:`N_HIDDEN_FEATURE_SUBDIVISION`), so the ceiling was re-measured at **every** density the
+dispatcher can choose rather than only at the default: 0.0597 at 8 sub-steps, 0.0601 at 16,
+0.0602 at 32 -- **0 of 67 in all three**.  The statistic is a *fraction* of the total variation,
+which is why it barely moves: refining the dense grid adds the same variation to numerator and
+denominator.
+
 **This detects most of the class, not all of it, and the shortfall is structural.**  A feature
 of width 3e-5 is right at the edge of what ``max_n_probe = 6400`` can partially resolve, so its
 variation is partly visible to the reference grid and the statistic is diluted; a feature of
@@ -321,6 +328,13 @@ an ordinary 13 ms single-point call, where 2.85 ms would be 20% and fail the pac
 performance criterion.  What it costs in reach is the very narrowest features: the dense spacing
 is :math:`(l_1-l_0)/51192`, and detection of anything below that is a matter of whether a sample
 lands inside it (measured 0.73 at a width of 1e-6, against 0.90 at 1e-5).
+
+:mod:`magnus.oscprob` scales this with the number of requested points -- 8 below four points,
+16 below sixteen, 32 above -- because the scan runs **once per call** whatever the point count,
+so its share of the work falls as the request grows.  That holds it under about 7 % of the call
+at every size instead of spending 20 % of the cheapest one, and the false-positive rate was
+re-measured at each of those three densities (0 of 67 every time; see
+:data:`HIDDEN_FEATURE_CONCENTRATION`).
 
 Raise it if you have reason to think the profile hides something finer; the scan is
 :func:`find_hidden_features` and takes ``n_sub`` directly.
@@ -391,7 +405,14 @@ def find_hidden_features(profile: Callable, l0: float, l1: float,
         values = np.asarray(profile(dense))
     except Exception:                      # noqa: BLE001 -- any failure means "not vectorized"
         return quiet
-    if values.shape[0] != len(dense):
+    # This is a diagnostic; it must never break a call it was only meant to inspect.  A profile
+    # that returns a bare scalar for array input indexed out of range here, and one containing
+    # inf or nan produced a nan "concentration" that compared False by luck rather than by
+    # design.  Both are now quiet refusals: a profile whose variation is not a finite number is
+    # one this test has nothing to say about.
+    if (values.ndim == 0) or (values.shape[0] != len(dense)):
+        return quiet
+    if not np.all(np.isfinite(values)):
         return quiet
 
     steps = _variation_steps(values)
@@ -1262,11 +1283,34 @@ def hybrid_propagator(H_func: Callable, l0: float, l1: float, rtol: Optional[flo
     min_threshold : float, optional
         Floor below which the threshold is not tightened further. Default: 1e-6.
 
-        **Provenance: measured, and NOT reached.**  Swept over 1e-4 to 1e-8 on the same 18
-        workloads: the worst error is 4.49e-04 at every value.  That is not evidence the floor
-        is well chosen -- it is evidence the ladder stops before reaching it on every workload
-        measured.  This constant governs a regime the population does not enter, and saying so
-        is more useful than a number that would imply it had been exercised.
+        **Provenance.**  Swept over 1e-4 to 1e-8 across 18 ordinary workloads: the worst error
+        is 4.49e-04 at every value, because the ladder stops long before reaching the floor.
+        Even at ``rtol = atol = 1e-12`` on a multi-resonance profile it converges in 7
+        iterations with a window open, and every value from 1e-4 to 1e-10 gives an identical
+        answer in identical time.
+
+        **The regime this constant governs**, found by construction rather than assumed: the
+        floor is reached only when :math:`\gamma_\max` is *below* it -- so no window can ever
+        open, however far the threshold falls -- **and** the requested tolerance is tighter than
+        ``GAMMA_TO_ERROR`` :math:`\times \gamma_\max`, so the :math:`\gamma` rule cannot
+        certify either.  An almost-flat profile
+        (:math:`\gamma_\max = 3\times10^{-7}`) at ``rtol = atol = 1e-9`` satisfies both:
+
+        ================= ========== ======== ========== ======
+        ``min_threshold`` error      windows  iterations time
+        ================= ========== ======== ========== ======
+        1e-4              8.49e-13   0        9          3.3 s
+        **1e-6**          8.49e-13   0        13         7.4 s
+        1e-8              3.24e-12   1        13         7.7 s
+        1e-10             3.24e-12   1        13         7.9 s
+        ================= ========== ======== ========== ======
+
+        So it does change behaviour there -- below :math:`\gamma_\max` a window opens -- but
+        **not usefully**: the result is ``certified=False`` at every value, and the error is
+        three orders inside the requested tolerance either way, with the window costing a
+        factor of 2.4 in time and making the answer very slightly *worse*.  The floor decides
+        how much work is done in a regime where the answer is already good and known to be
+        uncertified; it does not decide correctness anywhere measured.
     n_probe0 : int, optional
         Starting number of positions used to locate resonance candidates. Default: 200.
 

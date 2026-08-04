@@ -117,24 +117,6 @@ def main():
     def noop():
         return None
 
-    def hybrid_kw(**kw):
-        """Force hybrid-propagator keywords through the dispatch by monkeypatching."""
-        orig = ad.hybrid_propagator
-
-        def patched(*a, **k):
-            k.update(kw)
-            return orig(*a, **k)
-
-        def apply(v):
-            ad.hybrid_propagator = patched
-            oscprob.adiabatic.hybrid_propagator = patched
-
-            def teardown():
-                ad.hybrid_propagator = orig
-                oscprob.adiabatic.hybrid_propagator = orig
-            return {}, teardown
-        return apply
-
     def hybrid_sweep(key):
         def apply(v):
             orig = ad.hybrid_propagator

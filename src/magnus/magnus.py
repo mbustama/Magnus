@@ -77,6 +77,7 @@ __email__ = "mbustamante@gmail.com"
 
 
 import warnings
+from contextlib import contextmanager
 from typing import Optional, Callable, Union, Tuple
 
 import numpy as np
@@ -780,6 +781,57 @@ def _gl_nodes(order: int) -> np.ndarray:
     return _GL3_NODES
 
 
+_SLAB_NORM_SINK = None
+r"""list or None: when a caller has opened ``_deferred_slab_norm``, every ``||Omega||_2`` the
+convergence check computes is collected here instead of warned about immediately.  ``None`` (and
+therefore free) otherwise."""
+
+
+@contextmanager
+def _deferred_slab_norm():
+    r"""Collect slab norms instead of warning about them, for the duration of the block.
+
+    :func:`magnus.oscprob.osc_prob` refines a slab ladder and returns **one** level's answer,
+    so warning as each level is computed reports on grids nobody receives: measured over 66
+    single-point calls, some level exceeded :math:`\pi` in 46 of them but the level actually
+    returned did so in only **7**.  This exists so a caller can collect the norms and emit once,
+    for the level it is about to return.
+
+    **:func:`magnus.oscprob.osc_prob` deliberately does not use it**, and the measurement is why.
+    Keying the warning to the returned level was implemented and then reverted: over 168
+    configurations, firings fell 70 to 53 but **true positives fell 17 to 4** while false
+    positives fell only 53 to 49.  "The ladder started far from convergence" predicts a bad
+    answer better than "the final grid is coarse" does, so the suppression removed most of the
+    signal to remove a twelfth of the noise.  Nothing became silent either way (2 of 168 in
+    both), because the cases it stopped flagging are covered by
+    :class:`magnus.oscprob.ToleranceNotAchievedWarning`.
+
+    The honest way to use the discarded signal would be a *different* warning -- "this request
+    needed many refinement levels" -- rather than a quieter version of this one.
+
+    Private, and stays private: nothing in the package uses it, and shipping public API for a
+    design that was measured and rejected would be worse than keeping the knowledge here.
+
+    Nested blocks share the outermost sink, so an inner engine's slabs are attributed to the
+    level being computed rather than starting a fresh collection.
+
+    .. versionadded:: 1.0.0
+
+    Yields
+    ------
+    list of float
+        Every norm seen inside the block, in the order seen.
+    """
+    global _SLAB_NORM_SINK
+    prev = _SLAB_NORM_SINK
+    sink = prev if prev is not None else []
+    _SLAB_NORM_SINK = sink
+    try:
+        yield sink
+    finally:
+        _SLAB_NORM_SINK = prev
+
+
 def _warn_slab_norm(nmax: float):
     r"""Warn if the slab norm proxy ``nmax`` :math:`= \max \lVert\Omega\rVert_2` is
     :math:`\geq \pi` (see :class:`MagnusConvergenceWarning`).
@@ -794,6 +846,11 @@ def _warn_slab_norm(nmax: float):
     -------
     None
     """
+    if _SLAB_NORM_SINK is not None:
+        # A caller is running a refinement ladder and will decide, once it knows which level it
+        # is returning, whether this is worth saying.  See deferred_slab_norm.
+        _SLAB_NORM_SINK.append(float(nmax))
+        return
     if nmax < np.pi:
         return
     # Bucketed rather than numeric, so that the message stays one of three fixed strings and

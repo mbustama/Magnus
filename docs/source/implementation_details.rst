@@ -324,6 +324,13 @@ of any fixed grid, not of any particular test, and no detector that pretends oth
 be honest. What *has* changed is that the condition is now usually **detected and reported**
 rather than silent -- see the feature scan above.
 
+**The scan is sized to the request.** It runs once per call whatever the point count, so its
+share of the work falls as the request grows: 8 sub-steps (0.37 ms) for a single point, 32
+(2.85 ms) for a scan of sixteen or more, holding it under about 7 % of the call at every size.
+A single point keeps the cheapest scan by design -- the extra reach that finer sampling buys is
+at widths of :math:`3\times10^{-6}` of the trajectory and below, narrower than anything
+physically plausible in a density profile.
+
 **A cross-check cannot close the rest, and this was measured rather than assumed.** Having
 ``strategy='auto'`` verify its own window-free results against the general Magnus ladder below
 the N = 25 seam was built, measured and removed: on 200 random smooth profiles the ladder agreed
@@ -428,11 +435,16 @@ discontinuity -- and the answer survived anyway. Declaring the edges would still
 by orders of magnitude. A warning whose claim is true and whose advice is worth taking is not
 made a false alarm by the answer surviving.
 
-``MagnusConvergenceWarning``'s 76 % has a known and quantified cause: of 66 single-point calls,
-some refinement level exceeded :math:`\pi` in 46, but **the level whose answer was returned did
-so in only 7**. So 85 % of its firings describe an intermediate grid nobody receives. Keying it
-to the returned level would cut false alarms from 31 to 5; that change is mechanical and is
-deliberately not made yet, because it touches the refinement loop several tests depend on.
+``MagnusConvergenceWarning``'s 76 % has a known cause and a **measured non-fix**. Of 66
+single-point calls, some refinement level exceeded :math:`\pi` in 46, but **the level whose
+answer was returned did so in only 7** -- so 85 % of its firings describe an intermediate grid
+nobody receives. Keying it to the returned level therefore looks obviously right, and was
+implemented. Re-measured over the same 168 configurations it made the warning *worse*: firings
+fell 70 to 53, but **true positives fell 17 to 4** while false positives fell only 53 to 49.
+"The ladder started far from convergence" predicts a bad answer better than "the final grid is
+coarse" does. Nothing became silent either way (2 of 168 in both), because the cases it stopped
+flagging are covered by :class:`magnus.oscprob.ToleranceNotAchievedWarning`. Reverted; the
+mechanism and the numbers are kept in ``magnus._deferred_slab_norm``.
 
 Two of these deserve their honesty spelled out rather than buried:
 
@@ -527,8 +539,13 @@ Measured
        about this constant -- see :func:`magnus.adiabatic.hybrid_propagator`.
    * - ``min_threshold``
      - 1e-6
-     - Swept 1e-4 … 1e-8: identical at every value, because **the ladder never reaches the
-       floor** on any measured workload. Evidence about the population, not about the constant.
+     - Identical at every value over 18 ordinary workloads, because the ladder stops long
+       before the floor. **The regime it governs was then constructed rather than assumed**:
+       the floor is reached only when :math:`\gamma_\max` is below it *and* the tolerance is
+       tighter than ``GAMMA_TO_ERROR`` :math:`\times \gamma_\max`. There it does change
+       behaviour (a window opens below :math:`\gamma_\max`) but not usefully --
+       ``certified=False`` at every value, error three orders inside tolerance either way, and
+       the window costs 2.4× the time.
 
 **Why ``threshold0`` was measured, changed, and changed back.** The fixed-baseline sweep said a
 tolerance-derived rule was safe and cheaper. It was built, and the package's bit-identity

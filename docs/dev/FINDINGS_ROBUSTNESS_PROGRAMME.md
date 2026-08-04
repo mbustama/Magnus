@@ -574,3 +574,155 @@ so trimming `N_SMOOTH` is an informed decision rather than a discovery.
 * **`MagnusConvergenceWarning`'s 85 % intermediate-level noise** is specified but not fixed.
 * **`min_threshold`** governs a regime no measured workload enters, so it remains unexercised
   rather than validated.
+
+---
+
+## 12. Third tranche: the six items §11.7 left open
+
+Commissioned as "implement 1 to 6, act as your own reviewer". **Two closed with real fixes, two
+closed as measured rejections, one closed by construction, one closed by deletion.** The
+reviewer pass found two defects in my own new code, which are recorded here rather than quietly
+patched.
+
+### 12.1 Fallback quality — CLOSED, and it was the dispatch order
+
+The open item read "when the hybrid path declines on an energy scan, the separable engine can be
+two orders worse; found incidentally, not characterised". Characterising it
+(`fallback_quality.py`, 42 workloads across 7 profile families, d = 2 and 3, single points,
+baseline scans and energy scans, every applicable engine forced and scored) found something
+larger and closer to home.
+
+| | |
+|---|---|
+| `'auto'` more than 10× worse than the best engine that applied | **30 of 42** |
+| worst factor | **900 000×** |
+| `'auto'` outside the requested tolerance | 3, of which **2 silent** |
+| worst error, adiabatic hybrid, 42 workloads | 1.68e-03 |
+| worst error, **cumulative scan, the 28 it serves** | **1.13e-07** |
+
+`'auto'` picked the hybrid path on all 42. The cumulative scan was available on 28 of them and
+is three to six orders more accurate — and it was declined every time by
+`HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS = 25`.
+
+**That constant's docstring justified 25 on two claims, and both were wrong outside solar.** It
+said yielding earlier would cost "several times slower (7.6× at N = 2) to buy accuracy that was
+already two orders inside what the caller asked for". Re-measured:
+
+* the accuracy given up is not two orders inside tolerance — it is up to 900 000×, and
+  **outside** the tolerance, silently, on two of 42 workloads;
+* the cost is not several times slower. Alternating with a control that returned 0.99×, the
+  median cumulative/hybrid cost ratio is **0.87× at N = 2, 0.48× at N = 4, 0.25× at N = 8** —
+  the cumulative scan is *cheaper at every size measured*, and 30× cheaper on a multi-resonance
+  profile at N = 8. The 7.6× figure was solar, at N = 2, which is the best case for the hybrid
+  path and the worst for the cumulative scan's strict probe.
+
+**The seam is now 8**, chosen where the worst case stops mattering: at N = 8 the only profile
+that pays anything is solar at d = 3, at 1.44×, against three to six orders of accuracy; at
+N = 4 that worst case is 2.84× and at N = 2 it is 5.75×, which is a real price on the cheapest
+requests. Both silent misses were baseline scans at N = 8 and route to the cumulative scan now.
+
+This also corrects §11.2. The weak-band cross-check failed partly because it verified the hybrid
+path against the **general ladder**, which shares the failure; the **cumulative scan** disagrees
+with it by 1.7e-03 on exactly those cases. `ENGINE_FAMILIES` groups them together on shared
+machinery, which is right about their blind spots and wrong about their accuracy.
+
+### 12.2 `MagnusConvergenceWarning` keyed to the returned level — BUILT, MEASURED, REVERTED
+
+85 % of its firings describe an intermediate grid nobody receives, so keying it to the returned
+level looks obviously right. Implemented, then re-measured over the same 168 configurations:
+
+| | before | after |
+|---|---|---|
+| fired | 70 | 53 |
+| **true positives** | **17** | **4** |
+| false positives | 53 | 49 |
+| silent misses in the population | 2 | 2 |
+
+It removed 13 true positives to remove 4 false ones. **"The ladder started far from convergence"
+predicts a bad answer better than "the final grid is coarse" does.** The 85 % statistic was
+real; the inference from it was not. Reverted, and the rates were re-measured afterwards to
+confirm they returned exactly to 70/17/53. The mechanism is kept, private and documented, as
+`magnus._deferred_slab_norm`.
+
+### 12.3 Detection at the narrow end — CLOSED by understanding the two mechanisms
+
+Measuring the *distribution* of the misses, rather than only their rate, split them cleanly:
+
+| feature width | miss rate | median concentration of the misses |
+|---|---|---|
+| 3e-5 | 26 % | 0.100 (max 0.287) — **near-threshold** |
+| 1e-5 | 12 % | 0.000, p90 0.168 — mixed |
+| 3e-6 | 14 % | **0.000** — total |
+| 1e-6 | 35 % | **0.000** — total |
+
+Near-threshold misses at 3e-5 are the reference grid partly resolving the feature, which is
+honest — 3e-5 is where the refinement ceiling *can* half-see it. Total misses are simply
+unsampled, and no threshold change reaches them: **you cannot detect what you never sample.**
+
+So the only lever is sampling density, and it is now spent where the call can afford it: the
+scan runs once per call regardless of point count, so `n_sub` scales with the request — 8
+sub-steps (0.37 ms) for a single point, 32 (2.85 ms) for sixteen or more, holding the scan under
+about 7 % at every size instead of 20 % of the cheapest one. A single point keeps the cheapest
+scan **by design**: what finer sampling buys is widths of 3e-6 and below, narrower than anything
+physically plausible in a density profile.
+
+### 12.4 `min_threshold` — CLOSED by constructing its regime
+
+It was recorded as "unexercised rather than validated". The regime was then derived rather than
+searched for: the floor is reached only when γ_max is *below* it (so no window can open however
+far the threshold falls) **and** the tolerance is tighter than `GAMMA_TO_ERROR × γ_max` (so the
+γ rule cannot certify either). An almost-flat profile (γ_max = 3e-7) at `rtol = atol = 1e-9`
+satisfies both:
+
+| `min_threshold` | error | windows | iterations | time |
+|---|---|---|---|---|
+| 1e-4 | 8.49e-13 | 0 | 9 | 3.3 s |
+| **1e-6** | 8.49e-13 | 0 | 13 | 7.4 s |
+| 1e-8 | 3.24e-12 | 1 | 13 | 7.7 s |
+| 1e-10 | 3.24e-12 | 1 | 13 | 7.9 s |
+
+It does change behaviour there — below γ_max a window opens — but not usefully:
+`certified=False` at every value, the error is three orders inside the requested tolerance
+either way, and the window costs 2.4× the time and makes the answer very slightly *worse*.
+
+### 12.5 Suite time — CLOSED, partly
+
+Measured rather than estimated: `test_smooth_profile_fuzz_statistics` 437 s,
+`test_piecewise_profile_fuzz_statistics` 80 s, `test_fuzzing_raises_nothing` **72 s**.
+
+The third was pure duplication — it re-ran 16 of the same cases to assert that nothing raises,
+which the other two establish anyway by running 160 cases that cannot pass if one raises. Folded
+into `collect` and deleted. The smooth population is left at 40: it is the expensive one, and
+cutting it is exactly the statistical power the previous tranche added. The cost is stated in
+the file's docstring so trimming `N_SMOOTH` stays an informed decision.
+
+### 12.6 `strategy_info` on the generic entry points — CLOSED
+
+`osc_prob_sun` and `osc_prob_earth` now accept it, through `_osc_prob_with_potential`, with the
+same keys as the three scenario wrappers. A user-supplied Hamiltonian gets the same answer to
+"which engine answered, and what stood aside" as a built-in scenario does.
+
+### 12.7 What the reviewer pass found in my own new code
+
+* **`find_hidden_features` crashed on a profile that returns a bare scalar** for array input —
+  `values.shape[0]` on a 0-d array. A diagnostic that breaks the call it was inspecting is worse
+  than no diagnostic, and one of my own tests claimed this case was handled (it passed only
+  because the profile it used raised rather than returning a scalar).
+* **A non-finite profile produced `concentration = nan`**, which compared `False` against the
+  threshold by luck rather than by design and would have leaked a nan into `strategy_info`.
+
+Both now refuse quietly, and five parametrised cases pin it.
+
+* **Dead code**: `hybrid_kw` in `constants_audit2.py`, written and never called.
+* **Public API for a rejected design**: `deferred_slab_norm` was exported before it was measured
+  and reverted; it is now private.
+
+### 12.8 Still open after this tranche
+
+* **Features below ~2e-5 of the trajectory**: detected 73–82 % on a single point, and reported
+  rather than cured. Structural.
+* **`ENGINE_FAMILIES` groups the cumulative scan with the general ladder.** Right about shared
+  blind spots, wrong about accuracy — §12.1 shows they differ by four orders on the same
+  request. A cross-check between them is more informative than the grouping implies.
+* **The suite is still long**; the smooth fuzz population is the remaining cost and trimming it
+  trades away statistical power.
