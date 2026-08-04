@@ -178,6 +178,23 @@ class MagnusConvergenceWarning(UserWarning):
     ``strategy='auto'`` and ``strategy='magnus'``, the adaptive refinement ran and the answer was
     still **7.484e-03**, seven times outside the tolerance asked for, with this warning showing.
 
+    **Measured rates** (``docs/dev/adversarial_batteries/warn_fp.py``, 168 configurations across
+    the profile families this package serves, d = 2-5, scored against ``solve_ivp`` or, for
+    piecewise profiles, against ``expm``): fired 70 times, of which **17 true positives and 53
+    false positives -- a 76 % false-positive rate**, the highest of any warning here.  That is
+    the price of reporting a *sufficient* condition, and it is why the text above refuses to
+    translate the condition into a claim about the error.
+
+    **Where that noise comes from, and what would fix it.**  Of 66 single-point calls, some
+    refinement level exceeded :math:`\pi` in 46 -- but the level whose answer was actually
+    returned did so in only **7**.  So **39 of 46 firings, 85 %, describe an intermediate grid
+    that nobody receives**: the ladder started coarse, said so, then refined and never retracted
+    it.  Keying the warning to the returned level alone would cut false alarms from 31 to 5 at a
+    similar rate (67 % against 71 %).  That change is *mechanical* -- capture the norm per level
+    and emit once the loop has decided -- and is **deliberately not made here**, because it
+    touches the refinement loop and the warning plumbing several tests depend on.  It is written
+    down with its numbers so it can be made deliberately rather than rediscovered.
+
     .. versionadded:: 1.0.0
     """
 

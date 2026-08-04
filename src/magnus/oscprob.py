@@ -408,6 +408,34 @@ milliseconds for that is the right way round.
 """
 
 
+# A weak-band self-cross-check was built here and REMOVED, on measurement.  The idea: below
+# the N = 25 seam, where every remaining silent miss lives, have strategy='auto' verify a
+# window-free hybrid result against the general Magnus ladder instead of taking its word --
+# certification with no window rests on gamma alone, and GAMMA_TO_ERROR is good only to ~2x.
+#
+# It does not work, and the reason is worth keeping:
+#
+#   * with the shipped constant, over 200 random smooth profiles, 25 results were window-free
+#     and certified and the ladder agreed with ALL 25.  Zero disagreements, so zero benefit
+#     against a measured 9% of calls paying for a second engine.
+#   * with GAMMA_TO_ERROR deliberately made optimistic by 2x, 41 results were certified,
+#     3 of them genuinely outside tolerance -- and the check still fired zero times.  The
+#     first version's trigger was computed FROM GAMMA_TO_ERROR, so mis-calibrating the
+#     constant shrank the trigger in step with it: a check insured against a constant, keyed
+#     on that same constant.  Self-referential, which is precisely the failure shape this
+#     whole programme exists to find, reproduced by the person writing the fix.
+#   * removing the circularity does not rescue it.  Verifying EVERY window-free result --
+#     11% of random calls, and 100% of ordinary solar single points, which are window-free --
+#     still fires zero times and still misses the same 3.
+#
+# The conclusion is structural: what is left in the weak band is not disagreement between
+# engines, it is the engines being wrong TOGETHER.  A cross-check detects the former by
+# construction and can never detect the latter -- the same reason cross_check_strategies
+# cannot see a feature narrower than every grid.  The instrument that does reach that class is
+# adiabatic.find_hidden_features, which looks at the profile rather than at the answers.
+#
+# Reproduce: docs/dev/adversarial_batteries/crosscheck_benefit.py and weak_band.py.
+
 HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS = 25
 r"""int: Module-level constant
 
@@ -766,6 +794,12 @@ class ToleranceNotAchievedWarning(UserWarning):
     Two subclasses narrow the diagnosis: :class:`HybridCertificationWarning` and
     :class:`UnmarkedDiscontinuityWarning`.  Code filtering on this class catches both.
 
+    **Measured rates** (``docs/dev/adversarial_batteries/warn_fp.py``, 168 configurations):
+    fired 37 times, **16 true positives and 21 false positives -- a 57 % false-positive rate**.
+    A false positive here means the ladder genuinely ran out of room *and* the answer was
+    nonetheless inside tolerance, which is the expected shape: a cap is reached before
+    convergence has been *verified*, not before it has been *achieved*.
+
     .. versionadded:: 1.0.0
     """
 
@@ -836,6 +870,16 @@ class UnmarkedDiscontinuityWarning(ToleranceNotAchievedWarning):
     also catches this.  Not raised when ``t_breakpoints`` was supplied: the caller has then said
     where the edges are, and the grid honours them.
 
+    **Measured rates** (``docs/dev/adversarial_batteries/warn_fp.py``, 168 configurations
+    including 48 random piecewise-constant profiles with the edges deliberately left
+    undeclared): fired 56 times, **23 true positives and 33 false positives -- 59 %**.  Read
+    that number carefully: this reports a *condition about the input*, not a prediction about
+    the error, and on every one of those 33 the condition was real -- there was an undeclared
+    discontinuity -- and the answer happened to come out inside tolerance anyway.  Declaring the
+    edges would still have improved it (median 7.8e-04 to 1.3e-12 in ``FINDINGS`` §9.2).  A
+    warning whose claim is true and whose advice is worth taking is not made a false alarm by
+    the answer surviving.
+
     **Also raised on the hybrid path.**  The same detector already ran inside
     :func:`magnus.adiabatic.hybrid_propagator`, where failing it makes the strategy decline --
     silently, so the caller heard about slab widths from whichever engine answered instead,
@@ -874,6 +918,43 @@ def _shortfall_phrase(last_gap, rtol, atol) -> str:
                 "tolerance")
     return ("the last two refinement levels still differing by more than thirty times the "
             "tolerance")
+
+
+class HiddenFeatureWarning(ToleranceNotAchievedWarning):
+    r"""Warns that the profile has structure too narrow for **any** grid this package lays down.
+
+    **What was detected.**  A feature whose variation is concentrated between samples of even the
+    finest grid the adaptive machinery reaches -- see
+    :func:`magnus.adiabatic.find_hidden_features` and
+    :data:`magnus.adiabatic.HIDDEN_FEATURE_CONCENTRATION`.  The message names the position.
+
+    **What it means for the answer.**  Possibly wrong, and *no choice of strategy or tolerance
+    helps*.  This is the one exposure the adversarial validation
+    (``docs/dev/FINDINGS_ADVERSARIAL_VALIDATION.md`` §8.3) could not close: the hybrid
+    strategy's probe grid, the general ladder's slabs and the cumulative scan's accuracy grid all
+    miss the same feature, so they agree with each other and are wrong together -- which is also
+    why :func:`cross_check_strategies` cannot see it either.  Measured on a Gaussian of width
+    :math:`3\times10^{-5}` of the trajectory: **wrong by 2.9e-02 against a requested 1e-3, with
+    no warning at all** before this existed.
+
+    **What to change.**  Pass ``t_breakpoints`` bracketing the position in the message, padded by
+    a few reference intervals.  Measured on the two constructions above, going from nothing to a
+    padded breakpoint set: 3.9e-03 → 8.5e-05 and 1.3e-03 → 4.4e-04, and the answer stops being
+    silent.  The cure is real but **partial** -- putting edges on a feature helps the quadrature,
+    it does not conjure resolution that the sampling never had.  For a feature you know the width
+    of, a denser grid there is better still.
+
+    **When it is safe to ignore.**  When the narrow structure is an artefact of how the profile
+    function was written rather than physics -- an interpolation kink, a rounding step in a
+    tabulated density -- and you know the physical profile is smooth there.
+
+    Subclasses :class:`ToleranceNotAchievedWarning`, so code already filtering on the parent
+    catches it.  Not raised when ``t_breakpoints`` was supplied: the caller has then already said
+    where the structure is.  The scan depends on the profile and the interval but not on energy,
+    so it runs **once per call**, not once per (energy, L) point.
+
+    .. versionadded:: 1.0.0
+    """
 
 
 class PhaseAveragingWarning(UserWarning):
@@ -2975,6 +3056,58 @@ interaction-picture path applies, and a cross-check that silently compared the s
 itself would be exactly the failure it exists to detect."""
 
 
+def _scan_for_hidden_features(profile, l0, L, t_breakpoints=None) -> Optional[Dict]:
+    r"""Run the sub-probe feature scan once for a whole call, and warn if it finds something.
+
+    Placed at the entry points rather than inside any one engine because the blind spot is not
+    one engine's: the hybrid probe grid, the general ladder's slabs and the cumulative scan's
+    accuracy grid all miss the same feature.  See :class:`HiddenFeatureWarning`.
+
+    Skipped when the caller supplied ``t_breakpoints`` (they have already said where the
+    structure is) and when the profile is not a function of position (nothing to hide in).
+
+    .. versionadded:: 1.0.0
+
+    Returns
+    -------
+    dict or None
+        The scan result from :func:`magnus.adiabatic.find_hidden_features`, or None if the scan
+        did not apply.
+    """
+    if not isinstance(profile, Callable):
+        return None
+    if (t_breakpoints is not None) and (len(np.atleast_1d(t_breakpoints)) > 0):
+        return None
+    L_arr = np.atleast_1d(np.asarray(L, dtype=float))
+    l1 = float(np.max(L_arr))
+    if l1 == float(l0):
+        return None
+
+    scan = adiabatic.find_hidden_features(profile, float(l0), l1)
+    if not scan['hidden']:
+        return scan
+
+    # The position IS the actionable content here, so it goes in the message even though that
+    # costs the static-message dedup other warnings keep.  It does not cost much: the scan
+    # depends on the profile and the interval only, so every call over the same profile
+    # produces the same string and Python's default filter still collapses them.
+    pad = 3.0*(scan['l_hi'] - scan['l_lo'])
+    warnings.warn(
+        "osc_prob: the density profile has structure too narrow for any grid this package "
+        "samples on, near l = " + format(scan['l_centre'], '.6e') + ". Every engine misses it "
+        "-- the adiabatic probe grid, the general Magnus slabs and the cumulative scan alike -- "
+        "so they agree with each other and may be wrong together, and no choice of strategy or "
+        "tolerance helps. Measured on such a profile: wrong by 2.9e-02 against a requested "
+        "1e-3. Pass t_breakpoints=["
+        + format(scan['l_lo'] - pad, '.6e') + ", " + format(scan['l_centre'], '.6e') + ", "
+        + format(scan['l_hi'] + pad, '.6e') + "] to put slab edges on it; that is a partial "
+        "cure (measured 3.9e-03 -> 8.5e-05), not a complete one. If the narrow structure is an "
+        "artefact of how the profile function was written rather than physics, this is safe to "
+        "ignore. Shown once per profile per session.",
+        HiddenFeatureWarning, stacklevel=3)
+    return scan
+
+
 def _note_engine(label: str, answered: bool = True, **detail) -> None:
     r"""Record that ``label`` answered (or declined), if anything is watching.
 
@@ -2988,7 +3121,7 @@ def _note_engine(label: str, answered: bool = True, **detail) -> None:
 
 
 @contextmanager
-def _engine_probe(disabled=(), info=None):
+def _engine_probe(disabled=(), info=None, extra=None):
     r"""Watch which engine answers, and optionally forbid some of them.
 
     Restores both globals on the way out, including on an exception, so a raising call (which
@@ -3018,6 +3151,8 @@ def _engine_probe(disabled=(), info=None):
         _ENGINE_TRACE, _ENGINES_DISABLED = prev_trace, prev_disabled
         if info is not None:
             info.update(_summarize_engine_trace(trace[start:]))
+            if extra is not None:
+                info.update(extra)
 
 
 def _summarize_engine_trace(trace) -> Dict:
@@ -4088,6 +4223,7 @@ def _hybrid_propagator_scan(
             integration_method=integration_method, info=info)
         unresolved = unresolved or (not info.get('resolved', True))
 
+
         if not certified:
             if strategy == 'auto':
                 _note_engine('hybrid', answered=False, certified=False,
@@ -4434,6 +4570,12 @@ def osc_prob_energy_baseline(
         Forwarded to :func:`osc_prob` for each (energy, L) point; see its docstring.
     growth_factor_n_slabs : int or float
         Forwarded to :func:`osc_prob` for each (energy, L) point; see its docstring.
+
+        **Provenance.**  Swept over 1.2, 1.5, 2.0, 3.0 across 18 workloads spanning single
+        points, baseline scans and energy scans
+        (``docs/dev/adversarial_batteries/constants_audit2.py``): worst error 4.49e-04 at every
+        value.  It sets how coarsely the ladder is sampled, not where it stops, so it trades
+        wasted refinement against overshoot without moving the accepted answer.
     growth_factor_n_tpts_per_slab : int or float
         Forwarded to :func:`osc_prob` for each (energy, L) point; see its docstring.
     max_num_loops : int
@@ -4444,6 +4586,11 @@ def osc_prob_energy_baseline(
         Forwarded to :func:`osc_prob` for each (energy, L) point; see its docstring.
     min_n_tpts_per_slab : int
         Forwarded to :func:`osc_prob` for each (energy, L) point; see its docstring.
+
+        **Provenance.**  Swept over 2, 4, 8 on the same 18 workloads: worst error 4.49e-04 at
+        every value.  With the default ``integration_method='gl'`` this is expected --
+        Gauss-Legendre pins the node count per slab and ignores it -- so the sweep confirms the
+        documented behaviour rather than calibrating anything.
     max_n_tpts_per_slab : int
         Forwarded to :func:`osc_prob` for each (energy, L) point; see its docstring.
     validate_input : bool
@@ -5440,8 +5587,16 @@ def osc_prob_matter_std_potential(
            path; neither can see a feature that falls between samples, and no refinement of
            either finds it, because refinement never puts a point inside it. Measured on a
            Gaussian resonance of width :math:`10^{-5}` of the trajectory, the returned
-           probability was wrong by **2.9e-02 against a requested 1e-3, with no warning** -- on
-           the hybrid path, the general path, and the cumulative scan alike.
+           probability was wrong by **2.9e-02 against a requested 1e-3** -- on the hybrid path,
+           the general path, and the cumulative scan alike.
+
+           It is **no longer silent**: :func:`magnus.adiabatic.find_hidden_features` scans the
+           profile itself, once per call, and raises :class:`HiddenFeatureWarning` naming the
+           position and the ``t_breakpoints`` to pass.  It reaches this class precisely because
+           it looks at the profile rather than at the answers, which is what no comparison
+           between engines can do when they are all wrong together.  Detection is 68-90 % over
+           the unresolvable band with 0 false positives on 67 smooth profiles, so it is a
+           report -- not a guarantee, and not a cure.
 
            Passing ``t_breakpoints`` at the feature fixes it, and is tested: the same case goes
            to 8.8e-04 at a single point and 8.9e-04 over a 60-point scan. It is the right tool
@@ -5644,11 +5799,17 @@ def osc_prob_matter_std_potential(
     _breakpoints = kwargs.get('t_breakpoints')
     _profile_is_smooth = ((_breakpoints is None or len(np.atleast_1d(_breakpoints)) == 0)
                           and (t_slab_edges is None))
+    # One scan of the profile for the whole call, before any engine sees it: a feature
+    # narrower than every grid here is the one exposure none of them can detect for itself,
+    # because they all miss it together.  Depends on the profile and the interval, never on
+    # energy, so it is not repeated per point.  See _scan_for_hidden_features.
+    _hidden = _scan_for_hidden_features(VCC_func, L0, L, kwargs.get('t_breakpoints'))
+
     # Everything below is dispatch: which engine gets the request.  Watched as a unit so
     # that strategy_info can report which one answered and, for the hybrid strategy,
     # whether it certified -- see _engine_probe.  Costs one list allocation per call when
     # nobody is watching.
-    with _engine_probe(info=strategy_info):
+    with _engine_probe(info=strategy_info, extra={'hidden_feature': _hidden}):
         P_avg = _avg_prob_dispatch(htot, htot_is_function_only_of_energy, energy, L, L0, nu_i, nu_f,
             average, 'osc_prob_matter_std_potential', smooth_profile=_profile_is_smooth, engine_kwargs=scan_kwargs)
         if P_avg is not NotImplemented:
@@ -6042,11 +6203,17 @@ def osc_prob_matter_nsi(
     _breakpoints = kwargs.get('t_breakpoints')
     _profile_is_smooth = ((_breakpoints is None or len(np.atleast_1d(_breakpoints)) == 0)
                           and (t_slab_edges is None))
+    # One scan of the profile for the whole call, before any engine sees it: a feature
+    # narrower than every grid here is the one exposure none of them can detect for itself,
+    # because they all miss it together.  Depends on the profile and the interval, never on
+    # energy, so it is not repeated per point.  See _scan_for_hidden_features.
+    _hidden = _scan_for_hidden_features(VCC_func, L0, L, kwargs.get('t_breakpoints'))
+
     # Everything below is dispatch: which engine gets the request.  Watched as a unit so
     # that strategy_info can report which one answered and, for the hybrid strategy,
     # whether it certified -- see _engine_probe.  Costs one list allocation per call when
     # nobody is watching.
-    with _engine_probe(info=strategy_info):
+    with _engine_probe(info=strategy_info, extra={'hidden_feature': _hidden}):
         P_avg = _avg_prob_dispatch(htot, htot_is_function_only_of_energy, energy, L, L0, nu_i, nu_f,
             average, 'osc_prob_matter_nsi', smooth_profile=_profile_is_smooth, engine_kwargs=scan_kwargs)
         if P_avg is not NotImplemented:
@@ -6396,6 +6563,13 @@ def osc_prob_liv(
 
     else: # Matter density is zero; the only terms in the Hamiltonian are vacuum and LIV
 
+        # Bound on this branch too, so that everything below can refer to it unconditionally.
+        # Unlike the other two scenario wrappers, this one builds VCC_func only when the
+        # density is nonzero -- and a LIV *vacuum* call therefore reached the profile scan with
+        # the name unbound.  0.0 is the right value as well as a safe one: there is no
+        # potential, so there is no position dependence for anything to hide in.
+        VCC_func = 0.0
+
         def htot(enu: Union[int, float]) -> np.ndarray:
             return (1/enu)*h_vac_energy_indep + pow(enu,n_liv)*h_liv_energy_indep
         htot_is_function_only_of_energy = True
@@ -6434,11 +6608,17 @@ def osc_prob_liv(
     _breakpoints = kwargs.get('t_breakpoints')
     _profile_is_smooth = ((_breakpoints is None or len(np.atleast_1d(_breakpoints)) == 0)
                           and (t_slab_edges is None))
+    # One scan of the profile for the whole call, before any engine sees it: a feature
+    # narrower than every grid here is the one exposure none of them can detect for itself,
+    # because they all miss it together.  Depends on the profile and the interval, never on
+    # energy, so it is not repeated per point.  See _scan_for_hidden_features.
+    _hidden = _scan_for_hidden_features(VCC_func, L0, L, kwargs.get('t_breakpoints'))
+
     # Everything below is dispatch: which engine gets the request.  Watched as a unit so
     # that strategy_info can report which one answered and, for the hybrid strategy,
     # whether it certified -- see _engine_probe.  Costs one list allocation per call when
     # nobody is watching.
-    with _engine_probe(info=strategy_info):
+    with _engine_probe(info=strategy_info, extra={'hidden_feature': _hidden}):
         P_avg = _avg_prob_dispatch(htot, htot_is_function_only_of_energy, energy, L, L0, nu_i, nu_f,
             average, 'osc_prob_liv', smooth_profile=_profile_is_smooth, engine_kwargs=scan_kwargs)
         if P_avg is not NotImplemented:
@@ -9503,6 +9683,9 @@ def _osc_prob_with_potential(
     # strategy instead of configuring the scan.  An explicit True still stands aside here,
     # since it names one engine and is documented to raise rather than be substituted for.
     cumulative = kwargs.pop('cumulative', 'auto')
+    # The same one-per-call profile scan the scenario wrappers run; the blind spot is a property
+    # of the grids, not of which entry point built the Hamiltonian.
+    _scan_for_hidden_features(VCC_func, L0, L, t_breakpoints)
     P_hybrid = (NotImplemented if cumulative is True else
         _osc_prob_hybrid_dispatch_generic(htot, VCC_func, energy, L, L0, nu_i, nu_f,
             t_breakpoints, rtol, atol, magnus_exp_order, integration_method, strategy, kwargs))
@@ -17110,6 +17293,9 @@ __all__ = [
     'ToleranceNotAchievedWarning',
     'HybridCertificationWarning',
     'UnmarkedDiscontinuityWarning',
+    'HiddenFeatureWarning',
+    'ENGINE_FAMILIES',
+    'cross_check_strategies',
     'print_banner',
     'print_run_parameters',
     'validate_input_battery',

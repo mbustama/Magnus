@@ -2689,8 +2689,14 @@ def test_breakpoints_cure_a_feature_narrower_than_the_probe_grid():
     assert err_bare > 2e-3, (
         f"a sub-probe-spacing feature is no longer missed when undeclared (err {err_bare:.2e}); "
         "if the detector improved, update the strategy docstring's warning to match")
-    assert not caught_bare, (
-        "the undeclared case now warns; the docstring says it does not, so one of them is wrong")
+    # This assertion used to read `not caught_bare`, with a note that it should fail loudly if
+    # the detector ever grew the ability to find this.  It did: adiabatic.find_hidden_features
+    # scans the PROFILE rather than the answers, which is what reaches a class every engine
+    # misses together.  The answer is still wrong -- detection is not a cure, and the assertion
+    # above still holds -- but it is no longer silent, which was the failure that mattered.
+    assert 'HiddenFeatureWarning' in caught_bare, (
+        "a feature narrower than every grid must at least be reported; it is the one exposure "
+        "no cross-check between engines can reach")
     # And the cure works, which is what the documentation promises.  (Measured: 1.31e-04.)
     assert err_bp < 1e-3, f"t_breakpoints no longer cures the narrow feature (err {err_bp:.2e})"
     assert err_bp < err_bare/10.0

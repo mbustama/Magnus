@@ -21,6 +21,13 @@ can be separated from "the level whose answer was returned did".  If the first d
 warning is reporting on results nobody receives, and the fix is mechanical rather than
 editorial.
 
+**Cost, and how it was brought down.**  The first version of this script was killed unfinished
+at 100 of 180 configurations: it put ``solve_ivp`` on every case, including N = 40 at 3nu and
+10 MeV, which is the exact trap the brief warns about (25 s for 2 of 80 baselines).  This one
+splits the population by oracle -- ``expm`` composed across segments for piecewise-constant
+profiles, which is **exact** and costs nothing, and ``solve_ivp`` only for the smooth families,
+held to >= 30 MeV and N <= 8.  Same question, roughly a tenth of the time.
+
 Run:  python warn_fp.py [n_random]
 """
 
@@ -29,6 +36,8 @@ import time
 import warnings
 
 import numpy as np
+
+from scipy.linalg import expm
 
 import harness as H
 import magnus.magnus as magnuscore
@@ -63,6 +72,27 @@ class NormSpy:
     def __exit__(self, *e):
         magnuscore._warn_slab_norm = self._orig
         return False
+
+
+def piecewise_profile(edges, values):
+    def ne(l):
+        x = np.asarray(l, dtype=float)
+        idx = np.clip(np.searchsorted(edges, x, side='right') - 1, 0, len(values) - 1)
+        return H.scalarize(values[idx])
+    return ne
+
+
+def exact_piecewise_P(H_func, edges, Ls, d):
+    """EXACT probabilities: H is constant on each segment, so the exponentials compose."""
+    stops = sorted(set(np.concatenate([edges, np.atleast_1d(Ls)]).tolist()))
+    U, cursor, at = np.eye(d, dtype=complex), float(stops[0]), {}
+    for nxt in stops:
+        if nxt > cursor:
+            Hm = np.asarray(H_func(0.5*(cursor + nxt)), dtype=complex)
+            U = expm(-1j*Hm*(nxt - cursor)) @ U
+            cursor = nxt
+        at[nxt] = U.copy()
+    return np.array([H.P_of(at[float(L)]) for L in np.atleast_1d(Ls)])
 
 
 def build_population(n_random=8):
@@ -103,17 +133,34 @@ def build_population(n_random=8):
     cases = []
     for label, ne, kw in families:
         for d in (2, 3):
-            for energy in (10.0e6, 50.0e6):
-                for N in (1, 8, 40):
-                    cases.append((label, ne, d, p_by_d[d], energy, N, kw))
+            # >= 30 MeV and N <= 8: solve_ivp is what made the first version of this
+            # unfinishable, and it is cheapest at high energy and few baselines.
+            for energy in (30.0e6, 100.0e6):
+                for N in (1, 8):
+                    cases.append((label, ne, d, p_by_d[d], energy, N, kw, None))
+
+    # Piecewise arm: exact oracle, so d = 4 and 5 and larger scans are affordable here.
+    rng2 = np.random.default_rng(4242)
+    for i in range(2*n_random):
+        d = int(rng2.choice([2, 3, 4, 5]))
+        n_seg = int(rng2.integers(2, 9))
+        cuts = np.sort(rng2.uniform(0.0, 1.0, n_seg - 1))*L1
+        edges = np.concatenate([[0.0], cuts, [L1]])
+        values = H.NE0*10.0**rng2.uniform(-2.5, -0.5, n_seg)
+        ne = piecewise_profile(edges, values)
+        params = H.params_for(d)
+        for N in (1, 8, 30):
+            cases.append(('piecewise #%d' % i, ne, d, params,
+                          float(10.0**rng2.uniform(7.3, 8.0)), N, {}, edges))
     return cases
 
 
-def score(label, ne, d, params, energy, N, kw):
+def score(label, ne, d, params, energy, N, kw, edges=None):
     Ls = np.linspace(0.05*L1, L1, N) if N > 1 else np.array([L1])
     H_of_l = H.H_factory(d, params, H.vcc_of(ne), energy)
     try:
-        Pref = np.array([H.P_of(U) for U in H.exact_U_many(H_of_l, L0, Ls, d)])
+        Pref = (exact_piecewise_P(H_of_l, edges, Ls, d) if edges is not None
+                else np.array([H.P_of(U) for U in H.exact_U_many(H_of_l, L0, Ls, d)]))
     except Exception as exc:                       # noqa: BLE001
         return dict(label=label, skipped=type(exc).__name__)
 

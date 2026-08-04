@@ -297,6 +297,18 @@ engines apply and reports the pairwise spread. On the pre-fix package it reports
 disagreement on **seven of the eight** constructions where a method was silently wrong, each
 at least four times the requested tolerance. *What it cannot do:* see the one below.
 
+**The sub-probe feature scan** (:func:`magnus.adiabatic.find_hidden_features`). Looks at the
+*profile* rather than at the answers, which is what lets it reach the one class no cross-check
+can: within each interval of the refinement-ceiling grid, it compares the total variation a
+denser grid sees inside that interval with the change its endpoints show, and reports the
+largest excess as a fraction of the total. **Concentration, not size** -- an aliased sinusoid
+hides variation in every interval, a narrow bump hides all of it in one. Measured at **0 false
+positives over 67 smooth and resolvable profiles**, detecting 68-90 % of features in the
+unresolvable band, for 0.37 ms once per call. *What it cannot do:* detection falls to ~0.73 for
+features far below the dense sampling, and it **reports rather than cures** -- it names the
+position and the ``t_breakpoints`` to pass, which is a partial fix (measured 3.9e-03 to
+8.5e-05), not a complete one.
+
 **The one irreducible limit: a feature narrower than the probe spacing.** A Gaussian
 resonance of width :math:`10^{-5}` of the trajectory is not sampled by the probe grid
 (spacing :math:`5\times10^{-3}`), nor by its refinement ceiling
@@ -309,7 +321,17 @@ wrong engine exactly when some other engine got it right.
 The cure is caller-supplied ``t_breakpoints`` at the feature, and it is verified: the same
 case goes to 8.8e-04 at a single point and 8.9e-04 over a 60-point scan. This is a property
 of any fixed grid, not of any particular test, and no detector that pretends otherwise would
-be honest.
+be honest. What *has* changed is that the condition is now usually **detected and reported**
+rather than silent -- see the feature scan above.
+
+**A cross-check cannot close the rest, and this was measured rather than assumed.** Having
+``strategy='auto'`` verify its own window-free results against the general Magnus ladder below
+the N = 25 seam was built, measured and removed: on 200 random smooth profiles the ladder agreed
+with all 25 window-free results, and when :data:`magnus.adiabatic.GAMMA_TO_ERROR` was
+deliberately mis-calibrated by 2x the check still fired zero times while three answers went
+genuinely wrong. **What is left in that band is not engines disagreeing -- it is engines being
+wrong together**, which a cross-check cannot see by construction. See
+``docs/dev/FINDINGS_ROBUSTNESS_PROGRAMME.md`` §11.2.
 
 
 Warnings: what each one means and what to do about it
@@ -359,11 +381,58 @@ much*, where the code knows), what to change, and when it is genuinely safe to i
      - **Unverified, which is not the same as wrong.** The result is still exactly unitary.
      - ``strategy='auto'`` (falls back automatically); or ``t_breakpoints`` at known
        structure; or a looser tolerance.
+   * - :class:`magnus.oscprob.HiddenFeatureWarning`
+     - The profile has structure too narrow for **any** grid here to sample.
+     - Possibly wrong, and no strategy or tolerance helps -- every engine misses it together.
+     - ``t_breakpoints`` at the position named in the message. A partial cure.
    * - :class:`magnus.magnus.MagnusConvergenceWarning`
      - :math:`\lVert\Omega\rVert_2 \geq \pi` on some slab.
      - **Unknown.** This reports a slab width, not an error.
      - Narrower slabs (smaller ``rtol``/``atol``, larger ``n_slabs``); ``t_breakpoints`` at
        any jump. Raising the order does not help.
+
+**Measured false-positive rates** (``docs/dev/adversarial_batteries/warn_fp.py``, 168
+configurations across the profile families this package serves, d = 2-5, scored against
+``solve_ivp`` or -- for piecewise-constant profiles, where it is exact -- ``expm``):
+
+.. list-table::
+   :header-rows: 1
+   :widths: 40 12 12 12 24
+
+   * - Warning
+     - Fired
+     - TP
+     - FP
+     - FP rate
+   * - :class:`magnus.magnus.MagnusConvergenceWarning`
+     - 70
+     - 17
+     - 53
+     - **76 %**
+   * - :class:`magnus.oscprob.UnmarkedDiscontinuityWarning`
+     - 56
+     - 23
+     - 33
+     - 59 %
+   * - :class:`magnus.oscprob.ToleranceNotAchievedWarning`
+     - 37
+     - 16
+     - 21
+     - 57 %
+
+Silent misses across that whole population: **2 of 168 (1.2 %)**.
+
+Read the 59 % carefully. ``UnmarkedDiscontinuityWarning`` reports a *condition about the input*,
+not a prediction about the error, and on all 33 the condition was real -- there was an undeclared
+discontinuity -- and the answer survived anyway. Declaring the edges would still have improved it
+by orders of magnitude. A warning whose claim is true and whose advice is worth taking is not
+made a false alarm by the answer surviving.
+
+``MagnusConvergenceWarning``'s 76 % has a known and quantified cause: of 66 single-point calls,
+some refinement level exceeded :math:`\pi` in 46, but **the level whose answer was returned did
+so in only 7**. So 85 % of its firings describe an intermediate grid nobody receives. Keying it
+to the returned level would cut false alarms from 31 to 5; that change is mechanical and is
+deliberately not made yet, because it touches the refinement loop several tests depend on.
 
 Two of these deserve their honesty spelled out rather than buried:
 
@@ -435,19 +504,39 @@ Measured
        could move a probability here. **The band, not the value, is what to preserve.**
    * - ``hybrid_propagator`` ``threshold0``
      - 0.1
-     - 3 profiles × d = 2, 3 × three requested tolerances. **Accuracy is identical at every
-       value** in 16 of 18 rows -- since the γ rule was added this decides cost, not
-       correctness. At ``rtol ≤ 1e-3`` a lower value is up to **6.5×** cheaper; at
-       ``rtol = 1e-2`` the sign flips, because a low threshold then opens a window the
-       tolerance did not require. **The right value is a rule, not a constant.** Left unchanged
-       deliberately -- see below.
+     - See :data:`magnus.adiabatic.THRESHOLD0_PROVENANCE`. Accuracy identical at every value in
+       16 of 18 rows at a fixed baseline, and a lower start up to **6.5×** cheaper -- but a
+       tolerance-derived rule built on that evidence made an **energy scan 20× worse**
+       (2.5e-05 → 4.95e-04) and was reverted.
+   * - :data:`magnus.adiabatic.HIDDEN_FEATURE_CONCENTRATION`
+     - 0.3
+     - 67 smooth and resolvable profiles (ceiling **0.060**) against features in the
+       unresolvable band (0.91–1.00). **0 false positives at every threshold from 0.2 to 0.6**;
+       0.3 maximises detection (68–90 %) at five times the measured ceiling.
+   * - :data:`magnus.adiabatic.N_HIDDEN_FEATURE_SUBDIVISION`
+     - 8
+     - Chosen on cost, not on the statistic (which is flat in it): 0.37 ms against 2.85 ms at
+       32, where the arrays stop fitting in cache.
+   * - ``n_probe0``, ``n_points0``, ``patch_atol``, ``n_slabs0``, ``growth_factor_n_slabs``,
+       ``min_n_tpts_per_slab``
+     - 200, 201, 1e-7, 400, 1.5, 2
+     - Swept across **18 workloads spanning single points, baseline scans and energy scans** ×
+       3 profile families × d = 2, 3. The worst error is **4.49e-04 at essentially every value
+       of every one of them**: these set where a doubling ladder starts, and the ladder reaches
+       the same place regardless. ``patch_atol`` at 1e-9 is the one exception and is not really
+       about this constant -- see :func:`magnus.adiabatic.hybrid_propagator`.
+   * - ``min_threshold``
+     - 1e-6
+     - Swept 1e-4 … 1e-8: identical at every value, because **the ladder never reaches the
+       floor** on any measured workload. Evidence about the population, not about the constant.
 
-**Why ``threshold0`` was measured and then not changed.** 0.1 is not its optimum at the default
-tolerance; 0.01 is two to three times cheaper at identical accuracy on every profile measured.
-Three profiles at one energy is nevertheless precisely the size of population that made
-``GAMMA_TO_ERROR`` wrong twice, in opposite directions. Retuning a default on it would repeat
-that mistake rather than learn from it, so the measurement is recorded and the constant is left
-where it is.
+**Why ``threshold0`` was measured, changed, and changed back.** The fixed-baseline sweep said a
+tolerance-derived rule was safe and cheaper. It was built, and the package's bit-identity
+workloads — which include an energy scan the sweep did not — said otherwise: one row 13711×
+better, another 20× worse. **A population that does not contain the workload you are about to
+change is not evidence about it**, which is the same mistake that made ``GAMMA_TO_ERROR`` wrong
+twice, committed again while explicitly trying to avoid it. The measurement is kept; the default
+is not changed.
 
 Not measured
 ~~~~~~~~~~~~~~
@@ -456,15 +545,13 @@ The following carry no provenance beyond "it has always been that". They are lis
 than quietly left out, because an unaudited constant that nobody has written down is
 indistinguishable from an audited one.
 
-``min_threshold`` (1e-6), ``n_probe0`` (200), ``max_n_probe`` (6400), ``n_points0`` (201),
-``max_n_points`` (12864), ``patch_atol`` (1e-7), ``n_slabs0`` (400), ``max_iters`` (12) in
-:mod:`magnus.adiabatic`; ``growth_factor_n_slabs`` (1.5), ``max_num_loops`` (50),
-``min_n_tpts_per_slab`` (2) in :mod:`magnus.oscprob`.
+``max_n_probe`` (6400), ``max_n_points`` (12864) and ``max_iters`` (12) in
+:mod:`magnus.adiabatic`; ``max_num_loops`` (50) in :mod:`magnus.oscprob`.
 
-Two of these are ceilings rather than calibrations -- ``max_n_probe``, ``max_n_points``,
-``max_num_loops`` and ``max_iters`` bound cost, and reaching one is reported by
-:class:`magnus.oscprob.ToleranceNotAchievedWarning` rather than absorbed -- so "unmeasured"
-means something milder for them than for a threshold that silently decides an outcome.
+All four are **cost ceilings rather than calibrations**: they bound work, and reaching one is
+reported by :class:`magnus.oscprob.ToleranceNotAchievedWarning` rather than absorbed. So
+"unmeasured" means something milder for them than for a threshold that silently decides an
+outcome. Every constant that *does* silently decide an outcome now appears in the table above.
 
 
 Reproducing any of this
@@ -487,8 +574,14 @@ re-running is the only way to get them:
      - The oracle-free invariants, swept over a profile matrix.
    * - ``warn_fp.py``
      - Every warning's true- and false-positive rate.
-   * - ``constants_audit.py``
-     - Provenance for the calibration constants above.
+   * - ``constants_audit.py``, ``constants_audit2.py``
+     - Provenance for the calibration constants above; the second sweeps 18 workloads spanning
+       points, baseline scans and energy scans.
+   * - ``resolution_fp.py``
+     - The resolution test's false-positive rate, swept over sub-intervals.
+   * - ``weak_band.py``, ``crosscheck_benefit.py``
+     - Where the hybrid path's self-certification is weak, and whether a default-path
+       cross-check would earn its cost. It does not; see the robustness section.
    * - ``battery2.py`` … ``battery10_coverage.py``
      - The original adversarial batteries; see
        ``docs/dev/FINDINGS_ADVERSARIAL_VALIDATION.md``.

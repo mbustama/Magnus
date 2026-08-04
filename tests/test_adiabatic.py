@@ -655,3 +655,99 @@ def test_find_nonadiabatic_windows_reports_gamma_max_via_info():
         assert info['gamma_max'] >= c['gamma'] - 1e-30
     # Omitting info must remain valid (backward compatibility of the public signature).
     ad.find_nonadiabatic_windows(H_func, 0.0, l1)
+
+
+# ----------------------------------------------------------------------
+# find_hidden_features: structure below the scale any grid here samples
+# ----------------------------------------------------------------------
+
+def test_hidden_feature_scan_is_quiet_on_the_profiles_the_package_serves():
+    """0 false positives were measured over 67 smooth and resolvable profiles; these are the
+    families that matter most, since a false positive here would fire on ordinary work."""
+    l1 = gd.L_SCALE_SUN
+    ne0, ls = gd.NUM_DENSITY_E_SUN_CENTRAL, gd.L_SCALE_SUN
+
+    def solar(l):
+        return ne0*np.exp(-np.asarray(l, dtype=float)/ls)
+
+    def multi_res(l):
+        x = np.asarray(l, dtype=float)
+        return ne0*np.exp(-x/ls)*(1.0 + 0.9*np.sin(2.0*np.pi*6.0*x/l1))
+
+    def aliased_sinusoid(l):
+        # Exactly the probe spacing: hides variation in EVERY interval, which is what the
+        # concentration statistic exists to distinguish from a hidden bump.  The package
+        # answers this profile to ~1e-11.
+        x = np.asarray(l, dtype=float)
+        return 3.0e-2*ne0*(1.0 + 0.9*np.sin(2.0*np.pi*x/(l1/199.0)))
+
+    def constant(l):
+        return np.full_like(np.asarray(l, dtype=float), 0.05*ne0)
+
+    for profile in (solar, multi_res, aliased_sinusoid, constant):
+        out = ad.find_hidden_features(profile, 0.0, l1)
+        assert not out['hidden'], (profile.__name__, out['concentration'])
+
+
+def test_hidden_feature_scan_finds_a_feature_narrower_than_every_grid():
+    """The FINDINGS §8.3 construction: a Gaussian far below the refinement ceiling, which every
+    engine misses at once and no cross-check can therefore see."""
+    l1 = gd.L_SCALE_SUN
+    ne0 = gd.NUM_DENSITY_E_SUN_CENTRAL
+    centre, width = 0.4517*l1, 1.0e-5*l1
+
+    def hidden(l):
+        x = np.asarray(l, dtype=float)
+        return ne0*1e-3*(0.3 + 2.7*np.exp(-0.5*((x - centre)/width)**2))
+
+    out = ad.find_hidden_features(hidden, 0.0, l1)
+    assert out['hidden']
+    assert out['concentration'] > ad.HIDDEN_FEATURE_CONCENTRATION
+    # And it says WHERE, which is the entire actionable content of the warning built on it.
+    assert out['l_lo'] <= centre <= out['l_hi']
+    assert abs(out['l_centre'] - centre) < 1.0e-3*l1
+
+
+def test_hidden_feature_scan_is_identical_on_the_scalar_potential_and_on_H():
+    """H is affine in V_CC, so every difference is |dV_CC| times a constant and the statistic
+    cannot depend on which is sampled.  That is what makes the cheap path exact rather than an
+    approximation -- and it is worth pinning, because it is the reason the scan is affordable
+    enough to run on ordinary calls."""
+    l1 = gd.L_SCALE_SUN
+    ne0 = gd.NUM_DENSITY_E_SUN_CENTRAL
+    centre, width = 0.4517*l1, 1.0e-5*l1
+
+    def ne(l):
+        x = np.asarray(l, dtype=float)
+        y = ne0*1e-3*(0.3 + 2.7*np.exp(-0.5*((x - centre)/width)**2))
+        a = np.asarray(y)
+        return a[()] if a.ndim == 0 else a
+
+    vcc = matter.vcc_func_from_rho_func(ne, 0.0, 1.0, 0.5, nubar=False,
+                                        density_matter_is_in_g_per_cm3=False,
+                                        density_is_of_number_of_electrons=True)
+    h_vac = np.asarray(hams.hamiltonian_2nu_vacuum_energy_independent(
+        gd.S12_NO_BF_NUFIT_6_0, gd.D21_NO_BF_NUFIT_6_0), dtype=complex)
+    proj = np.diag([1.0, 0.0]).astype(complex)
+
+    def H_func(l):
+        return (1.0/10.0e6)*h_vac + np.asarray(vcc(l))[..., None, None]*proj
+
+    on_scalar = ad.find_hidden_features(lambda l: np.asarray(vcc(l), dtype=float), 0.0, l1)
+    on_matrix = ad.find_hidden_features(H_func, 0.0, l1)
+    assert on_scalar['concentration'] == pytest.approx(on_matrix['concentration'], rel=1e-12)
+    assert on_scalar['hidden'] == on_matrix['hidden']
+    assert on_scalar['l_centre'] == pytest.approx(on_matrix['l_centre'], rel=1e-12)
+
+
+def test_hidden_feature_scan_declines_gracefully_on_a_scalar_only_profile():
+    """A profile that cannot be evaluated for many positions at once must not raise; the scan
+    is a diagnostic and has no business breaking a call it only meant to inspect."""
+    l1 = gd.L_SCALE_SUN
+
+    def scalar_only(l):
+        return float(np.exp(-float(l)/l1))
+
+    out = ad.find_hidden_features(scalar_only, 0.0, l1)
+    assert out['hidden'] is False
+    assert out['concentration'] == 0.0

@@ -393,3 +393,184 @@ Stated so that "we found nothing" can be weighed against what was probed.
   where the three scenario wrappers do imply it. Noticed while fixing the kwarg shadowing;
   changing it would move answers for `osc_prob_sun(strategy='magnus')` scans, which is a
   maintainer's call rather than a bug fix.
+
+---
+
+## 11. Second tranche: the seven exposures §8 left open
+
+Written the same day, after the §8 list was read back as "how robust is it now" and every item on
+it was commissioned. **Three of the seven were closed, two were closed as measured rejections
+(built, tested, removed), and two were closed by measurement alone.** The rejections are the
+more useful half of this section.
+
+Bit-identity was checked after every change: **0 of 11 workloads moved**, except where noted.
+
+### 11.1 The narrow-feature blind spot is now detected — CLOSED
+
+The one exposure the adversarial validation could not close: a feature narrower than every grid
+the package lays down, wrong by 2.9e-02 on all engines at once, silently.
+
+`adiabatic.find_hidden_features` looks at **the profile** rather than at the answers, which is
+what lets it reach a class no cross-check can. Within each interval of a reference grid (the
+refinement ceiling, `max_n_probe = 6400`), it compares the total variation a denser grid sees
+inside that interval with the change its endpoints show; the excess is variation hidden between
+reference samples, and the statistic is the largest such excess as a **fraction of the total**.
+
+**The first version was wrong, and the way it was wrong is the point.** `TV_dense/TV_reference`
+sends the denominator to zero on a sinusoid at exactly the probe spacing and the ratio to
+1e13 — on a profile the package answers to ~1e-11. What separates a hidden bump from an aliased
+sinusoid is not *how much* is hidden but *where*: the sinusoid hides some in every interval
+(share ~1/n_ref), a bump hides all of it in one (share ~1).
+
+| population | concentration |
+|---|---|
+| 67 smooth/resolvable profiles — solar, multi-resonance, noisy, sinusoids at 1×/2×/½× the probe spacing, 400 crossings, a declared step, 30 random Fourier sums, 30 random-width bumps | max **0.060** |
+| features in the unresolvable band | 0.91 – 1.00 |
+
+**0 false positives at every threshold from 0.2 to 0.6.** Shipped at 0.3, five times the
+measured ceiling. Detection over 60 random positions per width: **0.68 at 3e-5, 0.90 at 1e-5,
+0.82 at 3e-6, 0.73 at 1e-6.**
+
+That is most of the class, not all of it, and the shortfall is structural: 3e-5 sits where the
+refinement ceiling can *partly* resolve the feature, so the statistic is diluted; 1e-6 is far
+below the dense spacing, so whether a sample lands inside is luck. Against a prior state of
+**zero** detection, that is the improvement on offer, and `HIDDEN_FEATURE_CONCENTRATION`'s
+docstring says so rather than implying a guarantee.
+
+**Cost: 0.37 ms**, about 3 % of a 13 ms single-point call, and inside the noise floor of an
+alternating measurement (controls at 1.03–1.07×). Three things made it affordable: the statistic
+is provably **identical on the scalar potential** (H is affine in V_CC — verified bit-for-bit at
+d = 2, 3, 5) which is 18× cheaper than sampling H; it runs **once per call**, not per (energy, L)
+point, since the profile does not depend on energy; and 8 sub-steps per reference interval
+measured as good as 32 for the statistic while the cost past 8 goes superlinear.
+
+The action is `HiddenFeatureWarning`, naming the position and the exact `t_breakpoints` to pass.
+Auto-inserting them was measured and **not** shipped: it improves the answer 3–46× (3.9e-03 →
+8.5e-05) and stops it being silent, but it is a partial cure that also changes dispatch, and
+choosing a grid is the caller's call. The numbers are in the warning so the choice is informed.
+
+### 11.2 Cross-checking the default path — BUILT, MEASURED, REMOVED
+
+The headline request, and it does not work. Below the N = 25 seam, `strategy='auto'` would
+verify a window-free hybrid result against the general Magnus ladder, since certification with
+no window rests on γ alone and `GAMMA_TO_ERROR` is good only to ~2×.
+
+| what was measured | result |
+|---|---|
+| 200 random smooth profiles, shipped constant | 25 window-free certified, ladder agreed with **all 25** |
+| the same, `GAMMA_TO_ERROR` made optimistic by 2× | 41 certified, 3 genuinely wrong — check fired **0 times** |
+| non-circular trigger: verify **every** window-free result | still fires **0 times**, still misses the same 3 |
+
+The middle row is the instructive one. The first trigger was `GAMMA_TO_ERROR·γ/(atol+rtol) >
+0.3` — computed **from the very constant it was insuring against**, so mis-calibrating the
+constant shrank the trigger in step with it. A self-referential check: exactly the failure shape
+this whole programme exists to find, reproduced by the person writing the fix, and caught only
+because the test deliberately broke the constant.
+
+Removing the circularity does not rescue it, and the last row says why. **What is left in the
+weak band is not disagreement between engines — it is the engines being wrong together.** A
+cross-check detects the former by construction and can never detect the latter. It is the same
+structural limit that stops `cross_check_strategies` seeing a sub-probe feature, and the reason
+§11.1's instrument looks at the profile instead of at the answers.
+
+Cost, had it shipped: 9 % of random calls, and 100 % of ordinary solar single points, which are
+window-free (margin 0.057 at 2ν, 0.123 at 3ν). Zero measured benefit against that is not a
+trade; the code is gone and the finding is recorded beside the dispatch constants.
+
+### 11.3 `threshold0` as a rule — BUILT, MEASURED, REVERTED
+
+Section 6 concluded the right value was a rule rather than a constant, and this tranche built
+it: start at `(atol+rtol)/GAMMA_TO_ERROR`, the γ at which certification actually flips.
+
+| workload | `t0 = 0.1` | the rule | |
+|---|---|---|---|
+| single point, solar | 1.624e-06 | 1.184e-10 | **13711× better** |
+| sub-threshold scan, N = 8 | 3.220e-05 | 3.814e-05 | 1.2× worse |
+| **energy scan at fixed baseline** | 2.509e-05 | **4.954e-04** | **20× worse** |
+
+All inside 1e-3, but 4.95e-04 spends half the budget where 2.5e-05 spent a fortieth. Mechanism:
+starting low opens a window on the first iteration, and `windows_next or windows_prev`
+short-circuits the γ check, so agreement is accepted at a **coarser** transport grid.
+
+**The sweep that justified the rule ran at a fixed baseline; the row that refuted it was an
+energy scan.** That is precisely the mistake §6 congratulated itself on avoiding, committed one
+section later. Reverted; the measurement and the reason are in `adiabatic.THRESHOLD0_PROVENANCE`.
+The bit-identity check is what caught it — the three rows it moved were all hybrid-path rows.
+
+### 11.4 The seven unaudited constants — CLOSED
+
+Swept across **18 workloads spanning single points, baseline scans and energy scans** × 3 profile
+families × d = 2, 3, with the reference computed once per workload
+(`constants_audit2.py`). Worst error over all workloads, default in bold:
+
+| constant | sweep | worst error across the sweep |
+|---|---|---|
+| `n_probe0` | 50 … 800 | 4.98e-04, 5.22e-04, **4.49e-04**, 3.38e-04, 3.36e-04 |
+| `n_points0` | 51 … 801 | **4.49e-04** at every value, identical to three digits |
+| `min_threshold` | 1e-4 … 1e-8 | 4.49e-04 at every value — **never reached** |
+| `patch_atol` | 1e-5 … 1e-9 | 4.49e-04, 4.49e-04, **4.49e-04**, 3.04e-04, **2.08e-02** |
+| `n_slabs0` | 100 … 1600 | 4.49e-04 at every value |
+| `growth_factor_n_slabs` | 1.2 … 3.0 | 4.49e-04 at every value |
+| `min_n_tpts_per_slab` | 2, 4, 8 | 4.49e-04 at every value |
+
+Six are **not load-bearing**: they set where a doubling ladder starts, and the ladder reaches the
+same place regardless. `min_threshold` is different and is written up as such — the sweep shows
+the ladder never reaches the floor on any measured workload, which is evidence about the
+population, not about the constant.
+
+`patch_atol` at 1e-9 is the one real finding: most rows improve sharply, but one energy scan goes
+to **2.08e-02**. The cause is not the constant — at 1e-9 the patch cannot converge within
+`max_n_slabs`, the hybrid declines, and the **energy-batched separable engine** answers and is
+that much worse on that profile. It warns, so it is loud rather than silent. What that row
+actually measures is **fallback quality**, and it is left as an open question rather than chased
+here.
+
+### 11.5 Warning false-positive rates — CLOSED
+
+`warn_fp.py` was killed unfinished last time because it put `solve_ivp` on every case. Rebuilt
+with a split oracle — `expm` (exact, free) for piecewise profiles, `solve_ivp` only for smooth
+families at ≥ 30 MeV and N ≤ 8 — it completes **168 of 168**.
+
+| warning | fired | true positives | false positives | FP rate |
+|---|---|---|---|---|
+| `MagnusConvergenceWarning` | 70 | 17 | 53 | **76 %** |
+| `UnmarkedDiscontinuityWarning` | 56 | 23 | 33 | 59 % |
+| `ToleranceNotAchievedWarning` | 37 | 16 | 21 | 57 % |
+
+Silent misses across the whole population: **2 of 168 (1.2 %)**.
+
+The 59 % on `UnmarkedDiscontinuityWarning` needs reading carefully and its docstring now says so:
+it reports a *condition about the input*, and on every one of those 33 the condition was real —
+there was an undeclared discontinuity — and the answer survived anyway. Declaring the edges would
+still have improved it by orders of magnitude.
+
+**The mechanism measurement settles what §5a could only assert.** Of 66 single-point calls, some
+refinement level exceeded π in 46 — but the level whose answer was *returned* did so in only
+**7**. So **39 of 46 firings (85 %) describe an intermediate grid nobody receives**. Keying the
+warning to the returned level would cut false alarms from 31 to 5. That change is mechanical and
+is **deliberately not made here** — it touches the refinement loop and the warning plumbing
+several tests depend on — but it is now specified with its numbers.
+
+### 11.6 Fuzz power and d = 4, 5 — CLOSED
+
+The piecewise oracle is `expm` composed across segments: exact, and free. So that population
+carries the power and the flavour coverage at no cost.
+
+| population | before | after |
+|---|---|---|
+| smooth (solve_ivp), d ∈ {2,3} | n = 24, 2 silent (8.3 %) | **n = 40**, 1 silent (2.5 %) |
+| piecewise (expm), d ∈ {2,3} → **{2,3,4,5}** | n = 40, 0 silent | **n = 120**, 0 silent |
+
+At 0 of 120 the 95 % upper bound on the piecewise silent-miss rate is about **2.5 %**. Cost: the
+file takes about 6 minutes, nearly all of it the 40 smooth cases, and the docstring states that
+so trimming `N_SMOOTH` is an informed decision rather than a discovery.
+
+### 11.7 What is still open after this tranche
+
+* **Features narrower than ~2e-5 of the trajectory** are detected only 73–82 % of the time, and
+  the detector reports rather than cures. The residual is structural, not a tuning matter.
+* **Fallback quality** (§11.4): when the hybrid strategy declines on an energy scan, the engine
+  that answers can be two orders worse. Found incidentally; not characterised.
+* **`MagnusConvergenceWarning`'s 85 % intermediate-level noise** is specified but not fixed.
+* **`min_threshold`** governs a regime no measured workload enters, so it remains unexercised
+  rather than validated.

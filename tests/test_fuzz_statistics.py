@@ -24,6 +24,12 @@ profiles and costs nothing.  Run this file directly to print the distributions:
 ```bash
 python tests/test_fuzz_statistics.py
 ```
+
+**Cost.**  About 6 minutes, nearly all of it the ``solve_ivp`` oracle on the 40 smooth cases;
+the 120 piecewise cases are close to free.  That is a real addition to a suite that already runs
+in ~22 minutes, and it is stated here rather than buried so that trimming ``N_SMOOTH`` is an
+informed decision: halving it halves the runtime and roughly doubles the width of the
+silent-miss confidence interval.
 """
 
 import warnings
@@ -41,8 +47,8 @@ TOL = 1.0e-3
 L_SCALE = gd.L_SCALE_SUN
 NE0 = gd.NUM_DENSITY_E_SUN_CENTRAL
 
-N_SMOOTH = 24
-N_PIECEWISE = 40
+N_SMOOTH = 40
+N_PIECEWISE = 120
 SEED = 20260804
 
 # Any warning at all makes a case not-silent; the point of this measurement is whether the
@@ -51,15 +57,34 @@ _MIX = ('s12', 's23', 's13', 'dCP', 'D21', 'D31')
 
 
 def params_for(d):
+    """Sterile mixings large enough to put extra resonances in the density range scanned --
+    a realistic eV^2-scale splitting never crosses the matter potential here, so it would
+    exercise nothing."""
     p = {k: gd.OSC_PARAMS_PREDEFINED['OSC_PARAMS_DEFAULT'][k] for k in _MIX}
-    return {'sth': p['s12'], 'Dm2': p['D21']} if d == 2 else p
+    if d == 2:
+        return {'sth': p['s12'], 'Dm2': p['D21']}
+    if d == 3:
+        return p
+    if d == 4:
+        return dict(p, s14=0.30, d14=0.7, s24=0.20, d24=1.9, s34=0.15, D41=1.0e-3)
+    return dict(p, s14=0.30, d14=0.7, s15=0.25, d15=2.2, s24=0.20, d24=1.9, s25=0.18,
+                s34=0.15, s35=0.12, d35=0.4, D41=1.0e-3, D51=3.0e-3)
 
 
 def h_vac_for(d, p, nubar=False):
     if d == 2:
         return hams.hamiltonian_2nu_vacuum_energy_independent(p['sth'], p['Dm2'])
-    return hams.hamiltonian_3nu_vacuum_energy_independent(
-        p['s12'], p['s23'], p['s13'], p['dCP'], p['D21'], p['D31'], nubar=nubar)
+    if d == 3:
+        return hams.hamiltonian_3nu_vacuum_energy_independent(
+            p['s12'], p['s23'], p['s13'], p['dCP'], p['D21'], p['D31'], nubar=nubar)
+    if d == 4:
+        return hams.hamiltonian_4nu_vacuum_energy_independent(
+            p['s12'], p['s23'], p['s13'], p['dCP'], p['s14'], p['d14'], p['s24'], p['d24'],
+            p['s34'], p['D21'], p['D31'], p['D41'], nubar=nubar)
+    return hams.hamiltonian_5nu_vacuum_energy_independent(
+        p['s12'], p['s23'], p['s13'], p['dCP'], p['s14'], p['d14'], p['s15'], p['d15'],
+        p['s24'], p['d24'], p['s25'], p['s34'], p['s35'], p['d35'],
+        p['D21'], p['D31'], p['D41'], p['D51'], nubar=nubar)
 
 
 def vcc_of(ne_func, nubar=False):
@@ -128,10 +153,15 @@ def smooth_cases(n=N_SMOOTH, seed=SEED):
 
 
 def piecewise_cases(n=N_PIECEWISE, seed=SEED + 1):
-    """Random piecewise-constant profiles, for which expm composed across segments is exact."""
+    """Random piecewise-constant profiles, for which expm composed across segments is exact.
+
+    **Spans d = 2...5**, unlike the smooth population.  The oracle here is a product of matrix
+    exponentials rather than an ODE solve, so it costs essentially nothing and the flavour count
+    is free; ``solve_ivp`` is what makes d = 4 and 5 unaffordable on the smooth side.
+    """
     rng = np.random.default_rng(seed)
     for _ in range(n):
-        d = int(rng.choice([2, 3]))
+        d = int(rng.choice([2, 3, 4, 5]))
         energy = float(10.0**rng.uniform(7.3, 8.3))
         span = float(rng.uniform(0.3, 1.0))*L_SCALE
         n_seg = int(rng.integers(2, 9))
@@ -215,16 +245,18 @@ def test_smooth_profile_fuzz_statistics():
 
     Bounds come from the measured distribution, not from a target.  ``FINDINGS`` §9.4 measured
     the silent-miss rate at **4.1 %** over 145 cases after the fixes (down from 21 %) and the
-    median error at 6.08e-08.  This population (24 cases, 20-200 MeV, d in {2,3}, to keep the
-    oracle affordable in CI) measures **median 7.8e-09, p90 4.9e-04, max 1.15e-03, 2 silent
-    misses (8.3 %)** -- the two sitting at 1.05e-03 and 1.15e-03 against a requested 1e-3, i.e.
-    a few per cent over, which is the residue ``FINDINGS`` §9.4 describes rather than a new
-    failure.  At n = 24 a 4.1 % rate means an expectation of one, so two is noise, not a
-    disagreement.
+    median error at 6.08e-08.  This population (40 cases, 20-200 MeV, d in {2,3}, held there
+    because ``solve_ivp`` dominates the cost at low energy and high flavour count) measures
+    **median 7.8e-09, p90 6.1e-04, max 1.08e-03, 1 silent miss (2.5 %)**, the one sitting at
+    1.08e-03 against a requested 1e-3 -- a few per cent over, which is the residue
+    ``FINDINGS`` §9.4 describes rather than a new failure.
 
-    The bounds below are set above what was measured so ordinary drift does not turn the suite
-    red, and far below the pre-fix numbers (21 % silent, max 4.0e-02) so a regression to them
-    would.
+    It was 24 cases, and that was too few to say anything: 2 of 24 is consistent with a 4 %
+    rate and equally with 15 %.  40 narrows it, and the piecewise population below carries the
+    rest of the power at no oracle cost.
+
+    The bounds are set above what was measured so ordinary drift does not turn the suite red,
+    and far below the pre-fix numbers (21 % silent, max 4.0e-02) so a regression to them would.
     """
     errs, silent = collect('smooth')
     rate = len(silent)/len(errs)
@@ -241,8 +273,13 @@ def test_piecewise_profile_fuzz_statistics():
     these Hamiltonians rather than an approximation, so it cannot itself step over a jump.
     ``FINDINGS`` §9.2 measured 2 silent misses in 150 undeclared cases; the median error is
     expected to be poor (7.8e-04 there) and that is not the failure -- being poor *quietly* is.
-    This population (40 cases) measures **median 4.3e-04, p90 6.9e-03, max 1.28e-02, 10 outside
-    tolerance and 0 of them silent**: every inaccurate answer said so.
+
+    This population is **120 cases across d = 2, 3, 4 and 5**, which is where the statistical
+    power in this file comes from: the oracle is a product of matrix exponentials rather than an
+    ODE solve, so cases are nearly free and the flavour count costs nothing.  Measured:
+    **median 3.5e-04, p90 2.0e-03, max 1.49e-02, 19 outside tolerance and 0 of them silent** --
+    every inaccurate answer said so.  At 0 of 120, the 95 % upper bound on the silent-miss rate
+    here is about 2.5 %.
     """
     errs, silent = collect('piecewise')
     rate = len(silent)/len(errs)
