@@ -197,6 +197,7 @@ Salient Features
    expansion_terms
    adiabatic_strategy
    averaged_probability
+   implementation_details
    plotting
    tutorials
    references
