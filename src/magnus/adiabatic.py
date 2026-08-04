@@ -74,90 +74,87 @@ from scipy.integrate import simpson
 import magnus.magnus as magnuscore
 
 
-GAMMA_TO_ERROR = 1.0
+GAMMA_TO_ERROR = 0.85
 r"""float: Module-level constant
 
-How much probability error to budget per unit of the adiabaticity parameter
-:math:`\gamma`, when :func:`hybrid_propagator` decides whether a result with **no**
-non-adiabatic window may be certified.
+Probability error to budget per unit of the adiabaticity parameter :math:`\gamma`, when
+:func:`hybrid_propagator` decides whether a result with **no** non-adiabatic window may be
+certified.  The rule is ``GAMMA_TO_ERROR * gamma_max <= atol + rtol``.
 
-The pure adiabatic answer's error grows with the largest :math:`\gamma` anywhere along the
-path.  Measured on a Gaussian resonance whose width was swept so that :math:`\gamma_\max`
-crossed the default threshold from below (2nu, 10 MeV, solar-scale domain), against
-``solve_ivp``/DOP853:
+Write the pure adiabatic answer's error as :math:`|\Delta P| = k\,\gamma_\max`.  Certifying an
+empty window list is safe exactly when :math:`k\,\gamma_\max \le` tolerance, so this constant
+is an upper bound on :math:`k` -- and the only honest way to set it is to measure :math:`k`.
 
-============ ============ =====================
-gamma_max    \|dP\|       \|dP\| / gamma_max
-============ ============ =====================
-2.59e-03     9.76e-04     0.38
-4.31e-03     2.22e-03     0.51
-8.63e-03     4.39e-03     0.51
-2.59e-02     7.70e-03     0.30
-3.23e-02     1.77e-02     0.55
-============ ============ =====================
+Measured over 149 configurations (``docs/dev/adversarial_batteries/gamma_slack_sweep.py``):
+resonance width swept over a decade, d = 2-5, 5-80 MeV, 0.5-2 density scale heights, scoring the
+pure adiabatic operator against ``solve_ivp``/DOP853.  **Only the small-**:math:`\gamma` **rows
+matter**, because this rule governs the no-window case alone: once :math:`\gamma_\max` exceeds
+the active threshold a window opens and the answer is patched exactly, whatever :math:`k` is
+there.
 
-The ratio sits in 0.30-0.55 over two decades, so **1.0 is a deliberately conservative
-round number**: it asks for roughly a factor of two of headroom on the measured worst case.
+========================== ======= ============ ============================
+population                    n     max k        implied bound on gamma_max
+========================== ======= ============ ============================
+gamma_max < 1e-2              76    **0.812**    <= 1.23 x tolerance
+gamma_max < 3e-3              35    0.679        <= 1.47 x tolerance
+gamma_max < 1e-3              12    0.502        <= 1.99 x tolerance
+all rows, including patched  149    1.136        <= 0.88 x tolerance
+========================== ======= ============ ============================
 
-Raising it would let :func:`hybrid_propagator` certify pure-adiabatic answers it currently
-refines further -- faster, and wrong in exactly the way the adversarial-validation findings
-(``docs/dev/FINDINGS_ADVERSARIAL_VALIDATION.md``) describe.  Lowering it costs refinement
-iterations on profiles that did not need them.
+:math:`k` falls towards ~0.5 as :math:`\gamma` shrinks, which is what the linear model predicts
+asymptotically.  0.85 covers the worst case in the governed regime (0.812) with a little margin.
+
+**This constant was wrong twice, in opposite directions.**  It began at 1.0 alongside a slack
+factor of 2.0, derived from five points that all happened to sit at :math:`\gamma_\max <
+10^{-3}` where :math:`k \approx 0.5`; that pair encoded :math:`k \le 0.5`, right for those five
+and optimistic by up to 1.6x elsewhere in the governed regime.  Reading the *unrestricted*
+maximum (1.136) then argued for a far stricter bound -- an over-correction, since those rows sit
+at :math:`\gamma_\max \sim 0.2`, open a window immediately, and are never decided by this rule.
+The slack factor is gone: it existed only to compensate for the mis-measured value, and with
+:math:`k` measured in the regime that matters no fudge is needed.
 
 .. versionadded:: 1.0.0
 """
 
 
-GAMMA_SLACK = 2.0
-r"""float: Module-level constant
-
-How far past the requested tolerance :math:`\gamma` must reach before
-:func:`hybrid_propagator` refuses to certify a result with no non-adiabatic window.
-
-:data:`GAMMA_TO_ERROR` converts :math:`\gamma_\max` into an error estimate, and that estimate
-is itself only good to about a factor of two (the measured ratio spans 0.30-0.55).  Acting on
-it at exactly the tolerance therefore forces refinement on calls whose adiabatic answer was
-fine, and the refinement is not cheap: it ends by patching whatever fraction of the path
-:math:`\gamma` exceeds the lowered threshold on, with an exact Magnus integration.  On a solar
-profile over five density scale heights at ``rtol = atol = 1e-4`` that meant patching **88% of
-the trajectory** -- precisely the large-accumulated-phase integration this module exists to
-avoid -- turning a 0.03 s call into 2.2 s.
-
-The measured separation, with tolerance meaning ``atol + rtol``:
-
-===================================== ============ ============ =================
-case                                  gamma_max    tolerance    gamma_max / tol
-===================================== ============ ============ =================
-solar, 5 scale heights, tol 1e-4      2.84e-04     2e-04        1.42  (certify)
-Gaussian resonance w = 3e-1 span      4.31e-03     2e-03        2.16  (refine)
-Gaussian resonance w = 1e-1 span      1.29e-02     2e-03        6.5   (refine)
-Gaussian resonance w = 4e-2 span      3.23e-02     2e-03        16.2  (refine)
-===================================== ============ ============ =================
-
-2.0 sits in the gap, and every silently-wrong case the batteries found is on the refine side of
-it while the marginal one is not.  It is the estimate's own precision expressed as a threshold,
-not a tuning knob: a value below ~1.5 reintroduces the cost, and above ~2.2 lets the first real
-defect through.
-
-.. versionadded:: 1.0.0
-"""
-
-
-RESOLUTION_RATIO = 0.75
+RESOLUTION_RATIO = 0.70
 r"""float: Module-level constant
 
 Threshold of the probe-scale resolution test in ``_profile_is_resolved``, which decides
 whether ``H_func`` is sampled finely enough for this module's finite-difference diagnostics
 to mean anything.
 
-The test halves the probe spacing and asks how much the largest adjacent change in ``H``
-shrinks.  For a :math:`C^1` Hamiltonian the change over a spacing :math:`h` is
-:math:`\approx |H'| h`, so halving the spacing halves it: the ratio tends to **0.5**.  Across
-a genuine jump discontinuity the change is the jump itself, which the finer grid still
-straddles: the ratio tends to **1.0**.
+Within each probe interval, the test asks **what fraction of the variation falls in one
+half**.  For a :math:`C^1` Hamiltonian the two halves each carry about half, so the ratio tends
+to **0.5**; a jump lands entirely inside one half, so the ratio tends to **1.0**.
 
-0.75 is the midpoint of those two limits in ratio, and every profile measured falls decisively
-on one side or the other rather than near it.
+The two limits are 0.5 and 1.0, but the honest threshold is set by measurement rather than by
+their midpoint, because a jump *comparable in size to the local smooth variation* lands between
+them: a jump :math:`J` on top of a smooth change :math:`S` within one interval gives
+:math:`(J + S/2)/(J + S)`.  Measured:
+
+=================================================== ==========
+population                                          statistic
+=================================================== ==========
+192 smooth configurations (6 profile families plus
+10 random Fourier sums, d = 2-5, 5-200 MeV)         **<= 0.602**
+a jump 4.7x smaller than the steepest smooth step   0.773
+15 random piecewise-constant profiles, d = 2 and 3  **1.000**
+=================================================== ==========
+
+0.70 sits in the gap with margin on both sides -- 16% above the smooth ceiling, 10% below the
+weakest genuine discontinuity.  It also states what the test can and cannot catch: solving
+:math:`(J + S/2)/(J + S) > t` gives :math:`J/S > (2t-1)/(1-t)`, so at 0.70 a jump must be at
+least **1.33x the local smooth variation** to be seen.  A smaller one is genuinely
+indistinguishable from steep smooth behaviour at that sampling density.
+
+Two earlier formulations were wrong, both caught by measurement.  Comparing the *global* largest
+adjacent change at two grid densities masks any jump smaller than the largest smooth variation
+elsewhere on the path: a discontinuity 4.7x smaller than the steepest smooth step went
+undetected, and the answer came back wrong by 2.0e-02, silently.  Comparing one half against the
+*whole interval* fixes that but false-positives at a smooth turning point, where the interval's
+net change is near zero while each half is not.  Comparing each half against the sum of the two
+is immune to both: it measures concentration of variation, which is what a jump is.
 
 .. versionadded:: 1.0.0
 """
@@ -242,26 +239,40 @@ def _profile_is_resolved(H_func: Callable, l0: float, l1: float, n_probe: int) -
         False when ``H_func`` shows a jump at this probe scale, True otherwise (including for a
         constant Hamiltonian, where there is nothing to resolve).
     """
+    if n_probe < 2:
+        return True
     ls = np.linspace(l0, l1, n_probe)
     mids = 0.5*(ls[:-1] + ls[1:])
     Hc = _H_on_grid(H_func, ls)
     Hm = _H_on_grid(H_func, mids)
 
-    # Interleave into the fine grid: ls[0], mids[0], ls[1], mids[1], ...
-    fine = np.empty((2*n_probe - 1,) + Hc.shape[1:], dtype=complex)
-    fine[0::2], fine[1::2] = Hc, Hm
+    # Per interval, how much of the variation falls in each half.
+    first = np.max(np.abs(Hm - Hc[:-1]), axis=(1, 2))
+    second = np.max(np.abs(Hc[1:] - Hm), axis=(1, 2))
+    total = first + second
 
-    step_coarse = np.max(np.abs(np.diff(Hc, axis=0))) if n_probe > 1 else 0.0
-    step_fine = np.max(np.abs(np.diff(fine, axis=0))) if n_probe > 1 else 0.0
-
-    # A constant (or numerically constant) Hamiltonian has nothing to resolve.  Scale the
-    # floor to the Hamiltonian itself so this is not an absolute-units test: these matrices
-    # carry physical magnitudes spanning many orders.
+    # A constant (or numerically constant) Hamiltonian has nothing to resolve.  The floor is
+    # scaled to the Hamiltonian itself, not absolute: these matrices carry physical magnitudes
+    # spanning many orders.
     scale = np.max(np.abs(Hc))
-    if step_coarse <= 1.0e-12*scale:
+    live = total > 1.0e-12*scale
+    if not np.any(live):
         return True
 
-    return bool(step_fine <= RESOLUTION_RATIO*step_coarse)
+    # Then drop intervals carrying far less variation than a typical one.  Near a smooth
+    # turning point an interval's two halves can differ by orders of magnitude -- one of them
+    # rounding to exactly zero -- while the interval as a whole moves by ~3% of typical, and
+    # the ratio there is noise, not structure.  Measured on a sine at 28 samples per period,
+    # that single interval drove the statistic to 1.0000 and would have declared every
+    # oscillating profile discontinuous.  The median is used rather than the maximum precisely
+    # so that a jump smaller than the steepest smooth step elsewhere still survives the cut --
+    # masking it is the bug this whole test exists to avoid.
+    live &= total > 0.25*np.median(total[live])
+    if not np.any(live):
+        return True
+
+    return bool(np.max(np.maximum(first[live], second[live])/total[live])
+                <= RESOLUTION_RATIO)
 
 
 def _eigs_along(H_func: Callable, ls: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
@@ -690,10 +701,35 @@ def find_nonadiabatic_windows(H_func: Callable, l0: float, l1: float,
 
 
 def _local_evolution_operator(H_func: Callable, l_b: float, l_c: float, magnus_exp_order: int,
-    integration_method: str, n_slabs0: Optional[int] = 400, max_n_slabs: Optional[int] = 500_000,
+    integration_method: str, n_slabs0: Optional[int] = 400, max_n_slabs: Optional[int] = 32_768,
     patch_atol: Optional[float] = 1e-7) -> Tuple[np.ndarray, bool]:
     r"""Computes the (exact, not adiabatic) evolution operator across a single non-adiabatic
     window, via the package's own Magnus kernel, doubling the slab count until convergence.
+
+    ``max_n_slabs`` is a **statement about when this method stops applying**, not a performance
+    knob.  A patch is supposed to be a short, local repair of a narrow region where adiabatic
+    transport fails; if it needs more slabs than a plain Magnus integration of the entire
+    trajectory would, then the non-adiabatic region is not narrow and the hybrid strategy has no
+    reason to exist for that request.  Returning ``False`` there is the honest answer: it makes
+    :func:`hybrid_propagator` report ``certified=False``, and :func:`magnus.oscprob.osc_prob`
+    then falls through to the general Magnus path -- which handles such cases correctly, and in
+    the measured case 70x faster.
+
+    Measured slab counts at convergence, which is where 32768 comes from:
+
+    ======================================================= ===================
+    patch                                                   slabs at convergence
+    ======================================================= ===================
+    multi-resonance profile, 8 patches (correct, 0.52 s)    800 - **12 800**
+    sub-threshold bump, 2 patches (correct, 0.38 s)         800 - 3 200
+    solar over 5 scale heights at rtol 1e-4, 1 patch
+    covering 88% of the path                                **102 400**
+    ======================================================= ===================
+
+    The gap is a factor of eight, and 32768 sits inside it: 2.6x above the largest legitimate
+    patch measured, 3.1x below the one that should decline.  The previous default of 500 000 was
+    above everything, so nothing ever declined and that last row was patched at 45x the cost of
+    simply handing the request to the general path.
 
     Uses :func:`magnus.magnus.magnus_expansion_multislab` directly (not
     :func:`magnus.oscprob.compute_evolution_operator_multiple_slabs`, to keep this module free of
@@ -896,7 +932,7 @@ def hybrid_propagator(H_func: Callable, l0: float, l1: float, rtol: Optional[flo
         was: see :data:`GAMMA_TO_ERROR` for the measured relation between gamma_max and the
         error of the pure adiabatic answer.
         """
-        return bool(GAMMA_TO_ERROR*gamma_max <= GAMMA_SLACK*(atol + rtol))
+        return bool(GAMMA_TO_ERROR*gamma_max <= atol + rtol)
 
     for _ in range(max_iters):
         knobs_prev = (threshold, n_probe, n_points)

@@ -9,6 +9,7 @@ import pytest
 import scipy as sp
 from scipy.integrate import solve_ivp
 
+import magnus.adiabatic as ad
 import magnus.globaldefs as gd
 import magnus.hamiltonians as hams
 import magnus.magnus as mg
@@ -2518,3 +2519,95 @@ def test_cumulative_scan_says_so_when_a_discontinuity_was_not_declared():
 
     assert not any(issubclass(c, op.UnmarkedDiscontinuityWarning)
                    for c in call_smooth(rho)), "false positive on the solar exponential"
+
+
+def test_a_closure_that_binds_defaults_is_not_mistaken_for_a_shorter_signature():
+    """H_func arity was detected with len(signature(f).parameters), which counts keyword
+    parameters that already have defaults.
+
+    That breaks the ordinary Python idiom for capturing a value in a closure --
+    ``def H(energy, l, VCC, _hvac=hvac)`` is three required parameters and five total -- so with
+    validate_input=True it was rejected as "takes 5 argument(s)", and with validate_input=False
+    it silently took the two-argument branch and died inside the engine with a TypeError.
+    Counting *required* parameters instead makes both spellings identical.
+    """
+    hvac = hams.hamiltonian_2nu_vacuum_energy_independent(
+        gd.S12_NO_BF_NUFIT_6_0, gd.D21_NO_BF_NUFIT_6_0)
+    e00 = np.diag([1.0, 0.0])
+    energy, L = 20.0*gd.UNIT_MEV, 0.3*gd.SUN_RADIUS*gd.UNIT_KM
+
+    def H3_plain(energy_, l, VCC):
+        return (1.0/energy_)*hvac + np.asarray(VCC)[..., None, None]*e00
+
+    def H3_bound(energy_, l, VCC, _h=hvac, _e=e00):
+        return (1.0/energy_)*_h + np.asarray(VCC)[..., None, None]*_e
+
+    def H2_plain(energy_, l):
+        return (1.0/energy_)*hvac
+
+    def H2_bound(energy_, l, _h=hvac):
+        return (1.0/energy_)*_h
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        assert np.array_equal(np.asarray(op.osc_prob_sun(H3_plain, energy, L)),
+                              np.asarray(op.osc_prob_sun(H3_bound, energy, L))), \
+            "a 3-argument H_func with bound defaults must behave as a plain 3-argument one"
+        assert np.array_equal(np.asarray(op.osc_prob_sun(H2_plain, energy, L)),
+                              np.asarray(op.osc_prob_sun(H2_bound, energy, L))), \
+            "a 2-argument H_func with bound defaults must behave as a plain 2-argument one"
+
+    # And the same for osc_prob's own one-parameter check.
+    def H1_plain(l):
+        return hvac/energy
+
+    def H1_bound(l, _h=hvac, _E=energy):
+        return _h/_E
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        assert np.array_equal(np.asarray(op.osc_prob(H1_plain, 0.0, L, rtol=1e-3, atol=1e-3)),
+                              np.asarray(op.osc_prob(H1_bound, 0.0, L, rtol=1e-3, atol=1e-3)))
+
+
+def test_a_jump_smaller_than_the_steepest_smooth_step_is_still_detected():
+    """The resolution test compared *global* maxima, so any discontinuity smaller than the
+    largest smooth variation elsewhere on the path was masked.
+
+    Measured through osc_prob_sun with a jump inside H itself (not in the density) on a solar
+    profile: the jump was 4.7x smaller than the steepest smooth step, the test reported
+    "resolved", hybrid certified, and the answer was wrong by 2.03e-02 with no warning at all.
+    Comparing each half of an interval against that interval's own total variation -- i.e. how
+    *concentrated* the variation is -- is immune to the masking.
+    """
+    energy = 50.0*gd.UNIT_MEV
+    L = 0.3*gd.SUN_RADIUS*gd.UNIT_KM
+    mid = 0.5*L
+    hvac = np.asarray(hams.hamiltonian_2nu_vacuum_energy_independent(
+        gd.S12_NO_BF_NUFIT_6_0, gd.D21_NO_BF_NUFIT_6_0), dtype=complex)
+    proj = np.diag([1.0, 0.0]).astype(complex)
+    off = np.array([[0.0, 1.0], [1.0, 0.0]], dtype=complex)
+    scale = float(np.max(np.abs(hvac)))/float(energy)
+    vcc = matter.vcc_func_from_rho_func(
+        matter.exp_density_profile(gd.NUM_DENSITY_E_SUN_CENTRAL, gd.L_SCALE_SUN),
+        0.0, 1.0, 0.5, nubar=False, density_matter_is_in_g_per_cm3=False,
+        density_is_of_number_of_electrons=True)
+
+    def H_of_l(l):
+        x = np.asarray(l, dtype=float)
+        f = np.where(x < mid, 0.0, 1.0)
+        return ((1.0/energy)*hvac + np.asarray(vcc(l))[..., None, None]*proj
+                + 0.30*scale*np.asarray(f)[..., None, None]*off)
+
+    # The premise: the jump really is smaller than the steepest smooth step, so a global
+    # comparison cannot see it.
+    ls = np.linspace(0.0, L, 200)
+    Hc = np.array([np.asarray(H_of_l(x), dtype=complex) for x in ls])
+    steps = np.abs(np.diff(Hc, axis=0)).max(axis=(1, 2))
+    j = int(np.argmin(np.abs(ls - mid)))
+    assert steps.max() > 2.0*steps[max(j - 1, 0)], \
+        "the jump is no longer masked by a larger smooth step; the test has lost its point"
+
+    assert not ad._profile_is_resolved(H_of_l, 0.0, L, 200)
+    _, _, certified = ad.hybrid_propagator(H_of_l, 0.0, L)
+    assert not certified, "hybrid certified a discontinuity hidden under smooth variation"
