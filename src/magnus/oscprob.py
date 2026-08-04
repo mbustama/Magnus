@@ -567,6 +567,50 @@ future change to the growth factor or the slab ceiling, not a live limit.
 """
 
 
+def _n_required_params(func):
+    r"""How many arguments ``func`` obliges its caller to supply positionally.
+
+    Every ``H_func``/``rho_func`` arity check in this module used ``len(signature(f).parameters)``,
+    which counts keyword parameters that already have defaults.  That breaks the ordinary Python
+    idiom for binding a loop variable into a closure --
+
+    .. code-block:: python
+
+        def H(energy, l, VCC, _hvac=hvac, _proj=proj):   # 5 parameters, 3 required
+            ...
+
+    -- which the package's own documentation recommends the *factory* form of, precisely because
+    this form used to fail.  With ``validate_input=True`` it raised "must be a function of either
+    three arguments (energy, l, VCC) or two arguments (energy, l); the provided H_func takes 5";
+    with ``validate_input=False`` it silently took the two-argument branch and died with a
+    ``TypeError`` from inside the engine.  Neither is the user's fault.
+
+    Counting required parameters instead makes both forms work and changes nothing for a function
+    written without defaults.  A ``*args`` function is not counted this way -- it declares no
+    required parameters at all, and the old total is the better guess there -- so those keep the
+    previous behaviour.
+
+    .. versionadded:: 1.0.0
+
+    Parameters
+    ----------
+    func : Callable
+        The function to inspect.
+
+    Returns
+    -------
+    int
+        Number of positional parameters without defaults, or the total parameter count when
+        ``func`` takes ``*args``.
+    """
+    params = list(signature(func).parameters.values())
+    if any(q.kind is q.VAR_POSITIONAL for q in params):
+        return len(params)
+    return sum(1 for q in params
+               if q.kind in (q.POSITIONAL_ONLY, q.POSITIONAL_OR_KEYWORD)
+               and q.default is q.empty)
+
+
 def _resolve_max_n_slabs(max_n_slabs, integration_method):
     """Fills in the per-method default cap when ``max_n_slabs`` is None.
 
@@ -1119,7 +1163,7 @@ def validate_input_battery(
                 " the ratio of electrons to protons + neutrons (electron_fraction) must be " + \
                 "non-negative.")
 
-        if ((callable(rho_func)) and (len(signature(rho_func).parameters) > 1)):
+        if ((callable(rho_func)) and (_n_required_params(rho_func) > 1)):
             raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob_matter_std_potential:"+\
                 " the provided rho_func is a function of more than one parameter.")
 
@@ -2202,7 +2246,7 @@ def osc_prob(
             raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob: max_n_tpts_per_slab" +\
                 " must be > 2.")
 
-        if ((callable(H_func)) and (len(signature(H_func).parameters) > 1)):
+        if ((callable(H_func)) and (_n_required_params(H_func) > 1)):
             raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob: the provided H_func" +\
                 " is a function of more than one parameter")
 
@@ -4177,7 +4221,7 @@ def osc_prob_energy_baseline(
         each (energy, L) point; a single value/matrix if both ``energy`` and ``L`` were floats.
     """
 
-    if (isinstance(H_func, Callable) and (len(signature(H_func).parameters) > 2)):
+    if (isinstance(H_func, Callable) and (_n_required_params(H_func) > 2)):
         raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob_energy_baseline:"+\
             " H_func can be energy- and position-dependent, only energy-dependent, or only" + \
             " position-dependent. H_func cannot depend on more than two parameters. To vary" + \
@@ -4244,7 +4288,7 @@ def osc_prob_energy_baseline(
         # H_func is position- and energy-independent
         def H_at_energy(enu: float) -> np.ndarray:
             return H_func
-    elif (len(signature(H_func).parameters) == 2):
+    elif (_n_required_params(H_func) == 2):
         # H_func is a function of two parameters; it is assumed that the first parameter is the
         # energy and the second one is the position
         def H_at_energy(enu: float) -> Callable:
@@ -8666,7 +8710,7 @@ def _osc_prob_with_potential(
         if not isinstance(H_func, Callable):
             raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + \
                 ": H_func must be a function of (energy, l, VCC) or of (energy, l).")
-        n_params_H = len(signature(H_func).parameters)
+        n_params_H = _n_required_params(H_func)
         if n_params_H not in (2, 3):
             raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + \
                 ": H_func must be a function of either three arguments (energy, l, VCC) or" + \
@@ -8676,7 +8720,7 @@ def _osc_prob_with_potential(
             raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + \
                 ": strategy must be 'auto', 'hybrid', or 'magnus'.")
 
-    n_params_H = len(signature(H_func).parameters)
+    n_params_H = _n_required_params(H_func)
     if n_params_H == 3:
         def htot(enu: Union[int, float], l: Union[int, float, np.ndarray]) -> np.ndarray:
             return H_func(enu, l, VCC_func(l))
