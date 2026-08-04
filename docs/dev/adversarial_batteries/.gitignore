@@ -1,0 +1,7 @@
+# Battery *outputs* are byproducts: the numbers that matter are quoted in
+# ../FINDINGS_ADVERSARIAL_VALIDATION.md, and a stale or half-finished log committed
+# alongside the scripts is worse than no log at all.
+*.txt
+*.npy
+*.ipynb
+__pycache__/

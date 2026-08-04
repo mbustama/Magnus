@@ -9,6 +9,7 @@ import pytest
 import scipy as sp
 from scipy.integrate import solve_ivp
 
+import magnus.adiabatic as ad
 import magnus.globaldefs as gd
 import magnus.hamiltonians as hams
 import magnus.magnus as mg
@@ -730,11 +731,18 @@ def test_baseline_scan_across_many_resonances_matches_solve_ivp():
     L = np.linspace(l0 + 0.02*(l1 - l0), l1,
                     op.HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS + 5)
 
-    # The profile really is multi-resonant: assert it, so a change to the detector that made
-    # this an ordinary single-crossing case would show up as a failure here rather than as a
-    # quietly weaker test.
+    # The profile really is multi-resonant: assert it, so a change that made this an ordinary
+    # single-crossing case would fail here rather than quietly weaken the test.
+    #
+    # Counted as gap extrema rather than as final windows. The extrema are a structural property
+    # of the Hamiltonian, whereas the window count depends on the merging policy: windows are now
+    # opened one per contiguous stretch of non-adiabaticity, so this profile reports 2 broad
+    # windows covering many crossings where an earlier policy reported one per crossing.
+    candidates = op.adiabatic.find_resonance_candidates(H, float(l0), float(l1))
+    assert len(candidates) >= 5, \
+        f"profile is no longer multi-resonant ({len(candidates)} gap extrema)"
     _, windows, _ = op.adiabatic.hybrid_propagator(H, float(l0), float(l1))
-    assert len(windows) >= 3, f"profile is no longer multi-resonant ({len(windows)} windows)"
+    assert windows, "no non-adiabatic window found on a multi-resonance profile"
 
     def rhs(l, y):
         return (-1j*np.asarray(H(l)) @ y.reshape(3, 3)).ravel()
@@ -2274,3 +2282,415 @@ def test_zero_width_slab_evolution_operator_is_the_identity():
     U = np.asarray(op.compute_evolution_operator(H_func, [5.0, 5.0], n_tpts_per_slab=2,
                                                  magnus_exp_order=4))
     assert maxabs(U - np.eye(2)) == 0.0
+
+
+# ----------------------------------------------------------------------
+# Promoted from the adversarial-validation batteries (docs/dev/adversarial_batteries/).
+# Those scripts are diagnostics -- they print tables, take tens of minutes, and are not run by
+# CI -- so the silent-miss classes they found would otherwise be defended by nothing.  These
+# four are the cheapest configuration that still fails if the corresponding safeguard is
+# removed, and each states the number it was worth when it was broken.
+# ----------------------------------------------------------------------
+
+def _ne_step(mid, lo_frac=0.02, hi_frac=0.30):
+    """Piecewise-constant electron density with one jump: expm is EXACT for this."""
+    lo, hi = lo_frac*gd.NUM_DENSITY_E_SUN_CENTRAL, hi_frac*gd.NUM_DENSITY_E_SUN_CENTRAL
+
+    def ne(l):
+        y = np.where(np.asarray(l, dtype=float) < mid, lo, hi)
+        a = np.asarray(y)
+        return a[()] if a.ndim == 0 else a
+    return ne
+
+
+def _exact_step_P(mid, l1, energy, sth, Dm2):
+    """Exact probability matrix across a two-piece constant profile, via expm composition."""
+    h_vac = np.asarray(hams.hamiltonian_2nu_vacuum_energy_independent(sth, Dm2), dtype=complex)
+    proj = np.diag([1.0, 0.0]).astype(complex)
+    vcc = matter.vcc_func_from_rho_func(_ne_step(mid), 0.0, 1.0, 0.5, nubar=False,
+                                        density_matter_is_in_g_per_cm3=False,
+                                        density_is_of_number_of_electrons=True)
+    H_a = (1.0/energy)*h_vac + float(np.asarray(vcc(0.5*mid)))*proj
+    H_b = (1.0/energy)*h_vac + float(np.asarray(vcc(0.5*(mid + l1))))*proj
+    U = sp.linalg.expm(-1j*H_b*(l1 - mid)) @ sp.linalg.expm(-1j*H_a*mid)
+    return np.transpose(U.real**2 + U.imag**2)
+
+
+def test_unmarked_density_step_is_not_answered_silently_wrong():
+    """The headline finding of the adversarial validation, at the public entry point.
+
+    strategy='auto' returned P_ee = 0.589 against an exact expm answer of 0.0498 -- wrong by
+    **0.54** -- with no warning, because the hybrid strategy's only guard against a
+    discontinuous profile was "did the caller pass t_breakpoints", which fails open.  The guard
+    is now a measurement (magnus.adiabatic._profile_is_resolved), so hybrid declines to certify
+    and osc_prob falls through to the general Magnus path.
+    """
+    energy, l1 = 50.0e6, gd.L_SCALE_SUN
+    mid = 0.5*l1
+    sth, Dm2 = gd.S12_NO_BF_NUFIT_6_0, gd.D21_NO_BF_NUFIT_6_0
+    P_exact = _exact_step_P(mid, l1, energy, sth, Dm2)
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter('always')
+        P = np.asarray(op.osc_prob_matter_std_potential(
+            2, _ne_step(mid), energy, l1, {'sth': sth, 'Dm2': Dm2}, L0=0.0,
+            density_is_of_number_of_electrons=True))
+
+    err = np.max(np.abs(P - P_exact))
+    assert err < 1e-3, f"unmarked density step answered wrong by {err:.2e} (was 5.4e-01)"
+    assert caught, "an answer this hard-won must not come back silent"
+
+
+def test_subthreshold_nonadiabaticity_is_not_answered_silently_wrong():
+    """A sinusoidal density the probe resolves easily (~28 samples per period), on which gamma
+    stays below the 0.1 window threshold everywhere.
+
+    No window opened, successive refinements agreed with each other because they were all pure
+    adiabatic transport, and the answer came back certified and wrong by 1.67e-02 against a
+    requested 1e-3.  Certifying an empty window list now also requires gamma to be small enough
+    for the tolerance.
+    """
+    energy, l1 = 10.0e6, gd.L_SCALE_SUN
+    sth, Dm2 = gd.S12_NO_BF_NUFIT_6_0, gd.D21_NO_BF_NUFIT_6_0
+    h_vac = np.asarray(hams.hamiltonian_2nu_vacuum_energy_independent(sth, Dm2), dtype=complex)
+    proj = np.diag([1.0, 0.0]).astype(complex)
+    ne0 = gd.NUM_DENSITY_E_SUN_CENTRAL
+    c_vcc = float(np.asarray(matter.vcc_func_from_rho_func(
+        lambda l: ne0, 0.0, 1.0, 0.5, nubar=False, density_matter_is_in_g_per_cm3=False,
+        density_is_of_number_of_electrons=True)(0.0)))/ne0
+
+    xs = np.geomspace(ne0*1e-6, ne0*10.0, 2000)
+    gaps = [np.diff(np.linalg.eigvalsh(h_vac/energy + x*c_vcc*proj))[0] for x in xs]
+    ne_res = float(xs[int(np.argmin(gaps))])
+
+    def ne(l):
+        y = ne_res*(1.0 + 0.9*np.sin(2.0*np.pi*np.asarray(l, dtype=float)/(l1/7.0)))
+        a = np.asarray(y)
+        return a[()] if a.ndim == 0 else a
+
+    def H_func(l):
+        v = np.asarray(matter.vcc_func_from_rho_func(
+            ne, 0.0, 1.0, 0.5, nubar=False, density_matter_is_in_g_per_cm3=False,
+            density_is_of_number_of_electrons=True)(l))
+        return (1.0/energy)*h_vac + v[..., None, None]*proj
+
+    P = np.asarray(op.osc_prob_matter_std_potential(
+        2, ne, energy, l1, {'sth': sth, 'Dm2': Dm2}, L0=0.0,
+        density_is_of_number_of_electrons=True))
+
+    def rhs(l, y):
+        return (-1j*np.asarray(H_func(l)) @ y.reshape(2, 2)).ravel()
+    sol = solve_ivp(rhs, (0.0, l1), np.eye(2, dtype=complex).ravel(),
+                    rtol=1e-12, atol=1e-14, method='DOP853')
+    U = sol.y[:, -1].reshape(2, 2)
+    P_exact = np.transpose(U.real**2 + U.imag**2)
+
+    err = np.max(np.abs(P - P_exact))
+    assert err < 1e-3, f"sub-threshold non-adiabaticity wrong by {err:.2e} (was 1.67e-02)"
+
+
+def test_declared_breakpoints_make_a_piecewise_profile_essentially_exact():
+    """The other half of the piecewise story, and the advice the documentation now gives.
+
+    Over 150 random piecewise-constant profiles, declaring the edges gave a median error of
+    1.34e-12 and nothing outside tolerance, against a median 7.76e-04 without.  One
+    representative profile is enough to catch a regression in how t_breakpoints reaches the
+    slab grid.
+    """
+    energy, l1 = 50.0e6, gd.L_SCALE_SUN
+    edges = np.array([0.0, 0.17, 0.41, 0.63, 0.88, 1.0])*l1
+    values = gd.NUM_DENSITY_E_SUN_CENTRAL*np.array([0.03, 0.21, 0.07, 0.30, 0.12])
+
+    def ne(l):
+        x = np.asarray(l, dtype=float)
+        idx = np.clip(np.searchsorted(edges, x, side='right') - 1, 0, len(values) - 1)
+        y = values[idx]
+        a = np.asarray(y)
+        return a[()] if a.ndim == 0 else a
+
+    sth, Dm2 = gd.S12_NO_BF_NUFIT_6_0, gd.D21_NO_BF_NUFIT_6_0
+    h_vac = np.asarray(hams.hamiltonian_2nu_vacuum_energy_independent(sth, Dm2), dtype=complex)
+    proj = np.diag([1.0, 0.0]).astype(complex)
+    vcc = matter.vcc_func_from_rho_func(ne, 0.0, 1.0, 0.5, nubar=False,
+                                        density_matter_is_in_g_per_cm3=False,
+                                        density_is_of_number_of_electrons=True)
+
+    # Exact: H is constant on each segment, so expm composes exactly.
+    U = np.eye(2, dtype=complex)
+    for a, b in zip(edges[:-1], edges[1:]):
+        H_m = (1.0/energy)*h_vac + float(np.asarray(vcc(0.5*(a + b))))*proj
+        U = sp.linalg.expm(-1j*H_m*(b - a)) @ U
+    P_exact = np.transpose(U.real**2 + U.imag**2)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        P = np.asarray(op.osc_prob_matter_std_potential(
+            2, ne, energy, l1, {'sth': sth, 'Dm2': Dm2}, L0=0.0,
+            density_is_of_number_of_electrons=True, t_breakpoints=edges[1:-1]))
+
+    err = np.max(np.abs(P - P_exact))
+    assert err < 1e-8, f"declared breakpoints should be near-exact; got {err:.2e}"
+
+
+def test_cumulative_is_reachable_and_reproduces_the_per_point_path():
+    """`cumulative=False` used to raise TypeError from every wrapper, which made the one
+    documented route to pre-1.0.0 numbers unavailable at the layer where the change is visible.
+
+    Also pins the two directions apart: False must match strategy='magnus' bit for bit, and
+    'auto' must not (it takes the cumulative scan, which is the point).
+    """
+    energy = 50.0e6
+    LM = 0.5*gd.SUN_RADIUS*gd.UNIT_KM
+    Ls = np.linspace(0.05*LM, LM, 60)
+    rho = matter.exp_density_profile(gd.NUM_DENSITY_E_SUN_CENTRAL, gd.L_SCALE_SUN)
+    params = {'sth': gd.S12_NO_BF_NUFIT_6_0, 'Dm2': gd.D21_NO_BF_NUFIT_6_0}
+
+    def call(**kw):
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            return np.asarray(op.osc_prob_matter_std_potential(
+                2, rho, energy, Ls, params, L0=0.0,
+                density_is_of_number_of_electrons=True, **kw))
+
+    p_false = call(cumulative=False)
+    p_magnus = call(strategy='magnus')
+    p_auto = call()
+
+    assert np.array_equal(p_false, p_magnus), \
+        "cumulative=False must reproduce the pre-cumulative per-point path exactly"
+    assert not np.array_equal(p_auto, p_false), \
+        "the default should be taking the cumulative scan on a 60-point single-energy scan"
+    # An explicit request wins over the strategy='magnus' opt-out.
+    assert np.array_equal(call(strategy='magnus', cumulative=True), p_auto)
+
+
+def test_cumulative_scan_says_so_when_a_discontinuity_was_not_declared():
+    """The last silent hole in the cumulative path, and the only one in code this branch adds.
+
+    A slab straddling a density jump degrades the quadrature regardless of magnus_exp_order,
+    and refining the grid only narrows the straddling slab -- so unlike every other inaccuracy
+    here, more slabs cannot fix it.  Over 150 random piecewise profiles, 59 of 150 came back
+    outside tolerance with the edges undeclared and all but two of those already warned; the two
+    that did not were wrong by 1.36e-03 and 2.10e-03, silently.
+
+    Detection is a measurement (magnus.adiabatic._profile_is_resolved), and its discriminator
+    was checked in both directions before being wired in: 0 false positives on the solar,
+    multi-resonance, noisy and sinusoidal families, 12/12 true positives on random piecewise
+    profiles.
+    """
+    LM = 0.5*gd.SUN_RADIUS*gd.UNIT_KM
+    Ls = np.linspace(0.05*LM, LM, 80)
+    params = {'sth': gd.S12_NO_BF_NUFIT_6_0, 'Dm2': gd.D21_NO_BF_NUFIT_6_0}
+    edges = np.array([0.0, 0.17, 0.41, 0.63, 0.88, 1.0])*LM
+    values = gd.NUM_DENSITY_E_SUN_CENTRAL*np.array([0.03, 0.21, 0.07, 0.30, 0.12])
+
+    def ne(l):
+        x = np.asarray(l, dtype=float)
+        idx = np.clip(np.searchsorted(edges, x, side='right') - 1, 0, len(values) - 1)
+        a = np.asarray(values[idx])
+        return a[()] if a.ndim == 0 else a
+
+    def call(**kw):
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter('always')
+            op.osc_prob_matter_std_potential(
+                2, ne, 50.0e6, Ls, params, L0=0.0,
+                density_is_of_number_of_electrons=True, **kw)
+        return [w.category for w in caught]
+
+    assert any(issubclass(c, op.UnmarkedDiscontinuityWarning) for c in call()), \
+        "an undeclared density jump on the cumulative path must not be silent"
+
+    # Declaring the edges is the cure, and must silence it.
+    assert not any(issubclass(c, op.UnmarkedDiscontinuityWarning)
+                   for c in call(t_breakpoints=edges[1:-1])), \
+        "declaring the breakpoints must silence the warning"
+
+    # And it must not fire on the smooth profiles this package actually ships.
+    rho = matter.exp_density_profile(gd.NUM_DENSITY_E_SUN_CENTRAL, gd.L_SCALE_SUN)
+
+    def call_smooth(profile):
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter('always')
+            op.osc_prob_matter_std_potential(
+                2, profile, 50.0e6, Ls, params, L0=0.0,
+                density_is_of_number_of_electrons=True)
+        return [w.category for w in caught]
+
+    assert not any(issubclass(c, op.UnmarkedDiscontinuityWarning)
+                   for c in call_smooth(rho)), "false positive on the solar exponential"
+
+
+def test_a_closure_that_binds_defaults_is_not_mistaken_for_a_shorter_signature():
+    """H_func arity was detected with len(signature(f).parameters), which counts keyword
+    parameters that already have defaults.
+
+    That breaks the ordinary Python idiom for capturing a value in a closure --
+    ``def H(energy, l, VCC, _hvac=hvac)`` is three required parameters and five total -- so with
+    validate_input=True it was rejected as "takes 5 argument(s)", and with validate_input=False
+    it silently took the two-argument branch and died inside the engine with a TypeError.
+    Counting *required* parameters instead makes both spellings identical.
+    """
+    hvac = hams.hamiltonian_2nu_vacuum_energy_independent(
+        gd.S12_NO_BF_NUFIT_6_0, gd.D21_NO_BF_NUFIT_6_0)
+    e00 = np.diag([1.0, 0.0])
+    energy, L = 20.0*gd.UNIT_MEV, 0.3*gd.SUN_RADIUS*gd.UNIT_KM
+
+    def H3_plain(energy_, l, VCC):
+        return (1.0/energy_)*hvac + np.asarray(VCC)[..., None, None]*e00
+
+    def H3_bound(energy_, l, VCC, _h=hvac, _e=e00):
+        return (1.0/energy_)*_h + np.asarray(VCC)[..., None, None]*_e
+
+    def H2_plain(energy_, l):
+        return (1.0/energy_)*hvac
+
+    def H2_bound(energy_, l, _h=hvac):
+        return (1.0/energy_)*_h
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        assert np.array_equal(np.asarray(op.osc_prob_sun(H3_plain, energy, L)),
+                              np.asarray(op.osc_prob_sun(H3_bound, energy, L))), \
+            "a 3-argument H_func with bound defaults must behave as a plain 3-argument one"
+        assert np.array_equal(np.asarray(op.osc_prob_sun(H2_plain, energy, L)),
+                              np.asarray(op.osc_prob_sun(H2_bound, energy, L))), \
+            "a 2-argument H_func with bound defaults must behave as a plain 2-argument one"
+
+    # And the same for osc_prob's own one-parameter check.
+    def H1_plain(l):
+        return hvac/energy
+
+    def H1_bound(l, _h=hvac, _E=energy):
+        return _h/_E
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        assert np.array_equal(np.asarray(op.osc_prob(H1_plain, 0.0, L, rtol=1e-3, atol=1e-3)),
+                              np.asarray(op.osc_prob(H1_bound, 0.0, L, rtol=1e-3, atol=1e-3)))
+
+
+def test_a_jump_smaller_than_the_steepest_smooth_step_is_still_detected():
+    """The resolution test compared *global* maxima, so any discontinuity smaller than the
+    largest smooth variation elsewhere on the path was masked.
+
+    Measured through osc_prob_sun with a jump inside H itself (not in the density) on a solar
+    profile: the jump was 4.7x smaller than the steepest smooth step, the test reported
+    "resolved", hybrid certified, and the answer was wrong by 2.03e-02 with no warning at all.
+    Comparing each half of an interval against that interval's own total variation -- i.e. how
+    *concentrated* the variation is -- is immune to the masking.
+    """
+    energy = 50.0*gd.UNIT_MEV
+    L = 0.3*gd.SUN_RADIUS*gd.UNIT_KM
+    mid = 0.5*L
+    hvac = np.asarray(hams.hamiltonian_2nu_vacuum_energy_independent(
+        gd.S12_NO_BF_NUFIT_6_0, gd.D21_NO_BF_NUFIT_6_0), dtype=complex)
+    proj = np.diag([1.0, 0.0]).astype(complex)
+    off = np.array([[0.0, 1.0], [1.0, 0.0]], dtype=complex)
+    scale = float(np.max(np.abs(hvac)))/float(energy)
+    vcc = matter.vcc_func_from_rho_func(
+        matter.exp_density_profile(gd.NUM_DENSITY_E_SUN_CENTRAL, gd.L_SCALE_SUN),
+        0.0, 1.0, 0.5, nubar=False, density_matter_is_in_g_per_cm3=False,
+        density_is_of_number_of_electrons=True)
+
+    def H_of_l(l):
+        x = np.asarray(l, dtype=float)
+        f = np.where(x < mid, 0.0, 1.0)
+        return ((1.0/energy)*hvac + np.asarray(vcc(l))[..., None, None]*proj
+                + 0.30*scale*np.asarray(f)[..., None, None]*off)
+
+    # The premise: the jump really is smaller than the steepest smooth step, so a global
+    # comparison cannot see it.
+    ls = np.linspace(0.0, L, 200)
+    Hc = np.array([np.asarray(H_of_l(x), dtype=complex) for x in ls])
+    steps = np.abs(np.diff(Hc, axis=0)).max(axis=(1, 2))
+    j = int(np.argmin(np.abs(ls - mid)))
+    assert steps.max() > 2.0*steps[max(j - 1, 0)], \
+        "the jump is no longer masked by a larger smooth step; the test has lost its point"
+
+    assert not ad._profile_is_resolved(H_of_l, 0.0, L, 200)
+    _, _, certified = ad.hybrid_propagator(H_of_l, 0.0, L)
+    assert not certified, "hybrid certified a discontinuity hidden under smooth variation"
+
+
+def test_breakpoints_cure_a_feature_narrower_than_the_probe_grid():
+    """The one exposure the adversarial validation could not close in the library, and the
+    documented cure for it.
+
+    A resonance narrower than the probe spacing is invisible to every path: the hybrid
+    detector samples n_probe points (200, refined to at most 6400), and the general Magnus
+    grid is seeded from an integral along the path, so neither ever puts a sample inside the
+    feature and no amount of refinement changes that.  Measured at 2.9e-02 against a requested
+    1e-3, silently.
+
+    The `strategy` docstring tells users to pass t_breakpoints, so that instruction is pinned
+    here: if the breakpoint plumbing ever stops reaching the slab grid, the documented cure
+    would silently stop working and this is what would catch it.
+    """
+    energy = 10.0e6
+    l1 = gd.L_SCALE_SUN
+    centre, width = 0.4831*l1, 3.0e-5*l1        # ~1/170 of the finest probe spacing
+    sth, Dm2 = gd.S12_NO_BF_NUFIT_6_0, gd.D21_NO_BF_NUFIT_6_0
+    h_vac = np.asarray(hams.hamiltonian_2nu_vacuum_energy_independent(sth, Dm2), dtype=complex)
+    proj = np.diag([1.0, 0.0]).astype(complex)
+
+    ne0 = gd.NUM_DENSITY_E_SUN_CENTRAL
+    c_vcc = float(np.asarray(matter.vcc_func_from_rho_func(
+        lambda x: ne0, 0.0, 1.0, 0.5, nubar=False, density_matter_is_in_g_per_cm3=False,
+        density_is_of_number_of_electrons=True)(0.0)))/ne0
+    xs = np.geomspace(ne0*1e-6, ne0*10.0, 2000)
+    gaps = [np.diff(np.linalg.eigvalsh(h_vac/energy + x*c_vcc*proj))[0] for x in xs]
+    ne_res = float(xs[int(np.argmin(gaps))])
+
+    def ne(l):
+        x = np.asarray(l, dtype=float)
+        y = ne_res*(0.30 + 2.70*np.exp(-0.5*((x - centre)/width)**2))
+        a = np.asarray(y)
+        return a[()] if a.ndim == 0 else a
+
+    vcc = matter.vcc_func_from_rho_func(ne, 0.0, 1.0, 0.5, nubar=False,
+                                        density_matter_is_in_g_per_cm3=False,
+                                        density_is_of_number_of_electrons=True)
+
+    def H_func(l):
+        return (1.0/energy)*h_vac + np.asarray(vcc(l))[..., None, None]*proj
+
+    def rhs(l, y):
+        return (-1j*np.asarray(H_func(l)) @ y.reshape(2, 2)).ravel()
+    sol = solve_ivp(rhs, (0.0, l1), np.eye(2, dtype=complex).ravel(),
+                    rtol=1e-12, atol=1e-14, method='DOP853')
+    U = sol.y[:, -1].reshape(2, 2)
+    P_exact = np.transpose(U.real**2 + U.imag**2)
+
+    edges = np.array([centre - 8*width, centre - 2*width, centre,
+                      centre + 2*width, centre + 8*width])
+    params = {'sth': sth, 'Dm2': Dm2}
+
+    with warnings.catch_warnings(record=True) as rec:
+        warnings.simplefilter('always')
+        P_bare = np.asarray(op.osc_prob_matter_std_potential(
+            2, ne, energy, l1, params, L0=0.0, density_is_of_number_of_electrons=True))
+    caught_bare = [w.category.__name__ for w in rec]
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        P_bp = np.asarray(op.osc_prob_matter_std_potential(
+            2, ne, energy, l1, params, L0=0.0, density_is_of_number_of_electrons=True,
+            t_breakpoints=edges))
+
+    err_bare = np.max(np.abs(P_bare - P_exact))
+    err_bp = np.max(np.abs(P_bp - P_exact))
+
+    # The premise, stated as the property that matters rather than as a magnitude: undeclared,
+    # the feature is missed by enough to break the requested tolerance, and nothing says so.
+    # (Measured here: 4.60e-03 with no warning at all.  How large it is depends on where the
+    # feature falls relative to the probe grid, so the assertion is on the tolerance, not on
+    # the number.)  If the detector ever grows the ability to find it, this fails loudly rather
+    # than passing quietly, and the warning in the `strategy` docstring should then be revised.
+    assert err_bare > 2e-3, (
+        f"a sub-probe-spacing feature is no longer missed when undeclared (err {err_bare:.2e}); "
+        "if the detector improved, update the strategy docstring's warning to match")
+    assert not caught_bare, (
+        "the undeclared case now warns; the docstring says it does not, so one of them is wrong")
+    # And the cure works, which is what the documentation promises.  (Measured: 1.31e-04.)
+    assert err_bp < 1e-3, f"t_breakpoints no longer cures the narrow feature (err {err_bp:.2e})"
+    assert err_bp < err_bare/10.0

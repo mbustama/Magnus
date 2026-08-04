@@ -281,8 +281,24 @@ branch, that notebook 03 cell 57 had started warning where it previously did not
 strict probe reaches `max_n_slabs` (20 000) without two successive levels agreeing, so `n_acc`
 is derived from a ceiling rather than from a converged requirement. The resulting scans measure
 ~5e-08 against `solve_ivp`, so the safety factor is carrying that; but a caller who lowers
-`max_n_slabs` lowers the scan's resolution in proportion, without a separate warning. Recorded
-in `CUMULATIVE_N_ACC_SAFETY`.
+`max_n_slabs` lowers the scan's resolution in proportion. Recorded in `CUMULATIVE_N_ACC_SAFETY`.
+
+**Amended 2026-08-03** (`FINDINGS_ADVERSARIAL_VALIDATION.md` §4). This paragraph originally ended
+"...in proportion, **without a separate warning**", which overstates the exposure. Measured on a
+60-point solar scan at 10 MeV over a full solar radius:
+
+| `max_n_slabs` | probe `n_slabs` | scan error | warned? |
+|---|---|---|---|
+| 500 | 500 | 6.194e-02 | `ToleranceNotAchievedWarning` |
+| 2000 | 2000 | 4.657e-03 | `ToleranceNotAchievedWarning` |
+| 5000 | 5000 | 3.053e-06 | `ToleranceNotAchievedWarning` |
+| 20000 (default) | 20000 | 9.546e-09 | — |
+
+The degradation is real and proportional, as stated. But it is **not silent**: there is no
+*cumulative-specific* warning, and the probe's `MagnusConvergenceWarning` is suppressed here
+(§4e above), yet `ToleranceNotAchievedWarning` survives that suppression and reaches the caller
+at every capped level. That is the signal that matters, and it is exactly what §4e's narrowing
+was designed to preserve.
 
 ## 4f. What two further adversarial passes established
 
@@ -373,9 +389,18 @@ This is **pre-existing and not introduced by this branch**: on `main` every base
 hybrid, so `main` returns 2.86e-01 at N = 60. The routing here rescues scans of 25 points or
 more; single points and shorter scans still reach hybrid and are still exposed. Logged as
 separate work rather than fixed here, since the defect is in `magnus.adiabatic`, not in the
-dispatch. `docs/source/adiabatic_strategy.rst` currently claims this case works
-("composes correctly with any number of simultaneous or sequential resonances"), and that claim
-is false as measured.
+dispatch.
+
+**Resolved 2026-08-03**, in `magnus.adiabatic` as this section anticipated. The mechanism was
+that a result with *no* window is certified on the strength of two adiabatic answers agreeing
+with each other — which they always do, since successive iterations differ only in the transport
+grid. `hybrid_propagator` now additionally requires the adiabaticity parameter itself to be small
+enough for the requested tolerance before an empty window list may be certified (see
+`GAMMA_TO_ERROR`), and lowers the threshold until a window opens otherwise. The claim in
+`docs/source/adiabatic_strategy.rst` has been corrected rather than merely flagged: the per-pair
+half of it is true and now verified at 2, 3, 4 and 5 flavors, while the two genuine limits — a
+profile that is not smooth at the probe scale, and a feature narrower than the probe spacing —
+are stated there explicitly. See `FINDINGS_ADVERSARIAL_VALIDATION.md` §3.2 and §6.
 
 ## 5. Cost, stated plainly
 

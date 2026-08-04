@@ -774,6 +774,39 @@ class HybridCertificationWarning(ToleranceNotAchievedWarning):
     """
 
 
+class UnmarkedDiscontinuityWarning(ToleranceNotAchievedWarning):
+    r"""Warns that a cumulative baseline scan was asked to integrate a Hamiltonian that is
+    discontinuous at the scale of the grid it built, without being told where the
+    discontinuities are.
+
+    The cumulative scan lays a uniform accuracy grid over the trajectory (plus the requested
+    baselines, plus any ``t_breakpoints``).  A slab that straddles a density jump degrades the
+    quadrature to low order no matter how high ``magnus_exp_order`` is, and refining the grid
+    does not fix it -- the straddling slab merely gets narrower.  The cure is to put an edge
+    *on* the discontinuity, which is what ``t_breakpoints`` is for.
+
+    Fuzzing 150 random piecewise-constant profiles, declaring the edges gave a median error of
+    1.34e-12 and nothing outside tolerance; leaving them undeclared gave a median of 7.76e-04
+    with 59 of 150 outside it.  Of those 59, all but **two** already warned for other reasons
+    (usually :class:`ToleranceNotAchievedWarning` from the probe).  This warning exists for
+    those two: measured at 1.36e-03 and 2.10e-03 against a requested 1e-3, silently, and
+    2.33e-11 and 4.35e-14 once the edges were declared.
+
+    Detection is a measurement, not a guess: the profile is sampled at two grid densities and
+    the largest adjacent change in ``H`` is compared (see
+    ``magnus.adiabatic._profile_is_resolved``).  A :math:`C^1` profile halves that change when
+    the spacing halves; a jump does not.  On the profile families this package ships --- solar
+    exponential, multi-resonance, noisy, sinusoidal --- the test reports "resolved" every time,
+    and it flagged 12 of 12 random piecewise profiles.
+
+    Subclasses :class:`ToleranceNotAchievedWarning` so that code already filtering on the parent
+    also catches this.  Not raised when ``t_breakpoints`` was supplied: the caller has then said
+    where the edges are, and the grid honours them.
+
+    .. versionadded:: 1.0.0
+    """
+
+
 class PhaseAveragingWarning(UserWarning):
     r"""Warns that ``average=True`` was requested at an (energy, L) point
     where the oscillation has not, in fact, averaged.
@@ -4410,6 +4443,31 @@ def osc_prob_energy_baseline(
             # have chosen for themselves; see CUMULATIVE_N_ACC_SAFETY for the measurement.
             n_acc = probe_info['n_slabs']*CUMULATIVE_N_ACC_SAFETY
 
+        # A jump the caller did not declare is the one way this grid goes wrong that adding
+        # slabs cannot fix: a slab straddling the discontinuity degrades the quadrature
+        # regardless of magnus_exp_order, and refining only narrows the straddling slab.  Say
+        # so rather than returning a quietly-wrong scan -- measured at 1.4e-03 and 2.1e-03,
+        # silently, on two of 150 random piecewise profiles.  Skipped when the caller supplied
+        # breakpoints, because then the grid already has edges on the discontinuities.
+        # Only for a position-*dependent* Hamiltonian.  cumulative='auto' excludes a constant
+        # one, but an explicit cumulative=True accepts it, and it then arrives here as a bare
+        # matrix rather than a callable -- there is nothing to sample and nothing to be
+        # discontinuous.  (Calling it anyway is a TypeError, which three existing
+        # constant-Hamiltonian tests caught immediately.)
+        if isinstance(H_fixed, Callable) and (
+                (kwargs.get('t_breakpoints') is None)
+                or (len(np.atleast_1d(kwargs.get('t_breakpoints'))) == 0)):
+            if not (adiabatic._profile_is_resolved(H_fixed, float(L0), float(L_sorted[-1]), 200)
+                    or adiabatic._profile_is_resolved(H_fixed, float(L0),
+                                                      float(L_sorted[-1]), 6400)):
+                warnings.warn(
+                    "osc_prob_energy_baseline (cumulative scan): the Hamiltonian is "
+                    "discontinuous at the scale of the grid this scan builds, and no "
+                    "t_breakpoints were given. A slab straddling a density jump degrades the "
+                    "quadrature no matter how many slabs are used; pass t_breakpoints at the "
+                    "discontinuities. Shown once per session.",
+                    UnmarkedDiscontinuityWarning, stacklevel=2)
+
         P_sorted = _osc_prob_cumulative_scan(
             H_fixed, L_sorted, L0, n_acc, magnus_exp_order,
             kwargs.get('n_tpts_per_slab', 100), integration_method,
@@ -4799,6 +4857,24 @@ def osc_prob_matter_std_potential(
         an MSW resonance), and applies to any number of flavors and to genuinely complex
         Hamiltonians; see :doc:`/adiabatic_strategy` for the full derivation, validation, and
         performance comparison. Default: 'auto'.
+
+        .. warning::
+
+           **If your profile has a feature much narrower than the trajectory, say where it is.**
+           The hybrid strategy locates resonances by sampling ``n_probe`` points (200, refined to
+           at most 6400), and the general Magnus path seeds its grid from an integral along the
+           path; neither can see a feature that falls between samples, and no refinement of
+           either finds it, because refinement never puts a point inside it. Measured on a
+           Gaussian resonance of width :math:`10^{-5}` of the trajectory, the returned
+           probability was wrong by **2.9e-02 against a requested 1e-3, with no warning** -- on
+           the hybrid path, the general path, and the cumulative scan alike.
+
+           Passing ``t_breakpoints`` at the feature fixes it, and is tested: the same case goes
+           to 8.8e-04 at a single point and 8.9e-04 over a 60-point scan. It is the right tool
+           twice over, since an edge placed *on* a sharp feature also stops a slab straddling it
+           from degrading the quadrature. This is the one exposure the adversarial validation
+           (``docs/dev/FINDINGS_ADVERSARIAL_VALIDATION.md``) could not close in the library
+           itself: what a fixed grid never samples, it cannot report.
 
         .. versionadded:: 1.0.0
     t_slab_edges : list or np.ndarray, optional
@@ -16338,6 +16414,7 @@ __all__ = [
     'MAX_N_SLABS_DEFAULT',
     'ToleranceNotAchievedWarning',
     'HybridCertificationWarning',
+    'UnmarkedDiscontinuityWarning',
     'print_banner',
     'print_run_parameters',
     'validate_input_battery',
