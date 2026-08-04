@@ -727,3 +727,39 @@ Verification that the split preserves the work: `git diff adiabatic-certificatio
 notebook-breakpoints-and-cumulative` is **empty** — the stacked pair reproduces the validated
 tree exactly, commit for commit in content. The original branch is left in place unchanged as the
 record of what was actually validated; nothing is pushed.
+
+
+---
+
+## 11. Does the whole Earth/solar surface work?
+
+`adversarial_batteries/battery10_coverage.py`, 164 configurations. Not adversarial — the
+question is whether the surface a user actually touches runs, everywhere, fast enough and
+accurately enough.
+
+| environment | configurations | exceptions | silent misses | worst error | slowest call |
+|---|---|---|---|---|---|
+| **Sun** (exponential) | 96 | 0 | **0** | 4.33e-04 | 0.90 s |
+| **Earth** (real PREM) | 52 | 0 | **0** | 1.17e-02 (warned) | 0.051 s |
+| vacuum / constant density | 16 | 0 | **0** | 1.62e-09 | 0.01 s |
+
+Sun covers d = 2,3,4,5 × {standard, NSI, LIV n_liv=0, LIV n_liv=1} × {ν, ν̄} × N ∈ {1, 8, 40}.
+Earth covers d = 2,3,4,5 × costhz ∈ {−0.2, −0.6, −0.95} × {1, 10 GeV} × {ν, ν̄}, plus 40-point
+scans, with the PREM layer edges supplied as `t_breakpoints`. **Nothing hangs, nothing raises,
+nothing is silently wrong, and the median call is 2 ms.**
+
+The one Earth row above tolerance (1.17e-02) raises `MagnusConvergenceWarning` — which says a
+slab is too wide for guaranteed Magnus convergence, i.e. "this grid may be too coarse", not "the
+answer is fine". That is the correct signal for a PREM chord at 1 GeV.
+
+**Two caveats about the numbers above.** The Earth rows in the first run of this battery all
+raised `ValueError: value of r cannot exceed EARTH_RADIUS` — which was a bug in *the battery*,
+not the package: `earth.density_matter_func_prem` takes a radius from the Earth's centre in km,
+its second argument is `tol`, and the harness was passing a chord position in natural units with
+`costhz` landing in the `tol` slot. The package's own wrappers route through
+`earth.earth_radial_distance_from_depth(costhz, l/UNIT_KM)`; the battery now mirrors that. Worth
+recording as one more instance of the pattern this whole document is about: the instrument was
+wrong before the code was.
+
+And the accuracy figures are per-call against `solve_ivp`; they say nothing about profiles the
+probe grid cannot resolve (§3.3), which remains the one open exposure.

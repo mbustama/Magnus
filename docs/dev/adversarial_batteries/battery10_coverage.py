@@ -99,8 +99,13 @@ def earth_case(d, costhz, E_GeV, nubar, N):
     Lc = 2.0*gd.EARTH_RADIUS*abs(costhz)*gd.UNIT_KM
     Ls = np.linspace(0.05*Lc, Lc, N) if N > 1 else np.array([Lc])
 
+    # TRAP: density_matter_func_prem takes a RADIUS FROM THE EARTH'S CENTRE, IN KM -- not a
+    # position along the chord, and not natural units.  Its second argument is `tol`, so
+    # passing costhz there lands it in the wrong slot entirely.  The package's own wrappers go
+    # through earth.earth_radial_distance_from_depth(costhz, l/UNIT_KM); this mirrors that.
     def rho(x, _c=costhz):
-        return earth.density_matter_func_prem(x, _c)
+        return earth.density_matter_func_prem(
+            earth.earth_radial_distance_from_depth(_c, np.asarray(x, dtype=float)/gd.UNIT_KM))
 
     try:
         with H.Caught() as c:
