@@ -2611,3 +2611,86 @@ def test_a_jump_smaller_than_the_steepest_smooth_step_is_still_detected():
     assert not ad._profile_is_resolved(H_of_l, 0.0, L, 200)
     _, _, certified = ad.hybrid_propagator(H_of_l, 0.0, L)
     assert not certified, "hybrid certified a discontinuity hidden under smooth variation"
+
+
+def test_breakpoints_cure_a_feature_narrower_than_the_probe_grid():
+    """The one exposure the adversarial validation could not close in the library, and the
+    documented cure for it.
+
+    A resonance narrower than the probe spacing is invisible to every path: the hybrid
+    detector samples n_probe points (200, refined to at most 6400), and the general Magnus
+    grid is seeded from an integral along the path, so neither ever puts a sample inside the
+    feature and no amount of refinement changes that.  Measured at 2.9e-02 against a requested
+    1e-3, silently.
+
+    The `strategy` docstring tells users to pass t_breakpoints, so that instruction is pinned
+    here: if the breakpoint plumbing ever stops reaching the slab grid, the documented cure
+    would silently stop working and this is what would catch it.
+    """
+    energy = 10.0e6
+    l1 = gd.L_SCALE_SUN
+    centre, width = 0.4831*l1, 3.0e-5*l1        # ~1/170 of the finest probe spacing
+    sth, Dm2 = gd.S12_NO_BF_NUFIT_6_0, gd.D21_NO_BF_NUFIT_6_0
+    h_vac = np.asarray(hams.hamiltonian_2nu_vacuum_energy_independent(sth, Dm2), dtype=complex)
+    proj = np.diag([1.0, 0.0]).astype(complex)
+
+    ne0 = gd.NUM_DENSITY_E_SUN_CENTRAL
+    c_vcc = float(np.asarray(matter.vcc_func_from_rho_func(
+        lambda x: ne0, 0.0, 1.0, 0.5, nubar=False, density_matter_is_in_g_per_cm3=False,
+        density_is_of_number_of_electrons=True)(0.0)))/ne0
+    xs = np.geomspace(ne0*1e-6, ne0*10.0, 2000)
+    gaps = [np.diff(np.linalg.eigvalsh(h_vac/energy + x*c_vcc*proj))[0] for x in xs]
+    ne_res = float(xs[int(np.argmin(gaps))])
+
+    def ne(l):
+        x = np.asarray(l, dtype=float)
+        y = ne_res*(0.30 + 2.70*np.exp(-0.5*((x - centre)/width)**2))
+        a = np.asarray(y)
+        return a[()] if a.ndim == 0 else a
+
+    vcc = matter.vcc_func_from_rho_func(ne, 0.0, 1.0, 0.5, nubar=False,
+                                        density_matter_is_in_g_per_cm3=False,
+                                        density_is_of_number_of_electrons=True)
+
+    def H_func(l):
+        return (1.0/energy)*h_vac + np.asarray(vcc(l))[..., None, None]*proj
+
+    def rhs(l, y):
+        return (-1j*np.asarray(H_func(l)) @ y.reshape(2, 2)).ravel()
+    sol = solve_ivp(rhs, (0.0, l1), np.eye(2, dtype=complex).ravel(),
+                    rtol=1e-12, atol=1e-14, method='DOP853')
+    U = sol.y[:, -1].reshape(2, 2)
+    P_exact = np.transpose(U.real**2 + U.imag**2)
+
+    edges = np.array([centre - 8*width, centre - 2*width, centre,
+                      centre + 2*width, centre + 8*width])
+    params = {'sth': sth, 'Dm2': Dm2}
+
+    with warnings.catch_warnings(record=True) as rec:
+        warnings.simplefilter('always')
+        P_bare = np.asarray(op.osc_prob_matter_std_potential(
+            2, ne, energy, l1, params, L0=0.0, density_is_of_number_of_electrons=True))
+    caught_bare = [w.category.__name__ for w in rec]
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        P_bp = np.asarray(op.osc_prob_matter_std_potential(
+            2, ne, energy, l1, params, L0=0.0, density_is_of_number_of_electrons=True,
+            t_breakpoints=edges))
+
+    err_bare = np.max(np.abs(P_bare - P_exact))
+    err_bp = np.max(np.abs(P_bp - P_exact))
+
+    # The premise, stated as the property that matters rather than as a magnitude: undeclared,
+    # the feature is missed by enough to break the requested tolerance, and nothing says so.
+    # (Measured here: 4.60e-03 with no warning at all.  How large it is depends on where the
+    # feature falls relative to the probe grid, so the assertion is on the tolerance, not on
+    # the number.)  If the detector ever grows the ability to find it, this fails loudly rather
+    # than passing quietly, and the warning in the `strategy` docstring should then be revised.
+    assert err_bare > 2e-3, (
+        f"a sub-probe-spacing feature is no longer missed when undeclared (err {err_bare:.2e}); "
+        "if the detector improved, update the strategy docstring's warning to match")
+    assert not caught_bare, (
+        "the undeclared case now warns; the docstring says it does not, so one of them is wrong")
+    # And the cure works, which is what the documentation promises.  (Measured: 1.31e-04.)
+    assert err_bp < 1e-3, f"t_breakpoints no longer cures the narrow feature (err {err_bp:.2e})"
+    assert err_bp < err_bare/10.0

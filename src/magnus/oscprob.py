@@ -4858,6 +4858,24 @@ def osc_prob_matter_std_potential(
         Hamiltonians; see :doc:`/adiabatic_strategy` for the full derivation, validation, and
         performance comparison. Default: 'auto'.
 
+        .. warning::
+
+           **If your profile has a feature much narrower than the trajectory, say where it is.**
+           The hybrid strategy locates resonances by sampling ``n_probe`` points (200, refined to
+           at most 6400), and the general Magnus path seeds its grid from an integral along the
+           path; neither can see a feature that falls between samples, and no refinement of
+           either finds it, because refinement never puts a point inside it. Measured on a
+           Gaussian resonance of width :math:`10^{-5}` of the trajectory, the returned
+           probability was wrong by **2.9e-02 against a requested 1e-3, with no warning** -- on
+           the hybrid path, the general path, and the cumulative scan alike.
+
+           Passing ``t_breakpoints`` at the feature fixes it, and is tested: the same case goes
+           to 8.8e-04 at a single point and 8.9e-04 over a 60-point scan. It is the right tool
+           twice over, since an edge placed *on* a sharp feature also stops a slab straddling it
+           from degrading the quadrature. This is the one exposure the adversarial validation
+           (``docs/dev/FINDINGS_ADVERSARIAL_VALIDATION.md``) could not close in the library
+           itself: what a fixed grid never samples, it cannot report.
+
         .. versionadded:: 1.0.0
     t_slab_edges : list or np.ndarray, optional
         Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
