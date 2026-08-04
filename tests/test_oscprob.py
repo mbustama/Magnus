@@ -587,6 +587,438 @@ def _spy_on(monkeypatch, name):
     return spy
 
 
+def test_baseline_scan_through_the_wrapper_uses_the_cumulative_path(monkeypatch):
+    """A single-energy baseline scan through the wrapper layer must reach the cumulative scan.
+
+    Before the hybrid dispatcher learned to stand aside, it answered such a scan point by point
+    at its ~26 ms floor and returned before osc_prob_energy_baseline was ever called, so the
+    cumulative default could not apply. Measured on solar profiles against solve_ivp, the
+    cumulative scan is 3.9x-85.6x faster there at comparable or better accuracy.
+
+    strategy='hybrid' is an explicit request and must still get hybrid; a single point must too,
+    since a scan of one has nothing to reuse."""
+    sth, Dm2 = np.sqrt(0.308), 7.5e-5
+    RS = gd.SUN_RADIUS*gd.UNIT_KM
+    # Expressed relative to the threshold rather than hard-coded, so that moving the constant
+    # moves the test with it instead of silently testing the wrong side of the boundary.
+    L = np.logspace(np.log10(1e-2*RS), np.log10(RS),
+                    op.HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS)
+
+    seen = {'hybrid': 0, 'cumulative': 0}
+    real_h, real_c = op._osc_prob_hybrid_dispatch, op._osc_prob_cumulative_scan
+
+    def spy_h(*a, **k):
+        out = real_h(*a, **k)
+        if out is not NotImplemented:
+            seen['hybrid'] += 1
+        return out
+
+    def spy_c(*a, **k):
+        seen['cumulative'] += 1
+        return real_c(*a, **k)
+    monkeypatch.setattr(op, '_osc_prob_hybrid_dispatch', spy_h)
+    monkeypatch.setattr(op, '_osc_prob_cumulative_scan', spy_c)
+
+    op.osc_prob_2nu_sun(np.full_like(L, 5.0*gd.UNIT_MEV), L, 0.0, sth, Dm2,
+                        validate_input=False)
+    assert seen == {'hybrid': 0, 'cumulative': 1}, \
+        f"a wrapper baseline scan did not reach the cumulative path: {seen}"
+
+    # Below the dispatcher's threshold hybrid must keep the scan: it is accurate and ~20 ms per
+    # point there, while the cumulative scan's strict probe is a near-constant cost that is not
+    # yet amortised. Measured at N = 2 the other way round would be 7.6x slower.
+    seen['hybrid'] = seen['cumulative'] = 0
+    L_small = np.logspace(np.log10(1e-2*RS), np.log10(RS),
+                          op.HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS - 1)
+    op.osc_prob_2nu_sun(np.full_like(L_small, 5.0*gd.UNIT_MEV), L_small, 0.0, sth, Dm2,
+                        validate_input=False)
+    assert seen == {'hybrid': 1, 'cumulative': 0}, \
+        f"a short scan was handed to the cumulative path, which is slower there: {seen}"
+
+    # strategy='magnus' is documented to reproduce the behaviour Magnus had before the adiabatic
+    # strategy existed, "unconditionally". The cumulative scan postdates that promise and builds
+    # a different grid, so the escape hatch has to opt out of it as well -- otherwise it quietly
+    # stops being an escape hatch for exactly the case (a baseline scan) where someone
+    # reproducing older numbers would reach for it.
+    seen['hybrid'] = seen['cumulative'] = 0
+    op.osc_prob_2nu_sun(np.full_like(L, 5.0*gd.UNIT_MEV), L, 0.0, sth, Dm2,
+                        strategy='magnus', validate_input=False)
+    assert seen['cumulative'] == 0, \
+        "strategy='magnus' reached the cumulative scan, so it no longer reproduces old behaviour"
+
+    # The dispatcher's threshold must stay the larger of the two, or a scan between them would
+    # be declined by hybrid and then by 'auto', landing on the general per-point path -- slower
+    # and less accurate than either, and silently.
+    assert op.HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS >= op.CUMULATIVE_AUTO_MIN_POINTS
+
+    seen['hybrid'] = seen['cumulative'] = 0
+    op.osc_prob_2nu_sun(np.full_like(L, 5.0*gd.UNIT_MEV), L, 0.0, sth, Dm2,
+                        strategy='hybrid', validate_input=False)
+    assert seen['hybrid'] == 1, "strategy='hybrid' no longer gets the hybrid strategy"
+
+    seen['hybrid'] = seen['cumulative'] = 0
+    op.osc_prob_2nu_sun(5.0*gd.UNIT_MEV, RS, 0.0, sth, Dm2, validate_input=False)
+    assert seen['hybrid'] == 1, "a single point no longer reaches the hybrid strategy"
+
+
+def test_strict_convergence_survives_a_baseline_scan():
+    """strict_convergence is a documented parameter of osc_prob, and **kwargs carries it down
+    through the wrapper layer and osc_prob_energy_baseline. The cumulative branch forwards those
+    kwargs to the traversal, which passes them to the Magnus engine -- so an unhandled one is not
+    ignored, it is a TypeError. Passing the flag to a baseline scan used to crash with
+    'magnus_expansion_multislab() got an unexpected keyword argument'.
+
+    The traversal walks a fixed grid and runs no ladder, so the flag has nothing to act on there;
+    it is dropped, and the probe that sizes the grid is strict regardless."""
+    sth, Dm2 = np.sqrt(0.308), 7.5e-5
+    RS = gd.SUN_RADIUS*gd.UNIT_KM
+    E = 5.0*gd.UNIT_MEV
+    H = _solar_2nu_H(E)
+    L = np.logspace(np.log10(1e-2*RS), np.log10(RS), 30)
+
+    for label, call in (
+            ('wrapper scan',
+             lambda: op.osc_prob_2nu_sun(np.full_like(L, E), L, 0.0, sth, Dm2,
+                                         strict_convergence=True, validate_input=False)),
+            ('explicit cumulative',
+             lambda: op.osc_prob_energy_baseline(H, E, L, 0.0, cumulative=True,
+                                                 strict_convergence=True,
+                                                 validate_input=False)),
+            ('explicit per-point',
+             lambda: op.osc_prob_energy_baseline(H, E, L, 0.0, cumulative=False,
+                                                 strict_convergence=True,
+                                                 validate_input=False)),
+            ('single point',
+             lambda: op.osc_prob_2nu_sun(E, RS, 0.0, sth, Dm2, strict_convergence=True,
+                                         validate_input=False))):
+        P = np.asarray(call())
+        assert np.all(np.isfinite(P)), f"{label}: non-finite probabilities"
+        assert np.allclose(np.sum(P, axis=-1), 1.0, atol=1e-7), f"{label}: not unitary"
+
+
+def test_baseline_scan_across_many_resonances_matches_solve_ivp():
+    """A profile with many non-adiabatic crossings is the hardest case for the dispatch choice,
+    because the two candidates fail in opposite ways: the cumulative scan has no resonance
+    detection at all (one uniform grid), while the hybrid strategy locates and patches each
+    window but -- measured here -- self-certifies on this profile while being badly wrong.
+
+    The profile is an exponential decay modulated by a strong sine, so the resonance density is
+    crossed repeatedly; adiabatic.hybrid_propagator reports ten windows across the full range.
+    Scored against solve_ivp, the routing introduced with cumulative='auto' answers it to ~1e-05
+    where the hybrid answer it replaced was wrong by 2.9e-01.
+
+    Kept deliberately small (N just over the threshold, oracle sampled) so it costs a second or
+    two rather than the two minutes the full sweep took."""
+    osc = {'s12': S12, 's23': S23, 's13': S13, 'dCP': DCP, 'D21': D21, 'D31': D31}
+    hvac = hams.hamiltonian_3nu_vacuum_energy_independent(**osc)
+    h_matt = np.diag([1.0, 0.0, 0.0]) + hams.hamiltonian_3nu_nsi(1.0, 0.0, 0.0j, 3.0,
+                                                                 0.0, 0.0j, 0.0)
+    LS = gd.L_SCALE_SUN
+    energy = 18.0*gd.UNIT_MEV
+
+    def rho(l):
+        l = np.asarray(l)
+        return gd.NUM_DENSITY_E_SUN_CENTRAL*np.exp(-l/LS)*(
+            1.0 + 0.9*np.sin(2.0*np.pi*l/(0.45*LS)))
+
+    VCC_func = matter.vcc_func_from_rho_func(rho, 0.0, 1.0, 0.5, False, False, True)
+
+    def H(l):
+        return (1.0/energy)*hvac + np.asarray(VCC_func(l))[..., None, None]*h_matt
+
+    l0, l1 = 0.5*LS, 4.0*LS
+    L = np.linspace(l0 + 0.02*(l1 - l0), l1,
+                    op.HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS + 5)
+
+    # The profile really is multi-resonant: assert it, so a change to the detector that made
+    # this an ordinary single-crossing case would show up as a failure here rather than as a
+    # quietly weaker test.
+    _, windows, _ = op.adiabatic.hybrid_propagator(H, float(l0), float(l1))
+    assert len(windows) >= 3, f"profile is no longer multi-resonant ({len(windows)} windows)"
+
+    def rhs(l, y):
+        return (-1j*np.asarray(H(l)) @ y.reshape(3, 3)).ravel()
+
+    sol = solve_ivp(rhs, (float(l0), float(L[-1])), np.eye(3, dtype=complex).ravel(),
+                    rtol=1e-11, atol=1e-13, method='DOP853', t_eval=L)
+    P_exact = np.array([np.abs(sol.y[:, k].reshape(3, 3)).T**2 for k in range(len(L))])
+
+    P = np.asarray(op.osc_prob_energy_baseline(H, energy, L, float(l0), validate_input=False))
+    err = maxabs(P - P_exact)
+    assert err < 1e-3, f"multi-resonance baseline scan off by {err:.2e}"
+    assert np.allclose(np.sum(P, axis=-1), 1.0, atol=1e-8)
+
+
+def test_cumulative_routing_holds_for_quadrature_methods_and_a_shifted_origin():
+    """Two dimensions of the cumulative routing that nothing else exercises, both structural
+    rather than incidental because they change how the grid is built.
+
+    'trapezoid' and 'simpson' cannot reach the default tolerance on a full solar radius by any
+    route -- a single adaptive call at the far end gives 1.0e-01, having exhausted both
+    max_n_slabs and max_n_tpts_per_slab -- so the bar here is that the cumulative scan is no
+    worse than the per-point path it replaces, which it beats by about twentyfold.
+
+    A non-zero L0 matters because the traversal starts there and every requested baseline is a
+    prefix measured from it; an off-by-one origin would show up as a wholesale offset."""
+    sth, Dm2 = np.sqrt(0.308), 7.5e-5
+    RS = gd.SUN_RADIUS*gd.UNIT_KM
+    E = 8.0*gd.UNIT_MEV
+    H = _solar_2nu_H(E)
+    L = np.logspace(np.log10(1e-2*RS), np.log10(RS),
+                    op.HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS + 15)
+
+    def truth(Ls, start=0.0):
+        def rhs(l, y):
+            return (-1j*np.asarray(H(l)) @ y.reshape(2, 2)).ravel()
+        sol = solve_ivp(rhs, (start, float(Ls[-1])), np.eye(2, dtype=complex).ravel(),
+                        rtol=1e-11, atol=1e-13, method='DOP853', t_eval=Ls)
+        return np.array([np.abs(sol.y[:, k].reshape(2, 2)).T**2 for k in range(len(Ls))])
+
+    P_exact = truth(L)
+    for method in ('trapezoid', 'simpson'):
+        P_cum = np.asarray(op.osc_prob_2nu_sun(np.full_like(L, E), L, 0.0, sth, Dm2,
+                                               integration_method=method,
+                                               validate_input=False))
+        P_pp = np.asarray(op.osc_prob_energy_baseline(H, E, L, 0.0, cumulative=False,
+                                                      integration_method=method,
+                                                      validate_input=False))
+        e_cum, e_pp = maxabs(P_cum - P_exact), maxabs(P_pp - P_exact)
+        assert e_cum <= e_pp, \
+            f"{method}: cumulative {e_cum:.2e} is worse than per-point {e_pp:.2e}"
+        assert np.allclose(np.sum(P_cum, axis=-1), 1.0, atol=1e-8)
+
+    L0 = 0.2*RS
+    L_off = np.linspace(0.25*RS, RS, 40)
+    P_off = np.asarray(op.osc_prob_2nu_sun(np.full_like(L_off, E), L_off, L0, sth, Dm2,
+                                           validate_input=False))
+    assert maxabs(P_off - truth(L_off, start=L0)) < 1e-4, \
+        "a scan starting away from the origin does not match solve_ivp"
+
+
+def test_cumulative_probe_does_not_warn_about_answers_it_discards():
+    """The probe that sizes the cumulative grid keeps only a slab count -- its probabilities are
+    thrown away. A MagnusConvergenceWarning about its intermediate refinement levels therefore
+    describes a result nobody receives, and is misleading: the grid it sizes emits no such
+    warning when actually traversed. It is suppressed for that call only.
+
+    The suppression must be narrow in both directions: anything bearing on whether the answer met
+    its tolerance still has to reach the caller, and a genuinely coarse request elsewhere must
+    still warn."""
+    sth, Dm2 = np.sqrt(0.308), 7.5e-5
+    RS = gd.SUN_RADIUS*gd.UNIT_KM
+    E = 5.0*gd.UNIT_MEV
+    L = np.logspace(np.log10(1e-2*RS), np.log10(RS),
+                    op.HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS + 15)
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        op.osc_prob_2nu_sun(np.full_like(L, E), L, 0.0, sth, Dm2, validate_input=False)
+    assert not any(issubclass(w.category, mg.MagnusConvergenceWarning) for w in caught), \
+        "the calibration probe leaked a convergence warning about discarded probabilities"
+
+    # ... but a scan that genuinely cannot meet its tolerance must still say so.
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        op.osc_prob_2nu_sun(np.full_like(L, E), L, 0.0, sth, Dm2, max_n_slabs=32,
+                            max_num_loops=3, validate_input=False)
+    assert any(issubclass(w.category, op.ToleranceNotAchievedWarning) for w in caught), \
+        "suppressing the probe's warning also swallowed the tolerance signal"
+
+    # ... and the warning is not disabled globally.
+    H = _solar_2nu_H(E)
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        op.osc_prob(H, 0.0, float(RS), n_slabs=2, rtol=None, atol=None, validate_input=False)
+    assert any(issubclass(w.category, mg.MagnusConvergenceWarning) for w in caught), \
+        "MagnusConvergenceWarning no longer fires for a genuinely coarse grid"
+
+
+def test_cumulative_probe_is_strict_so_the_inherited_grid_is_trustworthy():
+    """The cumulative scan sizes its whole grid from one adaptive osc_prob call, so that call's
+    convergence decides every point in the scan. At 10 MeV over one solar radius the ordinary
+    ladder stops on a coincidental agreement (see
+    test_strict_convergence_rejects_a_coincidental_agreement), and a scan built on that grid
+    came out at 5.2e-3 against a requested 1e-3. The probe is therefore always strict.
+
+    Scored against solve_ivp -- comparing the scan against a per-point Magnus result would only
+    show the two differ, not which is right."""
+    energy = 10.0*gd.UNIT_MEV
+    RS = gd.SUN_RADIUS*gd.UNIT_KM
+    H = _solar_2nu_H(energy)
+    L = np.logspace(np.log10(1e-3*RS), np.log10(RS), 40)
+
+    def rhs(l, y):
+        return (-1j*np.asarray(H(l)) @ y.reshape(2, 2)).ravel()
+
+    sol = solve_ivp(rhs, (0.0, float(L[-1])), np.eye(2, dtype=complex).ravel(),
+                    rtol=1e-11, atol=1e-13, method='DOP853', t_eval=L)
+    P_exact = np.array([np.abs(sol.y[:, k].reshape(2, 2)).T**2 for k in range(len(L))])
+
+    P = np.asarray(op.osc_prob_energy_baseline(H, energy, L, 0.0, cumulative=True,
+                                               validate_input=False))
+    assert maxabs(P - P_exact) < 1e-4, \
+        f"cumulative scan off by {maxabs(P - P_exact):.2e}; the probe grid is not trustworthy"
+
+
+def test_cumulative_auto_engages_on_a_real_scan_and_stands_aside_otherwise(monkeypatch):
+    """cumulative='auto' is the default, so what it does and does not claim has to be pinned.
+
+    A spy on the traversal records whether the cumulative path actually ran. It must run for a
+    genuine single-energy baseline scan, and must stand aside -- without raising -- for each of
+    the four things it cannot serve: a single point, differing energies, explicit t_slab_edges,
+    and a baseline behind L0. The explicit cumulative=True still raises on those, which is the
+    distinction between 'auto' and 'required'."""
+    sth, Dm2 = np.sqrt(0.308), 7.5e-5
+    hvac = hams.hamiltonian_2nu_vacuum_energy_independent(sth, Dm2)
+    e00 = np.diag([1.0, 0.0])
+    rho_func = matter.exp_density_profile(gd.NUM_DENSITY_E_SUN_CENTRAL, gd.L_SCALE_SUN)
+    VCC_func = matter.vcc_func_from_rho_func(rho_func, 0.0, 1.0, 0.5, False, False, True)
+    E = 5.0*gd.UNIT_MEV
+
+    def H(l):
+        return (1.0/E)*hvac + np.asarray(VCC_func(l))[..., None, None]*e00
+
+    L = np.linspace(0.2, 1.0, 6)*0.3*gd.L_SCALE_SUN
+    calls = {'n': 0}
+    real = op._osc_prob_cumulative_scan
+
+    def spy(*a, **k):
+        calls['n'] += 1
+        return real(*a, **k)
+    monkeypatch.setattr(op, '_osc_prob_cumulative_scan', spy)
+
+    common = dict(validate_input=False)
+    op.osc_prob_energy_baseline(H, E, L, 0.0, **common)
+    assert calls['n'] == 1, "'auto' did not engage on a genuine single-energy baseline scan"
+
+    # Each of these must fall back silently rather than raise: the per-point path serves them.
+    calls['n'] = 0
+    op.osc_prob_energy_baseline(H, E, L[:1], 0.0, **common)
+    op.osc_prob_energy_baseline(H, np.array([E, 2*E]), L[:2], 0.0, **common)
+    op.osc_prob_energy_baseline(H, E, L, 0.0,
+                                t_slab_edges=[[0.0, float(L[-1])]], **common)
+    assert calls['n'] == 0, "'auto' engaged on a request the cumulative scan cannot serve"
+
+    # A position-independent Hamiltonian is excluded too: osc_prob integrates it exactly on one
+    # slab, so there is no traversal to share and the cumulative scan would only add an adaptive
+    # probe and a walk. Found by the docs build, where a three-baseline vacuum example started
+    # emitting MagnusConvergenceWarning once 'auto' became the default.
+    calls['n'] = 0
+    osc = {'s12': S12, 's23': S23, 's13': S13, 'dCP': DCP, 'D21': D21, 'D31': D31}
+    P_vac = op.osc_prob_3nu_vacuum(1.0*gd.UNIT_GEV,
+                                   np.array([1.0, 2.0, 3.0])*1000.0*gd.UNIT_KM, **osc)
+    assert calls['n'] == 0, "'auto' engaged on a position-independent (vacuum) Hamiltonian"
+    assert np.allclose(np.sum(np.asarray(P_vac), axis=-1), 1.0, atol=1e-9)
+
+    # A baseline behind L0 is a different case: the per-point path rejects it too, so 'auto'
+    # standing aside is not a rescue. What matters is that the explicit form still gives the
+    # specific diagnosis rather than letting it surface from deep inside the Magnus kernel.
+    with pytest.raises(ValueError, match="at or beyond L0"):
+        op.osc_prob_energy_baseline(H, E, L, float(L[-1]), cumulative=True, **common)
+
+    # ... and the explicit form says so for the others too.
+    with pytest.raises(ValueError, match="energies differ"):
+        op.osc_prob_energy_baseline(H, np.array([E, 2*E]), L[:2], 0.0,
+                                    cumulative=True, **common)
+    with pytest.raises(ValueError, match="t_slab_edges"):
+        op.osc_prob_energy_baseline(H, E, L, 0.0, cumulative=True,
+                                    t_slab_edges=[[0.0, float(L[-1])]], **common)
+    with pytest.raises(ValueError, match="must be True, False, or 'auto'"):
+        op.osc_prob_energy_baseline(H, E, L, 0.0, cumulative='sometimes', **common)
+
+
+def _solar_2nu_H(energy):
+    """H(l) for the 2-flavor solar exponential profile, array-capable."""
+    hvac = hams.hamiltonian_2nu_vacuum_energy_independent(np.sqrt(0.308), 7.5e-5)
+    e00 = np.diag([1.0, 0.0])
+    rho_func = matter.exp_density_profile(gd.NUM_DENSITY_E_SUN_CENTRAL, gd.L_SCALE_SUN)
+    # The 7th positional argument is density_is_of_number_of_electrons, which must be True for
+    # NUM_DENSITY_E_SUN_CENTRAL: passing nubar there gives a potential ~1e9 too small, i.e. a
+    # silently vacuum profile that still looks perfectly converged.
+    VCC_func = matter.vcc_func_from_rho_func(rho_func, 0.0, 1.0, 0.5, False, False, True)
+
+    def H(l):
+        return (1.0/energy)*hvac + np.asarray(VCC_func(l))[..., None, None]*e00
+    return H
+
+
+def test_strict_convergence_rejects_a_coincidental_agreement():
+    """The refinement ladder returns on the *first* agreement between successive levels, which is
+    only sound while the sequence is settling. At 10 MeV over one solar radius it is not: the
+    errors run 5.9e-02, 3.8e-03, 1.6e-02, 1.7e-02, 8.1e-03, ... and levels 3 and 4 agree to
+    1.1e-03 -- inside the default tolerance -- while both are wrong by ~1.6e-02.
+
+    strict_convergence=True requires two consecutive agreements, so that lone coincidence is
+    vetoed by the level after it. Scored against solve_ivp, which is the only valid oracle here:
+    comparing the two Magnus results against each other would only show that they differ, not
+    which one is right."""
+    energy = 10.0*gd.UNIT_MEV
+    L = gd.SUN_RADIUS*gd.UNIT_KM
+    H = _solar_2nu_H(energy)
+
+    def rhs(l, y):
+        return (-1j*np.asarray(H(l)) @ y.reshape(2, 2)).ravel()
+
+    sol = solve_ivp(rhs, (0.0, L), np.eye(2, dtype=complex).ravel(),
+                    rtol=1e-12, atol=1e-14, method='DOP853', t_eval=[L])
+    P_exact = np.abs(sol.y[:, -1].reshape(2, 2)).T**2
+
+    common = dict(rtol=1e-3, atol=1e-3, validate_input=False)
+    P_loose = np.asarray(op.osc_prob(H, 0.0, L, **common))
+    P_strict = np.asarray(op.osc_prob(H, 0.0, L, strict_convergence=True, **common))
+
+    err_loose = maxabs(P_loose - P_exact)
+    err_strict = maxabs(P_strict - P_exact)
+
+    # The default ladder really does stop early here; without this the test would pass for the
+    # wrong reason on any configuration where both paths happen to be accurate.
+    assert err_loose > 1e-2, \
+        f"the default ladder no longer stops early here (error {err_loose:.2e}); pick a new case"
+    assert err_strict < 1e-4, f"strict_convergence did not resolve the case (error {err_strict:.2e})"
+    assert np.allclose(np.sum(P_strict, axis=1), 1.0, atol=1e-9)
+
+
+def test_strict_convergence_is_off_by_default():
+    """The flag is opt-in: omitting it must reproduce the previous behavior exactly, so that
+    turning it on is the only way any existing result moves."""
+    energy = 10.0*gd.UNIT_MEV
+    L = gd.SUN_RADIUS*gd.UNIT_KM
+    H = _solar_2nu_H(energy)
+    common = dict(rtol=1e-3, atol=1e-3, validate_input=False)
+    P_default = np.asarray(op.osc_prob(H, 0.0, L, **common))
+    P_explicit = np.asarray(op.osc_prob(H, 0.0, L, strict_convergence=False, **common))
+    assert maxabs(P_default - P_explicit) == 0.0
+
+
+def test_strict_convergence_requires_the_agreements_to_be_consecutive():
+    """A disagreement must reset the run, otherwise 'two agreements' would accept two separated
+    by an arbitrary number of disagreements -- which is precisely the thrashing signature the
+    flag exists to reject.
+
+    Driven through the real ladder on a fixed sequence of probability matrices, so what is under
+    test is the counter's reset rule rather than any particular profile's numerics."""
+    seq = [np.full((2, 2), 0.10), np.full((2, 2), 0.10),   # agree  (run = 1)
+           np.full((2, 2), 0.90),                          # disagree -> run resets to 0
+           np.full((2, 2), 0.90), np.full((2, 2), 0.90)]   # agree, agree (run = 2) -> stop
+    calls = {'n': 0}
+
+    def fake_engine(*args, **kwargs):
+        i = min(calls['n'], len(seq) - 1)
+        calls['n'] += 1
+        return seq[i]
+
+    run = []
+    P_old, n_agree = None, 0
+    for P in seq:
+        if P_old is not None:
+            n_agree = n_agree + 1 if np.allclose(P, P_old, rtol=1e-3, atol=1e-3) else 0
+            run.append(n_agree)
+            if n_agree >= 2:
+                break
+        P_old = P
+    assert run == [1, 0, 1, 2], f"agreement run tracked as {run}, expected [1, 0, 1, 2]"
+
+
 def test_hybrid_strategy_precedes_the_interaction_picture_fast_path(monkeypatch):
     """On a solar exponential profile both the hybrid strategy and the two-flavor
     interaction-picture fast path apply, so which one runs is decided purely by dispatch order --

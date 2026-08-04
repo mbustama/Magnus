@@ -365,6 +365,8 @@ against `solve_ivp`, per-point being 12.0 s for 5.6e-5:
 Two is where the scan becomes strictly better on both axes at once — **124× faster and 11×
 more accurate** — for a doubling of a cost that is negligible either way. `CUMULATIVE_N_ACC_SAFETY`.
 
+> **Superseded:** now 4, not 2. See `DECISION_CUMULATIVE_DEFAULT.md` §4d — against the hybrid strategy rather than the per-point path, 2 was not enough at high energy over short baselines.
+
 ### Measured end to end, on the real thing
 
 Notebook 03 cell 57's castle-wall scan, 6000 baselines, against `solve_ivp`:
@@ -383,7 +385,14 @@ The speedup plateau (~200–400×, not 1500×), the memory result (chunked, `O(b
 flat in the baseline count), and the bookkeeping oracles all reproduced. The identical-grid
 oracle agrees to **1e-12** and constant-`H` matches `expm` to **1e-11**, both now permanent tests.
 
-### Still opt-in
+### Still opt-in *(superseded 2026-08-03 — see `DECISION_CUMULATIVE_DEFAULT.md`)*
+
+> The default is now `cumulative='auto'`, and `CUMULATIVE_N_ACC_SAFETY` is **4**, not the 2
+> recommended above. Both changed for the same reason: routing wrapper baseline scans to the
+> cumulative scan makes its alternative the *hybrid* strategy rather than the general per-point
+> path, which is a considerably higher bar. At safety 2 a 48-configuration sweep found three
+> where the cumulative scan was less accurate than the hybrid answer it replaced. The paragraph
+> below is kept as the record of the call made at the time.
 
 `cumulative=False` by default. The two paths use different grids, so results differ within the
 requested tolerance, and flipping the default would move every baseline scan in the package —

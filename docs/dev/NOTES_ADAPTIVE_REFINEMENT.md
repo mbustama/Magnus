@@ -207,11 +207,11 @@ second agreement is several rungs away, because convergence genuinely has not ha
 10 MeV, 8.25× on the low-amplitude noise. That asymmetry is a feature (the cost is paid where the
 answer was wrong), but it must not be quoted as 1.6×.
 
-### What it does *not* fix, and this is new
+### The second failure mode is an incomplete breakpoint list, not an algorithmic blind spot
 
 §3 claimed the safeguard "works" on the castle wall: "3-vs-4 agrees, 4-vs-6 does not (1.4e-2), so
-the loop would keep climbing." That was measured **without** `t_breakpoints`. With them — which is
-what the notebooks now always pass — the failure changes character entirely. Castle wall narrow,
+the loop would keep climbing." That was measured **without** `t_breakpoints`. With them, the
+failure looks completely different — the answer is **frozen**, not thrashing. Castle wall narrow,
 49 breakpoints over 50 walls, seed 3:
 
 | `n_slabs` | 4 | 6 | 9 | 14 | 21 | 32 | 48 |
@@ -219,38 +219,84 @@ what the notebooks now always pass — the failure changes character entirely. C
 | error | 1.564e-02 | 1.564e-02 | 1.564e-02 | 1.564e-02 | 1.564e-02 | 1.564e-02 | 1.135e-03 |
 | \|ΔP\| vs previous | — | 4.7e-16 | 4.4e-16 | 5.6e-16 | 2.0e-15 | 5.1e-15 | 1.5e-02 |
 
-The grid is breakpoint-dominated, so the answer is **frozen**: six consecutive rungs are
-bit-identical and all wrong by 1.6e-02. This is not a coincidence between samples of a thrashing
-sequence — it is a stable fixed point of the discretisation that happens to be wrong, and **no
-consecutive-agreement count escapes it**. Two, three, six: all stop at 1.564e-02. The ladder only
-breaks out at `n_slabs=48`, when the uniform edges finally start subdividing *within* the
-breakpoint intervals.
+Six consecutive rungs bit-identical and all wrong by 1.6e-02, so **no consecutive-agreement count
+escapes it**. That much stands. But the *diagnosis* first recorded here — "a stable fixed point of
+the discretisation", implying an algorithmic blind spot — was wrong, and the correction matters
+because it dissolves the problem rather than deferring it.
 
-So the failure has two distinct modes, and the safeguard addresses one:
+The profile is exactly piecewise constant between consecutive breakpoints (sampled `H_00` spread:
+**0.000e+00**) in every interval but the first. The castle wall is defined on
+`[l_ini, l_fin] = [100, 10000] km`, and `castle_wall_breakpoints` returns the 49 *interior* walls
+— but the trajectory starts at **0**, so the profile switches on at `l_ini`, a genuine
+discontinuity with no breakpoint on it. Every level integrates across it; Magnus is exact on all
+the other intervals, so refinement changes nothing and the shared answer stays wrong.
+
+Adding `l_ini` and `l_fin` to the list:
+
+| `n_slabs` | 4 | 32 | 150 |
+|---|---|---|---|
+| as supplied | 1.564e-02 | 1.564e-02 | 1.572e-04 |
+| with `l_ini`, `l_fin` | **3.583e-12** | **3.585e-12** | **3.607e-12** |
+
+Nine orders of magnitude, at every slab count. `castle_wall_breakpoints` is a notebook-local
+helper, so this is a **notebook bug**, not a library one, and it is not evidence for any change to
+the refinement algorithm.
+
+So the failure has two modes, and only the first is the library's problem:
 
 - **thrashing** (§1) — successive rungs vary wildly, `allclose` fires on a coincidence.
   Two agreements catches this: 4/4 of the measured cases.
-- **frozen grid** — successive rungs are identical because a user-supplied breakpoint set
-  dominates the grid, and that set under-resolves the profile. Agreement carries no information
-  at all here, at any streak length.
+- **unmarked discontinuity** — the caller's `t_breakpoints` misses a place where the Hamiltonian
+  is non-smooth. No refinement strategy can help; the cure is the missing edge. Worth stating in
+  the user-facing documentation, which it now is.
 
-### Recommendation, reversing the handover
+**This revises the tally.** Of the 6 configurations recorded above as silently outside tolerance,
+2 are this notebook bug. Of the remaining 4, three are solar, where the observable is a
+phase-average that removes most of the error (§4c). The genuine, unmitigated library-level
+exposure is narrower than the raw count suggests.
 
-**Build it**, and stop describing it as a complete fix. 1.53× median on healthy calls, against
-eliminating two-thirds of the silent misses in a sample where 40% of configurations were
-silently wrong by up to 2.0e-02 at the default tolerance, in a package whose history already
-contains two false-convergence bugs, is a trade worth making.
+## 4c. What the observable is, which changes the cost/benefit again
 
-Two caveats to carry into that work:
+The errors above are all **pointwise** — P at one (E, L). For solar neutrinos that is not the
+observable: at 10 MeV the survival probability oscillates ~2100 times over a solar radius, and
+what an experiment measures is the average. Measured on the 10 MeV/R_sun case, averaging over a
+window of 25 oscillations near R_sun:
 
-1. It is a partial fix. The frozen-grid mode needs something else — the natural candidate is to
-   compare against a rung whose grid is *not* a superset of the previous one (e.g. subdividing
-   every breakpoint interval), so that agreement means something when breakpoints dominate.
-2. Its practical reach is narrower than 6/15 suggests. Since the dispatch reorder the solar
-   points are answered by the hybrid strategy rather than the general path, and baseline scans
-   can opt into `cumulative=True`. What remains exposed is the case that matters most: a raw
-   `osc_prob` call on a user-supplied varying profile, which is the package's primary entry
-   point and what notebooks 02 and 03 use throughout.
+| | pointwise max \|ΔP_ee\| | \|⟨P_ee⟩ − ⟨P_ee⟩_true\| |
+|---|---|---|
+| ladder stop (`n_slabs` = 3298) | 2.52e-02 | **1.86e-04** |
+| converged (`n_slabs` = 20000) | 2.83e-06 | 1.11e-09 |
+
+The error is oscillatory, not a bias (`|mean|/std = 0.014`), so averaging removes ~135× of it and
+what survives is *inside* the requested 1e-3. For an averaged solar observable the ladder's
+"wrong" answer is fine, and tightening the pointwise criterion buys nothing.
+
+The package already has the right tool: `average=True` answers this case in **36 ms** via
+`avgprob.averaged_probabilities_adiabatic`, bypassing the ladder entirely, giving 0.311806
+against a brute-force 25-oscillation window average of 0.311956.
+
+Where pointwise accuracy *is* the observable — a probability-versus-baseline or versus-energy
+curve, an oscillogram, a fixed (E, L) — none of this applies and the safeguard's value is real.
+
+### Recommendation, revised twice
+
+**Build it, opt-in, off by default** — shipped as `osc_prob(..., strict_convergence=True)`.
+
+The case for a default flipped twice under measurement, and both reversals were right:
+
+1. The raw count was 6 of 15 configurations silently outside tolerance. But 2 of those are the
+   notebook's incomplete breakpoint list (§4b), not a library failure.
+2. Of the remaining 4, three are solar, where the observable is a phase-average that removes
+   most of the error (§4c above).
+
+A flat 1.53× tax on every adaptive call in the package, to fix errors that are unobservable in
+one of its two main regimes and a notebook bug in another, is not a trade worth making by
+default. As an opt-in for callers who need the oscillating probability itself, it is.
+
+Its practical reach is narrower still than that: since the dispatch reorder the solar points are
+answered by the hybrid strategy rather than the general path, and baseline scans can opt into
+`cumulative=True`. What remains genuinely exposed is a raw `osc_prob` call, on a smooth varying
+profile, where the oscillating probability is what the caller wants.
 
 ## 5. Still open
 
@@ -262,10 +308,15 @@ Two caveats to carry into that work:
   77.4%, but it is profile-specific rather than the general improvement §6.3 has in
   mind. Extending `_osc_prob_scan_separable`'s detection to more profile shapes is
   untouched.
-- **PREM cells could take breakpoints too.** Notebook 03 cells 85/90 scan PREM
-  per-point without `t_breakpoints`, though `earth.prem_layer_edges_along_chord`
-  exists and `tests/test_oscprob.py:303` already shows it improves accuracy there.
-  Left alone as out of scope for this brief.
-- **Proposal (3)**, held per the decision doc §6.5 and unchanged by any of the above
-  except that §3.1's cost split should be re-measured against the notebooks as they
-  now stand.
+- ~~**PREM cells could take breakpoints too.**~~ **Done** (2026-08-03): notebook 03 cells
+  85/90 and notebook 02 cells 78/83 now pass `earth.prem_layer_edges_along_chord`. Measured
+  against `solve_ivp` at the grid those cells use, at no cost in time: 1.28e-04 → 6.78e-11,
+  5.12e-04 → 1.42e-07, and 4.16e-03 → 3.30e-06 for the three directions — the through-the-core
+  one having been outside the default tolerance without them.
+- ~~**Proposal (3)**~~ **Done**: adopted in the notebooks, and `cumulative` now defaults to
+  `'auto'`. See `DECISION_CUMULATIVE_DEFAULT.md`, which also records that the accompanying
+  dispatch change makes the *hybrid* strategy the thing it must beat, not the per-point path.
+- **`strict_convergence` is load-bearing beyond its own flag.** The cumulative scan's grid is
+  sized by a probe that is always strict, because one early-stopping probe would misplace an
+  entire scan rather than one point. Removing or weakening the flag would silently degrade every
+  baseline scan in the package.

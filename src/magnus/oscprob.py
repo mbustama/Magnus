@@ -384,33 +384,142 @@ to the result arrays on any machine that can hold them.
 """
 
 
-CUMULATIVE_N_ACC_SAFETY = 2
+CUMULATIVE_AUTO_MIN_POINTS = 2
+r"""int: Module-level constant
+
+Fewest baselines at which ``cumulative='auto'`` engages the cumulative scan in
+:func:`osc_prob_energy_baseline`.
+
+A single baseline has no prefix to reuse, and would pay for the adaptive probe that sizes the
+inherited grid without getting anything back -- which matters because every single-point call
+through the wrapper layer is served by ``osc_prob_energy_baseline``.  From two baselines
+upward there is something to share.
+
+The threshold is deliberately not set at the point where the cumulative scan becomes *faster*,
+which is higher (measured against ``solve_ivp``, on a 5 MeV solar scan to one solar radius:
+0.75x at N = 2, 0.87x at N = 10, 2.65x at N = 25, 84x at N = 1000).  Below that crossover the
+cumulative scan is at most ~1.3x slower in wall time while being one to three orders of
+magnitude more accurate -- and the per-point path it replaces returns answers *outside* the
+requested 1e-3 there (9.7e-3 at N = 10, 5.6e-3 at N = 25, 2.6e-3 at N = 100).  Trading a few
+milliseconds for that is the right way round.
+
+.. versionadded:: 1.0.0
+"""
+
+
+HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS = 25
+r"""int: Module-level constant
+
+Fewest baselines at which ``_osc_prob_hybrid_dispatch`` stands aside, under
+``strategy='auto'``, so that a single-energy baseline scan reaches the cumulative scan instead.
+
+Deliberately **larger** than :data:`CUMULATIVE_AUTO_MIN_POINTS`, because the two thresholds
+guard different trades.  On the primordial entry point the cumulative scan's alternative is the
+general per-point path, which is not merely slower but returns answers outside the requested
+tolerance on solar profiles (9.7e-3 at N = 10); taking the cumulative scan from N = 2 is right
+there.  Reached through the wrapper layer the alternative is the *hybrid* strategy, which is
+both accurate (~1e-5, well inside a requested 1e-3) and cheap per point (~20 ms), so the
+cumulative scan's near-constant cost -- dominated by its strict probe -- only pays off once
+there are enough points to amortise it.
+
+Measured through ``osc_prob_2nu_sun`` on a solar profile, hybrid against the cumulative scan:
+
+===== =============== ===============
+N     5 MeV           10 MeV
+===== =============== ===============
+2     37 ms / 283 ms  39 ms / 297 ms
+10    184 ms / 282 ms 197 ms / 454 ms
+25    464 ms / 263 ms 489 ms / 432 ms
+400   7459 ms / 292 ms 7904 ms / 368 ms
+===== =============== ===============
+
+The crossover sits near N = 14 at 5 MeV and N = 22 at 10 MeV; 25 clears both.  Erring high only
+forgoes a speed-up, whereas erring low makes small scans several times slower for accuracy that
+was already two orders inside what was asked for.
+
+Being the larger of the two thresholds also keeps the fall-through safe: whenever the hybrid
+dispatcher declines on this count, ``cumulative='auto'`` is guaranteed to engage, so a scan can
+never decline both paths and land on the general per-point method.
+
+**Accuracy steps at this threshold, and it is a large step.**  Because the two sides are
+different methods rather than two settings of one method, adding a single baseline to a
+24-point scan can change every answer in it.  Measured against ``solve_ivp``, ``err(N=24)``
+against ``err(N=26)``:
+
+========================= ========== ========== ==========
+profile                   N = 24     N = 26     step
+========================= ========== ========== ==========
+solar exponential         3.30e-05   2.13e-08   1 546x
+noisy                     6.27e-04   1.04e-08   60 418x
+multi-resonance           1.58e-03   2.86e-09   552 945x
+========================= ========== ========== ==========
+
+The step is always *toward* the truth -- above the threshold the scan is more accurate, not
+less -- so this is a discontinuity to know about rather than a defect.  But a caller sweeping N
+and watching the answer move by five orders of magnitude at N = 25 is seeing the routing change,
+not a numerical instability.  Pass ``cumulative=True`` to take the cumulative scan below the
+threshold as well, or ``cumulative=False`` to stay off it entirely.
+
+.. versionadded:: 1.0.0
+"""
+
+
+CUMULATIVE_N_ACC_SAFETY = 4
 r"""int: Module-level constant
 
 Multiple of the inherited slab count used for the accuracy grid of a cumulative baseline
 scan (``osc_prob_energy_baseline(..., cumulative=True)``).
 
-The grid is sized from one ordinary adaptive :func:`osc_prob` call at the longest baseline,
-which reports the slab count *that* baseline needed.  Applied unmultiplied, the same uniform
-density is then thinner than what the per-point path would have chosen for the shorter
-baselines in the scan, and the result -- while inside the requested tolerance -- comes out
-less accurate than the path it replaces.  Measured on a 1000-point solar scan against
-``solve_ivp``, where the per-point path takes 12.0 s for an error of 5.6e-5:
+The grid is sized from one adaptive :func:`osc_prob` call at the longest baseline, which
+reports the slab count *that* baseline needed.  Applied unmultiplied, the same uniform density
+is thinner than what a per-point path would have chosen for the shorter baselines in the scan,
+and the result -- while inside the requested tolerance -- comes out less accurate than the path
+it replaces.  Measured on a 1000-point solar scan against ``solve_ivp``, where the per-point
+path takes 12.0 s for an error of 5.6e-5:
 
 ===========  ==========  =========  ==========
 safety       ``n_acc``   time       error
 ===========  ==========  =========  ==========
 1            14 883      0.049 s    2.35e-04
-**2**        **29 766**  0.097 s    **5.10e-06**
-4            59 532      0.173 s    3.34e-07
+2            29 766      0.097 s    5.10e-06
+**4**        **59 532**  0.173 s    **3.34e-07**
 8            119 064     0.346 s    1.80e-08
 ===========  ==========  =========  ==========
 
-Two is where the scan becomes strictly better than what it replaces on both axes at once --
-124x faster *and* 11x more accurate -- for a doubling of a cost that is negligible either
-way.  Beyond it the accuracy is bought at a proportional price with no correctness argument
-behind it, which is a choice for the caller (via ``n_slabs`` with the tolerance off) rather
-than a default.
+**Why four rather than two.**  Two was chosen when the cumulative scan's only alternative was
+the general per-point path, against which it was already 124x faster and 11x more accurate.
+Since the dispatch chain routes wrapper baseline scans here (see
+``HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS``), the alternative is the *hybrid* strategy instead,
+which is considerably more accurate than the per-point path -- so the bar moved.  At two, a
+48-configuration sweep found three where the cumulative scan was less accurate than the hybrid
+answer it replaced, all at high energy over a short baseline:
+
+=========================  ==========  ==========  ==========
+configuration              hybrid      safety 2    safety 4
+=========================  ==========  ==========  ==========
+60 MeV, N = 150, 0.4 R_sun  1.57e-05   5.03e-05    8.56e-07
+100 MeV, N = 150, 0.4 R_sun 2.51e-05   3.77e-05    6.11e-07
+100 MeV, N = 40, 0.4 R_sun  9.13e-06   1.10e-05    5.58e-07
+=========================  ==========  ==========  ==========
+
+Four removes all three and beats the hybrid answer on each, while improving the unaffected
+configurations by roughly twenty times as well (5 MeV, N = 150: 8.4e-07 -> 3.7e-08).  It costs
+about 1.4x in wall time -- 28 ms -> 40 ms, 260 ms -> 366 ms on the cases above -- against a
+path it is still tens of times faster than.  Eight is better again but 2.4x, and buys accuracy
+no longer needed to clear the bar.
+
+Note that the error is **not** concentrated where the shape of this constant suggests: on the
+60 MeV case it sits at the *longest* baselines (5.03e-05 there against 2.18e-06 over the
+shortest third), and the grid density at the short end already matches what a probe there would
+ask for to within 1%.  What the multiplier buys is total resolution, not better placement.
+
+**The probe does not always converge**, and then this multiplier is doing more work than its
+name suggests.  Over a full solar radius at 5 and 10 MeV the strict probe reaches
+``max_n_slabs`` (20 000) without two successive levels agreeing, so the count it reports is the
+cap rather than a converged requirement, and ``n_acc`` is 80 000 by way of a ceiling.  The
+resulting scans are accurate (~5e-08 measured against ``solve_ivp``), but the safety margin is
+what makes that so.  A caller who lowers ``max_n_slabs`` lowers the scan's resolution with it,
+in proportion and without a separate warning.
 
 .. versionadded:: 1.0.0
 """
@@ -456,6 +565,50 @@ future change to the growth factor or the slab ceiling, not a live limit.
 
 .. versionadded:: 1.0.0
 """
+
+
+def _n_required_params(func):
+    r"""How many arguments ``func`` obliges its caller to supply positionally.
+
+    Every ``H_func``/``rho_func`` arity check in this module used ``len(signature(f).parameters)``,
+    which counts keyword parameters that already have defaults.  That breaks the ordinary Python
+    idiom for binding a loop variable into a closure --
+
+    .. code-block:: python
+
+        def H(energy, l, VCC, _hvac=hvac, _proj=proj):   # 5 parameters, 3 required
+            ...
+
+    -- which the package's own documentation recommends the *factory* form of, precisely because
+    this form used to fail.  With ``validate_input=True`` it raised "must be a function of either
+    three arguments (energy, l, VCC) or two arguments (energy, l); the provided H_func takes 5";
+    with ``validate_input=False`` it silently took the two-argument branch and died with a
+    ``TypeError`` from inside the engine.  Neither is the user's fault.
+
+    Counting required parameters instead makes both forms work and changes nothing for a function
+    written without defaults.  A ``*args`` function is not counted this way -- it declares no
+    required parameters at all, and the old total is the better guess there -- so those keep the
+    previous behaviour.
+
+    .. versionadded:: 1.0.0
+
+    Parameters
+    ----------
+    func : Callable
+        The function to inspect.
+
+    Returns
+    -------
+    int
+        Number of positional parameters without defaults, or the total parameter count when
+        ``func`` takes ``*args``.
+    """
+    params = list(signature(func).parameters.values())
+    if any(q.kind is q.VAR_POSITIONAL for q in params):
+        return len(params)
+    return sum(1 for q in params
+               if q.kind in (q.POSITIONAL_ONLY, q.POSITIONAL_OR_KEYWORD)
+               and q.default is q.empty)
 
 
 def _resolve_max_n_slabs(max_n_slabs, integration_method):
@@ -1010,7 +1163,7 @@ def validate_input_battery(
                 " the ratio of electrons to protons + neutrons (electron_fraction) must be " + \
                 "non-negative.")
 
-        if ((callable(rho_func)) and (len(signature(rho_func).parameters) > 1)):
+        if ((callable(rho_func)) and (_n_required_params(rho_func) > 1)):
             raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob_matter_std_potential:"+\
                 " the provided rho_func is a function of more than one parameter.")
 
@@ -1838,6 +1991,7 @@ def osc_prob(
     A_eval_mode: Optional[str]=None,
     convergence_info: Optional[Dict]=None,
     t_breakpoints: Optional[Union[list, np.ndarray]]=None,
+    strict_convergence: Optional[bool]=False,
     **kwargs
 ) -> np.ndarray:
     r"""Computes and returns the neutrino oscillation probability.
@@ -1964,6 +2118,70 @@ def osc_prob(
         into the automatically generated slab grid at every refinement
         level, so that the quadrature never integrates across them.
         Ignored when ``t_slab_edges`` is given explicitly.
+    strict_convergence : bool, optional
+        Require the refinement ladder to agree **twice in a row** before
+        declaring convergence, instead of once.  Default: False.
+
+        *What the ladder normally does.*  With a tolerance requested,
+        ``osc_prob`` computes the probability on a grid of ``n_slabs``
+        slabs, then again on a finer one (``n_slabs`` grows by
+        ``growth_factor_n_slabs`` each time), and returns as soon as two
+        successive grids agree within ``rtol``/``atol``.  The assumption
+        is that agreement between successive refinements means the answer
+        has stopped changing because it has converged.
+
+        *When that assumption fails.*  It is only safe while the sequence
+        is settling down.  If the grid is still too coarse to resolve the
+        Hamiltonian, successive refinements do not approach the answer
+        smoothly -- they jump around it -- and two neighboring jumps can
+        land close together by coincidence.  ``np.allclose`` cannot tell
+        that apart from convergence, so the ladder stops early and returns
+        a plausible, exactly unitary, *wrong* answer with no warning.
+        Measured example (2 flavors, solar exponential profile, 10 MeV
+        over one solar radius, default ``rtol=atol=1e-3``): the errors at
+        successive levels run 5.9e-02, 3.8e-03, 1.6e-02, 1.7e-02, 8.1e-03,
+        4.5e-03, 3.5e-06.  Levels 3 and 4 agree to 1.1e-03 -- inside the
+        requested tolerance -- while both are wrong by ~1.6e-02, and the
+        next level moves by 2.5e-02.
+
+        *What this flag changes.*  Convergence is declared only after two
+        consecutive agreements, so a lone coincidence is vetoed by the
+        level that follows it.  On the example above the ladder continues
+        to ``n_slabs = 20000`` and an error of 6.8e-08.
+
+        *What it costs.*  One extra refinement level, each costing about
+        ``growth_factor_n_slabs`` times the last: measured median **1.53x**
+        (worst 1.75x) on calls whose first agreement was already genuine.
+        On calls this actually rescues it costs 3.5-8.6x, because there the
+        second agreement is several levels away -- that cost is paid only
+        where the answer would otherwise have been wrong.
+
+        *When you do not need it.*  If the quantity you care about is an
+        average over many oscillations -- the usual case for solar
+        neutrinos, where the survival probability oscillates thousands of
+        times along the trajectory -- most of the error this guards
+        against is in the *phase* and cancels in the average.  On the 10
+        MeV example the pointwise error of 2.5e-02 becomes 1.9e-04 once
+        averaged over 25 oscillations.  Prefer ``average=True`` on the
+        wrapper functions (see :func:`osc_prob_matter_std_potential`),
+        which computes the phase-averaged probability directly and far
+        more cheaply.  Use ``strict_convergence`` when the oscillating
+        probability itself is the answer you want -- a probability-versus-
+        baseline or versus-energy curve, an oscillogram, or a fixed
+        baseline and energy.
+
+        *What it does not fix.*  A refinement ladder of any strictness is
+        powerless against an **incomplete** ``t_breakpoints`` list.  If the
+        Hamiltonian is discontinuous somewhere that is not marked as a slab
+        edge, every level integrates across that discontinuity, successive
+        levels can agree to machine precision, and the shared answer is
+        simply wrong.  Measured on a 50-wall piecewise-constant profile
+        whose first boundary was left unmarked: the error sat at 1.6e-02,
+        bit-identical from ``n_slabs = 4`` through 32, and adding the one
+        missing edge moved it to 3.6e-12 at every slab count.  When a
+        profile is discontinuous, marking *every* discontinuity -- including
+        where it switches on and off, which may lie inside the trajectory --
+        is worth more than any amount of refinement.
     \**kwargs
         Additional arguments passed through to the Magnus-expansion
         routines
@@ -2028,7 +2246,7 @@ def osc_prob(
             raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob: max_n_tpts_per_slab" +\
                 " must be > 2.")
 
-        if ((callable(H_func)) and (len(signature(H_func).parameters) > 1)):
+        if ((callable(H_func)) and (_n_required_params(H_func) > 1)):
             raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob: the provided H_func" +\
                 " is a function of more than one parameter")
 
@@ -2085,6 +2303,12 @@ def osc_prob(
     # why the early-exit checks inside the loop are guarded on loop_count > 1.
     P = None
     P_old = None
+    # Consecutive refinement levels that have agreed within (rtol, atol) so far.  The ladder
+    # normally returns on the first agreement; strict_convergence requires two in a row, so that
+    # a coincidental agreement between two levels of a sequence that is still jumping around is
+    # vetoed by the level after it.  See the strict_convergence entry in the docstring above.
+    n_agreements = 0
+    agreements_required = 2 if strict_convergence else 1
     # Copy this to remember whether the function was originally called with predefine slab edges,
     # or whether we can increase the number of edges (n_slabs) progressively to reach tolerance
     t_slab_edges_original = t_slab_edges 
@@ -2303,8 +2527,14 @@ def osc_prob(
                     print("      n_slabs = " + str(n_slabs), file=f)
                     print("      n_tpts_per_slab = " + str(n_tpts_per_slab), file=f)
             if P_old is not None:
-                # Compare the new and old probability matrices element-wise
+                # Compare the new and old probability matrices element-wise.  A run of agreements
+                # is tracked rather than a single one: a disagreement resets it, so with
+                # strict_convergence the two agreements must be genuinely consecutive.
                 if np.allclose(P, P_old, rtol=rtol, atol=atol):
+                    n_agreements += 1
+                else:
+                    n_agreements = 0
+                if n_agreements >= agreements_required:
                     if (verbose > 0):
                         for f in [None, file_log] if save_log else [None]:
                             tol_msg = gd.TOL_MSG_IN_COLOR if f is None else gd.TOL_MSG_NO_COLOR
@@ -3288,6 +3518,91 @@ def _osc_prob_ip_exp_dispatch(
     return P.__getitem__(0 if return_float else slice(None))
 
 
+def _cumulative_scan_would_serve(energy_arr, L_arr, L0, min_points):
+    r"""Whether the cumulative scan applies to this set of requested points.
+
+    Used in two places with different ``min_points``, because the two guard different trades:
+    ``osc_prob_energy_baseline`` resolves ``cumulative='auto'`` with
+    :data:`CUMULATIVE_AUTO_MIN_POINTS`, while ``_osc_prob_hybrid_dispatch`` decides whether to
+    stand aside with the larger :data:`HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS`.  Sharing the
+    rest of the predicate keeps them from drifting apart on the conditions that are genuinely
+    the same.
+
+    That the dispatcher's threshold is the larger one is what makes the fall-through safe: when
+    the hybrid dispatcher declines on this count, ``'auto'`` is guaranteed to accept, so a scan
+    can never be declined by both and land on the general per-point path -- slower and less
+    accurate than either, and silently so.
+
+    The remaining ``'auto'`` conditions (a position-dependent Hamiltonian, no ``t_slab_edges``)
+    are already guaranteed where the dispatcher calls this: it has returned ``NotImplemented``
+    for a non-callable ``VCC_func`` and for user-supplied slab edges or breakpoints above.
+
+    .. versionadded:: 1.0.0
+
+    Parameters
+    ----------
+    energy_arr : np.ndarray
+        Requested energies, one per point.
+    L_arr : np.ndarray
+        Requested baselines, one per point.
+    L0 : int or float
+        Initial position.
+    min_points : int
+        Fewest points at which the cumulative scan is worth taking, for this caller.
+
+    Returns
+    -------
+    bool
+        True when the cumulative scan applies to this set of points.
+    """
+    return bool(len(L_arr) >= min_points
+                and np.all(energy_arr == energy_arr[0])
+                and np.all(np.asarray(L_arr, dtype=float) >= L0))
+
+
+def _resolve_cumulative_kwarg(kwargs, strategy):
+    r"""Pops a caller-supplied ``cumulative`` out of ``kwargs`` and decides what to forward.
+
+    The three scenario wrappers (:func:`osc_prob_matter_std_potential`,
+    :func:`osc_prob_matter_nsi`, :func:`osc_prob_liv`) each set ``cumulative`` themselves when
+    calling :func:`osc_prob_energy_baseline`, so a caller who also passed it in ``**kwargs``
+    used to get ``TypeError: got multiple values for keyword argument 'cumulative'`` --
+    which made ``cumulative=False`` unreachable from the entire wrapper layer, and that is the
+    one mitigation ``docs/dev/DECISION_CUMULATIVE_DEFAULT.md`` names for a caller who needs
+    bit-reproducibility against pre-1.0.0 results.
+
+    **An explicit value from the caller always wins**, including over the ``strategy='magnus'``
+    opt-out below: naming ``cumulative`` is a specific request about the scan engine, and
+    ``cumulative=True`` is documented to *raise* rather than fall back when it cannot be served,
+    so honouring it cannot silently do the wrong thing.
+
+    Otherwise ``strategy='magnus'`` resolves to ``False`` and everything else to ``'auto'``.
+    That strategy promises the behaviour Mag(nu)s had before the adiabatic strategy existed,
+    *unconditionally*; the cumulative scan is Magnus machinery but postdates the promise and
+    builds a different grid, so the escape hatch would quietly stop being one for exactly the
+    case -- a single-energy baseline scan -- where someone reproducing older numbers reaches
+    for it.
+
+    .. versionadded:: 1.0.0
+
+    Parameters
+    ----------
+    kwargs : dict
+        The wrapper's ``**kwargs``, modified in place: ``'cumulative'`` is removed if present.
+    strategy : str
+        'auto', 'hybrid' or 'magnus'; see the ``strategy`` parameter of
+        :func:`osc_prob_matter_std_potential`.
+
+    Returns
+    -------
+    bool or str
+        The value to forward to :func:`osc_prob_energy_baseline` as ``cumulative``.
+    """
+    if 'cumulative' in kwargs:
+        return kwargs.pop('cumulative')
+    return 'auto' if strategy != 'magnus' else False
+
+
 def _osc_prob_hybrid_dispatch(
     h_vac_energy_indep: np.ndarray,
     VCC_func: Union[Callable, float],
@@ -3395,6 +3710,28 @@ def _osc_prob_hybrid_dispatch(
 
     energy_arr, L_arr, return_float, ok = _normalize_energy_L(energy, L)
     if not ok:
+        return NotImplemented
+
+    # Stand aside for a *large enough* baseline scan at a single energy: the cumulative scan
+    # answers all of those baselines from one traversal, where this method calls
+    # hybrid_propagator once per point at its ~20 ms floor.  Measured through osc_prob_2nu_sun
+    # on a solar profile at N = 400: 7.5 s -> 0.29 s, with the error improving from ~1e-5 to
+    # ~1e-6 as well.
+    #
+    # The threshold is not 2.  This method is accurate and cheap per point, so below
+    # HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS the cumulative scan's near-constant cost -- its
+    # strict probe -- is not yet amortised, and yielding would make a small scan several times
+    # slower (7.6x at N = 2) to buy accuracy that was already two orders inside what the caller
+    # asked for.  See that constant for the measurements.
+    #
+    # Only under strategy='auto', which promises the best available answer rather than this
+    # method in particular; strategy='hybrid' is an explicit request and still gets hybrid.
+    # Declining here is enough to reach the cumulative path: ip_exp needs every baseline equal
+    # and the separable engine needs a single shared baseline, so both decline a scan too, and
+    # the caller falls through to osc_prob_energy_baseline, where cumulative='auto' engages --
+    # guaranteed, since its threshold is the smaller one.
+    if (strategy == 'auto') and _cumulative_scan_would_serve(
+            energy_arr, L_arr, L0, HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS):
         return NotImplemented
 
     magnus_exp_order = scan_kwargs['magnus_exp_order']
@@ -3757,7 +4094,7 @@ def osc_prob_energy_baseline(
     close_file_log_upon_exit: Optional[bool]=True,
     new_recursion_limit: Optional[int]=5000,
     verbose: Optional[int]=0,
-    cumulative: Optional[bool]=False,
+    cumulative: Optional[Union[bool, str]]='auto',
     **kwargs
 ) -> Union[int, float, np.ndarray]:
     r"""Compute and return oscillation probabilities for given arrays of
@@ -3833,16 +4170,29 @@ def osc_prob_energy_baseline(
         Forwarded to :func:`osc_prob` for each (energy, L) point; see its docstring.
     verbose : int
         Forwarded to :func:`osc_prob` for each (energy, L) point; see its docstring.
-    cumulative : bool, optional
+    cumulative : bool or str, optional
         Compute a whole baseline scan from **one** traversal of the profile instead of one
         traversal per baseline.  The evolution operator is a time-ordered product, so
         :math:`U(0 \to L_2) = U(L_1 \to L_2)\,U(0 \to L_1)`: each requested answer is a
         prefix of the next, and recording the running product yields all of them at once.
+        One of:
 
-        Applies to a **baseline scan at a single energy**, and raises otherwise.  The
-        nesting it exploits belongs to the baseline axis alone -- :math:`P(E_1)` shares
-        nothing with :math:`P(E_2)`, since each energy needs its own propagation through the
-        whole profile -- so there is no energy-axis counterpart to this.
+        * ``'auto'`` (default) -- use the cumulative scan whenever the request fits it, and
+          the ordinary per-point path otherwise.  The request fits when the Hamiltonian varies
+          with position, all the energies are equal, no ``t_slab_edges`` were given, every
+          baseline is at or beyond ``L0``, and there are at least
+          ``CUMULATIVE_AUTO_MIN_POINTS`` of them.  A position-independent Hamiltonian
+          (vacuum, constant density) is excluded because :func:`osc_prob` integrates it
+          exactly on a single slab, leaving no traversal to share.
+        * ``True`` -- require it, and **raise** if the request does not fit.  Use this when
+          the cumulative scan is what you want and silently getting the per-point path
+          instead would be a problem.
+        * ``False`` -- never use it.
+
+        Applies to a **baseline scan at a single energy**.  The nesting it exploits belongs to
+        the baseline axis alone -- :math:`P(E_1)` shares nothing with :math:`P(E_2)`, since
+        each energy needs its own propagation through the whole profile -- so there is no
+        energy-axis counterpart to this.
 
         Not compatible with ``t_slab_edges``, which it would have to override: the scan
         builds a grid that is the union of the requested baselines, an accuracy grid, and
@@ -3850,8 +4200,17 @@ def osc_prob_energy_baseline(
         :func:`osc_prob` call at the longest baseline, so the usual tolerance machinery and
         its warnings apply unchanged.
 
-        Default False.  Results differ from the per-point path within the requested
-        tolerance -- the two use different grids -- so this is opt-in rather than automatic.
+        The default became ``'auto'`` in 1.0.0, having been ``False``, because the cumulative
+        scan measured **more accurate at every scan size tested**, not merely faster.  Against
+        ``solve_ivp`` on a 5 MeV solar scan to one solar radius, the per-point path it replaces
+        returns answers outside the requested 1e-3 at several sizes -- 9.7e-3 at N = 10, 5.6e-3
+        at N = 25, 2.6e-3 at N = 100 -- where the cumulative scan stays near 5e-6 throughout.
+        Speed follows from N ~ 25 upward (2.65x there, 84x at N = 1000); below it the
+        cumulative scan can be ~1.3x slower in wall time, which is a few milliseconds.
+
+        Because the two paths build different grids, results move -- within the requested
+        tolerance, and generally toward the truth.  Pass ``cumulative=False`` to reproduce
+        pre-1.0.0 numbers exactly.
     \**kwargs
         Additional arguments forwarded to :func:`osc_prob`.
 
@@ -3862,7 +4221,7 @@ def osc_prob_energy_baseline(
         each (energy, L) point; a single value/matrix if both ``energy`` and ``L`` were floats.
     """
 
-    if (isinstance(H_func, Callable) and (len(signature(H_func).parameters) > 2)):
+    if (isinstance(H_func, Callable) and (_n_required_params(H_func) > 2)):
         raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob_energy_baseline:"+\
             " H_func can be energy- and position-dependent, only energy-dependent, or only" + \
             " position-dependent. H_func cannot depend on more than two parameters. To vary" + \
@@ -3929,7 +4288,7 @@ def osc_prob_energy_baseline(
         # H_func is position- and energy-independent
         def H_at_energy(enu: float) -> np.ndarray:
             return H_func
-    elif (len(signature(H_func).parameters) == 2):
+    elif (_n_required_params(H_func) == 2):
         # H_func is a function of two parameters; it is assumed that the first parameter is the
         # energy and the second one is the position
         def H_at_energy(enu: float) -> Callable:
@@ -3968,6 +4327,31 @@ def osc_prob_energy_baseline(
     # for every requested point -- i.e. a single energy, scanned over baselines -- because the
     # nesting it exploits is a property of the baseline axis alone: P(0->L1) is a prefix of
     # P(0->L2), while P(E1) shares nothing with P(E2).
+    #
+    # cumulative='auto' (the default) resolves to True exactly when the request fits, and to
+    # False otherwise, so that the explicit cumulative=True can keep *raising* on a request it
+    # cannot serve -- a caller who asked for it by name should hear that it did not happen.
+    #
+    # 'auto' adds two requirements beyond what cumulative=True checks:
+    #
+    #   - at least two baselines.  A single point has no prefix to reuse and would pay the
+    #     inherited-grid probe for nothing, which matters because every single-point call
+    #     through the wrapper layer is served from here.
+    #   - a position-*dependent* Hamiltonian.  When H does not vary along the trajectory
+    #     (vacuum, constant density), osc_prob integrates it exactly on one slab, so there is
+    #     no traversal to share and the cumulative scan is strictly worse: it sizes a grid from
+    #     an adaptive probe and then walks it.  H_first is the Hamiltonian at the first energy,
+    #     already built above; it is a plain matrix exactly when the profile is constant.
+    if isinstance(cumulative, str):
+        if cumulative != 'auto':
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob_energy_baseline: "
+                "cumulative must be True, False, or 'auto'; got " + repr(cumulative) + ".")
+        cumulative = bool(
+            isinstance(H_first, Callable)
+            and (t_slab_edges is None)
+            and _cumulative_scan_would_serve(np.asarray(energy), np.asarray(L), L0,
+                                             CUMULATIVE_AUTO_MIN_POINTS))
+
     if cumulative:
         if t_slab_edges is not None:
             raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob_energy_baseline: "
@@ -4000,8 +4384,27 @@ def osc_prob_energy_baseline(
             probe_kwargs = dict(osc_prob_kwargs)
             probe_kwargs['convergence_info'] = probe_info
             probe_kwargs.pop('A_eval_mode', None)
-            osc_prob(H_fixed, L0, float(L_sorted[-1]),
-                     A_eval_mode=osc_prob_kwargs.get('A_eval_mode'), **probe_kwargs)
+            # The probe is always strict, whatever the caller asked for their own points.  It is
+            # the one call whose convergence decides the grid for the *whole* scan, so its
+            # failure mode is not one bad point but N of them -- and the ladder's ordinary stop
+            # rule can end on a coincidental agreement between two levels that are both wrong
+            # (see the strict_convergence entry in osc_prob's docstring).  Measured on the solar
+            # profile at 10 MeV, where that is exactly what the ordinary ladder does: the scan
+            # came out at 5.2e-3 against a requested 1e-3 with a loose probe, and 1.0e-6 with a
+            # strict one.  It costs one extra refinement level on a single call, amortised over
+            # every baseline in the scan.
+            probe_kwargs['strict_convergence'] = True
+            # The probe's *probabilities* are discarded -- only its slab count is kept -- so a
+            # MagnusConvergenceWarning about its intermediate refinement levels describes a
+            # result nobody receives, and would be actively misleading: the grid this call
+            # sizes produces no such warning when it is actually traversed.  Suppressed here
+            # rather than globally, and only this one category: anything reporting that the
+            # count itself is unreliable (ToleranceNotAchievedWarning) still reaches the caller,
+            # because that does bear on the answer.
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore', magnus.MagnusConvergenceWarning)
+                osc_prob(H_fixed, L0, float(L_sorted[-1]),
+                         A_eval_mode=osc_prob_kwargs.get('A_eval_mode'), **probe_kwargs)
             # Scaled up because that count is what the *longest* baseline needed, and the
             # same uniform density is thinner than the shorter baselines in the scan would
             # have chosen for themselves; see CUMULATIVE_N_ACC_SAFETY for the measurement.
@@ -4011,8 +4414,15 @@ def osc_prob_energy_baseline(
             H_fixed, L_sorted, L0, n_acc, magnus_exp_order,
             kwargs.get('n_tpts_per_slab', 100), integration_method,
             kwargs.get('t_breakpoints'), osc_prob_kwargs.get('A_eval_mode'),
+            # strict_convergence is dropped rather than forwarded: the traversal walks a fixed
+            # grid and runs no refinement ladder, so the flag has nothing to act on here, and
+            # the engine below rejects unknown keywords.  The one adaptive step in a cumulative
+            # scan is the probe above, which is unconditionally strict already.  Without this a
+            # user who passes the flag to a baseline scan gets a TypeError out of
+            # magnus_expansion_multislab.
             **{k: v for k, v in kwargs.items()
-               if k not in ('n_slabs', 'n_tpts_per_slab', 't_breakpoints')})
+               if k not in ('n_slabs', 'n_tpts_per_slab', 't_breakpoints',
+                            'strict_convergence')})
 
         P_all = np.empty_like(P_sorted)
         P_all[order] = P_sorted
@@ -4365,7 +4775,9 @@ def osc_prob_matter_std_potential(
           two-flavor interaction-picture integrator when it applies, the energy-batched scan
           engine, or the general adaptive slab-refinement method) -- this reproduces the exact
           behavior of Magνs as it was before the adiabatic strategy was added,
-          unconditionally.
+          unconditionally.  It therefore also opts out of the cumulative baseline scan, which
+          postdates that behavior: pass ``strategy='magnus'`` to reproduce older numbers
+          exactly, on a baseline scan as well as at a single point.
         * ``'hybrid'`` additionally tries :func:`magnus.adiabatic.hybrid_propagator` (adiabatic
           transport, with a Magnus patch at any non-adiabatic window; see
           :doc:`/adiabatic_strategy`) for any requested (energy, L) point where ``rho_func`` is
@@ -4375,7 +4787,12 @@ def osc_prob_matter_std_potential(
           :class:`HybridCertificationWarning`.
         * ``'auto'`` tries the hybrid strategy first, under the same conditions, but falls back
           silently to the ``'magnus'`` strategies above (no warning about the hybrid attempt
-          itself) for any point where it does not apply or fails to self-certify.
+          itself) for any point where it does not apply or fails to self-certify.  It also
+          stands aside for a **baseline scan at a single energy** of at least
+          ``HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS`` points, which the cumulative scan
+          (see ``cumulative`` in :func:`osc_prob_energy_baseline`) answers from one traversal
+          instead of one hybrid call per point -- measured on solar profiles as tens of times
+          faster at equal or better accuracy.
 
         The hybrid strategy is the natural tool exactly where the plain Magnus refinement needs
         very many slabs (an extreme accumulated phase, e.g., low-energy solar neutrinos crossing
@@ -4602,7 +5019,12 @@ def osc_prob_matter_std_potential(
         min_n_tpts_per_slab=min_n_tpts_per_slab, max_n_tpts_per_slab=max_n_tpts_per_slab,
         validate_input=validate_input, save_log=save_log, filename_log=filename_log,
         file_log=file_log, close_file_log_upon_exit=close_file_log_upon_exit,
-        new_recursion_limit=new_recursion_limit, verbose=verbose, **kwargs)
+        new_recursion_limit=new_recursion_limit, verbose=verbose,
+        # An explicit cumulative= from the caller wins; otherwise strategy='magnus' opts out
+        # of the cumulative scan and everything else takes 'auto'.  See
+        # _resolve_cumulative_kwarg, which also removes it from kwargs so that passing it
+        # here is not a TypeError.
+        cumulative=_resolve_cumulative_kwarg(kwargs, strategy), **kwargs)
 
 
 def osc_prob_matter_nsi(
@@ -4938,7 +5360,12 @@ def osc_prob_matter_nsi(
         min_n_tpts_per_slab=min_n_tpts_per_slab, max_n_tpts_per_slab=max_n_tpts_per_slab,
         validate_input=validate_input, save_log=save_log, filename_log=filename_log,
         file_log=file_log, close_file_log_upon_exit=close_file_log_upon_exit,
-        new_recursion_limit=new_recursion_limit, verbose=verbose, **kwargs)
+        new_recursion_limit=new_recursion_limit, verbose=verbose,
+        # An explicit cumulative= from the caller wins; otherwise strategy='magnus' opts out
+        # of the cumulative scan and everything else takes 'auto'.  See
+        # _resolve_cumulative_kwarg, which also removes it from kwargs so that passing it
+        # here is not a TypeError.
+        cumulative=_resolve_cumulative_kwarg(kwargs, strategy), **kwargs)
 
 
 def osc_prob_liv(
@@ -5285,7 +5712,12 @@ def osc_prob_liv(
         min_n_tpts_per_slab=min_n_tpts_per_slab, max_n_tpts_per_slab=max_n_tpts_per_slab,
         validate_input=validate_input, save_log=save_log, filename_log=filename_log,
         file_log=file_log, close_file_log_upon_exit=close_file_log_upon_exit,
-        new_recursion_limit=new_recursion_limit, verbose=verbose, **kwargs)
+        new_recursion_limit=new_recursion_limit, verbose=verbose,
+        # An explicit cumulative= from the caller wins; otherwise strategy='magnus' opts out
+        # of the cumulative scan and everything else takes 'auto'.  See
+        # _resolve_cumulative_kwarg, which also removes it from kwargs so that passing it
+        # here is not a TypeError.
+        cumulative=_resolve_cumulative_kwarg(kwargs, strategy), **kwargs)
 
 
 #-----------------------------------------------------------------------
@@ -8278,7 +8710,7 @@ def _osc_prob_with_potential(
         if not isinstance(H_func, Callable):
             raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + \
                 ": H_func must be a function of (energy, l, VCC) or of (energy, l).")
-        n_params_H = len(signature(H_func).parameters)
+        n_params_H = _n_required_params(H_func)
         if n_params_H not in (2, 3):
             raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + \
                 ": H_func must be a function of either three arguments (energy, l, VCC) or" + \
@@ -8288,7 +8720,7 @@ def _osc_prob_with_potential(
             raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + \
                 ": strategy must be 'auto', 'hybrid', or 'magnus'.")
 
-    n_params_H = len(signature(H_func).parameters)
+    n_params_H = _n_required_params(H_func)
     if n_params_H == 3:
         def htot(enu: Union[int, float], l: Union[int, float, np.ndarray]) -> np.ndarray:
             return H_func(enu, l, VCC_func(l))
