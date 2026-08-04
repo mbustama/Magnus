@@ -576,21 +576,34 @@ def test_a_smooth_profile_is_still_reported_as_resolved():
     assert ad._profile_is_resolved(lambda l: const, 0.0, l1, 200)
 
 
-def test_a_sharp_but_smooth_feature_is_not_mistaken_for_a_discontinuity():
-    """Refinement must be allowed to rescue a feature that is merely sharp at the *starting*
-    probe density.
+@pytest.mark.parametrize('width_frac', [1.0e-2, 1.0e-3, 1.0e-4])
+def test_a_sharp_but_smooth_feature_is_not_mistaken_for_a_discontinuity(width_frac):
+    """A feature that is merely *sharp* must never be diagnosed as a discontinuity.
 
-    A Gaussian of width 1e-3 of the domain is unresolved at n_probe=200 and resolved at 6400,
-    and this module answers it to ~1e-11 once it is.  Testing at the starting density alone
-    abandoned it as though it were a step function, which is both a large accuracy regression
-    and the wrong diagnosis -- a jump stays unresolved at *every* density, which is exactly
-    what separates the two.
+    A Gaussian of width 1e-3 of the domain is answered to ~1e-11 by this module, and abandoning
+    it as though it were a step function is both a large accuracy regression and the wrong
+    diagnosis.  What separates the two is that a jump stays unresolved at **every** sampling
+    density while a smooth feature does not -- asserted here in the sharpest available form,
+    that the smooth feature is recognised at the *starting* density and the step is not
+    recognised at either.
+
+    This assertion used to read ``not resolved at 200`` and ``resolved at 6400``: the feature
+    was rescued only by the second stage of the caller's coarse-then-fine protocol.  It is now
+    recognised at the first, because a flagged interval is confirmed by re-sampling it alone
+    (see ``adiabatic.LOCAL_JUMP_RATIO``) rather than by refining the whole grid.  That is a
+    strictly stronger property, so the assertion is strengthened rather than moved: the second
+    stage remains as a safety net and is no longer what carries this case.
     """
-    H_func, l1 = _solar_bump_H(1.0e-3, centre_frac=0.495)
-
-    assert not ad._profile_is_resolved(H_func, 0.0, l1, 200)
+    H_func, l1 = _solar_bump_H(width_frac, centre_frac=0.495)
+    assert ad._profile_is_resolved(H_func, 0.0, l1, 200)
     assert ad._profile_is_resolved(H_func, 0.0, l1, 6400)
 
+    step_H, _, step_l1 = _solar_step_H()
+    assert not ad._profile_is_resolved(step_H, 0.0, step_l1, 200)
+    assert not ad._profile_is_resolved(step_H, 0.0, step_l1, 6400)
+
+    if width_frac != 1.0e-3:
+        return
     U, windows, certified = ad.hybrid_propagator(H_func, 0.0, l1)
     assert certified, "a feature the refinement resolves was abandoned as a discontinuity"
     assert windows

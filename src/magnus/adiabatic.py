@@ -160,6 +160,76 @@ is immune to both: it measures concentration of variation, which is what a jump 
 """
 
 
+LOCAL_JUMP_RATIO = 0.5
+r"""float: Module-level constant
+
+Threshold of the **local confirmation** in ``_profile_is_resolved``: having flagged a probe
+interval whose variation is concentrated in one half, re-sample that interval alone on
+``N_LOCAL_CONFIRM`` points and ask what fraction of its variation still falls in a single
+adjacent step.
+
+The two limits are far apart and are set by arithmetic, not by taste.  A jump is not diluted by
+refinement -- one step still carries all of it -- so the fraction tends to **1.0**.  A smooth
+feature is spread over the whole interval, so with 32 sub-steps the largest one carries roughly
+:math:`1/32` of the variation.  Measured (``docs/dev/adversarial_batteries/resolution_fp.py``),
+over the *flagged* intervals only, which is the population this constant decides:
+
+=================================================== ======= ==========
+population                                            n      statistic
+=================================================== ======= ==========
+10 smooth families x d = 2-5 x 3 energies x 12
+sub-intervals (1440 configurations)                    79    **<= 0.087**
+3 piecewise-constant families, same sweep              348   **>= 1.000**
+=================================================== ======= ==========
+
+0.5 sits between them with a factor of 5.7 of margin on the smooth side and 2.0 on the jump
+side.  Over the same sweep the completed test reports **0 of 1440** smooth configurations as
+unresolved, and every sub-interval that genuinely contains a jump as unresolved.
+
+**Why this exists.**  Without it the concentration test is a maximum over intervals, and one
+interval decides -- so the interval containing a smooth *turning point* decides.  There the two
+halves are genuinely asymmetric: one nearly cancels while the other does not, and the ratio is a
+draw in :math:`[0.5, 1]` that depends on where the extremum happens to fall inside its interval.
+Refining the grid does not remove it; it re-draws it, which is why the two-stage
+coarse-then-fine protocol could not separate the two either.  Measured on a Gaussian bump of
+width :math:`10^{-2}` of the trajectory -- a profile the module answers to 3.5e-09 -- the
+statistic hit 0.75 at the interval containing the peak, and 6 of 30 baselines of one ordinary
+scan were declared discontinuous.  The local confirmation is the discriminator the concentration
+ratio alone does not have: it asks whether the concentration *survives refinement*, which is the
+one thing a jump does and a turning point does not.
+
+Costs nothing on an ordinary call: it runs only on intervals the cheap test already flagged, and
+on a profile that flags none it is never reached.
+
+.. versionadded:: 1.0.0
+"""
+
+
+N_LOCAL_CONFIRM = 33
+r"""int: Module-level constant
+
+Points used to re-sample one flagged probe interval in ``_profile_is_resolved`` (see
+:data:`LOCAL_JUMP_RATIO`).  32 sub-steps puts the smooth limit at :math:`1/32 \approx 0.03`,
+comfortably below :data:`LOCAL_JUMP_RATIO`, and resolves a feature down to
+:math:`1/(199 \times 32) \approx 1.6\times10^{-4}` of the trajectory -- the same scale as the
+probe refinement ceiling ``max_n_probe = 6400``, so the local test does not claim to see
+anything the caller's own refinement could not.
+
+.. versionadded:: 1.0.0
+"""
+
+
+MAX_LOCAL_CONFIRMATIONS = 8
+r"""int: Module-level constant
+
+At most this many flagged intervals are confirmed locally, taken in decreasing order of how
+much variation they carry.  A profile with hundreds of genuine jumps is found by the first one,
+and a bound is needed because the flagged set is unbounded in principle.
+
+.. versionadded:: 1.0.0
+"""
+
+
 def _H_on_grid(H_func: Callable, ls: np.ndarray) -> np.ndarray:
     r"""``H_func`` at every position in ``ls``, in one vectorized call where possible.
 
@@ -271,8 +341,25 @@ def _profile_is_resolved(H_func: Callable, l0: float, l1: float, n_probe: int) -
     if not np.any(live):
         return True
 
-    return bool(np.max(np.maximum(first[live], second[live])/total[live])
-                <= RESOLUTION_RATIO)
+    ratio = np.where(live, np.maximum(first, second)/np.where(total > 0.0, total, 1.0), 0.0)
+    flagged = np.where(ratio > RESOLUTION_RATIO)[0]
+    if flagged.size == 0:
+        return True
+
+    # A concentrated interval is a candidate, not a verdict.  The one interval containing a
+    # smooth turning point is genuinely asymmetric -- one half nearly cancels -- and since the
+    # statistic above is a maximum over intervals, that single interval decides for the whole
+    # profile.  Refining the probe grid re-draws where the extremum falls inside its interval
+    # rather than removing the effect, so the caller's coarse-then-fine protocol cannot separate
+    # the two either.  Re-sampling the flagged interval *alone* can: a jump is not diluted by
+    # refinement and one step still carries all of it, while a smooth feature spreads over every
+    # step.  See LOCAL_JUMP_RATIO for the measured separation.
+    for i in flagged[np.argsort(-total[flagged])][:MAX_LOCAL_CONFIRMATIONS]:
+        xs = np.linspace(ls[i], ls[i + 1], N_LOCAL_CONFIRM)
+        steps = np.max(np.abs(np.diff(_H_on_grid(H_func, xs), axis=0)), axis=(1, 2))
+        if steps.max() > LOCAL_JUMP_RATIO*total[i]:
+            return False
+    return True
 
 
 def _eigs_along(H_func: Callable, ls: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
@@ -462,6 +549,32 @@ def find_resonance_candidates(H_func: Callable, l0: float, l1: float,
         Number of positions on the initial scan grid used to bracket sign changes. Default: 200.
     fd_step_frac : float, optional
         Finite-difference step for ``_dH_dl``, as a fraction of ``l1 - l0``. Default: 1e-6.
+
+        **Provenance.**  A central difference trades truncation error (:math:`\sim h^2`) against
+        subtractive cancellation (:math:`\sim \epsilon/h`), so there is an optimum, and this
+        default had never been checked against it.  Measured
+        (``docs/dev/adversarial_batteries/constants_audit.py``) against the **analytic**
+        :math:`dH/dl` -- available because :math:`H = h_\mathrm{vac}/E + C\,n_e(l)\,P_{ee}` and
+        the profiles used have closed-form :math:`n_e'`, so the reference carries no error of
+        its own -- over d = 2, 3 and 10-50 MeV, as a fraction of the largest :math:`|dH/dl|` on
+        the path:
+
+        ========================= ============ ==================== =========================
+        profile                    optimum      error at **1e-6**    error at the optimum
+        ========================= ============ ==================== =========================
+        solar exponential          1e-5         6.8e-11              1.9e-11
+        sinusoid, period span/7    1e-6         3.4e-10              3.4e-10
+        Gaussian bump, w = 1e-2    1e-7 - 1e-8  2.5e-09              2.6e-11
+        ========================= ============ ==================== =========================
+
+        **The optimum is not a single number** -- it moves with the profile's shortest length
+        scale, which is what the theory predicts.  But the curve is flat enough that this does
+        not matter: anywhere in :math:`10^{-8}` to :math:`10^{-5}` the error stays below
+        :math:`3\times10^{-9}` relative on every profile measured, which is six orders below
+        anything that could move a probability at the tolerances this package works to.  Outside
+        that band it degrades fast in both directions -- 1.6e-04 at :math:`10^{-12}`
+        (cancellation), 0.23 at :math:`10^{-2}` (truncation) -- so the band, not the value, is
+        the thing to preserve.
     info : dict, optional
         If given, filled in place with the probe-grid quantities this function had to compute
         anyway -- ``'ls'`` (the grid), ``'lam'``, ``'W'`` (eigenvalues and eigenvectors, shapes
@@ -800,7 +913,8 @@ def hybrid_propagator(H_func: Callable, l0: float, l1: float, rtol: Optional[flo
     min_threshold: Optional[float] = 1.e-6, n_probe0: Optional[int] = 200,
     max_n_probe: Optional[int] = 6400, n_points0: Optional[int] = 201,
     max_n_points: Optional[int] = 12864, fd_step_frac: Optional[float] = 1.e-6,
-    max_iters: Optional[int] = 12) -> Tuple[np.ndarray, List[Tuple[float, float]], bool]:
+    max_iters: Optional[int] = 12,
+    info: Optional[Dict] = None) -> Tuple[np.ndarray, List[Tuple[float, float]], bool]:
     r"""Computes the evolution operator via adiabatic transport, with a Magnus patch at every
     non-adiabatic window, self-certified against successive refinement of every internal
     tolerance knob.
@@ -857,6 +971,35 @@ def hybrid_propagator(H_func: Callable, l0: float, l1: float, rtol: Optional[flo
         Default: 'gl'.
     threshold0 : float, optional
         Starting adiabaticity threshold. Default: 0.1.
+
+        **Provenance, and a reframing.**  This constant used to decide *correctness*: if
+        :math:`\gamma` never crossed it, no window opened, successive refinements agreed with
+        each other, and the answer was certified while wrong by up to 1.8e-02.  Since
+        certification of an empty window list additionally requires :data:`GAMMA_TO_ERROR` *
+        :math:`\gamma_\max` to fit the tolerance, that failure mode is closed and **this is now
+        a cost knob**: it sets where the ``threshold /= 3`` ladder starts, not whether the
+        result may be believed.
+
+        Measured (``docs/dev/adversarial_batteries/constants_audit.py``) over 3 profiles x
+        d = 2, 3 x three requested tolerances, sweeping ``threshold0`` from 1 down to 1e-3:
+
+        * **Accuracy is identical at every value** in 16 of 18 rows.  The ladder reaches
+          whatever threshold the tolerance requires regardless of where it starts.
+        * **At ``rtol <= 1e-3``, lower is monotonically cheaper** -- up to **6.5x** (1.57 s to
+          0.24 s on a solar profile at ``rtol = 1e-5``) -- because every step of the ladder
+          re-runs the detector at doubled ``n_probe`` and the transport at doubled
+          ``n_points``.  Starting low skips those iterations.
+        * **At ``rtol = 1e-2`` the sign flips.**  There the tolerance does not require a window
+          at all, so a low threshold opens one that is not needed: 0.21 s becomes 0.95 s at
+          d = 3, buying an accuracy improvement (2.67e-03 to 1.44e-09) nobody asked for.
+
+        So the brief's hypothesis is confirmed: **the right value is a rule, not a constant** --
+        low when the requested tolerance is tight, high when it is loose.  0.1 is not the
+        optimum at the default ``rtol = 1e-3``, where 0.01 is 2-3x cheaper at identical
+        accuracy.  **It is deliberately left unchanged**: three profiles at one energy is
+        precisely the size of population that made :data:`GAMMA_TO_ERROR` wrong twice, and
+        retuning a default on it would repeat that mistake rather than learn from it.  The
+        measurement is recorded here so the next person starts from evidence.
     min_threshold : float, optional
         Floor below which the threshold is not tightened further. Default: 1e-6.
     n_probe0 : int, optional
@@ -872,6 +1015,16 @@ def hybrid_propagator(H_func: Callable, l0: float, l1: float, rtol: Optional[flo
         ``l1 - l0``. Default: 1e-6.
     max_iters : int, optional
         Maximum number of refinement iterations. Default: 12.
+    info : dict, optional
+        If given, filled in place with why this call ended as it did, following the same
+        out-parameter convention as ``convergence_info`` in :func:`magnus.oscprob.osc_prob`.
+        Keys: ``'resolved'`` (whether ``H_func`` passed the probe-scale resolution test -- see
+        ``_profile_is_resolved``), ``'gamma_max'``, ``'n_windows'``, ``'iterations'``, and
+        ``'patches_converged'``.  ``certified=False`` on its own does not say *which* of these
+        failed, and the cures are different: an unresolved profile wants ``t_breakpoints``, an
+        exhausted refinement wants a looser tolerance.  :mod:`magnus.oscprob` uses
+        ``'resolved'`` to raise :class:`magnus.oscprob.UnmarkedDiscontinuityWarning` on the
+        hybrid path instead of declining in silence. Default: None.
 
     Returns
     -------
@@ -917,9 +1070,16 @@ def hybrid_propagator(H_func: Callable, l0: float, l1: float, rtol: Optional[flo
     resolved = (_profile_is_resolved(H_func, l0, l1, n_probe0)
                 or _profile_is_resolved(H_func, l0, l1, max_n_probe))
 
+    def report(n_windows: int, gamma_max: float, iterations: int, patches_ok: bool):
+        if info is not None:
+            info.update(resolved=bool(resolved), gamma_max=float(gamma_max),
+                        n_windows=int(n_windows), iterations=int(iterations),
+                        patches_converged=bool(patches_ok))
+
     U_prev, windows_prev, ok_prev, gamma_prev = _hybrid_propagator_once(H_func, l0, l1,
         threshold, n_probe, n_points, fd_step_frac, magnus_exp_order, integration_method)
     if not ok_prev or not resolved:
+        report(len(windows_prev), gamma_prev, 1, ok_prev)
         return U_prev, windows_prev, False
 
     def adiabatic_is_good_enough(gamma_max: float) -> bool:
@@ -934,7 +1094,9 @@ def hybrid_propagator(H_func: Callable, l0: float, l1: float, rtol: Optional[flo
         """
         return bool(GAMMA_TO_ERROR*gamma_max <= atol + rtol)
 
+    iterations = 1
     for _ in range(max_iters):
+        iterations += 1
         knobs_prev = (threshold, n_probe, n_points)
         threshold = max(threshold / 3.0, min_threshold)
         n_probe = min(n_probe * 2, max_n_probe)
@@ -948,6 +1110,7 @@ def hybrid_propagator(H_func: Callable, l0: float, l1: float, rtol: Optional[flo
         U_next, windows_next, ok_next, gamma_next = _hybrid_propagator_once(H_func, l0, l1,
             threshold, n_probe, n_points, fd_step_frac, magnus_exp_order, integration_method)
         if not ok_next:
+            report(len(windows_next), gamma_next, iterations, False)
             return U_next, windows_next, False
         if np.max(np.abs(U_next - U_prev)) <= atol + rtol * np.max(np.abs(U_prev)):
             # Agreement is necessary but not sufficient. If neither result patched anything,
@@ -958,9 +1121,11 @@ def hybrid_propagator(H_func: Callable, l0: float, l1: float, rtol: Optional[flo
             # threshold is compared against.
             if windows_next or windows_prev or adiabatic_is_good_enough(
                     max(gamma_next, gamma_prev)):
+                report(len(windows_next), max(gamma_next, gamma_prev), iterations, True)
                 return U_next, windows_next, True
         U_prev, windows_prev, ok_prev, gamma_prev = (U_next, windows_next, ok_next, gamma_next)
 
+    report(len(windows_prev), gamma_prev, iterations, ok_prev)
     return U_prev, windows_prev, False
 
 

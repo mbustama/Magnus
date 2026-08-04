@@ -289,6 +289,7 @@ import numpy as np
 import os
 import sys
 import warnings
+from contextlib import contextmanager
 from functools import reduce
 from joblib import Parallel, delayed
 from typing import Optional, Callable, Union, Tuple, Dict
@@ -737,15 +738,33 @@ def _check_output_fits(n_points, dim, source_func_name):
 
 
 class ToleranceNotAchievedWarning(UserWarning):
-    r"""Warns that the probability returned by :func:`osc_prob` did not
-    reach the requested tolerance because a refinement cap was hit
-    (max_num_loops, max_n_slabs, or max_n_tpts_per_slab).
+    r"""Warns that a refinement ladder ran out of room before it converged.
 
-    The result may look plausible (it is still exactly unitary) while
-    being inaccurate, so this warning is issued regardless of the
-    verbosity setting.  Raise the caps, loosen the tolerance, or use
-    wider applicability methods for extreme-phase problems (e.g., many
-    more slabs for low-energy solar neutrinos).
+    **What was detected.**  A cap was reached -- ``max_num_loops``, ``max_n_slabs``, or
+    ``max_n_tpts_per_slab`` -- while the last two refinement levels still disagreed by more
+    than the requested ``rtol``/``atol``.
+
+    **What it means for the answer.**  The result is still exactly unitary, so it looks
+    plausible; its accuracy is unverified.  The message says **how far from converged the ladder
+    stopped**, as a multiple of the tolerance asked for, because that disagreement is computed
+    anyway by the comparison that decides convergence and it is the difference between raising a
+    cap as a guess and as a decision.  A ladder that stopped a few times outside tolerance is a
+    different situation from one that stopped thirty times outside it.
+
+    **What to change.**  Raise the cap the message names; or loosen ``rtol``/``atol`` to what
+    the levels actually agreed to; or, if the profile has a density jump or a kink, pass
+    ``t_breakpoints`` there -- no number of slabs fixes a slab that straddles one.
+
+    **When it is safe to ignore.**  When the reported shortfall is smaller than the accuracy the
+    result is used at.  Not otherwise: this reports a genuine failure of the convergence test,
+    unlike :class:`magnus.magnus.MagnusConvergenceWarning`, which reports a slab width.
+
+    Also raised by a **cumulative baseline scan** whose accuracy grid was sized from
+    ``max_n_slabs`` rather than from a converged probe.  That instance is worth its own message
+    because the consequence is larger than one point: the whole scan inherits the capped grid.
+
+    Two subclasses narrow the diagnosis: :class:`HybridCertificationWarning` and
+    :class:`UnmarkedDiscontinuityWarning`.  Code filtering on this class catches both.
 
     .. versionadded:: 1.0.0
     """
@@ -769,6 +788,20 @@ class HybridCertificationWarning(ToleranceNotAchievedWarning):
     *it* also fails to converge), so this warning fires only when
     ``strategy='hybrid'`` was explicitly requested. See
     :doc:`/adiabatic_strategy`.
+
+    **Uncertified means unverified, not wrong.**  The message says so, and names three things
+    to change rather than leaving the reader with a disclaimer:
+
+    * ``strategy='auto'`` -- the automatic fallback, which hands exactly these points to the
+      general Magnus path and certifies there instead;
+    * ``t_breakpoints`` at any known structure -- a density jump, a kink, or a feature narrower
+      than 1/200 of the trajectory, which is the one cure for what the probe grid cannot
+      resolve;
+    * a looser ``rtol``/``atol``, when the accuracy needed is less than the accuracy requested.
+
+    Which one applies is visible without guessing: pass ``strategy_info`` (see
+    :func:`osc_prob_matter_std_potential`) and read ``'declined'``, or pass ``info`` to
+    :func:`magnus.adiabatic.hybrid_propagator` directly for ``'resolved'`` and ``'gamma_max'``.
 
     .. versionadded:: 1.0.0
     """
@@ -803,8 +836,44 @@ class UnmarkedDiscontinuityWarning(ToleranceNotAchievedWarning):
     also catches this.  Not raised when ``t_breakpoints`` was supplied: the caller has then said
     where the edges are, and the grid honours them.
 
+    **Also raised on the hybrid path.**  The same detector already ran inside
+    :func:`magnus.adiabatic.hybrid_propagator`, where failing it makes the strategy decline --
+    silently, so the caller heard about slab widths from whichever engine answered instead,
+    which is true and points at the wrong knob.  It now says what it found there too.  The
+    detector, its two-stage protocol and its measured false-positive rate are unchanged; only
+    the number of places that report it has grown.  On an unmarked density step the adiabatic
+    answer was wrong by **0.54** in probability while reporting itself certified, and that is
+    the case this instance exists for.
+
     .. versionadded:: 1.0.0
     """
+
+
+def _shortfall_phrase(last_gap, rtol, atol) -> str:
+    r"""How far from converged a refinement ladder stopped, as a fixed phrase.
+
+    :class:`ToleranceNotAchievedWarning` used to say only *that* the ladder ran out of room.
+    The disagreement between the last two levels is computed anyway, by the very comparison that
+    decides convergence, so the warning can say by how much -- which is the difference between
+    "raise the cap" as a guess and as a decision.
+
+    Bucketed rather than numeric so the message stays one of four fixed strings and Python's
+    default filter still shows each at most once per session.  The buckets are ratios to the
+    requested tolerance, because that is the quantity the caller chose and can change.
+
+    .. versionadded:: 1.0.0
+    """
+    tol = (atol or 0.0) + (rtol or 0.0)
+    if (last_gap is None) or (tol <= 0.0):
+        return "with no two levels to compare"
+    ratio = last_gap/tol
+    if ratio <= 3.0:
+        return "the last two refinement levels still differing by a few times the tolerance"
+    if ratio <= 30.0:
+        return ("the last two refinement levels still differing by roughly ten times the "
+                "tolerance")
+    return ("the last two refinement levels still differing by more than thirty times the "
+            "tolerance")
 
 
 class PhaseAveragingWarning(UserWarning):
@@ -2336,6 +2405,7 @@ def osc_prob(
     # why the early-exit checks inside the loop are guarded on loop_count > 1.
     P = None
     P_old = None
+    last_gap = None
     # Consecutive refinement levels that have agreed within (rtol, atol) so far.  The ladder
     # normally returns on the first agreement; strict_convergence requires two in a row, so that
     # a coincidental agreement between two levels of a sequence that is still jumping around is
@@ -2436,9 +2506,10 @@ def osc_prob(
             # otherwise) reached this return before P existed and raised UnboundLocalError.
             if (loop_count > 1) and (loop_count > max_num_loops):
                 warnings.warn("osc_prob: requested tolerance not achieved "
-                    "(max_num_loops reached); the returned probabilities may be "
-                    "inaccurate. Try increasing max_num_loops. Shown once per "
-                    "session.", ToleranceNotAchievedWarning, stacklevel=2)
+                    "(max_num_loops reached), " + _shortfall_phrase(last_gap, rtol, atol) +
+                    "; the returned probabilities may be inaccurate. Raise max_num_loops, or "
+                    "loosen rtol/atol to what the last two levels actually agreed to. Shown "
+                    "once per session.", ToleranceNotAchievedWarning, stacklevel=2)
                 if (verbose > 0):
                     for f in [None, file_log] if save_log else [None]:
                         warn_msg = gd.WARNING_MSG_IN_COLOR if f is None else gd.WARNING_MSG_NO_COLOR
@@ -2475,12 +2546,14 @@ def osc_prob(
                 knobs = ("max_n_slabs" if integration_method == 'gl'
                          else "max_n_slabs and max_n_tpts_per_slab")
                 warnings.warn("osc_prob: requested tolerance not achieved (" + knobs +
-                    " reached), so convergence could not be verified by successive "
-                    "refinement; the returned probabilities may be inaccurate. Try "
-                    "increasing " + knobs + ". This can happen for very large "
-                    "accumulated phases, e.g., low-energy neutrinos over very "
-                    "long baselines, or eV-scale sterile splittings over Earth-crossing "
-                    "baselines. Shown once per session.",
+                    " reached), " + _shortfall_phrase(last_gap, rtol, atol) + ", so "
+                    "convergence could not be verified by successive refinement and the "
+                    "returned probabilities may be inaccurate. Raise " + knobs + ". This can "
+                    "happen for very large accumulated phases, e.g., low-energy neutrinos over "
+                    "very long baselines, or eV-scale sterile splittings over Earth-crossing "
+                    "baselines. If the profile has a density jump or a kink, pass "
+                    "t_breakpoints there as well -- a slab straddling one is never fixed by "
+                    "more slabs. Shown once per session.",
                     ToleranceNotAchievedWarning, stacklevel=2)
                 if (verbose > 0):
                     for f in [None, file_log] if save_log else [None]:
@@ -2563,6 +2636,10 @@ def osc_prob(
                 # Compare the new and old probability matrices element-wise.  A run of agreements
                 # is tracked rather than a single one: a disagreement resets it, so with
                 # strict_convergence the two agreements must be genuinely consecutive.
+                # Kept so the tolerance-not-achieved warnings below can say how far from
+                # converged the refinement stopped, rather than only that it stopped.  The
+                # comparison is being made anyway; this is the number it is made on.
+                last_gap = float(np.max(np.abs(P - P_old)))
                 if np.allclose(P, P_old, rtol=rtol, atol=atol):
                     n_agreements += 1
                 else:
@@ -2756,6 +2833,7 @@ def _avg_prob_dispatch(
             "The oscillation probability itself (average=False) is the meaningful quantity there. "
             "Shown once per session.", PhaseAveragingWarning, stacklevel=3)
 
+    _note_engine('average')
     if (nu_i is not None) and (nu_f is not None):
         P_out = P_out[:, nu_i, nu_f]
 
@@ -2839,6 +2917,124 @@ def _normalize_energy_L(
         energy = np.full(len(L), energy[0]) if (len(energy) == 1) else energy
         L = np.full(len(energy), L[0]) if (len(L) == 1) else L
     return energy, L, return_float, ok
+
+
+#-----------------------------------------------------------------------
+# Which engine answered: the shared instrument behind strategy_info and
+# cross_check_strategies
+#-----------------------------------------------------------------------
+
+ENGINE_FAMILIES = {
+    'hybrid': 'adiabatic',
+    'ip_exp': 'interaction-picture',
+    'magnus': 'magnus-ladder',
+    'cumulative': 'magnus-ladder',
+    'separable': 'magnus-ladder',
+    'average': 'phase-average',
+    'expm': 'exact',
+}
+r"""dict: Module-level constant
+
+Which engines share machinery, and therefore which pairwise comparisons in
+:func:`cross_check_strategies` carry information.  Two engines in the **same** family can be
+wrong in the same way at the same time, so their agreement is not evidence; two in different
+families fail for different reasons.
+
+* ``'adiabatic'`` -- :func:`magnus.adiabatic.hybrid_propagator`: transport in the instantaneous
+  eigenbasis, with Magnus patches only inside non-adiabatic windows.  Its blind spots are the
+  detector's (a feature narrower than the probe grid, a profile the resolution test rejects).
+* ``'magnus-ladder'`` -- the general per-point path, the cumulative baseline scan, and the
+  energy-batched separable scan.  All three walk slabs with
+  :func:`magnus.magnus.magnus_expansion_multislab`, and the cumulative scan additionally *sizes*
+  its grid from an ordinary adaptive :func:`osc_prob` probe, so it inherits that path's stopping
+  rule as well.  Grouping them is deliberate: the accuracy step at
+  :data:`HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS` shows they are not interchangeable, but a
+  quadrature that cannot see a feature will not see it on any of the three grids.
+* ``'interaction-picture'`` -- the 2-flavour exponential-profile fast path.  It uses the same
+  Magnus core, but factors the fast vacuum phase out analytically first, so what it must resolve
+  is a different function; it is kept separate for that reason and not because the core differs.
+* ``'exact'`` -- ``scipy.linalg.expm``, used only where it is the exact answer rather than an
+  approximation (see :func:`cross_check_strategies`).
+* ``'phase-average'`` -- :mod:`magnus.avgprob`'s closed form, which answers a different question
+  and is never compared against the others.
+
+.. versionadded:: 1.0.0
+"""
+
+
+_ENGINE_TRACE = None
+r"""list or None: set to a list by ``_engine_probe`` while a diagnostic is watching; ``None``
+(and therefore free) on every ordinary call."""
+
+
+_ENGINES_DISABLED = frozenset()
+r"""frozenset: engine labels that the dispatchers must decline, set by ``_engine_probe``.  Used
+only by :func:`cross_check_strategies`, to reach an engine that a faster one would otherwise
+answer for -- there is no user-facing way to ask for the general ladder specifically when the
+interaction-picture path applies, and a cross-check that silently compared the same engine with
+itself would be exactly the failure it exists to detect."""
+
+
+def _note_engine(label: str, answered: bool = True, **detail) -> None:
+    r"""Record that ``label`` answered (or declined), if anything is watching.
+
+    One dict per dispatch decision, in the order the decisions were taken, so the trace reads as
+    the route the request took: ``hybrid declined (uncertified) -> magnus answered``.
+
+    .. versionadded:: 1.0.0
+    """
+    if _ENGINE_TRACE is not None:
+        _ENGINE_TRACE.append(dict(engine=label, answered=answered, **detail))
+
+
+@contextmanager
+def _engine_probe(disabled=(), info=None):
+    r"""Watch which engine answers, and optionally forbid some of them.
+
+    Restores both globals on the way out, including on an exception, so a raising call (which
+    ``cumulative=True`` does by design when it cannot serve a request) cannot leave a dispatcher
+    disabled for the rest of the session.  ``info``, if given, is the caller's ``strategy_info``
+    dict and is filled on the way out -- also on an exception, since "which engine was I in when
+    this raised" is exactly what a caller debugging one wants.
+
+    .. versionadded:: 1.0.0
+    """
+    global _ENGINE_TRACE, _ENGINES_DISABLED
+    prev_trace, prev_disabled = _ENGINE_TRACE, _ENGINES_DISABLED
+    # Nested probes SHARE one trace, and a nested one can only add to the disabled set.  Both
+    # matter because nesting is the normal case, not an edge case: cross_check_strategies
+    # watches from outside the wrapper, and the wrapper opens its own probe for strategy_info.
+    # A fresh list at the inner level collected every note and left the outer one empty, so the
+    # cross-check reported that no engine had answered at all -- and re-assigning rather than
+    # unioning the disabled set would have let the inner probe re-enable an engine the outer one
+    # had switched off, which is how the cross-check reaches an engine a faster one shadows.
+    trace = prev_trace if prev_trace is not None else []
+    start = len(trace)
+    _ENGINE_TRACE = trace
+    _ENGINES_DISABLED = prev_disabled | frozenset(disabled)
+    try:
+        yield trace
+    finally:
+        _ENGINE_TRACE, _ENGINES_DISABLED = prev_trace, prev_disabled
+        if info is not None:
+            info.update(_summarize_engine_trace(trace[start:]))
+
+
+def _summarize_engine_trace(trace) -> Dict:
+    r"""Turn a raw trace into the ``strategy_info`` an ordinary caller wants.
+
+    .. versionadded:: 1.0.0
+    """
+    answered = [e for e in trace if e['answered']]
+    used = answered[-1] if answered else None
+    return {
+        'engine': used['engine'] if used else None,
+        'family': ENGINE_FAMILIES.get(used['engine']) if used else None,
+        'certified': used.get('certified') if used else None,
+        'declined': [(e['engine'], e.get('reason', 'does not apply'))
+                     for e in trace if not e['answered']],
+        'trace': [{k: v for k, v in e.items() if not k.startswith('_')} for e in trace],
+    }
 
 
 def _osc_prob_scan_separable(
@@ -3100,6 +3296,8 @@ def _osc_prob_scan_separable_dispatch(
         The oscillation probability (or single channel), computed via the batched engine; or the
         ``NotImplemented`` singleton if the request does not fit it.
     """
+    if ('separable' in _ENGINES_DISABLED) or (scan_kwargs.get('cumulative') is True):
+        return NotImplemented
     kwargs = dict(scan_kwargs.get('kwargs', {}))
     t_breakpoints = kwargs.pop('t_breakpoints', None)
     n_slabs = kwargs.pop('n_slabs', 1)
@@ -3137,6 +3335,7 @@ def _osc_prob_scan_separable_dispatch(
         scan_kwargs['max_n_slabs'], scan_kwargs['min_n_tpts_per_slab'],
         scan_kwargs['max_n_tpts_per_slab'], n_slabs, n_tpts_per_slab)
 
+    _note_engine('separable')
     if (nu_i is not None) and (nu_f is not None):
         P = P[:, nu_i, nu_f]
     return P.__getitem__(0 if return_float else slice(None))
@@ -3498,6 +3697,8 @@ def _osc_prob_ip_exp_dispatch(
         The oscillation probability (or single channel), computed via the fast method; or the
         ``NotImplemented`` singleton if the request does not fit it or it failed to converge.
     """
+    if ('ip_exp' in _ENGINES_DISABLED) or (scan_kwargs.get('cumulative') is True):
+        return NotImplemented
     kwargs = dict(scan_kwargs.get('kwargs', {}))
     t_breakpoints = kwargs.pop('t_breakpoints', None)
     n_slabs0 = kwargs.pop('n_slabs', 1)
@@ -3544,8 +3745,10 @@ def _osc_prob_ip_exp_dispatch(
         float(L_arr[0]), rtol, atol, scan_kwargs['growth_factor_n_slabs'],
         scan_kwargs['max_num_loops'], scan_kwargs['min_n_slabs'], scan_kwargs['max_n_slabs'], n_slabs0)
     if not converged:
+        _note_engine('ip_exp', answered=False, reason='did not converge')
         return NotImplemented
 
+    _note_engine('ip_exp')
     if (nu_i is not None) and (nu_f is not None):
         P = P[:, nu_i, nu_f]
     return P.__getitem__(0 if return_float else slice(None))
@@ -3714,7 +3917,12 @@ def _osc_prob_hybrid_dispatch(
         ``NotImplemented`` singleton if the request does not fit it, ``strategy == 'magnus'``, or
         (only with ``strategy == 'auto'``) it failed to self-certify for at least one point.
     """
-    if strategy == 'magnus':
+    if (strategy == 'magnus') or ('hybrid' in _ENGINES_DISABLED):
+        return NotImplemented
+    if scan_kwargs.get('cumulative') is True:
+        # An explicit cumulative=True is a request for one engine in particular, documented to
+        # raise rather than fall back if it cannot be served.  Answering it here would be a
+        # silent substitution -- the exact thing that flag exists to rule out.
         return NotImplemented
 
     kwargs = dict(scan_kwargs.get('kwargs', {}))
@@ -3794,6 +4002,28 @@ def _osc_prob_hybrid_dispatch(
     return P_out.__getitem__(0 if return_float else slice(None))
 
 
+def _warn_hybrid_unresolved() -> None:
+    r"""The hybrid strategy declined because ``H_func`` is not resolved at the probe scale.
+
+    One function rather than two call sites with the same string: this fires both when
+    ``strategy='auto'`` declines (and the general path answers) and when ``strategy='hybrid'``
+    was forced, and the two must not drift apart.
+
+    .. versionadded:: 1.0.0
+    """
+    warnings.warn(
+        "osc_prob (hybrid strategy): the Hamiltonian is not resolved at the scale this method "
+        "samples it on -- a density jump, or a feature narrower than the probe grid can see -- "
+        "and no t_breakpoints were given. The adiabatic strategy is built on finite differences "
+        "of H between probe points, which mean nothing across a jump, so it declined; the "
+        "answer comes from the general Magnus path instead, which is correct there but slower, "
+        "and a slab straddling the same feature still limits its accuracy. Pass t_breakpoints "
+        "at the feature: it is the cure in both cases. Measured on an unmarked density step, "
+        "the adiabatic answer was wrong by 0.54 in probability while reporting itself "
+        "certified. Shown once per session.",
+        UnmarkedDiscontinuityWarning, stacklevel=4)
+
+
 def _hybrid_propagator_scan(
     H_at_energy: Callable,
     energy_arr: np.ndarray,
@@ -3847,25 +4077,52 @@ def _hybrid_propagator_scan(
     n_pts = len(energy_arr)
     P_out = np.empty((n_pts, d, d))
     any_uncertified = False
+    unresolved = False
 
     for i in range(n_pts):
         H_of_l = H_at_energy(energy_arr[i])
 
+        info = {}
         U, _, certified = adiabatic.hybrid_propagator(H_of_l, float(L0), float(L_arr[i]),
             rtol=rtol, atol=atol, magnus_exp_order=magnus_exp_order,
-            integration_method=integration_method)
+            integration_method=integration_method, info=info)
+        unresolved = unresolved or (not info.get('resolved', True))
 
         if not certified:
             if strategy == 'auto':
+                _note_engine('hybrid', answered=False, certified=False,
+                    reason=('the profile is not resolved at the probe scale'
+                            if unresolved
+                            else 'did not self-certify at the requested tolerance'))
+                if unresolved:
+                    _warn_hybrid_unresolved()
                 return NotImplemented
             any_uncertified = True
 
         P_out[i] = np.swapaxes(U.real**2 + U.imag**2, -1, -2)
 
+    _note_engine('hybrid', certified=not any_uncertified)
+    if unresolved:
+        # A new instance of an existing kind.  adiabatic._profile_is_resolved already runs
+        # inside hybrid_propagator, where failing it causes a decline rather than a message --
+        # so on an undeclared density jump the caller heard about slab widths from whichever
+        # engine answered instead, which is true but points at the wrong knob.  Measured before
+        # shipping, over the axis the earlier measurement did not have -- one call per baseline
+        # means one call per sub-interval, not one per profile: 0 false positives over 1440
+        # smooth configurations, and every sub-interval containing a jump caught.  Getting
+        # there needed a repair to the detector; see adiabatic.LOCAL_JUMP_RATIO.
+        _warn_hybrid_unresolved()
+
     if any_uncertified:
         warnings.warn("osc_prob (hybrid strategy): requested tolerance not achieved for at "
             "least one (energy, L) point; the returned probabilities remain exactly unitary "
-            "but their accuracy is not certified. Shown once per session.",
+            "but their accuracy is not certified -- unverified, which is not the same as "
+            "wrong. To get a certified answer: use strategy='auto', which falls back to the "
+            "general Magnus path for exactly these points; or, if the profile has known "
+            "structure (a density jump, a kink, a feature narrower than 1/200 of the "
+            "trajectory), pass t_breakpoints there, which is the one cure for a feature the "
+            "probe grid cannot resolve; or request a looser rtol/atol, if the accuracy you "
+            "need is less than the accuracy you asked for. Shown once per session.",
             HybridCertificationWarning, stacklevel=3)
 
     return P_out
@@ -3951,7 +4208,7 @@ def _osc_prob_hybrid_dispatch_generic(
         ``NotImplemented`` singleton if the request does not fit it, ``strategy == 'magnus'``, or
         (only with ``strategy == 'auto'``) it failed to self-certify for at least one point.
     """
-    if strategy == 'magnus':
+    if (strategy == 'magnus') or ('hybrid' in _ENGINES_DISABLED):
         return NotImplemented
 
     if (t_breakpoints is not None) and (len(np.atleast_1d(t_breakpoints)) > 0):
@@ -4410,6 +4667,7 @@ def osc_prob_energy_baseline(
         # n_slabs floor and the tolerance-not-achieved warning.  Getting this wrong is the
         # one way a cumulative scan goes silently wrong: on a solar profile an n_acc of 2000
         # is off by 1.6e-2 where 14883 is right, and nothing in the traversal itself notices.
+        n_acc_from_ceiling = False
         if (rtol is None) and (atol is None):
             n_acc = kwargs.get('n_slabs', 1)
         else:
@@ -4442,6 +4700,31 @@ def osc_prob_energy_baseline(
             # same uniform density is thinner than the shorter baselines in the scan would
             # have chosen for themselves; see CUMULATIVE_N_ACC_SAFETY for the measurement.
             n_acc = probe_info['n_slabs']*CUMULATIVE_N_ACC_SAFETY
+            # Whether that count is a converged requirement or merely where the probe ran out
+            # of room.  The probe's own ToleranceNotAchievedWarning says the *probe* did not
+            # converge; it says nothing about the consequence that matters here, which is that
+            # the grid for every baseline in the scan is now sized by a cap.  See the warning
+            # a few lines below.
+            n_acc_from_ceiling = bool(
+                probe_info['n_slabs'] >= _resolve_max_n_slabs(max_n_slabs, integration_method))
+            if n_acc_from_ceiling:
+                # The probe raises ToleranceNotAchievedWarning of its own here, and that is a
+                # statement about the probe -- one call whose probabilities are discarded.  The
+                # consequence a caller needs is different and larger: the accuracy grid for
+                # EVERY baseline in the scan is now sized by a cap rather than by a converged
+                # requirement, so one capped call becomes N inaccurate answers.  Measured on a
+                # solar profile, an n_acc of 2000 is off by 1.6e-2 where 14883 is right, and
+                # nothing in the traversal itself notices.
+                warnings.warn(
+                    "osc_prob_energy_baseline (cumulative scan): the accuracy grid was sized "
+                    "from max_n_slabs rather than from a converged requirement -- the probe "
+                    "that sizes it ran out of slabs before it converged. Every baseline in "
+                    "this scan inherits that grid, so the whole scan is affected, not one "
+                    "point. Raise max_n_slabs (currently "
+                    + str(_resolve_max_n_slabs(max_n_slabs, integration_method))
+                    + "), or shorten the longest baseline, which is what sets the grid. Shown "
+                      "once per session.",
+                    ToleranceNotAchievedWarning, stacklevel=2)
 
         # A jump the caller did not declare is the one way this grid goes wrong that adding
         # slabs cannot fix: a slab straddling the discontinuity degrades the quadrature
@@ -4482,6 +4765,7 @@ def osc_prob_energy_baseline(
                if k not in ('n_slabs', 'n_tpts_per_slab', 't_breakpoints',
                             'strict_convergence')})
 
+        _note_engine('cumulative', n_acc=int(n_acc), n_acc_from_ceiling=n_acc_from_ceiling)
         P_all = np.empty_like(P_sorted)
         P_all[order] = P_sorted
         if (nu_i is not None) and (nu_f is not None):
@@ -4537,9 +4821,298 @@ def osc_prob_energy_baseline(
             apply_warm_start()
             probs.append(compute_single_point(enu, baseline))
 
+    # The private '_hamiltonian' payload is what lets cross_check_strategies build the 'expm'
+    # reference without rebuilding any wrapper's physics: this is the one place every entry
+    # point's Hamiltonian arrives already assembled.  Stripped from strategy_info.
+    _note_engine('magnus', n_points=n_points, _hamiltonian=dict(
+        H_at_energy=H_at_energy, L0=L0, energy=energy, L=L, nu_i=nu_i, nu_f=nu_f,
+        t_breakpoints=kwargs.get('t_breakpoints')))
     # The call to __getitem__ below is a way to return a single float (or single probability
     # matrix) if both energy and L were given as floats.
     return np.array(probs).__getitem__(0 if return_float else slice(None))
+
+
+#-----------------------------------------------------------------------
+# Cross-method agreement
+#-----------------------------------------------------------------------
+
+_CROSS_CHECK_FORCING = {
+    # label:      (strategy, cumulative, engines to forbid so that this one is reached)
+    'hybrid':     ('hybrid', False, ('ip_exp', 'separable')),
+    'ip_exp':     ('magnus', False, ('hybrid', 'separable')),
+    'separable':  ('magnus', False, ('hybrid', 'ip_exp')),
+    'cumulative': ('magnus', True, ('hybrid', 'ip_exp', 'separable')),
+    'magnus':     ('magnus', False, ('hybrid', 'ip_exp', 'separable')),
+}
+
+
+def _expm_reference(payload: Dict) -> Tuple[Optional[np.ndarray], str]:
+    r"""Oscillation probabilities from ``scipy.linalg.expm``, **only where it is exact**.
+
+    :math:`U = \exp(-iH\,\Delta l)` solves :math:`dU/dl = -iH U` exactly when :math:`H` does not
+    depend on :math:`l`; across a piecewise-constant profile whose edges are known, the
+    time-ordered product of one exponential per piece is likewise exact.  Anywhere else it is a
+    first-order approximation, which is worse than every engine it would be checking, so this
+    declines instead of supplying a bad reference dressed as a good one.
+
+    Constancy is *measured*, not assumed: ``H`` is sampled inside each piece and required to be
+    constant to a relative :math:`10^{-12}`.  Sampling cannot prove constancy, but a profile that
+    varies below that on 33 samples per piece and not between them is not one this test is
+    protecting anybody from.
+
+    .. versionadded:: 1.0.0
+
+    Parameters
+    ----------
+    payload : dict
+        The ``_hamiltonian`` payload recorded by :func:`osc_prob_energy_baseline`:
+        ``H_at_energy``, ``L0``, ``energy``, ``L``, ``nu_i``, ``nu_f``, ``t_breakpoints``.
+
+    Returns
+    -------
+    (np.ndarray or None, str)
+        Probabilities of shape ``(n_points, d, d)`` (or ``(n_points,)`` if a single channel was
+        requested), and an empty reason; or ``None`` and the reason it declined.
+    """
+    from scipy.linalg import expm
+
+    H_at_energy = payload['H_at_energy']
+    L0 = float(payload['L0'])
+    energy = np.asarray(payload['energy'], dtype=float)
+    L = np.asarray(payload['L'], dtype=float)
+    bp = payload['t_breakpoints']
+    bp = (np.atleast_1d(np.asarray(bp, dtype=float)) if bp is not None
+          else np.array([], dtype=float))
+
+    P_out = []
+    for enu, baseline in zip(energy, L):
+        H_of_l = H_at_energy(float(enu))
+        edges = np.unique(np.concatenate(
+            [[L0, float(baseline)], bp[(bp > min(L0, baseline)) & (bp < max(L0, baseline))]]))
+        U = None
+        for a, b in zip(edges[:-1], edges[1:]):
+            if isinstance(H_of_l, Callable):
+                # Sample the open interval: the endpoints are exactly where a piecewise profile
+                # is ambiguous, and a jump sitting on an edge is not a reason to decline.
+                xs = np.linspace(a, b, 35)[1:-1]
+                Hs = adiabatic._H_on_grid(H_of_l, xs)
+                scale = np.max(np.abs(Hs))
+                if scale > 0.0 and np.max(np.abs(Hs - Hs[0])) > 1.0e-12*scale:
+                    return None, ('H varies with position on [%g, %g]; expm is exact only for '
+                                  'a piecewise-constant H with declared edges' % (a, b))
+                H_piece = Hs[len(Hs)//2]
+            else:
+                H_piece = np.asarray(H_of_l, dtype=complex)
+            U_piece = expm(-1j*np.asarray(H_piece, dtype=complex)*(b - a))
+            U = U_piece if U is None else U_piece @ U
+        P_out.append(np.transpose(U.real**2 + U.imag**2))
+
+    P_out = np.array(P_out)
+    if (payload['nu_i'] is not None) and (payload['nu_f'] is not None):
+        P_out = P_out[:, payload['nu_i'], payload['nu_f']]
+    return P_out, ''
+
+
+def cross_check_strategies(entry_point: Callable, *args, engines=None, **kwargs) -> Dict:
+    r"""Answer the same request with every engine that applies, and report how far apart they are.
+
+    **Why this exists.**  Every silently-wrong result found in
+    ``docs/dev/FINDINGS_ADVERSARIAL_VALIDATION.md`` came from a method certifying itself by
+    comparing itself with itself.  :func:`magnus.adiabatic.hybrid_propagator` refines its own
+    knobs and checks the two answers agree; :func:`osc_prob`'s slab ladder does the same.  When
+    the method has a blind spot, both sides of the comparison share it and the agreement carries
+    no information -- that is not a bug in either comparison, it is a limit of the *shape* of the
+    check.  This package contains genuinely different engines (see :data:`ENGINE_FAMILIES`), and
+    running two of them needs **no oracle at all** while detecting exactly the class that
+    self-certification cannot.
+
+    **This is a diagnostic, not a safety net.**  It is never on by default: it multiplies the cost
+    of a call by the number of engines that apply.  A large spread is *reported*, never raised --
+    what it means depends on the request, and deciding that is the caller's job.
+
+    **Acceptance.**  Measured by running the same comparison against the *pre-fix* package (a
+    worktree at ``978663a``), on every construction of ``FINDINGS`` §3 that was silently wrong
+    and reported ``certified=True`` there -- because a diagnostic validated only against code
+    with no known defects has not been validated.  Reproduce with
+    ``docs/dev/adversarial_batteries/crosscheck_acceptance.py``:
+
+    ============================================ ============== ==============================
+    construction                                 silent error   max cross-family spread
+    ============================================ ============== ==============================
+    step function, unmarked edge (§3.1)          5.395e-01      **5.399e-01**
+    ten crossings (§3.2, worst found anywhere)   3.907e-02      **3.913e-02**
+    sinusoid at span/7 (§3.2)                    1.672e-02      **1.687e-02**
+    kink, :math:`C^0` but not :math:`C^1`        1.448e-02      **1.448e-02**
+    singularity approached, not reached          8.625e-03      **8.613e-03**
+    sub-threshold bump, w = 1e-2 span (§3.2)     7.701e-03      **7.768e-03**
+    sub-threshold bump, w = 3e-2 span (§3.2)     4.388e-03      **4.594e-03**
+    narrow bump, w = 3e-5 span (§3.3)            2.907e-02      3.5e-14 -- **not detected**
+    ============================================ ============== ==============================
+
+    Seven of eight, each at least four times the requested 1e-3.  The last row is the honest
+    limit, and is why this table is here rather than a claim of coverage: a feature narrower than
+    the probe spacing is invisible to *every* engine that samples the profile on a grid, so they
+    agree -- correctly, given what they can see -- and are wrong together.  No cross-check
+    between grid-based methods can find that; the cure is ``t_breakpoints`` at the feature (see
+    :doc:`/adiabatic_strategy`).  Stated as a rule: **this sees a wrong engine exactly when some
+    other engine got it right.**
+
+    .. versionadded:: 1.0.0
+
+    Parameters
+    ----------
+    entry_point : Callable
+        The function to cross-check: :func:`osc_prob_matter_std_potential`,
+        :func:`osc_prob_matter_nsi`, :func:`osc_prob_liv`, :func:`osc_prob_sun`,
+        :func:`osc_prob_earth`, one of their fixed-flavour wrappers, or
+        :func:`osc_prob_energy_baseline`.  ``strategy`` and ``cumulative`` are supplied by this
+        function and dropped from ``kwargs`` if the caller passed them, since forcing them is
+        how each engine is reached.
+    \*args
+        Positional arguments for ``entry_point``, exactly as in an ordinary call.
+    engines : sequence of str, optional
+        Restrict the check to these engines; see :data:`ENGINE_FAMILIES` for the labels.  Default:
+        every engine that applies.
+    \**kwargs
+        Keyword arguments for ``entry_point``, exactly as in an ordinary call.
+
+    Returns
+    -------
+    dict
+        ``'answers'``
+            ``{label: probabilities}`` for each engine that answered.
+        ``'ran'``
+            The labels that answered, in the order tried.
+        ``'declined'``
+            ``{label: reason}`` for each engine that did not.  Most engines decline on most
+            requests, which is expected and not a finding.
+        ``'spread'``
+            ``{(label_a, label_b): max |P_a - P_b|}`` over every pair that ran.
+        ``'max_spread'``, ``'max_spread_pair'``
+            The largest spread and where it was.
+        ``'max_spread_independent'``, ``'max_spread_independent_pair'``
+            The same, restricted to pairs from **different** families (see
+            :data:`ENGINE_FAMILIES`).  This is the number to read: two engines from the same
+            family can be wrong in the same way, so their disagreement is informative but their
+            *agreement* is not.
+        ``'families'``
+            ``{label: family}`` for the engines that ran.
+        ``'warnings'``
+            ``{label: [warning class names]}`` raised while that engine answered.
+        ``'certified'``
+            ``{label: bool}``, currently only for ``'hybrid'``.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> import magnus.globaldefs as gd
+    >>> import magnus.matter as matter
+    >>> import magnus.oscprob as oscprob
+    >>> ne = matter.exp_density_profile(gd.NUM_DENSITY_E_SUN_CENTRAL, gd.L_SCALE_SUN)
+    >>> params = gd.OSC_PARAMS_PREDEFINED['OSC_PARAMS_DEFAULT']
+    >>> out = oscprob.cross_check_strategies(
+    ...     oscprob.osc_prob_matter_std_potential, 2, ne, 10.0e6,
+    ...     0.5*gd.SUN_RADIUS*gd.UNIT_KM,
+    ...     {'s12': params['s12'], 'Dm2': params['D21']}, L0=0.0,
+    ...     density_is_of_number_of_electrons=True)
+    >>> sorted(out['ran'])                                    # doctest: +SKIP
+    ['cumulative', 'hybrid', 'ip_exp', 'magnus']
+    >>> out['max_spread_independent'] < 1.0e-3                # doctest: +SKIP
+    True
+
+    See Also
+    --------
+    ENGINE_FAMILIES : which engines share machinery, and therefore which pairs carry information.
+    """
+    wanted = tuple(_CROSS_CHECK_FORCING) + ('expm',) if engines is None else tuple(engines)
+    unknown = set(wanted) - set(_CROSS_CHECK_FORCING) - {'expm'}
+    if unknown:
+        raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.cross_check_strategies: unknown "
+            "engine label(s) " + repr(sorted(unknown)) + "; known labels are "
+            + repr(sorted(set(_CROSS_CHECK_FORCING) | {'expm'})) + ".")
+
+    call_kwargs = {k: v for k, v in kwargs.items() if k not in ('strategy', 'cumulative')}
+    takes_strategy = 'strategy' in signature(entry_point).parameters
+
+    answers, declined, warns, certified = {}, {}, {}, {}
+    hamiltonian = None
+
+    for label in wanted:
+        if label == 'expm':
+            continue
+        strategy, cumulative, forbid = _CROSS_CHECK_FORCING[label]
+        forced = dict(call_kwargs, cumulative=cumulative)
+        if takes_strategy:
+            forced['strategy'] = strategy
+        elif strategy == 'hybrid':
+            declined[label] = "entry point has no 'strategy' parameter"
+            continue
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter('always')
+            try:
+                with _engine_probe(forbid) as trace:
+                    P = entry_point(*args, **forced)
+            except Exception as exc:               # noqa: BLE001 -- a decline, not a failure
+                declined[label] = type(exc).__name__ + ': ' + str(exc).strip().split('\n')[0]
+                continue
+        note = next((e for e in trace if e['engine'] == label and e['answered']), None)
+        if note is None:
+            other = next((e['engine'] for e in trace if e['answered']), 'nothing')
+            refused = next((e.get('reason') for e in trace
+                            if e['engine'] == label and not e['answered']), None)
+            declined[label] = refused or ('does not apply to this request (answered by '
+                                          + other + ')')
+            continue
+        answers[label] = np.asarray(P)
+        warns[label] = sorted({w.category.__name__ for w in caught})
+        if 'certified' in note:
+            certified[label] = note['certified']
+        if hamiltonian is None:
+            hamiltonian = next((e['_hamiltonian'] for e in trace if '_hamiltonian' in e), None)
+
+    if 'expm' in wanted:
+        if hamiltonian is None:
+            declined['expm'] = ('the Hamiltonian was not observed; run the general Magnus '
+                                'engine as well (it is where the Hamiltonian is assembled)')
+        else:
+            P_expm, reason = _expm_reference(hamiltonian)
+            if P_expm is None:
+                declined['expm'] = reason
+            else:
+                answers['expm'] = P_expm
+                warns['expm'] = []
+
+    ran = [lab for lab in wanted if lab in answers]
+    spread, best, best_pair, best_ind, best_ind_pair = {}, 0.0, None, 0.0, None
+    for i, a in enumerate(ran):
+        for b in ran[i + 1:]:
+            Pa, Pb = np.ravel(answers[a]), np.ravel(answers[b])
+            if Pa.shape != Pb.shape:
+                # Different shapes mean the engines answered different questions; that is a
+                # defect in this diagnostic's forcing, not a physics finding, so say so rather
+                # than broadcasting them into a number.
+                spread[(a, b)] = np.nan
+                continue
+            s = float(np.max(np.abs(Pa - Pb)))
+            spread[(a, b)] = s
+            if s > best:
+                best, best_pair = s, (a, b)
+            if ENGINE_FAMILIES[a] != ENGINE_FAMILIES[b] and s > best_ind:
+                best_ind, best_ind_pair = s, (a, b)
+
+    return {
+        'answers': answers,
+        'ran': tuple(ran),
+        'declined': declined,
+        'spread': spread,
+        'max_spread': best,
+        'max_spread_pair': best_pair,
+        'max_spread_independent': best_ind,
+        'max_spread_independent_pair': best_ind_pair,
+        'families': {lab: ENGINE_FAMILIES[lab] for lab in ran},
+        'warnings': warns,
+        'certified': certified,
+    }
 
 
 #-----------------------------------------------------------------------
@@ -4751,6 +5324,7 @@ def osc_prob_matter_std_potential(
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
     average: Optional[bool]=False,
     strategy: Optional[str]='auto',
+    strategy_info: Optional[Dict]=None,
     t_slab_edges: Optional[Union[list, np.ndarray]]=None,
     magnus_exp_order: Optional[int]=4,
     n_jobs: Optional[int]=1,
@@ -4875,6 +5449,30 @@ def osc_prob_matter_std_potential(
            from degrading the quadrature. This is the one exposure the adversarial validation
            (``docs/dev/FINDINGS_ADVERSARIAL_VALIDATION.md``) could not close in the library
            itself: what a fixed grid never samples, it cannot report.
+
+        .. versionadded:: 1.0.0
+    strategy_info : dict, optional
+        If given, filled in place with which engine actually answered, following the same
+        out-parameter convention as ``convergence_info`` in :func:`osc_prob`.  Under
+        ``strategy='auto'`` the fallbacks are silent by design -- that is right for ordinary
+        calls, and wrong for anyone asking why a result moved or why a call got slow -- so this
+        is how to see them without turning the fallbacks into warnings.  Keys:
+
+        * ``'engine'`` -- ``'hybrid'``, ``'ip_exp'``, ``'separable'``, ``'cumulative'``,
+          ``'magnus'`` or ``'average'``.
+        * ``'family'`` -- the engine's family; see :data:`ENGINE_FAMILIES`.
+        * ``'certified'`` -- for ``'hybrid'``, whether
+          :func:`magnus.adiabatic.hybrid_propagator` self-certified.  ``None`` for engines
+          that do not certify.  Under ``'auto'`` an uncertified hybrid result is never
+          returned, so this is ``True`` whenever the engine is ``'hybrid'``; under
+          ``'hybrid'`` it can be ``False``, and then it means the accuracy is **unverified**,
+          not that the answer is wrong.
+        * ``'declined'`` -- ``[(engine, reason)]`` for the engines that stood aside first.
+          Most requests decline most engines, which is ordinary and not a finding.
+        * ``'trace'`` -- every dispatch decision in order, with per-engine detail (for the
+          cumulative scan, ``'n_acc'`` and whether it came from a ceiling).
+
+        Costs nothing when omitted.  Default: None.
 
         .. versionadded:: 1.0.0
     t_slab_edges : list or np.ndarray, optional
@@ -5016,13 +5614,22 @@ def osc_prob_matter_std_potential(
         htot_is_function_only_of_energy = True
 
 
+    # Resolved -- and, crucially, POPPED out of kwargs -- before scan_kwargs is built, because
+    # every dispatcher below declines outright on an unrecognized entry in kwargs.  Left in, an
+    # explicitly-passed cumulative silently disabled the hybrid, interaction-picture and
+    # separable engines: passing cumulative='auto', which is the documented default, changed
+    # which engine answered (hybrid -> general ladder) and moved a 10 MeV solar single point by
+    # 9.3e-06.  See _resolve_cumulative_kwarg.
+    cumulative_resolved = _resolve_cumulative_kwarg(kwargs, strategy)
+
     scan_kwargs = dict(t_slab_edges=t_slab_edges, magnus_exp_order=magnus_exp_order, n_jobs=n_jobs,
         integration_method=integration_method, rtol=rtol, atol=atol,
         growth_factor_n_slabs=growth_factor_n_slabs,
         growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
         max_num_loops=max_num_loops, min_n_slabs=min_n_slabs, max_n_slabs=max_n_slabs,
         min_n_tpts_per_slab=min_n_tpts_per_slab, max_n_tpts_per_slab=max_n_tpts_per_slab,
-        save_log=save_log, file_log=file_log, kwargs=kwargs)
+        save_log=save_log, file_log=file_log, cumulative=cumulative_resolved,
+        kwargs=kwargs)
 
     # Checked here, rather than only in osc_prob: the averaged path returns before anything
     # forwards **kwargs onwards, so a check further down would see these keys on the ordinary
@@ -5037,70 +5644,74 @@ def osc_prob_matter_std_potential(
     _breakpoints = kwargs.get('t_breakpoints')
     _profile_is_smooth = ((_breakpoints is None or len(np.atleast_1d(_breakpoints)) == 0)
                           and (t_slab_edges is None))
-    P_avg = _avg_prob_dispatch(htot, htot_is_function_only_of_energy, energy, L, L0, nu_i, nu_f,
-        average, 'osc_prob_matter_std_potential', smooth_profile=_profile_is_smooth, engine_kwargs=scan_kwargs)
-    if P_avg is not NotImplemented:
-        return P_avg
+    # Everything below is dispatch: which engine gets the request.  Watched as a unit so
+    # that strategy_info can report which one answered and, for the hybrid strategy,
+    # whether it certified -- see _engine_probe.  Costs one list allocation per call when
+    # nobody is watching.
+    with _engine_probe(info=strategy_info):
+        P_avg = _avg_prob_dispatch(htot, htot_is_function_only_of_energy, energy, L, L0, nu_i, nu_f,
+            average, 'osc_prob_matter_std_potential', smooth_profile=_profile_is_smooth, engine_kwargs=scan_kwargs)
+        if P_avg is not NotImplemented:
+            return P_avg
 
-    # Hybrid strategy (adiabatic transport + Magnus patch at any non-adiabatic window; see
-    # _osc_prob_hybrid_dispatch and :doc:`/adiabatic_strategy`): broader than the interaction-
-    # picture fast path below (any number of flavors, any smooth position-dependent profile), and
-    # tried first unless strategy == 'magnus'.  Falls back transparently (returns NotImplemented)
-    # if it does not apply or (with strategy == 'auto' only) fails to self-certify.
-    #
-    # Tried *before* the fast path because that is what strategy='auto' has always been
-    # documented to mean ("tries the hybrid strategy first ... but falls back silently to the
-    # 'magnus' strategies", of which the interaction-picture integrator is one) -- and because
-    # measurement says the documented order is also the better one.  On solar configurations,
-    # across 50 (energy, baseline) points spanning the standard, NSI and LIV families and
-    # 0.5-100 MeV, scored against solve_ivp/DOP853: the hybrid strategy certified 50/50 with a
-    # worst error of 1.8e-04 against a requested 1e-3 and no warnings, while the fast path
-    # certified 22/50 and took a mean of 13.2 s to decline the other 28.  Where both answer,
-    # hybrid is 28-594x faster (median 397x).  The fast path is more accurate only at 40-100 MeV
-    # and only at the default tolerance -- at rtol/atol <= 1e-5 it declines outright at every
-    # energy measured.  See docs/dev/DECISION_DISPATCH_ORDER.md.
-    P_hybrid = _osc_prob_hybrid_dispatch(h_vac_energy_indep, VCC_func, h_matt_proj, None, None,
-        energy, L, L0, nu_i, nu_f, scan_kwargs, strategy)
-    if P_hybrid is not NotImplemented:
-        return P_hybrid
+        # Hybrid strategy (adiabatic transport + Magnus patch at any non-adiabatic window; see
+        # _osc_prob_hybrid_dispatch and :doc:`/adiabatic_strategy`): broader than the interaction-
+        # picture fast path below (any number of flavors, any smooth position-dependent profile), and
+        # tried first unless strategy == 'magnus'.  Falls back transparently (returns NotImplemented)
+        # if it does not apply or (with strategy == 'auto' only) fails to self-certify.
+        #
+        # Tried *before* the fast path because that is what strategy='auto' has always been
+        # documented to mean ("tries the hybrid strategy first ... but falls back silently to the
+        # 'magnus' strategies", of which the interaction-picture integrator is one) -- and because
+        # measurement says the documented order is also the better one.  On solar configurations,
+        # across 50 (energy, baseline) points spanning the standard, NSI and LIV families and
+        # 0.5-100 MeV, scored against solve_ivp/DOP853: the hybrid strategy certified 50/50 with a
+        # worst error of 1.8e-04 against a requested 1e-3 and no warnings, while the fast path
+        # certified 22/50 and took a mean of 13.2 s to decline the other 28.  Where both answer,
+        # hybrid is 28-594x faster (median 397x).  The fast path is more accurate only at 40-100 MeV
+        # and only at the default tolerance -- at rtol/atol <= 1e-5 it declines outright at every
+        # energy measured.  See docs/dev/DECISION_DISPATCH_ORDER.md.
+        P_hybrid = _osc_prob_hybrid_dispatch(h_vac_energy_indep, VCC_func, h_matt_proj, None, None,
+            energy, L, L0, nu_i, nu_f, scan_kwargs, strategy)
+        if P_hybrid is not NotImplemented:
+            return P_hybrid
 
-    # Fast path for a genuine exponential density profile (e.g., the Sun): factor out the
-    # (possibly huge, at low energy) fast vacuum phase analytically in the interaction picture,
-    # instead of resolving it slab by slab (see _osc_prob_ip_exp_dispatch).  Applies to a single
-    # (energy, L) point as well as to a scan, and falls back transparently (returns
-    # NotImplemented) if the profile is not exponential or if it fails to converge (e.g., near an
-    # MSW resonance), in which case the general methods below are used instead.  Reached only
-    # where the hybrid strategy declined, or with strategy == 'magnus'.
-    P_ip = _osc_prob_ip_exp_dispatch(h_vac_energy_indep, VCC_func, h_matt_proj, None, None,
-        energy, L, L0, nu_i, nu_f, scan_kwargs)
-    if P_ip is not NotImplemented:
-        return P_ip
+        # Fast path for a genuine exponential density profile (e.g., the Sun): factor out the
+        # (possibly huge, at low energy) fast vacuum phase analytically in the interaction picture,
+        # instead of resolving it slab by slab (see _osc_prob_ip_exp_dispatch).  Applies to a single
+        # (energy, L) point as well as to a scan, and falls back transparently (returns
+        # NotImplemented) if the profile is not exponential or if it fails to converge (e.g., near an
+        # MSW resonance), in which case the general methods below are used instead.  Reached only
+        # where the hybrid strategy declined, or with strategy == 'magnus'.
+        P_ip = _osc_prob_ip_exp_dispatch(h_vac_energy_indep, VCC_func, h_matt_proj, None, None,
+            energy, L, L0, nu_i, nu_f, scan_kwargs)
+        if P_ip is not NotImplemented:
+            return P_ip
 
-    # Energy-batched fast path: when many energies share a single baseline and the Hamiltonian
-    # is position-dependent, compute the whole scan in one batched pipeline, with the potential
-    # samples shared across energies (see _osc_prob_scan_separable).  If the request does not fit
-    # the engine, fall back to the generic per-point path below.
-    P_scan = _osc_prob_scan_separable_dispatch(h_vac_energy_indep, VCC_func, h_matt_proj, None, None,
-        energy, L, L0, nu_i, nu_f, scan_kwargs)
-    if P_scan is not NotImplemented:
-        return P_scan
+        # Energy-batched fast path: when many energies share a single baseline and the Hamiltonian
+        # is position-dependent, compute the whole scan in one batched pipeline, with the potential
+        # samples shared across energies (see _osc_prob_scan_separable).  If the request does not fit
+        # the engine, fall back to the generic per-point path below.
+        P_scan = _osc_prob_scan_separable_dispatch(h_vac_energy_indep, VCC_func, h_matt_proj, None, None,
+            energy, L, L0, nu_i, nu_f, scan_kwargs)
+        if P_scan is not NotImplemented:
+            return P_scan
 
-    # Generate the probabilities for all pairs of energy and baseline in zip(energy, L).
-    return osc_prob_energy_baseline(htot, energy, L, L0, nu_i, nu_f,
-        htot_is_function_only_of_energy, t_slab_edges=t_slab_edges,
-        magnus_exp_order=magnus_exp_order, n_jobs=n_jobs, integration_method=integration_method,
-        rtol=rtol, atol=atol, growth_factor_n_slabs=growth_factor_n_slabs,
-        growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
-        max_num_loops=max_num_loops, min_n_slabs=min_n_slabs, max_n_slabs=max_n_slabs,
-        min_n_tpts_per_slab=min_n_tpts_per_slab, max_n_tpts_per_slab=max_n_tpts_per_slab,
-        validate_input=validate_input, save_log=save_log, filename_log=filename_log,
-        file_log=file_log, close_file_log_upon_exit=close_file_log_upon_exit,
-        new_recursion_limit=new_recursion_limit, verbose=verbose,
-        # An explicit cumulative= from the caller wins; otherwise strategy='magnus' opts out
-        # of the cumulative scan and everything else takes 'auto'.  See
-        # _resolve_cumulative_kwarg, which also removes it from kwargs so that passing it
-        # here is not a TypeError.
-        cumulative=_resolve_cumulative_kwarg(kwargs, strategy), **kwargs)
+        # Generate the probabilities for all pairs of energy and baseline in zip(energy, L).
+        return osc_prob_energy_baseline(htot, energy, L, L0, nu_i, nu_f,
+            htot_is_function_only_of_energy, t_slab_edges=t_slab_edges,
+            magnus_exp_order=magnus_exp_order, n_jobs=n_jobs, integration_method=integration_method,
+            rtol=rtol, atol=atol, growth_factor_n_slabs=growth_factor_n_slabs,
+            growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
+            max_num_loops=max_num_loops, min_n_slabs=min_n_slabs, max_n_slabs=max_n_slabs,
+            min_n_tpts_per_slab=min_n_tpts_per_slab, max_n_tpts_per_slab=max_n_tpts_per_slab,
+            validate_input=validate_input, save_log=save_log, filename_log=filename_log,
+            file_log=file_log, close_file_log_upon_exit=close_file_log_upon_exit,
+            new_recursion_limit=new_recursion_limit, verbose=verbose,
+            # An explicit cumulative= from the caller wins; otherwise strategy='magnus' opts out
+            # of the cumulative scan and everything else takes 'auto'.  Resolved near the top of
+            # this function, which is also where it is removed from kwargs.
+            cumulative=cumulative_resolved, **kwargs)
 
 
 def osc_prob_matter_nsi(
@@ -5123,6 +5734,7 @@ def osc_prob_matter_nsi(
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
     average: Optional[bool]=False,
     strategy: Optional[str]='auto',
+    strategy_info: Optional[Dict]=None,
     t_slab_edges: Optional[Union[list, np.ndarray]]=None,
     magnus_exp_order: Optional[int]=4,
     n_jobs: Optional[int]=1,
@@ -5209,6 +5821,30 @@ def osc_prob_matter_nsi(
         the full description and :doc:`/adiabatic_strategy` for the derivation and validation of
         the ``'hybrid'``/``'auto'`` strategies (adiabatic transport with a Magnus patch at any
         non-adiabatic window, applicable to any number of flavors). Default: 'auto'.
+
+        .. versionadded:: 1.0.0
+    strategy_info : dict, optional
+        If given, filled in place with which engine actually answered, following the same
+        out-parameter convention as ``convergence_info`` in :func:`osc_prob`.  Under
+        ``strategy='auto'`` the fallbacks are silent by design -- that is right for ordinary
+        calls, and wrong for anyone asking why a result moved or why a call got slow -- so this
+        is how to see them without turning the fallbacks into warnings.  Keys:
+
+        * ``'engine'`` -- ``'hybrid'``, ``'ip_exp'``, ``'separable'``, ``'cumulative'``,
+          ``'magnus'`` or ``'average'``.
+        * ``'family'`` -- the engine's family; see :data:`ENGINE_FAMILIES`.
+        * ``'certified'`` -- for ``'hybrid'``, whether
+          :func:`magnus.adiabatic.hybrid_propagator` self-certified.  ``None`` for engines
+          that do not certify.  Under ``'auto'`` an uncertified hybrid result is never
+          returned, so this is ``True`` whenever the engine is ``'hybrid'``; under
+          ``'hybrid'`` it can be ``False``, and then it means the accuracy is **unverified**,
+          not that the answer is wrong.
+        * ``'declined'`` -- ``[(engine, reason)]`` for the engines that stood aside first.
+          Most requests decline most engines, which is ordinary and not a finding.
+        * ``'trace'`` -- every dispatch decision in order, with per-engine detail (for the
+          cumulative scan, ``'n_acc'`` and whether it came from a ceiling).
+
+        Costs nothing when omitted.  Default: None.
 
         .. versionadded:: 1.0.0
     t_slab_edges : list or np.ndarray, optional
@@ -5376,13 +6012,22 @@ def osc_prob_matter_nsi(
         htot_is_function_only_of_energy = True
 
 
+    # Resolved -- and, crucially, POPPED out of kwargs -- before scan_kwargs is built, because
+    # every dispatcher below declines outright on an unrecognized entry in kwargs.  Left in, an
+    # explicitly-passed cumulative silently disabled the hybrid, interaction-picture and
+    # separable engines: passing cumulative='auto', which is the documented default, changed
+    # which engine answered (hybrid -> general ladder) and moved a 10 MeV solar single point by
+    # 9.3e-06.  See _resolve_cumulative_kwarg.
+    cumulative_resolved = _resolve_cumulative_kwarg(kwargs, strategy)
+
     scan_kwargs = dict(t_slab_edges=t_slab_edges, magnus_exp_order=magnus_exp_order, n_jobs=n_jobs,
         integration_method=integration_method, rtol=rtol, atol=atol,
         growth_factor_n_slabs=growth_factor_n_slabs,
         growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
         max_num_loops=max_num_loops, min_n_slabs=min_n_slabs, max_n_slabs=max_n_slabs,
         min_n_tpts_per_slab=min_n_tpts_per_slab, max_n_tpts_per_slab=max_n_tpts_per_slab,
-        save_log=save_log, file_log=file_log, kwargs=kwargs)
+        save_log=save_log, file_log=file_log, cumulative=cumulative_resolved,
+        kwargs=kwargs)
 
     # Checked here, rather than only in osc_prob: the averaged path returns before anything
     # forwards **kwargs onwards, so a check further down would see these keys on the ordinary
@@ -5397,51 +6042,55 @@ def osc_prob_matter_nsi(
     _breakpoints = kwargs.get('t_breakpoints')
     _profile_is_smooth = ((_breakpoints is None or len(np.atleast_1d(_breakpoints)) == 0)
                           and (t_slab_edges is None))
-    P_avg = _avg_prob_dispatch(htot, htot_is_function_only_of_energy, energy, L, L0, nu_i, nu_f,
-        average, 'osc_prob_matter_nsi', smooth_profile=_profile_is_smooth, engine_kwargs=scan_kwargs)
-    if P_avg is not NotImplemented:
-        return P_avg
+    # Everything below is dispatch: which engine gets the request.  Watched as a unit so
+    # that strategy_info can report which one answered and, for the hybrid strategy,
+    # whether it certified -- see _engine_probe.  Costs one list allocation per call when
+    # nobody is watching.
+    with _engine_probe(info=strategy_info):
+        P_avg = _avg_prob_dispatch(htot, htot_is_function_only_of_energy, energy, L, L0, nu_i, nu_f,
+            average, 'osc_prob_matter_nsi', smooth_profile=_profile_is_smooth, engine_kwargs=scan_kwargs)
+        if P_avg is not NotImplemented:
+            return P_avg
 
-    # Hybrid strategy, tried first: see _osc_prob_hybrid_dispatch and the matching comment in
-    # osc_prob_matter_std_potential for why it precedes the interaction-picture fast path.
-    P_hybrid = _osc_prob_hybrid_dispatch(h_vac_energy_indep, VCC_func, h_matt, None, None,
-        energy, L, L0, nu_i, nu_f, scan_kwargs, strategy)
-    if P_hybrid is not NotImplemented:
-        return P_hybrid
+        # Hybrid strategy, tried first: see _osc_prob_hybrid_dispatch and the matching comment in
+        # osc_prob_matter_std_potential for why it precedes the interaction-picture fast path.
+        P_hybrid = _osc_prob_hybrid_dispatch(h_vac_energy_indep, VCC_func, h_matt, None, None,
+            energy, L, L0, nu_i, nu_f, scan_kwargs, strategy)
+        if P_hybrid is not NotImplemented:
+            return P_hybrid
 
-    # Fast path for a genuine exponential density profile (e.g., the Sun), reached only where the
-    # hybrid strategy declined: see _osc_prob_ip_exp_dispatch and the matching comment in
-    # osc_prob_matter_std_potential.
-    P_ip = _osc_prob_ip_exp_dispatch(h_vac_energy_indep, VCC_func, h_matt, None, None,
-        energy, L, L0, nu_i, nu_f, scan_kwargs)
-    if P_ip is not NotImplemented:
-        return P_ip
+        # Fast path for a genuine exponential density profile (e.g., the Sun), reached only where the
+        # hybrid strategy declined: see _osc_prob_ip_exp_dispatch and the matching comment in
+        # osc_prob_matter_std_potential.
+        P_ip = _osc_prob_ip_exp_dispatch(h_vac_energy_indep, VCC_func, h_matt, None, None,
+            energy, L, L0, nu_i, nu_f, scan_kwargs)
+        if P_ip is not NotImplemented:
+            return P_ip
 
-    # Energy-batched fast path: when many energies share a single baseline and the Hamiltonian
-    # is position-dependent, compute the whole scan in one batched pipeline, with the potential
-    # samples shared across energies (see _osc_prob_scan_separable).  If the request does not fit
-    # the engine, fall back to the generic per-point path below.
-    P_scan = _osc_prob_scan_separable_dispatch(h_vac_energy_indep, VCC_func, h_matt, None, None,
-        energy, L, L0, nu_i, nu_f, scan_kwargs)
-    if P_scan is not NotImplemented:
-        return P_scan
+        # Energy-batched fast path: when many energies share a single baseline and the Hamiltonian
+        # is position-dependent, compute the whole scan in one batched pipeline, with the potential
+        # samples shared across energies (see _osc_prob_scan_separable).  If the request does not fit
+        # the engine, fall back to the generic per-point path below.
+        P_scan = _osc_prob_scan_separable_dispatch(h_vac_energy_indep, VCC_func, h_matt, None, None,
+            energy, L, L0, nu_i, nu_f, scan_kwargs)
+        if P_scan is not NotImplemented:
+            return P_scan
 
-    # Generate the probabilities for all pairs of energy and baseline in zip(energy, L).
-    return osc_prob_energy_baseline(htot, energy, L, L0, nu_i, nu_f,
-        htot_is_function_only_of_energy, t_slab_edges=t_slab_edges,
-        magnus_exp_order=magnus_exp_order, n_jobs=n_jobs, integration_method=integration_method,
-        rtol=rtol, atol=atol, growth_factor_n_slabs=growth_factor_n_slabs,
-        growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
-        max_num_loops=max_num_loops, min_n_slabs=min_n_slabs, max_n_slabs=max_n_slabs,
-        min_n_tpts_per_slab=min_n_tpts_per_slab, max_n_tpts_per_slab=max_n_tpts_per_slab,
-        validate_input=validate_input, save_log=save_log, filename_log=filename_log,
-        file_log=file_log, close_file_log_upon_exit=close_file_log_upon_exit,
-        new_recursion_limit=new_recursion_limit, verbose=verbose,
-        # An explicit cumulative= from the caller wins; otherwise strategy='magnus' opts out
-        # of the cumulative scan and everything else takes 'auto'.  See
-        # _resolve_cumulative_kwarg, which also removes it from kwargs so that passing it
-        # here is not a TypeError.
-        cumulative=_resolve_cumulative_kwarg(kwargs, strategy), **kwargs)
+        # Generate the probabilities for all pairs of energy and baseline in zip(energy, L).
+        return osc_prob_energy_baseline(htot, energy, L, L0, nu_i, nu_f,
+            htot_is_function_only_of_energy, t_slab_edges=t_slab_edges,
+            magnus_exp_order=magnus_exp_order, n_jobs=n_jobs, integration_method=integration_method,
+            rtol=rtol, atol=atol, growth_factor_n_slabs=growth_factor_n_slabs,
+            growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
+            max_num_loops=max_num_loops, min_n_slabs=min_n_slabs, max_n_slabs=max_n_slabs,
+            min_n_tpts_per_slab=min_n_tpts_per_slab, max_n_tpts_per_slab=max_n_tpts_per_slab,
+            validate_input=validate_input, save_log=save_log, filename_log=filename_log,
+            file_log=file_log, close_file_log_upon_exit=close_file_log_upon_exit,
+            new_recursion_limit=new_recursion_limit, verbose=verbose,
+            # An explicit cumulative= from the caller wins; otherwise strategy='magnus' opts out
+            # of the cumulative scan and everything else takes 'auto'.  Resolved near the top of
+            # this function, which is also where it is removed from kwargs.
+            cumulative=cumulative_resolved, **kwargs)
 
 
 def osc_prob_liv(
@@ -5464,6 +6113,7 @@ def osc_prob_liv(
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
     average: Optional[bool]=False,
     strategy: Optional[str]='auto',
+    strategy_info: Optional[Dict]=None,
     t_slab_edges: Optional[Union[list, np.ndarray]]=None,
     magnus_exp_order: Optional[int]=4,
     n_jobs: Optional[int]=1,
@@ -5551,6 +6201,30 @@ def osc_prob_liv(
         non-adiabatic window, applicable to any number of flavors). Only relevant when
         ``rho_func`` is nonzero (there is no position dependence, hence no resonance, in pure
         vacuum + LIV). Default: 'auto'.
+
+        .. versionadded:: 1.0.0
+    strategy_info : dict, optional
+        If given, filled in place with which engine actually answered, following the same
+        out-parameter convention as ``convergence_info`` in :func:`osc_prob`.  Under
+        ``strategy='auto'`` the fallbacks are silent by design -- that is right for ordinary
+        calls, and wrong for anyone asking why a result moved or why a call got slow -- so this
+        is how to see them without turning the fallbacks into warnings.  Keys:
+
+        * ``'engine'`` -- ``'hybrid'``, ``'ip_exp'``, ``'separable'``, ``'cumulative'``,
+          ``'magnus'`` or ``'average'``.
+        * ``'family'`` -- the engine's family; see :data:`ENGINE_FAMILIES`.
+        * ``'certified'`` -- for ``'hybrid'``, whether
+          :func:`magnus.adiabatic.hybrid_propagator` self-certified.  ``None`` for engines
+          that do not certify.  Under ``'auto'`` an uncertified hybrid result is never
+          returned, so this is ``True`` whenever the engine is ``'hybrid'``; under
+          ``'hybrid'`` it can be ``False``, and then it means the accuracy is **unverified**,
+          not that the answer is wrong.
+        * ``'declined'`` -- ``[(engine, reason)]`` for the engines that stood aside first.
+          Most requests decline most engines, which is ordinary and not a finding.
+        * ``'trace'`` -- every dispatch decision in order, with per-engine detail (for the
+          cumulative scan, ``'n_acc'`` and whether it came from a ceiling).
+
+        Costs nothing when omitted.  Default: None.
 
         .. versionadded:: 1.0.0
     t_slab_edges : list or np.ndarray, optional
@@ -5730,13 +6404,22 @@ def osc_prob_liv(
     # Built unconditionally: every entry is a parameter of this function, and the averaging
     # dispatch below needs them on the zero-density path too, where the rest of this block
     # does not apply.
+    # Resolved -- and, crucially, POPPED out of kwargs -- before scan_kwargs is built, because
+    # every dispatcher below declines outright on an unrecognized entry in kwargs.  Left in, an
+    # explicitly-passed cumulative silently disabled the hybrid, interaction-picture and
+    # separable engines: passing cumulative='auto', which is the documented default, changed
+    # which engine answered (hybrid -> general ladder) and moved a 10 MeV solar single point by
+    # 9.3e-06.  See _resolve_cumulative_kwarg.
+    cumulative_resolved = _resolve_cumulative_kwarg(kwargs, strategy)
+
     scan_kwargs = dict(t_slab_edges=t_slab_edges, magnus_exp_order=magnus_exp_order,
         n_jobs=n_jobs, integration_method=integration_method, rtol=rtol, atol=atol,
         growth_factor_n_slabs=growth_factor_n_slabs,
         growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
         max_num_loops=max_num_loops, min_n_slabs=min_n_slabs, max_n_slabs=max_n_slabs,
         min_n_tpts_per_slab=min_n_tpts_per_slab, max_n_tpts_per_slab=max_n_tpts_per_slab,
-        save_log=save_log, file_log=file_log, kwargs=kwargs)
+        save_log=save_log, file_log=file_log, cumulative=cumulative_resolved,
+        kwargs=kwargs)
 
     # Checked here, rather than only in osc_prob: the averaged path returns before anything
     # forwards **kwargs onwards, so a check further down would see these keys on the ordinary
@@ -5751,49 +6434,53 @@ def osc_prob_liv(
     _breakpoints = kwargs.get('t_breakpoints')
     _profile_is_smooth = ((_breakpoints is None or len(np.atleast_1d(_breakpoints)) == 0)
                           and (t_slab_edges is None))
-    P_avg = _avg_prob_dispatch(htot, htot_is_function_only_of_energy, energy, L, L0, nu_i, nu_f,
-        average, 'osc_prob_liv', smooth_profile=_profile_is_smooth, engine_kwargs=scan_kwargs)
-    if P_avg is not NotImplemented:
-        return P_avg
+    # Everything below is dispatch: which engine gets the request.  Watched as a unit so
+    # that strategy_info can report which one answered and, for the hybrid strategy,
+    # whether it certified -- see _engine_probe.  Costs one list allocation per call when
+    # nobody is watching.
+    with _engine_probe(info=strategy_info):
+        P_avg = _avg_prob_dispatch(htot, htot_is_function_only_of_energy, energy, L, L0, nu_i, nu_f,
+            average, 'osc_prob_liv', smooth_profile=_profile_is_smooth, engine_kwargs=scan_kwargs)
+        if P_avg is not NotImplemented:
+            return P_avg
 
-    # Energy-batched fast path: when many energies share a single baseline and the Hamiltonian
-    # is position-dependent, compute the whole scan in one batched pipeline, with the potential
-    # samples shared across energies (see _osc_prob_scan_separable).  If the request does not fit
-    # the engine, fall back to the generic per-point path below.
-    P_scan = NotImplemented
-    if (rho_func != 0.0):  # VCC_func and h_matt exist only when there is matter
-        # Hybrid strategy, tried first: see _osc_prob_hybrid_dispatch and the matching comment in
-        # osc_prob_matter_std_potential for why it precedes the interaction-picture fast path.
-        P_scan = _osc_prob_hybrid_dispatch(h_vac_energy_indep, VCC_func, h_matt,
-            h_liv_energy_indep, n_liv, energy, L, L0, nu_i, nu_f, scan_kwargs, strategy)
-        if P_scan is NotImplemented:
-            # Fast path for a genuine exponential density profile (e.g., the Sun), reached only
-            # where the hybrid strategy declined: see _osc_prob_ip_exp_dispatch and the matching
-            # comment in osc_prob_matter_std_potential.
-            P_scan = _osc_prob_ip_exp_dispatch(h_vac_energy_indep, VCC_func, h_matt,
-                h_liv_energy_indep, n_liv, energy, L, L0, nu_i, nu_f, scan_kwargs)
-        if P_scan is NotImplemented:
-            P_scan = _osc_prob_scan_separable_dispatch(h_vac_energy_indep, VCC_func, h_matt,
-                h_liv_energy_indep, n_liv, energy, L, L0, nu_i, nu_f, scan_kwargs)
-    if P_scan is not NotImplemented:
-        return P_scan
+        # Energy-batched fast path: when many energies share a single baseline and the Hamiltonian
+        # is position-dependent, compute the whole scan in one batched pipeline, with the potential
+        # samples shared across energies (see _osc_prob_scan_separable).  If the request does not fit
+        # the engine, fall back to the generic per-point path below.
+        P_scan = NotImplemented
+        if (rho_func != 0.0):  # VCC_func and h_matt exist only when there is matter
+            # Hybrid strategy, tried first: see _osc_prob_hybrid_dispatch and the matching comment in
+            # osc_prob_matter_std_potential for why it precedes the interaction-picture fast path.
+            P_scan = _osc_prob_hybrid_dispatch(h_vac_energy_indep, VCC_func, h_matt,
+                h_liv_energy_indep, n_liv, energy, L, L0, nu_i, nu_f, scan_kwargs, strategy)
+            if P_scan is NotImplemented:
+                # Fast path for a genuine exponential density profile (e.g., the Sun), reached only
+                # where the hybrid strategy declined: see _osc_prob_ip_exp_dispatch and the matching
+                # comment in osc_prob_matter_std_potential.
+                P_scan = _osc_prob_ip_exp_dispatch(h_vac_energy_indep, VCC_func, h_matt,
+                    h_liv_energy_indep, n_liv, energy, L, L0, nu_i, nu_f, scan_kwargs)
+            if P_scan is NotImplemented:
+                P_scan = _osc_prob_scan_separable_dispatch(h_vac_energy_indep, VCC_func, h_matt,
+                    h_liv_energy_indep, n_liv, energy, L, L0, nu_i, nu_f, scan_kwargs)
+        if P_scan is not NotImplemented:
+            return P_scan
 
-    # Generate the probabilities for all pairs of energy and baseline in zip(energy, L).
-    return osc_prob_energy_baseline(htot, energy, L, L0, nu_i, nu_f,
-        htot_is_function_only_of_energy, t_slab_edges=t_slab_edges, 
-        magnus_exp_order=magnus_exp_order, n_jobs=n_jobs, integration_method=integration_method,
-        rtol=rtol, atol=atol, growth_factor_n_slabs=growth_factor_n_slabs,
-        growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
-        max_num_loops=max_num_loops, min_n_slabs=min_n_slabs, max_n_slabs=max_n_slabs,
-        min_n_tpts_per_slab=min_n_tpts_per_slab, max_n_tpts_per_slab=max_n_tpts_per_slab,
-        validate_input=validate_input, save_log=save_log, filename_log=filename_log,
-        file_log=file_log, close_file_log_upon_exit=close_file_log_upon_exit,
-        new_recursion_limit=new_recursion_limit, verbose=verbose,
-        # An explicit cumulative= from the caller wins; otherwise strategy='magnus' opts out
-        # of the cumulative scan and everything else takes 'auto'.  See
-        # _resolve_cumulative_kwarg, which also removes it from kwargs so that passing it
-        # here is not a TypeError.
-        cumulative=_resolve_cumulative_kwarg(kwargs, strategy), **kwargs)
+        # Generate the probabilities for all pairs of energy and baseline in zip(energy, L).
+        return osc_prob_energy_baseline(htot, energy, L, L0, nu_i, nu_f,
+            htot_is_function_only_of_energy, t_slab_edges=t_slab_edges, 
+            magnus_exp_order=magnus_exp_order, n_jobs=n_jobs, integration_method=integration_method,
+            rtol=rtol, atol=atol, growth_factor_n_slabs=growth_factor_n_slabs,
+            growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
+            max_num_loops=max_num_loops, min_n_slabs=min_n_slabs, max_n_slabs=max_n_slabs,
+            min_n_tpts_per_slab=min_n_tpts_per_slab, max_n_tpts_per_slab=max_n_tpts_per_slab,
+            validate_input=validate_input, save_log=save_log, filename_log=filename_log,
+            file_log=file_log, close_file_log_upon_exit=close_file_log_upon_exit,
+            new_recursion_limit=new_recursion_limit, verbose=verbose,
+            # An explicit cumulative= from the caller wins; otherwise strategy='magnus' opts out
+            # of the cumulative scan and everything else takes 'auto'.  Resolved near the top of
+            # this function, which is also where it is removed from kwargs.
+            cumulative=cumulative_resolved, **kwargs)
 
 
 #-----------------------------------------------------------------------
@@ -8809,15 +9496,23 @@ def _osc_prob_with_potential(
     # (returns NotImplemented) if it does not apply -- in particular, this is essentially always
     # the case for osc_prob_earth, since t_breakpoints (the PREM layer crossings) is virtually
     # never empty for a real trajectory -- or (with strategy == 'auto' only) fails to certify.
-    P_hybrid = _osc_prob_hybrid_dispatch_generic(htot, VCC_func, energy, L, L0, nu_i, nu_f,
-        t_breakpoints, rtol, atol, magnus_exp_order, integration_method, strategy, kwargs)
+    #
+    # cumulative is popped out of kwargs first, for the reason given in the three scenario
+    # wrappers: every dispatcher declines on an unrecognized entry in kwargs, so leaving it
+    # there made passing cumulative -- even the default 'auto' -- silently disable this
+    # strategy instead of configuring the scan.  An explicit True still stands aside here,
+    # since it names one engine and is documented to raise rather than be substituted for.
+    cumulative = kwargs.pop('cumulative', 'auto')
+    P_hybrid = (NotImplemented if cumulative is True else
+        _osc_prob_hybrid_dispatch_generic(htot, VCC_func, energy, L, L0, nu_i, nu_f,
+            t_breakpoints, rtol, atol, magnus_exp_order, integration_method, strategy, kwargs))
     if P_hybrid is not NotImplemented:
         return P_hybrid
 
     return osc_prob_energy_baseline(htot, energy, L, L0, nu_i, nu_f, False,
         t_breakpoints=t_breakpoints, magnus_exp_order=magnus_exp_order, n_jobs=n_jobs,
         integration_method=integration_method, rtol=rtol, atol=atol,
-        validate_input=validate_input, verbose=verbose, **kwargs)
+        validate_input=validate_input, verbose=verbose, cumulative=cumulative, **kwargs)
 
 
 #-----------------------------------------------------------------------

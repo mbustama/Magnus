@@ -27,6 +27,27 @@ python battery2.py 1
 | `bitident.py` | dumps the bit-identity set; run under both trees, then diff the `.npz` |
 | `attribute.py` | same failing cases under `main` and the branch, to attribute each defect |
 
+Added by the robustness programme (`../HANDOVER_ROBUSTNESS_PROGRAMME.md`):
+
+| file | what it does |
+|---|---|
+| `crosscheck_acceptance.py` | acceptance test for `oscprob.cross_check_strategies`: would a cross-check between engines have caught the known silent misses? Runs against **either** tree |
+| `invariants.py` | the oracle-free invariants (item 4), swept over a profile matrix; sets the bounds in `tests/test_invariants.py` |
+| `warn_fp.py` | every warning's true- and false-positive rate, plus whether `MagnusConvergenceWarning` fires on the level whose answer is returned |
+| `resolution_fp.py` | the resolution test's false-positive rate swept over **sub-intervals**, the axis the original `RESOLUTION_RATIO` measurement did not have |
+| `constants_audit.py` | provenance for `fd_step_frac` (against the analytic `dH/dl`) and `threshold0` (cost against accuracy, at three tolerances) |
+
+`crosscheck_acceptance.py` deliberately does **not** import `cross_check_strategies`: that
+function does not exist on the pre-fix tree, and an acceptance test that only runs where the fix
+already is tests nothing. It reimplements the engine forcing with the `battery3.py` spy pattern
+so it runs anywhere:
+
+```bash
+git worktree add /tmp/mainwt 978663a
+PYTHONPATH=/tmp/mainwt/src python crosscheck_acceptance.py    # 7/7 known silent misses seen
+python crosscheck_acceptance.py                               # regression check
+```
+
 `bitident.py` and `attribute.py` take an output path and are meant to be run twice:
 
 ```bash

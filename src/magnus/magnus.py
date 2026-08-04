@@ -149,13 +149,34 @@ class ScalarHamiltonianWarning(UserWarning):
 class MagnusConvergenceWarning(UserWarning):
     r"""Warns that a time slab may be too wide for the Magnus series.
 
-    The Magnus series is guaranteed to converge when
-    :math:`\int_{t_0}^{t_1} \lVert A(t)\rVert_2\, dt < \pi`.  We use
-    :math:`\lVert\Omega\rVert_2 \geq \pi` as a cheap (necessary, not
-    sufficient) proxy to flag slabs that are likely too wide; raising
-    the expansion order will not help in that regime -- use more
-    (narrower) slabs instead.  The norm comes for free from the
-    eigenvalues already computed for the matrix exponential.
+    **What was detected.**  The Magnus series is guaranteed to converge when
+    :math:`\int_{t_0}^{t_1} \lVert A(t)\rVert_2\, dt < \pi`.  :math:`\lVert\Omega\rVert_2 \geq
+    \pi` is used as a cheap proxy for that integral -- it comes free from the eigenvalues already
+    computed for the matrix exponential -- so this fires when a *sufficient* condition for
+    convergence was not met on at least one slab.  The message says how far past :math:`\pi`, in
+    three buckets, which is the one quantity this check actually knows.
+
+    **What it means for the answer: unknown, and that is the honest answer.**  This is a
+    statement about the slab width, not about the error.  The condition is sufficient, not
+    necessary, so exceeding it does not imply a wrong answer -- and it fires on results accurate
+    to 1.6e-06 (``docs/dev/DECISION_DISPATCH_ORDER.md`` §5) as well as on results seven times
+    outside a requested 1e-3.  Anything that claims to tell you which of those you have is
+    claiming more than this check can support; :class:`ToleranceNotAchievedWarning` is the one
+    that reports a failed convergence *test*.
+
+    **What to change.**  More, narrower slabs: request a smaller ``rtol``/``atol``, or raise
+    ``n_slabs``.  Raising ``magnus_exp_order`` does **not** help in this regime -- beyond the
+    series' radius no order converges.  If the profile has a density jump or a kink, pass
+    ``t_breakpoints`` there as well: a slab straddling one is never fixed by more slabs, only
+    narrowed.
+
+    **When it is safe to ignore.**  When the answer has been checked another way -- a tighter
+    tolerance giving the same result, or :func:`magnus.oscprob.cross_check_strategies` showing
+    a different engine agreeing.  **Not** merely because a tolerance was requested.  That advice
+    used to be in this message and it is false in exactly the cases where the warning matters:
+    measured on a sawtooth density with ``rtol=atol=1e-3`` explicitly requested, under both
+    ``strategy='auto'`` and ``strategy='magnus'``, the adaptive refinement ran and the answer was
+    still **7.484e-03**, seven times outside the tolerance asked for, with this warning showing.
 
     .. versionadded:: 1.0.0
     """
@@ -756,17 +777,31 @@ def _warn_slab_norm(nmax: float):
     -------
     None
     """
-    if nmax >= np.pi:
-        # The message is intentionally static (no numbers) so that Python's
-        # default warning filter shows it only once per session.
-        warnings.warn(
-            "at least one time slab is too wide for guaranteed convergence "
-            "of the Magnus series (||Omega||_2 >= pi); raising the "
-            "expansion order will not help there -- more (narrower) slabs "
-            "are needed. If a target tolerance (rtol/atol) was requested, "
-            "the adaptive refinement narrows the slabs automatically and "
-            "this warning can be ignored. Shown once per session.",
-            MagnusConvergenceWarning, stacklevel=4)
+    if nmax < np.pi:
+        return
+    # Bucketed rather than numeric, so that the message stays one of three fixed strings and
+    # Python's default filter still shows each at most once per session -- while carrying the
+    # one quantity this function actually knows.  How far past pi is not the error, but it
+    # separates "one slab marginally over" from "the grid is nowhere near fine enough".
+    if nmax < 2.0*np.pi:
+        how_far = "marginally over"
+    elif nmax < 10.0*np.pi:
+        how_far = "over by up to a factor of ten"
+    else:
+        how_far = "over by more than a factor of ten"
+    warnings.warn(
+        "at least one time slab is too wide for guaranteed convergence of the Magnus "
+        "series (||Omega||_2 >= pi, " + how_far + "). This is a statement about the slab "
+        "width, not about the answer: it reports that a sufficient condition for "
+        "convergence was not met somewhere, and the error may be anywhere from negligible "
+        "to large. To act on it, use more (narrower) slabs -- request a smaller rtol/atol, "
+        "or raise n_slabs; raising magnus_exp_order will not help in this regime. If the "
+        "profile has a density jump or a kink, pass t_breakpoints there as well: a slab "
+        "straddling one is not fixed by any number of slabs. Do NOT assume the adaptive "
+        "refinement has already taken care of it -- measured on a sawtooth density with "
+        "rtol=atol=1e-3 explicitly requested, the refinement ran and the answer was still "
+        "7.5e-03, seven times outside the tolerance asked for. Shown once per session.",
+        MagnusConvergenceWarning, stacklevel=4)
 
 
 def _expm_stack(Om: np.ndarray, warn_wide: bool = False,
