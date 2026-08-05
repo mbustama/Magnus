@@ -355,14 +355,42 @@ Units: [km]
 NUM_DENSITY_E_SUN_CENTRAL = 245.0*N_AV*UNIT_PER_CM3
 r"""float: Module-level constant
 
-Electron number density at the center of the Sun.
+Normalization of the standard exponential fit to the solar electron number density,
+:math:`n_e(r) = 245\,N_A\,\exp(-10.54\,r/R_\odot)\ \text{cm}^{-3}`.
+
+This is the :math:`r \to 0` **intercept of that fit**, not the central density of a solar model.
+The two differ by more than a factor of two: the BS2005-AGS,OP table gives
+:math:`n_e = 102.7\,N_A\ \text{cm}^{-3}` at its innermost point :math:`r = 0.0016\,R_\odot`,
+against the fit's 245, because the real profile flattens towards the centre while an exponential
+does not.  Measured against that table across the whole star:
+
+===========================  =========================
+:math:`r/R_\odot`            largest departure from it
+===========================  =========================
+0.00 -- 0.05                 fit high by 2.4x
+0.05 -- 0.10                 fit high by 1.6x
+0.10 -- 0.20                 21 %
+**0.20 -- 0.30**             **2.5 %**
+0.30 -- 0.70                 11 %
+0.70 -- 1.00                 up to 89 %
+===========================  =========================
+
+So the fit is a few-percent description only in a band around :math:`0.2\,R_\odot`, and the
+scale height :data:`L_SCALE_SUN` -- the span the package's own diagnostics use as a trajectory --
+lies at :math:`0.095\,R_\odot`, where the fit is high by about 30 %.  It is still the right
+constant for the exponential profile it normalizes; what would be wrong is reading it as a
+measurement of the Sun's central density, or the exponential as a stand-in for a tabulated model
+in the core.
+
 Units: [:math:`\text{eV}^{3}`]
 """
 
 L_SCALE_SUN = SUN_RADIUS/10.54*UNIT_KM
 r"""float: Module-level constant
 
-Electron number density at the center of the Sun.
+Scale height of the solar electron number density, :math:`R_\odot/10.54`, the decay length of
+the exponential fit normalized by :data:`NUM_DENSITY_E_SUN_CENTRAL`.
+
 Units: [:math:`\text{eV}^{-1}`]
 """
 

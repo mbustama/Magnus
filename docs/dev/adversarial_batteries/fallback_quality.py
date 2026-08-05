@@ -18,7 +18,8 @@ and score it.  Engines are forced with the same ``_ENGINES_DISABLED`` mechanism
 Reports, per workload: every engine's error, which one ``'auto'`` actually picks, and the
 penalty for that choice against the best engine that applied.
 
-Run:  python fallback_quality.py [n_random]
+Run:  python fallback_quality.py [n_random]     # the synthetic population
+      python fallback_quality.py --physical     # the physically-motivated one
 """
 
 import sys
@@ -45,7 +46,7 @@ FORCE = {
 }
 
 
-def run(label, ne, d, params, energies, baselines, forced=None):
+def run(label, ne, d, params, energies, baselines, forced=None, l0=L0):
     """One engine's answer, or None if it declined.  `forced=None` means an ordinary call."""
     same_e = bool(np.all(energies == energies[0]))
     E_arg = float(energies[0]) if same_e else energies
@@ -59,7 +60,7 @@ def run(label, ne, d, params, energies, baselines, forced=None):
         with oscprob._engine_probe(disabled), warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter('always')
             P = np.asarray(oscprob.osc_prob_matter_std_potential(
-                d, ne, E_arg, L_arg, params, L0=L0,
+                d, ne, E_arg, L_arg, params, L0=l0,
                 density_is_of_number_of_electrons=True, strategy_info=info, **kw))
     except Exception as exc:                       # noqa: BLE001 -- a decline, not a failure
         return None, type(exc).__name__, []
@@ -85,36 +86,77 @@ def workloads(n_random):
     out = []
     for pname, ne in profiles:
         for d, params in ((2, p2), (3, p3)):
-            # The three shapes that route differently.  The E-scan is the one that exposed this.
-            out.append(('%s d=%d point' % (pname, d), ne, d, params,
-                        np.array([10.0e6]), np.array([L1])))
-            out.append(('%s d=%d E-scan N=8' % (pname, d), ne, d, params,
-                        np.linspace(10.0e6, 100.0e6, 8), np.full(8, L1)))
-            out.append(('%s d=%d L-scan N=8' % (pname, d), ne, d, params,
-                        np.full(8, 10.0e6), np.linspace(0.2*L1, L1, 8)))
+            out += shapes(pname, ne, d, params, L0, L1, 10.0e6, 100.0e6)
+    return out
+
+
+def shapes(pname, ne, d, params, l0, l1, e_lo, e_hi):
+    """The three request shapes that route differently.  The E-scan is the one that exposed
+    the fallback-quality defect, so a population without one is not evidence about it."""
+    return [('%s d=%d point' % (pname, d), ne, d, params,
+             np.array([e_lo]), np.array([l1]), l0),
+            ('%s d=%d E-scan N=8' % (pname, d), ne, d, params,
+             np.linspace(e_lo, e_hi, 8), np.full(8, l1), l0),
+            ('%s d=%d L-scan N=8' % (pname, d), ne, d, params,
+             np.full(8, e_lo), np.linspace(l0 + 0.2*(l1 - l0), l1, 8), l0)]
+
+
+def physical_workloads():
+    """The same three shapes, over the physically-motivated population.
+
+    Each family carries its own trajectory and its own energy band -- a supernova ray is 1e4 to
+    8e4 km and 15-45 MeV, an Earth chord is a few thousand km -- so the span cannot stay a
+    module global here the way it can for the solar-only population.
+
+    **Scope limit, stated rather than hidden.**  The E-scan needs eight *separate* oracle
+    integrations (eight different energies at one baseline), and on a supernova ray at 15 MeV
+    one of those costs ~170 s at d = 3 -- about 2.7 h for the SN families alone.  So the SN
+    families here are run at the top of their energy band, where the oracle is cheapest, and
+    without the E-scan.  Their accuracy at every energy in the band is covered instead by
+    ``warn_fp.py --physical``, whose oracle reads one integration at eight stops.
+    """
+    import physical_profiles as pp
+    out = []
+    for f in pp.families():
+        sn = f['kind'] in ('sn_shock', 'sn_turbulence')
+        for d, params in ((2, H.params_for(2)), (3, H.params_for(3))):
+            es = f['energies']
+            rows = shapes(f['label'], f['ne'], d, params, f['l0'], f['l1'],
+                          es[-1] if sn else es[0], es[-1])
+            out += [r for r in rows if not (sn and 'E-scan' in r[0])]
     return out
 
 
 def main():
-    n_random = int(sys.argv[1]) if len(sys.argv) > 1 else 3
-    wls = workloads(n_random)
+    physical = '--physical' in sys.argv[1:]
+    args = [a for a in sys.argv[1:] if not a.startswith('--')]
+    n_random = int(args[0]) if args else 3
+    wls = physical_workloads() if physical else workloads(n_random)
     print('# Fallback quality: every applicable engine scored on the same request')
+    print('# population: %s' % ('PHYSICAL' if physical else 'synthetic'))
     print('# %d workloads, tolerance %.0e\n' % (len(wls), TOL))
     print('%-30s %-11s %s' % ('workload', "auto picks", ''.join('%12s' % e for e in FORCE)))
     rows = []
-    for (label, ne, d, params, es, Ls) in wls:
+    for (label, ne, d, params, es, Ls, l0) in wls:
         try:
-            Pref = np.array([H.P_of(H.exact_U(H.H_factory(d, params, H.vcc_of(ne), float(e)),
-                                              L0, float(L), d))
-                             for e, L in zip(es, Ls)])
+            if len(es) > 1 and bool(np.all(es == es[0])):
+                # A baseline scan is ONE integration read at eight stops, not eight
+                # integrations.  On the physical population that is the difference between
+                # affordable and not: an SN ray at 15 MeV costs ~170 s per solve at d = 3.
+                Hf = H.H_factory(d, params, H.vcc_of(ne), float(es[0]))
+                Pref = np.array([H.P_of(U) for U in H.exact_U_many(Hf, l0, Ls, d)])
+            else:
+                Pref = np.array([H.P_of(H.exact_U(H.H_factory(d, params, H.vcc_of(ne),
+                                                              float(e)), l0, float(L), d))
+                                 for e, L in zip(es, Ls)])
         except Exception:                          # noqa: BLE001
             continue
-        P_auto, eng_auto, warns_auto = run(label, ne, d, params, es, Ls)
+        P_auto, eng_auto, warns_auto = run(label, ne, d, params, es, Ls, l0=l0)
         if P_auto is None:
             continue
         errs = {}
         for name in FORCE:
-            P, who, _ = run(label, ne, d, params, es, Ls, forced=name)
+            P, who, _ = run(label, ne, d, params, es, Ls, forced=name, l0=l0)
             errs[name] = H.maxabs(P - Pref) if P is not None else None
         err_auto = H.maxabs(P_auto - Pref)
         available = {k: v for k, v in errs.items() if v is not None}
@@ -146,7 +188,11 @@ def main():
             worst = max(r['errs'][name] for r in applied)
             print('  %-11s applied to %3d workloads, worst error %.2e'
                   % (name, len(applied), worst))
-    np.save('fallback_rows.npy', np.array(rows, dtype=object), allow_pickle=True)
+    # One output file per run: two jobs writing the same path produced a stale read last
+    # session that looked exactly like a real test failure.
+    out = 'fallback_rows_physical.npy' if physical else 'fallback_rows.npy'
+    np.save(out, np.array(rows, dtype=object), allow_pickle=True)
+    print('\nrows saved to %s' % out)
 
 
 if __name__ == '__main__':

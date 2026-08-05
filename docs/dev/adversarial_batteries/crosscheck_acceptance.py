@@ -120,7 +120,7 @@ class Forced:
         return False
 
 
-def run_engine(label, ne, d, params, energy, baseline):
+def run_engine(label, ne, d, params, energy, baseline, l0=L0):
     """One engine's answer, or (None, reason)."""
     strategy, cumulative, off = FORCING[label]
     kw = dict(strategy=strategy)
@@ -130,7 +130,7 @@ def run_engine(label, ne, d, params, energy, baseline):
         with Forced(off) as f, warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter('always')
             P = np.asarray(oscprob.osc_prob_matter_std_potential(
-                d, ne, energy, baseline, params, L0=L0,
+                d, ne, energy, baseline, params, L0=l0,
                 density_is_of_number_of_electrons=True, **kw))
     except Exception as exc:                       # noqa: BLE001 -- a decline, not a failure
         return None, type(exc).__name__
@@ -143,10 +143,10 @@ def run_engine(label, ne, d, params, energy, baseline):
     return (P.reshape(d, d), ','.join(names) or '-')
 
 
-def cross_check(ne, d, params, energy, baseline):
+def cross_check(ne, d, params, energy, baseline, l0=L0):
     answers, notes = {}, {}
     for label in FORCING:
-        P, note = run_engine(label, ne, d, params, energy, baseline)
+        P, note = run_engine(label, ne, d, params, energy, baseline, l0=l0)
         if P is None:
             notes[label] = note
         else:
@@ -190,34 +190,55 @@ def build_cases():
 
     ten = many_bumps_profile(ner2, L0 + SPAN*(np.arange(10) + 0.5)/10, 0.25*SPAN/10)
 
-    # (label, ne, d, params, energy, baseline, prefix-tree error from FINDINGS §8.2/§3,
+    # (label, ne, d, params, energy, baseline, l0, prefix-tree error from FINDINGS §8.2/§3,
     #  whether it was SILENT there)
     return [
-        ('step function, unmarked edge', step, 2, p2, 50.0e6, L1, 5.395e-01, True),
-        ('kink, C0 but not C1', kink, 2, p2, 50.0e6, L1, 1.448e-02, True),
-        ('singularity approached', near_sing, 2, p2, 50.0e6, L1, 8.625e-03, True),
-        ('sinusoid, period span/7', sine_span_over_7, 2, p2, 10.0e6, L1, 1.672e-02, True),
-        ('ten crossings', ten, 2, p2, 10.0e6, L1, 3.907e-02, True),
+        ('step function, unmarked edge', step, 2, p2, 50.0e6, L1, L0, 5.395e-01, True),
+        ('kink, C0 but not C1', kink, 2, p2, 50.0e6, L1, L0, 1.448e-02, True),
+        ('singularity approached', near_sing, 2, p2, 50.0e6, L1, L0, 8.625e-03, True),
+        ('sinusoid, period span/7', sine_span_over_7, 2, p2, 10.0e6, L1, L0, 1.672e-02, True),
+        ('ten crossings', ten, 2, p2, 10.0e6, L1, L0, 3.907e-02, True),
         ('sub-threshold bump, w=3e-2 span', bump_profile(ner2, lc, 3e-2*SPAN), 2, p2,
-         10.0e6, L1, 4.388e-03, True),
+         10.0e6, L1, L0, 4.388e-03, True),
         ('sub-threshold bump, w=1e-2 span', bump_profile(ner2, lc, 1e-2*SPAN), 2, p2,
-         10.0e6, L1, 7.701e-03, True),
+         10.0e6, L1, L0, 7.701e-03, True),
         ('narrow bump, w=3e-5 span (§8.3)', bump_profile(ner2, lc, 3e-5*SPAN), 2, p2,
-         10.0e6, L1, 2.907e-02, False),
+         10.0e6, L1, L0, 2.907e-02, False),
     ]
 
 
+def build_physical_cases():
+    """The same acceptance question, on the physical population.
+
+    There is no prefix-tree error to quote here -- these constructions did not exist when the
+    defects did -- so the ``prefix_err`` column is 0.0 and only X1/X2 are being tested: whenever
+    one engine is outside tolerance and another is not, the cross-family spread must see it.
+    """
+    import physical_profiles as pp
+    cases = []
+    for f in pp.families():
+        for d in (2, 3):
+            cases.append((f['label'] + ' d=%d' % d, f['ne'], d, H.params_for(d),
+                          f['energies'][0], f['l1'], f['l0'], 0.0, False))
+    return cases
+
+
 def main():
+    physical = '--physical' in sys.argv[1:]
     print('# Cross-check acceptance.  magnus from: %s' % oscprob.__file__)
+    print('# population: %s' % ('PHYSICAL' if physical else 'synthetic'))
     print('# requested tolerance %.0e; L0=%.3e L1=%.3e\n' % (TOL, L0, L1))
     verdicts = []
-    for (label, ne, d, params, energy, baseline, prefix_err, was_silent) in build_cases():
+    cases = build_physical_cases() if physical else build_cases()
+    for (label, ne, d, params, energy, baseline, l0, prefix_err, was_silent) in cases:
         H_of_l = H.H_factory(d, params, H.vcc_of(ne), energy)
-        Pref = H.P_of(H.exact_U(H_of_l, L0, baseline, d))
-        answers, notes, spread, best, best_pair = cross_check(ne, d, params, energy, baseline)
+        Pref = H.P_of(H.exact_U(H_of_l, l0, baseline, d))
+        answers, notes, spread, best, best_pair = cross_check(ne, d, params, energy, baseline,
+                                                              l0=l0)
 
         print('%s   [FINDINGS: %.3e%s]' % (label, prefix_err,
-                                           ', SILENT' if was_silent else ', all engines wrong'))
+                                           ', SILENT' if was_silent else ', all engines wrong')
+              if prefix_err else label)
         for lab in FORCING:
             if lab in answers:
                 print('    %-11s err=%9.3e   warns=%s'

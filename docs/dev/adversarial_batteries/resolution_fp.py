@@ -95,26 +95,43 @@ def families():
                                     base_ratio=float(10.0**rng.uniform(-2.5, -1.0)),
                                     amp=float(rng.uniform(0.2, 0.9)))))
     piecewise = [('single step', step), ('two steps', two_steps), ('castle wall', castle)]
-    return smooth, piecewise
+    return ([(lab, ne, L0, L1) for lab, ne in smooth],
+            [(lab, ne, L0, L1) for lab, ne in piecewise])
 
 
-def sweep(fams, kind):
+def physical_families():
+    """The physically-motivated population, split the way the resolution test's rates need.
+
+    ``SMOOTH_KINDS`` is the false-positive population: every feature those families carry is
+    wider than the reference grid, so an UNRESOLVED verdict on them is a false positive.  The
+    supernova families genuinely are near-discontinuous, so a verdict there is a true positive.
+    """
+    import physical_profiles as pp
+    smooth, featured = [], []
+    for f in pp.families():
+        row = (f['label'], f['ne'], f['l0'], f['l1'])
+        (smooth if f['kind'] in pp.SMOOTH_KINDS else featured).append(row)
+    return smooth, featured
+
+
+def sweep(fams, kind, energies=(10.0e6, 50.0e6, 200.0e6)):
     print('\n%-24s %10s %10s   %s' % (kind, 'unresolved', 'of', 'local statistic on flagged'))
     stats, n_bad_total, n_total = [], 0, 0
-    for label, ne in fams:
+    for label, ne, l0, l_end in fams:
+        span = l_end - l0
         bad, tot, loc = 0, 0, []
         for d in (2, 3, 4, 5):
             params = H.params_for(d)
-            for energy in (10.0e6, 50.0e6, 200.0e6):
+            for energy in energies:
                 H_func = H.H_factory(d, params, H.vcc_of(ne), energy)
                 for frac in np.linspace(0.2, 1.0, 12):
-                    l1 = L0 + frac*SPAN
+                    l1 = l0 + frac*span
                     tot += 1
-                    ok = (ad._profile_is_resolved(H_func, L0, l1, 200)
-                          or ad._profile_is_resolved(H_func, L0, l1, 6400))
+                    ok = (ad._profile_is_resolved(H_func, l0, l1, 200)
+                          or ad._profile_is_resolved(H_func, l0, l1, 6400))
                     if not ok:
                         bad += 1
-                    s = local_statistic(H_func, L0, l1, 200)
+                    s = local_statistic(H_func, l0, l1, 200)
                     if s is not None:
                         loc.append(s)
         stats += loc
@@ -129,23 +146,40 @@ def sweep(fams, kind):
 
 
 def main():
-    smooth, piecewise = families()
+    physical = '--physical' in sys.argv[1:]
+    smooth, piecewise = physical_families() if physical else families()
     print('# Resolution-test false positives, swept over SUB-INTERVALS')
+    print('# population: %s' % ('PHYSICAL' if physical else 'synthetic'))
     print('# 12 sub-intervals x d = 2-5 x 3 energies per family')
     print('# RESOLUTION_RATIO = %.2f  LOCAL_JUMP_RATIO = %.2f  N_LOCAL_CONFIRM = %d'
           % (ad.RESOLUTION_RATIO, ad.LOCAL_JUMP_RATIO, ad.N_LOCAL_CONFIRM))
-    s_stats, s_bad, s_tot = sweep(smooth, 'SMOOTH (want 0 unresolved)')
-    p_stats, p_bad, p_tot = sweep(piecewise, 'PIECEWISE (want all unresolved)')
+    if physical:
+        print("\nNOTE on reading the two groups.  On the synthetic population they are 'C-infinity'"
+              "\nand 'discontinuous', so unresolved counts are false and true positives"
+              "\nrespectively.  The physical population is not that clean: the first group holds"
+              "\nthe tabulated families, which have a KINK at every node, and the Earth chord,"
+              "\nwhich has PREM's density steps.  An UNRESOLVED verdict on those is a true"
+              "\nstatement about the profile, not a false positive -- so the counts below are"
+              "\nrates of firing, and whether firing was WARRANTED is what warn_fp.py --physical"
+              "\nmeasures, by pairing each warning with the error actually made.")
+    s_stats, s_bad, s_tot = sweep(
+        smooth, 'no sub-grid feature' if physical else 'SMOOTH (want 0 unresolved)')
+    p_stats, p_bad, p_tot = sweep(
+        piecewise, 'sub-grid feature' if physical else 'PIECEWISE (want all unresolved)')
     print('\n=== SUMMARY ===')
-    print('smooth    : %d / %d declared unresolved   <-- false positives' % (s_bad, s_tot))
-    print('piecewise : %d / %d declared unresolved   <-- true positives' % (p_bad, p_tot))
+    tag_s = ('' if physical else '   <-- false positives')
+    tag_p = ('' if physical else '   <-- true positives')
+    print('%-10s: %d / %d declared unresolved%s'
+          % ('no feature' if physical else 'smooth', s_bad, s_tot, tag_s))
+    print('%-10s: %d / %d declared unresolved%s'
+          % ('feature' if physical else 'piecewise', p_bad, p_tot, tag_p))
     if s_stats:
-        print('local statistic, smooth flagged intervals   : n=%d max %.3f'
+        print('local statistic, first-group flagged intervals : n=%d max %.3f'
               % (len(s_stats), max(s_stats)))
     if p_stats:
-        print('local statistic, piecewise flagged intervals: n=%d min %.3f'
+        print('local statistic, second-group flagged intervals: n=%d min %.3f'
               % (len(p_stats), min(p_stats)))
-    if s_stats and p_stats:
+    if s_stats and p_stats and not physical:
         print('separation: smooth ceiling %.3f  <  LOCAL_JUMP_RATIO %.2f  <  jump floor %.3f'
               % (max(s_stats), ad.LOCAL_JUMP_RATIO, min(p_stats)))
 

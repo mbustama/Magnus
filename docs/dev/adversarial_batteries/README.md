@@ -41,6 +41,34 @@ Added by the robustness programme (`../HANDOVER_ROBUSTNESS_PROGRAMME.md`):
 | `crosscheck_benefit.py` | whether a default-path cross-check would earn its cost. It does not — see `FINDINGS_ROBUSTNESS_PROGRAMME.md` §11.2 |
 | `fallback_quality.py` | every applicable engine scored on the same request. This is what moved `HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS` from 25 to 8 |
 
+Added by the physical-profile programme (`../HANDOVER_PHYSICAL_PROFILES.md`), which asks whether
+any of the earlier findings reaches a real user:
+
+| file | what it does |
+|---|---|
+| `physical_profiles.py` | the physically-motivated population: tabulated profiles with interpolation kinks, the real BS05(AGS,OP) solar model, a supernova shock front, Kolmogorov turbulence, and Earth with a non-PREM crust. Every family carries its own trajectory, energy band and a `provenance` string saying how physical it actually is |
+| `validate_physical.py` | checks each profile has the shape it claims — jump factors against the literature formulas, spectral index, kink placement, resonance on the trajectory — *before* anything measures with it |
+| `physical_battery.py` | the two questions no existing script covers: `sub_grid` (P2/P3, `find_hidden_features` rates) and `seam_cost` (P4, cumulative-vs-hybrid cost on physical profiles) |
+| `bs05_agsop.dat` | the BS2005-AGS,OP standard solar model table, from `sns.ias.edu/~jnb/SNdata/` |
+| `attribute_physical.py` | attribution for the silent misses the physical population produced: which engine answered, whether it is a knife-edge, and whether `t_breakpoints` or a tighter request cures it |
+| `bs05_energy_band.py` | whether the BS05 silent miss reaches a real solar-neutrino energy, with the oracle verified at each one |
+| `avg_check.py` / `avg_check2.py` | whether an error survives PHASE AVERAGING -- the observable for solar and supernova physics. Collapses the solar error 53x and the turbulence error 23x, and leaves the shock error untouched |
+| `shock_silent_band.py` | maps shock width x energy for "wrong, unflagged AND unwarned". 18 configurations, 2 outside tolerance, both warned, none silent |
+| `alias_cost.py` | what an aliasing check would COST, measured before it was written |
+| `alias_fp.py` | what it would FIRE on -- 44 of 45 realistic scans, which is why it ships as a `strategy_info` statistic and not a warning |
+
+`fallback_quality.py`, `warn_fp.py`, `resolution_fp.py` and `crosscheck_acceptance.py` all take
+a `--physical` flag that swaps the population and leaves the measurement logic alone. They write
+to a separate `*_physical.npy` so a physical run and a synthetic one cannot overwrite each
+other's rows:
+
+```bash
+python validate_physical.py            # first: are the profiles what they claim?
+python warn_fp.py --physical           # P1, the headline: any silent miss?
+python physical_battery.py sub_grid    # P2/P3
+python physical_battery.py seam_cost   # P4
+```
+
 Pre-existing scripts the original table omitted, listed here so the directory is fully covered:
 
 | file | what it does |
