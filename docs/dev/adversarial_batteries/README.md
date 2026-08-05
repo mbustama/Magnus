@@ -49,7 +49,7 @@ any of the earlier findings reaches a real user:
 | `physical_profiles.py` | the physically-motivated population: tabulated profiles with interpolation kinks, the real BS05(AGS,OP) solar model, a supernova shock front, Kolmogorov turbulence, and Earth with a non-PREM crust. Every family carries its own trajectory, energy band and a `provenance` string saying how physical it actually is |
 | `validate_physical.py` | checks each profile has the shape it claims — jump factors against the literature formulas, spectral index, kink placement, resonance on the trajectory — *before* anything measures with it |
 | `physical_battery.py` | the two questions no existing script covers: `sub_grid` (P2/P3, `find_hidden_features` rates) and `seam_cost` (P4, cumulative-vs-hybrid cost on physical profiles) |
-| `bs05_agsop.dat` | the BS2005-AGS,OP standard solar model table, from `sns.ias.edu/~jnb/SNdata/` |
+| `bs05_agsop.dat` | the BS2005-AGS,OP standard solar model table, from `sns.ias.edu/~jnb/SNdata/`. **Third-party data** -- see `SOURCES.md` for provenance, citation and terms |
 | `attribute_physical.py` | attribution for the silent misses the physical population produced: which engine answered, whether it is a knife-edge, and whether `t_breakpoints` or a tighter request cures it |
 | `bs05_energy_band.py` | whether the BS05 silent miss reaches a real solar-neutrino energy, with the oracle verified at each one |
 | `avg_check.py` / `avg_check2.py` | whether an error survives PHASE AVERAGING -- the observable for solar and supernova physics. Collapses the solar error 53x and the turbulence error 23x, and leaves the shock error untouched |
