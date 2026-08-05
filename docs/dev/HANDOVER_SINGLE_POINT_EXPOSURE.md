@@ -1,19 +1,25 @@
-# Handover: the supernova shock silent band
+# Handover: the supernova shock silent band  — CLOSED
 
-*(Originally written about a single-point dispatch exposure; §13.17-13.19 of the findings
-retracted most of that. The live question is now §2.)*
+> **STATUS, 2026-08-05: every item this document listed as open has landed.**
+> `dev-robustness` (PR #28), `routing-regression-test` (PR #29) and `example-notebooks`
+> (PR #30) are all **merged into `main`**. This file is kept for the reasoning and the
+> measured numbers, which remain valid; its task list does not. See "What is left" below
+> for the current state.
+>
+> The document was originally written about a **single-point dispatch exposure**, and
+> §13.17-13.20 of the findings retracted most of that: applying the *observable* (the
+> phase-averaged probability) collapses the solar error 53x and leaves no silent miss
+> anywhere on the physical population.
 
 **Written:** 2026-08-05, at the close of the session that executed
-`HANDOVER_PHYSICAL_PROFILES.md`.
-
-**Where to work: branch `dev-robustness`.** Nothing is pushed and there is no PR.
+`HANDOVER_PHYSICAL_PROFILES.md`; reconciled the same day after PRs #28-#30 merged.
 
 ---
 
 ## 0. Verify the base before starting
 
 ```bash
-git -C ~/Research/magnus status --porcelain      # expect the physical-profile files, uncommitted
+git -C ~/Research/magnus log --oneline -1        # expect the PR #30 merge or later
 python -c "import sys; sys.path.insert(0,'src'); import magnus.oscprob as o; \
   print(o.HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS, o.CUMULATIVE_AUTO_MIN_POINTS)"
 # must print: 8 2
@@ -38,18 +44,36 @@ it was mapped and **does not exist**: 18 configurations, 2 outside tolerance, bo
 silent. The dispatch fix this document originally argued for lost its mandate along with the
 solar case; it is kept in §3 for the record, not as a recommendation.
 
-**What is actually left is small and specific**, in priority order:
+**What this document listed as left — all four are DONE:**
 
-1. **`UnmarkedDiscontinuityWarning`'s advice is unestablished for single points.** It tells the
-   user to pass `t_breakpoints`; on the averaged observable at a single point that made 11 of 18
-   configurations *worse* and pushed 2 from inside tolerance to outside (§2).
-2. **Regression tests for the two shipped bugs of §4 exist** (`test_oscprob.py`), but nothing
-   covers the *routing* they exposed. See §3.
-3. **`docs/source/implementation_details.rst` says the seam is 25** in three places; it has been
-   8 since the previous tranche.
-4. **Example notebooks** for the tabulated-solar and supernova-shock cases, requested by the user.
-   The solar one should now show that the error is *phase* and the averaged answer is correct -
-   which is a more useful notebook than the one originally envisaged.
+1. ~~`UnmarkedDiscontinuityWarning`'s advice is unestablished for single points.~~ **Done, PR
+   #28.** The warning now separates the two cases and carries the numbers for each.
+2. ~~Nothing covers the *routing* the two shipped bugs exposed.~~ **Done, PR #29** — and writing
+   the test found a live defect: the hybrid path stood aside for the cumulative scan even when
+   the caller had disabled it with `cumulative=False`, costing 256x at the seam
+   (1.157e-05 -> 2.966e-03). Fixed, with the `cumulative=False` semantics clarified:
+   `strategy='magnus'` is the exact route to pre-1.0.0 numbers at every N, and
+   `cumulative=False` guarantees only that the cumulative scan is not used.
+3. ~~`implementation_details.rst` says the seam is 25.~~ **Done, PR #28** — four stale claims
+   corrected; the one surviving `N = 25` is marked as historical.
+4. ~~Example notebooks.~~ **Done, PR #30** — `13_magnus_tabulated_solar_model.ipynb` and
+   `14_magnus_supernova_shock.ipynb`, a matched pair where the contrast is the lesson.
+
+**What is genuinely left**, none of it urgent:
+
+* **Nothing detects broadband sub-grid roughness** (§13.7, §13.14). The cheap statistic that
+  would see it is described there; it needs its own false-positive measurement before it could
+  ship, and the turbulence errors it would catch are already caught by the convergence machinery.
+* **The single-point dispatch question** (§13.15), much less urgent since §13.17 withdrew the
+  solar case. The surgical form is: have the hybrid path yield *to the cumulative scan
+  specifically* rather than decline into the chain.
+* **The detector chain works by accident, not design** (§2 below): on the rows that are outside
+  tolerance, the 6400-point probe grid says *resolved* and the 200-point grid is what catches
+  them. Fragile to any change in the probe ladder.
+* **GitHub Actions cannot run** — every job reports a billing block, so nothing in CI has been
+  verified since before PR #28. All three PRs were verified locally only (758 tests, `ruff`, docs
+  under `-W`). The long-standing "GitHub Pages is disabled" item is **indistinguishable from the
+  billing block** until Actions run again.
 
 ---
 
