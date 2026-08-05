@@ -576,21 +576,34 @@ def test_a_smooth_profile_is_still_reported_as_resolved():
     assert ad._profile_is_resolved(lambda l: const, 0.0, l1, 200)
 
 
-def test_a_sharp_but_smooth_feature_is_not_mistaken_for_a_discontinuity():
-    """Refinement must be allowed to rescue a feature that is merely sharp at the *starting*
-    probe density.
+@pytest.mark.parametrize('width_frac', [1.0e-2, 1.0e-3, 1.0e-4])
+def test_a_sharp_but_smooth_feature_is_not_mistaken_for_a_discontinuity(width_frac):
+    """A feature that is merely *sharp* must never be diagnosed as a discontinuity.
 
-    A Gaussian of width 1e-3 of the domain is unresolved at n_probe=200 and resolved at 6400,
-    and this module answers it to ~1e-11 once it is.  Testing at the starting density alone
-    abandoned it as though it were a step function, which is both a large accuracy regression
-    and the wrong diagnosis -- a jump stays unresolved at *every* density, which is exactly
-    what separates the two.
+    A Gaussian of width 1e-3 of the domain is answered to ~1e-11 by this module, and abandoning
+    it as though it were a step function is both a large accuracy regression and the wrong
+    diagnosis.  What separates the two is that a jump stays unresolved at **every** sampling
+    density while a smooth feature does not -- asserted here in the sharpest available form,
+    that the smooth feature is recognised at the *starting* density and the step is not
+    recognised at either.
+
+    This assertion used to read ``not resolved at 200`` and ``resolved at 6400``: the feature
+    was rescued only by the second stage of the caller's coarse-then-fine protocol.  It is now
+    recognised at the first, because a flagged interval is confirmed by re-sampling it alone
+    (see ``adiabatic.LOCAL_JUMP_RATIO``) rather than by refining the whole grid.  That is a
+    strictly stronger property, so the assertion is strengthened rather than moved: the second
+    stage remains as a safety net and is no longer what carries this case.
     """
-    H_func, l1 = _solar_bump_H(1.0e-3, centre_frac=0.495)
-
-    assert not ad._profile_is_resolved(H_func, 0.0, l1, 200)
+    H_func, l1 = _solar_bump_H(width_frac, centre_frac=0.495)
+    assert ad._profile_is_resolved(H_func, 0.0, l1, 200)
     assert ad._profile_is_resolved(H_func, 0.0, l1, 6400)
 
+    step_H, _, step_l1 = _solar_step_H()
+    assert not ad._profile_is_resolved(step_H, 0.0, step_l1, 200)
+    assert not ad._profile_is_resolved(step_H, 0.0, step_l1, 6400)
+
+    if width_frac != 1.0e-3:
+        return
     U, windows, certified = ad.hybrid_propagator(H_func, 0.0, l1)
     assert certified, "a feature the refinement resolves was abandoned as a discontinuity"
     assert windows
@@ -642,3 +655,157 @@ def test_find_nonadiabatic_windows_reports_gamma_max_via_info():
         assert info['gamma_max'] >= c['gamma'] - 1e-30
     # Omitting info must remain valid (backward compatibility of the public signature).
     ad.find_nonadiabatic_windows(H_func, 0.0, l1)
+
+
+# ----------------------------------------------------------------------
+# find_hidden_features: structure below the scale any grid here samples
+# ----------------------------------------------------------------------
+
+def test_hidden_feature_scan_is_quiet_on_the_profiles_the_package_serves():
+    """0 false positives were measured over 67 smooth and resolvable profiles; these are the
+    families that matter most, since a false positive here would fire on ordinary work."""
+    l1 = gd.L_SCALE_SUN
+    ne0, ls = gd.NUM_DENSITY_E_SUN_CENTRAL, gd.L_SCALE_SUN
+
+    def solar(l):
+        return ne0*np.exp(-np.asarray(l, dtype=float)/ls)
+
+    def multi_res(l):
+        x = np.asarray(l, dtype=float)
+        return ne0*np.exp(-x/ls)*(1.0 + 0.9*np.sin(2.0*np.pi*6.0*x/l1))
+
+    def aliased_sinusoid(l):
+        # Exactly the probe spacing: hides variation in EVERY interval, which is what the
+        # concentration statistic exists to distinguish from a hidden bump.  The package
+        # answers this profile to ~1e-11.
+        x = np.asarray(l, dtype=float)
+        return 3.0e-2*ne0*(1.0 + 0.9*np.sin(2.0*np.pi*x/(l1/199.0)))
+
+    def constant(l):
+        return np.full_like(np.asarray(l, dtype=float), 0.05*ne0)
+
+    for profile in (solar, multi_res, aliased_sinusoid, constant):
+        out = ad.find_hidden_features(profile, 0.0, l1)
+        assert not out['hidden'], (profile.__name__, out['concentration'])
+
+
+def test_hidden_feature_scan_finds_a_feature_narrower_than_every_grid():
+    """The FINDINGS §8.3 construction: a Gaussian far below the refinement ceiling, which every
+    engine misses at once and no cross-check can therefore see."""
+    l1 = gd.L_SCALE_SUN
+    ne0 = gd.NUM_DENSITY_E_SUN_CENTRAL
+    centre, width = 0.4517*l1, 1.0e-5*l1
+
+    def hidden(l):
+        x = np.asarray(l, dtype=float)
+        return ne0*1e-3*(0.3 + 2.7*np.exp(-0.5*((x - centre)/width)**2))
+
+    out = ad.find_hidden_features(hidden, 0.0, l1)
+    assert out['hidden']
+    assert out['concentration'] > ad.HIDDEN_FEATURE_CONCENTRATION
+    # And it says WHERE, which is the entire actionable content of the warning built on it.
+    assert out['l_lo'] <= centre <= out['l_hi']
+    assert abs(out['l_centre'] - centre) < 1.0e-3*l1
+
+
+def test_hidden_feature_scan_is_identical_on_the_scalar_potential_and_on_H():
+    """H is affine in V_CC, so every difference is |dV_CC| times a constant and the statistic
+    cannot depend on which is sampled.  That is what makes the cheap path exact rather than an
+    approximation -- and it is worth pinning, because it is the reason the scan is affordable
+    enough to run on ordinary calls."""
+    l1 = gd.L_SCALE_SUN
+    ne0 = gd.NUM_DENSITY_E_SUN_CENTRAL
+    centre, width = 0.4517*l1, 1.0e-5*l1
+
+    def ne(l):
+        x = np.asarray(l, dtype=float)
+        y = ne0*1e-3*(0.3 + 2.7*np.exp(-0.5*((x - centre)/width)**2))
+        a = np.asarray(y)
+        return a[()] if a.ndim == 0 else a
+
+    vcc = matter.vcc_func_from_rho_func(ne, 0.0, 1.0, 0.5, nubar=False,
+                                        density_matter_is_in_g_per_cm3=False,
+                                        density_is_of_number_of_electrons=True)
+    h_vac = np.asarray(hams.hamiltonian_2nu_vacuum_energy_independent(
+        gd.S12_NO_BF_NUFIT_6_0, gd.D21_NO_BF_NUFIT_6_0), dtype=complex)
+    proj = np.diag([1.0, 0.0]).astype(complex)
+
+    def H_func(l):
+        return (1.0/10.0e6)*h_vac + np.asarray(vcc(l))[..., None, None]*proj
+
+    on_scalar = ad.find_hidden_features(lambda l: np.asarray(vcc(l), dtype=float), 0.0, l1)
+    on_matrix = ad.find_hidden_features(H_func, 0.0, l1)
+    assert on_scalar['concentration'] == pytest.approx(on_matrix['concentration'], rel=1e-12)
+    assert on_scalar['hidden'] == on_matrix['hidden']
+    assert on_scalar['l_centre'] == pytest.approx(on_matrix['l_centre'], rel=1e-12)
+
+
+@pytest.mark.parametrize('name,profile', [
+    # Cannot be evaluated for many positions at once: raises inside the scan.
+    ('scalar-only', lambda l: float(np.exp(-float(l)/gd.L_SCALE_SUN))),
+    # Evaluates fine but returns a bare scalar: this one used to raise IndexError, because the
+    # shape guard indexed a 0-d array.
+    ('returns a scalar', lambda l: 1.0),
+    # Returns the wrong length.
+    ('wrong length', lambda l: np.asarray(l, dtype=float)[:3]),
+    # Non-finite: the concentration came out nan and compared False by luck rather than design.
+    ('contains inf', lambda l: np.where(np.asarray(l, dtype=float) > 0.5, np.inf, 1.0)),
+    ('contains nan', lambda l: np.where(np.asarray(l, dtype=float) > 0.5, np.nan, 1.0)),
+])
+def test_hidden_feature_scan_refuses_quietly_rather_than_raising(name, profile):
+    """The scan is a diagnostic and has no business breaking a call it only meant to inspect.
+
+    Every one of these is a profile it cannot say anything about; the required behaviour is a
+    quiet refusal, not an exception and not a nan leaking into ``strategy_info``."""
+    out = ad.find_hidden_features(profile, 0.0, gd.L_SCALE_SUN)
+    assert out['hidden'] is False
+    assert out['concentration'] == 0.0
+    assert np.isfinite(out['l_centre'])
+
+
+def test_oscillation_sampling_reports_the_fastest_oscillation_not_the_slowest():
+    """The statistic must key on the LARGEST eigenvalue spread, not the smallest gap.
+
+    Aliasing is set by the fastest oscillation, whose wavelength is ``2*pi`` over the largest
+    spread.  The first version of this measurement took the smallest *adjacent* gap, which is
+    the **slowest** oscillation -- a plausible-looking choice that made the statistic insensitive
+    to sampling density and would have made the whole diagnostic meaningless.
+
+    Pinned on a constant Hamiltonian, where the answer is exact and independent of position.
+    """
+    lam = np.array([0.0, 1.0e-13, 3.0e-13])          # spread 3e-13, smallest gap 1e-13
+    H = np.diag(lam).astype(complex)
+    rep = ad.oscillation_sampling(lambda l: H, 0.0, 1.0e14, n_probe=4)
+    assert rep['oscillation_length'] == pytest.approx(2.0*np.pi/3.0e-13, rel=1e-12), \
+        'oscillation_length must come from the largest spread, not the smallest gap'
+    assert rep['cycles_over_trajectory'] == pytest.approx(1.0e14/(2.0*np.pi/3.0e-13), rel=1e-12)
+
+
+def test_oscillation_sampling_flags_an_undersampled_scan_and_clears_a_dense_one():
+    """`aliased` is Nyquist on the requested baselines: spacing above half a wavelength."""
+    H = np.diag([0.0, 2.0e-13]).astype(complex)
+    l1 = 1.0e15
+    osc = 2.0*np.pi/2.0e-13
+
+    coarse = np.linspace(0.0, l1, 3)                 # spacing >> osc/2
+    dense = np.arange(0.0, l1, 0.25*osc)             # 4 samples per cycle
+    rep_coarse = ad.oscillation_sampling(lambda l: H, 0.0, l1, baselines=coarse, n_probe=4)
+    rep_dense = ad.oscillation_sampling(lambda l: H, 0.0, l1, baselines=dense, n_probe=4)
+    assert rep_coarse['aliased'] is True
+    assert rep_dense['aliased'] is False
+    assert rep_coarse['nyquist_points'] == rep_dense['nyquist_points']
+
+
+def test_oscillation_sampling_refuses_quietly_rather_than_breaking_the_call():
+    """A diagnostic must never break the call it was inspecting.
+
+    Same rule that `find_hidden_features` learned the hard way: a profile that raises, returns
+    non-finite values, or has a degenerate spectrum gets an empty report, not an exception.
+    """
+    def raises(l):
+        raise RuntimeError('no')
+
+    assert ad.oscillation_sampling(raises, 0.0, 1.0) == {}
+    assert ad.oscillation_sampling(lambda l: np.diag([np.nan, 1.0]), 0.0, 1.0) == {}
+    assert ad.oscillation_sampling(lambda l: np.zeros((2, 2)), 0.0, 1.0) == {}
+    assert ad.oscillation_sampling(lambda l: np.diag([0.0, 1.0]), 0.0, 0.0) == {}

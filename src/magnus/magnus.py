@@ -77,6 +77,7 @@ __email__ = "mbustamante@gmail.com"
 
 
 import warnings
+from contextlib import contextmanager
 from typing import Optional, Callable, Union, Tuple
 
 import numpy as np
@@ -149,13 +150,51 @@ class ScalarHamiltonianWarning(UserWarning):
 class MagnusConvergenceWarning(UserWarning):
     r"""Warns that a time slab may be too wide for the Magnus series.
 
-    The Magnus series is guaranteed to converge when
-    :math:`\int_{t_0}^{t_1} \lVert A(t)\rVert_2\, dt < \pi`.  We use
-    :math:`\lVert\Omega\rVert_2 \geq \pi` as a cheap (necessary, not
-    sufficient) proxy to flag slabs that are likely too wide; raising
-    the expansion order will not help in that regime -- use more
-    (narrower) slabs instead.  The norm comes for free from the
-    eigenvalues already computed for the matrix exponential.
+    **What was detected.**  The Magnus series is guaranteed to converge when
+    :math:`\int_{t_0}^{t_1} \lVert A(t)\rVert_2\, dt < \pi`.  :math:`\lVert\Omega\rVert_2 \geq
+    \pi` is used as a cheap proxy for that integral -- it comes free from the eigenvalues already
+    computed for the matrix exponential -- so this fires when a *sufficient* condition for
+    convergence was not met on at least one slab.  The message says how far past :math:`\pi`, in
+    three buckets, which is the one quantity this check actually knows.
+
+    **What it means for the answer: unknown, and that is the honest answer.**  This is a
+    statement about the slab width, not about the error.  The condition is sufficient, not
+    necessary, so exceeding it does not imply a wrong answer -- and it fires on results accurate
+    to 1.6e-06 (``docs/dev/DECISION_DISPATCH_ORDER.md`` §5) as well as on results seven times
+    outside a requested 1e-3.  Anything that claims to tell you which of those you have is
+    claiming more than this check can support; :class:`ToleranceNotAchievedWarning` is the one
+    that reports a failed convergence *test*.
+
+    **What to change.**  More, narrower slabs: request a smaller ``rtol``/``atol``, or raise
+    ``n_slabs``.  Raising ``magnus_exp_order`` does **not** help in this regime -- beyond the
+    series' radius no order converges.  If the profile has a density jump or a kink, pass
+    ``t_breakpoints`` there as well: a slab straddling one is never fixed by more slabs, only
+    narrowed.
+
+    **When it is safe to ignore.**  When the answer has been checked another way -- a tighter
+    tolerance giving the same result, or :func:`magnus.oscprob.cross_check_strategies` showing
+    a different engine agreeing.  **Not** merely because a tolerance was requested.  That advice
+    used to be in this message and it is false in exactly the cases where the warning matters:
+    measured on a sawtooth density with ``rtol=atol=1e-3`` explicitly requested, under both
+    ``strategy='auto'`` and ``strategy='magnus'``, the adaptive refinement ran and the answer was
+    still **7.484e-03**, seven times outside the tolerance asked for, with this warning showing.
+
+    **Measured rates** (``docs/dev/adversarial_batteries/warn_fp.py``, 168 configurations across
+    the profile families this package serves, d = 2-5, scored against ``solve_ivp`` or, for
+    piecewise profiles, against ``expm``): fired 70 times, of which **17 true positives and 53
+    false positives -- a 76 % false-positive rate**, the highest of any warning here.  That is
+    the price of reporting a *sufficient* condition, and it is why the text above refuses to
+    translate the condition into a claim about the error.
+
+    **Where that noise comes from, and what would fix it.**  Of 66 single-point calls, some
+    refinement level exceeded :math:`\pi` in 46 -- but the level whose answer was actually
+    returned did so in only **7**.  So **39 of 46 firings, 85 %, describe an intermediate grid
+    that nobody receives**: the ladder started coarse, said so, then refined and never retracted
+    it.  Keying the warning to the returned level alone would cut false alarms from 31 to 5 at a
+    similar rate (67 % against 71 %).  That change is *mechanical* -- capture the norm per level
+    and emit once the loop has decided -- and is **deliberately not made here**, because it
+    touches the refinement loop and the warning plumbing several tests depend on.  It is written
+    down with its numbers so it can be made deliberately rather than rediscovered.
 
     .. versionadded:: 1.0.0
     """
@@ -742,6 +781,57 @@ def _gl_nodes(order: int) -> np.ndarray:
     return _GL3_NODES
 
 
+_SLAB_NORM_SINK = None
+r"""list or None: when a caller has opened ``_deferred_slab_norm``, every ``||Omega||_2`` the
+convergence check computes is collected here instead of warned about immediately.  ``None`` (and
+therefore free) otherwise."""
+
+
+@contextmanager
+def _deferred_slab_norm():
+    r"""Collect slab norms instead of warning about them, for the duration of the block.
+
+    :func:`magnus.oscprob.osc_prob` refines a slab ladder and returns **one** level's answer,
+    so warning as each level is computed reports on grids nobody receives: measured over 66
+    single-point calls, some level exceeded :math:`\pi` in 46 of them but the level actually
+    returned did so in only **7**.  This exists so a caller can collect the norms and emit once,
+    for the level it is about to return.
+
+    **:func:`magnus.oscprob.osc_prob` deliberately does not use it**, and the measurement is why.
+    Keying the warning to the returned level was implemented and then reverted: over 168
+    configurations, firings fell 70 to 53 but **true positives fell 17 to 4** while false
+    positives fell only 53 to 49.  "The ladder started far from convergence" predicts a bad
+    answer better than "the final grid is coarse" does, so the suppression removed most of the
+    signal to remove a twelfth of the noise.  Nothing became silent either way (2 of 168 in
+    both), because the cases it stopped flagging are covered by
+    :class:`magnus.oscprob.ToleranceNotAchievedWarning`.
+
+    The honest way to use the discarded signal would be a *different* warning -- "this request
+    needed many refinement levels" -- rather than a quieter version of this one.
+
+    Private, and stays private: nothing in the package uses it, and shipping public API for a
+    design that was measured and rejected would be worse than keeping the knowledge here.
+
+    Nested blocks share the outermost sink, so an inner engine's slabs are attributed to the
+    level being computed rather than starting a fresh collection.
+
+    .. versionadded:: 1.0.0
+
+    Yields
+    ------
+    list of float
+        Every norm seen inside the block, in the order seen.
+    """
+    global _SLAB_NORM_SINK
+    prev = _SLAB_NORM_SINK
+    sink = prev if prev is not None else []
+    _SLAB_NORM_SINK = sink
+    try:
+        yield sink
+    finally:
+        _SLAB_NORM_SINK = prev
+
+
 def _warn_slab_norm(nmax: float):
     r"""Warn if the slab norm proxy ``nmax`` :math:`= \max \lVert\Omega\rVert_2` is
     :math:`\geq \pi` (see :class:`MagnusConvergenceWarning`).
@@ -756,17 +846,36 @@ def _warn_slab_norm(nmax: float):
     -------
     None
     """
-    if nmax >= np.pi:
-        # The message is intentionally static (no numbers) so that Python's
-        # default warning filter shows it only once per session.
-        warnings.warn(
-            "at least one time slab is too wide for guaranteed convergence "
-            "of the Magnus series (||Omega||_2 >= pi); raising the "
-            "expansion order will not help there -- more (narrower) slabs "
-            "are needed. If a target tolerance (rtol/atol) was requested, "
-            "the adaptive refinement narrows the slabs automatically and "
-            "this warning can be ignored. Shown once per session.",
-            MagnusConvergenceWarning, stacklevel=4)
+    if _SLAB_NORM_SINK is not None:
+        # A caller is running a refinement ladder and will decide, once it knows which level it
+        # is returning, whether this is worth saying.  See deferred_slab_norm.
+        _SLAB_NORM_SINK.append(float(nmax))
+        return
+    if nmax < np.pi:
+        return
+    # Bucketed rather than numeric, so that the message stays one of three fixed strings and
+    # Python's default filter still shows each at most once per session -- while carrying the
+    # one quantity this function actually knows.  How far past pi is not the error, but it
+    # separates "one slab marginally over" from "the grid is nowhere near fine enough".
+    if nmax < 2.0*np.pi:
+        how_far = "marginally over"
+    elif nmax < 10.0*np.pi:
+        how_far = "over by up to a factor of ten"
+    else:
+        how_far = "over by more than a factor of ten"
+    warnings.warn(
+        "at least one time slab is too wide for guaranteed convergence of the Magnus "
+        "series (||Omega||_2 >= pi, " + how_far + "). This is a statement about the slab "
+        "width, not about the answer: it reports that a sufficient condition for "
+        "convergence was not met somewhere, and the error may be anywhere from negligible "
+        "to large. To act on it, use more (narrower) slabs -- request a smaller rtol/atol, "
+        "or raise n_slabs; raising magnus_exp_order will not help in this regime. If the "
+        "profile has a density jump or a kink, pass t_breakpoints there as well: a slab "
+        "straddling one is not fixed by any number of slabs. Do NOT assume the adaptive "
+        "refinement has already taken care of it -- measured on a sawtooth density with "
+        "rtol=atol=1e-3 explicitly requested, the refinement ran and the answer was still "
+        "7.5e-03, seven times outside the tolerance asked for. Shown once per session.",
+        MagnusConvergenceWarning, stacklevel=4)
 
 
 def _expm_stack(Om: np.ndarray, warn_wide: bool = False,

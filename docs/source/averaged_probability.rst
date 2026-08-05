@@ -259,6 +259,89 @@ follows in one line: a source producing the pion-decay composition
     at_earth = at_source @ np.asarray(P)
     np.round(at_earth*3.0, 3)
 
+Am I computing the wrong thing?  ``strategy_info['sampling']``
+----------------------------------------------------------------
+
+The hardest part of this page in practice is not the mathematics -- it is
+noticing that it applies to you.  A scan of instantaneous probabilities
+over a long trajectory returns perfectly correct numbers, and they can
+still be the wrong quantity, because the observable is an average over a
+phase nobody resolves.
+
+Every ``osc_prob_*`` entry point that accepts ``strategy_info`` now
+reports how coarsely the request samples the oscillation it is
+computing::
+
+    info = {}
+    P = magnus.oscprob.osc_prob_3nu_sun(energy, L, info_kwargs..., strategy_info=info)
+    info['sampling']
+    # {'oscillation_length': 2.53e+10,   'cycles_over_trajectory': 1.32e+04,
+    #  'spacing': 3.82e+13,              'cycles_per_step': 1.51e+03,
+    #  'nyquist_points': 26446,          'aliased': True}
+
+``cycles_per_step`` is the number to read.  Above about 0.5 the scan
+takes less than two samples per oscillation, so the returned array
+**cannot represent the oscillation** and must not be plotted or
+interpolated as a curve -- the individual values are right, the curve
+through them is an artefact.  ``nyquist_points`` says how many baselines
+would be needed to sample it properly.
+
+Those numbers are usually stark.  Measured over the physically-motivated
+profile families in ``docs/dev/adversarial_batteries/``:
+
+=========================== ============================ =========================
+trajectory                  oscillations across it        baselines for Nyquist
+=========================== ============================ =========================
+Earth chord                 ~430                          861
+Solar, one scale height     ~2200                         4 390
+Supernova ray               ~37 000                       73 392
+=========================== ============================ =========================
+
+**This is reported and never warned about, deliberately.**  The Nyquist
+criterion is objectively correct and would fire on 44 of 45 realistic
+scan sizes -- a warning firing on 98 % of calls is noise however right
+each firing is, and it would teach users to silence a category that also
+carries genuine discontinuity warnings.  The measurement behind that
+decision is ``adversarial_batteries/alias_fp.py``.
+
+The report costs eigenvalues at eight points along the trajectory, so it
+is computed **only when ``strategy_info`` is supplied**: callers who do
+not ask pay nothing, and callers who do pay 5.5 % of the cheapest scan
+measured and under 0.1 % of a substantial one.
+
+When ``aliased`` is ``True``, the question worth asking is whether you
+wanted the average all along.  If you did, ``average=True`` or
+:mod:`magnus.avgprob` gives it exactly, in one matrix product rather than
+an integration.  :func:`magnus.avgprob.coherence_report` will say whether
+the averaged expression is valid for your spectrum and baseline, or
+whether some pair sits in the middle regime where neither limit holds.
+
+How much does the phase actually matter?
+-------------------------------------------
+
+It depends on the profile, and the difference is measurable rather than a
+matter of taste.  Averaging an instantaneous scan over six oscillation
+lengths and comparing against a ``solve_ivp`` reference
+(``adversarial_batteries/avg_check.py`` and ``avg_check2.py``):
+
+=============================== ================== ================== ============
+configuration                   instantaneous       averaged           reduction
+=============================== ================== ================== ============
+Solar model, d = 2, 5 MeV       1.380e-03           **2.603e-05**      53x
+Supernova turbulence, 45 MeV    1.701e-03           **1.565e-04**      23x
+Supernova shock, 70 km front    1.095e-03           9.773e-04          2x
+Supernova shock, 0.07 km front  2.033e-01           **2.135e-01**      3x
+=============================== ================== ================== ============
+
+The reduction factor separates two physically different things with no
+overlap.  Errors that shrink by more than twentyfold are **phase**: a
+smooth or oscillatory profile perturbs *when* the oscillation is, and no
+observable sees that.  Errors that barely move are **envelope**: a shock
+front changes the adiabaticity of the level crossing, so it moves the
+conversion probability itself, and averaging cannot remove it.  A large
+instantaneous error on a smooth profile is therefore usually harmless,
+and a modest one across a sharp front usually is not.
+
 Limitations and scope
 -------------------------
 

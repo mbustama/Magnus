@@ -52,6 +52,8 @@ Routine listings
 
     * adiabatic_propagator - Evolution operator via pure adiabatic
            (instantaneous-eigenbasis) transport, no resonance patching
+    * find_hidden_features - Detects structure too narrow for any grid
+           this package lays down to sample
     * find_resonance_candidates - Locates every exact eigenvalue-gap
            critical point of H(l) via the Hellmann-Feynman theorem
     * find_nonadiabatic_windows - Filters/grows/merges candidates into
@@ -155,6 +157,418 @@ undetected, and the answer came back wrong by 2.0e-02, silently.  Comparing one 
 *whole interval* fixes that but false-positives at a smooth turning point, where the interval's
 net change is near zero while each half is not.  Comparing each half against the sum of the two
 is immune to both: it measures concentration of variation, which is what a jump is.
+
+.. versionadded:: 1.0.0
+"""
+
+
+LOCAL_JUMP_RATIO = 0.5
+r"""float: Module-level constant
+
+Threshold of the **local confirmation** in ``_profile_is_resolved``: having flagged a probe
+interval whose variation is concentrated in one half, re-sample that interval alone on
+``N_LOCAL_CONFIRM`` points and ask what fraction of its variation still falls in a single
+adjacent step.
+
+The two limits are far apart and are set by arithmetic, not by taste.  A jump is not diluted by
+refinement -- one step still carries all of it -- so the fraction tends to **1.0**.  A smooth
+feature is spread over the whole interval, so with 32 sub-steps the largest one carries roughly
+:math:`1/32` of the variation.  Measured (``docs/dev/adversarial_batteries/resolution_fp.py``),
+over the *flagged* intervals only, which is the population this constant decides:
+
+=================================================== ======= ==========
+population                                            n      statistic
+=================================================== ======= ==========
+10 smooth families x d = 2-5 x 3 energies x 12
+sub-intervals (1440 configurations)                    79    **<= 0.087**
+3 piecewise-constant families, same sweep              348   **>= 1.000**
+=================================================== ======= ==========
+
+0.5 sits between them with a factor of 5.7 of margin on the smooth side and 2.0 on the jump
+side.  Over the same sweep the completed test reports **0 of 1440** smooth configurations as
+unresolved, and every sub-interval that genuinely contains a jump as unresolved.
+
+**Why this exists.**  Without it the concentration test is a maximum over intervals, and one
+interval decides -- so the interval containing a smooth *turning point* decides.  There the two
+halves are genuinely asymmetric: one nearly cancels while the other does not, and the ratio is a
+draw in :math:`[0.5, 1]` that depends on where the extremum happens to fall inside its interval.
+Refining the grid does not remove it; it re-draws it, which is why the two-stage
+coarse-then-fine protocol could not separate the two either.  Measured on a Gaussian bump of
+width :math:`10^{-2}` of the trajectory -- a profile the module answers to 3.5e-09 -- the
+statistic hit 0.75 at the interval containing the peak, and 6 of 30 baselines of one ordinary
+scan were declared discontinuous.  The local confirmation is the discriminator the concentration
+ratio alone does not have: it asks whether the concentration *survives refinement*, which is the
+one thing a jump does and a turning point does not.
+
+Costs nothing on an ordinary call: it runs only on intervals the cheap test already flagged, and
+on a profile that flags none it is never reached.
+
+.. versionadded:: 1.0.0
+"""
+
+
+N_LOCAL_CONFIRM = 33
+r"""int: Module-level constant
+
+Points used to re-sample one flagged probe interval in ``_profile_is_resolved`` (see
+:data:`LOCAL_JUMP_RATIO`).  32 sub-steps puts the smooth limit at :math:`1/32 \approx 0.03`,
+comfortably below :data:`LOCAL_JUMP_RATIO`, and resolves a feature down to
+:math:`1/(199 \times 32) \approx 1.6\times10^{-4}` of the trajectory -- the same scale as the
+probe refinement ceiling ``max_n_probe = 6400``, so the local test does not claim to see
+anything the caller's own refinement could not.
+
+.. versionadded:: 1.0.0
+"""
+
+
+MAX_LOCAL_CONFIRMATIONS = 8
+r"""int: Module-level constant
+
+At most this many flagged intervals are confirmed locally, taken in decreasing order of how
+much variation they carry.  A profile with hundreds of genuine jumps is found by the first one,
+and a bound is needed because the flagged set is unbounded in principle.
+
+.. versionadded:: 1.0.0
+"""
+
+
+HIDDEN_FEATURE_CONCENTRATION = 0.3
+r"""float: Module-level constant
+
+Threshold of :func:`find_hidden_features`, which looks for structure **below the scale any grid
+in this package samples on**.  This is the one exposure the adversarial validation could not
+close: a Gaussian narrower than the probe spacing is invisible to the hybrid detector, to the
+general ladder's slab grid and to the cumulative scan alike, so all three agree and all three
+are wrong -- silently, by up to 2.9e-02 against a requested 1e-3.
+
+The statistic is **concentration**, not size, and that choice is the whole design.  Within each
+interval of a reference grid, compare the total variation a much denser grid sees inside it with
+the change its two endpoints show; the excess is variation hidden between reference samples.
+Report the largest such excess as a fraction of the profile's total variation.
+
+A first attempt used the cruder ``TV_dense/TV_reference`` and was wrong: a sinusoid at exactly
+the probe spacing sends the denominator to zero and that ratio to :math:`10^{13}`, while the
+package answers such a profile to ~1e-11.  What separates the two is *where* the hidden
+variation sits.  An aliased sinusoid hides some in **every** interval, so its share of the total
+is ~1/n_ref; one narrow bump hides all of it in **one**, so its share is ~1.  The excess is
+summed over **adjacent pairs** of reference intervals, so that a feature landing on an interval
+boundary is not halved by the split.
+
+Measured over 67 profiles the package serves -- solar, multi-resonance, noisy, sinusoids at 1x,
+2x and 1/2x the probe spacing, 400 crossings, a declared step, 30 random Fourier sums, and 30
+Gaussian bumps of random width down to 1e-4 of the trajectory at random positions:
+
+======================================================== ==============
+population                                                concentration
+======================================================== ==============
+67 smooth/resolvable profiles                             max **0.060**
+                                                          p99 0.047
+======================================================== ==============
+
+and, over 60 random positions each, the detection rate for features in the band no grid here
+resolves:
+
+============ ================= ================= =================
+feature width detection at 0.2  detection at 0.3  detection at 0.5
+============ ================= ================= =================
+3e-5          0.70              **0.68**          0.55
+1e-5          0.90              **0.90**          0.90
+3e-6          0.82              **0.82**          0.82
+1e-6          0.73              **0.73**          0.73
+============ ================= ================= =================
+
+**0.3 gives zero false positives over all 67 smooth profiles** -- five times the measured
+ceiling -- at the best detection the margin allows; 0.2 buys two points of detection for half
+the margin, and 0.5 costs thirteen.
+
+The caller now varies the sampling density with the size of the request (see
+:data:`N_HIDDEN_FEATURE_SUBDIVISION`), so the ceiling was re-measured at **every** density the
+dispatcher can choose rather than only at the default: 0.0597 at 8 sub-steps, 0.0601 at 16,
+0.0602 at 32 -- **0 of 67 in all three**.  The statistic is a *fraction* of the total variation,
+which is why it barely moves: refining the dense grid adds the same variation to numerator and
+denominator.
+
+**This detects most of the class, not all of it, and the shortfall is structural.**  A feature
+of width 3e-5 is right at the edge of what ``max_n_probe = 6400`` can partially resolve, so its
+variation is partly visible to the reference grid and the statistic is diluted; a feature of
+width 1e-6 is far below the *dense* spacing
+(:math:`(l_1-l_0)/51192 \approx 2\times10^{-5}`), so whether a sample lands inside it is luck.
+Between those two limits detection is ~0.8-0.9.  Against a prior state of **zero** detection and
+a silent 2.9e-02 error, that is the improvement on offer; it is not a guarantee, and the
+docstring says so rather than implying one.
+
+**Why the reference grid is the ceiling and not the starting density.**  Against
+``n_probe0 = 200`` the same statistic flags widths of 1e-3 and 1e-4 too -- correctly, in that
+they *are* hidden at that density, and uselessly, in that the refinement resolves them.  Keying
+it to ``max_n_probe`` asks the question that matters: is there structure left that no amount of
+refinement will reach?
+
+.. versionadded:: 1.0.0
+"""
+
+
+N_HIDDEN_FEATURE_SUBDIVISION = 8
+r"""int: Module-level constant
+
+Sub-steps per reference interval in :func:`find_hidden_features`, so 51 192 samples of the
+profile in total.  Chosen on cost, because this runs on ordinary calls: the statistic is nearly
+independent of it (the separation is 4.7x at 2 sub-steps and 4.6x at 32), while the cost is not.
+
+============ ============== ===========
+sub-steps     dense samples  scan cost
+============ ============== ===========
+4             25 597         0.22 ms
+**8**         **51 193**     **0.37 ms**
+16            102 385        1.30 ms
+32            204 769        2.85 ms
+============ ============== ===========
+
+The jump past 8 is superlinear -- the arrays stop fitting in cache -- and 0.37 ms is about 3% of
+an ordinary 13 ms single-point call, where 2.85 ms would be 20% and fail the package's own 10%
+performance criterion.  What it costs in reach is the very narrowest features: the dense spacing
+is :math:`(l_1-l_0)/51192`, and detection of anything below that is a matter of whether a sample
+lands inside it (measured 0.73 at a width of 1e-6, against 0.90 at 1e-5).
+
+:mod:`magnus.oscprob` scales this with the number of requested points -- 8 below four points,
+16 below sixteen, 32 above -- because the scan runs **once per call** whatever the point count,
+so its share of the work falls as the request grows.  That holds it under about 7 % of the call
+at every size instead of spending 20 % of the cheapest one, and the false-positive rate was
+re-measured at each of those three densities (0 of 67 every time; see
+:data:`HIDDEN_FEATURE_CONCENTRATION`).
+
+Raise it if you have reason to think the profile hides something finer; the scan is
+:func:`find_hidden_features` and takes ``n_sub`` directly.
+
+.. versionadded:: 1.0.0
+"""
+
+
+def _variation_steps(values: np.ndarray) -> np.ndarray:
+    r"""Magnitude of the change between consecutive samples, for a scalar or matrix profile.
+
+    .. versionadded:: 1.0.0
+    """
+    diffs = np.diff(np.asarray(values), axis=0)
+    if diffs.ndim == 1:
+        return np.abs(diffs)
+    return np.max(np.abs(diffs), axis=tuple(range(1, diffs.ndim)))
+
+
+def find_hidden_features(profile: Callable, l0: float, l1: float,
+    n_ref: Optional[int] = 6400, n_sub: Optional[int] = None) -> Dict:
+    r"""Looks for structure too narrow for any grid this package lays down to sample.
+
+    See :data:`HIDDEN_FEATURE_CONCENTRATION` for the statistic, why it is a *concentration*
+    rather than a size, and the measured separation.
+
+    **Pass the scalar potential when there is one.**  For the separable Hamiltonians this package
+    builds, :math:`H(l) = h_\mathrm{vac}/E + V_{CC}(l)\,P_{ee}` is affine in :math:`V_{CC}`, so
+    every difference is :math:`|\Delta V_{CC}|` times a constant and the statistic is
+    **identical** either way -- verified bit-for-bit at d = 2, 3 and 5.  It is also 18x cheaper
+    (2.6 ms against 48 ms), because sampling a scalar avoids allocating a stack of
+    :math:`2\times10^5` matrices.  This is a free choice, not an approximation.
+
+    Cost is a single vectorized evaluation of ``profile`` and two array passes; no
+    eigendecomposition.  It depends on the profile and the interval but **not** on energy, so a
+    caller scanning many energies or baselines should run it once, not once per point.
+
+    .. versionadded:: 1.0.0
+
+    Parameters
+    ----------
+    profile : Callable
+        The position-dependent part of the problem: either the scalar potential (preferred) or
+        ``H_func`` itself.  Must accept an array of positions.
+    l0, l1 : float
+        Interval to scan.
+    n_ref : int, optional
+        Reference grid, which should be the finest grid the caller's machinery can reach -- the
+        hybrid strategy's ``max_n_probe``. Default: 6400.
+    n_sub : int, optional
+        Sub-steps per reference interval. Default: :data:`N_HIDDEN_FEATURE_SUBDIVISION`.
+
+    Returns
+    -------
+    dict
+        ``'concentration'`` (the statistic), ``'hidden'`` (whether it exceeds
+        :data:`HIDDEN_FEATURE_CONCENTRATION`), ``'l_lo'``/``'l_hi'`` (the reference interval
+        carrying the excess) and ``'l_centre'``.  On a constant profile, concentration 0.0.
+    """
+    n_sub = N_HIDDEN_FEATURE_SUBDIVISION if n_sub is None else n_sub
+    quiet = {'concentration': 0.0, 'hidden': False,
+             'l_lo': float(l0), 'l_hi': float(l1), 'l_centre': 0.5*(float(l0) + float(l1))}
+    if (n_ref < 2) or (n_sub < 2) or (l1 == l0):
+        return quiet
+
+    dense = np.linspace(float(l0), float(l1), (n_ref - 1)*n_sub + 1)
+    try:
+        values = np.asarray(profile(dense))
+    except Exception:                      # noqa: BLE001 -- any failure means "not vectorized"
+        return quiet
+    # This is a diagnostic; it must never break a call it was only meant to inspect.  A profile
+    # that returns a bare scalar for array input indexed out of range here, and one containing
+    # inf or nan produced a nan "concentration" that compared False by luck rather than by
+    # design.  Both are now quiet refusals: a profile whose variation is not a finite number is
+    # one this test has nothing to say about.
+    if (values.ndim == 0) or (values.shape[0] != len(dense)):
+        return quiet
+    if not np.all(np.isfinite(values)):
+        return quiet
+
+    steps = _variation_steps(values)
+    per_interval = steps.reshape(n_ref - 1, n_sub).sum(axis=1)
+    endpoints = _variation_steps(values[::n_sub])
+    total = float(per_interval.sum())
+    scale = float(np.max(np.abs(values)))
+    if total <= 1.0e-12*max(scale, 1.0e-300):
+        return quiet
+
+    # Summed over ADJACENT PAIRS of reference intervals.  A feature that happens to land on an
+    # interval boundary splits its variation between the two, and the single-interval maximum
+    # then halves -- measured as a drop in detection from 0.90 to 0.62 at a width of 1e-5.  A
+    # spread-out profile gains only the same factor of two, from ~1/n_ref to ~2/n_ref, so the
+    # separation is untouched.
+    hidden = np.maximum(per_interval - endpoints, 0.0)
+    ref = np.linspace(float(l0), float(l1), n_ref)
+    if len(hidden) > 1:
+        paired = hidden[:-1] + hidden[1:]
+        i = int(np.argmax(paired))
+        concentration, l_lo, l_hi = float(paired[i]/total), ref[i], ref[i + 2]
+    else:
+        i = int(np.argmax(hidden))
+        concentration, l_lo, l_hi = float(hidden[i]/total), ref[i], ref[i + 1]
+    return {'concentration': concentration,
+            'hidden': bool(concentration > HIDDEN_FEATURE_CONCENTRATION),
+            'l_lo': float(l_lo), 'l_hi': float(l_hi),
+            'l_centre': float(0.5*(l_lo + l_hi))}
+
+
+def oscillation_sampling(H_func: Callable, l0: float, l1: float,
+    baselines: Optional[np.ndarray] = None, n_probe: Optional[int] = 8) -> Dict:
+    r"""How finely does a scan sample the fastest oscillation on its trajectory?
+
+    A long trajectory carries an enormous oscillation phase, and a scan over it usually samples
+    that phase far too coarsely to represent it -- so the returned array is a set of correct
+    values that must not be read as a curve.  For a solar or supernova problem the observable is
+    normally the **phase-averaged** probability anyway; see :mod:`magnus.avgprob`, whose
+    :func:`magnus.avgprob.coherence_report` decides which pairs of eigenvalues have decohered,
+    and which are in neither limit.
+
+    **This reports; it never warns.**  A Nyquist criterion is objectively correct and fires on
+    essentially everything: measured over the physical profile families, a scan would need 4400
+    points on a solar trajectory and **73 000** on a supernova ray to sample the fastest
+    oscillation twice per cycle, so 44 of 45 realistic scan sizes are formally aliased
+    (``docs/dev/adversarial_batteries/alias_fp.py``).  A warning that fires on 98 % of calls is
+    noise however correct each firing is, so the information is offered here and in
+    ``strategy_info`` instead, and the caller decides.
+
+    Cost: ``n_probe`` evaluations of ``H_func`` and one ``eigvalsh`` each.  Measured against the
+    scan it describes: **5.5 % of the cheapest scan** in the physical population (a 13 ms Earth
+    chord), 1.8 % of a 21 ms one, and under 0.1 % of anything substantial
+    (``docs/dev/adversarial_batteries/alias_cost.py``).  Callers who do not ask for
+    ``strategy_info`` pay **nothing** -- ``oscprob`` only runs this when a report was requested.  Eight samples are enough: the fastest
+    oscillation comes from the **largest** eigenvalue spread, which tracks the matter potential
+    and varies smoothly, and 8 samples agree with 4096 to 2 % over every family measured.  (The
+    *smallest* gap would need far denser sampling, because it has a sharp minimum at an MSW
+    resonance -- but that sets the slowest oscillation, not the fastest, and is not what aliases.)
+
+    .. versionadded:: 1.0.0
+
+    Parameters
+    ----------
+    H_func : Callable
+        The Hamiltonian as a function of position, ``H(l)``, at the energy of interest [eV].
+    l0, l1 : float
+        Interval the scan traverses.
+    baselines : np.ndarray, optional
+        The requested baselines.  When given, the spacing and the aliasing verdict are computed
+        from them; when omitted, only the trajectory-level quantities are returned.
+    n_probe : int, optional
+        Samples along the trajectory. Default: 8.
+
+    Returns
+    -------
+    dict
+        ``'oscillation_length'`` (shortest on the trajectory [eV^-1]),
+        ``'cycles_over_trajectory'``, ``'nyquist_points'`` (points a scan would need to sample
+        the fastest oscillation twice per cycle), and, when ``baselines`` is given,
+        ``'spacing'``, ``'cycles_per_step'`` and ``'aliased'``.  Empty dict if the spectrum is
+        degenerate or the interval has zero length.
+    """
+    l0, l1 = float(l0), float(l1)
+    if (l1 == l0) or (n_probe < 1):
+        return {}
+    spread = 0.0
+    for l in np.linspace(l0, l1, int(n_probe)):
+        try:
+            lam = np.linalg.eigvalsh(np.asarray(H_func(l)))
+        except Exception:                  # noqa: BLE001 -- a diagnostic must never break a call
+            return {}
+        if not np.all(np.isfinite(lam)):
+            return {}
+        spread = max(spread, float(np.max(lam) - np.min(lam)))
+    if spread <= 0.0:
+        return {}
+
+    osc = 2.0*np.pi/spread
+    span = abs(l1 - l0)
+    out = {'oscillation_length': osc,
+           'cycles_over_trajectory': span/osc,
+           'nyquist_points': int(np.ceil(2.0*span/osc)) + 1}
+    if baselines is not None:
+        Ls = np.atleast_1d(np.asarray(baselines, dtype=float))
+        if Ls.size > 1:
+            spacing = float(np.max(np.diff(np.sort(Ls))))
+            out.update(spacing=spacing, cycles_per_step=spacing/osc,
+                       aliased=bool(spacing > 0.5*osc))
+    return out
+
+
+THRESHOLD0_PROVENANCE = 0.1
+r"""float: Module-level constant
+
+The value :func:`hybrid_propagator` starts its adiabaticity-threshold ladder at, recorded here
+with its measurement because the measurement is what stopped it being changed.
+
+**What was measured.**  Over 3 profiles x d = 2, 3 x three requested tolerances
+(``docs/dev/adversarial_batteries/constants_audit.py``), sweeping ``threshold0`` from 1 down to
+1e-3 at a **fixed baseline**: accuracy is identical at every value in 16 of 18 rows, and at
+``rtol <= 1e-3`` a lower start is up to **6.5x cheaper** (1.57 s to 0.24 s on a solar profile at
+``rtol = 1e-5``).  That is because certifying an empty window list additionally requires
+:math:`\gamma` to fit the tolerance (see :data:`GAMMA_TO_ERROR`), so the ladder reaches whatever
+threshold the request needs regardless of where it starts; the start only decides how many
+iterations that takes, and each one re-runs the detector at doubled ``n_probe`` and the transport
+at doubled ``n_points``.  At ``rtol = 1e-2`` the sign flips -- there no window is needed at all,
+so starting low opens one that is not, and 0.21 s becomes 0.95 s at d = 3.
+
+**So the right value looked like a rule rather than a constant**, and one was built: start at
+:math:`(\mathrm{atol} + \mathrm{rtol})/\texttt{GAMMA\_TO\_ERROR}`, the exact :math:`\gamma`
+at which an empty window list stops being certifiable, clipped to ``[min_threshold, 0.1]``.  At
+the default tolerance that is 2.4e-03 rather than 0.1.
+
+**It was then rejected, on evidence the sweep above could not produce.**  Scored against
+``solve_ivp`` on the package's bit-identity workloads, which include an **energy scan** the
+fixed-baseline sweep did not:
+
+=================================== ============ ============ ==============
+workload                             ``t0=0.1``   the rule     verdict
+=================================== ============ ============ ==============
+single point, solar                  1.624e-06    1.184e-10    13711x better
+sub-threshold scan, N = 8            3.220e-05    3.814e-05    1.2x worse
+**energy scan at fixed baseline**    2.509e-05    **4.954e-04** **20x worse**
+=================================== ============ ============ ==============
+
+All three stay inside the requested 1e-3, but 4.95e-04 spends half the budget where 2.5e-05
+spent a fortieth.  The mechanism is visible once looked for: starting low opens a window on the
+first iteration, and ``windows_next or windows_prev`` then short-circuits the :math:`\gamma`
+check, so agreement can be accepted at a **coarser** transport grid than the old start would
+have forced.  The saving and the loss are the same effect seen from two sides.
+
+**The lesson is the one this package keeps re-learning**: the sweep that justified the rule ran
+at a fixed baseline, and the row that refuted it was an energy scan.  A population that does not
+contain the workload you are about to change is not evidence about it -- the same shape of
+mistake that made :data:`GAMMA_TO_ERROR` wrong twice.  0.1 stays until a population that spans
+scans as well as points says otherwise.
 
 .. versionadded:: 1.0.0
 """
@@ -271,8 +685,25 @@ def _profile_is_resolved(H_func: Callable, l0: float, l1: float, n_probe: int) -
     if not np.any(live):
         return True
 
-    return bool(np.max(np.maximum(first[live], second[live])/total[live])
-                <= RESOLUTION_RATIO)
+    ratio = np.where(live, np.maximum(first, second)/np.where(total > 0.0, total, 1.0), 0.0)
+    flagged = np.where(ratio > RESOLUTION_RATIO)[0]
+    if flagged.size == 0:
+        return True
+
+    # A concentrated interval is a candidate, not a verdict.  The one interval containing a
+    # smooth turning point is genuinely asymmetric -- one half nearly cancels -- and since the
+    # statistic above is a maximum over intervals, that single interval decides for the whole
+    # profile.  Refining the probe grid re-draws where the extremum falls inside its interval
+    # rather than removing the effect, so the caller's coarse-then-fine protocol cannot separate
+    # the two either.  Re-sampling the flagged interval *alone* can: a jump is not diluted by
+    # refinement and one step still carries all of it, while a smooth feature spreads over every
+    # step.  See LOCAL_JUMP_RATIO for the measured separation.
+    for i in flagged[np.argsort(-total[flagged])][:MAX_LOCAL_CONFIRMATIONS]:
+        xs = np.linspace(ls[i], ls[i + 1], N_LOCAL_CONFIRM)
+        steps = np.max(np.abs(np.diff(_H_on_grid(H_func, xs), axis=0)), axis=(1, 2))
+        if steps.max() > LOCAL_JUMP_RATIO*total[i]:
+            return False
+    return True
 
 
 def _eigs_along(H_func: Callable, ls: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
@@ -462,6 +893,32 @@ def find_resonance_candidates(H_func: Callable, l0: float, l1: float,
         Number of positions on the initial scan grid used to bracket sign changes. Default: 200.
     fd_step_frac : float, optional
         Finite-difference step for ``_dH_dl``, as a fraction of ``l1 - l0``. Default: 1e-6.
+
+        **Provenance.**  A central difference trades truncation error (:math:`\sim h^2`) against
+        subtractive cancellation (:math:`\sim \epsilon/h`), so there is an optimum, and this
+        default had never been checked against it.  Measured
+        (``docs/dev/adversarial_batteries/constants_audit.py``) against the **analytic**
+        :math:`dH/dl` -- available because :math:`H = h_\mathrm{vac}/E + C\,n_e(l)\,P_{ee}` and
+        the profiles used have closed-form :math:`n_e'`, so the reference carries no error of
+        its own -- over d = 2, 3 and 10-50 MeV, as a fraction of the largest :math:`|dH/dl|` on
+        the path:
+
+        ========================= ============ ==================== =========================
+        profile                    optimum      error at **1e-6**    error at the optimum
+        ========================= ============ ==================== =========================
+        solar exponential          1e-5         6.8e-11              1.9e-11
+        sinusoid, period span/7    1e-6         3.4e-10              3.4e-10
+        Gaussian bump, w = 1e-2    1e-7 - 1e-8  2.5e-09              2.6e-11
+        ========================= ============ ==================== =========================
+
+        **The optimum is not a single number** -- it moves with the profile's shortest length
+        scale, which is what the theory predicts.  But the curve is flat enough that this does
+        not matter: anywhere in :math:`10^{-8}` to :math:`10^{-5}` the error stays below
+        :math:`3\times10^{-9}` relative on every profile measured, which is six orders below
+        anything that could move a probability at the tolerances this package works to.  Outside
+        that band it degrades fast in both directions -- 1.6e-04 at :math:`10^{-12}`
+        (cancellation), 0.23 at :math:`10^{-2}` (truncation) -- so the band, not the value, is
+        the thing to preserve.
     info : dict, optional
         If given, filled in place with the probe-grid quantities this function had to compute
         anyway -- ``'ls'`` (the grid), ``'lam'``, ``'W'`` (eigenvalues and eigenvectors, shapes
@@ -706,6 +1163,21 @@ def _local_evolution_operator(H_func: Callable, l_b: float, l_c: float, magnus_e
     r"""Computes the (exact, not adiabatic) evolution operator across a single non-adiabatic
     window, via the package's own Magnus kernel, doubling the slab count until convergence.
 
+    ``patch_atol`` **provenance.**  Swept over 1e-5 to 1e-9 across 18 workloads
+    (``constants_audit2.py``).  The worst error is 4.49e-04 at 1e-5, 1e-6 and the 1e-7 default,
+    and 3.04e-04 at 1e-8 -- so the default has better than an order of magnitude of margin in
+    the loose direction.  At **1e-9 it breaks**, and instructively: most rows improve sharply
+    (a multi-resonance baseline scan goes 3.04e-04 to 1.15e-09) but one energy scan goes to
+    **2.08e-02**, twenty times outside tolerance.  The mechanism is not this constant -- at 1e-9
+    the patch cannot converge inside ``max_n_slabs``, so the hybrid strategy declines, and the
+    energy-batched separable engine answers instead and is that much worse on that profile.  It
+    warns (``MagnusConvergenceWarning``), so it is loud rather than silent.  What the row really
+    measures is **fallback quality**, and it is recorded here because that is where it was
+    found; the default is comfortably clear of it.
+
+    ``n_slabs0`` **provenance.**  Swept over 100 to 1600 on the same workloads: worst error
+    4.49e-04 at every value, since this only sets where the doubling starts.
+
     ``max_n_slabs`` is a **statement about when this method stops applying**, not a performance
     knob.  A patch is supposed to be a short, local repair of a narrow region where adiabatic
     transport fails; if it needs more slabs than a plain Magnus integration of the entire
@@ -800,7 +1272,8 @@ def hybrid_propagator(H_func: Callable, l0: float, l1: float, rtol: Optional[flo
     min_threshold: Optional[float] = 1.e-6, n_probe0: Optional[int] = 200,
     max_n_probe: Optional[int] = 6400, n_points0: Optional[int] = 201,
     max_n_points: Optional[int] = 12864, fd_step_frac: Optional[float] = 1.e-6,
-    max_iters: Optional[int] = 12) -> Tuple[np.ndarray, List[Tuple[float, float]], bool]:
+    max_iters: Optional[int] = 12,
+    info: Optional[Dict] = None) -> Tuple[np.ndarray, List[Tuple[float, float]], bool]:
     r"""Computes the evolution operator via adiabatic transport, with a Magnus patch at every
     non-adiabatic window, self-certified against successive refinement of every internal
     tolerance knob.
@@ -856,22 +1329,106 @@ def hybrid_propagator(H_func: Callable, l0: float, l1: float, rtol: Optional[flo
         Integration method used for the local patch ('gl', 'trapezoid', or 'simpson').
         Default: 'gl'.
     threshold0 : float, optional
-        Starting adiabaticity threshold. Default: 0.1.
+        Starting adiabaticity threshold. Default: 0.1.  See :data:`THRESHOLD0_PROVENANCE` for
+        what it was measured to do, and for why a tolerance-derived rule was built, tested and
+        then **rejected**.
+
+        **Provenance, and a reframing.**  This constant used to decide *correctness*: if
+        :math:`\gamma` never crossed it, no window opened, successive refinements agreed with
+        each other, and the answer was certified while wrong by up to 1.8e-02.  Since
+        certification of an empty window list additionally requires :data:`GAMMA_TO_ERROR` *
+        :math:`\gamma_\max` to fit the tolerance, that failure mode is closed and **this is now
+        a cost knob**: it sets where the ``threshold /= 3`` ladder starts, not whether the
+        result may be believed.
+
+        Measured (``docs/dev/adversarial_batteries/constants_audit.py``) over 3 profiles x
+        d = 2, 3 x three requested tolerances, sweeping ``threshold0`` from 1 down to 1e-3:
+
+        * **Accuracy is identical at every value** in 16 of 18 rows.  The ladder reaches
+          whatever threshold the tolerance requires regardless of where it starts.
+        * **At ``rtol <= 1e-3``, lower is monotonically cheaper** -- up to **6.5x** (1.57 s to
+          0.24 s on a solar profile at ``rtol = 1e-5``) -- because every step of the ladder
+          re-runs the detector at doubled ``n_probe`` and the transport at doubled
+          ``n_points``.  Starting low skips those iterations.
+        * **At ``rtol = 1e-2`` the sign flips.**  There the tolerance does not require a window
+          at all, so a low threshold opens one that is not needed: 0.21 s becomes 0.95 s at
+          d = 3, buying an accuracy improvement (2.67e-03 to 1.44e-09) nobody asked for.
+
+        So the brief's hypothesis is confirmed: **the right value is a rule, not a constant** --
+        low when the requested tolerance is tight, high when it is loose.  0.1 is not the
+        optimum at the default ``rtol = 1e-3``, where 0.01 is 2-3x cheaper at identical
+        accuracy.  **It is deliberately left unchanged**: three profiles at one energy is
+        precisely the size of population that made :data:`GAMMA_TO_ERROR` wrong twice, and
+        retuning a default on it would repeat that mistake rather than learn from it.  The
+        measurement is recorded here so the next person starts from evidence.
     min_threshold : float, optional
         Floor below which the threshold is not tightened further. Default: 1e-6.
+
+        **Provenance.**  Swept over 1e-4 to 1e-8 across 18 ordinary workloads: the worst error
+        is 4.49e-04 at every value, because the ladder stops long before reaching the floor.
+        Even at ``rtol = atol = 1e-12`` on a multi-resonance profile it converges in 7
+        iterations with a window open, and every value from 1e-4 to 1e-10 gives an identical
+        answer in identical time.
+
+        **The regime this constant governs**, found by construction rather than assumed: the
+        floor is reached only when :math:`\gamma_\max` is *below* it -- so no window can ever
+        open, however far the threshold falls -- **and** the requested tolerance is tighter than
+        ``GAMMA_TO_ERROR`` :math:`\times \gamma_\max`, so the :math:`\gamma` rule cannot
+        certify either.  An almost-flat profile
+        (:math:`\gamma_\max = 3\times10^{-7}`) at ``rtol = atol = 1e-9`` satisfies both:
+
+        ================= ========== ======== ========== ======
+        ``min_threshold`` error      windows  iterations time
+        ================= ========== ======== ========== ======
+        1e-4              8.49e-13   0        9          3.3 s
+        **1e-6**          8.49e-13   0        13         7.4 s
+        1e-8              3.24e-12   1        13         7.7 s
+        1e-10             3.24e-12   1        13         7.9 s
+        ================= ========== ======== ========== ======
+
+        So it does change behaviour there -- below :math:`\gamma_\max` a window opens -- but
+        **not usefully**: the result is ``certified=False`` at every value, and the error is
+        three orders inside the requested tolerance either way, with the window costing a
+        factor of 2.4 in time and making the answer very slightly *worse*.  The floor decides
+        how much work is done in a regime where the answer is already good and known to be
+        uncertified; it does not decide correctness anywhere measured.
     n_probe0 : int, optional
         Starting number of positions used to locate resonance candidates. Default: 200.
+
+        **Provenance.**  Swept over 50, 100, 200, 400, 800 across 18 workloads spanning single
+        points, baseline scans **and energy scans**, 3 profile families, d = 2 and 3
+        (``docs/dev/adversarial_batteries/constants_audit2.py``).  Worst error over all
+        workloads: 4.98e-04, 5.22e-04, **4.49e-04**, 3.38e-04, 3.36e-04 -- flat within a factor
+        of 1.6 and inside the requested 1e-3 everywhere.  Not load-bearing: the refinement
+        doubles it, so the starting value only shifts which iteration finds a given feature.
     max_n_probe : int, optional
-        Ceiling on the probe grid density. Default: 6400.
+        Ceiling on the probe grid density. Default: 6400.  A cost ceiling rather than a
+        calibration -- reaching it is reported rather than absorbed -- and it also sets what
+        :func:`find_hidden_features` treats as resolvable.
     n_points0 : int, optional
         Starting number of positions used for adiabatic-transport quadrature. Default: 201.
+
+        **Provenance.**  Swept over 51, 101, 201, 401, 801 on the same 18 workloads: the worst
+        error is **4.49e-04 at every value, identical to three digits**.  The refinement doubles
+        this too, so the starting value is invisible in the answer; it buys only iterations.
     max_n_points : int, optional
-        Ceiling on the adiabatic-transport grid density. Default: 12864.
+        Ceiling on the adiabatic-transport grid density. Default: 12864.  A cost ceiling, as
+        ``max_n_probe``.
     fd_step_frac : float, optional
         Finite-difference step for the Hellmann-Feynman diagnostics, as a fraction of
         ``l1 - l0``. Default: 1e-6.
     max_iters : int, optional
         Maximum number of refinement iterations. Default: 12.
+    info : dict, optional
+        If given, filled in place with why this call ended as it did, following the same
+        out-parameter convention as ``convergence_info`` in :func:`magnus.oscprob.osc_prob`.
+        Keys: ``'resolved'`` (whether ``H_func`` passed the probe-scale resolution test -- see
+        ``_profile_is_resolved``), ``'gamma_max'``, ``'n_windows'``, ``'iterations'``, and
+        ``'patches_converged'``.  ``certified=False`` on its own does not say *which* of these
+        failed, and the cures are different: an unresolved profile wants ``t_breakpoints``, an
+        exhausted refinement wants a looser tolerance.  :mod:`magnus.oscprob` uses
+        ``'resolved'`` to raise :class:`magnus.oscprob.UnmarkedDiscontinuityWarning` on the
+        hybrid path instead of declining in silence. Default: None.
 
     Returns
     -------
@@ -917,9 +1474,16 @@ def hybrid_propagator(H_func: Callable, l0: float, l1: float, rtol: Optional[flo
     resolved = (_profile_is_resolved(H_func, l0, l1, n_probe0)
                 or _profile_is_resolved(H_func, l0, l1, max_n_probe))
 
+    def report(n_windows: int, gamma_max: float, iterations: int, patches_ok: bool):
+        if info is not None:
+            info.update(resolved=bool(resolved), gamma_max=float(gamma_max),
+                        n_windows=int(n_windows), iterations=int(iterations),
+                        patches_converged=bool(patches_ok))
+
     U_prev, windows_prev, ok_prev, gamma_prev = _hybrid_propagator_once(H_func, l0, l1,
         threshold, n_probe, n_points, fd_step_frac, magnus_exp_order, integration_method)
     if not ok_prev or not resolved:
+        report(len(windows_prev), gamma_prev, 1, ok_prev)
         return U_prev, windows_prev, False
 
     def adiabatic_is_good_enough(gamma_max: float) -> bool:
@@ -934,7 +1498,9 @@ def hybrid_propagator(H_func: Callable, l0: float, l1: float, rtol: Optional[flo
         """
         return bool(GAMMA_TO_ERROR*gamma_max <= atol + rtol)
 
+    iterations = 1
     for _ in range(max_iters):
+        iterations += 1
         knobs_prev = (threshold, n_probe, n_points)
         threshold = max(threshold / 3.0, min_threshold)
         n_probe = min(n_probe * 2, max_n_probe)
@@ -948,6 +1514,7 @@ def hybrid_propagator(H_func: Callable, l0: float, l1: float, rtol: Optional[flo
         U_next, windows_next, ok_next, gamma_next = _hybrid_propagator_once(H_func, l0, l1,
             threshold, n_probe, n_points, fd_step_frac, magnus_exp_order, integration_method)
         if not ok_next:
+            report(len(windows_next), gamma_next, iterations, False)
             return U_next, windows_next, False
         if np.max(np.abs(U_next - U_prev)) <= atol + rtol * np.max(np.abs(U_prev)):
             # Agreement is necessary but not sufficient. If neither result patched anything,
@@ -958,14 +1525,17 @@ def hybrid_propagator(H_func: Callable, l0: float, l1: float, rtol: Optional[flo
             # threshold is compared against.
             if windows_next or windows_prev or adiabatic_is_good_enough(
                     max(gamma_next, gamma_prev)):
+                report(len(windows_next), max(gamma_next, gamma_prev), iterations, True)
                 return U_next, windows_next, True
         U_prev, windows_prev, ok_prev, gamma_prev = (U_next, windows_next, ok_next, gamma_next)
 
+    report(len(windows_prev), gamma_prev, iterations, ok_prev)
     return U_prev, windows_prev, False
 
 
 __all__ = [
     'adiabatic_propagator',
+    'find_hidden_features',
     'find_resonance_candidates',
     'find_nonadiabatic_windows',
     'hybrid_propagator',
