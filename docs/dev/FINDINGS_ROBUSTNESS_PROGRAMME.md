@@ -983,16 +983,16 @@ Two honest qualifications:
 
 | | criterion | result |
 |---|---|---|
-| **P1** | no silent miss on any physical family | **FAILED — 2 of 195**, both attributed to §13.5, one reaching 5 MeV on a real solar model |
+| **P1** | no silent miss on any physical family | **2 of 195 on the instantaneous probability** — but see §13.17–13.20: on the *observable* the solar case is phase (2.6e-05 averaged) and the shock case is 9.8e-04, inside tolerance. **No silent miss survives on the observable.** |
 | **P2** | `find_hidden_features` stays at 0 false positives on families with nothing to hide | **PASSED — 0 of 17** |
 | **P3** | detection rate on families that genuinely hide something | **0 of 2** — structural (§13.7), not a threshold |
-| **P4** | the 25 → 8 seam still holds on physical profiles | **NOT RUN** — see `adversarial_batteries/RUN_P4.md` |
+| **P4** | the 25 → 8 seam still holds on physical profiles | **PASSED** — at N ≥ 8 the cumulative scan is cheaper on every profile, worst ratio 0.40×, median 0.03× (§13.15) |
 
-P4 is the one deliverable of this tranche that has not been measured. Its first round returned a
-control drift of 0.99×, so the method is sound and only the run is outstanding; the command and
-the reasoning are in `RUN_P4.md`. **Nothing in §13.11 should be read as an argument for moving
-the seam until that number exists** — the case for reaching the cumulative scan at N = 1 rests
-entirely on what it costs there, and that is precisely what has not been measured.
+**P4 was run** after this table was first written; `RUN_P4.md`, which carried the pending command,
+has been deleted. Three alternating rounds with the control at 1.00× / 1.01× / 1.06×: the seam
+holds, and the cumulative scan turns out to be cheaper than the hybrid path at **N = 1** as well
+(median 0.15×). Acting on that is a separate question, and §13.15 records why the obvious change
+was reverted.
 
 ### 13.13 What this tranche establishes, in one paragraph
 
@@ -1008,10 +1008,18 @@ half-fixed — eight is a threshold on point count, and a single point cannot cr
 
 ### 13.14 Still open after this tranche
 
-* **P4** — the one unmeasured pass criterion (`RUN_P4.md`).
+* ~~**P4** — the one unmeasured pass criterion.~~ **Run**; the seam holds (§13.15).
 * **The single-point half of the dispatch-order defect.** 27 of the 31 workloads where `'auto'`
-  is more than 10× worse than an available engine are single points. Whether the seam should
-  reach them depends on P4's N = 1 row.
+  is more than 10× worse than an available engine are single points, and P4 shows the cumulative
+  scan is cheaper there too (median 0.15× at N = 1). §13.15 records why the obvious change was
+  reverted and what the surgical version would be. **Its urgency dropped sharply** once §13.17
+  withdrew the solar case: what remains is one marginal configuration (9.8e-04 on the observable),
+  not two silent misses.
+* **A related routing hole was found and fixed after this tranche** (PR #29). The hybrid path
+  stood aside for the cumulative scan even when the caller had disabled it with
+  `cumulative=False`, so the request fell through to the general ladder — 1.157e-05 → 2.966e-03
+  on crossing the seam, a factor of 256. `_cumulative_scan_would_serve`'s fall-through argument
+  had assumed the engine it yields to is always available.
 * **Nothing detects broadband sub-grid roughness.** The turbulence family defeats both
   instruments (§13.7, §13.8). A statistic that *would* see it is nearly free —
   `find_hidden_features` already computes total variation on both the fine and the reference

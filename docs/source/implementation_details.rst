@@ -320,6 +320,28 @@ features far below the dense sampling, and it **reports rather than cures** -- i
 position and the ``t_breakpoints`` to pass, which is a partial fix (measured 3.9e-03 to
 8.5e-05), not a complete one.
 
+**The second irreducible limit: broadband roughness.** The sub-probe scan is a
+*concentration* statistic, and that is exactly what makes it blind to structure spread over
+every scale rather than piled into one place. Measured on Kolmogorov density fluctuations built
+the way the supernova literature builds them -- a :math:`k^{-5/3}` spectrum with a 40-50 dB
+dynamic range, so there is power below every grid this package lays down -- the finest reachable
+grid sees only a third of the profile's total variation, and **neither structural test notices**:
+:func:`magnus.adiabatic.find_hidden_features` returns a concentration of 0.002 against its 0.30
+threshold, and ``_profile_is_resolved`` declares the profile resolved on 144 of 144
+configurations. A power law spreads its sub-grid variation evenly over all 6400 reference
+intervals, so each carries about :math:`1/6400` of it however large the total is; no threshold
+reaches that, in the same way that no threshold reaches a feature which was never sampled.
+
+What saves the answer is unrelated machinery: the errors such a profile produces (up to
+1.4e-02 instantaneous at 45 MeV) are caught by the **convergence** checks, which watch the
+refinement ladder rather than the profile. So the outcome is correct -- the caller is warned --
+but by accident of mechanism rather than because anything recognised the profile. If you are
+propagating through a turbulent or noisy medium, treat the structural diagnostics as silent by
+construction and rely on the tolerance machinery, or supply ``t_breakpoints`` yourself. A cheap
+statistic that *would* see this is described in ``docs/dev/FINDINGS_ROBUSTNESS_PROGRAMME.md``
+§13.14; it is not shipped because it would need its own false-positive measurement first, and
+the errors it would flag are already reported.
+
 **The one irreducible limit: a feature narrower than the probe spacing.** A Gaussian
 resonance of width :math:`10^{-5}` of the trajectory is not sampled by the probe grid
 (spacing :math:`5\times10^{-3}`), nor by its refinement ceiling
