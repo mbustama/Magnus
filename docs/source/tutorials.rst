@@ -1,8 +1,8 @@
 Tutorial Notebooks
 ===================
 
-The ``notebooks/`` directory in the repository contains twelve runnable
-Jupyter notebooks, numbered ``01``-``12`` in the order we'd suggest reading
+The ``notebooks/`` directory in the repository contains fourteen runnable
+Jupyter notebooks, numbered ``01``-``14`` in the order we'd suggest reading
 them.
 
 .. note::
@@ -66,3 +66,11 @@ them.
      - `magnus_adiabatic_hybrid_strategy.ipynb <https://github.com/mbustama/Magnus/blob/main/notebooks/12_magnus_adiabatic_hybrid_strategy.ipynb>`_
      - Live comparison of ``strategy='auto'``/``'hybrid'``/``'magnus'`` for 2-5 flavors, standard oscillations and an engineered BSM (NSI) resonance, each cross-checked against ``solve_ivp`` in both runtime and accuracy. Reproduces the validation in :doc:`adiabatic_strategy`.
      - You want to see the extreme-accumulated-phase problem (and its fix) reproduced live, or need a template for benchmarking your own Hamiltonian.
+   * - 13
+     - `magnus_tabulated_solar_model.ipynb <https://github.com/mbustama/Magnus/blob/main/notebooks/13_magnus_tabulated_solar_model.ipynb>`_
+     - Loads the real BS2005-AGS,OP solar model from a table and computes oscillation probabilities from it. Shows that an instantaneous error outside the requested tolerance can be almost entirely *phase*, which no observable resolves, and how ``strategy_info['sampling']`` and :mod:`magnus.avgprob` tell you which regime you are in.
+     - You are working from a tabulated stellar model, or you have an error you are not sure matters.
+   * - 14
+     - `magnus_supernova_shock.ipynb <https://github.com/mbustama/Magnus/blob/main/notebooks/14_magnus_supernova_shock.ipynb>`_
+     - The opposite case: a supernova shock front (Fogli et al. profile, Kneller et al. radii) changes the adiabaticity of the level crossing, so the error survives averaging at 0.21 in probability -- and the package warns every time. Includes the ``t_breakpoints`` cure and where it does *not* apply.
+     - You are propagating through a shock, a simulation snapshot, or any profile with a near-discontinuity.
