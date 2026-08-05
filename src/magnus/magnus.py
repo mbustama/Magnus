@@ -1146,6 +1146,129 @@ def gl_nodes(order: int) -> np.ndarray:
     return _gl_nodes(order)
 
 
+USE_PALINDROME = True
+r"""bool: Module-level switch.
+
+Whether a slab chain whose profile reads the same from either end may be built by evaluating
+:math:`A` on its first half only, the mirrored half following by reversal.  True by default:
+every Earth chord qualifies, because a chord through a spherically symmetric Earth meets every
+radius twice.
+
+Set it to ``False`` to evaluate every slab in full.  **This is not a correctness switch**, but
+neither is it a no-op: the two routes agree to a few times 1e-15 rather than bitwise, because the
+mirrored slab's nodes are reached as ``(L - b) + h*s`` on one route and ``a + h*s`` on the other,
+which are different floating-point expressions for the same real number.  Set it to False to ask
+for the plain per-slab evaluation when a comparison needs one.
+
+The saving is halved evaluations of the caller's Hamiltonian, so it is worth most where that
+Hamiltonian is expensive: with ``f`` the share of slab time spent inside it, the speed-up is
+about :math:`1/(1 - f/2)`.
+
+.. versionadded:: 1.0.0
+"""
+
+
+def palindromic(*arrays: np.ndarray) -> bool:
+    r"""Returns whether every array given reads the same both ways.
+
+    .. versionadded:: 1.0.0
+
+    The comparison is exact, deliberately.  The saving relies on the mirrored slab's inputs being
+    *identical* to the reversal of its partner's, which follows from identical inputs and from
+    nothing weaker; a tolerance here would silently return a different answer for a
+    nearly-symmetric profile, which is the one thing an optimisation must never do.  It is the
+    producer's business to make a profile exactly symmetric rather than nearly so.
+
+    This mirrors ``fastkernels.palindromic`` in NuOscProbExact, deliberately, down to treating an
+    empty call and any array shorter than two entries as trivially palindromic.
+
+    Parameters
+    ----------
+    arrays : np.ndarray
+        Arrays to test, given as separate arguments and each reversed along its first axis.
+
+    Returns
+    -------
+    bool
+        Whether every array equals its own reverse exactly.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from magnus import magnus
+    >>> magnus.palindromic(np.array([1.0, 2.0, 1.0]))
+    True
+    >>> magnus.palindromic(np.array([1.0, 2.0, 3.0]))
+    False
+    """
+    for array in arrays:
+        a = np.asarray(array)
+        if a.shape[0] > 1 and not np.array_equal(a, a[::-1]):
+            return False
+    return True
+
+
+_MIRROR_GRID_ULP = 4.0
+r"""float: Bound, in units of ``n_slabs*eps``, on how far a declared-symmetric slab grid may
+depart from its own mirror and still be mirrored.
+
+The scaling is measured, not assumed.  ``edges[:, 1] - edges[:, 0]`` on a grid built as
+``w0*arange(n+1)`` returns a relative asymmetry of **0.30*n*eps**, holding to two digits from 31
+slabs to 1024; the same construction after a mirror-average of the widths returns exactly zero at
+most counts, and the real PREM chord's ``t_breakpoints`` (15 slabs) returns 1.8e-16.  Four gives
+roughly thirteen times headroom over the measured worst case while still admitting only
+floating-point noise: even at 1024 slabs the bound is ~1e-13 relative, which no physically uneven
+grid approaches.
+
+See :func:`_mirror_applies` for why this one comparison is a tolerance when :func:`palindromic`
+is exact."""
+
+
+def _mirror_applies(edges: np.ndarray, widths: np.ndarray,
+                    symmetric_over: Optional[tuple]) -> bool:
+    r"""Whether the mirrored evaluation is valid for this slab chain.
+
+    ``symmetric_over`` is the caller's declaration that :math:`A(t) = A(lo + hi - t)` on
+    ``(lo, hi)``.  A declaration is not enough on its own: the engines above this layer call the
+    Magnus routines on *sub*-ranges of a profile (the cumulative scan, the adiabatic and
+    interaction-picture paths), and a sub-range of a symmetric profile is not itself symmetric.
+    So the chain must be checked to span exactly the declared interval, and to be palindromic in
+    its widths -- both exactly, never within a tolerance, for the reason given in
+    :func:`palindromic`.
+
+    A widths test alone would **not** be sufficient even with a symmetric profile, and is the
+    trap this function exists to avoid: a monotonic (solar-like) profile on a uniform grid has
+    palindromic widths, and mirroring it is wrong by 3.3e-01.  It is the conjunction of the
+    declaration with the span check that carries the correctness.
+
+    **Why the width test is a tolerance here, when :func:`palindromic` is exact.**  Magnus derives
+    its widths as ``edges[:, 1] - edges[:, 0]``, and that subtraction does not preserve symmetry:
+    a grid built from a single width ``w0`` as ``w0*arange(n+1)`` comes back with **six to nine
+    distinct** width values, none of them bitwise palindromic.  An exact test on them therefore
+    almost never passes, and the optimisation would ship as a silent no-op.  NuOscProbExact can
+    keep its test exact because it carries ``widths`` as an array its producer symmetrises
+    (``earth._earth_slabs_cached``); here the producer cannot reach past the subtraction.
+
+    So the roles differ from that project's, deliberately: **the declaration is the correctness
+    criterion**, and the width comparison is a consistency check on the declaration rather than
+    the thing establishing it.  The bound is a few ulp -- tight enough that only floating-point
+    noise passes, so a genuinely uneven grid still takes the ordinary path -- and the mirrored
+    branch then *forces* the widths it uses to be exactly palindromic rather than trusting them,
+    which is the same "make it exact rather than tolerate near-exactness" discipline applied at
+    the only place that can apply it.
+    """
+    if not USE_PALINDROME or symmetric_over is None or edges.shape[0] < 2:
+        return False
+    lo, hi = symmetric_over
+    if not (edges[0, 0] == lo and edges[-1, 1] == hi):
+        return False
+    scale = np.max(np.abs(widths))
+    if not np.isfinite(scale) or scale == 0.0:
+        return False
+    bound = _MIRROR_GRID_ULP*widths.shape[0]*np.finfo(float).eps*scale
+    return bool(np.max(np.abs(widths - widths[::-1])) <= bound)
+
+
 def magnus_expansion_multislab(
     A: Callable,
     t_slab_edges: Union[list, np.ndarray],
@@ -1153,7 +1276,8 @@ def magnus_expansion_multislab(
     order: Optional[int] = 2,
     integration_method: Optional[str] = 'gl',
     validate_input: Optional[bool] = True,
-    A_eval_mode: Optional[str] = None
+    A_eval_mode: Optional[str] = None,
+    symmetric_over: Optional[tuple] = None
 ) -> np.ndarray:
     r"""Compute the evolution operators of all time slabs at once.
 
@@ -1185,6 +1309,21 @@ def magnus_expansion_multislab(
         Skip probing how ``A`` can be evaluated by declaring it up front
         ('vector', 'scalar', or 'constant'); see :func:`probe_eval_mode`.
         If None (default), it is probed once and detected automatically.
+    symmetric_over : tuple, optional
+        Caller's declaration that ``A(t) == A(lo + hi - t)`` on ``(lo, hi)``.
+        When given, and when the slab chain is found to span exactly that
+        interval with exactly palindromic widths, ``A`` is evaluated on the
+        first half of the slabs only and the rest follows by reversal --
+        halving the calls to the caller's Hamiltonian.  Ignored when
+        :data:`USE_PALINDROME` is False.
+
+        This is a **declaration, not a test**: it is not checked, and cannot
+        be cheaply, since testing it would require the evaluations it exists
+        to avoid.  Declaring it of a profile that is not symmetric returns a
+        silently wrong answer -- measured at 3.3e-01 on a monotonic profile.
+        It is therefore not a user-facing knob: it is set by the Earth entry
+        points, where the symmetry is a fact of chord geometry rather than a
+        claim.  See ``docs/dev/PLAN_PALINDROMIC_PROFILES.md`` section 3d(ii).
 
     Returns
     -------
@@ -1214,8 +1353,35 @@ def magnus_expansion_multislab(
         s = _gl_nodes(order)                            # (k,) GL nodes
     else:
         s = np.linspace(0.0, 1.0, n_tpts_per_slab)      # normalized grid
-    tgrid = edges[:, :1] + widths[:, None]*s            # (n_slabs, m)
-    At, used_mode = _evaluate_A(A, tgrid, A_eval_mode)  # (n_slabs, m, d, d)
+
+    if _mirror_applies(edges, widths, symmetric_over):
+        # Evaluate the first half only; the mirrored half is the same samples read backwards.
+        # Both node sets are symmetric within their slab (Gauss-Legendre nodes are, and so is
+        # linspace(0, 1, m)), so reversing the sample axis lands on the mirror slab's own nodes.
+        #
+        # n_half counts the middle slab in when the count is odd: that slab straddles the centre,
+        # is its own mirror, and is evaluated forward like any other.  Writing the mirrored block
+        # as ``At[n_half:]`` rather than ``At[n_slabs-n_half:]`` is what keeps it from being
+        # overwritten -- the two differ only for odd counts, where the latter aliases the middle
+        # slab and, on an uninitialized array, returns whatever was in memory.
+        n_slabs = edges.shape[0]
+        n_half = (n_slabs + 1)//2
+        tgrid = edges[:n_half, :1] + widths[:n_half, None]*s
+        At_half, used_mode = _evaluate_A(A, tgrid, A_eval_mode)
+        At = np.empty((n_slabs,) + At_half.shape[1:], dtype=At_half.dtype)
+        At[:n_half] = At_half
+        At[n_half:] = At_half[:n_slabs - n_half][::-1, ::-1]
+        # Force the widths exactly palindromic rather than trusting them to be: the mirrored
+        # slab is being given its partner's samples, so it must be given its partner's width
+        # too, or the two halves are scaled by numbers differing in the last bits.  This is the
+        # counterpart of NuOscProbExact's ``w = (w + w[::-1])/2``, applied here because the
+        # subtraction that produces our widths is downstream of anything the producer controls.
+        widths = np.concatenate([widths[:n_half],
+                                 widths[:n_slabs - n_half][::-1]])
+    else:
+        tgrid = edges[:, :1] + widths[:, None]*s            # (n_slabs, m)
+        At, used_mode = _evaluate_A(A, tgrid, A_eval_mode)  # (n_slabs, m, d, d)
+
     return evolution_operators_from_samples(At, widths, order,
         integration_method, A_is_const=(used_mode == 'constant'),
         validate_input=False)
@@ -1239,4 +1405,6 @@ __all__ = [
     'evolution_operators_from_samples',
     'gl_nodes',
     'magnus_expansion_multislab',
+    'USE_PALINDROME',
+    'palindromic',
 ]

@@ -1576,6 +1576,49 @@ def validate_input_osc_prob_earth(
         return costhz, L
 
 
+
+def _earth_chord_symmetry(costhz: float,
+                          L: Union[int, float, list, np.ndarray]) -> Optional[tuple]:
+    r"""The interval over which an Earth chord's matter profile is mirror-symmetric, or None.
+
+    A chord through a spherically symmetric Earth meets every radius twice, so its density reads
+    the same from either end.  That is geometry, not an assumption about the caller's input, which
+    is why the Earth entry points may declare it to the Magnus core (see the ``symmetric_over``
+    parameter of :func:`osc_prob`) where a general caller may not.
+
+    Verified rather than asserted: ``earth.earth_radial_distance_from_depth`` satisfies
+    :math:`r(l) = r(L-l)` to 1e-16 relative (1.2e-12 at ``costhz = -1``), and the PREM crossings
+    from :func:`magnus.earth.prem_layer_edges_along_chord` are symmetric about the chord's
+    midpoint **exactly** -- ``max|tb + tb[::-1] - d|`` is 0.0 at every zenith angle tested, because
+    the two roots of the crossing quadratic come out as :math:`d/2 \pm s`.
+
+    Returns None -- declining the optimisation rather than risking it -- whenever the propagation
+    is not over the whole chord.  A chord is symmetric over its full length and over no shorter
+    prefix, so a request at a shorter baseline must not be mirrored; the comparison is exact, and
+    an array of baselines qualifies only if every one of them is the full chord.
+
+    .. versionadded:: 1.0.0
+
+    Parameters
+    ----------
+    costhz : float
+        Cosine of the zenith angle, which fixes the chord.
+    L : int, float, list or np.ndarray
+        Baseline(s) actually requested [eV^-1].
+
+    Returns
+    -------
+    tuple or None
+        ``(0.0, chord_length)`` when every requested baseline is the full chord, else None.
+    """
+    if costhz is None or costhz >= 0.0:
+        return None
+    L_chord = earth.distance_traveled_inside_earth(costhz)*gd.UNIT_KM
+    L_arr = np.atleast_1d(np.asarray(L, dtype=float))
+    if L_arr.size == 0 or not bool(np.all(L_arr == L_chord)):
+        return None
+    return (0.0, L_chord)
+
 def valid_flavor_indices_2nu(nu_i: int, nu_f: int) -> Tuple[int, int]:
     r"""Remaps 3-flavor-style flavor indices onto valid 2-flavor indices (0 or 1).
 
@@ -2205,6 +2248,7 @@ def compute_evolution_operator_multiple_slabs(
     t_slabs: Union[list, np.ndarray],
     n_tpts_per_slab: int,
     magnus_exp_order: int,
+    symmetric_over: Optional[tuple]=None,
     **kwargs
 ) -> np.ndarray:
     r"""Computes the evolution operators of a chain of time slabs.  This function is not designed
@@ -2232,6 +2276,11 @@ def compute_evolution_operator_multiple_slabs(
     magnus_exp_order : int
         Highest order of the Magnus expansion used to compute the evolution operator (should not
         exceed ``globaldefs.MAGNUS_EXP_ORDER_MAX``).
+    symmetric_over : tuple, optional
+        Forwarded to :func:`magnus.magnus.magnus_expansion_multislab`: the interval over which
+        the caller declares ``H_func`` to be mirror-symmetric.  Not a user-facing parameter --
+        see that function, and ``docs/dev/PLAN_PALINDROMIC_PROFILES.md`` section 3d(ii), for why
+        it is a declaration rather than something detected here.
     \**kwargs
         Additional arguments passed to :func:`magnus.magnus.magnus_expansion_multislab` (e.g.,
         ``integration_method``).
@@ -2247,7 +2296,7 @@ def compute_evolution_operator_multiple_slabs(
         return -1j * H_func(t)
 
     return magnus.magnus_expansion_multislab(hh, t_slabs, n_tpts_per_slab=n_tpts_per_slab,
-        order=magnus_exp_order, **kwargs)
+        order=magnus_exp_order, symmetric_over=symmetric_over, **kwargs)
 
 
 def osc_prob(
@@ -2280,6 +2329,7 @@ def osc_prob(
     convergence_info: Optional[Dict]=None,
     t_breakpoints: Optional[Union[list, np.ndarray]]=None,
     strict_convergence: Optional[bool]=False,
+    symmetric_over: Optional[tuple]=None,
     **kwargs
 ) -> np.ndarray:
     r"""Computes and returns the neutrino oscillation probability.
@@ -2406,6 +2456,22 @@ def osc_prob(
         into the automatically generated slab grid at every refinement
         level, so that the quadrature never integrates across them.
         Ignored when ``t_slab_edges`` is given explicitly.
+    symmetric_over : tuple, optional
+        Caller's declaration that ``H_func(t) == H_func(lo + hi - t)`` on ``(lo, hi)``.  When the
+        slab chain is found to span exactly that interval, the Magnus core evaluates ``H_func``
+        on its first half only and mirrors the rest, halving the Hamiltonian evaluations.
+
+        Passed as the *interval*, not as a flag, and that is what makes it safe in a scan: a
+        chord through the Earth is symmetric over its full length and over no shorter prefix, so
+        a scan point at a shorter baseline spans ``(L0, baseline)``, fails to match, and takes
+        the ordinary path.  No extra bookkeeping is needed for that -- the check in
+        :func:`magnus.magnus._mirror_applies` is the whole of it.
+
+        **Not a user-facing switch, and unchecked**: verifying it would need the evaluations it
+        exists to avoid, and declaring it of a profile that is not symmetric returns a silently
+        wrong answer.  It is set by the Earth entry points, where the symmetry is a fact of chord
+        geometry -- a chord meets every radius twice -- rather than a claim.  Turn the mechanism
+        off globally with ``magnus.magnus.USE_PALINDROME = False``.
     strict_convergence : bool, optional
         Require the refinement ladder to agree **twice in a row** before
         declaring convergence, instead of once.  Default: False.
@@ -2791,9 +2857,15 @@ def osc_prob(
         # either way (2 of 168 in both), because the cases it stopped flagging are covered by
         # ToleranceNotAchievedWarning.  The mechanism and the full measurement are kept in
         # magnus._deferred_slab_norm.
+        # The slab chain here spans the whole of [t_ini, t_fin], so a profile declared
+        # symmetric over that interval really is symmetric over what is about to be built.  The
+        # declaration is passed as the interval rather than as a flag so that the Magnus layer
+        # can check the two agree, which is what keeps a blocked sub-range (see the cumulative
+        # scan below) off the mirrored path even if a flag reached it by mistake.
         U_chain = compute_evolution_operator_multiple_slabs(H_func, t_slab_edges,
             n_tpts_per_slab, magnus_exp_order, integration_method=integration_method,
-            A_eval_mode=A_eval_mode, **kwargs)
+            A_eval_mode=A_eval_mode,
+            symmetric_over=symmetric_over, **kwargs)
 
         # Now compute the time-ordered product of all evolution operators across all slabs.  The
         # neutrino crosses the slabs in the order in which they appear in U_chain (earliest first),
@@ -4723,6 +4795,7 @@ def osc_prob_energy_baseline(
     new_recursion_limit: Optional[int]=5000,
     verbose: Optional[int]=0,
     cumulative: Optional[Union[bool, str]]='auto',
+    symmetric_over: Optional[tuple]=None,
     **kwargs
 ) -> Union[int, float, np.ndarray]:
     r"""Compute and return oscillation probabilities for given arrays of
@@ -4928,7 +5001,8 @@ def osc_prob_energy_baseline(
         min_n_tpts_per_slab=min_n_tpts_per_slab, max_n_tpts_per_slab=max_n_tpts_per_slab,
         validate_input=validate_input, save_log=save_log, filename_log=filename_log,
         file_log=file_log, close_file_log_upon_exit=close_file_log_upon_exit,
-        new_recursion_limit=new_recursion_limit, verbose=verbose, **kwargs)
+        new_recursion_limit=new_recursion_limit, verbose=verbose,
+        symmetric_over=symmetric_over, **kwargs)
 
     # Build, for a given neutrino energy, the Hamiltonian to be passed to osc_prob: either a
     # one-parameter function of position or, if position-independent, a constant matrix (which
@@ -5044,6 +5118,12 @@ def osc_prob_energy_baseline(
             # strict one.  It costs one extra refinement level on a single call, amortised over
             # every baseline in the scan.
             probe_kwargs['strict_convergence'] = True
+            # The probe runs a uniform-density Hamiltonian over the longest baseline, not the
+            # caller's profile over the caller's interval, so the caller's symmetry declaration
+            # does not describe it.  A constant Hamiltonian is trivially symmetric and mirroring
+            # it would be harmless, but the declaration is dropped rather than reasoned about:
+            # only its slab count is kept, so there is nothing to gain by carrying it.
+            probe_kwargs['symmetric_over'] = None
             # The probe's *probabilities* are discarded -- only its slab count is kept -- so a
             # MagnusConvergenceWarning about its intermediate refinement levels describes a
             # result nobody receives, and would be actively misleading: the grid this call
@@ -5720,6 +5800,7 @@ def osc_prob_matter_std_potential(
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
     new_recursion_limit: Optional[int]=5000,
+    symmetric_over: Optional[tuple]=None,
     **kwargs
 ) -> Union[float, np.ndarray]:
     r"""Computes and returns neutrino oscillation probabilities for
@@ -6106,7 +6187,7 @@ def osc_prob_matter_std_potential(
             # An explicit cumulative= from the caller wins; otherwise strategy='magnus' opts out
             # of the cumulative scan and everything else takes 'auto'.  Resolved near the top of
             # this function, which is also where it is removed from kwargs.
-            cumulative=cumulative_resolved, **kwargs)
+            cumulative=cumulative_resolved, symmetric_over=symmetric_over, **kwargs)
 
 
 def osc_prob_matter_nsi(
@@ -6150,6 +6231,7 @@ def osc_prob_matter_nsi(
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
     new_recursion_limit: Optional[int]=5000,
+    symmetric_over: Optional[tuple]=None,
     **kwargs
 ) -> Union[float, np.ndarray]:
     r"""Computes and returns neutrino oscillation probabilities for
@@ -6497,7 +6579,7 @@ def osc_prob_matter_nsi(
             # An explicit cumulative= from the caller wins; otherwise strategy='magnus' opts out
             # of the cumulative scan and everything else takes 'auto'.  Resolved near the top of
             # this function, which is also where it is removed from kwargs.
-            cumulative=cumulative_resolved, **kwargs)
+            cumulative=cumulative_resolved, symmetric_over=symmetric_over, **kwargs)
 
 
 def osc_prob_liv(
@@ -6541,6 +6623,7 @@ def osc_prob_liv(
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
     new_recursion_limit: Optional[int]=5000,
+    symmetric_over: Optional[tuple]=None,
     **kwargs
 ) -> Union[float, np.ndarray]:
     r"""Computes and returns neutrino oscillation probabilities for
@@ -6906,7 +6989,7 @@ def osc_prob_liv(
             # An explicit cumulative= from the caller wins; otherwise strategy='magnus' opts out
             # of the cumulative scan and everything else takes 'auto'.  Resolved near the top of
             # this function, which is also where it is removed from kwargs.
-            cumulative=cumulative_resolved, **kwargs)
+            cumulative=cumulative_resolved, symmetric_over=symmetric_over, **kwargs)
 
 
 #-----------------------------------------------------------------------
@@ -8943,6 +9026,11 @@ def osc_prob_2nu_earth(
         energy=energy,
         L=L, # [eV^{-1}]
         t_breakpoints=t_breakpoints,
+        # A chord meets every radius twice, so its profile reads the same from either
+        # end.  Declared, not detected: see _earth_chord_symmetry.  Returns None -- and
+        # so takes the ordinary path -- unless every requested baseline is the whole
+        # chord, because a chord is symmetric over no shorter prefix of itself.
+        symmetric_over=_earth_chord_symmetry(costhz, L),
         osc_params={'sth': sth, 'Dm2': Dm2},
         L0=0.0,
         nubar=nubar,
@@ -9144,6 +9232,11 @@ def osc_prob_3nu_earth(
         energy=energy,
         L=L,
         t_breakpoints=t_breakpoints,
+        # A chord meets every radius twice, so its profile reads the same from either
+        # end.  Declared, not detected: see _earth_chord_symmetry.  Returns None -- and
+        # so takes the ordinary path -- unless every requested baseline is the whole
+        # chord, because a chord is symmetric over no shorter prefix of itself.
+        symmetric_over=_earth_chord_symmetry(costhz, L),
         osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 'D21': D21, 'D31': D31},
         L0=0.0,
         nubar=nubar,
@@ -9367,6 +9460,11 @@ def osc_prob_4nu_earth(
         energy=energy,
         L=L,
         t_breakpoints=t_breakpoints,
+        # A chord meets every radius twice, so its profile reads the same from either
+        # end.  Declared, not detected: see _earth_chord_symmetry.  Returns None -- and
+        # so takes the ordinary path -- unless every requested baseline is the whole
+        # chord, because a chord is symmetric over no shorter prefix of itself.
+        symmetric_over=_earth_chord_symmetry(costhz, L),
         osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 's14': s14, 'd14': d14, 
             's24': s24, 'd24': d24, 's34': s34, 'D21': D21, 'D31': D31, 'D41': D41},
         L0=0.0,
@@ -9611,6 +9709,11 @@ def osc_prob_5nu_earth(
         energy=energy,
         L=L,
         t_breakpoints=t_breakpoints,
+        # A chord meets every radius twice, so its profile reads the same from either
+        # end.  Declared, not detected: see _earth_chord_symmetry.  Returns None -- and
+        # so takes the ordinary path -- unless every requested baseline is the whole
+        # chord, because a chord is symmetric over no shorter prefix of itself.
+        symmetric_over=_earth_chord_symmetry(costhz, L),
         osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 's14': s14, 'd14': d14, 
             's15': s15, 'd15': d15, 's24': s24, 'd24': d24, 's25': s25, 's34': s34, 's35': s35, 
             'd35': d35, 'D21': D21, 'D31': D31, 'D41': D41, 'D51': D51},
@@ -9806,9 +9909,12 @@ def osc_prob_earth(
         density_is_of_number_of_electrons=True) # [eV]
     VCC_func = _PositionProfileCache(VCC_func)
 
+    # A chord meets every radius twice; see _earth_chord_symmetry for why this may be declared
+    # here and not by a general caller, and why it declines unless the whole chord is traversed.
     return _osc_prob_with_potential(source_func_name, H_func, VCC_func, energy, L, 0.0, nu_i,
         nu_f, t_breakpoints, magnus_exp_order, n_jobs, integration_method, rtol, atol,
-        validate_input, verbose, strategy=strategy, strategy_info=strategy_info, **kwargs)
+        validate_input, verbose, strategy=strategy, strategy_info=strategy_info,
+        symmetric_over=_earth_chord_symmetry(costhz, L), **kwargs)
 
 
 def _osc_prob_with_potential(
@@ -9830,6 +9936,7 @@ def _osc_prob_with_potential(
     verbose: int,
     strategy: Optional[str] = 'auto',
     strategy_info: Optional[Dict] = None,
+    symmetric_over: Optional[tuple] = None,
     **kwargs
 ) -> Union[float, np.ndarray]:
     r"""Common machinery of :func:`osc_prob_earth` and
@@ -9894,6 +10001,10 @@ def _osc_prob_with_potential(
         Default: 'auto'.
 
         .. versionadded:: 1.0.0
+    symmetric_over : tuple, optional
+        Interval over which the caller declares the profile mirror-symmetric, forwarded to
+        :func:`osc_prob`.  Set by :func:`osc_prob_earth`, whose chord is symmetric by geometry;
+        left None by :func:`osc_prob_sun`, whose profile is monotonic.
     \**kwargs
         Additional arguments forwarded to :func:`osc_prob_energy_baseline`.
 
@@ -9960,7 +10071,8 @@ def _osc_prob_with_potential(
         return osc_prob_energy_baseline(htot, energy, L, L0, nu_i, nu_f, False,
             t_breakpoints=t_breakpoints, magnus_exp_order=magnus_exp_order, n_jobs=n_jobs,
             integration_method=integration_method, rtol=rtol, atol=atol,
-            validate_input=validate_input, verbose=verbose, cumulative=cumulative, **kwargs)
+            validate_input=validate_input, verbose=verbose, cumulative=cumulative,
+            symmetric_over=symmetric_over, **kwargs)
 
 
 #-----------------------------------------------------------------------
@@ -12242,6 +12354,11 @@ def osc_prob_2nu_earth_nsi(
         energy=energy,
         L=L,
         t_breakpoints=t_breakpoints,
+        # A chord meets every radius twice, so its profile reads the same from either
+        # end.  Declared, not detected: see _earth_chord_symmetry.  Returns None -- and
+        # so takes the ordinary path -- unless every requested baseline is the whole
+        # chord, because a chord is symmetric over no shorter prefix of itself.
+        symmetric_over=_earth_chord_symmetry(costhz, L),
         osc_params={'sth': sth, 'Dm2': Dm2},
         nsi_params={'eps_aa': eps_aa, 'eps_ab': eps_ab},
         L0=0.0,
@@ -12461,6 +12578,11 @@ def osc_prob_3nu_earth_nsi(
         energy=energy,
         L=L,
         t_breakpoints=t_breakpoints,
+        # A chord meets every radius twice, so its profile reads the same from either
+        # end.  Declared, not detected: see _earth_chord_symmetry.  Returns None -- and
+        # so takes the ordinary path -- unless every requested baseline is the whole
+        # chord, because a chord is symmetric over no shorter prefix of itself.
+        symmetric_over=_earth_chord_symmetry(costhz, L),
         osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 'D21': D21, 'D31': D31},
         nsi_params={'eps_ee': eps_ee, 'eps_em': eps_em, 'eps_et': eps_et, 'eps_mm': eps_mm,
             'eps_mt': eps_mt, 'eps_tt': eps_tt},
@@ -12714,6 +12836,11 @@ def osc_prob_4nu_earth_nsi(
         energy=energy,
         L=L,
         t_breakpoints=t_breakpoints,
+        # A chord meets every radius twice, so its profile reads the same from either
+        # end.  Declared, not detected: see _earth_chord_symmetry.  Returns None -- and
+        # so takes the ordinary path -- unless every requested baseline is the whole
+        # chord, because a chord is symmetric over no shorter prefix of itself.
+        symmetric_over=_earth_chord_symmetry(costhz, L),
         osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 's14': s14, 'd14': d14, 
             's24': s24, 'd24': d24, 's34': s34, 'D21': D21, 'D31': D31, 'D41': D41},
         nsi_params={'eps_ee': eps_ee, 'eps_em': eps_em, 'eps_et': eps_et, 'eps_es': eps_es, 
@@ -13005,6 +13132,11 @@ def osc_prob_5nu_earth_nsi(
         energy=energy,
         L=L,
         t_breakpoints=t_breakpoints,
+        # A chord meets every radius twice, so its profile reads the same from either
+        # end.  Declared, not detected: see _earth_chord_symmetry.  Returns None -- and
+        # so takes the ordinary path -- unless every requested baseline is the whole
+        # chord, because a chord is symmetric over no shorter prefix of itself.
+        symmetric_over=_earth_chord_symmetry(costhz, L),
         osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 's14': s14, 'd14': d14, 
             's15': s15, 'd15': d15, 's24': s24, 'd24': d24, 's25': s25, 's34': s34, 's35': s35, 
             'd35': d35, 'D21': D21, 'D31': D31, 'D41': D41, 'D51': D51},
@@ -15930,6 +16062,11 @@ def osc_prob_2nu_earth_liv(
         energy=energy,
         L=L,
         t_breakpoints=t_breakpoints,
+        # A chord meets every radius twice, so its profile reads the same from either
+        # end.  Declared, not detected: see _earth_chord_symmetry.  Returns None -- and
+        # so takes the ordinary path -- unless every requested baseline is the whole
+        # chord, because a chord is symmetric over no shorter prefix of itself.
+        symmetric_over=_earth_chord_symmetry(costhz, L),
         osc_params={'sth': sth, 'Dm2': Dm2},
         liv_params={'sxi': sxi, 'b1': b1, 'b2': b2, 'Lambda': Lambda, 'n_liv': n_liv},
         L0=0.0,
@@ -16160,6 +16297,11 @@ def osc_prob_3nu_earth_liv(
         energy=energy,
         L=L,
         t_breakpoints=t_breakpoints,
+        # A chord meets every radius twice, so its profile reads the same from either
+        # end.  Declared, not detected: see _earth_chord_symmetry.  Returns None -- and
+        # so takes the ordinary path -- unless every requested baseline is the whole
+        # chord, because a chord is symmetric over no shorter prefix of itself.
+        symmetric_over=_earth_chord_symmetry(costhz, L),
         osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 'D21': D21, 'D31': D31},
         liv_params={'sxi12': sxi12, 'sxi23': sxi23, 'sxi13': sxi13, 'dxiCP': dxiCP, 'b1': b1, 
             'b2': b2, 'b3': b3, 'Lambda': Lambda, 'n_liv': n_liv},
@@ -16428,6 +16570,11 @@ def osc_prob_4nu_earth_liv(
         energy=energy,
         L=L,
         t_breakpoints=t_breakpoints,
+        # A chord meets every radius twice, so its profile reads the same from either
+        # end.  Declared, not detected: see _earth_chord_symmetry.  Returns None -- and
+        # so takes the ordinary path -- unless every requested baseline is the whole
+        # chord, because a chord is symmetric over no shorter prefix of itself.
+        symmetric_over=_earth_chord_symmetry(costhz, L),
         osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 's14': s14, 'd14': d14, 
             's24': s24, 'd24': d24, 's34': s34, 'D21': D21, 'D31': D31, 'D41': D41},
         liv_params={'sxi12': sxi12, 'sxi23': sxi23, 'sxi13': sxi13, 'dxi13': dxi13, 'sxi14': sxi14,
@@ -16735,6 +16882,11 @@ def osc_prob_5nu_earth_liv(
         energy=energy,
         L=L,
         t_breakpoints=t_breakpoints,
+        # A chord meets every radius twice, so its profile reads the same from either
+        # end.  Declared, not detected: see _earth_chord_symmetry.  Returns None -- and
+        # so takes the ordinary path -- unless every requested baseline is the whole
+        # chord, because a chord is symmetric over no shorter prefix of itself.
+        symmetric_over=_earth_chord_symmetry(costhz, L),
         osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 's14': s14, 'd14': d14, 
             's15': s15, 'd15': d15, 's24': s24, 'd24': d24, 's25': s25, 's34': s34, 's35': s35, 
             'd35': d35, 'D21': D21, 'D31': D31, 'D41': D41, 'D51': D51},

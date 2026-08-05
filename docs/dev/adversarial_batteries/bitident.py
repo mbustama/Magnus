@@ -68,6 +68,18 @@ CASES['9 explicit cumulative=False'] = lambda: np.asarray(
 # Extra rows the handover's list does not name but the branch could plausibly move:
 CASES['10 3nu solar scan N=60 (cumulative)'] = lambda: std(3, solar, E, Ls60, P3)
 CASES['11 nubar scan N=60'] = lambda: std(2, solar, E, Ls60, P2, nubar=True)
+# Row 12 MOVES BY DESIGN, and exists because rows 1-11 cannot see the change that matters.
+# Row 7 is the only Earth case and it is a *scan*, which the separable engine answers without
+# ever reaching magnus_expansion_multislab -- so the palindromic mirror leaves it bit-identical
+# and the battery would report "0 of 11 moved" while the optimisation was live and moving
+# single points.  A single Earth point takes the general Magnus ladder, where the mirror does
+# fire.  Measured movement across 15 (costhz, energy) configurations: worst 8.6e-15 relative,
+# typical 2e-15.  Set magnus.magnus.USE_PALINDROME = False to recover the pre-mirror numbers.
+_c_earth = -0.8
+CASES['12 osc_prob_earth PREM single point (MOVES)'] = lambda: np.asarray(
+    oscprob.osc_prob_3nu_earth(2.0*gd.UNIT_GEV, costhz=_c_earth,
+                               L=2.0*6371.0*abs(_c_earth)*gd.UNIT_KM,
+                               validate_input=False))
 
 out = {}
 for name, fn in CASES.items():
