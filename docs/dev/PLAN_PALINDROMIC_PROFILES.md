@@ -260,9 +260,11 @@ not.** The argument given — that reversing `[H1,[H2,H3]]` yields `[H3,[H2,H1]]
 group the integrand is invariant: `Omega_3`'s integrand over the ordered simplex is
 `([A1,[A2,A3]] + [[A1,A2],A3])`, which reversal maps to `([A3,[A2,A1]] + [[A3,A2],A1])`, and
 antisymmetry gives `[A3,[A2,A1]] = [[A1,A2],A3]` and `[[A3,A2],A1] = [A1,[A2,A3]]` — the same
-pair. There is also an operator-level derivation valid at all k: with `W(s) = U(b, a+b-s)` one
-has `W' = W Atilde`, `W(0) = I`, `W(b-a) = U(b,a)`, whence `U(b,a) = exp(-Omega[-Atilde])`, and
-since `Omega_k[-A] = (-1)^k Omega_k[A]` the rule follows for every k.
+pair. There is also an operator-level derivation valid at all k: with `W(s) = U(b, a+b-s)` for
+`s` in `[a, b]` one has `W' = W Atilde`, `W(a) = U(b,b) = I` and `W(b) = U(b,a)`; then
+`Z = W^{-1}` obeys the ordinary left equation `Z' = -Atilde Z`, so `Z(b) = exp(Omega[-Atilde])`
+and `U(b,a) = exp(-Omega[-Atilde])`. Since `Omega_k[-A] = (-1)^k Omega_k[A]`, uniqueness of the
+graded log gives the rule for every k.
 
 The **measurements in §3b are reproducible and correct** — 3.7366e-08 (trapezoid, order 4,
 `n_tpts=41`) and 8.4360e-09 (simpson, order 4) — but 3.7e-08 is not an algebraic residual. It is
@@ -273,7 +275,12 @@ the error of the discrete cumulative quadrature, and it converges away:
 | sign-rule residual | 6.08e-07 | 3.74e-08 | 2.33e-09 | 1.45e-10 |
 
 Exactly **4.0x per doubling** — O(h^2), the trapezoid's own rate. That rate holds on the PREM
-chord, on a generic random complex `A(t)`, and at orders 2 through 8. Against `solve_ivp`,
+chord, on a generic random complex `A(t)`, and at Magnus orders **4 through 8**. *(An earlier
+wording here said "orders 2 through 8", which is wrong and matters: at order 2 the discrete
+scheme satisfies the rule **exactly**, at machine floor ~1e-16 for any `n_tpts`, because
+cumulative trapezoid obeys `c_rev[j] = c[-1] - c[m-1-j]` exactly and the k=2 cross term
+integrates to `[Omega_1, Omega_1] = 0` discretely. See §3e(1) — that discrete exactness boundary
+at k=3 is precisely what made the algebraic claim look plausible.)* Against `solve_ivp`,
 sign-flipped terms converge to the *reversed* propagator through order 6 exactly as the unflipped
 terms converge to the forward one; were the rule false at k >= 3, that sequence would stall at
 order 3, and it does not. The residual also sits **4-5 orders below the error the same grid
@@ -336,6 +343,67 @@ middle one in every case:
 
 Even counts are unaffected (1e-15 at orders 2, 4 and 6), which is why the prototype looked sound.
 Any implementation must handle the unpaired middle slab explicitly.
+
+---
+
+## 3e. Independent verification, 2026-08-05 — VERDICT: §3d(i) CONFIRMED
+
+§3d(i) was checked by an independent adversarial pass instructed to refute it. It could not, and
+it brought two instruments stronger than anything in §3d, both of which sidestep floating point
+entirely:
+
+* **Exact free-algebra arithmetic.** For piecewise-constant `A`, `Omega_k` is exactly the
+  degree-k component of `log(exp(A_n) ... exp(A_1))` in the free associative algebra. Computed
+  over `Fractions`, the identity holds **word by word, exactly**: n=4 pieces to order 6, n=6
+  pieces to order 6 (33760 words per order), n=3 pieces to order 8. No quadrature, no floats —
+  an algebraic failure at any k <= 8 is impossible.
+* **Exact zero-limit.** For polynomial `A` with rational matrix coefficients the discrete
+  trapezoid residual is exactly a polynomial in `h`. Evaluated at 30 spacings in `Fraction`
+  arithmetic, Lagrange-interpolated, validated on 8 held-out nodes, then evaluated at `h = 0`:
+  **exactly rational zero for k = 1..5**, despite `|Delta| ~ 2` at m=2. This is the test that
+  separates "quadrature error" from "algebraic failure with a tiny coefficient" — any nonzero
+  limit of any magnitude would appear as a nonzero rational. It is what would have falsified the
+  claim, and it did not.
+
+Hostile cases were tried and failed to break it: complex non-Hermitian `A` in d=4 with
+normalised commutator 0.59 and `||Omega_6|| ~ 46 > ||Omega_1||`, fitted slopes 1.991-1.999
+(trapezoid) and 4.00-4.03 (simpson), with signed Richardson extrapolation collapsing the k=3
+residual from 2.8e-01 to 2.3e-14 against `||Omega_3|| = 11` — a relative floor of 2e-15, i.e.
+roundoff. That bounds any algebraic coefficient at `< ~1e-14`.
+
+**Three findings from that pass that §3d did not have:**
+
+1. **Why the original analysis was fooled.** The discrete trapezoid scheme satisfies the sign
+   rule *exactly* for k = 1 and 2 at any `m` (~1e-16), for the reasons noted in §3d(i) above. The
+   **discrete** exactness boundary sits at k=3 and coincides exactly with the **algebraic**
+   boundary that was claimed. Two different explanations predict the same table, which is why the
+   measurement did not discriminate — and why §3d's O(h^2) refinement sweep, which does
+   discriminate, was the test that settled it.
+
+2. **The `gl` path carries no quadrature penalty at all.** `Omega_gl[reversed nodes] +
+   Omega_gl[-samples] = 0` to machine epsilon — exactly 0.0 at orders 2 and 4, <= 2.5e-15
+   (1.4e-16 relative) at order 6, and exactly 0.0 on the PREM chord. On `gl` the mirror is
+   **exact**, not merely accurate, which is independent confirmation of §2.7's even-count result
+   and reinforces `gl` as the path to build first.
+
+3. **`simpson` with an even `n_tpts_per_slab` is unsafe for the sign rule.** scipy's asymmetric
+   last-interval correction (used when the interval count is odd, i.e. `n_tpts` even) is not
+   mirror-symmetric, and it breaks exactness at k = 1 and 2 as well: measured `R_1 = 1.3e-03`
+   against `E_1 = 7.5e-04` at m=40 — **the residual exceeds the discretisation error**, ratio up
+   to 1.7. With odd `n_tpts` (even interval count) simpson is fine (R/E <= 1.6e-02); trapezoid is
+   safe at any `m`. **Magnus's default `n_tpts_per_slab` is 50, i.e. the unsafe parity.** This is
+   a further argument for the resample decision, which is bitwise-exact regardless of the
+   quadrature's symmetry properties and is therefore immune to this entirely.
+
+**One correction to §3d's practical-impact claim.** The "4-5 orders below the error already
+committed" statement is right for the **total** `Omega` (3.7e-08 against 1.2e-03), and the total
+mirrored-slab error is identical to four significant figures whether the mirror is computed
+directly or via the sign rule (1.223e-03 both ways). But **per term at the same k**, the ratio
+`R_k / E_k` is 0.03-0.44 for trapezoid — and since both are O(h^2), that ratio is independent of
+`m` and **never improves with refinement**. The 4-5 order gap comes from comparing k>=3 residuals
+against a total error dominated by k=1. The total claim stands; the per-term one would not, and
+the distinction is exactly the "state which observable the criterion applies to" lesson from
+`HANDOVER_PALINDROME_AND_SESSION_LOG.md` §1.2.
 
 ---
 
