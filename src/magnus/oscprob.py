@@ -396,6 +396,27 @@ inherited grid without getting anything back -- which matters because every sing
 through the wrapper layer is served by ``osc_prob_energy_baseline``.  From two baselines
 upward there is something to share.
 
+**That argument is about sharing, and one thing it does not establish** is whether paying for
+the probe once is worse than what a single point gets *instead*.  Measured against the engine
+``'auto'`` otherwise uses on a single point -- the adiabatic hybrid path -- it is not: the
+cumulative scan at N = 1 is **cheaper on every profile of the physical population**, from 0.62x
+on a tabulated profile to 0.02x on a real solar model, median 0.15x
+(``docs/dev/adversarial_batteries/physical_battery.py seam_cost``).  And with this constant at 1
+alongside :data:`HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS`, both silent misses the physical
+population produced are repaired: 1.380e-03 -> 1.707e-05 on the BS2005-AGS,OP solar model at
+5 MeV, and 1.095e-03 -> 2.586e-06 on a supernova shock.
+
+**It is nevertheless still 2**, because lowering it changes which engine answers *most* requests
+this package serves, and the measurement above does not license that -- see
+:data:`HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS` for the three reasons, of which the sharpest is
+that a declining hybrid path does not hand the request to the cumulative scan but to whichever
+engine applies next.
+
+Note that this constant being 2 is what kept two latent defects in the cumulative branch
+unreachable by default, both fixed here and both reachable on the shipped tree through an
+explicit ``cumulative=True``: a missing scalar squeeze, and a ``convergence_info`` keyword
+forwarded to an engine that rejects it.
+
 The threshold is deliberately not set at the point where the cumulative scan becomes *faster*,
 which is higher (measured against ``solve_ivp``, on a 5 MeV solar scan to one solar radius:
 0.75x at N = 2, 0.87x at N = 10, 2.65x at N = 25, 84x at N = 1000).  Below that crossover the
@@ -487,10 +508,74 @@ The cumulative scan is *cheaper on median at every size measured*, and on a mult
 profile at N = 8 it is **30x** cheaper.  The 7.6x figure was solar, at N = 2, where the hybrid
 path is at its best.
 
-**8 is where the worst case stops mattering.**  At N = 8 the only profile on which yielding
-costs anything is solar at d = 3, at 1.44x, in exchange for three to six orders of accuracy; at
-N = 4 that worst case is 2.84x and at N = 2 it is 5.75x, which is a real price on the cheapest
-requests.  Below 8 the hybrid path keeps them.
+**8 was where the worst case stopped mattering**, on that population: at N = 8 the only profile
+on which yielding cost anything was solar at d = 3, at 1.44x, in exchange for three to six
+orders of accuracy; at N = 4 that worst case was 2.84x and at N = 2 it was 5.75x.
+
+**Lowering it to 1 was built, measured and REVERTED.**  Eight is a threshold on *point count*,
+so it repaired baseline scans and cannot, even in principle, reach a **single point** -- and
+single points turned out to be where the remaining silent misses live.  Over 195 configurations
+of a physically-motivated population
+(``docs/dev/adversarial_batteries/physical_profiles.py``: a real published solar model, a
+supernova shock and turbulence from the literature, Earth with a non-PREM crust, interpolated
+density tables), ``strategy='auto'`` was outside the requested 1e-3 **with no warning at all**
+on exactly two, and both were single points on which the cumulative scan was already 400-1100x
+more accurate and structurally unreachable:
+
+============================================ ============== ===============
+configuration                                 hybrid, N = 1  cumulative
+============================================ ============== ===============
+BS2005-AGS,OP solar model, d = 2, **5 MeV**   1.380e-03      **1.707e-05**
+supernova shock w = 1e-3, d = 3, 15 MeV       1.095e-03      **2.586e-06**
+============================================ ============== ===============
+
+The first is the one that decided it: a real published solar model, at an energy in the 8B
+spectrum, in the two-flavour treatment that is standard for the solar problem, returning a
+*certified* answer outside the caller's tolerance in silence.
+
+*And the cost objection did not survive measurement either.*  Re-measured on the physical
+population by alternating the two engines with a control that returned 1.00x, 1.01x and 1.06x
+across three rounds (``physical_battery.py seam_cost``), reading **minima** rather than medians
+because interference can only add time:
+
+================= ======================================
+N = 1 profile      cumulative / hybrid cost
+================= ======================================
+BS05 solar model   **0.02x**  (681 ms -> 15 ms)
+turbulence         **0.01x**
+Earth crust        0.15x
+supernova shock    0.27x
+tabulated          0.62x
+================= ======================================
+
+The cumulative scan is **cheaper at N = 1 on every profile measured**, median 0.15x.  There is
+no accuracy-against-cost trade here to balance: the engine that is three orders more accurate on
+the failing cases is also one to two orders cheaper on them.  Across the whole sweep exactly one
+row costs anything -- ``tabulated`` at N = 2, at 1.61x -- and that is a case which is already
+well inside tolerance either way.
+
+**So why is this still 8?**  Because setting both constants to 1 was tried, and the routing
+consequence is not the one the cost measurement implies.  Three findings, in order of how much
+they matter:
+
+1. **Standing aside does not mean the cumulative scan answers.**  The dispatch order is hybrid
+   -> interaction picture -> separable -> cumulative.  When the hybrid path declines, the next
+   engine that *applies* takes the request, and on several workloads that is ``ip_exp``, not the
+   cumulative scan.  The measurement above compares hybrid against cumulative; it does not
+   measure hybrid against *whatever comes next*, which is what actually happens.  Two tests
+   caught this as ``assert 'ip_exp' == 'hybrid'``.
+2. **The cumulative branch is under-exercised, because it has never been the default.**  Making
+   it so immediately surfaced two latent defects, both reachable on the shipped tree via an
+   explicit ``cumulative=True`` and both fixed here: a missing scalar squeeze that returned
+   ``(1, d, d)`` instead of ``(d, d)``, and a ``convergence_info`` keyword forwarded to an engine
+   that rejects it, raising ``TypeError`` instead of returning a probability.  Two found in
+   minutes says the branch needs its own audit before it carries the default traffic.
+3. **It is a change of default, not a dominant engine.**  The cumulative scan's worst error over
+   the 76 physical workloads it serves is 5.10e-03, and on one the hybrid path was 15x better.
+
+The exposure is real and remains open: see ``docs/dev/FINDINGS_ROBUSTNESS_PROGRAMME.md`` §13.
+The fix is a **surgical** one -- have the hybrid path yield *to the cumulative scan specifically*
+rather than merely decline -- not a threshold change.
 
 **Accuracy still steps at this threshold, and it is a large step.**  Because the two sides are
 different methods rather than two settings of one method, adding a single baseline can change
@@ -3164,6 +3249,51 @@ def _scan_for_hidden_features(profile, l0, L, t_breakpoints=None) -> Optional[Di
     return scan
 
 
+def _sampling_report(htot, htot_is_function_only_of_energy, energy, L, L0) -> Optional[Dict]:
+    r"""How coarsely does this request sample the oscillation it is computing?
+
+    Reported through ``strategy_info`` and never warned about.  A Nyquist criterion is
+    objectively correct and fires on essentially every realistic scan -- 4400 points would be
+    needed on a solar trajectory and 73 000 on a supernova ray, so 44 of 45 measured scan sizes
+    are formally aliased -- and a warning firing on 98 % of calls is noise however right each
+    firing is.  See :func:`magnus.adiabatic.oscillation_sampling` and
+    ``docs/dev/adversarial_batteries/alias_fp.py``.
+
+    Evaluated at the **lowest** energy in the request, which is where the oscillation is
+    fastest: the vacuum term goes as ``1/E`` while the matter term does not, so the spectral
+    spread is largest there.
+
+    Called only when ``strategy_info`` was supplied, so a caller who does not ask for a report
+    pays nothing.  A caller who does pays 5.5 % on the cheapest scan measured and under 0.1 % on
+    a substantial one.
+
+    .. versionadded:: 1.0.0
+
+    Returns
+    -------
+    dict or None
+        The report from :func:`magnus.adiabatic.oscillation_sampling`, or None if it does not
+        apply.  A diagnostic must never break the call it was inspecting, so every failure here
+        is a quiet None.
+    """
+    try:
+        e_min = float(np.min(np.atleast_1d(np.asarray(energy, dtype=float))))
+        L_arr = np.atleast_1d(np.asarray(L, dtype=float))
+        l1 = float(np.max(L_arr))
+
+        if htot_is_function_only_of_energy:
+            def H_of_l(l, e=e_min):
+                return np.asarray(htot(e))
+        else:
+            def H_of_l(l, e=e_min):
+                return np.asarray(htot(e, l))
+
+        report = adiabatic.oscillation_sampling(H_of_l, float(L0), l1, baselines=L_arr)
+    except Exception:                      # noqa: BLE001 -- never break the call being inspected
+        return None
+    return report or None
+
+
 def _note_engine(label: str, answered: bool = True, **detail) -> None:
     r"""Record that ``label`` answered (or declined), if anything is watching.
 
@@ -4209,9 +4339,14 @@ def _warn_hybrid_unresolved() -> None:
         "of H between probe points, which mean nothing across a jump, so it declined; the "
         "answer comes from the general Magnus path instead, which is correct there but slower, "
         "and a slab straddling the same feature still limits its accuracy. Pass t_breakpoints "
-        "at the feature: it is the cure in both cases. Measured on an unmarked density step, "
-        "the adiabatic answer was wrong by 0.54 in probability while reporting itself "
-        "certified. Shown once per session.",
+        "at the feature: on a BASELINE SCAN it is the cure, measured at 2.03e-01 -> 8.75e-06 on "
+        "a supernova shock front. On a SINGLE POINT it is not established and may make the "
+        "answer worse -- over 18 shock configurations it improved 7, worsened 11, and pushed 2 "
+        "from inside the requested tolerance to outside it, because declaring breakpoints there "
+        "also moves the request onto the general Magnus path. For a single point, compare "
+        "against strategy='magnus' or cumulative=True before trusting either answer. Measured "
+        "on an unmarked density step, the adiabatic answer was wrong by 0.54 in probability "
+        "while reporting itself certified. Shown once per session.",
         UnmarkedDiscontinuityWarning, stacklevel=4)
 
 
@@ -4964,16 +5099,32 @@ def osc_prob_energy_baseline(
             # scan is the probe above, which is unconditionally strict already.  Without this a
             # user who passes the flag to a baseline scan gets a TypeError out of
             # magnus_expansion_multislab.
+            # `convergence_info` is dropped for the same reason as `strict_convergence`
+            # directly above: it is the per-point refinement ladder's report, and this traversal
+            # walks a fixed grid with no ladder to report on.  Forwarding it reached
+            # `magnus_expansion_multislab`, which rejects unknown keywords, so
+            # `cumulative=True` together with `convergence_info=...` raised
+            # `TypeError: magnus_expansion_multislab() got an unexpected keyword argument`
+            # rather than returning a probability.  Reachable on the shipped tree, and no test
+            # covered the combination.
             **{k: v for k, v in kwargs.items()
                if k not in ('n_slabs', 'n_tpts_per_slab', 't_breakpoints',
-                            'strict_convergence')})
+                            'strict_convergence', 'convergence_info')})
 
         _note_engine('cumulative', n_acc=int(n_acc), n_acc_from_ceiling=n_acc_from_ceiling)
         P_all = np.empty_like(P_sorted)
         P_all[order] = P_sorted
         if (nu_i is not None) and (nu_f is not None):
             P_all = P_all[:, nu_i, nu_f]
-        return P_all
+        # Squeeze the singleton point axis when both inputs were scalars, exactly as every
+        # other return site in this function does.  This branch omitted it, which was a latent
+        # shape bug rather than a harmless one: `osc_prob_3nu_earth(E, ..., cumulative=True)`
+        # with scalar energy and L returned (1, d, d) instead of (d, d), so `P[nu_i][nu_f]`
+        # silently selected a row of the wrong array.  It went unnoticed because
+        # CUMULATIVE_AUTO_MIN_POINTS was 2: `return_float` is True only when energy and L are
+        # both scalars, which is one point, which never reached this branch by default.  Only
+        # an explicit `cumulative=True` could get here, and no test covered that combination.
+        return P_all.__getitem__(0 if return_float else slice(None))
 
     # Warm starts: osc_prob reports the refinement parameters at which each point converged
     # (conv_info), and the next point starts its refinement from there (divided by one growth
@@ -5861,11 +6012,17 @@ def osc_prob_matter_std_potential(
     # energy, so it is not repeated per point.  See _scan_for_hidden_features.
     _hidden = _scan_for_hidden_features(VCC_func, L0, L, kwargs.get('t_breakpoints'))
 
+    # How coarsely does this request sample the oscillation it computes?  Reported, never
+    # warned: see _sampling_report.  Computed ONLY when the caller passes strategy_info, so the
+    # default path pays nothing for it.
+    _osc = (_sampling_report(htot, htot_is_function_only_of_energy, energy, L, L0)
+            if strategy_info is not None else None)
+
     # Everything below is dispatch: which engine gets the request.  Watched as a unit so
     # that strategy_info can report which one answered and, for the hybrid strategy,
     # whether it certified -- see _engine_probe.  Costs one list allocation per call when
     # nobody is watching.
-    with _engine_probe(info=strategy_info, extra={'hidden_feature': _hidden}):
+    with _engine_probe(info=strategy_info, extra={'hidden_feature': _hidden, 'sampling': _osc}):
         P_avg = _avg_prob_dispatch(htot, htot_is_function_only_of_energy, energy, L, L0, nu_i, nu_f,
             average, 'osc_prob_matter_std_potential', smooth_profile=_profile_is_smooth, engine_kwargs=scan_kwargs)
         if P_avg is not NotImplemented:
@@ -6265,11 +6422,17 @@ def osc_prob_matter_nsi(
     # energy, so it is not repeated per point.  See _scan_for_hidden_features.
     _hidden = _scan_for_hidden_features(VCC_func, L0, L, kwargs.get('t_breakpoints'))
 
+    # How coarsely does this request sample the oscillation it computes?  Reported, never
+    # warned: see _sampling_report.  Computed ONLY when the caller passes strategy_info, so the
+    # default path pays nothing for it.
+    _osc = (_sampling_report(htot, htot_is_function_only_of_energy, energy, L, L0)
+            if strategy_info is not None else None)
+
     # Everything below is dispatch: which engine gets the request.  Watched as a unit so
     # that strategy_info can report which one answered and, for the hybrid strategy,
     # whether it certified -- see _engine_probe.  Costs one list allocation per call when
     # nobody is watching.
-    with _engine_probe(info=strategy_info, extra={'hidden_feature': _hidden}):
+    with _engine_probe(info=strategy_info, extra={'hidden_feature': _hidden, 'sampling': _osc}):
         P_avg = _avg_prob_dispatch(htot, htot_is_function_only_of_energy, energy, L, L0, nu_i, nu_f,
             average, 'osc_prob_matter_nsi', smooth_profile=_profile_is_smooth, engine_kwargs=scan_kwargs)
         if P_avg is not NotImplemented:
@@ -6670,11 +6833,17 @@ def osc_prob_liv(
     # energy, so it is not repeated per point.  See _scan_for_hidden_features.
     _hidden = _scan_for_hidden_features(VCC_func, L0, L, kwargs.get('t_breakpoints'))
 
+    # How coarsely does this request sample the oscillation it computes?  Reported, never
+    # warned: see _sampling_report.  Computed ONLY when the caller passes strategy_info, so the
+    # default path pays nothing for it.
+    _osc = (_sampling_report(htot, htot_is_function_only_of_energy, energy, L, L0)
+            if strategy_info is not None else None)
+
     # Everything below is dispatch: which engine gets the request.  Watched as a unit so
     # that strategy_info can report which one answered and, for the hybrid strategy,
     # whether it certified -- see _engine_probe.  Costs one list allocation per call when
     # nobody is watching.
-    with _engine_probe(info=strategy_info, extra={'hidden_feature': _hidden}):
+    with _engine_probe(info=strategy_info, extra={'hidden_feature': _hidden, 'sampling': _osc}):
         P_avg = _avg_prob_dispatch(htot, htot_is_function_only_of_energy, energy, L, L0, nu_i, nu_f,
             average, 'osc_prob_liv', smooth_profile=_profile_is_smooth, engine_kwargs=scan_kwargs)
         if P_avg is not NotImplemented:
@@ -9752,9 +9921,14 @@ def _osc_prob_with_potential(
     # of the grids, not of which entry point built the Hamiltonian.
     _hidden = _scan_for_hidden_features(VCC_func, L0, L, t_breakpoints)
 
+    # As above: reported through strategy_info only, so the default path pays nothing.  htot is
+    # a function of (energy, position) in both branches here, so it is never energy-only.
+    _osc = (_sampling_report(htot, False, energy, L, L0)
+            if strategy_info is not None else None)
+
     # Watched as a unit, as in the three scenario wrappers, so that a user-supplied Hamiltonian
     # gets the same answer to "which engine answered, and what stood aside" as a built-in one.
-    with _engine_probe(info=strategy_info, extra={'hidden_feature': _hidden}):
+    with _engine_probe(info=strategy_info, extra={'hidden_feature': _hidden, 'sampling': _osc}):
         P_hybrid = (NotImplemented if cumulative is True else
             _osc_prob_hybrid_dispatch_generic(htot, VCC_func, energy, L, L0, nu_i, nu_f,
                 t_breakpoints, rtol, atol, magnus_exp_order, integration_method, strategy,

@@ -2700,3 +2700,54 @@ def test_breakpoints_cure_a_feature_narrower_than_the_probe_grid():
     # And the cure works, which is what the documentation promises.  (Measured: 1.31e-04.)
     assert err_bp < 1e-3, f"t_breakpoints no longer cures the narrow feature (err {err_bp:.2e})"
     assert err_bp < err_bare/10.0
+
+
+def test_cumulative_scan_returns_an_unwrapped_matrix_for_a_scalar_request():
+    """A scalar (energy, L) must give (d, d), even when the cumulative scan answers.
+
+    The cumulative branch of ``osc_prob_energy_baseline`` was the one return site in that
+    function that did not apply ``__getitem__(0 if return_float else slice(None))``, so it
+    returned ``(1, d, d)``.  That is not a cosmetic shape difference: ``P[nu_i][nu_f]`` then
+    selects a *row of the wrong array* and returns something that still looks like a
+    probability.
+
+    It went unnoticed because ``CUMULATIVE_AUTO_MIN_POINTS = 2`` makes this branch unreachable
+    by default for a scalar request -- ``return_float`` is true only when energy and L are both
+    scalars, which is one point.  Only an explicit ``cumulative=True`` reaches it, which is
+    exactly the combination no test covered.
+    """
+    common = dict(costhz=-0.7, L=2.0*6371.0*0.7*gd.UNIT_KM, integration_method='gl',
+                  magnus_exp_order=4, rtol=None, atol=None, n_slabs=32, validate_input=False)
+    energy = 1.5*gd.UNIT_GEV
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        P_default = np.asarray(op.osc_prob_3nu_earth(float(energy), **common))
+        P_cumul = np.asarray(op.osc_prob_3nu_earth(float(energy), cumulative=True, **common))
+        P_chan = np.asarray(op.osc_prob_3nu_earth(float(energy), cumulative=True,
+                                                  nu_i=gd.NUE, nu_f=gd.NUMU, **common))
+    assert P_default.shape == (3, 3)
+    assert P_cumul.shape == (3, 3), \
+        'the cumulative scan re-introduced the singleton point axis on a scalar request'
+    assert P_chan.shape == (), 'channel selection on a scalar request must give a scalar'
+    assert np.allclose(np.sum(P_cumul, axis=1), 1.0, atol=1e-9)
+
+
+def test_cumulative_scan_accepts_convergence_info_without_raising():
+    """``convergence_info`` must not reach the engine, which rejects unknown keywords.
+
+    It is the per-point refinement ladder's report, and a cumulative traversal walks a fixed
+    grid with no ladder to report on -- so it is dropped, exactly as ``strict_convergence``
+    already was.  Forwarded, it produced
+    ``TypeError: magnus_expansion_multislab() got an unexpected keyword argument`` instead of a
+    probability, on any ``cumulative=True`` call that also asked for convergence information.
+    """
+    Ls = np.linspace(0.1, 1.0, 10)*2.0*6371.0*0.8*gd.UNIT_KM
+    info = {}
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        P = np.asarray(op.osc_prob_3nu_earth(
+            np.full(10, 2.0*gd.UNIT_GEV), costhz=-0.8, L=Ls, validate_input=False,
+            cumulative=True, convergence_info=info))
+    assert P.shape == (10, 3, 3)
+    assert np.all(np.isfinite(P))
+    assert np.allclose(np.sum(P, axis=2), 1.0, atol=1e-9)
