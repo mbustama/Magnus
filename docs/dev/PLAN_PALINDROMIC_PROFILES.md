@@ -433,6 +433,36 @@ the midpoint **exactly** — `max|tb + tb[::-1] - d| = 0.0` at every zenith angl
 the crossing quadratic's roots are `d/2 +/- s`. The resulting slab widths are palindromic to
 ~2e-16, inside the `4*n*eps` bound.
 
+### What it is worth, measured on `osc_prob_earth` with a user Hamiltonian
+
+The saving is halved evaluations of the caller's Hamiltonian, so it is worth what that
+Hamiltonian costs. Measured end to end through `osc_prob_earth` at `costhz = -0.9`, 2 GeV, with
+a vectorised `H_func` whose cost scales **per point**:
+
+| per-point H cost | speed-up |
+|---|---|
+| cheap (plain PREM) | **0.905x** |
+| 100 | 1.408x |
+| 1 000 | 1.566x |
+| 5 000 | 1.650x |
+| 20 000 | **1.669x** |
+
+So an expensive Hamiltonian across an Earth chord clears the 1.3x bar §3c set, and a cheap one
+pays about 10% for the privilege. The ceiling is 1.67x rather than 2x because the refinement
+ladder and the unpaired middle slab cut H evaluations from 159 points to 93, not quite in half.
+`USE_PALINDROME = False` buys the cheap path back exactly.
+
+**Two benchmarks had to be thrown away to get this, and both failed the same way — by being
+insensitive to the thing under test.** The first compared against `_expm_stack(warn_wide=False)`
+while the shipped path uses `warn_wide=True`, so it mostly measured the absence of an SVD per
+slab. The second used an `H_func` whose cost was a Python loop over spectral modes running once
+**per call**: the mirror halves the number of *points*, not the number of *calls*, so that
+benchmark could not have shown a gain however expensive it got, and it reported 1.00x at 4000
+modes while the gate was firing and the evaluation count really was falling 159 -> 93. Both
+briefly supported the conclusion that the mechanism was worthless. Count the work the
+optimisation actually removes -- here, H evaluation points -- and check it moved, before timing
+anything.
+
 ### The limitation that matters: Earth *scans* get nothing
 
 An Earth energy scan is answered by the **separable** engine, which builds its own samples and
