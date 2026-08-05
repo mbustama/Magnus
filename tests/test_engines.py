@@ -333,3 +333,46 @@ def test_engines_agree_across_a_small_profile_matrix(profile, d, params, energy)
     assert len(out['ran']) >= 2, out['declined']
     assert out['max_spread_independent'] < 5e-3, (
         out['max_spread_independent_pair'], out['spread'])
+
+
+def test_strategy_info_reports_sampling_only_when_asked():
+    """The sampling report is opt-in, because paying for it by default would be wrong.
+
+    A Nyquist criterion is objectively correct and fires on 98 % of realistic scans -- 4400
+    points would be needed on a solar trajectory and 73 000 on a supernova ray -- so it is
+    reported rather than warned about (``adversarial_batteries/alias_fp.py``).  Reporting still
+    costs eigenvalues, 5.5 % of the cheapest scan measured, so it runs only when the caller
+    passed ``strategy_info``.  This pins both halves: the key is present when asked for, and the
+    machinery is not invoked when it is not.
+    """
+    info = {}
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        call(solar_ne(), 10.0e6, np.linspace(0.2*L1, L1, 8), strategy_info=info)
+    rep = info.get('sampling')
+    assert rep, 'strategy_info did not carry a sampling report'
+    for key in ('oscillation_length', 'cycles_over_trajectory', 'nyquist_points',
+                'spacing', 'cycles_per_step', 'aliased'):
+        assert key in rep, 'sampling report is missing %r' % key
+    # A solar trajectory is thousands of oscillations long, so an 8-point scan is aliased and
+    # Nyquist would want far more points than anyone would ask for.
+    assert rep['aliased'] is True
+    assert rep['nyquist_points'] > 1000
+
+    # And it is not computed when nobody asked: the report is the only consumer, so if it were
+    # running unconditionally the guard would be the thing that broke.
+    called = []
+    orig = op._sampling_report
+
+    def spy(*a, **k):
+        called.append(1)
+        return orig(*a, **k)
+
+    op._sampling_report = spy
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            call(solar_ne(), 10.0e6, np.linspace(0.2*L1, L1, 8))
+        assert not called, 'the sampling report ran without strategy_info being requested'
+    finally:
+        op._sampling_report = orig

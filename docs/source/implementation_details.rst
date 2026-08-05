@@ -107,14 +107,16 @@ engines in a fixed order, falling through on ``NotImplemented``:
 
 Two thresholds decide the seams, and both are constants with docstrings of their own:
 
-* :data:`magnus.oscprob.HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS` = 25. Under
+* :data:`magnus.oscprob.HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS` = 8. Under
   ``strategy='auto'`` the hybrid strategy stands aside for a baseline scan of at least this
-  many points, because the cumulative scan answers all of them from one traversal.
+  many points, because the cumulative scan answers all of them from one traversal.  This was
+  25; the constant's own docstring records why it moved, and why a later attempt to lower it
+  to 1 was reverted.
 * :data:`magnus.oscprob.CUMULATIVE_AUTO_MIN_POINTS` = 2. Below this there is no prefix to
   reuse.
 
-**The accuracy steps at N = 25 rather than varying smoothly, and that is by design.**
-Adding one baseline to a 24-point scan changes the answer, because it changes the engine.
+**The accuracy steps at the seam rather than varying smoothly, and that is by design.**
+Adding one baseline to a scan just below it changes the answer, because it changes the engine.
 Measured against ``solve_ivp``:
 
 .. list-table::
@@ -252,7 +254,7 @@ Measured distributions, against those oracles:
 
 A *silent miss* is an answer outside the requested tolerance with no warning of any kind.
 It is the only failure mode that matters; an inaccurate answer that says so is the warnings'
-job. Every remaining silent miss sits below the N = 25 seam -- single points and short scans
+job. Every remaining silent miss sits below the seam -- single points and short scans
 on random smooth profiles, overshooting a requested 1e-3 by a factor of one to three.
 
 **Unitarity** is exact by construction (every engine composes unitary factors), and measured
@@ -297,6 +299,15 @@ engines apply and reports the pairwise spread. On the pre-fix package it reports
 disagreement on **seven of the eight** constructions where a method was silently wrong, each
 at least four times the requested tolerance. *What it cannot do:* see the one below.
 
+**The sampling report** (:func:`magnus.adiabatic.oscillation_sampling`). Answers a question no
+engine asks itself: how coarsely does this request sample the oscillation it is computing?  A
+solar trajectory is a few thousand oscillations long and a supernova ray tens of thousands, so a
+scan of any ordinary size returns correct values that must not be read as a curve.  Surfaced as
+``strategy_info['sampling']`` and **never warned about** -- the Nyquist criterion would fire on
+44 of 45 realistic scan sizes, and a warning at that rate is noise.  Computed only when
+``strategy_info`` was supplied, so the default path pays nothing.  See
+:doc:`averaged_probability` for what to do when it says ``aliased``.
+
 **The sub-probe feature scan** (:func:`magnus.adiabatic.find_hidden_features`). Looks at the
 *profile* rather than at the answers, which is what lets it reach the one class no cross-check
 can: within each interval of the refinement-ceiling grid, it compares the total variation a
@@ -333,7 +344,7 @@ physically plausible in a density profile.
 
 **A cross-check cannot close the rest, and this was measured rather than assumed.** Having
 ``strategy='auto'`` verify its own window-free results against the general Magnus ladder below
-the N = 25 seam was built, measured and removed: on 200 random smooth profiles the ladder agreed
+the seam (then at N = 25) was built, measured and removed: on 200 random smooth profiles the ladder agreed
 with all 25 window-free results, and when :data:`magnus.adiabatic.GAMMA_TO_ERROR` was
 deliberately mis-calibrated by 2x the check still fired zero times while three answers went
 genuinely wrong. **What is left in that band is not engines disagreeing -- it is engines being
@@ -496,9 +507,10 @@ Measured
      - Legitimate patches converge at 800–12 800 slabs; a patch covering 88 % of a solar
        trajectory needs 102 400 and should decline. 32 768 sits in the factor-of-eight gap.
    * - :data:`magnus.oscprob.HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS`
-     - 25
-     - Cost/accuracy crossover measured over scan sizes; below it yielding is 7.6× slower at
-       N = 2 to buy accuracy already two orders inside what was requested.
+     - 8
+     - Cost/accuracy crossover measured over scan sizes and re-measured over 42 workloads,
+       which moved it from 25; the cumulative scan is cheaper on median at every size and
+       three to six orders more accurate on the ones it serves.
    * - :data:`magnus.oscprob.CUMULATIVE_N_ACC_SAFETY`
      - 4
      - The longest baseline sets the grid; shorter ones in the same scan would have chosen a

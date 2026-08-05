@@ -443,6 +443,87 @@ def find_hidden_features(profile: Callable, l0: float, l1: float,
             'l_centre': float(0.5*(l_lo + l_hi))}
 
 
+def oscillation_sampling(H_func: Callable, l0: float, l1: float,
+    baselines: Optional[np.ndarray] = None, n_probe: Optional[int] = 8) -> Dict:
+    r"""How finely does a scan sample the fastest oscillation on its trajectory?
+
+    A long trajectory carries an enormous oscillation phase, and a scan over it usually samples
+    that phase far too coarsely to represent it -- so the returned array is a set of correct
+    values that must not be read as a curve.  For a solar or supernova problem the observable is
+    normally the **phase-averaged** probability anyway; see :mod:`magnus.avgprob`, whose
+    :func:`magnus.avgprob.coherence_report` decides which pairs of eigenvalues have decohered,
+    and which are in neither limit.
+
+    **This reports; it never warns.**  A Nyquist criterion is objectively correct and fires on
+    essentially everything: measured over the physical profile families, a scan would need 4400
+    points on a solar trajectory and **73 000** on a supernova ray to sample the fastest
+    oscillation twice per cycle, so 44 of 45 realistic scan sizes are formally aliased
+    (``docs/dev/adversarial_batteries/alias_fp.py``).  A warning that fires on 98 % of calls is
+    noise however correct each firing is, so the information is offered here and in
+    ``strategy_info`` instead, and the caller decides.
+
+    Cost: ``n_probe`` evaluations of ``H_func`` and one ``eigvalsh`` each.  Measured against the
+    scan it describes: **5.5 % of the cheapest scan** in the physical population (a 13 ms Earth
+    chord), 1.8 % of a 21 ms one, and under 0.1 % of anything substantial
+    (``docs/dev/adversarial_batteries/alias_cost.py``).  Callers who do not ask for
+    ``strategy_info`` pay **nothing** -- ``oscprob`` only runs this when a report was requested.  Eight samples are enough: the fastest
+    oscillation comes from the **largest** eigenvalue spread, which tracks the matter potential
+    and varies smoothly, and 8 samples agree with 4096 to 2 % over every family measured.  (The
+    *smallest* gap would need far denser sampling, because it has a sharp minimum at an MSW
+    resonance -- but that sets the slowest oscillation, not the fastest, and is not what aliases.)
+
+    .. versionadded:: 1.0.0
+
+    Parameters
+    ----------
+    H_func : Callable
+        The Hamiltonian as a function of position, ``H(l)``, at the energy of interest [eV].
+    l0, l1 : float
+        Interval the scan traverses.
+    baselines : np.ndarray, optional
+        The requested baselines.  When given, the spacing and the aliasing verdict are computed
+        from them; when omitted, only the trajectory-level quantities are returned.
+    n_probe : int, optional
+        Samples along the trajectory. Default: 8.
+
+    Returns
+    -------
+    dict
+        ``'oscillation_length'`` (shortest on the trajectory [eV^-1]),
+        ``'cycles_over_trajectory'``, ``'nyquist_points'`` (points a scan would need to sample
+        the fastest oscillation twice per cycle), and, when ``baselines`` is given,
+        ``'spacing'``, ``'cycles_per_step'`` and ``'aliased'``.  Empty dict if the spectrum is
+        degenerate or the interval has zero length.
+    """
+    l0, l1 = float(l0), float(l1)
+    if (l1 == l0) or (n_probe < 1):
+        return {}
+    spread = 0.0
+    for l in np.linspace(l0, l1, int(n_probe)):
+        try:
+            lam = np.linalg.eigvalsh(np.asarray(H_func(l)))
+        except Exception:                  # noqa: BLE001 -- a diagnostic must never break a call
+            return {}
+        if not np.all(np.isfinite(lam)):
+            return {}
+        spread = max(spread, float(np.max(lam) - np.min(lam)))
+    if spread <= 0.0:
+        return {}
+
+    osc = 2.0*np.pi/spread
+    span = abs(l1 - l0)
+    out = {'oscillation_length': osc,
+           'cycles_over_trajectory': span/osc,
+           'nyquist_points': int(np.ceil(2.0*span/osc)) + 1}
+    if baselines is not None:
+        Ls = np.atleast_1d(np.asarray(baselines, dtype=float))
+        if Ls.size > 1:
+            spacing = float(np.max(np.diff(np.sort(Ls))))
+            out.update(spacing=spacing, cycles_per_step=spacing/osc,
+                       aliased=bool(spacing > 0.5*osc))
+    return out
+
+
 THRESHOLD0_PROVENANCE = 0.1
 r"""float: Module-level constant
 

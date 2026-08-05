@@ -761,3 +761,51 @@ def test_hidden_feature_scan_refuses_quietly_rather_than_raising(name, profile):
     assert out['hidden'] is False
     assert out['concentration'] == 0.0
     assert np.isfinite(out['l_centre'])
+
+
+def test_oscillation_sampling_reports_the_fastest_oscillation_not_the_slowest():
+    """The statistic must key on the LARGEST eigenvalue spread, not the smallest gap.
+
+    Aliasing is set by the fastest oscillation, whose wavelength is ``2*pi`` over the largest
+    spread.  The first version of this measurement took the smallest *adjacent* gap, which is
+    the **slowest** oscillation -- a plausible-looking choice that made the statistic insensitive
+    to sampling density and would have made the whole diagnostic meaningless.
+
+    Pinned on a constant Hamiltonian, where the answer is exact and independent of position.
+    """
+    lam = np.array([0.0, 1.0e-13, 3.0e-13])          # spread 3e-13, smallest gap 1e-13
+    H = np.diag(lam).astype(complex)
+    rep = ad.oscillation_sampling(lambda l: H, 0.0, 1.0e14, n_probe=4)
+    assert rep['oscillation_length'] == pytest.approx(2.0*np.pi/3.0e-13, rel=1e-12), \
+        'oscillation_length must come from the largest spread, not the smallest gap'
+    assert rep['cycles_over_trajectory'] == pytest.approx(1.0e14/(2.0*np.pi/3.0e-13), rel=1e-12)
+
+
+def test_oscillation_sampling_flags_an_undersampled_scan_and_clears_a_dense_one():
+    """`aliased` is Nyquist on the requested baselines: spacing above half a wavelength."""
+    H = np.diag([0.0, 2.0e-13]).astype(complex)
+    l1 = 1.0e15
+    osc = 2.0*np.pi/2.0e-13
+
+    coarse = np.linspace(0.0, l1, 3)                 # spacing >> osc/2
+    dense = np.arange(0.0, l1, 0.25*osc)             # 4 samples per cycle
+    rep_coarse = ad.oscillation_sampling(lambda l: H, 0.0, l1, baselines=coarse, n_probe=4)
+    rep_dense = ad.oscillation_sampling(lambda l: H, 0.0, l1, baselines=dense, n_probe=4)
+    assert rep_coarse['aliased'] is True
+    assert rep_dense['aliased'] is False
+    assert rep_coarse['nyquist_points'] == rep_dense['nyquist_points']
+
+
+def test_oscillation_sampling_refuses_quietly_rather_than_breaking_the_call():
+    """A diagnostic must never break the call it was inspecting.
+
+    Same rule that `find_hidden_features` learned the hard way: a profile that raises, returns
+    non-finite values, or has a degenerate spectrum gets an empty report, not an exception.
+    """
+    def raises(l):
+        raise RuntimeError('no')
+
+    assert ad.oscillation_sampling(raises, 0.0, 1.0) == {}
+    assert ad.oscillation_sampling(lambda l: np.diag([np.nan, 1.0]), 0.0, 1.0) == {}
+    assert ad.oscillation_sampling(lambda l: np.zeros((2, 2)), 0.0, 1.0) == {}
+    assert ad.oscillation_sampling(lambda l: np.diag([0.0, 1.0]), 0.0, 0.0) == {}
