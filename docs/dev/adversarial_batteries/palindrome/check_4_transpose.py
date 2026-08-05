@@ -5,7 +5,8 @@ import common
 import magnus.magnus as mg
 
 L, A, H, vcc = common.chord_setup()
-proj = np.zeros((3, 3)); proj[0][0] = 1.0
+proj = np.zeros((3, 3))
+proj[0][0] = 1.0
 V0 = 4.0e-13
 NH = 64          # slabs on the half; the full gets 2*NH, so widths match exactly
 

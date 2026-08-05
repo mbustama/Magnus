@@ -4,7 +4,6 @@
 import numpy as np
 import common
 import magnus.magnus as mg
-from scipy.linalg import expm
 
 rng = np.random.default_rng(20260805)
 
@@ -50,7 +49,8 @@ print("=" * 78)
 
 L, A, H, vcc = common.chord_setup()
 h_vac = H(0.0) - vcc(0.0)*np.diag([1.0, 0, 0])
-proj = np.zeros((3, 3)); proj[0][0] = 1.0
+proj = np.zeros((3, 3))
+proj[0][0] = 1.0
 V0 = 4.0e-13
 
 

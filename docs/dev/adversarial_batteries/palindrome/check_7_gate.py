@@ -7,14 +7,13 @@ A gate must establish that BEFORE the work is skipped.  Three candidates:
   S  the sampled A        -- exact, but requires evaluating A everywhere
   D  caller declares it   -- free, but moves responsibility to the producer
 """
-import time
 import numpy as np
 import common
 import magnus.magnus as mg
-import magnus.globaldefs as gd
 
 L, A, H, vcc = common.chord_setup()
-proj = np.zeros((3, 3)); proj[0][0] = 1.0
+proj = np.zeros((3, 3))
+proj[0][0] = 1.0
 hv = H(0.0) - vcc(0.0)*np.diag([1.0, 0, 0])
 V0 = 4.0e-13
 
@@ -49,7 +48,8 @@ for name, Af in (("symmetric profile", A_sym), ("MONOTONIC profile", A_mono)):
     Om_f = mg._magnus_gl(An, wid[:m], 4)
     Om_b = mg._magnus_gl(An[:, ::-1], wid[:m], 4)
     Om = np.empty((n, 3, 3), dtype=complex)
-    Om[:m] = Om_f; Om[n-m:] = Om_b[::-1]
+    Om[:m] = Om_f
+    Om[n-m:] = Om_b[::-1]
     Up = mg._expm_stack(Om)
     print(f"    {name:20s}  widths pass gate, max|U_mirror - U_shipped| = "
           f"{np.max(np.abs(Up - Us)):.3e}")
