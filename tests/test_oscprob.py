@@ -2436,8 +2436,21 @@ def test_cumulative_is_reachable_and_reproduces_the_per_point_path():
     """`cumulative=False` used to raise TypeError from every wrapper, which made the one
     documented route to pre-1.0.0 numbers unavailable at the layer where the change is visible.
 
-    Also pins the two directions apart: False must match strategy='magnus' bit for bit, and
-    'auto' must not (it takes the cumulative scan, which is the point).
+    **What each flag guarantees, which is not the same thing.**  ``strategy='magnus'`` is the
+    route to pre-1.0.0 numbers: it opts out of the adiabatic strategy and already implies
+    ``cumulative=False``.  ``cumulative=False`` disables *the cumulative scan only* and leaves
+    the hybrid path free to answer.
+
+    This test used to assert that the two were bit-for-bit identical.  That held only *above*
+    the seam, and it held for a bad reason: the hybrid dispatcher stood aside there for an engine
+    the caller had switched off, so the request fell through to the general ladder and happened
+    to match.  Below the seam the two already differed, and the test never noticed because it
+    only exercised N = 60.  Standing aside for a disabled engine cost 256x accuracy at the seam
+    (1.157e-05 -> 2.966e-03 on a tagged exponential at d = 2, 10 MeV) and is fixed; see
+    ``test_engines.test_hybrid_does_not_stand_aside_for_a_disabled_engine``.
+
+    So the assertion is now the guarantee that is actually offered, checked at point counts on
+    both sides of the seam rather than at one.
     """
     energy = 50.0e6
     LM = 0.5*gd.SUN_RADIUS*gd.UNIT_KM
@@ -2456,10 +2469,31 @@ def test_cumulative_is_reachable_and_reproduces_the_per_point_path():
     p_magnus = call(strategy='magnus')
     p_auto = call()
 
-    assert np.array_equal(p_false, p_magnus), \
-        "cumulative=False must reproduce the pre-cumulative per-point path exactly"
+    # strategy='magnus' is the documented route to pre-1.0.0 numbers, and it must stay exact.
+    assert np.array_equal(p_magnus, call(strategy='magnus', cumulative=False)), \
+        "strategy='magnus' must reproduce the pre-cumulative per-point path exactly"
+    # cumulative=False guarantees only that the cumulative scan is not used.  It is NOT an
+    # alias for strategy='magnus': the hybrid path still answers, on both sides of the seam.
     assert not np.array_equal(p_auto, p_false), \
         "the default should be taking the cumulative scan on a 60-point single-energy scan"
+
+    seam = op.HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS
+    for n in (max(seam - 1, 1), seam, 60):
+        Ls_n = np.linspace(0.05*LM, LM, n)
+        info = {}
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            op.osc_prob_matter_std_potential(
+                2, rho, energy, Ls_n, params, L0=0.0,
+                density_is_of_number_of_electrons=True, cumulative=False,
+                strategy_info=info)
+        assert info['engine'] != 'cumulative', \
+            'cumulative=False reached the cumulative scan at N=%d' % n
+        assert info['engine'] == 'hybrid', \
+            ('cumulative=False fell through to %r at N=%d; the hybrid path is still allowed '
+             'to answer, and standing aside for a disabled engine is what cost 256x'
+             % (info['engine'], n))
+
     # An explicit request wins over the strategy='magnus' opt-out.
     assert np.array_equal(call(strategy='magnus', cumulative=True), p_auto)
 
