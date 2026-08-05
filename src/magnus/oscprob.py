@@ -4292,8 +4292,19 @@ def _osc_prob_hybrid_dispatch(
     # and the separable engine needs a single shared baseline, so both decline a scan too, and
     # the caller falls through to osc_prob_energy_baseline, where cumulative='auto' engages --
     # guaranteed, since its threshold is the smaller one.
-    if (strategy == 'auto') and _cumulative_scan_would_serve(
-            energy_arr, L_arr, L0, HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS):
+    #
+    # Guaranteed only while the cumulative scan is actually available, which is why
+    # cumulative=False is excluded here.  That flag switches the cumulative scan off without
+    # touching this one, so standing aside for it made the hybrid path yield to an engine the
+    # caller had disabled: the request then fell past ip_exp and separable (both of which
+    # decline a scan) onto the general per-point ladder -- the outcome the fall-through argument
+    # above exists to rule out.  Measured on a tagged exponential at d = 2, 10 MeV with
+    # cumulative=False, crossing the seam took the error from 1.16e-05 at N = 7 to 2.97e-03 at
+    # N = 8, a factor of 256 and outside the requested 1e-3, on the strength of one extra
+    # baseline.  Pinned by test_engines.test_hybrid_does_not_stand_aside_for_a_disabled_engine.
+    if (strategy == 'auto') and (scan_kwargs.get('cumulative') is not False) \
+            and _cumulative_scan_would_serve(
+                energy_arr, L_arr, L0, HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS):
         return NotImplemented
 
     magnus_exp_order = scan_kwargs['magnus_exp_order']
@@ -4837,8 +4848,18 @@ def osc_prob_energy_baseline(
         cumulative scan can be ~1.3x slower in wall time, which is a few milliseconds.
 
         Because the two paths build different grids, results move -- within the requested
-        tolerance, and generally toward the truth.  Pass ``cumulative=False`` to reproduce
-        pre-1.0.0 numbers exactly.
+        tolerance, and generally toward the truth.  Pass ``strategy='magnus'`` to reproduce
+        pre-1.0.0 numbers exactly: it opts out of the adiabatic strategy and already implies
+        ``cumulative=False``.
+
+        ``cumulative=False`` is the narrower flag and guarantees only that **the cumulative scan
+        is not used**; the hybrid path is still free to answer, at any point count.  It was
+        briefly equivalent to ``strategy='magnus'`` above the seam, but only because the hybrid
+        dispatcher stood aside there for an engine the caller had switched off -- which sent the
+        request to the general ladder and cost 256x accuracy (1.157e-05 -> 2.966e-03 on a tagged
+        exponential at d = 2, 10 MeV, crossing N = 7 to N = 8).  Below the seam the two flags
+        already differed.  See
+        ``tests/test_engines.test_hybrid_does_not_stand_aside_for_a_disabled_engine``.
     \**kwargs
         Additional arguments forwarded to :func:`osc_prob`.
 

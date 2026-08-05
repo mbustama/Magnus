@@ -376,3 +376,57 @@ def test_strategy_info_reports_sampling_only_when_asked():
         assert not called, 'the sampling report ran without strategy_info being requested'
     finally:
         op._sampling_report = orig
+
+
+def test_hybrid_does_not_stand_aside_for_a_disabled_engine():
+    """The hybrid path must not yield to the cumulative scan when the caller switched it off.
+
+    ``_cumulative_scan_would_serve``'s docstring argues the fall-through is safe: the hybrid
+    dispatcher's threshold is the larger of the two, so whenever it declines on point count,
+    ``cumulative='auto'`` is guaranteed to accept and "a scan can never be declined by both and
+    land on the general per-point path -- slower AND less accurate than either, and silently
+    so."
+
+    That argument holds only while the cumulative scan is *available*.  ``cumulative=False``
+    switches it off without touching the hybrid path, so above the seam the hybrid dispatcher
+    stood aside for an engine that could not run; ip_exp needs every baseline equal and the
+    separable engine a single shared baseline, so both declined too, and the request landed on
+    exactly the general ladder the docstring rules out.
+
+    Measured before the fix, on a tagged exponential at d = 2 and 10 MeV: adding one baseline to
+    a seven-point scan moved the engine from hybrid to magnus and the error from 1.157e-05 to
+    2.966e-03 -- a factor of 256, and outside the requested 1e-3.
+
+    Asserted as routing rather than accuracy so it needs no oracle.
+    """
+    seam = op.HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS
+    Ls_below = np.linspace(0.2*L1, L1, max(seam - 1, 1))
+    Ls_at = np.linspace(0.2*L1, L1, seam)
+    Ls_above = np.linspace(0.2*L1, L1, seam + 8)
+
+    for Ls in (Ls_below, Ls_at, Ls_above):
+        info = {}
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            call(solar_ne(), 10.0e6, Ls, cumulative=False, strategy_info=info)
+        assert info['engine'] == 'hybrid', (
+            'with cumulative=False the hybrid path stood aside at N=%d and %r answered instead; '
+            'the cumulative scan it yielded to was disabled by the caller'
+            % (len(Ls), info['engine']))
+
+    # The default path must be untouched: 'auto' still yields at and above the seam, which is
+    # the behaviour HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS exists to produce.
+    info_below, info_at = {}, {}
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        call(solar_ne(), 10.0e6, Ls_below, strategy_info=info_below)
+        call(solar_ne(), 10.0e6, Ls_at, strategy_info=info_at)
+    assert info_below['engine'] == 'hybrid'
+    assert info_at['engine'] == 'cumulative'
+
+    # And an explicit cumulative=True still names one engine and is never substituted for.
+    info_true = {}
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        call(solar_ne(), 10.0e6, Ls_at, cumulative=True, strategy_info=info_true)
+    assert info_true['engine'] == 'cumulative'
