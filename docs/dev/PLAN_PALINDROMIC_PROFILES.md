@@ -407,6 +407,60 @@ the distinction is exactly the "state which observable the criterion applies to"
 
 ---
 
+## 3f. SHIPPED, 2026-08-05 — route (b), declared at the Earth entry points
+
+Built as decided: the profile symmetry is **declared** by the Earth entry points, where a chord
+meeting every radius twice is geometry rather than a caller's claim, and `USE_PALINDROME` (module
+switch, True by default) can disarm it globally. The declaration travels as a **named parameter**
+at every hop, never through `**kwargs`, because both call sites into the Magnus layer splat their
+kwargs and every dispatcher declines outright on an unrecognized key — routing a new key that way
+would change *which engine answers*, which is the PR #29 defect.
+
+The thread is `osc_prob_{2,3,4,5}nu_earth[_nsi|_liv]` and `osc_prob_earth` ->
+`osc_prob_matter_std_potential` / `osc_prob_matter_nsi` / `osc_prob_liv` /
+`_osc_prob_with_potential` -> `osc_prob_energy_baseline` -> `osc_prob` ->
+`compute_evolution_operator_multiple_slabs` -> `magnus_expansion_multislab`.
+
+**It carries the interval, not a flag.** `symmetric_over = (0.0, L_chord)`, and the Magnus layer
+checks the slab chain spans exactly that. This is what makes it safe in a scan with no extra
+bookkeeping: a chord is symmetric over its full length and over no shorter prefix, so a point at a
+shorter baseline spans `(L0, baseline)`, fails the check, and takes the ordinary path. Verified.
+The cumulative scan's blocked sub-ranges decline for the same reason.
+
+**What licenses the declaration, measured not assumed.** `r(l) = r(L-l)` holds to 1e-16 relative
+(1.2e-12 at `costhz = -1`), and `prem_layer_edges_along_chord` returns crossings symmetric about
+the midpoint **exactly** — `max|tb + tb[::-1] - d| = 0.0` at every zenith angle tested, because
+the crossing quadratic's roots are `d/2 +/- s`. The resulting slab widths are palindromic to
+~2e-16, inside the `4*n*eps` bound.
+
+### The limitation that matters: Earth *scans* get nothing
+
+An Earth energy scan is answered by the **separable** engine, which builds its own samples and
+calls `evolution_operators_from_samples` directly, never reaching `magnus_expansion_multislab`.
+Only a **single (energy, baseline) point** takes the general ladder, where the mirror fires.
+Confirmed with `strategy_info`: a 12-energy Earth scan reports `engine='separable'`, a single
+point reports `engine='magnus'`.
+
+That is the more common Earth workload, so **most of the benefit is currently unreached**.
+Extending it means giving the separable engine the same treatment where it builds its sample
+stack. Not done here, and it is the obvious next step if this optimisation is worth more.
+
+### Bit-identity
+
+**0 of the 11 pre-existing `bitident.py` rows moved** — but that number is not the reassurance it
+looks like, and the battery has been changed to say so. Row 7 is its only Earth case and it is a
+*scan*, which the separable engine answers, so the battery could report "0 of 11" while the
+mirror was live and moving every single point. **Row 12 was added**, an Earth single point, and it
+**moves by design**: worst 8.6e-15 relative across 15 (costhz, energy) configurations, typical
+2e-15. `magnus.magnus.USE_PALINDROME = False` recovers the pre-mirror numbers exactly.
+
+That movement is inherent to route (b) and cannot be designed away: the mirrored slab's nodes are
+reached as `(L - b) + h*s` on one route and `a + h*s` on the other — different floating-point
+expressions for the same real number. §3c's promise of "zero bit-identity movement" belonged to
+route (a), which was not taken.
+
+---
+
 ## 4. Proposed phases
 
 Each phase ends in a decision, and any of them can end the work.

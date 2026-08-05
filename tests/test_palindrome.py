@@ -238,3 +238,98 @@ def test_no_declaration_leaves_the_shipped_path_bit_identical():
         a = mg.magnus_expansion_multislab(_A_monotonic, e, **kw)
         b = mg.magnus_expansion_multislab(_A_monotonic, e, symmetric_over=None, **kw)
         assert np.array_equal(a, b)
+
+
+# ------------------------------------------------------- the Earth entry points
+
+def _chord(costhz):
+    from magnus import earth, globaldefs as gd
+    return earth.distance_traveled_inside_earth(costhz)*gd.UNIT_KM
+
+
+def test_earth_chord_symmetry_declares_only_the_whole_chord():
+    r"""A chord is symmetric over its full length and over no shorter prefix."""
+    from magnus import oscprob
+    c = -0.9
+    L = _chord(c)
+    assert oscprob._earth_chord_symmetry(c, L) == (0.0, L)
+    assert oscprob._earth_chord_symmetry(c, [L, L]) == (0.0, L)
+    assert oscprob._earth_chord_symmetry(c, 0.5*L) is None
+    assert oscprob._earth_chord_symmetry(c, [L, 0.9*L]) is None
+    assert oscprob._earth_chord_symmetry(0.5, L) is None      # up-going: no chord
+    assert oscprob._earth_chord_symmetry(None, L) is None
+
+
+def test_prem_crossings_are_exactly_symmetric_about_the_chord_midpoint():
+    r"""What licenses the declaration, checked rather than assumed.
+
+    The two roots of the crossing quadratic come out as ``d/2 +/- s``, so the crossings mirror
+    exactly -- not nearly.  If this ever stops holding, the Earth slab grid stops being
+    palindromic and the mirror silently stops firing, which is a performance regression that no
+    accuracy test would catch.
+    """
+    from magnus import earth
+    for costhz in (-0.05, -0.1, -0.3, -0.5, -0.7, -0.9, -0.99, -1.0):
+        d = earth.distance_traveled_inside_earth(costhz)
+        tb = earth.prem_layer_edges_along_chord(costhz)
+        if len(tb) == 0:
+            continue
+        assert np.max(np.abs(tb + tb[::-1] - d)) == 0.0, costhz
+
+
+@pytest.mark.parametrize('costhz', [-0.2, -0.5, -0.9])
+def test_an_earth_single_point_takes_the_mirrored_path(costhz, monkeypatch):
+    r"""The wiring works end to end, asserted by watching the gate rather than the answer."""
+    from magnus import magnus as mgcore, oscprob, globaldefs as gd
+    seen = []
+    original = mgcore._mirror_applies
+    monkeypatch.setattr(mgcore, '_mirror_applies',
+                        lambda e, w, s: seen.append(bool(original(e, w, s))) or seen[-1])
+    oscprob.osc_prob_3nu_earth(2.0*gd.UNIT_GEV, costhz=costhz, L=_chord(costhz),
+                               nu_i=1, nu_f=0, validate_input=False)
+    assert seen and all(seen), seen
+
+
+def test_a_shorter_baseline_does_not_take_the_mirrored_path(monkeypatch):
+    r"""The chord is not symmetric over half of itself, and the span check is what notices."""
+    from magnus import magnus as mgcore, oscprob, globaldefs as gd
+    seen = []
+    original = mgcore._mirror_applies
+    monkeypatch.setattr(mgcore, '_mirror_applies',
+                        lambda e, w, s: seen.append(bool(original(e, w, s))) or seen[-1])
+    oscprob.osc_prob_3nu_earth(2.0*gd.UNIT_GEV, costhz=-0.9, L=0.5*_chord(-0.9),
+                               nu_i=1, nu_f=0, validate_input=False)
+    assert seen and not any(seen), seen
+
+
+def test_a_solar_profile_never_arms_the_mirror(monkeypatch):
+    r"""Monotonic profiles must not reach this path; a false positive here is a correctness bug,
+    not a missed optimisation."""
+    from magnus import magnus as mgcore, oscprob, matter, globaldefs as gd
+    seen = []
+    original = mgcore._mirror_applies
+    monkeypatch.setattr(mgcore, '_mirror_applies',
+                        lambda e, w, s: seen.append(bool(original(e, w, s))) or seen[-1])
+    profile = matter.exp_density_profile(gd.NUM_DENSITY_E_SUN_CENTRAL, gd.L_SCALE_SUN)
+    params = gd.OSC_PARAMS_PREDEFINED['OSC_PARAMS_DEFAULT']
+    oscprob.osc_prob_matter_std_potential(
+        2, profile, 50.0e6, 0.5*gd.SUN_RADIUS*gd.UNIT_KM,
+        {'sth': params['s12'], 'Dm2': params['D21']},
+        L0=0.0, density_is_of_number_of_electrons=True)
+    assert not any(seen), seen
+
+
+@pytest.mark.parametrize('costhz', [-0.2, -0.5, -0.8, -0.9, -1.0])
+def test_the_earth_answer_moves_only_at_rounding(costhz, monkeypatch):
+    r"""The mirror changes the Earth path's bits, and this pins by how much.
+
+    Worst measured across 15 (costhz, energy) configurations is 8.6e-15 relative; the bound here
+    is 1e-12, loose enough not to be flaky and tight enough that a real regression trips it.
+    """
+    from magnus import magnus as mgcore, oscprob, globaldefs as gd
+    L = _chord(costhz)
+    kw = dict(costhz=costhz, L=L, nu_i=1, nu_f=0, validate_input=False)
+    with_mirror = float(oscprob.osc_prob_3nu_earth(2.0*gd.UNIT_GEV, **kw))
+    monkeypatch.setattr(mgcore, 'USE_PALINDROME', False)
+    without = float(oscprob.osc_prob_3nu_earth(2.0*gd.UNIT_GEV, **kw))
+    assert abs(with_mirror - without) <= 1e-12*max(abs(without), 1e-3)
