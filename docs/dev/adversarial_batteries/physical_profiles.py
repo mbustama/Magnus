@@ -60,7 +60,8 @@ References
    :math:`t = 3` s post-bounce: reverse shock 1734 km, contact discontinuity 12 348 km,
    forward shock 30 323 km.
 .. [Bahcall2005] J. N. Bahcall, A. M. Serenelli, S. Basu, ApJ 621, L85 (2005)
-   [astro-ph/0412440].  Model BS2005-AGS,OP, table ``bs05_agsop.dat``.
+   [astro-ph/0412440].  Model BS2005-AGS,OP, table ``bs05_agsop.dat`` -- third-party data
+   redistributed here; see ``SOURCES.md`` for provenance and terms.
 .. [PREM] A. M. Dziewonski, D. L. Anderson, Phys. Earth Planet. Inter. 25, 297 (1981), as
    already implemented in ``magnus.earth``.
 """
