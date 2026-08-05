@@ -463,17 +463,38 @@ briefly supported the conclusion that the mechanism was worthless. Count the wor
 optimisation actually removes -- here, H evaluation points -- and check it moved, before timing
 anything.
 
-### The limitation that matters: Earth *scans* get nothing
+### Which scans benefit, and which do not
 
-An Earth energy scan is answered by the **separable** engine, which builds its own samples and
+The engine decides it, and the split is not the one an earlier draft of this section claimed.
+Confirmed with `strategy_info`, and by watching the gate:
+
+| workload | engine | mirror |
+|---|---|---|
+| single point, standard PREM | `magnus` | fires 3/3 |
+| single point, custom `H_func` | `magnus` | fires 3/3 |
+| **scan, standard PREM** | `separable` | **never fires** |
+| **scan, custom `H_func`** | `magnus` | **fires 28/28, 100/100** |
+
+A **standard** PREM scan is answered by the separable engine, which builds its own samples and
 calls `evolution_operators_from_samples` directly, never reaching `magnus_expansion_multislab`.
-Only a **single (energy, baseline) point** takes the general ladder, where the mirror fires.
-Confirmed with `strategy_info`: a 12-energy Earth scan reports `engine='separable'`, a single
-point reports `engine='magnus'`.
+Nothing is lost by that: the separable engine exists precisely to evaluate the profile once and
+share it across energies, so it has already taken the saving the mirror would take. Measured,
+its profile-evaluation share is `f` = 0.001-0.026, capping any possible gain at **1.001x-1.013x**
+— two orders of magnitude below the 1.3x bar. **Extending the mirror to that engine is not worth
+building**, and that is a measurement rather than a deferral.
 
-That is the more common Earth workload, so **most of the benefit is currently unreached**.
-Extending it means giving the separable engine the same treatment where it builds its sample
-stack. Not done here, and it is the obvious next step if this optimisation is worth more.
+A scan with a **custom `H_func`** does not fit the separable engine's `h_vac + VCC*proj` form, so
+it falls to the general ladder, where the mirror fires on every chain and the saving is real:
+
+| energies | per-point H cost | speed-up |
+|---|---|---|
+| 12 | 1 000 | 1.561x |
+| 12 | 5 000 | 1.639x |
+| 40 | 1 000 | 1.562x |
+| 40 | 5 000 | 1.590x |
+
+So the workload this was built for — an expensive Hamiltonian across an Earth chord, scanned over
+energy — gets **1.56x-1.64x**, and it holds as the scan lengthens.
 
 ### Bit-identity
 
