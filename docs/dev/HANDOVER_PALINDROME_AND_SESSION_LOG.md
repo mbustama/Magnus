@@ -140,6 +140,16 @@ Same reasoning that put `_scan_for_hidden_features` at the entry point.
 
 ### 2.3 THE CRITICAL CORRECTION — the sign rule is only valid for k <= 2
 
+> **THIS SECTION IS ITSELF WRONG. See `PLAN_PALINDROMIC_PROFILES.md` §3d(i).** The sign rule is
+> exact for **every** k. The nested-commutator argument below inspects one term of a commutator
+> group in isolation; summed over the group, `Omega_3`'s integrand is invariant under reversal,
+> and an operator-level derivation gives the rule at all k. The measured numbers in the table
+> below are reproducible and correct, but 3.7e-08 is the **discrete cumulative quadrature error**,
+> not an algebraic residual: it falls exactly 4.0x per doubling of `n_tpts_per_slab` (O(h^2)) on
+> two different Hamiltonians at orders 2-8, and sits 4-5 orders below the error the same grid
+> already commits. The practical decision was nevertheless taken to **resample** rather than use
+> the sign rule, which keeps the question out of the shipped path entirely.
+
 An intermediate conclusion in this session was that `Ω_k → (-1)^{k+1} Ω_k` under interval
 reversal, in general. **That is wrong for k >= 3**, and the plan has been corrected. Reversing a
 nested commutator `[H₁,[H₂,H₃]]` gives `[H₃,[H₂,H₁]]`, which is not `±` the original.
@@ -235,6 +245,11 @@ worth knowing.
 
 ### 2.7 Working prototype (reproduces the shipped path to 1e-15 on `gl`)
 
+> **BUG — odd slab counts.** `Om = np.empty((n,3,3))` then `Om[:m]` and `Om[n-m:]` with
+> `m = n//2` skip index `m` when `n` is odd, so the middle slab is returned uninitialised:
+> measured 7.13e-01 / 3.01e-01 / 1.48e-01 at n = 31 / 63 / 129, worst slab the middle one every
+> time. Even counts are exact to 1e-15, which is why it looked sound. See plan §3d(iii).
+
 ```python
 def gl_mirror(A, edges, order):
     """Evaluate A on the FIRST HALF only; the mirror slab's Omega follows by symmetry."""
@@ -265,6 +280,14 @@ method)` and build the mirror by **reversing `Bt` along its sample axis and reco
 **`(order, m, d, d)`** — term axis **leading**.
 
 ### 2.8 Decision criteria already agreed with the user
+
+> **The first bullet is not implementable as written. See plan §3d(ii).** Gating on "exact
+> symmetry of the slab inputs actually used" requires evaluating those inputs, which is the cost
+> the feature exists to avoid. Measured: a widths-only gate passes a *monotonic* profile and the
+> mirror is then wrong by **3.34e-01**; and the sampled `A` is never bitwise palindromic even for
+> a symmetric profile on a symmetrised grid (~5e-16 relative), so an `array_equal` test on it
+> never fires. The speed-up survives only on the declare-it route, which carries that 3.34e-01
+> as its failure mode.
 
 * **Gate on exact symmetry of the slab inputs actually used.** A non-palindromic grid — including
   today's Earth chord — takes the existing path unchanged, so the feature ships with **zero

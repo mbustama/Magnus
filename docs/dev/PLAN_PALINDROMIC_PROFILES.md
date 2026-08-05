@@ -11,6 +11,11 @@ asks what the equivalent is for Magνs — and the answer is **not** the same al
 
 ## 0. The measurement that constrains the whole design
 
+> **CORRECTED — see §3d(i).** The claim below that the sign rule is false for k >= 3 is wrong;
+> it is exact for every k, and the measured 3.7e-08 is a convergent O(h^2) quadrature error.
+> The section is kept as written because the *rest* of it — that `U_j != U_{n-1-j}` at order
+> >= 2, so the port does not transfer — is correct and is the finding that matters.
+
 NuOscProbExact's saving rests on one fact: for a palindromic sequence of **constant-H** slabs,
 `U_j = U_{n-1-j}` exactly, so each distinct operator is built once and used twice
 (`fastkernels._slab_product_3nu_mirrored`). Two accumulators, `acc_a` growing on the right and
@@ -205,6 +210,10 @@ at order <= 2 and degrades at order >= 4.
 
 ## 3c. Decision criteria, set in advance
 
+> **CORRECTED — see §3d(ii).** The gate described below cannot be implemented as specified:
+> testing "the slab inputs actually used" requires evaluating them, which is the cost the
+> feature exists to avoid. The `1/(1 - f/2)` speed-up applies only to the declare-it route.
+
 **Ship the mechanism, gated on exact symmetry of the slab inputs actually used.** This is the
 staging that removes almost all of the risk, and it was not obvious until §3b:
 
@@ -232,6 +241,104 @@ timing of `H_func` against the slab total settles it for any given user.
 
 ---
 
+## 3d. CORRECTIONS, 2026-08-05 (later session) — two claims above are wrong
+
+Everything in this section was measured on `dev-palindrome` against the shipped code, on the
+same PREM chord (`costhz = -0.9`, 3nu, `dCP = 3.70`). Scripts under the session scratchpad.
+
+**Confirmed unchanged:** §0's `U_j != U_{n-1-j}` at order >= 2 (so the port really does not
+transfer); §3b's grid palindromy (`3.9062e-03` absolute, **4.30e-15 relative**, `array_equal`
+False, mirror-average fixes it); §1(B)'s transpose identity (at `dCP = 0`, `H - H^T` is exactly
+zero and `U = F^T F` to 1.2e-15; at `dCP = 3.70`, `H` is asymmetric at **17% relative** and the
+identity fails at 7.4e-01, while `U(d) = F(-d)^T F(d)` holds to 2.1e-15).
+
+### (i) The sign rule is exact for every k, not only k <= 2
+
+§0 and §3b assert that `Omega_k -> (-1)^{k+1} Omega_k` is algebraically false for k >= 3. **It is
+not.** The argument given — that reversing `[H1,[H2,H3]]` yields `[H3,[H2,H1]]`, which is not
+`+/-` the original — inspects one term of a commutator group in isolation. Summed over the whole
+group the integrand is invariant: `Omega_3`'s integrand over the ordered simplex is
+`([A1,[A2,A3]] + [[A1,A2],A3])`, which reversal maps to `([A3,[A2,A1]] + [[A3,A2],A1])`, and
+antisymmetry gives `[A3,[A2,A1]] = [[A1,A2],A3]` and `[[A3,A2],A1] = [A1,[A2,A3]]` — the same
+pair. There is also an operator-level derivation valid at all k: with `W(s) = U(b, a+b-s)` one
+has `W' = W Atilde`, `W(0) = I`, `W(b-a) = U(b,a)`, whence `U(b,a) = exp(-Omega[-Atilde])`, and
+since `Omega_k[-A] = (-1)^k Omega_k[A]` the rule follows for every k.
+
+The **measurements in §3b are reproducible and correct** — 3.7366e-08 (trapezoid, order 4,
+`n_tpts=41`) and 8.4360e-09 (simpson, order 4) — but 3.7e-08 is not an algebraic residual. It is
+the error of the discrete cumulative quadrature, and it converges away:
+
+| `n_tpts_per_slab` | 11 | 41 | 161 | 641 |
+|---|---|---|---|---|
+| sign-rule residual | 6.08e-07 | 3.74e-08 | 2.33e-09 | 1.45e-10 |
+
+Exactly **4.0x per doubling** — O(h^2), the trapezoid's own rate. That rate holds on the PREM
+chord, on a generic random complex `A(t)`, and at orders 2 through 8. Against `solve_ivp`,
+sign-flipped terms converge to the *reversed* propagator through order 6 exactly as the unflipped
+terms converge to the forward one; were the rule false at k >= 3, that sequence would stall at
+order 3, and it does not. The residual also sits **4-5 orders below the error the same grid
+already commits**: at `n_tpts=41`, order 4, it is 3.7e-08 against a quadrature error of 1.2e-03.
+
+§3b's dead end (averaging the two sweep directions leaves the residual "exactly 3.72e-08 —
+identical") is consistent with this rather than evidence against it: the cumulative trapezoid rule
+is *already* direction-symmetric, so that patch was a no-op.
+
+**Consequence.** The choice on `trapezoid`/`simpson` at order >= 4 is not "wrong versus exact". It
+is "a 1e-8 discretisation difference for 2.2-2.8x" versus "exact for 1.02x". **Decision taken:
+resample.** Reverse the retained samples and recompute, which is bitwise-exact at every order and
+every method, saves only the `H_func` evaluations, and — importantly — removes the sign rule from
+the shipped code path altogether, so none of the above needs to be relied upon in production.
+
+### (ii) The gate in §3c cannot be implemented as specified
+
+§3c says to gate on "exact symmetry of the slab inputs actually used" while evaluating only the
+first half. Those two requirements are incompatible; you cannot test what you have not evaluated.
+Measured:
+
+* **Widths alone are not sufficient, and failing this is catastrophic.** A monotonic
+  (solar-like) profile on a symmetrised uniform grid passes `np.array_equal(w, w[::-1])`, and the
+  mirror is then wrong by **3.340e-01** — against 9.3e-16 for a genuinely symmetric profile on the
+  same grid. This is the silent-wrongness mode the whole plan exists to avoid, and a widths-only
+  gate walks straight into it on the *solar* family §2 predicts will "correctly decline".
+* **The sampled `A` is never bitwise palindromic**, so an exact test on it never fires. Even with
+  a perfectly symmetric profile on a symmetrised grid, `array_equal(At, At[::-1,::-1])` is False,
+  differing by 4.9e-16 / 6.5e-16 / 5.7e-16 relative at gl orders 2 / 4 / 6 — because the shipped
+  sampling computes the mirror slab's nodes as `(L-b) + h*s` and the forward slab's as
+  `a + h*s`, which are different floating-point expressions for the same real number.
+
+So the design has a genuine fork, and it is not the one §3c anticipated:
+
+* **(a) Construct the mirror's sample positions exactly** (`t_mirror = L - t_forward`, one
+  subtraction) and evaluate `A` at all of them, then test `array_equal`. Sound and exact — the
+  test now means "is the profile symmetric", which is the property being exploited. But it
+  forfeits the halved `H_func` evaluations, i.e. the entire `1/(1 - f/2)` saving that motivated
+  the feature. What remains is only the halved Omega construction.
+* **(b) Have the producer declare it** — the Earth entry points know by construction that a chord
+  meets every radius twice. This delivers the saving, and it is what §3 already quotes
+  NuOscProbExact as prescribing ("the producer is responsible for making it exactly symmetric,
+  not the consumer for tolerating near-symmetry"). But it is a declaration, not a test, so a
+  caller who declares wrongly gets the 3.34e-01 failure above.
+
+**Not decided here.** (b) is the only route that delivers the advertised speed-up, and it is
+the route with a silent-wrongness mode. That trade is the real decision this plan owes, and §3b's
+`1/(1 - f/2)` figures should be read as belonging to (b) alone.
+
+### (iii) The §2.7 prototype is wrong for odd slab counts
+
+Transcribed verbatim, `gl_mirror` allocates `Om = np.empty((n,3,3))` and writes `Om[:m]` and
+`Om[n-m:]` with `m = n//2`. For odd `n` those two slices skip index `m`, so the middle slab is
+returned as uninitialised memory. Measured against the shipped path, with the worst slab being the
+middle one in every case:
+
+| `n_slabs` | 31 | 63 | 129 |
+|---|---|---|---|
+| max abs error | 7.13e-01 | 3.01e-01 | 1.48e-01 |
+
+Even counts are unaffected (1e-15 at orders 2, 4 and 6), which is why the prototype looked sound.
+Any implementation must handle the unpaired middle slab explicitly.
+
+---
+
 ## 4. Proposed phases
 
 Each phase ends in a decision, and any of them can end the work.
@@ -239,6 +346,12 @@ Each phase ends in a decision, and any of them can end the work.
 **Phase 1 — DONE, see §3b.** The cost split is measured and the answer is that `expm` is free,
 so (A) is worth building wherever `H_func` is not trivially cheap. What is still unmeasured is
 the small-slab-count end, where fixed overheads might need a floor.
+
+> **Phases 2, 4 and 5 are superseded in part by §3d.** Phase 2's predicate is still wanted, but
+> §3d(ii) shows what it can and cannot be applied to. Phase 4 must not "form the mirror's terms
+> by negating even orders" — the decision recorded in §3d(i) is to resample instead, which is
+> bitwise-exact and keeps the sign rule out of the shipped path. Phase 5 is dead for 3nu with
+> `dCP != 0` per §1(B), confirmed in §3d.
 
 **Phase 2 — the predicate.**
 `magnus.palindromic(*arrays)` mirroring NuOscProbExact's semantics exactly, plus
@@ -272,6 +385,12 @@ Only if Phase 1 shows `expm` is a large share, since this is the only route that
 ---
 
 ## 5. Risks, in the order I would worry about them
+
+> **Reordered by §3d.** The top risk is no longer the sign flip (which is exact, and which the
+> resample decision removes from the shipped path anyway). It is **a caller, or an entry point,
+> declaring a profile symmetric when it is not** — measured at 3.34e-01 on a monotonic profile
+> that passes a widths-only gate. Every route that actually delivers the speed-up rests on such a
+> declaration, so that is where the correctness argument has to be made.
 
 1. **The order >= 2 sign flip (§0).** Already measured, and it is the whole reason this is not a
    port. Any implementation that skips the sign alternation will be wrong at the default order —
