@@ -7,6 +7,60 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **The refinement ladder could stop while the answer was still outside the
+  requested tolerance, and report success.**  ``t_breakpoints`` (the ~14 PREM
+  layer crossings) are re-inserted into every level's grid, so at small counts
+  the nominal refinement and the real one are different things: a nominal
+  2 -> 3 slab step is a **16 -> 17 edge** step, a 6% refinement rather than a
+  50% one.  Two grids differing by 6% agree for reasons unrelated to having
+  converged, and ``np.allclose`` read that as success.
+
+  An agreement now only counts when the two levels compared were genuinely
+  different grids -- ``len(t_slab_edges)`` must grow by at least
+  :data:`oscprob.MIN_EFFECTIVE_REFINEMENT` (1.25, measured).  Over 120 Earth
+  configurations (costhz -0.15 to -0.99, 0.5-8 GeV, three tolerances, scored
+  against a reference verified converged to 1e-13): one silent violation, 2.1x
+  outside the tolerance asked for, and five more that missed but warned -- all
+  six now zero.
+
+  **This changes Earth results, by making them more accurate**: one of the
+  twelve ``bitident`` rows moves, the Earth single point, by 2.3e-04.  It is
+  inert wherever there are no breakpoints (solar is bit-identical), and does
+  not reach the separable engine that answers Earth *scans*, which was checked
+  separately and does not have the defect.  Cost is about 11% of wall clock
+  (a 60-energy Earth scan goes from 9 ms to 10 ms) despite the median slab
+  count rising from 9 to 21, because the added levels are the cheap small ones.
+
+### Changed
+
+- **``rtol``/``atol`` are documented for what they are: a stopping criterion,
+  not an accuracy guarantee.**  The ladder halts when two successive levels
+  agree; it never estimates the error of the answer it returns, which is a
+  weaker promise than a stepping ODE integrator's ``rtol`` makes.  Corrected
+  in ``osc_prob``, ``adiabatic.hybrid_propagator``, the CLI's ``--rtol``/
+  ``--atol`` help, ``README.md``, ``architecture.rst`` (which said "until
+  rtol/atol is met"), and a new section of ``implementation_details.rst`` that
+  the others link to.  No behaviour changed by this entry.
+
+- **``convergence_info`` reports what the ladder did.**  Alongside the existing
+  ``n_slabs``/``n_tpts_per_slab`` it now carries ``n_slab_edges`` and
+  ``n_slab_edges_previous`` (which make the real refinement step visible),
+  ``n_slabs_previous``, ``n_tpts_per_slab_previous``, ``last_gap`` (None when
+  only one level was ever computed), ``n_agreements``, and
+  ``tolerance_achieved`` -- the programmatic form of
+  ``ToleranceNotAchievedWarning``.
+
+  It deliberately carries **no error estimate**.  Converting the gap into one by
+  Richardson extrapolation, as the sibling NuOscProbExact does, was measured and
+  rejected: Magnus has no stable convergence order (fitted on Earth chords it
+  scatters from 1.4 to 7.2 against nominal orders of 2 and 4), and because
+  breakpoints make the effective refinement ratio as low as 1.06 rather than
+  1.5, dividing by ``r^p - 1`` under-reports the true error by 6-20x *even
+  where the power law holds exactly*.  Under-reporting is the dangerous
+  direction.
+
 ### Added
 
 - **Palindromic density profiles are exploited on Earth chords.**  A chord through a

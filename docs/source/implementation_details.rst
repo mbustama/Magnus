@@ -272,6 +272,45 @@ up to 8.6e-15 relative.
 Accuracy
 ----------
 
+.. _what-rtol-atol-control:
+
+What ``rtol`` and ``atol`` actually control
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+They are a **stopping criterion, not an accuracy guarantee**, and the difference is worth
+stating because the names invite the other reading.
+
+The refinement ladder computes the probability matrix, grows ``n_slabs`` (and, for the
+quadrature methods, ``n_tpts_per_slab``), recomputes, and stops when two successive levels
+agree within ``atol + rtol*|P|``.  Nothing in that loop estimates the error of the answer
+it returns.  A stepping ODE integrator's ``rtol`` is a different quantity: it bounds an
+*estimated* local error per step, formed by comparing against an embedded lower-order
+formula.  Magnus forms no such estimate; it infers convergence from agreement.
+
+Usually that is conservative.  For a sequence converging as :math:`C n^{-p}` the
+level-to-level gap overstates the error of the finer level, so an answer that stopped at
+``rtol=1e-3`` is typically better than 1e-3.
+
+**But agreement is evidence, not proof.**  On a sequence that is still jumping around, two
+levels can agree by coincidence while both are far from the truth: measured on a sawtooth
+density, the 3- and 4-slab levels agreed and the returned answer was wrong by **0.855** in
+probability.  ``strict_convergence`` requires two *consecutive* agreements for that reason.
+
+It is fair to ask why the gap is not converted into an error estimate by Richardson
+extrapolation -- for refinement ratio :math:`r` and order :math:`p`, the finer level's
+error is :math:`\text{gap}/(r^p - 1)` -- which is what the sibling NuOscProbExact does.
+The answer is that the required :math:`p` is not available.  Fitting the observed order on
+the Earth chord against a 4096-slab reference gives :math:`p` = 3.84, 5.62 and 4.06 at 1, 2
+and 10 GeV for ``magnus_exp_order=4`` (nominal 4), but **1.15, 2.66 and 1.59** for
+``magnus_exp_order=2`` (nominal 2) -- scattered by more than a factor of two, with one
+sequence not even monotone.  On solar configurations under ``strategy='magnus'`` the error
+sequence is frankly non-monotone at the slab counts the ladder visits, so no power law
+holds at all.  Assuming :math:`p` equals the requested Magnus order would divide the gap by
+too large a denominator wherever the true order is lower, reporting an error *smaller* than
+the truth -- the dangerous direction, and the same shape as the false-certification bug
+already on record in ``adiabatic.hybrid_propagator``.
+
+
 **The oracle discipline.** ``solve_ivp``/DOP853 at ``rtol=1e-12, atol=1e-14`` is the only
 accuracy oracle, and its convergence is verified per configuration by tightening to
 ``rtol=1e-13`` and confirming the movement is far below the error being quoted. Where the

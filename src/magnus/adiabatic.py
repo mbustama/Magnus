@@ -1319,9 +1319,15 @@ def hybrid_propagator(H_func: Callable, l0: float, l1: float, rtol: Optional[flo
     l1 : float
         Final position.
     rtol : float, optional
-        Target relative tolerance between successive refinement levels. Default: 1e-3.
+        Relative tolerance on the *agreement* between successive refinement levels, and on the
+        adiabaticity bound in :func:`_certified`.  Default: 1e-3.  Like every tolerance in this
+        package it is a stopping rule rather than a guaranteed accuracy: the loop halts when
+        two successive levels agree, and no error of the returned operator is ever estimated.
+        See the ``rtol`` entry of :func:`magnus.oscprob.osc_prob` for what that does and does
+        not promise.  ``certified`` is the flag that says whether the loop stopped because it
+        agreed or because it ran out of room.
     atol : float, optional
-        Target absolute tolerance between successive refinement levels. Default: 1e-3.
+        Absolute tolerance on the same agreement; see ``rtol``.  Default: 1e-3.
     magnus_exp_order : int, optional
         Magnus expansion order used for the local patch inside each non-adiabatic window.
         Default: 6.

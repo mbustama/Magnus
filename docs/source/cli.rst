@@ -430,8 +430,11 @@ configures):
                            sample a uniform grid of --n-tpts-per-slab points instead, and
                            are the safer choice if the Hamiltonian is not smooth within a
                            slab. Default: gl.
-     --rtol RTOL           Target relative tolerance. Default: 1e-3.
-     --atol ATOL           Target absolute tolerance. Default: 1e-3.
+     --rtol RTOL           Relative tolerance on the agreement between successive
+                           refinement levels -- a stopping rule, not a guaranteed accuracy.
+                           Default: 1e-3.
+     --atol ATOL           Absolute tolerance on the same agreement; see --rtol. Default:
+                           1e-3.
      --n-jobs N_JOBS       Number of parallel joblib workers. Default: 1.
      --strategy {auto,hybrid,magnus}
                            How to propagate a position-dependent Hamiltonian: 'magnus' uses
