@@ -393,11 +393,28 @@ bound      silent violations   missed but warned   median slabs returned
 1.15                        0                   1                      14
 **1.25**                    0                   0                      21
 1.40                        0                   0                     108
+1.50                        0                   0                  20 000
 =========  ==================  ==================  =====================
 
 1.40 buys nothing and costs twelve times the slabs.  The levels 1.25 adds are the cheap small
 ones, so wall clock rises far less than the slab count: a 60-energy Earth scan goes from 9 ms
 to 10 ms.
+
+**One constant covers every case measured; none of them wanted their own.**  Repeating the
+sweep at four and five flavours (same chords and energies, three tolerances, against a
+4000-slab reference) gives zero silent violations at 1.25 in all of 3nu, 4nu and 5nu.  Four
+and five flavours each keep one case that misses but *warns*, which is the existing contract
+rather than this defect.  Breakpoint density does not reach it either: swept at 0, 10, 50, 200
+and 1000 user-supplied breakpoints, the ladder converged with identical slab counts either
+side of the gate, because its seed starts in the thousands and never visits the small counts
+where dense breakpoints would dominate the ratio.
+
+**The bound must stay below ``growth_factor_n_slabs``, and the cliff is sharp.**  At 1.50 the
+ratio is only reachable when rounding happens to favour it, so the ladder runs to the cap
+instead: median slabs returned goes to **20 000** -- ``max_n_slabs`` -- at every flavour count,
+for no accuracy gained over 1.25.  That is the failure mode of a bound set too high, and it is
+why the measured value sits a comfortable distance under the growth factor rather than just
+beneath it.
 
 **It is a no-op wherever there are no breakpoints**, since the edge count is then the slab count
 and the ratio is ``growth_factor_n_slabs`` itself -- solar probabilities are bit-identical
