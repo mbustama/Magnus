@@ -367,6 +367,51 @@ body those branches could not be tested at all.
 """
 
 
+MIN_EFFECTIVE_REFINEMENT = 1.25
+r"""float: Module-level constant
+
+Least ratio of *actual slab edges* between two refinement levels for their agreement to be
+allowed to count as convergence.
+
+The ladder multiplies ``n_slabs`` by ``growth_factor_n_slabs``, but ``t_breakpoints`` are
+re-inserted into every level's grid, so at small counts the nominal step and the real one are
+very different things: on a chord with fourteen PREM crossings a nominal 2 -> 3 slab step is a
+**16 -> 17 edge** step, a 6% refinement rather than a 50% one.  Two grids differing by 6% give
+nearly the same answer for reasons that have nothing to do with having converged, and
+``np.allclose`` reads that as success.
+
+**This was returning answers outside the requested tolerance, silently.**  Measured over 120
+Earth configurations (costhz -0.15 to -0.99, 0.5-8 GeV, rtol = atol = 1e-3 / 1e-4 / 1e-5, 3nu,
+scored against a 6000-slab reference verified converged to 1e-13): one silent violation, 2.1x
+outside the tolerance asked for, and five more that missed but did at least warn.  At 1.25 all
+six become zero.  The value is the smallest that clears the population:
+
+=========  ==================  ==================  =====================
+bound      silent violations   missed but warned   median slabs returned
+=========  ==================  ==================  =====================
+1.00                        1                   5                       9
+1.15                        0                   1                      14
+**1.25**                    0                   0                      21
+1.40                        0                   0                     108
+=========  ==================  ==================  =====================
+
+1.40 buys nothing and costs twelve times the slabs.  The levels 1.25 adds are the cheap small
+ones, so wall clock rises far less than the slab count: a 60-energy Earth scan goes from 9 ms
+to 10 ms.
+
+**It is a no-op wherever there are no breakpoints**, since the edge count is then the slab count
+and the ratio is ``growth_factor_n_slabs`` itself -- solar probabilities are bit-identical
+either side of this change, verified to fifteen digits.  It also cannot cause a spurious
+non-convergence at ``max_n_slabs``, where the cap logic ends the ladder independently; checked.
+
+A growth-rule fix was tried instead -- enlarging ``n_slabs`` so that the *edge* count grows by
+``growth_factor_n_slabs`` -- and **rejected on measurement**: it left two of the six misses in
+place and cost slightly more (median 22 slabs against 21).
+
+.. versionadded:: 1.0.0
+"""
+
+
 BATCH_WORKING_ENTRIES = 65_536
 r"""int: Module-level constant
 
@@ -2439,12 +2484,33 @@ def osc_prob(
         ignores ``n_tpts_per_slab``; or 'trapezoid'/'simpson' for cumulative
         quadrature over ``n_tpts_per_slab`` points per slab. Default: 'gl'.
     rtol : int or float, optional
-        Target relative tolerance of the probability matrix between
-        successive refinement loops.  Set both ``rtol`` and ``atol`` to
-        ``None`` to run once with the given fixed parameters.  If only
-        one of the two is ``None``, it is treated as 0.
+        Relative tolerance on the *agreement between successive refinement
+        loops*.  Set both ``rtol`` and ``atol`` to ``None`` to run once with
+        the given fixed parameters.  If only one of the two is ``None``, it is
+        treated as 0.
+
+        **This is a stopping criterion, not an accuracy guarantee, and the
+        distinction is not pedantic.**  The ladder stops when two successive
+        levels agree to within ``atol + rtol*|P|``; it never estimates the
+        error of the answer it returns.  A stepping ODE integrator's ``rtol``
+        is a different thing: it controls an *estimated* local error per step.
+        Nothing here is estimated.
+
+        Usually the criterion is conservative -- for a converging sequence the
+        level-to-level gap overstates the error of the finer level, so an
+        answer that stopped at 1e-3 is typically better than 1e-3.  But
+        agreement is evidence of convergence, not proof of it: on a sequence
+        that is still jumping around, two levels can agree by coincidence
+        while both are far from the truth.  Measured on a sawtooth density,
+        levels at 3 and 4 slabs agreed and the returned answer was wrong by
+        **0.855** in probability.  ``strict_convergence`` exists for that case
+        and requires two consecutive agreements instead of one.
+
+        If you need to know how far the last two levels actually were apart,
+        pass ``convergence_info`` and read ``last_gap`` from it; see that
+        parameter for what the number does and does not mean.
     atol : int or float, optional
-        Target absolute tolerance; see ``rtol``.
+        Absolute tolerance on the same agreement; see ``rtol``.
     growth_factor_n_slabs : int or float, optional
         Factor by which ``n_slabs`` is multiplied on each refinement
         loop (used only when a tolerance is requested).
@@ -2488,10 +2554,52 @@ def osc_prob(
         automatically when None; pass it explicitly (e.g., from
         :func:`magnus.magnus.probe_eval_mode`) to skip the probe.
     convergence_info : Dict, optional
-        If a dict is passed, it is filled in place with the refinement
-        parameters of the returned probability ('n_slabs',
-        'n_tpts_per_slab'), which callers can use to warm-start
-        neighboring computations.
+        If a dict is passed, it is filled in place with what the refinement
+        ladder actually did.  Callers use it to warm-start neighboring
+        computations, and to see how the answer was arrived at.
+
+        **It carries facts, never an estimate of the error**, and no key in it
+        is an accuracy bound.  Keys:
+
+        - ``'n_slabs'``, ``'n_tpts_per_slab'`` -- the level returned.
+        - ``'n_slab_edges'`` -- slabs actually used, which is larger than
+          ``n_slabs`` whenever ``t_breakpoints`` inserted edges.
+        - ``'n_slabs_previous'``, ``'n_tpts_per_slab_previous'``,
+          ``'n_slab_edges_previous'`` -- the level compared against, or None
+          if no second level was ever computed.
+        - ``'last_gap'`` -- ``max|P - P_old|`` between those two levels, or
+          None if only one level was ever computed (which happens whenever the
+          seed already sits at ``max_n_slabs``).
+        - ``'n_agreements'`` -- consecutive agreements at the point of return.
+        - ``'tolerance_achieved'`` -- True if the ladder stopped because it
+          agreed, False if it ran out of room, None if no tolerance was asked
+          for.  The programmatic form of
+          :class:`ToleranceNotAchievedWarning`.
+
+        **``last_gap`` is not the error, and can be far smaller than it.**  It
+        is the distance between the last two levels.  Two failure modes are
+        measured and neither is rare.  A sequence still jumping around can put
+        two levels close together by coincidence -- on a sawtooth density the
+        3- and 4-slab levels agreed while the answer was wrong by 0.855.  And
+        on a breakpoint-dominated grid the gap measures the *refinement step*
+        rather than the error, because inserting the same fixed edges at every
+        level makes an apparent 2 -> 3 slab step a 16 -> 17 edge one: measured
+        on plain PREM chords at ``rtol=atol=1e-4``, the ladder stopped with
+        gaps of 1.9e-5 and 5.0e-5 while the true errors were 8.5e-4 and
+        8.3e-4.  Compare ``n_slab_edges`` against ``n_slab_edges_previous``
+        to see how little a step actually was.
+
+        There is deliberately no key holding an error estimate.  Converting
+        the gap into one by Richardson extrapolation is what the sibling
+        NuOscProbExact does, and it is sound there because its per-slab solver
+        is exact: one error mechanism, a guaranteed order, an exact refinement
+        ratio and nested grids.  Magnus has four interacting error sources
+        (Magnus truncation, slab count, quadrature, breakpoint-perturbed
+        non-nested grids) and no stable convergence order -- fitted on Earth
+        chords it scatters from 1.4 to 7.2 against nominal orders of 2 and 4.
+        Every extrapolation tried under-reported the true error on a large
+        fraction of real refinement pairs, which is the dangerous direction.
+        See ``docs/source/implementation_details.rst``.
     t_breakpoints : list or np.ndarray, optional
         Optional positions at which the Hamiltonian is known to be
         non-smooth (e.g., density discontinuities such as the PREM
@@ -2707,6 +2815,14 @@ def osc_prob(
     # vetoed by the level after it.  See the strict_convergence entry in the docstring above.
     n_agreements = 0
     agreements_required = 2 if strict_convergence else 1
+    # The level ``P_old`` was computed at, so that ``convergence_info`` can report which two
+    # levels were compared and not merely the last one.  This matters more than it looks: with
+    # breakpoints inserted into every grid, a nominal 2 -> 3 slab step is really 16 -> 17 edges,
+    # a 6% refinement rather than a 50% one, and a caller reading only the final count cannot
+    # see that.  None until a second level exists.
+    n_slabs_prev_level = None
+    n_tpts_prev_level = None
+    n_edges_prev_level = None
     # Copy this to remember whether the function was originally called with predefine slab edges,
     # or whether we can increase the number of edges (n_slabs) progressively to reach tolerance
     t_slab_edges_original = t_slab_edges 
@@ -2927,6 +3043,18 @@ def osc_prob(
         if convergence_info is not None:
             convergence_info['n_slabs'] = n_slabs
             convergence_info['n_tpts_per_slab'] = n_tpts_per_slab
+            # Facts about the refinement, never an estimate of the error.  See the
+            # convergence_info entry in the docstring for why the distinction is kept so
+            # strictly: every route from these numbers to an error bound was measured and
+            # under-reported the true error in the dangerous direction.
+            convergence_info['n_slab_edges'] = len(t_slab_edges)
+            convergence_info['n_slabs_previous'] = n_slabs_prev_level
+            convergence_info['n_tpts_per_slab_previous'] = n_tpts_prev_level
+            convergence_info['n_slab_edges_previous'] = n_edges_prev_level
+            convergence_info['last_gap'] = last_gap
+            convergence_info['n_agreements'] = n_agreements
+            convergence_info['tolerance_achieved'] = (
+                None if ((rtol is None) and (atol is None)) else False)
 
         # If no target relative tolerance (rtol) or absolute tolerance (atol) of the probability is
         # requested, then return the result obtained already.  If, instead, a target tolerance is
@@ -2953,11 +3081,24 @@ def osc_prob(
                 # converged the refinement stopped, rather than only that it stopped.  The
                 # comparison is being made anyway; this is the number it is made on.
                 last_gap = float(np.max(np.abs(P - P_old)))
-                if np.allclose(P, P_old, rtol=rtol, atol=atol):
+                # An agreement only counts if the two levels compared were genuinely
+                # different grids.  With breakpoints re-inserted at every level, a nominal
+                # 2 -> 3 slab step can be a 16 -> 17 edge one, and two grids that differ by
+                # 6% agree for reasons unrelated to convergence.  See
+                # MIN_EFFECTIVE_REFINEMENT for the population this was measured on.
+                effective_refinement = (
+                    len(t_slab_edges)/n_edges_prev_level
+                    if n_edges_prev_level else float('inf'))
+                if (np.allclose(P, P_old, rtol=rtol, atol=atol)
+                        and effective_refinement >= MIN_EFFECTIVE_REFINEMENT):
                     n_agreements += 1
                 else:
                     n_agreements = 0
                 if n_agreements >= agreements_required:
+                    if convergence_info is not None:
+                        convergence_info['last_gap'] = last_gap
+                        convergence_info['n_agreements'] = n_agreements
+                        convergence_info['tolerance_achieved'] = True
                     if (verbose > 0):
                         for f in [None, file_log] if save_log else [None]:
                             tol_msg = gd.TOL_MSG_IN_COLOR if f is None else gd.TOL_MSG_NO_COLOR
@@ -2967,6 +3108,9 @@ def osc_prob(
                         if save_log and close_file_log_upon_exit: file_log.close()
                     return P
             P_old = np.ndarray.copy(P)
+            n_slabs_prev_level = n_slabs
+            n_tpts_prev_level = n_tpts_per_slab
+            n_edges_prev_level = len(t_slab_edges)
             # Increase the number of slabs approximately by growth_factor_n_slabs.  Do it only
             # if the slab edges have *not* been explicitly provided by the user in t_slab_edges.
             if t_slab_edges_original is None:

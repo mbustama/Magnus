@@ -838,9 +838,12 @@ Magnus machinery above then applies unchanged.
   the others' `n_tpts_per_slab`. A shared cap made `'gl'` report
   non-convergence on problems it had in fact resolved more accurately than
   the quadrature methods managed within the same cap.
-- **Adaptive refinement** to a requested tolerance (`rtol`, `atol`), with a
-  phase-based starting slab count, warm starts across scan points, and an
-  always-on warning if the refinement caps are hit before convergence.
+- **Adaptive refinement** until two successive levels agree within `rtol`/`atol`,
+  with a phase-based starting slab count, warm starts across scan points, and an
+  always-on warning if the refinement caps are hit before convergence. Note that
+  is an *agreement*, not a bound on the error — the ladder never estimates the
+  accuracy of what it returns. See
+  [what `rtol`/`atol` actually control](https://mbustama.github.io/Magnus/implementation_details.html#what-rtol-and-atol-actually-control).
 - **Slab edges aligned with the PREM layer boundaries**, so the high-order
   quadrature never integrates across a density discontinuity.
 - **Silent vectorization:** Hamiltonian and density-profile functions that

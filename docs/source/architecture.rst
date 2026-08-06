@@ -131,8 +131,9 @@ call into a much smaller set of shared functions. There are three layers:
 
 **Layer 1 -- primordial.** ``osc_prob`` is the only function that calls
 into the Magnus core. It owns the adaptive-refinement loop (grow
-``n_slabs``/``n_tpts_per_slab``/``magnus_exp_order`` until ``rtol``/
-``atol`` is met or a cap is hit), input validation, logging, and the
+``n_slabs``/``n_tpts_per_slab`` until two successive levels agree within
+``rtol``/``atol``, or a cap is hit -- note that is an agreement, not a
+bound on the error; see :ref:`what-rtol-atol-control`), input validation, logging, and the
 `~50`-line docstring documenting all of the refinement/logging keyword
 arguments (see it directly in
 :func:`~magnus.oscprob.osc_prob`). It is also a first-class
@@ -241,7 +242,7 @@ once per slab), then passed down as a single callable:
        M->>B: H_func=H(l), energy array, L array
        loop for each (energy, L) point (parallel if n_jobs != 1)
            B->>P: osc_prob(H_func, 0, L_i, ...)
-           P->>K: adaptively refine slabs until rtol/atol met
+           P->>K: refine slabs until two levels agree (rtol/atol)
            K-->>P: unitary evolution operator U
            P-->>B: probability matrix P = |U|^2
        end

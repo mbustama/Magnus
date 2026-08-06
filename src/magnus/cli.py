@@ -260,8 +260,10 @@ def build_parser() -> argparse.ArgumentParser:
              "'trapezoid'/'simpson' sample a uniform grid of --n-tpts-per-slab points instead, "
              "and are the safer choice if the Hamiltonian is not smooth within a slab. "
              "Default: gl.")
-    g_num.add_argument('--rtol', type=float, default=1.e-3, help='Target relative tolerance. Default: 1e-3.')
-    g_num.add_argument('--atol', type=float, default=1.e-3, help='Target absolute tolerance. Default: 1e-3.')
+    g_num.add_argument('--rtol', type=float, default=1.e-3,
+        help='Relative tolerance on the agreement between successive refinement levels -- a stopping rule, not a guaranteed accuracy. Default: 1e-3.')
+    g_num.add_argument('--atol', type=float, default=1.e-3,
+        help='Absolute tolerance on the same agreement; see --rtol. Default: 1e-3.')
     g_num.add_argument('--n-jobs', type=int, default=1, dest='n_jobs',
         help='Number of parallel joblib workers. Default: 1.')
     g_num.add_argument('--strategy', choices=['auto', 'hybrid', 'magnus'], default='auto',
