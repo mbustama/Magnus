@@ -902,6 +902,48 @@ Two things worth knowing:
   slow path is easy to sit on indefinitely — the shipped example notebooks all
   did.
 
+### An Earth chord is a palindrome, and Mag$`\nu`$s uses it
+
+A chord through a spherically symmetric Earth meets every radius on the way in
+and again on the way out, so its density profile reads the same from either
+end. Slab *j* and slab *n−1−j* therefore see the same Hamiltonian, and the
+engine evaluates your `H_func` on the first half of the chain only, deriving
+the rest by reversal.
+
+Because the saving is *halved Hamiltonian evaluations and nothing else*, it is
+worth exactly what your Hamiltonian costs. Measured through `osc_prob_earth`
+at cos θz = −0.9, 2 GeV:
+
+| Your `H_func` | Speed-up |
+|---|---|
+| Plain PREM (a cheap density lookup) | 0.91× |
+| Moderately expensive, per position | 1.41× |
+| Expensive, per position | **1.67×** |
+| Expensive, 12- and 40-energy scan | **1.56×–1.64×** |
+
+So it pays when you bring your own non-trivial physics to an Earth chord, and
+costs about 10% when you do not. Turn it off with:
+
+```python
+import magnus.magnus
+magnus.magnus.USE_PALINDROME = False
+```
+
+Three things worth knowing:
+
+- **Standard PREM energy scans are unaffected.** They are answered by the
+  batched separable engine, which already evaluates the profile once and shares
+  it across every energy — the same saving, taken earlier.
+- **It moves Earth single-point results by up to 8.6×10⁻¹⁵ relative.** The
+  mirrored slab's quadrature nodes are reached by a different floating-point
+  expression for the same real number, so this is inherent, not incidental.
+  `USE_PALINDROME = False` reproduces the previous numbers exactly.
+- **Symmetry is declared by the Earth entry points, never guessed.** It is a
+  fact of chord geometry there. Detecting it for an arbitrary profile would
+  require the very evaluations the optimisation skips, so there is deliberately
+  no way to claim it for one — a monotonic profile wrongly declared symmetric
+  would be wrong by ~0.3, silently.
+
 ## Accuracy and validation
 
 The [test suite](tests/) (running in CI on Python 3.10–3.12) validates:
