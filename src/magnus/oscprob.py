@@ -367,19 +367,50 @@ body those branches could not be tested at all.
 """
 
 
-BATCH_WORKING_ENTRIES = 4_194_304
+BATCH_WORKING_ENTRIES = 65_536
 r"""int: Module-level constant
 
 Ceiling on the number of complex entries in any one temporary array of the batched
-scan engines -- about 64 MB at 16 bytes each.  Both batched engines work on arrays
+scan engines -- about 1 MB at 16 bytes each.  Both batched engines work on arrays
 indexed by (energy, slab, ...), whose size is the product of quantities the caller
 controls independently, so neither a slab cap nor an energy count bounds them on its
 own.  Tiling against a fixed entry budget does, and it makes peak memory a property
 of the library rather than of the call.
 
-The value is a compromise: large enough that the tiles stay well inside the regime
-where batched BLAS calls amortize their overhead, small enough to be invisible next
-to the result arrays on any machine that can hold them.
+**The value is measured, and it is small on purpose.**  The batched kernels are
+memory-bound rather than compute-bound: the stack is written by the Hamiltonian
+builder and then streamed by the kernel, which does little arithmetic per byte, so a
+working set that fits in cache is read back nearly free and one that does not is
+refetched from memory.  Swept over 1 MB / 4.2 MB / 12.6 MB / 67 MB / 268 MB across
+fifteen workloads on three engines (microseconds per probability):
+
+===========================  =======  =======  =======  =======  =======
+workload                      1.0 MB   4.2 MB  12.6 MB    67 MB   268 MB
+===========================  =======  =======  =======  =======  =======
+separable, 3nu, 2000 E          96.4    103.1    112.6    115.2    114.8
+separable, 4nu, 20000 E        124.8    127.6    138.9    171.3    191.5
+separable, 5nu, 2000 E         146.1    155.1    172.2    201.8    202.1
+cumulative, 2nu, 60 L         1720.4   1909.4   1984.0   1995.5   1996.5
+===========================  =======  =======  =======  =======  =======
+
+1 MB won eight of the eleven memory-bound workloads and was never worse than the
+previous 67 MB default; the gain over it runs to **1.19x-1.38x** on Earth energy
+scans and grows with both flavour count and scan length.  Short scans (a few hundred
+points) are flat within 2%, where fixed overhead dominates.  The interaction-picture
+engine is flat at 1.00x throughout -- it is compute-bound, so this constant does not
+reach it.
+
+**Tiling never changes the answer**: every workload above was bit-identical at every
+budget, because the tiles are independent and only concatenated.  So this is a pure
+performance knob, and retuning it needs no accuracy justification.
+
+Two caveats on the number.  It was measured on one machine (13 MB L3, 6.5 MB L2), and
+the optimum sits *below* the last-level cache -- 1 MB beat 12.6 MB -- which suggests
+L2 or streaming behaviour, not last-level residency, is what actually matters.  That
+also means autodetecting the last-level cache and sizing to it, as NuOscProbExact
+does for its own chunking, would have landed on a *worse* value here than this fixed
+constant.  Set the constant to retune; nothing caches it, and both batched engines
+read it at call time.
 
 .. versionadded:: 1.0.0
 """
@@ -2188,6 +2219,18 @@ class _PositionProfileCache:
         val = self._cache.get(key)
         if val is None:
             val = np.asarray(self.func(l))
+            # Handed out by reference, to every later caller that asks for the same grid, so a
+            # write through any one of them would silently change what all the others receive --
+            # and this cache sits under the matter term of the Hamiltonian, so the result would
+            # be a wrong probability with nothing raised.  Marking it read-only turns that into
+            # an exception at the point of the write.  ``setflags`` refuses on an array that does
+            # not own its data (a view the profile function handed back from something it keeps),
+            # and that case is left writable rather than forced: it is the profile's memory, not
+            # this cache's, and raising here would break a legitimate caller.
+            try:
+                val.setflags(write=False)
+            except ValueError:                      # pragma: no cover - needs a borrowing profile
+                pass
             self._cache[key] = val
             self._keys.append(key)
             if len(self._keys) > self._maxsize:

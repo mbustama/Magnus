@@ -210,6 +210,65 @@ needed"* while in fact rebuilding it -- 600 extra Hamiltonian evaluations and a 
 not evidence that it reuses it.**
 
 
+The palindrome, and what it is worth
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+A chord through a spherically symmetric Earth meets every radius twice, so its density
+profile reads the same from either end.  :func:`magnus.magnus.magnus_expansion_multislab`
+evaluates :math:`A` on the first half of such a slab chain and derives the rest by
+reversal.  The saving is halved evaluations of the caller's Hamiltonian **and nothing
+else** -- the matrix exponential is untouched, and so is the commutator algebra -- so it
+is worth exactly what that Hamiltonian costs.  Measured through
+:func:`magnus.oscprob.osc_prob_earth`, ``costhz = -0.9``, 2 GeV, against a vectorised
+``H_func`` whose cost scales per position:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 50 25 25
+
+   * - Workload
+     - Speed-up
+     - Note
+   * - single point, plain PREM
+     - 0.905×
+     - a density lookup is too cheap to be worth halving
+   * - single point, expensive ``H_func``
+     - **1.41×-1.67×**
+     -
+   * - 12- and 40-energy scan, expensive ``H_func``
+     - **1.56×-1.64×**
+     - falls to the general ladder, so the mirror applies
+   * - energy scan, standard PREM
+     - 1.00×
+     - answered by the separable engine; see below
+
+The ceiling is 1.67× rather than 2× because the refinement ladder and the unpaired middle
+slab of an odd chain cut Hamiltonian evaluations from 159 positions to 93, not quite in
+half.
+
+**A standard PREM energy scan gains nothing, and that is correct rather than a gap.**  It
+is answered by the separable engine, which already evaluates the profile once and shares
+it across every energy -- the same saving, taken earlier and more completely.  Measured,
+that engine spends a fraction :math:`f` = 0.001-0.026 of its time in the profile, which
+caps any possible mirror gain at 1.001×-1.013×.
+
+**Symmetry is declared, never detected.**  It cannot be detected where it would pay to
+know it: the test needs the very evaluations the optimisation skips.  A test on the slab
+*widths* is not a substitute -- a monotonic, solar-like profile on a uniform grid has
+perfectly palindromic widths, and mirroring it is wrong by 3.3e-01.  So the declaration is
+made by the Earth entry points, where a chord meeting every radius twice is geometry
+rather than a claim, and it travels as the *interval* it holds over rather than as a flag:
+a chord is symmetric over its full length and over no shorter prefix, so a request at a
+shorter baseline fails the span check and takes the ordinary path with no extra
+bookkeeping.
+
+Set :data:`magnus.magnus.USE_PALINDROME` to ``False`` to evaluate every slab in full.  The
+two routes agree to a few times 1e-15 rather than bitwise, because the mirrored slab's
+nodes are reached as ``(L - b) + h*s`` on one route and ``a + h*s`` on the other -- two
+floating-point expressions for the same real number.  On Earth single points that is worth
+up to 8.6e-15 relative.
+
+
 Accuracy
 ----------
 
@@ -524,6 +583,18 @@ Measured
      - 192 smooth configurations (ceiling 0.602) against 15 random piecewise-constant ones
        (1.000), plus a deliberately weak jump 4.7× smaller than the steepest smooth step
        (0.773).
+   * - :data:`magnus.oscprob.BATCH_WORKING_ENTRIES`
+     - 65 536
+     - Fifteen workloads on three batched engines, d = 2…5, scans of 60 to 20 000 points,
+       swept over 1 / 4.2 / 12.6 / 67 / 268 MB.  1 MB won eight of the eleven memory-bound
+       rows and was never worse than the previous 67 MB: **1.19×-1.38×** on Earth energy
+       scans, growing with both flavour count and scan length, 1.06×-1.16× on cumulative
+       baseline scans, flat within 2 % on short scans.  The interaction-picture engine is
+       flat at 1.00× -- it is compute-bound, so the constant does not reach it.  Every row
+       was **bit-identical at every budget**, tiles being independent and only
+       concatenated, so this is a pure performance knob.  Measured on one machine (13 MB
+       L3, 6.5 MB L2), and note the optimum sits *below* the last-level cache, so sizing
+       to a detected cache would land on a worse value than this fixed constant does.
    * - ``_local_evolution_operator`` ``max_n_slabs``
      - 32 768
      - Legitimate patches converge at 800–12 800 slabs; a patch covering 88 % of a solar

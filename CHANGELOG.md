@@ -5,6 +5,54 @@ All notable changes to Magνs are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project uses [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- **Palindromic density profiles are exploited on Earth chords.**  A chord through a
+  spherically symmetric Earth meets every radius twice, so its density profile reads
+  the same from either end.  The Magnus core now evaluates the Hamiltonian on the first
+  half of such a slab chain and derives the rest by reversal, halving the calls to the
+  caller's `H_func`.  Worth **1.4x-1.67x** on a single point and **1.56x-1.64x** on an
+  energy scan when that Hamiltonian is expensive; plain PREM, whose density lookup is
+  cheap, pays about 10% for it.  New public `magnus.magnus.USE_PALINDROME` (module
+  switch, `True`) turns it off, and `magnus.magnus.palindromic()` is the predicate.
+
+  The saving is halved Hamiltonian evaluations and nothing else, so it is worth what
+  that Hamiltonian costs.  Standard PREM *scans* are unaffected: they are answered by
+  the separable engine, which already evaluates the profile once and shares it across
+  energies -- the same saving, taken earlier.
+
+  Symmetry is **declared** by the Earth entry points, where it is a fact of chord
+  geometry, not detected: detecting it would need the very evaluations the optimisation
+  skips.  There is deliberately no user-facing way to declare it of an arbitrary
+  profile.
+
+  **This moves Earth single-point results by up to 8.6e-15 relative.**  The mirrored
+  slab's nodes are reached by a different floating-point expression for the same real
+  number, so the change is inherent rather than incidental.  `USE_PALINDROME = False`
+  reproduces the previous numbers exactly.
+
+### Changed
+
+- **`oscprob.BATCH_WORKING_ENTRIES` lowered from 4,194,304 to 65,536** (about 67 MB to
+  about 1 MB).  The batched scan engines are memory-bound, and the previous value was
+  large enough that their working set spilled cache.  Measured across fifteen workloads
+  on three engines, the new value is **1.19x-1.38x** quicker on Earth energy scans,
+  1.06x-1.16x on cumulative baseline scans, flat on short scans and on the
+  interaction-picture engine, and never slower anywhere.  **Bit-identical** at every
+  budget tested -- tiles are independent and only concatenated -- so this changes no
+  result.  Peak memory of a long scan drops accordingly.
+
+### Fixed
+
+- **The position-profile cache no longer hands out writable arrays.**  Values are
+  returned by reference to every later caller asking for the same position grid, so a
+  write through any one of them would have silently changed what the others received --
+  and the cache sits under the matter term of the Hamiltonian, so the symptom would
+  have been a wrong probability with nothing raised.  Cached arrays are now marked
+  read-only, turning that into an exception at the point of the write.
+
 ## [1.0.0rc1] - 2026-07-31
 
 First public release candidate.  Magνs was developed privately up to this
