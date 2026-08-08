@@ -6280,11 +6280,11 @@ books['14_magnus_supernova_shock.ipynb'] = notebook(
     'A supernova shock front: when the error is real',
     'Notebook 13 showed a solar case where the package looked wrong by 1.4e-03 and was not:\nthe error was **phase**, and phase-averaging -- which is what a detector does -- removed\nit. This notebook is the opposite case, and the contrast is the point.\n\nA supernova shock front changes the **adiabaticity of the MSW level crossing**, so it\nmoves the conversion probability *itself* rather than the phase of an oscillation.\nAveraging cannot remove that. Here the package is wrong by **0.21 in probability on the\naveraged observable** -- and, importantly, it **says so every time**.\n\nThe profile is the standard one from the literature:\n\n* $\\rho_0(x) = 10^{14}\\,(x/\\mathrm{km})^{-2.4}\\ \\mathrm{g\\,cm^{-3}}$, forward-shock jump\n  $\\xi = V_+/V_- \\simeq 10$, and the rarefaction shape behind it, from\n  **Fogli, Lisi, Mirizzi & Montanino**, Phys. Rev. D 68, 033005 (2003).\n* Shock radii from **Kneller & Kabadi**, Phys. Rev. D 92, 013009 (2015), Fig. 1, which\n  reads them off a $10.8\\,M_\\odot$ simulation at $t = 3$ s post-bounce: reverse shock\n  1734 km, contact discontinuity 12 348 km, forward shock 30 323 km.',
     [
-    code(r'''import warnings
+    code(r'''import json
+import warnings
 
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.integrate import solve_ivp
 
 import magnus.globaldefs as gd
 import magnus.hamiltonians as hamiltonians
@@ -6353,12 +6353,45 @@ shocked material is compressed, and behind it the rarefaction ("hot bubble") thi
 Three flavours at 15 MeV, so the **H resonance** ($\Delta m^2_{31}$) sits on the ray at
 about $4\times10^4$ km -- just outside the forward shock, which is the configuration the
 shock-effect literature studies.'''),
-    code(r'''def exact_U_many(H_func, l0, Ls, dim):
-    def rhs(l, y):
-        return (-1j*np.asarray(H_func(l)) @ y.reshape(dim, dim)).ravel()
-    sol = solve_ivp(rhs, (float(l0), float(Ls[-1])), np.eye(dim, dtype=complex).ravel(),
-                    rtol=1e-12, atol=1e-14, method='DOP853', t_eval=Ls)
-    return np.array([sol.y[:, i].reshape(dim, dim) for i in range(len(Ls))])
+    md(r'''### The ground truth, and why it is stored rather than recomputed
+
+Everything below is scored against a tight-tolerance solution of the same Schrödinger
+equation — `solve_ivp`/`DOP853` at `rtol=1e-12`, `atol=1e-14`. That solution is a
+constant of the physics: it depends on the shock profile and the energy, and **not on
+Magνs**. Recomputing it every time this notebook runs cost about fifteen minutes, which
+is a quarter of an hour spent re-deriving a number that cannot have changed.
+
+So it is computed once by `make_shock_reference.py` and stored in
+`shock_reference.json` as hexadecimal floats, which round-trip exactly — you get the
+bits it was computed from, not a decimal rendering of them.
+
+**Only the oracle is frozen.** Every Magνs number here is still computed live; freezing
+the reference would be pointless if it also froze the thing being tested. The risk that
+does introduce is a stale reference outliving a change to the profile, so the file
+carries a fingerprint of the electron density along the ray and the loader refuses a
+reference that does not match the profile just built.'''),
+    code(r'''_REF_CACHE = {}
+
+def frozen_reference(width_frac):
+    """The stored solve_ivp probabilities for this front width, off their exact bits."""
+    if not _REF_CACHE:
+        with open('shock_reference.json') as handle:
+            _REF_CACHE.update(json.load(handle))
+    unhex = lambda xs: np.array([float.fromhex(x) for x in xs])
+    case = _REF_CACHE['cases']['%.0e' % width_frac]
+
+    # Guard: rebuild the profile and check it is the one the reference came from.  A
+    # frozen oracle that silently outlives a change to the physics is worse than no
+    # oracle at all, because every comparison against it still looks fine.
+    want = unhex(case['fingerprint_ne'])
+    got = np.asarray(sn_shock_ne(width_frac)(unhex(_REF_CACHE['fingerprint_l'])),
+                     dtype=float)
+    if not np.allclose(got, want, rtol=1e-12, atol=0.0):
+        raise RuntimeError(
+            'the shock profile no longer matches shock_reference.json; '
+            're-run `python notebooks/make_shock_reference.py`')
+
+    return unhex(case['P']).reshape(case['shape'])
 
 def to_P(U):
     return np.swapaxes(np.asarray(U).real**2 + np.asarray(U).imag**2, -1, -2)
@@ -6385,7 +6418,7 @@ print('ray = %.0f oscillation lengths of the fastest (D31) oscillation' % ((L1 -
     code(r"""def measure(width_frac, **kw):
     '''Instantaneous and averaged error against solve_ivp, plus any warnings raised.'''
     ne = sn_shock_ne(width_frac)
-    ref = np.array([to_P(U) for U in exact_U_many(make_H(ne), L0, Ls, 3)])
+    ref = frozen_reference(width_frac)
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter('always')
         got = np.array([np.asarray(oscprob.osc_prob_matter_std_potential(
@@ -6429,7 +6462,7 @@ mathematics, not a defect. Tell it where the front is and the error collapses.
 
 **On a baseline scan.** This is the case where the cure is established.'''),
     code(r'''ne_sharp = sn_shock_ne(1e-6)
-ref_scan = np.array([to_P(U) for U in exact_U_many(make_H(ne_sharp), L0, Ls, 3)])
+ref_scan = frozen_reference(1e-6)               # the same stored oracle, same baselines
 
 def scan_error(**kw):
     with warnings.catch_warnings():
@@ -6455,7 +6488,7 @@ outside it.
 So: on a scan, pass `t_breakpoints`. On a single point, pass it *and check*, for example
 against `strategy='magnus'` or `cumulative=True`.'''),
     code(r'''ne_mid = sn_shock_ne(1e-3)                      # a simulation-smeared front, 70 km
-ref_pt = to_P(exact_U_many(make_H(ne_mid), L0, np.array([L1]), 3)[0])
+ref_pt = frozen_reference(1e-3)[-1]             # Ls[-1] is L1, so this is the endpoint
 
 def point_error(**kw):
     with warnings.catch_warnings():
