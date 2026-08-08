@@ -113,4 +113,10 @@ jobs:
         # warning can never be what stops a release from publishing.
         run: |
           cd docs
-          make html SPHINXOPTS="-W --keep-going"
+          # -n (nitpicky) as well as -W: without it Sphinx does not report a
+          # cross-reference that resolves to nothing, and several had accumulated
+          # silently -- constants, warning classes and type aliases documented in
+          # prose but absent from their module's __all__, so autoapi generated no
+          # target for them.  conf.py's nitpick_ignore_regex filters the numpydoc
+          # type strings that would otherwise make -n unusable as a gate.
+          make html SPHINXOPTS="-n -W --keep-going"

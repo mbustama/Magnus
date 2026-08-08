@@ -724,9 +724,9 @@ answer it replaced, all at high energy over a short baseline:
 =========================  ==========  ==========  ==========
 configuration              hybrid      safety 2    safety 4
 =========================  ==========  ==========  ==========
-60 MeV, N = 150, 0.4 R_sun  1.57e-05   5.03e-05    8.56e-07
-100 MeV, N = 150, 0.4 R_sun 2.51e-05   3.77e-05    6.11e-07
-100 MeV, N = 40, 0.4 R_sun  9.13e-06   1.10e-05    5.58e-07
+60 MeV, N=150, 0.4 Rsun     1.57e-05   5.03e-05    8.56e-07
+100 MeV, N=150, 0.4 Rsun    2.51e-05   3.77e-05    6.11e-07
+100 MeV, N=40, 0.4 Rsun     9.13e-06   1.10e-05    5.58e-07
 =========================  ==========  ==========  ==========
 
 Four removes all three and beats the hybrid answer on each, while improving the unaffected
@@ -2633,7 +2633,7 @@ def osc_prob(
         chord through the Earth is symmetric over its full length and over no shorter prefix, so
         a scan point at a shorter baseline spans ``(L0, baseline)``, fails to match, and takes
         the ordinary path.  No extra bookkeeping is needed for that -- the check in
-        :func:`magnus.magnus._mirror_applies` is the whole of it.
+        ``magnus.magnus._mirror_applies`` is the whole of it.
 
         **Not a user-facing switch, and unchecked**: verifying it would need the evaluations it
         exists to avoid, and declaring it of a profile that is not symmetric returns a silently
@@ -18003,4 +18003,18 @@ __all__ = [
     'osc_prob_3nu_sun_liv',
     'osc_prob_4nu_sun_liv',
     'osc_prob_5nu_sun_liv',
+    # Documented as knobs -- each docstring carries the population it was
+    # measured on -- and without this sphinx-autoapi does not document them,
+    # which left every cross-reference to them rendering as dead text.
+    'IP_EXP_N_SLABS_CAP',
+    'MIN_EFFECTIVE_REFINEMENT',
+    'BATCH_WORKING_ENTRIES',
+    'CUMULATIVE_AUTO_MIN_POINTS',
+    'HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS',
+    'CUMULATIVE_N_ACC_SAFETY',
+    'OUTPUT_GUARD_MIN_BYTES',
+    'OUTPUT_GUARD_SAFETY',
+    'IP_EXP_LOOP_CAP',
+    'PARAMETER_SET_METADATA_KEYS',
+    'PhaseAveragingWarning',
 ]

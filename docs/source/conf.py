@@ -69,6 +69,7 @@ intersphinx_mapping = {
     'python': ('https://docs.python.org/3', None),
     'numpy': ('https://numpy.org/doc/stable/', None),
     'scipy': ('https://docs.scipy.org/doc/scipy/', None),
+    'matplotlib': ('https://matplotlib.org/stable/', None),
 }
 
 # -- API reference (sphinx-autoapi) -------------------------------------------
@@ -104,6 +105,22 @@ autoapi_ignore = ['*/old/*', '*/authors.py', '*/version.py']
 # the package, which put a redundant "magnus" level between API Reference and the
 # modules.  api_reference.rst lists the module pages directly instead, leaving
 # that one page in no toctree on purpose.
+# Nitpicky mode (-n) is what catches a cross-reference that silently renders as
+# plain text -- Sphinx does not report those otherwise, and several had
+# accumulated: five tuned constants, two warning classes and two type aliases
+# that were documented in prose but missing from their module's __all__, so
+# sphinx-autoapi never generated a target for them.
+#
+# What it cannot distinguish is a broken reference from a numpydoc *type
+# string*: "optional", "np.ndarray" and friends sit in the type position of a
+# parameter and are read as class references, which is 2400 warnings of pure
+# noise.  Ignoring them by pattern is what makes -n usable as a gate.
+nitpick_ignore_regex = [
+    (r'py:.*', r'(optional|sequence|file-like|Ellipsis|array_like|scalar)'),
+    (r'py:.*', r'np\..*'),          # np.ndarray and friends
+    (r'py:.*', r'(TextIOWrapper|StringIO)'),
+]
+
 suppress_warnings = ['autoapi.python_import_resolution', 'myst.header',
                      'toc.not_included']
 

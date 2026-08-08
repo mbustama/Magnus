@@ -108,7 +108,7 @@ class ScalarHamiltonianWarning(UserWarning):
 
     The engine evaluates the Hamiltonian at every quadrature node of every slab
     -- often a few hundred positions for a single probability, and the adaptive
-    refinement repeats that at each level. :func:`_evaluate_A` therefore tries a
+    refinement repeats that at each level. ``_evaluate_A`` therefore tries a
     single vectorized call, ``A(times)``, and uses the result if it has the
     right shape and agrees with a scalar spot-check. If that fails it falls back
     to a Python loop, one call per position.
@@ -162,7 +162,7 @@ class MagnusConvergenceWarning(UserWarning):
     necessary, so exceeding it does not imply a wrong answer -- and it fires on results accurate
     to 1.6e-06 (``docs/dev/DECISION_DISPATCH_ORDER.md`` §5) as well as on results seven times
     outside a requested 1e-3.  Anything that claims to tell you which of those you have is
-    claiming more than this check can support; :class:`ToleranceNotAchievedWarning` is the one
+    claiming more than this check can support; :class:`magnus.oscprob.ToleranceNotAchievedWarning` is the one
     that reports a failed convergence *test*.
 
     **What to change.**  More, narrower slabs: request a smaller ``rtol``/``atol``, or raise
