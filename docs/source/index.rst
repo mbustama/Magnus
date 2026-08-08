@@ -41,8 +41,10 @@ Magνs: Neutrino Oscillations via the Magnus Expansion
 .. important::
    **Important Links:**
 
+   * :doc:`What it can compute, with code <recipes>`
    * `GitHub Repository <https://github.com/mbustama/Magnus>`_
    * `Example Notebooks <https://github.com/mbustama/Magnus/tree/main/notebooks>`_ (see also :doc:`tutorials` for a guided tour)
+   * :doc:`changelog`
 
 **Magνs** computes neutrino oscillation probabilities between an arbitrary
 number of flavors, for any given Hamiltonian, time-dependent or
@@ -190,8 +192,11 @@ Salient Features
 
    installation
    quickstart
+   recipes
+   tutorials
    cli
    functions
+   api/magnus/index
    architecture
    methodology
    expansion_terms
@@ -199,15 +204,8 @@ Salient Features
    averaged_probability
    implementation_details
    plotting
-   tutorials
    references
    changelog
-
-.. toctree::
-   :maxdepth: 2
-   :caption: API Reference:
-
-   api/magnus/index
 
 License
 =========
