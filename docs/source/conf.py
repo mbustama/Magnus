@@ -74,6 +74,10 @@ autoapi_options = [
     'show-module-summary',
 ]
 # Skip the packaging-only version/authors modules and the 'old' prototypes
+# Source order, not alphabetical: the modules are written so that reading them
+# top to bottom follows the method, and sorting the members destroys that.
+autoapi_member_order = 'bysource'
+
 autoapi_ignore = ['*/old/*', '*/authors.py', '*/version.py']
 
 # Excluding version.py/authors.py above is deliberate (they are internal
@@ -81,7 +85,16 @@ autoapi_ignore = ['*/old/*', '*/authors.py', '*/version.py']
 # import from them (e.g. magnus/__init__.py, oscprob.py, cli.py), and
 # autoapi warns that it cannot resolve those imports since it never scans
 # the excluded modules. That warning is expected here, not a real problem.
-suppress_warnings = ['autoapi.python_import_resolution']
+# 'myst.header': changelog.rst includes CHANGELOG.md from its second line,
+# dropping the file's own "# Changelog" heading so the sidebar does not carry a
+# second, identical entry nested under the page title.  myst then reports that
+# the included document starts at H2, which is the intent rather than a mistake.
+# 'toc.not_included': sphinx-autoapi generates a package index page titled after
+# the package, which put a redundant "magnus" level between API Reference and the
+# modules.  api_reference.rst lists the module pages directly instead, leaving
+# that one page in no toctree on purpose.
+suppress_warnings = ['autoapi.python_import_resolution', 'myst.header',
+                     'toc.not_included']
 
 napoleon_google_docstring = False
 napoleon_numpy_docstring = True

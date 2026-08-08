@@ -26,11 +26,12 @@ classifiers = [
 dependencies = [
     "numpy>=1.22",
     "scipy>=1.9",
-    "joblib>=1.2"
+    "joblib>=1.2",
+    "matplotlib>=3.5"
 ]
 
 [project.optional-dependencies]
-plot = ["matplotlib>=3.5"]
+plot = []          # matplotlib is a base dependency; kept so `magnuspy[plot]` still resolves
 test = ["pytest", "pytest-cov", "matplotlib>=3.5"]
 dev = ["pytest", "pytest-cov", "twine", "build", "ruff", "matplotlib>=3.5"]
 notebooks = ["nbformat", "nbclient", "ipykernel", "matplotlib>=3.5", "scipy"]

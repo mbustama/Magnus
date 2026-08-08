@@ -23,6 +23,14 @@ Magνs: Neutrino Oscillations via the Magnus Expansion
    :target: https://www.python.org/downloads/
    :alt: Python 3.10+
 
+.. image:: https://codecov.io/gh/mbustama/Magnus/branch/main/graph/badge.svg
+   :target: https://codecov.io/gh/mbustama/Magnus
+   :alt: codecov
+
+.. image:: https://img.shields.io/pypi/v/magnuspy.svg
+   :target: https://pypi.org/project/magnuspy/
+   :alt: PyPI
+
 .. image:: https://pepy.tech/badge/magnuspy
    :target: https://pepy.tech/project/magnuspy
    :alt: Downloads
@@ -44,6 +52,7 @@ Magνs: Neutrino Oscillations via the Magnus Expansion
    * :doc:`What it can compute, with code <recipes>`
    * `GitHub Repository <https://github.com/mbustama/Magnus>`_
    * `Example Notebooks <https://github.com/mbustama/Magnus/tree/main/notebooks>`_ (see also :doc:`tutorials` for a guided tour)
+   * :doc:`How to cite <citing>`
    * :doc:`changelog`
 
 **Magνs** computes neutrino oscillation probabilities between an arbitrary
@@ -364,22 +373,38 @@ Salient Features
 
 .. toctree::
    :maxdepth: 2
-   :caption: User Guide:
+   :caption: Getting started:
 
    installation
    quickstart
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Using Magnus:
+
    recipes
    tutorials
-   cli
    functions
-   api/magnus/index
-   architecture
+   cli
+   plotting
+
+.. toctree::
+   :maxdepth: 2
+   :caption: How it works:
+
    methodology
    expansion_terms
    adiabatic_strategy
    averaged_probability
+   architecture
    implementation_details
-   plotting
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Reference:
+
+   api_reference
+   citing
    references
    changelog
 

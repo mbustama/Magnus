@@ -1,10 +1,12 @@
-# Mag$`\nu`$s
+# Magnus
 
 [![CI Tests](https://github.com/mbustama/Magnus/actions/workflows/tests.yml/badge.svg)](https://github.com/mbustama/Magnus/actions/workflows/tests.yml)
 [![Code Quality](https://github.com/mbustama/Magnus/actions/workflows/lint.yml/badge.svg)](https://github.com/mbustama/Magnus/actions/workflows/lint.yml)
 [![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-blue.svg)](https://mbustama.github.io/Magnus/)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![codecov](https://codecov.io/gh/mbustama/Magnus/branch/main/graph/badge.svg)](https://codecov.io/gh/mbustama/Magnus)
+[![PyPI](https://img.shields.io/pypi/v/magnuspy.svg)](https://pypi.org/project/magnuspy/)
 [![Downloads](https://pepy.tech/badge/magnuspy)](https://pepy.tech/project/magnuspy)
 [![Code style: ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
@@ -17,7 +19,7 @@ of flavors, for any given Hamiltonian, time-dependent or -independent.
 > Denmark, you are equally welcome to say it
 > [the Danish way](https://translate.google.com/?sl=da&tl=en&text=Magnus&op=translate).)
 
-Mag$`\nu`$s computes the neutrino evolution operator via the **Magnus
+Magnus computes the neutrino evolution operator via the **Magnus
 expansion**: instead of integrating the Schrödinger equation step by step, it
 exponentiates truncated time-ordered integrals of the Hamiltonian over a chain
 of position slabs.  Any truncation of the Magnus series lives in the Lie
@@ -50,17 +52,17 @@ precision, at any accuracy setting.  See
 - [License](#license)
 - [Author](#author)
 
-## When is Mag$`\nu`$s a win?
+## When is Magnus a win?
 
 Compared to solving the propagation ODE directly (e.g., with an adaptive
-Runge–Kutta solver), Mag$`\nu`$s wins when one or more of these apply:
+Runge–Kutta solver), Magnus wins when one or more of these apply:
 
 1. **The matter profile varies slowly compared to the oscillation length.**
    A Magnus slab is *exact* for a constant Hamiltonian no matter how many
    oscillation cycles it spans, so the slab size is set by how fast the
    *profile* changes, not by how fast the phase winds.  An ODE solver must
    resolve every oscillation.  For a 1-GeV neutrino crossing the Earth
-   (PREM profile), Mag$`\nu`$s needs ~10 slabs plus the ~16 layer crossings,
+   (PREM profile), Magnus needs ~10 slabs plus the ~16 layer crossings,
    versus thousands of right-hand-side evaluations for `solve_ivp` — measured:
    **~2 ms vs ~360–700 ms per probability at comparable accuracy**.
 
@@ -95,7 +97,7 @@ if it hits its caps first.  This regime is now handled automatically:
 automatically, via `strategy='auto'` (the default): see [Adiabatic + Magnus
 hybrid strategy](#adiabatic--magnus-hybrid-strategy-for-extreme-accumulated-phases)
 below.  A tight-tolerance ODE solver remains the best *reference* for
-validation regardless — Mag$`\nu`$s's own test suite uses
+validation regardless — Magnus's own test suite uses
 `scipy.integrate.solve_ivp` at `rtol=1e-12` as ground truth.
 
 ## Adiabatic + Magnus hybrid strategy for extreme accumulated phases
@@ -105,7 +107,7 @@ matter/NSI/LIV oscillation-probability function accepts a `strategy` keyword:
 `'auto'` (default), `'hybrid'`, or `'magnus'`.
 
 - **`'magnus'`** uses only the Magnus-expansion machinery described above —
-  the exact behavior of Mag$`\nu`$s as it was before the adiabatic strategy
+  the exact behavior of Magnus as it was before the adiabatic strategy
   was added.
 - **`'hybrid'`** additionally tries an adiabatic-transport-plus-Magnus-patch
   propagator (`magnus.adiabatic.hybrid_propagator`): away from an eigenvalue
@@ -178,9 +180,9 @@ in the docs, and
 [notebook 10](notebooks/10_magnus_averaged_probability.ipynb) for worked
 examples across 2–5 flavors and a custom Hamiltonian.
 
-## When is Mag$`\nu`$s not the right tool?
+## When is Magnus not the right tool?
 
-Mag$`\nu`$s solves the **unitary** Schrödinger equation for a Hermitian
+Magnus solves the **unitary** Schrödinger equation for a Hermitian
 Hamiltonian: any truncation of the Magnus series lives in the Lie algebra, so
 the package is architecturally committed to norm-preserving, reversible
 evolution.  That rules out several classes of problems that show up in
@@ -190,7 +192,7 @@ neutrino phenomenology:
    decoherence, or any model where coherence between mass eigenstates is
    damped over the baseline requires evolving a density matrix under a
    non-unitary master equation (e.g., Lindblad/GKSL), not a state vector
-   under a Hamiltonian.  Mag$`\nu`$s has no dissipative term and cannot
+   under a Hamiltonian.  Magnus has no dissipative term and cannot
    represent one.
 
 2. **Open-system coupling to a bath.**  Any scenario where the neutrino
@@ -208,7 +210,7 @@ neutrino phenomenology:
 4. **Self-consistent collective oscillations.**  Dense-environment (e.g.,
    supernova) neutrino self-interactions, where the effective Hamiltonian
    depends on the (unknown, evolving) neutrino/antineutrino flavor content
-   itself, are a nonlinear, self-consistent problem.  Mag$`\nu`$s assumes the
+   itself, are a nonlinear, self-consistent problem.  Magnus assumes the
    Hamiltonian is a *known* function of energy and position supplied by the
    caller, not a functional of the solution.
 
@@ -312,9 +314,9 @@ Magnus/
 
 ---
 
-## Two ways to use Mag$`\nu`$s
+## Two ways to use Magnus
 
-Mag$`\nu`$s works both as an **importable Python module** (the full API —
+Magnus works both as an **importable Python module** (the full API —
 arbitrary Hamiltonians, energy/direction scans, NSI, LIV, steriles) and as a
 **command-line calculator** (`magnus prob ...` — one probability, no Python
 required). Use the module for anything programmatic (scans, plots, fitting);
@@ -421,7 +423,7 @@ nu_tau    0.0009  0.0001  0.9990
 Pass `--json` for machine-readable output (e.g., to pipe into `jq` or another
 script) instead of the table.
 
-## What Mag$`\nu`$s computes
+## What Magnus computes
 
 - **Flavors:** 2ν, 3ν, 4ν (3+1), 5ν (3+2) via dedicated wrappers; any number
   of flavors via the generic `osc_prob`.
@@ -467,7 +469,7 @@ same table via `--environment`/`--scenario`/`--flavors`.
 
 ## Code architecture
 
-Mag$`\nu`$s's oscillation-probability API (`src/magnus/oscprob.py`) is
+Magnus's oscillation-probability API (`src/magnus/oscprob.py`) is
 organized as three layers, so that adding a new default or fixing a bug in
 one place fixes it everywhere instead of needing to be copy-pasted across
 dozens of functions:
@@ -524,7 +526,7 @@ wrapper.
 
 ## Mathematical method
 
-This section derives, in full, how Mag$`\nu`$s computes the neutrino
+This section derives, in full, how Magnus computes the neutrino
 time-evolution operator and the oscillation probability from it.
 
 ### 1. The physical problem
@@ -603,7 +605,7 @@ with $S_n^{(j)}$ a sum of $j$-fold nested commutators of lower-order terms
 with $A$, generated recursively by $S_n^{(1)} = [\Omega_{n-1},A]$ and
 $S_n^{(j)} = \sum_{i=1}^{n-j}\big[\Omega_i,\,S_{n-i}^{(j-1)}\big]$ for
 $2\leq j\leq n-1$. Because the odd Bernoulli numbers $B_3=B_5=\cdots=0$
-vanish, whole commutator groups drop out; Mag$`\nu`$s implements this
+vanish, whole commutator groups drop out; Magnus implements this
 recursion through $n=6$, using only $B_1$ (coefficient $-\tfrac12$), $B_2$
 (coefficient $\tfrac{1}{12}$), and $B_4$ (coefficient $-\tfrac{1}{720}$).
 Written out explicitly, with $[\cdot,\cdot]$ the matrix commutator:
@@ -680,7 +682,7 @@ The Magnus series converges absolutely whenever
 ```
 
 a sufficient (not necessary) condition, with $\lVert\cdot\rVert_2$ the
-spectral (operator) norm. Because of this, Mag$`\nu`$s never applies the
+spectral (operator) norm. Because of this, Magnus never applies the
 series over an entire long trajectory at once. Instead, it partitions
 $[l_0,l_f]$ into a chain of **slabs**,
 
@@ -690,7 +692,7 @@ l_0 < l_1 < l_2 < \cdots < l_N = l_f ,
 
 and applies the truncated series independently inside each slab, choosing
 enough slabs that the accumulated phase per slab stays comfortably under the
-bound above (Mag$`\nu`$s estimates this automatically to seed the slab count,
+bound above (Magnus estimates this automatically to seed the slab count,
 and emits `MagnusConvergenceWarning` if a slab is not comfortably inside the
 guaranteed regime — raising the expansion order does not help there; more,
 narrower slabs are needed instead).
@@ -715,7 +717,7 @@ same physical requirement.
 ### 7. Evaluating $\Omega$ inside a slab: two integration methods
 
 Computing the nested integrals of Section 3 requires sampling $A(l)$ inside
-each slab. Mag$`\nu`$s offers two families:
+each slab. Magnus offers two families:
 
 **(a) Gauss–Legendre commutator-free integrators** (`'gl'`, the default). Following
 Blanes, Casas & Ros (2000), orders 2, 4, and 6 can each be reached from only
@@ -763,7 +765,7 @@ high expansion orders unless the number of grid points grows accordingly.
 ### 8. From $\Omega$ to $U$: an exactly unitary matrix exponential
 
 Since the truncated $\Omega$ used in each slab is anti-Hermitian (Section
-4), Mag$`\nu`$s computes its exponential from the eigendecomposition of the
+4), Magnus computes its exponential from the eigendecomposition of the
 Hermitian matrix $K \equiv i\,\Omega$:
 
 ```math
@@ -805,7 +807,7 @@ then transpose), with array indices $[i][j]$ corresponding to $(\alpha,
 so every row of $P$ sums to exactly 1 — probability conservation — for any
 truncation order and any slab count.
 
-For antineutrinos, Mag$`\nu`$s builds the antineutrino Hamiltonian
+For antineutrinos, Magnus builds the antineutrino Hamiltonian
 $H_{\bar\nu}(l)$ from $H(l)$ by (i) flipping the sign of the coherent
 forward-scattering matter potential, $V_{CC}\to -V_{CC}$ (electrons couple
 to $\nu_e$ and $\bar\nu_e$ with opposite-sign weak charge), and (ii)
@@ -905,7 +907,7 @@ Two things worth knowing:
   slow path is easy to sit on indefinitely — the shipped example notebooks all
   did.
 
-### An Earth chord is a palindrome, and Mag$`\nu`$s uses it
+### An Earth chord is a palindrome, and Magnus uses it
 
 A chord through a spherically symmetric Earth meets every radius on the way in
 and again on the way out, so its density profile reads the same from either
@@ -1158,10 +1160,10 @@ version-by-version history of what changed and why.
 
 ## How to Cite
 
-If you use Mag$`\nu`$s in your academic work or scientific publications,
+If you use Magnus in your academic work or scientific publications,
 please cite it and link to the source repository:
 
-Mauricio Bustamante (2026). *Mag$`\nu`$s: neutrino oscillation probabilities
+Mauricio Bustamante (2026). *Magnus: neutrino oscillation probabilities
 via the Magnus expansion*. GitHub Repository:
 https://github.com/mbustama/Magnus.
 
@@ -1178,7 +1180,7 @@ https://github.com/mbustama/Magnus.
 
 ## License
 
-Mag$`\nu`$s is released under the **GNU General Public License v3.0 only**
+Magnus is released under the **GNU General Public License v3.0 only**
 (`GPL-3.0-only`). The full text is in [LICENSE](LICENSE).
 
 In short: you are free to use, study, modify, and redistribute it, including

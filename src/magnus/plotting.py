@@ -44,16 +44,10 @@ All functions return ``(fig, ax)`` so that the caller can keep customising:
 ``fig`` for figure-level work and saving, ``ax`` for anything Matplotlib
 exposes on an axes.
 
-Matplotlib is an optional dependency
-------------------------------------
-The core package depends only on NumPy, SciPy and joblib. Plotting needs
-Matplotlib, which is declared as the ``plot`` extra::
-
-    pip install 'magnuspy[plot]'
-
-Importing :mod:`magnus.plotting` without Matplotlib raises an
-:class:`ImportError` naming that command. ``import magnus`` itself keeps
-working either way.
+Requirements
+------------
+Matplotlib ships with Magνs, so this module is available in any installation
+and needs nothing extra.
 
 .. versionadded:: 1.0.0
 """

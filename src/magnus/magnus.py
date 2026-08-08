@@ -1194,12 +1194,14 @@ def palindromic(*arrays: np.ndarray) -> bool:
 
     Examples
     --------
-    >>> import numpy as np
-    >>> from magnus import magnus
-    >>> magnus.palindromic(np.array([1.0, 2.0, 1.0]))
-    True
-    >>> magnus.palindromic(np.array([1.0, 2.0, 3.0]))
-    False
+    .. jupyter-execute::
+
+        import numpy as np
+
+        from magnus import magnus
+
+        print(magnus.palindromic(np.array([1.0, 2.0, 1.0])))
+        print(magnus.palindromic(np.array([1.0, 2.0, 3.0])))
     """
     for array in arrays:
         a = np.asarray(array)
