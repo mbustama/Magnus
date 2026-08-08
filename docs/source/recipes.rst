@@ -63,6 +63,12 @@ scan rather than once per point.
 A batched call returns ``(n_points, d, d)``, with the point index **first**, so
 ``P[:, 1, 0]`` is :math:`P_{\mu e}` along the scan.
 
+.. figure:: ../../img/gallery/gallery_3nu_vacuum.png
+   :width: 90%
+   :alt: Three-flavour vacuum oscillation probabilities
+
+   Three-flavour vacuum oscillations.
+
 Writing your own ``H_func`` so that it accepts an *array* of positions is the
 other half of this, and is worth a factor of several: see
 :ref:`write-h-func-vectorised` below.
@@ -95,6 +101,12 @@ cover the Earth alongside the other profiles;
 `06 <https://github.com/mbustama/Magnus/blob/main/notebooks/06_magnus_oscillograms.ipynb>`_
 turns it into an oscillogram.
 
+.. figure:: ../../img/gallery/gallery_oscillogram.png
+   :width: 70%
+   :alt: Oscillogram across zenith angle and energy
+
+   Probability across zenith angle and energy in one call.
+
 
 A profile of your own
 ---------------------
@@ -125,6 +137,13 @@ and
 do this with a real tabulated solar model and with a supernova shock front, and
 are the two places the package's limits are shown rather than asserted.
 
+.. figure:: ../../img/gallery/gallery_shock.png
+   :width: 80%
+   :alt: A supernova shock front, truth against Magnus
+
+   A sharp shock front, where the error is an envelope rather than a phase and
+   averaging does not rescue it.
+
 
 Phase-averaged probabilities
 ----------------------------
@@ -151,6 +170,12 @@ This matters for accuracy as well as for physics: an error that is a *phase*
 disappears under averaging, and one that is an *envelope* does not. See
 :doc:`averaged_probability`, and
 `notebook 10 <https://github.com/mbustama/Magnus/blob/main/notebooks/10_magnus_averaged_probability.ipynb>`_.
+
+.. figure:: ../../img/gallery/gallery_averaged.png
+   :width: 90%
+   :alt: Instantaneous against phase-averaged probabilities
+
+   What survives when the phase is unresolvable.
 
 
 Asking for an accuracy instead of a slab count
@@ -246,6 +271,12 @@ calculation with a different Hamiltonian.
 
     # 3+1 sterile: the same machinery at one dimension higher
     P = oscprob.osc_prob_4nu_earth(energy, costhz=costhz, L=L, ...)
+
+.. figure:: ../../img/gallery/gallery_biprobability.png
+   :width: 60%
+   :alt: Biprobability ellipses for both mass orderings
+
+   Neutrino against antineutrino as the CP phase runs, for both mass orderings.
 
 Notebooks
 `07 <https://github.com/mbustama/Magnus/blob/main/notebooks/07_magnus_bsm_sterile_nu.ipynb>`_,

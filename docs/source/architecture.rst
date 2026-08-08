@@ -1,6 +1,11 @@
 Code Architecture
 ===================
 
+.. contents::
+   :local:
+   :depth: 2
+
+
 This page documents how Magνs's source code (under ``src/magnus/``) is
 organized: the module layout, the three-layer call structure of the
 oscillation-probability API, the contract between the layers, and a

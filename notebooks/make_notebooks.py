@@ -6597,6 +6597,46 @@ def add_footers():
         books[name].cells.append(md('---\n\n' + '  \n'.join(parts)))
 
 
+# Figures lifted out of the executed notebooks for the docs gallery.  Keyed by
+# (notebook, index of the PNG output within it), so the recipes page and the
+# notebook show the same figure and there is no third version to drift.
+GALLERY_DIR = HERE.parent/'img'/'gallery'
+
+GALLERY = {
+    ('02_magnus_2nu_vacuum_matter.ipynb', 0): 'gallery_2nu_vacuum.png',
+    ('03_magnus_3nu_vacuum_matter.ipynb', 0): 'gallery_3nu_vacuum.png',
+    ('05_magnus_biprobability.ipynb', 0): 'gallery_biprobability.png',
+    ('06_magnus_oscillograms.ipynb', 0): 'gallery_oscillogram.png',
+    ('10_magnus_averaged_probability.ipynb', 0): 'gallery_averaged.png',
+    ('13_magnus_tabulated_solar_model.ipynb', 0): 'gallery_solar_model.png',
+    ('14_magnus_supernova_shock.ipynb', 0): 'gallery_shock.png',
+}
+
+
+def extract_gallery():
+    r"""Writes the gallery figures out of the executed notebooks.
+
+    The docs embed these rather than plotting their own, so a figure on the
+    recipes page is by construction the one the notebook produced.
+    """
+    import base64
+
+    GALLERY_DIR.mkdir(parents=True, exist_ok=True)
+    written = 0
+    for (notebook, index), filename in sorted(GALLERY.items()):
+        nb = nbf.read(HERE/notebook, as_version=4)
+        images = [output['data']['image/png']
+                  for cell in nb.cells
+                  for output in cell.get('outputs', [])
+                  if 'image/png' in output.get('data', {})]
+        if index >= len(images):
+            raise SystemExit('%s has no figure %d (it has %d)'
+                             % (notebook, index, len(images)))
+        (GALLERY_DIR/filename).write_bytes(base64.b64decode(images[index]))
+        written += 1
+    print('  wrote %d gallery figures to %s' % (written, GALLERY_DIR))
+
+
 def build(execute=True):
     r"""Writes every notebook, executes it, and checks it kept its outputs."""
     add_footers()
@@ -6639,6 +6679,8 @@ def build(execute=True):
         raise SystemExit('notebooks carry no stored outputs: %s'
                          % ', '.join(bare))
     print('  all %d notebooks executed and carry stored outputs' % len(books))
+
+    extract_gallery()
 
 
 if __name__ == '__main__':

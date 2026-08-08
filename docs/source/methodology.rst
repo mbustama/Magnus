@@ -1,6 +1,11 @@
 Methodology
 ============
 
+.. contents::
+   :local:
+   :depth: 2
+
+
 This page documents the numerical machinery behind Magνs: the Magnus
 expansion itself, the two families of integrators, the guarantees they
 carry, the adaptive-refinement and performance engineering built around
