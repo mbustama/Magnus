@@ -84,9 +84,9 @@ imports) so that ``import magnus`` alone makes ``magnus.earth``,
 imports nothing from the rest of the package except
 ``globaldefs`` (for the flavor constants), and nothing imports it. It is
 also the only module needing a dependency beyond NumPy/SciPy/joblib --
-Matplotlib, declared as the optional ``plot`` extra and imported lazily
-inside the drawing calls, so that ``import magnus`` still works without
-it. See :doc:`plotting`. ``magnus.oscprob``
+Matplotlib, which ships with Magnus and is imported lazily inside the
+drawing calls, so ``import magnus`` does not pay for it. See
+:doc:`plotting`. ``magnus.oscprob``
 additionally imports and re-exports ``oscprobstd.py``'s five names (the
 closed-form validation counterpart to the wrapper API), so both
 ``magnus.oscprob.osc_prob_3nu_vacuum_std`` and

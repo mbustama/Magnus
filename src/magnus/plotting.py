@@ -83,9 +83,9 @@ class MatplotlibNotFoundError(ImportError):
 
 
 _MPL_HINT = (
-    "magnus.plotting requires Matplotlib, which is not part of the core "
-    "dependencies. Install it with:\n\n    pip install 'magnuspy[plot]'\n\n"
-    "or, from a source checkout:\n\n    pip install -e '.[plot]'"
+    "magnus.plotting requires Matplotlib, which ships with Magnus, so this "
+    "means it has been removed from the environment. Reinstall it "
+    "with:\n\n    pip install matplotlib"
 )
 
 
