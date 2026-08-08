@@ -175,6 +175,8 @@ TREE = [
     ('tests/test_engines.py', 'Which engine answers, and the cross-checks between them'),
     ('tests/test_expansionterms.py', 'The symbolic term generator against the hand-written orders'),
     ('tests/test_fuzz_statistics.py', 'Randomised profiles, scored in bulk'),
+    ('tests/test_file_tree.py',
+     'This file: generates the tree above and checks it against git'),
     ('tests/test_globaldefs.py', 'NuFit historical parameter dict/loader'),
     ('tests/test_hamiltonians.py', 'Hamiltonian/mixing-matrix builders'),
     ('tests/test_invariants.py', 'Properties that must hold across the whole engine matrix'),

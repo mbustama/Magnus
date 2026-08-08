@@ -264,6 +264,7 @@ File Tree
        ├── test_engines.py             # Which engine answers, and the cross-checks between them
        ├── test_expansionterms.py      # The symbolic term generator against the hand-written orders
        ├── test_fuzz_statistics.py     # Randomised profiles, scored in bulk
+       ├── test_file_tree.py           # This file: generates the tree above and checks it against git
        ├── test_globaldefs.py          # NuFit historical parameter dict/loader
        ├── test_hamiltonians.py        # Hamiltonian/mixing-matrix builders
        ├── test_invariants.py          # Properties that must hold across the whole engine matrix
