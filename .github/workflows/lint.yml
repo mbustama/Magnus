@@ -41,7 +41,11 @@ jobs:
         # selection and the two codebase-wide exemptions (E741 for `l`, E701 for one-line
         # guards) live in [tool.ruff.lint] in pyproject.toml.  This step is blocking: a
         # new finding should fail the build, not be reported into a green checkmark.
-        run: ruff check src/magnus/ tests/ docs/
+        # notebooks/make_notebooks.py is named explicitly rather than the whole
+        # directory: the generator is ordinary Python and should be linted, while the
+        # .ipynb files it writes legitimately re-import in later cells so a reader can
+        # start anywhere, which ruff reads as F811 redefinition.
+        run: ruff check src/magnus/ tests/ docs/ notebooks/make_notebooks.py
 
       - name: Run Ruff Formatter (Check Only)
         # Informational only.  The codebase predates ruff format and is not formatted to
