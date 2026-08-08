@@ -149,7 +149,21 @@ def exp_density_profile(density_matter_central: float, l_scale: float) -> Callab
     Callable
         Function of position, l, tagged with ``is_exp_density_profile = True`` and
         ``l_scale = l_scale``.
-    """
+    
+    Examples
+    --------
+    .. jupyter-execute::
+
+        import magnus.globaldefs as gd
+        from magnus import matter
+
+        profile = matter.exp_density_profile(gd.NUM_DENSITY_E_SUN_CENTRAL,
+                                             gd.L_SCALE_SUN)
+
+        for frac in (0.0, 0.1, 0.5):
+            print('l = %.1f R_sun -> n_e = %.3e eV^3'
+                  % (frac, profile(frac*gd.SUN_RADIUS*gd.UNIT_KM)))
+"""
     def rho_func(l: Union[int, float, np.ndarray]) -> Union[float, np.ndarray]:
         return density_matter_func_exp(l, density_matter_central, l_scale)
     rho_func.is_exp_density_profile = True
@@ -289,7 +303,19 @@ def VCC_func(l: float, num_density_e_func: Callable) -> float:
     -------
     float
         Coherent forward electron potntial, V_CC [eV]
-    """
+    
+    Examples
+    --------
+    .. jupyter-execute::
+
+        import magnus.globaldefs as gd
+        from magnus import matter
+
+        profile = matter.exp_density_profile(gd.NUM_DENSITY_E_SUN_CENTRAL,
+                                             gd.L_SCALE_SUN)
+        print('V_CC at the centre of the Sun: %.3e eV'
+              % matter.VCC_func(0.0, profile))
+"""
 
     return gd.SQRT_OF_2 * gd.GF * num_density_e_func(l) # VCC [eV]
 

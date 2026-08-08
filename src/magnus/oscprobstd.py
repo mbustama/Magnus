@@ -51,7 +51,21 @@ def osc_prob_2nu_vacuum_std(sth: float, Dm2: float, energy: float, L: float) -> 
     -------
     np.ndarray
         List of probabilities [Pee, Pem, Pme, Pmm].
-    """
+    
+    Examples
+    --------
+    .. jupyter-execute::
+
+        import numpy as np
+
+        import magnus.globaldefs as gd
+        from magnus import oscprobstd
+
+        P = oscprobstd.osc_prob_2nu_vacuum_std(
+            np.sqrt(0.308), 7.49e-5, 1.0*gd.UNIT_GEV, 1300.0*gd.UNIT_KM)
+
+        print('P_ee = %.6f' % P[0][0])
+"""
     # arg = 1.27*Dm2*L/energy#/4.0
     cth = np.sqrt(1.0-sth*sth)
     s2th = 2.0*sth*cth
@@ -92,7 +106,21 @@ def osc_prob_2nu_matter_std(sth: float, Dm2: float, VCC: float, energy: float,
     -------
     np.ndarray
         List of probabilities [Pee, Pem, Pme, Pmm].
-    """
+    
+    Examples
+    --------
+    .. jupyter-execute::
+
+        import numpy as np
+
+        import magnus.globaldefs as gd
+        from magnus import oscprobstd
+
+        P = oscprobstd.osc_prob_2nu_matter_std(
+            np.sqrt(0.308), 7.49e-5, 1.0e-13, 1.0*gd.UNIT_GEV, 1300.0*gd.UNIT_KM)
+
+        print('P_ee in matter = %.6f' % P[0][0])
+"""
     # x = 2.0*VCC*(energy*1.e9)/Dm2
     x = 2.0*VCC*(energy)/Dm2
     cth = np.sqrt(1.0-sth*sth)

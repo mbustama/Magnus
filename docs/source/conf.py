@@ -31,6 +31,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'src'))
 # the rest of the package is not (see the note above).
 from magnus.version import __version__ as release  # noqa: E402,F401
 
+# sphinx_rtd_theme renders `version`, not `release`, under the logo; setting
+# only the latter is why the sidebar showed no version at all.
+version = release
+
 extensions = [
     'sphinx.ext.napoleon',      # NumPy/Google-style docstrings
     'sphinx.ext.viewcode',      # Link API entries to highlighted source
@@ -53,6 +57,13 @@ extensions = [
 # `python -m ipykernel install --user --name python3` (harmless if a "python3" kernel already
 # exists and points to an environment where `magnus` is importable).
 jupyter_execute_default_kernel = 'python3'
+
+# Without this Sphinx waits with `connect timeout=None`, so an unreachable
+# inventory host stalls the build rather than failing it; ten seconds bounds
+# that.  A fetch that fails is still a warning and so still fatal under -W,
+# which is intended: a mapping listed here is one whose links are meant to
+# resolve.
+intersphinx_timeout = 10
 
 intersphinx_mapping = {
     'python': ('https://docs.python.org/3', None),
@@ -115,8 +126,14 @@ html_theme = 'sphinx_rtd_theme'
 html_static_path = ['_static']
 html_logo = '_static/magnus_logo.png'
 
+# `release` is read from pyproject.toml at the top of this file, and putting it
+# in the title is the only place a reader sees which version these pages
+# describe -- which matters while the version is a release candidate.
+html_title = 'Magnus %s' % release
+
 html_theme_options = {
-    'logo_only': True,
+    # False, not True: `logo_only` hides `html_title`, and with it the version.
+    'logo_only': False,
     'navigation_depth': 4,
     'vcs_pageview_mode': 'edit',
 }

@@ -115,7 +115,17 @@ def density_matter_func_prem(r: Union[float, np.ndarray],
     .. [1] Adam M. Dziewonski & Don L. Anderson, "Preliminary Reference
         Earth Model", Physics of the Earth and Planetary Interiors, 25,
         297 (1981).
-    """
+    
+    Examples
+    --------
+    .. jupyter-execute::
+
+        from magnus import earth
+
+        for r in (0.0, 3000.0, 5000.0, 6371.0):
+            print('r = %6.0f km -> %6.2f g/cm^3'
+                  % (r, earth.density_matter_func_prem(r)))
+"""
     scalar_input = (np.ndim(r) == 0)
     r = np.asarray(r, dtype=float)
 
@@ -162,7 +172,17 @@ def distance_traveled_inside_earth(costhz: float) -> float:
     -------
     float
         Path length inside the Earth [km].
-    """
+    
+    Examples
+    --------
+    .. jupyter-execute::
+
+        from magnus import earth
+
+        for costhz in (-0.2, -0.5, -1.0):
+            print('costhz = %5.2f -> %8.1f km'
+                  % (costhz, earth.distance_traveled_inside_earth(costhz)))
+"""
     return 0.0 if costhz > 0.0 else -2.0 * gd.EARTH_RADIUS * costhz
 
 
@@ -260,7 +280,23 @@ def prem_layer_edges_along_chord(costhz: float) -> np.ndarray:
     np.ndarray
         Sorted crossing positions l [km], each strictly inside (0, d).
         Empty if the chord crosses no boundary.
-    """
+    
+    Examples
+    --------
+    .. jupyter-execute::
+
+        import numpy as np
+
+        from magnus import earth
+
+        edges = earth.prem_layer_edges_along_chord(-0.8)
+        d = earth.distance_traveled_inside_earth(-0.8)
+
+        print('%d crossings; the first three at %s km'
+              % (len(edges), np.round(edges[:3], 1)))
+        print('symmetric about the midpoint:',
+              np.allclose(edges + edges[::-1], d))
+"""
     if costhz >= 0.0:
         return np.array([])
 
@@ -330,7 +366,20 @@ def chord_length_inside_earth(lat1_dms: tuple[float, float, float],
     -------
     float
         Chord length between the two locations [km].
-    """
+    
+    Examples
+    --------
+    .. jupyter-execute::
+
+        from magnus import earth
+
+        fermilab = ((41.0, 49.0, 55.0), (-88.0, -15.0, -26.0))
+        sanford = ((44.0, 21.0, 12.0), (-103.0, -45.0, -5.0))
+
+        print('Fermilab to Sanford: %.1f km'
+              % earth.chord_length_inside_earth(fermilab[0], fermilab[1],
+                                                sanford[0], sanford[1]))
+"""
 
     # Convert DMS to decimal degrees
     lat1 = dms_to_decimal(*lat1_dms)
