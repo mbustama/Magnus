@@ -5663,21 +5663,24 @@ def cross_check_strategies(entry_point: Callable, *args, engines=None, **kwargs)
 
     Examples
     --------
-    >>> import numpy as np
-    >>> import magnus.globaldefs as gd
-    >>> import magnus.matter as matter
-    >>> import magnus.oscprob as oscprob
-    >>> ne = matter.exp_density_profile(gd.NUM_DENSITY_E_SUN_CENTRAL, gd.L_SCALE_SUN)
-    >>> params = gd.OSC_PARAMS_PREDEFINED['OSC_PARAMS_DEFAULT']
-    >>> out = oscprob.cross_check_strategies(
-    ...     oscprob.osc_prob_matter_std_potential, 2, ne, 10.0e6,
-    ...     0.5*gd.SUN_RADIUS*gd.UNIT_KM,
-    ...     {'s12': params['s12'], 'Dm2': params['D21']}, L0=0.0,
-    ...     density_is_of_number_of_electrons=True)
-    >>> sorted(out['ran'])                                    # doctest: +SKIP
-    ['cumulative', 'hybrid', 'ip_exp', 'magnus']
-    >>> out['max_spread_independent'] < 1.0e-3                # doctest: +SKIP
-    True
+    .. jupyter-execute::
+
+        import magnus.globaldefs as gd
+        import magnus.matter as matter
+        import magnus.oscprob as oscprob
+
+        ne = matter.exp_density_profile(gd.NUM_DENSITY_E_SUN_CENTRAL,
+                                        gd.L_SCALE_SUN)
+        params = gd.OSC_PARAMS_PREDEFINED['OSC_PARAMS_DEFAULT']
+
+        out = oscprob.cross_check_strategies(
+            oscprob.osc_prob_matter_std_potential, 2, ne, 10.0e6,
+            0.5*gd.SUN_RADIUS*gd.UNIT_KM,
+            {'sth': params['s12'], 'Dm2': params['D21']}, L0=0.0,
+            density_is_of_number_of_electrons=True)
+
+        print('engines that ran      :', sorted(out['ran']))
+        print('worst independent gap : %.2e' % out['max_spread_independent'])
 
     See Also
     --------

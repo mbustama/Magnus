@@ -83,8 +83,37 @@ is configured correctly for your system:
    pip install -e '.[test]'
    pytest tests/ -v
 
-The same suite runs in CI on Python 3.10-3.12 on every push; see the badge
-on the :doc:`index` page.
+It is 889 tests and takes about twenty minutes; the same suite runs in CI on
+Python 3.10-3.12 on every push, so the badge on the :doc:`index` page tells
+you whether it passes there.
+
+**What passing means.**  The suite is not only a smoke test, so it is worth
+knowing what it establishes:
+
+* **Against closed forms.**  Two- and three-flavour vacuum probabilities, and
+  two-flavour constant-density matter, for neutrinos and antineutrinos, to
+  machine precision.
+* **Against an independent integrator.**  Asymmetric profiles with complex
+  Hamiltonians and full PREM Earth crossings, scored against
+  ``scipy.integrate.solve_ivp``/DOP853 at ``rtol=1e-12``.
+* **Against an independently coded recursion.**  The Magnus terms at orders
+  1--6, and the Gauss--Legendre convergence rates under slab halving (error
+  ratios 4, 16, 64).
+* **Properties that must hold exactly.**  Unitarity, and two *bit-identity*
+  assertions rather than tolerances: the energy-batched scan against the
+  per-point path, and ``n_jobs > 1`` against serial.  An optimisation that
+  changed an answer fails those rather than passing quietly.
+* **Conventions.**  Slab ordering, the antineutrino potential sign, the mass
+  ordering and the channel indexing -- each of which has been wrong here at
+  some point, and each of which is self-consistent when wrong.  See
+  :ref:`conventions`.
+* **The documentation.**  Every ``jupyter-execute`` block in the docstrings is
+  run when the docs are built, so an example that no longer works fails the
+  build rather than misleading a reader; the notebooks are executed by their
+  own CI job for the same reason.
+
+Skips are expected rather than a sign of trouble: tests that need an optional
+tool stand down when it is absent.
 
 Measuring test coverage
 ~~~~~~~~~~~~~~~~~~~~~~~~

@@ -408,6 +408,21 @@ Salient Features
    references
    changelog
 
+Author
+-------
+
+Magnus was written by Mauricio Bustamante (mbustamante@gmail.com).  Bug reports
+and questions are best raised as `GitHub issues
+<https://github.com/mbustama/Magnus/issues>`_, which leave a public record
+others can find.
+
+Citing
+-------
+
+If Magnus contributed to work you are publishing, please cite it, and say which
+version you used -- results can depend on it.  :doc:`citing` has the BibTeX
+entry and the two or three things worth stating in the text.
+
 License
 =========
 

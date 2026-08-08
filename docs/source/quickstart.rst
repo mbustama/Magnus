@@ -7,13 +7,54 @@ required -- see :doc:`cli`). Use the module for anything programmatic
 (scans, plots, fitting); use the CLI for a quick one-off number or a shell
 script.
 
-.. note::
-   All positions, baselines, and energies in Magνs are in **natural
-   units** (inverse eV and eV, respectively).  The :mod:`magnus.globaldefs`
-   module provides conversion constants (``UNIT_KM``, ``UNIT_MEV``,
-   ``UNIT_GEV``, ``UNIT_G_PER_CM3``, ...): multiply a physical quantity by
-   the matching constant to convert it, e.g. ``100.0*gd.UNIT_KM`` for a
-   100 km baseline.
+.. _units-table:
+
+Units
+------
+
+Magνs works in **natural units** throughout: energies in eV, baselines and
+positions in eV\ :sup:`-1`, so that the product :math:`HL` is dimensionless.
+:mod:`magnus.globaldefs` supplies the conversions — multiply a physical
+quantity by the matching constant, e.g. ``100.0*gd.UNIT_KM`` for a 100 km
+baseline.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 38 26 36
+
+   * - Quantity
+     - Units
+     - Constant
+   * - Neutrino energy
+     - eV
+     - ``UNIT_MEV``, ``UNIT_GEV``
+   * - Baseline, position
+     - eV\ :sup:`-1`
+     - ``UNIT_KM``, ``UNIT_CM``
+   * - Hamiltonian
+     - eV
+     - ---
+   * - Mass-squared differences
+     - eV\ :sup:`2`
+     - ---
+   * - Matter potential
+     - eV
+     - ---
+   * - Mass density
+     - eV\ :sup:`4`
+     - ``UNIT_G_PER_CM3``
+   * - Number density
+     - eV\ :sup:`3`
+     - ``UNIT_PER_CM3``
+   * - Mixing angles
+     - given as :math:`\sin\theta`
+     - ---
+   * - CP phases
+     - radian
+     - ---
+
+The last two are the ones to check first when a result looks untouched by the
+parameters you set; see :ref:`conventions`.
 
 Install Magνs with ``pip install --pre magnuspy`` -- the distribution is
 ``magnuspy`` on PyPI, the import package is ``magnus`` (see
