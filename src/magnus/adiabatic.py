@@ -494,7 +494,34 @@ def oscillation_sampling(H_func: Callable, l0: float, l1: float,
         the fastest oscillation twice per cycle), and, when ``baselines`` is given,
         ``'spacing'``, ``'cycles_per_step'`` and ``'aliased'``.  Empty dict if the spectrum is
         degenerate or the interval has zero length.
-    """
+    
+    Examples
+    --------
+    .. jupyter-execute::
+
+        import numpy as np
+
+        import magnus.globaldefs as gd
+        from magnus import adiabatic
+        from magnus.hamiltonians import hamiltonians3nu
+
+        p = gd.OSC_PARAMS_PREDEFINED['OSC_PARAMS_DEFAULT']
+        h_vac = np.asarray(hamiltonians3nu.hamiltonian_3nu_vacuum_energy_independent(
+            p['s12'], p['s23'], p['s13'], p['dCP'], p['D21'], p['D31']))
+        e00 = np.diag([1.0, 0.0, 0.0])
+        energy = 10.0e6
+
+        def H(l):
+            v = 1.0e-11*np.exp(-np.asarray(l, dtype=float)/gd.L_SCALE_SUN)
+            return (1.0/energy)*h_vac + np.asarray(v)[..., None, None]*e00
+
+        print(adiabatic.oscillation_sampling(H, 0.0, 3.0*gd.L_SCALE_SUN, 100))
+
+    Reported, never warned about.  A trajectory of twenty thousand cycles
+    sampled at a hundred points is not necessarily wrong -- an averaged
+    observable may not care -- but it is worth knowing before trusting an
+    instantaneous one.
+"""
     l0, l1 = float(l0), float(l1)
     if (l1 == l0) or (n_probe < 1):
         return {}
@@ -793,7 +820,36 @@ def adiabatic_propagator(H_func: Callable, l0: float, l1: float,
     -------
     np.ndarray
         The evolution operator, exactly unitary.
-    """
+    
+    Examples
+    --------
+    .. jupyter-execute::
+
+        import numpy as np
+
+        import magnus.globaldefs as gd
+        from magnus import adiabatic
+        from magnus.hamiltonians import hamiltonians3nu
+
+        p = gd.OSC_PARAMS_PREDEFINED['OSC_PARAMS_DEFAULT']
+        h_vac = np.asarray(hamiltonians3nu.hamiltonian_3nu_vacuum_energy_independent(
+            p['s12'], p['s23'], p['s13'], p['dCP'], p['D21'], p['D31']))
+        e00 = np.diag([1.0, 0.0, 0.0])
+        energy = 10.0e6
+
+        def H(l):
+            v = 1.0e-11*np.exp(-np.asarray(l, dtype=float)/gd.L_SCALE_SUN)
+            return (1.0/energy)*h_vac + np.asarray(v)[..., None, None]*e00
+
+        U = np.asarray(adiabatic.adiabatic_propagator(H, 0.0, 3.0*gd.L_SCALE_SUN))
+
+        print('shape', U.shape)
+        print('unitary to %.1e' % np.max(np.abs(U.conj().T @ U - np.eye(3))))
+
+    Cheap however large the accumulated phase, because it transports in the
+    instantaneous eigenbasis rather than resolving the oscillation.  That is
+    exactly why it needs a patch wherever the transport stops being adiabatic.
+"""
     if l1 == l0:
         d = np.asarray(H_func(l0)).shape[-1]
         return np.eye(d, dtype=complex)
@@ -934,7 +990,36 @@ def find_resonance_candidates(H_func: Callable, l0: float, l1: float,
         One entry per candidate, with keys ``'l'`` (position), ``'j'``, ``'k'`` (the level
         indices, ``j < k``), and ``'gap'`` (:math:`\lambda_k - \lambda_j` at that position),
         sorted by position.
-    """
+    
+    Examples
+    --------
+    .. jupyter-execute::
+
+        import numpy as np
+
+        import magnus.globaldefs as gd
+        from magnus import adiabatic
+        from magnus.hamiltonians import hamiltonians3nu
+
+        p = gd.OSC_PARAMS_PREDEFINED['OSC_PARAMS_DEFAULT']
+        h_vac = np.asarray(hamiltonians3nu.hamiltonian_3nu_vacuum_energy_independent(
+            p['s12'], p['s23'], p['s13'], p['dCP'], p['D21'], p['D31']))
+        e00 = np.diag([1.0, 0.0, 0.0])
+        energy = 10.0e6
+
+        def H(l):
+            v = 1.0e-11*np.exp(-np.asarray(l, dtype=float)/gd.L_SCALE_SUN)
+            return (1.0/energy)*h_vac + np.asarray(v)[..., None, None]*e00
+
+        for c in adiabatic.find_resonance_candidates(H, 0.0, 3.0*gd.L_SCALE_SUN):
+            print('levels %d-%d cross at l/l_scale = %.3f, gap %.2e eV'
+                  % (c['j'], c['k'], c['l']/gd.L_SCALE_SUN, c['gap']))
+
+    A candidate is a critical point of a pairwise gap, found exactly through
+    Hellmann-Feynman rather than by scanning for a minimum.  Whether it is
+    actually non-adiabatic is a separate question --
+    :func:`find_nonadiabatic_windows` answers it.
+"""
     ls = np.linspace(l0, l1, n_probe)
     h = (l1 - l0) * fd_step_frac
     bounds = (l0, l1)
@@ -1459,7 +1544,40 @@ def hybrid_propagator(H_func: Callable, l0: float, l1: float, rtol: Optional[flo
     threshold until a window does open. Without that, a profile whose :math:`\gamma` stays just
     below ``threshold0`` everywhere is certified while wrong -- measured at 1.8e-02 against a
     requested 1e-3.
-    """
+    
+    Examples
+    --------
+    .. jupyter-execute::
+
+        import numpy as np
+
+        import magnus.globaldefs as gd
+        from magnus import adiabatic
+        from magnus.hamiltonians import hamiltonians3nu
+
+        p = gd.OSC_PARAMS_PREDEFINED['OSC_PARAMS_DEFAULT']
+        h_vac = np.asarray(hamiltonians3nu.hamiltonian_3nu_vacuum_energy_independent(
+            p['s12'], p['s23'], p['s13'], p['dCP'], p['D21'], p['D31']))
+        e00 = np.diag([1.0, 0.0, 0.0])
+        energy = 10.0e6
+
+        def H(l):
+            v = 1.0e-11*np.exp(-np.asarray(l, dtype=float)/gd.L_SCALE_SUN)
+            return (1.0/energy)*h_vac + np.asarray(v)[..., None, None]*e00
+
+        U, windows, certified = adiabatic.hybrid_propagator(
+            H, 0.0, 3.0*gd.L_SCALE_SUN)
+
+        print('non-adiabatic windows :', len(windows))
+        print('certified             :', certified)
+        print('unitary to %.1e'
+              % np.max(np.abs(np.asarray(U).conj().T @ U - np.eye(3))))
+
+    ``certified`` is the value to check: it says the result agreed with itself
+    under tightening, not that it is correct.  Zero windows means the whole
+    trajectory was adiabatic, which for the real solar mixing angle is the
+    usual answer.
+"""
     threshold, n_probe, n_points = threshold0, n_probe0, n_points0
 
     # Everything below finite-differences H_func between probe points and assumes the result
@@ -1545,4 +1663,5 @@ __all__ = [
     'find_resonance_candidates',
     'find_nonadiabatic_windows',
     'hybrid_propagator',
+    'oscillation_sampling',
 ]
