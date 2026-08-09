@@ -289,6 +289,7 @@ import numpy as np
 import os
 import sys
 import warnings
+import weakref
 from contextlib import contextmanager
 from joblib import Parallel, delayed
 from typing import Optional, Callable, Union, Tuple, Dict
@@ -817,6 +818,48 @@ def _n_required_params(func):
     previous behaviour.
 
     .. versionadded:: 1.0.0
+
+    Parameters
+    ----------
+    func : Callable
+        The function to inspect.
+
+    Returns
+    -------
+    int
+        Number of positional parameters without defaults, or the total parameter count when
+        ``func`` takes ``*args``.
+    """
+    # A function's arity does not change, and inspect.signature is expensive enough to show up
+    # in a profile: it was 42 us of cumulative time on a single osc_prob call, and the routes
+    # that still go point by point (PREM, the cumulative scan) pay it once per point.  Cached
+    # weakly against the function, exactly as magnus.cached_eval_mode caches the evaluation mode,
+    # so the per-energy lambdas these engines build do not accumulate.
+    try:
+        hit = _ARITY_CACHE.get(func)
+        if hit is not None:
+            return hit
+    except TypeError:                   # not weak-referenceable (a builtin, say)
+        return _n_required_params_uncached(func)
+
+    out = _n_required_params_uncached(func)
+    try:
+        _ARITY_CACHE[func] = out
+    except TypeError:
+        pass
+    return out
+
+
+_ARITY_CACHE = weakref.WeakKeyDictionary()
+r"""weakref.WeakKeyDictionary: Memo for :func:`_n_required_params`, keyed on the function.
+
+Weak so that the short-lived per-energy closures the scan engines build are not kept alive by
+having had their arity measured.
+"""
+
+
+def _n_required_params_uncached(func):
+    r"""The body of :func:`_n_required_params`; see there for what is counted and why.
 
     Parameters
     ----------
@@ -3471,6 +3514,12 @@ def _normalize_energy_L(
         scalar-like result); ``ok`` records whether the input lengths were compatible (equal, or
         one of them of length 1).
     """
+    # Two scalars is the single most common call shape, and it reached here as four numpy
+    # constructions (two np.array, two np.full) to build a pair of length-1 arrays.  Building
+    # them directly skips the isinstance ladder and the broadcast branch below.
+    if type(energy) is float and type(L) is float:
+        return np.array([energy]), np.array([L]), True, True
+
     energy = float(energy) if isinstance(energy, int) else energy
     L = float(L) if isinstance(L, int) else L
     return_float = isinstance(energy, float) and isinstance(L, float)
@@ -3497,6 +3546,12 @@ ENGINE_FAMILIES = {
     'separable': 'magnus-ladder',
     'average': 'phase-average',
     'expm': 'exact',
+    # 'constant' shares a family with 'expm' rather than standing alone, even though the two use
+    # different exponential implementations (magnus._expm_stack against scipy's Pade).  What they
+    # share is the *assumption* -- that H does not depend on position -- and that assumption is
+    # the thing that could be wrong, so their agreement must not be read as independent
+    # confirmation of it.
+    'constant': 'exact',
 }
 r"""dict: Module-level constant
 
@@ -3569,7 +3624,7 @@ def _scan_for_hidden_features(profile, l0, L, t_breakpoints=None) -> Optional[Di
         The scan result from :func:`magnus.adiabatic.find_hidden_features`, or None if the scan
         did not apply.
     """
-    if not isinstance(profile, Callable):
+    if not callable(profile):
         return None
     if (t_breakpoints is not None) and (len(np.atleast_1d(t_breakpoints)) > 0):
         return None
@@ -3927,6 +3982,61 @@ def _osc_prob_scan_separable(
         loop_count += 1
 
 
+def _osc_prob_scan_constant_h(
+    H_tot: np.ndarray,
+    widths: np.ndarray
+) -> np.ndarray:
+    r"""Probabilities for a position-independent Hamiltonian, in one batched exponential.
+
+    When the matter potential is constant, :math:`H` does not depend on position, and the
+    Magnus series *terminates at its first term*: :math:`\Omega_1 = -iH\Delta` and every
+    higher :math:`\Omega_k` is a nested commutator of :math:`H` with itself, hence zero.  So
+
+    .. math::
+
+       U = \exp(-i H \Delta)
+
+    is not an approximation to be refined but the exact answer, and a whole energy scan is one
+    call to ``magnus._expm_stack`` on an ``(nE, d, d)`` stack.
+
+    **This is faster and more accurate than the path it replaces.**  Before, a constant
+    potential was explicitly turned away by :func:`_osc_prob_scan_separable_dispatch` -- its
+    docstring said "a constant potential falls back to the generic path" -- and the scan then
+    ran ``osc_prob`` once per energy, each rediscovering the same constancy and each paying the
+    full wrapper and refinement-ladder overhead.  Measured on 60 energies at 1300 km and
+    2.848 g/cm^3, that was 18,000 ``osc_prob`` calls per 300 repetitions; the loop cost about
+    20 us per energy against about 1 us here.
+
+    ``n_slabs``, ``n_tpts_per_slab``, ``t_breakpoints`` and ``rtol``/``atol`` are accepted and
+    ignored, because they can only ask for a refinement of something already exact: subdividing
+    a constant profile yields the same product of identical exponentials, to rounding.  A
+    caller who wants to *see* that equivalence can force the generic route with
+    ``engines=('constant',)`` disabled, and the tests do exactly that to compare the two.
+
+    .. versionadded:: 1.0.0
+
+    Parameters
+    ----------
+    H_tot : np.ndarray
+        The full, position-independent Hamiltonian per energy, shape (nE, d, d).
+    widths : np.ndarray
+        Propagation distance per energy, shape (nE,) -- ``L - L0``.  Per-point baselines are
+        allowed and cost nothing, since each still needs only its own exponential.
+
+    Returns
+    -------
+    np.ndarray
+        Probabilities, shape (nE, d, d), indexed ``[energy, initial, final]``.
+    """
+    Om = (-1j*np.asarray(widths, dtype=float)[:, None, None])*np.asarray(H_tot)
+    # A_is_const: the series terminates exactly here, so the slab-width convergence warning
+    # would be reporting a condition that cannot apply -- a 20 GeV-to-0.6 GeV scan carries a
+    # large accumulated phase and would otherwise warn on every call.
+    U = magnus._expm_stack(Om, warn_wide=False, A_is_const=True)
+    # Same convention as _osc_prob_scan_separable: P[i, j] = |U[j, i]|^2.
+    return np.swapaxes(U.real**2 + U.imag**2, -1, -2)
+
+
 def _osc_prob_scan_separable_dispatch(
     h_vac_energy_indep: np.ndarray,
     VCC_func: Union[Callable, float],
@@ -3984,7 +4094,15 @@ def _osc_prob_scan_separable_dispatch(
         The oscillation probability (or single channel), computed via the batched engine; or the
         ``NotImplemented`` singleton if the request does not fit it.
     """
-    if ('separable' in _ENGINES_DISABLED) or (scan_kwargs.get('cumulative') is True):
+    if scan_kwargs.get('cumulative') is True:
+        return NotImplemented
+    # A constant potential is not a degenerate case of the separable engine but a different
+    # (exact, unrefined) one, so it gets its own name and its own disable switch.  It used to
+    # be turned away here outright, which sent the easiest Hamiltonian there is down the
+    # slowest route available; see _osc_prob_scan_constant_h.
+    vcc_is_constant = not callable(VCC_func)
+    engine = 'constant' if vcc_is_constant else 'separable'
+    if engine in _ENGINES_DISABLED:
         return NotImplemented
     kwargs = dict(scan_kwargs.get('kwargs', {}))
     t_breakpoints = kwargs.pop('t_breakpoints', None)
@@ -3992,17 +4110,54 @@ def _osc_prob_scan_separable_dispatch(
     n_tpts_per_slab = kwargs.pop('n_tpts_per_slab', 100)
     if len(kwargs) > 0:
         return NotImplemented
-    if not isinstance(VCC_func, Callable):
-        return NotImplemented
     if scan_kwargs['t_slab_edges'] is not None:
         return NotImplemented
     if (scan_kwargs['n_jobs'] != 1) or scan_kwargs['save_log'] or \
             (scan_kwargs['file_log'] is not None):
         return NotImplemented
+    # A verbose run is asking to be shown the route, and the banner plus run-parameter dump it
+    # expects (magnus_exp_order, slab counts, tolerances) is emitted by the per-point path and
+    # describes quantities these batched engines do not have.  Printing them from here would mean
+    # reporting a refinement ladder that never ran, so a verbose request takes the route whose
+    # parameters the dump actually describes.  Debugging output, so its cost does not matter.
+    #
+    # >= 1, not >= 2: level 1 also prints (the time-independent-Hamiltonian notice), and gating
+    # at 2 silently deleted it -- measured 210 characters to 0 on a constant-density call.
+    if scan_kwargs.get('verbose', 0) >= 1:
+        return NotImplemented
 
     energy_arr, L_arr, return_float, ok = _normalize_energy_L(energy, L)
-    if (not ok) or (len(energy_arr) < 2) or (not np.all(L_arr == L_arr[0])):
+    if not ok:
         return NotImplemented
+    # Answering before the per-point path means answering before its validation, so anything
+    # the ladder would have rejected has to be rejected here or it is silently accepted.
+    #
+    # A backward or negative propagation distance is the sharp case: `widths` below is used
+    # unsigned, and exp(-iH(L-L0)) for L < L0 is the *transpose* of the forward answer -- row
+    # sums still exactly 1, survival probabilities still right, channels swapped, and 29% off
+    # on P(nu_mu -> nu_e).  osc_prob raises ValueError for this; declining here routes the
+    # request there so it still does.
+    if np.any(L_arr < float(L0)):
+        return NotImplemented
+    # Likewise the refinement parameters.  They do not change this engine's answer -- one
+    # exponential per point is exact either way -- but accepting a value the ladder rejects
+    # returns a different calculation from the one asked for without saying so, which is the
+    # thing tests/test_validation.py exists to prevent.
+    order = scan_kwargs.get('magnus_exp_order')
+    method = scan_kwargs.get('integration_method')
+    if (order is not None) and (method is not None):
+        try:
+            magnus._validate(order, method)
+        except ValueError:
+            return NotImplemented
+    # The separable engine shares one grid of potential samples across energies, so it needs a
+    # single common baseline and at least two energies to be worth entering.  The constant
+    # engine shares nothing and refines nothing: every point is its own exponential, so
+    # per-point baselines and a single point are both served, and a single point served here
+    # skips the per-point wrapper stack entirely.
+    if not vcc_is_constant:
+        if (len(energy_arr) < 2) or (not np.all(L_arr == L_arr[0])):
+            return NotImplemented
 
     rtol, atol = scan_kwargs['rtol'], scan_kwargs['atol']
     if (rtol is None) != (atol is None):
@@ -4014,16 +4169,32 @@ def _osc_prob_scan_separable_dispatch(
     if h_liv_energy_indep is not None:
         H_E = H_E + (energy_arr**n_liv)[:, None, None]*np.asarray(h_liv_energy_indep)
 
-    P = _osc_prob_scan_separable(H_E, VCC_func, np.asarray(h_matt), float(L0),
-        float(L_arr[0]), t_breakpoints, scan_kwargs['magnus_exp_order'],
-        scan_kwargs['integration_method'], rtol, atol,
-        scan_kwargs['growth_factor_n_slabs'],
-        scan_kwargs['growth_factor_n_tpts_per_slab'],
-        scan_kwargs['max_num_loops'], scan_kwargs['min_n_slabs'],
-        scan_kwargs['max_n_slabs'], scan_kwargs['min_n_tpts_per_slab'],
-        scan_kwargs['max_n_tpts_per_slab'], n_slabs, n_tpts_per_slab)
+    if vcc_is_constant:
+        # Refuse a request whose result cannot fit before allocating anything, exactly as
+        # osc_prob_energy_baseline does.  That guard lives in the per-point path, which this
+        # engine short-circuits, so without this call an oversized scan died as a raw
+        # MemoryError naming a 49.3 GiB allocation instead of the package's own message -- and
+        # this engine's peak is complex128, twice the float64 size the guard is sized against.
+        _check_output_fits(len(energy_arr), np.asarray(h_vac_energy_indep).shape[-1],
+                           '_osc_prob_scan_constant_h')
+        # H is position-independent, so the Magnus series terminates at Omega_1 and one
+        # exponential per energy is exact.  h_matt is absent on the paths that have no matter
+        # at all, where the constant potential to add is simply nothing.
+        H_tot = H_E
+        if h_matt is not None:
+            H_tot = H_tot + float(VCC_func)*np.asarray(h_matt)
+        P = _osc_prob_scan_constant_h(H_tot, L_arr - float(L0))
+    else:
+        P = _osc_prob_scan_separable(H_E, VCC_func, np.asarray(h_matt), float(L0),
+            float(L_arr[0]), t_breakpoints, scan_kwargs['magnus_exp_order'],
+            scan_kwargs['integration_method'], rtol, atol,
+            scan_kwargs['growth_factor_n_slabs'],
+            scan_kwargs['growth_factor_n_tpts_per_slab'],
+            scan_kwargs['max_num_loops'], scan_kwargs['min_n_slabs'],
+            scan_kwargs['max_n_slabs'], scan_kwargs['min_n_tpts_per_slab'],
+            scan_kwargs['max_n_tpts_per_slab'], n_slabs, n_tpts_per_slab)
 
-    _note_engine('separable')
+    _note_engine(engine)
     if (nu_i is not None) and (nu_f is not None):
         P = P[:, nu_i, nu_f]
     return P.__getitem__(0 if return_float else slice(None))
@@ -4395,7 +4566,7 @@ def _osc_prob_ip_exp_dispatch(
         return NotImplemented
     if (t_breakpoints is not None) and (len(np.atleast_1d(t_breakpoints)) > 0):
         return NotImplemented
-    if not isinstance(VCC_func, Callable):
+    if not callable(VCC_func):
         return NotImplemented
     if not getattr(VCC_func, 'is_exp_density_profile', False):
         return NotImplemented
@@ -4621,7 +4792,7 @@ def _osc_prob_hybrid_dispatch(
         return NotImplemented
     if (t_breakpoints is not None) and (len(np.atleast_1d(t_breakpoints)) > 0):
         return NotImplemented
-    if not isinstance(VCC_func, Callable):
+    if not callable(VCC_func):
         return NotImplemented
     if scan_kwargs['t_slab_edges'] is not None:
         return NotImplemented
@@ -4918,7 +5089,7 @@ def _osc_prob_hybrid_dispatch_generic(
 
     if (t_breakpoints is not None) and (len(np.atleast_1d(t_breakpoints)) > 0):
         return NotImplemented
-    if not isinstance(VCC_func, Callable):
+    if not callable(VCC_func):
         return NotImplemented
     if len(set(kwargs) - {'n_slabs', 'n_tpts_per_slab'}) > 0:
         return NotImplemented
@@ -5238,7 +5409,7 @@ def osc_prob_energy_baseline(
         each (energy, L) point; a single value/matrix if both ``energy`` and ``L`` were floats.
     """
 
-    if (isinstance(H_func, Callable) and (_n_required_params(H_func) > 2)):
+    if (callable(H_func) and (_n_required_params(H_func) > 2)):
         raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob_energy_baseline:"+\
             " H_func can be energy- and position-dependent, only energy-dependent, or only" + \
             " position-dependent. H_func cannot depend on more than two parameters. To vary" + \
@@ -5302,7 +5473,7 @@ def osc_prob_energy_baseline(
     # Build, for a given neutrino energy, the Hamiltonian to be passed to osc_prob: either a
     # one-parameter function of position or, if position-independent, a constant matrix (which
     # osc_prob detects and handles with internal speed-ups).
-    if not isinstance(H_func, Callable):
+    if not callable(H_func):
         # H_func is position- and energy-independent
         def H_at_energy(enu: float) -> np.ndarray:
             return H_func
@@ -5324,7 +5495,7 @@ def osc_prob_energy_baseline(
     # constant, or scalar-only): the verdict is structural and holds for every (energy, L) point,
     # so probing here avoids re-probing inside every osc_prob call.
     H_first = H_at_energy(energy[0])
-    if isinstance(H_first, Callable):
+    if callable(H_first):
         osc_prob_kwargs['A_eval_mode'] = magnus.probe_eval_mode(
             lambda t: -1j*H_first(t), L0, np.max(L))
 
@@ -5337,7 +5508,7 @@ def osc_prob_energy_baseline(
     # position.  Costs one multiply for ordinary requests; see _check_output_fits.
     _check_output_fits(
         n_points,
-        np.asarray(H_first(L0) if isinstance(H_first, Callable) else H_first).shape[-1],
+        np.asarray(H_first(L0) if callable(H_first) else H_first).shape[-1],
         'osc_prob_energy_baseline')
 
     # Cumulative baseline scan: one traversal of the profile for every requested baseline,
@@ -5365,7 +5536,7 @@ def osc_prob_energy_baseline(
             raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob_energy_baseline: "
                 "cumulative must be True, False, or 'auto'; got " + repr(cumulative) + ".")
         cumulative = bool(
-            isinstance(H_first, Callable)
+            callable(H_first)
             and (t_slab_edges is None)
             and _cumulative_scan_would_serve(np.asarray(energy), np.asarray(L), L0,
                                              CUMULATIVE_AUTO_MIN_POINTS))
@@ -5471,7 +5642,7 @@ def osc_prob_energy_baseline(
         # matrix rather than a callable -- there is nothing to sample and nothing to be
         # discontinuous.  (Calling it anyway is a TypeError, which three existing
         # constant-Hamiltonian tests caught immediately.)
-        if isinstance(H_fixed, Callable) and (
+        if callable(H_fixed) and (
                 (kwargs.get('t_breakpoints') is None)
                 or (len(np.atleast_1d(kwargs.get('t_breakpoints'))) == 0)):
             if not (adiabatic._profile_is_resolved(H_fixed, float(L0), float(L_sorted[-1]), 200)
@@ -5588,11 +5759,18 @@ def osc_prob_energy_baseline(
 
 _CROSS_CHECK_FORCING = {
     # label:      (strategy, cumulative, engines to forbid so that this one is reached)
-    'hybrid':     ('hybrid', False, ('ip_exp', 'separable')),
-    'ip_exp':     ('magnus', False, ('hybrid', 'separable')),
-    'separable':  ('magnus', False, ('hybrid', 'ip_exp')),
-    'cumulative': ('magnus', True, ('hybrid', 'ip_exp', 'separable')),
-    'magnus':     ('magnus', False, ('hybrid', 'ip_exp', 'separable')),
+    #
+    # 'constant' has to appear in every other row's forbid list, not only in its own.  It answers
+    # before osc_prob_energy_baseline is reached, and osc_prob_energy_baseline is what records the
+    # `_hamiltonian` payload that _expm_reference needs -- so leaving it enabled silenced the expm
+    # reference entirely, which is the one member of this table that is an independent oracle
+    # rather than another of this package's engines.
+    'hybrid':     ('hybrid', False, ('ip_exp', 'separable', 'constant')),
+    'ip_exp':     ('magnus', False, ('hybrid', 'separable', 'constant')),
+    'separable':  ('magnus', False, ('hybrid', 'ip_exp', 'constant')),
+    'constant':   ('magnus', False, ('hybrid', 'ip_exp', 'separable')),
+    'cumulative': ('magnus', True, ('hybrid', 'ip_exp', 'separable', 'constant')),
+    'magnus':     ('magnus', False, ('hybrid', 'ip_exp', 'separable', 'constant')),
 }
 
 
@@ -5641,7 +5819,7 @@ def _expm_reference(payload: Dict) -> Tuple[Optional[np.ndarray], str]:
             [[L0, float(baseline)], bp[(bp > min(L0, baseline)) & (bp < max(L0, baseline))]]))
         U = None
         for a, b in zip(edges[:-1], edges[1:]):
-            if isinstance(H_of_l, Callable):
+            if callable(H_of_l):
                 # Sample the open interval: the endpoints are exactly where a piecewise profile
                 # is ambiguous, and a jump sitting on an edge is not a reason to decline.
                 xs = np.linspace(a, b, 35)[1:-1]
@@ -6077,6 +6255,19 @@ def osc_prob_vacuum(
     if P_avg is not NotImplemented:
         return P_avg
 
+    # Batched exact path.  The Hamiltonian is position-independent -- which the loop below
+    # already relied on, one point at a time -- so the entire request is a single stacked
+    # exponential: U(E) = exp(-i h_vac(E) (L - 0)).  Vacuum is the most trivially constant case
+    # there is, and it was taking the slowest route available: measured at 18-28 us per energy
+    # against ~1 us here.  A constant (indeed zero) potential is what selects the 'constant'
+    # engine inside the dispatcher, and h_matt is None because there is no matter term at all.
+    P_scan = _osc_prob_scan_separable_dispatch(
+        h_vac_energy_indep, 0.0, None, None, None, energy, L, 0.0, nu_i, nu_f,
+        dict(t_slab_edges=None, n_jobs=n_jobs, save_log=save_log, file_log=file_log,
+             rtol=None, atol=None, cumulative=None, verbose=verbose, kwargs=kwargs))
+    if P_scan is not NotImplemented:
+        return P_scan
+
     # Generate the probabilities for all pairs of energy and baseline in zip(energy, L).  (The
     # Hamiltonian is constant in position, so osc_prob computes each point exactly with a single
     # slab; the tolerance and refinement parameters play no role and are not forwarded.)
@@ -6380,11 +6571,11 @@ def osc_prob_matter_std_potential(
 
     # Cache repeated evaluations of the potential on identical position grids (see
     # _PositionProfileCache)
-    if isinstance(VCC_func, Callable):
+    if callable(VCC_func):
         VCC_func = _PositionProfileCache(VCC_func)
 
     # Matter Hamiltonian function: diagonal matrix with VCC in the top-left (ee) entry
-    if isinstance(VCC_func, Callable):
+    if callable(VCC_func):
         # VCC_func is a function of position, so the Hamiltonian is, too.  If l is an array, the
         # result is a stack of Hamiltonians with the position axis leading; this lets the Magnus
         # routines evaluate the Hamiltonian at all time points in a single vectorized call.
@@ -6410,7 +6601,7 @@ def osc_prob_matter_std_potential(
     # 9.3e-06.  See _resolve_cumulative_kwarg.
     cumulative_resolved = _resolve_cumulative_kwarg(kwargs, strategy)
 
-    scan_kwargs = dict(t_slab_edges=t_slab_edges, magnus_exp_order=magnus_exp_order, n_jobs=n_jobs,
+    scan_kwargs = dict(t_slab_edges=t_slab_edges, verbose=verbose, magnus_exp_order=magnus_exp_order, n_jobs=n_jobs,
         integration_method=integration_method, rtol=rtol, atol=atol,
         growth_factor_n_slabs=growth_factor_n_slabs,
         growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
@@ -6791,11 +6982,11 @@ def osc_prob_matter_nsi(
     
     # Cache repeated evaluations of the potential on identical position grids (see
     # _PositionProfileCache)
-    if isinstance(VCC_func, Callable):
+    if callable(VCC_func):
         VCC_func = _PositionProfileCache(VCC_func)
 
     # Matter Hamiltonian function: (standard + NSI) matter matrix scaled by VCC
-    if isinstance(VCC_func, Callable):
+    if callable(VCC_func):
         # VCC_func is a function of position, so the Hamiltonian is, too.  If l is an array, the
         # result is a stack of Hamiltonians with the position axis leading; this lets the Magnus
         # routines evaluate the Hamiltonian at all time points in a single vectorized call.
@@ -6807,9 +6998,16 @@ def osc_prob_matter_nsi(
         # VCC_func is a constant in position, so the Hamiltonian is, too. When VCC_func is passed to
         # osc_prob below, osc_prob will detect that VCC_func is constant and set parameters
         # internally for speed-up.
-        h_matt = VCC_func*h_matt
+        #
+        # Bound to a NEW name rather than rebinding h_matt: every dispatcher below is documented
+        # to take h_matt as "the constant matrix multiplying VCC_func(l)", and folding VCC into
+        # that name broke the contract for whichever dispatcher went on to multiply by VCC
+        # itself -- silently, since VCC^2 is both tiny and sign-independent, so the matter term
+        # all but vanished and the antineutrino sign cancelled with it.  The separable engine
+        # never noticed because it declined the constant case that reaches this line.
+        h_matt_scaled = VCC_func*h_matt
         def htot(enu: Union[int, float]) -> np.ndarray:
-            return (1/enu)*h_vac_energy_indep+h_matt
+            return (1/enu)*h_vac_energy_indep+h_matt_scaled
         htot_is_function_only_of_energy = True
 
 
@@ -6821,7 +7019,7 @@ def osc_prob_matter_nsi(
     # 9.3e-06.  See _resolve_cumulative_kwarg.
     cumulative_resolved = _resolve_cumulative_kwarg(kwargs, strategy)
 
-    scan_kwargs = dict(t_slab_edges=t_slab_edges, magnus_exp_order=magnus_exp_order, n_jobs=n_jobs,
+    scan_kwargs = dict(t_slab_edges=t_slab_edges, verbose=verbose, magnus_exp_order=magnus_exp_order, n_jobs=n_jobs,
         integration_method=integration_method, rtol=rtol, atol=atol,
         growth_factor_n_slabs=growth_factor_n_slabs,
         growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
@@ -7186,11 +7384,11 @@ def osc_prob_liv(
 
         # Cache repeated evaluations of the potential on identical position grids (see
         # _PositionProfileCache)
-        if isinstance(VCC_func, Callable):
+        if callable(VCC_func):
             VCC_func = _PositionProfileCache(VCC_func)
 
         # Matter Hamiltonian function: diagonal matrix with VCC in the top-left (ee) entry
-        if isinstance(VCC_func, Callable):
+        if callable(VCC_func):
             # VCC_func is a function of position, so the Hamiltonian is, too.  If l is an array,
             # the result is a stack of Hamiltonians with the position axis leading; this lets the
             # Magnus routines evaluate the Hamiltonian at all time points in a single call.
@@ -7203,9 +7401,13 @@ def osc_prob_liv(
             # VCC_func is a constant in position, so the Hamiltonian is, too. When VCC_func is
             # passed to osc_prob below, osc_prob will detect that VCC_func is constant and set
             # parameters  internally for speed-up.
-            h_matt = VCC_func*h_matt
+            #
+            # A new name, not a rebinding of h_matt: see the matching comment in
+            # osc_prob_matter_nsi for what folding VCC into that name costs.
+            h_matt_scaled = VCC_func*h_matt
             def htot(enu: Union[int, float]) -> np.ndarray:
-                return (1/enu)*h_vac_energy_indep + h_matt + pow(enu,n_liv)*h_liv_energy_indep
+                return (1/enu)*h_vac_energy_indep + h_matt_scaled \
+                    + pow(enu,n_liv)*h_liv_energy_indep
             htot_is_function_only_of_energy = True
 
     else: # Matter density is zero; the only terms in the Hamiltonian are vacuum and LIV
@@ -7233,7 +7435,7 @@ def osc_prob_liv(
     # 9.3e-06.  See _resolve_cumulative_kwarg.
     cumulative_resolved = _resolve_cumulative_kwarg(kwargs, strategy)
 
-    scan_kwargs = dict(t_slab_edges=t_slab_edges, magnus_exp_order=magnus_exp_order,
+    scan_kwargs = dict(t_slab_edges=t_slab_edges, verbose=verbose, magnus_exp_order=magnus_exp_order,
         n_jobs=n_jobs, integration_method=integration_method, rtol=rtol, atol=atol,
         growth_factor_n_slabs=growth_factor_n_slabs,
         growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
@@ -10340,7 +10542,7 @@ def _osc_prob_with_potential(
     """
 
     if validate_input:
-        if not isinstance(H_func, Callable):
+        if not callable(H_func):
             raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + \
                 ": H_func must be a function of (energy, l, VCC) or of (energy, l).")
         n_params_H = _n_required_params(H_func)

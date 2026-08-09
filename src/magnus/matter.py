@@ -255,6 +255,42 @@ def _warn_if_density_is_probably_in_g_per_cm3(
         "session.", DensityUnitWarning, stacklevel=3)
 
 
+_VCC_CONST_CACHE = {}
+r"""dict: Memo for the constant-density branches of :func:`vcc_func_from_rho_func`.
+
+Holds plain floats keyed on the seven scalars that determine them.  The callable branches are
+deliberately not cached; see the comment at the lookup.
+"""
+
+_VCC_CONST_CACHE_MAX = 256
+r"""int: How many entries :data:`_VCC_CONST_CACHE` holds before being cleared wholesale."""
+
+
+def _remember_const_vcc(key, value):
+    r"""Stores a constant V_CC against ``key`` and returns it.
+
+    ``key`` is None when the caller's density was a function, in which case there is nothing to
+    remember and the value passes straight through.
+
+    Parameters
+    ----------
+    key : tuple or None
+        Cache key from :func:`vcc_func_from_rho_func`, or None to skip caching.
+    value : float
+        The constant V_CC [eV].
+
+    Returns
+    -------
+    float
+        ``value``, unchanged.
+    """
+    if key is not None:
+        if len(_VCC_CONST_CACHE) >= _VCC_CONST_CACHE_MAX:
+            _VCC_CONST_CACHE.clear()
+        _VCC_CONST_CACHE[key] = value
+    return value
+
+
 def _warn_if_density_was_probably_already_converted(
     density: Union[int, float, np.ndarray],
     source_func_name: str
@@ -272,9 +308,16 @@ def _warn_if_density_was_probably_already_converted(
 
     .. versionadded:: 1.0.0
     """
-    largest = float(np.max(np.abs(np.asarray(density, dtype=float))))
-    if largest <= IMPLAUSIBLE_DENSITY_G_PER_CM3:
-        return
+    # The scalar case is the overwhelmingly common one and does not need numpy: asarray + abs +
+    # max cost three dispatches to compare one number, on a guard that runs on every call.
+    if type(density) is float or type(density) is int:
+        if -IMPLAUSIBLE_DENSITY_G_PER_CM3 <= density <= IMPLAUSIBLE_DENSITY_G_PER_CM3:
+            return
+        largest = abs(float(density))
+    else:
+        largest = float(np.max(np.abs(np.asarray(density, dtype=float))))
+        if largest <= IMPLAUSIBLE_DENSITY_G_PER_CM3:
+            return
 
     warnings.warn(gd.WARNING_MSG_NO_COLOR + " matter." + source_func_name + ": a matter density "
         "of " + format(largest, '.3e') + " g cm^-3 was declared to be in g cm^-3, which is "
@@ -435,13 +478,43 @@ def vcc_func_from_rho_func(
     """
     s = 1.0 if not nubar else -1.0
 
+    # A constant density makes this a pure function of seven scalars returning one float, and a
+    # scan or a fit calls it once per point with the same six.  Only the constant branch is
+    # cached: the callable branches return a *closure over rho_func*, which is neither reliably
+    # hashable nor safe to hand out twice (callers attach is_exp_density_profile to it), so
+    # caching those would trade a few microseconds for an aliasing bug.
+    const_key = None
+    if not callable(rho_func):
+        try:
+            const_key = (float(rho_func), float(L0),
+                         float(ratio_number_neutrons_to_protons), float(electron_fraction),
+                         bool(nubar), bool(density_matter_is_in_g_per_cm3),
+                         bool(density_is_of_number_of_electrons))
+        except (TypeError, ValueError):
+            # An array-valued density is a legitimate input the arithmetic below handles, and
+            # float() rejects it.  Not being cacheable is not a reason to refuse the call:
+            # fall through uncached rather than raising where main returned an answer.
+            const_key = None
+        if const_key is not None:
+            hit = _VCC_CONST_CACHE.get(const_key)
+            if hit is not None:
+                # The unit guard lives inside the conversion this hit skips, so without
+                # re-running it here a repeated identical call was warned about once and then
+                # never again -- and the mistake it catches (a g/cm^3 value left undeclared)
+                # returns *exactly* the vacuum probability.  Emitted on the hit rather than
+                # before the lookup so that each call warns exactly once, not twice on a miss.
+                if density_matter_is_in_g_per_cm3 and not density_is_of_number_of_electrons:
+                    _warn_if_density_was_probably_already_converted(
+                        rho_func, 'vcc_func_from_rho_func')
+                return hit
+
     # If rho_func is a genuine exponential profile (tagged by exp_density_profile), propagate the
     # tag to the returned VCC_func: every conversion below (unit conversion, electron fraction,
     # sqrt(2)*G_F, the antineutrino sign s) is a plain scalar rescaling of rho_func(l), which leaves
     # the exponential functional form and l_scale unchanged.  Callers (osc_prob_matter_std_potential,
     # osc_prob_matter_nsi, osc_prob_liv) use this tag to detect the profile and switch to the fast
     # interaction-picture integrator.
-    l_scale_tag = getattr(rho_func, 'l_scale', None) if isinstance(rho_func, Callable) else None
+    l_scale_tag = getattr(rho_func, 'l_scale', None) if callable(rho_func) else None
 
     def _tag(vcc: Callable) -> Callable:
         if l_scale_tag is not None:
@@ -454,7 +527,7 @@ def vcc_func_from_rho_func(
     if not density_is_of_number_of_electrons:
         # If rho_func is a constant rather than a callable, wrap it in a dummy function so that
         # num_density_e_func always receives a density it can evaluate at a position.
-        if isinstance(rho_func, Callable):
+        if callable(rho_func):
             density_matter_func = rho_func
         else:
             def density_matter_func(r):
@@ -468,7 +541,7 @@ def vcc_func_from_rho_func(
                 electron_fraction=electron_fraction,
                 density_matter_is_in_g_per_cm3=density_matter_is_in_g_per_cm3)
         # Coherent forward potential, VCC [eV]
-        if isinstance(rho_func, Callable):
+        if callable(rho_func):
             # Return VCC as a function, since the density is a function
             def vcc(l):
                 return s*VCC_func(l, num_density_e_func=num_density_e)
@@ -476,9 +549,10 @@ def vcc_func_from_rho_func(
         else:
             # Return VCC as a constant, since the density is a constant. Its value when evaluated at
             # L0 is the same at any other l.
-            return s*VCC_func(l=L0, num_density_e_func=num_density_e)
+            return _remember_const_vcc(
+                const_key, s*VCC_func(l=L0, num_density_e_func=num_density_e))
     else: # rho_func is directly the electron number density [eV^3]
-        if isinstance(rho_func, Callable):
+        if callable(rho_func):
             def vcc(l):
                 return s*VCC_func(l, num_density_e_func=rho_func)
             return _tag(vcc)
@@ -492,7 +566,8 @@ def vcc_func_from_rho_func(
             def num_density_e_const(l):
                 return rho_func
 
-            return s*VCC_func(l=L0, num_density_e_func=num_density_e_const)
+            return _remember_const_vcc(
+                const_key, s*VCC_func(l=L0, num_density_e_func=num_density_e_const))
 
 
 __all__ = [

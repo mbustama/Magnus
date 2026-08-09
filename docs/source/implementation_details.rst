@@ -10,7 +10,7 @@ Implementation Details
 The engines
 -------------
 
-Five independent engines can answer a request. None of them is a special case of another,
+Six independent engines can answer a request. None of them is a special case of another,
 and each declines requests it cannot serve honestly.
 
 .. list-table::
@@ -33,12 +33,19 @@ and each declines requests it cannot serve honestly.
      - Single points and multi-energy scans at one baseline.
      - Non-exponential profiles, :math:`d > 2`, LIV, breakpoints, and whenever its own
        iteration fails to converge (typically near an MSW resonance).
+   * - **Constant Hamiltonian**
+       (``_osc_prob_scan_constant_h``)
+     - ``V_CC`` does not depend on position, so neither does ``H``.
+     - Vacuum and constant density, at any flavour count, for a single point or a scan,
+       with per-point baselines allowed.
+     - A position-dependent potential; user slab edges; parallel, logged or verbose runs.
    * - **Energy-batched separable scan**
        (``_osc_prob_scan_separable``)
      - ``H`` separates into an energy-dependent part and ``V_CC(l)`` times a constant
        matrix.
      - Many energies sharing one baseline.
-     - Per-point baselines, user slab edges, parallel or logged runs.
+     - Per-point baselines, user slab edges, parallel or logged runs, a constant
+       potential (which the constant engine takes instead).
    * - **Cumulative baseline scan**
        (``_osc_prob_cumulative_scan``)
      - Baselines nest: :math:`U(0\to L_2) = U(L_1 \to L_2)\,U(0 \to L_1)`.
@@ -386,6 +393,71 @@ numba is an optional dependency (``pip install 'magnuspy[fast]'``).  Without it,
 ``'auto'`` is silently ``'eigh'`` and nothing but speed changes; it costs about 90 ms of
 ``import magnus`` when present, and the first call to each kernel pays a one-off ~0.7 s
 compile that is then cached to disk.
+
+
+A constant Hamiltonian needs no ladder at all
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+When :math:`V_\text{CC}` does not vary with position, neither does :math:`H`, and the Magnus
+series **terminates at its first term**: :math:`\Omega_1 = -iH\Delta`, and every higher
+:math:`\Omega_k` is a nested commutator of :math:`H` with itself, hence zero.  So
+:math:`U = \exp(-iH\Delta)` is not an approximation to be refined but the exact answer, and an
+entire energy scan is one stacked exponential over an ``(nE, d, d)`` array.
+
+This case used to be turned away deliberately -- the separable dispatcher bailed out on a
+non-callable potential, its docstring saying "a constant potential falls back to the generic
+path" -- so the easiest Hamiltonian there is took the slowest route available: a 60-energy scan
+made 18,000 ``osc_prob`` calls per 300 repetitions, each one rediscovering the same constancy.
+
+.. list-table:: Against the per-point route it replaces (interleaved; control 1.00×)
+   :header-rows: 1
+   :widths: 16 22 22 20
+
+   * - Flavours
+     - Matter scan
+     - Vacuum scan
+     - Single point
+   * - 2ν
+     - **17.3×**
+     - **24.7×**
+     - 2.0×
+   * - 3ν
+     - **15.5×**
+     - **18.9×**
+     - 2.1×
+   * - 4ν
+     - 7.2×
+     - 7.4×
+     - 1.4×
+   * - 5ν
+     - 6.0×
+     - 6.2×
+     - 1.4×
+
+4ν and 5ν gain less because they exponentiate through ``eigh``: the Cayley-Hamilton kernel
+covers dimensions 2 and 3 only.  In absolute terms a 3ν constant-density scan costs 1.10 µs per
+energy, against NuOscProbExact's 1.44 µs batched and 13.25 µs looped; a single point is 33.8 µs
+against its 19.9 µs, and **what remains is wrapper parameter resolution rather than
+arithmetic** -- the exponential itself is under a tenth of it.
+
+Results are bit-identical to the per-point route on every flavour count and both neutrino signs.
+``n_slabs``, ``n_tpts_per_slab``, ``t_breakpoints`` and ``rtol``/``atol`` are accepted and
+ignored, because they can only ask for a refinement of something already exact.
+
+**PREM and exponential profiles are untouched** -- their potential varies with position, so they
+keep ``separable``, ``ip_exp`` or ``hybrid``.  A constant-H engine that captured one would
+propagate a whole chord with a single exponential of a single Hamiltonian: wrong by O(1) and
+still perfectly unitary, which is why ``tests/test_engines.py`` asserts the engine *identity*
+for PREM and the Sun rather than only comparing numbers.
+
+Two traps this engine paid for, both recorded because neither was visible in the answer.
+``h_matt`` meant different things on different branches -- two of the three dispatch call sites
+had folded :math:`V_\text{CC}` into it already, and the engine multiplied by
+:math:`V_\text{CC}` again, giving :math:`V_\text{CC}^2 \sim` 1e-25 instead of 1e-13: the matter
+term all but vanished and, because a square has no sign, the neutrino and antineutrino answers
+came back *bit-identical*.  And a new engine absent from ``_CROSS_CHECK_FORCING``'s forbid lists
+answers before the payload the independent ``expm`` oracle is built from is ever recorded, which
+silently removed the only non-Magnus reference from the cross-check.
 
 
 Accuracy

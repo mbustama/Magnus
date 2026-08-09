@@ -9,6 +9,102 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **A `'constant'` engine: a position-independent Hamiltonian is answered in one
+  batched exponential instead of one `osc_prob` call per point.**  When the
+  matter potential does not vary with position, the Magnus series *terminates at
+  its first term* — Ω₁ = −iHΔ and every higher Ω is a nested commutator of H
+  with itself, hence zero — so `U = exp(-iHΔ)` is the exact answer and a whole
+  energy scan is one stacked exponential.
+
+  This case was previously turned away on purpose: `_osc_prob_scan_separable_dispatch`
+  bailed on `not isinstance(VCC_func, Callable)`, its docstring saying "a constant
+  potential falls back to the generic path".  So the easiest Hamiltonian there is
+  took the slowest route available — a 60-energy scan made **18,000 `osc_prob`
+  calls per 300 repetitions**, each rediscovering the same constancy and paying
+  the full wrapper and refinement-ladder overhead.
+
+  Measured against the route it replaces, interleaved with a control that came
+  back at 1.00×:
+
+  | flavours | matter scan | vacuum scan | single point |
+  |---|---|---|---|
+  | 2ν | **17.3×** | **24.7×** | 2.0× |
+  | 3ν | **15.5×** | **18.9×** | 2.1× |
+  | 4ν | 7.2× | 7.4× | 1.4× |
+  | 5ν | 6.0× | 6.2× | 1.4× |
+
+  4ν and 5ν gain less because they are on `eigh` rather than the
+  Cayley–Hamilton kernel, which covers dimensions 2 and 3 only.  A 3ν
+  constant-density scan is now **1.10 µs per energy against NuOscProbExact's
+  1.44 µs batched and 13.25 µs looped**; a single point is 33.8 µs against its
+  19.9 µs, the remainder being wrapper parameter resolution rather than
+  arithmetic.  Results are bit-identical to the per-point route on every
+  flavour count and both neutrino signs, and `n_slabs`, `n_tpts_per_slab`,
+  `t_breakpoints` and `rtol`/`atol` are accepted and ignored because they can
+  only ask for refinement of something already exact.
+
+  **PREM and exponential profiles are untouched** and keep `separable`/`magnus`
+  /`hybrid`: their potential varies with position, and a constant-H engine that
+  captured one would propagate the whole trajectory with a single exponential —
+  wrong by O(1) while still perfectly unitary.  A test asserts the engine
+  identity, not merely the numbers.
+
+### Fixed
+
+- **`h_matt` meant two different things depending on the potential, and the new
+  engine walked into it.**  `osc_prob_matter_nsi` and `osc_prob_liv` rebound
+  `h_matt` to `VCC_func*h_matt` on their constant-potential branch, then passed
+  that name to dispatchers documented to take `h_matt` as "the constant matrix
+  multiplying `VCC_func(l)`" — which multiply by `VCC` themselves.  The
+  separable engine never noticed, because the rebinding only happens on the
+  constant branch it used to decline outright.
+
+  The failure was invisible in the two ways that matter: `VCC²` is ~1e-25 rather
+  than ~1e-13, so the matter term all but vanished and the answer stayed a
+  plausible, unitary, nearly-vacuum probability; and `VCC²` has no sign, so the
+  neutrino and antineutrino results came back **bit-identical**.  Standard
+  constant-density matter was unaffected (that call site passes the bare
+  projector), so testing the headline case alone would have missed it.  The
+  scaled matrix now has its own name, and `tests/test_engines.py` compares the
+  two routes across every scenario wrapper and both signs — verified to fail
+  when the bug is reintroduced.
+
+- **A new engine was invisible to the cross-check.**  `_CROSS_CHECK_FORCING`'s
+  forbid lists and `ENGINE_FAMILIES` did not know about `'constant'`, and since
+  it answers before `osc_prob_energy_baseline` — which is what records the
+  payload the independent `expm` reference is built from — enabling it silently
+  removed the only non-Magnus oracle in the table.  It is now listed in every
+  other row's forbid set, and shares the `'exact'` family with `expm` rather
+  than standing alone: the two use different exponential implementations but
+  share the *assumption* that H is position-independent, and that assumption is
+  the thing that could be wrong.
+
+### Changed
+
+- **Per-call overhead cut across the wrappers, by caching what is pure and
+  cheapening what is common.**  The largest single item in a single-point profile
+  was `hamiltonian_3nu_vacuum_energy_independent` at ~15 µs, rebuilding the same
+  PMNS matrix on every call; it is a pure function of eight scalars and is now
+  memoized, handing back a copy so a caller writing into the result cannot
+  poison the cache.  Likewise the constant-density branches of
+  `matter.vcc_func_from_rho_func` (the callable branches are deliberately *not*
+  cached: they return a closure over `rho_func` that callers tag with
+  `is_exp_density_profile`, so caching those would trade microseconds for an
+  aliasing bug).  `_n_required_params` cached `inspect.signature` weakly against
+  the function — 42 µs of cumulative time per call, and once per point on the
+  routes that legitimately loop.  `isinstance(x, typing.Callable)`, which routes
+  through `ABCMeta.__instancecheck__`, replaced by the `callable()` builtin at 23
+  sites (~9 `typing.__subclasscheck__` calls per invocation), and scalar fast
+  paths added to `_normalize_energy_L` and the density-units guard.  No
+  behaviour changed by this entry.
+
+- **A verbose run (`verbose >= 1`) takes the per-point route.**  The banner and
+  run-parameter dump describe quantities the batched engines do not have —
+  `magnus_exp_order`, slab counts, tolerances — so emitting them from a batched
+  path would report a refinement ladder that never ran.
+
+### Added
+
 - **A compiled Cayley–Hamilton backend for the matrix exponential, selected by
   `magnus.magnus.EXPM_BACKEND`.**  `np.linalg.eigh` costs ~1.27 µs per 3×3
   *whatever the stack size* (measured 1.268 µs at N=108, 1.279 µs at N=4096 —
