@@ -162,6 +162,8 @@ TREE = [
      'How the NuFIT likelihood, not just the best fit, moves the probability'),
     ('notebooks/README.md', 'This file'),
     ('notebooks/make_notebooks.py', 'BUILDS the notebooks above -- edit this, not the .ipynb'),
+    ('notebooks/external_speed_accuracy.json',
+     "Five external codes' speed and accuracy (NuOscProbExact project)"),
     ('notebooks/make_nufit_chi2.py', "Extracts notebook 26's NuFIT chi^2 profiles"),
     ('notebooks/make_shock_reference.py', "Freezes notebook 14's solve_ivp oracle"),
     ('notebooks/matplotlibrc', 'Shared plot styling for the notebooks'),

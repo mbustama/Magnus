@@ -239,6 +239,7 @@ File Tree
    │   ├── 26_magnus_nufit_evolution.ipynb  # How the NuFIT likelihood, not just the best fit, moves the probability
    │   ├── README.md                   # This file
    │   ├── make_notebooks.py           # BUILDS the notebooks above -- edit this, not the .ipynb
+   │   ├── external_speed_accuracy.json  # Five external codes' speed and accuracy (NuOscProbExact project)
    │   ├── make_nufit_chi2.py          # Extracts notebook 26's NuFIT chi^2 profiles
    │   ├── make_shock_reference.py     # Freezes notebook 14's solve_ivp oracle
    │   ├── matplotlibrc                # Shared plot styling for the notebooks

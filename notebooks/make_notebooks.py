@@ -35,10 +35,30 @@ def code(text):
     return nbf.v4.new_code_cell(text.rstrip())
 
 
+# Figures are set through LaTeX, which is what notebooks/matplotlibrc asks for.
+# A machine that only wants to check that the notebooks still run -- CI, most
+# obviously, but also most readers -- has no reason to carry a TeX installation,
+# so this asks rather than assumes.  With LaTeX the labels are typeset as the
+# stored outputs show them; without it they fall back to matplotlib's own
+# mathtext, which changes how they are set and nothing about what is plotted.
+#
+# It lives in every notebook rather than in matplotlibrc because an rc file
+# states a value and cannot ask a question.  Without it, every figure-bearing
+# notebook raises "latex could not be found" on a machine with no TeX -- which
+# is what CI had been doing, unnoticed, on eighteen of the twenty-six.
+LATEX_GUARD = code(r"""# The figures are set through LaTeX where one is available; where it is not,
+# matplotlib's own mathtext renders the labels instead.  Same numbers either way.
+import shutil
+
+import matplotlib.pyplot as plt
+
+plt.rcParams['text.usetex'] = shutil.which('latex') is not None""")
+
+
 def notebook(title, intro, cells):
-    r"""One notebook: a title cell, then whatever the caller supplies."""
+    r"""One notebook: a title cell, the LaTeX guard, then whatever the caller supplies."""
     nb = nbf.v4.new_notebook()
-    nb.cells = [md('# %s\n\n%s' % (title, intro))] + cells
+    nb.cells = [md('# %s\n\n%s' % (title, intro)), LATEX_GUARD] + cells
     nb.metadata = {
         'kernelspec': {'display_name': 'Python 3', 'language': 'python',
                        'name': 'python3'},
