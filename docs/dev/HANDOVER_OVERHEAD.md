@@ -339,21 +339,41 @@ refuted, which cost real time to establish.
 
 ### 10.0 State
 
-Branch `dev-overhead`, tip `98024e7`, **five commits on `main` (6e3251c), none pushed**, working
-tree clean. `main` and `upstream` are the same GitHub repo (identical tips); push to `origin`.
+Branch `dev-overhead`, tip `d791385`, **eight commits ahead of `main` (6e3251c), none pushed**,
+working tree clean. `main` and `upstream` are the same GitHub repo (identical tips); push to
+`origin`. The review's scope is all eight — the first two predate the backend work but are where
+§9's four findings came from, so do not scope to the middle five alone.
 
 | commit | what |
 |---|---|
+| `a7cdd07` | constant Hamiltonians, 73 µs → 19 µs — see §1 |
+| `2478fd7` | `ordered_product`, per-slab constancy, the evaluation-mode cache — see §1 |
 | `2debd51` | Cayley–Hamilton numba backend, `EXPM_BACKEND`, `SEV_TOL` gate |
 | `fd0a5d5` | the `'constant'` engine, wrapper-overhead caches, `h_matt` fix |
 | `e8b1d05` | notebook 25 (batched NuOscProbExact, PREM 3ν and 3+1) + full 26-notebook rebuild |
 | `b68fad6` | order-6 conjunction test; corrections to this brief |
 | `98024e7` | evaluation-mode cache: interval in the key, duplicate deleted |
+| `d791385` | §10 of this brief — docs only |
 
-Gates, all green at the tip: **1044 tests** (`pytest tests/ -q -n auto`, ~8.5 min), `ruff check
+Gates, all green at `98024e7`: **1044 tests** (`pytest tests/ -q -n auto`, ~8.5 min), `ruff check
 src/ tests/ notebooks/make_notebooks.py`, `make html SPHINXOPTS="-n -W --keep-going"` from
 `docs/`, and all 26 notebooks executing with **no accuracy column changed**. `2debd51` and
 `fd0a5d5` were each verified to pass in isolation in a throwaway worktree.
+
+`d791385` and this correction touch only `docs/dev/HANDOVER_OVERHEAD.md`, which is outside
+`docs/source/` and which `test_file_tree.py` collapses to a single `docs/dev/` entry — so no gate
+can see them and none was re-run. **Do not re-run the suite to "confirm the tip"**; it is 8.5
+minutes that cannot come back different. Re-run it when `src/` or `tests/` moves.
+
+**26 of the 49 changed files are regenerated `.ipynb` JSON** (3 351 insertions, about half the
+branch by line count) from `e8b1d05`, and three more are regenerated figures (`fig/*.pdf`,
+`img/gallery/*.png`). All are build artefacts of `make_notebooks.py`. Review the generator; skim
+the notebooks only for the accuracy columns. The reviewable surface is the other twenty files,
+3 816 insertions:
+
+```bash
+git diff main HEAD -- . ':(exclude)*.ipynb' ':(exclude)fig/*' ':(exclude)img/*'
+```
 
 ### 10.1 Results, so nothing is re-measured
 
