@@ -2,10 +2,14 @@
 r"""__init__.py
 
 Top-level package initializer for magnus. Exposes the package version and
-explicitly imports the eleven modules that make up Magnus's public API:
-adiabatic, avgprob, earth, expansionterms, globaldefs, hamiltonians, magnus,
-matter, oscprob, oscprobstd, and plotting. See :doc:`/architecture` for how they
-fit together.
+explicitly imports the twelve modules that make up Magnus's public API:
+adiabatic, avgprob, earth, expansionterms, expmkernels, globaldefs,
+hamiltonians, magnus, matter, oscprob, oscprobstd, and plotting. See
+:doc:`/architecture` for how they fit together.
+
+:mod:`magnus.expmkernels` is listed because ``expmkernels.HAVE_NUMBA`` is the
+documented way to ask whether the compiled matrix-exponential backend is
+available; the switch that selects it is ``magnus.magnus.EXPM_BACKEND``.
 
 :mod:`magnus.plotting` needs Matplotlib, which ships with Magnus, so it is
 available in any installation.  It is still imported lazily, inside the calls
@@ -35,6 +39,7 @@ from . import adiabatic
 from . import avgprob
 from . import earth
 from . import expansionterms
+from . import expmkernels
 from . import globaldefs
 from . import hamiltonians
 from . import magnus

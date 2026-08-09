@@ -7,6 +7,34 @@ selectable model with a numba implementation as the default, validated against d
 resonances, for 2ν through 5ν. Everything else in this brief is either already done or context
 for that.
 
+> **DONE, 2026-08-09 (same day, later session).** `src/magnus/expmkernels.py`, switch
+> `magnus.magnus.EXPM_BACKEND` (`'auto'`/`'numba'`/`'eigh'`), 91 tests in
+> `tests/test_expm_backend.py`. **6.8× on the exponential at N=108, 1.45× end to end** on a
+> 60-energy PREM scan. §§2–3 below are superseded on four points, each of which cost something
+> to find:
+>
+> 1. **No confluent (Hermite) form is needed.** §2 and §3 both assume coincident eigenvalues
+>    require one. They do not: a Hermitian matrix is never defective, so a polynomial matching
+>    exp on the *distinct* eigenvalues is already exact. With eigenvalues **sorted** and the
+>    spectrum shifted to put the median at zero, the ill-conditioned coefficient multiplies a
+>    matrix whose norm shrinks with the same gap, so its error is bounded by ε·gap and vanishes
+>    as the gap closes. **No tolerance, no crossover, no near-degenerate branch** — 1e-16 at
+>    splittings of 1e-2, 1e-6, 1e-10, 1e-14 and exactly 0 alike.
+> 2. **`np.linalg.eigh` reads the LOWER triangle** (`UPLO='L'`), and `_expm_stack` admits input
+>    anti-Hermitian only to 1e-12. The first version of the kernel read the upper triangle and
+>    the two backends diverged by ~2e-12 — big enough to matter, small enough to read as
+>    rounding. The kernel now reads the lower one.
+> 3. **"19.1× at N=1" does not reproduce** through `_expm_stack`: it is 1.9×. `eigh` on one 3×3
+>    costs 3.6 µs, and reaching it through `_expm_stack` costs 14.2 µs — the ~10 µs of framing
+>    (the anti-Hermiticity test and its temporaries) does not shrink with the stack and is now
+>    the single-point cost. **That is the next bottleneck, not the exponential.**
+> 4. **The closed-form eigenvalues degrade to ~4e-9 at an exact degeneracy** and the exponential
+>    stays at 2.5e-16 anyway, because interpolation error is *second* order in the displacement
+>    of a coalescing node. Both halves are asserted; do not "fix" the eigenvalues.
+>
+> §6's memory corrections are applied. Still open: the ladder (§5), and the notebook-25
+> re-measurement.
+
 Your memory of this project is in
 `~/.claude/projects/-home-mbustamante-Research-magnus/memory/` — start with `MEMORY.md`, then
 `magnus-project-state.md` and `magnus-per-call-overhead.md`. The latter is now partly

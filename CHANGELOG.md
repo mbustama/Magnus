@@ -7,7 +7,64 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **A compiled Cayley–Hamilton backend for the matrix exponential, selected by
+  `magnus.magnus.EXPM_BACKEND`.**  `np.linalg.eigh` costs ~1.27 µs per 3×3
+  *whatever the stack size* (measured 1.268 µs at N=108, 1.279 µs at N=4096 —
+  flat, because it loops over LAPACK internally instead of vectorising).  The
+  new `magnus.expmkernels` applies to `K` the polynomial interpolating
+  `exp(-iλ)` on its spectrum instead: no eigenvectors, and the eigenvalues in
+  closed form.  **6.8× on the exponential** at N=108 (162.6 → 23.8 µs), 7.3× at
+  d=2, and **2.11× end to end** on a 60-energy PREM scan (9291 → 4409 µs, i.e.
+  73.5 µs per energy).
+
+  The gap between 6.8× and 2.11× is Amdahl's law: the exponential is about a
+  third of a slab pass.  Quoting the 6.8× as a package speed-up would be quoting
+  the wrong number.
+
+  `'auto'` (the default) uses the kernel for 2×2 and 3×3 when numba is
+  installed and `eigh` otherwise, and cannot fail; `'numba'` makes a missing
+  numba an error rather than a silent downgrade; `'eigh'` is the reference route.
+  **Dimensions 4 and 5 keep `eigh`** — there is no practical closed form for a
+  4×4 or 5×5 Hermitian eigenproblem, so 4ν and 5ν stay correct and are not
+  accelerated.  numba is an optional dependency (`pip install 'magnuspy[fast]'`),
+  costing ~90 ms of `import magnus` when present plus a one-off ~0.7 s compile
+  per kernel, cached to disk thereafter.
+
+  Switching backend moves probabilities by at most 4.6e-15 across PREM chords,
+  energy scans, NSI resonances, constant density and vacuum.
+
+  Degeneracy is the whole risk in such a scheme, and two facts remove it.  A
+  Hermitian matrix is never defective, so matching `exp` on the *distinct*
+  eigenvalues is already exact and the confluent (Hermite) form is not needed.
+  And with eigenvalues sorted and the spectrum shifted to put the median at
+  zero, the one ill-conditioned coefficient multiplies a matrix whose norm
+  shrinks with the same gap, so its contribution is bounded by `ε·gap` and
+  *vanishes* as the gap closes.  There is therefore no tolerance, no crossover,
+  and no near-degenerate branch to place: the error is 1e-16 at splittings of
+  1e-2, 1e-6, 1e-10, 1e-14 and exactly zero alike.
+
+  Two things this cost, both now pinned by tests.  The closed-form eigenvalues
+  **degrade to ~4e-9 at an exact degeneracy** (`arccos` has infinite derivative
+  where a repeated root sits) and the exponential stays at 2.5e-16 anyway,
+  because interpolation error is *second* order in the displacement of a
+  coalescing node; both halves are asserted, the sloppy one included.  And the
+  kernel must read the **lower** triangle, because that is the one `eigh` reads
+  (`UPLO` defaults to `'L'`) and `_expm_stack` admits input anti-Hermitian only
+  to 1e-12 — a kernel reading the upper triangle exponentiates a different
+  matrix on such input and the two backends diverge by ~2e-12, large enough to
+  matter and small enough to look like rounding.
+
 ### Fixed
+
+- **`_expm_stack`'s docstring claimed the `eigh` route was exactly unitary, and
+  it is not.**  `U†U - I` measures 4e-16 for a single 3×3 and 4e-15 for a stack
+  of 4096 — growing with stack size, never zero, because reconstruction from
+  eigenvectors rounds like any other floating-point product.  The claim that
+  probabilities "sum to 1 by construction" was the part worth correcting: they
+  sum to 1 to about 1e-15, which is worth relying on, by rounding rather than by
+  construction.  No behaviour changed by this entry.
 
 - **The refinement ladder could stop while the answer was still outside the
   requested tolerance, and report success.**  ``t_breakpoints`` (the ~14 PREM
@@ -106,6 +163,7 @@ and the project uses [Semantic Versioning](https://semver.org/).
   and the cache sits under the matter term of the Hamiltonian, so the symptom would
   have been a wrong probability with nothing raised.  Cached arrays are now marked
   read-only, turning that into an exception at the point of the write.
+
 
 ## [1.0.0rc1] - 2026-07-31
 

@@ -265,6 +265,129 @@ floating-point expressions for the same real number.  On Earth single points tha
 up to 8.6e-15 relative.
 
 
+The matrix exponential, and which backend computes it
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Every slab ends in a matrix exponential, and ``np.linalg.eigh`` costs **about 1.27 µs per
+3×3 whatever the stack size** -- measured 1.268 µs at N = 108 and 1.279 µs at N = 4096,
+flat, because it loops over LAPACK internally instead of vectorising over the stack.
+:data:`magnus.magnus.EXPM_BACKEND` selects between that and the compiled Cayley-Hamilton
+kernel in :mod:`magnus.expmkernels`, which applies to :math:`K` the polynomial interpolating
+:math:`\exp(-i\lambda)` on its spectrum -- no eigenvectors, and the eigenvalues in closed
+form.
+
+Interleaved round-robin, minima of many repetitions, with a control the change cannot
+touch:
+
+.. list-table:: The exponential alone, :math:`\exp(-iK)` for a stack of N matrices
+   :header-rows: 1
+   :widths: 10 12 20 20 20
+
+   * - d
+     - N
+     - ``eigh``
+     - ``numba``
+     - Speed-up
+   * - 3
+     - 1
+     - 14.2 µs
+     - 7.4 µs
+     - 1.9×
+   * - 3
+     - 108
+     - 162.6 µs
+     - 23.8 µs
+     - **6.8×**
+   * - 3
+     - 4096
+     - 6467 µs
+     - 934 µs
+     - **6.9×**
+   * - 2
+     - 108
+     - 94.0 µs
+     - 12.9 µs
+     - **7.3×**
+   * - 2
+     - 1024
+     - 716.9 µs
+     - 54.5 µs
+     - **13.2×**
+
+.. list-table:: End to end, through ``osc_prob``
+   :header-rows: 1
+   :widths: 46 27 27
+
+   * - Workload
+     - Speed-up
+     - Note
+   * - 3ν PREM, 60-energy scan
+     - **2.11×**
+     - 9291 µs → 4409 µs (73.5 µs per energy)
+   * - 3ν PREM chord, single point
+     - 1.22×
+     - dominated by the refinement ladder
+   * - 3ν vacuum, single point
+     - 1.11×
+     - and see the constant-Hamiltonian engine below, which is the larger win here
+   * - 3ν constant density, single point
+     - 1.09×
+     -
+   * - CONTROL: 4ν vacuum
+     - 1.00×
+     - dimension 4 uses ``eigh`` on both settings
+
+**A 6.8× exponential is a 2.1× call, and the gap is Amdahl's law rather than a
+disappointment.** The exponential is roughly a third of a slab pass, so removing six
+sevenths of a third is about what the table shows.  Anyone quoting the 6.8× as a package
+speed-up is quoting the wrong number.
+
+A caution about the PREM row, because the first version of this table got it wrong.
+:func:`magnus.earth.distance_traveled_inside_earth` returns **kilometres**, while every
+``osc_prob`` baseline is in natural units, and passing the raw value does not raise: it
+returns a converged, unitary answer for a chord a few metres long, on which the refinement
+ladder trivially agrees with itself at every tolerance.  Measured that way the PREM speed-up
+reads 1.45× rather than 2.11×, because a metre-long chord needs almost no slabs and so hardly
+exercises the exponential at all.
+
+**At N = 1 the exponential is no longer the thing to optimise.** ``eigh`` on one 3×3 costs
+3.5 µs, and reaching it through :func:`magnus.magnus._expm_stack` costs 14.2 µs -- the
+difference is the anti-Hermiticity test and the temporaries around it, which do not shrink
+with the stack.  That fixed cost, not the exponential, is what caps the single-point rows
+above.
+
+**Dimensions 4 and 5 keep ``eigh``, and always will.**  There is no practical closed form
+for a 4×4 or 5×5 Hermitian eigenproblem, so 4ν and 5ν are correct and simply not
+accelerated.  :func:`magnus.expmkernels.supports_dim` is the only place that decides this.
+
+Neither backend is exactly unitary, and a previous version of ``_expm_stack``'s docstring
+claimed the ``eigh`` one was.  It is not: :math:`U^\dagger U - I` measures 4e-16 for a
+single 3×3 and 4e-15 for a stack of 4096, growing with stack size and never reaching zero.
+Against a 40-digit reference the kernel is the same order or slightly better at every norm
+from :math:`\lVert K \rVert` = 1 to 1e5 **on unclustered spectra**, and both degrade linearly
+in that norm, which is the conditioning of the problem rather than a property of either route.
+Probabilities sum to 1 to about 1e-15; they do not do so by construction.
+
+That qualifier was missing from an earlier version of this page, and it mattered.  The closed
+form was verified against random spectra at many norms, and separately at many eigenvalue
+separations at norm ~1; where those two conditions hold *together* it reached 2.7e-07 against
+``eigh``'s 3.0e-11, a factor of 7440, because :math:`\arccos` has infinite derivative at
+:math:`u = \pm 1`.  Neither single-axis sweep visits that corner.  It is now closed by
+:data:`magnus.expmkernels.SEV_TOL`, which hands such matrices to ``eigh``; the worst absolute
+error over the whole separation-by-scale grid is 8.7e-14, and the fraction of matrices declined
+on real work -- PREM chords, solar slab chains, constant density, NSI -- measures 0.00%.
+
+Switching backend moves probabilities by at most 4.6e-15 across PREM chords, energy scans,
+NSI resonances, constant density and vacuum -- except on a solar profile at
+``strategy='magnus'``, which chains 33,575 slab exponentials and drifts 3.0e-12, within the
+:math:`N\epsilon` = 7.4e-12 that an ordered product of that length allows.
+
+numba is an optional dependency (``pip install 'magnuspy[fast]'``).  Without it,
+``'auto'`` is silently ``'eigh'`` and nothing but speed changes; it costs about 90 ms of
+``import magnus`` when present, and the first call to each kernel pays a one-off ~0.7 s
+compile that is then cached to disk.
+
+
 Accuracy
 ----------
 

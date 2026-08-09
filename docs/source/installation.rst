@@ -256,6 +256,7 @@ File Tree
    │   │   ├── cli.py                  # `magnus` command-line calculator (also `python -m magnus`)
    │   │   ├── earth.py                # PREM density profile, chord/zenith-angle geometry
    │   │   ├── expansionterms.py       # Generates the Omega_k terms symbolically, to any order
+   │   │   ├── expmkernels.py          # Compiled Cayley-Hamilton matrix exponential for 2x2/3x3 (the numba backend)
    │   │   ├── globaldefs.py           # Units, physical constants, NuFit parameter sets
    │   │   ├── hamiltonians/           # 2nu-5nu Hamiltonians: vacuum, matter, NSI, LIV (the one true subpackage)
    │   │   │   ├── __init__.py         # Explicit named imports from the four hamiltonians{2,3,4,5}nu.py modules
@@ -278,6 +279,7 @@ File Tree
        ├── test_earth_matter.py        # PREM profile, chord geometry, electron density
        ├── test_engines.py             # Which engine answers, and the cross-checks between them
        ├── test_expansionterms.py      # The symbolic term generator against the hand-written orders
+       ├── test_expm_backend.py        # The two matrix-exponential backends, their switch, and degeneracies
        ├── test_fuzz_statistics.py     # Randomised profiles, scored in bulk
        ├── test_file_tree.py           # This file: generates the tree above and checks it against git
        ├── test_globaldefs.py          # NuFit historical parameter dict/loader

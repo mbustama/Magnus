@@ -84,6 +84,8 @@ from typing import Optional, Callable, Union, Tuple
 import numpy as np
 import scipy as sp
 
+from magnus import expmkernels
+
 
 class MagnusHighOrderCostWarning(UserWarning):
     r"""Warns that a Magnus order above 6 costs substantially more per slab.
@@ -1041,25 +1043,115 @@ def ordered_product(U: np.ndarray) -> np.ndarray:
     return M[0]
 
 
+valid_expm_backends = ['auto', 'numba', 'eigh']
+r"""list of str: The accepted values of ``EXPM_BACKEND`` and of every
+``expm_backend`` parameter.
+"""
+
+
+EXPM_BACKEND = 'auto'
+r"""str: Module-level switch selecting how :math:`\exp(\Omega)` is computed.
+
+Which routine exponentiates each slab.  This is not a correctness switch: the two
+backends agree to about 1e-15 wherever the kernel is used, which is the accuracy either one
+has -- and where it would not, it is not used: the kernel reports the conditioning of its own
+characteristic cubic and ``eigh`` answers instead.  See :data:`magnus.expmkernels.SEV_TOL`.
+
+* ``'auto'`` (the default): the compiled Cayley-Hamilton kernel of
+  :mod:`magnus.expmkernels` for 2x2 and 3x3 matrices when numba is installed,
+  and ``numpy.linalg.eigh`` for everything else.  Never fails: without numba, or
+  at dimension 4 and above, it is silently ``'eigh'``.
+* ``'numba'``: the same, except that a missing numba is an error rather than a
+  fallback -- for a caller who means to be sure the fast path is the one
+  running.  Dimensions 4 and 5 still use ``eigh`` even here, because there is no
+  practical closed form for a 4x4 or 5x5 Hermitian eigenproblem; 4nu and 5nu
+  stay correct and are simply not accelerated.
+* ``'eigh'``: ``numpy.linalg.eigh`` always, ignoring numba.  The reference route,
+  and what to set when comparing the two.
+
+``eigh`` costs about 1.25 us per 3x3 whatever the stack size, because it loops
+over LAPACK internally instead of vectorising, which makes it roughly a quarter
+of a 108-slab Magnus pass.  The kernel removes that.
+
+Setting this is the way to reach the whole package, including every
+:mod:`magnus.oscprob` wrapper; the ``expm_backend`` parameter on
+:func:`magnus_expansion`, :func:`evolution_operators_from_samples` and
+:func:`magnus_expansion_multislab` overrides it for one call.
+
+.. versionadded:: 1.0.0
+"""
+
+
+def _resolve_expm_backend(expm_backend: Optional[str]) -> str:
+    r"""Validates a requested backend and falls back to the module default.
+
+    Parameters
+    ----------
+    expm_backend : str or None
+        One of ``valid_expm_backends``; None means use ``EXPM_BACKEND``.
+
+    Returns
+    -------
+    str
+        The backend to use, one of ``valid_expm_backends``.
+
+    Raises
+    ------
+    ValueError
+        If the name is not recognised, or if ``'numba'`` was asked for by name
+        and numba is not installed.
+    """
+    backend = EXPM_BACKEND if expm_backend is None else expm_backend
+    if backend not in valid_expm_backends:
+        raise ValueError(
+            "magnus._expm_stack: expm_backend must be one of "
+            + str(valid_expm_backends) + ", not '" + str(backend) + "'.")
+    # Asked for by name, so a silent downgrade would be the wrong answer to give:
+    # the caller wanted to know the compiled kernel was running.  'auto' is the
+    # value that promises to work anywhere, and it is the default.
+    if backend == 'numba' and not expmkernels.HAVE_NUMBA:
+        raise ValueError(
+            "magnus._expm_stack: expm_backend='numba' was requested but numba is not "
+            "installed. Install it (pip install 'magnuspy[fast]', or pip install numba), "
+            "or use expm_backend='auto', which falls back to 'eigh' when numba is absent.")
+    return backend
+
+
 def _expm_stack(Om: np.ndarray, warn_wide: bool = False,
-                A_is_const: bool = False) -> np.ndarray:
+                A_is_const: bool = False,
+                expm_backend: Optional[str] = None) -> np.ndarray:
     r"""Matrix exponential of one matrix or a stack of matrices.
 
     If ``Om`` is anti-Hermitian (as is always the case for
     :math:`A = -i H` with a Hermitian Hamiltonian :math:`H`), the
-    exponential is computed from the eigendecomposition of the Hermitian
-    matrix :math:`K = i\Omega`:
+    exponential is computed from the spectrum of the Hermitian matrix
+    :math:`K = i\Omega`, by one of two routes selected by
+    ``EXPM_BACKEND``/``expm_backend``: the compiled Cayley-Hamilton kernel of
+    :mod:`magnus.expmkernels`, or the eigendecomposition
     :math:`\exp(\Omega) = V\, \mathrm{diag}\!\left(e^{-i\lambda}\right)\, V^\dagger`.
-    This is faster than scipy's Pade-based expm for stacks of small
-    matrices, and it yields an exactly unitary result (probabilities
-    that sum to 1 by construction).  Otherwise it falls back to
-    scipy.linalg.expm.
+    Either is faster than scipy's Pade-based expm for stacks of small matrices.
+    Otherwise it falls back to scipy.linalg.expm.
+
+    Neither route is *exactly* unitary, and an earlier version of this docstring
+    claimed the ``eigh`` one was.  It is not: :math:`U^\dagger U - I` measures
+    4e-16 for a single 3x3 and 4e-15 for a stack of 4096, growing with stack
+    size and never reaching zero, because the reconstruction from eigenvectors
+    rounds like any other floating-point product.  The Cayley-Hamilton kernel is
+    the same order -- measured slightly better, not worse, at every norm tested
+    from 1 to 1e5 against a 40-digit reference *on unclustered spectra*, and the
+    ``SEV_TOL`` gate is what keeps that true for clustered ones -- ungated, the
+    closed form reaches 2.7e-07 against ``eigh``'s 3.0e-11 where a clustered
+    spectrum meets a large norm, which is a corner neither a norm sweep nor a
+    degeneracy sweep alone visits.  Probabilities sum to 1 to about
+    1e-15, which is worth relying on; they do not sum to 1 by construction,
+    which is not.
 
     If ``warn_wide`` is True, the eigenvalues (whose maximum modulus is
     :math:`\lVert\Omega\rVert_2`) are also used to warn about slabs too
     wide for the Magnus series to converge; for a constant :math:`A`
     (``A_is_const``) the series terminates exactly and the check is
-    skipped.
+    skipped.  Both routes return the eigenvalues, so the check costs nothing
+    either way.
 
     Parameters
     ----------
@@ -1071,12 +1163,16 @@ def _expm_stack(Om: np.ndarray, warn_wide: bool = False,
     A_is_const : bool, optional
         If True, A is constant in time/position, so the Magnus series terminates exactly and the
         convergence check is skipped even if ``warn_wide`` is True. Default: False.
+    expm_backend : str, optional
+        ``'auto'``, ``'numba'`` or ``'eigh'``; see ``EXPM_BACKEND``, which
+        supplies the default when this is None.
 
     Returns
     -------
     np.ndarray
         :math:`\exp(\Omega)`, same shape as ``Om``.
     """
+    backend = _resolve_expm_backend(expm_backend)
     Om = np.asarray(Om)
     K = 1j*Om
     Kh = np.conj(np.swapaxes(K, -1, -2))
@@ -1085,14 +1181,34 @@ def _expm_stack(Om: np.ndarray, warn_wide: bool = False,
         return np.broadcast_to(np.eye(Om.shape[-1], dtype=complex),
                                Om.shape).copy()
     if np.max(np.abs(K - Kh)) <= 1.e-12*scale:
-        # eigh reads a single triangle, so the explicit symmetrisation it used to be handed
-        # was doing nothing the routine does not already do -- and the branch condition has
-        # just established that the two triangles agree to 1e-12 anyway.
-        lam, V = np.linalg.eigh(K)
+        if (backend != 'eigh' and expmkernels.HAVE_NUMBA
+                and expmkernels.supports_dim(Om.shape[-1])):
+            U, lam, sev = expmkernels.expm_herm_stack(K)
+            # The kernel forecasts, from the conditioning of its own characteristic cubic,
+            # whether it has lost more digits than eigh would; where it has, eigh answers
+            # instead.  It needs a clustered spectrum AND a large norm together -- measured
+            # up to 7440x worse than eigh in that corner, and no worse at all outside it --
+            # so this is a rare, exact repair rather than a routine second opinion.
+            #
+            # Comparing scalars in Python rather than reducing an array in numpy: a
+            # np.any() here would cost more than the kernel saves on a single 3x3.
+            if sev > expmkernels.SEV_TOL:
+                lam, V = np.linalg.eigh(K)
+                Vh = np.conj(np.swapaxes(V, -1, -2))
+                U = (V*np.exp(-1j*lam)[..., None, :]) @ Vh
+        else:
+            # eigh reads a single triangle, so the explicit symmetrisation it used to be handed
+            # was doing nothing the routine does not already do -- and the branch condition has
+            # just established that the two triangles agree to 1e-12 anyway.  The kernel reads
+            # the same triangle eigh does (the lower; eigh's UPLO defaults to 'L'), so at the
+            # edge of that 1e-12 tolerance the two routes still agree, rather than diverging by
+            # it because each picked a different half of a not-quite-Hermitian matrix.
+            lam, V = np.linalg.eigh(K)
+            Vh = np.conj(np.swapaxes(V, -1, -2))
+            U = (V*np.exp(-1j*lam)[..., None, :]) @ Vh
         if warn_wide and not A_is_const:
             _warn_slab_norm(np.max(np.abs(lam)))  # ||Om||_2 = max |lambda|
-        Vh = np.conj(np.swapaxes(V, -1, -2))
-        return (V*np.exp(-1j*lam)[..., None, :]) @ Vh
+        return U
     # General (non-anti-Hermitian) fallback
     if warn_wide and not A_is_const:
         try:
@@ -1167,7 +1283,8 @@ def magnus_expansion(
     integration_method: Optional[str] = 'gl',
     return_magnus_terms: Optional[bool] = False,
     validate_input: Optional[bool] = True,
-    A_eval_mode: Optional[str] = None
+    A_eval_mode: Optional[str] = None,
+    expm_backend: Optional[str] = None
 ) -> np.ndarray:
     r"""Compute :math:`\exp(\Omega_1 + \cdots + \Omega_\text{order})` of :math:`A(t)` from
     ``t0`` to ``t1``.
@@ -1204,6 +1321,10 @@ def magnus_expansion(
         Skip probing how ``A`` can be evaluated by declaring it up front
         ('vector', 'scalar', or 'constant'); see :func:`probe_eval_mode`.
         If None (default), it is probed once and detected automatically.
+    expm_backend : str, optional
+        Which routine exponentiates the slab: ``'auto'``, ``'numba'`` or
+        ``'eigh'``.  If None (default), the module-level ``EXPM_BACKEND``
+        decides.
 
     Returns
     -------
@@ -1237,7 +1358,8 @@ def magnus_expansion(
         tnodes = t0 + width*nodes
         An, used_mode = _evaluate_A(A, tnodes, A_eval_mode)
         Om = _magnus_gl(An, width, order)
-        U = _expm_stack(Om, warn_wide=True, A_is_const=(used_mode == 'constant'))
+        U = _expm_stack(Om, warn_wide=True, A_is_const=(used_mode == 'constant'),
+                        expm_backend=expm_backend)
         if not return_magnus_terms:
             return U
         return U, np.stack([Om], axis=0)
@@ -1248,7 +1370,8 @@ def magnus_expansion(
     magnus_terms = _magnus_terms_quadrature(Bt, order, integration_method)
 
     U = _expm_stack(np.sum(magnus_terms, axis=0), warn_wide=True,
-                    A_is_const=(used_mode == 'constant'))
+                    A_is_const=(used_mode == 'constant'),
+                    expm_backend=expm_backend)
     if not return_magnus_terms:
         return U
     return U, magnus_terms
@@ -1260,7 +1383,8 @@ def evolution_operators_from_samples(
     order: Optional[int] = 2,
     integration_method: Optional[str] = 'gl',
     A_is_const: Optional[bool] = False,
-    validate_input: Optional[bool] = True
+    validate_input: Optional[bool] = True,
+    expm_backend: Optional[str] = None
 ) -> np.ndarray:
     r"""Evolution operators of a chain of slabs from precomputed samples.
 
@@ -1292,6 +1416,10 @@ def evolution_operators_from_samples(
         slab-width convergence warning.
     validate_input : bool, optional
         If True, validate order and integration_method.
+    expm_backend : str, optional
+        Which routine exponentiates each slab: ``'auto'``, ``'numba'`` or
+        ``'eigh'``.  If None (default), the module-level ``EXPM_BACKEND``
+        decides.
 
     Returns
     -------
@@ -1303,11 +1431,12 @@ def evolution_operators_from_samples(
     w = np.asarray(widths, dtype=float)
     if integration_method == 'gl':
         Om = _magnus_gl(At, w, order)
-        return _expm_stack(Om, warn_wide=True, A_is_const=A_is_const)
+        return _expm_stack(Om, warn_wide=True, A_is_const=A_is_const,
+                           expm_backend=expm_backend)
     Bt = w[..., None, None, None]*At        # rescale to the unit interval
     magnus_terms = _magnus_terms_quadrature(Bt, order, integration_method)
     return _expm_stack(np.sum(magnus_terms, axis=0), warn_wide=True,
-                       A_is_const=A_is_const)
+                       A_is_const=A_is_const, expm_backend=expm_backend)
 
 
 def gl_nodes(order: int) -> np.ndarray:
@@ -1475,7 +1604,8 @@ def magnus_expansion_multislab(
     integration_method: Optional[str] = 'gl',
     validate_input: Optional[bool] = True,
     A_eval_mode: Optional[str] = None,
-    symmetric_over: Optional[tuple] = None
+    symmetric_over: Optional[tuple] = None,
+    expm_backend: Optional[str] = None
 ) -> np.ndarray:
     r"""Compute the evolution operators of all time slabs at once.
 
@@ -1522,6 +1652,11 @@ def magnus_expansion_multislab(
         It is therefore not a user-facing knob: it is set by the Earth entry
         points, where the symmetry is a fact of chord geometry rather than a
         claim.  See ``docs/dev/PLAN_PALINDROMIC_PROFILES.md`` section 3d(ii).
+
+    expm_backend : str, optional
+        Which routine exponentiates each slab: ``'auto'``, ``'numba'`` or
+        ``'eigh'``.  If None (default), the module-level ``EXPM_BACKEND``
+        decides.
 
     Returns
     -------
@@ -1582,7 +1717,7 @@ def magnus_expansion_multislab(
 
     return evolution_operators_from_samples(At, widths, order,
         integration_method, A_is_const=(used_mode == 'constant'),
-        validate_input=False)
+        validate_input=False, expm_backend=expm_backend)
 
 
 __all__ = [
@@ -1607,4 +1742,6 @@ __all__ = [
     'magnus_expansion_multislab',
     'USE_PALINDROME',
     'palindromic',
+    'EXPM_BACKEND',
+    'valid_expm_backends',
 ]

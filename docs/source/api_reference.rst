@@ -32,6 +32,7 @@ what was swept, on which workloads, and what the alternatives cost.
    api/magnus/cli/index
    api/magnus/earth/index
    api/magnus/expansionterms/index
+   api/magnus/expmkernels/index
    api/magnus/globaldefs/index
    api/magnus/hamiltonians/index
    api/magnus/magnus/index

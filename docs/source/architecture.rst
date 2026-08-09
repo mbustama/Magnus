@@ -68,15 +68,15 @@ easy to break by accident when adding code:
   modules.
 
 ``earth.py``, ``globaldefs.py``, ``magnus.py``, ``adiabatic.py``,
-``avgprob.py``, ``expansionterms.py``, ``matter.py``, ``oscprob.py``,
-``oscprobstd.py``, and ``plotting.py`` are flat sibling files directly
+``avgprob.py``, ``expansionterms.py``, ``expmkernels.py``, ``matter.py``,
+``oscprob.py``, ``oscprobstd.py``, and ``plotting.py`` are flat sibling files directly
 under ``src/magnus/`` -- there is no subpackage directory
 wrapping any of them. Only ``magnus.hamiltonians`` is a genuine
 subpackage, since it holds four distinct, flavor-count-specific modules
 (``hamiltonians2nu.py`` through ``hamiltonians5nu.py``); its
 ``__init__.py`` explicitly imports and re-exports each one's public
 names (no ``from .module import *``). ``magnus/__init__.py`` itself
-explicitly imports all eleven top-level modules (again, no wildcard
+explicitly imports all twelve top-level modules (again, no wildcard
 imports) so that ``import magnus`` alone makes ``magnus.earth``,
 ``magnus.oscprob``, etc. immediately accessible.
 
