@@ -9,7 +9,7 @@ for that.
 
 > **DONE, 2026-08-09 (same day, later session).** `src/magnus/expmkernels.py`, switch
 > `magnus.magnus.EXPM_BACKEND` (`'auto'`/`'numba'`/`'eigh'`), 91 tests in
-> `tests/test_expm_backend.py`. **6.8× on the exponential at N=108, 1.45× end to end** on a
+> `tests/test_expm_backend.py`. **6.8× on the exponential at N=108, 2.11× end to end** on a
 > 60-energy PREM scan. §§2–3 below are superseded on four points, each of which cost something
 > to find:
 >
@@ -19,7 +19,10 @@ for that.
 >    spectrum shifted to put the median at zero, the ill-conditioned coefficient multiplies a
 >    matrix whose norm shrinks with the same gap, so its error is bounded by ε·gap and vanishes
 >    as the gap closes. **No tolerance, no crossover, no near-degenerate branch** — 1e-16 at
->    splittings of 1e-2, 1e-6, 1e-10, 1e-14 and exactly 0 alike.
+>    splittings of 1e-2, 1e-6, 1e-10, 1e-14 and exactly 0 alike. **That holds at ‖K‖ ~ 1 only**,
+>    which this note originally failed to say: the eigenvalue error scales with the norm, so a
+>    clustered spectrum at large norm reaches 2.7e-07 against `eigh`'s 3.0e-11. See §9 and
+>    `expmkernels.SEV_TOL`.
 > 2. **`np.linalg.eigh` reads the LOWER triangle** (`UPLO='L'`), and `_expm_stack` admits input
 >    anti-Hermitian only to 1e-12. The first version of the kernel read the upper triangle and
 >    the two backends diverged by ~2e-12 — big enough to matter, small enough to read as
@@ -265,3 +268,50 @@ eigenvalue computation and the timing baseline, not for the structure.
 * **`pgrep -f` matches the shell issuing it.** A kill that appears to fail may have worked.
 * **The user asks for brevity.** Lead with the answer; keep the measurements exhaustive and the
   prose short.
+
+---
+
+## 9. Four findings deliberately left for separate work
+
+A max-effort code review of this branch (2026-08-09) produced fifteen findings. Eleven were
+fixed in the three commits above. These four are **inherited from `a7cdd07`/`2478fd7` rather
+than from the backend work**, are independent of it, and were left out on purpose so the
+backend commits stay reviewable. All four were confirmed by execution, not by reading.
+
+1. **The eval-mode cache ignores the propagation interval — the largest silent error found,
+   5.8e-02.** `magnus._EVAL_MODE_CACHE` (magnus.py, and `oscprob._eval_mode_for`) is keyed on
+   the `H_func` object alone, but `probe_eval_mode`'s `'constant'` verdict is a property of the
+   function *on an interval*. A profile with the natural short-circuit "if every sampled
+   position falls in one layer, return that layer's matrix" is probed as `'constant'` on a
+   short baseline; looping `for L in [200, 800, 1000] km` then reuses that verdict and
+   propagates the whole trajectory from one Hamiltonian sample. Measured `P_ee = 0.906249`
+   against a correct `0.903424`, row sums exactly 1.0, no warning, and *loop-order dependent* —
+   longest-first gives 1e-16. `_evaluate_A`'s `'constant'` branch broadcasts with no spot-check,
+   unlike `'vector'`/`'scalar'` which self-heal. Fix: put `(t0, t1)` in the key.
+
+2. **`_eval_mode_for`'s `WeakKeyDictionary` lookup is unguarded, so `osc_prob` now raises on
+   callable Hamiltonian objects that worked on `main`.** Both sibling caches wrap the identical
+   call in `try/except TypeError`; this one guards only the store. A `__slots__` class gives
+   `cannot create weak reference`, a `@dataclass` (which sets `__hash__ = None`) and any class
+   defining `__eq__` give `unhashable type`. Plain functions and lambdas are fine, so the
+   failure is confined to idiomatic OO Hamiltonians.
+
+3. **`WeakKeyDictionary` keys by equality, not identity, and the comment says otherwise.** The
+   stated premise — "Identity rather than equality because two distinct closures over different
+   data are different Hamiltonians" — is false: weakref hash/eq delegate to the referent. Two
+   equal-comparing profile objects, one constant and one stepped, cross-contaminate:
+   `P_ee = 0.860706` against `0.858081`. Same mechanism makes `_ARITY_CACHE` report arity 1 for
+   a genuine two-argument Hamiltonian.
+
+4. **`magnus.cached_eval_mode` is dead code, and the order-6 constant detector had an
+   undetectable mutation.** The public `cached_eval_mode` has zero live callers — its only call
+   site is the `not callable(H_func)` arm of a ternary, and `H_func` is unconditionally rebound
+   to a closure ~40 lines earlier (instrumented: 0 calls, while `_eval_mode_for` gets 1). The
+   detector gap *is* now closed by `test_order_six_constant_shortcut_needs_all_three_nodes_equal`
+   in the fourth commit, since it costs nothing and the mutation is worth 100% error; the dead
+   code is not.
+
+Also recorded and not acted on: `_samples_identical`'s docstring claims `np.array_equal`
+short-circuits on the first differing element. It does not — NumPy materialises the full
+comparison — and the check costs 17.6%/7.4%/4.8% of an order-4 `_magnus_gl` call at
+n = 1/108/2048, on every refinement iteration, on smooth profiles where it can never fire.

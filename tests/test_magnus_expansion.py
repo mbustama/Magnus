@@ -406,3 +406,44 @@ def test_a_varying_slab_still_gets_the_full_expansion():
     An[3, 1, 0, 0] = np.nextafter(An[3, 0, 0, 0].real, 1.0) + 0j
     An[3, 0, 0, 0] = An[3, 0, 0, 0].real + 0j
     assert not mg._samples_identical(An[:, 0], An[:, 1])
+
+
+def test_order_six_constant_shortcut_needs_all_three_nodes_equal():
+    r"""``A1 == A2 != A3`` must take the full expansion, not the constant shortcut.
+
+    ``_magnus_gl``'s order-6 branch fires only when *every* Gauss-Legendre node of
+    the slab carries the same sample, and the conjunction is what makes that true:
+
+    .. code-block:: python
+
+        if _samples_identical(A1, A2) and _samples_identical(A2, A3):
+
+    Nothing else in the suite distinguishes that ``and`` from an ``or``.  The two
+    existing tests make all three nodes bit-identical, so both operands are true
+    either way, and the varying-slab test is order 4 with two nodes.  Weakened to
+    ``or``, this configuration returns ``h*A1`` -- a first-order answer for a slab
+    that is not constant -- and measures 0.0122 against an ``h*A`` scale of 0.01,
+    an O(100%) error.
+
+    The pattern is physically reachable rather than contrived: a piecewise-constant
+    profile with a jump between the second and third node is a
+    ``t_breakpoints``-delimited region boundary, or a castle wall, which is the
+    case the shortcut exists to serve.
+    """
+    A = np.array([[0.0, 1.0e-13], [1.0e-13, 3.0e-13]], dtype=complex)
+    B = np.array([[0.0, 4.0e-13], [4.0e-13, 9.0e-13]], dtype=complex)
+    h = 0.01
+
+    An = np.stack([A, A, B])[None, ...]          # (1 slab, 3 nodes, 2, 2)
+    Om = mg._magnus_gl(An, np.array([h]), 6)[0]
+    shortcut = h*A
+
+    # The shortcut must NOT have fired: the third node differs.
+    assert np.max(np.abs(Om - shortcut)) > 1e-3*np.max(np.abs(shortcut)), (
+        "order 6 took the constant shortcut on a slab whose third node differs; "
+        "check that _magnus_gl still requires ALL nodes identical")
+
+    # And where all three DO agree, it fires and is exact.
+    Ac = np.stack([A, A, A])[None, ...]
+    Om_c = mg._magnus_gl(Ac, np.array([h]), 6)[0]
+    assert np.array_equal(Om_c, h*A)

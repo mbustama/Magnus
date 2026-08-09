@@ -7,6 +7,43 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **A max-effort code review of this branch found fifteen defects; all are fixed
+  here or in the two commits below.**  Eight independent finder angles, every
+  finding confirmed by execution rather than reading.  The two that mattered most
+  were invisible to the tests that were supposed to catch them.
+
+  *The compiled exponential was up to 7440x less accurate than `eigh` where a
+  clustered spectrum meets a large norm* — 2.7e-07 against 3.0e-11 at
+  ||K|| = 1e5, because `arccos` has infinite derivative at u = ±1.  It had been
+  verified against random spectra at many norms, and separately at many
+  eigenvalue separations at norm ~1; the damage needs both at once, which no
+  single-axis sweep visits, and this file previously claimed the kernel was
+  "the same order or slightly better at every norm" on that evidence.
+  `expmkernels.SEV_TOL` now hands such matrices to `eigh`: worst absolute error
+  over the whole separation-by-scale grid 8.7e-14, matrices declined on real work
+  0.00%, speed unchanged.  The grid is now a test.
+
+  *Two tests were vacuous.*  The antineutrino-sign test — written specifically to
+  catch the `h_matt` bug in the commit below — passed identically with the engine
+  under test disabled.  The agreement test compared the new engine against
+  `osc_prob`'s *other* constant shortcut rather than the refinement ladder, so its
+  tolerance could never fire; instrumented, the slab machinery ran zero times on
+  either side.  Both now assert the route they claim to compare, and both were
+  verified to fail when their target bug is reintroduced.
+
+  Also: `expm_herm_stack` ignored `supports_dim` and handed 4x4 input to the 3x3
+  kernel (error 2.4, unitarity 11.3, uninitialised eigenvalues) and segfaulted at
+  d=1; the constant engine answered `L < L0` with the *transpose* of the right
+  answer (29% off, row sums exactly 1) where `main` raised, accepted
+  `magnus_exp_order=0`, and bypassed the output-size memory guard; `verbose=1`
+  lost all its output; array-valued and 0-d-array parameters began raising in two
+  new caches; and a cache hit silenced `DensityUnitWarning` after the first call.
+
+  Four further findings inherited from earlier commits on this branch are recorded
+  in `docs/dev/HANDOVER_OVERHEAD.md` and deliberately left for separate work.
+
 ### Added
 
 - **A `'constant'` engine: a position-independent Hamiltonian is answered in one
