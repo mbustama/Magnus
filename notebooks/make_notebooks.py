@@ -7563,7 +7563,15 @@ with ${\rm shc}(x) \equiv \sinh(x)/x$, which is $1$ at the origin.
 Two consequences, and both matter. The $r$-dependence has left the integrands, so **one pass
 over the profile serves every point on the trajectory** -- the potential is built once per
 body, not once per slab. And nothing diverges as $m \to 0$.'''),
-    code(r'''from scipy.integrate import cumulative_trapezoid
+    code(r'''def running_integral(y, x):
+    """Trapezoidal running integral of y over x, zero at the first node.
+
+    Spelled out rather than imported: numpy has no cumulative trapezoid, and
+    the plain one changed name in NumPy 2.0 (np.trapz was removed in favour of
+    np.trapezoid), so neither spelling is portable.  This is one cumsum, works
+    on every version, and keeps the example to plain numpy."""
+    return np.concatenate([[0.0], np.cumsum(0.5*(y[1:] + y[:-1])*np.diff(x))])
+
 
 def shc(x):
     """sinh(x)/x, continued to 1 at the origin."""
@@ -7580,9 +7588,9 @@ def long_range_potential(r_grid, ne_grid, m):
     trajectory then needs is a lookup."""
     inner = r_grid**2*ne_grid*shc(m*r_grid)
     outer = r_grid*ne_grid*np.exp(-m*r_grid)
-    I_in = np.concatenate([[0.0], cumulative_trapezoid(inner, r_grid)])
-    I_out = np.trapz(outer, r_grid) - np.concatenate(
-        [[0.0], cumulative_trapezoid(outer, r_grid)])
+    I_in = running_integral(inner, r_grid)
+    running_out = running_integral(outer, r_grid)
+    I_out = running_out[-1] - running_out          # the exterior piece, r' > r
     r_safe = np.where(r_grid > 0.0, r_grid, 1.0e-30)
     return np.exp(-m*r_grid)*I_in/r_safe + shc(m*r_grid)*I_out'''),
     md(r'''### Does the potential come out right?
@@ -8462,6 +8470,11 @@ import warnings
 
 import numpy as np
 
+# np.trapz was removed in NumPy 2.0 and renamed np.trapezoid.  Ask the installed
+# version which one it has rather than pinning either: these notebooks are read
+# on whatever numpy the reader happens to have.
+trapezoid = getattr(np, 'trapezoid', getattr(np, 'trapz', None))
+
 # Mag(nu)s is imported as an installed package -- from the repository root,
 # 'pip install -e .' (add [plot] for magnus.plotting). No sys.path juggling.
 import magnus.magnus as magnus
@@ -8557,7 +8570,7 @@ things a real custom Hamiltonian does.'''),
 def H_expensive(energy, l, VCC):
     """Per-position work: a small quadrature for every position handed in."""
     V = np.atleast_1d(np.asarray(VCC, dtype=float))
-    weight = np.trapz(np.exp(-GRID[None, :]*1.0e13*np.abs(V)[:, None]), GRID, axis=1)
+    weight = trapezoid(np.exp(-GRID[None, :]*1.0e13*np.abs(V)[:, None]), GRID, axis=1)
     V_eff = V*(1.0 + 1.0e-12*weight)
     shape = np.asarray(VCC).shape
     V_eff = V_eff.reshape(shape) if shape else V_eff[0]
