@@ -9381,13 +9381,46 @@ def extract_gallery():
     print('  wrote %d gallery figures to %s' % (written, GALLERY_DIR))
 
 
-def build(execute=True):
-    r"""Writes every notebook, executes it, and checks it kept its outputs."""
+def sources_match(path, nb):
+    r"""Whether the notebook on disk has the same cell sources as the one built here.
+
+    Outputs and execution counts are ignored: a rebuild rewrites those in every
+    notebook, and they say nothing about whether the file is current.
+    """
+    if not path.exists():
+        return False
+    on_disk = nbf.read(path, as_version=4)
+    return [c.source for c in on_disk.cells] == [c.source for c in nb.cells]
+
+
+def build(execute=True, only=None):
+    r"""Writes every notebook, executes it, and checks it kept its outputs.
+
+    ``only`` restricts the work to the notebooks whose names contain one of the
+    given fragments -- ``--only 19,24`` is enough.  The rest are **left exactly
+    as they are on disk**, outputs and all, which is the whole point: a
+    one-notebook change costs one notebook's runtime rather than the set's.
+
+    That is also the hazard.  ``--no-execute`` rewrites every notebook without
+    outputs and is documented as destructive; a filter that rewrote the others
+    blank would be the same trap wearing a different hat.  So untouched
+    notebooks are never written, and the run ends by checking that every
+    notebook on disk still matches the sources built here -- which catches the
+    one thing this flag can get wrong, a file left behind by an earlier edit.
+    """
     add_footers()
 
-    for name, nb in books.items():
+    selected = dict(books) if not only else {
+        name: nb for name, nb in books.items()
+        if any(fragment in name for fragment in only)}
+    if only and not selected:
+        raise SystemExit('--only matched no notebooks: %s' % ', '.join(only))
+
+    for name, nb in selected.items():
         nbf.write(nb, HERE/name)
-    print('  wrote %d notebooks' % len(books))
+    print('  wrote %d notebook%s%s' % (len(selected),
+                                       '' if len(selected) == 1 else 's',
+                                       '' if not only else ' (of %d)' % len(books)))
 
     if not execute:
         return
@@ -9396,7 +9429,7 @@ def build(execute=True):
     from nbclient.exceptions import CellExecutionError
 
     failed = []
-    for path in sorted(HERE.glob('*.ipynb')):
+    for path in sorted(HERE/name for name in selected):
         nb = nbf.read(path, as_version=4)
         started = time.perf_counter()
         try:
@@ -9422,11 +9455,26 @@ def build(execute=True):
     if bare:
         raise SystemExit('notebooks carry no stored outputs: %s'
                          % ', '.join(bare))
-    print('  all %d notebooks executed and carry stored outputs' % len(books))
+    # Every notebook on disk must still be the one this file builds.  With --only
+    # the others were not rewritten, so this is what proves they were already
+    # current rather than left over from an earlier edit.
+    stale = [name for name, nb in books.items()
+             if not sources_match(HERE/name, nb)]
+    if stale:
+        raise SystemExit('notebooks on disk no longer match this generator: %s\n'
+                         'Rebuild them, or run without --only.' % ', '.join(stale))
+
+    print('  %d executed; all %d notebooks match the generator and carry outputs'
+          % (len(selected), len(books)))
 
     extract_gallery()
 
 
 if __name__ == '__main__':
     import sys
-    build(execute='--no-execute' not in sys.argv)
+    argv = sys.argv[1:]
+    chosen = None
+    if '--only' in argv:
+        chosen = [f.strip() for f in argv[argv.index('--only') + 1].split(',')
+                  if f.strip()]
+    build(execute='--no-execute' not in argv, only=chosen)
