@@ -358,7 +358,7 @@ reads 1.45× rather than 2.11×, because a metre-long chord needs almost no slab
 exercises the exponential at all.
 
 **At N = 1 the exponential is no longer the thing to optimise.** ``eigh`` on one 3×3 costs
-3.5 µs, and reaching it through :func:`magnus.magnus._expm_stack` costs 14.2 µs -- the
+3.5 µs, and reaching it through ``_expm_stack`` costs 14.2 µs -- the
 difference is the anti-Hermiticity test and the temporaries around it, which do not shrink
 with the stack.  That fixed cost, not the exponential, is what caps the single-point rows
 above.
@@ -686,11 +686,21 @@ much*, where the code knows), what to change, and when it is genuinely safe to i
      - ``H_func`` accepts only one position at a time.
      - No -- output is bit-identical.
      - Make ``H_func`` array-capable (``VCC[..., None, None]*e00``). Measured 4.6× faster.
-   * - :class:`magnus.matter.DensityUnitWarning`
+   * - :class:`magnus.matter.DensityUnitWarning` (over-declared)
      - A density declared in g cm⁻³ is denser than a neutron star.
      - Yes -- catastrophically. The potential is inflated by ~18 orders; the tell is
        :math:`P_{ee} = 1`.
-     - Pass g cm⁻³, or leave ``density_matter_is_in_g_per_cm3`` at False.
+     - The density is already in natural units: leave
+       ``density_matter_is_in_g_per_cm3`` at False.
+   * - :class:`magnus.matter.DensityUnitWarning` (under-declared)
+     - A density left in natural units is far too small to be one -- anything physical is
+       4.3e18 or more, since that is what one g cm⁻³ becomes.
+     - Yes, and this is the dangerous direction. The potential comes out ~19 orders too
+       small, i.e. zero, so the call returns **exactly the vacuum probability** -- which
+       looks like an ordinary answer rather than a missing one, and there is no tell in
+       the numbers at all.
+     - Pass ``density_matter_is_in_g_per_cm3=True``, or convert yourself (multiply by
+       ``gd.UNIT_G_PER_CM3``).
    * - :class:`magnus.oscprob.UnmarkedDiscontinuityWarning`
      - The Hamiltonian is discontinuous at the grid scale and no ``t_breakpoints`` were
        given.

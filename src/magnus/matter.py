@@ -255,6 +255,57 @@ def _warn_if_density_is_probably_in_g_per_cm3(
         "session.", DensityUnitWarning, stacklevel=3)
 
 
+def _density_would_trip_a_unit_guard(
+    density: Union[int, float, np.ndarray],
+    density_matter_is_in_g_per_cm3: bool,
+    density_is_of_number_of_electrons: bool
+) -> bool:
+    r"""Whether converting this density would emit a :class:`DensityUnitWarning`.
+
+    The two guards above are the only reason :func:`vcc_func_from_rho_func` cannot simply
+    return a cached constant: they live inside the conversion that a cache hit skips.  This
+    reproduces their *conditions* -- and only their conditions -- so that a density which
+    would be warned about is never cached in the first place, and every such call therefore
+    takes the route that warns.
+
+    That is the way round it has to be done.  Re-emitting the warning from the cache-hit site
+    does not work: ``warnings.warn`` is called there with a ``stacklevel`` that attributes it
+    to a different frame, and the frame is part of the interpreter's warning registry key, so
+    the imitation registers separately and prints a *second* time under the default filter
+    where an uncached call prints once.  Declining to cache costs nothing, because a density
+    that trips a guard is a mistake being reported rather than a hot path.
+
+    Kept adjacent to the two guards deliberately: it duplicates their thresholds, so it has to
+    be read and changed with them.
+
+    .. versionadded:: 1.0.0
+
+    Parameters
+    ----------
+    density : int, float or np.ndarray
+        The density as the caller supplied it.
+    density_matter_is_in_g_per_cm3 : bool
+        Which of the two guards applies.
+    density_is_of_number_of_electrons : bool
+        When True the conversion is skipped entirely and neither guard runs.
+
+    Returns
+    -------
+    bool
+        Whether a warning would be emitted, and so whether caching must be declined.
+    """
+    if density_is_of_number_of_electrons:
+        # rho_func is already an electron number density; no conversion, so no guard.
+        return False
+    try:
+        largest = float(np.max(np.abs(np.asarray(density, dtype=float))))
+    except (TypeError, ValueError):     # pragma: no cover -- float() already rejected it
+        return True
+    if density_matter_is_in_g_per_cm3:
+        return largest > IMPLAUSIBLE_DENSITY_G_PER_CM3
+    return 0.0 < largest < IMPLAUSIBLE_DENSITY_NATURAL_UNITS
+
+
 _VCC_CONST_CACHE = {}
 r"""dict: Memo for the constant-density branches of :func:`vcc_func_from_rho_func`.
 
@@ -495,17 +546,18 @@ def vcc_func_from_rho_func(
             # float() rejects it.  Not being cacheable is not a reason to refuse the call:
             # fall through uncached rather than raising where main returned an answer.
             const_key = None
+        # A density that would be warned about is not cached at all, so the guard keeps firing
+        # from the place it has always fired from.  See _density_would_trip_a_unit_guard for
+        # why the warning cannot instead be re-emitted here, and note that the *dangerous*
+        # case is the one where the flag was left unset: that returns exactly the vacuum
+        # probability, so the warning is the only thing distinguishing it from an answer.
+        if (const_key is not None) and _density_would_trip_a_unit_guard(
+                rho_func, density_matter_is_in_g_per_cm3,
+                density_is_of_number_of_electrons):
+            const_key = None
         if const_key is not None:
             hit = _VCC_CONST_CACHE.get(const_key)
             if hit is not None:
-                # The unit guard lives inside the conversion this hit skips, so without
-                # re-running it here a repeated identical call was warned about once and then
-                # never again -- and the mistake it catches (a g/cm^3 value left undeclared)
-                # returns *exactly* the vacuum probability.  Emitted on the hit rather than
-                # before the lookup so that each call warns exactly once, not twice on a miss.
-                if density_matter_is_in_g_per_cm3 and not density_is_of_number_of_electrons:
-                    _warn_if_density_was_probably_already_converted(
-                        rho_func, 'vcc_func_from_rho_func')
                 return hit
 
     # If rho_func is a genuine exponential profile (tagged by exp_density_profile), propagate the

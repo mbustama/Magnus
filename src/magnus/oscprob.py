@@ -2836,7 +2836,13 @@ def osc_prob(
             raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob: max_n_slabs must " + \
                 "be > 1.")
 
-        if ((rtol is not None) and (atol is not None) and (max_n_slabs <= 2)): 
+        # Each ceiling has to clear its own floor: min_n_slabs defaults to 1 and
+        # min_n_tpts_per_slab to 2, which is what the two messages above and below say.  This
+        # condition named max_n_slabs while its message named max_n_tpts_per_slab, so the
+        # latter was never validated at all (0 and 1 were accepted), the former was bounded at
+        # > 2 while the message three lines up promised > 1, and a caller who passed
+        # max_n_slabs=2 was refused in the name of a parameter they had not touched.
+        if ((rtol is not None) and (atol is not None) and (max_n_tpts_per_slab <= 2)):
             raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob: max_n_tpts_per_slab" +\
                 " must be > 2.")
 
@@ -3995,8 +4001,10 @@ def _osc_prob_scan_constant_h(
     20 us per energy against about 1 us here.
 
     ``n_slabs``, ``n_tpts_per_slab``, ``t_breakpoints`` and ``rtol``/``atol`` are accepted and
-    ignored, because they can only ask for a refinement of something already exact: subdividing
-    a constant profile yields the same product of identical exponentials, to rounding.  A
+    ignored *when valid*, because they can only ask for a refinement of something already
+    exact: subdividing a constant profile yields the same product of identical exponentials, to
+    rounding.  Values :func:`osc_prob` would reject are declined rather than ignored -- see
+    :func:`_refinement_params_rejected`, since "ignored" must not stretch to "unvalidated".  A
     caller who wants to *see* that equivalence can force the generic route with
     ``engines=('constant',)`` disabled, and the tests do exactly that to compare the two.
 
@@ -4022,6 +4030,64 @@ def _osc_prob_scan_constant_h(
     U = magnus._expm_stack(Om, warn_wide=False, A_is_const=True)
     # Same convention as _osc_prob_scan_separable: P[i, j] = |U[j, i]|^2.
     return np.swapaxes(U.real**2 + U.imag**2, -1, -2)
+
+
+def _refinement_params_rejected(scan_kwargs: Dict) -> bool:
+    r"""Whether :func:`osc_prob` would raise on this request's refinement parameters.
+
+    The batched engines answer *before* :func:`osc_prob` is reached, and therefore before its
+    validation.  A parameter it would have rejected has to be rejected here too, or the same
+    bad value raises on a position-dependent profile and is silently accepted on a constant
+    one -- the caller's mistake going unreported because of a property of their density.
+
+    Declining rather than raising, so the request falls through to the per-point path and the
+    error the caller sees is the one :func:`osc_prob` has always produced, worded and numbered
+    the same way.  Nothing here is re-implemented as a message.
+
+    These conditions mirror :func:`osc_prob`'s validation block and have to be read against
+    it: diverging in either direction reopens the inconsistency this closes, so they are
+    changed together or not at all.  The rule they encode is that each ceiling clears its own
+    floor -- ``min_n_slabs`` defaults to 1 and ``min_n_tpts_per_slab`` to 2.
+
+    .. versionadded:: 1.0.0
+
+    Parameters
+    ----------
+    scan_kwargs : dict
+        The dispatcher's forwarded call parameters.
+
+    Returns
+    -------
+    bool
+        True when :func:`osc_prob` would raise, and so when the engine must decline.
+    """
+    rtol, atol = scan_kwargs.get('rtol'), scan_kwargs.get('atol')
+    if (rtol is not None) and (rtol <= 0.0):
+        return True
+    if (atol is not None) and (atol <= 0.0):
+        return True
+    if (rtol is None) or (atol is None):
+        # Every check below is gated on a tolerance having been requested, exactly as in
+        # osc_prob: without one the refinement ladder never runs and its bounds are unused.
+        return False
+    g_slabs = scan_kwargs.get('growth_factor_n_slabs')
+    g_tpts = scan_kwargs.get('growth_factor_n_tpts_per_slab')
+    if (g_slabs is not None) and (g_slabs < 1.0):
+        return True
+    if (g_tpts is not None) and (g_tpts < 1.0):
+        return True
+    if (g_slabs == 1.0) and (g_tpts == 1.0):
+        return True
+    max_num_loops = scan_kwargs.get('max_num_loops')
+    if (max_num_loops is not None) and (max_num_loops <= 1):
+        return True
+    max_n_slabs = scan_kwargs.get('max_n_slabs')
+    if (max_n_slabs is not None) and (max_n_slabs <= 1):
+        return True
+    max_n_tpts = scan_kwargs.get('max_n_tpts_per_slab')
+    if (max_n_tpts is not None) and (max_n_tpts <= 2):
+        return True
+    return False
 
 
 def _osc_prob_scan_separable_dispatch(
@@ -4140,6 +4206,12 @@ def _osc_prob_scan_separable_dispatch(
             magnus._validate(order, method)
         except ValueError:
             return NotImplemented
+    # `magnus._validate` covers the order and the quadrature and nothing else, which left the
+    # ladder's own bounds unchecked: max_n_slabs=0, rtol=-1.0 and max_num_loops=0 were all
+    # answered here while osc_prob raised for each of them, so whether a bad parameter was
+    # reported depended on whether the density happened to be constant.
+    if _refinement_params_rejected(scan_kwargs):
+        return NotImplemented
     # The separable engine shares one grid of potential samples across energies, so it needs a
     # single common baseline and at least two energies to be worth entering.  The constant
     # engine shares nothing and refines nothing: every point is its own exponential, so
@@ -5724,7 +5796,21 @@ def osc_prob_energy_baseline(
         probs = [compute_single_point(energy[0], L[0])]
         apply_warm_start()
         osc_prob_kwargs.pop('convergence_info', None)
-        probs += Parallel(n_jobs=n_jobs)(delayed(compute_single_point)(enu, baseline)
+
+        # A module global does not cross a process boundary: loky re-imports magnus in each
+        # worker, where EXPM_BACKEND is back at its default.  Since the wrappers expose no
+        # expm_backend parameter, that global is the *only* backend control a caller of this
+        # function has, so leaving it behind meant an explicit request was silently ignored for
+        # every point but the first -- worst for the one use the switch is documented for,
+        # comparing the two backends, which would have compared 'auto' against itself.  The
+        # answers agree to ~1e-15 either way, so this is about honouring the request, not about
+        # the numbers.  Carried by value and re-applied inside the worker.
+        def compute_single_point_in_worker(enu: float, baseline: float,
+                                           _backend: str = magnus.EXPM_BACKEND):
+            magnus.EXPM_BACKEND = _backend
+            return compute_single_point(enu, baseline)
+
+        probs += Parallel(n_jobs=n_jobs)(delayed(compute_single_point_in_worker)(enu, baseline)
             for enu, baseline in zip(energy[1:], L[1:]))
     else:
         probs = []

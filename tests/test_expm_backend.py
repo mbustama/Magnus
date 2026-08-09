@@ -862,3 +862,77 @@ def test_public_kernel_entry_point_refuses_unsupported_dimensions(d):
                              dtype=complex)
     with pytest.raises(ValueError, match='supports_dim'):
         ek.expm_herm_stack(K)
+
+
+@requires_numba
+def test_the_backend_switch_reaches_the_parallel_workers(restore_backend):
+    r"""``EXPM_BACKEND`` is a module global, and a module global does not survive a
+    process boundary.
+
+    loky re-imports magnus inside every worker, where the switch is back at ``'auto'``.
+    Since the :mod:`magnus.oscprob` wrappers expose no ``expm_backend`` parameter, that
+    global is the only backend control a caller of ``osc_prob_energy_baseline`` has, so
+    leaving it behind meant an explicit request was silently honoured for the first point
+    (computed serially) and ignored for every other one -- worst for the single use the
+    switch is documented for, since a backend comparison run with ``n_jobs != 1`` would
+    have compared ``'auto'`` against itself.
+
+    Asserted as **bit identity** rather than to a tolerance, which is what gives it teeth:
+    on this workload the two backends genuinely differ, by 4.4e-16, so a serial run under
+    ``'eigh'`` and a parallel one whose workers reverted to the kernel cannot come out
+    equal.  A tolerance of 1e-15 would have passed either way and asserted nothing.
+    """
+    H0 = np.diag([1.0e-13, 2.0e-13, 3.0e-13]).astype(complex)
+
+    def H_of_l(l):
+        a = np.asarray(l, dtype=float)
+        f = 1.0 + 0.1*np.sin(a/(500.0*gd.UNIT_KM))
+        return H0*f[..., None, None] if a.ndim else H0*float(f)
+
+    energy = np.linspace(1.0, 5.0, 6)*gd.UNIT_GEV
+    baseline = np.linspace(500.0, 3000.0, 6)*gd.UNIT_KM
+
+    mg.EXPM_BACKEND = 'eigh'
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        serial = np.asarray(op.osc_prob_energy_baseline(
+            H_of_l, energy, baseline, 0.0, n_jobs=1))
+        parallel = np.asarray(op.osc_prob_energy_baseline(
+            H_of_l, energy, baseline, 0.0, n_jobs=2))
+
+    assert np.array_equal(serial, parallel), (
+        "EXPM_BACKEND='eigh' held in the parent but not in the workers: the parallel "
+        "run differs from the serial one by %.2e, which is the kernel answering where "
+        "eigh was asked for." % float(np.max(np.abs(serial - parallel))))
+
+
+@requires_numba
+def test_the_two_backends_are_distinguishable_on_that_workload():
+    r"""The premise of the test above: if the backends agreed bit for bit here, its
+    assertion would hold whichever one the workers ran, and it would be measuring
+    nothing."""
+    H0 = np.diag([1.0e-13, 2.0e-13, 3.0e-13]).astype(complex)
+
+    def H_of_l(l):
+        a = np.asarray(l, dtype=float)
+        f = 1.0 + 0.1*np.sin(a/(500.0*gd.UNIT_KM))
+        return H0*f[..., None, None] if a.ndim else H0*float(f)
+
+    energy = np.linspace(1.0, 5.0, 6)*gd.UNIT_GEV
+    baseline = np.linspace(500.0, 3000.0, 6)*gd.UNIT_KM
+
+    saved = mg.EXPM_BACKEND
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            mg.EXPM_BACKEND = 'eigh'
+            a = np.asarray(op.osc_prob_energy_baseline(
+                H_of_l, energy, baseline, 0.0, n_jobs=1))
+            mg.EXPM_BACKEND = 'numba'
+            b = np.asarray(op.osc_prob_energy_baseline(
+                H_of_l, energy, baseline, 0.0, n_jobs=1))
+    finally:
+        mg.EXPM_BACKEND = saved
+
+    assert not np.array_equal(a, b)
+    np.testing.assert_allclose(a, b, rtol=0.0, atol=1.0e-14)

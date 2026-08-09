@@ -582,3 +582,23 @@ def test_cached_eval_mode_accepts_hamiltonians_it_cannot_cache(kind):
     assert mode == mg.probe_eval_mode(A, 0.0, 1.0e13)
     # and calling twice must not raise on the store path either
     assert mg.cached_eval_mode(A, 0.0, 1.0e13) == mode
+
+
+def test_cached_eval_mode_bounds_its_per_interval_dictionary():
+    r"""The weak keys bound the outer map; the inner one needed its own ceiling.
+
+    ``WeakKeyDictionary`` drops an entry when its holder dies, which handles the
+    per-call closure.  It does nothing for a Hamiltonian defined at module scope,
+    which never dies -- and since the interval is part of the key, a loop over
+    distinct baselines adds one entry per point and keeps it for the life of the
+    process.  Measured before the ceiling: 1000 baselines, 1000 entries, ~184 KB.
+    """
+    A = _layered_A()
+    for i in range(4*mg._EVAL_MODE_CACHE_MAX):
+        mg.cached_eval_mode(A, 0.0, 4.0e12 + float(i))
+
+    held = sum(len(v) for v in mg._EVAL_MODE_CACHE.values())
+    assert held <= mg._EVAL_MODE_CACHE_MAX, (
+        "%d intervals retained against a ceiling of %d" % (held, mg._EVAL_MODE_CACHE_MAX))
+    # Bounding it must not have broken it: the verdict is still the probe's.
+    assert mg.cached_eval_mode(A, 0.0, 2.0e13) == mg.probe_eval_mode(A, 0.0, 2.0e13)

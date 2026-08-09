@@ -1,8 +1,12 @@
 # Handover: reducing Magνs's per-call overhead
 
-**Written:** 2026-08-09; §§9–10 added 2026-08-10 at the close of the backend work.
-**If you are here to run the code review, read §10 first.** Otherwise read §§0–2 before
-touching anything — but note §§2–3 are superseded, see the DONE block below.
+**Written:** 2026-08-09; §§9–10 added 2026-08-10 at the close of the backend work, §11 later the
+same day at the close of the second review.
+**If you are here to run a code review, read §10 and §11 first** — between them they list
+everything two max-effort passes have already established, refuted or deliberately deferred, and
+a third pass that rediscovers any of it has spent its budget on nothing. §11's last paragraph
+names the two claims neither pass verified, which is where to start instead. Otherwise read
+§§0–2 before touching anything — but note §§2–3 are superseded, see the DONE block below.
 
 **The task for the next session.** Implement the Cayley–Hamilton matrix-exponential backend as a
 selectable model with a numba implementation as the default, validated against degeneracies and
@@ -342,7 +346,7 @@ refuted, which cost real time to establish.
 Branch `dev-overhead`, cut from `main` at `6e3251c`, **never pushed**. `main` and `upstream` are
 the same GitHub repo (identical tips); push to `origin`. Do not trust a tip hash written here —
 every edit to this brief invalidates it. `git log --oneline main..HEAD` is the authority; these
-seven commits carry the code, and anything after `98024e7` is docs-only.
+eight commits carry the code, and the rest are edits to this brief.
 
 | commit | what |
 |---|---|
@@ -353,19 +357,25 @@ seven commits carry the code, and anything after `98024e7` is docs-only.
 | `e8b1d05` | notebook 25 (batched NuOscProbExact, PREM 3ν and 3+1) + full 26-notebook rebuild |
 | `b68fad6` | order-6 conjunction test; corrections to this brief |
 | `98024e7` | evaluation-mode cache: interval in the key, duplicate deleted |
+| *(this one)* | the second review's four findings, plus the pre-existing ceiling bug they uncovered — see §11 |
 
-The review's scope is all seven — the first two predate the backend work but are where §9's four
-findings came from, so do not scope to the last five alone.
+The review's scope is all eight — the first two predate the backend work but are where §9's four
+findings came from, so do not scope to the middle five alone.
 
-Gates, all green at `98024e7`: **1044 tests** (`pytest tests/ -q -n auto`, ~8.5 min), `ruff check
-src/ tests/ notebooks/make_notebooks.py`, `make html SPHINXOPTS="-n -W --keep-going"` from
-`docs/`, and all 26 notebooks executing with **no accuracy column changed**. `2debd51` and
-`fd0a5d5` were each verified to pass in isolation in a throwaway worktree.
+Gates, all green as of §11's commit: **1056 tests** (`pytest tests/ -q -n auto`, 8 min 41 s),
+`ruff check src/ tests/ notebooks/make_notebooks.py`, and `make clean html` with
+`SPHINXOPTS="-n -W --keep-going"` — **clean**, not incremental, which is the only form of that
+gate worth anything; see §10.5. At `98024e7` the same gates read **1044 tests**, and all 26
+notebooks executed with **no accuracy column changed** — that notebook run still stands, since
+§11's changes alter no computed number. `2debd51` and `fd0a5d5` were each verified to pass in
+isolation in a throwaway worktree.
 
-`d791385` and this correction touch only `docs/dev/HANDOVER_OVERHEAD.md`, which is outside
-`docs/source/` and which `test_file_tree.py` collapses to a single `docs/dev/` entry — so no gate
-can see them and none was re-run. **Do not re-run the suite to "confirm the tip"**; it is 8.5
-minutes that cannot come back different. Re-run it when `src/` or `tests/` moves.
+**Run only the gate whose inputs moved.** `docs/dev/` is invisible to all of them: it sits
+outside `docs/source/`, so Sphinx never reads it, and `test_file_tree.py` collapses it to a
+single entry, so neither its contents nor its filenames reach `TREE`. An edit confined to this
+brief cannot change any gate's result, and re-running the suite to "confirm the tip" is 8.5
+minutes that cannot come back different. `src/` or `tests/` moving is what obliges it — and
+`src/` also invalidates every notebook cache, so CI re-executes all 26.
 
 **26 of the 49 changed files are regenerated `.ipynb` JSON** (3 351 insertions, about half the
 branch by line count) from `e8b1d05`, and three more are regenerated figures (`fig/*.pdf`,
@@ -469,6 +479,10 @@ separation with scale; extend that grid rather than writing a new sweep.
   trees with `python tests/test_file_tree.py --write`.
 * **A `:func:`/`:data:` role pointing at a *private* name fails the docs gate** when it sits in a
   docstring autoapi renders (CI runs `-n -W`). Either export the name or use double backticks.
+* **An incremental Sphinx build cannot re-find a warning whose file it has cached**, so
+  `make html` on an existing `build/` is not the gate — CI builds from a clean tree. This
+  branch carried a broken `:func:` role from `2debd51` to the eve of its first push, green on
+  every incremental check in between. Always `make clean` before believing the docs gate.
 * **`make_notebooks.py --only 25_`** rebuilds one notebook in ~10 s against ~30 min for all 26.
   A change under `src/` invalidates every notebook's cache, so CI re-executes all of them; it
   fails on execution errors, not on output diffs.
@@ -488,7 +502,10 @@ separation with scale; extend that grid rather than writing a new sweep.
   materialises the comparison. Costs 17.6/7.4/4.8% of an order-4 `_magnus_gl` at n = 1/108/2048,
   on every refinement iteration, on smooth profiles where it can never fire.
 * **`integration_method='nonsense'` and `min_n_slabs=-5` are accepted** by both the constant
-  engine and the per-point path. Pre-existing and unchanged.
+  engine and the per-point path. Pre-existing and unchanged — but note the *ceiling* half of
+  this is now closed: see §11 for the three bounds the constant engine was skipping and the
+  mislabelled condition underneath them. These two are what is left, and they are accepted
+  **consistently**, which is why they are a wart rather than a defect.
 * **PREM 3+1 is ~1000× slower than the closed form and warns.** The cost is flat across
   tolerances, which is the diagnosis: the ladder runs to its slab ceiling rather than converging.
   An eV-scale `Δm²₄₁` over an 11 000 km chord needs a slab width far below what the ladder
@@ -496,3 +513,79 @@ separation with scale; extend that grid rather than writing a new sweep.
   Magnus expansion needs narrower slabs as the phase grows (which is what the expansion *is*).
   Notebook 25 says so in those terms. Do not treat it as an engineering defect.
 * §5's ladder question is untouched, and `docs/dev/adversarial_batteries/RUN_P4.md` is still unrun.
+
+---
+
+## 11. The second review — what it found, and what it cleared
+
+Run 2026-08-10 from a fresh session at max effort, on the eight code commits above. The point of
+running it twice is §10.2's: the first review's findings were fixed *and* verified by the agent
+that wrote the code. This pass was told about §9 and §10.3 up front so it would not re-derive
+them, and it did not.
+
+**Four findings, none of which changes a computed probability.** All five fixes below were
+confirmed by execution before being written, and each carries a test verified to fail when its
+defect is put back.
+
+1. **A cache hit dropped the `DensityUnitWarning` that the first review believed it had fixed.**
+   `vcc_func_from_rho_func`'s constant memo skips the conversion both unit guards live inside.
+   The earlier repair mirrored only the `density_matter_is_in_g_per_cm3=True` arm — the safer
+   one — and left the arm that catches an *undeclared* g/cm³ density, which returns exactly the
+   vacuum probability with no tell in the numbers. **Re-emitting from the cache site cannot
+   work**: `warnings.warn`'s `stacklevel` attributes the call to a different frame, the frame is
+   part of the interpreter's registry key, and the imitation therefore printed a *second*
+   warning under the default filter where an uncached call printed one. That was the earlier
+   repair's own side effect, unnoticed because it was only ever tested under
+   `simplefilter('always')`. Densities that trip either guard are now **not cached at all**, so
+   both fire from where they always did. Verified against `main`: 3/3 under `'always'`, 1/3
+   under the default filter, matching in both directions.
+2. **Three refinement ceilings the constant engine accepted and `osc_prob` rejects** —
+   `max_n_slabs=0`, `rtol`/`atol` ≤ 0, `max_num_loops=0`. Answers were never wrong; the *error
+   contract* depended on whether the caller's density happened to be constant.
+   `_refinement_params_rejected` mirrors the ladder and declines, so the message stays
+   `osc_prob`'s own.
+3. **`EXPM_BACKEND` did not survive a process boundary.** loky re-imports magnus in each worker
+   at `'auto'`, and the `oscprob` wrappers expose no `expm_backend` parameter, so the global was
+   the caller's only control and `n_jobs != 1` ignored it — worst for the one use it is
+   documented for, since a backend comparison in parallel compared `'auto'` with itself. Carried
+   by value into the worker. **Any new parallel entry point must do the same.**
+4. **The evaluation-mode cache's per-interval dict was unbounded.** Weak keys bound the outer
+   map; a module-scope Hamiltonian never dies, so 1000 distinct baselines retained 1000 entries
+   (~184 KB) for the life of the process. Bounded at 256, cleared wholesale, matching its two
+   siblings.
+
+**And one pre-existing defect the mirror in (2) uncovered.** `osc_prob`'s ceiling check tested
+`max_n_slabs` while its message named `max_n_tpts_per_slab`: that parameter was never validated,
+`max_n_slabs` was bounded at `> 2` against a message promising `> 1`, and `max_n_slabs=2` was
+refused in the name of a parameter the caller had not passed. Both messages encode the same rule
+— each ceiling clears its own floor, `min_n_slabs` 1 and `min_n_tpts_per_slab` 2 — so the
+condition was the wrong half and now names `max_n_tpts_per_slab`.
+
+### 11.1 Cleared — do not re-open these either
+
+* **The Cayley–Hamilton algebra.** `det X`'s cross term, the divided differences, the root
+  ordering and all six entries of `Z²` re-derived independently against the code. Correct.
+* **The constant engine against an independent oracle.** Engine-vs-engine is worthless here —
+  both in-package routes reach `_expm_stack` and agree to *exactly* 0.0. Against
+  `scipy.linalg.expm` it matches to 3.4e-15 across ν/ν̄, three densities, per-point baselines,
+  L0 ≠ 0, a single scalar point and vacuum.
+* **The d = 2 kernel has no `SEV_TOL` gate** — `_ch2_core` returns a hardcoded `sev = 0.0` — and
+  does not need one: 1.9e-11 against `eigh`'s 6.6e-11 at ‖K‖ = 1e5, and 1.9e-09 against 3.3e-09
+  at 1e7, two orders of magnitude past its documented range.
+* **`float(VCC_func)` on an array-valued density** is unreachable: `validate_input_battery`
+  rejects array `rho_func` first, and that code is older than this branch.
+* **`verbose=None`** raises `TypeError`, and already did on `main`.
+* **`ordered_product` on an empty stack** raises `IndexError` where `reduce` raised `TypeError`.
+  Both raise; no caller can produce an empty chain.
+
+**And one the gate caught rather than the review.** A `:func:` role in
+`implementation_details.rst` pointed at `magnus.magnus._expm_stack`, a private name autoapi does
+not document, which fails `-n -W`. It was introduced by `2debd51` and survived to the eve of the
+first push because **every check of that gate had been an incremental build**, and Sphinx does
+not re-read a file it believes unchanged — so once the warning had been emitted and its file
+cached, no later `make html` could reproduce it. CI builds from a clean tree and would have
+failed on the first push. See §10.5.
+
+**Still not independently verified, by either review:** `SEV_TOL`'s d = 3 calibration — the
+separation-by-scale grid that puts the gate at 1e4 — and the PREM 3+1 diagnosis in §10.6. Both
+are taken on §10.3's word. A third pass wanting something to do should start there.

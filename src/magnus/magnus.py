@@ -426,6 +426,25 @@ def _evaluate_A(A: Callable, times: np.ndarray,
 # entry.  That is a documented property of the container, not a choice made here.
 _EVAL_MODE_CACHE = weakref.WeakKeyDictionary()
 
+_EVAL_MODE_CACHE_MAX = 256
+r"""int: How many distinct intervals are remembered per Hamiltonian before the lot is dropped.
+
+The weak keying bounds the *outer* dictionary but says nothing about the inner one: a
+Hamiltonian defined at module scope never dies, so without a ceiling its span dict grows for
+the lifetime of the process.  A direct ``osc_prob`` loop over distinct baselines is exactly
+that shape -- the interval is what varies per point -- and 1000 baselines retained 1000
+entries, about 184 KB.
+
+Cleared wholesale rather than LRU-evicted, matching
+``hamiltonians3nu._VACUUM_H_CACHE`` and ``matter._VCC_CONST_CACHE``.  The case this cache
+exists for is the refinement ladder, which calls repeatedly at *one* interval and so holds a
+single entry that no eviction can reach; the case that fills it is a scan, where each entry
+is used once and evicting the wrong one costs nothing.  Neither population rewards a smarter
+policy.
+
+.. versionadded:: 1.0.0
+"""
+
 
 def cached_eval_mode(A: Callable, t0: float, t1: float, key=None) -> str:
     r"""``probe_eval_mode`` for a callable that will be probed more than once.
@@ -477,6 +496,8 @@ def cached_eval_mode(A: Callable, t0: float, t1: float, key=None) -> str:
         if by_span is None:
             _EVAL_MODE_CACHE[holder] = {span: mode}
         else:
+            if len(by_span) >= _EVAL_MODE_CACHE_MAX:
+                by_span.clear()
             by_span[span] = mode
     except TypeError:
         pass
@@ -1120,6 +1141,12 @@ Setting this is the way to reach the whole package, including every
 :mod:`magnus.oscprob` wrapper; the ``expm_backend`` parameter on
 :func:`magnus_expansion`, :func:`evolution_operators_from_samples` and
 :func:`magnus_expansion_multislab` overrides it for one call.
+
+That includes ``n_jobs != 1``, but only because it is carried across deliberately: a module
+global does not survive a process boundary, and loky re-imports magnus in each worker with
+this back at its default.  ``oscprob.osc_prob_energy_baseline`` reads the value in the parent
+and re-applies it inside the worker.  Anything that adds a second parallel entry point has to
+do the same, or that path silently runs ``'auto'`` whatever this says.
 
 .. versionadded:: 1.0.0
 """

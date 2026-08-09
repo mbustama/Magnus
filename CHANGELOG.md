@@ -44,6 +44,87 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **A second max-effort review, run from a fresh session, found four more; all are
+  fixed here.**  The first review below was written *and* verified by the agent
+  that wrote the code, which is the reason to look again.  None of the four
+  changes a computed probability: they are a lost warning, an inconsistent error
+  contract, an ignored backend request, and an unbounded cache.
+
+  *The `DensityUnitWarning` repair in the review below was half a fix, and its
+  other half was a new defect.*  `vcc_func_from_rho_func`'s constant-density cache
+  skips the conversion that the two unit guards live inside, and the earlier
+  repair re-emitted only the `density_matter_is_in_g_per_cm3=True` arm.  The arm
+  it dropped is the dangerous one: an undeclared g cm^-3 density returns *exactly*
+  the vacuum probability, so the warning is the only thing separating it from an
+  answer.  Re-emitting from the cache site cannot work either — `warnings.warn`'s
+  `stacklevel` attributes the call to a different frame, and the frame is part of
+  the interpreter's registry key, so the imitation printed a *second* warning
+  under the default filter where an uncached call printed one.  A density that
+  would trip either guard is now not cached at all, so both keep firing from where
+  they always did.  Measured against `main`: 3 of 3 identical calls warn under
+  `simplefilter('always')`, 1 of 3 under the default filter, matching in both
+  directions.
+
+  *The constant engine accepted three refinement parameters the ladder rejects.*
+  `max_n_slabs=0`, `rtol`/`atol` ≤ 0 and `max_num_loops=0` were all answered here
+  while `osc_prob` raised `ValueError` for each, so whether a bad parameter was
+  reported depended on whether the density happened to be constant.  The answers
+  were never wrong — one exponential per point is exact either way — but the error
+  contract was.  `_refinement_params_rejected` mirrors `osc_prob`'s validation and
+  *declines*, so the caller sees `osc_prob`'s own message rather than a second
+  wording of it.
+
+  *`EXPM_BACKEND` did not cross a process boundary.*  loky re-imports magnus in
+  every worker, where the switch is back at `'auto'`, so any call with
+  `n_jobs != 1` silently ignored it — and it is the only backend control the
+  `oscprob` wrappers expose, the `expm_backend` parameter reaching no further than
+  the Magnus layer.  Worst for the one use the switch is documented for: a backend
+  comparison run in parallel compared `'auto'` against itself.  Now carried by
+  value into the worker and re-applied there.
+
+  *The evaluation-mode cache's per-interval dictionary was unbounded.*  Weak keys
+  bound the outer map, not the inner one, and a Hamiltonian defined at module
+  scope never dies: 1000 distinct baselines through `osc_prob` retained 1000
+  entries, about 184 KB, for the life of the process.  Now bounded at 256 and
+  cleared wholesale, matching `_VACUUM_H_CACHE` and `_VCC_CONST_CACHE` — the
+  ladder holds one entry no eviction can reach, and a scan uses each entry once,
+  so neither population rewards a smarter policy.
+
+  *A refinement bound named the wrong parameter, and had since long before this
+  branch.*  Found while mirroring `osc_prob`'s validation for the fix above: one
+  of its two ceiling checks tested `max_n_slabs` while its message named
+  `max_n_tpts_per_slab`.  So `max_n_tpts_per_slab` was never validated at all —
+  `0` and `1` were accepted — `max_n_slabs` was bounded at `> 2` while the message
+  three lines above promised `> 1`, and a caller who passed `max_n_slabs=2` was
+  refused in the name of a parameter they had not touched.  The rule both messages
+  encode is that each ceiling clears its own floor (`min_n_slabs` defaults to 1,
+  `min_n_tpts_per_slab` to 2), so the condition was the wrong half: it now tests
+  `max_n_tpts_per_slab`.  `max_n_slabs=2` starts working and
+  `max_n_tpts_per_slab <= 2` starts raising; nothing in the tests, the notebooks or
+  the docs passed a value that newly raises.
+
+  *The docs gate had been red since `2debd51`, and the branch did not know it.*  A
+  `:func:` role in `implementation_details.rst` pointed at `magnus.magnus._expm_stack`,
+  a private name autoapi does not document, which fails `-n -W`.  It went unnoticed
+  because every check of that gate on this branch was an **incremental** build, and
+  Sphinx does not re-read a file it believes unchanged — so the warning could not
+  reappear once its file had been cached.  CI builds from a clean tree and would have
+  caught it on the first push.  Now double backticks, which is what the same file does
+  for `_osc_prob_scan_constant_h` and for `_expm_stack` itself nine lines later.  The
+  gate is re-verified from `make clean`: 0 warnings.
+
+  Examined and left alone: the Cayley-Hamilton algebra (`det X`, the divided
+  differences, the root ordering and `Z²` re-derived independently against the
+  code); the d = 2 kernel, which has no `SEV_TOL` gate but beats `eigh` two orders
+  of magnitude beyond its documented range (1.9e-09 against 3.3e-09 at
+  ‖K‖ = 1e7); `float(VCC_func)` on an array-valued density, unreachable because
+  `validate_input_battery` rejects it first; and `verbose=None`, which already
+  raised on `main`.  The constant engine was re-checked against `scipy.linalg.expm`
+  rather than against another magnus engine — the two in-package routes share
+  `_expm_stack` and agree to exactly 0.0, which is no evidence at all — and matches
+  to 3.4e-15 across ν/ν̄, three densities, per-point baselines, L0 ≠ 0, a single
+  scalar point and vacuum.
+
 - **A max-effort code review of this branch found fifteen defects; all are fixed
   here or in the two commits below.**  Eight independent finder angles, every
   finding confirmed by execution rather than reading.  The two that mattered most
