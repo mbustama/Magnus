@@ -339,10 +339,10 @@ refuted, which cost real time to establish.
 
 ### 10.0 State
 
-Branch `dev-overhead`, tip `d791385`, **eight commits ahead of `main` (6e3251c), none pushed**,
-working tree clean. `main` and `upstream` are the same GitHub repo (identical tips); push to
-`origin`. The review's scope is all eight — the first two predate the backend work but are where
-§9's four findings came from, so do not scope to the middle five alone.
+Branch `dev-overhead`, cut from `main` at `6e3251c`, **never pushed**. `main` and `upstream` are
+the same GitHub repo (identical tips); push to `origin`. Do not trust a tip hash written here —
+every edit to this brief invalidates it. `git log --oneline main..HEAD` is the authority; these
+seven commits carry the code, and anything after `98024e7` is docs-only.
 
 | commit | what |
 |---|---|
@@ -353,7 +353,9 @@ working tree clean. `main` and `upstream` are the same GitHub repo (identical ti
 | `e8b1d05` | notebook 25 (batched NuOscProbExact, PREM 3ν and 3+1) + full 26-notebook rebuild |
 | `b68fad6` | order-6 conjunction test; corrections to this brief |
 | `98024e7` | evaluation-mode cache: interval in the key, duplicate deleted |
-| `d791385` | §10 of this brief — docs only |
+
+The review's scope is all seven — the first two predate the backend work but are where §9's four
+findings came from, so do not scope to the last five alone.
 
 Gates, all green at `98024e7`: **1044 tests** (`pytest tests/ -q -n auto`, ~8.5 min), `ruff check
 src/ tests/ notebooks/make_notebooks.py`, `make html SPHINXOPTS="-n -W --keep-going"` from
