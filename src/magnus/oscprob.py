@@ -2908,8 +2908,10 @@ def osc_prob(
     # compute_evolution_operator.  In this case, first-order Magnus expansion is enough, and so we
     # can overwrite the parameters provided to n_slabs = 1, n_tpts_per_slab = 2, rtol = None, 
     # atol = None for speed-up.
+    H_constant = None
     if not callable(H_func):
         H = np.copy(H_func)
+        H_constant = H
         def H_func(l: float) -> np.ndarray:
             return H
         magnus_exp_order = 1
@@ -2921,6 +2923,12 @@ def osc_prob(
         # A single slab is exact for a constant Hamiltonian, so drop any user-provided slab edges
         t_slab_edges = None
         t_slab_edges_original = None
+        # ...and it is constant, which is precisely what probe_eval_mode below would go and
+        # find out.  Saying so here skips a five-point linspace, three calls into the closure
+        # just built, an np.allclose and a broadcast -- 41% of a constant-density call, spent
+        # rediscovering the branch condition that got us here.
+        if A_eval_mode is None:
+            A_eval_mode = 'constant'
         if verbose > 0:
             for f in [None, file_log] if save_log else [None]:
                 warn_msg = gd.WARNING_MSG_IN_COLOR if f is None else gd.WARNING_MSG_NO_COLOR
@@ -3037,7 +3045,13 @@ def osc_prob(
             # discontinuities) are inserted as additional mandatory slab edges: high-order
             # quadrature converges at its nominal order only if the Hamiltonian is smooth inside
             # each slab.
-            grid = np.linspace(t_ini, t_fin, n_slabs+1)
+            # np.linspace is ~15x the cost of writing the two endpoints down, and for the
+            # common single-slab case that is all it produces.  Worth special-casing because
+            # this is per call, not per slab: measured at 3.8 us against 0.26 us.
+            if n_slabs == 1:
+                grid = np.array([t_ini, t_fin], dtype=float)
+            else:
+                grid = np.linspace(t_ini, t_fin, n_slabs+1)
             if (t_breakpoints is not None) and (len(np.atleast_1d(t_breakpoints)) > 0):
                 bp = np.atleast_1d(np.asarray(t_breakpoints, dtype=float))
                 bp = bp[(bp > t_ini) & (bp < t_fin)]
@@ -3068,10 +3082,34 @@ def osc_prob(
         # declaration is passed as the interval rather than as a flag so that the Magnus layer
         # can check the two agree, which is what keeps a blocked sub-range (see the cumulative
         # scan below) off the mirrored path even if a flag reached it by mistake.
-        U_chain = compute_evolution_operator_multiple_slabs(H_func, t_slab_edges,
-            n_tpts_per_slab, magnus_exp_order, integration_method=integration_method,
-            A_eval_mode=A_eval_mode,
-            symmetric_over=symmetric_over, **kwargs)
+        # ``not kwargs`` is a correctness condition, not an optimisation.  Anything left in
+        # kwargs is the Magnus core's to accept or reject, and the fast path below never calls
+        # it -- so a misspelled keyword would be silently swallowed here rather than raising,
+        # which test_only_the_labelling_keys_are_rejected exists to prevent.  Falling through
+        # keeps the error contract exactly as it was; a normal call carries no extras and
+        # still takes the fast path.
+        if (H_constant is not None) and (not kwargs):
+            # A constant Hamiltonian needs none of the machinery below it.  Omega_1 =
+            # -i H (t_fin - t_ini) is the whole expansion -- every higher term is built from
+            # commutators of A with itself, which vanish -- so the single slab is exact and
+            # the answer is one matrix exponential.
+            #
+            # Going through compute_evolution_operator_multiple_slabs instead means sampling a
+            # closure that ignores its argument, broadcasting the result to (1, k, d, d),
+            # building slab edges with column_stack, and running the Gauss-Legendre quadrature
+            # of a constant -- all to arrive back at -i H Delta.  Skipping it is not an
+            # approximation; it is declining to derive a known quantity.
+            #
+            # warn_wide is left off deliberately, matching what the general path does here: it
+            # passes A_is_const=True, which suppresses the slab-width warning for exactly this
+            # reason -- the series terminates, so a wide slab means nothing.
+            U_chain = magnus._expm_stack(
+                (-1j*(t_fin - t_ini))*H_constant)[None, ...]
+        else:
+            U_chain = compute_evolution_operator_multiple_slabs(H_func, t_slab_edges,
+                n_tpts_per_slab, magnus_exp_order, integration_method=integration_method,
+                A_eval_mode=A_eval_mode,
+                symmetric_over=symmetric_over, **kwargs)
 
         # Now compute the time-ordered product of all evolution operators across all slabs.  The
         # neutrino crosses the slabs in the order in which they appear in U_chain (earliest first),

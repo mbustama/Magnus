@@ -964,7 +964,10 @@ def _expm_stack(Om: np.ndarray, warn_wide: bool = False,
         return np.broadcast_to(np.eye(Om.shape[-1], dtype=complex),
                                Om.shape).copy()
     if np.max(np.abs(K - Kh)) <= 1.e-12*scale:
-        lam, V = np.linalg.eigh(0.5*(K + Kh))
+        # eigh reads a single triangle, so the explicit symmetrisation it used to be handed
+        # was doing nothing the routine does not already do -- and the branch condition has
+        # just established that the two triangles agree to 1e-12 anyway.
+        lam, V = np.linalg.eigh(K)
         if warn_wide and not A_is_const:
             _warn_slab_norm(np.max(np.abs(lam)))  # ||Om||_2 = max |lambda|
         Vh = np.conj(np.swapaxes(V, -1, -2))
