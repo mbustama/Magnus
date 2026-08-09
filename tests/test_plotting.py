@@ -932,8 +932,13 @@ def test_oscillogram_defaults_its_limits_to_the_data_range(oscillogram):
 # the optional dependency
 # ----------------------------------------------------------------------
 
-def test_missing_matplotlib_names_the_extra_to_install(monkeypatch):
-    """The error has to say what to do about it, not just that an import failed."""
+def test_missing_matplotlib_names_the_fix(monkeypatch):
+    """The error has to say what to do about it, not just that an import failed.
+
+    Matplotlib ships with Magnus, so reaching this at all means it was removed
+    from the environment rather than never installed -- which is why the message
+    names the package itself rather than an extra.
+    """
     import builtins
 
     real_import = builtins.__import__
@@ -944,7 +949,7 @@ def test_missing_matplotlib_names_the_extra_to_install(monkeypatch):
         return real_import(name, *args, **kwargs)
 
     monkeypatch.setattr(builtins, '__import__', fake_import)
-    with pytest.raises(mp.MatplotlibNotFoundError, match=r"magnuspy\[plot\]"):
+    with pytest.raises(mp.MatplotlibNotFoundError, match=r"pip install matplotlib"):
         mp._mpl()
 
 

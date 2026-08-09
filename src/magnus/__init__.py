@@ -7,11 +7,10 @@ adiabatic, avgprob, earth, expansionterms, globaldefs, hamiltonians, magnus,
 matter, oscprob, oscprobstd, and plotting. See :doc:`/architecture` for how they
 fit together.
 
-:mod:`magnus.plotting` needs Matplotlib, which is an optional dependency
-(``pip install 'magnuspy[plot]'``). Importing it here is nonetheless safe
-without Matplotlib: the module imports it lazily, inside the calls that draw,
-so ``import magnus`` keeps working on a core-only install and only the plotting
-calls themselves raise.
+:mod:`magnus.plotting` needs Matplotlib, which ships with Magnus, so it is
+available in any installation.  It is still imported lazily, inside the calls
+that draw, so ``import magnus`` does not pay for a plotting stack it may never
+use.
 
 ``authors`` and ``version`` are internal metadata modules (used by
 :func:`magnus.oscprob.print_banner` and the ``magnus`` command-line

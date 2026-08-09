@@ -724,9 +724,9 @@ answer it replaced, all at high energy over a short baseline:
 =========================  ==========  ==========  ==========
 configuration              hybrid      safety 2    safety 4
 =========================  ==========  ==========  ==========
-60 MeV, N = 150, 0.4 R_sun  1.57e-05   5.03e-05    8.56e-07
-100 MeV, N = 150, 0.4 R_sun 2.51e-05   3.77e-05    6.11e-07
-100 MeV, N = 40, 0.4 R_sun  9.13e-06   1.10e-05    5.58e-07
+60 MeV, N=150, 0.4 Rsun     1.57e-05   5.03e-05    8.56e-07
+100 MeV, N=150, 0.4 Rsun    2.51e-05   3.77e-05    6.11e-07
+100 MeV, N=40, 0.4 Rsun     9.13e-06   1.10e-05    5.58e-07
 =========================  ==========  ==========  ==========
 
 Four removes all three and beats the hybrid answer on each, while improving the unaffected
@@ -1170,6 +1170,36 @@ class PhaseAveragingWarning(UserWarning):
     is still a valid, doubly stochastic probability matrix.  It is a
     statement that the *question* does not apply at that baseline, which
     is why it warns rather than refining anything.
+
+    .. versionadded:: 1.0.0
+    """
+
+
+class CrossCheckInconclusiveWarning(UserWarning):
+    r"""Warns that :func:`cross_check_strategies` reported a spread of zero
+    because it made no comparison, not because the engines agreed.
+
+    The diagnostic returns ``max_spread`` and ``max_spread_independent`` as
+    plain floats, and both are ``0.0`` when no pair of engines was compared --
+    the same value they take when two engines agree perfectly.  A caller who
+    reads either number without also reading ``ran`` cannot tell the two apart,
+    and the reassuring reading is the wrong one.
+
+    Three ways to get a vacuous zero:
+
+    * **No engine ran.**  Every engine declined, most often because the entry
+      point has no ``strategy`` parameter -- :func:`osc_prob` itself is such an
+      entry point, so it is an easy one to reach for.  Pass a wrapper such as
+      :func:`osc_prob_matter_std_potential` instead.
+    * **One engine ran.**  There is nothing to compare it with.
+    * **Only one family ran.**  ``max_spread_independent`` is zero because no
+      cross-family pair exists.  Engines within a family share machinery, so
+      their agreement is the self-certification this diagnostic exists to
+      avoid relying on -- see :data:`ENGINE_FAMILIES`.
+
+    A warning rather than an error: the returned dictionary is still
+    well-formed, ``declined`` says exactly why each engine stood down, and a
+    caller who wants only one engine's answer is entitled to ask for it.
 
     .. versionadded:: 1.0.0
     """
@@ -2633,7 +2663,7 @@ def osc_prob(
         chord through the Earth is symmetric over its full length and over no shorter prefix, so
         a scan point at a shorter baseline spans ``(L0, baseline)``, fails to match, and takes
         the ordinary path.  No extra bookkeeping is needed for that -- the check in
-        :func:`magnus.magnus._mirror_applies` is the whole of it.
+        ``magnus.magnus._mirror_applies`` is the whole of it.
 
         **Not a user-facing switch, and unchecked**: verifying it would need the evaluations it
         exists to avoid, and declaring it of a profile that is not symmetric returns a silently
@@ -5663,21 +5693,24 @@ def cross_check_strategies(entry_point: Callable, *args, engines=None, **kwargs)
 
     Examples
     --------
-    >>> import numpy as np
-    >>> import magnus.globaldefs as gd
-    >>> import magnus.matter as matter
-    >>> import magnus.oscprob as oscprob
-    >>> ne = matter.exp_density_profile(gd.NUM_DENSITY_E_SUN_CENTRAL, gd.L_SCALE_SUN)
-    >>> params = gd.OSC_PARAMS_PREDEFINED['OSC_PARAMS_DEFAULT']
-    >>> out = oscprob.cross_check_strategies(
-    ...     oscprob.osc_prob_matter_std_potential, 2, ne, 10.0e6,
-    ...     0.5*gd.SUN_RADIUS*gd.UNIT_KM,
-    ...     {'s12': params['s12'], 'Dm2': params['D21']}, L0=0.0,
-    ...     density_is_of_number_of_electrons=True)
-    >>> sorted(out['ran'])                                    # doctest: +SKIP
-    ['cumulative', 'hybrid', 'ip_exp', 'magnus']
-    >>> out['max_spread_independent'] < 1.0e-3                # doctest: +SKIP
-    True
+    .. jupyter-execute::
+
+        import magnus.globaldefs as gd
+        import magnus.matter as matter
+        import magnus.oscprob as oscprob
+
+        ne = matter.exp_density_profile(gd.NUM_DENSITY_E_SUN_CENTRAL,
+                                        gd.L_SCALE_SUN)
+        params = gd.OSC_PARAMS_PREDEFINED['OSC_PARAMS_DEFAULT']
+
+        out = oscprob.cross_check_strategies(
+            oscprob.osc_prob_matter_std_potential, 2, ne, 10.0e6,
+            0.5*gd.SUN_RADIUS*gd.UNIT_KM,
+            {'sth': params['s12'], 'Dm2': params['D21']}, L0=0.0,
+            density_is_of_number_of_electrons=True)
+
+        print('engines that ran      :', sorted(out['ran']))
+        print('worst independent gap : %.2e' % out['max_spread_independent'])
 
     See Also
     --------
@@ -5758,6 +5791,32 @@ def cross_check_strategies(entry_point: Callable, *args, engines=None, **kwargs)
                 best, best_pair = s, (a, b)
             if ENGINE_FAMILIES[a] != ENGINE_FAMILIES[b] and s > best_ind:
                 best_ind, best_ind_pair = s, (a, b)
+
+    # A spread of zero means "no disagreement was found", which is not the same statement as "the
+    # engines agree" -- and when nothing was compared, it is the wrong one.  Say so, because the
+    # numbers themselves cannot: 0.0 is 0.0 either way.
+    if len(ran) < 2:
+        if not ran:
+            detail = ('no engine ran at all.  ' + '; '.join(
+                '%s: %s' % (lab, why) for lab, why in declined.items()) if declined
+                else 'no engine ran at all, and none reported a reason.')
+        else:
+            detail = ('only one engine ran (%s), so there was no second answer to compare it '
+                      'with.' % ran[0])
+        warnings.warn(gd.WARNING_MSG_NO_COLOR + " cross_check_strategies: " + detail +
+            "  max_spread and max_spread_independent are therefore 0.0 because nothing was "
+            "compared, not because anything agreed.  If the entry point has no 'strategy' "
+            "parameter -- osc_prob itself does not -- pass a wrapper such as "
+            "osc_prob_matter_std_potential instead, and check out['ran'] before reading any "
+            "spread.", CrossCheckInconclusiveWarning, stacklevel=2)
+    elif best_ind_pair is None:
+        warnings.warn(gd.WARNING_MSG_NO_COLOR + " cross_check_strategies: the " +
+            format(len(ran), 'd') + " engines that ran (" + ', '.join(ran) + ") all belong to "
+            "the '" + ENGINE_FAMILIES[ran[0]] + "' family, so max_spread_independent is 0.0 "
+            "because no cross-family pair exists, not because independent methods agreed.  "
+            "Engines within a family share machinery and can share a blind spot; only a "
+            "cross-family comparison carries information (see ENGINE_FAMILIES).",
+            CrossCheckInconclusiveWarning, stacklevel=2)
 
     return {
         'answers': answers,
@@ -17924,6 +17983,7 @@ __all__ = [
     'UnmarkedDiscontinuityWarning',
     'HiddenFeatureWarning',
     'ENGINE_FAMILIES',
+    'CrossCheckInconclusiveWarning',
     'cross_check_strategies',
     'print_banner',
     'print_run_parameters',
@@ -18000,4 +18060,18 @@ __all__ = [
     'osc_prob_3nu_sun_liv',
     'osc_prob_4nu_sun_liv',
     'osc_prob_5nu_sun_liv',
+    # Documented as knobs -- each docstring carries the population it was
+    # measured on -- and without this sphinx-autoapi does not document them,
+    # which left every cross-reference to them rendering as dead text.
+    'IP_EXP_N_SLABS_CAP',
+    'MIN_EFFECTIVE_REFINEMENT',
+    'BATCH_WORKING_ENTRIES',
+    'CUMULATIVE_AUTO_MIN_POINTS',
+    'HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS',
+    'CUMULATIVE_N_ACC_SAFETY',
+    'OUTPUT_GUARD_MIN_BYTES',
+    'OUTPUT_GUARD_SAFETY',
+    'IP_EXP_LOOP_CAP',
+    'PARAMETER_SET_METADATA_KEYS',
+    'PhaseAveragingWarning',
 ]

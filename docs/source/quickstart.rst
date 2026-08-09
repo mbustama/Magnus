@@ -7,13 +7,54 @@ required -- see :doc:`cli`). Use the module for anything programmatic
 (scans, plots, fitting); use the CLI for a quick one-off number or a shell
 script.
 
-.. note::
-   All positions, baselines, and energies in Magνs are in **natural
-   units** (inverse eV and eV, respectively).  The :mod:`magnus.globaldefs`
-   module provides conversion constants (``UNIT_KM``, ``UNIT_MEV``,
-   ``UNIT_GEV``, ``UNIT_G_PER_CM3``, ...): multiply a physical quantity by
-   the matching constant to convert it, e.g. ``100.0*gd.UNIT_KM`` for a
-   100 km baseline.
+.. _units-table:
+
+Units
+------
+
+Magνs works in **natural units** throughout: energies in eV, baselines and
+positions in eV\ :sup:`-1`, so that the product :math:`HL` is dimensionless.
+:mod:`magnus.globaldefs` supplies the conversions — multiply a physical
+quantity by the matching constant, e.g. ``100.0*gd.UNIT_KM`` for a 100 km
+baseline.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 38 26 36
+
+   * - Quantity
+     - Units
+     - Constant
+   * - Neutrino energy
+     - eV
+     - ``UNIT_MEV``, ``UNIT_GEV``
+   * - Baseline, position
+     - eV\ :sup:`-1`
+     - ``UNIT_KM``, ``UNIT_CM``
+   * - Hamiltonian
+     - eV
+     - ---
+   * - Mass-squared differences
+     - eV\ :sup:`2`
+     - ---
+   * - Matter potential
+     - eV
+     - ---
+   * - Mass density
+     - eV\ :sup:`4`
+     - ``UNIT_G_PER_CM3``
+   * - Number density
+     - eV\ :sup:`3`
+     - ``UNIT_PER_CM3``
+   * - Mixing angles
+     - given as :math:`\sin\theta`
+     - ---
+   * - CP phases
+     - radian
+     - ---
+
+The last two are the ones to check first when a result looks untouched by the
+parameters you set; see :ref:`conventions`.
 
 Install Magνs with ``pip install --pre magnuspy`` -- the distribution is
 ``magnuspy`` on PyPI, the import package is ``magnus`` (see
@@ -28,6 +69,44 @@ Install Magνs with ``pip install --pre magnuspy`` -- the distribution is
 Oscillation parameters that are not passed explicitly default to the
 `NuFit 6.0 <http://www.nu-fit.org>`_ best fit (normal ordering); pass
 ``s12``, ``D31``, ``dCP``, etc., or ``nubar=True``, to change them.
+
+.. _nufit-parameters:
+
+Choosing a global fit
+---------------------
+
+To use a different release, or the inverted ordering, ask
+:func:`magnus.globaldefs.load_nufit_params` for it.  It returns **exactly the
+six parameters** every ``osc_prob_3nu_*`` function takes -- ``s12``, ``s23``,
+``s13``, ``dCP``, ``D21``, ``D31`` -- so the result can be passed straight
+through:
+
+.. code-block:: python
+
+   osc = gd.load_nufit_params('NuFIT 6.1', 'NO')
+
+   P = oscprob.osc_prob_3nu_vacuum(energy, L, **osc)
+
+Every NuFit release from v1.0 to v6.1 is available, along with the
+release-specific secondary category where one exists (``'with_SK'`` /
+``'without_SK'`` from v4.0, ``'LEM'`` / ``'LID'`` for v2.1); omitting
+``category`` takes the release's preferred one.  ``gd.NUFIT_GLOBAL_FITS.keys()``
+lists what is available.
+
+.. code-block:: python
+
+   inverted = gd.load_nufit_params('NuFIT 6.1', 'IO')
+   older = gd.load_nufit_params('NuFIT 5.2', 'NO', category='without_SK')
+
+The mass ordering is carried by the **sign of** ``D31``, so the inverted set
+differs from the normal one in that sign -- and, at the best fit, in the
+:math:`\theta_{23}` octant and :math:`\delta_{\rm CP}` as well.  If you want to
+vary the ordering alone, flip the sign of ``D31`` yourself rather than swapping
+parameter sets; notebook 17 shows why.
+
+Notebook 26 goes further and samples the :math:`\Delta\chi^2` profiles behind
+these fits, to show how much of a predicted probability is really the
+parameters.
 
 1. Vacuum oscillations
 ------------------------

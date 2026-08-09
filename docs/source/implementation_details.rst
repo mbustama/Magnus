@@ -1,17 +1,11 @@
 Implementation Details
 ========================
 
-How Magνs actually computes an oscillation probability: which engines exist, how a
-request is routed to one of them, where the speed comes from, how the accuracy is
-established, what the safeguards can and cannot do, what every warning means, and where
-the calibration constants came from.
+.. contents::
+   :local:
+   :depth: 2
 
-:doc:`methodology` covers the Magnus expansion itself and :doc:`architecture` covers the
-module layout; this page is about the *engines and their limits*. The adiabatic strategy
-has its own page, :doc:`adiabatic_strategy`, which is referenced rather than repeated here.
-
-Every number below is measured. Where a claim is not backed by a measurement, it says so.
-
+.. _the-engines:
 
 The engines
 -------------
@@ -82,6 +76,8 @@ grouping the package will defend:
 Two engines in the same family can be wrong in the same way at the same time. Their
 disagreement is informative; their agreement is not.
 
+
+.. _dispatch-order:
 
 Dispatch
 ----------
@@ -365,6 +361,8 @@ cases, because a per-case assertion on random input is brittle and an aggregate 
 catches a regression that moves the distribution.
 
 
+.. _safeguard-limits:
+
 Robustness, and what each safeguard cannot do
 -----------------------------------------------
 
@@ -471,6 +469,8 @@ genuinely wrong. **What is left in that band is not engines disagreeing -- it is
 wrong together**, which a cross-check cannot see by construction. See
 ``docs/dev/FINDINGS_ROBUSTNESS_PROGRAMME.md`` §11.2.
 
+
+.. _warning-catalogue:
 
 Warnings: what each one means and what to do about it
 -------------------------------------------------------
@@ -593,6 +593,8 @@ propagator is unitary by construction, so the returned probabilities are a valid
 matrix regardless; what is missing is the evidence that they are accurate to the tolerance
 requested.
 
+
+.. _how-constants-were-set:
 
 How the constants were set
 ----------------------------

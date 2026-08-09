@@ -1,6 +1,11 @@
 Adiabatic + Magnus Hybrid Strategy
 =====================================
 
+.. contents::
+   :local:
+   :depth: 2
+
+
 This page documents the ``strategy`` parameter accepted by
 :func:`magnus.oscprob.osc_prob_matter_std_potential`,
 :func:`magnus.oscprob.osc_prob_matter_nsi`, :func:`magnus.oscprob.osc_prob_liv`,

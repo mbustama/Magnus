@@ -23,6 +23,14 @@ Magνs: Neutrino Oscillations via the Magnus Expansion
    :target: https://www.python.org/downloads/
    :alt: Python 3.10+
 
+.. image:: https://codecov.io/gh/mbustama/Magnus/branch/main/graph/badge.svg
+   :target: https://codecov.io/gh/mbustama/Magnus
+   :alt: codecov
+
+.. image:: https://img.shields.io/pypi/v/magnuspy.svg
+   :target: https://pypi.org/project/magnuspy/
+   :alt: PyPI
+
 .. image:: https://pepy.tech/badge/magnuspy
    :target: https://pepy.tech/project/magnuspy
    :alt: Downloads
@@ -41,8 +49,11 @@ Magνs: Neutrino Oscillations via the Magnus Expansion
 .. important::
    **Important Links:**
 
+   * :doc:`What it can compute, with code <recipes>`
    * `GitHub Repository <https://github.com/mbustama/Magnus>`_
    * `Example Notebooks <https://github.com/mbustama/Magnus/tree/main/notebooks>`_ (see also :doc:`tutorials` for a guided tour)
+   * :doc:`How to cite <citing>`
+   * :doc:`changelog`
 
 **Magνs** computes neutrino oscillation probabilities between an arbitrary
 number of flavors, for any given Hamiltonian, time-dependent or
@@ -55,6 +66,58 @@ is **exactly unitary by construction** — probabilities are non-negative and
 sum to one at machine precision, at any accuracy setting.
 
 .. _when-is-magnus-a-win:
+
+.. _what-accuracy-means:
+
+What "accurate" means here
+---------------------------
+
+Magνs is a numerical integrator, so unlike a closed-form method it has an error
+that depends on how finely it discretises.  Two properties are exact regardless,
+and the rest is measured rather than asserted.
+
+**Exact at any order, by construction.** Every truncation of the Magnus series is
+anti-Hermitian, so its exponential is exactly unitary --- not unitary to within a
+tolerance.  Truncating early costs accuracy, never norm.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 62 38
+
+   * - Property
+     - Measured agreement
+   * - Unitarity, :math:`U^\dagger U - \mathbb{1}`
+     - 1e-16 to 1e-13
+   * - Magnus terms vs an independently coded Bernoulli recursion, orders 1--6
+     - machine precision
+   * - Gauss--Legendre convergence rate under slab halving, orders 2/4/6
+     - error ratios 4 / 16 / 64
+   * - 2ν and 3ν vacuum vs the closed-form expression
+     - machine precision
+   * - 2ν constant-density matter vs the closed form, ν and ν̄
+     - machine precision
+   * - Earth crossing (PREM) at the default ``rtol = atol = 1e-3``, against a
+       1e-7-tolerance reference
+     - ~5e-4
+   * - Asymmetric profiles with complex Hamiltonians vs ``solve_ivp``/DOP853 at
+       ``rtol=1e-12``
+     - 1e-4 to 1e-7
+   * - Energy-batched scan vs the per-point path
+     - exactly 0.0
+   * - ``n_jobs > 1`` vs serial
+     - exactly 0.0
+
+The last two rows are the ones worth reading twice: they are *bit-identity*
+assertions, not tolerances, so an optimisation that changed an answer would fail
+them rather than pass quietly.
+
+**And the honest caveat.** ``rtol``/``atol`` are a stopping criterion --- the
+ladder halts when two successive refinement levels agree --- not a bound on the
+error of what is returned.  Usually that is conservative.  It is not always:
+:ref:`what-rtol-atol-control` gives the measured detail, including a case where
+two levels agreed coincidentally and the answer was wrong by 0.855.  Magνs warns
+loudly in that regime, and :doc:`implementation_details` reports the measured
+false-alarm rate of each warning.
 
 When is Magνs a win?
 ------------------------
@@ -152,6 +215,130 @@ If your problem needs any of the above, look instead at packages built
 around density-matrix/Lindblad evolution (for decoherence or decay) or
 dedicated collective-oscillation codes (for self-interaction problems).
 
+.. _what-magnus-is-not:
+
+What it is not
+---------------
+
+Separately from the physics above, and worth saying plainly so that nobody
+evaluates Magνs for a job it was never meant to do:
+
+* **Not a solver for constant Hamiltonians in a hurry.**  It will do them, but
+  a closed form beats an integrator every time; see
+  :ref:`use-nuoscprobexact-instead`.
+* **Not a flux, cross-section or detector code.**  It computes oscillation
+  probabilities and stops there.
+* **Not a fitting framework.**  There is no likelihood machinery; the
+  probabilities are meant to be handed to whatever does that.
+* **Not an event generator, and not an unfolding tool.**
+
+.. _use-nuoscprobexact-instead:
+
+When to use NuOscProbExact instead
+-----------------------------------
+
+Magνs integrates a Hamiltonian *across* each slab, which is what lets it follow
+a density that changes as the neutrino moves.  That machinery is wasted --- and
+slower than the alternative --- when the Hamiltonian does not change at all.
+
+Reach for `NuOscProbExact <https://github.com/mbustama/NuOscProbExact>`_ instead
+when **the Hamiltonian is constant, or piecewise constant**.  It expands the
+Hamiltonian and the evolution operator in the SU(2), SU(3) and SU(4) bases,
+which gives a closed form rather than a numerical integration: exact up to
+floating-point round-off, and with no slab count to choose.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 46 27 27
+
+   * - Situation
+     - Use this
+     - Because
+   * - Constant density
+     - **NuOscProbExact**
+     - One closed form, no integration
+   * - Piecewise constant, tens of layers --- the Earth through PREM
+     - **NuOscProbExact**
+     - Each layer solved exactly, operators multiplied
+   * - Smoothly varying, slow against the oscillation
+     - Either
+     - Slabbing converges quickly
+   * - Smoothly varying, fast against the oscillation --- the Sun, adiabatic MSW
+     - **Magνs**
+     - Slabbing needs :math:`\sim 10^4` steps per resonance crossing
+   * - A shock front, a kink, a tabulated profile
+     - **Magνs**
+     - ``t_breakpoints`` puts a slab edge on the discontinuity
+   * - More than four flavours
+     - **Magνs**
+     - The SU(N) expansions stop at SU(4); Magνs has no ceiling
+   * - Genuinely open systems: decay, decoherence
+     - Neither
+     - Needs a Lindblad solver, not a unitary one
+
+The two packages share conventions, units and parameter defaults deliberately,
+so a calculation can be moved between them as a cross-check.  That is worth
+doing: agreement between two methods with different failure modes is stronger
+evidence than either one's internal convergence check.
+
+.. _performance:
+
+Performance
+------------
+
+A single 3ν Earth probability takes about 2 ms at the default tolerance, and the
+median call across 164 Earth and solar configurations is 2 ms with the slowest at
+0.90 s.  Scans are what the code mostly does, and three things make them much
+faster without changing any answer.
+
+**Pass arrays instead of looping.**  Every wrapper takes an array of energies, of
+baselines, or both.  For a position-dependent Hamiltonian the matter profile is
+then built once for the whole scan rather than once per point, which is what the
+energy-batched engine exists to do.
+
+**Write your ``H_func`` so it accepts an array of positions.**  The single largest
+factor under a caller's control: measured at **4.6x** on a 3ν exponential-density
+profile, with bit-identical output.  A scalar-only Hamiltonian raises
+:class:`~magnus.magnus.ScalarHamiltonianWarning` once per session, naming the fix.
+See :ref:`write-h-func-vectorised`.
+
+**An Earth chord is a palindrome.**  A neutrino crossing a spherically symmetric
+Earth meets every radius twice, so the Hamiltonian is evaluated on the first half
+of the slab chain and the rest follows by reversal.  That halves the calls to
+your ``H_func``, so it is worth what your Hamiltonian costs:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 55 22 23
+
+   * - Workload
+     - Speed-up
+     - Note
+   * - Single point, plain PREM
+     - 0.91x
+     - a density lookup is too cheap to halve
+   * - Single point, expensive ``H_func``
+     - **1.41x--1.67x**
+     -
+   * - 12- and 40-energy scan, expensive ``H_func``
+     - **1.56x--1.64x**
+     -
+   * - Energy scan, standard PREM
+     - 1.00x
+     - the separable engine already shares the profile
+
+:data:`magnus.magnus.USE_PALINDROME` switches it off.  Standard PREM scans are
+unaffected because the batched engine already evaluates the profile once and
+shares it across energies --- the same saving, taken earlier.
+
+**And one cost that runs the other way.**  The adaptive ladder computes the
+probability at several slab counts and stops when two agree, so a call at a tight
+tolerance is doing real extra work rather than being slow.  ``rtol=atol=None``
+runs once at the grid you specify.
+
+:doc:`implementation_details` reports where the time goes, and what was tried and
+rejected.
+
 Salient Features
 -----------------
 
@@ -186,28 +373,55 @@ Salient Features
 
 .. toctree::
    :maxdepth: 2
-   :caption: User Guide:
+   :caption: Getting started:
 
    installation
    quickstart
-   cli
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Using Magnus:
+
+   recipes
+   tutorials
    functions
-   architecture
+   cli
+   plotting
+
+.. toctree::
+   :maxdepth: 2
+   :caption: How it works:
+
    methodology
    expansion_terms
    adiabatic_strategy
    averaged_probability
+   architecture
    implementation_details
-   plotting
-   tutorials
-   references
-   changelog
 
 .. toctree::
    :maxdepth: 2
-   :caption: API Reference:
+   :caption: Reference:
 
-   api/magnus/index
+   api_reference
+   citing
+   references
+   changelog
+
+Author
+-------
+
+Magnus was written by Mauricio Bustamante (mbustamante@gmail.com).  Bug reports
+and questions are best raised as `GitHub issues
+<https://github.com/mbustama/Magnus/issues>`_, which leave a public record
+others can find.
+
+Citing
+-------
+
+If Magnus contributed to work you are publishing, please cite it, and say which
+version you used -- results can depend on it.  :doc:`citing` has the BibTeX
+entry and the two or three things worth stating in the text.
 
 License
 =========

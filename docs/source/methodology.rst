@@ -1,6 +1,11 @@
 Methodology
 ============
 
+.. contents::
+   :local:
+   :depth: 2
+
+
 This page documents the numerical machinery behind Magνs: the Magnus
 expansion itself, the two families of integrators, the guarantees they
 carry, the adaptive-refinement and performance engineering built around
@@ -436,3 +441,93 @@ strict global error bound) delivers an actual accuracy of about
 :math:`10^{-7}`-tolerance references.
 
 See :doc:`references` for full citations of the works referred to above.
+
+
+.. _conventions:
+
+Conventions
+------------
+
+Everything below is a *choice*. None of it is forced by the physics, all of it
+is forced by consistency, and a convention that is wrong **consistently** passes
+every internal test — which is why they are written down here rather than left
+in the code. Magνs has been bitten by exactly that: a reversed slab ordering, a
+doubled antineutrino potential sign and a flipped two-flavour mass ordering were
+all fixed on the same day, and each had been silently self-consistent.
+
+Ordering of the probabilities
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Every ``osc_prob_*`` function returns the probability matrix indexed
+**initial flavour first**:
+
+.. math::
+
+   P[\nu_i][\nu_f] \;=\; P(\nu_i \to \nu_f) .
+
+So ``P[1][0]`` is :math:`P(\nu_\mu \to \nu_e)`, not the reverse. Flavours are
+in the standard order :math:`(e, \mu, \tau, s_1, s_2)`, so index 0 is always
+:math:`\nu_e`.
+
+Each **row** sums to one — a neutrino that started as :math:`\nu_i` ends as
+something. Each column also sums to one, but that is a consequence of unitarity
+rather than a separate statement. Passing ``nu_i`` and ``nu_f`` returns that one
+entry instead of the matrix.
+
+For a batched call the point index comes **first**: the shape is
+``(n_points, d, d)``, so ``P[:, 1, 0]`` is :math:`P_{\mu e}` along a scan.
+
+Sign of the matter potential
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The charged-current potential enters the electron-flavour diagonal entry,
+
+.. math::
+
+   H \;=\; H_\text{vac} \;+\; \mathrm{diag}(V_{CC},\, 0,\, \ldots) ,
+   \qquad V_{CC} = +\sqrt{2}\, G_F n_e ,
+
+and **for antineutrinos it changes sign**. That flip is applied once, inside
+:func:`magnus.matter.vcc_func_from_rho_func`, so a caller passing
+``nubar=True`` gets it automatically and code downstream must not apply it
+again. It was applied twice once, which gave antineutrinos a positive potential
+and answers that looked plausible.
+
+Mass ordering
+~~~~~~~~~~~~~
+
+The ordering is carried by the **sign of** :math:`\Delta m^2_{31}`, not by a
+flag: positive is normal, negative is inverted. ``OSC_PARAMS_DEFAULT`` is the
+normal ordering, with :math:`\Delta m^2_{31} = +2.513 \times 10^{-3}`
+eV\ :sup:`2`. ``magnus.globaldefs.OSC_PARAMS_PREDEFINED`` also carries
+``OSC_PARAMS_NU_FIT_6_0_SK_NO`` and ``..._SK_IO`` if you want to name the fit
+explicitly.
+
+For two flavours the same rule applies to :math:`\Delta m^2`, which is what
+makes the two-flavour case easy to get backwards: flipping its sign moves the
+MSW resonance into the other channel, and the result is still a perfectly
+ordinary-looking probability.
+
+Mixing parameters
+~~~~~~~~~~~~~~~~~
+
+Angles are given as **sines** -- not as angles, and not as
+:math:`\sin^2\theta`: ``s12`` is
+:math:`\sin\theta_{12}`. Quoted fits usually give :math:`\sin^2\theta`, so
+take the square root — ``gd.S12_NO_BF_NUFIT_6_0`` is ``np.sqrt(0.308)``.
+Phases are in **radians**; the default :math:`\delta_{CP}` is 3.7001 rad, i.e.
+212 degrees.
+
+Two flavours take ``sth`` and ``Dm2`` rather than ``s12`` and ``D21``. Passing
+the three-flavour names to a two-flavour call is not an error — the keys are
+simply not recognised — so check the names if a two-flavour result looks
+untouched by the parameters you set.
+
+Units
+~~~~~
+
+Natural units throughout: energies in eV, baselines and positions in
+eV\ :sup:`-1`, so that :math:`HL` is dimensionless.
+:mod:`magnus.globaldefs` supplies the conversions — multiply by ``UNIT_KM``,
+``UNIT_MEV``, ``UNIT_GEV``, ``UNIT_G_PER_CM3`` — and :ref:`units-table` lists
+them.

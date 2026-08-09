@@ -1,76 +1,190 @@
-Tutorial Notebooks
-===================
+Tutorial notebooks
+==================
 
-The ``notebooks/`` directory in the repository contains fourteen runnable
-Jupyter notebooks, numbered ``01``-``14`` in the order we'd suggest reading
-them.
+Fourteen worked notebooks live in `notebooks/
+<https://github.com/mbustama/Magnus/tree/main/notebooks>`_, numbered in reading
+order. Each carries its figures inline, so they can be read on GitHub without
+being run, and each ends with a footer pointing at the previous notebook, the
+next one, and the API reference.
+
+They are the long form of :doc:`recipes`. A recipe is a few lines and its
+output; a notebook is the same calculation with the reasoning around it — why
+the convention is what it is, what happens at the edges, and what the numbers
+were checked against. Both call the same functions, so there is no third
+version to drift out of step.
+
+To run them rather than read them::
+
+   pip install "magnus[notebooks]"
+   jupyter lab notebooks/
 
 .. note::
-   These pages are static documentation and do not execute the notebooks
-   inline.  Follow a link below to view (or download and run) the notebook
-   on GitHub.
 
-.. list-table::
-   :widths: 8 30 42 20
-   :header-rows: 1
+   The notebooks are not built into this documentation — executing fourteen of
+   them on every docs build would take the better part of an hour, and they are
+   more useful where their outputs are already stored. The links below go to
+   GitHub, which renders them with their figures.
 
-   * - #
-     - Notebook
-     - What it covers
-     - Read this if...
-   * - 01
-     - `magnus_introduction.ipynb <https://github.com/mbustama/Magnus/blob/main/notebooks/01_magnus_introduction.ipynb>`_
-     - Basic usage of Magνs: computing a probability, single channels, arrays of energies and baselines.
-     - **Start here.**  You will likely also want notebooks 02 and 03 before doing something useful.
-   * - 02
-     - `magnus_2nu_vacuum_matter.ipynb <https://github.com/mbustama/Magnus/blob/main/notebooks/02_magnus_2nu_vacuum_matter.ipynb>`_
-     - Two-neutrino probabilities in vacuum; constant-density matter; varying density (exponential, Gaussian); castle-wall and noisy density potentials; the Earth (PREM); the Sun (MSW resonance). Validated against the standard closed-form expressions.
-     - You are working with a 2ν system, or want the fullest tour of the supported matter-density profiles.
-   * - 03
-     - `magnus_3nu_vacuum_matter.ipynb <https://github.com/mbustama/Magnus/blob/main/notebooks/03_magnus_3nu_vacuum_matter.ipynb>`_
-     - The same sequence of scenarios as notebook 02 (vacuum, constant/varying/castle-wall/noisy density, Earth, Sun), for the full three-flavor system.
-     - You are working with the standard 3ν system -- the most common use case.
-   * - 04
-     - `magnus_long_baseline.ipynb <https://github.com/mbustama/Magnus/blob/main/notebooks/04_magnus_long_baseline.ipynb>`_
-     - Computing oscillation probabilities between two named points on the surface of the Earth (source and detector), as needed for long-baseline experiments (DUNE, Super-K, Hyper-K, T2K, ESS).
-     - You need a probability between two real-world locations rather than a bare (direction, baseline) pair.
-   * - 05
-     - `magnus_biprobability.ipynb <https://github.com/mbustama/Magnus/blob/main/notebooks/05_magnus_biprobability.ipynb>`_
-     - Biprobability plots: the 3ν oscillation probability :math:`P(\nu_\alpha \to \nu_\beta)` vs. the antineutrino probability :math:`P(\bar\nu_\alpha \to \bar\nu_\beta)`, for different values of the CP-violating phase.
-     - You are studying CP violation and want the standard biprobability visualization.
-   * - 06
-     - `magnus_oscillograms.ipynb <https://github.com/mbustama/Magnus/blob/main/notebooks/06_magnus_oscillograms.ipynb>`_
-     - Oscillograms: probability vs. neutrino direction (zenith angle) vs. energy, for neutrinos propagating inside the Earth. This is the workload the energy-batched scan engine (see :doc:`methodology`) targets directly.
-     - You need a full (energy, direction) probability map, e.g. for atmospheric-neutrino analyses.
-   * - 07
-     - `magnus_bsm_sterile_nu.ipynb <https://github.com/mbustama/Magnus/blob/main/notebooks/07_magnus_bsm_sterile_nu.ipynb>`_
-     - Oscillation probabilities in systems of more than three neutrinos: 3+1 and 3+2 sterile-neutrino models.
-     - Your model includes one or two additional (sterile) mass states.
-   * - 08
-     - `magnus_bsm_nsi.ipynb <https://github.com/mbustama/Magnus/blob/main/notebooks/08_magnus_bsm_nsi.ipynb>`_
-     - 2ν and 3ν probabilities under non-standard neutral-current interactions with matter, parametrized by the conventional :math:`\epsilon` couplings.
-     - You need non-standard interactions (NSI) in matter.
-   * - 09
-     - `magnus_bsm_liv.ipynb <https://github.com/mbustama/Magnus/blob/main/notebooks/09_magnus_bsm_liv.ipynb>`_
-     - 2ν and 3ν probabilities with an additional effective, energy-dependent Hamiltonian representing Lorentz-invariance violation (LIV).  Built around the energy scaling: the vacuum term falls as :math:`1/E` and the matter term is flat, so both switch off at high energy, while the LIV term grows as :math:`E^n` and switches on.  Covers where standard oscillations stop and LIV continues, how the operator dimension sets that crossover, why matter does not rescue the standard prediction, and how a null result becomes a limit on the LIV eigenvalue.
-     - You need a CPT-odd LIV term in the Hamiltonian, or want to know at what energy new physics of a given operator dimension would first show up.
-   * - 10
-     - `magnus_averaged_probability.ipynb <https://github.com/mbustama/Magnus/blob/main/notebooks/10_magnus_averaged_probability.ipynb>`_
-     - The phase-averaged (decohered) limit reached by astrophysical neutrinos, via ``average=True``: 2-5 flavors and a hand-built custom Hamiltonian, each plotted as the oscillating probability against baseline with its averaged value overlaid.  Includes the pion-decay flavor composition at Earth, the check that refuses the limit where it does not apply, and the cost against averaging the engine numerically.  Accompanies :doc:`averaged_probability`.
-     - You work with astrophysical neutrinos, or with any baseline long enough that the oscillation is averaged out by the measurement.
-   * - 11
-     - `magnus_matrix_exponential.ipynb <https://github.com/mbustama/Magnus/blob/main/notebooks/11_magnus_matrix_exponential.ipynb>`_
-     - Using Magνs as a general-purpose tool: computing the Magnus expansion and matrix exponential of an arbitrary time-dependent matrix :math:`A(t)`, i.e. :math:`\exp\!\left(\int_{t_i}^{t_f} A(t)\, dt\right)`, decoupled from any neutrino-physics interpretation.  Closes with the expansion's own coefficients: deriving them from the Bernoulli recursion at any order with :mod:`magnus.expansionterms` (see :doc:`expansion_terms`).
-     - You want to call :func:`magnus.magnus.magnus_expansion` directly, outside of the oscillation-probability wrappers.
-   * - 12
-     - `magnus_adiabatic_hybrid_strategy.ipynb <https://github.com/mbustama/Magnus/blob/main/notebooks/12_magnus_adiabatic_hybrid_strategy.ipynb>`_
-     - Live comparison of ``strategy='auto'``/``'hybrid'``/``'magnus'`` for 2-5 flavors, standard oscillations and an engineered BSM (NSI) resonance, each cross-checked against ``solve_ivp`` in both runtime and accuracy. Reproduces the validation in :doc:`adiabatic_strategy`.
-     - You want to see the extreme-accumulated-phase problem (and its fix) reproduced live, or need a template for benchmarking your own Hamiltonian.
-   * - 13
-     - `magnus_tabulated_solar_model.ipynb <https://github.com/mbustama/Magnus/blob/main/notebooks/13_magnus_tabulated_solar_model.ipynb>`_
-     - Loads the real BS2005-AGS,OP solar model from a table and computes oscillation probabilities from it. Shows that an instantaneous error outside the requested tolerance can be almost entirely *phase*, which no observable resolves, and how ``strategy_info['sampling']`` and :mod:`magnus.avgprob` tell you which regime you are in.
-     - You are working from a tabulated stellar model, or you have an error you are not sure matters.
-   * - 14
-     - `magnus_supernova_shock.ipynb <https://github.com/mbustama/Magnus/blob/main/notebooks/14_magnus_supernova_shock.ipynb>`_
-     - The opposite case: a supernova shock front (Fogli et al. profile, Kneller et al. radii) changes the adiabaticity of the level crossing, so the error survives averaging at 0.21 in probability -- and the package warns every time. Includes the ``t_breakpoints`` cure and where it does *not* apply.
-     - You are propagating through a shock, a simulation snapshot, or any profile with a near-discontinuity.
+   They are generated. ``notebooks/make_notebooks.py`` builds all fourteen,
+   executes them and stores their outputs, and CI runs the same execution on
+   every change to the notebooks or to the package: a notebook is documentation
+   that claims to work, and running it is what makes the claim checkable. Edit
+   the generator, not the ``.ipynb``.
+
+
+Start here
+----------
+
+The conventions everything else assumes, and the two systems every treatment of
+oscillations opens with.
+
+`01. Introduction <https://github.com/mbustama/Magnus/blob/main/notebooks/01_magnus_introduction.ipynb>`_
+   The shortest path to a probability: single channels, arrays of energies and
+   baselines, and what the returned matrix is indexed by.
+
+`02. Two-neutrino probabilities <https://github.com/mbustama/Magnus/blob/main/notebooks/02_magnus_2nu_vacuum_matter.ipynb>`_
+   Vacuum, constant density, exponential and Gaussian profiles, castle-wall and
+   noisy potentials, the Earth and the Sun — each validated against the
+   closed-form expression where one exists. The fullest tour of the supported
+   matter profiles.
+
+`03. Three-neutrino probabilities <https://github.com/mbustama/Magnus/blob/main/notebooks/03_magnus_3nu_vacuum_matter.ipynb>`_
+   The same seven settings with three flavours and a CP-violating phase.
+   Nothing about the method changes; the Hamiltonian is one dimension larger.
+
+
+Geometry, and what experiments measure
+--------------------------------------
+
+Once the trajectory is a real one, the geometry starts to matter as much as the
+Hamiltonian.
+
+`04. Long baselines <https://github.com/mbustama/Magnus/blob/main/notebooks/04_magnus_long_baseline.ipynb>`_
+   Probabilities between two points on the Earth's surface — the geometry of
+   DUNE, T2K, Hyper-K and ESS. Give the coordinates and the chord follows.
+
+`05. Biprobability plots <https://github.com/mbustama/Magnus/blob/main/notebooks/05_magnus_biprobability.ipynb>`_
+   Neutrino against antineutrino as the CP phase runs. The area enclosed is the
+   CP violation an experiment is trying to measure.
+
+`06. Oscillograms <https://github.com/mbustama/Magnus/blob/main/notebooks/06_magnus_oscillograms.ipynb>`_
+   Probability across zenith angle and energy at once. The workload that most
+   rewards passing arrays rather than looping.
+
+
+New physics
+-----------
+
+Each of these is a different Hermitian matrix in the same slot, so the
+machinery is unchanged and only the Hamiltonian differs.
+
+`07. Sterile neutrinos <https://github.com/mbustama/Magnus/blob/main/notebooks/07_magnus_bsm_sterile_nu.ipynb>`_
+   Four- and five-flavour systems, where the extra states do not couple to the
+   weak interaction.
+
+`08. Non-standard interactions <https://github.com/mbustama/Magnus/blob/main/notebooks/08_magnus_bsm_nsi.ipynb>`_
+   A new matter potential with off-diagonal couplings the Standard Model does
+   not have.
+
+`09. Lorentz-invariance violation <https://github.com/mbustama/Magnus/blob/main/notebooks/09_magnus_bsm_liv.ipynb>`_
+   An energy dependence the vacuum term does not have.
+
+
+What the method actually does
+-----------------------------
+
+The two notebooks for readers who want to know why the answers are what they
+are, rather than how to ask for them.
+
+`10. Phase-averaged probabilities <https://github.com/mbustama/Magnus/blob/main/notebooks/10_magnus_averaged_probability.ipynb>`_
+   What survives when the oscillation phase is unresolvable — and why an error
+   that is a phase disappears under averaging while one that is an envelope
+   does not.
+
+`11. The matrix exponential <https://github.com/mbustama/Magnus/blob/main/notebooks/11_magnus_matrix_exponential.ipynb>`_
+   How :math:`\exp(\Omega)` is built, and why the route matters: the truncated
+   series is anti-Hermitian, so its exponential is exactly unitary only if the
+   exponential itself preserves that.
+
+`12. The strategy parameter <https://github.com/mbustama/Magnus/blob/main/notebooks/12_magnus_adiabatic_hybrid_strategy.ipynb>`_
+   ``'auto'`` against ``'magnus'``, timed and scored against ``solve_ivp``. The
+   headline is not the speed: for three or more flavours the old default can hit
+   its refinement caps and return a plausible, exactly unitary, **wrong** answer.
+
+
+Where the limits are
+--------------------
+
+The two notebooks that show what Magνs gets wrong, and how to tell the two
+kinds of wrong apart.
+
+`13. A tabulated solar model <https://github.com/mbustama/Magnus/blob/main/notebooks/13_magnus_tabulated_solar_model.ipynb>`_
+   A real BS05 profile rather than an exponential. A case that looks wrong by
+   1.4e-03 and is not: the error is a phase, and averaging removes 53x of it.
+
+`14. A supernova shock front <https://github.com/mbustama/Magnus/blob/main/notebooks/14_magnus_supernova_shock.ipynb>`_
+   The contrast. Here averaging does essentially nothing, because a shock
+   changes the adiabaticity of the level crossing and so moves the conversion
+   probability itself. Wrong, and loud about it.
+
+`23. When averaging rescues you <https://github.com/mbustama/Magnus/blob/main/notebooks/23_magnus_when_averaging_helps.ipynb>`_
+   The mechanism behind those two, isolated on a cheap vacuum probability: a
+   phase error is suppressed a hundredfold by averaging, an envelope error by a
+   fixed factor of about seven that no number of cycles improves.
+
+
+Conventions worth getting right
+-------------------------------
+
+Two notebooks about the places where a wrong answer looks exactly like a right
+one.
+
+`15. Antineutrinos, done properly <https://github.com/mbustama/Magnus/blob/main/notebooks/15_magnus_antineutrinos.ipynb>`_
+   Conjugating the PMNS matrix and flipping the matter potential are two
+   separate things, and doing one without the other returns a plausible wrong
+   answer. Measured: 0.014 correct against 0.057 and 0.023 for the two halves.
+
+`18. Unusual density profiles <https://github.com/mbustama/Magnus/blob/main/notebooks/18_magnus_unusual_density_profiles.ipynb>`_
+   Five profiles with the same mean density differing by up to 0.98 in
+   probability — and the single rearrangement that changes nothing, exactly,
+   whenever :math:`\delta_{\rm CP}` is 0 or :math:`\pi`.
+
+
+Physics questions
+-----------------
+
+`16. Exact versus the approximations <https://github.com/mbustama/Magnus/blob/main/notebooks/16_magnus_exact_vs_approximations.ipynb>`_
+   The textbook closed forms are exact, and Magνs reproduces them to
+   :math:`10^{-14}`. What breaks is substituting a mean density for a varying
+   one: worth 0.51 in probability on a core-crossing chord.
+
+`17. Mass ordering and the octant <https://github.com/mbustama/Magnus/blob/main/notebooks/17_magnus_ordering_and_octant.ipynb>`_
+   The ordering is carried entirely by the sign of ``D31``. Through the core it
+   separates the two by 0.48; the octant, by about 0.015.
+
+
+Using and diagnosing the machinery
+----------------------------------
+
+`19. Bring your own Hamiltonian <https://github.com/mbustama/Magnus/blob/main/notebooks/19_magnus_custom_hamiltonian.ipynb>`_
+   The actual interface is one callable returning a Hermitian matrix. Covers the
+   vectorisation trick, and what the Earth entry point declares on your behalf.
+
+`20. Numerical edge cases <https://github.com/mbustama/Magnus/blob/main/notebooks/20_magnus_numerical_edge_cases.ipynb>`_
+   Exact degeneracies, zero baselines and empty requests all return numbers
+   rather than ``NaN``. Plus what each of the nine warning classes means, and
+   which to act on.
+
+`21. What rtol and atol promise <https://github.com/mbustama/Magnus/blob/main/notebooks/21_magnus_what_tolerance_means.ipynb>`_
+   A stopping criterion, not an error bound. Measured against an independent
+   ``solve_ivp`` oracle: a request for :math:`10^{-2}` came back wrong by
+   :math:`2.5\times10^{-2}` and reported success.
+
+`22. Which engine answered, and why <https://github.com/mbustama/Magnus/blob/main/notebooks/22_magnus_which_engine_answered.ipynb>`_
+   Six engines in five families, and ``cross_check_strategies`` — an error bar
+   that needs no oracle, because two different methods disagreeing is itself the
+   signal.
+
+`24. Performance <https://github.com/mbustama/Magnus/blob/main/notebooks/24_magnus_performance.ipynb>`_
+   What is worth doing, measured live — and, more usefully, when each trick is
+   worth nothing at all.

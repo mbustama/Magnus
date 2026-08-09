@@ -384,6 +384,11 @@ def print_magnus_terms(max_order: int, file=None) -> None:
 
 
 __all__ = [
+    # The two type aliases below appear in the signatures of everything else
+    # here, so they have to be documented or those signatures render as dead
+    # references.
+    'Word',
+    'Term',
     'bernoulli',
     'bernoulli_factor',
     'omega_terms',

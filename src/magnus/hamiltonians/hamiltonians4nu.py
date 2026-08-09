@@ -79,7 +79,23 @@ def mixing_matrix_4x4(s12: float, s23: float, s13:float, d13: float, s14: float,
     -------
     np.ndarray
         4x4 mixing matrix.
-    """
+    
+    Examples
+    --------
+    .. jupyter-execute::
+
+        import numpy as np
+
+        import magnus.globaldefs as gd
+        from magnus.hamiltonians import hamiltonians4nu
+
+        p = gd.OSC_PARAMS_PREDEFINED['OSC_PARAMS_DEFAULT']
+        U = np.asarray(hamiltonians4nu.mixing_matrix_4x4(
+            p['s12'], p['s23'], p['s13'], p['dCP'], 0.15, 0.0, 0.10, 0.0, 0.05))
+
+        print('shape', U.shape)
+        print('unitary to %.1e' % np.max(np.abs(U.conj().T @ U - np.eye(4))))
+"""
     # arXiv:1105.3911
 
     c12 = np.sqrt(1.0-s12*s12)
@@ -340,7 +356,20 @@ def hamiltonian_4nu_matter(VCC: float) -> np.ndarray:
     -------
     np.ndarray
         Hamiltonian 4x4 matrix.
-    """
+    
+    Examples
+    --------
+    .. jupyter-execute::
+
+        import numpy as np
+
+        from magnus.hamiltonians import hamiltonians4nu
+
+        print(np.asarray(hamiltonians4nu.hamiltonian_4nu_matter(1.0e-13)))
+
+    The sterile state feels neither the charged- nor the neutral-current
+    potential, which is what makes a 3+1 scenario more than a relabelling.
+"""
     # Built by broadcasting rather than np.diag so that VCC may be an array of
     # positions: VCC[..., None, None] turns one potential per position into a
     # stack of matrices, which is what lets a caller's H_func take the engine's

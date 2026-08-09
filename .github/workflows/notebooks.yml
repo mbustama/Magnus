@@ -1,0 +1,199 @@
+name: Notebooks
+
+# Its own workflow rather than a job inside lint.yml, because `paths` is a workflow-level
+# filter: the lint, cli-docs and docs jobs must run on every commit, and this one costs
+# tens of minutes, so the two cannot share a trigger.  A docs-only change skips it
+# entirely.
+#
+# Triggers otherwise match lint.yml and tests.yml -- see the explanation in tests.yml.
+# A commit is checked once: the push-triggered run is what appears on a pull request, and
+# pull_request events are kept only so that a fork's branches, which never fire a push
+# event here, are still covered.
+on:
+  push:
+    branches: ['**']
+    paths:
+      - 'notebooks/**'
+      - 'src/magnus/**'
+      - 'pyproject.toml'
+      - '.github/workflows/notebooks.yml'
+  pull_request:
+    paths:
+      - 'notebooks/**'
+      - 'src/magnus/**'
+      - 'pyproject.toml'
+      - '.github/workflows/notebooks.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  execute:
+    name: Notebooks execute (shard ${{ matrix.shard }})
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
+    runs-on: ubuntu-latest
+    # Generous rather than tight: a notebook that has genuinely hung should fail the job,
+    # a merely slow runner should not.
+    timeout-minutes: 120
+    strategy:
+      # Every shard reports.  With fail-fast the first failure would cancel the others,
+      # and a reader chasing one broken notebook would not learn whether the rest still
+      # run -- which is most of what this job is for.
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3]
+    env:
+      SHARD: ${{ matrix.shard }}
+      SHARDS: 4
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e '.[notebooks]'
+
+      # A notebook's outcome is fixed by three things: its own source cells, the library
+      # it calls, and the environment it is pinned to.  Hash all three and remember which
+      # combinations already passed, so a run only executes what actually changed.
+      #
+      # The library hash is in the cache *key*, so any change under src/magnus or to
+      # pyproject.toml misses the cache outright and every notebook re-runs.  That is the
+      # important direction: a library regression must never be skipped, and it is exactly
+      # what a filename-based rule ("did make_notebooks.py change?") would miss, since a
+      # notebook can break while the generator is byte-identical.
+      #
+      # Per notebook the marker is over its **source cells only**, not the file: a rebuild
+      # rewrites outputs and execution counts in all twenty-six, so a file hash would
+      # invalidate everything on every build and save nothing.
+      #
+      # The key carries run_id so the entry is always written; restore-keys pulls the most
+      # recent one for the same library hash.  Without that, an exact key hit skips the
+      # save and a newly-passing notebook would be re-run forever.
+      - name: Restore the record of what already passed
+        uses: actions/cache@v4
+        with:
+          path: .nbcache
+          key: nbcache-${{ hashFiles('src/magnus/**', 'pyproject.toml') }}-${{ matrix.shard }}-${{ github.run_id }}
+          restore-keys: |
+            nbcache-${{ hashFiles('src/magnus/**', 'pyproject.toml') }}-${{ matrix.shard }}-
+
+      - name: Execute every notebook
+        # Blocking, and that is the point of the job.  A notebook is documentation that
+        # claims to work, and its stored outputs make the claim persuasive without being
+        # evidence: they were true whenever it was last run, which may predate the change
+        # that broke it.  Running them is what makes the claim checkable.
+        #
+        # Executed into a throwaway copy rather than in place.  A notebook whose fresh
+        # outputs differ from its stored ones is NOT a failure -- figures are not
+        # reproducible bit-for-bit across matplotlib versions, and probabilities move in
+        # their last digits with any numerical change -- so nothing is written back and
+        # the working tree stays clean.  What is checked is that every cell runs.
+        run: |
+          python - <<'PY'
+          import hashlib
+          import os
+          import pathlib
+          import sys
+          import time
+
+          import nbformat
+          from nbclient import NotebookClient
+          from nbclient.exceptions import CellExecutionError
+
+          # Round-robin over the sorted names rather than contiguous blocks.  The costs
+          # are very uneven -- the slowest notebook is 426 s against a median near 10 --
+          # so contiguous blocks would put 02, 03 and 07 on one runner.  Interleaving
+          # needs no table of measured times, which would go stale; measured over the
+          # real set it puts the worst shard at 13.5 min against 38.7 serial.
+          shard = int(os.environ.get('SHARD', '0'))
+          shards = int(os.environ.get('SHARDS', '1'))
+          every = sorted(pathlib.Path('notebooks').glob('*.ipynb'))
+          mine = every[shard::shards]
+          print('shard %d of %d: %d of %d notebooks -- %s\n'
+                % (shard, shards, len(mine), len(every),
+                   ', '.join(p.name for p in mine)), flush=True)
+
+          # One marker per (notebook source, library, environment) that has passed.
+          cache = pathlib.Path('.nbcache')
+          cache.mkdir(exist_ok=True)
+
+          def fingerprint(nb):
+              """Hash of the source cells, ignoring outputs and execution counts."""
+              body = '\0'.join(c.source for c in nb.cells)
+              return hashlib.sha256(body.encode('utf-8')).hexdigest()[:32]
+
+          failed = []
+          skipped = []
+          for path in mine:
+              nb = nbformat.read(path, as_version=4)
+              marker = cache/('%s.%s.ok' % (path.stem, fingerprint(nb)))
+              if marker.exists():
+                  skipped.append(path.name)
+                  print('cached %-46s (source unchanged since it last passed)'
+                        % path.name, flush=True)
+                  continue
+              started = time.perf_counter()
+              try:
+                  NotebookClient(
+                      nb, timeout=3600, kernel_name='python3',
+                      resources={'metadata': {'path': str(path.parent)}}).execute()
+                  marker.write_text('')
+                  print('ok    %-46s %6.1f s'
+                        % (path.name, time.perf_counter() - started), flush=True)
+              except CellExecutionError as error:
+                  failed.append(path.name)
+                  print('FAIL  %s\n%s' % (path.name, error), flush=True)
+
+          print('\n%d executed, %d served from cache' % (len(mine) - len(skipped),
+                                                         len(skipped)), flush=True)
+          if failed:
+              sys.exit('notebooks failed to execute: %s' % ', '.join(failed))
+          PY
+
+  stored-outputs:
+    name: Notebooks carry stored outputs
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
+    runs-on: ubuntu-latest
+    # A separate job, not a step of each shard: this reads what was committed and never
+    # executes anything, so running it once is exactly as informative as running it four
+    # times and finishes in seconds.  It also needs none of the notebook dependencies.
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install nbformat
+        run: pip install nbformat
+
+      - name: Check every notebook carries stored outputs
+        # A notebook stripped of its outputs renders blank on GitHub, which is the form
+        # most readers meet it in.  Checked separately from execution because it is a
+        # property of what was committed, not of what just ran.
+        run: |
+          python - <<'PY'
+          import pathlib
+          import sys
+
+          import nbformat
+
+          bare = [path.name for path
+                  in sorted(pathlib.Path('notebooks').glob('*.ipynb'))
+                  if not any(cell.get('outputs') for cell
+                             in nbformat.read(path, as_version=4).cells
+                             if cell.cell_type == 'code')]
+          if bare:
+              sys.exit('notebooks carry no stored outputs: %s' % ', '.join(bare))
+          print('all notebooks carry stored outputs')
+          PY

@@ -108,7 +108,7 @@ class ScalarHamiltonianWarning(UserWarning):
 
     The engine evaluates the Hamiltonian at every quadrature node of every slab
     -- often a few hundred positions for a single probability, and the adaptive
-    refinement repeats that at each level. :func:`_evaluate_A` therefore tries a
+    refinement repeats that at each level. ``_evaluate_A`` therefore tries a
     single vectorized call, ``A(times)``, and uses the result if it has the
     right shape and agrees with a scalar spot-check. If that fails it falls back
     to a Python loop, one call per position.
@@ -162,7 +162,7 @@ class MagnusConvergenceWarning(UserWarning):
     necessary, so exceeding it does not imply a wrong answer -- and it fires on results accurate
     to 1.6e-06 (``docs/dev/DECISION_DISPATCH_ORDER.md`` §5) as well as on results seven times
     outside a requested 1e-3.  Anything that claims to tell you which of those you have is
-    claiming more than this check can support; :class:`ToleranceNotAchievedWarning` is the one
+    claiming more than this check can support; :class:`magnus.oscprob.ToleranceNotAchievedWarning` is the one
     that reports a failed convergence *test*.
 
     **What to change.**  More, narrower slabs: request a smaller ``rtol``/``atol``, or raise
@@ -263,7 +263,22 @@ def commutator(X: np.ndarray, Y: np.ndarray) -> np.ndarray:
     -------
     np.ndarray
         The commutator X @ Y - Y @ X.
-    """
+    
+    Examples
+    --------
+    .. jupyter-execute::
+
+        import numpy as np
+
+        from magnus import magnus
+
+        X = np.array([[0.0, 1.0], [0.0, 0.0]])
+        Y = np.array([[0.0, 0.0], [1.0, 0.0]])
+
+        print(magnus.commutator(X, Y))
+        print('antisymmetric:',
+              np.array_equal(magnus.commutator(X, Y), -magnus.commutator(Y, X)))
+"""
     return X @ Y - Y @ X
 
 
@@ -409,7 +424,22 @@ def probe_eval_mode(A: Callable, t0: float, t1: float,
     -------
     str
         'vector', 'constant', or 'scalar'.
-    """
+    
+    Examples
+    --------
+    .. jupyter-execute::
+
+        import numpy as np
+
+        from magnus import magnus
+
+        def vectorised(t):
+            return -1j*np.eye(2)*np.asarray(t)[..., None, None]
+
+        print('array-capable :', magnus.probe_eval_mode(vectorised, 0.0, 1.0))
+        print('constant      :', magnus.probe_eval_mode(lambda t: -1j*np.eye(2),
+                                                        0.0, 1.0))
+"""
     times = np.linspace(t0, t1, n_probe)
     _, mode = _evaluate_A(A, times, None)
     return mode
@@ -459,7 +489,19 @@ def suggest_n_slabs(
     -------
     int
         Suggested starting number of slabs (at least 1).
-    """
+    
+    Examples
+    --------
+    .. jupyter-execute::
+
+        import numpy as np
+
+        from magnus import magnus
+
+        H = np.array([[0.0, 1.0], [1.0, 0.0]])
+        print('slabs suggested:',
+              magnus.suggest_n_slabs(lambda t: -1j*20.0*H, 0.0, 1.0))
+"""
     if not (t1 > t0):
         return 1
     times = np.linspace(t0, t1, n_probe)
@@ -1044,7 +1086,24 @@ def magnus_expansion(
     np.ndarray, or (np.ndarray, np.ndarray)
         The evolution operator :math:`U = \exp(\sum_k \Omega_k)`; if
         ``return_magnus_terms`` is True, also the stacked terms.
-    """
+    
+    Examples
+    --------
+    .. jupyter-execute::
+
+        import numpy as np
+
+        from magnus import magnus
+
+        H = np.array([[0.0, 1.0], [1.0, 0.0]])
+        U = magnus.magnus_expansion(lambda t: -1j*H, 0.0, np.pi/4, order=4)
+
+        print(np.round(U, 6))
+        print('unitary to %.1e' % np.max(np.abs(U.conj().T @ U - np.eye(2))))
+
+    Unitary to rounding, and that is structural rather than lucky: the
+    truncated series is anti-Hermitian at any order.
+"""
     if validate_input:
         _validate(order, integration_method)
 
@@ -1142,7 +1201,20 @@ def gl_nodes(order: int) -> np.ndarray:
     -------
     np.ndarray
         GL nodes on [0, 1] (1, 2, or 3 of them).
-    """
+    
+    Examples
+    --------
+    .. jupyter-execute::
+
+        import numpy as np
+
+        from magnus import magnus
+
+        for order in (2, 4, 6):
+            print('order %d -> %s' % (order, np.round(magnus.gl_nodes(order), 6)))
+
+    One, two or three nodes: the scheme uses the fewest that reach the order.
+"""
     return _gl_nodes(order)
 
 
@@ -1194,12 +1266,14 @@ def palindromic(*arrays: np.ndarray) -> bool:
 
     Examples
     --------
-    >>> import numpy as np
-    >>> from magnus import magnus
-    >>> magnus.palindromic(np.array([1.0, 2.0, 1.0]))
-    True
-    >>> magnus.palindromic(np.array([1.0, 2.0, 3.0]))
-    False
+    .. jupyter-execute::
+
+        import numpy as np
+
+        from magnus import magnus
+
+        print(magnus.palindromic(np.array([1.0, 2.0, 1.0])))
+        print(magnus.palindromic(np.array([1.0, 2.0, 3.0])))
     """
     for array in arrays:
         a = np.asarray(array)

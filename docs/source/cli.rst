@@ -1,6 +1,11 @@
 Command-Line Calculator
 =========================
 
+.. contents::
+   :local:
+   :depth: 2
+
+
 In addition to the Python API (:doc:`quickstart`), Magνs installs a
 ``magnus`` command (equivalently, ``python -m magnus``) for computing a
 single oscillation probability directly from the shell, with no Python

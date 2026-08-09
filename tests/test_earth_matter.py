@@ -262,3 +262,65 @@ def test_the_guard_only_applies_when_g_per_cm3_is_declared():
         warnings.simplefilter("error", matter.DensityUnitWarning)
         vcc = matter.vcc_func_from_rho_func(matter.exp_density_profile(1.0e30, 1.0e5))
         np.asarray(vcc(0.0))
+
+
+def test_a_g_per_cm3_density_left_undeclared_is_flagged():
+    """The mirror of the double-conversion guard, and the commoner mistake:
+    density_matter_is_in_g_per_cm3 defaults to False, so a density read off a
+    table is taken as already converted and the matter potential comes out ~19
+    orders of magnitude too small.
+
+    Under-conversion is quieter than double conversion -- it does not inflate
+    anything, it makes the matter term vanish, and the call returns exactly the
+    vacuum probability.  That is an ordinary-looking number of the right shape,
+    which is why it needs saying out loud."""
+    with pytest.warns(matter.DensityUnitWarning, match="too small|natural units"):
+        vcc = matter.vcc_func_from_rho_func(matter.exp_density_profile(2.848, 1.0e5))
+        np.asarray(vcc(0.0))
+
+
+def test_an_undeclared_g_per_cm3_density_returns_exactly_the_vacuum_answer():
+    """Why the guard above is worth having: the wrong answer is not merely
+    close to the vacuum one, it *is* the vacuum one."""
+    import magnus.oscprob as oscprob
+
+    osc = gd.load_nufit_params('NuFIT 6.1', 'NO')
+    energy, baseline = 2.0*gd.UNIT_GEV, 1300.0*gd.UNIT_KM
+
+    vacuum = oscprob.osc_prob_3nu_vacuum(energy, baseline, **osc)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", matter.DensityUnitWarning)
+        undeclared = oscprob.osc_prob_3nu_matter_constant_density(
+            energy, baseline, 2.848, **osc)
+    declared = oscprob.osc_prob_3nu_matter_constant_density(
+        energy, baseline, 2.848, **osc, density_matter_is_in_g_per_cm3=True)
+
+    np.testing.assert_allclose(np.asarray(undeclared), np.asarray(vacuum),
+                               rtol=0.0, atol=1.0e-14)
+    assert not np.allclose(np.asarray(declared), np.asarray(vacuum), atol=1.0e-3)
+
+
+@pytest.mark.parametrize("rho", [
+    2.848*gd.UNIT_G_PER_CM3,     # the Earth's crust, correctly converted
+    150.0*gd.UNIT_G_PER_CM3,     # the centre of the Sun, correctly converted
+    0.0,                         # deliberate vacuum
+])
+def test_natural_unit_densities_are_not_flagged(rho):
+    """Anything physical is 4.3e18 or more once converted, nine orders above
+    the threshold; and an explicit zero is a deliberate vacuum, not a mistake."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", matter.DensityUnitWarning)
+        vcc = matter.vcc_func_from_rho_func(matter.exp_density_profile(rho, 1.0e5))
+        np.asarray(vcc(0.0))
+
+
+def test_the_electron_density_path_is_never_flagged():
+    """Electron number densities are ~1e9-1e12 eV^3 -- straddling the
+    threshold -- but they do not go through the matter-density conversion at
+    all, so the guard must never see them."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", matter.DensityUnitWarning)
+        vcc = matter.vcc_func_from_rho_func(
+            matter.exp_density_profile(gd.NUM_DENSITY_E_SUN_CENTRAL, gd.L_SCALE_SUN),
+            density_is_of_number_of_electrons=True)
+        np.asarray(vcc(0.0))

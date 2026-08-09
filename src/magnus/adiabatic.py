@@ -100,7 +100,7 @@ population                    n     max k        implied bound on gamma_max
 gamma_max < 1e-2              76    **0.812**    <= 1.23 x tolerance
 gamma_max < 3e-3              35    0.679        <= 1.47 x tolerance
 gamma_max < 1e-3              12    0.502        <= 1.99 x tolerance
-all rows, including patched  149    1.136        <= 0.88 x tolerance
+all rows, incl. patched      149    1.136        <= 0.88 x tolerance
 ========================== ======= ============ ============================
 
 :math:`k` falls towards ~0.5 as :math:`\gamma` shrinks, which is what the linear model predicts
@@ -268,14 +268,14 @@ population                                                concentration
 and, over 60 random positions each, the detection rate for features in the band no grid here
 resolves:
 
-============ ================= ================= =================
-feature width detection at 0.2  detection at 0.3  detection at 0.5
-============ ================= ================= =================
-3e-5          0.70              **0.68**          0.55
-1e-5          0.90              **0.90**          0.90
-3e-6          0.82              **0.82**          0.82
-1e-6          0.73              **0.73**          0.73
-============ ================= ================= =================
+============= ================ ================ ================
+feature width detection at 0.2 detection at 0.3 detection at 0.5
+============= ================ ================ ================
+3e-5          0.70             **0.68**         0.55
+1e-5          0.90             **0.90**         0.90
+3e-6          0.82             **0.82**         0.82
+1e-6          0.73             **0.73**         0.73
+============= ================ ================ ================
 
 **0.3 gives zero false positives over all 67 smooth profiles** -- five times the measured
 ceiling -- at the best detection the margin allows; 0.2 buys two points of detection for half
@@ -494,7 +494,34 @@ def oscillation_sampling(H_func: Callable, l0: float, l1: float,
         the fastest oscillation twice per cycle), and, when ``baselines`` is given,
         ``'spacing'``, ``'cycles_per_step'`` and ``'aliased'``.  Empty dict if the spectrum is
         degenerate or the interval has zero length.
-    """
+    
+    Examples
+    --------
+    .. jupyter-execute::
+
+        import numpy as np
+
+        import magnus.globaldefs as gd
+        from magnus import adiabatic
+        from magnus.hamiltonians import hamiltonians3nu
+
+        p = gd.OSC_PARAMS_PREDEFINED['OSC_PARAMS_DEFAULT']
+        h_vac = np.asarray(hamiltonians3nu.hamiltonian_3nu_vacuum_energy_independent(
+            p['s12'], p['s23'], p['s13'], p['dCP'], p['D21'], p['D31']))
+        e00 = np.diag([1.0, 0.0, 0.0])
+        energy = 10.0e6
+
+        def H(l):
+            v = 1.0e-11*np.exp(-np.asarray(l, dtype=float)/gd.L_SCALE_SUN)
+            return (1.0/energy)*h_vac + np.asarray(v)[..., None, None]*e00
+
+        print(adiabatic.oscillation_sampling(H, 0.0, 3.0*gd.L_SCALE_SUN, 100))
+
+    Reported, never warned about.  A trajectory of twenty thousand cycles
+    sampled at a hundred points is not necessarily wrong -- an averaged
+    observable may not care -- but it is worth knowing before trusting an
+    instantaneous one.
+"""
     l0, l1 = float(l0), float(l1)
     if (l1 == l0) or (n_probe < 1):
         return {}
@@ -550,13 +577,13 @@ the default tolerance that is 2.4e-03 rather than 0.1.
 ``solve_ivp`` on the package's bit-identity workloads, which include an **energy scan** the
 fixed-baseline sweep did not:
 
-=================================== ============ ============ ==============
-workload                             ``t0=0.1``   the rule     verdict
-=================================== ============ ============ ==============
-single point, solar                  1.624e-06    1.184e-10    13711x better
-sub-threshold scan, N = 8            3.220e-05    3.814e-05    1.2x worse
-**energy scan at fixed baseline**    2.509e-05    **4.954e-04** **20x worse**
-=================================== ============ ============ ==============
+=================================== ============ ============== ==============
+workload                             ``t0=0.1``   the rule       verdict
+=================================== ============ ============== ==============
+single point, solar                  1.624e-06    1.184e-10      13711x better
+sub-threshold scan, N = 8            3.220e-05    3.814e-05      1.2x worse
+**energy scan, fixed baseline**      2.509e-05    **4.954e-04**  **20x worse**
+=================================== ============ ============== ==============
 
 All three stay inside the requested 1e-3, but 4.95e-04 spends half the budget where 2.5e-05
 spent a fortieth.  The mechanism is visible once looked for: starting low opens a window on the
@@ -793,7 +820,36 @@ def adiabatic_propagator(H_func: Callable, l0: float, l1: float,
     -------
     np.ndarray
         The evolution operator, exactly unitary.
-    """
+    
+    Examples
+    --------
+    .. jupyter-execute::
+
+        import numpy as np
+
+        import magnus.globaldefs as gd
+        from magnus import adiabatic
+        from magnus.hamiltonians import hamiltonians3nu
+
+        p = gd.OSC_PARAMS_PREDEFINED['OSC_PARAMS_DEFAULT']
+        h_vac = np.asarray(hamiltonians3nu.hamiltonian_3nu_vacuum_energy_independent(
+            p['s12'], p['s23'], p['s13'], p['dCP'], p['D21'], p['D31']))
+        e00 = np.diag([1.0, 0.0, 0.0])
+        energy = 10.0e6
+
+        def H(l):
+            v = 1.0e-11*np.exp(-np.asarray(l, dtype=float)/gd.L_SCALE_SUN)
+            return (1.0/energy)*h_vac + np.asarray(v)[..., None, None]*e00
+
+        U = np.asarray(adiabatic.adiabatic_propagator(H, 0.0, 3.0*gd.L_SCALE_SUN))
+
+        print('shape', U.shape)
+        print('unitary to %.1e' % np.max(np.abs(U.conj().T @ U - np.eye(3))))
+
+    Cheap however large the accumulated phase, because it transports in the
+    instantaneous eigenbasis rather than resolving the oscillation.  That is
+    exactly why it needs a patch wherever the transport stops being adiabatic.
+"""
     if l1 == l0:
         d = np.asarray(H_func(l0)).shape[-1]
         return np.eye(d, dtype=complex)
@@ -934,7 +990,36 @@ def find_resonance_candidates(H_func: Callable, l0: float, l1: float,
         One entry per candidate, with keys ``'l'`` (position), ``'j'``, ``'k'`` (the level
         indices, ``j < k``), and ``'gap'`` (:math:`\lambda_k - \lambda_j` at that position),
         sorted by position.
-    """
+    
+    Examples
+    --------
+    .. jupyter-execute::
+
+        import numpy as np
+
+        import magnus.globaldefs as gd
+        from magnus import adiabatic
+        from magnus.hamiltonians import hamiltonians3nu
+
+        p = gd.OSC_PARAMS_PREDEFINED['OSC_PARAMS_DEFAULT']
+        h_vac = np.asarray(hamiltonians3nu.hamiltonian_3nu_vacuum_energy_independent(
+            p['s12'], p['s23'], p['s13'], p['dCP'], p['D21'], p['D31']))
+        e00 = np.diag([1.0, 0.0, 0.0])
+        energy = 10.0e6
+
+        def H(l):
+            v = 1.0e-11*np.exp(-np.asarray(l, dtype=float)/gd.L_SCALE_SUN)
+            return (1.0/energy)*h_vac + np.asarray(v)[..., None, None]*e00
+
+        for c in adiabatic.find_resonance_candidates(H, 0.0, 3.0*gd.L_SCALE_SUN):
+            print('levels %d-%d cross at l/l_scale = %.3f, gap %.2e eV'
+                  % (c['j'], c['k'], c['l']/gd.L_SCALE_SUN, c['gap']))
+
+    A candidate is a critical point of a pairwise gap, found exactly through
+    Hellmann-Feynman rather than by scanning for a minimum.  Whether it is
+    actually non-adiabatic is a separate question --
+    :func:`find_nonadiabatic_windows` answers it.
+"""
     ls = np.linspace(l0, l1, n_probe)
     h = (l1 - l0) * fd_step_frac
     bounds = (l0, l1)
@@ -1320,7 +1405,7 @@ def hybrid_propagator(H_func: Callable, l0: float, l1: float, rtol: Optional[flo
         Final position.
     rtol : float, optional
         Relative tolerance on the *agreement* between successive refinement levels, and on the
-        adiabaticity bound in :func:`_certified`.  Default: 1e-3.  Like every tolerance in this
+        adiabaticity bound in ``_certified``.  Default: 1e-3.  Like every tolerance in this
         package it is a stopping rule rather than a guaranteed accuracy: the loop halts when
         two successive levels agree, and no error of the returned operator is ever estimated.
         See the ``rtol`` entry of :func:`magnus.oscprob.osc_prob` for what that does and does
@@ -1459,7 +1544,40 @@ def hybrid_propagator(H_func: Callable, l0: float, l1: float, rtol: Optional[flo
     threshold until a window does open. Without that, a profile whose :math:`\gamma` stays just
     below ``threshold0`` everywhere is certified while wrong -- measured at 1.8e-02 against a
     requested 1e-3.
-    """
+    
+    Examples
+    --------
+    .. jupyter-execute::
+
+        import numpy as np
+
+        import magnus.globaldefs as gd
+        from magnus import adiabatic
+        from magnus.hamiltonians import hamiltonians3nu
+
+        p = gd.OSC_PARAMS_PREDEFINED['OSC_PARAMS_DEFAULT']
+        h_vac = np.asarray(hamiltonians3nu.hamiltonian_3nu_vacuum_energy_independent(
+            p['s12'], p['s23'], p['s13'], p['dCP'], p['D21'], p['D31']))
+        e00 = np.diag([1.0, 0.0, 0.0])
+        energy = 10.0e6
+
+        def H(l):
+            v = 1.0e-11*np.exp(-np.asarray(l, dtype=float)/gd.L_SCALE_SUN)
+            return (1.0/energy)*h_vac + np.asarray(v)[..., None, None]*e00
+
+        U, windows, certified = adiabatic.hybrid_propagator(
+            H, 0.0, 3.0*gd.L_SCALE_SUN)
+
+        print('non-adiabatic windows :', len(windows))
+        print('certified             :', certified)
+        print('unitary to %.1e'
+              % np.max(np.abs(np.asarray(U).conj().T @ U - np.eye(3))))
+
+    ``certified`` is the value to check: it says the result agreed with itself
+    under tightening, not that it is correct.  Zero windows means the whole
+    trajectory was adiabatic, which for the real solar mixing angle is the
+    usual answer.
+"""
     threshold, n_probe, n_points = threshold0, n_probe0, n_points0
 
     # Everything below finite-differences H_func between probe points and assumes the result
@@ -1545,4 +1663,16 @@ __all__ = [
     'find_resonance_candidates',
     'find_nonadiabatic_windows',
     'hybrid_propagator',
+    'oscillation_sampling',
+    # Documented as knobs -- each docstring carries the population it was
+    # measured on -- and without this sphinx-autoapi does not document them,
+    # which left every cross-reference to them rendering as dead text.
+    'GAMMA_TO_ERROR',
+    'RESOLUTION_RATIO',
+    'LOCAL_JUMP_RATIO',
+    'N_LOCAL_CONFIRM',
+    'MAX_LOCAL_CONFIRMATIONS',
+    'HIDDEN_FEATURE_CONCENTRATION',
+    'N_HIDDEN_FEATURE_SUBDIVISION',
+    'THRESHOLD0_PROVENANCE',
 ]

@@ -1,6 +1,11 @@
 Available Oscillation-Probability Functions
 ==============================================
 
+.. contents::
+   :local:
+   :depth: 2
+
+
 This page lists every user-facing ``osc_prob_*`` function Magνs ships,
 grouped by environment and scenario, with the exact function name for each
 flavor count. It complements the API reference (generated from the

@@ -52,7 +52,23 @@ def mixing_matrix_2nu(sth: float) -> np.ndarray:
     -------
     np.ndarray
         Rotation matrix [[cth, sth], [-sth, cth]], with cth = cos(theta) and sth = sin(theta).
-    """
+    
+    Examples
+    --------
+    .. jupyter-execute::
+
+        import numpy as np
+
+        from magnus.hamiltonians import hamiltonians2nu
+
+        U = np.asarray(hamiltonians2nu.mixing_matrix_2nu(np.sqrt(0.308)))
+
+        print(np.round(U, 6))
+        print('unitary to %.1e' % np.max(np.abs(U.conj().T @ U - np.eye(2))))
+
+    Note the argument is :math:`\sin\theta`, not :math:`\sin^2\theta`; fits
+    are usually quoted as the latter, hence the square root.
+"""
     cth = np.sqrt(1.0-sth*sth)
 
     return np.array([[cth,sth],[-sth,cth]])
@@ -83,7 +99,25 @@ def hamiltonian_2nu_vacuum_energy_independent(sth: float, Dm2: float,
     -------
     np.ndarray
         Hamiltonian 2x2 matrix.
-    """
+    
+    Examples
+    --------
+    .. jupyter-execute::
+
+        import numpy as np
+
+        import magnus.globaldefs as gd
+        from magnus.hamiltonians import hamiltonians2nu
+
+        h = np.asarray(hamiltonians2nu.hamiltonian_2nu_vacuum_energy_independent(
+            np.sqrt(0.308), 7.49e-5))
+
+        print(np.round(h/1e-5, 6), ' [1e-5 eV^2]')
+        print('at 1 GeV, in eV: %.3e' % (h/(1.0*gd.UNIT_GEV))[0][0])
+
+    The energy is divided out separately, which is what makes this the piece to
+    build once and reuse across a scan over energies.
+"""
     cth = np.sqrt(1.0-sth*sth)
     c2th = cth*cth-sth*sth
     s2th = 2.0*cth*sth
@@ -228,7 +262,20 @@ def hamiltonian_2nu_matter(VCC: float) -> np.ndarray:
     -------
     np.ndarray
         Hamiltonian 2x2 matrix.
-    """
+    
+    Examples
+    --------
+    .. jupyter-execute::
+
+        import numpy as np
+
+        from magnus.hamiltonians import hamiltonians2nu
+
+        print(np.asarray(hamiltonians2nu.hamiltonian_2nu_matter(1.0e-13)))
+
+    Only the electron-flavour entry is filled: matter is what the other
+    flavours do not feel.
+"""
     # The matter Hamiltonian is [[VCC,0],[0,0]]
     # Built by broadcasting rather than np.diag so that VCC may be an array of
     # positions: VCC[..., None, None] turns one potential per position into a

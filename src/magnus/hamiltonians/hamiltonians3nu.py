@@ -67,7 +67,24 @@ def pmns_mixing_matrix(s12: float, s23: float, s13:float, dCP: float) -> np.ndar
     -------
     np.ndarray
         3x3 PMNS mixing matrix.
-    """
+    
+    Examples
+    --------
+    .. jupyter-execute::
+
+        import numpy as np
+
+        import magnus.globaldefs as gd
+        from magnus.hamiltonians import hamiltonians3nu
+
+        p = gd.OSC_PARAMS_PREDEFINED['OSC_PARAMS_DEFAULT']
+        U = np.asarray(hamiltonians3nu.pmns_mixing_matrix(
+            p['s12'], p['s23'], p['s13'], p['dCP']))
+
+        print('|U_e2|^2 = %.4f   (sin^2 th12 = %.3f)' % (abs(U[0][1])**2,
+                                                         p['s12']**2))
+        print('unitary to %.1e' % np.max(np.abs(U.conj().T @ U - np.eye(3))))
+"""
     c12 = np.sqrt(1.0-s12*s12)
     c23 = np.sqrt(1.0-s23*s23)
     c13 = np.sqrt(1.0-s13*s13)
@@ -156,7 +173,26 @@ def hamiltonian_3nu_vacuum_energy_independent(s12: float, s23: float, s13: float
     -------
     np.ndarray
         Hamiltonian 3x3 matrix.
-    """
+    
+    Examples
+    --------
+    .. jupyter-execute::
+
+        import numpy as np
+
+        import magnus.globaldefs as gd
+        from magnus.hamiltonians import hamiltonians3nu
+
+        p = gd.OSC_PARAMS_PREDEFINED['OSC_PARAMS_DEFAULT']
+        h = np.asarray(hamiltonians3nu.hamiltonian_3nu_vacuum_energy_independent(
+            p['s12'], p['s23'], p['s13'], p['dCP'], p['D21'], p['D31']))
+
+        print('Hermitian to %.1e' % np.max(np.abs(h - h.conj().T)))
+        print('eigenvalues [eV^2]:', np.round(np.linalg.eigvalsh(h), 6))
+
+    The eigenvalues are :math:`(0, \Delta m^2_{21}, \Delta m^2_{31})`: only
+    mass-squared *differences* appear, which is why the first is zero.
+"""
 
     # f = 0.5
 
@@ -343,7 +379,21 @@ def hamiltonian_3nu_matter(VCC: float) -> np.ndarray:
     -------
     np.ndarray
         Hamiltonian 3x3 matrix.
-    """
+    
+    Examples
+    --------
+    .. jupyter-execute::
+
+        import numpy as np
+
+        from magnus.hamiltonians import hamiltonians3nu
+
+        print(np.asarray(hamiltonians3nu.hamiltonian_3nu_matter(1.0e-13)))
+
+    Add it to the vacuum term divided by the energy to get the full
+    Hamiltonian.  For antineutrinos the potential arrives already negated by
+    :func:`magnus.matter.vcc_func_from_rho_func`; do not negate it again.
+"""
     # Built by broadcasting rather than np.diag so that VCC may be an array of
     # positions: VCC[..., None, None] turns one potential per position into a
     # stack of matrices, which is what lets a caller's H_func take the engine's
@@ -416,7 +466,24 @@ def hamiltonian_3nu_nsi(
     -------
     np.ndarray
         Hamiltonian 3x3 matrix.
-    """
+    
+    Examples
+    --------
+    .. jupyter-execute::
+
+        import numpy as np
+
+        from magnus.hamiltonians import hamiltonians3nu
+
+        h = np.asarray(hamiltonians3nu.hamiltonian_3nu_nsi(
+            1.0e-13, 0.1, 0.05, 0.0, 0.0, 0.0, 0.0))
+
+        print(np.round(h/1e-13, 4), ' [1e-13 eV]')
+
+    The couplings are dimensionless and multiply the same :math:`V_{CC}`, so
+    ``eps_ee = 0.1`` is a ten-per-cent correction to the standard potential and
+    ``eps_em`` is an off-diagonal one the Standard Model does not have.
+"""
     return VCC * np.array([
         [eps_ee, eps_em, eps_et],
         [np.conj(eps_em), eps_mm, eps_mt],

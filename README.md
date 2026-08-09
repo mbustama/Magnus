@@ -1,10 +1,12 @@
-# Mag$`\nu`$s
+# Magnus
 
 [![CI Tests](https://github.com/mbustama/Magnus/actions/workflows/tests.yml/badge.svg)](https://github.com/mbustama/Magnus/actions/workflows/tests.yml)
 [![Code Quality](https://github.com/mbustama/Magnus/actions/workflows/lint.yml/badge.svg)](https://github.com/mbustama/Magnus/actions/workflows/lint.yml)
 [![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-blue.svg)](https://mbustama.github.io/Magnus/)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![codecov](https://codecov.io/gh/mbustama/Magnus/branch/main/graph/badge.svg)](https://codecov.io/gh/mbustama/Magnus)
+[![PyPI](https://img.shields.io/pypi/v/magnuspy.svg)](https://pypi.org/project/magnuspy/)
 [![Downloads](https://pepy.tech/badge/magnuspy)](https://pepy.tech/project/magnuspy)
 [![Code style: ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
@@ -17,7 +19,7 @@ of flavors, for any given Hamiltonian, time-dependent or -independent.
 > Denmark, you are equally welcome to say it
 > [the Danish way](https://translate.google.com/?sl=da&tl=en&text=Magnus&op=translate).)
 
-Mag$`\nu`$s computes the neutrino evolution operator via the **Magnus
+Magnus computes the neutrino evolution operator via the **Magnus
 expansion**: instead of integrating the Schrödinger equation step by step, it
 exponentiates truncated time-ordered integrals of the Hamiltonian over a chain
 of position slabs.  Any truncation of the Magnus series lives in the Lie
@@ -28,20 +30,21 @@ precision, at any accuracy setting.  See
 
 ## Table of Contents
 
-- [When is Magνs a win?](#when-is-magnus-a-win)
+- [When is Magnus a win?](#when-is-magnus-a-win)
 - [Adiabatic + Magnus hybrid strategy for extreme accumulated phases](#adiabatic--magnus-hybrid-strategy-for-extreme-accumulated-phases)
 - [Phase-averaged probabilities for astrophysical neutrinos](#phase-averaged-probabilities-for-astrophysical-neutrinos)
-- [When is Magνs not the right tool?](#when-is-magnus-not-the-right-tool)
+- [When is Magnus not the right tool?](#when-is-magnus-not-the-right-tool)
 - [File Tree](#file-tree)
-- [Two ways to use Magνs](#two-ways-to-use-magnus)
+- [Two ways to use Magnus](#two-ways-to-use-magnus)
   - [As a Python module](#as-a-python-module)
   - [As a command-line calculator](#as-a-command-line-calculator)
-- [What Magνs computes](#what-magnus-computes)
+- [What Magnus computes](#what-magnus-computes)
 - [Available oscillation-probability functions](#available-oscillation-probability-functions)
 - [Code architecture](#code-architecture)
 - [Mathematical method](#mathematical-method)
 - [Numerical engine](#numerical-engine)
 - [Performance](#performance)
+- [Pre-packaged plotting tools](#pre-packaged-plotting-tools)
 - [Accuracy and validation](#accuracy-and-validation)
 - [Continuous Integration](#continuous-integration)
 - [Requirements](#requirements)
@@ -50,17 +53,17 @@ precision, at any accuracy setting.  See
 - [License](#license)
 - [Author](#author)
 
-## When is Mag$`\nu`$s a win?
+## When is Magnus a win?
 
 Compared to solving the propagation ODE directly (e.g., with an adaptive
-Runge–Kutta solver), Mag$`\nu`$s wins when one or more of these apply:
+Runge–Kutta solver), Magnus wins when one or more of these apply:
 
 1. **The matter profile varies slowly compared to the oscillation length.**
    A Magnus slab is *exact* for a constant Hamiltonian no matter how many
    oscillation cycles it spans, so the slab size is set by how fast the
    *profile* changes, not by how fast the phase winds.  An ODE solver must
    resolve every oscillation.  For a 1-GeV neutrino crossing the Earth
-   (PREM profile), Mag$`\nu`$s needs ~10 slabs plus the ~16 layer crossings,
+   (PREM profile), Magnus needs ~10 slabs plus the ~16 layer crossings,
    versus thousands of right-hand-side evaluations for `solve_ivp` — measured:
    **~2 ms vs ~360–700 ms per probability at comparable accuracy**.
 
@@ -95,7 +98,7 @@ if it hits its caps first.  This regime is now handled automatically:
 automatically, via `strategy='auto'` (the default): see [Adiabatic + Magnus
 hybrid strategy](#adiabatic--magnus-hybrid-strategy-for-extreme-accumulated-phases)
 below.  A tight-tolerance ODE solver remains the best *reference* for
-validation regardless — Mag$`\nu`$s's own test suite uses
+validation regardless — Magnus's own test suite uses
 `scipy.integrate.solve_ivp` at `rtol=1e-12` as ground truth.
 
 ## Adiabatic + Magnus hybrid strategy for extreme accumulated phases
@@ -105,7 +108,7 @@ matter/NSI/LIV oscillation-probability function accepts a `strategy` keyword:
 `'auto'` (default), `'hybrid'`, or `'magnus'`.
 
 - **`'magnus'`** uses only the Magnus-expansion machinery described above —
-  the exact behavior of Mag$`\nu`$s as it was before the adiabatic strategy
+  the exact behavior of Magnus as it was before the adiabatic strategy
   was added.
 - **`'hybrid'`** additionally tries an adiabatic-transport-plus-Magnus-patch
   propagator (`magnus.adiabatic.hybrid_propagator`): away from an eigenvalue
@@ -178,9 +181,9 @@ in the docs, and
 [notebook 10](notebooks/10_magnus_averaged_probability.ipynb) for worked
 examples across 2–5 flavors and a custom Hamiltonian.
 
-## When is Mag$`\nu`$s not the right tool?
+## When is Magnus not the right tool?
 
-Mag$`\nu`$s solves the **unitary** Schrödinger equation for a Hermitian
+Magnus solves the **unitary** Schrödinger equation for a Hermitian
 Hamiltonian: any truncation of the Magnus series lives in the Lie algebra, so
 the package is architecturally committed to norm-preserving, reversible
 evolution.  That rules out several classes of problems that show up in
@@ -190,7 +193,7 @@ neutrino phenomenology:
    decoherence, or any model where coherence between mass eigenstates is
    damped over the baseline requires evolving a density matrix under a
    non-unitary master equation (e.g., Lindblad/GKSL), not a state vector
-   under a Hamiltonian.  Mag$`\nu`$s has no dissipative term and cannot
+   under a Hamiltonian.  Magnus has no dissipative term and cannot
    represent one.
 
 2. **Open-system coupling to a bath.**  Any scenario where the neutrino
@@ -208,7 +211,7 @@ neutrino phenomenology:
 4. **Self-consistent collective oscillations.**  Dense-environment (e.g.,
    supernova) neutrino self-interactions, where the effective Hamiltonian
    depends on the (unknown, evolving) neutrino/antineutrino flavor content
-   itself, are a nonlinear, self-consistent problem.  Mag$`\nu`$s assumes the
+   itself, are a nonlinear, self-consistent problem.  Magnus assumes the
    Hamiltonian is a *known* function of energy and position supplied by the
    caller, not a functional of the solution.
 
@@ -229,92 +232,140 @@ environments), documentation, and tests (file tree generated by running
 Magnus/
 ├── .github/
 │   └── workflows/
-│       ├── lint.yml                 # Ruff lint (blocking) + CLI-reference drift check
-│       ├── pages.yml                # GitHub Pages deployment for the Sphinx documentation
-│       ├── publish.yml              # PyPI (OIDC) automated publishing workflow, on GitHub Release
-│       └── tests.yml                # GitHub Actions CI testing pipeline (Python 3.10-3.12) + coverage
-├── docs/                            # Sphinx documentation configuration and source
-│   ├── source/
-│   │   ├── conf.py                  # Sphinx build configuration (autoapi + napoleon + bibtex + mermaid + myst)
-│   │   ├── index.rst                # Master documentation page: overview, features, when Magnus wins
-│   │   ├── installation.rst         # Requirements, install instructions, file tree
-│   │   ├── quickstart.rst           # Worked Python-API code examples for every entry point
-│   │   ├── cli.rst                  # Command-line calculator: flag reference and examples
-│   │   ├── functions.rst            # Full osc_prob_{2,3,4,5}nu_* listing, grouped by environment/scenario
-│   │   ├── architecture.rst         # The wrapper/middle/primordial layering, with diagrams
-│   │   ├── methodology.rst          # The Magnus expansion, integrators, and performance engineering
-│   │   ├── adiabatic_strategy.rst   # The adiabatic + Magnus hybrid strategy: derivation, diagrams, validation
-│   │   ├── averaged_probability.rst # Phase-averaged probabilities: derivation, diagram, validation
-│   │   ├── tutorials.rst            # Guide to the numbered example notebooks in notebooks/
-│   │   ├── references.rst           # Bibliography page rendering
-│   │   ├── refs.bib                 # BibTeX citations for the Magnus-expansion and PREM literature
-│   │   └── changelog.rst            # Renders the root CHANGELOG.md via myst-parser
-│   ├── requirements.txt             # Sphinx + theme + extensions needed to build the docs
-│   ├── make_figures.py              # Regenerates the data-driven SVG in source/_static/
-│   ├── regen_cli_help.py            # Regenerates the --help block quoted in source/cli.rst
-│   ├── Makefile                     # Build commands for Unix
-│   └── make.bat                     # Build commands for Windows
-├── fig/                             # Plots produced by the example notebooks
-├── notebooks/                       # Numbered Jupyter notebooks -- see docs/source/tutorials.rst
-│   ├── 01_magnus_introduction.ipynb
-│   ├── 02_magnus_2nu_vacuum_matter.ipynb
-│   ├── 03_magnus_3nu_vacuum_matter.ipynb
-│   ├── 04_magnus_long_baseline.ipynb
-│   ├── 05_magnus_biprobability.ipynb
-│   ├── 06_magnus_oscillograms.ipynb
-│   ├── 07_magnus_bsm_sterile_nu.ipynb
-│   ├── 08_magnus_bsm_nsi.ipynb
-│   ├── 09_magnus_bsm_liv.ipynb
-│   ├── 10_magnus_averaged_probability.ipynb
-│   ├── 11_magnus_matrix_exponential.ipynb
-│   ├── 12_magnus_adiabatic_hybrid_strategy.ipynb
-│   ├── matplotlibrc                 # Shared plot styling for the notebooks
-│   └── README.md                    # Per-notebook description and suggested reading order
+│       ├── lint.yml                # Ruff lint (blocking) + CLI-reference drift check
+│       ├── notebooks.yml           # Executes every notebook; paths-filtered, so docs-only changes skip it
+│       ├── pages.yml               # GitHub Pages deployment for the Sphinx documentation
+│       ├── publish.yml             # PyPI (OIDC) automated publishing workflow, on GitHub Release
+│       └── tests.yml               # GitHub Actions CI testing pipeline (Python 3.10-3.12) + coverage
+├── .gitignore                      # Build, cache and generated-output artefacts
+├── CHANGELOG.md                    # Version history (Keep a Changelog format)
+├── LICENSE                         # GNU GPL v3 (GPL-3.0-only), the full license text
+├── README.md                       # This file
+├── docs/                           # Sphinx documentation configuration and source
+│   ├── Makefile                    # Build commands for Unix
+│   ├── check_doc_snippets.py       # Checks the code snippets quoted in the prose pages still run
+│   ├── dev/
+│   ├── make.bat                    # Build commands for Windows
+│   ├── make_figures.py             # Regenerates the data-driven SVG in source/_static/
+│   ├── regen_cli_help.py           # Regenerates the --help block quoted in source/cli.rst
+│   ├── requirements.txt            # Sphinx + theme + extensions needed to build the docs
+│   └── source/
+│       ├── _static/
+│       │   ├── adiabatic_avoided_crossing.svg  # Hand-authored: adiabatic against diabatic at a crossing
+│       │   ├── adiabatic_segmentation.svg  # Hand-authored: adiabatic / patch / adiabatic along the ray
+│       │   ├── adiabatic_speedup.svg  # Generated by docs/make_figures.py from the measured grid
+│       │   ├── averaging_regimes.svg  # Hand-authored: when averaging removes an error and when it does not
+│       │   └── magnus_logo.png     # Sidebar logo
+│       ├── adiabatic_strategy.rst  # The adiabatic + Magnus hybrid strategy: derivation, diagrams, validation
+│       ├── api_reference.rst       # Wraps the autoapi-generated module pages
+│       ├── architecture.rst        # The wrapper/middle/primordial layering, with diagrams
+│       ├── averaged_probability.rst  # Phase-averaged probabilities: derivation, diagram, validation
+│       ├── changelog.rst           # Renders the root CHANGELOG.md via myst-parser
+│       ├── citing.rst              # How to cite the software, and what to state in the text
+│       ├── cli.rst                 # Command-line calculator: flag reference and examples
+│       ├── conf.py                 # Sphinx build configuration (autoapi + napoleon + bibtex + mermaid + myst)
+│       ├── expansion_terms.rst     # The Omega_k terms to any order, and how they are generated
+│       ├── functions.rst           # Full osc_prob_{2,3,4,5}nu_* listing, grouped by environment/scenario
+│       ├── implementation_details.rst  # Engines, dispatch, every tuned constant and its population
+│       ├── index.rst               # Master documentation page: overview, features, when Magnus wins
+│       ├── installation.rst        # Requirements, install instructions, file tree
+│       ├── methodology.rst         # The Magnus expansion, integrators, and performance engineering
+│       ├── plotting.rst            # The pre-packaged plotting tools
+│       ├── quickstart.rst          # Worked Python-API code examples for every entry point
+│       ├── recipes.rst             # What Magnus can compute, with the code -- executed at build time
+│       ├── references.rst          # Bibliography page rendering
+│       ├── refs.bib                # BibTeX citations for the Magnus-expansion and PREM literature
+│       └── tutorials.rst           # Guide to the numbered example notebooks in notebooks/
+├── fig/                            # Plots produced by the example notebooks
+├── img/                            # Figures used by the documentation
+│   └── gallery/                    # Figures lifted from the executed notebooks, embedded in the docs
+├── notebooks/                      # Numbered Jupyter notebooks -- see docs/source/tutorials.rst
+│   ├── 01_magnus_introduction.ipynb  # The shortest path to a probability
+│   ├── 02_magnus_2nu_vacuum_matter.ipynb  # Two flavours, across seven matter profiles
+│   ├── 03_magnus_3nu_vacuum_matter.ipynb  # The same, with three flavours and a CP phase
+│   ├── 04_magnus_long_baseline.ipynb  # Between two points on the surface
+│   ├── 05_magnus_biprobability.ipynb  # The CP ellipse
+│   ├── 06_magnus_oscillograms.ipynb  # Zenith angle against energy, in one call
+│   ├── 07_magnus_bsm_sterile_nu.ipynb  # Four and five flavours
+│   ├── 08_magnus_bsm_nsi.ipynb     # Non-standard interactions
+│   ├── 09_magnus_bsm_liv.ipynb     # Lorentz-invariance violation
+│   ├── 10_magnus_averaged_probability.ipynb  # What survives when the phase is unresolvable
+│   ├── 11_magnus_matrix_exponential.ipynb  # How exp(Omega) is actually built
+│   ├── 12_magnus_adiabatic_hybrid_strategy.ipynb  # 'auto' against 'magnus', timed against solve_ivp
+│   ├── 13_magnus_tabulated_solar_model.ipynb  # A real BS05 profile: an error that is a phase
+│   ├── 14_magnus_supernova_shock.ipynb  # A shock front: an error that is an envelope
+│   ├── 15_magnus_antineutrinos.ipynb  # Conjugate and flip, and two ways to get it half right
+│   ├── 16_magnus_exact_vs_approximations.ipynb  # Where the textbook formulas are exact, and where the substitution breaks
+│   ├── 17_magnus_ordering_and_octant.ipynb  # The sign of D31, and how large the two open questions are
+│   ├── 18_magnus_unusual_density_profiles.ipynb  # Arrangement beats the mean, except for one exact symmetry
+│   ├── 19_magnus_custom_hamiltonian.ipynb  # The H_func contract, and the vectorisation trick
+│   ├── 20_magnus_numerical_edge_cases.ipynb  # Degeneracies that return numbers, and the nine warnings
+│   ├── 21_magnus_what_tolerance_means.ipynb  # rtol is a stopping criterion, not an error bound
+│   ├── 22_magnus_which_engine_answered.ipynb  # strategy_info, and an error bar with no oracle
+│   ├── 23_magnus_when_averaging_helps.ipynb  # Phase error falls away, envelope error does not
+│   ├── 24_magnus_performance.ipynb  # What is worth doing, and when each trick is worth nothing
+│   ├── 25_magnus_against_other_codes.ipynb  # Where a closed form wins, and a conventions trap that looks like accuracy
+│   ├── 26_magnus_nufit_evolution.ipynb  # How the NuFIT likelihood, not just the best fit, moves the probability
+│   ├── README.md                   # This file
+│   ├── make_notebooks.py           # BUILDS the notebooks above -- edit this, not the .ipynb
+│   ├── external_speed_accuracy.json  # Five external codes' speed and accuracy (NuOscProbExact project)
+│   ├── make_nufit_chi2.py          # Extracts notebook 26's NuFIT chi^2 profiles
+│   ├── make_shock_reference.py     # Freezes notebook 14's solve_ivp oracle
+│   ├── matplotlibrc                # Shared plot styling for the notebooks
+│   ├── nufit_chi2.json             # Those profiles, v2.0-v6.1 (NuFIT collaboration)
+│   └── shock_reference.json        # That oracle, as exact hex floats
+├── pyproject.toml                  # Build system, dependencies, and the `magnus` console-script entry point
 ├── src/
-│   └── magnus/                      # Main Python package
-│       ├── __init__.py              # Explicitly imports/exposes the modules below
-│       ├── magnus.py                # Magnus-expansion numerical core: term recursion, GL integrators, batched kernel
-│       ├── adiabatic.py             # Adiabatic transport + Magnus-patch hybrid strategy (strategy='hybrid'/'auto')
-│       ├── oscprob.py                # osc_prob and every physics-scenario wrapper (main API)
-│       ├── oscprobstd.py            # Closed-form 2nu/3nu probabilities (used to validate the wrapper API)
-│       ├── hamiltonians/            # 2nu-5nu Hamiltonians: vacuum, matter, NSI, LIV (the one true subpackage)
-│       │   ├── __init__.py          # Explicit named imports from the four hamiltonians{2,3,4,5}nu.py modules
-│       │   ├── hamiltonians2nu.py
-│       │   ├── hamiltonians3nu.py
-│       │   ├── hamiltonians4nu.py
-│       │   └── hamiltonians5nu.py
-│       ├── earth.py                 # PREM density profile, chord/zenith-angle geometry
-│       ├── matter.py                # Density profiles, electron number density, CC potential
-│       ├── globaldefs.py            # Units, physical constants, NuFit parameter sets
-│       ├── plotting.py              # Pre-packaged figures for the notebooks (needs the optional `plot` extra)
-│       ├── cli.py                   # `magnus` command-line calculator (also `python -m magnus`)
-│       ├── __main__.py              # Entry point for `python -m magnus`
-│       ├── authors.py               # Package author string (internal; not part of the public API)
-│       └── version.py               # Resolves the version from pyproject.toml (internal)
-├── tests/                           # Test suite (pytest; runs in CI)
-│   ├── conftest.py                  # Path setup so magnus is importable without installation
-│   ├── test_magnus_expansion.py     # Magnus-core correctness (terms, orders, GL rates, unitarity)
-│   ├── test_adiabatic.py            # Adiabatic + Magnus hybrid strategy: detection, merging, ODE cross-checks
-│   ├── test_oscprob.py              # Oscillation-probability engine, closed-form and ODE cross-checks
-│   ├── test_earth_matter.py         # PREM profile, chord geometry, electron density
-│   ├── test_hamiltonians.py         # Hamiltonian/mixing-matrix builders
-│   ├── test_cli.py                  # magnus command-line calculator
-│   ├── test_globaldefs.py           # NuFit historical parameter dict/loader
-│   ├── test_validation.py           # Input-validation guards and their error messages
-│   ├── test_plotting.py             # Pre-packaged figures: house-style defaults, layouts, optional dependency
-│   └── test_version.py              # Version resolution from pyproject.toml / installed metadata
-├── .gitignore
-├── CHANGELOG.md                     # Version history (Keep a Changelog format)
-├── LICENSE                          # GNU GPL v3 (GPL-3.0-only), the full license text
-├── pyproject.toml                   # Build system, dependencies, and the `magnus` console-script entry point
-└── README.md                        # This file
+│   ├── magnus/                     # Main Python package
+│   │   ├── __init__.py             # Explicit named imports from the four hamiltonians{2,3,4,5}nu.py modules
+│   │   ├── __main__.py             # Entry point for `python -m magnus`
+│   │   ├── adiabatic.py            # Adiabatic transport + Magnus-patch hybrid strategy (strategy='hybrid'/'auto')
+│   │   ├── authors.py              # Package author string (internal; not part of the public API)
+│   │   ├── avgprob.py              # Phase-averaged (decohered) probabilities
+│   │   ├── cli.py                  # `magnus` command-line calculator (also `python -m magnus`)
+│   │   ├── earth.py                # PREM density profile, chord/zenith-angle geometry
+│   │   ├── expansionterms.py       # Generates the Omega_k terms symbolically, to any order
+│   │   ├── globaldefs.py           # Units, physical constants, NuFit parameter sets
+│   │   ├── hamiltonians/           # 2nu-5nu Hamiltonians: vacuum, matter, NSI, LIV (the one true subpackage)
+│   │   │   ├── __init__.py         # Explicit named imports from the four hamiltonians{2,3,4,5}nu.py modules
+│   │   │   ├── hamiltonians2nu.py
+│   │   │   ├── hamiltonians3nu.py
+│   │   │   ├── hamiltonians4nu.py
+│   │   │   └── hamiltonians5nu.py
+│   │   ├── magnus.py               # Magnus-expansion numerical core: term recursion, GL integrators, batched kernel
+│   │   ├── matter.py               # Density profiles, electron number density, CC potential
+│   │   ├── oscprob.py              # osc_prob and every physics-scenario wrapper (main API)
+│   │   ├── oscprobstd.py           # Closed-form 2nu/3nu probabilities (used to validate the wrapper API)
+│   │   ├── plotting.py             # Pre-packaged plotting tools: one call instead of thirty lines
+│   │   └── version.py              # Resolves the version from pyproject.toml (internal)
+│   └── requirements.txt            # Sphinx + theme + extensions needed to build the docs
+└── tests/                          # Test suite (pytest; runs in CI)
+    ├── conftest.py                 # Path setup so magnus is importable without installation
+    ├── test_adiabatic.py           # Adiabatic + Magnus hybrid strategy: detection, merging, ODE cross-checks
+    ├── test_avgprob.py             # Phase-averaged probabilities
+    ├── test_cli.py                 # magnus command-line calculator
+    ├── test_earth_matter.py        # PREM profile, chord geometry, electron density
+    ├── test_engines.py             # Which engine answers, and the cross-checks between them
+    ├── test_expansionterms.py      # The symbolic term generator against the hand-written orders
+    ├── test_fuzz_statistics.py     # Randomised profiles, scored in bulk
+    ├── test_file_tree.py           # This file: generates the tree above and checks it against git
+    ├── test_globaldefs.py          # NuFit historical parameter dict/loader
+    ├── test_hamiltonians.py        # Hamiltonian/mixing-matrix builders
+    ├── test_invariants.py          # Properties that must hold across the whole engine matrix
+    ├── test_magnus_expansion.py    # Magnus-core correctness (terms, orders, GL rates, unitarity)
+    ├── test_oscprob.py             # Oscillation-probability engine, closed-form and ODE cross-checks
+    ├── test_palindrome.py          # The palindromic-profile optimisation and its gate
+    ├── test_plotting.py            # Pre-packaged plotting tools: house-style defaults, layouts
+    ├── test_tolerance.py           # What rtol/atol promise, and the effective-refinement gate
+    ├── test_validation.py          # Input-validation guards and their error messages
+    └── test_version.py             # Version resolution from pyproject.toml / installed metadata
 ```
 
 ---
 
-## Two ways to use Mag$`\nu`$s
+## Two ways to use Magnus
 
-Mag$`\nu`$s works both as an **importable Python module** (the full API —
+Magnus works both as an **importable Python module** (the full API —
 arbitrary Hamiltonians, energy/direction scans, NSI, LIV, steriles) and as a
 **command-line calculator** (`magnus prob ...` — one probability, no Python
 required). Use the module for anything programmatic (scans, plots, fitting);
@@ -374,7 +425,7 @@ all of them. A few real examples (verified output, this version):
 ```bash
 $ magnus prob --flavors 3 --environment vacuum \
     --energy 1 --energy-unit GeV --baseline 1300 --baseline-unit km
-Magνs 1.0.0rc1 -- osc_prob_3nu_vacuum
+Magnus 1.0.0rc1 -- osc_prob_3nu_vacuum
 E = 1 GeV, L = 1300 km
 
             nu_e   nu_mu  nu_tau
@@ -386,7 +437,7 @@ nu_tau    0.0393  0.6029  0.3578
 ```bash
 $ magnus prob --flavors 3 --environment earth \
     --energy 1 --energy-unit GeV --costhz -0.8 --baseline 10193.6 --baseline-unit km
-Magνs 1.0.0rc1 -- osc_prob_3nu_earth
+Magnus 1.0.0rc1 -- osc_prob_3nu_earth
 E = 1 GeV, L = 10193.6 km
 
             nu_e   nu_mu  nu_tau
@@ -401,7 +452,7 @@ work the same way:
 ```bash
 $ magnus prob --flavors 3 --environment vacuum --energy 1 --energy-unit GeV \
     --baseline 1300 --baseline-unit km --nu-i e --nu-f mu
-Magνs 1.0.0rc1 -- osc_prob_3nu_vacuum
+Magnus 1.0.0rc1 -- osc_prob_3nu_vacuum
 E = 1 GeV, L = 1300 km
 
 P = 0.0085
@@ -409,7 +460,7 @@ P = 0.0085
 $ magnus prob --flavors 3 --environment matter --scenario nsi --rho 2.7 \
     --eps-ee 0.06 --eps-em -0.06 \
     --energy 1 --energy-unit GeV --baseline 1000 --baseline-unit km
-Magνs 1.0.0rc1 -- osc_prob_3nu_matter_nsi_constant_density
+Magnus 1.0.0rc1 -- osc_prob_3nu_matter_nsi_constant_density
 E = 1 GeV, L = 1000 km
 
             nu_e   nu_mu  nu_tau
@@ -421,7 +472,7 @@ nu_tau    0.0009  0.0001  0.9990
 Pass `--json` for machine-readable output (e.g., to pipe into `jq` or another
 script) instead of the table.
 
-## What Mag$`\nu`$s computes
+## What Magnus computes
 
 - **Flavors:** 2ν, 3ν, 4ν (3+1), 5ν (3+2) via dedicated wrappers; any number
   of flavors via the generic `osc_prob`.
@@ -467,7 +518,7 @@ same table via `--environment`/`--scenario`/`--flavors`.
 
 ## Code architecture
 
-Mag$`\nu`$s's oscillation-probability API (`src/magnus/oscprob.py`) is
+Magnus's oscillation-probability API (`src/magnus/oscprob.py`) is
 organized as three layers, so that adding a new default or fixing a bug in
 one place fixes it everywhere instead of needing to be copy-pasted across
 dozens of functions:
@@ -524,7 +575,7 @@ wrapper.
 
 ## Mathematical method
 
-This section derives, in full, how Mag$`\nu`$s computes the neutrino
+This section derives, in full, how Magnus computes the neutrino
 time-evolution operator and the oscillation probability from it.
 
 ### 1. The physical problem
@@ -603,7 +654,7 @@ with $S_n^{(j)}$ a sum of $j$-fold nested commutators of lower-order terms
 with $A$, generated recursively by $S_n^{(1)} = [\Omega_{n-1},A]$ and
 $S_n^{(j)} = \sum_{i=1}^{n-j}\big[\Omega_i,\,S_{n-i}^{(j-1)}\big]$ for
 $2\leq j\leq n-1$. Because the odd Bernoulli numbers $B_3=B_5=\cdots=0$
-vanish, whole commutator groups drop out; Mag$`\nu`$s implements this
+vanish, whole commutator groups drop out; Magnus implements this
 recursion through $n=6$, using only $B_1$ (coefficient $-\tfrac12$), $B_2$
 (coefficient $\tfrac{1}{12}$), and $B_4$ (coefficient $-\tfrac{1}{720}$).
 Written out explicitly, with $[\cdot,\cdot]$ the matrix commutator:
@@ -680,7 +731,7 @@ The Magnus series converges absolutely whenever
 ```
 
 a sufficient (not necessary) condition, with $\lVert\cdot\rVert_2$ the
-spectral (operator) norm. Because of this, Mag$`\nu`$s never applies the
+spectral (operator) norm. Because of this, Magnus never applies the
 series over an entire long trajectory at once. Instead, it partitions
 $[l_0,l_f]$ into a chain of **slabs**,
 
@@ -690,7 +741,7 @@ l_0 < l_1 < l_2 < \cdots < l_N = l_f ,
 
 and applies the truncated series independently inside each slab, choosing
 enough slabs that the accumulated phase per slab stays comfortably under the
-bound above (Mag$`\nu`$s estimates this automatically to seed the slab count,
+bound above (Magnus estimates this automatically to seed the slab count,
 and emits `MagnusConvergenceWarning` if a slab is not comfortably inside the
 guaranteed regime — raising the expansion order does not help there; more,
 narrower slabs are needed instead).
@@ -715,7 +766,7 @@ same physical requirement.
 ### 7. Evaluating $\Omega$ inside a slab: two integration methods
 
 Computing the nested integrals of Section 3 requires sampling $A(l)$ inside
-each slab. Mag$`\nu`$s offers two families:
+each slab. Magnus offers two families:
 
 **(a) Gauss–Legendre commutator-free integrators** (`'gl'`, the default). Following
 Blanes, Casas & Ros (2000), orders 2, 4, and 6 can each be reached from only
@@ -763,7 +814,7 @@ high expansion orders unless the number of grid points grows accordingly.
 ### 8. From $\Omega$ to $U$: an exactly unitary matrix exponential
 
 Since the truncated $\Omega$ used in each slab is anti-Hermitian (Section
-4), Mag$`\nu`$s computes its exponential from the eigendecomposition of the
+4), Magnus computes its exponential from the eigendecomposition of the
 Hermitian matrix $K \equiv i\,\Omega$:
 
 ```math
@@ -805,7 +856,7 @@ then transpose), with array indices $[i][j]$ corresponding to $(\alpha,
 so every row of $P$ sums to exactly 1 — probability conservation — for any
 truncation order and any slab count.
 
-For antineutrinos, Mag$`\nu`$s builds the antineutrino Hamiltonian
+For antineutrinos, Magnus builds the antineutrino Hamiltonian
 $H_{\bar\nu}(l)$ from $H(l)$ by (i) flipping the sign of the coherent
 forward-scattering matter potential, $V_{CC}\to -V_{CC}$ (electrons couple
 to $\nu_e$ and $\bar\nu_e$ with opposite-sign weak charge), and (ii)
@@ -905,7 +956,7 @@ Two things worth knowing:
   slow path is easy to sit on indefinitely — the shipped example notebooks all
   did.
 
-### An Earth chord is a palindrome, and Mag$`\nu`$s uses it
+### An Earth chord is a palindrome, and Magnus uses it
 
 A chord through a spherically symmetric Earth meets every radius on the way in
 and again on the way out, so its density profile reads the same from either
@@ -946,6 +997,50 @@ Three things worth knowing:
   require the very evaluations the optimisation skips, so there is deliberately
   no way to claim it for one — a monotonic profile wrongly declared symmetric
   would be wrong by ~0.3, silently.
+
+## Pre-packaged plotting tools
+
+Magnus ships the figures its own notebooks use, so a plot is one call rather
+than thirty lines of Matplotlib. Matplotlib is a dependency, so there is
+nothing extra to install.
+
+```python
+import numpy as np
+import magnus.globaldefs as gd
+import magnus.oscprob as oscprob
+from magnus import plotting
+
+energies = np.linspace(0.5, 10.0, 120)*gd.UNIT_GEV
+P = np.asarray(oscprob.osc_prob_3nu_vacuum(
+    energies, np.full(120, 1300.0*gd.UNIT_KM)))
+
+fig, ax = plotting.plot_probability_vs_energy(
+    energies/gd.UNIT_GEV,
+    [{'y': P[:, 1, 0], 'label': plotting.prob_label(1, 0)}],
+    nu_i=1, nu_f=0)
+```
+
+`prob_label(1, 0)` returns `$P_{\nu_\mu \to \nu_e}$`, so channel labels are
+consistent without being retyped.
+
+| Function | Shape it draws |
+|---|---|
+| `plot_curves` | curves against any swept variable, with an optional relative-error subpanel |
+| `plot_probability_vs_energy`, `..._vs_baseline` | presets over it, with labels, scales and tick spacings fixed |
+| `plot_curves_stacked` | small multiples -- one panel per configuration down a shared abscissa |
+| `plot_probability_with_profile` | a probability above the matter profile that produced it |
+| `plot_probability_with_average` | instantaneous against phase-averaged |
+| `plot_biprobability` | the CP ellipse, neutrino against antineutrino |
+| `plot_oscillogram` | the two-dimensional map across zenith angle and energy |
+
+The point is consistency rather than brevity: the panels of a stacked figure
+must share limits, scales and tick spacings or the reader's comparison between
+them is meaningless, and that is what drifts when each figure is built by hand.
+House defaults live in `HOUSE_FIGSIZE`, `HOUSE_LEGEND_KW` and friends; every
+function returns the `fig`/`ax`, so anything can still be overridden.
+
+Full documentation: [Pre-Packaged Plotting
+Tools](https://mbustama.github.io/Magnus/plotting.html).
 
 ## Accuracy and validation
 
@@ -1034,10 +1129,29 @@ Four GitHub Actions workflows run under [`.github/workflows/`](.github/workflows
     that the house-style defaults survived the move out of the notebooks
     (legend keywords, figure size, tick spacings), that the multi-panel
     layouts stay aligned and suppress the right tick labels, that a
-    misspelled keyword raises instead of being swallowed, and that the
-    optional Matplotlib dependency fails with an error naming the extra to
-    install. Assertions are on the returned `fig`/`ax` objects rather than
-    on pixels.
+    misspelled keyword raises instead of being swallowed. Assertions are on
+    the returned `fig`/`ax` objects rather than on pixels.
+  - [`test_invariants.py`](tests/test_invariants.py) — the properties that
+    must hold across the whole engine matrix, swept over families, flavour
+    counts, energies and slab counts rather than spot-checked.
+  - [`test_engines.py`](tests/test_engines.py) — which engine answers a given
+    request, and the cross-checks between engines: agreement is informative
+    only between engines that do not share machinery.
+  - [`test_avgprob.py`](tests/test_avgprob.py) — phase-averaged probabilities
+    against their closed forms, and the regimes where averaging does and does
+    not remove an error.
+  - [`test_palindrome.py`](tests/test_palindrome.py) — the palindromic-profile
+    optimisation: the exact-equality predicate, the gate that stops it being
+    applied where it was not meant, and the unpaired middle slab of an odd
+    chain.
+  - [`test_tolerance.py`](tests/test_tolerance.py) — what `rtol`/`atol`
+    actually promise, and the effective-refinement gate that stops the ladder
+    certifying an agreement between two nearly identical grids.
+  - [`test_fuzz_statistics.py`](tests/test_fuzz_statistics.py) — randomised
+    profiles scored in bulk, to catch what a curated population does not.
+  - [`test_file_tree.py`](tests/test_file_tree.py) — generates the file tree
+    above and in `installation.rst`, and fails if either has drifted from
+    `git ls-files`.
   - [`test_version.py`](tests/test_version.py) — version resolution by both
     routes, the installed distribution's metadata and a direct read of
     `pyproject.toml`, which must agree; the distribution is `magnuspy` while
@@ -1095,19 +1209,9 @@ Four GitHub Actions workflows run under [`.github/workflows/`](.github/workflows
 `numpy`, `scipy (>= 1.9)`, `joblib` — see
 [src/requirements.txt](src/requirements.txt).
 
-`matplotlib` is **not** among them. It is needed only by
-[`magnus.plotting`](src/magnus/plotting.py), the module of pre-packaged figures
-the notebooks use, and is declared as the optional `plot` extra so that anyone
-computing probabilities inside their own analysis code does not have to install
-a plotting stack:
-
-```bash
-pip install 'magnuspy[plot]'
-```
-
-`import magnus` works with or without it; `magnus.plotting` imports Matplotlib
-lazily, inside the calls that draw, so only a plotting call raises, and it
-raises an error naming the command above.
+`matplotlib` is among them too, so
+[`magnus.plotting`](src/magnus/plotting.py) -- the pre-packaged plotting tools --
+works in any installation with nothing further to install.
 
 Run the tests with:
 
@@ -1158,10 +1262,10 @@ version-by-version history of what changed and why.
 
 ## How to Cite
 
-If you use Mag$`\nu`$s in your academic work or scientific publications,
+If you use Magnus in your academic work or scientific publications,
 please cite it and link to the source repository:
 
-Mauricio Bustamante (2026). *Mag$`\nu`$s: neutrino oscillation probabilities
+Mauricio Bustamante (2026). *Magnus: neutrino oscillation probabilities
 via the Magnus expansion*. GitHub Repository:
 https://github.com/mbustama/Magnus.
 
@@ -1178,7 +1282,7 @@ https://github.com/mbustama/Magnus.
 
 ## License
 
-Mag$`\nu`$s is released under the **GNU General Public License v3.0 only**
+Magnus is released under the **GNU General Public License v3.0 only**
 (`GPL-3.0-only`). The full text is in [LICENSE](LICENSE).
 
 In short: you are free to use, study, modify, and redistribute it, including

@@ -1,11 +1,10 @@
-Pre-Packaged Figures
-======================
+Pre-Packaged Plotting Tools
+=============================
 
 This page documents :mod:`magnus.plotting`, a small set of functions that
 produce the figures the example notebooks use, so that a plot costs one call
-rather than thirty lines of Matplotlib.  It is the only part of Magνs that
-needs Matplotlib, and the only one behind an optional dependency; see
-:doc:`tutorials` for the notebooks it was extracted from.
+rather than thirty lines of Matplotlib.  See :doc:`tutorials` for the
+notebooks it was extracted from.
 
 Why it exists
 ---------------
@@ -80,22 +79,12 @@ oscillogram.
 Installation
 --------------
 
-Matplotlib is **not** a core dependency: the engine needs only NumPy, SciPy
-and joblib, and a user computing probabilities for their own analysis code
-should not have to install a plotting stack.  It is declared as the ``plot``
-extra instead::
+Nothing to do: Matplotlib is a dependency of Magνs, so ``pip install magnuspy``
+brings it and :mod:`magnus.plotting` is available straight away.
 
-    pip install 'magnuspy[plot]'
+.. code-block:: python
 
-or, from a source checkout::
-
-    pip install -e '.[plot]'
-
-``import magnus`` works either way.  :mod:`magnus.plotting` imports cleanly
-without Matplotlib too -- it defers the import to the calls that actually
-draw -- so only a plotting call raises, and it raises
-:class:`~magnus.plotting.MatplotlibNotFoundError` (a subclass of
-:class:`ImportError`) naming the command above.
+    from magnus import plotting
 
 A first figure
 ----------------

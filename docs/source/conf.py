@@ -31,6 +31,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'src'))
 # the rest of the package is not (see the note above).
 from magnus.version import __version__ as release  # noqa: E402,F401
 
+# sphinx_rtd_theme renders `version`, not `release`, under the logo; setting
+# only the latter is why the sidebar showed no version at all.
+version = release
+
 extensions = [
     'sphinx.ext.napoleon',      # NumPy/Google-style docstrings
     'sphinx.ext.viewcode',      # Link API entries to highlighted source
@@ -54,10 +58,18 @@ extensions = [
 # exists and points to an environment where `magnus` is importable).
 jupyter_execute_default_kernel = 'python3'
 
+# Without this Sphinx waits with `connect timeout=None`, so an unreachable
+# inventory host stalls the build rather than failing it; ten seconds bounds
+# that.  A fetch that fails is still a warning and so still fatal under -W,
+# which is intended: a mapping listed here is one whose links are meant to
+# resolve.
+intersphinx_timeout = 10
+
 intersphinx_mapping = {
     'python': ('https://docs.python.org/3', None),
     'numpy': ('https://numpy.org/doc/stable/', None),
     'scipy': ('https://docs.scipy.org/doc/scipy/', None),
+    'matplotlib': ('https://matplotlib.org/stable/', None),
 }
 
 # -- API reference (sphinx-autoapi) -------------------------------------------
@@ -74,6 +86,10 @@ autoapi_options = [
     'show-module-summary',
 ]
 # Skip the packaging-only version/authors modules and the 'old' prototypes
+# Source order, not alphabetical: the modules are written so that reading them
+# top to bottom follows the method, and sorting the members destroys that.
+autoapi_member_order = 'bysource'
+
 autoapi_ignore = ['*/old/*', '*/authors.py', '*/version.py']
 
 # Excluding version.py/authors.py above is deliberate (they are internal
@@ -81,7 +97,32 @@ autoapi_ignore = ['*/old/*', '*/authors.py', '*/version.py']
 # import from them (e.g. magnus/__init__.py, oscprob.py, cli.py), and
 # autoapi warns that it cannot resolve those imports since it never scans
 # the excluded modules. That warning is expected here, not a real problem.
-suppress_warnings = ['autoapi.python_import_resolution']
+# 'myst.header': changelog.rst includes CHANGELOG.md from its second line,
+# dropping the file's own "# Changelog" heading so the sidebar does not carry a
+# second, identical entry nested under the page title.  myst then reports that
+# the included document starts at H2, which is the intent rather than a mistake.
+# 'toc.not_included': sphinx-autoapi generates a package index page titled after
+# the package, which put a redundant "magnus" level between API Reference and the
+# modules.  api_reference.rst lists the module pages directly instead, leaving
+# that one page in no toctree on purpose.
+# Nitpicky mode (-n) is what catches a cross-reference that silently renders as
+# plain text -- Sphinx does not report those otherwise, and several had
+# accumulated: five tuned constants, two warning classes and two type aliases
+# that were documented in prose but missing from their module's __all__, so
+# sphinx-autoapi never generated a target for them.
+#
+# What it cannot distinguish is a broken reference from a numpydoc *type
+# string*: "optional", "np.ndarray" and friends sit in the type position of a
+# parameter and are read as class references, which is 2400 warnings of pure
+# noise.  Ignoring them by pattern is what makes -n usable as a gate.
+nitpick_ignore_regex = [
+    (r'py:.*', r'(optional|sequence|file-like|Ellipsis|array_like|scalar)'),
+    (r'py:.*', r'np\..*'),          # np.ndarray and friends
+    (r'py:.*', r'(TextIOWrapper|StringIO)'),
+]
+
+suppress_warnings = ['autoapi.python_import_resolution', 'myst.header',
+                     'toc.not_included']
 
 napoleon_google_docstring = False
 napoleon_numpy_docstring = True
@@ -102,8 +143,14 @@ html_theme = 'sphinx_rtd_theme'
 html_static_path = ['_static']
 html_logo = '_static/magnus_logo.png'
 
+# `release` is read from pyproject.toml at the top of this file, and putting it
+# in the title is the only place a reader sees which version these pages
+# describe -- which matters while the version is a release candidate.
+html_title = 'Magnus %s' % release
+
 html_theme_options = {
-    'logo_only': True,
+    # False, not True: `logo_only` hides `html_title`, and with it the version.
+    'logo_only': False,
     'navigation_depth': 4,
     'vcs_pageview_mode': 'edit',
 }

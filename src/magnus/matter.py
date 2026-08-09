@@ -149,7 +149,21 @@ def exp_density_profile(density_matter_central: float, l_scale: float) -> Callab
     Callable
         Function of position, l, tagged with ``is_exp_density_profile = True`` and
         ``l_scale = l_scale``.
-    """
+    
+    Examples
+    --------
+    .. jupyter-execute::
+
+        import magnus.globaldefs as gd
+        from magnus import matter
+
+        profile = matter.exp_density_profile(gd.NUM_DENSITY_E_SUN_CENTRAL,
+                                             gd.L_SCALE_SUN)
+
+        for frac in (0.0, 0.1, 0.5):
+            print('l = %.1f R_sun -> n_e = %.3e eV^3'
+                  % (frac, profile(frac*gd.SUN_RADIUS*gd.UNIT_KM)))
+"""
     def rho_func(l: Union[int, float, np.ndarray]) -> Union[float, np.ndarray]:
         return density_matter_func_exp(l, density_matter_central, l_scale)
     rho_func.is_exp_density_profile = True
@@ -178,6 +192,67 @@ bad input, so it is worth catching where it happens.
 
 .. versionadded:: 1.0.0
 """
+
+
+IMPLAUSIBLE_DENSITY_NATURAL_UNITS = 1.0e10
+r"""float: Module-level constant
+
+Matter density in natural units below which a value declared *not* to be in
+g cm^-3 is almost certainly a g cm^-3 number whose
+``density_matter_is_in_g_per_cm3`` flag was left at its default of False.
+
+This is the mirror of :data:`IMPLAUSIBLE_DENSITY_G_PER_CM3`, and it guards the
+commoner mistake.  The flag defaults to False, so a density read straight off a
+table -- 2.848 for the Earth's crust, 13 for its core, 150 for the Sun's centre
+-- is taken as already converted unless the caller says otherwise.  Anything
+physical is :math:`4.3 \times 10^{18}` or more in natural units, so a table
+value lands nine orders of magnitude below this threshold, which itself sits at
+:math:`2 \times 10^{-9}\ \text{g cm}^{-3}` -- six orders more tenuous than air,
+and far below any medium in which anyone computes oscillations.
+
+Under-conversion is quieter than double conversion.  It does not inflate
+anything; it makes the matter potential vanish, and the call returns *exactly*
+the vacuum probability.  That is a perfectly ordinary-looking number, in the
+right range, of the right shape, and nothing about it suggests matter was left
+out -- which is why it is worth catching where it happens.
+
+Deliberate vacuum is not caught: a density of exactly zero is left alone.
+
+.. versionadded:: 1.0.0
+"""
+
+
+def _warn_if_density_is_probably_in_g_per_cm3(
+    density: Union[int, float, np.ndarray],
+    source_func_name: str
+) -> None:
+    r"""Warns when a density declared *not* to be in g cm^-3 is too small to be
+    anything else.
+
+    Called only when ``density_matter_is_in_g_per_cm3`` is False, so a nonzero
+    value below :data:`IMPLAUSIBLE_DENSITY_NATURAL_UNITS` means the caller has
+    very likely passed a g cm^-3 number and left the flag at its default.
+
+    A warning rather than an error, for the same reason as its mirror: the
+    threshold sits far below anything physical, but that is a statement about
+    the media people currently model, not a law.
+
+    .. versionadded:: 1.0.0
+    """
+    largest = float(np.max(np.abs(np.asarray(density, dtype=float))))
+    if largest == 0.0 or largest >= IMPLAUSIBLE_DENSITY_NATURAL_UNITS:
+        return
+
+    warnings.warn(gd.WARNING_MSG_NO_COLOR + " matter." + source_func_name + ": a matter density "
+        "of " + format(largest, '.3e') + " was declared to be in natural units "
+        "(density_matter_is_in_g_per_cm3 is False, its default), but it is far too small to be "
+        "one -- anything physical is 4.3e18 or more, since that is what one g cm^-3 becomes.  "
+        "It was most likely read off a table in g cm^-3 and the flag left unset, in which case "
+        "the matter potential is about to come out ~19 orders of magnitude too small, i.e. zero: "
+        "the call will return exactly the vacuum probability, which looks like an ordinary "
+        "answer rather than a missing one.  Either pass density_matter_is_in_g_per_cm3=True, or "
+        "convert the density yourself (multiply by gd.UNIT_G_PER_CM3).  Shown once per "
+        "session.", DensityUnitWarning, stacklevel=3)
 
 
 def _warn_if_density_was_probably_already_converted(
@@ -262,6 +337,8 @@ def num_density_e_func(l: float, density_matter_func: Callable,
 
     if density_matter_is_in_g_per_cm3:
         _warn_if_density_was_probably_already_converted(density, 'num_density_e_func')
+    else:
+        _warn_if_density_is_probably_in_g_per_cm3(density, 'num_density_e_func')
 
     return density / avg_mass_nucleon * electron_fraction * \
         (gd.UNIT_G_PER_CM3 if density_matter_is_in_g_per_cm3 else 1.0) # num_density_e [eV^3]
@@ -289,7 +366,19 @@ def VCC_func(l: float, num_density_e_func: Callable) -> float:
     -------
     float
         Coherent forward electron potntial, V_CC [eV]
-    """
+    
+    Examples
+    --------
+    .. jupyter-execute::
+
+        import magnus.globaldefs as gd
+        from magnus import matter
+
+        profile = matter.exp_density_profile(gd.NUM_DENSITY_E_SUN_CENTRAL,
+                                             gd.L_SCALE_SUN)
+        print('V_CC at the centre of the Sun: %.3e eV'
+              % matter.VCC_func(0.0, profile))
+"""
 
     return gd.SQRT_OF_2 * gd.GF * num_density_e_func(l) # VCC [eV]
 
@@ -409,6 +498,7 @@ def vcc_func_from_rho_func(
 __all__ = [
     'DensityUnitWarning',
     'IMPLAUSIBLE_DENSITY_G_PER_CM3',
+    'IMPLAUSIBLE_DENSITY_NATURAL_UNITS',
     'density_matter_func_const',
     'density_matter_func_exp',
     'exp_density_profile',
