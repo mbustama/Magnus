@@ -430,3 +430,59 @@ def test_hybrid_does_not_stand_aside_for_a_disabled_engine():
         warnings.simplefilter('ignore')
         call(solar_ne(), 10.0e6, Ls_at, cumulative=True, strategy_info=info_true)
     assert info_true['engine'] == 'cumulative'
+
+
+# ----------------------------------------------------------------------
+# cross_check_strategies: a spread of zero that means nothing was compared
+# ----------------------------------------------------------------------
+
+def test_cross_check_warns_when_no_engine_ran():
+    """``osc_prob`` has no ``strategy`` parameter, so every engine declines -- and it is the
+    entry point a reader is most likely to reach for, since four of the notebooks call it
+    directly.  The result then carries max_spread = 0.0, which is exactly what perfect
+    agreement looks like.  The numbers cannot distinguish the two cases, so the warning has
+    to."""
+    import magnus.hamiltonians as hamiltonians
+
+    h_vac = np.asarray(hamiltonians.hamiltonian_3nu_vacuum_energy_independent(**PARAMS_3NU))
+    vcc = matter.vcc_func_from_rho_func(solar_ne(), density_is_of_number_of_electrons=True)
+
+    def H_func(l):
+        return h_vac/10.0e6 + np.diag([vcc(l), 0.0, 0.0])
+
+    with pytest.warns(op.CrossCheckInconclusiveWarning, match="no engine ran"):
+        out = op.cross_check_strategies(op.osc_prob, H_func, 0.0, L1)
+
+    assert out['ran'] == ()
+    assert out['max_spread'] == 0.0
+    assert out['declined']
+
+
+def test_cross_check_warns_when_only_one_family_ran():
+    """Two engines of the same family agreeing is the self-certification the cross-check
+    exists to avoid relying on.  ``max_spread_independent`` is 0.0 there because no
+    cross-family pair exists, not because independent methods agreed."""
+    with pytest.warns(op.CrossCheckInconclusiveWarning, match="family"):
+        out = op.cross_check_strategies(
+            op.osc_prob_matter_std_potential, 2, solar_ne(), 10.0e6, L1, PARAMS_2NU,
+            L0=0.0, density_is_of_number_of_electrons=True,
+            engines=('magnus', 'cumulative'))
+
+    assert set(out['ran']) == {'magnus', 'cumulative'}
+    assert out['max_spread_independent'] == 0.0
+    assert out['max_spread_independent_pair'] is None
+    assert len({op.ENGINE_FAMILIES[lab] for lab in out['ran']}) == 1
+
+
+def test_cross_check_is_quiet_when_it_actually_compared_something():
+    """The ordinary case must not warn, or the warning is noise: several engines, more than
+    one family, and a spread that means what it says."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", op.CrossCheckInconclusiveWarning)
+        out = op.cross_check_strategies(
+            op.osc_prob_matter_std_potential, 2, solar_ne(), 10.0e6, L1, PARAMS_2NU,
+            L0=0.0, density_is_of_number_of_electrons=True)
+
+    assert len(out['ran']) >= 2
+    assert len({op.ENGINE_FAMILIES[lab] for lab in out['ran']}) >= 2
+    assert out['max_spread_independent_pair'] is not None

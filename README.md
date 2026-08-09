@@ -294,10 +294,24 @@ Magnus/
 │   ├── 12_magnus_adiabatic_hybrid_strategy.ipynb  # 'auto' against 'magnus', timed against solve_ivp
 │   ├── 13_magnus_tabulated_solar_model.ipynb  # A real BS05 profile: an error that is a phase
 │   ├── 14_magnus_supernova_shock.ipynb  # A shock front: an error that is an envelope
+│   ├── 15_magnus_antineutrinos.ipynb  # Conjugate and flip, and two ways to get it half right
+│   ├── 16_magnus_exact_vs_approximations.ipynb  # Where the textbook formulas are exact, and where the substitution breaks
+│   ├── 17_magnus_ordering_and_octant.ipynb  # The sign of D31, and how large the two open questions are
+│   ├── 18_magnus_unusual_density_profiles.ipynb  # Arrangement beats the mean, except for one exact symmetry
+│   ├── 19_magnus_custom_hamiltonian.ipynb  # The H_func contract, and the vectorisation trick
+│   ├── 20_magnus_numerical_edge_cases.ipynb  # Degeneracies that return numbers, and the nine warnings
+│   ├── 21_magnus_what_tolerance_means.ipynb  # rtol is a stopping criterion, not an error bound
+│   ├── 22_magnus_which_engine_answered.ipynb  # strategy_info, and an error bar with no oracle
+│   ├── 23_magnus_when_averaging_helps.ipynb  # Phase error falls away, envelope error does not
+│   ├── 24_magnus_performance.ipynb  # What is worth doing, and when each trick is worth nothing
+│   ├── 25_magnus_against_other_codes.ipynb  # Where a closed form wins, and a conventions trap that looks like accuracy
+│   ├── 26_magnus_nufit_evolution.ipynb  # How the NuFIT likelihood, not just the best fit, moves the probability
 │   ├── README.md                   # This file
 │   ├── make_notebooks.py           # BUILDS the notebooks above -- edit this, not the .ipynb
+│   ├── make_nufit_chi2.py          # Extracts notebook 26's NuFIT chi^2 profiles
 │   ├── make_shock_reference.py     # Freezes notebook 14's solve_ivp oracle
 │   ├── matplotlibrc                # Shared plot styling for the notebooks
+│   ├── nufit_chi2.json             # Those profiles, v2.0-v6.1 (NuFIT collaboration)
 │   └── shock_reference.json        # That oracle, as exact hex floats
 ├── pyproject.toml                  # Build system, dependencies, and the `magnus` console-script entry point
 ├── src/

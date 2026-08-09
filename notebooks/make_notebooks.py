@@ -65,6 +65,11 @@ import magnus.oscprob as oscprob
 import magnus.hamiltonians as hamiltonians
 import magnus.matter as matter
 import magnus.globaldefs as gd
+
+# Best-fit oscillation parameters from the latest global fit.
+# load_nufit_params returns exactly the six parameters the
+# osc_prob_3nu_* functions take, so it can be splatted straight in.
+NUFIT_NO = gd.load_nufit_params('NuFIT 6.1', 'NO')
 import magnus.plotting as plotting'''),
     md(r'''To compute neutrino oscillation proabilities, Mag$\nu$s needs only three ingredients: 
 * a Hamiltonian (`H_func`), written in the flavor basis, as a function of neutrino position (or time),
@@ -103,8 +108,8 @@ All of them live in a single module, `magnus.hamiltonians`, which we import as''
     md(r'''We need values for the oscillation parameters $\theta$ and $\Delta m^2$.  Users can provide any values they wish.  For this example, we will shows oscillations between $\nu_e$ and $\nu_mu$, and use central values of the $\theta_{12}$ and $\Delta m_{21}^2$ parameters from the NuFit 6.0 global fit to oscillation data, which are predefined in the Mag$\nu$s globaldefs module, i.e.,'''),
     code(r'''import magnus.globaldefs as gd
 
-sth = gd.S12_NO_BF_NUFIT_6_0 # sin(theta) [adim]
-Dm2 = gd.D21_NO_BF_NUFIT_6_0 # [eV^2]'''),
+sth = NUFIT_NO['s12'] # sin(theta) [adim]
+Dm2 = NUFIT_NO['D21'] # [eV^2]'''),
     md(r'''Let's compute the probability for a baseline of 10 km and an energy of 1 MeV.'''),
     code(r'''baseline = 10.*gd.UNIT_KM # 10 km natural units [eV^{-1}]
 energy = 1.*gd.UNIT_MEV # [eV]'''),
@@ -181,12 +186,12 @@ Let's now move on to three-neutrino oscillations.  No new import is needed: the 
 where $\mathbf{U}_{\rm PMNS}$ is the complex-valued Pontecorvo-Maki-Nakagawa-Sakata (PMNS) matrix, parametrized using three mixing angles, $\theta_{12}$, $\theta_{23}$, and $\theta_{13}$, and one CP-violation phase, $\delta_{\rm CP}$.
 
 Like before, for this example we set the values of the oscillation parameters to their central values from NuFit 6.0, *i.e.*,'''),
-    code(r'''s12 = gd.S12_NO_BF_NUFIT_6_0 # sin(theta_12) [adim]
-s23 = gd.S23_NO_BF_NUFIT_6_0 # sin(theta_23) [adim]
-s13 = gd.S13_NO_BF_NUFIT_6_0 # sin(theta_13) [adim]
-dCP = gd.DCP_NO_BF_NUFIT_6_0 # [radian]
-D21 = gd.D21_NO_BF_NUFIT_6_0 # [eV^2]
-D31 = gd.D31_NO_BF_NUFIT_6_0 # [eV^2]'''),
+    code(r'''s12 = NUFIT_NO['s12'] # sin(theta_12) [adim]
+s23 = NUFIT_NO['s23'] # sin(theta_23) [adim]
+s13 = NUFIT_NO['s13'] # sin(theta_13) [adim]
+dCP = NUFIT_NO['dCP'] # [radian]
+D21 = NUFIT_NO['D21'] # [eV^2]
+D31 = NUFIT_NO['D31'] # [eV^2]'''),
     md(r'''We compute the probabilities by calling `osc_prob` again. This time, we set `verbose = 1` to only show warnings and important messages:'''),
     code(r'''P = oscprob.osc_prob(hamiltonians.hamiltonian_3nu_vacuum(energy, s12, s23, s13, dCP, D21, D31), 0.0, baseline, verbose=1)
 P'''),
@@ -854,6 +859,11 @@ import magnus.hamiltonians as hamiltonians
 import magnus.matter as matter
 import magnus.earth as earth
 import magnus.globaldefs as gd
+
+# Best-fit oscillation parameters from the latest global fit.
+# load_nufit_params returns exactly the six parameters the
+# osc_prob_3nu_* functions take, so it can be splatted straight in.
+NUFIT_NO = gd.load_nufit_params('NuFIT 6.1', 'NO')
 import magnus.plotting as plotting'''),
     md(r'''# 0. Helper functions and definitions'''),
     code(r"""col_full = '#E76F51'
@@ -886,8 +896,8 @@ col_count = '#73A8BF'#'#2A9D8F'"""),
     md(r'''# 1. Probabilities 2$\nu$: in vacuum'''),
     md(r'''## 1.1 General definitions'''),
     code(r'''# Mixing parameters (predefined examples from globaldefs; can change them to anything else)
-sth = gd.S12_NO_BF_NUFIT_6_0 # [adim]
-Dm2 = gd.D21_NO_BF_NUFIT_6_0 # [eV^2]'''),
+sth = NUFIT_NO['s12'] # [adim]
+Dm2 = NUFIT_NO['D21'] # [eV^2]'''),
     md(r'''## 1.2 Probabilities vs. distance'''),
     md(r'''### Generate probabilities'''),
     code(r'''# Baselines
@@ -974,8 +984,8 @@ prob = oscprob.osc_prob_2nu_vacuum(
     md(r'''# 2. Probabilities 2$\nu$: in matter with constant density'''),
     md(r'''## 2.1 General definitions'''),
     code(r'''# Mixing parameters (predefined examples from globaldefs; can change them to anything else)
-sth = gd.S12_NO_BF_NUFIT_6_0 # [adim]
-Dm2 = gd.D21_NO_BF_NUFIT_6_0 # [eV^2]'''),
+sth = NUFIT_NO['s12'] # [adim]
+Dm2 = NUFIT_NO['D21'] # [eV^2]'''),
     md(r'''## 2.2 Probabilities vs. distance'''),
     md(r'''### Generate probabilities'''),
     code(r'''# Baselines
@@ -1098,8 +1108,8 @@ prob_vac = oscprob.osc_prob_2nu_vacuum(
     md(r'''# 3. Probabilities 2$\nu$: in matter with varying density'''),
     md(r'''## 3.1 General definitions'''),
     code(r'''# Mixing parameters (predefined examples from globaldefs; can change them to anything else)
-sth = gd.S12_NO_BF_NUFIT_6_0 # [adim]
-Dm2 = gd.D21_NO_BF_NUFIT_6_0 # [eV^2]'''),
+sth = NUFIT_NO['s12'] # [adim]
+Dm2 = NUFIT_NO['D21'] # [eV^2]'''),
     code(r'''# Parameters for the electron number density in the Sun, Eq. (10.62) in Giunti & Kim
 num_density_e_center = 10*gd.N_AV/pow(gd.CONV_CM_TO_INV_EV,3.0) # [eV^3]
 l_scale = 100.0 # [km]
@@ -1258,8 +1268,8 @@ prob_vac = np.array([oscprob.osc_prob(lambda l: (1/(enu*gd.UNIT_MEV))*H_vac_ener
     md(r'''# 4. Probabilities 2$\nu$: in matter with castle-wall density profile'''),
     md(r'''## 4.1 General definitions'''),
     code(r'''# Mixing parameters (predefined examples from globaldefs; can change them to anything else)
-sth = gd.S12_NO_BF_NUFIT_6_0 # [adim]
-Dm2 = gd.D21_NO_BF_NUFIT_6_0 # [eV^2]'''),
+sth = NUFIT_NO['s12'] # [adim]
+Dm2 = NUFIT_NO['D21'] # [eV^2]'''),
     code(r'''# Low and high densities of the castle-wall density profile
 num_density_e_low = 1*gd.N_AV/pow(gd.CONV_CM_TO_INV_EV,3.0) # [eV^3]
 num_density_e_high = 10*gd.N_AV/pow(gd.CONV_CM_TO_INV_EV,3.0) # [eV^3]
@@ -1453,8 +1463,8 @@ fig, ax = plotting.plot_probability_with_profile(
     md(r'''# 5. Probabilities 2$\nu$: in matter with noisy density profile'''),
     md(r'''## 5.1 General definitions'''),
     code(r'''# Mixing parameters (predefined examples from globaldefs; can change them to anything else)
-sth = gd.S12_NO_BF_NUFIT_6_0 # [adim]
-Dm2 = gd.D21_NO_BF_NUFIT_6_0 # [eV^2]'''),
+sth = NUFIT_NO['s12'] # [adim]
+Dm2 = NUFIT_NO['D21'] # [eV^2]'''),
     code(r'''# Parameters for the electron number density in the Sun, Eq. (10.62) in Giunti & Kim
 num_density_e_center = 10*gd.N_AV/pow(gd.CONV_CM_TO_INV_EV,3.0) # [eV^3]
 l_scale = 100.0 # [km]
@@ -1664,8 +1674,8 @@ fig, ax = plotting.plot_probability_with_profile(
     md(r'''# 6. Probabilities 2$\nu$: in the Earth'''),
     md(r'''## 6.1 General definitions'''),
     code(r'''# Mixing parameters (predefined examples from globaldefs; can change them to anything else)
-sth = gd.S12_NO_BF_NUFIT_6_0 # [adim]
-Dm2 = gd.D21_NO_BF_NUFIT_6_0 # [eV^2]'''),
+sth = NUFIT_NO['s12'] # [adim]
+Dm2 = NUFIT_NO['D21'] # [eV^2]'''),
     code(r'''def num_density_e_func_prem(r): 
     return matter.num_density_e_func(r, earth.density_matter_func_prem, electron_fraction=0.5, density_matter_is_in_g_per_cm3=True) # [eV^{-3}]
 
@@ -1778,8 +1788,8 @@ fig, ax = plotting.plot_probability_with_profile(
     md(r'''# 7. Probabilities 2$\nu$: in the Sun'''),
     md(r'''## 7.1 General definitions'''),
     code(r'''# Mixing parameters (predefined examples from globaldefs; can change them to anything else)
-sth = gd.S12_NO_BF_NUFIT_6_0 # [adim]
-Dm2 = gd.D21_NO_BF_NUFIT_6_0 # [eV^2]'''),
+sth = NUFIT_NO['s12'] # [adim]
+Dm2 = NUFIT_NO['D21'] # [eV^2]'''),
     code(r'''# Parameters for the electron number density in the Sun, Eq. (10.62) in Giunti & Kim
 num_density_e_center_sun = 245*gd.N_AV/pow(gd.CONV_CM_TO_INV_EV,3.0) # [eV^3]
 l_scale_sun = gd.SUN_RADIUS/10.54 # [km]
@@ -1941,6 +1951,11 @@ import magnus.hamiltonians as hamiltonians
 import magnus.matter as matter
 import magnus.earth as earth
 import magnus.globaldefs as gd
+
+# Best-fit oscillation parameters from the latest global fit.
+# load_nufit_params returns exactly the six parameters the
+# osc_prob_3nu_* functions take, so it can be splatted straight in.
+NUFIT_NO = gd.load_nufit_params('NuFIT 6.1', 'NO')
 import magnus.plotting as plotting'''),
     md(r'''# 0. Helper functions and definitions'''),
     code(r"""def prob_label(nu_i, nu_f):
@@ -1974,12 +1989,12 @@ def flavor_index_to_str(nu_l):
     md(r'''# 1. Probabilities 3$\nu$: in vacuum'''),
     md(r'''## 1.1 General definitions'''),
     code(r'''# Mixing parameters (predefined examples from globaldefs; can change them to anything else)
-s12 = gd.S12_NO_BF_NUFIT_6_0 # [adim]
-s23 = gd.S23_NO_BF_NUFIT_6_0 # [adim]
-s13 = gd.S13_NO_BF_NUFIT_6_0 # [adim]
-dCP = gd.DCP_NO_BF_NUFIT_6_0 # [adim]
-D21 = gd.D21_NO_BF_NUFIT_6_0 # [eV^2]
-D31 = gd.D31_NO_BF_NUFIT_6_0 # [eV^2]
+s12 = NUFIT_NO['s12'] # [adim]
+s23 = NUFIT_NO['s23'] # [adim]
+s13 = NUFIT_NO['s13'] # [adim]
+dCP = NUFIT_NO['dCP'] # [adim]
+D21 = NUFIT_NO['D21'] # [eV^2]
+D31 = NUFIT_NO['D31'] # [eV^2]
 
 # PMNS mixing mtarix
 U = hamiltonians.pmns_mixing_matrix(s12, s23, s13, dCP)'''),
@@ -2105,12 +2120,12 @@ prob_all = oscprob.osc_prob_3nu_vacuum(
     md(r'''# 2. Probabilities 3$\nu$: in matter with constant density'''),
     md(r'''## 2.1 General definitions'''),
     code(r'''# Mixing parameters (predefined examples from globaldefs; can change them to anything else)
-s12 = gd.S12_NO_BF_NUFIT_6_0 # [adim]
-s23 = gd.S23_NO_BF_NUFIT_6_0 # [adim]
-s13 = gd.S13_NO_BF_NUFIT_6_0 # [adim]
-dCP = gd.DCP_NO_BF_NUFIT_6_0 # [adim]
-D21 = gd.D21_NO_BF_NUFIT_6_0 # [eV^2]
-D31 = gd.D31_NO_BF_NUFIT_6_0 # [eV^2]
+s12 = NUFIT_NO['s12'] # [adim]
+s23 = NUFIT_NO['s23'] # [adim]
+s13 = NUFIT_NO['s13'] # [adim]
+dCP = NUFIT_NO['dCP'] # [adim]
+D21 = NUFIT_NO['D21'] # [eV^2]
+D31 = NUFIT_NO['D31'] # [eV^2]
 
 # PMNS mixing mtarix
 U = hamiltonians.pmns_mixing_matrix(s12, s23, s13, dCP)'''),
@@ -2218,12 +2233,12 @@ fig, ax = plotting.plot_probability_with_profile(
     md(r'''# 3. Probabilities 3$\nu$: in matter with varying density'''),
     md(r'''## 3.1 General definitions'''),
     code(r'''# Mixing parameters (predefined examples from globaldefs; can change them to anything else)
-s12 = gd.S12_NO_BF_NUFIT_6_0 # [adim]
-s23 = gd.S23_NO_BF_NUFIT_6_0 # [adim]
-s13 = gd.S13_NO_BF_NUFIT_6_0 # [adim]
-dCP = gd.DCP_NO_BF_NUFIT_6_0 # [adim]
-D21 = gd.D21_NO_BF_NUFIT_6_0 # [eV^2]
-D31 = gd.D31_NO_BF_NUFIT_6_0 # [eV^2]
+s12 = NUFIT_NO['s12'] # [adim]
+s23 = NUFIT_NO['s23'] # [adim]
+s13 = NUFIT_NO['s13'] # [adim]
+dCP = NUFIT_NO['dCP'] # [adim]
+D21 = NUFIT_NO['D21'] # [eV^2]
+D31 = NUFIT_NO['D31'] # [eV^2]
 
 # PMNS mixing mtarix
 U = hamiltonians.pmns_mixing_matrix(s12, s23, s13, dCP)'''),
@@ -2395,8 +2410,8 @@ fig, ax = plotting.plot_probability_with_profile(
     md(r'''# 4. Probabilities 2$\nu$: in matter with castle-wall density profile'''),
     md(r'''## 4.1 General definitions'''),
     code(r'''# Mixing parameters (predefined examples from globaldefs; can change them to anything else)
-sth = gd.S12_NO_BF_NUFIT_6_0 # [adim]
-Dm2 = gd.D21_NO_BF_NUFIT_6_0 # [eV^2]'''),
+sth = NUFIT_NO['s12'] # [adim]
+Dm2 = NUFIT_NO['D21'] # [eV^2]'''),
     code(r'''# Low and high densities of the castle-wall density profile
 num_density_e_low = 1*gd.N_AV/pow(gd.CONV_CM_TO_INV_EV,3.0) # [eV^3]
 num_density_e_high = 10*gd.N_AV/pow(gd.CONV_CM_TO_INV_EV,3.0) # [eV^3]
@@ -2590,8 +2605,8 @@ fig, ax = plotting.plot_probability_with_profile(
     md(r'''# 5. Probabilities 2$\nu$: in matter with noisy density profile'''),
     md(r'''## 5.1 General definitions'''),
     code(r'''# Mixing parameters (predefined examples from globaldefs; can change them to anything else)
-sth = gd.S12_NO_BF_NUFIT_6_0 # [adim]
-Dm2 = gd.D21_NO_BF_NUFIT_6_0 # [eV^2]'''),
+sth = NUFIT_NO['s12'] # [adim]
+Dm2 = NUFIT_NO['D21'] # [eV^2]'''),
     code(r'''# Parameters for the electron number density in the Sun, Eq. (10.62) in Giunti & Kim
 num_density_e_center = 10*gd.N_AV/pow(gd.CONV_CM_TO_INV_EV,3.0) # [eV^3]
 l_scale = 100.0 # [km]
@@ -2801,8 +2816,8 @@ fig, ax = plotting.plot_probability_with_profile(
     md(r'''# 6. Probabilities 2$\nu$: in the Earth'''),
     md(r'''## 6.1 General definitions'''),
     code(r'''# Mixing parameters (predefined examples from globaldefs; can change them to anything else)
-sth = gd.S12_NO_BF_NUFIT_6_0 # [adim]
-Dm2 = gd.D21_NO_BF_NUFIT_6_0 # [eV^2]'''),
+sth = NUFIT_NO['s12'] # [adim]
+Dm2 = NUFIT_NO['D21'] # [eV^2]'''),
     code(r'''def num_density_e_func_prem(r): 
     return matter.num_density_e_func(r, earth.density_matter_func_prem, electron_fraction=0.5, density_matter_is_in_g_per_cm3=True) # [eV^{-3}]
 
@@ -2917,8 +2932,8 @@ fig, ax = plotting.plot_probability_with_profile(
     md(r'''# 7. Probabilities 2$\nu$: in the Sun'''),
     md(r'''## 7.1 General definitions'''),
     code(r'''# Mixing parameters (predefined examples from globaldefs; can change them to anything else)
-sth = gd.S12_NO_BF_NUFIT_6_0 # [adim]
-Dm2 = gd.D21_NO_BF_NUFIT_6_0 # [eV^2]'''),
+sth = NUFIT_NO['s12'] # [adim]
+Dm2 = NUFIT_NO['D21'] # [eV^2]'''),
     code(r'''# Parameters for the electron number density in the Sun, Eq. (10.62) in Giunti & Kim
 num_density_e_center_sun = 245*gd.N_AV/pow(gd.CONV_CM_TO_INV_EV,3.0) # [eV^3]
 l_scale_sun = gd.SUN_RADIUS/10.54 # [km]
@@ -3078,6 +3093,11 @@ import magnus.hamiltonians as hamiltonians
 import magnus.matter as matter
 import magnus.earth as earth
 import magnus.globaldefs as gd
+
+# Best-fit oscillation parameters from the latest global fit.
+# load_nufit_params returns exactly the six parameters the
+# osc_prob_3nu_* functions take, so it can be splatted straight in.
+NUFIT_NO = gd.load_nufit_params('NuFIT 6.1', 'NO')
 import magnus.plotting as plotting'''),
     md(r'''To help in computing neutrino oscillation probabilities in real experimental setups, the `earth` module of Mag$\nu$s contains routines to compute the zenith angle of the location of one point on the surface of the Earth as measured from a different point, i.e., the position of a neutrino source measured from the position of a neutrino detector.  (These routines assume that the Earth is spherical, that the distribution of matter inside it radially symmetric, as in the Preliminary Reference Earth Model, and that the locations are on the surface, not underground.  Users can write their own functions to deal with these cases.)'''),
     md(r'''The `earth` module contains predefined coordinates for a few significant locations:'''),
@@ -3096,12 +3116,12 @@ print("Cosine of zenith angle of Fermilab measured from Homestake: " + str(costh
     md(r'''Now that we know the zenith angle of the source as measured from the detector, we can compute and plot neutrino oscillation probabilities as usual (for details, see the example Mag$\nu$s notebooks `2_magnus_2nu_vacuum_matter.ipynb` and `3_magnus_3nu_vacuum_matter.ipynb` ).'''),
     md(r'''To illustrate this, below, we consider an artificial setup of a neutrino beam with adjustable direction shot from Fermilab to several detector locations.'''),
     code(r'''# Mixing parameters (predefined examples from globaldefs; can change them to anything else)
-s12 = gd.S12_NO_BF_NUFIT_6_0 # [adim]
-s23 = gd.S23_NO_BF_NUFIT_6_0 # [adim]
-s13 = gd.S13_NO_BF_NUFIT_6_0 # [adim]
-dCP = gd.DCP_NO_BF_NUFIT_6_0 # [adim]
-D21 = gd.D21_NO_BF_NUFIT_6_0 # [eV^2]
-D31 = gd.D31_NO_BF_NUFIT_6_0 # [eV^2]
+s12 = NUFIT_NO['s12'] # [adim]
+s23 = NUFIT_NO['s23'] # [adim]
+s13 = NUFIT_NO['s13'] # [adim]
+dCP = NUFIT_NO['dCP'] # [adim]
+D21 = NUFIT_NO['D21'] # [eV^2]
+D31 = NUFIT_NO['D31'] # [eV^2]
 
 # Electron number density inside Earth, using the PREM density model
 def num_density_e_func_prem(r): 
@@ -3278,6 +3298,12 @@ import magnus.hamiltonians as hamiltonians
 import magnus.matter as matter
 import magnus.earth as earth
 import magnus.globaldefs as gd
+
+# Best-fit oscillation parameters from the latest global fit.
+# load_nufit_params returns exactly the six parameters the
+# osc_prob_3nu_* functions take, so it can be splatted straight in.
+NUFIT_NO = gd.load_nufit_params('NuFIT 6.1', 'NO')
+NUFIT_IO = gd.load_nufit_params('NuFIT 6.1', 'IO')
 import magnus.plotting as plotting'''),
     md(r'''Biprobability plots show how neutrino vs. anti-neutrino oscillation probabilities change as a function of the CP-violation phase, $\delta_{\rm CP}$.  This is typically done for neutrino propagation in matter, representing the setup of long-baseline neutrino oscillations in which $\delta_{\rm CP}$ is expected to be measured.  Biprobability plots are useful to illustrate the separation between neutrino and anti-neutrino oscillation probabilities from which this measurement is performed.
 
@@ -3334,18 +3360,18 @@ Sometimes, biprobability plots include new-physics effects that affect the proba
     md(r'''## In vacuum'''),
     md(r'''Let's start with the case of propagation in vacuum, comparing the plots obtained under normal mass ordering (NO) and under inverted mass ordering (IO).  In each case, we fix the mixing parameters to their best-fit values from the NuFit 6.0 global fit to oscillation data, which are stored in the `globaldefs` module of Mag$\nu$s.'''),
     code(r'''# Mixing parameters (predefined examples from globaldefs; can change them to anything else)
-s12_NO = gd.S12_NO_BF_NUFIT_6_0 # [adim]
-s23_NO = gd.S23_NO_BF_NUFIT_6_0 # [adim]
-s13_NO = gd.S13_NO_BF_NUFIT_6_0 # [adim]
-dCP_NO = gd.DCP_NO_BF_NUFIT_6_0 # [adim]
-D21_NO = gd.D21_NO_BF_NUFIT_6_0 # [eV^2]
-D31_NO = gd.D31_NO_BF_NUFIT_6_0 # [eV^2]
-s12_IO = gd.S12_IO_BF_NUFIT_6_0 # [adim]
-s23_IO = gd.S23_IO_BF_NUFIT_6_0 # [adim]
-s13_IO = gd.S13_IO_BF_NUFIT_6_0 # [adim]
-dCP_IO = gd.DCP_IO_BF_NUFIT_6_0 # [adim]
-D21_IO = gd.D21_IO_BF_NUFIT_6_0 # [eV^2]
-D31_IO = gd.D31_IO_BF_NUFIT_6_0 # [eV^2]'''),
+s12_NO = NUFIT_NO['s12'] # [adim]
+s23_NO = NUFIT_NO['s23'] # [adim]
+s13_NO = NUFIT_NO['s13'] # [adim]
+dCP_NO = NUFIT_NO['dCP'] # [adim]
+D21_NO = NUFIT_NO['D21'] # [eV^2]
+D31_NO = NUFIT_NO['D31'] # [eV^2]
+s12_IO = NUFIT_IO['s12'] # [adim]
+s23_IO = NUFIT_IO['s23'] # [adim]
+s13_IO = NUFIT_IO['s13'] # [adim]
+dCP_IO = NUFIT_IO['dCP'] # [adim]
+D21_IO = NUFIT_IO['D21'] # [eV^2]
+D31_IO = NUFIT_IO['D31'] # [eV^2]'''),
     code(r'''# Pick the baseline and energy of T2K
 baseline = 810 # [km]
 energy = 2*gd.UNIT_MEV # [eV]
@@ -3397,22 +3423,22 @@ prob_nu_NO_sel = np.array([[dCP/np.pi, oscprob.osc_prob(lambda l: H_nu(s12_NO, s
                                                         0.0, baseline*gd.CONV_KM_TO_INV_EV, 
                                                         n_slabs=1, n_tpts_per_slab=2, magnus_exp_order=1,
                                                         integration_method='simpson', n_jobs=1)[nu_i][nu_f]] 
-                           for dCP in dCP_sel+[gd.DCP_NO_BF_NUFIT_6_0]])
+                           for dCP in dCP_sel+[NUFIT_NO['dCP']]])
 prob_nubar_NO_sel = np.array([[dCP/np.pi, oscprob.osc_prob(lambda l: H_nubar(s12_NO, s23_NO, s13_NO, dCP, D21_NO, D31_NO), 
                                                            0.0, baseline*gd.CONV_KM_TO_INV_EV, 
                                                            n_slabs=1, n_tpts_per_slab=2, magnus_exp_order=1,
                                                            integration_method='simpson', n_jobs=1)[nu_i][nu_f]]
-                              for dCP in dCP_sel+[gd.DCP_NO_BF_NUFIT_6_0]])
+                              for dCP in dCP_sel+[NUFIT_NO['dCP']]])
 prob_nu_IO_sel = np.array([[dCP/np.pi, oscprob.osc_prob(lambda l: H_nu(s12_IO, s23_IO, s13_IO, dCP, D21_IO, D31_IO), 
                                                         0.0, baseline*gd.CONV_KM_TO_INV_EV, 
                                                         n_slabs=1, n_tpts_per_slab=2, magnus_exp_order=1,
                                                         integration_method='simpson', n_jobs=1)[nu_i][nu_f]]
-                           for dCP in dCP_sel+[gd.DCP_IO_BF_NUFIT_6_0]])
+                           for dCP in dCP_sel+[NUFIT_IO['dCP']]])
 prob_nubar_IO_sel = np.array([[dCP/np.pi, oscprob.osc_prob(lambda l: H_nubar(s12_IO, s23_IO, s13_IO, dCP, D21_IO, D31_IO), 
                                                            0.0, baseline*gd.CONV_KM_TO_INV_EV, 
                                                            n_slabs=1, n_tpts_per_slab=2, magnus_exp_order=1,
                                                            integration_method='simpson', n_jobs=1)[nu_i][nu_f]]
-                              for dCP in dCP_sel+[gd.DCP_IO_BF_NUFIT_6_0]])
+                              for dCP in dCP_sel+[NUFIT_IO['dCP']]])
 points_NO_sel = [[dCP_label_sel[i], markers[i], filled[i], [prob_nu_NO_sel[i][1], prob_nubar_NO_sel[i][1]]] for i in range(len(dCP_sel)+1)]
 points_IO_sel = [[dCP_label_sel[i], markers[i], filled[i], [prob_nu_IO_sel[i][1], prob_nubar_IO_sel[i][1]]] for i in range(len(dCP_sel)+1)]'''),
     code(r'''make_plot_biprobability([prob_nu_NO, prob_nu_IO], 
@@ -3457,16 +3483,16 @@ markers = ['o', 'v', 's', 'p', '*', 'p', 's', 'v', '^']
 filled = [True, True, True, True, True, False, False, False, True]
 prob_nu_std_NO_sel = np.array([[dCP/np.pi, oscprobstd.osc_prob_3nu_vacuum_std(
     hamiltonians.pmns_mixing_matrix(s12_NO, s23_NO, s13_NO, dCP), D21_NO, D31_NO, energy, baseline*gd.CONV_KM_TO_INV_EV, 
-    nubar=False)[nu_i][nu_f]] for dCP in dCP_sel+[gd.DCP_NO_BF_NUFIT_6_0]])
+    nubar=False)[nu_i][nu_f]] for dCP in dCP_sel+[NUFIT_NO['dCP']]])
 prob_nubar_std_NO_sel = np.array([[dCP/np.pi, oscprobstd.osc_prob_3nu_vacuum_std(
     hamiltonians.pmns_mixing_matrix(s12_NO, s23_NO, s13_NO, dCP), D21_NO, D31_NO, energy, baseline*gd.CONV_KM_TO_INV_EV, 
-    nubar=True)[nu_i][nu_f]] for dCP in dCP_sel+[gd.DCP_NO_BF_NUFIT_6_0]])
+    nubar=True)[nu_i][nu_f]] for dCP in dCP_sel+[NUFIT_NO['dCP']]])
 prob_nu_std_IO_sel = np.array([[dCP/np.pi, oscprobstd.osc_prob_3nu_vacuum_std(
     hamiltonians.pmns_mixing_matrix(s12_IO, s23_IO, s13_IO, dCP), D21_NO, D31_NO, energy, baseline*gd.CONV_KM_TO_INV_EV, 
-    nubar=False)[nu_i][nu_f]] for dCP in dCP_sel+[gd.DCP_NO_BF_NUFIT_6_0]])
+    nubar=False)[nu_i][nu_f]] for dCP in dCP_sel+[NUFIT_NO['dCP']]])
 prob_nubar_std_IO_sel = np.array([[dCP/np.pi, oscprobstd.osc_prob_3nu_vacuum_std(
     hamiltonians.pmns_mixing_matrix(s12_IO, s23_IO, s13_IO, dCP), D21_NO, D31_NO, energy, baseline*gd.CONV_KM_TO_INV_EV, 
-    nubar=True)[nu_i][nu_f]] for dCP in dCP_sel+[gd.DCP_NO_BF_NUFIT_6_0]])
+    nubar=True)[nu_i][nu_f]] for dCP in dCP_sel+[NUFIT_NO['dCP']]])
 points_std_NO_sel = [[dCP_label_sel[i], markers[i], filled[i], [prob_nu_std_NO_sel[i][1], prob_nubar_std_NO_sel[i][1]]] 
                      for i in range(len(dCP_sel)+1)]
 points_std_IO_sel = [[dCP_label_sel[i], markers[i], filled[i], [prob_nu_std_IO_sel[i][1], prob_nubar_std_IO_sel[i][1]]] 
@@ -3554,22 +3580,22 @@ prob_nu_NO_sel = np.array([[dCP/np.pi, oscprob.osc_prob(lambda l: H_nu(s12_NO, s
                                                         0.0, baseline*gd.CONV_KM_TO_INV_EV, 
                                                         n_slabs=1, n_tpts_per_slab=2, magnus_exp_order=1,
                                                         integration_method='simpson', n_jobs=1)[nu_i][nu_f]] 
-                           for dCP in dCP_sel+[gd.DCP_NO_BF_NUFIT_6_0]])
+                           for dCP in dCP_sel+[NUFIT_NO['dCP']]])
 prob_nubar_NO_sel = np.array([[dCP/np.pi, oscprob.osc_prob(lambda l: H_nubar(s12_NO, s23_NO, s13_NO, dCP, D21_NO, D31_NO), 
                                                            0.0, baseline*gd.CONV_KM_TO_INV_EV, 
                                                            n_slabs=1, n_tpts_per_slab=2, magnus_exp_order=1,
                                                            integration_method='simpson', n_jobs=1)[nu_i][nu_f]]
-                              for dCP in dCP_sel+[gd.DCP_NO_BF_NUFIT_6_0]])
+                              for dCP in dCP_sel+[NUFIT_NO['dCP']]])
 prob_nu_IO_sel = np.array([[dCP/np.pi, oscprob.osc_prob(lambda l: H_nu(s12_IO, s23_IO, s13_IO, dCP, D21_IO, D31_IO), 
                                                         0.0, baseline*gd.CONV_KM_TO_INV_EV, 
                                                         n_slabs=1, n_tpts_per_slab=2, magnus_exp_order=1,
                                                         integration_method='simpson', n_jobs=1)[nu_i][nu_f]]
-                           for dCP in dCP_sel+[gd.DCP_IO_BF_NUFIT_6_0]])
+                           for dCP in dCP_sel+[NUFIT_IO['dCP']]])
 prob_nubar_IO_sel = np.array([[dCP/np.pi, oscprob.osc_prob(lambda l: H_nubar(s12_IO, s23_IO, s13_IO, dCP, D21_IO, D31_IO), 
                                                            0.0, baseline*gd.CONV_KM_TO_INV_EV, 
                                                            n_slabs=1, n_tpts_per_slab=2, magnus_exp_order=1,
                                                            integration_method='simpson', n_jobs=1)[nu_i][nu_f]]
-                              for dCP in dCP_sel+[gd.DCP_IO_BF_NUFIT_6_0]])
+                              for dCP in dCP_sel+[NUFIT_IO['dCP']]])
 points_NO_sel = [[dCP_label_sel[i], markers[i], filled[i], [prob_nu_NO_sel[i][1], prob_nubar_NO_sel[i][1]]] for i in range(len(dCP_sel)+1)]
 points_IO_sel = [[dCP_label_sel[i], markers[i], filled[i], [prob_nu_IO_sel[i][1], prob_nubar_IO_sel[i][1]]] for i in range(len(dCP_sel)+1)]'''),
     code(r'''make_plot_biprobability([prob_nu_NO, prob_nu_IO], 
@@ -3653,22 +3679,22 @@ prob_nu_NO_sel = np.array([[dCP/np.pi, oscprob.osc_prob(lambda l: H_nu(s12_NO, s
                                                         0.0, baseline*gd.CONV_KM_TO_INV_EV, 
                                                         n_slabs=1, n_tpts_per_slab=2, magnus_exp_order=1,
                                                         integration_method='simpson', n_jobs=1)[nu_i][nu_f]] 
-                           for dCP in dCP_sel+[gd.DCP_NO_BF_NUFIT_6_0]])
+                           for dCP in dCP_sel+[NUFIT_NO['dCP']]])
 prob_nubar_NO_sel = np.array([[dCP/np.pi, oscprob.osc_prob(lambda l: H_nubar(s12_NO, s23_NO, s13_NO, dCP, D21_NO, D31_NO), 
                                                            0.0, baseline*gd.CONV_KM_TO_INV_EV, 
                                                            n_slabs=1, n_tpts_per_slab=2, magnus_exp_order=1,
                                                            integration_method='simpson', n_jobs=1)[nu_i][nu_f]]
-                              for dCP in dCP_sel+[gd.DCP_NO_BF_NUFIT_6_0]])
+                              for dCP in dCP_sel+[NUFIT_NO['dCP']]])
 prob_nu_IO_sel = np.array([[dCP/np.pi, oscprob.osc_prob(lambda l: H_nu(s12_IO, s23_IO, s13_IO, dCP, D21_IO, D31_IO), 
                                                         0.0, baseline*gd.CONV_KM_TO_INV_EV, 
                                                         n_slabs=1, n_tpts_per_slab=2, magnus_exp_order=1,
                                                         integration_method='simpson', n_jobs=1)[nu_i][nu_f]]
-                           for dCP in dCP_sel+[gd.DCP_IO_BF_NUFIT_6_0]])
+                           for dCP in dCP_sel+[NUFIT_IO['dCP']]])
 prob_nubar_IO_sel = np.array([[dCP/np.pi, oscprob.osc_prob(lambda l: H_nubar(s12_IO, s23_IO, s13_IO, dCP, D21_IO, D31_IO), 
                                                            0.0, baseline*gd.CONV_KM_TO_INV_EV, 
                                                            n_slabs=1, n_tpts_per_slab=2, magnus_exp_order=1,
                                                            integration_method='simpson', n_jobs=1)[nu_i][nu_f]]
-                              for dCP in dCP_sel+[gd.DCP_IO_BF_NUFIT_6_0]])
+                              for dCP in dCP_sel+[NUFIT_IO['dCP']]])
 points_NO_sel = [[dCP_label_sel[i], markers[i], filled[i], [prob_nu_NO_sel[i][1], prob_nubar_NO_sel[i][1]]] for i in range(len(dCP_sel)+1)]
 points_IO_sel = [[dCP_label_sel[i], markers[i], filled[i], [prob_nu_IO_sel[i][1], prob_nubar_IO_sel[i][1]]] for i in range(len(dCP_sel)+1)]'''),
     code(r'''make_plot_biprobability([prob_nu_NO, prob_nu_IO], 
@@ -3752,22 +3778,22 @@ prob_nu_NO_sel = np.array([[dCP/np.pi, oscprob.osc_prob(lambda l: H_nu(s12_NO, s
                                                         0.0, baseline*gd.CONV_KM_TO_INV_EV, 
                                                         n_slabs=1, n_tpts_per_slab=2, magnus_exp_order=1,
                                                         integration_method='simpson', n_jobs=1)[nu_i][nu_f]] 
-                           for dCP in dCP_sel+[gd.DCP_NO_BF_NUFIT_6_0]])
+                           for dCP in dCP_sel+[NUFIT_NO['dCP']]])
 prob_nubar_NO_sel = np.array([[dCP/np.pi, oscprob.osc_prob(lambda l: H_nubar(s12_NO, s23_NO, s13_NO, dCP, D21_NO, D31_NO), 
                                                            0.0, baseline*gd.CONV_KM_TO_INV_EV, 
                                                            n_slabs=1, n_tpts_per_slab=2, magnus_exp_order=1,
                                                            integration_method='simpson', n_jobs=1)[nu_i][nu_f]]
-                              for dCP in dCP_sel+[gd.DCP_NO_BF_NUFIT_6_0]])
+                              for dCP in dCP_sel+[NUFIT_NO['dCP']]])
 prob_nu_IO_sel = np.array([[dCP/np.pi, oscprob.osc_prob(lambda l: H_nu(s12_IO, s23_IO, s13_IO, dCP, D21_IO, D31_IO), 
                                                         0.0, baseline*gd.CONV_KM_TO_INV_EV, 
                                                         n_slabs=1, n_tpts_per_slab=2, magnus_exp_order=1,
                                                         integration_method='simpson', n_jobs=1)[nu_i][nu_f]]
-                           for dCP in dCP_sel+[gd.DCP_IO_BF_NUFIT_6_0]])
+                           for dCP in dCP_sel+[NUFIT_IO['dCP']]])
 prob_nubar_IO_sel = np.array([[dCP/np.pi, oscprob.osc_prob(lambda l: H_nubar(s12_IO, s23_IO, s13_IO, dCP, D21_IO, D31_IO), 
                                                            0.0, baseline*gd.CONV_KM_TO_INV_EV, 
                                                            n_slabs=1, n_tpts_per_slab=2, magnus_exp_order=1,
                                                            integration_method='simpson', n_jobs=1)[nu_i][nu_f]]
-                              for dCP in dCP_sel+[gd.DCP_IO_BF_NUFIT_6_0]])
+                              for dCP in dCP_sel+[NUFIT_IO['dCP']]])
 points_NO_sel = [[dCP_label_sel[i], markers[i], filled[i], [prob_nu_NO_sel[i][1], prob_nubar_NO_sel[i][1]]] for i in range(len(dCP_sel)+1)]
 points_IO_sel = [[dCP_label_sel[i], markers[i], filled[i], [prob_nu_IO_sel[i][1], prob_nubar_IO_sel[i][1]]] for i in range(len(dCP_sel)+1)]'''),
     code(r'''make_plot_biprobability([prob_nu_NO, prob_nu_IO], 
@@ -3865,13 +3891,13 @@ for i in range(len(detectors)):
                                                          0.0, l_max_arr[i]*gd.CONV_KM_TO_INV_EV, 
                                                          n_slabs=100, n_tpts_per_slab=10, magnus_exp_order=3,
                                                          integration_method='simpson', n_jobs=10)[nu_i][nu_f]] 
-                               for dCP in dCP_sel+[gd.DCP_NO_BF_NUFIT_6_0]])
+                               for dCP in dCP_sel+[NUFIT_NO['dCP']]])
     prob_nubar_sel = np.array([[dCP/np.pi, oscprob.osc_prob(lambda l: H_nubar(costhz_arr[i], l, energy, 
                                                                               s12_NO, s23_NO, s13_NO, dCP, D21_NO, D31_NO), 
                                                             0.0, l_max_arr[i]*gd.CONV_KM_TO_INV_EV, 
                                                             n_slabs=100, n_tpts_per_slab=10, magnus_exp_order=3,
                                                             integration_method='simpson', n_jobs=10)[nu_i][nu_f]] 
-                               for dCP in dCP_sel+[gd.DCP_NO_BF_NUFIT_6_0]])
+                               for dCP in dCP_sel+[NUFIT_NO['dCP']]])
     points_sel = [[dCP_label_sel[j], markers[j], filled[j], [prob_nu_sel[j][1], prob_nubar_sel[j][1]]] for j in range(len(dCP_sel)+1)]
     points_sel_arr.append(points_sel)'''),
     code(r'''make_plot_biprobability(prob_nu_arr, prob_nubar_arr,
@@ -3924,13 +3950,13 @@ for i in range(len(detectors)):
                                                          0.0, l_max_arr[i]*gd.CONV_KM_TO_INV_EV, 
                                                          n_slabs=100, n_tpts_per_slab=10, magnus_exp_order=3,
                                                          integration_method='simpson', n_jobs=10)[nu_i][nu_f]] 
-                               for dCP in dCP_sel+[gd.DCP_NO_BF_NUFIT_6_0]])
+                               for dCP in dCP_sel+[NUFIT_NO['dCP']]])
     prob_nubar_sel = np.array([[dCP/np.pi, oscprob.osc_prob(lambda l: H_nubar(costhz_arr[i], l, energy, 
                                                                               s12_NO, s23_NO, s13_NO, dCP, D21_NO, D31_NO), 
                                                             0.0, l_max_arr[i]*gd.CONV_KM_TO_INV_EV, 
                                                             n_slabs=100, n_tpts_per_slab=10, magnus_exp_order=3,
                                                             integration_method='simpson', n_jobs=10)[nu_i][nu_f]] 
-                               for dCP in dCP_sel+[gd.DCP_NO_BF_NUFIT_6_0]])
+                               for dCP in dCP_sel+[NUFIT_NO['dCP']]])
     points_sel = [[dCP_label_sel[j], markers[j], filled[j], [prob_nu_sel[j][1], prob_nubar_sel[j][1]]] for j in range(len(dCP_sel)+1)]
     points_sel_arr.append(points_sel)'''),
     code(r'''make_plot_biprobability(prob_nu_arr, prob_nubar_arr,
@@ -3970,6 +3996,11 @@ import magnus.hamiltonians as hamiltonians
 import magnus.matter as matter
 import magnus.earth as earth
 import magnus.globaldefs as gd
+
+# Best-fit oscillation parameters from the latest global fit.
+# load_nufit_params returns exactly the six parameters the
+# osc_prob_3nu_* functions take, so it can be splatted straight in.
+NUFIT_NO = gd.load_nufit_params('NuFIT 6.1', 'NO')
 import magnus.plotting as plotting'''),
     md(r'''## Oscillograms
 
@@ -4058,8 +4089,8 @@ def VCC_func_prem(r):
                                                                     ratio_number_neutrons_to_protons=1.0, electron_fraction=0.5, density_matter_is_in_g_per_cm3=True)) # [eV]'''),
     md(r'''Generate and plot the $2\nu$ oscillograms.  Let's consider the 2-3 sector, which describes mixing between $\nu_\mu$ and $\nu_\tau$. First, we define the Hamiltonians:'''),
     code(r'''# # Mixing parameters (predefined examples from globaldefs; can change them to anything else)
-sth = gd.S23_NO_BF_NUFIT_6_0 # [adim]
-Dm2 = gd.D31_NO_BF_NUFIT_6_0 # [eV^2]
+sth = NUFIT_NO['s23'] # [adim]
+Dm2 = NUFIT_NO['D31'] # [eV^2]
 
 # Vacuum Hamiltonian without the (1/E) prefactor
 H_vac_2nu_23_energy_indep = hamiltonians.hamiltonian_2nu_vacuum_energy_independent(sth, Dm2) # [eV^2]
@@ -4078,8 +4109,8 @@ def H_2nu_23_func_prem(costhz, l, energy):
 Of note, in the $2\nu$ case we already obtain the oscillograms that we expected by using a single slab (`n_slabs = 1`) and the lowest order of the Magnus expansion (`magnus_exp_order = 1`), which is equivalent to assuming a time-independent Hamiltonian, or an average matter density along each chord inside the Earth.  '''),
     md(r'''Now we can do the same for the 1-2 sector, starting with defining a new Hamiltonian with the mixing parameters of that sector:'''),
     code(r'''# Mixing parameters (predefined examples from globaldefs; can change them to anything else)
-sth = gd.S12_NO_BF_NUFIT_6_0 # [adim]
-Dm2 = gd.D21_NO_BF_NUFIT_6_0 # [eV^2]
+sth = NUFIT_NO['s12'] # [adim]
+Dm2 = NUFIT_NO['D21'] # [eV^2]
 
 # Vacuum Hamiltonian without the (1/E) prefactor
 H_vac_2nu_12_energy_indep = hamiltonians.hamiltonian_2nu_vacuum_energy_independent(sth, Dm2) # [eV^2]
@@ -4095,12 +4126,12 @@ def H_2nu_12_func_prem(costhz, l, energy):
                       sector_2nu='12', cbar_label_pre=r'Two-neutrino probability, ', save_plot=False, path=None, filename=None, format=None)'''),
     md(r'''Finally, let's do the same for $3\nu$ oscillations.  First, define the Hamiltonians:'''),
     code(r'''# Mixing parameters (predefined examples from globaldefs; can change them to anything else)
-s12 = gd.S12_NO_BF_NUFIT_6_0 # [adim]
-s23 = gd.S23_NO_BF_NUFIT_6_0 # [adim]
-s13 = gd.S13_NO_BF_NUFIT_6_0 # [adim]
-dCP = gd.DCP_NO_BF_NUFIT_6_0 # [adim]
-D21 = gd.D21_NO_BF_NUFIT_6_0 # [eV^2]
-D31 = gd.D31_NO_BF_NUFIT_6_0 # [eV^2]
+s12 = NUFIT_NO['s12'] # [adim]
+s23 = NUFIT_NO['s23'] # [adim]
+s13 = NUFIT_NO['s13'] # [adim]
+dCP = NUFIT_NO['dCP'] # [adim]
+D21 = NUFIT_NO['D21'] # [eV^2]
+D31 = NUFIT_NO['D31'] # [eV^2]
 
 # Vacuum Hamiltonian without the (1/E) prefactor
 H_vac_3nu_energy_indep = hamiltonians.hamiltonian_3nu_vacuum_energy_independent(s12, s23, s13, dCP, D21, D31) # [eV^2]
@@ -4154,6 +4185,11 @@ import magnus.hamiltonians as hamiltonians
 import magnus.matter as matter
 import magnus.earth as earth
 import magnus.globaldefs as gd
+
+# Best-fit oscillation parameters from the latest global fit.
+# load_nufit_params returns exactly the six parameters the
+# osc_prob_3nu_* functions take, so it can be splatted straight in.
+NUFIT_NO = gd.load_nufit_params('NuFIT 6.1', 'NO')
 import magnus.plotting as plotting'''),
     md(r'''Mag$\nu$s has no intrinsic limitation on the number of neutrino flavors contained in the system that it computes oscillation probabilities for.  However, it is distributed with ready-made mixing matrices and Hamiltonians for the two most popular scenarios: 3+1 (three active neutrinos plus one sterile neutrino) and 3+2.  Users can add their own mixing matrices and Hamiltonians for larger systems by following the same structure used when writing the modules `hamiltonians4nu` and `hamiltonians5nu` that are distributed with Mag$\nu$s.
 
@@ -4254,12 +4290,12 @@ We compute probabilities using the `osc_prob` routine, the same one we used when
 All of the work is done by the Hamiltonian function, whose calculation *does* require inputting all of the mixing parameters, including the active-sterile ones.'''),
     md(r'''### 1.1 Mixing parameters'''),
     code(r'''# Standard mixing parameters (predefined examples from globaldefs; can change them to anything else)
-s12 = gd.S12_NO_BF_NUFIT_6_0 # [adim]
-s23 = gd.S23_NO_BF_NUFIT_6_0 # [adim]
-s13 = gd.S13_NO_BF_NUFIT_6_0 # [adim]
-dCP = gd.DCP_NO_BF_NUFIT_6_0 # [adim]
-D21 = gd.D21_NO_BF_NUFIT_6_0 # [eV^2]
-D31 = gd.D31_NO_BF_NUFIT_6_0 # [eV^2]
+s12 = NUFIT_NO['s12'] # [adim]
+s23 = NUFIT_NO['s23'] # [adim]
+s13 = NUFIT_NO['s13'] # [adim]
+dCP = NUFIT_NO['dCP'] # [adim]
+D21 = NUFIT_NO['D21'] # [eV^2]
+D31 = NUFIT_NO['D31'] # [eV^2]
 
 # Mixing parameters between active and sterile sectors (can change them to anything else)
 s14 = 1.e-1 # [adim]
@@ -4327,12 +4363,12 @@ prob_4nu_all = np.array([oscprob.osc_prob(lambda l: (1/(enu*gd.UNIT_GEV))*H_4nu_
     md(r'''# 2. Probabilities in a 3+1 system ($4\nu$): in matter with constant density'''),
     md(r'''### 2.1 Mixing parameters'''),
     code(r'''# Standard mixing parameters (predefined examples from globaldefs; can change them to anything else)
-s12 = gd.S12_NO_BF_NUFIT_6_0 # [adim]
-s23 = gd.S23_NO_BF_NUFIT_6_0 # [adim]
-s13 = gd.S13_NO_BF_NUFIT_6_0 # [adim]
-dCP = gd.DCP_NO_BF_NUFIT_6_0 # [adim]
-D21 = gd.D21_NO_BF_NUFIT_6_0 # [eV^2]
-D31 = gd.D31_NO_BF_NUFIT_6_0 # [eV^2]
+s12 = NUFIT_NO['s12'] # [adim]
+s23 = NUFIT_NO['s23'] # [adim]
+s13 = NUFIT_NO['s13'] # [adim]
+dCP = NUFIT_NO['dCP'] # [adim]
+D21 = NUFIT_NO['D21'] # [eV^2]
+D31 = NUFIT_NO['D31'] # [eV^2]
 
 # Mixing parameters between active and sterile sectors (can change them to anything else)
 s14 = 1.e-1 # [adim]
@@ -4426,12 +4462,12 @@ prob_4nu_all = np.array([oscprob.osc_prob(lambda l: H_4nu(enu*gd.UNIT_GEV, l),
     md(r'''For more details about computing and plotting probabilities in long-baseline experimental setups, see notebook `04_magnus_long_baseline.ipynb`.'''),
     md(r'''### 3.1 Mixing parameters'''),
     code(r'''# Standard mixing parameters (predefined examples from globaldefs; can change them to anything else)
-s12 = gd.S12_NO_BF_NUFIT_6_0 # [adim]
-s23 = gd.S23_NO_BF_NUFIT_6_0 # [adim]
-s13 = gd.S13_NO_BF_NUFIT_6_0 # [adim]
-dCP = gd.DCP_NO_BF_NUFIT_6_0 # [adim]
-D21 = gd.D21_NO_BF_NUFIT_6_0 # [eV^2]
-D31 = gd.D31_NO_BF_NUFIT_6_0 # [eV^2]
+s12 = NUFIT_NO['s12'] # [adim]
+s23 = NUFIT_NO['s23'] # [adim]
+s13 = NUFIT_NO['s13'] # [adim]
+dCP = NUFIT_NO['dCP'] # [adim]
+D21 = NUFIT_NO['D21'] # [eV^2]
+D31 = NUFIT_NO['D31'] # [eV^2]
 
 # Electron number density inside Earth, using the PREM density model
 def num_density_e_func_prem(r): 
@@ -4627,12 +4663,12 @@ Thus, there are twelve new mixing parameters that we need to supply to Mag$\nu$s
 Below, we show an examply only for oscillations in vacuum.  It is straightforward to produce all the other cases we showed for 3+1 above also for 3+2.'''),
     md(r'''### 4.1 Mixing parameters'''),
     code(r'''# Standard mixing parameters (predefined examples from globaldefs; can change them to anything else)
-s12 = gd.S12_NO_BF_NUFIT_6_0 # [adim]
-s23 = gd.S23_NO_BF_NUFIT_6_0 # [adim]
-s13 = gd.S13_NO_BF_NUFIT_6_0 # [adim]
-dCP = gd.DCP_NO_BF_NUFIT_6_0 # [adim]
-D21 = gd.D21_NO_BF_NUFIT_6_0 # [eV^2]
-D31 = gd.D31_NO_BF_NUFIT_6_0 # [eV^2]
+s12 = NUFIT_NO['s12'] # [adim]
+s23 = NUFIT_NO['s23'] # [adim]
+s13 = NUFIT_NO['s13'] # [adim]
+dCP = NUFIT_NO['dCP'] # [adim]
+D21 = NUFIT_NO['D21'] # [eV^2]
+D31 = NUFIT_NO['D31'] # [eV^2]
 
 # Mixing parameters between active and sterile sectors (can change them to anything else)
 s14 = 1.e-1 # [adim]
@@ -4718,6 +4754,11 @@ import magnus.oscprob as oscprob
 import magnus.hamiltonians as hamiltonians
 import magnus.matter as matter
 import magnus.globaldefs as gd
+
+# Best-fit oscillation parameters from the latest global fit.
+# load_nufit_params returns exactly the six parameters the
+# osc_prob_3nu_* functions take, so it can be splatted straight in.
+NUFIT_NO = gd.load_nufit_params('NuFIT 6.1', 'NO')
 import magnus.plotting as plotting'''),
     md(r'''# 0. Helper functions and definitions'''),
     code(r'''def flavor_index_to_str(nu_l):
@@ -4784,8 +4825,8 @@ def make_plot_prob_matt_std_vs_nsi_vs_energy(nu_i, nu_f, distances, prob_matt_ns
     md(r'''# 1. Probabilities with NSI in 2$\nu$: in matter with constant density'''),
     md(r'''## 1.1 Mixing parameters and NSI parameters'''),
     code(r'''# Standard mixing parameters (predefined examples from globaldefs; can change them to anything else)
-s12 = gd.S12_NO_BF_NUFIT_6_0 # [adim]
-D21 = gd.D21_NO_BF_NUFIT_6_0 # [eV^2]
+s12 = NUFIT_NO['s12'] # [adim]
+D21 = NUFIT_NO['D21'] # [eV^2]
 
 # NSI parameters (predefined exaples from globaldefs; can change them to anything else)
 eps_ee, eps_em, eps_mm = gd.EPS_2'''),
@@ -4868,12 +4909,12 @@ prob_matt_nsi_all = np.array([oscprob.osc_prob(lambda l: H_matt_nsi(enu*gd.UNIT_
     md(r'''# 2. Probabilities with NSI in 3$\nu$: in matter with constant density'''),
     md(r'''## 2.1 Mixing parameters and NSI parameters'''),
     code(r'''# Standard mixing parameters (predefined examples from globaldefs; can change them to anything else)
-s12 = gd.S12_NO_BF_NUFIT_6_0 # [adim]
-s23 = gd.S23_NO_BF_NUFIT_6_0 # [adim]
-s13 = gd.S13_NO_BF_NUFIT_6_0 # [adim]
-dCP = gd.DCP_NO_BF_NUFIT_6_0 # [adim]
-D21 = gd.D21_NO_BF_NUFIT_6_0 # [eV^2]
-D31 = gd.D31_NO_BF_NUFIT_6_0 # [eV^2]
+s12 = NUFIT_NO['s12'] # [adim]
+s23 = NUFIT_NO['s23'] # [adim]
+s13 = NUFIT_NO['s13'] # [adim]
+dCP = NUFIT_NO['dCP'] # [adim]
+D21 = NUFIT_NO['D21'] # [eV^2]
+D31 = NUFIT_NO['D31'] # [eV^2]
 
 # NSI parameters (predefined exaples from globaldefs; can change them to anything else)
 eps_ee, eps_em, eps_et, eps_mm, eps_mt, eps_tt = gd.EPS_3'''),
@@ -5681,6 +5722,11 @@ import magnus.oscprob as oscprob
 import magnus.hamiltonians as hamiltonians
 import magnus.matter as matter
 import magnus.globaldefs as gd
+
+# Best-fit oscillation parameters from the latest global fit.
+# load_nufit_params returns exactly the six parameters the
+# osc_prob_3nu_* functions take, so it can be splatted straight in.
+NUFIT_NO = gd.load_nufit_params('NuFIT 6.1', 'NO')
 import magnus.adiabatic as adiabatic
 from magnus.magnus import MagnusConvergenceWarning
 
@@ -5759,7 +5805,7 @@ shortcut exists.'''),
     code(r'''l_scale = gd.L_SCALE_SUN                  # length scale of the Sun's density profile
 energy = 18.0 * gd.UNIT_MEV                # a representative solar-neutrino (8B/hep) energy
 
-sth, Dm2 = gd.S12_NO_BF_NUFIT_6_0, gd.D21_NO_BF_NUFIT_6_0
+sth, Dm2 = NUFIT_NO['s12'], NUFIT_NO['D21']
 hvac2 = hamiltonians.hamiltonian_2nu_vacuum_energy_independent(sth, Dm2)
 e00_2 = np.diag([1.0, 0.0])
 
@@ -6031,6 +6077,11 @@ import matplotlib.pyplot as plt
 from scipy.integrate import solve_ivp
 
 import magnus.globaldefs as gd
+
+# Best-fit oscillation parameters from the latest global fit.
+# load_nufit_params returns exactly the six parameters the
+# osc_prob_3nu_* functions take, so it can be splatted straight in.
+NUFIT_NO = gd.load_nufit_params('NuFIT 6.1', 'NO')
 import magnus.hamiltonians as hamiltonians
 import magnus.matter as matter
 import magnus.oscprob as oscprob
@@ -6116,7 +6167,7 @@ def to_P(U):
 
 ENERGY = 5.0*gd.UNIT_MEV
 L0, L1 = 0.0, gd.L_SCALE_SUN
-params2 = {'sth': gd.S12_NO_BF_NUFIT_6_0, 'Dm2': gd.D21_NO_BF_NUFIT_6_0}
+params2 = {'sth': NUFIT_NO['s12'], 'Dm2': NUFIT_NO['D21']}
 
 hvac2 = hamiltonians.hamiltonian_2nu_vacuum_energy_independent(
     params2['sth'], params2['Dm2'])
@@ -6537,6 +6588,2327 @@ see whether the error moves.** If it collapses, it was phase. If it does not, it
     ])
 
 
+# ------------------------------------------------------ 15_magnus_antineutrinos
+books['15_magnus_antineutrinos.ipynb'] = notebook(
+    'Antineutrinos, done properly',
+    r'''Going from neutrinos to antineutrinos changes **two** things in the Hamiltonian, and
+they are easy to get half right:
+
+1. the PMNS matrix is **conjugated**, $\mathbf{U} \to \mathbf{U}^*$, which flips the sign of
+   the CP phase $\delta_{\rm CP}$; and
+2. the matter potential **changes sign**, $V_{\rm CC} \to -V_{\rm CC}$, because the coherent
+   forward scattering of $\bar\nu_e$ off electrons has the opposite sign.
+
+Apply one and not the other and nothing complains. The result is still a valid, doubly
+stochastic probability matrix, still between zero and one, still of the right general shape --
+it is simply the answer to a different question. This is the single most defect-prone
+convention in the package: at one point the sign was applied **twice** inside Mag$\nu$s
+itself, which gave antineutrinos a *positive* matter potential and plausible-looking wrong
+answers throughout.
+
+In ordinary use you never do either by hand. Every wrapper takes `nubar=True` and does both:
+
+```python
+oscprob.osc_prob_3nu_matter_constant_density(energy, L, rho, **osc, nubar=True)
+```
+
+This notebook takes the flag apart to show what it stands for, what the two half-right
+constructions look like, and which identities have to hold if you got it right.''',
+    [
+    code(r'''import numpy as np
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+
+# Mag(nu)s is imported as an installed package -- from the repository root,
+# 'pip install -e .' (add [plot] for magnus.plotting). No sys.path juggling.
+import magnus.oscprob as oscprob
+import magnus.hamiltonians as hamiltonians
+import magnus.matter as matter
+import magnus.earth as earth
+import magnus.globaldefs as gd
+import magnus.plotting as plotting'''),
+    md(r'''## 1. The rule, taken apart
+
+We work at a long-baseline configuration -- 1300 km through the crust, the DUNE baseline --
+in the $\nu_\mu \to \nu_e$ appearance channel, where the CP phase and the matter effect both
+matter and neither dominates.'''),
+    code(r'''# load_nufit_params returns exactly the six mixing parameters, ready to splat
+# into any osc_prob_3nu_* call.  'NuFIT 6.1' is the package default.
+OSC = gd.load_nufit_params('NuFIT 6.1', 'NO')
+osc = OSC
+
+RHO = 2.848                                   # Earth's crust [g cm^-3]
+energy = 2.0*gd.UNIT_GEV                      # [eV]
+baseline = 1300.0*gd.UNIT_KM                  # [eV^-1]
+
+for name, value in OSC.items():
+    print('%-5s = %+.5e' % (name, value))'''),
+    md(r'''Now build the Hamiltonian with the two flips under separate control. `nubar` appears
+twice below, and they are *different* arguments -- one on the vacuum term, one on the
+potential:
+
+$$\mathbf{H} = \frac{1}{2E}\,\mathbf{U}\,\mathbf{M}^2\,\mathbf{U}^\dagger
+             \;+\; {\rm diag}(V_{\rm CC}, 0, 0)$$'''),
+    code(r'''def prob_halves(conjugate_pmns, flip_potential, energy=energy, L=baseline):
+    """P for a Hamiltonian with each half of the antineutrino rule applied, or not.
+
+    conjugate_pmns -> U becomes U*, flipping the sign of dCP
+    flip_potential -> V_CC becomes -V_CC
+    Both True is the antineutrino; both False is the neutrino."""
+    h_vac = hamiltonians.hamiltonian_3nu_vacuum_energy_independent(
+        **OSC, nubar=conjugate_pmns)                       # [eV^2]
+    vcc = matter.vcc_func_from_rho_func(
+        RHO, nubar=flip_potential, density_matter_is_in_g_per_cm3=True)   # [eV]
+    H = np.asarray(h_vac)/energy + np.diag([vcc, 0.0, 0.0])
+    return oscprob.osc_prob(H, 0.0, L)'''),
+    md(r'''## 2. Two ways to get it half right
+
+All four numbers below are unremarkable probabilities. Nothing about the two middle rows
+looks wrong -- that is the entire problem.'''),
+    code(r'''print('%-28s %s' % ('construction', 'P(nu_mu -> nu_e)'))
+print('-'*48)
+for name, conj, flip in [('neutrino',                False, False),
+                         ('antineutrino (correct)',  True,  True),
+                         ('conjugate PMNS only',     True,  False),
+                         ('flip potential only',     False, True)]:
+    print('%-28s %.6f' % (name, prob_halves(conj, flip)[gd.NUMU][gd.NUE]))'''),
+    md(r'''Conjugating alone overstates the appearance probability by a factor of four; flipping
+the potential alone overstates it by a factor of about 1.6. Both sit between the neutrino and
+the antineutrino values, which is exactly where a plausible wrong answer lives.
+
+The hand-built version is not a re-derivation -- it reproduces what the wrapper does, to
+every digit, for both signs:'''),
+    code(r'''for nubar in (False, True):
+    from_wrapper = oscprob.osc_prob_3nu_matter_constant_density(
+        energy, baseline, RHO, **OSC, nubar=nubar,
+        density_matter_is_in_g_per_cm3=True)[gd.NUMU][gd.NUE]
+    by_hand = prob_halves(nubar, nubar)[gd.NUMU][gd.NUE]
+    print('nubar=%-6s wrapper %.9f   by hand %.9f   |difference| %.1e'
+          % (nubar, from_wrapper, by_hand, abs(from_wrapper - by_hand)))'''),
+    md(r'''## 3. Where the sign lives
+
+The antineutrino sign of the potential is applied in exactly **one** place in Mag$\nu$s,
+`matter.vcc_func_from_rho_func`, and every entry point routes through it. That is deliberate:
+the one bug this convention actually produced was the sign being applied *twice*, once in the
+potential builder and once again by the caller, which is only possible when there is more than
+one place it could live.
+
+So if you assemble a Hamiltonian yourself, take the potential from that function and do
+**not** negate it again:'''),
+    code(r'''v_nu = matter.vcc_func_from_rho_func(RHO, density_matter_is_in_g_per_cm3=True)
+v_nubar = matter.vcc_func_from_rho_func(RHO, nubar=True,
+                                        density_matter_is_in_g_per_cm3=True)
+print('V_CC(nu)    = %+.5e eV' % v_nu)
+print('V_CC(nubar) = %+.5e eV' % v_nubar)
+print('sum         = %+.1e   (they are exact negatives, applied once)'
+      % (v_nu + v_nubar))'''),
+    md(r'''## 4. The four constructions against energy
+
+Below the appearance peak the curves are hard to tell apart; through the peak they separate
+by more than the CP-violation signal any experiment is trying to measure. A wrong convention
+would not look like a bug in a plot like this -- it would look like a different value of
+$\delta_{\rm CP}$.'''),
+    code(r'''E_gev = np.logspace(-0.5, 1.2, 300)
+E = E_gev*gd.UNIT_GEV
+
+def curve(conjugate_pmns, flip_potential):
+    h_vac = np.asarray(hamiltonians.hamiltonian_3nu_vacuum_energy_independent(
+        **OSC, nubar=conjugate_pmns))
+    vcc = matter.vcc_func_from_rho_func(RHO, nubar=flip_potential,
+                                        density_matter_is_in_g_per_cm3=True)
+    return np.array([oscprob.osc_prob(h_vac/e + np.diag([vcc, 0.0, 0.0]),
+                                      0.0, baseline)[gd.NUMU][gd.NUE] for e in E])
+
+specs = [(r'$\nu$',                        False, False, 'C0', '-'),
+         (r'$\bar\nu$ (correct)',          True,  True,  'C3', '-'),
+         (r'$\bar\nu$, conjugate only',    True,  False, 'C1', '--'),
+         (r'$\bar\nu$, potential only',    False, True,  'C2', ':')]
+curves = [dict(y=curve(c, f), label=lab, color=col, ls=ls)
+          for lab, c, f, col, ls in specs]
+
+fig, ax = plotting.plot_probability_vs_energy(
+    E_gev, curves, nu_i=gd.NUMU, nu_f=gd.NUE, num_flavors=3,
+    xlim=(E_gev[0], E_gev[-1]), ylim=(0.0, 0.2),
+    legend_title='construction', legend_loc='upper left',
+    title=(r'$3\nu$ in constant density, $L = 1300$ km, '
+           r'$\rho = 2.848$ g cm$^{-3}$'))'''),
+    md(r'''## 5. Checks that must hold
+
+Three identities separate a correct antineutrino calculation from a plausible one. They are
+worth running whenever you build a Hamiltonian by hand.
+
+**CP: with $\delta_{\rm CP} = 0$ and no matter, neutrinos and antineutrinos are identical.**
+Conjugating a real matrix does nothing, so the two must agree to machine precision. If they
+do not, the potential is not zero when you think it is.'''),
+    code(r'''for dcp in (0.0, np.pi/2):
+    Q = dict(OSC, dCP=dcp)
+    p = oscprob.osc_prob_3nu_vacuum(energy, baseline, **Q)[gd.NUMU][gd.NUE]
+    pbar = oscprob.osc_prob_3nu_vacuum(energy, baseline, **Q,
+                                       nubar=True)[gd.NUMU][gd.NUE]
+    print('dCP = %.4f   P = %.9f   Pbar = %.9f   |P - Pbar| = %.2e'
+          % (dcp, p, pbar, abs(p - pbar)))'''),
+    md(r'''**CPT: in vacuum, $P(\nu_\alpha \to \nu_\beta) = P(\bar\nu_\beta \to \bar\nu_\alpha)$
+for any $\delta_{\rm CP}$.** Note the reversed flavour indices -- this is the *transpose*, not
+the matrix itself. CP is violated here and CPT is not, so the first number below is zero and
+the second is not.'''),
+    code(r'''Q = dict(OSC, dCP=1.234)
+P_nu = np.asarray(oscprob.osc_prob_3nu_vacuum(energy, baseline, **Q))
+P_nubar = np.asarray(oscprob.osc_prob_3nu_vacuum(energy, baseline, **Q, nubar=True))
+
+print('vacuum, max |P[a][b] - Pbar[b][a]| = %.2e   <- CPT, must vanish'
+      % np.max(np.abs(P_nu - P_nubar.T)))
+print('vacuum, max |P[a][b] - Pbar[a][b]| = %.2e   <- CP, need not'
+      % np.max(np.abs(P_nu - P_nubar)))'''),
+    md(r'''**In matter, CPT no longer relates the two.** Ordinary matter is made of electrons
+and not positrons, so it is a CPT-odd background: the transpose identity is *expected* to
+fail, and a calculation in which it still held would be the suspicious one.'''),
+    code(r'''P_nu = np.asarray(prob_halves(False, False))
+P_nubar = np.asarray(prob_halves(True, True))
+print('matter, max |P[a][b] - Pbar[b][a]| = %.2e   <- no longer a symmetry'
+      % np.max(np.abs(P_nu - P_nubar.T)))
+
+# Unitarity survives regardless: every row still sums to one.
+print('row sums, nubar: %s' % np.round(P_nubar.sum(axis=1), 12))'''),
+    md(r'''## Summary
+
+| | conjugate $\mathbf{U}$ | flip $V_{\rm CC}$ | result |
+|---|---|---|---|
+| neutrino | no | no | correct |
+| **antineutrino** | **yes** | **yes** | **correct** |
+| half right | yes | no | plausible, wrong |
+| half right | no | yes | plausible, wrong |
+| the old bug | yes | *twice* | plausible, wrong |
+
+Both flips, or neither. In practice: **pass `nubar=True` and let the wrapper do it**, and if
+you must build the Hamiltonian yourself, take $V_{\rm CC}$ from
+`matter.vcc_func_from_rho_func(..., nubar=True)` and never negate it again.
+
+The three checks in section 5 are cheap enough to keep in a test: CP agreement at
+$\delta_{\rm CP} = 0$ in vacuum, the CPT transpose identity in vacuum, and its expected
+failure in matter.'''),
+    ])
+
+
+# ------------------------------------------- 16_magnus_exact_vs_approximations
+books['16_magnus_exact_vs_approximations.ipynb'] = notebook(
+    'Exact versus the textbook approximations',
+    r'''The familiar oscillation formulas -- the two-flavour $\sin^2(2\theta)\sin^2(\Delta m^2
+L/4E)$, its constant-density counterpart with the matter-resonant mixing angle -- are not
+approximations. Each is the **exact** solution of the problem it was derived for, and Mag$\nu$s
+reproduces every one of them to machine precision. Showing that is the first half of this
+notebook, and it is really a test of Mag$\nu$s rather than of the formulas.
+
+What breaks is not the formula but the *problem substitution*: using a constant-density
+formula for a profile that is not constant. The usual recipe -- take the mean density along
+the path and plug it in -- is where the error enters, and on an Earth chord it is not a small
+one. That is the second half.
+
+The comparison uses `magnus.oscprobstd`, which ships the standard closed forms precisely so
+that this kind of check is available without a second package.''',
+    [
+    code(r'''import numpy as np
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+
+# Mag(nu)s is imported as an installed package -- from the repository root,
+# 'pip install -e .' (add [plot] for magnus.plotting). No sys.path juggling.
+import magnus.oscprob as oscprob
+import magnus.oscprobstd as oscprobstd
+import magnus.hamiltonians as hamiltonians
+import magnus.matter as matter
+import magnus.earth as earth
+import magnus.globaldefs as gd
+import magnus.plotting as plotting
+
+# load_nufit_params returns exactly the six mixing parameters, ready to splat
+# into any osc_prob_3nu_* call.  'NuFIT 6.1' is the package default.
+OSC = gd.load_nufit_params('NuFIT 6.1', 'NO')
+osc = OSC'''),
+    md(r'''## 1. The two-flavour vacuum formula is not an approximation
+
+$$P(\nu_e \to \nu_\mu) = \sin^2 2\theta \,\sin^2\!\left(\frac{\Delta m^2 L}{4E}\right)$$
+
+is exact for two flavours in vacuum, and the Magnus expansion has nothing to correct. Note
+that `oscprobstd.osc_prob_2nu_vacuum_std` returns the full $2\times2$ probability **matrix**,
+not a single number -- so it is indexed the same way as everything else in the package.'''),
+    code(r'''sth, Dm2 = osc['s12'], osc['D21']
+E_gev = np.logspace(-1.0, 1.0, 400)
+E = E_gev*gd.UNIT_GEV
+L = 1300.0*gd.UNIT_KM
+
+magnus_2nu = oscprob.osc_prob_2nu_vacuum(E, L, sth, Dm2, nu_i=gd.NUE, nu_f=gd.NUMU)
+closed_2nu = np.array([oscprobstd.osc_prob_2nu_vacuum_std(sth, Dm2, e, L)[gd.NUE][gd.NUMU]
+                       for e in E])
+
+print('2nu, vacuum       : max |Magnus - closed form| = %.2e'
+      % np.max(np.abs(magnus_2nu - closed_2nu)))'''),
+    md(r'''## 2. Three flavours in vacuum: still exact
+
+Three flavours in vacuum has a closed form too, built from the PMNS matrix and the two
+mass-squared splittings. Same story.'''),
+    code(r'''U = hamiltonians.pmns_mixing_matrix(OSC['s12'], OSC['s23'], OSC['s13'], OSC['dCP'])
+
+magnus_3nu = oscprob.osc_prob_3nu_vacuum(E, L, **OSC, nu_i=gd.NUMU, nu_f=gd.NUE)
+closed_3nu = np.array([oscprobstd.osc_prob_3nu_vacuum_std(U, OSC['D21'], OSC['D31'], e, L)
+                       [gd.NUMU][gd.NUE] for e in E])
+
+print('3nu, vacuum       : max |Magnus - closed form| = %.2e'
+      % np.max(np.abs(magnus_3nu - closed_3nu)))'''),
+    md(r'''## 3. Constant density: exact when the density really is constant
+
+The matter formula replaces the vacuum mixing angle and splitting with their in-matter
+counterparts. It is exact for a genuinely constant potential, and again there is nothing to
+correct.'''),
+    code(r'''RHO = 2.848                                    # Earth's crust [g cm^-3]
+vcc = matter.vcc_func_from_rho_func(RHO, density_matter_is_in_g_per_cm3=True)
+
+magnus_matter = oscprob.osc_prob_2nu_matter_constant_density(
+    E, L, RHO, sth, Dm2, nu_i=gd.NUE, nu_f=gd.NUMU,
+    density_matter_is_in_g_per_cm3=True)
+closed_matter = np.array([oscprobstd.osc_prob_2nu_matter_std(sth, Dm2, vcc, e, L)
+                          [gd.NUE][gd.NUMU] for e in E])
+
+print('V_CC              = %.4e eV' % vcc)
+print('2nu, constant rho : max |Magnus - closed form| = %.2e'
+      % np.max(np.abs(magnus_matter - closed_matter)))'''),
+    md(r'''Three formulas, three agreements at the $10^{-14}$ level or better. Wherever a closed
+form exists, Mag$\nu$s returns it.
+
+## 4. Where it does break: a constant density standing in for a varying one
+
+Now the substitution that is actually made in practice. A neutrino crossing the Earth through
+the core passes from crust to mantle to outer and inner core and back -- from about 1 to 13
+g cm$^{-3}$. The constant-density formula is still exact for *its* problem; it is just no
+longer this problem.
+
+We use the atmospheric sector ($\theta_{23}$, $\Delta m^2_{31}$), which is what an Earth chord
+of this length actually probes.'''),
+    code(r'''sth_atm, Dm2_atm = osc['s23'], osc['D31']
+
+def num_density_e_prem(r):
+    return matter.num_density_e_func(r, earth.density_matter_func_prem,
+                                     electron_fraction=0.5,
+                                     density_matter_is_in_g_per_cm3=True)   # [eV^3]
+
+def VCC_prem(r):
+    return matter.VCC_func(r, num_density_e_prem)                            # [eV]
+
+H_vac_atm = np.asarray(
+    hamiltonians.hamiltonian_2nu_vacuum_energy_independent(sth_atm, Dm2_atm))
+
+costhz = -1.0                                  # straight up through the core
+L_km = earth.distance_traveled_inside_earth(costhz)
+L_earth = L_km*gd.CONV_KM_TO_INV_EV
+
+def H_prem(l, energy):
+    r = earth.earth_radial_distance_from_depth(costhz, l/gd.CONV_KM_TO_INV_EV)
+    return H_vac_atm/energy + hamiltonians.hamiltonian_2nu_matter(VCC_prem(r))
+
+# The PREM shell boundaries are density *jumps*.  Declaring them keeps a slab from
+# straddling one, which no amount of refinement fixes -- see notebook 14.
+breakpoints = np.asarray(
+    earth.prem_layer_edges_along_chord(costhz))*gd.CONV_KM_TO_INV_EV
+
+print('chord length      = %.1f km' % L_km)
+print('PREM edges on it  = %d' % len(breakpoints))'''),
+    md(r'''The mean density along the chord is what someone reaching for the constant-density
+formula would plug in, so that is what we compare against.'''),
+    code(r'''l_grid = np.linspace(0.0, L_km, 4001)
+rho_along = earth.density_matter_func_prem(
+    earth.earth_radial_distance_from_depth(costhz, l_grid))
+rho_bar = float(np.mean(rho_along))
+VCC_bar = matter.vcc_func_from_rho_func(rho_bar, density_matter_is_in_g_per_cm3=True)
+
+print('density along the chord: %.2f g/cm^3 (core) -> %.2f (crust)'
+      % (rho_along.max(), rho_along.min()))
+print('mean density           : %.4f g/cm^3' % rho_bar)'''),
+    md(r'''The cell below raises a `MagnusConvergenceWarning`. It is worth reading rather than
+hiding: it reports that some slab was wider than the sufficient condition for convergence of
+the Magnus series, which is a statement about **slab width, not about the answer** -- measured
+false about three quarters of the time. Here the answer is converged (declaring the
+breakpoints and tightening the tolerance by four orders of magnitude moves it in the sixth
+decimal). Notebooks 20 and 21 take this apart properly.'''),
+    code(r'''E_gev_earth = np.logspace(0.0, 2.0, 60)
+E_earth = E_gev_earth*gd.UNIT_GEV
+
+exact = np.array([oscprob.osc_prob(lambda l, e=e: H_prem(l, e), 0.0, L_earth,
+                                   t_breakpoints=breakpoints)[gd.NUMU][gd.NUMU]
+                  for e in E_earth])
+const_rho = np.array([oscprobstd.osc_prob_2nu_matter_std(sth_atm, Dm2_atm, VCC_bar, e, L_earth)
+                      [gd.NUMU][gd.NUMU] for e in E_earth])
+vacuum = np.array([oscprobstd.osc_prob_2nu_vacuum_std(sth_atm, Dm2_atm, e, L_earth)
+                   [gd.NUMU][gd.NUMU] for e in E_earth])
+
+gap = np.abs(exact - const_rho)
+print('max |exact - constant rho| = %.3f   at %.2f GeV'
+      % (gap.max(), E_gev_earth[gap.argmax()]))
+print('rms                        = %.3f' % np.sqrt(np.mean(gap**2)))
+print('max |exact - vacuum|       = %.3f' % np.max(np.abs(exact - vacuum)))'''),
+    code(r'''fig, ax = plotting.plot_probability_vs_energy(
+    E_gev_earth,
+    [dict(y=exact, label='Exact (PREM, Magnus)', color='C3'),
+     dict(y=const_rho, label=r'Constant $\bar\rho$ closed form', color='C0', ls='--'),
+     dict(y=vacuum, label='Vacuum closed form', color='0.5', ls=':')],
+    nu_i=gd.NUMU, nu_f=gd.NUMU, num_flavors=2,
+    xlim=(E_gev_earth[0], E_gev_earth[-1]),
+    legend_title='method', legend_loc='lower right',
+    title=(r'$2\nu$ through the core, $\cos\theta_z = -1$ '
+           r'($L = %.0f$ km)' % L_km))'''),
+    md(r'''## Summary
+
+| comparison | agreement |
+|---|---|
+| $2\nu$ vacuum, closed form | $4\times10^{-16}$ |
+| $3\nu$ vacuum, closed form | $1\times10^{-14}$ |
+| $2\nu$ constant density, closed form | $6\times10^{-16}$ |
+| $2\nu$ Earth chord vs **mean-density** formula | **wrong by up to 0.51** |
+
+The closed forms are exact and Mag$\nu$s agrees with all of them. The failure in the last row
+is not the formula's -- it is the substitution of a constant density for a varying one, and it
+is worth 0.51 in probability at the peak, with an rms of 0.23 across two decades in energy.
+
+The mean density is not a bad *estimate* of the profile; it is simply not what the neutrino
+sees. Oscillation depends on the arrangement of the matter along the path, not only on its
+average -- which is the subject of notebook 18.'''),
+    ])
+
+
+# ------------------------------------------ 17_magnus_ordering_and_octant
+books['17_magnus_ordering_and_octant.ipynb'] = notebook(
+    'Mass ordering and the $\\theta_{23}$ octant',
+    r'''Two things about the neutrino mass spectrum are still unmeasured, and both show up in
+oscillation probabilities:
+
+* **The ordering.** Is $\nu_3$ the heaviest state (normal ordering, NO) or the lightest
+  (inverted, IO)? In Mag$\nu$s this is carried entirely by the **sign of `D31`**
+  ($\Delta m^2_{31}$) -- positive for NO, negative for IO. Nothing else changes.
+* **The octant.** Is $\theta_{23}$ below $45^\circ$ or above it? Disappearance experiments
+  measure something close to $\sin^2 2\theta_{23}$, which cannot tell $\theta_{23}$ from
+  $90^\circ - \theta_{23}$.
+
+A warning about the shipped parameter sets before we start.
+`gd.load_nufit_params('NuFIT 6.1', 'NO')` and `(..., 'IO')` are the NuFIT 6.1 best fits for each
+ordering, and they differ in **both** things at once -- and in $\delta_{\rm CP}$ as well. Using
+them as an ordering comparison conflates three effects. To isolate one variable we flip the
+sign of `D31` by hand and change nothing else.''',
+    [
+    code(r'''import numpy as np
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+
+# Mag(nu)s is imported as an installed package -- from the repository root,
+# 'pip install -e .' (add [plot] for magnus.plotting). No sys.path juggling.
+import magnus.oscprob as oscprob
+import magnus.hamiltonians as hamiltonians
+import magnus.matter as matter
+import magnus.earth as earth
+import magnus.globaldefs as gd
+import magnus.plotting as plotting
+
+NO = gd.load_nufit_params('NuFIT 6.1', 'NO')
+IO_fit = gd.load_nufit_params('NuFIT 6.1', 'IO')
+KEYS = tuple(NO)
+
+print('%-6s %-14s %-14s' % ('', 'NuFIT NO', 'NuFIT IO'))
+for k in KEYS:
+    print('%-6s %+.6e %+.6e' % (k, NO[k], IO_fit[k]))
+print()
+print('sin^2(th23): %.3f vs %.3f  <- different octants, too'
+      % (NO['s23']**2, IO_fit['s23']**2))'''),
+    md(r'''So we build our own inverted-ordering set: the normal-ordering best fit with the
+sign of `D31` reversed, everything else held fixed. Any difference below is then the ordering
+and nothing else.'''),
+    code(r'''IO = dict(NO, D31=-NO['D31'])
+print('NO: D31 = %+.6f eV^2' % NO['D31'])
+print('IO: D31 = %+.6f eV^2' % IO['D31'])'''),
+    md(r'''## 1. In vacuum, the ordering is entangled with the CP phase
+
+At a long baseline the vacuum probability does depend on the sign of `D31`, through the
+interference between the solar and atmospheric terms. But the same interference carries
+$\delta_{\rm CP}$, so a vacuum measurement cannot separate them -- which is the whole reason
+the ordering is hard.'''),
+    code(r'''E_gev = np.logspace(-0.5, 1.2, 300)
+E = E_gev*gd.UNIT_GEV
+L = 1300.0*gd.UNIT_KM                          # DUNE-like baseline
+
+vac_no = oscprob.osc_prob_3nu_vacuum(E, L, **NO, nu_i=gd.NUMU, nu_f=gd.NUE)
+vac_io = oscprob.osc_prob_3nu_vacuum(E, L, **IO, nu_i=gd.NUMU, nu_f=gd.NUE)
+
+print('vacuum, max |P(NO) - P(IO)| = %.4f' % np.max(np.abs(vac_no - vac_io)))'''),
+    md(r'''## 2. Matter separates them, and separates $\nu$ from $\bar\nu$
+
+The matter potential enters with one sign for neutrinos and the other for antineutrinos, so a
+resonance that exists for one does not for the other -- and *which* one it is depends on the
+ordering. That asymmetry, not the probability itself, is what an experiment measures.'''),
+    code(r'''RHO = 2.848                                    # crust [g cm^-3]
+kw = dict(density_matter_is_in_g_per_cm3=True, nu_i=gd.NUMU, nu_f=gd.NUE)
+
+mat = {}
+for label, params in (('NO', NO), ('IO', IO)):
+    for nubar in (False, True):
+        mat[(label, nubar)] = oscprob.osc_prob_3nu_matter_constant_density(
+            E, L, RHO, **params, nubar=nubar, **kw)
+
+print('crust, L = 1300 km')
+print('  neutrinos     : max |P(NO) - P(IO)| = %.4f'
+      % np.max(np.abs(mat[('NO', False)] - mat[('IO', False)])))
+print('  antineutrinos : max |P(NO) - P(IO)| = %.4f'
+      % np.max(np.abs(mat[('NO', True)] - mat[('IO', True)])))'''),
+    md(r'''## 3. Through the core, the separation is not subtle
+
+The crust is thin and its potential is weak. A neutrino crossing the **core** sits in the
+matter resonance, and there the two orderings stop being a few-percent question.
+
+This is the calculation Mag$\nu$s exists for: the density varies by more than a factor of ten
+along the path, so there is no closed form to fall back on. We declare the PREM shell
+boundaries as `t_breakpoints`, since they are genuine density jumps.'''),
+    code(r'''def num_density_e_prem(r):
+    return matter.num_density_e_func(r, earth.density_matter_func_prem,
+                                     electron_fraction=0.5,
+                                     density_matter_is_in_g_per_cm3=True)   # [eV^3]
+
+def VCC_prem(r):
+    return matter.VCC_func(r, num_density_e_prem)                            # [eV]
+
+costhz = -1.0                                  # straight up through the core
+L_km = earth.distance_traveled_inside_earth(costhz)
+L_earth = L_km*gd.CONV_KM_TO_INV_EV
+breakpoints = np.asarray(
+    earth.prem_layer_edges_along_chord(costhz))*gd.CONV_KM_TO_INV_EV
+
+def scan_earth(params, nubar, energies):
+    """P(nu_mu -> nu_e) along the chord, for one ordering and one sign."""
+    h_vac = np.asarray(hamiltonians.hamiltonian_3nu_vacuum_energy_independent(
+        **params, nubar=nubar))
+    sign = -1.0 if nubar else 1.0        # the potential flips; see notebook 15
+    def H(l, energy):
+        r = earth.earth_radial_distance_from_depth(costhz, l/gd.CONV_KM_TO_INV_EV)
+        return h_vac/energy + np.diag([sign*VCC_prem(r), 0.0, 0.0])
+    return np.array([oscprob.osc_prob(lambda l, e=e: H(l, e), 0.0, L_earth,
+                                      t_breakpoints=breakpoints)[gd.NUMU][gd.NUE]
+                     for e in energies])
+
+E_gev_earth = np.logspace(0.0, 1.5, 45)
+E_earth = E_gev_earth*gd.UNIT_GEV
+
+earth_p = {}
+for label, params in (('NO', NO), ('IO', IO)):
+    for nubar in (False, True):
+        earth_p[(label, nubar)] = scan_earth(params, nubar, E_earth)
+
+print('core chord, L = %.0f km' % L_km)
+for nubar, name in ((False, 'neutrinos    '), (True, 'antineutrinos')):
+    gap = np.abs(earth_p[('NO', nubar)] - earth_p[('IO', nubar)])
+    print('  %s: max |P(NO) - P(IO)| = %.4f  at %.2f GeV'
+          % (name, gap.max(), E_gev_earth[gap.argmax()]))'''),
+    code(r'''i = int(np.argmax(np.abs(earth_p[('NO', False)] - earth_p[('IO', False)])))
+print('at E = %.2f GeV:' % E_gev_earth[i])
+print('  neutrinos     NO %.4f   IO %.4f' % (earth_p[('NO', False)][i],
+                                             earth_p[('IO', False)][i]))
+print('  antineutrinos NO %.4f   IO %.4f' % (earth_p[('NO', True)][i],
+                                             earth_p[('IO', True)][i]))'''),
+    md(r'''The resonance is in the **neutrinos** if the ordering is normal and in the
+**antineutrinos** if it is inverted. That is the cleanest statement of how an atmospheric
+experiment determines the ordering, and here it is as a pair of numbers differing by a factor
+of a few hundred rather than a few percent.'''),
+    code(r'''fig, ax = plotting.plot_probability_vs_energy(
+    E_gev_earth,
+    [dict(y=earth_p[('NO', False)], label=r'$\nu$, NO', color='C3'),
+     dict(y=earth_p[('IO', False)], label=r'$\nu$, IO', color='C3', ls='--'),
+     dict(y=earth_p[('NO', True)], label=r'$\bar\nu$, NO', color='C0'),
+     dict(y=earth_p[('IO', True)], label=r'$\bar\nu$, IO', color='C0', ls='--')],
+    nu_i=gd.NUMU, nu_f=gd.NUE, num_flavors=3,
+    xlim=(E_gev_earth[0], E_gev_earth[-1]), ylim=(0.0, 0.6),
+    legend_title='ordering', legend_loc='upper right',
+    title=(r'$3\nu$ through the core, $\cos\theta_z = -1$ '
+           r'($L = %.0f$ km)' % L_km))'''),
+    md(r'''## 4. The octant
+
+Now hold the ordering fixed and move $\theta_{23}$ either side of maximal.
+$\sin^2\theta_{23} = 0.45$ and $0.55$ give the *same* $\sin^2 2\theta_{23} = 0.99$, so the
+leading term of the disappearance probability cannot distinguish them.
+
+"Cannot distinguish" is often stated as an exact degeneracy. In three flavours it is not
+exact -- subleading terms and the matter potential both break it -- but the residual is
+small, which is the practical difficulty.'''),
+    code(r'''s2_lo, s2_hi = 0.45, 0.55
+LO = dict(NO, s23=np.sqrt(s2_lo))
+HI = dict(NO, s23=np.sqrt(s2_hi))
+print('sin^2(2 th23): %.4f  and  %.4f  (identical to four decimals)'
+      % (4*s2_lo*(1 - s2_lo), 4*s2_hi*(1 - s2_hi)))
+
+for name, chan in (('mu -> mu  (disappearance)', dict(nu_i=gd.NUMU, nu_f=gd.NUMU)),
+                   ('mu -> e   (appearance)   ', dict(nu_i=gd.NUMU, nu_f=gd.NUE))):
+    v_lo = oscprob.osc_prob_3nu_vacuum(E, L, **LO, **chan)
+    v_hi = oscprob.osc_prob_3nu_vacuum(E, L, **HI, **chan)
+    m_lo = oscprob.osc_prob_3nu_matter_constant_density(
+        E, L, RHO, **LO, density_matter_is_in_g_per_cm3=True, **chan)
+    m_hi = oscprob.osc_prob_3nu_matter_constant_density(
+        E, L, RHO, **HI, density_matter_is_in_g_per_cm3=True, **chan)
+    print('%s  vacuum %.4f   matter %.4f'
+          % (name, np.max(np.abs(v_lo - v_hi)), np.max(np.abs(m_lo - m_hi))))'''),
+    md(r'''Both channels separate the octants by about one part in a hundred -- an order of
+magnitude smaller than the ordering effect through the core, and comparable to the systematic
+uncertainties of a real experiment. That is why the octant is still open while the ordering is
+increasingly not.
+
+## Summary
+
+| question | carried by | where it shows | size |
+|---|---|---|---|
+| ordering | **sign of `D31`** | vacuum, 1300 km | 0.10 |
+| | | crust, $\nu$ / $\bar\nu$ | 0.13 / 0.06 |
+| | | **core chord, $\nu$ / $\bar\nu$** | **0.48 / 0.42** |
+| octant | $\sin^2\theta_{23}$ vs $1-\sin^2\theta_{23}$ | 1300 km, either channel | ~0.015 |
+
+Two practical notes. The shipped NuFIT NO and IO sets differ in ordering, octant *and*
+$\delta_{\rm CP}$ simultaneously -- flip `D31` by hand if you want the ordering alone. And an
+Earth chord needs its PREM shell boundaries passed as `t_breakpoints`: they are density jumps,
+and a slab straddling one is not fixed by refinement.'''),
+    ])
+
+
+# --------------------------------------------- 18_magnus_unusual_density_profiles
+books['18_magnus_unusual_density_profiles.ipynb'] = notebook(
+    'Unusual density profiles: arrangement, not just the mean',
+    r'''Notebook 16 ended on a claim: a neutrino responds to how matter is *arranged* along its
+path, not only to how much of it there is. This notebook makes that quantitative, with five
+profiles that share the same mean density and the same total length and give completely
+different probabilities.
+
+It also isolates one arrangement that is **not** free to matter. Reversing a profile
+end-to-end leaves every probability untouched -- but only when the Hamiltonian is complex
+symmetric, which for three flavours means $\delta_{\rm CP} = 0$ or $\pi$. That distinction
+turns out to be exact, measurable at the $10^{-16}$ level, and is the reason Mag$\nu$s can
+halve the Hamiltonian evaluations on an Earth chord.''',
+    [
+    code(r'''import numpy as np
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+
+# Mag(nu)s is imported as an installed package -- from the repository root,
+# 'pip install -e .' (add [plot] for magnus.plotting). No sys.path juggling.
+import magnus.oscprob as oscprob
+import magnus.hamiltonians as hamiltonians
+import magnus.matter as matter
+import magnus.globaldefs as gd
+import magnus.plotting as plotting
+
+OSC = gd.load_nufit_params('NuFIT 6.1', 'NO')
+osc = OSC'''),
+    md(r'''## 1. Five profiles, one mean density
+
+Each profile is eight equal-width slabs across 6000 km. The densities are drawn from
+$\{1, 9\}$ g cm$^{-3}$ or held at the mean, 5 g cm$^{-3}$ -- so every profile below has the
+same mean density and the same integrated column depth.
+
+Slab edges are density **jumps**, so they are passed as `t_breakpoints`. A slab of the
+integrator straddling a jump is not fixed by refinement, at any tolerance.'''),
+    code(r'''TOTAL_KM = 6000.0
+LOW, HIGH, MEAN = 1.0, 9.0, 5.0
+
+PROFILES = {
+    'constant'          : [MEAN]*8,
+    'castle  LHLHLHLH'  : [LOW, HIGH]*4,
+    'reversed HLHLHLHL' : [HIGH, LOW]*4,
+    'segregated LLLLHHHH': [LOW]*4 + [HIGH]*4,
+    'segregated HHHHLLLL': [HIGH]*4 + [LOW]*4,
+}
+
+for name, rho in PROFILES.items():
+    print('%-21s mean = %.3f g/cm^3' % (name, np.mean(rho)))'''),
+    code(r'''def build_H(densities, dim, h_vac_energy_indep):
+    """A piecewise-constant matter Hamiltonian, plus the slab edges to declare."""
+    n = len(densities)
+    edges_km = np.arange(n + 1)*(TOTAL_KM/n)
+    vcc = np.array([matter.vcc_func_from_rho_func(
+        float(r), density_matter_is_in_g_per_cm3=True) for r in densities])   # [eV]
+
+    def H(l, energy):
+        i = int(np.clip(np.searchsorted(edges_km, l/gd.CONV_KM_TO_INV_EV,
+                                        side='right') - 1, 0, n - 1))
+        m = np.zeros((dim, dim))
+        m[0][0] = vcc[i]
+        return h_vac_energy_indep/energy + m
+
+    return H, edges_km*gd.CONV_KM_TO_INV_EV
+
+
+def scan(densities, energies, dim, h_vac, nu_i, nu_f, **kwargs):
+    H, breakpoints = build_H(densities, dim, h_vac)
+    L = TOTAL_KM*gd.CONV_KM_TO_INV_EV
+    return np.array([oscprob.osc_prob(lambda l, e=e: H(l, e), 0.0, L,
+                                      t_breakpoints=breakpoints, **kwargs)[nu_i][nu_f]
+                     for e in energies])'''),
+    md(r'''## 2. The probabilities they produce
+
+Two flavours first, in the atmospheric sector, muon-neutrino survival.'''),
+    code(r'''h2 = np.asarray(hamiltonians.hamiltonian_2nu_vacuum_energy_independent(
+    osc['s23'], osc['D31']))
+
+E_gev = np.logspace(-0.7, 1.7, 120)
+E = E_gev*gd.UNIT_GEV
+
+survival = {name: scan(rho, E, 2, h2, gd.NUMU, gd.NUMU)
+            for name, rho in PROFILES.items()}
+reference = survival['constant']
+
+print('%-21s %14s %8s' % ('profile', 'max |P - P_const|', 'rms'))
+print('-'*46)
+for name, p in survival.items():
+    print('%-21s %14.4f %8.4f'
+          % (name, np.max(np.abs(p - reference)), np.sqrt(np.mean((p - reference)**2))))'''),
+    md(r'''The castle wall departs from the constant-density answer by **0.98** in probability --
+essentially the entire available range -- while carrying exactly the same amount of matter.
+Averaging the density first is not a mild approximation here; it is a different problem.
+
+And the two rearrangements differ from each other, not merely from the mean:'''),
+    code(r'''print('castle LHLHLHLH vs segregated LLLLHHHH : max |diff| = %.4f'
+      % np.max(np.abs(survival['castle  LHLHLHLH']
+                      - survival['segregated LLLLHHHH'])))
+
+i = int(np.argmax(np.abs(survival['castle  LHLHLHLH'] - reference)))
+print('\nat E = %.2f GeV:' % E_gev[i])
+for name, p in survival.items():
+    print('   %-21s P = %.4f' % (name, p[i]))'''),
+    code(r'''fig, (ax0, ax1) = plt.subplots(2, 1, figsize=(6.8, 5.6),
+                               gridspec_kw=dict(height_ratios=[1, 2]))
+
+edges = np.arange(9)*(TOTAL_KM/8)
+for name, color in (('constant', '0.4'), ('castle  LHLHLHLH', 'C3'),
+                    ('segregated LLLLHHHH', 'C0')):
+    ax0.step(edges, np.append(PROFILES[name], PROFILES[name][-1]),
+             where='post', color=color, label=name)
+ax0.set_ylabel(r'$\rho$ [g cm$^{-3}$]')
+ax0.set_xlabel('distance [km]')
+ax0.set_xlim(0.0, TOTAL_KM)
+ax0.legend(fontsize=7, ncol=3, loc='upper center')
+
+for name, color in (('constant', '0.4'), ('castle  LHLHLHLH', 'C3'),
+                    ('segregated LLLLHHHH', 'C0')):
+    ax1.semilogx(E_gev, survival[name], color=color, label=name)
+ax1.set_xlabel(r'$E$ [GeV]')
+ax1.set_ylabel(r'$P(\nu_\mu \to \nu_\mu)$')
+ax1.set_xlim(E_gev[0], E_gev[-1])
+ax1.set_ylim(0.0, 1.0)
+ax1.legend(fontsize=8, loc='lower left')
+fig.suptitle('Same mean density, same length, different arrangement', fontsize=10)
+fig.tight_layout()'''),
+    md(r'''## 3. The one rearrangement that changes nothing
+
+Look again at the table in section 2: `castle LHLHLHLH` and `reversed HLHLHLHL` have
+identical entries, as do the two segregated profiles. That is not a coincidence and not a
+rounding accident -- it is exact.
+
+Reversing a profile end-to-end maps the evolution operator to its transpose *provided each
+slab Hamiltonian is complex symmetric*, $\mathbf{H}^{T} = \mathbf{H}$. Then
+$P_{\rm reversed}(\nu_\alpha \to \nu_\beta) = P(\nu_\beta \to \nu_\alpha)$, and survival
+probabilities are invariant outright.
+
+For two flavours the Hamiltonian is real, hence symmetric, and this always holds:'''),
+    code(r'''castle = PROFILES['castle  LHLHLHLH']
+print('2nu, castle vs its own reversal: max |diff| = %.2e'
+      % np.max(np.abs(scan(castle, E, 2, h2, gd.NUMU, gd.NUMU)
+                      - scan(castle[::-1], E, 2, h2, gd.NUMU, gd.NUMU))))'''),
+    md(r'''For **three** flavours the vacuum Hamiltonian is Hermitian, but it is only *symmetric*
+when $\delta_{\rm CP}$ is $0$ or $\pi$ -- a nonzero CP phase puts genuine complex numbers off
+the diagonal. So the reversal symmetry is exactly as good as CP conservation:'''),
+    code(r'''segregated = PROFILES['segregated LLLLHHHH']
+E_one = 3.0*gd.UNIT_GEV
+
+print('%-10s %-12s %-14s %s' % ('dCP', 'H symmetric', '|P_aa - Prev_aa|', '|P - Prev^T|'))
+print('-'*56)
+for dcp in (0.0, np.pi, OSC['dCP']):
+    h3 = np.asarray(hamiltonians.hamiltonian_3nu_vacuum_energy_independent(
+        **dict(OSC, dCP=dcp)))
+    H_f, bp = build_H(segregated, 3, h3)
+    H_r, _ = build_H(segregated[::-1], 3, h3)
+    L = TOTAL_KM*gd.CONV_KM_TO_INV_EV
+    A = np.asarray(oscprob.osc_prob(lambda l: H_f(l, E_one), 0.0, L, t_breakpoints=bp))
+    B = np.asarray(oscprob.osc_prob(lambda l: H_r(l, E_one), 0.0, L, t_breakpoints=bp))
+    print('%-10.4f %-12s %-14.2e %.2e'
+          % (dcp, np.allclose(h3, h3.T),
+             np.max(np.abs(np.diag(A) - np.diag(B))), np.max(np.abs(A - B.T))))'''),
+    md(r'''Sixteen orders of magnitude separate the CP-conserving rows from the last one. The
+symmetry is not approximately true and then slightly broken -- it is exact, and then absent.
+
+**Why this matters to Mag$\nu$s.** A chord through a spherically symmetric Earth meets every
+radius twice: the density profile *is* a palindrome. Mag$\nu$s exploits that by evaluating the
+Hamiltonian on the first half of the slab chain and obtaining the rest by reversal, which
+halves the calls to your `H_func`. It is worth 1.4--1.67x on an expensive Hamiltonian and
+about 0.91x on plain PREM, where a density lookup is too cheap to be worth halving.
+`magnus.magnus.USE_PALINDROME` disarms it. Notebook 24 measures this.
+
+Note that the optimisation reuses *evaluations of the profile*, which is valid whatever
+$\delta_{\rm CP}$ is -- it does not assume the probability-level symmetry explored above.
+
+## 4. A caution about `t_breakpoints`
+
+Every profile in this notebook declared its slab edges, and it was the right thing to do: on a
+**scan** across energies, breakpoints at genuine discontinuities are an established cure.
+
+They are not a free win at a **single** point. Measured across 18 supernova-shock
+configurations, adding breakpoints improved 7, worsened 11, and pushed 2 answers from inside
+the requested tolerance to outside it. Notebook 14 has that measurement in full, and
+`recipes.rst` states the rule. Declare breakpoints because you know where the discontinuities
+are -- not as a general accuracy knob.
+
+## Summary
+
+| comparison | max $|\Delta P|$ |
+|---|---|
+| castle wall vs constant, same mean | **0.98** |
+| segregated vs constant, same mean | 0.66 |
+| castle vs segregated, same eight slabs | 0.95 |
+| any profile vs its own reversal, $2\nu$ | $0$ (exact) |
+| $3\nu$, $\delta_{\rm CP} = 0$ or $\pi$ | $\sim 10^{-16}$ (exact) |
+| $3\nu$, $\delta_{\rm CP} = 3.70$ | $2.8\times10^{-2}$ |
+
+The mean density tells you almost nothing. The order of the slabs tells you almost everything
+-- except for the single reversal that CP conservation protects.'''),
+    ])
+
+
+# ------------------------------------------------ 19_magnus_custom_hamiltonian
+books['19_magnus_custom_hamiltonian.ipynb'] = notebook(
+    'Bring your own Hamiltonian',
+    r'''Everything in the previous notebooks went through a wrapper. But Mag$\nu$s's actual
+interface is smaller than its wrapper list suggests: give it a **callable that returns a
+Hermitian matrix**, and it will propagate it. The mixing parameters, the matter potential, the
+BSM terms -- all of those are conveniences built on top of that one contract.
+
+This notebook covers the contract itself, the one way of writing your `H_func` that is worth
+real time, and what the Earth entry point quietly declares on your behalf.''',
+    [
+    code(r'''import time
+import warnings
+
+import numpy as np
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+
+# Mag(nu)s is imported as an installed package -- from the repository root,
+# 'pip install -e .' (add [plot] for magnus.plotting). No sys.path juggling.
+import magnus.oscprob as oscprob
+import magnus.hamiltonians as hamiltonians
+import magnus.matter as matter
+import magnus.earth as earth
+import magnus.globaldefs as gd
+import magnus.plotting as plotting
+
+OSC = gd.load_nufit_params('NuFIT 6.1', 'NO')
+h_vac = np.asarray(hamiltonians.hamiltonian_3nu_vacuum_energy_independent(**OSC))'''),
+    md(r'''## 1. Two contracts
+
+**`oscprob.osc_prob(H_func, t_ini, t_fin)`** is the general one. `H_func(l)` takes a position
+and returns a `(dim, dim)` Hermitian matrix. You supply everything, including the matter
+potential.
+
+**`oscprob.osc_prob_earth(H, ...)` and `osc_prob_sun(H, ...)`** are the profile-aware ones.
+They know the density along the path, so they call `H(energy, l, VCC)` and hand you the
+potential; you decide what to do with it. This is the interface to reach for when your new
+physics lives in a *known* environment.
+
+The dimension is read from what you return, so 2, 3, 4 and 5 flavours all work with no flag.'''),
+    code(r'''e00 = np.diag([1.0, 0.0, 0.0])          # the nu_e--nu_e slot the potential occupies
+
+COSTHZ = -0.9
+L_EARTH = earth.distance_traveled_inside_earth(COSTHZ)*gd.CONV_KM_TO_INV_EV
+ENERGY = 5.0*gd.UNIT_GEV
+
+def H_standard(energy, l, VCC):
+    """Ordinary three-flavour oscillation, written out by hand."""
+    return h_vac/energy + np.asarray(VCC)[..., None, None]*e00
+
+print('P(nu_mu -> nu_mu) = %.9f'
+      % oscprob.osc_prob_earth(H_standard, energy=ENERGY, costhz=COSTHZ, L=L_EARTH,
+                               nu_i=gd.NUMU, nu_f=gd.NUMU))'''),
+    md(r'''## 2. Write it so it accepts an array of positions
+
+That `[..., None, None]` is the single most valuable line in this notebook.
+
+Mag$\nu$s evaluates the Hamiltonian at many positions per slab. If your `H_func` handles an
+**array** of positions in one call, it does so once per slab instead of once per point. The
+indexing trick turns one potential per position into a stack of matrices, and the vacuum term
+broadcasts against it for free.
+
+Written the naive way -- `float(VCC)` and a fresh `(3,3)` -- everything still works, and
+Mag$\nu$s tells you what you are paying for with a `ScalarHamiltonianWarning`.'''),
+    code(r'''def make_H(extra_ops, vectorised):
+    """The same Hamiltonian, written the fast way or the slow way.
+
+    extra_ops stands in for a genuinely expensive H_func: a table lookup, an
+    interpolation, an integral.  A plain PREM density lookup is very cheap, which
+    is exactly why the speed-up below grows as the Hamiltonian gets dearer."""
+    def H(energy, l, VCC):
+        V = np.asarray(VCC)
+        for _ in range(extra_ops):
+            V = V + 1.0e-30*np.sin(V*1.0e13)
+        if vectorised:
+            return h_vac/energy + V[..., None, None]*e00
+        m = np.zeros((3, 3))
+        m[0][0] = float(V)
+        return h_vac/energy + m
+    return H
+
+def best_of(H, n=5):
+    best = np.inf
+    for _ in range(n):
+        t0 = time.perf_counter()
+        P = oscprob.osc_prob_earth(H, energy=ENERGY, costhz=COSTHZ, L=L_EARTH,
+                                   nu_i=gd.NUMU, nu_f=gd.NUMU)
+        best = min(best, time.perf_counter() - t0)
+    return P, best'''),
+    code(r'''print('%-26s %10s %10s %10s %s'
+      % ('H_func cost', 'scalar [s]', 'array [s]', 'speed-up', 'identical'))
+print('-'*70)
+for extra, label in ((0, 'plain PREM lookup'), (5, '5 extra ops/call'),
+                     (50, '50 extra ops/call')):
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        P_scalar, t_scalar = best_of(make_H(extra, False))
+    P_array, t_array = best_of(make_H(extra, True))
+    print('%-26s %10.4f %10.4f %9.2fx %s'
+          % (label, t_scalar, t_array, t_scalar/t_array, P_scalar == P_array))'''),
+    md(r'''Bit-identical output, every time -- this is a pure restructuring, not an
+approximation. The gain grows with what your Hamiltonian costs, which is the point: on a bare
+PREM lookup there is little to save, and on a real interpolated profile or an integral there is
+a great deal. The package documentation quotes **4.6x** on a three-flavour exponential-density
+profile, measured the same way.
+
+The warning fires once per session and names the fix:'''),
+    code(r'''with warnings.catch_warnings(record=True) as caught:
+    warnings.simplefilter('always')
+    oscprob.osc_prob_earth(make_H(0, False), energy=ENERGY, costhz=COSTHZ,
+                           L=L_EARTH, nu_i=gd.NUMU, nu_f=gd.NUMU)
+
+for w in caught:
+    if w.category is not UserWarning:
+        print('%s\n' % w.category.__name__)'''),
+    md(r'''## 3. What the Earth entry point declares for you
+
+A chord through a spherically symmetric Earth meets every radius twice, so its density profile
+reads the same from either end -- it is a **palindrome**. Mag$\nu$s can then evaluate your
+`H_func` on the first half of the slab chain and obtain the rest by reversal, halving the
+calls.
+
+That is geometry rather than an assumption about your input, which is why `osc_prob_earth` is
+allowed to declare it (via `symmetric_over`) and a general caller is not. `osc_prob_sun` does
+**not** declare it: a solar profile is monotonic, not mirror-symmetric.
+
+The declaration is also withdrawn when it would not be true -- a request over part of a chord
+rather than the whole of it is not symmetric, and is not mirrored.
+
+It is worth what your Hamiltonian costs: 1.4--1.67x on an expensive `H_func`, and about 0.91x
+on plain PREM, where halving cheap lookups does not repay the bookkeeping.
+`magnus.magnus.USE_PALINDROME` disarms it globally. Notebook 24 measures this.
+
+## 4. A worked example: a long-range force
+
+Suppose a new $L_\mu - L_\tau$ gauge boson couples neutrinos to the electrons of the Earth.
+The resulting potential is proportional to the same electron density Mag$\nu$s already hands
+you -- so the whole model is one extra term, with the matrix structure of the new charge.'''),
+    code(r'''mu_tau = np.diag([0.0, 1.0, -1.0])     # the L_mu - L_tau charge
+
+def H_long_range(energy, l, VCC, eps=0.15):
+    """Standard oscillation plus a flavour-diagonal long-range potential.
+
+    eps is the new coupling in units of the weak one, so eps*VCC is the new
+    potential -- deliberately the crudest possible parametrisation, to keep the
+    example about the interface rather than about the model."""
+    V = np.asarray(VCC)[..., None, None]
+    return h_vac/energy + V*e00 + eps*V*mu_tau
+
+E_gev = np.logspace(-0.3, 1.5, 60)
+E_scan = E_gev*gd.UNIT_GEV
+
+with warnings.catch_warnings():
+    warnings.simplefilter('ignore')
+    p_std = oscprob.osc_prob_earth(H_standard, energy=E_scan, costhz=COSTHZ,
+                                   L=L_EARTH, nu_i=gd.NUMU, nu_f=gd.NUMU)
+    p_lrf = oscprob.osc_prob_earth(H_long_range, energy=E_scan, costhz=COSTHZ,
+                                   L=L_EARTH, nu_i=gd.NUMU, nu_f=gd.NUMU)
+
+gap = np.abs(np.asarray(p_std) - np.asarray(p_lrf))
+print('max |standard - long range| = %.4f  at %.2f GeV'
+      % (gap.max(), E_gev[gap.argmax()]))'''),
+    code(r'''fig, ax = plotting.plot_probability_vs_energy(
+    E_gev,
+    [dict(y=np.asarray(p_std), label=r'Standard $3\nu$', color='0.2', ls='--'),
+     dict(y=np.asarray(p_lrf), label=r'$+\;L_\mu - L_\tau$, $\epsilon = 0.15$',
+          color='C1')],
+    nu_i=gd.NUMU, nu_f=gd.NUMU, num_flavors=3,
+    xlim=(E_gev[0], E_gev[-1]),
+    legend_title='Hamiltonian', legend_loc='lower right',
+    title=r'A custom Hamiltonian through the Earth, $\cos\theta_z = %.1f$' % COSTHZ)'''),
+    md(r'''## Summary -- a checklist for your own `H_func`
+
+1. **Return a Hermitian matrix.** The dimension is inferred; 2 to 5 flavours need no flag.
+2. **Accept an array of positions**, and use `np.asarray(VCC)[..., None, None]` to build the
+   stack. Bit-identical results, and the gain grows with what your Hamiltonian costs.
+3. **Take the matter potential from the entry point** (`osc_prob_earth`/`osc_prob_sun`) or
+   from `matter.vcc_func_from_rho_func`. For antineutrinos pass `nubar=True` there and do not
+   negate it again -- notebook 15.
+4. **Declare discontinuities** with `t_breakpoints`. A slab straddling a jump is not fixed by
+   refinement -- notebook 18.
+5. **Do not declare symmetry yourself.** `osc_prob_earth` does it where geometry guarantees it.
+
+If you want to know which engine then answered your request, and whether to believe it, that
+is notebooks 21 and 22.'''),
+    ])
+
+
+# ------------------------------------------------- 20_magnus_numerical_edge_cases
+books['20_magnus_numerical_edge_cases.ipynb'] = notebook(
+    'Numerical edge cases, and what the warnings mean',
+    r'''Two questions this notebook answers. First: which degenerate, empty or otherwise
+pathological inputs return a **number** rather than a `NaN`? Exact degeneracies are the usual
+place a closed-form implementation divides by zero, and the Magnus expansion never forms those
+denominators -- it exponentiates a matrix, and a degenerate matrix exponentiates perfectly
+well.
+
+Second, and more useful in practice: Mag$\nu$s has **nine** warning classes, and they do not
+all mean the same kind of thing. Some report a bad input, some an expensive choice, and some a
+condition that was not met but may not matter. Knowing which is which is the difference between
+a warning you act on and one you note.''',
+    [
+    code(r'''import warnings
+
+import numpy as np
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+
+# Mag(nu)s is imported as an installed package -- from the repository root,
+# 'pip install -e .' (add [plot] for magnus.plotting). No sys.path juggling.
+import magnus.magnus as magnus
+import magnus.oscprob as oscprob
+import magnus.hamiltonians as hamiltonians
+import magnus.matter as matter
+import magnus.globaldefs as gd
+
+# load_nufit_params returns exactly the six mixing parameters, ready to splat
+# into any osc_prob_3nu_* call.  'NuFIT 6.1' is the package default.
+OSC = gd.load_nufit_params('NuFIT 6.1', 'NO')
+osc = OSC
+h_vac = np.asarray(hamiltonians.hamiltonian_3nu_vacuum_energy_independent(**OSC))
+
+ENERGY = 1.0*gd.UNIT_GEV
+BASELINE = 1300.0*gd.UNIT_KM'''),
+    md(r'''## 1. A Hamiltonian proportional to the identity
+
+If every eigenvalue is the same there is no relative phase, so nothing oscillates. The answer
+is the identity matrix, exactly.'''),
+    code(r'''P = np.asarray(oscprob.osc_prob(np.eye(3)*3.7e-13, 0.0, BASELINE))
+print(np.round(P, 12))'''),
+    md(r'''## 2. The trace does not matter
+
+Adding a multiple of the identity shifts every eigenvalue equally, which multiplies the
+evolution operator by an overall phase and cancels in the probability. Useful in practice: you
+may drop the trace of your Hamiltonian without changing anything.'''),
+    code(r'''P_plain = np.asarray(oscprob.osc_prob(h_vac/ENERGY, 0.0, BASELINE))
+shift = 3.0*np.max(np.abs(h_vac/ENERGY))     # comparable to H itself
+P_shifted = np.asarray(oscprob.osc_prob(h_vac/ENERGY + shift*np.eye(3), 0.0, BASELINE))
+
+print('max |P(H) - P(H + c*I)| = %.2e' % np.max(np.abs(P_plain - P_shifted)))'''),
+    md(r'''## 3. Zero baseline, and an exactly degenerate spectrum
+
+A zero baseline means no evolution; equal masses mean no oscillation. Both return the identity
+rather than a division by zero.'''),
+    code(r'''print('L = 0:')
+print(np.round(np.asarray(oscprob.osc_prob(h_vac/ENERGY, 0.0, 0.0)), 12))
+
+h_degenerate = np.asarray(hamiltonians.hamiltonian_3nu_vacuum_energy_independent(
+    **dict(OSC, D21=0.0, D31=0.0)))
+print('\nD21 = D31 = 0:')
+print(np.round(np.asarray(oscprob.osc_prob(h_degenerate/ENERGY, 0.0, BASELINE)), 12))'''),
+    md(r'''## 4. Approaching degeneracy
+
+The interesting case is not the exact degeneracy but the approach to it, where a closed form
+divides by a vanishing splitting. Here the probability tends smoothly to the identity and
+unitarity holds at the $10^{-15}$ level throughout -- fifteen orders of magnitude of shrinking
+splitting, with no special-casing anywhere.'''),
+    code(r'''print('%-12s %-18s %s' % ('scale', 'P_ee', 'max |row sum - 1|'))
+print('-'*50)
+for scale in (1e-3, 1e-6, 1e-9, 1e-12, 1e-15):
+    h_near = np.asarray(hamiltonians.hamiltonian_3nu_vacuum_energy_independent(
+        **dict(OSC, D21=scale*OSC['D21'], D31=scale*OSC['D31'])))
+    P = np.asarray(oscprob.osc_prob(h_near/ENERGY, 0.0, BASELINE))
+    print('%-12.0e %-18.12f %.1e'
+          % (scale, P[0][0], np.max(np.abs(P.sum(axis=1) - 1.0))))'''),
+    md(r'''## 5. Degenerate *requests*
+
+A single slab, and no tolerance at all. Both are legitimate: `n_slabs=1` asks for one Magnus
+step over the whole baseline, and `rtol=atol=None` switches the adaptive ladder off entirely.
+For a constant Hamiltonian one slab is already exact, so all three agree.'''),
+    code(r'''for label, kwargs in (('default        ', {}),
+                      ('n_slabs=1      ', dict(n_slabs=1)),
+                      ('rtol=atol=None ', dict(rtol=None, atol=None))):
+    P = np.asarray(oscprob.osc_prob(h_vac/ENERGY, 0.0, BASELINE, **kwargs))
+    print('%s P_ee = %.12f' % (label, P[0][0]))'''),
+    md(r'''## 6. The nine warnings
+
+| class | says | act on it? |
+|---|---|---|
+| `DensityUnitWarning` | a density is implausible for the units declared | **yes -- bad input** |
+| `ScalarHamiltonianWarning` | your `H_func` takes one position at a time | yes -- costs speed only |
+| `MagnusHighOrderCostWarning` | order > 6 with trapezoid/simpson is dear | your call |
+| `MagnusConvergenceWarning` | a slab is wider than the sufficient condition | **often not** -- see below |
+| `ToleranceNotAchievedWarning` | refinement stopped without agreeing | usually yes |
+| `HybridCertificationWarning` | the adiabatic path could not certify itself | yes |
+| `UnmarkedDiscontinuityWarning` | a density jump was detected, not declared | **yes -- pass `t_breakpoints`** |
+| `HiddenFeatureWarning` | structure was found the sampling nearly missed | yes |
+| `PhaseAveragingWarning` | `average=True` where the phase has not averaged | yes -- wrong question |
+
+`MagnusConvergenceWarning` deserves its own sentence: it is a statement about **slab width, not
+about the answer**, and it is measured to be a false alarm about three quarters of the time. It
+fires in notebook 16 on a converged result. Do not read it as "this number is wrong"; read it
+as "a sufficient condition was not met somewhere".
+
+Below, each of six is provoked deliberately.'''),
+    code(r'''def provoke(label, call):
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter('always')
+        try:
+            call()
+            note = ''
+        except Exception as exc:
+            note = '  [raised %s]' % type(exc).__name__
+    names = sorted({w.category.__name__ for w in caught
+                    if issubclass(w.category, Warning)})
+    print('%-32s %s%s' % (label, ', '.join(names) if names else '(quiet)', note))'''),
+    code(r'''NE0, L_SCALE = gd.NUM_DENSITY_E_SUN_CENTRAL, gd.L_SCALE_SUN
+PARAMS_2NU = {'sth': 0.55, 'Dm2': 7.5e-5}
+
+# 1. a density in g/cm^3 with the flag left at its default
+provoke('density under-converted', lambda: oscprob.osc_prob_3nu_matter_constant_density(
+    ENERGY, BASELINE, 2.848, **OSC))
+
+# 2. the mirror mistake: already converted, but declared as g/cm^3
+provoke('density double-converted', lambda: oscprob.osc_prob_3nu_matter_constant_density(
+    ENERGY, BASELINE, 100.0*gd.UNIT_G_PER_CM3, **OSC,
+    density_matter_is_in_g_per_cm3=True))
+
+# 3. an H_func that only accepts one position at a time
+provoke('scalar H_func', lambda: oscprob.osc_prob(
+    lambda l: h_vac/ENERGY + np.diag([float(np.asarray(l))*0.0, 0.0, 0.0]),
+    0.0, BASELINE))
+
+# 4. order 8 with a non-Gauss-Legendre integrator
+provoke('order 8, simpson', lambda: magnus.magnus_expansion(
+    lambda t: -1j*np.array([[0.0, 1.0], [1.0, 0.0]])*1e-13,
+    0.0, 1e13, order=8, integration_method='simpson', n_tpts=20))
+
+# 5. a density jump the caller did not declare
+def step_ne(l):
+    x = np.asarray(l, dtype=float)
+    out = np.where(x < 0.5*L_SCALE, 0.02*NE0, 0.30*NE0)
+    return out[()] if out.ndim == 0 else out
+
+provoke('unmarked density jump', lambda: oscprob.osc_prob_matter_std_potential(
+    2, step_ne, 50.0e6, 1.0*L_SCALE, PARAMS_2NU, L0=0.0,
+    density_is_of_number_of_electrons=True))
+
+# 6. asking for the averaged probability where nothing has averaged yet
+provoke('average=True, few cycles', lambda: oscprob.osc_prob_3nu_vacuum(
+    ENERGY, 5.0*gd.UNIT_KM, **OSC, average=True))
+
+# ... and the same request where it genuinely has
+provoke('average=True, many cycles', lambda: oscprob.osc_prob_3nu_vacuum(
+    ENERGY, 5.0e4*gd.UNIT_KM, **OSC, average=True))'''),
+    md(r'''The last two lines are the pattern worth internalising. `PhaseAveragingWarning` is
+not about accuracy -- the returned matrix is a perfectly valid doubly stochastic probability
+matrix either way. It says the *question* does not apply at that baseline, because the phase
+has not averaged and no averaged expression describes it. Move far enough out and it goes
+quiet.
+
+## Summary
+
+Nothing in section 1--5 returns a `NaN`, including exact degeneracies, a zero baseline and a
+Hamiltonian with no structure at all. That is a property of the method rather than of
+defensive coding: the Magnus expansion exponentiates a matrix, and never forms the
+$1/(\lambda_i - \lambda_j)$ that closed forms must.
+
+For the warnings, one rule: **`MagnusConvergenceWarning` is about slab width, everything else
+is about you.** Measured false-alarm rates for each are in `implementation_details.rst`.
+
+Notebook 21 takes the tolerance warnings further, and it is the one to read next if you have
+ever taken `rtol` for an error bound.'''),
+    ])
+
+
+# ------------------------------------------------- 21_magnus_what_tolerance_means
+books['21_magnus_what_tolerance_means.ipynb'] = notebook(
+    'What `rtol` and `atol` actually promise',
+    r'''`rtol` and `atol` look like an error bound. They are not one.
+
+They are a **stopping criterion**. Mag$\nu$s computes the answer on one grid, computes it again
+on a finer grid, and stops when the two agree to within the tolerance you asked for. The
+quantity compared is the *difference between two of its own approximations* -- not the distance
+to the truth, which it does not know.
+
+Most of the time that difference overestimates the error and the tolerance is conservative,
+often by orders of magnitude. Sometimes it underestimates it, and the two grids agree with each
+other while both are wrong. This notebook measures both cases against an independent
+`solve_ivp` ground truth, and neither result is the one the parameter name suggests.''',
+    [
+    code(r'''import warnings
+
+import numpy as np
+from scipy.integrate import solve_ivp
+
+# Mag(nu)s is imported as an installed package -- from the repository root,
+# 'pip install -e .' (add [plot] for magnus.plotting). No sys.path juggling.
+import magnus.oscprob as oscprob
+import magnus.hamiltonians as hamiltonians
+import magnus.matter as matter
+import magnus.earth as earth
+import magnus.globaldefs as gd
+
+params = gd.load_nufit_params('NuFIT 6.1', 'NO')
+sth, Dm2 = params['s12'], params['D21']
+PARAMS_2NU = {'sth': sth, 'Dm2': Dm2}
+
+# An exponential solar profile: smooth, monotonic, nothing adversarial about it.
+ne = matter.exp_density_profile(gd.NUM_DENSITY_E_SUN_CENTRAL, gd.L_SCALE_SUN)
+ENERGY = 10.0e6                                  # 10 MeV [eV]
+BASELINE = 0.5*gd.SUN_RADIUS*gd.UNIT_KM'''),
+    md(r'''## 1. An independent ground truth
+
+The comparison is worthless without an oracle that does not share Mag$\nu$s's machinery, so we
+integrate the Schrodinger equation directly with `solve_ivp` at a tolerance far tighter than
+anything we will ask Mag$\nu$s for. This is a different algorithm, not a finer version of the
+same one -- which is the property that matters.'''),
+    code(r'''h_vac = np.asarray(hamiltonians.hamiltonian_2nu_vacuum_energy_independent(sth, Dm2))
+vcc = matter.vcc_func_from_rho_func(ne, density_is_of_number_of_electrons=True)
+
+def H(l):
+    return h_vac/ENERGY + np.diag([vcc(l), 0.0])
+
+def rhs(t, y):
+    return (-1j*H(t) @ y.reshape(2, 2)).ravel()
+
+solution = solve_ivp(rhs, [0.0, BASELINE], np.eye(2, dtype=complex).ravel(),
+                     method='DOP853', rtol=1.0e-11, atol=1.0e-13)
+U_truth = solution.y[:, -1].reshape(2, 2)
+P_truth = float(abs(U_truth[0, 0])**2)
+
+print('solve_ivp DOP853, rtol=1e-11: P_ee = %.9f' % P_truth)
+print('unitarity deviation         : %.1e'
+      % abs(abs(U_truth[0, 0])**2 + abs(U_truth[0, 1])**2 - 1.0))'''),
+    md(r'''## 2. What each requested tolerance actually delivered
+
+Now ask Mag$\nu$s for four tolerances and compare each answer against that truth. The last two
+columns are the point of the notebook: what you asked for, and what you got.'''),
+    code(r'''print('%-12s %-12s %-11s %-11s %-9s' %
+      ('requested', 'P_ee', '|error|', 'rel. error', 'achieved'))
+print('-'*60)
+rows = []
+for tol in (1.0e-2, 1.0e-3, 1.0e-4, 1.0e-6):
+    info = {}
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        P = oscprob.osc_prob_matter_std_potential(
+            2, ne, ENERGY, BASELINE, PARAMS_2NU, L0=0.0,
+            density_is_of_number_of_electrons=True,
+            convergence_info=info, rtol=tol, atol=tol*1.0e-2)
+    value = float(np.asarray(P)[0][0])
+    rel = abs(value - P_truth)/P_truth
+    rows.append((tol, value, rel, info['tolerance_achieved'], info['n_slabs']))
+    print('%-12.0e %-12.7f %-11.2e %-11.2e %-9s'
+          % (tol, value, abs(value - P_truth), rel, info['tolerance_achieved']))'''),
+    md(r'''Read the table three times, once for each surprise.
+
+**The tolerance can be missed while reporting success.** The first row asked for $10^{-2}$,
+reported `tolerance_achieved=True`, and is wrong by $2.5\times10^{-2}$ -- two and a half times
+the tolerance it claimed to have met. The two grids it compared agreed with each other; they
+were simply both too coarse. Nothing about the returned number reveals this.
+
+**When it is conservative, it is very conservative.** The second row asked for $10^{-3}$ and
+delivered $8.7\times10^{-6}$, a hundred times better. Ask for $10^{-4}$ and you get the same
+answer and the same work -- the ladder had already stepped past it.
+
+**`tolerance_achieved=False` does not mean the answer is bad.** The last row reports failure
+and is the most accurate of the four, at $4\times10^{-7}$. It says "I could not verify
+convergence by refining further", which is a statement about the ladder running out of room,
+not about the answer.'''),
+    code(r'''for tol, value, rel, achieved, n in rows:
+    verdict = ('accurate' if rel <= tol else 'OUTSIDE the requested tolerance')
+    print('requested %.0e -> delivered %.1e (%-30s) achieved=%-5s n_slabs=%d'
+          % (tol, rel, verdict, achieved, n))'''),
+    md(r'''## 3. What `convergence_info` reports
+
+Every entry point fills a dictionary you pass in. It is the only way to see what the ladder
+actually did.'''),
+    code(r'''info = {}
+with warnings.catch_warnings():
+    warnings.simplefilter('ignore')
+    oscprob.osc_prob_matter_std_potential(
+        2, ne, ENERGY, BASELINE, PARAMS_2NU, L0=0.0,
+        density_is_of_number_of_electrons=True,
+        convergence_info=info, rtol=1.0e-6, atol=1.0e-8)
+
+for key in sorted(info):
+    print('%-26s %s' % (key, info[key]))'''),
+    md(r'''`last_gap` is the quantity actually tested against your tolerance: the difference
+between the final two refinements. `n_agreements` counts how many successive levels agreed --
+zero here, which is why `tolerance_achieved` is False. `n_slabs` hit its ceiling of 20000.
+
+## 4. `n_slabs` is not `n_slab_edges`
+
+The two are different numbers, and the difference is why the ladder can be fooled.
+
+`n_slabs` is what you request. `n_slab_edges` is how many pieces the integrator actually
+propagated -- and any `t_breakpoints` you declared are edges too. On an Earth chord with the
+PREM shell boundaries declared, the nominal refinement is a much smaller real one:'''),
+    code(r'''h2_atm = np.asarray(hamiltonians.hamiltonian_2nu_vacuum_energy_independent(
+    gd.load_nufit_params('NuFIT 6.1', 'NO')['s23'],
+    gd.load_nufit_params('NuFIT 6.1', 'NO')['D31']))
+
+def num_density_e_prem(r):
+    return matter.num_density_e_func(r, earth.density_matter_func_prem,
+                                     electron_fraction=0.5,
+                                     density_matter_is_in_g_per_cm3=True)
+
+costhz = -1.0
+L_earth = earth.distance_traveled_inside_earth(costhz)*gd.CONV_KM_TO_INV_EV
+breakpoints = np.asarray(
+    earth.prem_layer_edges_along_chord(costhz))*gd.CONV_KM_TO_INV_EV
+E_earth = 5.0*gd.UNIT_GEV
+
+def H_earth(l):
+    r = earth.earth_radial_distance_from_depth(costhz, l/gd.CONV_KM_TO_INV_EV)
+    return h2_atm/E_earth + hamiltonians.hamiltonian_2nu_matter(
+        matter.VCC_func(r, num_density_e_prem))
+
+print('PREM edges declared: %d\n' % len(breakpoints))
+print('%-16s %-10s %-14s %s' % ('n_slabs asked', 'n_slabs', 'n_slab_edges', 'real step'))
+print('-'*56)
+previous = None
+for n in (2, 3, 4, 8):
+    ci = {}
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        oscprob.osc_prob(H_earth, 0.0, L_earth, n_slabs=n, t_breakpoints=breakpoints,
+                         convergence_info=ci, rtol=None, atol=None)
+    step = ('%+.0f%%' % (100.0*(ci['n_slab_edges']/previous - 1.0))
+            if previous else '--')
+    previous = ci['n_slab_edges']
+    print('%-16d %-10s %-14s %s' % (n, ci['n_slabs'], ci['n_slab_edges'], step))'''),
+    md(r'''Going from 2 slabs to 3 sounds like a 50% refinement. With the PREM boundaries
+declared it is a 20 &rarr; 21 edge step: **5%**. Two grids that differ by 5% will very often
+agree to within a loose tolerance, whatever the answer -- and the ladder would then certify
+convergence it had not achieved.
+
+That was a real defect, fixed in PR #35: the ladder certified an agreement between two nearly
+identical grids. The fix is that `n_slabs` is now a **floor** rather than a target, so a
+refinement step is guaranteed to be a real one.
+
+## Summary
+
+**A tolerance is a stopping criterion, not an error bound.** Measured on a smooth, entirely
+ordinary solar profile against an independent oracle:
+
+| requested | delivered | verdict |
+|---|---|---|
+| $10^{-2}$ | $2.5\times10^{-2}$ | **worse than asked, and reported as achieved** |
+| $10^{-3}$ | $8.7\times10^{-6}$ | 100x conservative |
+| $10^{-4}$ | $8.7\times10^{-6}$ | same work, same answer |
+| $10^{-6}$ | $4.0\times10^{-7}$ | accurate, reported as *not* achieved |
+
+What to do about it:
+
+1. **Do not read `rtol` as an error bar.** If you need one, get it from a genuinely different
+   method -- `cross_check_strategies`, which is notebook 22, or a `solve_ivp` reference as
+   above.
+2. **Ask for more than you need.** The tolerance is usually conservative, and tightening it
+   often costs nothing because the ladder has already stepped past.
+3. **Read `convergence_info`,** not just the probability. `tolerance_achieved` and `last_gap`
+   are the only visible evidence of what happened.
+4. **Do not treat `tolerance_achieved=False` as a failed calculation.** It frequently
+   accompanies the best answer in the set.'''),
+    ])
+
+
+# -------------------------------------------------- 22_magnus_which_engine_answered
+books['22_magnus_which_engine_answered.ipynb'] = notebook(
+    'Which engine answered, and why',
+    r'''Mag$\nu$s does not have one algorithm. It has six, grouped into five families, and
+`strategy='auto'` picks between them per request. Most of the time you neither know nor need to
+know which one ran -- but when an answer looks wrong, "which engine produced this" is the first
+question, and Mag$\nu$s will tell you.
+
+The second half of this notebook is about something stronger. Every silently-wrong result the
+package's adversarial validation ever found came from a method **certifying itself**: refining
+its own knobs, comparing itself with itself, and agreeing. When a method has a blind spot both
+sides of that comparison share it, and the agreement carries no information. Running two
+genuinely *different* engines needs no oracle at all, and detects exactly the class that
+self-certification cannot.''',
+    [
+    code(r'''import warnings
+
+import numpy as np
+
+# Mag(nu)s is imported as an installed package -- from the repository root,
+# 'pip install -e .' (add [plot] for magnus.plotting). No sys.path juggling.
+import magnus.oscprob as oscprob
+import magnus.matter as matter
+import magnus.globaldefs as gd
+
+NE0, L_SCALE = gd.NUM_DENSITY_E_SUN_CENTRAL, gd.L_SCALE_SUN
+PARAMS_2NU = {'sth': 0.55, 'Dm2': 7.5e-5}
+ne = matter.exp_density_profile(NE0, L_SCALE)
+BASELINE = 1.0*L_SCALE'''),
+    md(r'''## 1. The engines, and which share machinery
+
+The families matter more than the engines. Two engines in the same family share code and
+assumptions, so their agreement is weak evidence; two in different families agreeing is
+strong evidence.'''),
+    code(r'''for engine, family in oscprob.ENGINE_FAMILIES.items():
+    print('%-12s %s' % (engine, family))'''),
+    md(r'''## 2. What ran, for this request
+
+Pass a dictionary as `strategy_info` and it comes back filled in. `engine` names what answered,
+`family` places it, `certified` says whether that engine was able to vouch for its own result,
+and `declined` lists what stood aside and why.'''),
+    code(r'''print('%-10s %-11s %-21s %-10s %s'
+      % ('strategy', 'engine', 'family', 'certified', 'declined'))
+print('-'*76)
+for strategy in ('auto', 'hybrid', 'magnus'):
+    info = {}
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        oscprob.osc_prob_matter_std_potential(
+            2, ne, 10.0e6, BASELINE, PARAMS_2NU, L0=0.0,
+            density_is_of_number_of_electrons=True,
+            strategy=strategy, strategy_info=info)
+    print('%-10s %-11s %-21s %-10s %s'
+          % (strategy, info.get('engine'), info.get('family'),
+             info.get('certified'), info.get('declined') or '--'))'''),
+    md(r'''On this smooth solar profile the default picks the **adiabatic** engine and certifies
+it. Forcing `strategy='magnus'` gets a different family entirely -- the interaction-picture
+integrator -- and it does not attempt to certify itself, which is why `certified` is `None`
+rather than `False`.
+
+## 3. Cross-checking: an error bar with no oracle
+
+`cross_check_strategies` answers the same request with every engine that applies and reports
+how far apart they are. It is never on by default -- it multiplies the cost of the call by the
+number of engines -- and a large spread is *reported*, never raised. What it means depends on
+the request, and deciding that is your job.'''),
+    code(r'''with warnings.catch_warnings():
+    warnings.simplefilter('ignore')
+    out = oscprob.cross_check_strategies(
+        oscprob.osc_prob_matter_std_potential, 2, ne, 10.0e6, BASELINE,
+        PARAMS_2NU, L0=0.0, density_is_of_number_of_electrons=True)
+
+print('ran                  :', sorted(out['ran']))
+print('families             :', sorted(set(out['families'].values())))
+print('max spread           : %.3e' % out['max_spread'])
+print('max across families  : %.3e  %s'
+      % (out['max_spread_independent'], out['max_spread_independent_pair']))
+print()
+for label, reason in out['declined'].items():
+    print('declined %-10s %s' % (label, reason))'''),
+    md(r'''Four engines, three families, and they agree to $10^{-4}$ with no reference solution
+anywhere in sight. That number is a far more honest error bar than any `rtol` (notebook 21),
+because the things being compared do not share a method.
+
+## 4. The case it exists for
+
+Now a density profile with an **undeclared step** in it -- the construction from the package's
+adversarial-validation findings. This is where the adiabatic engine historically returned a
+confidently wrong answer.'''),
+    code(r'''def step_ne(l):
+    """A density jump the caller does not declare."""
+    x = np.asarray(l, dtype=float)
+    out = np.where(x < 0.5*BASELINE, 0.02*NE0, 0.30*NE0)
+    return out[()] if out.ndim == 0 else out
+
+print('%-10s %-11s %-11s %-11s %s'
+      % ('strategy', 'P_ee', 'engine', 'certified', 'warnings'))
+print('-'*74)
+for strategy in ('auto', 'hybrid'):
+    info = {}
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter('always')
+        P = oscprob.osc_prob_matter_std_potential(
+            2, step_ne, 50.0e6, BASELINE, PARAMS_2NU, L0=0.0,
+            density_is_of_number_of_electrons=True,
+            strategy=strategy, strategy_info=info)
+    names = sorted({w.category.__name__.replace('Warning', '') for w in caught})
+    print('%-10s %-11.6f %-11s %-11s %s'
+          % (strategy, float(np.asarray(P)[0][0]), info.get('engine'),
+             info.get('certified'), ', '.join(names)))
+    if info.get('declined'):
+        print('%-10s   declined: %s' % ('', info['declined']))'''),
+    md(r'''Two different answers, 0.085 and 0.550, from the same request. The package is no
+longer silent about it in either direction:
+
+* under `'auto'` the adiabatic engine **declines** -- "the profile is not resolved at the probe
+  scale" -- and the Magnus ladder answers instead;
+* forced with `strategy='hybrid'` it still answers, but reports `certified=False` and raises
+  `HybridCertificationWarning`.
+
+Both paths also raise `UnmarkedDiscontinuityWarning`, which names the actual fix: declare the
+jump with `t_breakpoints`.
+
+And the cross-check sees the disagreement without being told any of that:'''),
+    code(r'''with warnings.catch_warnings():
+    warnings.simplefilter('ignore')
+    out_step = oscprob.cross_check_strategies(
+        oscprob.osc_prob_matter_std_potential, 2, step_ne, 50.0e6, BASELINE,
+        PARAMS_2NU, L0=0.0, density_is_of_number_of_electrons=True)
+
+for engine in sorted(out_step['ran']):
+    print('%-12s (%-14s) P_ee = %.6f'
+          % (engine, oscprob.ENGINE_FAMILIES[engine],
+             float(np.asarray(out_step['answers'][engine])[0][0])))
+print('\nmax spread across families: %.3e  %s'
+      % (out_step['max_spread_independent'], out_step['max_spread_independent_pair']))'''),
+    md(r'''A spread of **0.47** on a probability. No ground truth was computed, no reference
+code was installed, and nothing had to know in advance what was wrong with the profile. Two
+engines from different families simply disagreed, which is all the signal you need to stop
+trusting the number.
+
+## 5. A zero spread is not always agreement
+
+One trap, and it is the reason this function warns. `max_spread` is a plain float, and it is
+`0.0` both when the engines agree perfectly and when **nothing was compared**. The commonest
+way to reach the second case is to pass an entry point that has no `strategy` parameter --
+`osc_prob` itself is one, and it is the function most of these notebooks call directly.'''),
+    code(r'''import magnus.hamiltonians as hamiltonians
+
+h_vac = np.asarray(hamiltonians.hamiltonian_2nu_vacuum_energy_independent(**PARAMS_2NU))
+vcc = matter.vcc_func_from_rho_func(ne, density_is_of_number_of_electrons=True)
+
+def H_func(l):
+    return h_vac/10.0e6 + np.diag([vcc(l), 0.0])
+
+with warnings.catch_warnings(record=True) as caught:
+    warnings.simplefilter('always')
+    empty = oscprob.cross_check_strategies(oscprob.osc_prob, H_func, 0.0, BASELINE)
+
+print('ran        :', empty['ran'])
+print('max_spread : %.1f   <- and yet nothing was compared' % empty['max_spread'])
+print()
+for w in caught:
+    if w.category is oscprob.CrossCheckInconclusiveWarning:
+        print('%s raised.' % w.category.__name__)'''),
+    md(r'''The same vacuous zero appears when only one engine runs, and
+`max_spread_independent` is zero whenever every engine that ran belongs to a single family --
+which is precisely the self-certification the cross-check exists to avoid.
+`CrossCheckInconclusiveWarning` covers all three.
+
+## Summary
+
+| question | how to answer it |
+|---|---|
+| which engine ran? | pass `strategy_info={}` and read `engine` |
+| do they share machinery? | `oscprob.ENGINE_FAMILIES` |
+| did the engine vouch for itself? | `strategy_info['certified']` |
+| how far apart are independent methods? | `cross_check_strategies(...)['max_spread_independent']` |
+| why did an engine stand aside? | `strategy_info['declined']`, or `out['declined']` |
+
+**Always check `ran` before reading a spread.** A cross-check that ran nothing reports perfect
+agreement, and a cross-check confined to one family reports independent agreement it never
+tested. The warning will tell you, but the number will not.'''),
+    ])
+
+
+# ------------------------------------------------ 23_magnus_when_averaging_helps
+books['23_magnus_when_averaging_helps.ipynb'] = notebook(
+    'When averaging rescues you, and when it does not',
+    r'''Notebooks 13 and 14 end in opposite places. On a tabulated solar model the instantaneous
+probability carries an error of $1.4\times10^{-3}$, and the *observable* -- the same quantity
+averaged over the detector's energy resolution -- carries $2.6\times10^{-5}$: the error falls by
+a factor of **53**. On a supernova shock front the instantaneous error is $2.0\times10^{-1}$ and
+the averaged error is $2.1\times10^{-1}$: it does not move at all.
+
+The difference is not the size of the error but its **kind**. An error in the accumulated
+*phase* moves the oscillation sideways, and sideways motion cancels when you integrate over
+several oscillations. An error in the *envelope* moves the curve up or down, and no amount of
+averaging removes an offset.
+
+This notebook isolates the mechanism on a cheap vacuum probability, where both kinds of error
+can be injected deliberately and neither costs anything to compute. The real measurements stay
+where they were made -- notebooks 13 and 14 -- because reproducing them here would cost several
+minutes and tell you nothing new.''',
+    [
+    code(r'''import warnings
+
+import numpy as np
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+
+# Mag(nu)s is imported as an installed package -- from the repository root,
+# 'pip install -e .' (add [plot] for magnus.plotting). No sys.path juggling.
+import magnus.oscprob as oscprob
+import magnus.avgprob as avgprob
+import magnus.globaldefs as gd
+
+sth, Dm2 = 0.55, 7.5e-5
+BASELINE = 1.0e4*gd.UNIT_KM
+E = np.linspace(9.0e6, 11.0e6, 4001)          # a 2 MeV band around 10 MeV
+
+P = np.asarray(oscprob.osc_prob_2nu_vacuum(E, BASELINE, sth, Dm2,
+                                           nu_i=gd.NUE, nu_f=gd.NUE))
+cycles = (Dm2*BASELINE/(4*E[0]) - Dm2*BASELINE/(4*E[-1]))/np.pi
+print('oscillation cycles across the band: %.1f' % cycles)'''),
+    md(r'''## 1. Two kinds of wrong
+
+A **phase** error: the same oscillation, evaluated as though the energy (or the baseline, or
+the potential) were slightly different. The curve is displaced along the energy axis.
+
+An **envelope** error: the oscillation is in the right place but its amplitude is wrong. The
+curve is compressed towards its mean.
+
+Both are parametrised so that their *instantaneous* size is comparable, which is the point --
+they look equally bad point by point.'''),
+    code(r'''def phase_error(fraction):
+    """The right oscillation, in slightly the wrong place."""
+    return np.asarray(oscprob.osc_prob_2nu_vacuum(
+        E*(1.0 + fraction), BASELINE, sth, Dm2, nu_i=gd.NUE, nu_f=gd.NUE))
+
+def envelope_error(amount):
+    """The right place, with the wrong amplitude."""
+    return 0.5 + (P - 0.5)*(1.0 - amount)'''),
+    code(r'''print('%-20s %-14s %-14s %s'
+      % ('error', 'instantaneous', 'averaged', 'suppression'))
+print('-'*62)
+for fraction in (1.0e-4, 3.0e-4):
+    Q = phase_error(fraction)
+    inst, avg = np.max(np.abs(Q - P)), abs(Q.mean() - P.mean())
+    print('%-20s %-14.3e %-14.3e %6.0fx'
+          % ('phase, %.0e' % fraction, inst, avg, inst/avg))
+for amount in (0.02, 0.05):
+    Q = envelope_error(amount)
+    inst, avg = np.max(np.abs(Q - P)), abs(Q.mean() - P.mean())
+    print('%-20s %-14.3e %-14.3e %6.1fx'
+          % ('envelope, %.0f%%' % (100*amount), inst, avg, inst/avg))'''),
+    md(r'''Averaging suppresses the phase error by about a hundredfold and the envelope error by
+about seven. Note the second pair: doubling the envelope error changes both columns and leaves
+the suppression at exactly 7.0. That is the signature of an offset -- averaging rescales it,
+it does not remove it.'''),
+    code(r'''fig, (ax0, ax1) = plt.subplots(1, 2, figsize=(9.0, 3.4), sharey=True)
+band = (E >= 9.6e6) & (E <= 10.4e6)
+for ax, Q, title in ((ax0, phase_error(3.0e-4), 'phase error'),
+                     (ax1, envelope_error(0.05), 'envelope error')):
+    ax.plot(E[band]/1e6, P[band], color='0.2', label='truth')
+    ax.plot(E[band]/1e6, Q[band], color='C3', ls='--', label='wrong')
+    ax.axhline(P[band].mean(), color='0.2', lw=0.8)
+    ax.axhline(Q[band].mean(), color='C3', lw=0.8, ls='--')
+    ax.set_xlabel(r'$E$ [MeV]')
+    ax.set_title('%s (thin lines: band means)' % title, fontsize=9)
+ax0.set_ylabel(r'$P(\nu_e \to \nu_e)$')
+ax0.legend(fontsize=8, loc='lower right')
+fig.tight_layout()'''),
+    md(r'''The thin horizontal lines are what an experiment with this energy resolution would
+actually measure. On the left they are nearly on top of each other; on the right they are
+visibly apart, by the same fraction as the curves themselves.
+
+## 2. Averaging needs cycles
+
+The suppression is not unconditional. Below about two oscillations in the band there is nothing
+for the average to cancel, and a phase error survives almost intact.'''),
+    code(r'''print('%-12s %-10s %-16s %s'
+      % ('L [km]', 'cycles', 'phase suppr.', 'envelope suppr.'))
+print('-'*54)
+for L_km in (2.5e3, 5.0e3, 1.0e4, 2.0e4, 4.0e4):
+    L = L_km*gd.UNIT_KM
+    grid = np.linspace(9.0e6, 11.0e6, 8001)
+    truth = np.asarray(oscprob.osc_prob_2nu_vacuum(grid, L, sth, Dm2,
+                                                   nu_i=gd.NUE, nu_f=gd.NUE))
+    n_cycles = (Dm2*L/(4*grid[0]) - Dm2*L/(4*grid[-1]))/np.pi
+    shifted = np.asarray(oscprob.osc_prob_2nu_vacuum(grid*(1.0 + 1.0e-4), L, sth, Dm2,
+                                                     nu_i=gd.NUE, nu_f=gd.NUE))
+    ph = np.max(np.abs(shifted - truth))/abs(shifted.mean() - truth.mean())
+    damped = 0.5 + (truth - 0.5)*0.98
+    en = np.max(np.abs(damped - truth))/abs(damped.mean() - truth.mean())
+    print('%-12.0f %-10.1f %-16.0f %.1f' % (L_km, n_cycles, ph, en))'''),
+    md(r'''Two readings. The phase suppression climbs steeply from one to three cycles and then
+settles around a hundred -- it does not grow without bound, because where the band edges fall
+relative to the oscillation matters as much as how many cycles are inside it. The envelope
+suppression sits near 6 throughout and never improves.
+
+**The practical test**, and it needs no ground truth: *average your result over a few
+oscillation lengths and see whether the discrepancy moves.* If it collapses, what you had was
+a phase error, and the observable was fine all along. If it stays put, the error is real.
+
+## 3. Asking for the averaged probability directly
+
+You do not have to build the average by hand. `average=True` returns the exact decohered limit
+-- the value the oscillation averages to when every relative phase is unresolvable -- and
+`magnus.avgprob` exposes the machinery for a finite window.'''),
+    code(r'''analytic = float(np.asarray(oscprob.osc_prob_2nu_vacuum(
+    1.0e7, BASELINE, sth, Dm2, nu_i=gd.NUE, nu_f=gd.NUE, average=True)))
+
+print('analytic decohered limit (average=True) : %.6f' % analytic)
+print('numerical mean over the 2 MeV band      : %.6f' % P.mean())
+print('difference                              : %.2e' % abs(analytic - P.mean()))'''),
+    md(r'''They differ in the third decimal, and that is not an error in either: the analytic
+value is the infinite-window limit, while the band mean is over 6.1 cycles with the edges
+falling where they fall. Asking for `average=True` where the phase has *not* averaged raises
+`PhaseAveragingWarning` -- notebook 20 provokes it deliberately.
+
+## Summary
+
+| | phase error | envelope error |
+|---|---|---|
+| what it does | displaces the oscillation | changes its amplitude |
+| suppressed by averaging | **~100x** | ~7x, fixed |
+| improves with more cycles | yes, then plateaus | no |
+| improves with a smaller error | no -- the ratio is scale-free | no |
+| real instance | notebook 13, solar: **53x** | notebook 14, shock: **~1x** |
+| is the observable affected? | barely | **yes** |
+
+The reason notebook 14's shock error does not average away is physical rather than numerical: a
+shock front changes the *adiabaticity* of the level crossing, so it moves the conversion
+probability itself rather than the phase at which it oscillates. That is the error becoming an
+envelope, and it is the one case in this package where the instantaneous error and the
+observable error are the same number.'''),
+    ])
+
+
+# ------------------------------------------------------- 24_magnus_performance
+books['24_magnus_performance.ipynb'] = notebook(
+    'Performance: what is worth doing',
+    r'''Mag$\nu$s is fast enough for most single calls -- the median across 164 Earth and solar
+configurations is 2 ms. Scans are what the code mostly does, and three things make them
+substantially faster **without changing any answer**.
+
+Every measurement here is taken live. Timings vary between machines and between runs, so treat
+the ratios rather than the absolute numbers as the result, and note that two of the three
+optimisations are worth nothing at all in the wrong circumstances -- which is more useful to
+know than a headline speed-up.''',
+    [
+    code(r'''import time
+import warnings
+
+import numpy as np
+
+# Mag(nu)s is imported as an installed package -- from the repository root,
+# 'pip install -e .' (add [plot] for magnus.plotting). No sys.path juggling.
+import magnus.magnus as magnus
+import magnus.oscprob as oscprob
+import magnus.hamiltonians as hamiltonians
+import magnus.matter as matter
+import magnus.earth as earth
+import magnus.globaldefs as gd
+
+warnings.simplefilter('ignore')
+
+# load_nufit_params returns exactly the six mixing parameters, ready to splat
+# into any osc_prob_3nu_* call.  'NuFIT 6.1' is the package default.
+OSC = gd.load_nufit_params('NuFIT 6.1', 'NO')
+osc = OSC
+h_vac = np.asarray(hamiltonians.hamiltonian_3nu_vacuum_energy_independent(**OSC))
+e00 = np.diag([1.0, 0.0, 0.0])
+
+COSTHZ = -0.9
+L_EARTH = earth.distance_traveled_inside_earth(COSTHZ)*gd.CONV_KM_TO_INV_EV
+
+def best_of(call, repeats=3):
+    """Fastest of a few runs -- the least noisy summary of a timing."""
+    fastest, result = np.inf, None
+    for _ in range(repeats):
+        t0 = time.perf_counter()
+        result = call()
+        fastest = min(fastest, time.perf_counter() - t0)
+    return result, fastest'''),
+    md(r'''## 1. Pass an array of energies, do not loop
+
+Every wrapper accepts an array of energies, of baselines, or both. Handing the whole scan over
+at once lets the matter profile be built once rather than once per point, which is what the
+energy-batched engine exists to do.'''),
+    code(r'''def H(energy, l, VCC):
+    return h_vac/energy + np.asarray(VCC)[..., None, None]*e00
+
+energies = np.logspace(0.0, 1.5, 60)*gd.UNIT_GEV
+
+batched, t_batched = best_of(lambda: np.asarray(oscprob.osc_prob_earth(
+    H, energy=energies, costhz=COSTHZ, L=L_EARTH, nu_i=gd.NUMU, nu_f=gd.NUMU)))
+looped, t_looped = best_of(lambda: np.array([
+    oscprob.osc_prob_earth(H, energy=float(e), costhz=COSTHZ, L=L_EARTH,
+                           nu_i=gd.NUMU, nu_f=gd.NUMU) for e in energies]))
+
+print('%d energies through an Earth chord' % len(energies))
+print('  array : %.3f s' % t_batched)
+print('  loop  : %.3f s   (%.2fx slower)' % (t_looped, t_looped/t_batched))
+print('  max |difference| = %.1e' % np.max(np.abs(batched - looped)))'''),
+    md(r'''The two answers are not bit-identical -- the batched path refines the profile once for
+the whole scan rather than independently per point, so the two land at slightly different
+grids. The difference is at the $10^{-6}$ level, far inside any tolerance you would request.
+
+## 2. The palindrome, and when it is worth nothing
+
+A chord through a spherically symmetric Earth meets every radius twice, so Mag$\nu$s can
+evaluate your `H_func` on the first half of the slab chain and mirror the rest. That halves the
+**number of positions** at which your Hamiltonian is evaluated.
+
+Whether that is worth anything depends on a distinction worth being precise about: it halves
+the positions, not the number of *calls*. If your `H_func` is dominated by fixed per-call
+overhead, halving the positions saves nothing. If its cost scales with how many positions it
+was handed -- an interpolation, a table lookup per point, a quadrature -- it saves half.
+
+First, plain PREM, where a density lookup is too cheap to be worth halving:'''),
+    code(r'''def H_prem(energy, l, VCC):
+    return h_vac/energy + np.asarray(VCC)[..., None, None]*e00
+
+def timed(H_func, **kwargs):
+    def call():
+        return np.asarray(oscprob.osc_prob_earth(
+            H_func, costhz=COSTHZ, L=L_EARTH, nu_i=gd.NUMU, nu_f=gd.NUMU, **kwargs))
+    magnus.USE_PALINDROME = True
+    on_result, on_time = best_of(call)
+    magnus.USE_PALINDROME = False
+    off_result, off_time = best_of(call)
+    magnus.USE_PALINDROME = True                      # restore the default
+    return on_time, off_time, np.max(np.abs(on_result - off_result))
+
+on, off, gap = timed(H_prem, energy=5.0*gd.UNIT_GEV)
+print('plain PREM lookup, single point')
+print('  palindrome on  : %.4f s' % on)
+print('  palindrome off : %.4f s   speed-up %.2fx' % (off, off/on))'''),
+    md(r'''About 1.00x -- the bookkeeping costs as much as the lookups it saves. The package
+documentation quotes 0.91x for this case, and disarming the optimisation here would cost you
+nothing.
+
+Now a Hamiltonian whose cost genuinely scales with the number of positions it is given. The
+quadrature below stands in for an interpolated profile, a per-point integral, or any of the
+things a real custom Hamiltonian does.'''),
+    code(r'''GRID = np.linspace(0.0, 1.0, 4000)
+
+def H_expensive(energy, l, VCC):
+    """Per-position work: a small quadrature for every position handed in."""
+    V = np.atleast_1d(np.asarray(VCC, dtype=float))
+    weight = np.trapz(np.exp(-GRID[None, :]*1.0e13*np.abs(V)[:, None]), GRID, axis=1)
+    V_eff = V*(1.0 + 1.0e-12*weight)
+    shape = np.asarray(VCC).shape
+    V_eff = V_eff.reshape(shape) if shape else V_eff[0]
+    return h_vac/energy + np.asarray(V_eff)[..., None, None]*e00
+
+print('%-26s %-10s %-10s %-10s %s'
+      % ('workload', 'on [s]', 'off [s]', 'speed-up', 'max |diff|'))
+print('-'*66)
+for label, kwargs in (('single point', dict(energy=5.0*gd.UNIT_GEV)),
+                      ('20-energy scan',
+                       dict(energy=np.logspace(0.0, 1.5, 20)*gd.UNIT_GEV))):
+    on, off, gap = timed(H_expensive, **kwargs)
+    print('%-26s %-10.4f %-10.4f %-10.2f %.1e' % (label, on, off, off/on, gap))'''),
+    md(r'''Now it pays: the mirrored path is faster by a factor approaching two, and the answers
+agree to round-off. The package documentation quotes 1.4--1.67x on an expensive `H_func`,
+measured on a different profile; the numbers above are the same effect on this one.
+
+The lesson is not "the palindrome is worth 1.75x". It is that **it is worth exactly half of
+whatever your Hamiltonian charges per position, and nothing for what it charges per call**. If
+you want it off, `magnus.magnus.USE_PALINDROME = False`.
+
+Note also that only `osc_prob_earth` gets this: a chord is symmetric by geometry, and
+`osc_prob_sun` deliberately does not declare it, because a solar profile is monotonic.
+
+## 3. What a tolerance costs
+
+Tightening `rtol` is not a smooth dial. The refinement ladder moves in steps, so several
+requests can land on the same grid and cost exactly the same -- as notebook 21 showed, asking
+for $10^{-4}$ sometimes buys the $10^{-3}$ answer for free, and sometimes the reverse.'''),
+    code(r'''ne = matter.exp_density_profile(gd.NUM_DENSITY_E_SUN_CENTRAL, gd.L_SCALE_SUN)
+PARAMS_2NU = {'sth': 0.55, 'Dm2': 7.5e-5}
+L_SUN = 0.5*gd.SUN_RADIUS*gd.UNIT_KM
+
+print('%-14s %-10s %-12s %s' % ('rtol', 'time [s]', 'n_slabs', 'relative cost'))
+print('-'*52)
+baseline_time = None
+for tol in (1.0e-2, 1.0e-3, 1.0e-4, 1.0e-5):
+    info = {}
+    _, t = best_of(lambda tol=tol, info=info: oscprob.osc_prob_matter_std_potential(
+        2, ne, 1.0e7, L_SUN, PARAMS_2NU, L0=0.0,
+        density_is_of_number_of_electrons=True,
+        convergence_info=info, rtol=tol, atol=tol*1.0e-2), repeats=2)
+    baseline_time = baseline_time or t
+    print('%-14.0e %-10.3f %-12s %.2fx'
+          % (tol, t, info['n_slabs'], t/baseline_time))'''),
+    md(r'''Three orders of magnitude of extra accuracy for roughly twice the work, and the first
+of them free. Tolerances are usually worth tightening.
+
+## Summary
+
+| what | speed-up | when it is worth nothing |
+|---|---|---|
+| pass an array of energies | **~2.7x** | single-point calls |
+| write `H_func` to take an array of positions | **~4.6x** (notebook 19) | never -- always do this |
+| the palindrome, expensive `H_func` | **~1.8x** | cheap or per-call-dominated `H_func` |
+| the palindrome, plain PREM | ~1.0x | this is the "worth nothing" case |
+| tightening `rtol` by $10^{3}$ | costs ~2x | -- |
+
+Ranked by what you control: **vectorise your `H_func` first** (notebook 19), **pass arrays
+second**, and let the palindrome look after itself -- it is on by default, it is free when it
+helps, and it costs a few percent when it does not.
+
+None of these change an answer by more than round-off, which is the property that makes them
+worth taking.'''),
+    ])
+
+
+# ------------------------------------------------ 26_magnus_nufit_evolution
+books['26_magnus_nufit_evolution.ipynb'] = notebook(
+    'Fourteen years of NuFIT, and what it did to the probabilities',
+    r'''Every other notebook here fixes the oscillation parameters at one global fit and computes
+a probability. This one asks a different question: **how much of the probability is the
+parameters?**
+
+The NuFIT collaboration has published global fits since 2012. Mag$\nu$s ships the best-fit
+values for all eighteen releases, but a best fit alone cannot answer this -- the useful
+question is not how the central curve moved but how the *distribution* moved, which needs the
+likelihood.
+
+NuFIT publishes one, as $\Delta\chi^2$ profiles. `notebooks/make_nufit_chi2.py` downloads them
+and extracts the six one-dimensional projections into `notebooks/nufit_chi2.json`; this
+notebook samples from those and pushes each sample through Mag$\nu$s.
+
+**The data are the NuFIT collaboration's**, redistributed here in extract. Cite the
+corresponding NuFIT paper and <http://www.nu-fit.org/> if you use them.''',
+    [
+    code(r'''import json
+import pathlib
+
+import numpy as np
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+
+# Mag(nu)s is imported as an installed package -- from the repository root,
+# 'pip install -e .' (add [plot] for magnus.plotting). No sys.path juggling.
+import magnus.oscprob as oscprob
+import magnus.hamiltonians as hamiltonians
+import magnus.matter as matter
+import magnus.globaldefs as gd
+
+CHI2 = json.loads((pathlib.Path.cwd()/'nufit_chi2.json').read_text())
+print(CHI2['_attribution'])
+print()
+print('releases with chi^2 profiles: %d' % len(CHI2['releases']))
+print(', '.join(CHI2['releases']))'''),
+    md(r'''## 1. What is here, and what is not
+
+Two limitations, both worth stating before any number is produced.
+
+**Two sources, not one.** From v2.0 onward NuFIT publishes machine-readable
+$\Delta\chi^2$ files, and those are read directly. Releases v1.0--v1.3 (2012--2014) publish
+theirs only as figures -- but those figures are **vector** PDFs, so the curves are stroke
+operators rather than pixels. Nothing is digitised: the colour operator separates the
+orderings exactly (`1 0 0 RG` is NO, `0 0 1 RG` is IO) and the dash pattern separates the
+analyses exactly (solid is Free+RSBL, dashed is Huber). Each release records which route it
+came by in its `source` field.
+
+The extraction is checked against numbers it never uses as input -- the curve minima must
+reproduce the published best fits, and $\delta_{\rm CP}$ must never reach
+$\Delta\chi^2 = 9$, which is what its published "$0 \to 360$" range asserts.
+`make_nufit_chi2.py` refuses to write the file if any release fails.
+
+**These are one-dimensional marginals.** Each parameter is sampled from its own profile,
+independently of the others. The real likelihood is correlated -- the
+$\delta_{\rm CP}$--$\theta_{23}$ correlation especially -- and the source files contain the
+pairwise projections if you need them. What follows is therefore a good description of how
+much each parameter was individually known, and an imperfect one of their joint effect.'''),
+    code(r'''def sample_profile(profile, size, rng):
+    """Draw from exp(-Delta_chi^2 / 2) on the tabulated grid, by inverse CDF.
+
+    The profiles are normalised so the best fit sits at Delta_chi^2 = 0, so
+    exp(-chi2/2) is the likelihood up to a constant -- which the CDF divides
+    out anyway."""
+    x = np.asarray(profile['x'], dtype=float)
+    chi2 = np.asarray(profile['chi2'], dtype=float)
+    weight = np.exp(-0.5*(chi2 - chi2.min()))
+    cdf = np.concatenate([[0.0],
+                          np.cumsum(0.5*(weight[1:] + weight[:-1])*np.diff(x))])
+    cdf /= cdf[-1]
+    return np.interp(rng.random(size), cdf, x)
+
+
+def draw_parameters(release, size, rng):
+    """One release's profiles -> `size` parameter sets in Magnus's conventions.
+
+    The files store sin^2(theta) where Magnus wants sin(theta), degrees where it
+    wants radians, log10(Delta_m21^2) where it wants the value, and
+    Delta_m31^2 in units of 1e-3 eV^2."""
+    block = CHI2['releases'][release]
+    p = block['profiles']
+    # The two sources spell Delta_m21^2 differently: the chi^2 files carry
+    # log10(Delta_m21^2/eV^2), the figures carry it in 1e-5 eV^2.
+    dms = sample_profile(p['DMS'], size, rng)
+    D21 = (dms*1.0e-5 if block.get('source') == 'figure' else 10.0**dms)
+    return dict(
+        s12=np.sqrt(sample_profile(p['T12'], size, rng)),
+        s13=np.sqrt(sample_profile(p['T13'], size, rng)),
+        s23=np.sqrt(sample_profile(p['T23'], size, rng)),
+        dCP=np.deg2rad(sample_profile(p['DCP'], size, rng)),
+        D21=D21,
+        D31=sample_profile(p['DMA'], size, rng)*1.0e-3)'''),
+    md(r'''A check before trusting any of it: the minimum of each profile must reproduce the
+best-fit value `magnus.globaldefs` ships independently for that release. If the extraction had
+picked up the wrong section, or mixed orderings, this is where it would show.'''),
+    code(r'''print('%-11s %-11s %-11s %-11s %s'
+      % ('release', 'chi2 min', 'shipped BF', 'chi2 min', 'shipped BF'))
+print('%-11s %-11s %-11s %-11s %s' % ('', 'sin^2(th23)', 'sin^2(th23)', 'D31', 'D31'))
+print('-'*62)
+for release in ('NuFIT 1.0', 'NuFIT 1.3', 'NuFIT 2.0', 'NuFIT 4.0', 'NuFIT 6.1'):
+    block = CHI2['releases'][release]
+    p = block['profiles']
+    s23_sq = p['T23']['x'][int(np.argmin(p['T23']['chi2']))]
+    d31 = p['DMA']['x'][int(np.argmin(p['DMA']['chi2']))]*1.0e-3
+    bf = gd.load_nufit_params(release, 'NO')
+    print('%-11s %-11.4f %-11.4f %-11.5f %.5f'
+          % (release, s23_sq, bf['s23']**2, d31, bf['D31']))'''),
+    md(r'''One entry deserves a word. For v1.2 and v1.3 the $\sin^2\theta_{23}$ curve has **two**
+minima, and the deeper one on the normal-ordering curve (0.445 and 0.451) is not the branch
+`globaldefs` quotes as the best fit (0.593 and 0.577). Both numbers are in NuFIT's own table,
+joined by $\oplus$; the extraction recovers both to about 0.002. That is the bimodality this
+notebook exists to keep, and it is exactly what a Gaussian centred on either branch would
+throw away -- so the check above compares the *pair* of minima for those releases rather than
+insisting on one.
+
+## 2. The distribution of a probability, release by release
+
+We use a DUNE-like configuration -- 1300 km through the crust, 2 GeV, the
+$\nu_\mu \to \nu_e$ appearance channel -- because it is sensitive to $\delta_{\rm CP}$,
+$\theta_{13}$ and $\theta_{23}$ at once, which is exactly what the fits have been pinning
+down.'''),
+    code(r'''RHO = 2.848
+VCC = matter.vcc_func_from_rho_func(RHO, density_matter_is_in_g_per_cm3=True)
+ENERGY = 2.0*gd.UNIT_GEV
+BASELINE = 1300.0*gd.UNIT_KM
+N_SAMPLES = 1500
+
+def probabilities_for(release, size, rng):
+    """P(nu_mu -> nu_e) for `size` parameter sets drawn from one release."""
+    drawn = draw_parameters(release, size, rng)
+    out = np.empty(size)
+    for i in range(size):
+        h_vac = np.asarray(hamiltonians.hamiltonian_3nu_vacuum_energy_independent(
+            **{k: v[i] for k, v in drawn.items()}))
+        out[i] = np.asarray(oscprob.osc_prob(
+            h_vac/ENERGY + np.diag([VCC, 0.0, 0.0]), 0.0, BASELINE))[gd.NUMU][gd.NUE]
+    return out
+
+rng = np.random.default_rng(20260809)
+summary = []
+print('%-11s %-9s %-9s %-9s %-10s %s'
+      % ('release', 'median', '16%', '84%', '68% width', 'best fit'))
+print('-'*60)
+for release in CHI2['releases']:
+    P = probabilities_for(release, N_SAMPLES, rng)
+    lo, mid, hi = np.percentile(P, [16, 50, 84])
+    bf = gd.load_nufit_params(release, 'NO')
+    h_bf = np.asarray(hamiltonians.hamiltonian_3nu_vacuum_energy_independent(**bf))
+    P_bf = np.asarray(oscprob.osc_prob(
+        h_bf/ENERGY + np.diag([VCC, 0.0, 0.0]), 0.0, BASELINE))[gd.NUMU][gd.NUE]
+    summary.append((release, mid, lo, hi, hi - lo, P_bf))
+    print('%-11s %-9.4f %-9.4f %-9.4f %-10.4f %.4f'
+          % (release, mid, lo, hi, hi - lo, P_bf))'''),
+    md(r'''## 3. The uncertainty did not shrink monotonically
+
+The obvious expectation is that fourteen years of data narrow the band steadily. It did not.'''),
+    code(r'''widths = np.array([row[4] for row in summary])
+names = [row[0].replace('NuFIT ', '') for row in summary]
+
+print('narrowest : %s  (%.4f)' % (summary[int(np.argmin(widths))][0], widths.min()))
+print('widest    : %s  (%.4f)' % (summary[int(np.argmax(widths))][0], widths.max()))
+print('first -> last: %.4f -> %.4f  (%.2fx narrower overall)'
+      % (widths[0], widths[-1], widths[0]/widths[-1]))'''),
+    code(r'''fig, (ax0, ax1) = plt.subplots(2, 1, figsize=(7.4, 5.6), sharex=True,
+                               gridspec_kw=dict(height_ratios=[2, 1]))
+x = np.arange(len(summary))
+mid = np.array([r[1] for r in summary])
+lo = np.array([r[2] for r in summary])
+hi = np.array([r[3] for r in summary])
+bf = np.array([r[5] for r in summary])
+
+ax0.fill_between(x, lo, hi, color='C0', alpha=0.25, label='central 68%')
+ax0.plot(x, mid, color='C0', marker='o', ms=3, label='median of samples')
+ax0.plot(x, bf, color='C3', ls='--', marker='s', ms=3, label='best fit only')
+ax0.set_ylabel(r'$P(\nu_\mu \to \nu_e)$')
+ax0.legend(fontsize=8, loc='lower right')
+ax0.set_title(r'2 GeV, $L = 1300$ km, $\rho = 2.848$ g cm$^{-3}$, normal ordering',
+              fontsize=10)
+
+ax1.plot(x, widths, color='0.2', marker='o', ms=3)
+ax1.set_ylabel('68% width')
+ax1.set_xticks(x)
+ax1.set_xticklabels(names, rotation=45, ha='right', fontsize=8)
+ax1.set_xlabel('NuFIT release')
+fig.tight_layout()'''),
+    md(r'''The band is narrowest around **NuFIT 4.0--4.1** (2018--2019) and *widens again* at 5.0.
+That is not a defect in the fits; it is their history. The $\theta_{23}$ octant preference has
+flipped more than once between releases, and the $\delta_{\rm CP}$ constraint loosened as
+T2K and NOvA data pulled in different directions. A one-dimensional $\Delta\chi^2$ for
+$\sin^2\theta_{23}$ with two nearly degenerate minima is wide, and it produces a wide
+probability distribution regardless of how much data went into it.
+
+Note also how far the **best-fit curve** wanders relative to the band. Between 3.0 and 4.0 it
+moves by more than the 68% width of either -- because the best fit hops between octants while
+the distribution, which contains both, moves far less. **A single best-fit probability is a
+less stable thing than the distribution it comes from**, which is the practical argument for
+propagating the likelihood rather than the central values.
+
+## 4. Where the movement comes from
+
+Holding five parameters at the 6.1 best fit and varying only the sixth isolates each
+contribution.'''),
+    code(r'''best = gd.load_nufit_params('NuFIT 6.1', 'NO')
+rng = np.random.default_rng(7)
+print('%-8s %-12s %s' % ('vary', '68% width', 'share of the full width'))
+print('-'*48)
+full = None
+for name, key in (('th12', 'T12'), ('th13', 'T13'), ('th23', 'T23'),
+                  ('dCP', 'DCP'), ('D21', 'DMS'), ('D31', 'DMA')):
+    drawn = draw_parameters('NuFIT 6.1', N_SAMPLES, rng)
+    one = dict(best)
+    magnus_key = {'T12': 's12', 'T13': 's13', 'T23': 's23',
+                  'DCP': 'dCP', 'DMS': 'D21', 'DMA': 'D31'}[key]
+    values = drawn[magnus_key]
+    out = np.empty(N_SAMPLES)
+    for i in range(N_SAMPLES):
+        one[magnus_key] = values[i]
+        h_vac = np.asarray(hamiltonians.hamiltonian_3nu_vacuum_energy_independent(**one))
+        out[i] = np.asarray(oscprob.osc_prob(
+            h_vac/ENERGY + np.diag([VCC, 0.0, 0.0]), 0.0, BASELINE))[gd.NUMU][gd.NUE]
+    lo, hi = np.percentile(out, [16, 84])
+    if full is None:
+        full = widths[-1]
+    print('%-8s %-12.4f %.0f%%' % (name, hi - lo, 100.0*(hi - lo)/full))'''),
+    md(r'''## Summary
+
+| | |
+|---|---|
+| releases from machine-readable $\chi^2$ | 14 (v2.0 -- v6.1) |
+| releases read from vector figures | 4 (v1.0 -- v1.3) |
+| **total** | **18**, spanning 2012--2025 |
+| 68% width, first release | 0.024 |
+| 68% width, narrowest (v4.0) | **0.012** |
+| 68% width, latest (v6.1) | 0.016 |
+
+Three things worth taking away.
+
+1. **The parameter uncertainty is comparable to the effects other notebooks study.** A 68%
+   width of 0.016 in $P(\nu_\mu \to \nu_e)$ is larger than the octant effect measured in
+   notebook 17 (~0.015), and comparable to the antineutrino half-convention errors in notebook
+   15. Numerical accuracy is rarely the limiting uncertainty in a real prediction.
+2. **It has not shrunk monotonically,** and the widening at 5.0 is physics, not noise.
+3. **Propagate the likelihood, not the best fit.** The best-fit probability moves further
+   between releases than the distribution does.
+
+The `_note` field in `nufit_chi2.json` and section 1 above both record the independence
+assumption; a joint treatment would use the pairwise projections in the source files, which
+`make_nufit_chi2.py` documents but does not extract.'''),
+    ])
+
+
+# ------------------------------------------------ 25_magnus_against_other_codes
+books['25_magnus_against_other_codes.ipynb'] = notebook(
+    'Against other codes',
+    r'''Mag$\nu$s is not the only way to get an oscillation probability, and on the problems other
+codes were built for it is not the fastest. This notebook measures that honestly, against
+whichever of them are installed.
+
+Two things make a comparison like this easy to get wrong, and both are handled explicitly
+below. The first is **what problem is being solved**: a closed-form constant-density
+expression and a general varying-profile integrator are not doing the same work, and timing
+them on constant density flatters the former by construction. The second is **conventions**:
+two codes given "the same" density can build different matter potentials, and the resulting
+disagreement is not an accuracy difference even though it looks exactly like one.
+
+Nothing here fails if a code is missing -- each is probed and skipped.''',
+    [
+    code(r'''import sys
+import time
+import warnings
+
+import numpy as np
+from scipy.linalg import expm
+
+# Mag(nu)s is imported as an installed package -- from the repository root,
+# 'pip install -e .' (add [plot] for magnus.plotting). No sys.path juggling.
+import magnus.oscprob as oscprob
+import magnus.hamiltonians as hamiltonians
+import magnus.matter as matter
+import magnus.globaldefs as gd
+
+warnings.simplefilter('ignore')
+
+OSC = gd.load_nufit_params('NuFIT 6.1', 'NO')
+L_KM, RHO, N_E = 1300.0, 2.848, 60
+BASELINE = L_KM*gd.CONV_KM_TO_INV_EV
+VCC = matter.vcc_func_from_rho_func(RHO, density_matter_is_in_g_per_cm3=True)
+E_GEV = np.linspace(0.6, 20.0, N_E)
+E = E_GEV*gd.UNIT_GEV
+h_vac = np.asarray(hamiltonians.hamiltonian_3nu_vacuum_energy_independent(**OSC))
+
+print('L = %.0f km, rho = %.3f g/cm^3, %d energies, 0.6-20 GeV' % (L_KM, RHO, N_E))
+print('V_CC (Magnus) = %.6e eV' % VCC)'''),
+    md(r'''## 1. Which codes are available
+
+`nuSQuIDS` is a general neutrino transport solver; `NuOscProbExact` computes the exact
+SU(3) closed form for piecewise-constant matter. Neither is a dependency of Mag$\nu$s, so both
+are optional here.'''),
+    code(r'''AVAILABLE = {}
+
+try:
+    import nuSQuIDS as nsq
+    AVAILABLE['nuSQuIDS'] = True
+except Exception as exc:
+    AVAILABLE['nuSQuIDS'] = False
+    print('nuSQuIDS not available: %s' % exc)
+
+# NuOscProbExact is not packaged on PyPI; point NUOSCPROBEXACT_SRC at its src/
+# directory to include it.  Absent that, this notebook simply skips it.
+import os
+_npe_src = os.environ.get('NUOSCPROBEXACT_SRC')
+if _npe_src and os.path.isdir(_npe_src):
+    sys.path.insert(0, _npe_src)
+try:
+    import oscprob3nu
+    import hamiltonians3nu
+    AVAILABLE['NuOscProbExact'] = True
+except Exception:
+    AVAILABLE['NuOscProbExact'] = False
+
+for name, ok in AVAILABLE.items():
+    print('%-16s %s' % (name, 'available' if ok else 'not installed -- skipped'))'''),
+    md(r'''## 2. The reference
+
+For a **constant** density the Hamiltonian is constant, so the evolution operator is a single
+matrix exponential and `scipy.linalg.expm` is the exact answer. That makes an oracle that
+belongs to none of the codes being compared.'''),
+    code(r'''reference = np.array([np.abs(expm(-1j*(h_vac/e + np.diag([VCC, 0.0, 0.0]))*BASELINE))[0, 1]**2
+                      for e in E])
+print('reference P(nu_mu -> nu_e): %.6f ... %.6f' % (reference[0], reference[-1]))
+
+
+def best_of(call, repeats=3):
+    fastest, result = np.inf, None
+    for _ in range(repeats):
+        t0 = time.perf_counter()
+        result = call()
+        fastest = min(fastest, time.perf_counter() - t0)
+    return result, fastest'''),
+    md(r'''## 3. Constant density: speed
+
+This is the problem `NuOscProbExact` exists for -- an exact closed form, evaluated once per
+energy. Mag$\nu$s solves the general problem and pays for the generality. Expect to lose.'''),
+    code(r'''results = []
+
+P_magnus, t_magnus = best_of(lambda: np.asarray(oscprob.osc_prob_3nu_matter_constant_density(
+    E, BASELINE, RHO, **OSC, density_matter_is_in_g_per_cm3=True,
+    nu_i=gd.NUMU, nu_f=gd.NUE)))
+results.append(('Magnus (batched wrapper)', P_magnus, t_magnus))
+
+if AVAILABLE['NuOscProbExact']:
+    h_npe = hamiltonians3nu.hamiltonian_3nu_vacuum_energy_independent(**OSC)
+    P_npe, t_npe = best_of(lambda: np.array([
+        oscprob3nu.probabilities_3nu(
+            hamiltonians3nu.hamiltonian_3nu_matter(h_npe, e, VCC), BASELINE)[3]
+        for e in E]))
+    results.append(('NuOscProbExact', P_npe, t_npe))
+
+print('%-28s %-11s %-11s %s' % ('code', 'time [s]', 'us/point', 'max |P - exact|'))
+print('-'*66)
+for name, P, t in results:
+    print('%-28s %-11.4f %-11.1f %.3e'
+          % (name, t, 1.0e6*t/N_E, np.max(np.abs(P - reference))))'''),
+    md(r'''Both are exact to round-off; the closed form is several times faster. That is the
+right result and it is worth stating plainly: **if constant density is your whole problem, a
+closed-form code is the better tool.** Mag$\nu$s earns its cost on profiles that vary, where no
+closed form exists -- notebook 16 measures a mean-density substitution being wrong by 0.51 on
+an Earth chord.
+
+## 4. A conventions trap, and why the next table is in vacuum
+
+Running nuSQuIDS on the same nominal problem produces a disagreement of a few times
+$10^{-4}$ that **does not improve when its solver tolerance is tightened**. A plateau like
+that is the signature of a systematic offset rather than a convergence limit.'''),
+    code(r'''def run_nusquids(rho, tolerance):
+    """P(nu_mu -> nu_e) from nuSQuIDS on the same configuration."""
+    units = nsq.Const()
+    solver = nsq.nuSQUIDS(E_GEV*units.GeV, 3, nsq.NeutrinoType.neutrino, False)
+    if rho == 0.0:
+        solver.Set_Body(nsq.Vacuum())
+        solver.Set_Track(nsq.Vacuum.Track(L_KM*units.km))
+    else:
+        solver.Set_Body(nsq.ConstantDensity(rho, 0.5))
+        solver.Set_Track(nsq.ConstantDensity.Track(L_KM*units.km))
+    solver.Set_MixingAngle(0, 1, np.arcsin(OSC['s12']))
+    solver.Set_MixingAngle(0, 2, np.arcsin(OSC['s13']))
+    solver.Set_MixingAngle(1, 2, np.arcsin(OSC['s23']))
+    solver.Set_CPPhase(0, 2, OSC['dCP'])
+    solver.Set_SquareMassDifference(1, OSC['D21'])
+    solver.Set_SquareMassDifference(2, OSC['D31'])
+    solver.Set_rel_error(tolerance)
+    solver.Set_abs_error(tolerance)
+    state = np.zeros((N_E, 3))
+    state[:, 1] = 1.0                                  # start as nu_mu
+    solver.Set_initial_state(state, nsq.Basis.flavor)
+    solver.EvolveState()
+    return np.array([solver.EvalFlavorAtNode(0, i) for i in range(N_E)])
+
+
+if AVAILABLE['nuSQuIDS']:
+    print('%-18s %s' % ('solver tolerance', 'max |P - exact|, in matter'))
+    for tolerance in (1.0e-5, 1.0e-7, 1.0e-10):
+        P, _ = best_of(lambda t=tolerance: run_nusquids(RHO, t), repeats=1)
+        print('%-18.0e %.3e' % (tolerance, np.max(np.abs(P - reference))))'''),
+    md(r'''The diagnosis: run the same code in **vacuum**, where there is no matter potential to
+disagree about. If the solver is fine, the vacuum comparison will be tight -- and it is, by
+about four orders of magnitude.'''),
+    code(r'''if AVAILABLE['nuSQuIDS']:
+    vacuum_reference = np.array([np.abs(expm(-1j*(h_vac/e)*BASELINE))[0, 1]**2 for e in E])
+    P_vac, _ = best_of(lambda: run_nusquids(0.0, 1.0e-12), repeats=1)
+    print('vacuum : max |nuSQuIDS - exact| = %.3e' % np.max(np.abs(P_vac - vacuum_reference)))
+
+    # What potential would reconcile them?  Rebuild the exact answer with V_CC
+    # scaled, and find the scale that matches.
+    P_matter, _ = best_of(lambda: run_nusquids(RHO, 1.0e-12), repeats=1)
+    scales = np.linspace(0.95, 1.05, 21)
+    gaps = []
+    for scale in scales:
+        ref_scaled = np.array([
+            np.abs(expm(-1j*(h_vac/e + np.diag([VCC*scale, 0.0, 0.0]))*BASELINE))[0, 1]**2
+            for e in E])
+        gaps.append(np.max(np.abs(P_matter - ref_scaled)))
+    best = int(np.argmin(gaps))
+    unity = int(np.argmin(np.abs(scales - 1.0)))
+    print('matter : best agreement at V_CC scale %.3f (residual %.2e)'
+          % (scales[best], gaps[best]))
+    print('         at Magnus\'s own V_CC   (scale %.3f), residual %.2e'
+          % (scales[unity], gaps[unity]))'''),
+    md(r'''In vacuum nuSQuIDS reproduces the exact answer to $\sim10^{-8}$ -- its solver is doing
+its job. In matter, the disagreement is minimised at a matter potential about **1% larger**
+than the one Mag$\nu$s builds from the same nominal $\rho$ and $Y_e$. That is a difference in
+how the electron number density is derived from a mass density -- the average nucleon mass and
+the electron fraction convention -- and **not** an accuracy difference in either code.
+
+This is why the accuracy column in section 3 is only quoted for codes sharing Mag$\nu$s's
+potential, and why the honest cross-code accuracy statement is the vacuum one. Fixing it
+properly means agreeing a conversion, not tightening a tolerance.
+
+## Summary
+
+| | |
+|---|---|
+| constant density, exactness | Mag$\nu$s and NuOscProbExact both $\sim10^{-16}$ |
+| constant density, speed | the closed form wins, several-fold |
+| vacuum, nuSQuIDS vs exact | $\sim10^{-8}$ -- solver is fine |
+| matter, nuSQuIDS vs Mag$\nu$s | a **1% $V_{\rm CC}$ convention difference**, not accuracy |
+
+The comparison worth making is not "which code is fastest" but "which code solves my problem".
+For constant density, reach for a closed form. For an arbitrary varying profile, a custom
+Hamiltonian, or a BSM term that no closed form covers, that option does not exist -- which is
+where Mag$\nu$s's cost buys something.
+
+And before comparing any two codes' numbers: **check that they agree in vacuum first.** If they
+do not, the disagreement is in the solvers. If they do and they disagree in matter, it is in
+the conventions, and no amount of tolerance will close it.'''),
+    ])
+
+
 # --------------------------------------------------------------- reading order
 
 READING_ORDER = [
@@ -6568,6 +8940,30 @@ READING_ORDER = [
      'a real BS05 profile rather than an exponential'),
     ('14_magnus_supernova_shock.ipynb', 'A supernova shock front',
      'where the error stops being a phase and becomes an envelope'),
+    ('15_magnus_antineutrinos.ipynb', 'Antineutrinos, done properly',
+     'conjugate and flip, and two ways to get it half right'),
+    ('16_magnus_exact_vs_approximations.ipynb', 'Exact versus the approximations',
+     'where the textbook formulas are exact, and where the substitution breaks'),
+    ('17_magnus_ordering_and_octant.ipynb', 'Mass ordering and the octant',
+     'two open questions, and how large they actually are'),
+    ('18_magnus_unusual_density_profiles.ipynb', 'Unusual density profiles',
+     'arrangement beats the mean, except for one exact symmetry'),
+    ('19_magnus_custom_hamiltonian.ipynb', 'Bring your own Hamiltonian',
+     'the contract, the vectorisation trick, and what the Earth declares for you'),
+    ('20_magnus_numerical_edge_cases.ipynb', 'Numerical edge cases',
+     'degeneracies that return numbers, and what the nine warnings mean'),
+    ('21_magnus_what_tolerance_means.ipynb', 'What rtol and atol promise',
+     'a stopping criterion, not an error bound'),
+    ('22_magnus_which_engine_answered.ipynb', 'Which engine answered, and why',
+     'six engines, five families, and an error bar with no oracle'),
+    ('23_magnus_when_averaging_helps.ipynb', 'When averaging rescues you',
+     'phase error falls away, envelope error does not'),
+    ('24_magnus_performance.ipynb', 'Performance',
+     'what is worth doing, and when each trick is worth nothing'),
+    ('25_magnus_against_other_codes.ipynb', 'Against other codes',
+     'where a closed form wins, and a conventions trap that looks like accuracy'),
+    ('26_magnus_nufit_evolution.ipynb', 'Fourteen years of NuFIT',
+     'how the parameter likelihood, not just the best fit, moves the probability'),
 ]
 
 

@@ -1175,6 +1175,36 @@ class PhaseAveragingWarning(UserWarning):
     """
 
 
+class CrossCheckInconclusiveWarning(UserWarning):
+    r"""Warns that :func:`cross_check_strategies` reported a spread of zero
+    because it made no comparison, not because the engines agreed.
+
+    The diagnostic returns ``max_spread`` and ``max_spread_independent`` as
+    plain floats, and both are ``0.0`` when no pair of engines was compared --
+    the same value they take when two engines agree perfectly.  A caller who
+    reads either number without also reading ``ran`` cannot tell the two apart,
+    and the reassuring reading is the wrong one.
+
+    Three ways to get a vacuous zero:
+
+    * **No engine ran.**  Every engine declined, most often because the entry
+      point has no ``strategy`` parameter -- :func:`osc_prob` itself is such an
+      entry point, so it is an easy one to reach for.  Pass a wrapper such as
+      :func:`osc_prob_matter_std_potential` instead.
+    * **One engine ran.**  There is nothing to compare it with.
+    * **Only one family ran.**  ``max_spread_independent`` is zero because no
+      cross-family pair exists.  Engines within a family share machinery, so
+      their agreement is the self-certification this diagnostic exists to
+      avoid relying on -- see :data:`ENGINE_FAMILIES`.
+
+    A warning rather than an error: the returned dictionary is still
+    well-formed, ``declined`` says exactly why each engine stood down, and a
+    caller who wants only one engine's answer is entitled to ask for it.
+
+    .. versionadded:: 1.0.0
+    """
+
+
 #-----------------------------------------------------------------------
 # Helper functions
 #-----------------------------------------------------------------------
@@ -5761,6 +5791,32 @@ def cross_check_strategies(entry_point: Callable, *args, engines=None, **kwargs)
                 best, best_pair = s, (a, b)
             if ENGINE_FAMILIES[a] != ENGINE_FAMILIES[b] and s > best_ind:
                 best_ind, best_ind_pair = s, (a, b)
+
+    # A spread of zero means "no disagreement was found", which is not the same statement as "the
+    # engines agree" -- and when nothing was compared, it is the wrong one.  Say so, because the
+    # numbers themselves cannot: 0.0 is 0.0 either way.
+    if len(ran) < 2:
+        if not ran:
+            detail = ('no engine ran at all.  ' + '; '.join(
+                '%s: %s' % (lab, why) for lab, why in declined.items()) if declined
+                else 'no engine ran at all, and none reported a reason.')
+        else:
+            detail = ('only one engine ran (%s), so there was no second answer to compare it '
+                      'with.' % ran[0])
+        warnings.warn(gd.WARNING_MSG_NO_COLOR + " cross_check_strategies: " + detail +
+            "  max_spread and max_spread_independent are therefore 0.0 because nothing was "
+            "compared, not because anything agreed.  If the entry point has no 'strategy' "
+            "parameter -- osc_prob itself does not -- pass a wrapper such as "
+            "osc_prob_matter_std_potential instead, and check out['ran'] before reading any "
+            "spread.", CrossCheckInconclusiveWarning, stacklevel=2)
+    elif best_ind_pair is None:
+        warnings.warn(gd.WARNING_MSG_NO_COLOR + " cross_check_strategies: the " +
+            format(len(ran), 'd') + " engines that ran (" + ', '.join(ran) + ") all belong to "
+            "the '" + ENGINE_FAMILIES[ran[0]] + "' family, so max_spread_independent is 0.0 "
+            "because no cross-family pair exists, not because independent methods agreed.  "
+            "Engines within a family share machinery and can share a blind spot; only a "
+            "cross-family comparison carries information (see ENGINE_FAMILIES).",
+            CrossCheckInconclusiveWarning, stacklevel=2)
 
     return {
         'answers': answers,
@@ -17927,6 +17983,7 @@ __all__ = [
     'UnmarkedDiscontinuityWarning',
     'HiddenFeatureWarning',
     'ENGINE_FAMILIES',
+    'CrossCheckInconclusiveWarning',
     'cross_check_strategies',
     'print_banner',
     'print_run_parameters',

@@ -126,3 +126,65 @@ kinds of wrong apart.
    The contrast. Here averaging does essentially nothing, because a shock
    changes the adiabaticity of the level crossing and so moves the conversion
    probability itself. Wrong, and loud about it.
+
+`23. When averaging rescues you <https://github.com/mbustama/Magnus/blob/main/notebooks/23_magnus_when_averaging_helps.ipynb>`_
+   The mechanism behind those two, isolated on a cheap vacuum probability: a
+   phase error is suppressed a hundredfold by averaging, an envelope error by a
+   fixed factor of about seven that no number of cycles improves.
+
+
+Conventions worth getting right
+-------------------------------
+
+Two notebooks about the places where a wrong answer looks exactly like a right
+one.
+
+`15. Antineutrinos, done properly <https://github.com/mbustama/Magnus/blob/main/notebooks/15_magnus_antineutrinos.ipynb>`_
+   Conjugating the PMNS matrix and flipping the matter potential are two
+   separate things, and doing one without the other returns a plausible wrong
+   answer. Measured: 0.014 correct against 0.057 and 0.023 for the two halves.
+
+`18. Unusual density profiles <https://github.com/mbustama/Magnus/blob/main/notebooks/18_magnus_unusual_density_profiles.ipynb>`_
+   Five profiles with the same mean density differing by up to 0.98 in
+   probability — and the single rearrangement that changes nothing, exactly,
+   whenever :math:`\delta_{\rm CP}` is 0 or :math:`\pi`.
+
+
+Physics questions
+-----------------
+
+`16. Exact versus the approximations <https://github.com/mbustama/Magnus/blob/main/notebooks/16_magnus_exact_vs_approximations.ipynb>`_
+   The textbook closed forms are exact, and Magνs reproduces them to
+   :math:`10^{-14}`. What breaks is substituting a mean density for a varying
+   one: worth 0.51 in probability on a core-crossing chord.
+
+`17. Mass ordering and the octant <https://github.com/mbustama/Magnus/blob/main/notebooks/17_magnus_ordering_and_octant.ipynb>`_
+   The ordering is carried entirely by the sign of ``D31``. Through the core it
+   separates the two by 0.48; the octant, by about 0.015.
+
+
+Using and diagnosing the machinery
+----------------------------------
+
+`19. Bring your own Hamiltonian <https://github.com/mbustama/Magnus/blob/main/notebooks/19_magnus_custom_hamiltonian.ipynb>`_
+   The actual interface is one callable returning a Hermitian matrix. Covers the
+   vectorisation trick, and what the Earth entry point declares on your behalf.
+
+`20. Numerical edge cases <https://github.com/mbustama/Magnus/blob/main/notebooks/20_magnus_numerical_edge_cases.ipynb>`_
+   Exact degeneracies, zero baselines and empty requests all return numbers
+   rather than ``NaN``. Plus what each of the nine warning classes means, and
+   which to act on.
+
+`21. What rtol and atol promise <https://github.com/mbustama/Magnus/blob/main/notebooks/21_magnus_what_tolerance_means.ipynb>`_
+   A stopping criterion, not an error bound. Measured against an independent
+   ``solve_ivp`` oracle: a request for :math:`10^{-2}` came back wrong by
+   :math:`2.5\times10^{-2}` and reported success.
+
+`22. Which engine answered, and why <https://github.com/mbustama/Magnus/blob/main/notebooks/22_magnus_which_engine_answered.ipynb>`_
+   Six engines in five families, and ``cross_check_strategies`` — an error bar
+   that needs no oracle, because two different methods disagreeing is itself the
+   signal.
+
+`24. Performance <https://github.com/mbustama/Magnus/blob/main/notebooks/24_magnus_performance.ipynb>`_
+   What is worth doing, measured live — and, more usefully, when each trick is
+   worth nothing at all.

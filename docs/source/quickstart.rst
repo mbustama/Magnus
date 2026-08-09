@@ -70,6 +70,44 @@ Oscillation parameters that are not passed explicitly default to the
 `NuFit 6.0 <http://www.nu-fit.org>`_ best fit (normal ordering); pass
 ``s12``, ``D31``, ``dCP``, etc., or ``nubar=True``, to change them.
 
+.. _nufit-parameters:
+
+Choosing a global fit
+---------------------
+
+To use a different release, or the inverted ordering, ask
+:func:`magnus.globaldefs.load_nufit_params` for it.  It returns **exactly the
+six parameters** every ``osc_prob_3nu_*`` function takes -- ``s12``, ``s23``,
+``s13``, ``dCP``, ``D21``, ``D31`` -- so the result can be passed straight
+through:
+
+.. code-block:: python
+
+   osc = gd.load_nufit_params('NuFIT 6.1', 'NO')
+
+   P = oscprob.osc_prob_3nu_vacuum(energy, L, **osc)
+
+Every NuFit release from v1.0 to v6.1 is available, along with the
+release-specific secondary category where one exists (``'with_SK'`` /
+``'without_SK'`` from v4.0, ``'LEM'`` / ``'LID'`` for v2.1); omitting
+``category`` takes the release's preferred one.  ``gd.NUFIT_GLOBAL_FITS.keys()``
+lists what is available.
+
+.. code-block:: python
+
+   inverted = gd.load_nufit_params('NuFIT 6.1', 'IO')
+   older = gd.load_nufit_params('NuFIT 5.2', 'NO', category='without_SK')
+
+The mass ordering is carried by the **sign of** ``D31``, so the inverted set
+differs from the normal one in that sign -- and, at the best fit, in the
+:math:`\theta_{23}` octant and :math:`\delta_{\rm CP}` as well.  If you want to
+vary the ordering alone, flip the sign of ``D31`` yourself rather than swapping
+parameter sets; notebook 17 shows why.
+
+Notebook 26 goes further and samples the :math:`\Delta\chi^2` profiles behind
+these fits, to show how much of a predicted probability is really the
+parameters.
+
 1. Vacuum oscillations
 ------------------------
 
