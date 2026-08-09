@@ -290,7 +290,6 @@ import os
 import sys
 import warnings
 from contextlib import contextmanager
-from functools import reduce
 from joblib import Parallel, delayed
 from typing import Optional, Callable, Union, Tuple, Dict
 from io import TextIOWrapper
@@ -2434,6 +2433,24 @@ def compute_evolution_operator_multiple_slabs(
         order=magnus_exp_order, symmetric_over=symmetric_over, **kwargs)
 
 
+def _eval_mode_for(H_func, t_ini, t_fin):
+    r"""Evaluation mode for ``H_func``, remembered against the function itself.
+
+    ``probe_eval_mode`` needs A = -i H, but wrapping H_func in a fresh lambda per
+    call would defeat the cache.  The mode is a property of H_func's signature, and
+    multiplying by a constant does not change it, so H_func is what gets cached.
+    """
+    mode = magnus._EVAL_MODE_CACHE.get(H_func) if not isinstance(H_func, np.ndarray) else None
+    if mode is not None:
+        return mode
+    mode = magnus.probe_eval_mode(lambda t: -1j*H_func(t), t_ini, t_fin)
+    try:
+        magnus._EVAL_MODE_CACHE[H_func] = mode
+    except TypeError:
+        pass
+    return mode
+
+
 def osc_prob(
     H_func: Union[Callable, np.ndarray], 
     t_ini: Union[int, float], 
@@ -2945,7 +2962,13 @@ def osc_prob(
     # constant, or scalar-only), so that the Magnus kernel does not have to re-probe it on every
     # refinement iteration below.
     if A_eval_mode is None:
-        A_eval_mode = magnus.probe_eval_mode(lambda t: -1j*H_func(t), t_ini, t_fin)
+        # Cached against H_func itself, not the -1j wrapper: the wrapper is a fresh
+        # lambda on every call and would never hit.  How H_func may be evaluated is the
+        # same question either way, since scaling by a constant changes neither its
+        # signature nor its shape.
+        A_eval_mode = magnus.cached_eval_mode(
+            lambda t: -1j*H_func(t), t_ini, t_fin) if not callable(H_func) else \
+            _eval_mode_for(H_func, t_ini, t_fin)
 
     # Physics-informed starting number of slabs (Gauss-Legendre method only): rather than always
     # starting the refinement from min_n_slabs and climbing the geometric ladder, start from an
@@ -3117,7 +3140,7 @@ def osc_prob(
         # of the *last* slab is the leftmost factor.  (functools.reduce is used instead of
         # np.linalg.multi_dot because all factors are square matrices of the same size, for which
         # multi_dot wastes time computing an optimal parenthesization that does not exist.)
-        Utot = reduce(np.matmul, U_chain[::-1]) if len(U_chain) > 1 else U_chain[0]
+        Utot = magnus.ordered_product(U_chain)
 
         # Using Utot, compute all the survival and transition probabilities in a probability matrix
         # P = (|Utot|^2).T and return that matrix, so that P[nu_i][nu_f] = |Utot[nu_f][nu_i]|^2.

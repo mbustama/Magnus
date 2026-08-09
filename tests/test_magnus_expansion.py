@@ -323,3 +323,86 @@ def test_wrong_vector_mode_hint_falls_back_and_warns():
                                   np.linspace(0.0, 1.0, 5), 'vector')
     assert mode == 'scalar'
     assert At.shape == (5, 3, 3)
+
+
+# ----------------------------------------------------------------------
+# ordered_product: the time-ordered chain, collapsed pairwise
+# ----------------------------------------------------------------------
+
+def test_ordered_product_matches_the_sequential_product():
+    """The tree reduction must equal reduce(np.matmul, U[::-1]) exactly in
+    value.  Associativity is what licenses it; commutativity is neither
+    required nor assumed, so the operator ordering has to survive."""
+    from functools import reduce
+    rng = np.random.default_rng(20260809)
+    for n in (1, 2, 3, 7, 8, 33, 108):
+        U = (rng.normal(size=(n, 3, 3)) + 1j*rng.normal(size=(n, 3, 3)))/3.0
+        expected = reduce(np.matmul, U[::-1]) if n > 1 else U[0]
+        got = mg.ordered_product(U)
+        scale = max(np.max(np.abs(expected)), 1.0e-300)
+        assert np.max(np.abs(got - expected))/scale < 1.0e-12, n
+
+
+def test_ordered_product_preserves_order_not_just_content():
+    """A product of non-commuting factors pins the ordering down: if the tree
+    combined them out of turn, the value would change."""
+    A = np.array([[0.0, 1.0], [0.0, 0.0]], dtype=complex)
+    B = np.array([[0.0, 0.0], [1.0, 0.0]], dtype=complex)
+    # U[0] is earliest, so the product is B @ A, not A @ B (which differ here).
+    got = mg.ordered_product(np.stack([A, B]))
+    np.testing.assert_allclose(got, B @ A, atol=0.0)
+    assert not np.allclose(B @ A, A @ B)
+
+
+def test_ordered_product_keeps_a_unitary_chain_unitary():
+    """The slab operators are unitary, and their product must stay so: this is
+    the property the probabilities inherit."""
+    from scipy.linalg import expm as sp_expm
+    rng = np.random.default_rng(7)
+    U = np.empty((256, 3, 3), dtype=complex)
+    for i in range(U.shape[0]):
+        A = rng.normal(size=(3, 3)) + 1j*rng.normal(size=(3, 3))
+        U[i] = sp_expm(-1j*(A + A.conj().T)/2*0.2)
+    P = mg.ordered_product(U)
+    assert np.max(np.abs(P @ P.conj().T - np.eye(3))) < 1.0e-13
+
+
+# ----------------------------------------------------------------------
+# A Hamiltonian that is constant *within* each slab
+# ----------------------------------------------------------------------
+
+def test_constant_slab_samples_drop_the_vanishing_commutators():
+    """Where a slab's nodes are identical the Magnus series terminates at its
+    first term, every later one being a commutator of A with itself.  Taking
+    Omega = h A there is exact, not an approximation, so it must agree with the
+    full expression to the last bit -- the commutator it skips is zero."""
+    rng = np.random.default_rng(3)
+    n, d = 32, 3
+    A = rng.normal(size=(n, d, d)) + 1j*rng.normal(size=(n, d, d))
+    widths = np.full(n, 0.01)
+
+    for order, n_nodes in ((4, 2), (6, 3)):
+        An = np.repeat(A[:, None, :, :], n_nodes, axis=1)
+        h = widths[:, None, None]
+        got = mg._magnus_gl(An, widths, order)
+        np.testing.assert_array_equal(got, h*A)
+
+
+def test_a_varying_slab_still_gets_the_full_expansion():
+    """The detection must be exact equality, not a tolerance: a nearly constant
+    A has commutators that carry real information, and dropping them because two
+    samples agreed to some epsilon would silently lower the order."""
+    rng = np.random.default_rng(4)
+    n, d = 16, 3
+    An = rng.normal(size=(n, 2, d, d)) + 1j*rng.normal(size=(n, 2, d, d))
+    widths = np.full(n, 0.01)
+    h = widths[:, None, None]
+    expected = (0.5*h*(An[:, 0] + An[:, 1])
+                + (np.sqrt(3.0)/12.0)*h*h*mg.commutator(An[:, 1], An[:, 0]))
+    np.testing.assert_allclose(mg._magnus_gl(An, widths, 4), expected,
+                               rtol=0.0, atol=1.0e-15)
+
+    # And a sample pair differing in the last bit is *not* treated as constant.
+    An[3, 1, 0, 0] = np.nextafter(An[3, 0, 0, 0].real, 1.0) + 0j
+    An[3, 0, 0, 0] = An[3, 0, 0, 0].real + 0j
+    assert not mg._samples_identical(An[:, 0], An[:, 1])
