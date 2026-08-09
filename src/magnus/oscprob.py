@@ -2476,24 +2476,6 @@ def compute_evolution_operator_multiple_slabs(
         order=magnus_exp_order, symmetric_over=symmetric_over, **kwargs)
 
 
-def _eval_mode_for(H_func, t_ini, t_fin):
-    r"""Evaluation mode for ``H_func``, remembered against the function itself.
-
-    ``probe_eval_mode`` needs A = -i H, but wrapping H_func in a fresh lambda per
-    call would defeat the cache.  The mode is a property of H_func's signature, and
-    multiplying by a constant does not change it, so H_func is what gets cached.
-    """
-    mode = magnus._EVAL_MODE_CACHE.get(H_func) if not isinstance(H_func, np.ndarray) else None
-    if mode is not None:
-        return mode
-    mode = magnus.probe_eval_mode(lambda t: -1j*H_func(t), t_ini, t_fin)
-    try:
-        magnus._EVAL_MODE_CACHE[H_func] = mode
-    except TypeError:
-        pass
-    return mode
-
-
 def osc_prob(
     H_func: Union[Callable, np.ndarray], 
     t_ini: Union[int, float], 
@@ -3008,10 +2990,15 @@ def osc_prob(
         # Cached against H_func itself, not the -1j wrapper: the wrapper is a fresh
         # lambda on every call and would never hit.  How H_func may be evaluated is the
         # same question either way, since scaling by a constant changes neither its
-        # signature nor its shape.
+        # signature nor its shape -- which is what `key` is for.
+        #
+        # This used to be a ternary whose other arm called cached_eval_mode on the
+        # wrapper directly, guarded by `not callable(H_func)`.  That arm was dead:
+        # H_func is unconditionally rebound to a closure above, so the guard was never
+        # true, and the arm that did run was a second, *unguarded* copy of this cache in
+        # this module.  The copy is gone; the guarded original does the work.
         A_eval_mode = magnus.cached_eval_mode(
-            lambda t: -1j*H_func(t), t_ini, t_fin) if not callable(H_func) else \
-            _eval_mode_for(H_func, t_ini, t_fin)
+            lambda t: -1j*H_func(t), t_ini, t_fin, key=H_func)
 
     # Physics-informed starting number of slabs (Gauss-Legendre method only): rather than always
     # starting the refinement from min_n_slabs and climbing the geometric ladder, start from an
@@ -4137,7 +4124,10 @@ def _osc_prob_scan_separable_dispatch(
     # sums still exactly 1, survival probabilities still right, channels swapped, and 29% off
     # on P(nu_mu -> nu_e).  osc_prob raises ValueError for this; declining here routes the
     # request there so it still does.
-    if np.any(L_arr < float(L0)):
+    # ``not (L >= L0)`` rather than ``L < L0``, so that a NaN baseline is declined too:
+    # NaN fails every comparison, so ``L < L0`` is False for it and the engine would have
+    # answered with NaN where the per-point path raises.
+    if np.any(~(L_arr >= float(L0))):
         return NotImplemented
     # Likewise the refinement parameters.  They do not change this engine's answer -- one
     # exponential per point is exact either way -- but accepting a value the ladder rejects

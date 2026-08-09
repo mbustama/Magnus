@@ -402,39 +402,82 @@ def _evaluate_A(A: Callable, times: np.ndarray,
     return At, mode
 
 
-# How a given H_func can be evaluated is a property of the function, not of the
-# call: a callable that accepts an array of positions today will accept one
-# tomorrow.  Probing it costs three calls into the user's Hamiltonian, which is
-# cheap for a PREM lookup and emphatically not for an interpolated profile or a
-# quadrature (notebook 19's long-range potential is about a third of its own
-# call).  Remembering the answer turns that into a once-per-function cost.
+# Whether a given H_func *accepts an array of positions* is a property of the
+# function: a callable that does today will tomorrow.  Probing costs three calls
+# into the user's Hamiltonian, cheap for a PREM lookup and emphatically not for
+# an interpolated profile or a quadrature (notebook 19's long-range potential is
+# about a third of its own call), so the answer is worth remembering.
 #
-# Keyed weakly and by identity: a closure rebuilt on every call is a *different*
-# function, so it misses and simply re-probes as before, and nothing is kept
-# alive that the caller has dropped.  Identity rather than equality because two
-# distinct closures over different data are different Hamiltonians even when
-# their code objects match.
+# **But the interval is part of the question, not context for it.**  'constant'
+# means "sampling A across [t0, t1] gave the same matrix every time", which a
+# wider interval can falsify -- a two-layer profile that short-circuits when all
+# requested positions fall in one layer probes as 'constant' on a short baseline
+# and 'vector' on a long one, for the same function object.  Keyed on the
+# function alone, a mode learned on the short one was served for the long one and
+# `_evaluate_A` then broadcast a single sample over a profile that varies: a
+# unitary, unwarned answer wrong by 5.8e-02, and wrong only for one order of the
+# caller's loop.  The interval is in the key for that reason.
+#
+# Keyed weakly, so a closure rebuilt per call simply misses and re-probes, and
+# nothing is kept alive that the caller has dropped.  Note that
+# `WeakKeyDictionary` keys by the referent's *equality*, not by identity -- an
+# earlier version of this comment claimed the opposite, which matters for a
+# caller whose Hamiltonian defines `__eq__`: two objects comparing equal share an
+# entry.  That is a documented property of the container, not a choice made here.
 _EVAL_MODE_CACHE = weakref.WeakKeyDictionary()
 
 
-def cached_eval_mode(A: Callable, t0: float, t1: float) -> str:
+def cached_eval_mode(A: Callable, t0: float, t1: float, key=None) -> str:
     r"""``probe_eval_mode`` for a callable that will be probed more than once.
 
-    Returns the same value as :func:`probe_eval_mode` and remembers it against
-    ``A``, so a repeated call on the same Hamiltonian does not evaluate it three
-    more times.  Falls straight through for anything not weak-referenceable.
+    Returns the same value :func:`probe_eval_mode` would for *this interval*, and
+    remembers it against ``(key or A, t0, t1)`` so a repeated call on the same
+    Hamiltonian over the same span does not evaluate it three more times.  Falls
+    straight through for anything that cannot be weakly referenced or hashed.
+
+    ``key`` exists because callers often have to wrap the object they want cached:
+    ``probe_eval_mode`` needs :math:`A = -iH`, and a fresh ``lambda t: -1j*H(t)``
+    per call would miss every time.  Passing ``key=H_func`` caches against the
+    thing whose signature is actually being described.  Multiplying by a constant
+    cannot change whether a function accepts an array, so the two share a verdict.
 
     .. versionadded:: 1.0.0
+
+    Parameters
+    ----------
+    A : Callable
+        The matrix function to probe.
+    t0, t1 : float
+        The interval to probe over.  Part of the cache key: see the comment above
+        ``_EVAL_MODE_CACHE`` for the wrong answer that omitting it produced.
+    key : optional
+        Object to cache against instead of ``A``.  Defaults to ``A``.
+
+    Returns
+    -------
+    str
+        'vector', 'scalar' or 'constant'; see :func:`probe_eval_mode`.
     """
+    holder = A if key is None else key
+    span = (float(t0), float(t1))
     try:
-        hit = _EVAL_MODE_CACHE.get(A)
-    except TypeError:            # not weak-referenceable; probe and move on
+        by_span = _EVAL_MODE_CACHE.get(holder)
+    except TypeError:
+        # Not weak-referenceable (a __slots__ class) or not hashable (a dataclass,
+        # which sets __hash__ = None, or anything defining __eq__).  All of those
+        # are ordinary ways to write a Hamiltonian, so probe and move on rather
+        # than letting the cache decide whether the call is allowed to succeed.
         return probe_eval_mode(A, t0, t1)
-    if hit is not None:
-        return hit
+    if by_span is not None:
+        hit = by_span.get(span)
+        if hit is not None:
+            return hit
     mode = probe_eval_mode(A, t0, t1)
     try:
-        _EVAL_MODE_CACHE[A] = mode
+        if by_span is None:
+            _EVAL_MODE_CACHE[holder] = {span: mode}
+        else:
+            by_span[span] = mode
     except TypeError:
         pass
     return mode

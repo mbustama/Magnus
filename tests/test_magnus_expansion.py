@@ -447,3 +447,138 @@ def test_order_six_constant_shortcut_needs_all_three_nodes_equal():
     Ac = np.stack([A, A, A])[None, ...]
     Om_c = mg._magnus_gl(Ac, np.array([h]), 6)[0]
     assert np.array_equal(Om_c, h*A)
+
+
+# ----------------------------------------------------------------------
+# The evaluation-mode cache and the interval it was learned on.
+#
+# `probe_eval_mode`'s verdict is a property of the function *on an interval*,
+# not of the function alone: 'constant' means "sampling this A across [t0, t1]
+# gave the same matrix every time".  A cache keyed on the function alone
+# therefore answers a question it was never asked, and `_evaluate_A`'s
+# 'constant' branch applies the hint by evaluating once and broadcasting, with
+# no spot-check -- unlike the 'vector' and 'scalar' hints, which self-heal.
+#
+# The result is a silent wrong answer that depends on the order of a loop.
+# ----------------------------------------------------------------------
+
+def _layered_A():
+    r"""A profile with the short-circuit any careful author would write.
+
+    Two layers; if every requested position falls in one of them, return that
+    layer's single matrix rather than a stack.  Entirely reasonable, and it makes
+    `probe_eval_mode` answer 'constant' on a short interval and 'vector' on a
+    long one -- for the same function object.
+    """
+    lo = np.array([[0.0, 1.0e-13], [1.0e-13, 2.0e-13]], dtype=complex)
+    hi = np.array([[0.0, 8.0e-13], [8.0e-13, 5.0e-13]], dtype=complex)
+    edge = 5.0e12
+
+    def A(t):
+        t = np.asarray(t, dtype=float)
+        if t.ndim == 0:
+            return -1j*(lo if t < edge else hi)
+        if np.all(t < edge):
+            return -1j*lo
+        if np.all(t >= edge):
+            return -1j*hi
+        return -1j*np.where((t < edge)[..., None, None], lo, hi)
+
+    return A
+
+
+def test_probe_eval_mode_verdict_depends_on_the_interval():
+    r"""The premise: the same function is 'constant' on one interval, not another."""
+    A = _layered_A()
+    assert mg.probe_eval_mode(A, 0.0, 4.0e12) == 'constant'
+    assert mg.probe_eval_mode(A, 0.0, 2.0e13) != 'constant'
+
+
+def test_cached_eval_mode_does_not_reuse_a_mode_across_intervals():
+    r"""A mode learned on a short interval must not be served for a long one.
+
+    Keyed on the function alone, the first call teaches the cache 'constant' and
+    the second is answered from it -- so the whole trajectory is propagated from
+    one Hamiltonian sample, and the answer is unitary, unwarned, and wrong.
+    """
+    A = _layered_A()
+    short = mg.cached_eval_mode(A, 0.0, 4.0e12)
+    long_cached = mg.cached_eval_mode(A, 0.0, 2.0e13)
+    long_fresh = mg.probe_eval_mode(A, 0.0, 2.0e13)
+    assert short == 'constant'
+    assert long_cached == long_fresh, (
+        "cached_eval_mode returned %r for [0, 2e13] after learning %r on "
+        "[0, 4e12]; probe_eval_mode says %r. The cache key is missing the "
+        "interval." % (long_cached, short, long_fresh))
+
+
+def test_evaluate_A_is_not_poisoned_by_a_mode_from_a_shorter_interval():
+    r"""The consequence, at the level a caller would see it.
+
+    Order the two calls shortest-first and the long one inherits 'constant';
+    the samples it then uses are one matrix broadcast over a profile that
+    genuinely varies.
+    """
+    A = _layered_A()
+    times = np.linspace(0.0, 2.0e13, 9)
+    mg.cached_eval_mode(A, 0.0, 4.0e12)          # teach it the short interval
+    mode = mg.cached_eval_mode(A, 0.0, 2.0e13)
+    At, used = mg._evaluate_A(A, times, mode)
+    ref, _ = mg._evaluate_A(A, times, None)      # probe honestly
+    assert np.max(np.abs(At - ref)) < 1e-30, (
+        "samples built from a cached mode differ from honestly probed ones by "
+        "%.3e" % np.max(np.abs(At - ref)))
+
+
+@pytest.mark.parametrize('kind', ['slots', 'dataclass', 'custom_eq', 'plain'])
+def test_cached_eval_mode_accepts_hamiltonians_it_cannot_cache(kind):
+    r"""A cache must not decide whether a call is allowed to succeed.
+
+    ``WeakKeyDictionary`` raises ``TypeError`` for a key that cannot be weakly
+    referenced (a ``__slots__`` class) or cannot be hashed (a ``@dataclass``,
+    which sets ``__hash__ = None``, or anything defining ``__eq__`` without one).
+    All three are ordinary ways to write a Hamiltonian, and all three worked
+    before this cache existed, so the lookup is guarded and simply probes.
+
+    The guard has to wrap the *lookup*, not only the store: an earlier copy of
+    this cache in ``oscprob`` guarded the store alone and turned every such
+    Hamiltonian into a hard ``TypeError`` from inside ``osc_prob``.
+    """
+    from dataclasses import dataclass
+
+    H = np.diag([0.0, 2.5e-13, 7.5e-13]).astype(complex)
+
+    class Slotted:
+        __slots__ = ('H',)
+
+        def __init__(self, H):
+            self.H = H
+
+        def __call__(self, l):
+            return -1j*self.H
+
+    @dataclass
+    class Data:
+        H: object
+
+        def __call__(self, l):
+            return -1j*self.H
+
+    class CustomEq:
+        def __init__(self, H):
+            self.H = H
+
+        def __eq__(self, other):
+            return isinstance(other, CustomEq)
+
+        __hash__ = None
+
+        def __call__(self, l):
+            return -1j*self.H
+
+    A = {'slots': Slotted(H), 'dataclass': Data(H), 'custom_eq': CustomEq(H),
+         'plain': (lambda l: -1j*H)}[kind]
+    mode = mg.cached_eval_mode(A, 0.0, 1.0e13)
+    assert mode == mg.probe_eval_mode(A, 0.0, 1.0e13)
+    # and calling twice must not raise on the store path either
+    assert mg.cached_eval_mode(A, 0.0, 1.0e13) == mode

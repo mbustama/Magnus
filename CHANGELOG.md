@@ -9,6 +9,41 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **The evaluation-mode cache answered a question it was never asked, and the
+  guarded version of it was dead code.**  `probe_eval_mode`'s `'constant'`
+  verdict means "sampling A across [t0, t1] gave the same matrix every time" —
+  a property of the function *on an interval*, not of the function.  Keyed on
+  the function alone, a mode learned on a short baseline was served for a long
+  one, and `_evaluate_A`'s `'constant'` branch then broadcast a single sample
+  over a profile that genuinely varies, with no spot-check (unlike the
+  `'vector'`/`'scalar'` hints, which self-heal).
+
+  A two-layer profile written with the natural short-circuit — if every
+  requested position falls in one layer, return that layer's matrix — probes as
+  `'constant'` on a short interval and `'vector'` on a long one.  Looping
+  baselines shortest-first then gave `P_ee = 0.906249` against a correct
+  `0.903424`, row sums exactly 1.0, no warning, and **the right answer if the
+  loop ran the other way round**.  Now keyed on `(function, t0, t1)`: measured
+  loop-order dependence **5.8e-02 → 0.00e+00**.
+
+  Three further defects were the same defect.  `oscprob._eval_mode_for` was a
+  second, *unguarded* copy of this cache that reached across a module boundary
+  into `magnus._EVAL_MODE_CACHE`; it guarded its store but not its lookup, so a
+  callable Hamiltonian that cannot be weakly referenced (`__slots__`) or hashed
+  (a `@dataclass`, or anything defining `__eq__`) raised `TypeError` from inside
+  `osc_prob` where it had worked before.  The public `magnus.cached_eval_mode`,
+  which *was* guarded, had zero live callers: its only call site sat in the
+  `not callable(H_func)` arm of a ternary, and `H_func` is unconditionally
+  rebound to a closure above it.  The copy is deleted, the original does the
+  work via a new `key` parameter, and the comment claiming the cache keys by
+  identity is corrected — `WeakKeyDictionary` keys by the referent's *equality*,
+  which matters for a Hamiltonian defining `__eq__`.
+
+  The interval key costs nothing measurable: a refinement ladder calling
+  repeatedly at one interval still probes once, which is what the cache is for.
+
+### Fixed
+
 - **A max-effort code review of this branch found fifteen defects; all are fixed
   here or in the two commits below.**  Eight independent finder angles, every
   finding confirmed by execution rather than reading.  The two that mattered most

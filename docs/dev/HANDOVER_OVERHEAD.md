@@ -271,47 +271,56 @@ eigenvalue computation and the timing baseline, not for the structure.
 
 ---
 
-## 9. Four findings deliberately left for separate work
+## 9. The four inherited findings — closed
 
 A max-effort code review of this branch (2026-08-09) produced fifteen findings. Eleven were
-fixed in the three commits above. These four are **inherited from `a7cdd07`/`2478fd7` rather
-than from the backend work**, are independent of it, and were left out on purpose so the
-backend commits stay reviewable. All four were confirmed by execution, not by reading.
+fixed in the commits that introduced them. These four were **inherited from `a7cdd07`/`2478fd7`
+rather than from the backend work**, were held back so the backend commits stayed reviewable,
+and are now closed by one refactor of the evaluation-mode cache. All four were confirmed by
+execution before being fixed, and the reproduction was written before the fix.
 
-1. **The eval-mode cache ignores the propagation interval — the largest silent error found,
-   5.8e-02.** `magnus._EVAL_MODE_CACHE` (magnus.py, and `oscprob._eval_mode_for`) is keyed on
-   the `H_func` object alone, but `probe_eval_mode`'s `'constant'` verdict is a property of the
-   function *on an interval*. A profile with the natural short-circuit "if every sampled
-   position falls in one layer, return that layer's matrix" is probed as `'constant'` on a
-   short baseline; looping `for L in [200, 800, 1000] km` then reuses that verdict and
-   propagates the whole trajectory from one Hamiltonian sample. Measured `P_ee = 0.906249`
-   against a correct `0.903424`, row sums exactly 1.0, no warning, and *loop-order dependent* —
-   longest-first gives 1e-16. `_evaluate_A`'s `'constant'` branch broadcasts with no spot-check,
-   unlike `'vector'`/`'scalar'` which self-heal. Fix: put `(t0, t1)` in the key.
+They turned out to be one defect wearing four faces: a public cache with a wrong key, and a
+private second copy of it that was doing the actual work.
 
-2. **`_eval_mode_for`'s `WeakKeyDictionary` lookup is unguarded, so `osc_prob` now raises on
-   callable Hamiltonian objects that worked on `main`.** Both sibling caches wrap the identical
-   call in `try/except TypeError`; this one guards only the store. A `__slots__` class gives
-   `cannot create weak reference`, a `@dataclass` (which sets `__hash__ = None`) and any class
-   defining `__eq__` give `unhashable type`. Plain functions and lambdas are fine, so the
-   failure is confined to idiomatic OO Hamiltonians.
+1. **The key omitted the interval — the largest silent error the review found, 5.8e-02.**
+   `probe_eval_mode`'s `'constant'` verdict means "sampling A across [t0, t1] gave the same
+   matrix every time", which a wider interval can falsify. A two-layer profile that
+   short-circuits when all requested positions fall in one layer probes as `'constant'` on a
+   short baseline and `'vector'` on a long one, *for the same function object*. Keyed on the
+   function alone, a mode learned on the short interval was served for the long one, and
+   `_evaluate_A`'s `'constant'` branch then broadcast one sample over a profile that varies —
+   with no spot-check, unlike the `'vector'`/`'scalar'` hints, which self-heal. Unitary,
+   unwarned, and wrong only for one order of the caller's loop. Now keyed on
+   `(function, t0, t1)`: measured loop-order dependence 5.8e-02 → **0.00e+00**.
 
-3. **`WeakKeyDictionary` keys by equality, not identity, and the comment says otherwise.** The
-   stated premise — "Identity rather than equality because two distinct closures over different
-   data are different Hamiltonians" — is false: weakref hash/eq delegate to the referent. Two
-   equal-comparing profile objects, one constant and one stepped, cross-contaminate:
-   `P_ee = 0.860706` against `0.858081`. Same mechanism makes `_ARITY_CACHE` report arity 1 for
-   a genuine two-argument Hamiltonian.
+2. **The lookup was unguarded, so callable Hamiltonian *objects* raised.** `WeakKeyDictionary`
+   raises `TypeError` for a key that cannot be weakly referenced (`__slots__`) or hashed (a
+   `@dataclass`, which sets `__hash__ = None`, or anything defining `__eq__`). All are ordinary
+   ways to write a Hamiltonian and all worked before the cache existed. The guarded public
+   version wrapped its lookup; the private copy in `oscprob` wrapped only its *store*. Now
+   guarded, and tested for all three shapes: a cache must not decide whether a call succeeds.
 
-4. **`magnus.cached_eval_mode` is dead code, and the order-6 constant detector had an
-   undetectable mutation.** The public `cached_eval_mode` has zero live callers — its only call
-   site is the `not callable(H_func)` arm of a ternary, and `H_func` is unconditionally rebound
-   to a closure ~40 lines earlier (instrumented: 0 calls, while `_eval_mode_for` gets 1). The
-   detector gap *is* now closed by `test_order_six_constant_shortcut_needs_all_three_nodes_equal`
-   in the fourth commit, since it costs nothing and the mutation is worth 100% error; the dead
-   code is not.
+3. **The comment claimed identity keying; `WeakKeyDictionary` keys by equality.** Two profile
+   objects comparing equal shared an entry (P_ee 0.860706 against 0.858081). The container's
+   behaviour is not a choice made here, so the comment is corrected rather than the code.
 
-Also recorded and not acted on: `_samples_identical`'s docstring claims `np.array_equal`
+4. **The public `cached_eval_mode` was dead code and the private copy was its unguarded twin.**
+   Its only call site sat in the `not callable(H_func)` arm of a ternary, and `H_func` is
+   unconditionally rebound to a closure ~40 lines earlier, so the guard was never true
+   (instrumented: 0 calls, while the copy got 1). `oscprob._eval_mode_for` is **deleted** — it
+   also reached across a module boundary into `magnus._EVAL_MODE_CACHE` — and the one call site
+   now uses `cached_eval_mode(..., key=H_func)`. `key` exists because the caller must wrap H in
+   `lambda t: -1j*H(t)`, which would miss every time; scaling by a constant cannot change
+   whether a function accepts an array, so the two share a verdict.
+
+**What the interval key costs: nothing measurable.** The case the cache exists for is a
+refinement ladder calling repeatedly at *one* interval, and that still probes once. A scan over
+twelve distinct baselines probes twelve times, and came in faster than twelve identical calls,
+because the probe is swamped by propagation.
+
+Still recorded and not acted on: `_samples_identical`'s docstring claims `np.array_equal`
 short-circuits on the first differing element. It does not — NumPy materialises the full
 comparison — and the check costs 17.6%/7.4%/4.8% of an order-4 `_magnus_gl` call at
 n = 1/108/2048, on every refinement iteration, on smooth profiles where it can never fire.
+Separately, `integration_method='nonsense'` and `min_n_slabs=-5` are accepted by both the
+constant engine and the per-point path; that is pre-existing and unchanged.
