@@ -6928,7 +6928,7 @@ the Magnus series, which is a statement about **slab width, not about the answer
 false about three quarters of the time. Here the answer is converged (declaring the
 breakpoints and tightening the tolerance by four orders of magnitude moves it in the sixth
 decimal). Notebooks 20 and 21 take this apart properly.'''),
-    code(r'''E_gev_earth = np.logspace(0.0, 2.0, 60)
+    code(r'''E_gev_earth = np.logspace(0.0, 2.0, 240)
 E_earth = E_gev_earth*gd.UNIT_GEV
 
 exact = np.array([oscprob.osc_prob(lambda l, e=e: H_prem(l, e), 0.0, L_earth,
@@ -7088,7 +7088,7 @@ def scan_earth(params, nubar, energies):
                                       t_breakpoints=breakpoints)[gd.NUMU][gd.NUE]
                      for e in energies])
 
-E_gev_earth = np.logspace(0.0, 1.5, 45)
+E_gev_earth = np.logspace(0.0, 1.5, 160)
 E_earth = E_gev_earth*gd.UNIT_GEV
 
 earth_p = {}
@@ -7505,21 +7505,171 @@ on plain PREM, where halving cheap lookups does not repay the bookkeeping.
 
 ## 4. A worked example: a long-range force
 
-Suppose a new $L_\mu - L_\tau$ gauge boson couples neutrinos to the electrons of the Earth.
-The resulting potential is proportional to the same electron density Mag$\nu$s already hands
-you -- so the whole model is one extra term, with the matrix structure of the new charge.'''),
-    code(r'''mu_tau = np.diag([0.0, 1.0, -1.0])     # the L_mu - L_tau charge
+Everything so far could have been done with a wrapper. This is the case that could not.
 
-def H_long_range(energy, l, VCC, eps=0.15):
-    """Standard oscillation plus a flavour-diagonal long-range potential.
+Suppose the Standard Model gauge group is extended by a $U(1)$ acting on $L_e - L_\mu$, with a
+very light mediator $Z'$ (following [arXiv:1808.02042](https://arxiv.org/abs/1808.02042)).
+Electrons carry $L_e = 1$, so ordinary matter sources the new field; among the neutrinos
+$\nu_e$ carries $+1$, $\nu_\mu$ carries $-1$, and $\nu_\tau$ is neutral. The Hamiltonian
+becomes
 
-    eps is the new coupling in units of the weak one, so eps*VCC is the new
-    potential -- deliberately the crudest possible parametrisation, to keep the
-    example about the interface rather than about the model."""
-    V = np.asarray(VCC)[..., None, None]
-    return h_vac/energy + V*e00 + eps*V*mu_tau
+$$\mathbf{H} = \underbrace{\frac{\mathbf{H}_{\rm vac}}{E}
+   + V_{\rm CC}\,{\rm diag}(1,0,0)}_{\text{the standard part}}
+   \;+\; V_{e\mu}(r)\,{\rm diag}(1,-1,0),$$
 
-E_gev = np.logspace(-0.3, 1.5, 60)
+with the new potential a Yukawa integral over **all** the electrons of the body,
+
+$$V_{e\mu}(\mathbf{r}) = \frac{g'^2}{4\pi}\int d^3r'\;
+   n_e(\mathbf{r}')\,\frac{e^{-m_{Z'}|\mathbf{r}-\mathbf{r}'|}}{|\mathbf{r}-\mathbf{r}'|}.$$
+
+**That matrix is the reason this notebook exists.** It is not
+$\mathbf{H}_{\rm vac}/E + V_{\rm CC}\mathbf{P}_{ee}$ for any choice of $V_{\rm CC}$, so no
+amount of arguing with `osc_prob_3nu_earth` will produce it -- the flavour structure
+${\rm diag}(1,-1,0)$ is not in that function's vocabulary. And unlike $V_{\rm CC}$, which reads
+the density at the neutrino's own position, $V_{e\mu}$ integrates the whole body: it varies
+along the trajectory for reasons that have nothing to do with the local density.
+
+### The integral is one-dimensional
+
+A three-dimensional integral per slab would be hopeless. But for a spherically symmetric $n_e$
+the angular average of the Yukawa kernel over a shell is elementary, and the result separates
+into an interior and an exterior piece:
+
+$$V_{e\mu}(r) = \frac{g'^2}{r}\,e^{-mr}\!\int_0^r\! dr'\,r'^2 n_e(r')\,{\rm shc}(mr')
+  \;+\; g'^2\,{\rm shc}(mr)\!\int_r^R\! dr'\,r'\,n_e(r')\,e^{-mr'},$$
+
+with ${\rm shc}(x) \equiv \sinh(x)/x$, which is $1$ at the origin.
+
+Two consequences, and both matter. The $r$-dependence has left the integrands, so **one pass
+over the profile serves every point on the trajectory** -- the potential is built once per
+body, not once per slab. And nothing diverges as $m \to 0$.'''),
+    code(r'''from scipy.integrate import cumulative_trapezoid
+
+def shc(x):
+    """sinh(x)/x, continued to 1 at the origin."""
+    x = np.asarray(x, dtype=float)
+    out = np.ones_like(x)
+    big = np.abs(x) > 1.0e-8
+    out[big] = np.sinh(x[big])/x[big]
+    return out
+
+def long_range_potential(r_grid, ne_grid, m):
+    """V_{e-mu}(r) on r_grid, in units of g'^2, for a spherical n_e(r).
+
+    Two cumulative integrals over the profile, evaluated once.  Everything the
+    trajectory then needs is a lookup."""
+    inner = r_grid**2*ne_grid*shc(m*r_grid)
+    outer = r_grid*ne_grid*np.exp(-m*r_grid)
+    I_in = np.concatenate([[0.0], cumulative_trapezoid(inner, r_grid)])
+    I_out = np.trapz(outer, r_grid) - np.concatenate(
+        [[0.0], cumulative_trapezoid(outer, r_grid)])
+    r_safe = np.where(r_grid > 0.0, r_grid, 1.0e-30)
+    return np.exp(-m*r_grid)*I_in/r_safe + shc(m*r_grid)*I_out'''),
+    md(r'''### Does the potential come out right?
+
+A uniform ball has a closed form at **any** mediator mass,
+
+$$V_{e\mu}(r) = \frac{g'^2 n_e}{m^2}
+  \left[1 - \left(R + \frac{1}{m}\right)e^{-mR}\,\frac{\sinh(mr)}{r}\right],$$
+
+so this is a check against something external rather than a self-consistency test. Worth doing
+before any physics: a quadrature that is quietly wrong produces figures that look entirely
+reasonable.'''),
+    code(r'''R_E = gd.EARTH_RADIUS                       # [km]
+r_uniform = np.linspace(0.0, R_E, 200001)
+ne_uniform = np.ones_like(r_uniform)
+
+print('%-14s %s' % ('1/m', 'max relative error vs the closed form'))
+print('-'*52)
+for inverse_m in (0.05, 0.3, 1.0, 5.0):
+    m = 1.0/(inverse_m*R_E)
+    numeric = long_range_potential(r_uniform, ne_uniform, m)
+    r_safe = np.where(r_uniform > 0.0, r_uniform, 1.0e-30)
+    closed = (1.0/m**2)*(1.0 - (R_E + 1.0/m)*np.exp(-m*R_E)
+                         * np.where(r_uniform > 0.0, np.sinh(m*r_safe)/r_safe, m))
+    print('%-14s %.2e' % ('%.2f R' % inverse_m,
+                          np.max(np.abs(numeric - closed)/np.abs(closed))))'''),
+    md(r'''### The mediator's range decides what the potential looks like
+
+Now the Earth's own electrons, from PREM. The density **jumps** at each shell boundary, so the
+quadrature grid must put a node on every one -- the same rule that makes `t_breakpoints`
+necessary for the propagation itself (notebook 18).
+
+Two limits are worth holding in mind:
+
+* **Short range**, $1/m \ll R$: only the neighbourhood contributes and
+  $V_{e\mu} \to g'^2 n_e(r)/m^2$. The potential tracks the *local* density, which makes it
+  degenerate with an NSI -- notebook 08's $\epsilon_{\alpha\beta}$ with a particular flavour
+  structure.
+* **Long range**, $1/m \gg R$: the whole body contributes, and the potential is smooth,
+  largest at the centre, and indifferent to where any individual electron sits.
+
+Only the second is genuinely new as far as this package is concerned, and only the second
+needs the profile machinery at all.'''),
+    code(r'''prem_edges = np.concatenate(([0.0], earth.PREM_BOUNDARIES))
+r_prem = np.unique(np.concatenate(
+    [np.linspace(a, b, 900) for a, b in zip(prem_edges[:-1], prem_edges[1:])]))
+ne_prem = matter.num_density_e_func(r_prem, earth.density_matter_func_prem,
+                                    electron_fraction=0.5,
+                                    density_matter_is_in_g_per_cm3=True)
+
+print('grid: %d nodes, with one on every PREM boundary' % len(r_prem))
+print('%-12s %-14s %s' % ('1/m', 'V(0)/V(R)', 'V(0)'))
+print('-'*42)
+V_ranges = {}
+for inverse_m in (0.03, 0.3, 1.0, 10.0):
+    V = long_range_potential(r_prem, ne_prem, 1.0/(inverse_m*R_E))
+    V_ranges[inverse_m] = V
+    print('%-12s %-14.3f %.4e' % ('%.2f R' % inverse_m, V[0]/V[-1], V[0]))
+
+print('\nfor reference, the density contrast n_e(0)/n_e(R) = %.3f'
+      % (ne_prem[0]/ne_prem[-1]))'''),
+    code(r'''fig, (axL, axR) = plt.subplots(1, 2, figsize=(9.4, 3.6))
+
+for inverse_m, V in V_ranges.items():
+    axL.plot(r_prem/R_E, V/V[0], label=r'$1/m = %g\,R$' % inverse_m)
+axL.plot(r_prem/R_E, ne_prem/ne_prem[0], 'k--', lw=1.0, label=r'$n_e(r)$, scaled')
+axL.set_xlabel(r'$r / R$')
+axL.set_ylabel(r'$V_{e\mu}(r) / V_{e\mu}(0)$')
+axL.legend(fontsize=7)
+axL.set_xlim(0.0, 1.0)
+
+inv = np.logspace(-2.0, 1.5, 30)
+centre = [long_range_potential(r_prem, ne_prem, 1.0/(v*R_E))[0] for v in inv]
+axR.loglog(inv, centre, marker='o', ms=3)
+axR.set_xlabel(r'$1/m$  [units of $R$]')
+axR.set_ylabel(r'$V_{e\mu}(0)$')
+axR.set_xlim(inv[0], inv[-1])
+fig.tight_layout()'''),
+    md(r'''The left panel is the whole argument in one picture. At $1/m = 0.03\,R$ the potential
+has nearly taken the shape of the dashed density curve, shell jumps and all; by $1/m = 10\,R$
+it has forgotten the profile entirely and is a smooth bowl. The right panel shows the
+crossover: $V_{e\mu}(0)$ grows as $1/m^2$ while the range is short, and saturates once the
+mediator reaches across the body, because there are no more electrons left to enclose.
+
+### Through the Earth
+
+Now put it in a Hamiltonian and propagate. The potential is a lookup against the pass computed
+above, so the cost of the new physics is one interpolation per position.'''),
+    code(r'''INVERSE_M = 1.0                            # the awkward middle: 1/m = R
+V_LRF = long_range_potential(r_prem, ne_prem, 1.0/(INVERSE_M*R_E))
+lrf_charge = np.diag([1.0, -1.0, 0.0])     # the L_e - L_mu charge
+
+# g'^2 chosen so the new potential is a tenth of V_CC at the centre: small
+# enough to be plausible, large enough to see.
+VCC_centre = matter.VCC_func(0.0, lambda l: ne_prem[0])
+G_SQUARED = 0.1*VCC_centre/V_LRF[0]
+
+def H_long_range(energy, l, VCC):
+    """Standard oscillation plus the long-range term, both position dependent."""
+    r = earth.earth_radial_distance_from_depth(
+        COSTHZ, np.asarray(l)/gd.CONV_KM_TO_INV_EV)
+    V_new = G_SQUARED*np.interp(r, r_prem, V_LRF)
+    return (h_vac/energy
+            + np.asarray(VCC)[..., None, None]*e00
+            + np.asarray(V_new)[..., None, None]*lrf_charge)
+
+E_gev = np.logspace(-0.3, 1.5, 300)
 E_scan = E_gev*gd.UNIT_GEV
 
 with warnings.catch_warnings():
@@ -7530,17 +7680,23 @@ with warnings.catch_warnings():
                                    L=L_EARTH, nu_i=gd.NUMU, nu_f=gd.NUMU)
 
 gap = np.abs(np.asarray(p_std) - np.asarray(p_lrf))
+print('V_new(0) is 10%% of V_CC there')
 print('max |standard - long range| = %.4f  at %.2f GeV'
       % (gap.max(), E_gev[gap.argmax()]))'''),
     code(r'''fig, ax = plotting.plot_probability_vs_energy(
     E_gev,
     [dict(y=np.asarray(p_std), label=r'Standard $3\nu$', color='0.2', ls='--'),
-     dict(y=np.asarray(p_lrf), label=r'$+\;L_\mu - L_\tau$, $\epsilon = 0.15$',
-          color='C1')],
+     dict(y=np.asarray(p_lrf), label=r'$+\;L_e - L_\mu$, $1/m = R$', color='C1')],
     nu_i=gd.NUMU, nu_f=gd.NUMU, num_flavors=3,
     xlim=(E_gev[0], E_gev[-1]),
     legend_title='Hamiltonian', legend_loc='lower right',
-    title=r'A custom Hamiltonian through the Earth, $\cos\theta_z = %.1f$' % COSTHZ)'''),
+    title=r'A long-range force through the Earth')'''),
+    md(r'''The shift is not a rescaling of the standard curve: the new term has a different
+flavour structure, so it moves the oscillation rather than damping it.
+
+Everything the package needed from you was a callable. What it gave back was the whole slab
+machinery -- adaptive refinement, the palindrome, the engine dispatch of notebook 22 -- applied
+to a Hamiltonian it has never seen.'''),
     md(r'''## Summary -- a checklist for your own `H_func`
 
 1. **Return a Hermitian matrix.** The dimension is inferred; 2 to 5 flavours need no flag.
@@ -8509,7 +8665,20 @@ independently of the others. The real likelihood is correlated -- the
 $\delta_{\rm CP}$--$\theta_{23}$ correlation especially -- and the source files contain the
 pairwise projections if you need them. What follows is therefore a good description of how
 much each parameter was individually known, and an imperfect one of their joint effect.'''),
-    code(r'''def sample_profile(profile, size, rng):
+    code(r'''def one_period(profile):
+    """Restrict a delta_CP profile to a single 360-degree period.
+
+    The releases do not agree on where the period starts -- the figures run
+    0..360, most chi^2 files run -180..180, and v2.0 tabulates -180..360, which
+    is a period and a half.  Sampling that last one as written would count part
+    of the range twice."""
+    x = np.asarray(profile['x'], dtype=float)
+    chi2 = np.asarray(profile['chi2'], dtype=float)
+    keep = x < x.min() + 360.0 - 1.0e-9
+    return {'x': x[keep], 'chi2': chi2[keep]}
+
+
+def sample_profile(profile, size, rng):
     """Draw from exp(-Delta_chi^2 / 2) on the tabulated grid, by inverse CDF.
 
     The profiles are normalised so the best fit sits at Delta_chi^2 = 0, so
@@ -8540,7 +8709,7 @@ def draw_parameters(release, size, rng):
         s12=np.sqrt(sample_profile(p['T12'], size, rng)),
         s13=np.sqrt(sample_profile(p['T13'], size, rng)),
         s23=np.sqrt(sample_profile(p['T23'], size, rng)),
-        dCP=np.deg2rad(sample_profile(p['DCP'], size, rng)),
+        dCP=np.deg2rad(np.mod(sample_profile(one_period(p['DCP']), size, rng), 360.0)),
         D21=D21,
         D31=sample_profile(p['DMA'], size, rng)*1.0e-3)'''),
     md(r'''A check before trusting any of it: the minimum of each profile must reproduce the
@@ -8566,7 +8735,79 @@ notebook exists to keep, and it is exactly what a Gaussian centred on either bra
 throw away -- so the check above compares the *pair* of minima for those releases rather than
 insisting on one.
 
-## 2. The distribution of a probability, release by release
+## 2. How the parameters themselves moved
+
+Before any probability, the inputs. Each parameter is summarised by the central 68% of its
+own sampled distribution, with the width of that interval in the narrower panel below it.
+
+$\delta_{\rm CP}$ is circular, and the releases disagree about where its period starts: the
+figures run $0$ to $360^\circ$, most $\chi^2$ files run $-180$ to $+180$, and v2.0 tabulates
+a period and a half. Everything here is restricted to one period and wrapped to
+$[0, 360)$ -- and its 68% width saturates near $240^\circ$ where the parameter is
+essentially unconstrained, which is what the early releases show.'''),
+    code(r'''PARAMETERS = [
+    ('s12', lambda d: d['s12']**2, r'$\sin^2\theta_{12}$'),
+    ('s23', lambda d: d['s23']**2, r'$\sin^2\theta_{23}$'),
+    ('s13', lambda d: d['s13']**2, r'$\sin^2\theta_{13}$'),
+    ('dCP', lambda d: np.mod(np.rad2deg(d['dCP']), 360.0), r'$\delta_{\rm CP}\ [^\circ]$'),
+    ('D21', lambda d: d['D21']/1.0e-5, r'$\Delta m^2_{21}\ [10^{-5}\,{\rm eV}^2]$'),
+    ('D31', lambda d: d['D31']/1.0e-3, r'$\Delta m^2_{31}\ [10^{-3}\,{\rm eV}^2]$'),
+]
+
+N_SAMPLES = 1500
+rng = np.random.default_rng(4)
+releases = list(CHI2['releases'])
+names = [r.replace('NuFIT ', '') for r in releases]
+
+par_stats = {key: [] for key, _, _ in PARAMETERS}
+for release in releases:
+    drawn = draw_parameters(release, N_SAMPLES, rng)
+    for key, extract, _ in PARAMETERS:
+        par_stats[key].append(np.percentile(extract(drawn), [16, 50, 84]))
+
+for key, _, _ in PARAMETERS:
+    stat = np.array(par_stats[key])
+    width = stat[:, 2] - stat[:, 0]
+    print('%-4s 68%% width: %-10.4g -> %-10.4g (%.2fx narrower)'
+          % (key, width[0], width[-1], width[0]/width[-1]))'''),
+    code(r'''x = np.arange(len(releases))
+
+fig = plt.figure(figsize=(10.0, 6.8))
+gs = fig.add_gridspec(4, 3, height_ratios=[2, 1, 2, 1], hspace=0.10, wspace=0.34)
+
+for i, (key, _, label) in enumerate(PARAMETERS):
+    row0, col = (i//3)*2, i % 3
+    ax_v = fig.add_subplot(gs[row0, col])
+    ax_w = fig.add_subplot(gs[row0 + 1, col], sharex=ax_v)
+    stat = np.array(par_stats[key])
+    lo_p, mid_p, hi_p = stat[:, 0], stat[:, 1], stat[:, 2]
+
+    ax_v.fill_between(x, lo_p, hi_p, color='C0', alpha=0.25, label=r'Central 68\%')
+    ax_v.plot(x, mid_p, color='C0', marker='o', ms=2.5)
+    ax_v.set_ylabel(label, fontsize=8)
+    ax_v.tick_params(labelbottom=False, labelsize=7)
+    ax_v.set_xlim(x[0], x[-1])
+    if i == 0:
+        ax_v.legend(fontsize=7, loc='upper right')
+
+    ax_w.plot(x, hi_p - lo_p, color='0.2', marker='o', ms=2.5)
+    ax_w.set_ylabel(r'68\%', fontsize=8)
+    ax_w.set_xlim(x[0], x[-1])
+    ax_w.set_xticks(x)
+    ax_w.set_xticklabels(names, rotation=90, fontsize=6)
+    ax_w.tick_params(labelsize=7)
+    if row0 == 2:
+        ax_w.set_xlabel('NuFIT release', fontsize=8)
+
+fig.suptitle('Mixing parameters across eighteen NuFIT releases (normal ordering)',
+             fontsize=10)'''),
+    md(r'''$\theta_{13}$ improved most -- a factor of four -- going from barely measured in
+2012 to the best-known angle in the matrix once the reactor experiments reported.
+$\theta_{23}$ is the one that did not: its band stays the widest and wanders rather than
+shrinks, because the octant keeps changing its mind. That is the parameter which will drive
+everything in the next section.
+
+## 2b. The distribution of a probability, release by release
 
 We use a DUNE-like configuration -- 1300 km through the crust, 2 GeV, the
 $\nu_\mu \to \nu_e$ appearance channel -- because it is sensitive to $\delta_{\rm CP}$,
@@ -8576,7 +8817,6 @@ down.'''),
 VCC = matter.vcc_func_from_rho_func(RHO, density_matter_is_in_g_per_cm3=True)
 ENERGY = 2.0*gd.UNIT_GEV
 BASELINE = 1300.0*gd.UNIT_KM
-N_SAMPLES = 1500
 
 def probabilities_for(release, size, rng):
     """P(nu_mu -> nu_e) for `size` parameter sets drawn from one release."""
@@ -8622,7 +8862,7 @@ lo = np.array([r[2] for r in summary])
 hi = np.array([r[3] for r in summary])
 bf = np.array([r[5] for r in summary])
 
-ax0.fill_between(x, lo, hi, color='C0', alpha=0.25, label='central 68%')
+ax0.fill_between(x, lo, hi, color='C0', alpha=0.25, label=r'Central 68\%')
 ax0.plot(x, mid, color='C0', marker='o', ms=3, label='median of samples')
 ax0.plot(x, bf, color='C3', ls='--', marker='s', ms=3, label='best fit only')
 ax0.set_ylabel(r'$P(\nu_\mu \to \nu_e)$')
@@ -8631,10 +8871,12 @@ ax0.set_title(r'2 GeV, $L = 1300$ km, $\rho = 2.848$ g cm$^{-3}$, normal orderin
               fontsize=10)
 
 ax1.plot(x, widths, color='0.2', marker='o', ms=3)
-ax1.set_ylabel('68% width')
+ax1.set_ylabel(r'68\%')
 ax1.set_xticks(x)
 ax1.set_xticklabels(names, rotation=45, ha='right', fontsize=8)
 ax1.set_xlabel('NuFIT release')
+ax0.set_xlim(x[0], x[-1])
+ax1.set_xlim(x[0], x[-1])
 fig.tight_layout()'''),
     md(r'''The band is narrowest around **NuFIT 4.0--4.1** (2018--2019) and *widens again* at 5.0.
 That is not a defect in the fits; it is their history. The $\theta_{23}$ octant preference has
@@ -8718,11 +8960,15 @@ disagreement is not an accuracy difference even though it looks exactly like one
 
 Nothing here fails if a code is missing -- each is probed and skipped.''',
     [
-    code(r'''import sys
+    code(r'''import json
+import pathlib
+import sys
 import time
 import warnings
 
 import numpy as np
+import matplotlib as mpl
+import matplotlib.pyplot as plt
 from scipy.linalg import expm
 
 # Mag(nu)s is imported as an installed package -- from the repository root,
@@ -8888,6 +9134,88 @@ the electron fraction convention -- and **not** an accuracy difference in either
 This is why the accuracy column in section 3 is only quoted for codes sharing Mag$\nu$s's
 potential, and why the honest cross-code accuracy statement is the vacuum one. Fixing it
 properly means agreeing a conversion, not tightening a tolerance.
+
+'''),
+    md(r'''## 5. Speed against accuracy, across six codes
+
+The comparison above is two codes at a single working point. The useful picture is the whole
+trade-off: every code has a dial -- a solver tolerance, a number of Newton steps, a batch mode
+-- and what matters is the accuracy it buys per microsecond.
+
+The NuOscProbExact project measured five external codes this way and published the result;
+`notebooks/external_speed_accuracy.json` is that measurement, redistributed with attribution.
+The configuration is the one used above -- $L = 1300$ km, $\rho = 3$ g cm$^{-3}$, three
+flavours, $P(\nu_\mu \to \nu_e)$, 60 energies from 0.6 to 20 GeV -- scored against a 50-digit
+`mpmath` matrix exponential.
+
+**A warning about the timings, which is worth more than the figure.** Those numbers were taken
+on other hardware, and there is no single factor that maps them onto this machine. Running
+NuOscProbExact here in both of its modes gives *two different* conversion factors.'''),
+    code(r'''EXTERNAL = json.loads((pathlib.Path.cwd()/'external_speed_accuracy.json').read_text())
+print(EXTERNAL['_attribution'])
+print()
+
+frozen = {p['label']: p['us_per_probability']
+          for s in EXTERNAL['series'] if s['name'] == 'NuOscProbExact'
+          for p in s['points']}
+
+if AVAILABLE['NuOscProbExact']:
+    h_npe2 = hamiltonians3nu.hamiltonian_3nu_vacuum_energy_independent(**OSC)
+    _, t_loop = best_of(lambda: np.array([
+        oscprob3nu.probabilities_3nu(
+            hamiltonians3nu.hamiltonian_3nu_matter(h_npe2, e, VCC), BASELINE)[3]
+        for e in E]))
+    stacked = hamiltonians3nu.hamiltonian_3nu_matter(h_npe2, E, VCC)
+    _, t_arr = best_of(lambda: oscprob3nu.probabilities_3nu(stacked, BASELINE))
+
+    print('%-16s %12s %12s %9s' % ('NuOscProbExact', 'frozen [us]', 'here [us]', 'factor'))
+    print('-'*52)
+    for label, here in (('One at a time', 1.0e6*t_loop/N_E), ('Array', 1.0e6*t_arr/N_E)):
+        print('%-16s %12.3f %12.3f %9.2f'
+              % (label, frozen[label], here, frozen[label]/here))'''),
+    md(r'''One workload says this machine is more than twice as fast; the other says it is
+slightly slower. That is not measurement noise -- looping is bound by the Python interpreter
+and the array path is bound by BLAS, and two machines need not rank the same way in both.
+**A single "machine factor" does not exist.** So nothing below is rescaled, and Mag$\nu$s is
+plotted with a distinct symbol as a reminder that its horizontal position is not commensurate
+with the others'.
+
+Accuracy, by contrast, is a property of the algorithm rather than the hardware, and transfers
+without qualification. It is the axis to read.'''),
+    code(r'''fig, ax = plt.subplots(figsize=(7.4, 5.0))
+
+FLOOR = 1.0e-16          # machine precision; several codes sit on it
+markers = {'NuOscProbExact': 'o', 'nuSQuIDS': 's', 'NuFast-LBL': '^',
+           'GLoBES': 'D', 'Prob3++': 'v', 'Second-order expansion': 'P'}
+for i, series in enumerate(EXTERNAL['series']):
+    us = [p['us_per_probability'] for p in series['points']]
+    err = [max(p['max_abs_error'], FLOOR) for p in series['points']]
+    ax.plot(us, err, marker=markers.get(series['name'], 'o'), ms=5,
+            color='C%d' % i, lw=1.0, alpha=0.85, label=series['name'])
+
+P_m, t_m = best_of(lambda: np.asarray(oscprob.osc_prob_3nu_matter_constant_density(
+    E, BASELINE, RHO, **OSC, density_matter_is_in_g_per_cm3=True,
+    nu_i=gd.NUMU, nu_f=gd.NUE)))
+ax.plot([1.0e6*t_m/N_E], [max(float(np.max(np.abs(P_m - reference))), FLOOR)],
+        marker='*', ms=16, color='k', ls='none', label=r'Mag$\nu$s (this machine)')
+
+ax.set_xscale('log')
+ax.set_yscale('log')
+ax.set_xlabel(r'time per probability [$\mu$s]')
+ax.set_ylabel(r'max $|P - P_{\rm exact}|$')
+ax.set_title(r'Speed against accuracy, constant density, $L = 1300$ km', fontsize=10)
+ax.grid(True, which='both', alpha=0.2)
+ax.legend(fontsize=7, loc='lower left')'''),
+    md(r'''Read the vertical axis first. Three codes reach machine precision -- Mag$\nu$s,
+NuOscProbExact, and NuFast at three Newton steps -- and the rest trade accuracy for speed by
+between four and thirteen orders of magnitude. The second-order expansion is the extreme:
+$6\times10^{-3}$, which is the size of the effects notebooks 15 and 17 are about, for a
+quarter of a microsecond.
+
+Read the horizontal axis only *within* a curve. nuSQuIDS tightening its tolerance from
+$10^{-4}$ to $10^{-8}$ costs 20% and buys four orders of magnitude; past that it costs three
+times as much and buys nothing, having hit its own floor. That statement is about nuSQuIDS
+alone and survives a change of machine. "Code A is faster than code B" does not.
 
 ## Summary
 
