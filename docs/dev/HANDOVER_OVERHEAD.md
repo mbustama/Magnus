@@ -1,6 +1,8 @@
 # Handover: reducing Magνs's per-call overhead
 
-**Written:** 2026-08-09, at the close of a long session. **Read §§0–2 before touching anything.**
+**Written:** 2026-08-09; §§9–10 added 2026-08-10 at the close of the backend work.
+**If you are here to run the code review, read §10 first.** Otherwise read §§0–2 before
+touching anything — but note §§2–3 are superseded, see the DONE block below.
 
 **The task for the next session.** Implement the Cayley–Hamilton matrix-exponential backend as a
 selectable model with a numba implementation as the default, validated against degeneracies and
@@ -324,3 +326,151 @@ comparison — and the check costs 17.6%/7.4%/4.8% of an order-4 `_magnus_gl` ca
 n = 1/108/2048, on every refinement iteration, on smooth profiles where it can never fire.
 Separately, `integration_method='nonsense'` and `min_n_slabs=-5` are accepted by both the
 constant engine and the per-point path; that is pre-existing and unchanged.
+
+---
+
+## 10. Handover for the code-review session (written 2026-08-10)
+
+**Read this section first if you are here to run `/code-review max`.** The review has already
+run once on this branch at max effort. Everything it found is fixed. Re-running it is
+deliberate — the fixes were written and verified by the same agent that wrote the code — but it
+must not rediscover the same fifteen findings, and §10.3 lists things that were tried and
+refuted, which cost real time to establish.
+
+### 10.0 State
+
+Branch `dev-overhead`, tip `98024e7`, **five commits on `main` (6e3251c), none pushed**, working
+tree clean. `main` and `upstream` are the same GitHub repo (identical tips); push to `origin`.
+
+| commit | what |
+|---|---|
+| `2debd51` | Cayley–Hamilton numba backend, `EXPM_BACKEND`, `SEV_TOL` gate |
+| `fd0a5d5` | the `'constant'` engine, wrapper-overhead caches, `h_matt` fix |
+| `e8b1d05` | notebook 25 (batched NuOscProbExact, PREM 3ν and 3+1) + full 26-notebook rebuild |
+| `b68fad6` | order-6 conjunction test; corrections to this brief |
+| `98024e7` | evaluation-mode cache: interval in the key, duplicate deleted |
+
+Gates, all green at the tip: **1044 tests** (`pytest tests/ -q -n auto`, ~8.5 min), `ruff check
+src/ tests/ notebooks/make_notebooks.py`, `make html SPHINXOPTS="-n -W --keep-going"` from
+`docs/`, and all 26 notebooks executing with **no accuracy column changed**. `2debd51` and
+`fd0a5d5` were each verified to pass in isolation in a throwaway worktree.
+
+### 10.1 Results, so nothing is re-measured
+
+Constant density, 3ν, 1300 km, 60 energies, interleaved with a control that returned 1.00×:
+
+| | |
+|---|---|
+| exponential alone, N=108 d=3 | **6.7×** faster than `eigh` (13.3× at d=2, N=1024) |
+| constant-density / vacuum scans | **6–25×** by flavour count (2ν 17.3/24.7, 3ν 15.5/18.9, 4ν 7.2/7.4, 5ν 6.0/6.2) |
+| PREM 60-energy scan, end to end | **2.11×** |
+| vs NuOscProbExact, batched scan | **1.10 µs/energy against its 1.44** — Magnus wins |
+| vs NuOscProbExact, single point | 33.8 µs against its 19.9 — we lose, and it is wrapper parameter resolution, not arithmetic |
+| PREM 3ν vs NuOscProbExact | it is ~20× cheaper per call; Magnus reaches 3e-10 where its O(h²) discretisation stalls near 6e-5 |
+| PREM 3+1, eV-scale splitting | **~1000× slower, with a `MagnusConvergenceWarning`**, and inherent — see §10.6 |
+
+4ν/5ν gain less because the kernel covers d = 2 and 3 only; there is no practical closed form
+for a 4×4 Hermitian eigenproblem and there never will be.
+
+### 10.2 What to re-review, and why
+
+Ranked. All of it was written *and* verified by one agent, which is the reason to look.
+
+1. **`98024e7` — the least-reviewed code on the branch.** Nobody but its author has read it. It
+   changes a cache on the hot path for every callable Hamiltonian, **deletes** a function
+   (`oscprob._eval_mode_for`), and reroutes its only call site. §9 has the four findings it
+   closes.
+2. **`SEV_TOL` and its gate** (`expmkernels.py`, and the fallback in `magnus._expm_stack`). It is
+   **conservative by design**: it also declines large-norm spectra that are *not* clustered and
+   would have been fine. A reviewer who "tightens" it to remove those false positives reopens a
+   7440× accuracy hole. Check the reasoning in the constant's docstring, not the number.
+3. **The decline conditions in `_osc_prob_scan_separable_dispatch`.** Under-declining is a silent
+   wrong answer; over-declining is merely slow. One gap (a NaN baseline, missed because
+   `nan < L0` is False) was found *after* the author believed them complete.
+
+Lower value, already swept hard by the first review and found clean: the Cayley–Hamilton algebra
+(three independent derivations of `det X`, the root ordering, the divided differences and `Z²`),
+the UPLO question (both backends read the numpy-index **lower** triangle; the upper-triangle
+answer is O(1) away, so that test has teeth), `ordered_product` (matches `reduce` to n = 2049),
+and the `_VACUUM_H_CACHE` copy discipline.
+
+### 10.3 Refuted by measurement — do not retry
+
+Beyond §4's two items, which still stand:
+
+* **Compensating `m` and `n` in the cubic does not help.** Making both exact to 60 digits left
+  the error at 4.79e-08 where the plain path gave 2.87e-08; making the *eigenvalues* exact
+  reached `eigh` parity (1.20e-11). The loss is in the `(m, n) → λ` map, not in the invariants.
+* **Newton polish on the characteristic cubic cannot fix it either.** At a double root `p′ = 0`
+  as well, so the floor is `√(ε‖K‖³)` — the floor we already have. And at the tightest cells the
+  trigonometric starting point is *further from the root than the roots are from each other*
+  (3.56e-04 against a 1.00e-04 separation), so two starts can converge to the same root and
+  collapse the interpolation nodes.
+* **The clustering cannot be gated on.** The danger is a **band**, not a tail: at *exact*
+  degeneracy the kernel is fine (0.3–1.8× of `eigh`, because at `u = +1` the coincident pair
+  comes out of `cos(±2π/3)`, bit-identical by symmetry), the damage sits at intermediate
+  separations, and `1/(1−u²)` is largest exactly where there is no problem. Calibration found no
+  separating value. Gating on the *scale* works and is what ships.
+* **`SEV_TOL` is robust across bases.** Re-checked in 8 random unitary bases, not the one it was
+  calibrated in: minimum unsafe `m` = 1.100e5 against the gate at 1e4 — 11× margin, zero false
+  negatives anywhere.
+
+### 10.4 How to measure in this repo
+
+The machine cannot be quieted below load ~1.2 (the desktop app itself). So use the house method
+from `implementation_details.rst`: **interleave the alternatives round-robin, report minima, and
+carry a workload the change cannot touch as a control.** A control that returns 1.00× is the
+evidence the ratios are readable. Absolute microseconds are not transferable; ratios are.
+
+Never assert "better than `eigh`" from random spectra alone — that is precisely the evidence that
+produced the false claim this session had to retract. `tests/test_expm_backend.py` now crosses
+separation with scale; extend that grid rather than writing a new sweep.
+
+### 10.5 Traps paid for, each once
+
+* **`earth.distance_traveled_inside_earth` returns KILOMETRES**; every `osc_prob` baseline is in
+  natural units (`×gd.CONV_KM_TO_INV_EV`). Passing the raw value does not raise — it returns a
+  converged, unitary, meaningless answer for a chord a few metres long, and the refinement ladder
+  then agrees with *itself* at every tolerance. **A self-convergence study that reads exactly
+  `0.000e+00` is degenerate, not converged.** This contaminated four PREM measurements and a
+  figure that reached the CHANGELOG.
+* **A flat absolute tolerance is wrong when the achievable floor scales with ‖K‖.** `exp(-iK)`
+  carries a phase of size ‖K‖, so the floor is `ε‖K‖`: at scale 1e5 that is 3e-11, and asserting
+  1e-12 asserts better-than-possible. Two of this session's own checks failed on this.
+* **A ratio to `eigh` is the wrong yardstick.** 19.6× at 8.7e-14 is harmless; 7440× at 6.7e-08 is
+  not. The author's own acceptance criterion ("ratio ≤ 2×") would have *rejected* the working fix.
+* **`git checkout -- notebooks/` reverts the generator**, which lives beside its output. Restore
+  artefacts with `git checkout -- 'notebooks/*.ipynb'`.
+* **Stage before running the suite.** `test_tree_matches_git` compares `TREE` against `git
+  ls-files`, so an untracked file is invisible locally and red in CI. `python
+  tests/test_file_tree.py` does *not* run that assertion — only pytest does. Regenerate both doc
+  trees with `python tests/test_file_tree.py --write`.
+* **A `:func:`/`:data:` role pointing at a *private* name fails the docs gate** when it sits in a
+  docstring autoapi renders (CI runs `-n -W`). Either export the name or use double backticks.
+* **`make_notebooks.py --only 25_`** rebuilds one notebook in ~10 s against ~30 min for all 26.
+  A change under `src/` invalidates every notebook's cache, so CI re-executes all of them; it
+  fails on execution errors, not on output diffs.
+* **numba is in the `test` extra**, so CI exercises the kernel instead of skipping 100+ tests.
+  That lets the resolver hold numpy back a minor release; accepted deliberately.
+
+### 10.6 Still open
+
+* **The next per-call bottleneck is `_expm_stack`'s own framing, not the exponential.** `eigh` on
+  one 3×3 costs 3.6 µs; reaching it through `_expm_stack` costs 14.2 µs. The ~10 µs is the
+  anti-Hermiticity probe and its temporaries, which do not shrink with the stack — measured at
+  43–69% of the call at N=1 and skippable for the two constant-H callers that build `Ω` from a
+  Hamiltonian this package constructed. Deliberately deferred: it reworks the most-used function
+  in the core, and it does not close the single-point gap to NuOscProbExact, which is wrapper
+  parameter resolution and wants a thin entry point instead.
+* **`_samples_identical`'s docstring claims `np.array_equal` short-circuits.** It does not; NumPy
+  materialises the comparison. Costs 17.6/7.4/4.8% of an order-4 `_magnus_gl` at n = 1/108/2048,
+  on every refinement iteration, on smooth profiles where it can never fire.
+* **`integration_method='nonsense'` and `min_n_slabs=-5` are accepted** by both the constant
+  engine and the per-point path. Pre-existing and unchanged.
+* **PREM 3+1 is ~1000× slower than the closed form and warns.** The cost is flat across
+  tolerances, which is the diagnosis: the ladder runs to its slab ceiling rather than converging.
+  An eV-scale `Δm²₄₁` over an 11 000 km chord needs a slab width far below what the ladder
+  reaches. Two causes, one fixable: 4ν falls back to `eigh` (a small constant), and a truncated
+  Magnus expansion needs narrower slabs as the phase grows (which is what the expansion *is*).
+  Notebook 25 says so in those terms. Do not treat it as an engineering defect.
+* §5's ladder question is untouched, and `docs/dev/adversarial_batteries/RUN_P4.md` is still unrun.
