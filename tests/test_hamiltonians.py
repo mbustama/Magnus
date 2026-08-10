@@ -353,12 +353,20 @@ def test_both_construction_paths_agree(name):
     (5, hams.hamiltonian_5nu_matter),
 ])
 def test_matter_hamiltonian_scalar_potential_is_unchanged(dim, builder):
-    """A scalar potential must still give a plain (d, d) matrix with the
-    potential on the ee entry and nothing else."""
+    """A scalar potential must still give a plain (d, d) matrix, with V_CC on the ee
+    entry and (r/2) V_CC on every sterile one.
+
+    It is not "nothing else" beyond three flavours, and asserting that it was is how this
+    test came to certify a defect: the active flavours share V_NC so it cancels, a sterile
+    state does not, and removing the common V_NC leaves it carrying -V_NC = (r/2) V_CC.
+    With the default r = 1 that is half the charged-current entry.  See
+    matter.matter_potential_projector."""
     H = builder(1.5)
     assert H.shape == (dim, dim)
     assert H[0, 0] == pytest.approx(1.5)
-    assert np.sum(np.abs(H)) == pytest.approx(1.5)
+    for k in range(3, dim):
+        assert H[k, k] == pytest.approx(0.75), 'sterile state %d must carry -V_NC' % k
+    assert np.sum(np.abs(H)) == pytest.approx(1.5*(1.0 + 0.5*max(0, dim - 3)))
 
 
 @pytest.mark.parametrize('dim, builder', [
@@ -376,7 +384,9 @@ def test_matter_hamiltonian_accepts_an_array_of_potentials(dim, builder):
     assert H.shape == (len(VCC), dim, dim)
     for k, v in enumerate(VCC):
         assert H[k, 0, 0] == pytest.approx(v)
-        assert np.sum(np.abs(H[k])) == pytest.approx(v)
+        for j in range(3, dim):
+            assert H[k, j, j] == pytest.approx(0.5*v)
+        assert np.sum(np.abs(H[k])) == pytest.approx(v*(1.0 + 0.5*max(0, dim - 3)))
 
 
 @pytest.mark.parametrize('dim, builder', [
@@ -392,3 +402,56 @@ def test_matter_hamiltonian_array_matches_the_scalar_route(dim, builder):
     batched = builder(VCC)
     looped = np.array([builder(v) for v in VCC])
     assert np.array_equal(batched, looped)
+
+
+@pytest.mark.parametrize('dim', [4, 5])
+def test_sterile_states_carry_the_neutral_current_potential(dim):
+    """The sterile entries are the whole reason a 3+1 scenario is more than a relabelling.
+
+    In matter the active flavours all feel the same neutral-current potential, so it is
+    proportional to the identity across them and cancels -- which is why two- and
+    three-flavour code can write the matter term as V_CC on nu_e alone.  A sterile state
+    feels neither current, so once the common V_NC is removed it is left carrying -V_NC.
+    Omitting it is equivalent to giving the sterile state the actives' V_NC.
+
+    This is a regression test for a defect that survived because the same three lines were
+    written out in five places -- both flavour-specific builders, two sites in `oscprob`,
+    and the fuzz suite's own oracle -- and all five agreed with each other.  Measured
+    against an external converged reference on a PREM chord at cos(theta_z) = -0.9 with
+    sin^2(th14) = sin^2(th24) = 0.1 and Dm41^2 = 1 eV^2, the omission cost **0.29 in
+    probability**, flat in the requested tolerance, so no amount of refinement revealed it.
+    """
+    builder = {4: hams.hamiltonian_4nu_matter, 5: hams.hamiltonian_5nu_matter}[dim]
+    for ratio in (1.0, 1.4):
+        H = builder(2.0, ratio)
+        assert H[0, 0] == pytest.approx(2.0)
+        assert H[1, 1] == pytest.approx(0.0)
+        assert H[2, 2] == pytest.approx(0.0)
+        for k in range(3, dim):
+            assert H[k, k] == pytest.approx(ratio), \
+                'sterile entry must be (r/2)*V_CC = %.3f, not 0' % ratio
+        # off-diagonal structure is untouched by any of this
+        assert np.count_nonzero(H - np.diag(np.diag(H))) == 0
+
+
+def test_matter_projector_is_defined_in_exactly_one_place():
+    """Every route to the matter term must agree, because they used not to.
+
+    `oscprob` builds the projector inline in two places and the flavour-specific builders
+    in two more; all four now come from `matter.matter_potential_projector`.  If a fifth
+    copy appears, this is what catches it."""
+    import magnus.matter as matter
+    # 2nu and 3nu take no ratio, and should not: with no sterile state there is nothing
+    # for it to scale, and a parameter that cannot change the answer is a place for a
+    # caller to think it did.
+    for dim, builder in ((2, hams.hamiltonian_2nu_matter),
+                         (3, hams.hamiltonian_3nu_matter)):
+        np.testing.assert_allclose(np.asarray(builder(1.0)),
+                                   matter.matter_potential_projector(dim),
+                                   rtol=0.0, atol=0.0)
+    for dim, builder in ((4, hams.hamiltonian_4nu_matter),
+                         (5, hams.hamiltonian_5nu_matter)):
+        for ratio in (1.0, 0.8):
+            np.testing.assert_allclose(np.asarray(builder(1.0, ratio)),
+                                       matter.matter_potential_projector(dim, ratio),
+                                       rtol=0.0, atol=0.0)

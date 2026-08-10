@@ -389,3 +389,42 @@ def test_the_slab_ceiling_of_two_is_now_accepted():
     P = op.osc_prob(np.diag([0.0, 1.0e-13, 2.0e-13]).astype(complex), 0.0, BASELINE,
                     rtol=1.0e-6, atol=1.0e-6, max_n_slabs=2)
     assert np.all(np.isfinite(np.asarray(P)))
+
+
+@pytest.mark.parametrize('builder, args, bad_name', [
+    ('hamiltonian_2nu_vacuum_energy_independent', (1.5, 2.5e-3), 'sth'),
+    ('hamiltonian_3nu_vacuum_energy_independent',
+     (1.5, 0.7, 0.15, 0.0, 7.4e-5, 2.5e-3), 's12'),
+    ('hamiltonian_3nu_vacuum_energy_independent',
+     (0.55, 0.7, -1.2, 0.0, 7.4e-5, 2.5e-3), 's13'),
+    ('hamiltonian_4nu_vacuum_energy_independent',
+     (0.55, 0.76, 0.15, 3.79, 2.0, 0.0, 0.22, 0.0, 0.0, 7.4e-5, 2.5e-3, 1.0), 's14'),
+    ('hamiltonian_5nu_vacuum_energy_independent',
+     (0.55, 0.76, 0.15, 3.79, 0.32, 0.0, 0.0, 0.0, 0.22, 0.0, 3.79, 0.0, 0.0, 0.0,
+      7.4e-5, 2.5e-3, 1.0, 2.0), 's25'),
+])
+def test_a_sine_outside_the_unit_interval_is_rejected(builder, args, bad_name):
+    """A cosine is built as sqrt(1 - s^2), and NumPy answers a bad sine with `nan` and
+    a RuntimeWarning rather than an exception.
+
+    The builder then returned a Hamiltonian full of `nan`, `osc_prob` propagated it into
+    `nan` probabilities, and nothing raised -- a result-shaped object that is not a
+    result, which is the silent-wrong-answer shape this package keeps being caught by.
+
+    The mistake being caught is a *slot* error rather than a physics one: these
+    signatures interleave each angle with its CP phase (`s14, d14, s15, d15, s24, d24,
+    s25, ...`), so grouping the angles together as any reader would expect puts a phase
+    -- 3.79 rad here -- into a sine slot.  That is how it was found.
+    """
+    import magnus.hamiltonians as hams
+    with pytest.raises(ValueError, match=bad_name):
+        getattr(hams, builder)(*args)
+
+
+def test_the_guard_does_not_reject_legitimate_angles():
+    """Including the boundary: maximal mixing is s = 1 exactly, and must be allowed."""
+    import magnus.hamiltonians as hams
+    hams.hamiltonian_2nu_vacuum_energy_independent(1.0, 2.5e-3)
+    hams.hamiltonian_2nu_vacuum_energy_independent(-1.0, 2.5e-3)
+    hams.hamiltonian_3nu_vacuum_energy_independent(0.55, 0.76, 0.15, 3.79,
+                                                   7.4e-5, 2.5e-3)

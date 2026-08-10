@@ -33,7 +33,11 @@ __email__ = "mbustamante@gmail.com"
 
 # from numpy import *
 import numpy as np
-from typing import Optional, Callable
+
+from magnus.hamiltonians import _angles
+
+import magnus.matter as matter
+from typing import Optional, Callable, Union
 
 
 def mixing_matrix_4x4(s12: float, s23: float, s13:float, d13: float, s14: float, d14: float,
@@ -213,6 +217,8 @@ def hamiltonian_4nu_vacuum_energy_independent(s12: float, s23: float, s13:float,
     np.ndarray
         Hamiltonian 4x4 matrix.
     """
+    _angles.validate_sines('hamiltonian_4nu_vacuum_energy_independent',
+                           s12=s12, s23=s23, s13=s13, s14=s14, s24=s24, s34=s34)
     # 4x4 mixing matrix
     R = mixing_matrix_4x4(s12, s23, s13, d13, s14, d14, s24, d24, s34,
         compute_matrix_multiplication=compute_matrix_multiplication) if not nubar else \
@@ -338,7 +344,9 @@ def hamiltonian_4nu_vacuum_td(l: float, energy: float, s12: float, s23: float, s
         D41, nubar=nubar, compute_matrix_multiplication=compute_matrix_multiplication)
 
 
-def hamiltonian_4nu_matter(VCC: float) -> np.ndarray:
+def hamiltonian_4nu_matter(VCC: float,
+    ratio_number_neutrons_to_protons: Optional[Union[int, float]] = 1.0
+) -> np.ndarray:
     r"""Returns the four-neutrino Hamiltonian for matter oscillations.
 
     Computes and returns the 4x4 real four-neutrino Hamiltonian for
@@ -376,9 +384,13 @@ def hamiltonian_4nu_matter(VCC: float) -> np.ndarray:
     # vectorized path (see magnus.magnus.ScalarHamiltonianWarning). A scalar VCC
     # still returns a plain (4, 4) matrix.
     VCC = np.asarray(VCC, dtype=float)
-    e00 = np.zeros((4, 4))
-    e00[0, 0] = 1.0
-    return VCC[..., None, None] * e00
+    # NOT e_ee: a sterile state feels neither current, so once the actives' common V_NC
+    # is removed it carries -V_NC = (r/2) V_CC.  The docstring above has always said the
+    # sterile state feels neither potential; the code used to implement only half of that,
+    # which costs 0.29 in probability on a 3+1 PREM chord.  See
+    # matter.matter_potential_projector, which is the one definition of this structure.
+    proj = matter.matter_potential_projector(4, ratio_number_neutrons_to_protons)
+    return VCC[..., None, None] * proj
 
 
 def hamiltonian_4nu_matter_td(l: float, VCC_func: Callable) -> np.ndarray:

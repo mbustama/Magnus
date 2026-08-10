@@ -260,6 +260,7 @@ File Tree
    │   │   ├── globaldefs.py           # Units, physical constants, NuFit parameter sets
    │   │   ├── hamiltonians/           # 2nu-5nu Hamiltonians: vacuum, matter, NSI, LIV (the one true subpackage)
    │   │   │   ├── __init__.py         # Explicit named imports from the four hamiltonians{2,3,4,5}nu.py modules
+   │   │   │   ├── _angles.py          # Rejects a sine outside [-1, 1] before it becomes a NaN Hamiltonian
    │   │   │   ├── hamiltonians2nu.py
    │   │   │   ├── hamiltonians3nu.py
    │   │   │   ├── hamiltonians4nu.py

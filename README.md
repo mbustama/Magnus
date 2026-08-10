@@ -34,6 +34,7 @@ precision, at any accuracy setting.  See
 - [Adiabatic + Magnus hybrid strategy for extreme accumulated phases](#adiabatic--magnus-hybrid-strategy-for-extreme-accumulated-phases)
 - [Phase-averaged probabilities for astrophysical neutrinos](#phase-averaged-probabilities-for-astrophysical-neutrinos)
 - [When is Magnus not the right tool?](#when-is-magnus-not-the-right-tool)
+- [Magnus against other oscillation codes](#magnus-against-other-oscillation-codes)
 - [File Tree](#file-tree)
 - [Two ways to use Magnus](#two-ways-to-use-magnus)
   - [As a Python module](#as-a-python-module)
@@ -221,6 +222,63 @@ dedicated collective-oscillation codes (for self-interaction problems).
 
 ---
 
+## Magnus against other oscillation codes
+
+The section above compares Magnus against a general-purpose ODE solver.  The
+more useful comparison is against the other *oscillation* codes, and it has a
+clear boundary rather than a winner.  Notebook 25 runs it in full, with every
+code timed in one process on one machine and refereed by a method that is
+neither code's.
+
+**Where a closed form exists, use it.**  [NuOscProbExact][npe] solves each
+slab of constant density in closed form, and an exact algebraic solution beats
+a truncated series — that is arithmetic, not a defect in either code.
+Constant density, piecewise-constant PREM and standard three-flavour
+propagation are exactly what closed forms are built for, and on those Magnus
+does not win: on an Earth chord the closed form is around 20× cheaper per
+call, and the sharper a density jump is, the more decisively so.
+
+Magnus earns its place on three axes instead.
+
+1. **Reach — accuracy past where a slab product stalls.**  Composing slabs is
+   second order in the slab width, so halving the width buys a factor of four;
+   the Gauss–Legendre Magnus expansion is fourth order and buys sixteen.  More
+   importantly the slab product has a *floor*: on a smooth exponential profile
+   at three flavours its error bottoms out at **2.5 × 10⁻¹¹** near 16 000
+   slabs and then **rises** — past that point the round-off of composing so
+   many matrix products costs more than another halving buys, so 32 768 slabs
+   is worse than 16 384.  There is no setting below that floor.  Magnus
+   continues to **2.9 × 10⁻¹³**.
+
+2. **Generality — an arbitrary `H(t)`, and five flavours.**  A custom
+   Hamiltonian, a BSM term nobody has diagonalised, an interpolated profile
+   read off a simulation: these need no per-model work here, because nothing
+   in the method assumes a form for `H`.  NuOscProbExact has closed forms
+   through four flavours and no five-flavour route at all; at five flavours
+   there is no comparison to draw, which is the same point stated at its
+   limit.
+
+3. **Pre-packaged observables — the quantity an experiment measures.**  Over
+   the ray out of the Sun a 5-MeV neutrino accumulates some 12 800 radians of
+   phase, so the *instantaneous* survival probability at the surface is
+   neither measurable nor stable, and neighbouring energies land anywhere
+   between 0.15 and 0.9.  What a solar experiment measures is the
+   phase-averaged probability, and `average=True` returns it directly by
+   transporting along the levels of the instantaneous Hamiltonian instead of
+   propagating.  Measured on the same BS2005-AGS,OP model file: Magnus
+   returns **40 averaged energies in 0.66 s**; nuSQuIDS returns **12
+   instantaneous ones in 131 s**, and recovering the observable from those
+   means averaging many such evaluations on top.  Neither NuOscProbExact nor
+   nuSQuIDS offers an averaging flag — this is a different algorithm for the
+   question actually being asked, not the same algorithm run faster.
+
+The short version: **piecewise-constant and standard, use a closed form;
+smooth, exotic, five-flavour, or phase-averaged, use this.**
+
+[npe]: https://github.com/mbustama/NuOscProbExact
+
+---
+
 ## File Tree
 
 The project structure separates the Magnus-expansion numerical core from the
@@ -329,6 +387,7 @@ Magnus/
 │   │   ├── globaldefs.py           # Units, physical constants, NuFit parameter sets
 │   │   ├── hamiltonians/           # 2nu-5nu Hamiltonians: vacuum, matter, NSI, LIV (the one true subpackage)
 │   │   │   ├── __init__.py         # Explicit named imports from the four hamiltonians{2,3,4,5}nu.py modules
+│   │   │   ├── _angles.py          # Rejects a sine outside [-1, 1] before it becomes a NaN Hamiltonian
 │   │   │   ├── hamiltonians2nu.py
 │   │   │   ├── hamiltonians3nu.py
 │   │   │   ├── hamiltonians4nu.py

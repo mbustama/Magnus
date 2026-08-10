@@ -34,6 +34,8 @@ __email__ = "mbustamante@gmail.com"
 
 # from numpy import *
 import numpy as np
+
+from magnus.hamiltonians import _angles
 from typing import Optional, Callable
 
 # import cmath
@@ -205,6 +207,8 @@ def hamiltonian_3nu_vacuum_energy_independent(s12: float, s23: float, s13: float
     The eigenvalues are :math:`(0, \Delta m^2_{21}, \Delta m^2_{31})`: only
     mass-squared *differences* appear, which is why the first is zero.
 """
+    _angles.validate_sines('hamiltonian_3nu_vacuum_energy_independent',
+                           s12=s12, s23=s23, s13=s13)
 
     # f = 0.5
 

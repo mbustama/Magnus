@@ -185,6 +185,7 @@ TREE = [
     ('src/magnus/globaldefs.py', 'Units, physical constants, NuFit parameter sets'),
     ('src/magnus/hamiltonians/', '2nu-5nu Hamiltonians: vacuum, matter, NSI, LIV (the one true subpackage)'),
     ('src/magnus/hamiltonians/__init__.py', 'Explicit named imports from the four hamiltonians{2,3,4,5}nu.py modules'),
+    ('src/magnus/hamiltonians/_angles.py', 'Rejects a sine outside [-1, 1] before it becomes a NaN Hamiltonian'),
     ('src/magnus/hamiltonians/hamiltonians2nu.py', None),
     ('src/magnus/hamiltonians/hamiltonians3nu.py', None),
     ('src/magnus/hamiltonians/hamiltonians4nu.py', None),
