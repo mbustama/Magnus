@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """Tests of the oscillation-probability engine (magnus.oscprob)."""
 
+import io
 import tracemalloc
 import warnings
 
@@ -2069,6 +2070,104 @@ def test_available_memory_is_a_plausible_positive_number_or_none():
     """Whatever it reports on this machine, it must be usable as a bound."""
     value = op._available_memory_bytes()
     assert value is None or (isinstance(value, int) and value > 0)
+
+
+def _fake_cgroup(tmp_path, monkeypatch, proc_line, files):
+    """Points the cgroup probe at a synthetic hierarchy under tmp_path.
+
+    The real one cannot be used: this machine's own limits are whatever the test runner
+    happens to have, and a test that only passes under a container is a test that never
+    runs in CI.
+    """
+    root = tmp_path/'cgroup'
+    for rel, contents in files.items():
+        path = root/rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(contents)
+    real_open = open
+
+    def fake_open(name, *a, **kw):
+        if str(name) == '/proc/self/cgroup':
+            return io.StringIO(proc_line)
+        text = str(name)
+        for prefix, replacement in (('/sys/fs/cgroup/memory', root/'v1'),
+                                    ('/sys/fs/cgroup', root/'v2')):
+            if text.startswith(prefix):
+                return real_open(str(replacement) + text[len(prefix):], *a, **kw)
+        return real_open(name, *a, **kw)
+
+    monkeypatch.setattr('builtins.open', fake_open)
+    return root
+
+
+def test_cgroup_limit_caps_the_host_figure(tmp_path, monkeypatch):
+    """The whole point: /proc/meminfo is not namespaced, so it must not be trusted alone.
+
+    Inside a container or a batch-scheduler cgroup it reports the HOST's memory. Measured
+    inside a 3 GiB systemd scope on an 8 GiB machine, the host figure read 8.27 GiB and a
+    2.2 GiB allocation was waved through and then killed by the cgroup -- precisely the
+    outcome the output guard exists to prevent, on exactly the platforms (Docker,
+    Kubernetes, SLURM) where a physics library is most often run."""
+    _fake_cgroup(tmp_path, monkeypatch, '0::/leaf\n',
+                 {'v2/leaf/memory.max': '3221225472\n',       # 3 GiB
+                  'v2/leaf/memory.current': '221225472\n',
+                  'v2/memory.max': 'max\n'})
+    headroom = op._cgroup_headroom_bytes()
+    assert headroom == 3221225472 - 221225472
+    monkeypatch.setattr(op, '_cgroup_headroom_bytes', lambda: headroom)
+    # A host figure far larger than the cgroup allows must not win.
+    assert op._available_memory_bytes() <= headroom
+
+
+def test_cgroup_limit_is_the_tightest_ancestor_not_the_leaf(tmp_path, monkeypatch):
+    """A limit may sit on any ancestor, and the tightest one is what kills you.
+
+    Reading only the process's own cgroup would miss a limit set one level up, which is
+    the common shape: the scheduler caps the job, not the leaf the process happens to
+    land in."""
+    _fake_cgroup(tmp_path, monkeypatch, '0::/job/step\n',
+                 {'v2/job/step/memory.max': 'max\n',
+                  'v2/job/step/memory.current': '0\n',
+                  'v2/job/memory.max': '1073741824\n',        # 1 GiB, on the ANCESTOR
+                  'v2/job/memory.current': '73741824\n',
+                  'v2/memory.max': 'max\n'})
+    assert op._cgroup_headroom_bytes() == 1073741824 - 73741824
+
+
+def test_cgroup_v1_sentinel_reads_as_unlimited(tmp_path, monkeypatch):
+    """cgroup v1 spells 'unlimited' as a number near 2**63, not as the word 'max'.
+
+    Taken literally that sentinel is a limit of 8 exabytes, which would make the guard
+    believe there is effectively infinite headroom -- silently restoring the bug this
+    function fixes, on v1 hosts only."""
+    _fake_cgroup(tmp_path, monkeypatch, '5:memory:/leaf\n',
+                 {'v1/leaf/memory.limit_in_bytes': '9223372036854771712\n',
+                  'v1/leaf/memory.usage_in_bytes': '1000\n',
+                  'v1/memory.limit_in_bytes': '9223372036854771712\n',
+                  'v1/memory.usage_in_bytes': '1000\n'})
+    assert op._cgroup_headroom_bytes() is None
+
+
+def test_no_cgroup_limit_leaves_the_host_figure_alone(tmp_path, monkeypatch):
+    """An unlimited cgroup must not change what the guard sees.
+
+    Most machines are in this case, so a regression here would be a silent behaviour
+    change everywhere rather than a visible failure."""
+    _fake_cgroup(tmp_path, monkeypatch, '0::/leaf\n',
+                 {'v2/leaf/memory.max': 'max\n', 'v2/memory.max': 'max\n'})
+    assert op._cgroup_headroom_bytes() is None
+
+
+def test_cgroup_probe_survives_a_hostile_filesystem(monkeypatch):
+    """Unreadable or nonsense cgroup files must yield None, never an exception.
+
+    This runs inside every osc_prob call above the size floor, so raising here would turn
+    a memory guard into a new failure mode of its own."""
+    def exploding_open(name, *a, **kw):
+        raise OSError('no /proc here')
+
+    monkeypatch.setattr('builtins.open', exploding_open)
+    assert op._cgroup_headroom_bytes() is None
 
 
 def test_ip_exp_core_without_a_tolerance_returns_after_one_pass():
