@@ -10,7 +10,7 @@ Implementation Details
 The engines
 -------------
 
-Five independent engines can answer a request. None of them is a special case of another,
+Six independent engines can answer a request. None of them is a special case of another,
 and each declines requests it cannot serve honestly.
 
 .. list-table::
@@ -33,12 +33,19 @@ and each declines requests it cannot serve honestly.
      - Single points and multi-energy scans at one baseline.
      - Non-exponential profiles, :math:`d > 2`, LIV, breakpoints, and whenever its own
        iteration fails to converge (typically near an MSW resonance).
+   * - **Constant Hamiltonian**
+       (``_osc_prob_scan_constant_h``)
+     - ``V_CC`` does not depend on position, so neither does ``H``.
+     - Vacuum and constant density, at any flavour count, for a single point or a scan,
+       with per-point baselines allowed.
+     - A position-dependent potential; user slab edges; parallel, logged or verbose runs.
    * - **Energy-batched separable scan**
        (``_osc_prob_scan_separable``)
      - ``H`` separates into an energy-dependent part and ``V_CC(l)`` times a constant
        matrix.
      - Many energies sharing one baseline.
-     - Per-point baselines, user slab edges, parallel or logged runs.
+     - Per-point baselines, user slab edges, parallel or logged runs, a constant
+       potential (which the constant engine takes instead).
    * - **Cumulative baseline scan**
        (``_osc_prob_cumulative_scan``)
      - Baselines nest: :math:`U(0\to L_2) = U(L_1 \to L_2)\,U(0 \to L_1)`.
@@ -263,6 +270,194 @@ two routes agree to a few times 1e-15 rather than bitwise, because the mirrored 
 nodes are reached as ``(L - b) + h*s`` on one route and ``a + h*s`` on the other -- two
 floating-point expressions for the same real number.  On Earth single points that is worth
 up to 8.6e-15 relative.
+
+
+The matrix exponential, and which backend computes it
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Every slab ends in a matrix exponential, and ``np.linalg.eigh`` costs **about 1.27 µs per
+3×3 whatever the stack size** -- measured 1.268 µs at N = 108 and 1.279 µs at N = 4096,
+flat, because it loops over LAPACK internally instead of vectorising over the stack.
+:data:`magnus.magnus.EXPM_BACKEND` selects between that and the compiled Cayley-Hamilton
+kernel in :mod:`magnus.expmkernels`, which applies to :math:`K` the polynomial interpolating
+:math:`\exp(-i\lambda)` on its spectrum -- no eigenvectors, and the eigenvalues in closed
+form.
+
+Interleaved round-robin, minima of many repetitions, with a control the change cannot
+touch:
+
+.. list-table:: The exponential alone, :math:`\exp(-iK)` for a stack of N matrices
+   :header-rows: 1
+   :widths: 10 12 20 20 20
+
+   * - d
+     - N
+     - ``eigh``
+     - ``numba``
+     - Speed-up
+   * - 3
+     - 1
+     - 14.2 µs
+     - 7.4 µs
+     - 1.9×
+   * - 3
+     - 108
+     - 162.6 µs
+     - 23.8 µs
+     - **6.8×**
+   * - 3
+     - 4096
+     - 6467 µs
+     - 934 µs
+     - **6.9×**
+   * - 2
+     - 108
+     - 94.0 µs
+     - 12.9 µs
+     - **7.3×**
+   * - 2
+     - 1024
+     - 716.9 µs
+     - 54.5 µs
+     - **13.2×**
+
+.. list-table:: End to end, through ``osc_prob``
+   :header-rows: 1
+   :widths: 46 27 27
+
+   * - Workload
+     - Speed-up
+     - Note
+   * - 3ν PREM, 60-energy scan
+     - **2.11×**
+     - 9291 µs → 4409 µs (73.5 µs per energy)
+   * - 3ν PREM chord, single point
+     - 1.22×
+     - dominated by the refinement ladder
+   * - 3ν vacuum, single point
+     - 1.11×
+     - and see the constant-Hamiltonian engine below, which is the larger win here
+   * - 3ν constant density, single point
+     - 1.09×
+     -
+   * - CONTROL: 4ν vacuum
+     - 1.00×
+     - dimension 4 uses ``eigh`` on both settings
+
+**A 6.8× exponential is a 2.1× call, and the gap is Amdahl's law rather than a
+disappointment.** The exponential is roughly a third of a slab pass, so removing six
+sevenths of a third is about what the table shows.  Anyone quoting the 6.8× as a package
+speed-up is quoting the wrong number.
+
+A caution about the PREM row, because the first version of this table got it wrong.
+:func:`magnus.earth.distance_traveled_inside_earth` returns **kilometres**, while every
+``osc_prob`` baseline is in natural units, and passing the raw value does not raise: it
+returns a converged, unitary answer for a chord a few metres long, on which the refinement
+ladder trivially agrees with itself at every tolerance.  Measured that way the PREM speed-up
+reads 1.45× rather than 2.11×, because a metre-long chord needs almost no slabs and so hardly
+exercises the exponential at all.
+
+**At N = 1 the exponential is no longer the thing to optimise.** ``eigh`` on one 3×3 costs
+3.5 µs, and reaching it through ``_expm_stack`` costs 14.2 µs -- the
+difference is the anti-Hermiticity test and the temporaries around it, which do not shrink
+with the stack.  That fixed cost, not the exponential, is what caps the single-point rows
+above.
+
+**Dimensions 4 and 5 keep ``eigh``, and always will.**  There is no practical closed form
+for a 4×4 or 5×5 Hermitian eigenproblem, so 4ν and 5ν are correct and simply not
+accelerated.  :func:`magnus.expmkernels.supports_dim` is the only place that decides this.
+
+Neither backend is exactly unitary, and a previous version of ``_expm_stack``'s docstring
+claimed the ``eigh`` one was.  It is not: :math:`U^\dagger U - I` measures 4e-16 for a
+single 3×3 and 4e-15 for a stack of 4096, growing with stack size and never reaching zero.
+Against a 40-digit reference the kernel is the same order or slightly better at every norm
+from :math:`\lVert K \rVert` = 1 to 1e5 **on unclustered spectra**, and both degrade linearly
+in that norm, which is the conditioning of the problem rather than a property of either route.
+Probabilities sum to 1 to about 1e-15; they do not do so by construction.
+
+That qualifier was missing from an earlier version of this page, and it mattered.  The closed
+form was verified against random spectra at many norms, and separately at many eigenvalue
+separations at norm ~1; where those two conditions hold *together* it reached 2.7e-07 against
+``eigh``'s 3.0e-11, a factor of 7440, because :math:`\arccos` has infinite derivative at
+:math:`u = \pm 1`.  Neither single-axis sweep visits that corner.  It is now closed by
+:data:`magnus.expmkernels.SEV_TOL`, which hands such matrices to ``eigh``; the worst absolute
+error over the whole separation-by-scale grid is 8.7e-14, and the fraction of matrices declined
+on real work -- PREM chords, solar slab chains, constant density, NSI -- measures 0.00%.
+
+Switching backend moves probabilities by at most 4.6e-15 across PREM chords, energy scans,
+NSI resonances, constant density and vacuum -- except on a solar profile at
+``strategy='magnus'``, which chains 33,575 slab exponentials and drifts 3.0e-12, within the
+:math:`N\epsilon` = 7.4e-12 that an ordered product of that length allows.
+
+numba is an optional dependency (``pip install 'magnuspy[fast]'``).  Without it,
+``'auto'`` is silently ``'eigh'`` and nothing but speed changes; it costs about 90 ms of
+``import magnus`` when present, and the first call to each kernel pays a one-off ~0.7 s
+compile that is then cached to disk.
+
+
+A constant Hamiltonian needs no ladder at all
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+When :math:`V_\text{CC}` does not vary with position, neither does :math:`H`, and the Magnus
+series **terminates at its first term**: :math:`\Omega_1 = -iH\Delta`, and every higher
+:math:`\Omega_k` is a nested commutator of :math:`H` with itself, hence zero.  So
+:math:`U = \exp(-iH\Delta)` is not an approximation to be refined but the exact answer, and an
+entire energy scan is one stacked exponential over an ``(nE, d, d)`` array.
+
+This case used to be turned away deliberately -- the separable dispatcher bailed out on a
+non-callable potential, its docstring saying "a constant potential falls back to the generic
+path" -- so the easiest Hamiltonian there is took the slowest route available: a 60-energy scan
+made 18,000 ``osc_prob`` calls per 300 repetitions, each one rediscovering the same constancy.
+
+.. list-table:: Against the per-point route it replaces (interleaved; control 1.00×)
+   :header-rows: 1
+   :widths: 16 22 22 20
+
+   * - Flavours
+     - Matter scan
+     - Vacuum scan
+     - Single point
+   * - 2ν
+     - **17.3×**
+     - **24.7×**
+     - 2.0×
+   * - 3ν
+     - **15.5×**
+     - **18.9×**
+     - 2.1×
+   * - 4ν
+     - 7.2×
+     - 7.4×
+     - 1.4×
+   * - 5ν
+     - 6.0×
+     - 6.2×
+     - 1.4×
+
+4ν and 5ν gain less because they exponentiate through ``eigh``: the Cayley-Hamilton kernel
+covers dimensions 2 and 3 only.  In absolute terms a 3ν constant-density scan costs 1.10 µs per
+energy, against NuOscProbExact's 1.44 µs batched and 13.25 µs looped; a single point is 33.8 µs
+against its 19.9 µs, and **what remains is wrapper parameter resolution rather than
+arithmetic** -- the exponential itself is under a tenth of it.
+
+Results are bit-identical to the per-point route on every flavour count and both neutrino signs.
+``n_slabs``, ``n_tpts_per_slab``, ``t_breakpoints`` and ``rtol``/``atol`` are accepted and
+ignored, because they can only ask for a refinement of something already exact.
+
+**PREM and exponential profiles are untouched** -- their potential varies with position, so they
+keep ``separable``, ``ip_exp`` or ``hybrid``.  A constant-H engine that captured one would
+propagate a whole chord with a single exponential of a single Hamiltonian: wrong by O(1) and
+still perfectly unitary, which is why ``tests/test_engines.py`` asserts the engine *identity*
+for PREM and the Sun rather than only comparing numbers.
+
+Two traps this engine paid for, both recorded because neither was visible in the answer.
+``h_matt`` meant different things on different branches -- two of the three dispatch call sites
+had folded :math:`V_\text{CC}` into it already, and the engine multiplied by
+:math:`V_\text{CC}` again, giving :math:`V_\text{CC}^2 \sim` 1e-25 instead of 1e-13: the matter
+term all but vanished and, because a square has no sign, the neutrino and antineutrino answers
+came back *bit-identical*.  And a new engine absent from ``_CROSS_CHECK_FORCING``'s forbid lists
+answers before the payload the independent ``expm`` oracle is built from is ever recorded, which
+silently removed the only non-Magnus reference from the cross-check.
 
 
 Accuracy
@@ -491,11 +686,21 @@ much*, where the code knows), what to change, and when it is genuinely safe to i
      - ``H_func`` accepts only one position at a time.
      - No -- output is bit-identical.
      - Make ``H_func`` array-capable (``VCC[..., None, None]*e00``). Measured 4.6× faster.
-   * - :class:`magnus.matter.DensityUnitWarning`
+   * - :class:`magnus.matter.DensityUnitWarning` (over-declared)
      - A density declared in g cm⁻³ is denser than a neutron star.
      - Yes -- catastrophically. The potential is inflated by ~18 orders; the tell is
        :math:`P_{ee} = 1`.
-     - Pass g cm⁻³, or leave ``density_matter_is_in_g_per_cm3`` at False.
+     - The density is already in natural units: leave
+       ``density_matter_is_in_g_per_cm3`` at False.
+   * - :class:`magnus.matter.DensityUnitWarning` (under-declared)
+     - A density left in natural units is far too small to be one -- anything physical is
+       4.3e18 or more, since that is what one g cm⁻³ becomes.
+     - Yes, and this is the dangerous direction. The potential comes out ~19 orders too
+       small, i.e. zero, so the call returns **exactly the vacuum probability** -- which
+       looks like an ordinary answer rather than a missing one, and there is no tell in
+       the numbers at all.
+     - Pass ``density_matter_is_in_g_per_cm3=True``, or convert yourself (multiply by
+       ``gd.UNIT_G_PER_CM3``).
    * - :class:`magnus.oscprob.UnmarkedDiscontinuityWarning`
      - The Hamiltonian is discontinuous at the grid scale and no ``t_breakpoints`` were
        given.

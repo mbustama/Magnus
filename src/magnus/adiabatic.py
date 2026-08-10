@@ -67,7 +67,6 @@ __author__ = "Mauricio Bustamante"
 __email__ = "mbustamante@gmail.com"
 
 
-from functools import reduce
 from typing import Callable, Dict, List, Optional, Tuple
 
 import numpy as np
@@ -1307,7 +1306,7 @@ def _local_evolution_operator(H_func: Callable, l_b: float, l_c: float, magnus_e
 
         U_chain = magnuscore.magnus_expansion_multislab(hh, edges, n_tpts_per_slab=2,
             order=magnus_exp_order, integration_method=integration_method)
-        return reduce(np.matmul, U_chain[::-1]) if len(U_chain) > 1 else U_chain[0]
+        return magnuscore.ordered_product(U_chain)
 
     n_slabs = n_slabs0
     U_prev = U_at(n_slabs)

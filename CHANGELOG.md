@@ -9,6 +9,312 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **The evaluation-mode cache answered a question it was never asked, and the
+  guarded version of it was dead code.**  `probe_eval_mode`'s `'constant'`
+  verdict means "sampling A across [t0, t1] gave the same matrix every time" —
+  a property of the function *on an interval*, not of the function.  Keyed on
+  the function alone, a mode learned on a short baseline was served for a long
+  one, and `_evaluate_A`'s `'constant'` branch then broadcast a single sample
+  over a profile that genuinely varies, with no spot-check (unlike the
+  `'vector'`/`'scalar'` hints, which self-heal).
+
+  A two-layer profile written with the natural short-circuit — if every
+  requested position falls in one layer, return that layer's matrix — probes as
+  `'constant'` on a short interval and `'vector'` on a long one.  Looping
+  baselines shortest-first then gave `P_ee = 0.906249` against a correct
+  `0.903424`, row sums exactly 1.0, no warning, and **the right answer if the
+  loop ran the other way round**.  Now keyed on `(function, t0, t1)`: measured
+  loop-order dependence **5.8e-02 → 0.00e+00**.
+
+  Three further defects were the same defect.  `oscprob._eval_mode_for` was a
+  second, *unguarded* copy of this cache that reached across a module boundary
+  into `magnus._EVAL_MODE_CACHE`; it guarded its store but not its lookup, so a
+  callable Hamiltonian that cannot be weakly referenced (`__slots__`) or hashed
+  (a `@dataclass`, or anything defining `__eq__`) raised `TypeError` from inside
+  `osc_prob` where it had worked before.  The public `magnus.cached_eval_mode`,
+  which *was* guarded, had zero live callers: its only call site sat in the
+  `not callable(H_func)` arm of a ternary, and `H_func` is unconditionally
+  rebound to a closure above it.  The copy is deleted, the original does the
+  work via a new `key` parameter, and the comment claiming the cache keys by
+  identity is corrected — `WeakKeyDictionary` keys by the referent's *equality*,
+  which matters for a Hamiltonian defining `__eq__`.
+
+  The interval key costs nothing measurable: a refinement ladder calling
+  repeatedly at one interval still probes once, which is what the cache is for.
+
+### Fixed
+
+- **A second max-effort review, run from a fresh session, found four more; all are
+  fixed here.**  The first review below was written *and* verified by the agent
+  that wrote the code, which is the reason to look again.  None of the four
+  changes a computed probability: they are a lost warning, an inconsistent error
+  contract, an ignored backend request, and an unbounded cache.
+
+  *The `DensityUnitWarning` repair in the review below was half a fix, and its
+  other half was a new defect.*  `vcc_func_from_rho_func`'s constant-density cache
+  skips the conversion that the two unit guards live inside, and the earlier
+  repair re-emitted only the `density_matter_is_in_g_per_cm3=True` arm.  The arm
+  it dropped is the dangerous one: an undeclared g cm^-3 density returns *exactly*
+  the vacuum probability, so the warning is the only thing separating it from an
+  answer.  Re-emitting from the cache site cannot work either — `warnings.warn`'s
+  `stacklevel` attributes the call to a different frame, and the frame is part of
+  the interpreter's registry key, so the imitation printed a *second* warning
+  under the default filter where an uncached call printed one.  A density that
+  would trip either guard is now not cached at all, so both keep firing from where
+  they always did.  Measured against `main`: 3 of 3 identical calls warn under
+  `simplefilter('always')`, 1 of 3 under the default filter, matching in both
+  directions.
+
+  *The constant engine accepted three refinement parameters the ladder rejects.*
+  `max_n_slabs=0`, `rtol`/`atol` ≤ 0 and `max_num_loops=0` were all answered here
+  while `osc_prob` raised `ValueError` for each, so whether a bad parameter was
+  reported depended on whether the density happened to be constant.  The answers
+  were never wrong — one exponential per point is exact either way — but the error
+  contract was.  `_refinement_params_rejected` mirrors `osc_prob`'s validation and
+  *declines*, so the caller sees `osc_prob`'s own message rather than a second
+  wording of it.
+
+  *`EXPM_BACKEND` did not cross a process boundary.*  loky re-imports magnus in
+  every worker, where the switch is back at `'auto'`, so any call with
+  `n_jobs != 1` silently ignored it — and it is the only backend control the
+  `oscprob` wrappers expose, the `expm_backend` parameter reaching no further than
+  the Magnus layer.  Worst for the one use the switch is documented for: a backend
+  comparison run in parallel compared `'auto'` against itself.  Now carried by
+  value into the worker and re-applied there.
+
+  *The evaluation-mode cache's per-interval dictionary was unbounded.*  Weak keys
+  bound the outer map, not the inner one, and a Hamiltonian defined at module
+  scope never dies: 1000 distinct baselines through `osc_prob` retained 1000
+  entries, about 184 KB, for the life of the process.  Now bounded at 256 and
+  cleared wholesale, matching `_VACUUM_H_CACHE` and `_VCC_CONST_CACHE` — the
+  ladder holds one entry no eviction can reach, and a scan uses each entry once,
+  so neither population rewards a smarter policy.
+
+  *A refinement bound named the wrong parameter, and had since long before this
+  branch.*  Found while mirroring `osc_prob`'s validation for the fix above: one
+  of its two ceiling checks tested `max_n_slabs` while its message named
+  `max_n_tpts_per_slab`.  So `max_n_tpts_per_slab` was never validated at all —
+  `0` and `1` were accepted — `max_n_slabs` was bounded at `> 2` while the message
+  three lines above promised `> 1`, and a caller who passed `max_n_slabs=2` was
+  refused in the name of a parameter they had not touched.  The rule both messages
+  encode is that each ceiling clears its own floor (`min_n_slabs` defaults to 1,
+  `min_n_tpts_per_slab` to 2), so the condition was the wrong half: it now tests
+  `max_n_tpts_per_slab`.  `max_n_slabs=2` starts working and
+  `max_n_tpts_per_slab <= 2` starts raising; nothing in the tests, the notebooks or
+  the docs passed a value that newly raises.
+
+  *The docs gate had been red since `2debd51`, and the branch did not know it.*  A
+  `:func:` role in `implementation_details.rst` pointed at `magnus.magnus._expm_stack`,
+  a private name autoapi does not document, which fails `-n -W`.  It went unnoticed
+  because every check of that gate on this branch was an **incremental** build, and
+  Sphinx does not re-read a file it believes unchanged — so the warning could not
+  reappear once its file had been cached.  CI builds from a clean tree and would have
+  caught it on the first push.  Now double backticks, which is what the same file does
+  for `_osc_prob_scan_constant_h` and for `_expm_stack` itself nine lines later.  The
+  gate is re-verified from `make clean`: 0 warnings.
+
+  Examined and left alone: the Cayley-Hamilton algebra (`det X`, the divided
+  differences, the root ordering and `Z²` re-derived independently against the
+  code); the d = 2 kernel, which has no `SEV_TOL` gate but beats `eigh` two orders
+  of magnitude beyond its documented range (1.9e-09 against 3.3e-09 at
+  ‖K‖ = 1e7); `float(VCC_func)` on an array-valued density, unreachable because
+  `validate_input_battery` rejects it first; and `verbose=None`, which already
+  raised on `main`.  The constant engine was re-checked against `scipy.linalg.expm`
+  rather than against another magnus engine — the two in-package routes share
+  `_expm_stack` and agree to exactly 0.0, which is no evidence at all — and matches
+  to 3.4e-15 across ν/ν̄, three densities, per-point baselines, L0 ≠ 0, a single
+  scalar point and vacuum.
+
+- **A max-effort code review of this branch found fifteen defects; all are fixed
+  here or in the two commits below.**  Eight independent finder angles, every
+  finding confirmed by execution rather than reading.  The two that mattered most
+  were invisible to the tests that were supposed to catch them.
+
+  *The compiled exponential was up to 7440x less accurate than `eigh` where a
+  clustered spectrum meets a large norm* — 2.7e-07 against 3.0e-11 at
+  ||K|| = 1e5, because `arccos` has infinite derivative at u = ±1.  It had been
+  verified against random spectra at many norms, and separately at many
+  eigenvalue separations at norm ~1; the damage needs both at once, which no
+  single-axis sweep visits, and this file previously claimed the kernel was
+  "the same order or slightly better at every norm" on that evidence.
+  `expmkernels.SEV_TOL` now hands such matrices to `eigh`: worst absolute error
+  over the whole separation-by-scale grid 8.7e-14, matrices declined on real work
+  0.00%, speed unchanged.  The grid is now a test.
+
+  *Two tests were vacuous.*  The antineutrino-sign test — written specifically to
+  catch the `h_matt` bug in the commit below — passed identically with the engine
+  under test disabled.  The agreement test compared the new engine against
+  `osc_prob`'s *other* constant shortcut rather than the refinement ladder, so its
+  tolerance could never fire; instrumented, the slab machinery ran zero times on
+  either side.  Both now assert the route they claim to compare, and both were
+  verified to fail when their target bug is reintroduced.
+
+  Also: `expm_herm_stack` ignored `supports_dim` and handed 4x4 input to the 3x3
+  kernel (error 2.4, unitarity 11.3, uninitialised eigenvalues) and segfaulted at
+  d=1; the constant engine answered `L < L0` with the *transpose* of the right
+  answer (29% off, row sums exactly 1) where `main` raised, accepted
+  `magnus_exp_order=0`, and bypassed the output-size memory guard; `verbose=1`
+  lost all its output; array-valued and 0-d-array parameters began raising in two
+  new caches; and a cache hit silenced `DensityUnitWarning` after the first call.
+
+  Four further findings inherited from earlier commits on this branch are recorded
+  in `docs/dev/HANDOVER_OVERHEAD.md` and deliberately left for separate work.
+
+### Added
+
+- **A `'constant'` engine: a position-independent Hamiltonian is answered in one
+  batched exponential instead of one `osc_prob` call per point.**  When the
+  matter potential does not vary with position, the Magnus series *terminates at
+  its first term* — Ω₁ = −iHΔ and every higher Ω is a nested commutator of H
+  with itself, hence zero — so `U = exp(-iHΔ)` is the exact answer and a whole
+  energy scan is one stacked exponential.
+
+  This case was previously turned away on purpose: `_osc_prob_scan_separable_dispatch`
+  bailed on `not isinstance(VCC_func, Callable)`, its docstring saying "a constant
+  potential falls back to the generic path".  So the easiest Hamiltonian there is
+  took the slowest route available — a 60-energy scan made **18,000 `osc_prob`
+  calls per 300 repetitions**, each rediscovering the same constancy and paying
+  the full wrapper and refinement-ladder overhead.
+
+  Measured against the route it replaces, interleaved with a control that came
+  back at 1.00×:
+
+  | flavours | matter scan | vacuum scan | single point |
+  |---|---|---|---|
+  | 2ν | **17.3×** | **24.7×** | 2.0× |
+  | 3ν | **15.5×** | **18.9×** | 2.1× |
+  | 4ν | 7.2× | 7.4× | 1.4× |
+  | 5ν | 6.0× | 6.2× | 1.4× |
+
+  4ν and 5ν gain less because they are on `eigh` rather than the
+  Cayley–Hamilton kernel, which covers dimensions 2 and 3 only.  A 3ν
+  constant-density scan is now **1.10 µs per energy against NuOscProbExact's
+  1.44 µs batched and 13.25 µs looped**; a single point is 33.8 µs against its
+  19.9 µs, the remainder being wrapper parameter resolution rather than
+  arithmetic.  Results are bit-identical to the per-point route on every
+  flavour count and both neutrino signs, and `n_slabs`, `n_tpts_per_slab`,
+  `t_breakpoints` and `rtol`/`atol` are accepted and ignored because they can
+  only ask for refinement of something already exact.
+
+  **PREM and exponential profiles are untouched** and keep `separable`/`magnus`
+  /`hybrid`: their potential varies with position, and a constant-H engine that
+  captured one would propagate the whole trajectory with a single exponential —
+  wrong by O(1) while still perfectly unitary.  A test asserts the engine
+  identity, not merely the numbers.
+
+### Fixed
+
+- **`h_matt` meant two different things depending on the potential, and the new
+  engine walked into it.**  `osc_prob_matter_nsi` and `osc_prob_liv` rebound
+  `h_matt` to `VCC_func*h_matt` on their constant-potential branch, then passed
+  that name to dispatchers documented to take `h_matt` as "the constant matrix
+  multiplying `VCC_func(l)`" — which multiply by `VCC` themselves.  The
+  separable engine never noticed, because the rebinding only happens on the
+  constant branch it used to decline outright.
+
+  The failure was invisible in the two ways that matter: `VCC²` is ~1e-25 rather
+  than ~1e-13, so the matter term all but vanished and the answer stayed a
+  plausible, unitary, nearly-vacuum probability; and `VCC²` has no sign, so the
+  neutrino and antineutrino results came back **bit-identical**.  Standard
+  constant-density matter was unaffected (that call site passes the bare
+  projector), so testing the headline case alone would have missed it.  The
+  scaled matrix now has its own name, and `tests/test_engines.py` compares the
+  two routes across every scenario wrapper and both signs — verified to fail
+  when the bug is reintroduced.
+
+- **A new engine was invisible to the cross-check.**  `_CROSS_CHECK_FORCING`'s
+  forbid lists and `ENGINE_FAMILIES` did not know about `'constant'`, and since
+  it answers before `osc_prob_energy_baseline` — which is what records the
+  payload the independent `expm` reference is built from — enabling it silently
+  removed the only non-Magnus oracle in the table.  It is now listed in every
+  other row's forbid set, and shares the `'exact'` family with `expm` rather
+  than standing alone: the two use different exponential implementations but
+  share the *assumption* that H is position-independent, and that assumption is
+  the thing that could be wrong.
+
+### Changed
+
+- **Per-call overhead cut across the wrappers, by caching what is pure and
+  cheapening what is common.**  The largest single item in a single-point profile
+  was `hamiltonian_3nu_vacuum_energy_independent` at ~15 µs, rebuilding the same
+  PMNS matrix on every call; it is a pure function of eight scalars and is now
+  memoized, handing back a copy so a caller writing into the result cannot
+  poison the cache.  Likewise the constant-density branches of
+  `matter.vcc_func_from_rho_func` (the callable branches are deliberately *not*
+  cached: they return a closure over `rho_func` that callers tag with
+  `is_exp_density_profile`, so caching those would trade microseconds for an
+  aliasing bug).  `_n_required_params` cached `inspect.signature` weakly against
+  the function — 42 µs of cumulative time per call, and once per point on the
+  routes that legitimately loop.  `isinstance(x, typing.Callable)`, which routes
+  through `ABCMeta.__instancecheck__`, replaced by the `callable()` builtin at 23
+  sites (~9 `typing.__subclasscheck__` calls per invocation), and scalar fast
+  paths added to `_normalize_energy_L` and the density-units guard.  No
+  behaviour changed by this entry.
+
+- **A verbose run (`verbose >= 1`) takes the per-point route.**  The banner and
+  run-parameter dump describe quantities the batched engines do not have —
+  `magnus_exp_order`, slab counts, tolerances — so emitting them from a batched
+  path would report a refinement ladder that never ran.
+
+### Added
+
+- **A compiled Cayley–Hamilton backend for the matrix exponential, selected by
+  `magnus.magnus.EXPM_BACKEND`.**  `np.linalg.eigh` costs ~1.27 µs per 3×3
+  *whatever the stack size* (measured 1.268 µs at N=108, 1.279 µs at N=4096 —
+  flat, because it loops over LAPACK internally instead of vectorising).  The
+  new `magnus.expmkernels` applies to `K` the polynomial interpolating
+  `exp(-iλ)` on its spectrum instead: no eigenvectors, and the eigenvalues in
+  closed form.  **6.8× on the exponential** at N=108 (162.6 → 23.8 µs), 7.3× at
+  d=2, and **2.11× end to end** on a 60-energy PREM scan (9291 → 4409 µs, i.e.
+  73.5 µs per energy).
+
+  The gap between 6.8× and 2.11× is Amdahl's law: the exponential is about a
+  third of a slab pass.  Quoting the 6.8× as a package speed-up would be quoting
+  the wrong number.
+
+  `'auto'` (the default) uses the kernel for 2×2 and 3×3 when numba is
+  installed and `eigh` otherwise, and cannot fail; `'numba'` makes a missing
+  numba an error rather than a silent downgrade; `'eigh'` is the reference route.
+  **Dimensions 4 and 5 keep `eigh`** — there is no practical closed form for a
+  4×4 or 5×5 Hermitian eigenproblem, so 4ν and 5ν stay correct and are not
+  accelerated.  numba is an optional dependency (`pip install 'magnuspy[fast]'`),
+  costing ~90 ms of `import magnus` when present plus a one-off ~0.7 s compile
+  per kernel, cached to disk thereafter.
+
+  Switching backend moves probabilities by at most 4.6e-15 across PREM chords,
+  energy scans, NSI resonances, constant density and vacuum.
+
+  Degeneracy is the whole risk in such a scheme, and two facts remove it.  A
+  Hermitian matrix is never defective, so matching `exp` on the *distinct*
+  eigenvalues is already exact and the confluent (Hermite) form is not needed.
+  And with eigenvalues sorted and the spectrum shifted to put the median at
+  zero, the one ill-conditioned coefficient multiplies a matrix whose norm
+  shrinks with the same gap, so its contribution is bounded by `ε·gap` and
+  *vanishes* as the gap closes.  There is therefore no tolerance, no crossover,
+  and no near-degenerate branch to place: the error is 1e-16 at splittings of
+  1e-2, 1e-6, 1e-10, 1e-14 and exactly zero alike.
+
+  Two things this cost, both now pinned by tests.  The closed-form eigenvalues
+  **degrade to ~4e-9 at an exact degeneracy** (`arccos` has infinite derivative
+  where a repeated root sits) and the exponential stays at 2.5e-16 anyway,
+  because interpolation error is *second* order in the displacement of a
+  coalescing node; both halves are asserted, the sloppy one included.  And the
+  kernel must read the **lower** triangle, because that is the one `eigh` reads
+  (`UPLO` defaults to `'L'`) and `_expm_stack` admits input anti-Hermitian only
+  to 1e-12 — a kernel reading the upper triangle exponentiates a different
+  matrix on such input and the two backends diverge by ~2e-12, large enough to
+  matter and small enough to look like rounding.
+
+### Fixed
+
+- **`_expm_stack`'s docstring claimed the `eigh` route was exactly unitary, and
+  it is not.**  `U†U - I` measures 4e-16 for a single 3×3 and 4e-15 for a stack
+  of 4096 — growing with stack size, never zero, because reconstruction from
+  eigenvectors rounds like any other floating-point product.  The claim that
+  probabilities "sum to 1 by construction" was the part worth correcting: they
+  sum to 1 to about 1e-15, which is worth relying on, by rounding rather than by
+  construction.  No behaviour changed by this entry.
+
 - **The refinement ladder could stop while the answer was still outside the
   requested tolerance, and report success.**  ``t_breakpoints`` (the ~14 PREM
   layer crossings) are re-inserted into every level's grid, so at small counts
@@ -106,6 +412,7 @@ and the project uses [Semantic Versioning](https://semver.org/).
   and the cache sits under the matter term of the Hamiltonian, so the symptom would
   have been a wrong probability with nothing raised.  Cached arrays are now marked
   read-only, turning that into an exception at the point of the write.
+
 
 ## [1.0.0rc1] - 2026-07-31
 

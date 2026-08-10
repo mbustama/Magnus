@@ -135,6 +135,18 @@ def mixing_matrix_3x3(s12: float, s23: float, s13:float, dCP: float) -> np.ndarr
     return pmns_mixing_matrix(s12, s23, s13, dCP)
 
 
+_VACUUM_H_CACHE = {}
+r"""dict: Memo for :func:`hamiltonian_3nu_vacuum_energy_independent`.
+
+Keyed on the eight scalars that determine the result.  Never handed out directly; see the
+comment in that function for why callers get a copy and why the cache is cleared wholesale
+rather than LRU-evicted.
+"""
+
+_VACUUM_H_CACHE_MAX = 256
+r"""int: How many distinct parameter sets :data:`_VACUUM_H_CACHE` holds before clearing."""
+
+
 def hamiltonian_3nu_vacuum_energy_independent(s12: float, s23: float, s13: float, dCP: float,
     D21: float, D31: float, nubar: Optional[bool]=False,
     compute_matrix_multiplication: Optional[bool]=False) -> np.ndarray:
@@ -196,6 +208,28 @@ def hamiltonian_3nu_vacuum_energy_independent(s12: float, s23: float, s13: float
 
     # f = 0.5
 
+    # This is a pure function of eight scalars, and an energy scan or a baseline scan calls it
+    # once per point with the same eight -- it was 15 us of a 59 us single-point call, the
+    # largest single item in the profile, rebuilding the same PMNS matrix every time.  The
+    # cached array is never handed out: callers get a copy, so one that writes into the result
+    # cannot poison later calls.  A 3x3 copy is ~0.2 us against the ~15 us it saves.
+    #
+    # Bounded and cleared wholesale rather than LRU-evicted: the two populations are "a handful
+    # of parameter sets, reused endlessly" (scans, notebooks, the CLI) and "a new set every
+    # call" (a fit varying the mixing angles), and for the second no eviction policy helps, so
+    # the cheap one is the right one.  Clearing beats unbounded growth over a long fit.
+    # try/except because the key hashes its arguments and a 0-d numpy array is unhashable,
+    # while the arithmetic below accepts one.  Being uncacheable is not a reason to refuse an
+    # input that worked before: fall through and compute it.
+    try:
+        key = (s12, s23, s13, dCP, D21, D31, bool(nubar),
+               bool(compute_matrix_multiplication))
+        hit = _VACUUM_H_CACHE.get(key)
+    except TypeError:
+        key, hit = None, None
+    if hit is not None:
+        return hit.copy()
+
     if not compute_matrix_multiplication:
 
         c12 = np.sqrt(1.0-s12*s12)
@@ -223,7 +257,7 @@ def hamiltonian_3nu_vacuum_energy_independent(s12: float, s23: float, s13: float
         H22 = c23*c23*(c13*c13*D31 + D21*s12*s12*s13*s13) + c12*c12*D21*s23*s23 + \
                 2.0*c12*c23*D21*s12*s13*s23*cdCP
 
-        return 0.5*np.array([[H00,H01,H02], [H10,H11,H12], [H20,H21,H22]])
+        out = 0.5*np.array([[H00,H01,H02], [H10,H11,H12], [H20,H21,H22]])
 
     else:
 
@@ -237,7 +271,13 @@ def hamiltonian_3nu_vacuum_energy_independent(s12: float, s23: float, s13: float
         # Mass matrix
         M2 = np.diag([0.0, D21, D31])
         # Hamiltonian
-        return 0.5 * R @ M2 @ np.conj(R.T)
+        out = 0.5 * R @ M2 @ np.conj(R.T)
+
+    if key is not None:
+        if len(_VACUUM_H_CACHE) >= _VACUUM_H_CACHE_MAX:
+            _VACUUM_H_CACHE.clear()
+        _VACUUM_H_CACHE[key] = out
+    return out.copy()
 
 
 def hamiltonian_3nu_vacuum_energy_independent_td(l: float, s12: float, s23: float, s13: float,

@@ -323,3 +323,282 @@ def test_wrong_vector_mode_hint_falls_back_and_warns():
                                   np.linspace(0.0, 1.0, 5), 'vector')
     assert mode == 'scalar'
     assert At.shape == (5, 3, 3)
+
+
+# ----------------------------------------------------------------------
+# ordered_product: the time-ordered chain, collapsed pairwise
+# ----------------------------------------------------------------------
+
+def test_ordered_product_matches_the_sequential_product():
+    """The tree reduction must equal reduce(np.matmul, U[::-1]) exactly in
+    value.  Associativity is what licenses it; commutativity is neither
+    required nor assumed, so the operator ordering has to survive."""
+    from functools import reduce
+    rng = np.random.default_rng(20260809)
+    for n in (1, 2, 3, 7, 8, 33, 108):
+        U = (rng.normal(size=(n, 3, 3)) + 1j*rng.normal(size=(n, 3, 3)))/3.0
+        expected = reduce(np.matmul, U[::-1]) if n > 1 else U[0]
+        got = mg.ordered_product(U)
+        scale = max(np.max(np.abs(expected)), 1.0e-300)
+        assert np.max(np.abs(got - expected))/scale < 1.0e-12, n
+
+
+def test_ordered_product_preserves_order_not_just_content():
+    """A product of non-commuting factors pins the ordering down: if the tree
+    combined them out of turn, the value would change."""
+    A = np.array([[0.0, 1.0], [0.0, 0.0]], dtype=complex)
+    B = np.array([[0.0, 0.0], [1.0, 0.0]], dtype=complex)
+    # U[0] is earliest, so the product is B @ A, not A @ B (which differ here).
+    got = mg.ordered_product(np.stack([A, B]))
+    np.testing.assert_allclose(got, B @ A, atol=0.0)
+    assert not np.allclose(B @ A, A @ B)
+
+
+def test_ordered_product_keeps_a_unitary_chain_unitary():
+    """The slab operators are unitary, and their product must stay so: this is
+    the property the probabilities inherit."""
+    from scipy.linalg import expm as sp_expm
+    rng = np.random.default_rng(7)
+    U = np.empty((256, 3, 3), dtype=complex)
+    for i in range(U.shape[0]):
+        A = rng.normal(size=(3, 3)) + 1j*rng.normal(size=(3, 3))
+        U[i] = sp_expm(-1j*(A + A.conj().T)/2*0.2)
+    P = mg.ordered_product(U)
+    assert np.max(np.abs(P @ P.conj().T - np.eye(3))) < 1.0e-13
+
+
+# ----------------------------------------------------------------------
+# A Hamiltonian that is constant *within* each slab
+# ----------------------------------------------------------------------
+
+def test_constant_slab_samples_drop_the_vanishing_commutators():
+    """Where a slab's nodes are identical the Magnus series terminates at its
+    first term, every later one being a commutator of A with itself.  Taking
+    Omega = h A there is exact, not an approximation, so it must agree with the
+    full expression to the last bit -- the commutator it skips is zero."""
+    rng = np.random.default_rng(3)
+    n, d = 32, 3
+    A = rng.normal(size=(n, d, d)) + 1j*rng.normal(size=(n, d, d))
+    widths = np.full(n, 0.01)
+
+    for order, n_nodes in ((4, 2), (6, 3)):
+        An = np.repeat(A[:, None, :, :], n_nodes, axis=1)
+        h = widths[:, None, None]
+        got = mg._magnus_gl(An, widths, order)
+        np.testing.assert_array_equal(got, h*A)
+
+
+def test_a_varying_slab_still_gets_the_full_expansion():
+    """The detection must be exact equality, not a tolerance: a nearly constant
+    A has commutators that carry real information, and dropping them because two
+    samples agreed to some epsilon would silently lower the order."""
+    rng = np.random.default_rng(4)
+    n, d = 16, 3
+    An = rng.normal(size=(n, 2, d, d)) + 1j*rng.normal(size=(n, 2, d, d))
+    widths = np.full(n, 0.01)
+    h = widths[:, None, None]
+    expected = (0.5*h*(An[:, 0] + An[:, 1])
+                + (np.sqrt(3.0)/12.0)*h*h*mg.commutator(An[:, 1], An[:, 0]))
+    np.testing.assert_allclose(mg._magnus_gl(An, widths, 4), expected,
+                               rtol=0.0, atol=1.0e-15)
+
+    # And a sample pair differing in the last bit is *not* treated as constant.
+    An[3, 1, 0, 0] = np.nextafter(An[3, 0, 0, 0].real, 1.0) + 0j
+    An[3, 0, 0, 0] = An[3, 0, 0, 0].real + 0j
+    assert not mg._samples_identical(An[:, 0], An[:, 1])
+
+
+def test_order_six_constant_shortcut_needs_all_three_nodes_equal():
+    r"""``A1 == A2 != A3`` must take the full expansion, not the constant shortcut.
+
+    ``_magnus_gl``'s order-6 branch fires only when *every* Gauss-Legendre node of
+    the slab carries the same sample, and the conjunction is what makes that true:
+
+    .. code-block:: python
+
+        if _samples_identical(A1, A2) and _samples_identical(A2, A3):
+
+    Nothing else in the suite distinguishes that ``and`` from an ``or``.  The two
+    existing tests make all three nodes bit-identical, so both operands are true
+    either way, and the varying-slab test is order 4 with two nodes.  Weakened to
+    ``or``, this configuration returns ``h*A1`` -- a first-order answer for a slab
+    that is not constant -- and measures 0.0122 against an ``h*A`` scale of 0.01,
+    an O(100%) error.
+
+    The pattern is physically reachable rather than contrived: a piecewise-constant
+    profile with a jump between the second and third node is a
+    ``t_breakpoints``-delimited region boundary, or a castle wall, which is the
+    case the shortcut exists to serve.
+    """
+    A = np.array([[0.0, 1.0e-13], [1.0e-13, 3.0e-13]], dtype=complex)
+    B = np.array([[0.0, 4.0e-13], [4.0e-13, 9.0e-13]], dtype=complex)
+    h = 0.01
+
+    An = np.stack([A, A, B])[None, ...]          # (1 slab, 3 nodes, 2, 2)
+    Om = mg._magnus_gl(An, np.array([h]), 6)[0]
+    shortcut = h*A
+
+    # The shortcut must NOT have fired: the third node differs.
+    assert np.max(np.abs(Om - shortcut)) > 1e-3*np.max(np.abs(shortcut)), (
+        "order 6 took the constant shortcut on a slab whose third node differs; "
+        "check that _magnus_gl still requires ALL nodes identical")
+
+    # And where all three DO agree, it fires and is exact.
+    Ac = np.stack([A, A, A])[None, ...]
+    Om_c = mg._magnus_gl(Ac, np.array([h]), 6)[0]
+    assert np.array_equal(Om_c, h*A)
+
+
+# ----------------------------------------------------------------------
+# The evaluation-mode cache and the interval it was learned on.
+#
+# `probe_eval_mode`'s verdict is a property of the function *on an interval*,
+# not of the function alone: 'constant' means "sampling this A across [t0, t1]
+# gave the same matrix every time".  A cache keyed on the function alone
+# therefore answers a question it was never asked, and `_evaluate_A`'s
+# 'constant' branch applies the hint by evaluating once and broadcasting, with
+# no spot-check -- unlike the 'vector' and 'scalar' hints, which self-heal.
+#
+# The result is a silent wrong answer that depends on the order of a loop.
+# ----------------------------------------------------------------------
+
+def _layered_A():
+    r"""A profile with the short-circuit any careful author would write.
+
+    Two layers; if every requested position falls in one of them, return that
+    layer's single matrix rather than a stack.  Entirely reasonable, and it makes
+    `probe_eval_mode` answer 'constant' on a short interval and 'vector' on a
+    long one -- for the same function object.
+    """
+    lo = np.array([[0.0, 1.0e-13], [1.0e-13, 2.0e-13]], dtype=complex)
+    hi = np.array([[0.0, 8.0e-13], [8.0e-13, 5.0e-13]], dtype=complex)
+    edge = 5.0e12
+
+    def A(t):
+        t = np.asarray(t, dtype=float)
+        if t.ndim == 0:
+            return -1j*(lo if t < edge else hi)
+        if np.all(t < edge):
+            return -1j*lo
+        if np.all(t >= edge):
+            return -1j*hi
+        return -1j*np.where((t < edge)[..., None, None], lo, hi)
+
+    return A
+
+
+def test_probe_eval_mode_verdict_depends_on_the_interval():
+    r"""The premise: the same function is 'constant' on one interval, not another."""
+    A = _layered_A()
+    assert mg.probe_eval_mode(A, 0.0, 4.0e12) == 'constant'
+    assert mg.probe_eval_mode(A, 0.0, 2.0e13) != 'constant'
+
+
+def test_cached_eval_mode_does_not_reuse_a_mode_across_intervals():
+    r"""A mode learned on a short interval must not be served for a long one.
+
+    Keyed on the function alone, the first call teaches the cache 'constant' and
+    the second is answered from it -- so the whole trajectory is propagated from
+    one Hamiltonian sample, and the answer is unitary, unwarned, and wrong.
+    """
+    A = _layered_A()
+    short = mg.cached_eval_mode(A, 0.0, 4.0e12)
+    long_cached = mg.cached_eval_mode(A, 0.0, 2.0e13)
+    long_fresh = mg.probe_eval_mode(A, 0.0, 2.0e13)
+    assert short == 'constant'
+    assert long_cached == long_fresh, (
+        "cached_eval_mode returned %r for [0, 2e13] after learning %r on "
+        "[0, 4e12]; probe_eval_mode says %r. The cache key is missing the "
+        "interval." % (long_cached, short, long_fresh))
+
+
+def test_evaluate_A_is_not_poisoned_by_a_mode_from_a_shorter_interval():
+    r"""The consequence, at the level a caller would see it.
+
+    Order the two calls shortest-first and the long one inherits 'constant';
+    the samples it then uses are one matrix broadcast over a profile that
+    genuinely varies.
+    """
+    A = _layered_A()
+    times = np.linspace(0.0, 2.0e13, 9)
+    mg.cached_eval_mode(A, 0.0, 4.0e12)          # teach it the short interval
+    mode = mg.cached_eval_mode(A, 0.0, 2.0e13)
+    At, used = mg._evaluate_A(A, times, mode)
+    ref, _ = mg._evaluate_A(A, times, None)      # probe honestly
+    assert np.max(np.abs(At - ref)) < 1e-30, (
+        "samples built from a cached mode differ from honestly probed ones by "
+        "%.3e" % np.max(np.abs(At - ref)))
+
+
+@pytest.mark.parametrize('kind', ['slots', 'dataclass', 'custom_eq', 'plain'])
+def test_cached_eval_mode_accepts_hamiltonians_it_cannot_cache(kind):
+    r"""A cache must not decide whether a call is allowed to succeed.
+
+    ``WeakKeyDictionary`` raises ``TypeError`` for a key that cannot be weakly
+    referenced (a ``__slots__`` class) or cannot be hashed (a ``@dataclass``,
+    which sets ``__hash__ = None``, or anything defining ``__eq__`` without one).
+    All three are ordinary ways to write a Hamiltonian, and all three worked
+    before this cache existed, so the lookup is guarded and simply probes.
+
+    The guard has to wrap the *lookup*, not only the store: an earlier copy of
+    this cache in ``oscprob`` guarded the store alone and turned every such
+    Hamiltonian into a hard ``TypeError`` from inside ``osc_prob``.
+    """
+    from dataclasses import dataclass
+
+    H = np.diag([0.0, 2.5e-13, 7.5e-13]).astype(complex)
+
+    class Slotted:
+        __slots__ = ('H',)
+
+        def __init__(self, H):
+            self.H = H
+
+        def __call__(self, l):
+            return -1j*self.H
+
+    @dataclass
+    class Data:
+        H: object
+
+        def __call__(self, l):
+            return -1j*self.H
+
+    class CustomEq:
+        def __init__(self, H):
+            self.H = H
+
+        def __eq__(self, other):
+            return isinstance(other, CustomEq)
+
+        __hash__ = None
+
+        def __call__(self, l):
+            return -1j*self.H
+
+    A = {'slots': Slotted(H), 'dataclass': Data(H), 'custom_eq': CustomEq(H),
+         'plain': (lambda l: -1j*H)}[kind]
+    mode = mg.cached_eval_mode(A, 0.0, 1.0e13)
+    assert mode == mg.probe_eval_mode(A, 0.0, 1.0e13)
+    # and calling twice must not raise on the store path either
+    assert mg.cached_eval_mode(A, 0.0, 1.0e13) == mode
+
+
+def test_cached_eval_mode_bounds_its_per_interval_dictionary():
+    r"""The weak keys bound the outer map; the inner one needed its own ceiling.
+
+    ``WeakKeyDictionary`` drops an entry when its holder dies, which handles the
+    per-call closure.  It does nothing for a Hamiltonian defined at module scope,
+    which never dies -- and since the interval is part of the key, a loop over
+    distinct baselines adds one entry per point and keeps it for the life of the
+    process.  Measured before the ceiling: 1000 baselines, 1000 entries, ~184 KB.
+    """
+    A = _layered_A()
+    for i in range(4*mg._EVAL_MODE_CACHE_MAX):
+        mg.cached_eval_mode(A, 0.0, 4.0e12 + float(i))
+
+    held = sum(len(v) for v in mg._EVAL_MODE_CACHE.values())
+    assert held <= mg._EVAL_MODE_CACHE_MAX, (
+        "%d intervals retained against a ceiling of %d" % (held, mg._EVAL_MODE_CACHE_MAX))
+    # Bounding it must not have broken it: the verdict is still the probe's.
+    assert mg.cached_eval_mode(A, 0.0, 2.0e13) == mg.probe_eval_mode(A, 0.0, 2.0e13)

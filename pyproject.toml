@@ -32,8 +32,20 @@ dependencies = [
 
 [project.optional-dependencies]
 plot = []          # matplotlib is a base dependency; kept so `magnuspy[plot]` still resolves
-test = ["pytest", "pytest-cov", "pytest-xdist", "matplotlib>=3.5"]
-dev = ["pytest", "pytest-cov", "pytest-xdist", "twine", "build", "ruff", "matplotlib>=3.5"]
+
+# numba powers the Cayley-Hamilton matrix-exponential backend (magnus.expmkernels),
+# which is worth about 6x on a slab chain of 2x2 or 3x3 matrices.  Optional, and
+# deliberately so: without it `EXPM_BACKEND = 'auto'` silently uses numpy.linalg.eigh
+# and every result is the same to ~1e-15, so nothing but speed depends on it.
+#
+# It is listed in `test` as well, so that CI exercises the kernel rather than skipping
+# every test of it.  numba caps the numpy version it supports, so this does let the
+# resolver hold numpy back a minor release; that is accepted because the alternative is
+# shipping a compiled numerical kernel no CI job ever runs.
+fast = ["numba>=0.59"]
+test = ["pytest", "pytest-cov", "pytest-xdist", "matplotlib>=3.5", "numba>=0.59"]
+dev = ["pytest", "pytest-cov", "pytest-xdist", "twine", "build", "ruff",
+       "matplotlib>=3.5", "numba>=0.59"]
 notebooks = ["nbformat", "nbclient", "ipykernel", "matplotlib>=3.5", "scipy"]
 docs = ["sphinx", "sphinx-autoapi", "sphinx-rtd-theme", "sphinx-copybutton", "sphinxcontrib-bibtex", "sphinxcontrib-mermaid", "myst-parser", "jupyter-sphinx", "ipykernel", "matplotlib>=3.5"]
 

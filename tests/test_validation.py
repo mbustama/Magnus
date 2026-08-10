@@ -339,3 +339,53 @@ def test_only_the_labelling_keys_are_rejected():
     with pytest.raises((TypeError, ValueError)) as excinfo:
         op.osc_prob_3nu_vacuum(ENERGY, BASELINE, not_a_real_option=1, **osc)
     assert 'load_nufit_params' not in str(excinfo.value)
+
+
+@pytest.mark.parametrize("bad", [
+    {'max_n_slabs': 0},
+    {'rtol': -1.0, 'atol': -1.0},
+    {'max_num_loops': 0},
+])
+def test_a_constant_density_does_not_exempt_the_refinement_bounds(bad):
+    """The batched constant engine answers before osc_prob is reached, and so before
+    its validation runs.
+
+    A bound osc_prob would have rejected therefore has to be rejected in the
+    dispatcher too, or whether a bad parameter is reported at all depends on whether
+    the caller's density happens to be constant -- the same request raising on a PREM
+    profile and returning quietly on a uniform one.  The engine declines rather than
+    raising, so the message the caller sees is still osc_prob's own.
+    """
+    osc = gd.load_nufit_params('NuFIT 6.1', 'NO')
+    energy = np.linspace(1.0, 10.0, 6)*gd.UNIT_GEV
+    with pytest.raises(ValueError):
+        op.osc_prob_matter_std_potential(
+            3, 2.848, energy, BASELINE, osc, L0=0.0,
+            density_matter_is_in_g_per_cm3=True, **bad)
+
+
+@pytest.mark.parametrize("bad, named", [
+    ({'max_n_slabs': 1}, "max_n_slabs"),
+    ({'max_n_tpts_per_slab': 2}, "max_n_tpts_per_slab"),
+    ({'max_n_tpts_per_slab': 0}, "max_n_tpts_per_slab"),
+])
+def test_each_refinement_ceiling_is_checked_against_its_own_floor(bad, named):
+    """`min_n_slabs` defaults to 1 and `min_n_tpts_per_slab` to 2, so each ceiling
+    has to clear its own floor -- which is what the two messages say.
+
+    One of the two conditions named the wrong variable: it tested `max_n_slabs`
+    while reporting `max_n_tpts_per_slab`, so that parameter was never validated
+    at all and `max_n_slabs` was bounded at > 2 while its own message promised
+    > 1.  The error a caller got named a parameter they had not passed.
+    """
+    with pytest.raises(ValueError, match=named):
+        op.osc_prob(np.diag([0.0, 1.0e-13, 2.0e-13]).astype(complex), 0.0, BASELINE,
+                    rtol=1.0e-6, atol=1.0e-6, **bad)
+
+
+def test_the_slab_ceiling_of_two_is_now_accepted():
+    """The loosening half of the same fix: `max_n_slabs=2` clears a floor of 1 and
+    always should have, but the mislabelled condition refused it."""
+    P = op.osc_prob(np.diag([0.0, 1.0e-13, 2.0e-13]).astype(complex), 0.0, BASELINE,
+                    rtol=1.0e-6, atol=1.0e-6, max_n_slabs=2)
+    assert np.all(np.isfinite(np.asarray(P)))

@@ -324,3 +324,43 @@ def test_the_electron_density_path_is_never_flagged():
             matter.exp_density_profile(gd.NUM_DENSITY_E_SUN_CENTRAL, gd.L_SCALE_SUN),
             density_is_of_number_of_electrons=True)
         np.asarray(vcc(0.0))
+
+
+def test_the_undeclared_density_guard_survives_a_repeated_call():
+    """The constant-V_CC memo skips the conversion that both unit guards live inside.
+
+    Mirroring only the declared-in-g/cm^3 arm on a cache hit left the commoner and
+    quieter mistake -- the undeclared one, which returns exactly the vacuum answer --
+    warned about once and then silent, which is precisely the shape a scan or a fit
+    has.  A density that trips either guard is now not memoised at all, so the guard
+    keeps firing from where it always fired from.
+    """
+    matter._VCC_CONST_CACHE.clear()
+    for _ in range(3):
+        with pytest.warns(matter.DensityUnitWarning, match="too small|natural units"):
+            matter.vcc_func_from_rho_func(2.848, L0=0.0)
+
+
+def test_a_density_that_trips_a_guard_is_not_memoised():
+    """The mechanism behind the test above, and the reason it is done this way round.
+
+    The warning cannot simply be re-emitted from the cache-hit site: ``warnings.warn``
+    is called there with a ``stacklevel`` that attributes it to a different frame, the
+    frame is part of the interpreter's warning registry key, and the imitation
+    therefore printed a *second* warning under the default filter where an uncached
+    call printed one.  Declining to cache costs nothing, because a density that trips
+    a guard is a mistake being reported rather than a hot path.
+    """
+    matter._VCC_CONST_CACHE.clear()
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", matter.DensityUnitWarning)
+        matter.vcc_func_from_rho_func(2.848, L0=0.0)
+    assert len(matter._VCC_CONST_CACHE) == 0
+
+    # ...while an ordinary density is still memoised, which is the point of the cache.
+    matter._VCC_CONST_CACHE.clear()
+    first = matter.vcc_func_from_rho_func(2.848, L0=0.0,
+                                          density_matter_is_in_g_per_cm3=True)
+    assert len(matter._VCC_CONST_CACHE) == 1
+    assert matter.vcc_func_from_rho_func(
+        2.848, L0=0.0, density_matter_is_in_g_per_cm3=True) == first

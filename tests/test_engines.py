@@ -486,3 +486,175 @@ def test_cross_check_is_quiet_when_it_actually_compared_something():
     assert len(out['ran']) >= 2
     assert len({op.ENGINE_FAMILIES[lab] for lab in out['ran']}) >= 2
     assert out['max_spread_independent_pair'] is not None
+
+
+# ----------------------------------------------------------------------
+# The 'constant' engine: a position-independent Hamiltonian answered in one
+# batched exponential instead of one osc_prob call per point.
+#
+# It must agree with the per-point route it replaces, *for every scenario
+# wrapper*, and the reason is a trap this engine walked straight into.  Two of
+# the three dispatch call sites rebound ``h_matt`` to ``VCC_func*h_matt``
+# before calling the dispatcher, while the dispatcher is documented to take
+# ``h_matt`` as "the constant matrix multiplying VCC_func(l)" -- and it goes on
+# to multiply by VCC itself.  The separable engine never noticed, because the
+# rebinding only happens on the constant branch it used to decline outright.
+#
+# The resulting error was invisible in exactly the ways this package fears:
+# VCC^2 is ~1e-25 rather than ~1e-13, so the matter term all but vanished and
+# the answer stayed a perfectly plausible, unitary, nearly-vacuum probability;
+# and because VCC^2 has no sign, the neutrino and antineutrino results became
+# *identical*.  Constant-density standard matter was unaffected (that call site
+# passes the bare projector), so a test of the headline case alone passed.
+# ----------------------------------------------------------------------
+
+CONST_RHO = 10.0*gd.UNIT_G_PER_CM3
+CONST_E = 1.0*gd.UNIT_GEV
+CONST_L = 1000.0*gd.UNIT_KM
+CONST_ESCAN = np.linspace(0.6, 8.0, 12)*gd.UNIT_GEV
+
+
+def _constant_density_wrappers():
+    r"""One call per scenario wrapper that can reach the constant engine."""
+    return {
+        'matter std 2nu': lambda E, **kw: op.osc_prob_2nu_matter_constant_density(
+            E, CONST_L, CONST_RHO, validate_input=False, **PARAMS_2NU, **kw),
+        'matter std 3nu': lambda E, **kw: op.osc_prob_3nu_matter_constant_density(
+            E, CONST_L, CONST_RHO, validate_input=False, **PARAMS_3NU, **kw),
+        'nsi 3nu': lambda E, **kw: op.osc_prob_3nu_matter_nsi_constant_density(
+            E, CONST_L, CONST_RHO, eps_ee=0.3, eps_em=0.1j, eps_et=0.0,
+            eps_mm=0.0, eps_mt=0.0, eps_tt=0.0, validate_input=False,
+            **PARAMS_3NU, **kw),
+        'liv 2nu': lambda E, **kw: op.osc_prob_2nu_matter_liv_constant_density(
+            E, CONST_L, CONST_RHO, sxi=0.2, b1=gd.B1, b2=gd.B2,
+            Lambda=gd.LAMBDA, n_liv=1, validate_input=False, **PARAMS_2NU, **kw),
+        'liv 3nu': lambda E, **kw: op.osc_prob_3nu_matter_liv_constant_density(
+            E, CONST_L, CONST_RHO, b1=gd.B1, b2=gd.B2, b3=gd.B3,
+            Lambda=gd.LAMBDA, n_liv=1, validate_input=False, **PARAMS_3NU, **kw),
+        'vacuum 3nu': lambda E, **kw: op.osc_prob_3nu_vacuum(
+            E, CONST_L, validate_input=False, **PARAMS_3NU, **kw),
+    }
+
+
+@pytest.mark.parametrize('name', list(_constant_density_wrappers()))
+@pytest.mark.parametrize('nubar', [False, True])
+def test_constant_engine_agrees_with_the_refinement_ladder(name, nubar):
+    r"""Every wrapper, both signs, single point and scan, against the *ladder*.
+
+    Disabling ``'constant'`` alone is not enough to reach the ladder, and the
+    first version of this test did exactly that.  ``osc_prob`` has its own
+    constant-Hamiltonian shortcut, gated on ``not kwargs``, which then answers
+    instead -- so both sides of the comparison were one batched exponential
+    through the same ``magnus._expm_stack``, agreed to 12 digits by construction,
+    and the tolerance could never fire.  Instrumented, the slab machinery was
+    entered **zero** times on either side.
+
+    The lever that does defeat it is a keyword ``osc_prob`` does not name but the
+    Magnus core accepts, ``expm_backend`` -- ``n_slabs`` is a *named* parameter
+    and so never reaches the ``kwargs`` the guard tests.  With it the reference is
+    a genuine slab-quadrature product, which for a constant Hamiltonian is the
+    same answer reached by a different route, and that is what makes it a useful
+    check.  The test asserts the slab path was entered rather than trusting it.
+    """
+    fn = _constant_density_wrappers()[name]
+    for E in (CONST_E, CONST_ESCAN):
+        slab_calls = []
+        real = op.compute_evolution_operator_multiple_slabs
+
+        def counted(*a, **k):
+            slab_calls.append(1)
+            return real(*a, **k)
+
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            with op._engine_probe() as trace:
+                new = np.asarray(fn(E, nubar=nubar), dtype=float)
+            op.compute_evolution_operator_multiple_slabs = counted
+            try:
+                with op._engine_probe(disabled=('constant',)):
+                    old = np.asarray(fn(E, nubar=nubar, expm_backend='numba'),
+                                     dtype=float)
+            finally:
+                op.compute_evolution_operator_multiple_slabs = real
+        assert any(t['engine'] == 'constant' for t in trace), (
+            "the constant engine declined for %s, so this comparison is void" % name)
+        assert slab_calls, (
+            "%s: the reference route never entered the slab machinery, so it is "
+            "another constant shortcut rather than the ladder" % name)
+        assert maxabs(new - old) < 1e-12, (name, nubar, maxabs(new - old))
+        assert maxabs(np.sum(new, axis=-1) - 1.0) < 1e-12
+
+
+@pytest.mark.parametrize('name', ['matter std 2nu', 'matter std 3nu', 'nsi 3nu',
+                                  'liv 2nu', 'liv 3nu'])
+def test_constant_engine_keeps_the_antineutrino_sign(name):
+    r"""nubar must still change the answer once matter is present.
+
+    The matter potential carries the neutrino/antineutrino sign, so this is the
+    assertion that fails if a call site's ``h_matt`` has had ``VCC`` folded into
+    it and the engine multiplies by ``VCC`` a second time: ``VCC**2`` is
+    sign-blind, and the two answers come back bit-identical.
+    """
+    fn = _constant_density_wrappers()[name]
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        # The engine guard is the point.  Without it this test passed at full
+        # strength while exercising the route the constant engine replaced --
+        # measured identical to 17 digits with the engine disabled -- so the one
+        # test written to catch the VCC-folded-twice bug was not testing the code
+        # that had the bug.  See the module docstring of test_expm_backend.py.
+        with op._engine_probe() as trace:
+            P_nu = np.asarray(fn(CONST_E, nubar=False), dtype=float)
+            P_nubar = np.asarray(fn(CONST_E, nubar=True), dtype=float)
+    assert any(t['engine'] == 'constant' for t in trace), (
+        "%s: the constant engine did not answer, so this test is not looking at "
+        "the code it is meant to protect" % name)
+    assert maxabs(P_nu - P_nubar) > 1e-6, (
+        "%s: nubar had no effect, which is what folding VCC into h_matt twice "
+        "looks like" % name)
+
+
+def test_constant_engine_does_not_take_a_position_dependent_profile():
+    r"""PREM and an exponential profile must keep their own engines.
+
+    A constant-H engine that captured a varying profile would propagate the whole
+    trajectory with one exponential of one Hamiltonian -- wrong by O(1) while
+    still unitary.
+    """
+    import magnus.earth as earth
+    costhz = -0.85
+    Lc = earth.distance_traveled_inside_earth(costhz)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        for label, call in (
+            ('PREM single point', lambda info: op.osc_prob_3nu_earth(
+                CONST_E, costhz=costhz, L=Lc, validate_input=False,
+                strategy_info=info)),
+            ('PREM scan', lambda info: op.osc_prob_3nu_earth(
+                CONST_ESCAN, costhz=costhz, L=Lc, validate_input=False,
+                strategy_info=info)),
+            ('exponential profile', lambda info: op.osc_prob_3nu_sun(
+                10.0*gd.UNIT_MEV, 0.3*gd.SUN_RADIUS*gd.UNIT_KM, 0.0,
+                validate_input=False, strategy_info=info)),
+        ):
+            info = {}
+            call(info)
+            assert info.get('engine') != 'constant', (
+                "%s was answered by the constant engine" % label)
+
+
+def test_constant_appears_in_the_cross_check_tables():
+    r"""A new engine that is missing from these tables is invisible to the cross-check.
+
+    ``_CROSS_CHECK_FORCING`` must list it in *every other* row's forbid set as
+    well as its own: it answers before ``osc_prob_energy_baseline``, which is
+    what records the payload the independent ``expm`` reference is built from, so
+    an unlisted constant engine silently removes the only non-Magnus oracle in
+    the table.
+    """
+    assert 'constant' in op.ENGINE_FAMILIES
+    assert 'constant' in op._CROSS_CHECK_FORCING
+    for label, (_, _, forbid) in op._CROSS_CHECK_FORCING.items():
+        if label != 'constant':
+            assert 'constant' in forbid, (
+                "%r does not forbid 'constant', so forcing it cannot work" % label)

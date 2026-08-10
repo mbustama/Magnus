@@ -9071,8 +9071,17 @@ def best_of(call, repeats=3):
     return result, fastest'''),
     md(r'''## 3. Constant density: speed
 
-This is the problem `NuOscProbExact` exists for -- an exact closed form, evaluated once per
-energy. Mag$\nu$s solves the general problem and pays for the generality. Expect to lose.'''),
+This is the problem `NuOscProbExact` exists for -- an exact closed form for a
+piecewise-constant Hamiltonian. Mag$\nu$s solves the general problem, so the honest expectation
+is that it pays for the generality here.
+
+**Both codes are given both of their modes.** NuOscProbExact can be called once per energy or
+handed a stacked array, and the two differ by an order of magnitude; comparing a batched
+Mag$\nu$s against a looped NuOscProbExact would be a statement about Python loop overhead
+rather than about either method. Mag$\nu$s likewise recognises a position-independent
+Hamiltonian and exponentiates the whole scan at once -- for a constant density the Magnus series
+terminates at its first term, so one exponential per energy is not an approximation but the
+exact answer.'''),
     code(r'''results = []
 
 P_magnus, t_magnus = best_of(lambda: np.asarray(oscprob.osc_prob_3nu_matter_constant_density(
@@ -9080,26 +9089,266 @@ P_magnus, t_magnus = best_of(lambda: np.asarray(oscprob.osc_prob_3nu_matter_cons
     nu_i=gd.NUMU, nu_f=gd.NUE)))
 results.append(('Magnus (batched wrapper)', P_magnus, t_magnus))
 
+# Magnus with the batched constant-H engine switched off, i.e. one osc_prob call
+# per energy: the same number by the route the wrapper used to take.
+with oscprob._engine_probe(disabled=('constant',)):
+    P_mloop, t_mloop = best_of(lambda: np.asarray(
+        oscprob.osc_prob_3nu_matter_constant_density(
+            E, BASELINE, RHO, **OSC, density_matter_is_in_g_per_cm3=True,
+            nu_i=gd.NUMU, nu_f=gd.NUE)))
+results.append(('Magnus (one call per energy)', P_mloop, t_mloop))
+
 if AVAILABLE['NuOscProbExact']:
     h_npe = hamiltonians3nu.hamiltonian_3nu_vacuum_energy_independent(**OSC)
     P_npe, t_npe = best_of(lambda: np.array([
         oscprob3nu.probabilities_3nu(
             hamiltonians3nu.hamiltonian_3nu_matter(h_npe, e, VCC), BASELINE)[3]
         for e in E]))
-    results.append(('NuOscProbExact', P_npe, t_npe))
+    results.append(('NuOscProbExact (looped)', P_npe, t_npe))
 
-print('%-28s %-11s %-11s %s' % ('code', 'time [s]', 'us/point', 'max |P - exact|'))
-print('-'*66)
+    # The same code handed the whole energy axis at once.
+    P_npe_b, t_npe_b = best_of(lambda: np.asarray(oscprob3nu.probabilities_3nu(
+        hamiltonians3nu.hamiltonian_3nu_matter(h_npe, E, VCC), BASELINE))[..., 3])
+    results.append(('NuOscProbExact (batched)', P_npe_b, t_npe_b))
+
+print('%-30s %-11s %-11s %s' % ('code', 'time [s]', 'us/point', 'max |P - exact|'))
+print('-'*70)
 for name, P, t in results:
-    print('%-28s %-11.4f %-11.1f %.3e'
+    print('%-30s %-11.4f %-11.2f %.3e'
           % (name, t, 1.0e6*t/N_E, np.max(np.abs(P - reference))))'''),
+    md(r'''Read the two batched rows against each other, and the two looped rows against each
+other. Batched, the two codes are within a small factor and both sit at machine precision; the
+looped rows are an order of magnitude slower on both sides, which is the Python interpreter
+talking, not the physics.
+
+The single-point picture is different and worth stating plainly: one probability at one energy
+costs Mag$\nu$s about 1.7 times what it costs NuOscProbExact, and almost all of that gap is
+parameter resolution in the wrapper -- NuFIT defaults, unit flags, engine dispatch -- rather
+than arithmetic. The matrix exponential is under a tenth of the call.'''),
     md(r'''Both are exact to round-off; the closed form is several times faster. That is the
 right result and it is worth stating plainly: **if constant density is your whole problem, a
 closed-form code is the better tool.** Mag$\nu$s earns its cost on profiles that vary, where no
 closed form exists -- notebook 16 measures a mean-density substitution being wrong by 0.51 on
 an Earth chord.
 
-## 4. A conventions trap, and why the next table is in vacuum
+## 4. PREM, three flavours: the comparison that is actually about method
+
+Constant density is where a closed form is at its best, and it is not what either code exists
+for. The Earth is: a varying profile, where the two take genuinely different routes.
+NuOscProbExact discretises PREM into piecewise-constant slabs and propagates each exactly.
+Mag$\nu$s integrates within each slab to fourth or sixth order, so its slabs can be wider for
+the same accuracy. **The question is not time per call but time at matched accuracy**, and the
+dial is different on each side: `n_slabs_per_segment` for one, `rtol`/`atol` for the other.
+
+Two warnings before the numbers, and they bound what the comparison can mean.
+
+*The two PREM implementations need not be identical.* Layer radii, the polynomial coefficients,
+and the electron fraction are all conventions, and NuOscProbExact's own notebook 10 records a
+100 km discrepancy in one boundary against a published table. So a residual between the codes
+here is an upper bound on method disagreement, not a measurement of it.
+
+*Each code's self-convergence is the honest accuracy statement.* Refining a code against itself
+measures its own discretisation error without borrowing anyone else's conventions, and that is
+reported first.'''),
+    code(r'''COSTHZ = -0.85                     # a chord through mantle and outer core
+E_PREM = np.logspace(np.log10(0.6), np.log10(20.0), 24)*gd.UNIT_GEV
+
+try:
+    import earth as npe_earth
+    HAVE_NPE_EARTH = AVAILABLE['NuOscProbExact']
+except Exception as exc:
+    HAVE_NPE_EARTH = False
+    print('NuOscProbExact earth module not importable: %s' % exc)
+
+import magnus.earth as mg_earth
+# distance_traveled_inside_earth returns KILOMETRES; every osc_prob baseline is in
+# natural units (eV^-1).  Passing the raw value is a factor of 5.07e9 too short, and
+# it does not raise: the call returns a converged, unitary, entirely wrong answer at
+# a baseline of a few metres, on which the refinement ladder trivially agrees with
+# itself at every tolerance.  That is what this section measured on its first run.
+CHORD_KM = mg_earth.distance_traveled_inside_earth(COSTHZ)
+L_CHORD = CHORD_KM*gd.CONV_KM_TO_INV_EV
+print('costhz = %.2f -> chord %.1f km, %d energies, 0.6-20 GeV'
+      % (COSTHZ, CHORD_KM, len(E_PREM)))
+
+
+def magnus_prem(rtol, atol):
+    return np.asarray(oscprob.osc_prob_3nu_earth(
+        E_PREM, costhz=COSTHZ, L=L_CHORD, **OSC, nu_i=gd.NUMU, nu_f=gd.NUE,
+        rtol=rtol, atol=atol))
+
+
+def npe_prem(n_per_segment):
+    h = hamiltonians3nu.hamiltonian_3nu_vacuum_energy_independent(**OSC)
+    return np.asarray(npe_earth.probabilities_3nu_earth(
+        h, E_PREM, COSTHZ, n_slabs_per_segment=n_per_segment))[..., 3]'''),
+    md(r'''### Self-convergence: each code refined against itself'''),
+    code(r'''print('Magnus, refined against its own tightest setting')
+P_mg_ref = magnus_prem(1.0e-11, 1.0e-13)
+print('%-22s %-12s %s' % ('rtol/atol', 'time [ms]', 'max |P - P_tightest|'))
+print('-'*58)
+mg_curve = []
+for rtol, atol in ((1e-4, 1e-6), (1e-6, 1e-8), (1e-8, 1e-10)):
+    P, t = best_of(lambda r=rtol, a=atol: magnus_prem(r, a))
+    err = float(np.max(np.abs(P - P_mg_ref)))
+    mg_curve.append((1.0e6*t/len(E_PREM), max(err, 1.0e-16)))
+    print('%-22s %-12.3f %.3e' % ('%.0e / %.0e' % (rtol, atol), 1.0e3*t, err))
+
+if HAVE_NPE_EARTH:
+    print()
+    print('NuOscProbExact, refined against its own densest slabbing')
+    P_npe_ref = npe_prem(64)
+    print('%-22s %-12s %s' % ('slabs per segment', 'time [ms]', 'max |P - P_densest|'))
+    print('-'*58)
+    npe_curve = []
+    for n in (2, 4, 8, 16):
+        P, t = best_of(lambda k=n: npe_prem(k))
+        err = float(np.max(np.abs(P - P_npe_ref)))
+        npe_curve.append((1.0e6*t/len(E_PREM), max(err, 1.0e-16)))
+        print('%-22d %-12.3f %.3e' % (n, 1.0e3*t, err))'''),
+    md(r'''The two convergence tables are the substance of this notebook, and they say opposite
+things about the two axes. **NuOscProbExact is an order of magnitude cheaper per call here, and
+converges far more slowly**: doubling its slabs per segment buys roughly a factor of four, the
+$\mathcal{O}(h^2)$ of a piecewise-constant approximation, and at sixteen per segment it is still
+at a few times $10^{-5}$. Mag$\nu$s costs more per call and buys $10^{-10}$, because its error
+falls with the *order* of the integrator inside each slab rather than only with the slab width.
+
+Neither is the better code; they are priced differently. Below about $10^{-4}$ the closed form
+is the cheaper way to get there, and above it there is no setting of `n_slabs_per_segment` that
+competes.
+
+### The two codes against each other'''),
+    code(r'''if HAVE_NPE_EARTH:
+    gap = float(np.max(np.abs(P_mg_ref - P_npe_ref)))
+    rel = gap/float(np.max(P_npe_ref))
+    print('max |Magnus - NuOscProbExact|  = %.3e   (%.2e of the peak probability)'
+          % (gap, rel))
+    print()
+    print('Compare that against each code\'s own convergence above: Magnus reaches ~3e-10,')
+    print('NuOscProbExact ~6e-05 at the densest slabbing tried.  The residual between them')
+    print('is the same order as the looser of the two, so most of it is NuOscProbExact\'s')
+    print('discretisation rather than a convention difference -- which a residual far above')
+    print('BOTH curves would have indicated instead.')
+
+    fig, ax = plt.subplots(figsize=(7.2, 4.4))
+    ax.plot(E_PREM/gd.UNIT_GEV, P_mg_ref, lw=1.8, label=r'Mag$\nu$s')
+    ax.plot(E_PREM/gd.UNIT_GEV, P_npe_ref, lw=1.2, ls='--', label='NuOscProbExact')
+    ax.set_xscale('log')
+    ax.set_xlabel(r'$E_\nu$ [GeV]')
+    ax.set_ylabel(r'$P(\nu_\mu \to \nu_e)$')
+    ax.set_title(r'PREM chord, $\cos\theta_z = %.2f$, three flavours' % COSTHZ,
+                 fontsize=10)
+    ax.grid(True, alpha=0.2)
+    ax.legend(fontsize=8)'''),
+    md(r'''### Time at matched accuracy
+
+The trade-off curve, which is the only fair way to put the two on one axis: each point is one
+setting of that code's own dial.'''),
+    code(r'''if HAVE_NPE_EARTH:
+    fig, ax = plt.subplots(figsize=(7.2, 4.6))
+    ax.plot([u for u, _ in mg_curve], [e for _, e in mg_curve],
+            marker='*', ms=13, lw=1.2, color='k', label=r'Mag$\nu$s (rtol/atol)')
+    ax.plot([u for u, _ in npe_curve], [e for _, e in npe_curve],
+            marker='o', ms=6, lw=1.2, color='C0',
+            label='NuOscProbExact (slabs/segment)')
+    ax.set_xscale('log')
+    ax.set_yscale('log')
+    ax.set_xlabel(r'time per probability [$\mu$s]')
+    ax.set_ylabel(r'max $|P - P_{\rm own\ tightest}|$')
+    ax.set_title(r'PREM: self-convergence against cost, $\cos\theta_z = %.2f$' % COSTHZ,
+                 fontsize=10)
+    ax.grid(True, which='both', alpha=0.2)
+    ax.legend(fontsize=8)'''),
+    md(r'''## 5. PREM, 3+1: a sterile state through the Earth
+
+The 3+1 case is where the two codes' cost structures separate most, and for a reason worth
+naming: Mag$\nu$s's compiled Cayley--Hamilton exponential covers $2\times2$ and $3\times3$ only,
+because there is no practical closed form for a $4\times4$ Hermitian eigenproblem. Four flavours
+therefore exponentiate through `numpy.linalg.eigh`, and Mag$\nu$s loses the factor it had at
+three flavours. NuOscProbExact's SU(4) closed form has no such cliff.
+
+An eV-scale splitting over an Earth-crossing baseline also carries a very large accumulated
+phase, which is the regime where a refinement ladder works hardest.'''),
+    code(r'''STERILE = dict(s14=0.15, s24=0.15, s34=0.0, D41=1.0)
+
+def magnus_prem_4nu(rtol, atol):
+    return np.asarray(oscprob.osc_prob_4nu_earth(
+        E_PREM, costhz=COSTHZ, L=L_CHORD, **OSC, d14=0.0, d24=0.0,
+        nu_i=gd.NUMU, nu_f=gd.NUE, rtol=rtol, atol=atol, **STERILE))
+
+
+def npe_prem_4nu(n_per_segment):
+    import hamiltonians4nu
+    h = hamiltonians4nu.hamiltonian_4nu_vacuum_energy_independent(
+        OSC['s12'], OSC['s23'], OSC['s13'], STERILE['s14'], STERILE['s24'],
+        STERILE['s34'], OSC['dCP'], OSC['D21'], OSC['D31'], STERILE['D41'])
+    return np.asarray(npe_earth.probabilities_4nu_earth(
+        h, E_PREM, COSTHZ, n_slabs_per_segment=n_per_segment))[..., 4]
+
+
+# Warm up both sides first: at repeats=1 the first call carries the numba compile,
+# the PREM slab caches and NuOscProbExact's own import-time work, which made its
+# 8-slab row read slower than its 32-slab one.
+magnus_prem_4nu(1.0e-2, 1.0e-4)
+if HAVE_NPE_EARTH:
+    npe_prem_4nu(4)
+
+print('%-14s %-12s %-14s %s' % ('rtol', 'ms total', 'us/probability', 'warned?'))
+print('-'*58)
+P_mg4 = None
+for rtol, atol in ((1.0e-3, 1.0e-5), (1.0e-5, 1.0e-7)):
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter('always')
+        P, t = best_of(lambda r=rtol, a=atol: magnus_prem_4nu(r, a), repeats=1)
+        flags = sorted({c.category.__name__ for c in caught})
+    P_mg4 = P
+    print('%-14.0e %-12.1f %-14.1f %s'
+          % (rtol, 1.0e3*t, 1.0e6*t/len(E_PREM), ','.join(flags) or 'no'))
+
+if HAVE_NPE_EARTH:
+    print()
+    print('%-14s %-12s %-14s' % ('slabs/segment', 'ms total', 'us/probability'))
+    print('-'*42)
+    P_npe4 = None
+    for n in (8, 32):
+        P_npe4, t_npe4 = best_of(lambda k=n: npe_prem_4nu(k), repeats=1)
+        print('%-14d %-12.1f %-14.1f' % (n, 1.0e3*t_npe4, 1.0e6*t_npe4/len(E_PREM)))
+    if P_mg4 is not None:
+        print()
+        print('max |Magnus - NuOscProbExact| = %.3e'
+              % float(np.max(np.abs(P_mg4 - P_npe4))))'''),
+    md(r'''**This is the worst case for Mag$\nu$s in this notebook, by three orders of
+magnitude, and the cost does not fall when the tolerance is loosened.** That flatness is the
+diagnosis: the refinement ladder is not converging and stopping, it is running to its slab
+ceiling and giving up -- which is why a `MagnusConvergenceWarning` appears. An eV-scale
+$\Delta m^2_{41}$ over an 11 000 km chord accumulates a phase so large that the slab width
+needed for $\lVert\Omega\rVert < \pi$ is far below what the ladder will reach, and the warning
+is telling you the returned answer is not backed by a convergence argument.
+
+Two separate things are going on, and only one of them is fixable here:
+
+* **Dimension.** The compiled Cayley--Hamilton exponential covers $2\times2$ and $3\times3$
+  only -- there is no practical closed form for a $4\times4$ Hermitian eigenproblem -- so four
+  flavours fall back to `numpy.linalg.eigh` and lose the factor three flavours enjoy. That is a
+  constant, and it is small compared to what follows.
+* **Phase.** A closed form is exact at any accumulated phase; a truncated Magnus expansion is
+  not, and needs narrower slabs as the phase grows. This is the regime the method is worst
+  suited to, and no amount of engineering inside Mag$\nu$s changes that -- it is what the
+  expansion *is*.
+
+So the honest recommendation is the one this notebook keeps arriving at from different
+directions: **for a piecewise-constant profile with a large accumulated phase, use a closed
+form.** Mag$\nu$s earns its cost where no closed form exists -- an arbitrary varying profile, a
+custom Hamiltonian, a BSM term nobody has diagonalised -- and a 3+1 sterile crossing of PREM is
+not that problem.
+
+The channel index differs between the two conventions (`[..., 4]` is $\nu_\mu \to \nu_e$ in a
+four-flavour 16-tuple), and the sterile parametrisations are not identical either --
+NuOscProbExact takes no $\delta_{34}$ -- so the residual between the codes here is bounded by
+convention as well as by each one's convergence.
+
+'''),
+    md(r'''## 6. A conventions trap, and why the next table is in vacuum
 
 Running nuSQuIDS on the same nominal problem produces a disagreement of a few times
 $10^{-4}$ that **does not improve when its solver tolerance is tightened**. A plateau like
@@ -9169,7 +9418,7 @@ potential, and why the honest cross-code accuracy statement is the vacuum one. F
 properly means agreeing a conversion, not tightening a tolerance.
 
 '''),
-    md(r'''## 5. Speed against accuracy, across six codes
+    md(r'''## 7. Speed against accuracy, across six codes
 
 The comparison above is two codes at a single working point. The useful picture is the whole
 trade-off: every code has a dial -- a solver tolerance, a number of Newton steps, a batch mode
@@ -9255,14 +9504,23 @@ alone and survives a change of machine. "Code A is faster than code B" does not.
 | | |
 |---|---|
 | constant density, exactness | Mag$\nu$s and NuOscProbExact both $\sim10^{-16}$ |
-| constant density, speed | the closed form wins, several-fold |
+| constant density, speed | **comparable batched**, both ~1 µs/probability; both an order of magnitude slower called one energy at a time |
+| single point, constant density | the closed form by ~1.7×, almost all of it wrapper parameter resolution |
+| PREM, 3ν, cost per call | NuOscProbExact by ~20× |
+| PREM, 3ν, accuracy reachable | Mag$\nu$s to $3\times10^{-10}$; the closed form stalls near $6\times10^{-5}$ |
+| PREM, 3+1 with an eV splitting | NuOscProbExact by ~10$^3$, and Mag$\nu$s *warns* |
 | vacuum, nuSQuIDS vs exact | $\sim10^{-8}$ -- solver is fine |
 | matter, nuSQuIDS vs Mag$\nu$s | a **1% $V_{\rm CC}$ convention difference**, not accuracy |
 
-The comparison worth making is not "which code is fastest" but "which code solves my problem".
-For constant density, reach for a closed form. For an arbitrary varying profile, a custom
-Hamiltonian, or a BSM term that no closed form covers, that option does not exist -- which is
-where Mag$\nu$s's cost buys something.
+The comparison worth making is not "which code is fastest" but "which code solves my problem",
+and the table above does not have a winner in it -- it has a boundary. A **piecewise-constant**
+profile is what a closed form is for, and the larger the accumulated phase the more decisively
+so: the 3+1 row is the clearest result in this notebook and it is not in Mag$\nu$s's favour.
+Below about $10^{-4}$ on PREM the closed form is also the cheaper way to get there.
+
+What Mag$\nu$s buys is everything that is not that: accuracy past where a piecewise-constant
+discretisation stalls, an arbitrary varying profile, a custom Hamiltonian, a BSM term nobody has
+diagonalised. Where a closed form exists and the phase is large, use it.
 
 And before comparing any two codes' numbers: **check that they agree in vacuum first.** If they
 do not, the disagreement is in the solvers. If they do and they disagree in matter, it is in

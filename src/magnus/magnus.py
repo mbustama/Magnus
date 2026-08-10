@@ -77,11 +77,14 @@ __email__ = "mbustamante@gmail.com"
 
 
 import warnings
+import weakref
 from contextlib import contextmanager
 from typing import Optional, Callable, Union, Tuple
 
 import numpy as np
 import scipy as sp
+
+from magnus import expmkernels
 
 
 class MagnusHighOrderCostWarning(UserWarning):
@@ -397,6 +400,108 @@ def _evaluate_A(A: Callable, times: np.ndarray,
 
     At = At.reshape(times.shape + A0.shape).astype(complex, copy=False)
     return At, mode
+
+
+# Whether a given H_func *accepts an array of positions* is a property of the
+# function: a callable that does today will tomorrow.  Probing costs three calls
+# into the user's Hamiltonian, cheap for a PREM lookup and emphatically not for
+# an interpolated profile or a quadrature (notebook 19's long-range potential is
+# about a third of its own call), so the answer is worth remembering.
+#
+# **But the interval is part of the question, not context for it.**  'constant'
+# means "sampling A across [t0, t1] gave the same matrix every time", which a
+# wider interval can falsify -- a two-layer profile that short-circuits when all
+# requested positions fall in one layer probes as 'constant' on a short baseline
+# and 'vector' on a long one, for the same function object.  Keyed on the
+# function alone, a mode learned on the short one was served for the long one and
+# `_evaluate_A` then broadcast a single sample over a profile that varies: a
+# unitary, unwarned answer wrong by 5.8e-02, and wrong only for one order of the
+# caller's loop.  The interval is in the key for that reason.
+#
+# Keyed weakly, so a closure rebuilt per call simply misses and re-probes, and
+# nothing is kept alive that the caller has dropped.  Note that
+# `WeakKeyDictionary` keys by the referent's *equality*, not by identity -- an
+# earlier version of this comment claimed the opposite, which matters for a
+# caller whose Hamiltonian defines `__eq__`: two objects comparing equal share an
+# entry.  That is a documented property of the container, not a choice made here.
+_EVAL_MODE_CACHE = weakref.WeakKeyDictionary()
+
+_EVAL_MODE_CACHE_MAX = 256
+r"""int: How many distinct intervals are remembered per Hamiltonian before the lot is dropped.
+
+The weak keying bounds the *outer* dictionary but says nothing about the inner one: a
+Hamiltonian defined at module scope never dies, so without a ceiling its span dict grows for
+the lifetime of the process.  A direct ``osc_prob`` loop over distinct baselines is exactly
+that shape -- the interval is what varies per point -- and 1000 baselines retained 1000
+entries, about 184 KB.
+
+Cleared wholesale rather than LRU-evicted, matching
+``hamiltonians3nu._VACUUM_H_CACHE`` and ``matter._VCC_CONST_CACHE``.  The case this cache
+exists for is the refinement ladder, which calls repeatedly at *one* interval and so holds a
+single entry that no eviction can reach; the case that fills it is a scan, where each entry
+is used once and evicting the wrong one costs nothing.  Neither population rewards a smarter
+policy.
+
+.. versionadded:: 1.0.0
+"""
+
+
+def cached_eval_mode(A: Callable, t0: float, t1: float, key=None) -> str:
+    r"""``probe_eval_mode`` for a callable that will be probed more than once.
+
+    Returns the same value :func:`probe_eval_mode` would for *this interval*, and
+    remembers it against ``(key or A, t0, t1)`` so a repeated call on the same
+    Hamiltonian over the same span does not evaluate it three more times.  Falls
+    straight through for anything that cannot be weakly referenced or hashed.
+
+    ``key`` exists because callers often have to wrap the object they want cached:
+    ``probe_eval_mode`` needs :math:`A = -iH`, and a fresh ``lambda t: -1j*H(t)``
+    per call would miss every time.  Passing ``key=H_func`` caches against the
+    thing whose signature is actually being described.  Multiplying by a constant
+    cannot change whether a function accepts an array, so the two share a verdict.
+
+    .. versionadded:: 1.0.0
+
+    Parameters
+    ----------
+    A : Callable
+        The matrix function to probe.
+    t0, t1 : float
+        The interval to probe over.  Part of the cache key: see the comment above
+        ``_EVAL_MODE_CACHE`` for the wrong answer that omitting it produced.
+    key : optional
+        Object to cache against instead of ``A``.  Defaults to ``A``.
+
+    Returns
+    -------
+    str
+        'vector', 'scalar' or 'constant'; see :func:`probe_eval_mode`.
+    """
+    holder = A if key is None else key
+    span = (float(t0), float(t1))
+    try:
+        by_span = _EVAL_MODE_CACHE.get(holder)
+    except TypeError:
+        # Not weak-referenceable (a __slots__ class) or not hashable (a dataclass,
+        # which sets __hash__ = None, or anything defining __eq__).  All of those
+        # are ordinary ways to write a Hamiltonian, so probe and move on rather
+        # than letting the cache decide whether the call is allowed to succeed.
+        return probe_eval_mode(A, t0, t1)
+    if by_span is not None:
+        hit = by_span.get(span)
+        if hit is not None:
+            return hit
+    mode = probe_eval_mode(A, t0, t1)
+    try:
+        if by_span is None:
+            _EVAL_MODE_CACHE[holder] = {span: mode}
+        else:
+            if len(by_span) >= _EVAL_MODE_CACHE_MAX:
+                by_span.clear()
+            by_span[span] = mode
+    except TypeError:
+        pass
+    return mode
 
 
 def probe_eval_mode(A: Callable, t0: float, t1: float,
@@ -742,6 +847,24 @@ def _magnus_terms_quadrature(
     return np.stack(terms, axis=0)
 
 
+def _samples_identical(X: np.ndarray, Y: np.ndarray) -> bool:
+    r"""Whether two node samples are bit-identical for *every* slab.
+
+    Used to detect a Hamiltonian that is constant within each slab, where the
+    Magnus series terminates at its first term.  The test is exact equality
+    rather than a tolerance, deliberately: a *nearly* constant A still has
+    non-vanishing commutators that carry real information, and dropping them
+    because two samples happened to agree to some epsilon would silently lower
+    the order.  Exact equality is what a piecewise-constant profile actually
+    produces -- the same lookup returning the same float -- so nothing is lost
+    by refusing to guess.
+
+    ``array_equal`` short-circuits on the first differing element, so on a
+    smooth profile this costs one comparison and returns.
+    """
+    return X.shape == Y.shape and np.array_equal(X, Y)
+
+
 def _magnus_gl(
     An: np.ndarray,
     widths: Union[float, np.ndarray],
@@ -779,12 +902,25 @@ def _magnus_gl(
         # Omega = (h/2)(A1 + A2) + (sqrt(3)/12) h^2 [A2, A1]
         A1 = An[..., 0, :, :]
         A2 = An[..., 1, :, :]
+        if _samples_identical(A1, A2):
+            # A is constant across every slab's nodes, so [A2, A1] is identically zero and
+            # Omega = h A.  Not an approximation: for constant A the Magnus series terminates
+            # at the first term, every later one being a commutator of A with itself.  Skipping
+            # the commutator also removes its round-off, so this is very slightly *more*
+            # accurate as well as cheaper.  Fires on piecewise-constant profiles -- castle
+            # walls, a t_breakpoints-delimited region of uniform density -- and not on a smooth
+            # one like PREM, where the two nodes genuinely differ.
+            return h*A1
         return 0.5*h*(A1 + A2) + (np.sqrt(3.0)/12.0)*h*h*commutator(A2, A1)
 
     # Order 6 (Blanes, Casas & Ros 2000):
     A1 = An[..., 0, :, :]
     A2 = An[..., 1, :, :]
     A3 = An[..., 2, :, :]
+    if _samples_identical(A1, A2) and _samples_identical(A2, A3):
+        # Same argument as at order 4, and worth more here: the order-6 expression builds
+        # three nested commutators, all of which vanish for constant A.
+        return h*A1
     a1 = h*A2
     a2 = (np.sqrt(15.0)/3.0)*h*(A3 - A1)
     a3 = (10.0/3.0)*h*(A3 - 2.0*A2 + A1)
@@ -920,25 +1056,172 @@ def _warn_slab_norm(nmax: float):
         MagnusConvergenceWarning, stacklevel=4)
 
 
+def ordered_product(U: np.ndarray) -> np.ndarray:
+    r"""Time-ordered product of a stack of slab operators, earliest slab first.
+
+    Returns :math:`U_{n-1} \cdots U_1 U_0` for ``U`` of shape ``(n, d, d)`` --
+    the same quantity as ``functools.reduce(np.matmul, U[::-1])`` and, because
+    matrix multiplication is associative, the same value.
+
+    The difference is how it gets there.  ``reduce`` walks the stack one matrix
+    at a time, which is :math:`n-1` separate Python-level calls into NumPy for
+    matrices of size 3; the array was already materialised as a single
+    ``(n, d, d)`` block, so nearly all of that time is call overhead rather than
+    arithmetic.  Multiplying adjacent pairs instead collapses the stack in
+    :math:`\lceil\log_2 n\rceil` **batched** matmuls, each of which does its
+    whole level in one call.
+
+    Measured on unitary 3x3 stacks: 92 -> 29 us at n = 108, 1764 -> 370 us at
+    n = 2048, agreeing to 8e-16 with no systematic loss of unitarity.  The gain
+    grows with the slab count, which is the direction the adaptive refinement
+    moves in.
+
+    Associativity is what makes this legitimate; commutativity is *not* required
+    and is *not* assumed.  Adjacent pairs are combined in order, so the operator
+    ordering is preserved exactly -- an odd element is carried forward untouched
+    rather than being folded in out of turn.
+
+    .. versionadded:: 1.0.0
+
+    Parameters
+    ----------
+    U : np.ndarray
+        Stack of operators, shape ``(n, d, d)``, ordered earliest slab first.
+
+    Returns
+    -------
+    np.ndarray
+        The ordered product, shape ``(d, d)``.
+    """
+    M = np.asarray(U)
+    if M.ndim == 2:
+        return M
+    if M.shape[0] == 1:
+        return M[0]
+    M = M[::-1]                       # leftmost factor first
+    while M.shape[0] > 1:
+        n = M.shape[0]
+        half = n//2
+        prod = M[:2*half:2] @ M[1:2*half:2]
+        M = np.concatenate([prod, M[-1:]], axis=0) if n % 2 else prod
+    return M[0]
+
+
+valid_expm_backends = ['auto', 'numba', 'eigh']
+r"""list of str: The accepted values of ``EXPM_BACKEND`` and of every
+``expm_backend`` parameter.
+"""
+
+
+EXPM_BACKEND = 'auto'
+r"""str: Module-level switch selecting how :math:`\exp(\Omega)` is computed.
+
+Which routine exponentiates each slab.  This is not a correctness switch: the two
+backends agree to about 1e-15 wherever the kernel is used, which is the accuracy either one
+has -- and where it would not, it is not used: the kernel reports the conditioning of its own
+characteristic cubic and ``eigh`` answers instead.  See :data:`magnus.expmkernels.SEV_TOL`.
+
+* ``'auto'`` (the default): the compiled Cayley-Hamilton kernel of
+  :mod:`magnus.expmkernels` for 2x2 and 3x3 matrices when numba is installed,
+  and ``numpy.linalg.eigh`` for everything else.  Never fails: without numba, or
+  at dimension 4 and above, it is silently ``'eigh'``.
+* ``'numba'``: the same, except that a missing numba is an error rather than a
+  fallback -- for a caller who means to be sure the fast path is the one
+  running.  Dimensions 4 and 5 still use ``eigh`` even here, because there is no
+  practical closed form for a 4x4 or 5x5 Hermitian eigenproblem; 4nu and 5nu
+  stay correct and are simply not accelerated.
+* ``'eigh'``: ``numpy.linalg.eigh`` always, ignoring numba.  The reference route,
+  and what to set when comparing the two.
+
+``eigh`` costs about 1.25 us per 3x3 whatever the stack size, because it loops
+over LAPACK internally instead of vectorising, which makes it roughly a quarter
+of a 108-slab Magnus pass.  The kernel removes that.
+
+Setting this is the way to reach the whole package, including every
+:mod:`magnus.oscprob` wrapper; the ``expm_backend`` parameter on
+:func:`magnus_expansion`, :func:`evolution_operators_from_samples` and
+:func:`magnus_expansion_multislab` overrides it for one call.
+
+That includes ``n_jobs != 1``, but only because it is carried across deliberately: a module
+global does not survive a process boundary, and loky re-imports magnus in each worker with
+this back at its default.  ``oscprob.osc_prob_energy_baseline`` reads the value in the parent
+and re-applies it inside the worker.  Anything that adds a second parallel entry point has to
+do the same, or that path silently runs ``'auto'`` whatever this says.
+
+.. versionadded:: 1.0.0
+"""
+
+
+def _resolve_expm_backend(expm_backend: Optional[str]) -> str:
+    r"""Validates a requested backend and falls back to the module default.
+
+    Parameters
+    ----------
+    expm_backend : str or None
+        One of ``valid_expm_backends``; None means use ``EXPM_BACKEND``.
+
+    Returns
+    -------
+    str
+        The backend to use, one of ``valid_expm_backends``.
+
+    Raises
+    ------
+    ValueError
+        If the name is not recognised, or if ``'numba'`` was asked for by name
+        and numba is not installed.
+    """
+    backend = EXPM_BACKEND if expm_backend is None else expm_backend
+    if backend not in valid_expm_backends:
+        raise ValueError(
+            "magnus._expm_stack: expm_backend must be one of "
+            + str(valid_expm_backends) + ", not '" + str(backend) + "'.")
+    # Asked for by name, so a silent downgrade would be the wrong answer to give:
+    # the caller wanted to know the compiled kernel was running.  'auto' is the
+    # value that promises to work anywhere, and it is the default.
+    if backend == 'numba' and not expmkernels.HAVE_NUMBA:
+        raise ValueError(
+            "magnus._expm_stack: expm_backend='numba' was requested but numba is not "
+            "installed. Install it (pip install 'magnuspy[fast]', or pip install numba), "
+            "or use expm_backend='auto', which falls back to 'eigh' when numba is absent.")
+    return backend
+
+
 def _expm_stack(Om: np.ndarray, warn_wide: bool = False,
-                A_is_const: bool = False) -> np.ndarray:
+                A_is_const: bool = False,
+                expm_backend: Optional[str] = None) -> np.ndarray:
     r"""Matrix exponential of one matrix or a stack of matrices.
 
     If ``Om`` is anti-Hermitian (as is always the case for
     :math:`A = -i H` with a Hermitian Hamiltonian :math:`H`), the
-    exponential is computed from the eigendecomposition of the Hermitian
-    matrix :math:`K = i\Omega`:
+    exponential is computed from the spectrum of the Hermitian matrix
+    :math:`K = i\Omega`, by one of two routes selected by
+    ``EXPM_BACKEND``/``expm_backend``: the compiled Cayley-Hamilton kernel of
+    :mod:`magnus.expmkernels`, or the eigendecomposition
     :math:`\exp(\Omega) = V\, \mathrm{diag}\!\left(e^{-i\lambda}\right)\, V^\dagger`.
-    This is faster than scipy's Pade-based expm for stacks of small
-    matrices, and it yields an exactly unitary result (probabilities
-    that sum to 1 by construction).  Otherwise it falls back to
-    scipy.linalg.expm.
+    Either is faster than scipy's Pade-based expm for stacks of small matrices.
+    Otherwise it falls back to scipy.linalg.expm.
+
+    Neither route is *exactly* unitary, and an earlier version of this docstring
+    claimed the ``eigh`` one was.  It is not: :math:`U^\dagger U - I` measures
+    4e-16 for a single 3x3 and 4e-15 for a stack of 4096, growing with stack
+    size and never reaching zero, because the reconstruction from eigenvectors
+    rounds like any other floating-point product.  The Cayley-Hamilton kernel is
+    the same order -- measured slightly better, not worse, at every norm tested
+    from 1 to 1e5 against a 40-digit reference *on unclustered spectra*, and the
+    ``SEV_TOL`` gate is what keeps that true for clustered ones -- ungated, the
+    closed form reaches 2.7e-07 against ``eigh``'s 3.0e-11 where a clustered
+    spectrum meets a large norm, which is a corner neither a norm sweep nor a
+    degeneracy sweep alone visits.  Probabilities sum to 1 to about
+    1e-15, which is worth relying on; they do not sum to 1 by construction,
+    which is not.
 
     If ``warn_wide`` is True, the eigenvalues (whose maximum modulus is
     :math:`\lVert\Omega\rVert_2`) are also used to warn about slabs too
     wide for the Magnus series to converge; for a constant :math:`A`
     (``A_is_const``) the series terminates exactly and the check is
-    skipped.
+    skipped.  Both routes return the eigenvalues, so the check costs nothing
+    either way.
 
     Parameters
     ----------
@@ -950,12 +1233,16 @@ def _expm_stack(Om: np.ndarray, warn_wide: bool = False,
     A_is_const : bool, optional
         If True, A is constant in time/position, so the Magnus series terminates exactly and the
         convergence check is skipped even if ``warn_wide`` is True. Default: False.
+    expm_backend : str, optional
+        ``'auto'``, ``'numba'`` or ``'eigh'``; see ``EXPM_BACKEND``, which
+        supplies the default when this is None.
 
     Returns
     -------
     np.ndarray
         :math:`\exp(\Omega)`, same shape as ``Om``.
     """
+    backend = _resolve_expm_backend(expm_backend)
     Om = np.asarray(Om)
     K = 1j*Om
     Kh = np.conj(np.swapaxes(K, -1, -2))
@@ -964,11 +1251,34 @@ def _expm_stack(Om: np.ndarray, warn_wide: bool = False,
         return np.broadcast_to(np.eye(Om.shape[-1], dtype=complex),
                                Om.shape).copy()
     if np.max(np.abs(K - Kh)) <= 1.e-12*scale:
-        lam, V = np.linalg.eigh(0.5*(K + Kh))
+        if (backend != 'eigh' and expmkernels.HAVE_NUMBA
+                and expmkernels.supports_dim(Om.shape[-1])):
+            U, lam, sev = expmkernels.expm_herm_stack(K)
+            # The kernel forecasts, from the conditioning of its own characteristic cubic,
+            # whether it has lost more digits than eigh would; where it has, eigh answers
+            # instead.  It needs a clustered spectrum AND a large norm together -- measured
+            # up to 7440x worse than eigh in that corner, and no worse at all outside it --
+            # so this is a rare, exact repair rather than a routine second opinion.
+            #
+            # Comparing scalars in Python rather than reducing an array in numpy: a
+            # np.any() here would cost more than the kernel saves on a single 3x3.
+            if sev > expmkernels.SEV_TOL:
+                lam, V = np.linalg.eigh(K)
+                Vh = np.conj(np.swapaxes(V, -1, -2))
+                U = (V*np.exp(-1j*lam)[..., None, :]) @ Vh
+        else:
+            # eigh reads a single triangle, so the explicit symmetrisation it used to be handed
+            # was doing nothing the routine does not already do -- and the branch condition has
+            # just established that the two triangles agree to 1e-12 anyway.  The kernel reads
+            # the same triangle eigh does (the lower; eigh's UPLO defaults to 'L'), so at the
+            # edge of that 1e-12 tolerance the two routes still agree, rather than diverging by
+            # it because each picked a different half of a not-quite-Hermitian matrix.
+            lam, V = np.linalg.eigh(K)
+            Vh = np.conj(np.swapaxes(V, -1, -2))
+            U = (V*np.exp(-1j*lam)[..., None, :]) @ Vh
         if warn_wide and not A_is_const:
             _warn_slab_norm(np.max(np.abs(lam)))  # ||Om||_2 = max |lambda|
-        Vh = np.conj(np.swapaxes(V, -1, -2))
-        return (V*np.exp(-1j*lam)[..., None, :]) @ Vh
+        return U
     # General (non-anti-Hermitian) fallback
     if warn_wide and not A_is_const:
         try:
@@ -1043,7 +1353,8 @@ def magnus_expansion(
     integration_method: Optional[str] = 'gl',
     return_magnus_terms: Optional[bool] = False,
     validate_input: Optional[bool] = True,
-    A_eval_mode: Optional[str] = None
+    A_eval_mode: Optional[str] = None,
+    expm_backend: Optional[str] = None
 ) -> np.ndarray:
     r"""Compute :math:`\exp(\Omega_1 + \cdots + \Omega_\text{order})` of :math:`A(t)` from
     ``t0`` to ``t1``.
@@ -1080,6 +1391,10 @@ def magnus_expansion(
         Skip probing how ``A`` can be evaluated by declaring it up front
         ('vector', 'scalar', or 'constant'); see :func:`probe_eval_mode`.
         If None (default), it is probed once and detected automatically.
+    expm_backend : str, optional
+        Which routine exponentiates the slab: ``'auto'``, ``'numba'`` or
+        ``'eigh'``.  If None (default), the module-level ``EXPM_BACKEND``
+        decides.
 
     Returns
     -------
@@ -1113,7 +1428,8 @@ def magnus_expansion(
         tnodes = t0 + width*nodes
         An, used_mode = _evaluate_A(A, tnodes, A_eval_mode)
         Om = _magnus_gl(An, width, order)
-        U = _expm_stack(Om, warn_wide=True, A_is_const=(used_mode == 'constant'))
+        U = _expm_stack(Om, warn_wide=True, A_is_const=(used_mode == 'constant'),
+                        expm_backend=expm_backend)
         if not return_magnus_terms:
             return U
         return U, np.stack([Om], axis=0)
@@ -1124,7 +1440,8 @@ def magnus_expansion(
     magnus_terms = _magnus_terms_quadrature(Bt, order, integration_method)
 
     U = _expm_stack(np.sum(magnus_terms, axis=0), warn_wide=True,
-                    A_is_const=(used_mode == 'constant'))
+                    A_is_const=(used_mode == 'constant'),
+                    expm_backend=expm_backend)
     if not return_magnus_terms:
         return U
     return U, magnus_terms
@@ -1136,7 +1453,8 @@ def evolution_operators_from_samples(
     order: Optional[int] = 2,
     integration_method: Optional[str] = 'gl',
     A_is_const: Optional[bool] = False,
-    validate_input: Optional[bool] = True
+    validate_input: Optional[bool] = True,
+    expm_backend: Optional[str] = None
 ) -> np.ndarray:
     r"""Evolution operators of a chain of slabs from precomputed samples.
 
@@ -1168,6 +1486,10 @@ def evolution_operators_from_samples(
         slab-width convergence warning.
     validate_input : bool, optional
         If True, validate order and integration_method.
+    expm_backend : str, optional
+        Which routine exponentiates each slab: ``'auto'``, ``'numba'`` or
+        ``'eigh'``.  If None (default), the module-level ``EXPM_BACKEND``
+        decides.
 
     Returns
     -------
@@ -1179,11 +1501,12 @@ def evolution_operators_from_samples(
     w = np.asarray(widths, dtype=float)
     if integration_method == 'gl':
         Om = _magnus_gl(At, w, order)
-        return _expm_stack(Om, warn_wide=True, A_is_const=A_is_const)
+        return _expm_stack(Om, warn_wide=True, A_is_const=A_is_const,
+                           expm_backend=expm_backend)
     Bt = w[..., None, None, None]*At        # rescale to the unit interval
     magnus_terms = _magnus_terms_quadrature(Bt, order, integration_method)
     return _expm_stack(np.sum(magnus_terms, axis=0), warn_wide=True,
-                       A_is_const=A_is_const)
+                       A_is_const=A_is_const, expm_backend=expm_backend)
 
 
 def gl_nodes(order: int) -> np.ndarray:
@@ -1351,7 +1674,8 @@ def magnus_expansion_multislab(
     integration_method: Optional[str] = 'gl',
     validate_input: Optional[bool] = True,
     A_eval_mode: Optional[str] = None,
-    symmetric_over: Optional[tuple] = None
+    symmetric_over: Optional[tuple] = None,
+    expm_backend: Optional[str] = None
 ) -> np.ndarray:
     r"""Compute the evolution operators of all time slabs at once.
 
@@ -1398,6 +1722,11 @@ def magnus_expansion_multislab(
         It is therefore not a user-facing knob: it is set by the Earth entry
         points, where the symmetry is a fact of chord geometry rather than a
         claim.  See ``docs/dev/PLAN_PALINDROMIC_PROFILES.md`` section 3d(ii).
+
+    expm_backend : str, optional
+        Which routine exponentiates each slab: ``'auto'``, ``'numba'`` or
+        ``'eigh'``.  If None (default), the module-level ``EXPM_BACKEND``
+        decides.
 
     Returns
     -------
@@ -1458,11 +1787,12 @@ def magnus_expansion_multislab(
 
     return evolution_operators_from_samples(At, widths, order,
         integration_method, A_is_const=(used_mode == 'constant'),
-        validate_input=False)
+        validate_input=False, expm_backend=expm_backend)
 
 
 __all__ = [
     'MagnusConvergenceWarning',
+    'ordered_product',
     'MagnusHighOrderCostWarning',
     'ScalarHamiltonianWarning',
     'B',
@@ -1474,6 +1804,7 @@ __all__ = [
     'valid_integration_methods',
     'commutator',
     'probe_eval_mode',
+    'cached_eval_mode',
     'suggest_n_slabs',
     'magnus_expansion',
     'evolution_operators_from_samples',
@@ -1481,4 +1812,6 @@ __all__ = [
     'magnus_expansion_multislab',
     'USE_PALINDROME',
     'palindromic',
+    'EXPM_BACKEND',
+    'valid_expm_backends',
 ]
