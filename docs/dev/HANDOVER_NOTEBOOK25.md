@@ -4,16 +4,37 @@
 
 ---
 
-## SESSION 2 STATE (2026-08-10, later the same day) — READ THIS FIRST
+## THIS BRIEF IS COMPLETE AND MERGED — READ THIS FIRST
 
-Work paused mid-brief for a laptop hibernation. **Nothing is committed**; everything below is
-staged in the working tree. No background job is running.
+**Every item in §3 is built, and the work is on `main`.** PR #40, merged 2026-08-10 as
+`73d106b`, in the two commits §0 asks for:
 
-### Done, executing, and staged
+* `7b09f91` — the physics fixes of §6, standing alone. Verified separable: with only that
+  commit applied and the rest stashed, 180 tests pass.
+* `5f611ae` — notebooks 13, 14, 24 and 25, four generators, six frozen datasets, README and
+  `docs/source`.
+
+Gates at merge: full suite **1065 passed**; docs clean under `-n -W --keep-going`; CI green
+on the branch and again on `main`, including **Documentation Deployment**, which only runs
+on `main` and so could not be exercised before the merge.
+
+**§0 below is now history.** It describes a two-pile split that has happened, and a working
+tree that no longer exists. It is kept because its reasoning about *why* the piles are
+separate is still the right instinct for the next change of this shape. **Everything from §1
+onward — the lessons, the traps, the conventions, how to drive the other codes — remains
+current and is the reason this file is still worth reading.**
+
+The one open item is not part of this brief: a task is logged (not started) to validate and
+document the `t_breakpoints` / `n_slabs` / `cumulative` pass-through keywords, which are
+load-bearing in three of the new cross-code sections and appear in no signature. See the
+last entry under "Measured answers" below for why promoting them to named parameters is the
+wrong fix.
+
+### Notes on the larger pieces
 
 * **§11, the supernova shock** (§3 items 1 and 4). `gen_shock_benchmarks.py` writes
   `external_shock_benchmarks.json`; it executes notebook 14's own cells, so there is one
-  definition of the profile. Notebook 25 rebuilt: **59 cells, 0 errors, 40.6 s.**
+  definition of the profile. Notebook 25 final: **75 cells, 0 errors, ~42 s.**
 * **§10, solar, corrected** (§3 item 4b) and its speed/accuracy panel (item 3).
 * **§5's referee fixed** — see "three findings" below.
 * **README + `docs/source/index.rst`** aligned (item 5); axis limits tightened (item 6).
@@ -86,7 +107,7 @@ staged in the working tree. No background job is running.
   Promoting them to named parameters is the wrong fix: ~10 entry points x 3 declarations is
   the same duplication that hid the matter projector.
 
-### All brief items are now built; what each one landed on
+### Every item, and what it landed on
 
 | item | where | result |
 |---|---|---|
@@ -106,16 +127,10 @@ can be computed but not independently validated.
 
 ### Open
 
-1. **The gates.** Full suite (running at the time of writing; `src/` has changed three times
-   in ways that touch results, so read any failure as a possibly-stale expectation before
-   reading it as a regression). Then
-   `make clean html SPHINXOPTS="-n -W --keep-going"` -- an *incremental* build is not the
-   docs gate and cannot re-find a warning whose file it has cached.
-2. **The two-pile commit split described in §0**, which is still the right shape: the physics
-   fixes stand on their own and should land first; the notebook work is a second commit.
-3. A background task is logged (not started) to validate and document the `t_breakpoints` /
-   `n_slabs` / `cumulative` pass-through keywords on the public entry points. Not part of this
-   brief; do not fold it into either pile.
+Nothing from this brief. The gates described here have all run and passed; see the header.
+
+The logged-but-unstarted task on the pass-through keywords is the only follow-up, and it is
+deliberately outside both piles.
 
 This brief is written to stop you repeating work, and more importantly to stop you repeating
 *mistakes*. Almost everything that went wrong in the session behind it went wrong in the same
@@ -124,7 +139,9 @@ wrong at least once before it was right.
 
 ---
 
-## 0. State of the tree
+## 0. State of the tree — HISTORICAL, see the header
+
+*This section describes the tree as it was before PR #40. It is kept for its reasoning about why the two piles are separate, which is still right; its statements about what is committed are not.*
 
 Branch `notebook-25-perf`, cut from `main` at `17c7dd5`. **Nothing is committed** — the last
 commit is `fcd1a82`, and everything since is in the working tree. `src/` has changed twice in
@@ -244,7 +261,19 @@ Verdict: **NuOscProbExact is faster at every accuracy it can reach**, and its er
 Magnus wins on **reach**, not speed. Also a probability-vs-energy panel; the two codes agree to
 2.7e-11 over 200 energies.
 
-### Section 10 (solar) — landed, but the nuSQuIDS curve must be AVERAGED
+### Section 10 (solar) — RESOLVED; the diagnosis below is wrong, see the header
+
+> **RESOLVED 2026-08-10, and the cause was none of the candidates below.**
+> `external_solar_nusquids.json` has been regenerated and *is* plotted in section 10; do not
+> act on the "DO NOT PLOT IT" warning that follows. The fault was the **solver tolerance** --
+> below `rel_error = 1e-6` nuSQuIDS does not return probabilities on this ray. The clustered
+> grid and the track were both suspected here and both **rejected by measurement** (the track
+> was wrong regardless and is fixed: `Track(x_initial, b)` takes an impact parameter, so the
+> radial path is `b = 0` starting at `R + r`). Critically, the unitarity check this section
+> prescribes **cannot detect any of it** -- it passes at 1e-16 on output containing
+> `P_ee = 3.09`. The candidate list is kept because working through and rejecting it is how
+> the real cause was found, not because any of it turned out to be right.
+
 
 **The version in the tree compares Magnus's averaged P_ee against nuSQuIDS's instantaneous one,
 and that is not a fair plot.** It was caught in review and the fix is generated but not yet
