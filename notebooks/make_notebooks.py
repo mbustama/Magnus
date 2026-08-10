@@ -11514,9 +11514,10 @@ GALLERY = {
     ('04_magnus_long_baseline.ipynb', 1): 'gallery_long_baseline.png',
     ('13_magnus_tabulated_solar_model.ipynb', 2): 'gallery_solar_bsm.png',
     ('14_magnus_supernova_shock.ipynb', 2): 'gallery_shock_bsm.png',
+    ('07_magnus_bsm_sterile_nu.ipynb', 11): 'gallery_sterile_3plus2.png',
+    ('18_magnus_unusual_density_profiles.ipynb', 0): 'gallery_density_arrangement.png',
     ('19_magnus_custom_hamiltonian.ipynb', 1): 'gallery_custom_h.png',
     ('25_magnus_against_other_codes.ipynb', 11): 'gallery_solar_averaged.png',
-    ('25_magnus_against_other_codes.ipynb', 15): 'gallery_shock_vs_codes.png',
     # Not gallery material despite being good results: the expansion-order scatter and
     # the smooth-profile reach panel both carry a long y-axis label that the notebook's
     # tight bounding box truncates, and neither reads at 380 px.  Their findings are in
