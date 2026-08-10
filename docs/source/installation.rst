@@ -240,6 +240,17 @@ File Tree
    │   ├── README.md                   # This file
    │   ├── make_notebooks.py           # BUILDS the notebooks above -- edit this, not the .ipynb
    │   ├── external_speed_accuracy.json  # Five external codes' speed and accuracy (NuOscProbExact project)
+   │   ├── external_prem_speed_accuracy.json  # Notebook 25 section 5: the same, on a PREM chord, both codes batched
+   │   ├── external_profile_benchmarks.json  # Notebook 25 section 9: smooth-profile speed/accuracy, all codes on one machine
+   │   ├── external_shock_benchmarks.json  # Notebook 25 section 11: the supernova shock, both front widths
+   │   ├── external_shock_4nu.json     # Notebook 25 section 12: the same shock at 3+1
+   │   ├── external_shock_nsi.json     # Notebook 25 section 13: the same shock with NSI
+   │   ├── external_solar_nusquids.json  # Notebook 25 section 10: nuSQuIDS's energy-averaged solar survival probability
+   │   ├── gen_profile_benchmarks.py   # GENERATES external_profile_benchmarks.json -- needs the external codes
+   │   ├── gen_shock_benchmarks.py     # GENERATES external_shock_benchmarks.json -- runs notebook 14s own cells
+   │   ├── gen_shock_4nu.py            # GENERATES external_shock_4nu.json -- the shock at 3+1, own DOP853 referee
+   │   ├── gen_shock_nsi.py            # GENERATES external_shock_nsi.json -- the shock with NSI, own DOP853 referee
+   │   ├── gen_solar_nusquids.py       # GENERATES external_solar_nusquids.json -- needs nuSQuIDS
    │   ├── make_nufit_chi2.py          # Extracts notebook 26's NuFIT chi^2 profiles
    │   ├── make_shock_reference.py     # Freezes notebook 14's solve_ivp oracle
    │   ├── matplotlibrc                # Shared plot styling for the notebooks
@@ -260,6 +271,7 @@ File Tree
    │   │   ├── globaldefs.py           # Units, physical constants, NuFit parameter sets
    │   │   ├── hamiltonians/           # 2nu-5nu Hamiltonians: vacuum, matter, NSI, LIV (the one true subpackage)
    │   │   │   ├── __init__.py         # Explicit named imports from the four hamiltonians{2,3,4,5}nu.py modules
+   │   │   │   ├── _angles.py          # Rejects a sine outside [-1, 1] before it becomes a NaN Hamiltonian
    │   │   │   ├── hamiltonians2nu.py
    │   │   │   ├── hamiltonians3nu.py
    │   │   │   ├── hamiltonians4nu.py

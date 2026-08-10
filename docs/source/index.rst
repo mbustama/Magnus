@@ -266,7 +266,13 @@ floating-point round-off, and with no slab count to choose.
    * - Smoothly varying, fast against the oscillation --- the Sun, adiabatic MSW
      - **Magνs**
      - Slabbing needs :math:`\sim 10^4` steps per resonance crossing
-   * - A shock front, a kink, a tabulated profile
+   * - A front resolved across many slabs --- a shock from a simulation snapshot
+     - **Magνs**
+     - Smooth on the slab scale, so fourth order beats second
+   * - A front thin against the oscillation length --- a real hydrodynamic shock
+     - **NuOscProbExact**
+     - To any sampling method that is a jump, which is a closed form's home ground
+   * - A kink, a tabulated profile
      - **Magνs**
      - ``t_breakpoints`` puts a slab edge on the discontinuity
    * - More than four flavours
@@ -280,6 +286,48 @@ The two packages share conventions, units and parameter defaults deliberately,
 so a calculation can be moved between them as a cross-check.  That is worth
 doing: agreement between two methods with different failure modes is stronger
 evidence than either one's internal convergence check.
+
+.. _what-magnus-earns-its-place-on:
+
+What Magνs earns its place on
+------------------------------
+
+Worth stating in one place, because the table above is a list of cases and not
+a reason.  Where a closed form exists, an exact algebraic solution beats a
+truncated series; that is arithmetic rather than a defect, and it is why the
+first two rows go the way they do.  What is left is three axes, all of them
+measured in :doc:`notebook 25 <tutorials>` with every code timed in one process
+on one machine and refereed by a method that is neither code's.
+
+**Reach --- accuracy past where a slab product stalls.**  Composing slabs is
+second order in the slab width, so halving it buys a factor of four; the
+Gauss--Legendre Magnus expansion is fourth order and buys sixteen.  More
+importantly the slab product has a *floor*.  On a smooth exponential profile at
+three flavours its error bottoms out at :math:`2.5\times10^{-11}` near 16 000
+slabs and then **rises** --- past that point the round-off of composing that
+many matrix products costs more than another halving of the width buys, so
+32 768 slabs is worse than 16 384.  No setting reaches below that.  Magνs
+continues to :math:`2.9\times10^{-13}`.
+
+**Generality --- an arbitrary** :math:`H(t)`, **and five flavours.**  A custom
+Hamiltonian, a BSM term nobody has diagonalised, a profile interpolated from a
+simulation: none of these need per-model work, because nothing in the method
+assumes a form for :math:`H`.  The SU(N) expansions stop at SU(4); at five
+flavours there is no comparison to draw at all, which is the same point stated
+at its limit.
+
+**Pre-packaged observables --- the quantity an experiment measures.**  A 5-MeV
+neutrino leaving the Sun accumulates some 12 800 radians of phase, so the
+*instantaneous* survival probability at the surface is neither measurable nor
+stable: neighbouring energies land anywhere between 0.15 and 0.9.  What a solar
+experiment measures is the phase-averaged probability, and ``average=True``
+returns it directly, transporting along the levels of the instantaneous
+Hamiltonian instead of propagating.  On one BS2005-AGS,OP model file Magνs
+returns 40 averaged energies in 0.66 s, against 131 s for 12 *instantaneous*
+ones from nuSQuIDS --- and recovering the observable from those means averaging
+many such evaluations on top.  Neither of the other codes offers an averaging
+flag; this is a different algorithm for the question being asked, not the same
+algorithm run faster.
 
 .. _performance:
 

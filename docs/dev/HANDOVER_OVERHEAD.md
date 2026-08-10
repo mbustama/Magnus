@@ -399,7 +399,7 @@ Constant density, 3ν, 1300 km, 60 energies, interleaved with a control that ret
 | vs NuOscProbExact, batched scan | **1.10 µs/energy against its 1.44** — Magnus wins |
 | vs NuOscProbExact, single point | 33.8 µs against its 19.9 — we lose, and it is wrapper parameter resolution, not arithmetic |
 | PREM 3ν vs NuOscProbExact | it is ~20× cheaper per call; Magnus reaches 3e-10 where its O(h²) discretisation stalls near 6e-5 |
-| PREM 3+1, eV-scale splitting | **~1000× slower, with a `MagnusConvergenceWarning`**, and inherent — see §10.6 |
+| PREM 3+1, eV-scale splitting | ~~**~1000× slower and inherent**~~ — **RETRACTED, see §12**: measured against a matter Hamiltonian missing the sterile neutral-current term. Post-fix it is ~3× slower at 5e-05 and *faster* at 3e-09. |
 
 4ν/5ν gain less because the kernel covers d = 2 and 3 only; there is no practical closed form
 for a 4×4 Hermitian eigenproblem and there never will be.
@@ -506,8 +506,13 @@ separation with scale; extend that grid rather than writing a new sweep.
   this is now closed: see §11 for the three bounds the constant engine was skipping and the
   mislabelled condition underneath them. These two are what is left, and they are accepted
   **consistently**, which is why they are a wart rather than a defect.
-* **PREM 3+1 is ~1000× slower than the closed form and warns.** The cost is flat across
-  tolerances, which is the diagnosis: the ladder runs to its slab ceiling rather than converging.
+* ~~**PREM 3+1 is ~1000× slower than the closed form and warns.**~~ **RETRACTED — see §12.**
+  The flat-across-tolerances cost was read as "the ladder runs to its slab ceiling", and it was
+  really the ladder refining toward an answer that was wrong by 0.29 because
+  `hamiltonian_4nu_matter` omitted the sterile neutral-current term. With that fixed the cost
+  responds to the tolerance normally and Mag𝜈s is *faster* than the closed form below ~1e-08.
+  The original text follows, kept because the reasoning is a good example of a correct-sounding
+  diagnosis built on a broken measurement:
   An eV-scale `Δm²₄₁` over an 11 000 km chord needs a slab width far below what the ladder
   reaches. Two causes, one fixable: 4ν falls back to `eigh` (a small constant), and a truncated
   Magnus expansion needs narrower slabs as the phase grows (which is what the expansion *is*).

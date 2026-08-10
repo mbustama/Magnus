@@ -32,6 +32,8 @@ __email__ = "mbustamante@gmail.com"
 
 
 import numpy as np
+
+from magnus.hamiltonians import _angles
 from typing import Optional, Callable
 # from globaldefs import *
 
@@ -118,6 +120,7 @@ def hamiltonian_2nu_vacuum_energy_independent(sth: float, Dm2: float,
     The energy is divided out separately, which is what makes this the piece to
     build once and reuse across a scan over energies.
 """
+    _angles.validate_sines('hamiltonian_2nu_vacuum_energy_independent', sth=sth)
     cth = np.sqrt(1.0-sth*sth)
     c2th = cth*cth-sth*sth
     s2th = 2.0*cth*sth

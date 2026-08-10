@@ -6642,8 +6642,11 @@ def osc_prob_matter_std_potential(
     # VCC_func already carries the antineutrino sign flip (applied inside
     # matter.vcc_func_from_rho_func), so no extra sign is applied here.  [Previously, the sign was
     # applied twice, which gave the antineutrino matter potential the wrong (positive) sign.]
-    h_matt_proj = np.zeros((num_flavors, num_flavors))
-    h_matt_proj[0][0] = 1.0
+    # Sterile states do not share the actives' neutral-current potential, so beyond three
+    # flavours this is not e_ee; see matter.matter_potential_projector for the physics and
+    # for what omitting it cost.
+    h_matt_proj = matter.matter_potential_projector(
+        num_flavors, ratio_number_neutrons_to_protons)
 
     # Cache repeated evaluations of the potential on identical position grids (see
     # _PositionProfileCache)
@@ -7448,8 +7451,9 @@ def osc_prob_liv(
         # Projector onto the nu_e--nu_e entry, multiplied below by the potential VCC.  Note that
         # VCC_func already carries the antineutrino sign flip (applied inside
         # matter.vcc_func_from_rho_func), so no extra sign is applied here.
-        h_matt = np.zeros((num_flavors, num_flavors))
-        h_matt[0][0] = 1.0
+        # See matter.matter_potential_projector: beyond three flavours this is not e_ee.
+        h_matt = matter.matter_potential_projector(
+            num_flavors, ratio_number_neutrons_to_protons)
 
         # Build the coherent forward potential function, VCC_func, from the density function,
         # rho_func. If the provided rho_func is the matter density (e.g., g cm^{-3}), convert
@@ -9463,6 +9467,8 @@ def osc_prob_2nu_earth(
     nubar: Optional[bool]=False, 
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
+    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
+    electron_fraction: Optional[Union[int, float]]=0.5,
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
@@ -9623,8 +9629,8 @@ def osc_prob_2nu_earth(
     return osc_prob_matter_std_potential(
         num_flavors=2,
         rho_func=lambda l: matter.num_density_e_func(earth.earth_radial_distance_from_depth(costhz, 
-            l/gd.UNIT_KM), earth.density_matter_func_prem, ratio_number_neutrons_to_protons=1.0,
-            electron_fraction=0.5, density_matter_is_in_g_per_cm3=True), # [eV^3] (l in eV^{-1})
+            l/gd.UNIT_KM), earth.density_matter_func_prem, ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
+            electron_fraction=electron_fraction, density_matter_is_in_g_per_cm3=True), # [eV^3] (l in eV^{-1})
         energy=energy,
         L=L, # [eV^{-1}]
         t_breakpoints=t_breakpoints,
@@ -9639,6 +9645,10 @@ def osc_prob_2nu_earth(
         nu_i=nu_i,
         nu_f=nu_f,
         density_is_of_number_of_electrons=True,
+        # Forwarded as well as used above: beyond three flavours the matter
+        # projector needs it for the sterile entries, and a projector built from a
+        # different r than the density would be this same defect a second time.
+        ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
         validate_input=validate_input,
         save_log=save_log,
         filename_log=filename_log,
@@ -9665,6 +9675,8 @@ def osc_prob_3nu_earth(
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
+    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
+    electron_fraction: Optional[Union[int, float]]=0.5,
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
@@ -9829,8 +9841,8 @@ def osc_prob_3nu_earth(
     return osc_prob_matter_std_potential(
         num_flavors=3,
         rho_func=lambda l: matter.num_density_e_func(earth.earth_radial_distance_from_depth(costhz, 
-            l/gd.UNIT_KM), earth.density_matter_func_prem, ratio_number_neutrons_to_protons=1.0,
-            electron_fraction=0.5, density_matter_is_in_g_per_cm3=True), # [eV^3] (l in eV^{-1})
+            l/gd.UNIT_KM), earth.density_matter_func_prem, ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
+            electron_fraction=electron_fraction, density_matter_is_in_g_per_cm3=True), # [eV^3] (l in eV^{-1})
         energy=energy,
         L=L,
         t_breakpoints=t_breakpoints,
@@ -9845,6 +9857,10 @@ def osc_prob_3nu_earth(
         nu_i=nu_i,
         nu_f=nu_f,
         density_is_of_number_of_electrons=True,
+        # Forwarded as well as used above: beyond three flavours the matter
+        # projector needs it for the sterile entries, and a projector built from a
+        # different r than the density would be this same defect a second time.
+        ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
         default_osc_params_set_name=default_osc_params_set_name,
         validate_input=validate_input,
         save_log=save_log,
@@ -9878,6 +9894,8 @@ def osc_prob_4nu_earth(
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
+    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
+    electron_fraction: Optional[Union[int, float]]=0.5,
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
@@ -10057,8 +10075,8 @@ def osc_prob_4nu_earth(
     return osc_prob_matter_std_potential(
         num_flavors=4,
         rho_func=lambda l: matter.num_density_e_func(earth.earth_radial_distance_from_depth(costhz, 
-            l/gd.UNIT_KM), earth.density_matter_func_prem, ratio_number_neutrons_to_protons=1.0,
-            electron_fraction=0.5, density_matter_is_in_g_per_cm3=True), # [eV^3] (l in eV^{-1})
+            l/gd.UNIT_KM), earth.density_matter_func_prem, ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
+            electron_fraction=electron_fraction, density_matter_is_in_g_per_cm3=True), # [eV^3] (l in eV^{-1})
         energy=energy,
         L=L,
         t_breakpoints=t_breakpoints,
@@ -10074,6 +10092,10 @@ def osc_prob_4nu_earth(
         nu_i=nu_i,
         nu_f=nu_f,
         density_is_of_number_of_electrons=True,
+        # Forwarded as well as used above: beyond three flavours the matter
+        # projector needs it for the sterile entries, and a projector built from a
+        # different r than the density would be this same defect a second time.
+        ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
         default_osc_params_set_name=default_osc_params_set_name,
         validate_input=validate_input,
         save_log=save_log,
@@ -10113,6 +10135,8 @@ def osc_prob_5nu_earth(
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
+    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
+    electron_fraction: Optional[Union[int, float]]=0.5,
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
@@ -10306,8 +10330,8 @@ def osc_prob_5nu_earth(
     return osc_prob_matter_std_potential(
         num_flavors=5,
         rho_func=lambda l: matter.num_density_e_func(earth.earth_radial_distance_from_depth(costhz, 
-            l/gd.UNIT_KM), earth.density_matter_func_prem, ratio_number_neutrons_to_protons=1.0,
-            electron_fraction=0.5, density_matter_is_in_g_per_cm3=True), # [eV^3] (l in eV^{-1})
+            l/gd.UNIT_KM), earth.density_matter_func_prem, ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
+            electron_fraction=electron_fraction, density_matter_is_in_g_per_cm3=True), # [eV^3] (l in eV^{-1})
         energy=energy,
         L=L,
         t_breakpoints=t_breakpoints,
@@ -10324,6 +10348,10 @@ def osc_prob_5nu_earth(
         nu_i=nu_i,
         nu_f=nu_f,
         density_is_of_number_of_electrons=True,
+        # Forwarded as well as used above: beyond three flavours the matter
+        # projector needs it for the sterile entries, and a projector built from a
+        # different r than the density would be this same defect a second time.
+        ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
         default_osc_params_set_name=default_osc_params_set_name,
         validate_input=validate_input,
         save_log=save_log,
@@ -12790,6 +12818,8 @@ def osc_prob_2nu_earth_nsi(
     nubar: Optional[bool]=False, 
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
+    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
+    electron_fraction: Optional[Union[int, float]]=0.5,
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
@@ -12951,8 +12981,8 @@ def osc_prob_2nu_earth_nsi(
     return osc_prob_matter_nsi(
         num_flavors=2,
         rho_func=lambda l: matter.num_density_e_func(earth.earth_radial_distance_from_depth(costhz, 
-            l/gd.UNIT_KM), earth.density_matter_func_prem, ratio_number_neutrons_to_protons=1.0,
-            electron_fraction=0.5, density_matter_is_in_g_per_cm3=True), # [eV^3] (l in eV^{-1})
+            l/gd.UNIT_KM), earth.density_matter_func_prem, ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
+            electron_fraction=electron_fraction, density_matter_is_in_g_per_cm3=True), # [eV^3] (l in eV^{-1})
         energy=energy,
         L=L,
         t_breakpoints=t_breakpoints,
@@ -12968,6 +12998,10 @@ def osc_prob_2nu_earth_nsi(
         nu_i=nu_i,
         nu_f=nu_f,
         density_is_of_number_of_electrons=True,
+        # Forwarded as well as used above: beyond three flavours the matter
+        # projector needs it for the sterile entries, and a projector built from a
+        # different r than the density would be this same defect a second time.
+        ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
         validate_input=validate_input,
         save_log=save_log,
         filename_log=filename_log,
@@ -13000,6 +13034,8 @@ def osc_prob_3nu_earth_nsi(
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
+    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
+    electron_fraction: Optional[Union[int, float]]=0.5,
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
@@ -13175,8 +13211,8 @@ def osc_prob_3nu_earth_nsi(
     return osc_prob_matter_nsi(
         num_flavors=3,
         rho_func=lambda l: matter.num_density_e_func(earth.earth_radial_distance_from_depth(costhz, 
-            l/gd.UNIT_KM), earth.density_matter_func_prem, ratio_number_neutrons_to_protons=1.0,
-            electron_fraction=0.5, density_matter_is_in_g_per_cm3=True), # [eV^3] (l in eV^{-1})
+            l/gd.UNIT_KM), earth.density_matter_func_prem, ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
+            electron_fraction=electron_fraction, density_matter_is_in_g_per_cm3=True), # [eV^3] (l in eV^{-1})
         energy=energy,
         L=L,
         t_breakpoints=t_breakpoints,
@@ -13193,6 +13229,10 @@ def osc_prob_3nu_earth_nsi(
         nu_i=nu_i,
         nu_f=nu_f,
         density_is_of_number_of_electrons=True,
+        # Forwarded as well as used above: beyond three flavours the matter
+        # projector needs it for the sterile entries, and a projector built from a
+        # different r than the density would be this same defect a second time.
+        ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
         default_osc_params_set_name=default_osc_params_set_name,
         validate_input=validate_input,
         save_log=save_log,
@@ -13236,6 +13276,8 @@ def osc_prob_4nu_earth_nsi(
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
+    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
+    electron_fraction: Optional[Union[int, float]]=0.5,
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
@@ -13433,8 +13475,8 @@ def osc_prob_4nu_earth_nsi(
     return osc_prob_matter_nsi(
         num_flavors=4,
         rho_func=lambda l: matter.num_density_e_func(earth.earth_radial_distance_from_depth(costhz, 
-            l/gd.UNIT_KM), earth.density_matter_func_prem, ratio_number_neutrons_to_protons=1.0,
-            electron_fraction=0.5, density_matter_is_in_g_per_cm3=True), # [eV^3] (l in eV^{-1})
+            l/gd.UNIT_KM), earth.density_matter_func_prem, ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
+            electron_fraction=electron_fraction, density_matter_is_in_g_per_cm3=True), # [eV^3] (l in eV^{-1})
         energy=energy,
         L=L,
         t_breakpoints=t_breakpoints,
@@ -13453,6 +13495,10 @@ def osc_prob_4nu_earth_nsi(
         nu_i=nu_i,
         nu_f=nu_f,
         density_is_of_number_of_electrons=True,
+        # Forwarded as well as used above: beyond three flavours the matter
+        # projector needs it for the sterile entries, and a projector built from a
+        # different r than the density would be this same defect a second time.
+        ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
         default_osc_params_set_name=default_osc_params_set_name,
         validate_input=validate_input,
         save_log=save_log,
@@ -13507,6 +13553,8 @@ def osc_prob_5nu_earth_nsi(
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
+    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
+    electron_fraction: Optional[Union[int, float]]=0.5,
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
@@ -13729,8 +13777,8 @@ def osc_prob_5nu_earth_nsi(
     return osc_prob_matter_nsi(
         num_flavors=5,
         rho_func=lambda l: matter.num_density_e_func(earth.earth_radial_distance_from_depth(costhz, 
-            l/gd.UNIT_KM), earth.density_matter_func_prem, ratio_number_neutrons_to_protons=1.0,
-            electron_fraction=0.5, density_matter_is_in_g_per_cm3=True), # [eV^3] (l in eV^{-1})
+            l/gd.UNIT_KM), earth.density_matter_func_prem, ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
+            electron_fraction=electron_fraction, density_matter_is_in_g_per_cm3=True), # [eV^3] (l in eV^{-1})
         energy=energy,
         L=L,
         t_breakpoints=t_breakpoints,
@@ -13751,6 +13799,10 @@ def osc_prob_5nu_earth_nsi(
         nu_i=nu_i,
         nu_f=nu_f,
         density_is_of_number_of_electrons=True,
+        # Forwarded as well as used above: beyond three flavours the matter
+        # projector needs it for the sterile entries, and a projector built from a
+        # different r than the density would be this same defect a second time.
+        ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
         default_osc_params_set_name=default_osc_params_set_name,
         validate_input=validate_input,
         save_log=save_log,
@@ -16492,6 +16544,8 @@ def osc_prob_2nu_earth_liv(
     nubar: Optional[bool]=False, 
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
+    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
+    electron_fraction: Optional[Union[int, float]]=0.5,
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
@@ -16659,8 +16713,8 @@ def osc_prob_2nu_earth_liv(
     return osc_prob_liv(
         num_flavors=2,
         rho_func=lambda l: matter.num_density_e_func(earth.earth_radial_distance_from_depth(costhz, 
-            l/gd.UNIT_KM), earth.density_matter_func_prem, ratio_number_neutrons_to_protons=1.0,
-            electron_fraction=0.5, density_matter_is_in_g_per_cm3=True), # [eV^3] (l in eV^{-1})
+            l/gd.UNIT_KM), earth.density_matter_func_prem, ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
+            electron_fraction=electron_fraction, density_matter_is_in_g_per_cm3=True), # [eV^3] (l in eV^{-1})
         energy=energy,
         L=L,
         t_breakpoints=t_breakpoints,
@@ -16676,6 +16730,10 @@ def osc_prob_2nu_earth_liv(
         nu_i=nu_i,
         nu_f=nu_f,
         density_is_of_number_of_electrons=True,
+        # Forwarded as well as used above: beyond three flavours the matter
+        # projector needs it for the sterile entries, and a projector built from a
+        # different r than the density would be this same defect a second time.
+        ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
         validate_input=validate_input,
         save_log=save_log,
         filename_log=filename_log,
@@ -16711,6 +16769,8 @@ def osc_prob_3nu_earth_liv(
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
+    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
+    electron_fraction: Optional[Union[int, float]]=0.5,
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
@@ -16894,8 +16954,8 @@ def osc_prob_3nu_earth_liv(
     return osc_prob_liv(
         num_flavors=3,
         rho_func=lambda l: matter.num_density_e_func(earth.earth_radial_distance_from_depth(costhz, 
-            l/gd.UNIT_KM), earth.density_matter_func_prem, ratio_number_neutrons_to_protons=1.0,
-            electron_fraction=0.5, density_matter_is_in_g_per_cm3=True), # [eV^3] (l in eV^{-1})
+            l/gd.UNIT_KM), earth.density_matter_func_prem, ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
+            electron_fraction=electron_fraction, density_matter_is_in_g_per_cm3=True), # [eV^3] (l in eV^{-1})
         energy=energy,
         L=L,
         t_breakpoints=t_breakpoints,
@@ -16912,6 +16972,10 @@ def osc_prob_3nu_earth_liv(
         nu_i=nu_i,
         nu_f=nu_f,
         density_is_of_number_of_electrons=True,
+        # Forwarded as well as used above: beyond three flavours the matter
+        # projector needs it for the sterile entries, and a projector built from a
+        # different r than the density would be this same defect a second time.
+        ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
         default_osc_params_set_name=default_osc_params_set_name,
         validate_input=validate_input,
         save_log=save_log,
@@ -16960,6 +17024,8 @@ def osc_prob_4nu_earth_liv(
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
+    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
+    electron_fraction: Optional[Union[int, float]]=0.5,
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
@@ -17167,8 +17233,8 @@ def osc_prob_4nu_earth_liv(
     return osc_prob_liv(
         num_flavors=4,
         rho_func=lambda l: matter.num_density_e_func(earth.earth_radial_distance_from_depth(costhz, 
-            l/gd.UNIT_KM), earth.density_matter_func_prem, ratio_number_neutrons_to_protons=1.0,
-            electron_fraction=0.5, density_matter_is_in_g_per_cm3=True), # [eV^3] (l in eV^{-1})
+            l/gd.UNIT_KM), earth.density_matter_func_prem, ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
+            electron_fraction=electron_fraction, density_matter_is_in_g_per_cm3=True), # [eV^3] (l in eV^{-1})
         energy=energy,
         L=L,
         t_breakpoints=t_breakpoints,
@@ -17187,6 +17253,10 @@ def osc_prob_4nu_earth_liv(
         nu_i=nu_i,
         nu_f=nu_f,
         density_is_of_number_of_electrons=True,
+        # Forwarded as well as used above: beyond three flavours the matter
+        # projector needs it for the sterile entries, and a projector built from a
+        # different r than the density would be this same defect a second time.
+        ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
         default_osc_params_set_name=default_osc_params_set_name,
         validate_input=validate_input,
         save_log=save_log,
@@ -17247,6 +17317,8 @@ def osc_prob_5nu_earth_liv(
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
+    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
+    electron_fraction: Optional[Union[int, float]]=0.5,
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
@@ -17479,8 +17551,8 @@ def osc_prob_5nu_earth_liv(
     return osc_prob_liv(
         num_flavors=5,
         rho_func=lambda l: matter.num_density_e_func(earth.earth_radial_distance_from_depth(costhz, 
-            l/gd.UNIT_KM), earth.density_matter_func_prem, ratio_number_neutrons_to_protons=1.0,
-            electron_fraction=0.5, density_matter_is_in_g_per_cm3=True), # [eV^3] (l in eV^{-1})
+            l/gd.UNIT_KM), earth.density_matter_func_prem, ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
+            electron_fraction=electron_fraction, density_matter_is_in_g_per_cm3=True), # [eV^3] (l in eV^{-1})
         energy=energy,
         L=L,
         t_breakpoints=t_breakpoints,
@@ -17501,6 +17573,10 @@ def osc_prob_5nu_earth_liv(
         nu_i=nu_i,
         nu_f=nu_f,
         density_is_of_number_of_electrons=True,
+        # Forwarded as well as used above: beyond three flavours the matter
+        # projector needs it for the sterile entries, and a projector built from a
+        # different r than the density would be this same defect a second time.
+        ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
         default_osc_params_set_name=default_osc_params_set_name,
         validate_input=validate_input,
         save_log=save_log,

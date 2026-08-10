@@ -97,8 +97,17 @@ def vcc_of(ne_func, nubar=False):
 
 def H_of(d, p, ne, energy, nubar=False):
     h_vac = np.asarray(h_vac_for(d, p, nubar=nubar), dtype=complex)
+    # nu_e feels V_CC; the other actives feel nothing once the common V_NC is removed;
+    # every sterile state is left carrying -V_NC = (r/2) V_CC, with r = n_n/n_p = 1 for
+    # the isoscalar default these cases use.  Written out here rather than imported from
+    # matter.matter_potential_projector on purpose: an oracle that calls the code it is
+    # checking cannot catch that code being wrong, and this expectation being a private
+    # copy of the OLD structure is exactly why a 0.29-in-probability defect survived --
+    # the same three lines existed in five places and all five agreed.
     proj = np.zeros((d, d), dtype=complex)
     proj[0, 0] = 1.0
+    for k in range(3, d):
+        proj[k, k] = 0.5
     vcc = vcc_of(ne, nubar=nubar)
 
     def H_func(l):
