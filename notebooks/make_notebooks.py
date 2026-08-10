@@ -9010,6 +9010,7 @@ import magnus.oscprob as oscprob
 import magnus.hamiltonians as hamiltonians
 import magnus.matter as matter
 import magnus.globaldefs as gd
+import magnus.expmkernels as ek     # HAVE_NUMBA: whether the compiled kernel exists
 
 warnings.simplefilter('ignore')
 
@@ -9151,7 +9152,15 @@ here is an upper bound on method disagreement, not a measurement of it.
 measures its own discretisation error without borrowing anyone else's conventions, and that is
 reported first.'''),
     code(r'''COSTHZ = -0.85                     # a chord through mantle and outer core
+
+# Two grids, because the two jobs want opposite things.  E_PREM is the *timing* grid:
+# every convergence row below divides by len(E_PREM), so its only requirement is to be
+# large enough to amortise per-call overhead and small enough that sweeping four
+# tolerances and four slab counts stays affordable.  E_PLOT is the *picture*: an Earth
+# chord at these energies oscillates fast enough that 24 points join peak to trough with
+# a straight line and invent structure that is not there.
 E_PREM = np.logspace(np.log10(0.6), np.log10(20.0), 24)*gd.UNIT_GEV
+E_PLOT = np.logspace(np.log10(0.6), np.log10(20.0), 400)*gd.UNIT_GEV
 
 try:
     import earth as npe_earth
@@ -9172,26 +9181,94 @@ print('costhz = %.2f -> chord %.1f km, %d energies, 0.6-20 GeV'
       % (COSTHZ, CHORD_KM, len(E_PREM)))
 
 
-def magnus_prem(rtol, atol):
+def magnus_prem(rtol, atol, energies=None):
     return np.asarray(oscprob.osc_prob_3nu_earth(
-        E_PREM, costhz=COSTHZ, L=L_CHORD, **OSC, nu_i=gd.NUMU, nu_f=gd.NUE,
+        E_PREM if energies is None else energies,
+        costhz=COSTHZ, L=L_CHORD, **OSC, nu_i=gd.NUMU, nu_f=gd.NUE,
         rtol=rtol, atol=atol))
 
 
-def npe_prem(n_per_segment):
+def npe_prem(n_per_segment, energies=None):
     h = hamiltonians3nu.hamiltonian_3nu_vacuum_energy_independent(**OSC)
     return np.asarray(npe_earth.probabilities_3nu_earth(
-        h, E_PREM, COSTHZ, n_slabs_per_segment=n_per_segment))[..., 3]'''),
+        h, E_PREM if energies is None else energies, COSTHZ,
+        n_slabs_per_segment=n_per_segment))[..., 3]
+
+
+# ----------------------------------------------------------------- the referee
+#
+# Neither code may be its own judge.  Both are measured against a slab product of
+# scipy matrix exponentials: the same Hamiltonian, a different integrator -- which is
+# exactly what NuOscProbExact's own comparison does with a 50-digit mpmath exponential
+# rather than with anyone's self-convergence.
+#
+# Two details decide whether this works, and both were found by it being wrong first:
+#
+#   Slab edges must LAND ON the PREM layer boundaries.  A uniform grid straddles them,
+#   a straddling slab is O(h) rather than O(h^2), and the naive version converged
+#   *non-monotonically* -- 3.4e-04, then 3.2e-03, then 8.5e-05 -- which is the tell.
+#
+#   `prem_layer_edges_along_chord` returns the INTERIOR crossings only.  Without the
+#   two endpoints the referee drops ~7 km of a 10 830 km chord: 0.065% of the path,
+#   and it then converged beautifully to an answer 1.8e-03 away from both codes.  A
+#   clean convergence rate says the discretisation is consistent, never that it is
+#   right.
+def prem_referee(energies, n_slabs, dim=3, h_vac_dim=None):
+    seg = np.concatenate(([0.0],
+        np.asarray(mg_earth.prem_layer_edges_along_chord(COSTHZ), dtype=float),
+        [CHORD_KM]))
+    per = max(2, int(round(n_slabs/(len(seg) - 1))))
+    edges = np.unique(np.concatenate([
+        np.linspace(seg[i], seg[i+1], per + 1) for i in range(len(seg) - 1)]))
+    mid = 0.5*(edges[:-1] + edges[1:])
+    widths = np.diff(edges)*gd.CONV_KM_TO_INV_EV
+    r = np.sqrt(gd.EARTH_RADIUS**2 + mid*mid + 2.0*gd.EARTH_RADIUS*mid*COSTHZ)
+    vcc = np.array([matter.vcc_func_from_rho_func(
+        float(x), density_matter_is_in_g_per_cm3=True)
+        for x in np.asarray(mg_earth.density_matter_func_prem(r), dtype=float)])
+    hv = h_vac if h_vac_dim is None else h_vac_dim
+    pot = np.zeros(dim)
+    out = []
+    for e in np.atleast_1d(energies):
+        U = np.eye(dim, dtype=complex)
+        for k in range(len(mid)):
+            pot[0] = vcc[k]
+            U = expm(-1j*(hv/e + np.diag(pot))*widths[k]) @ U
+        out.append(abs(U[gd.NUE, gd.NUMU])**2)
+    return np.array(out)
+
+
+def refereed(energies, n_lo=1600, dim=3, h_vac_dim=None):
+    """Richardson-extrapolated referee, plus an honest bound on its own error.
+
+    The slab product is O(h^2), so (4*P_2n - P_n)/3 removes the leading term and the
+    two-grid difference bounds what is left.  Returned, not assumed: a referee that
+    cannot state its own uncertainty cannot referee anything below it.
+    """
+    lo = prem_referee(energies, n_lo, dim, h_vac_dim)
+    hi = prem_referee(energies, 2*n_lo, dim, h_vac_dim)
+    return (4.0*hi - lo)/3.0, float(np.max(np.abs(hi - lo)))/3.0
+
+
+P_REF3, REF3_UNC = refereed(E_PREM)
+print('referee (scipy slab product, PREM edges honoured, Richardson-extrapolated)')
+print('  its own residual discretisation error: %.2e' % REF3_UNC)
+print('  nothing below that line can be resolved by this comparison')'''),
     md(r'''### Self-convergence: each code refined against itself'''),
     code(r'''print('Magnus, refined against its own tightest setting')
 P_mg_ref = magnus_prem(1.0e-11, 1.0e-13)
 print('%-22s %-12s %s' % ('rtol/atol', 'time [ms]', 'max |P - P_tightest|'))
 print('-'*58)
 mg_curve = []
+mg_ref_curve = []
 for rtol, atol in ((1e-4, 1e-6), (1e-6, 1e-8), (1e-8, 1e-10)):
     P, t = best_of(lambda r=rtol, a=atol: magnus_prem(r, a))
     err = float(np.max(np.abs(P - P_mg_ref)))
     mg_curve.append((1.0e6*t/len(E_PREM), max(err, 1.0e-16)))
+    # Against the referee as well: the column above says the answer has stopped
+    # moving, this one says whether it stopped on the right value.
+    mg_ref_curve.append((1.0e6*t/len(E_PREM),
+                         max(float(np.max(np.abs(P - P_REF3))), REF3_UNC)))
     print('%-22s %-12.3f %.3e' % ('%.0e / %.0e' % (rtol, atol), 1.0e3*t, err))
 
 if HAVE_NPE_EARTH:
@@ -9201,10 +9278,13 @@ if HAVE_NPE_EARTH:
     print('%-22s %-12s %s' % ('slabs per segment', 'time [ms]', 'max |P - P_densest|'))
     print('-'*58)
     npe_curve = []
+    npe_ref_curve = []
     for n in (2, 4, 8, 16):
         P, t = best_of(lambda k=n: npe_prem(k))
         err = float(np.max(np.abs(P - P_npe_ref)))
         npe_curve.append((1.0e6*t/len(E_PREM), max(err, 1.0e-16)))
+        npe_ref_curve.append((1.0e6*t/len(E_PREM),
+                              max(float(np.max(np.abs(P - P_REF3))), REF3_UNC)))
         print('%-22d %-12.3f %.3e' % (n, 1.0e3*t, err))'''),
     md(r'''The two convergence tables are the substance of this notebook, and they say opposite
 things about the two axes. **NuOscProbExact is an order of magnitude cheaper per call here, and
@@ -9230,16 +9310,34 @@ competes.
     print('discretisation rather than a convention difference -- which a residual far above')
     print('BOTH curves would have indicated instead.')
 
-    fig, ax = plt.subplots(figsize=(7.2, 4.4))
-    ax.plot(E_PREM/gd.UNIT_GEV, P_mg_ref, lw=1.8, label=r'Mag$\nu$s')
-    ax.plot(E_PREM/gd.UNIT_GEV, P_npe_ref, lw=1.2, ls='--', label='NuOscProbExact')
-    ax.set_xscale('log')
-    ax.set_xlabel(r'$E_\nu$ [GeV]')
-    ax.set_ylabel(r'$P(\nu_\mu \to \nu_e)$')
-    ax.set_title(r'PREM chord, $\cos\theta_z = %.2f$, three flavours' % COSTHZ,
-                 fontsize=10)
-    ax.grid(True, alpha=0.2)
-    ax.legend(fontsize=8)'''),
+    # Drawn on E_PLOT, not on the 24-point timing grid.  The curve below has structure
+    # between 1 and 4 GeV that 24 points cannot represent: at that spacing the two codes
+    # appear to disagree in places where they do not, because each is being joined
+    # through a different set of samples of the same oscillation.
+    P_mg_plot = magnus_prem(1.0e-11, 1.0e-13, energies=E_PLOT)
+    P_npe_plot = npe_prem(64, energies=E_PLOT)
+
+    fig, ax = plt.subplots(2, 1, figsize=(7.2, 6.0), sharex=True,
+                           gridspec_kw=dict(height_ratios=[2.4, 1.0], hspace=0.08))
+    ax[0].plot(E_PLOT/gd.UNIT_GEV, P_mg_plot, lw=1.6, label=r'Mag$\nu$s')
+    ax[0].plot(E_PLOT/gd.UNIT_GEV, P_npe_plot, lw=1.1, ls='--',
+               label='NuOscProbExact')
+    ax[0].set_ylabel(r'$P(\nu_\mu \to \nu_e)$')
+    ax[0].set_title(r'PREM chord, $\cos\theta_z = %.2f$, three flavours, %d energies'
+                    % (COSTHZ, len(E_PLOT)), fontsize=10)
+    ax[0].grid(True, alpha=0.2)
+    ax[0].legend(fontsize=8)
+
+    # The residual on its own axis, because on the panel above it is invisible -- which
+    # is the point, and is not something a reader should have to take on trust.
+    ax[1].semilogy(E_PLOT/gd.UNIT_GEV, np.abs(P_mg_plot - P_npe_plot), lw=1.0,
+                   color='C3')
+    ax[1].set_xscale('log')
+    ax[1].set_xlabel(r'$E_\nu$ [GeV]')
+    ax[1].set_ylabel(r'$|\Delta P|$')
+    ax[1].grid(True, which='both', alpha=0.2)
+
+    fig.savefig('../fig/prem_3nu_vs_energy_compare.pdf', bbox_inches='tight')'''),
     md(r'''### Time at matched accuracy
 
 The trade-off curve, which is the only fair way to put the two on one axis: each point is one
@@ -9293,26 +9391,50 @@ magnus_prem_4nu(1.0e-2, 1.0e-4)
 if HAVE_NPE_EARTH:
     npe_prem_4nu(4)
 
-print('%-14s %-12s %-14s %s' % ('rtol', 'ms total', 'us/probability', 'warned?'))
-print('-'*58)
+# Refereed by the same scipy slab product as the three-flavour case, not by either
+# code.  That matters most here: Magnus does not converge in this regime -- it runs to
+# its slab ceiling and warns -- so its answer at rtol=1e-5 is the same as at 1e-3, and
+# a *self*-convergence curve would report an error near zero for a result that carries
+# a MagnusConvergenceWarning.  Self-convergence measures stability; stability is not
+# accuracy once the ladder has given up.
+h_vac4 = np.asarray(hamiltonians.hamiltonian_4nu_vacuum_energy_independent(
+    OSC['s12'], OSC['s23'], OSC['s13'], OSC['dCP'],
+    STERILE['s14'], 0.0, STERILE['s24'], 0.0, STERILE['s34'],
+    OSC['D21'], OSC['D31'], STERILE['D41']))
+P_REF4, REF4_UNC = refereed(E_PREM, dim=4, h_vac_dim=h_vac4)
+print('4nu referee residual discretisation error: %.2e' % REF4_UNC)
+print()
+P_ref4 = P_REF4
+
+print('%-14s %-12s %-14s %-12s %s'
+      % ('rtol', 'ms total', 'us/probability', 'err vs ref', 'warned?'))
+print('-'*72)
 P_mg4 = None
+mg4_curve = []
 for rtol, atol in ((1.0e-3, 1.0e-5), (1.0e-5, 1.0e-7)):
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter('always')
         P, t = best_of(lambda r=rtol, a=atol: magnus_prem_4nu(r, a), repeats=1)
         flags = sorted({c.category.__name__ for c in caught})
     P_mg4 = P
-    print('%-14.0e %-12.1f %-14.1f %s'
-          % (rtol, 1.0e3*t, 1.0e6*t/len(E_PREM), ','.join(flags) or 'no'))
+    err4 = (float(np.max(np.abs(P - P_ref4))) if P_ref4 is not None else float('nan'))
+    mg4_curve.append((1.0e6*t/len(E_PREM), max(err4, REF4_UNC)))
+    print('%-14.0e %-12.1f %-14.1f %-12.3e %s'
+          % (rtol, 1.0e3*t, 1.0e6*t/len(E_PREM), err4, ','.join(flags) or 'no'))
 
 if HAVE_NPE_EARTH:
     print()
-    print('%-14s %-12s %-14s' % ('slabs/segment', 'ms total', 'us/probability'))
-    print('-'*42)
+    print('%-14s %-12s %-14s %s'
+          % ('slabs/segment', 'ms total', 'us/probability', 'err vs ref'))
+    print('-'*60)
     P_npe4 = None
-    for n in (8, 32):
+    npe4_curve = []
+    for n in (2, 4, 8, 32):
         P_npe4, t_npe4 = best_of(lambda k=n: npe_prem_4nu(k), repeats=1)
-        print('%-14d %-12.1f %-14.1f' % (n, 1.0e3*t_npe4, 1.0e6*t_npe4/len(E_PREM)))
+        errn = float(np.max(np.abs(P_npe4 - P_ref4)))
+        npe4_curve.append((1.0e6*t_npe4/len(E_PREM), max(errn, REF4_UNC)))
+        print('%-14d %-12.1f %-14.1f %.3e'
+              % (n, 1.0e3*t_npe4, 1.0e6*t_npe4/len(E_PREM), errn))
     if P_mg4 is not None:
         print()
         print('max |Magnus - NuOscProbExact| = %.3e'
@@ -9347,7 +9469,51 @@ four-flavour 16-tuple), and the sterile parametrisations are not identical eithe
 NuOscProbExact takes no $\delta_{34}$ -- so the residual between the codes here is bounded by
 convention as well as by each one's convergence.
 
-'''),
+### Accuracy against cost, three flavours and 3+1 side by side
+
+The figure this whole speed-up effort was for. Each point is one setting of that code's own
+dial, so the curve -- not any single point -- is what a code offers you.
+
+**Neither code is its own judge here.** Both panels are refereed by the same independent
+integrator: a slab product of `scipy` matrix exponentials over the same Hamiltonian, with slab
+edges on the PREM layer boundaries and Richardson-extrapolated, which is the same device
+NuOscProbExact uses when it compares against other codes -- there, a 50-digit `mpmath`
+exponential. Self-convergence appears in the tables above and measures *stability*; it cannot
+measure accuracy, and in the 3+1 panel it would actively mislead, because Mag$\nu$s stops
+moving there without being right.
+
+The dotted line is the referee's own residual discretisation error. **Nothing below it is
+resolved by this comparison**, and no point should be read as more accurate than the ruler.'''),
+    code(r'''if HAVE_NPE_EARTH:
+    fig, ax = plt.subplots(1, 2, figsize=(10.4, 4.4))
+
+    for a, (mg, npe, unc, title) in zip(ax, (
+            (mg_ref_curve, npe_ref_curve, REF3_UNC, r'Three flavours'),
+            (mg4_curve, npe4_curve, REF4_UNC, r'3+1 (sterile, $\Delta m^2_{41} = 1$ eV$^2$)'))):
+        a.axhline(unc, ls=':', lw=1.0, color='0.5')
+        ylab = r'max $|P - P_{\rm referee}|$'
+        a.plot([u for u, _ in mg], [e for _, e in mg], marker='*', ms=13, lw=1.2,
+               color='k', label=r'Mag$\nu$s (rtol/atol)')
+        a.plot([u for u, _ in npe], [e for _, e in npe], marker='o', ms=6, lw=1.2,
+               color='C0', label='NuOscProbExact (slabs/segment)')
+        a.set_xscale('log')
+        a.set_yscale('log')
+        a.set_xlabel(r'time per probability [$\mu$s]')
+        a.set_ylabel(ylab)
+        a.set_title(title, fontsize=9)
+        a.grid(True, which='both', alpha=0.2)
+        a.legend(fontsize=8)
+
+    fig.suptitle(r'PREM, $\cos\theta_z = %.2f$: what each code costs to reach a given error'
+                 % COSTHZ, fontsize=11)
+    fig.tight_layout()
+    fig.savefig('../fig/prem_speed_accuracy.pdf', bbox_inches='tight')
+
+    print('Left panel: down and to the left is better; the two curves cross near 1e-4,')
+    print('which is the accuracy below which the closed form is simply the cheaper route.')
+    print('Right panel: no crossing.  Magnus is off the useful part of the plot entirely,')
+    print('and the flat spacing of its two points is the ladder failing to converge rather')
+    print('than a code that is merely slow.')'''),
     md(r'''## 6. A conventions trap, and why the next table is in vacuum
 
 Running nuSQuIDS on the same nominal problem produces a disagreement of a few times
@@ -9525,6 +9691,81 @@ diagonalised. Where a closed form exists and the phase is large, use it.
 And before comparing any two codes' numbers: **check that they agree in vacuum first.** If they
 do not, the disagreement is in the solvers. If they do and they disagree in matter, it is in
 the conventions, and no amount of tolerance will close it.'''),
+    md(r'''## 8. What the batching and the compiled kernel are each worth
+
+The three routes through this library to the same constant-density scan: one point at a time,
+the whole stack in one call, and the whole stack with the compiled Cayley--Hamilton kernel. The
+cost *per point* is what a parameter scan actually pays, and it is the number that moves as the
+scan grows -- a single point is dominated by wrapper overhead that never shrinks.'''),
+    code(r'''# Absolute microseconds here are a property of this machine and are worth little on
+# their own; the ratios between the three routes are far more stable and are what the
+# text quotes.  Measured with the minimum of several repetitions rather than the mean,
+# because timing noise is one-sided.
+import magnus.magnus as mgcore
+
+SIZES = [1, 3, 10, 30, 100, 300, 1000, 3000]
+saved_backend = mgcore.EXPM_BACKEND
+rows = []
+
+
+def const_scan(energies):
+    return oscprob.osc_prob_3nu_matter_constant_density(
+        energies, BASELINE, RHO, **OSC, density_matter_is_in_g_per_cm3=True,
+        nu_i=gd.NUMU, nu_f=gd.NUE)
+
+
+try:
+    for n in SIZES:
+        En = np.logspace(np.log10(0.6), np.log10(20.0), n)*gd.UNIT_GEV
+
+        mgcore.EXPM_BACKEND = 'eigh'
+        _, t_loop = best_of(lambda: [const_scan(float(e)) for e in En], repeats=3)
+        _, t_arr = best_of(lambda: const_scan(En))
+
+        if ek.HAVE_NUMBA:
+            mgcore.EXPM_BACKEND = 'numba'
+            const_scan(En)                       # warm the compiler, once
+            _, t_ker = best_of(lambda: const_scan(En))
+        else:
+            t_ker = float('nan')
+        rows.append((n, t_loop, t_arr, t_ker))
+finally:
+    mgcore.EXPM_BACKEND = saved_backend
+
+rows = np.array(rows)
+print('%8s %14s %14s %14s' % ('N', 'loop [us/pt]', 'array [us/pt]', 'kernel [us/pt]'))
+print('-'*56)
+for n, tl, ta, tk in rows:
+    print('%8d %14.3f %14.3f %14.3f' % (n, tl/n*1e6, ta/n*1e6, tk/n*1e6))
+print()
+print('at N = %d: batching is %.0fx the loop, the kernel a further %.1fx'
+      % (rows[-1, 0], rows[-1, 1]/rows[-1, 2], rows[-1, 2]/rows[-1, 3]))'''),
+    code(r'''fig, ax = plt.subplots(figsize=(7.2, 4.6))
+for col, style, lab in ((1, '-^', 'one point at a time'),
+                        (2, '-s', 'batched, ``eigh``'),
+                        (3, '-o', 'batched + compiled kernel')):
+    if col == 3 and not ek.HAVE_NUMBA:
+        continue
+    ax.plot(rows[:, 0], 1.0e6*rows[:, col]/rows[:, 0], style, ms=5, lw=1.2,
+            label=lab)
+ax.set_xscale('log')
+ax.set_yscale('log')
+ax.set_xlabel(r'$N$ energies in one request')
+ax.set_ylabel(r'time per probability [$\mu$s]')
+ax.set_title(r'Constant density, 3$\nu$: cost per point against scan size', fontsize=10)
+ax.grid(True, which='both', alpha=0.2)
+ax.legend(fontsize=8)
+fig.savefig('../fig/performance.pdf', bbox_inches='tight')'''),
+    md(r'''Read the *shape*, not the endpoints. All three routes meet at $N = 1$, where the
+answer is one exponential and everything else is wrapper: that is the regime this library is
+worst in, and no amount of batching or compilation touches it. They separate as the request
+grows, because the per-call overhead is amortised while the arithmetic is not.
+
+The two gaps are different in kind. **Batching** removes Python-level dispatch -- it is the
+same arithmetic, called once instead of $N$ times. **The kernel** removes the arithmetic's own
+overhead, replacing `numpy.linalg.eigh`'s per-matrix LAPACK loop with a closed form over the
+whole stack. That second gap is the one that closes for four and five flavours, where no closed
+form for the eigenproblem exists and the `eigh` path is all there is.'''),
     ])
 
 
