@@ -2644,6 +2644,13 @@ def osc_prob(
         ensure that the slabs chain without gaps.  If a tolerance is
         requested, only ``n_tpts_per_slab`` is grown (the user-provided
         edges are kept fixed).
+
+        **Not the same as** ``t_breakpoints``, despite the similar name, and
+        usually not the one wanted.  This is the *complete* partition and it
+        fixes the discretisation, so refinement can no longer add slabs.
+        ``t_breakpoints`` instead names positions that must fall on an edge and
+        lets the ladder fill in between, which is what a density jump, a kink or
+        a shock front calls for.
     magnus_exp_order : int, optional
         Order at which the Magnus expansion is truncated (1 to
         ``globaldefs.MAGNUS_EXP_ORDER_MAX``).
@@ -2877,6 +2884,7 @@ def osc_prob(
     # these two keys are rejected several hops away otherwise, by a function the caller never
     # named (see _reject_parameter_set_metadata).
     _reject_parameter_set_metadata(kwargs, 'osc_prob')
+    _check_passthrough_kwargs(kwargs, 'osc_prob')
 
     # Validate input; set validate_input to False for speed-up.
     # None means 'use the cap appropriate to this integration method'
@@ -3542,6 +3550,102 @@ the same numbers without them.
 
 .. versionadded:: 1.0.0
 """
+
+
+PASSTHROUGH_KWARGS_DOCUMENTED = (
+    'atol', 'cumulative', 'integration_method', 'magnus_exp_order', 'max_n_slabs',
+    'n_slabs', 'n_tpts_per_slab', 'rtol', 't_breakpoints', 't_slab_edges')
+r"""tuple of str: Module-level constant
+
+The engine keywords the probability wrappers forward through ``**kwargs``, in the order
+they are listed to a caller who has just misspelled one.
+
+**These are the parameters that do not appear in any wrapper signature**, which is the
+problem this constant exists to mitigate: ``t_breakpoints``, ``n_slabs`` and ``cumulative``
+are load-bearing on a hard profile -- declaring a shock front changes the answer by parts
+in :math:`10^6` on a scan that otherwise measures straddled slabs -- and a reader working
+from the signature alone will never find them.
+
+Deliberately a *subset* of what ``_passthrough_kwarg_names`` accepts.  That function is
+derived from signatures and includes engine internals no caller of a wrapper should reach
+for; this is the curated list worth printing.  ``test_documented_passthrough_kwargs_are_all_accepted``
+keeps the two from drifting apart.
+
+.. versionadded:: 1.0.0
+"""
+
+
+def _passthrough_kwarg_names() -> frozenset:
+    r"""Every keyword the ``**kwargs`` chain can absorb, read off the signatures.
+
+    Derived rather than listed, because a hand-written allowlist is a second copy of the
+    signatures and would drift from them silently -- the same duplication that let a
+    matter-potential defect survive in five places at once.  The union is taken over the
+    functions ``**kwargs`` actually reaches: the dispatcher, the core, and the Magnus
+    engine at the far end.
+
+    Verified against the call: every keyword this returns is accepted by
+    :func:`osc_prob_matter_std_potential`, and the ones a caller is likely to misspell --
+    ``t_breakpoint`` for ``t_breakpoints``, ``nslabs`` for ``n_slabs`` -- are not in it.
+
+    .. versionadded:: 1.0.0
+    """
+    import inspect
+
+    import magnus.magnus as _magnus
+
+    names = set()
+    for func in (osc_prob, osc_prob_energy_baseline, _magnus.magnus_expansion_multislab):
+        names |= {p for p in inspect.signature(func).parameters if p != 'kwargs'}
+    return frozenset(names)
+
+
+def _check_passthrough_kwargs(kwargs: dict, source_func_name: str) -> None:
+    r"""Rejects an unknown keyword here, where the caller and the near match can be named.
+
+    **The keywords that matter most on a hard profile are the ones least visible.**
+    ``t_breakpoints``, ``n_slabs`` and ``cumulative`` reach these entry points only through
+    ``**kwargs`` and appear in none of their signatures, while ``t_slab_edges`` -- the full
+    explicit edge set, which is rarely what a caller wants -- *is* declared.  So the
+    discoverable keyword is the specialised one and the everyday one is invisible.
+
+    Left to itself a typo surfaces as ``TypeError: magnus_expansion_multislab() got an
+    unexpected keyword argument 't_breakpoint'``, naming a function the caller never
+    invoked and offering no correction.  Since these keywords are load-bearing -- declaring
+    a shock front moves the answer by parts in 10^6 on a scan that otherwise measures
+    straddled slabs -- a silent typo is a wrong number rather than an error.
+
+    Raises
+    ------
+    ValueError
+        Naming the entry point that was called, the keyword that is not recognised, and
+        the closest keyword that is.
+
+    .. versionadded:: 1.0.0
+    """
+    valid = _passthrough_kwarg_names()
+    unknown = [key for key in kwargs if key not in valid]
+    if not unknown:
+        return
+
+    import difflib
+
+    # Suggestions are drawn from the full accepted set, but only the useful subset is
+    # *listed*: the derived set includes engine internals (`A`, `H_func`,
+    # `close_file_log_upon_exit`) that no caller of a wrapper should be reaching for, and
+    # printing forty names buries the one that matters.
+    lines = []
+    for key in sorted(unknown):
+        close = difflib.get_close_matches(key, sorted(valid), n=1, cutoff=0.6)
+        lines.append("'" + key + "'" + (", did you mean '" + close[0] + "'?"
+                                        if close else ''))
+    raise ValueError(
+        gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": unrecognised keyword "
+        "argument(s): " + '; '.join(lines) + ".  The engine keywords these wrappers forward "
+        "are: " + ', '.join(PASSTHROUGH_KWARGS_DOCUMENTED) + ".  Note that t_breakpoints "
+        "(positions at which to place slab edges, filling in between) and t_slab_edges (the "
+        "complete set of edges) are different parameters; t_breakpoints is the one wanted "
+        "for a density jump or a shock front.")
 
 
 def _reject_parameter_set_metadata(kwargs: dict, source_func_name: str) -> None:
@@ -6346,6 +6450,27 @@ def osc_prob_vacuum(
     \**kwargs
         Additional arguments forwarded to :func:`osc_prob_energy_baseline`.
 
+        **The engine keywords travel this way and so appear in no signature above.**  The
+        ones worth knowing are listed in :data:`magnus.oscprob.PASSTHROUGH_KWARGS_DOCUMENTED`; three of
+        them decide whether an answer on a hard profile is right at all:
+
+        ``t_breakpoints``
+            Positions at which to place slab edges, filling in between.  **This is the
+            parameter for a density jump, a kink or a shock front** -- no number of slabs
+            fixes a slab that straddles one.  Not to be confused with ``t_slab_edges``
+            above, which is the *complete* set of edges and is rarely what is wanted.
+        ``n_slabs``
+            An explicit slab count.  On a single request over a large accumulated phase,
+            ``rtol`` is not the dial that moves the answer; the refinement ladder can run
+            to its ceiling and warn, and the slab count is what to set instead.
+        ``cumulative``
+            Reuse one propagation across a scan of baselines rather than re-propagating
+            for each.  ``'auto'`` by default, which engages it on scans large enough to
+            benefit.
+
+        A misspelling is rejected here, naming the near match, rather than several hops
+        away by a function the caller never invoked.
+
     Returns
     -------
     float or np.ndarray
@@ -6407,6 +6532,7 @@ def osc_prob_vacuum(
     # forwards **kwargs onwards, so a check further down would see these keys on the ordinary
     # path and silently ignore them on the averaged one.
     _reject_parameter_set_metadata(kwargs, 'osc_prob_vacuum')
+    _check_passthrough_kwargs(kwargs, 'osc_prob_vacuum')
 
     # Phase-averaged limit, requested with average=True: exact and closed-form whenever the
     # Hamiltonian does not depend on position, so it is tried before any of the propagation
@@ -6659,6 +6785,27 @@ def osc_prob_matter_std_potential(
     \**kwargs
         Additional arguments forwarded to :func:`osc_prob_energy_baseline`.
 
+        **The engine keywords travel this way and so appear in no signature above.**  The
+        ones worth knowing are listed in :data:`magnus.oscprob.PASSTHROUGH_KWARGS_DOCUMENTED`; three of
+        them decide whether an answer on a hard profile is right at all:
+
+        ``t_breakpoints``
+            Positions at which to place slab edges, filling in between.  **This is the
+            parameter for a density jump, a kink or a shock front** -- no number of slabs
+            fixes a slab that straddles one.  Not to be confused with ``t_slab_edges``
+            above, which is the *complete* set of edges and is rarely what is wanted.
+        ``n_slabs``
+            An explicit slab count.  On a single request over a large accumulated phase,
+            ``rtol`` is not the dial that moves the answer; the refinement ladder can run
+            to its ceiling and warn, and the slab count is what to set instead.
+        ``cumulative``
+            Reuse one propagation across a scan of baselines rather than re-propagating
+            for each.  ``'auto'`` by default, which engages it on scans large enough to
+            benefit.
+
+        A misspelling is rejected here, naming the near match, rather than several hops
+        away by a function the caller never invoked.
+
     Returns
     -------
     float or np.ndarray
@@ -6779,6 +6926,7 @@ def osc_prob_matter_std_potential(
     # forwards **kwargs onwards, so a check further down would see these keys on the ordinary
     # path and silently ignore them on the averaged one.
     _reject_parameter_set_metadata(kwargs, 'osc_prob_matter_std_potential')
+    _check_passthrough_kwargs(kwargs, 'osc_prob_matter_std_potential')
 
     # Phase-averaged limit, requested with average=True: exact and closed-form whenever the
     # Hamiltonian does not depend on position, so it is tried before any of the propagation
@@ -7047,6 +7195,27 @@ def osc_prob_matter_nsi(
     \**kwargs
         Additional arguments forwarded to :func:`osc_prob_energy_baseline`.
 
+        **The engine keywords travel this way and so appear in no signature above.**  The
+        ones worth knowing are listed in :data:`magnus.oscprob.PASSTHROUGH_KWARGS_DOCUMENTED`; three of
+        them decide whether an answer on a hard profile is right at all:
+
+        ``t_breakpoints``
+            Positions at which to place slab edges, filling in between.  **This is the
+            parameter for a density jump, a kink or a shock front** -- no number of slabs
+            fixes a slab that straddles one.  Not to be confused with ``t_slab_edges``
+            above, which is the *complete* set of edges and is rarely what is wanted.
+        ``n_slabs``
+            An explicit slab count.  On a single request over a large accumulated phase,
+            ``rtol`` is not the dial that moves the answer; the refinement ladder can run
+            to its ceiling and warn, and the slab count is what to set instead.
+        ``cumulative``
+            Reuse one propagation across a scan of baselines rather than re-propagating
+            for each.  ``'auto'`` by default, which engages it on scans large enough to
+            benefit.
+
+        A misspelling is rejected here, naming the near match, rather than several hops
+        away by a function the caller never invoked.
+
     Returns
     -------
     float or np.ndarray
@@ -7197,6 +7366,7 @@ def osc_prob_matter_nsi(
     # forwards **kwargs onwards, so a check further down would see these keys on the ordinary
     # path and silently ignore them on the averaged one.
     _reject_parameter_set_metadata(kwargs, 'osc_prob_matter_nsi')
+    _check_passthrough_kwargs(kwargs, 'osc_prob_matter_nsi')
 
     # Phase-averaged limit, requested with average=True: exact and closed-form whenever the
     # Hamiltonian does not depend on position, so it is tried before any of the propagation
@@ -7447,6 +7617,27 @@ def osc_prob_liv(
     \**kwargs
         Additional arguments forwarded to :func:`osc_prob_energy_baseline`.
 
+        **The engine keywords travel this way and so appear in no signature above.**  The
+        ones worth knowing are listed in :data:`magnus.oscprob.PASSTHROUGH_KWARGS_DOCUMENTED`; three of
+        them decide whether an answer on a hard profile is right at all:
+
+        ``t_breakpoints``
+            Positions at which to place slab edges, filling in between.  **This is the
+            parameter for a density jump, a kink or a shock front** -- no number of slabs
+            fixes a slab that straddles one.  Not to be confused with ``t_slab_edges``
+            above, which is the *complete* set of edges and is rarely what is wanted.
+        ``n_slabs``
+            An explicit slab count.  On a single request over a large accumulated phase,
+            ``rtol`` is not the dial that moves the answer; the refinement ladder can run
+            to its ceiling and warn, and the slab count is what to set instead.
+        ``cumulative``
+            Reuse one propagation across a scan of baselines rather than re-propagating
+            for each.  ``'auto'`` by default, which engages it on scans large enough to
+            benefit.
+
+        A misspelling is rejected here, naming the near match, rather than several hops
+        away by a function the caller never invoked.
+
     Returns
     -------
     float or np.ndarray
@@ -7614,6 +7805,7 @@ def osc_prob_liv(
     # forwards **kwargs onwards, so a check further down would see these keys on the ordinary
     # path and silently ignore them on the averaged one.
     _reject_parameter_set_metadata(kwargs, 'osc_prob_liv')
+    _check_passthrough_kwargs(kwargs, 'osc_prob_liv')
 
     # Phase-averaged limit, requested with average=True: exact and closed-form whenever the
     # Hamiltonian does not depend on position, so it is tried before any of the propagation
@@ -10723,6 +10915,27 @@ def _osc_prob_with_potential(
         left None by :func:`osc_prob_sun`, whose profile is monotonic.
     \**kwargs
         Additional arguments forwarded to :func:`osc_prob_energy_baseline`.
+
+        **The engine keywords travel this way and so appear in no signature above.**  The
+        ones worth knowing are listed in :data:`magnus.oscprob.PASSTHROUGH_KWARGS_DOCUMENTED`; three of
+        them decide whether an answer on a hard profile is right at all:
+
+        ``t_breakpoints``
+            Positions at which to place slab edges, filling in between.  **This is the
+            parameter for a density jump, a kink or a shock front** -- no number of slabs
+            fixes a slab that straddles one.  Not to be confused with ``t_slab_edges``
+            above, which is the *complete* set of edges and is rarely what is wanted.
+        ``n_slabs``
+            An explicit slab count.  On a single request over a large accumulated phase,
+            ``rtol`` is not the dial that moves the answer; the refinement ladder can run
+            to its ceiling and warn, and the slab count is what to set instead.
+        ``cumulative``
+            Reuse one propagation across a scan of baselines rather than re-propagating
+            for each.  ``'auto'`` by default, which engages it on scans large enough to
+            benefit.
+
+        A misspelling is rejected here, naming the near match, rather than several hops
+        away by a function the caller never invoked.
 
     Returns
     -------
@@ -18574,5 +18787,6 @@ __all__ = [
     'OUTPUT_GUARD_SAFETY',
     'IP_EXP_LOOP_CAP',
     'PARAMETER_SET_METADATA_KEYS',
+    'PASSTHROUGH_KWARGS_DOCUMENTED',
     'PhaseAveragingWarning',
 ]
