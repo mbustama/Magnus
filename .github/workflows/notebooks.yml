@@ -1,9 +1,17 @@
 name: Notebooks
 
-# Its own workflow rather than a job inside lint.yml, because `paths` is a workflow-level
-# filter: the lint, cli-docs and docs jobs must run on every commit, and this one costs
-# tens of minutes, so the two cannot share a trigger.  A docs-only change skips it
-# entirely.
+# Its own workflow rather than a job inside lint.yml, because it costs tens of minutes
+# while the lint, cli-docs and docs jobs cost two, and keeping them apart lets this one be
+# read, cancelled and retried on its own.
+#
+# **The `paths:` filter that used to sit on the triggers below has moved into the workflow,
+# and that is deliberate.**  A workflow-level filter does not skip the job, it stops the
+# workflow from existing: no run, and therefore no check run on the commit at all.  That is
+# invisible until one of these becomes a *required* status check, at which point a pull
+# request touching only `docs/` or `README.md` waits forever for a check that will never be
+# reported -- pending, not failing, so nothing says why.  Filtering inside the workflow
+# reports every context on every commit and skips only the expensive *steps*, which costs a
+# few seconds of runner start-up and buys a gate that can actually be required.
 #
 # Triggers otherwise match lint.yml and tests.yml -- see the explanation in tests.yml.
 # A commit is checked once: the push-triggered run is what appears on a pull request, and
@@ -12,26 +20,63 @@ name: Notebooks
 on:
   push:
     branches: ['**']
-    paths:
-      - 'notebooks/**'
-      - 'src/magnus/**'
-      - 'pyproject.toml'
-      - '.github/workflows/notebooks.yml'
   pull_request:
-    paths:
-      - 'notebooks/**'
-      - 'src/magnus/**'
-      - 'pyproject.toml'
-      - '.github/workflows/notebooks.yml'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
+  # What the trigger-level `paths:` filter used to do, in a form that still reports.
+  #
+  # Fails safe in both directions.  Anything it cannot work out -- a new branch, a force
+  # push, a base commit that is not fetched -- reports `notebooks=true` and everything
+  # runs; and the guards downstream test `!= 'false'` rather than `== 'true'`, so if this
+  # job fails outright and its output is absent, the expensive steps still run.  The
+  # failure mode of a gate like this must be "did too much", never "silently did nothing".
+  changes:
+    name: Detect what changed
+    runs-on: ubuntu-latest
+    outputs:
+      notebooks: ${{ steps.filter.outputs.notebooks }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - id: filter
+        run: |
+          base=''
+          if [ "${{ github.event_name }}" = 'pull_request' ]; then
+            base='${{ github.event.pull_request.base.sha }}'
+          elif [ "${{ github.event.before }}" != '0000000000000000000000000000000000000000' ]; then
+            base='${{ github.event.before }}'
+          fi
+          if [ -z "$base" ] || ! git cat-file -e "$base^{commit}" 2>/dev/null; then
+            echo 'no usable base; executing everything'
+            echo 'notebooks=true' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          changed=$(git diff --name-only "$base" '${{ github.sha }}')
+          echo "$changed"
+          # The same four paths the trigger filter named.  src/magnus matters because a
+          # notebook can break while its own source is byte-identical, which is the case
+          # a filename rule over notebooks/ alone would miss.
+          if printf '%s\n' "$changed" \
+              | grep -qE '^(notebooks/|src/magnus/)|^(pyproject\.toml|\.github/workflows/notebooks\.yml)$'; then
+            echo 'notebooks=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'nothing a notebook depends on changed; execution will be skipped'
+            echo 'notebooks=false' >> "$GITHUB_OUTPUT"
+          fi
+
   execute:
     name: Notebooks execute (shard ${{ matrix.shard }})
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
+    # `always()` so that a failure of the `changes` job cannot withdraw this check: a
+    # required check that never reports blocks a pull request instead of failing it, and
+    # a blocked pull request gives the reader nothing to act on.
+    if: always() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository)
+    needs: changes
     runs-on: ubuntu-latest
     # Generous rather than tight: a notebook that has genuinely hung should fail the job,
     # a merely slow runner should not.
@@ -51,11 +96,13 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Set up Python
+        if: needs.changes.outputs.notebooks != 'false'
         uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
       - name: Install dependencies
+        if: needs.changes.outputs.notebooks != 'false'
         run: |
           python -m pip install --upgrade pip
           pip install -e '.[notebooks]'
@@ -78,6 +125,7 @@ jobs:
       # recent one for the same library hash.  Without that, an exact key hit skips the
       # save and a newly-passing notebook would be re-run forever.
       - name: Restore the record of what already passed
+        if: needs.changes.outputs.notebooks != 'false'
         uses: actions/cache@v4
         with:
           path: .nbcache
@@ -86,6 +134,7 @@ jobs:
             nbcache-${{ hashFiles('src/magnus/**', 'pyproject.toml') }}-${{ matrix.shard }}-
 
       - name: Execute every notebook
+        if: needs.changes.outputs.notebooks != 'false'
         # Blocking, and that is the point of the job.  A notebook is documentation that
         # claims to work, and its stored outputs make the claim persuasive without being
         # evidence: they were true whenever it was last run, which may predate the change
