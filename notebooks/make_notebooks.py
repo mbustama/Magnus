@@ -8997,7 +8997,7 @@ ax.grid(True, which='both', alpha=0.2)
 ax.text(0.03, 0.06, 'open circles: the three distinct GL schemes\n'
         'crosses: orders that reuse the scheme below them',
         transform=ax.transAxes, fontsize=6.6, color='0.3', linespacing=1.5)
-fig.tight_layout(pad=0.4)
+fig.tight_layout(pad=1.2)
 fig.savefig('../fig/expansion_order.pdf', bbox_inches='tight')'''),
     md(r'''### A case where the order buys nothing at all
 
@@ -10444,7 +10444,7 @@ for d in (2, 3, 4, 5):
             '$E = 2$--$12$ GeV,  $P(\\nu_\\mu \\to \\nu_\\mu)$\n' + names,
             transform=ax.transAxes, ha='left', va='top', fontsize=6.2,
             color='0.2', linespacing=1.45)
-    fig.tight_layout(pad=0.4)
+    fig.tight_layout(pad=1.2)
     fig.savefig('../fig/smooth_speed_accuracy_%dnu.pdf' % d, bbox_inches='tight')'''),
     md(r'''**NuOscProbExact is faster at every accuracy it can reach, and that is the expected
 result rather than a disappointing one** -- it solves each slab in closed form, and where a
@@ -11103,7 +11103,7 @@ for ax, c in zip(axes, SHOCK['cases']):
     alle = [p['max_abs_error'] for s in c['series'] for p in s['points']]
     ax.set_xlim(min(allt)/1.6, max(allt)*1.6)
     ax.set_ylim(min(alle)/3.0, max(alle)*3.0)
-fig.tight_layout(pad=0.5)
+fig.tight_layout(pad=1.2)
 fig.savefig('../fig/shock_speed_accuracy.pdf', bbox_inches='tight')'''),
     md(r"""**The two panels point opposite ways, and that is the result.**
 
@@ -11276,7 +11276,7 @@ allt = [p['us_per_probability'] for s in SHOCK4['series'] for p in s['points']]
 alle = [p['max_abs_error'] for s in SHOCK4['series'] for p in s['points']]
 ax.set_xlim(min(allt)/1.6, max(allt)*1.6)
 ax.set_ylim(min(alle)/3.0, max(alle)*3.0)
-fig.tight_layout(pad=0.4)
+fig.tight_layout(pad=1.2)
 fig.savefig('../fig/shock_3plus1_speed_accuracy.pdf', bbox_inches='tight')'''),
     md(r"""**On the resolved front, the fourth flavour does not change the verdict -- it
 sharpens it.** Mag$\nu$s reaches $1.1\times10^{-8}$; NuOscProbExact's finest setting here
@@ -11374,7 +11374,7 @@ ax[1].set_title('and what that NSI actually does', fontsize=10)
 ax[1].grid(True, alpha=0.2)
 ax[1].legend(fontsize=7.4)
 ax[1].set_xlim(xs_nsi[0], xs_nsi[-1])
-fig.tight_layout(pad=0.5)
+fig.tight_layout(pad=1.2)
 fig.savefig('../fig/shock_nsi.pdf', bbox_inches='tight')'''),
     md(r"""**Same verdict as sections 11 and 12, for the third time and with different
 physics in the Hamiltonian.** On this 70 km front Mag$\nu$s reaches
@@ -11507,6 +11507,20 @@ GALLERY = {
     ('10_magnus_averaged_probability.ipynb', 0): 'gallery_averaged.png',
     ('13_magnus_tabulated_solar_model.ipynb', 0): 'gallery_solar_model.png',
     ('14_magnus_supernova_shock.ipynb', 0): 'gallery_shock.png',
+    # The README gallery draws on these as well.  They carry what this package offers
+    # that a closed-form code does not -- an averaged observable nothing else exposes,
+    # the boundary where each method wins, and a Hamiltonian nobody has diagonalised --
+    # so the front page argues from measurements rather than from claims.
+    ('04_magnus_long_baseline.ipynb', 1): 'gallery_long_baseline.png',
+    ('13_magnus_tabulated_solar_model.ipynb', 2): 'gallery_solar_bsm.png',
+    ('14_magnus_supernova_shock.ipynb', 2): 'gallery_shock_bsm.png',
+    ('19_magnus_custom_hamiltonian.ipynb', 1): 'gallery_custom_h.png',
+    ('25_magnus_against_other_codes.ipynb', 11): 'gallery_solar_averaged.png',
+    ('25_magnus_against_other_codes.ipynb', 15): 'gallery_shock_vs_codes.png',
+    # Not gallery material despite being good results: the expansion-order scatter and
+    # the smooth-profile reach panel both carry a long y-axis label that the notebook's
+    # tight bounding box truncates, and neither reads at 380 px.  Their findings are in
+    # notebooks 24 and 25 instead.
 }
 
 
