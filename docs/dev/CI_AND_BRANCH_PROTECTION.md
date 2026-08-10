@@ -72,6 +72,20 @@ The gate fails safe in both directions, and both directions matter:
 
 A gate like this may err towards doing too much. It must never silently do nothing.
 
+### The first push to a branch always runs everything
+
+`github.event.before` is all zeros for a new branch, so there is no base to diff against and the
+detector reports `true`. That is the fail-safe working as intended, not a bug — but it means the
+skipping path is only ever taken from the *second* push to a branch onwards, and a PR opened from
+a single commit never takes it at all.
+
+The per-notebook cache is what makes that acceptable: on a docs-only branch the library hash is
+unchanged, every notebook is served from its marker, and the shards finish in **51 s** rather
+than the 9–14 min a cold run takes. Measured on run `31346516580`.
+
+The consequence for testing: a workflow change of this kind cannot be validated on the branch
+that introduces it, and a one-commit PR will not exercise the skip either. Push twice.
+
 ## Adding a required check
 
 Add the context only once you have seen it report on a commit that does **not** exercise it —
