@@ -2158,6 +2158,63 @@ def test_no_cgroup_limit_leaves_the_host_figure_alone(tmp_path, monkeypatch):
     assert op._cgroup_headroom_bytes() is None
 
 
+def test_a_misspelled_passthrough_names_the_caller_and_the_near_match():
+    """A typo must not surface as a complaint from a function the caller never invoked.
+
+    These keywords reach the wrappers only through **kwargs, so an unrecognised one used
+    to travel every hop and be rejected by `magnus_expansion_multislab`, whose message
+    names neither the entry point nor the correction. Since the keywords are load-bearing
+    -- declaring a shock front moves a scan by parts in 1e6 -- a typo that looks like an
+    internal error is a wrong number waiting to be believed."""
+    with pytest.raises(ValueError) as excinfo:
+        op._check_passthrough_kwargs({'t_breakpoint': [0.0, 1.0]},
+                                     'osc_prob_matter_std_potential')
+    message = ' '.join(str(excinfo.value).split())
+    assert 'osc_prob_matter_std_potential' in message      # the caller, not the engine
+    assert "did you mean 't_breakpoints'" in message       # the correction
+    assert 'magnus_expansion_multislab' not in message
+
+
+def test_every_genuine_passthrough_is_accepted():
+    """The guard must not reject a keyword the chain really does take.
+
+    A false rejection here is worse than the problem being fixed: it would break working
+    code at the entry point rather than merely reporting a typo badly."""
+    for name in op.PASSTHROUGH_KWARGS_DOCUMENTED:
+        op._check_passthrough_kwargs({name: None}, 'osc_prob_matter_std_potential')
+
+
+def test_documented_passthrough_kwargs_are_all_accepted():
+    """The curated list and the derived set must not drift apart.
+
+    `PASSTHROUGH_KWARGS_DOCUMENTED` is what a caller is *told* about; the derived set is
+    what is *allowed*. If a documented name ever stopped being accepted, the library would
+    be advertising a keyword that raises."""
+    accepted = op._passthrough_kwarg_names()
+    missing = [n for n in op.PASSTHROUGH_KWARGS_DOCUMENTED if n not in accepted]
+    assert not missing, 'documented but not accepted: %s' % missing
+
+
+def test_passthrough_names_are_derived_not_transcribed():
+    """The accepted set must come from the signatures, so it cannot drift from them.
+
+    A hand-written allowlist would be a second copy of the signatures -- the same
+    duplication that let one matter-potential defect survive in five places at once."""
+    import inspect
+
+    import magnus.magnus as magnus_core
+    accepted = op._passthrough_kwarg_names()
+    for func in (op.osc_prob, magnus_core.magnus_expansion_multislab):
+        for name in inspect.signature(func).parameters:
+            if name != 'kwargs':
+                assert name in accepted, '%s is in a signature but not accepted' % name
+
+
+def test_passthrough_guard_is_silent_when_there_is_nothing_to_flag():
+    """The common case is no **kwargs at all, and it must cost nothing and raise nothing."""
+    op._check_passthrough_kwargs({}, 'osc_prob_matter_std_potential')
+
+
 def test_cgroup_probe_survives_a_hostile_filesystem(monkeypatch):
     """Unreadable or nonsense cgroup files must yield None, never an exception.
 
