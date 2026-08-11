@@ -70,6 +70,17 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- **The default oscillation parameters are NuFit 6.1, and there is now only one
+  set of them.**  Omitting oscillation parameters used to fall back to a second
+  copy of the numbers built from NuFit 6.0 constants, while
+  `load_nufit_params()` with no arguments returned 6.1 -- so the same script got
+  different answers depending on which door it came through, by **4.0e-03** in
+  probability at 1 GeV over 1300 km.  `OSC_PARAMS_DEFAULT` is now derived from
+  `load_nufit_params`, so the two cannot drift apart again.
+  `OSC_PARAMS_NU_FIT_6_0_SK_NO` and `..._SK_IO` remain available by name for
+  anyone reproducing an earlier number.  **Results that relied on the implicit
+  default will change.**
+
 - **The publish workflow gates on the tests, on `twine check --strict`, and on
   the release tag matching the packaged version.**  It previously built and
   uploaded on a release with no check of any kind, and PyPI does not allow
