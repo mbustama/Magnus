@@ -686,6 +686,14 @@ __all__ = [
     'density_matter_func_const',
     'density_matter_func_exp',
     'exp_density_profile',
+    # Exported because it is the one definition of the matter term's structure, and
+    # because every place that rebuilt that structure by hand instead got it wrong: four
+    # inline copies in oscprob, the NSI route's literal diagonal, and notebook 12's
+    # solve_ivp reference all gave the sterile states a zero where they carry
+    # -V_NC = (r/2) V_CC.  A function that public docstrings point at, and that callers
+    # writing their own H_func need, has no business being unexported -- while it was,
+    # autoapi did not document it and every :func: reference to it failed to resolve.
+    'matter_potential_projector',
     'num_density_e_func',
     'VCC_func',
     'vcc_func_from_rho_func',
