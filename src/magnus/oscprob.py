@@ -5719,7 +5719,13 @@ def osc_prob_energy_baseline(
     \**kwargs
         Additional arguments forwarded to :func:`osc_prob`.
 
-    Returns
+    
+    symmetric_over : tuple, optional
+        Caller's declaration that ``A(t) == A(lo + hi - t)`` on ``(lo, hi)``, which lets
+        the Hamiltonian be evaluated on half the slabs.  A declaration, not a test: it
+        is not checked.  See :func:`magnus.magnus.magnus_expansion_multislab`.
+
+Returns
     -------
     int, float, or np.ndarray
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for
@@ -6536,7 +6542,11 @@ def osc_prob_vacuum(
         A misspelling is rejected here, naming the near match, rather than several hops
         away by a function the caller never invoked.
 
-    Returns
+    
+    average : bool, optional
+        If True, return the phase-averaged probability rather than the oscillating one.
+
+Returns
     -------
     float or np.ndarray
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for
@@ -6871,7 +6881,15 @@ def osc_prob_matter_std_potential(
         A misspelling is rejected here, naming the near match, rather than several hops
         away by a function the caller never invoked.
 
-    Returns
+    
+    average : bool, optional
+        If True, return the phase-averaged probability rather than the oscillating one.
+    symmetric_over : tuple, optional
+        Caller's declaration that ``A(t) == A(lo + hi - t)`` on ``(lo, hi)``, which lets
+        the Hamiltonian be evaluated on half the slabs.  A declaration, not a test: it
+        is not checked.  See :func:`magnus.magnus.magnus_expansion_multislab`.
+
+Returns
     -------
     float or np.ndarray
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for
@@ -7281,7 +7299,15 @@ def osc_prob_matter_nsi(
         A misspelling is rejected here, naming the near match, rather than several hops
         away by a function the caller never invoked.
 
-    Returns
+    
+    average : bool, optional
+        If True, return the phase-averaged probability rather than the oscillating one.
+    symmetric_over : tuple, optional
+        Caller's declaration that ``A(t) == A(lo + hi - t)`` on ``(lo, hi)``, which lets
+        the Hamiltonian be evaluated on half the slabs.  A declaration, not a test: it
+        is not checked.  See :func:`magnus.magnus.magnus_expansion_multislab`.
+
+Returns
     -------
     float or np.ndarray
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for
@@ -7703,7 +7729,15 @@ def osc_prob_liv(
         A misspelling is rejected here, naming the near match, rather than several hops
         away by a function the caller never invoked.
 
-    Returns
+    
+    average : bool, optional
+        If True, return the phase-averaged probability rather than the oscillating one.
+    symmetric_over : tuple, optional
+        Caller's declaration that ``A(t) == A(lo + hi - t)`` on ``(lo, hi)``, which lets
+        the Hamiltonian be evaluated on half the slabs.  A declaration, not a test: it
+        is not checked.  See :func:`magnus.magnus.magnus_expansion_multislab`.
+
+Returns
     -------
     float or np.ndarray
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for
@@ -8039,7 +8073,17 @@ def osc_prob_2nu_vacuum(
         0 not to print warnings and errors; 1 to print them; 2 to print
         progress.
 
-    Returns
+    
+    save_log : bool, optional
+        If True, also write all messages to the log file.
+    filename_log : str, optional
+        Name of the log file.
+    file_log : file object, optional
+        Open file handle to write the log to, if one is already open.
+    close_file_log_upon_exit : bool, optional
+        If True, close ``file_log`` before returning.
+
+Returns
     -------
     Union[float, np.ndarray]
         Neutrino oscillation probability matrix or probability for a 
@@ -8201,7 +8245,17 @@ def osc_prob_3nu_vacuum(
         0 not to print warnings and errors; 1 to print them; 2 to print
         progress.
 
-    Returns
+    
+    save_log : bool, optional
+        If True, also write all messages to the log file.
+    filename_log : str, optional
+        Name of the log file.
+    file_log : file object, optional
+        Open file handle to write the log to, if one is already open.
+    close_file_log_upon_exit : bool, optional
+        If True, close ``file_log`` before returning.
+
+Returns
     -------
     Union[float, np.ndarray]
         Neutrino oscillation probability matrix or probability for a 
@@ -8421,7 +8475,17 @@ def osc_prob_4nu_vacuum(
         0 not to print warnings and errors; 1 to print them; 2 to print
         progress.
 
-    Returns
+    
+    save_log : bool, optional
+        If True, also write all messages to the log file.
+    filename_log : str, optional
+        Name of the log file.
+    file_log : file object, optional
+        Open file handle to write the log to, if one is already open.
+    close_file_log_upon_exit : bool, optional
+        If True, close ``file_log`` before returning.
+
+Returns
     -------
     Union[float, np.ndarray]
         Neutrino oscillation probability matrix or probability for a 
@@ -8662,7 +8726,17 @@ def osc_prob_5nu_vacuum(
         0 not to print warnings and errors; 1 to print them; 2 to print
         progress.
 
-    Returns
+    
+    save_log : bool, optional
+        If True, also write all messages to the log file.
+    filename_log : str, optional
+        Name of the log file.
+    file_log : file object, optional
+        Open file handle to write the log to, if one is already open.
+    close_file_log_upon_exit : bool, optional
+        If True, close ``file_log`` before returning.
+
+Returns
     -------
     Union[float, np.ndarray]
         Neutrino oscillation probability matrix or probability for a 
@@ -9927,7 +10001,16 @@ def osc_prob_2nu_earth(
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
 
-    Returns
+    
+    ratio_number_neutrons_to_protons : int or float, optional
+        :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
+        matter term; see :func:`magnus.matter.matter_potential_projector`.  Must match
+        the value given to :func:`magnus.matter.vcc_func_from_rho_func`.  Default: 1.0
+        (isoscalar matter).
+    electron_fraction : int or float, optional
+        Electron fraction, :math:`Y_e`.  Default: 0.5.
+
+Returns
     -------
     float or np.ndarray
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
@@ -10143,7 +10226,16 @@ def osc_prob_3nu_earth(
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
 
-    Returns
+    
+    ratio_number_neutrons_to_protons : int or float, optional
+        :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
+        matter term; see :func:`magnus.matter.matter_potential_projector`.  Must match
+        the value given to :func:`magnus.matter.vcc_func_from_rho_func`.  Default: 1.0
+        (isoscalar matter).
+    electron_fraction : int or float, optional
+        Electron fraction, :math:`Y_e`.  Default: 0.5.
+
+Returns
     -------
     float or np.ndarray
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
@@ -10377,7 +10469,16 @@ def osc_prob_4nu_earth(
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
 
-    Returns
+    
+    ratio_number_neutrons_to_protons : int or float, optional
+        :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
+        matter term; see :func:`magnus.matter.matter_potential_projector`.  Must match
+        the value given to :func:`magnus.matter.vcc_func_from_rho_func`.  Default: 1.0
+        (isoscalar matter).
+    electron_fraction : int or float, optional
+        Electron fraction, :math:`Y_e`.  Default: 0.5.
+
+Returns
     -------
     float or np.ndarray
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
@@ -10632,7 +10733,16 @@ def osc_prob_5nu_earth(
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
 
-    Returns
+    
+    ratio_number_neutrons_to_protons : int or float, optional
+        :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
+        matter term; see :func:`magnus.matter.matter_potential_projector`.  Must match
+        the value given to :func:`magnus.matter.vcc_func_from_rho_func`.  Default: 1.0
+        (isoscalar matter).
+    electron_fraction : int or float, optional
+        Electron fraction, :math:`Y_e`.  Default: 0.5.
+
+Returns
     -------
     float or np.ndarray
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
@@ -10819,7 +10929,12 @@ def osc_prob_earth(
         Additional arguments forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`
         (e.g., the refinement-loop bounds).
 
-    Returns
+    
+    strategy_info : dict, optional
+        If given, filled in place with which engine actually answered, following the
+        same out-parameter convention as ``convergence_info`` in :func:`osc_prob`.
+
+Returns
     -------
     float or np.ndarray
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for
@@ -11841,7 +11956,12 @@ def osc_prob_sun(
         Additional arguments forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`
         (e.g., the refinement-loop bounds).
 
-    Returns
+    
+    strategy_info : dict, optional
+        If given, filled in place with which engine actually answered, following the
+        same out-parameter convention as ``convergence_info`` in :func:`osc_prob`.
+
+Returns
     -------
     float or np.ndarray
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for
@@ -13301,7 +13421,16 @@ def osc_prob_2nu_earth_nsi(
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
 
-    Returns
+    
+    ratio_number_neutrons_to_protons : int or float, optional
+        :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
+        matter term; see :func:`magnus.matter.matter_potential_projector`.  Must match
+        the value given to :func:`magnus.matter.vcc_func_from_rho_func`.  Default: 1.0
+        (isoscalar matter).
+    electron_fraction : int or float, optional
+        Electron fraction, :math:`Y_e`.  Default: 0.5.
+
+Returns
     -------
     float or np.ndarray
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
@@ -13534,7 +13663,16 @@ def osc_prob_3nu_earth_nsi(
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
 
-    Returns
+    
+    ratio_number_neutrons_to_protons : int or float, optional
+        :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
+        matter term; see :func:`magnus.matter.matter_potential_projector`.  Must match
+        the value given to :func:`magnus.matter.vcc_func_from_rho_func`.  Default: 1.0
+        (isoscalar matter).
+    electron_fraction : int or float, optional
+        Electron fraction, :math:`Y_e`.  Default: 0.5.
+
+Returns
     -------
     float or np.ndarray
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
@@ -13798,7 +13936,16 @@ def osc_prob_4nu_earth_nsi(
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
 
-    Returns
+    
+    ratio_number_neutrons_to_protons : int or float, optional
+        :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
+        matter term; see :func:`magnus.matter.matter_potential_projector`.  Must match
+        the value given to :func:`magnus.matter.vcc_func_from_rho_func`.  Default: 1.0
+        (isoscalar matter).
+    electron_fraction : int or float, optional
+        Electron fraction, :math:`Y_e`.  Default: 0.5.
+
+Returns
     -------
     float or np.ndarray
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
@@ -14100,7 +14247,16 @@ def osc_prob_5nu_earth_nsi(
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
 
-    Returns
+    
+    ratio_number_neutrons_to_protons : int or float, optional
+        :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
+        matter term; see :func:`magnus.matter.matter_potential_projector`.  Must match
+        the value given to :func:`magnus.matter.vcc_func_from_rho_func`.  Default: 1.0
+        (isoscalar matter).
+    electron_fraction : int or float, optional
+        Electron fraction, :math:`Y_e`.  Default: 0.5.
+
+Returns
     -------
     float or np.ndarray
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
@@ -17033,7 +17189,16 @@ def osc_prob_2nu_earth_liv(
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
 
-    Returns
+    
+    ratio_number_neutrons_to_protons : int or float, optional
+        :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
+        matter term; see :func:`magnus.matter.matter_potential_projector`.  Must match
+        the value given to :func:`magnus.matter.vcc_func_from_rho_func`.  Default: 1.0
+        (isoscalar matter).
+    electron_fraction : int or float, optional
+        Electron fraction, :math:`Y_e`.  Default: 0.5.
+
+Returns
     -------
     float or np.ndarray
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
@@ -17277,7 +17442,16 @@ def osc_prob_3nu_earth_liv(
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
 
-    Returns
+    
+    ratio_number_neutrons_to_protons : int or float, optional
+        :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
+        matter term; see :func:`magnus.matter.matter_potential_projector`.  Must match
+        the value given to :func:`magnus.matter.vcc_func_from_rho_func`.  Default: 1.0
+        (isoscalar matter).
+    electron_fraction : int or float, optional
+        Electron fraction, :math:`Y_e`.  Default: 0.5.
+
+Returns
     -------
     float or np.ndarray
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
@@ -17556,7 +17730,16 @@ def osc_prob_4nu_earth_liv(
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
 
-    Returns
+    
+    ratio_number_neutrons_to_protons : int or float, optional
+        :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
+        matter term; see :func:`magnus.matter.matter_potential_projector`.  Must match
+        the value given to :func:`magnus.matter.vcc_func_from_rho_func`.  Default: 1.0
+        (isoscalar matter).
+    electron_fraction : int or float, optional
+        Electron fraction, :math:`Y_e`.  Default: 0.5.
+
+Returns
     -------
     float or np.ndarray
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
@@ -17874,7 +18057,16 @@ def osc_prob_5nu_earth_liv(
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
 
-    Returns
+    
+    ratio_number_neutrons_to_protons : int or float, optional
+        :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
+        matter term; see :func:`magnus.matter.matter_potential_projector`.  Must match
+        the value given to :func:`magnus.matter.vcc_func_from_rho_func`.  Default: 1.0
+        (isoscalar matter).
+    electron_fraction : int or float, optional
+        Electron fraction, :math:`Y_e`.  Default: 0.5.
+
+Returns
     -------
     float or np.ndarray
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.

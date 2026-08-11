@@ -433,7 +433,15 @@ def averaged_probabilities_numerically(
     Parameters
     ----------
     prob_of_energy : Callable
-        Returns the probability matrix at a given energy; called once per sample.
+        
+    energy : int, float or np.ndarray
+        Neutrino energy [eV].
+    relative_spread : float, optional
+        Width of the sampling window, as a fraction of ``energy``.
+    n_samples : int, optional
+        Number of samples across the window.
+
+Returns the probability matrix at a given energy; called once per sample.
     energy : float
         Central energy [eV].
     relative_spread : float, optional
