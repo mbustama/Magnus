@@ -2910,9 +2910,33 @@ def osc_prob(
             raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob: t_fin must be >=" + \
                 " t_ini.")
 
-        if (magnus_exp_order < 1): 
+        if (magnus_exp_order < 1):
             raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob: magnus_exp_order " + \
                 "must be >= 1.")
+
+        # The slab counts are checked unconditionally, unlike the refinement ceilings
+        # below, which are only meaningful when a tolerance was requested.  `n_slabs` is
+        # the floor the ladder starts from and is used whether or not rtol/atol are set,
+        # so `n_slabs=0` and `n_slabs=-5` used to be accepted in silence: the ladder
+        # simply ignored them and returned the default answer, which made a typo look
+        # like a setting that had been honoured.  rtol and atol were already rejected
+        # when non-positive; these are the same kind of argument and are now treated the
+        # same way.
+        if (n_slabs is not None) and (n_slabs < 1):
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob: n_slabs must be" + \
+                " >= 1.")
+
+        if (min_n_slabs is not None) and (min_n_slabs < 1):
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob: min_n_slabs must" + \
+                " be >= 1.")
+
+        if (n_tpts_per_slab is not None) and (n_tpts_per_slab < 2):
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob: n_tpts_per_slab" + \
+                " must be >= 2.")
+
+        if (min_n_tpts_per_slab is not None) and (min_n_tpts_per_slab < 2):
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob: min_n_tpts_per_" + \
+                "slab must be >= 2.")
 
         if ((rtol is not None) and (rtol <= 0.0)): 
             raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob: rtol must be None " + \
