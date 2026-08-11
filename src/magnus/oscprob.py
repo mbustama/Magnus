@@ -1726,6 +1726,15 @@ def validate_input_battery(
             raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob_matter_std_potential:"+\
                 " rho_func must be non-negative.")
 
+        # Checked before the density reaches the unit guards, because it reaches them as a
+        # comparison that is False either way: `nan == 0.0` and `nan >= threshold` are both
+        # False, so a NaN fell past the early return and was reported as a *units* mistake
+        # -- "far too small to be in natural units" -- which is a confident diagnosis of
+        # the wrong problem.  A non-finite density is not a units question at all.
+        if not np.all(np.isfinite(np.asarray(rho_test, dtype=float))):
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob_matter_std_potential:"+\
+                " rho_func must be finite; it returned " + str(rho_test) + ".")
+
         if not (isinstance(rho_test, int) or isinstance(rho_test, float)):
             raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob_matter_std_potential:"+\
                 " rho_func must be a float (or int) or must return a float (or int).")
