@@ -2938,6 +2938,22 @@ def osc_prob(
             raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob: min_n_tpts_per_" + \
                 "slab must be >= 2.")
 
+        # A floor above its own ceiling is a contradiction, and it used to be answered:
+        # min_n_slabs=100 with max_n_slabs=5 returned a probability that differed from the
+        # default by 4.2e-04, so the request was neither honoured nor refused.  Which of
+        # the two the ladder ends up obeying is an implementation detail, and a caller who
+        # wrote both cannot have meant either.
+        if ((min_n_slabs is not None) and (max_n_slabs is not None) and
+                (min_n_slabs > max_n_slabs)):
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob: min_n_slabs (" + \
+                str(min_n_slabs) + ") must be <= max_n_slabs (" + str(max_n_slabs) + ").")
+
+        if ((min_n_tpts_per_slab is not None) and (max_n_tpts_per_slab is not None) and
+                (min_n_tpts_per_slab > max_n_tpts_per_slab)):
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob: min_n_tpts_per_" + \
+                "slab (" + str(min_n_tpts_per_slab) + ") must be <= max_n_tpts_per_slab (" + \
+                str(max_n_tpts_per_slab) + ").")
+
         if ((rtol is not None) and (rtol <= 0.0)): 
             raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob: rtol must be None " + \
                 "or > 0.0.")
