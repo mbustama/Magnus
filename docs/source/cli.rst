@@ -343,12 +343,12 @@ configures):
      --dm2 DM2             Mass-squared difference Delta m^2 (required for --flavors 2).
 
    Standard oscillation parameters (3+ flavors):
-     --s12 S12             Sin(theta_12). Default: NuFit 6.0.
-     --s23 S23             Sin(theta_23). Default: NuFit 6.0.
-     --s13 S13             Sin(theta_13). Default: NuFit 6.0.
-     --dcp DCP             delta_CP [radian]. Default: NuFit 6.0.
-     --dm21 D21            Mass-squared difference Delta m^2_21. Default: NuFit 6.0.
-     --dm31 D31            Mass-squared difference Delta m^2_31. Default: NuFit 6.0.
+     --s12 S12             Sin(theta_12). Default: NuFit 6.1.
+     --s23 S23             Sin(theta_23). Default: NuFit 6.1.
+     --s13 S13             Sin(theta_13). Default: NuFit 6.1.
+     --dcp DCP             delta_CP [radian]. Default: NuFit 6.1.
+     --dm21 D21            Mass-squared difference Delta m^2_21. Default: NuFit 6.1.
+     --dm31 D31            Mass-squared difference Delta m^2_31. Default: NuFit 6.1.
      --osc-params-set {OSC_PARAMS_DEFAULT,OSC_PARAMS_NU_FIT_6_0_SK_NO,OSC_PARAMS_NU_FIT_6_0_SK_IO}
                            Predefined set used to fill in any of s12/s23/s13/dCP/D21/D31
                            left unspecified: normal ordering (..._NO, the default) or

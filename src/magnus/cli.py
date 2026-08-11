@@ -160,15 +160,15 @@ def build_parser() -> argparse.ArgumentParser:
         help='Mass-squared difference Delta m^2 (required for --flavors 2).')
 
     g_osc3 = p.add_argument_group('Standard oscillation parameters (3+ flavors)')
-    g_osc3.add_argument('--s12', type=float, default=None, help='Sin(theta_12). Default: NuFit 6.0.')
-    g_osc3.add_argument('--s23', type=float, default=None, help='Sin(theta_23). Default: NuFit 6.0.')
-    g_osc3.add_argument('--s13', type=float, default=None, help='Sin(theta_13). Default: NuFit 6.0.')
+    g_osc3.add_argument('--s12', type=float, default=None, help='Sin(theta_12). Default: NuFit 6.1.')
+    g_osc3.add_argument('--s23', type=float, default=None, help='Sin(theta_23). Default: NuFit 6.1.')
+    g_osc3.add_argument('--s13', type=float, default=None, help='Sin(theta_13). Default: NuFit 6.1.')
     g_osc3.add_argument('--dcp', type=float, default=None, dest='dCP',
-        help='delta_CP [radian]. Default: NuFit 6.0.')
+        help='delta_CP [radian]. Default: NuFit 6.1.')
     g_osc3.add_argument('--dm21', type=float, default=None, dest='D21',
-        help='Mass-squared difference Delta m^2_21. Default: NuFit 6.0.')
+        help='Mass-squared difference Delta m^2_21. Default: NuFit 6.1.')
     g_osc3.add_argument('--dm31', type=float, default=None, dest='D31',
-        help='Mass-squared difference Delta m^2_31. Default: NuFit 6.0.')
+        help='Mass-squared difference Delta m^2_31. Default: NuFit 6.1.')
     g_osc3.add_argument('--osc-params-set', default='OSC_PARAMS_DEFAULT',
         dest='default_osc_params_set_name',
         choices=['OSC_PARAMS_DEFAULT', 'OSC_PARAMS_NU_FIT_6_0_SK_NO', 'OSC_PARAMS_NU_FIT_6_0_SK_IO'],

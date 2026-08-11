@@ -1084,6 +1084,37 @@ def load_nufit_params(version='NuFIT 6.1', ordering='NO', category=None):
     return dict(categories[category][ordering])
 
 
+# ---------------------------------------------------------------------------------------
+# The fallback set, defined here rather than beside OSC_PARAMS_PREDEFINED above because it
+# is *derived* from `load_nufit_params`, which is defined immediately above this.
+#
+# It used to be a second copy of the numbers, and the two copies disagreed: omitting
+# oscillation parameters fell back to NuFIT 6.0, while `load_nufit_params()` with no
+# arguments returned 6.1.  Both were documented, so neither read as a mistake -- but the
+# same script got different answers depending on which door it came through, by 4.0e-03 in
+# probability at 1 GeV over 1300 km.  Deriving the fallback from the loader means there is
+# one set of numbers, and a future release is a one-line change here rather than a second
+# table to keep in step.
+OSC_PARAMS_NU_FIT_6_1_SK_NO = {
+    'name': 'OSC_PARAMS_NU_FIT_6_1_NO',
+    'description': 'NuFit 6.1, NO, with SK atmospheric data',
+    **load_nufit_params('NuFIT 6.1', 'NO', category='with_SK'),
+}
+
+OSC_PARAMS_NU_FIT_6_1_SK_IO = {
+    'name': 'OSC_PARAMS_NU_FIT_6_1_IO',
+    'description': 'NuFit 6.1, IO, with SK atmospheric data',
+    **load_nufit_params('NuFIT 6.1', 'IO', category='with_SK'),
+}
+
+OSC_PARAMS_PREDEFINED['OSC_PARAMS_NU_FIT_6_1_SK_NO'] = OSC_PARAMS_NU_FIT_6_1_SK_NO
+OSC_PARAMS_PREDEFINED['OSC_PARAMS_NU_FIT_6_1_SK_IO'] = OSC_PARAMS_NU_FIT_6_1_SK_IO
+
+# The 6.0 sets stay reachable by name: this changes which release is the *default*, not
+# which releases exist, so a caller pinned to 6.0 asks for it explicitly and keeps working.
+OSC_PARAMS_PREDEFINED['OSC_PARAMS_DEFAULT'] = OSC_PARAMS_NU_FIT_6_1_SK_NO
+
+
 __all__ = [
     'cstyle',
     'set_color_output',
@@ -1147,6 +1178,8 @@ __all__ = [
     'D31_IO_BF_NUFIT_6_0',
     'OSC_PARAMS_NU_FIT_6_0_SK_NO',
     'OSC_PARAMS_NU_FIT_6_0_SK_IO',
+    'OSC_PARAMS_NU_FIT_6_1_SK_NO',
+    'OSC_PARAMS_NU_FIT_6_1_SK_IO',
     'OSC_PARAMS_PREDEFINED',
     'EPS_EE',
     'EPS_EM',

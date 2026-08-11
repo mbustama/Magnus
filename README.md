@@ -517,7 +517,7 @@ P = oscprob.osc_prob_earth(H, energy, loc_ini='fermilab', loc_fin='homestake')
 P = oscprob.osc_prob(lambda l: h_vac/energy, t_ini=0.0, t_fin=L)  # H(l) -> (d, d)
 ```
 
-Oscillation parameters default to the NuFit 6.0 best fit (normal ordering);
+Oscillation parameters default to the NuFit 6.1 best fit (normal ordering);
 pass `s12`, `D31`, `dCP`, ..., or `nubar=True`, to change them.  Find many
 worked examples — vacuum, matter, Earth, Sun, oscillograms, biprobability
 plots, steriles, NSI, LIV — in the [Jupyter notebooks](notebooks/).

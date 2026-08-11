@@ -67,7 +67,8 @@ Install Magνs with ``pip install magnuspy`` -- the distribution is
    import magnus.globaldefs as gd
 
 Oscillation parameters that are not passed explicitly default to the
-`NuFit 6.0 <http://www.nu-fit.org>`_ best fit (normal ordering); pass
+`NuFit 6.1 <http://www.nu-fit.org>`_ best fit (normal ordering) -- the same
+release :func:`~magnus.globaldefs.load_nufit_params` returns by default; pass
 ``s12``, ``D31``, ``dCP``, etc., or ``nubar=True``, to change them.
 
 .. _nufit-parameters:

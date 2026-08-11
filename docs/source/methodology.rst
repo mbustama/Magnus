@@ -498,10 +498,13 @@ Mass ordering
 
 The ordering is carried by the **sign of** :math:`\Delta m^2_{31}`, not by a
 flag: positive is normal, negative is inverted. ``OSC_PARAMS_DEFAULT`` is the
-normal ordering, with :math:`\Delta m^2_{31} = +2.513 \times 10^{-3}`
-eV\ :sup:`2`. ``magnus.globaldefs.OSC_PARAMS_PREDEFINED`` also carries
-``OSC_PARAMS_NU_FIT_6_0_SK_NO`` and ``..._SK_IO`` if you want to name the fit
-explicitly.
+normal ordering, with :math:`\Delta m^2_{31} = +2.511 \times 10^{-3}`
+eV\ :sup:`2`. It is NuFit 6.1, the same release
+:func:`~magnus.globaldefs.load_nufit_params` returns by default, and is derived
+from it rather than written out a second time.
+``magnus.globaldefs.OSC_PARAMS_PREDEFINED`` also carries
+``OSC_PARAMS_NU_FIT_6_1_SK_NO``, ``..._SK_IO`` and the 6.0 pair, if you want to
+name the fit explicitly.
 
 For two flavours the same rule applies to :math:`\Delta m^2`, which is what
 makes the two-flavour case easy to get backwards: flipping its sign moves the
