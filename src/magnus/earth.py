@@ -509,7 +509,7 @@ def coordinates_of_named_location(source_func_name: str, loc_name: str) -> np.nd
 Y_E_CORE_PREM = 0.4656
 r"""float: Module-level constant
 
-Electron fraction :math:`Y_e = \langle Z/A angle` of the Earth's core (:math:`r \le
+Electron fraction :math:`Y_e = \langle Z/A \rangle` of the Earth's core (:math:`r \le
 3480` km), taken as pure iron.  Units: [Adimensional]
 
 .. versionadded:: 1.0.0
@@ -597,11 +597,11 @@ def neutron_to_proton_ratio_from_electron_fraction(electron_fraction):
     r"""The neutron-to-proton ratio implied by an electron fraction.
 
     The two are not independent.  With charge neutrality :math:`n_p = n_e = Y_e
-    n_{m nucleon}` and :math:`n_n = (1 - Y_e) n_{m nucleon}`, so
+    n_{\rm nucleon}` and :math:`n_n = (1 - Y_e) n_{\rm nucleon}`, so
 
     .. math::
 
-       r = rac{n_n}{n_p} = rac{1 - Y_e}{Y_e} .
+       r = \frac{n_n}{n_p} = \frac{1 - Y_e}{Y_e} .
 
     Deriving one from the other is what keeps a medium physical: the two used to be
     independent arguments, so setting :math:`Y_e = 0.4656` for an iron core while leaving
