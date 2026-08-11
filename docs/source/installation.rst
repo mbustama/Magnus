@@ -138,7 +138,7 @@ whether the dispatch chain, the refinement caps and the warning paths are each
 taken in *both* directions.
 
 The run fails below **90%**, which is a floor rather than a target: the suite
-measures 92%, and the two points of headroom keep the check from tripping on
+measures 93%, and the three points of headroom keep the check from tripping on
 the fraction of a percent that moves between interpreters while still catching
 a module added without tests or a test file deleted.  The floor is in
 ``pyproject.toml``, so it applies to *every* coverage run -- measuring a single
