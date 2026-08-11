@@ -453,6 +453,11 @@ def hamiltonian_5nu_matter(VCC: float,
     VCC : float
         Potential due to charged-current interactions of nu_e with
         electrons.
+    ratio_number_neutrons_to_protons : int or float, optional
+        :math:`r = n_n/n_p` of the medium, which sets the sterile states' entry
+        via :math:`-V_{\rm NC} = (r/2) V_{\rm CC}`.  Must match the value given
+        to :func:`magnus.matter.vcc_func_from_rho_func`.  Default: 1.0
+        (isoscalar matter).
 
     Returns
     -------

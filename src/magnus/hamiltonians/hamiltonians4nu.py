@@ -361,6 +361,11 @@ def hamiltonian_4nu_matter(VCC: float,
     VCC : float
         Potential due to charged-current interactions of nu_e with
         electrons.
+    ratio_number_neutrons_to_protons : int or float, optional
+        :math:`r = n_n/n_p` of the medium, which sets the sterile states' entry
+        via :math:`-V_{\rm NC} = (r/2) V_{\rm CC}`.  Must match the value given
+        to :func:`magnus.matter.vcc_func_from_rho_func`.  Default: 1.0
+        (isoscalar matter).
 
     Returns
     -------
@@ -378,7 +383,16 @@ def hamiltonian_4nu_matter(VCC: float,
         print(np.asarray(hamiltonians4nu.hamiltonian_4nu_matter(1.0e-13)))
 
     The sterile state feels neither the charged- nor the neutral-current
-    potential, which is what makes a 3+1 scenario more than a relabelling.
+    potential -- it is a Standard Model gauge singlet, so there is no W and no
+    Z for it to scatter off.  That is *why* its entry here is not zero.
+    Oscillations depend only on differences between the diagonal entries, so a
+    multiple of the identity is unobservable and the actives' common
+    :math:`V_{\rm NC}` is subtracted.  What that leaves on the sterile state is
+    :math:`-V_{\rm NC} = (r/2) V_{\rm CC}`, with :math:`r = n_n/n_p`, and it is
+    that residue -- not any interaction of the sterile state -- that makes a 3+1
+    scenario more than a relabelling.  Setting it to zero instead is worth 0.29
+    in probability on a PREM chord.  The derivation is in
+    :func:`magnus.matter.matter_potential_projector`.
 """
     # Built by broadcasting rather than np.diag so that VCC may be an array of
     # positions: VCC[..., None, None] turns one potential per position into a
