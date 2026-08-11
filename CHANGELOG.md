@@ -70,6 +70,46 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- **The Earth's electron fraction is now resolved per PREM layer, and results
+  change.**  Every Earth entry point assumed `Y_e = 0.5` -- exactly isoscalar
+  matter, which nothing in the Earth is.  PREM is a density model and carries no
+  composition, so `Y_e = <Z/A>` has to be supplied; it is now taken per layer, at
+  radii that are already PREM boundaries:
+
+  | layer | radii [km] | `Y_e` | material |
+  |---|---|---|---|
+  | core | `r <= 3480` | **0.4656** | iron |
+  | mantle | 3480 - 6346.6 | **0.4957** | peridotite |
+  | crust | 6346.6 - 6368 | **0.4952** | granitic |
+  | ocean | `r > 6368` | **0.5551** | seawater (H has `Z/A = 1`) |
+
+  The correction tracks how much core a chord crosses: at 1 GeV,
+  `P(nu_mu -> nu_e)` falls to **23%** of its previous value at
+  `cos(theta_z) = -1`, and moves by about 1% at -0.4.  **Anyone with published
+  Earth numbers from an earlier build should re-run them**; passing
+  `electron_fraction=0.5` reproduces the old uniform composition exactly.
+
+  Each layer is settable (`electron_fraction_core` and friends).  Combining a
+  per-layer value with the uniform `electron_fraction` is refused rather than
+  silently resolved, and `Y_e` is validated as a fraction in `(0, 1]` -- 0.0 and
+  5.0 used to be accepted, returning answers 0.51 and 0.74 away from the default.
+  The neutron-to-proton ratio is derived from `Y_e` in the density conversion,
+  `r = (1 - Y_e)/Y_e`, so a caller can no longer describe an iron core with
+  isoscalar neutrons.
+
+  Two caveats are documented rather than guessed at: the crust value differs from
+  the mantle by 0.1%, so it exists for explicitness rather than effect; and PREM's
+  ocean is a global average that a land-based baseline does not cross, for which
+  `electron_fraction_ocean=Y_E_CRUST_PREM` is the right setting.
+
+- **The solar LIV routes no longer accept four parameters they ignored.**
+  `osc_prob_Nnu_sun_liv` took `electron_fraction`,
+  `ratio_number_neutrons_to_protons` and two density flags and used none of them:
+  passing `electron_fraction=0.25` changed the answer by exactly zero.  The solar
+  profile is the standard exponential fit to the electron *number* density, so the
+  mass-density conversion those describe never runs and `Y_e` is already inside
+  the fit.  `osc_prob_Nnu_sun` and `..._sun_nsi` never exposed them.
+
 - **The default oscillation parameters are NuFit 6.1, and there is now only one
   set of them.**  Omitting oscillation parameters used to fall back to a second
   copy of the numbers built from NuFit 6.0 constants, while
