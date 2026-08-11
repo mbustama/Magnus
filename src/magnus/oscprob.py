@@ -10092,7 +10092,27 @@ def osc_prob_2nu_earth(
         the value given to :func:`magnus.matter.vcc_func_from_rho_func`.  Default: 1.0
         (isoscalar matter).
     electron_fraction : int or float, optional
-        Electron fraction, :math:`Y_e`.  Default: 0.5.
+        One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
+        ``0.5`` reproduces the uniform composition assumed before those existed, and is
+        the way to reproduce a result computed then.  Cannot be combined with any
+        ``electron_fraction_*`` argument; passing both is an error rather than one
+        silently winning.  Default: None, meaning the layered values are used.
+    electron_fraction_core : int or float, optional
+        :math:`Y_e = \langle Z/A \rangle` for :math:`r \le 3480` km.  Default:
+        :data:`magnus.earth.Y_E_CORE_PREM` (0.4656, iron).
+    electron_fraction_mantle : int or float, optional
+        :math:`Y_e` for :math:`3480 < r \le 6346.6` km.  Default:
+        :data:`magnus.earth.Y_E_MANTLE_PREM` (0.4957, peridotite).
+    electron_fraction_crust : int or float, optional
+        :math:`Y_e` for :math:`6346.6 < r \le 6368` km.  Default:
+        :data:`magnus.earth.Y_E_CRUST_PREM` (0.4952, granitic).  Within 0.1% of the
+        mantle, so this exists for explicitness rather than for effect.
+    electron_fraction_ocean : int or float, optional
+        :math:`Y_e` for :math:`r > 6368` km.  Default:
+        :data:`magnus.earth.Y_E_OCEAN_PREM` (0.5551, seawater -- above 0.5 because
+        hydrogen has :math:`Z/A = 1`).  PREM's ocean is a global average that a
+        land-based baseline does not cross; pass
+        :data:`magnus.earth.Y_E_CRUST_PREM` for one.
 
     Returns
     -------
@@ -10323,7 +10343,27 @@ def osc_prob_3nu_earth(
         the value given to :func:`magnus.matter.vcc_func_from_rho_func`.  Default: 1.0
         (isoscalar matter).
     electron_fraction : int or float, optional
-        Electron fraction, :math:`Y_e`.  Default: 0.5.
+        One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
+        ``0.5`` reproduces the uniform composition assumed before those existed, and is
+        the way to reproduce a result computed then.  Cannot be combined with any
+        ``electron_fraction_*`` argument; passing both is an error rather than one
+        silently winning.  Default: None, meaning the layered values are used.
+    electron_fraction_core : int or float, optional
+        :math:`Y_e = \langle Z/A \rangle` for :math:`r \le 3480` km.  Default:
+        :data:`magnus.earth.Y_E_CORE_PREM` (0.4656, iron).
+    electron_fraction_mantle : int or float, optional
+        :math:`Y_e` for :math:`3480 < r \le 6346.6` km.  Default:
+        :data:`magnus.earth.Y_E_MANTLE_PREM` (0.4957, peridotite).
+    electron_fraction_crust : int or float, optional
+        :math:`Y_e` for :math:`6346.6 < r \le 6368` km.  Default:
+        :data:`magnus.earth.Y_E_CRUST_PREM` (0.4952, granitic).  Within 0.1% of the
+        mantle, so this exists for explicitness rather than for effect.
+    electron_fraction_ocean : int or float, optional
+        :math:`Y_e` for :math:`r > 6368` km.  Default:
+        :data:`magnus.earth.Y_E_OCEAN_PREM` (0.5551, seawater -- above 0.5 because
+        hydrogen has :math:`Z/A = 1`).  PREM's ocean is a global average that a
+        land-based baseline does not cross; pass
+        :data:`magnus.earth.Y_E_CRUST_PREM` for one.
 
     Returns
     -------
@@ -10572,7 +10612,27 @@ def osc_prob_4nu_earth(
         the value given to :func:`magnus.matter.vcc_func_from_rho_func`.  Default: 1.0
         (isoscalar matter).
     electron_fraction : int or float, optional
-        Electron fraction, :math:`Y_e`.  Default: 0.5.
+        One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
+        ``0.5`` reproduces the uniform composition assumed before those existed, and is
+        the way to reproduce a result computed then.  Cannot be combined with any
+        ``electron_fraction_*`` argument; passing both is an error rather than one
+        silently winning.  Default: None, meaning the layered values are used.
+    electron_fraction_core : int or float, optional
+        :math:`Y_e = \langle Z/A \rangle` for :math:`r \le 3480` km.  Default:
+        :data:`magnus.earth.Y_E_CORE_PREM` (0.4656, iron).
+    electron_fraction_mantle : int or float, optional
+        :math:`Y_e` for :math:`3480 < r \le 6346.6` km.  Default:
+        :data:`magnus.earth.Y_E_MANTLE_PREM` (0.4957, peridotite).
+    electron_fraction_crust : int or float, optional
+        :math:`Y_e` for :math:`6346.6 < r \le 6368` km.  Default:
+        :data:`magnus.earth.Y_E_CRUST_PREM` (0.4952, granitic).  Within 0.1% of the
+        mantle, so this exists for explicitness rather than for effect.
+    electron_fraction_ocean : int or float, optional
+        :math:`Y_e` for :math:`r > 6368` km.  Default:
+        :data:`magnus.earth.Y_E_OCEAN_PREM` (0.5551, seawater -- above 0.5 because
+        hydrogen has :math:`Z/A = 1`).  PREM's ocean is a global average that a
+        land-based baseline does not cross; pass
+        :data:`magnus.earth.Y_E_CRUST_PREM` for one.
 
     Returns
     -------
@@ -10842,7 +10902,27 @@ def osc_prob_5nu_earth(
         the value given to :func:`magnus.matter.vcc_func_from_rho_func`.  Default: 1.0
         (isoscalar matter).
     electron_fraction : int or float, optional
-        Electron fraction, :math:`Y_e`.  Default: 0.5.
+        One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
+        ``0.5`` reproduces the uniform composition assumed before those existed, and is
+        the way to reproduce a result computed then.  Cannot be combined with any
+        ``electron_fraction_*`` argument; passing both is an error rather than one
+        silently winning.  Default: None, meaning the layered values are used.
+    electron_fraction_core : int or float, optional
+        :math:`Y_e = \langle Z/A \rangle` for :math:`r \le 3480` km.  Default:
+        :data:`magnus.earth.Y_E_CORE_PREM` (0.4656, iron).
+    electron_fraction_mantle : int or float, optional
+        :math:`Y_e` for :math:`3480 < r \le 6346.6` km.  Default:
+        :data:`magnus.earth.Y_E_MANTLE_PREM` (0.4957, peridotite).
+    electron_fraction_crust : int or float, optional
+        :math:`Y_e` for :math:`6346.6 < r \le 6368` km.  Default:
+        :data:`magnus.earth.Y_E_CRUST_PREM` (0.4952, granitic).  Within 0.1% of the
+        mantle, so this exists for explicitness rather than for effect.
+    electron_fraction_ocean : int or float, optional
+        :math:`Y_e` for :math:`r > 6368` km.  Default:
+        :data:`magnus.earth.Y_E_OCEAN_PREM` (0.5551, seawater -- above 0.5 because
+        hydrogen has :math:`Z/A = 1`).  PREM's ocean is a global average that a
+        land-based baseline does not cross; pass
+        :data:`magnus.earth.Y_E_CRUST_PREM` for one.
 
     Returns
     -------
@@ -11010,7 +11090,22 @@ def osc_prob_earth(
     ratio_number_neutrons_to_protons : int or float, optional
         Ratio of the number of neutrons to protons in Earth matter. Default: 1.0.
     electron_fraction : int or float, optional
-        Electron fraction of Earth matter. Default: 0.5.
+        One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
+        ``0.5`` reproduces the uniform composition assumed before those existed.
+        Cannot be combined with any ``electron_fraction_*`` argument.  Default: None,
+        meaning the layered values are used.
+    electron_fraction_core : int or float, optional
+        :math:`Y_e = \langle Z/A \rangle` for :math:`r \le 3480` km.  Default:
+        :data:`magnus.earth.Y_E_CORE_PREM` (0.4656, iron).
+    electron_fraction_mantle : int or float, optional
+        :math:`Y_e` for :math:`3480 < r \le 6346.6` km.  Default:
+        :data:`magnus.earth.Y_E_MANTLE_PREM` (0.4957, peridotite).
+    electron_fraction_crust : int or float, optional
+        :math:`Y_e` for :math:`6346.6 < r \le 6368` km.  Default:
+        :data:`magnus.earth.Y_E_CRUST_PREM` (0.4952, granitic).
+    electron_fraction_ocean : int or float, optional
+        :math:`Y_e` for :math:`r > 6368` km.  Default:
+        :data:`magnus.earth.Y_E_OCEAN_PREM` (0.5551, seawater).
     magnus_exp_order : int, optional
         Highest order of the Magnus expansion. Default: 4.
     n_jobs : int, optional
@@ -13539,7 +13634,27 @@ def osc_prob_2nu_earth_nsi(
         the value given to :func:`magnus.matter.vcc_func_from_rho_func`.  Default: 1.0
         (isoscalar matter).
     electron_fraction : int or float, optional
-        Electron fraction, :math:`Y_e`.  Default: 0.5.
+        One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
+        ``0.5`` reproduces the uniform composition assumed before those existed, and is
+        the way to reproduce a result computed then.  Cannot be combined with any
+        ``electron_fraction_*`` argument; passing both is an error rather than one
+        silently winning.  Default: None, meaning the layered values are used.
+    electron_fraction_core : int or float, optional
+        :math:`Y_e = \langle Z/A \rangle` for :math:`r \le 3480` km.  Default:
+        :data:`magnus.earth.Y_E_CORE_PREM` (0.4656, iron).
+    electron_fraction_mantle : int or float, optional
+        :math:`Y_e` for :math:`3480 < r \le 6346.6` km.  Default:
+        :data:`magnus.earth.Y_E_MANTLE_PREM` (0.4957, peridotite).
+    electron_fraction_crust : int or float, optional
+        :math:`Y_e` for :math:`6346.6 < r \le 6368` km.  Default:
+        :data:`magnus.earth.Y_E_CRUST_PREM` (0.4952, granitic).  Within 0.1% of the
+        mantle, so this exists for explicitness rather than for effect.
+    electron_fraction_ocean : int or float, optional
+        :math:`Y_e` for :math:`r > 6368` km.  Default:
+        :data:`magnus.earth.Y_E_OCEAN_PREM` (0.5551, seawater -- above 0.5 because
+        hydrogen has :math:`Z/A = 1`).  PREM's ocean is a global average that a
+        land-based baseline does not cross; pass
+        :data:`magnus.earth.Y_E_CRUST_PREM` for one.
 
     Returns
     -------
@@ -13787,7 +13902,27 @@ def osc_prob_3nu_earth_nsi(
         the value given to :func:`magnus.matter.vcc_func_from_rho_func`.  Default: 1.0
         (isoscalar matter).
     electron_fraction : int or float, optional
-        Electron fraction, :math:`Y_e`.  Default: 0.5.
+        One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
+        ``0.5`` reproduces the uniform composition assumed before those existed, and is
+        the way to reproduce a result computed then.  Cannot be combined with any
+        ``electron_fraction_*`` argument; passing both is an error rather than one
+        silently winning.  Default: None, meaning the layered values are used.
+    electron_fraction_core : int or float, optional
+        :math:`Y_e = \langle Z/A \rangle` for :math:`r \le 3480` km.  Default:
+        :data:`magnus.earth.Y_E_CORE_PREM` (0.4656, iron).
+    electron_fraction_mantle : int or float, optional
+        :math:`Y_e` for :math:`3480 < r \le 6346.6` km.  Default:
+        :data:`magnus.earth.Y_E_MANTLE_PREM` (0.4957, peridotite).
+    electron_fraction_crust : int or float, optional
+        :math:`Y_e` for :math:`6346.6 < r \le 6368` km.  Default:
+        :data:`magnus.earth.Y_E_CRUST_PREM` (0.4952, granitic).  Within 0.1% of the
+        mantle, so this exists for explicitness rather than for effect.
+    electron_fraction_ocean : int or float, optional
+        :math:`Y_e` for :math:`r > 6368` km.  Default:
+        :data:`magnus.earth.Y_E_OCEAN_PREM` (0.5551, seawater -- above 0.5 because
+        hydrogen has :math:`Z/A = 1`).  PREM's ocean is a global average that a
+        land-based baseline does not cross; pass
+        :data:`magnus.earth.Y_E_CRUST_PREM` for one.
 
     Returns
     -------
@@ -14066,7 +14201,27 @@ def osc_prob_4nu_earth_nsi(
         the value given to :func:`magnus.matter.vcc_func_from_rho_func`.  Default: 1.0
         (isoscalar matter).
     electron_fraction : int or float, optional
-        Electron fraction, :math:`Y_e`.  Default: 0.5.
+        One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
+        ``0.5`` reproduces the uniform composition assumed before those existed, and is
+        the way to reproduce a result computed then.  Cannot be combined with any
+        ``electron_fraction_*`` argument; passing both is an error rather than one
+        silently winning.  Default: None, meaning the layered values are used.
+    electron_fraction_core : int or float, optional
+        :math:`Y_e = \langle Z/A \rangle` for :math:`r \le 3480` km.  Default:
+        :data:`magnus.earth.Y_E_CORE_PREM` (0.4656, iron).
+    electron_fraction_mantle : int or float, optional
+        :math:`Y_e` for :math:`3480 < r \le 6346.6` km.  Default:
+        :data:`magnus.earth.Y_E_MANTLE_PREM` (0.4957, peridotite).
+    electron_fraction_crust : int or float, optional
+        :math:`Y_e` for :math:`6346.6 < r \le 6368` km.  Default:
+        :data:`magnus.earth.Y_E_CRUST_PREM` (0.4952, granitic).  Within 0.1% of the
+        mantle, so this exists for explicitness rather than for effect.
+    electron_fraction_ocean : int or float, optional
+        :math:`Y_e` for :math:`r > 6368` km.  Default:
+        :data:`magnus.earth.Y_E_OCEAN_PREM` (0.5551, seawater -- above 0.5 because
+        hydrogen has :math:`Z/A = 1`).  PREM's ocean is a global average that a
+        land-based baseline does not cross; pass
+        :data:`magnus.earth.Y_E_CRUST_PREM` for one.
 
     Returns
     -------
@@ -14383,7 +14538,27 @@ def osc_prob_5nu_earth_nsi(
         the value given to :func:`magnus.matter.vcc_func_from_rho_func`.  Default: 1.0
         (isoscalar matter).
     electron_fraction : int or float, optional
-        Electron fraction, :math:`Y_e`.  Default: 0.5.
+        One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
+        ``0.5`` reproduces the uniform composition assumed before those existed, and is
+        the way to reproduce a result computed then.  Cannot be combined with any
+        ``electron_fraction_*`` argument; passing both is an error rather than one
+        silently winning.  Default: None, meaning the layered values are used.
+    electron_fraction_core : int or float, optional
+        :math:`Y_e = \langle Z/A \rangle` for :math:`r \le 3480` km.  Default:
+        :data:`magnus.earth.Y_E_CORE_PREM` (0.4656, iron).
+    electron_fraction_mantle : int or float, optional
+        :math:`Y_e` for :math:`3480 < r \le 6346.6` km.  Default:
+        :data:`magnus.earth.Y_E_MANTLE_PREM` (0.4957, peridotite).
+    electron_fraction_crust : int or float, optional
+        :math:`Y_e` for :math:`6346.6 < r \le 6368` km.  Default:
+        :data:`magnus.earth.Y_E_CRUST_PREM` (0.4952, granitic).  Within 0.1% of the
+        mantle, so this exists for explicitness rather than for effect.
+    electron_fraction_ocean : int or float, optional
+        :math:`Y_e` for :math:`r > 6368` km.  Default:
+        :data:`magnus.earth.Y_E_OCEAN_PREM` (0.5551, seawater -- above 0.5 because
+        hydrogen has :math:`Z/A = 1`).  PREM's ocean is a global average that a
+        land-based baseline does not cross; pass
+        :data:`magnus.earth.Y_E_CRUST_PREM` for one.
 
     Returns
     -------
@@ -17331,7 +17506,27 @@ def osc_prob_2nu_earth_liv(
         the value given to :func:`magnus.matter.vcc_func_from_rho_func`.  Default: 1.0
         (isoscalar matter).
     electron_fraction : int or float, optional
-        Electron fraction, :math:`Y_e`.  Default: 0.5.
+        One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
+        ``0.5`` reproduces the uniform composition assumed before those existed, and is
+        the way to reproduce a result computed then.  Cannot be combined with any
+        ``electron_fraction_*`` argument; passing both is an error rather than one
+        silently winning.  Default: None, meaning the layered values are used.
+    electron_fraction_core : int or float, optional
+        :math:`Y_e = \langle Z/A \rangle` for :math:`r \le 3480` km.  Default:
+        :data:`magnus.earth.Y_E_CORE_PREM` (0.4656, iron).
+    electron_fraction_mantle : int or float, optional
+        :math:`Y_e` for :math:`3480 < r \le 6346.6` km.  Default:
+        :data:`magnus.earth.Y_E_MANTLE_PREM` (0.4957, peridotite).
+    electron_fraction_crust : int or float, optional
+        :math:`Y_e` for :math:`6346.6 < r \le 6368` km.  Default:
+        :data:`magnus.earth.Y_E_CRUST_PREM` (0.4952, granitic).  Within 0.1% of the
+        mantle, so this exists for explicitness rather than for effect.
+    electron_fraction_ocean : int or float, optional
+        :math:`Y_e` for :math:`r > 6368` km.  Default:
+        :data:`magnus.earth.Y_E_OCEAN_PREM` (0.5551, seawater -- above 0.5 because
+        hydrogen has :math:`Z/A = 1`).  PREM's ocean is a global average that a
+        land-based baseline does not cross; pass
+        :data:`magnus.earth.Y_E_CRUST_PREM` for one.
 
     Returns
     -------
@@ -17590,7 +17785,27 @@ def osc_prob_3nu_earth_liv(
         the value given to :func:`magnus.matter.vcc_func_from_rho_func`.  Default: 1.0
         (isoscalar matter).
     electron_fraction : int or float, optional
-        Electron fraction, :math:`Y_e`.  Default: 0.5.
+        One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
+        ``0.5`` reproduces the uniform composition assumed before those existed, and is
+        the way to reproduce a result computed then.  Cannot be combined with any
+        ``electron_fraction_*`` argument; passing both is an error rather than one
+        silently winning.  Default: None, meaning the layered values are used.
+    electron_fraction_core : int or float, optional
+        :math:`Y_e = \langle Z/A \rangle` for :math:`r \le 3480` km.  Default:
+        :data:`magnus.earth.Y_E_CORE_PREM` (0.4656, iron).
+    electron_fraction_mantle : int or float, optional
+        :math:`Y_e` for :math:`3480 < r \le 6346.6` km.  Default:
+        :data:`magnus.earth.Y_E_MANTLE_PREM` (0.4957, peridotite).
+    electron_fraction_crust : int or float, optional
+        :math:`Y_e` for :math:`6346.6 < r \le 6368` km.  Default:
+        :data:`magnus.earth.Y_E_CRUST_PREM` (0.4952, granitic).  Within 0.1% of the
+        mantle, so this exists for explicitness rather than for effect.
+    electron_fraction_ocean : int or float, optional
+        :math:`Y_e` for :math:`r > 6368` km.  Default:
+        :data:`magnus.earth.Y_E_OCEAN_PREM` (0.5551, seawater -- above 0.5 because
+        hydrogen has :math:`Z/A = 1`).  PREM's ocean is a global average that a
+        land-based baseline does not cross; pass
+        :data:`magnus.earth.Y_E_CRUST_PREM` for one.
 
     Returns
     -------
@@ -17884,7 +18099,27 @@ def osc_prob_4nu_earth_liv(
         the value given to :func:`magnus.matter.vcc_func_from_rho_func`.  Default: 1.0
         (isoscalar matter).
     electron_fraction : int or float, optional
-        Electron fraction, :math:`Y_e`.  Default: 0.5.
+        One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
+        ``0.5`` reproduces the uniform composition assumed before those existed, and is
+        the way to reproduce a result computed then.  Cannot be combined with any
+        ``electron_fraction_*`` argument; passing both is an error rather than one
+        silently winning.  Default: None, meaning the layered values are used.
+    electron_fraction_core : int or float, optional
+        :math:`Y_e = \langle Z/A \rangle` for :math:`r \le 3480` km.  Default:
+        :data:`magnus.earth.Y_E_CORE_PREM` (0.4656, iron).
+    electron_fraction_mantle : int or float, optional
+        :math:`Y_e` for :math:`3480 < r \le 6346.6` km.  Default:
+        :data:`magnus.earth.Y_E_MANTLE_PREM` (0.4957, peridotite).
+    electron_fraction_crust : int or float, optional
+        :math:`Y_e` for :math:`6346.6 < r \le 6368` km.  Default:
+        :data:`magnus.earth.Y_E_CRUST_PREM` (0.4952, granitic).  Within 0.1% of the
+        mantle, so this exists for explicitness rather than for effect.
+    electron_fraction_ocean : int or float, optional
+        :math:`Y_e` for :math:`r > 6368` km.  Default:
+        :data:`magnus.earth.Y_E_OCEAN_PREM` (0.5551, seawater -- above 0.5 because
+        hydrogen has :math:`Z/A = 1`).  PREM's ocean is a global average that a
+        land-based baseline does not cross; pass
+        :data:`magnus.earth.Y_E_CRUST_PREM` for one.
 
     Returns
     -------
@@ -18217,7 +18452,27 @@ def osc_prob_5nu_earth_liv(
         the value given to :func:`magnus.matter.vcc_func_from_rho_func`.  Default: 1.0
         (isoscalar matter).
     electron_fraction : int or float, optional
-        Electron fraction, :math:`Y_e`.  Default: 0.5.
+        One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
+        ``0.5`` reproduces the uniform composition assumed before those existed, and is
+        the way to reproduce a result computed then.  Cannot be combined with any
+        ``electron_fraction_*`` argument; passing both is an error rather than one
+        silently winning.  Default: None, meaning the layered values are used.
+    electron_fraction_core : int or float, optional
+        :math:`Y_e = \langle Z/A \rangle` for :math:`r \le 3480` km.  Default:
+        :data:`magnus.earth.Y_E_CORE_PREM` (0.4656, iron).
+    electron_fraction_mantle : int or float, optional
+        :math:`Y_e` for :math:`3480 < r \le 6346.6` km.  Default:
+        :data:`magnus.earth.Y_E_MANTLE_PREM` (0.4957, peridotite).
+    electron_fraction_crust : int or float, optional
+        :math:`Y_e` for :math:`6346.6 < r \le 6368` km.  Default:
+        :data:`magnus.earth.Y_E_CRUST_PREM` (0.4952, granitic).  Within 0.1% of the
+        mantle, so this exists for explicitness rather than for effect.
+    electron_fraction_ocean : int or float, optional
+        :math:`Y_e` for :math:`r > 6368` km.  Default:
+        :data:`magnus.earth.Y_E_OCEAN_PREM` (0.5551, seawater -- above 0.5 because
+        hydrogen has :math:`Z/A = 1`).  PREM's ocean is a global average that a
+        land-based baseline does not cross; pass
+        :data:`magnus.earth.Y_E_CRUST_PREM` for one.
 
     Returns
     -------
