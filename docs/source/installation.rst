@@ -209,6 +209,13 @@ File Tree
    │       └── tutorials.rst           # Guide to the numbered example notebooks in notebooks/
    ├── fig/                            # Plots produced by the example notebooks
    ├── img/                            # Figures used by the documentation
+   │   ├── anim_cp.gif                 # Animated: the CP phase running through 2 pi
+   │   ├── anim_earth.gif              # Animated: a chord swinging to a detector at the South Pole
+   │   ├── anim_shock.gif              # Animated: a supernova shock front sweeping outward
+   │   ├── anim_slabs.gif              # Animated: a profile cut into more and more slabs
+   │   ├── anim_solar_nsi.gif          # Animated: the Sun, with a non-standard interaction dialled up
+   │   ├── anim_sterile.gif            # Animated: a sterile state as its mass splitting grows
+   │   ├── anim_wave.gif               # Animated: a density crest travelling along the baseline
    │   └── gallery/                    # Figures lifted from the executed notebooks, embedded in the docs
    ├── notebooks/                      # Numbered Jupyter notebooks -- see docs/source/tutorials.rst
    │   ├── 01_magnus_introduction.ipynb  # The shortest path to a probability
@@ -237,6 +244,7 @@ File Tree
    │   ├── 24_magnus_performance.ipynb  # What is worth doing, and when each trick is worth nothing
    │   ├── 25_magnus_against_other_codes.ipynb  # Where a closed form wins, and a conventions trap that looks like accuracy
    │   ├── 26_magnus_nufit_evolution.ipynb  # How the NuFIT likelihood, not just the best fit, moves the probability
+   │   ├── 27_magnus_animations.ipynb  # Ten sweeps as filmstrips; RENDER = True writes them as GIFs
    │   ├── README.md                   # This file
    │   ├── make_notebooks.py           # BUILDS the notebooks above -- edit this, not the .ipynb
    │   ├── external_speed_accuracy.json  # Five external codes' speed and accuracy (NuOscProbExact project)
@@ -257,6 +265,8 @@ File Tree
    │   ├── nufit_chi2.json             # Those profiles, v2.0-v6.1 (NuFIT collaboration)
    │   └── shock_reference.json        # That oracle, as exact hex floats
    ├── pyproject.toml                  # Build system, dependencies, and the `magnus` console-script entry point
+   ├── tools/                          # Standalone utilities that are not part of the package
+   │   └── make_demo_video.py          # Joins and shrinks notebook 27's clips; shared with NuOscProbExact
    ├── src/
    │   ├── magnus/                     # Main Python package
    │   │   ├── __init__.py             # Explicit named imports from the four hamiltonians{2,3,4,5}nu.py modules

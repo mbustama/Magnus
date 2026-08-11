@@ -1,7 +1,7 @@
 Tutorial notebooks
 ==================
 
-Fourteen worked notebooks live in `notebooks/
+Twenty-seven worked notebooks live in `notebooks/
 <https://github.com/mbustama/Magnus/tree/main/notebooks>`_, numbered in reading
 order. Each carries its figures inline, so they can be read on GitHub without
 being run, and each ends with a footer pointing at the previous notebook, the
@@ -20,12 +20,12 @@ To run them rather than read them::
 
 .. note::
 
-   The notebooks are not built into this documentation — executing fourteen of
+   The notebooks are not built into this documentation — executing twenty-seven of
    them on every docs build would take the better part of an hour, and they are
    more useful where their outputs are already stored. The links below go to
    GitHub, which renders them with their figures.
 
-   They are generated. ``notebooks/make_notebooks.py`` builds all fourteen,
+   They are generated. ``notebooks/make_notebooks.py`` builds all of them,
    executes them and stores their outputs, and CI runs the same execution on
    every change to the notebooks or to the package: a notebook is documentation
    that claims to work, and running it is what makes the claim checkable. Edit
@@ -188,3 +188,40 @@ Using and diagnosing the machinery
 `24. Performance <https://github.com/mbustama/Magnus/blob/main/notebooks/24_magnus_performance.ipynb>`_
    What is worth doing, measured live — and, more usefully, when each trick is
    worth nothing at all.
+
+
+Against other codes, and against the parameters
+-----------------------------------------------
+
+Where an independent method is the judge rather than Magνs itself.
+
+`25. Against other codes <https://github.com/mbustama/Magnus/blob/main/notebooks/25_magnus_against_other_codes.ipynb>`_
+   NuOscProbExact and nuSQuIDS on the same problems, every comparison refereed
+   by a third method. Where a closed form wins, where it stalls, and the
+   supernova shock where the *width of the front* — not the physics in it —
+   decides which method the case belongs to.
+
+`26. Fourteen years of NuFIT <https://github.com/mbustama/Magnus/blob/main/notebooks/26_magnus_nufit_evolution.ipynb>`_
+   How the parameter likelihood, not just the best fit, moves the probability —
+   and why the spread is comparable to effects other notebooks treat as
+   signals.
+
+
+Watching it happen
+------------------
+
+`27. Animated scenes <https://github.com/mbustama/Magnus/blob/main/notebooks/27_magnus_animations.ipynb>`_
+   Nine sweeps drawn as filmstrips, so reading the notebook costs nothing. Four
+   of them are the same scenes `NuOscProbExact's notebook 19
+   <https://github.com/mbustama/NuOscProbExact/blob/main/notebooks/19_animations.ipynb>`_
+   draws, computed here, so the two can be read side by side. The other five need
+   something a closed-form slab code does not have: a refinement ladder deciding
+   it has converged, a front that travels, an observable that is an average
+   rather than a value, and a Hamiltonian that genuinely varies along the path.
+   What the truncation order buys and which engine the dispatcher picks are
+   single comparisons rather than sweeps, and are shown as stills in notebook 24.
+
+   Setting ``RENDER = True`` writes the scenes as GIFs, and
+   ``tools/make_demo_video.py`` joins and shrinks them. The notebook carries the
+   full procedure, the measured costs, and the three traps worth knowing before
+   you spend twenty minutes on it.
