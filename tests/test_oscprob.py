@@ -2941,3 +2941,46 @@ def test_cumulative_scan_accepts_convergence_info_without_raising():
     assert P.shape == (10, 3, 3)
     assert np.all(np.isfinite(P))
     assert np.allclose(np.sum(P, axis=2), 1.0, atol=1e-9)
+
+
+# ----------------------------------------------------------------------
+# The verbose and save_log reporting paths
+#
+# These were the single largest uncovered region of oscprob.py: the module
+# sat at 88.3% and most of what was missing were the
+# `for f in [None, file_log] if save_log else [None]:` runs -- the banner,
+# the per-slab report and the convergence summary.  They are output rather
+# than physics, which is exactly why nothing exercised them, and also why a
+# break in them would reach a user before it reached a test: this is the
+# machinery someone turns on when a result has already surprised them.
+# ----------------------------------------------------------------------
+
+@pytest.mark.parametrize("verbose", [1, 2])
+def test_the_verbose_report_runs_and_does_not_change_the_answer(verbose, capsys):
+    """Diagnostics have to be inert.  A reporting path that perturbs the
+    result is worse than no reporting path, because it is switched on
+    precisely when the result is in question."""
+    osc = gd.load_nufit_params('NuFIT 6.1', 'NO')
+    quiet = np.asarray(op.osc_prob_3nu_matter_constant_density(
+        1.0*gd.UNIT_GEV, 1000.0*gd.UNIT_KM, 3.0,
+        density_matter_is_in_g_per_cm3=True, **osc))
+    loud = np.asarray(op.osc_prob_3nu_matter_constant_density(
+        1.0*gd.UNIT_GEV, 1000.0*gd.UNIT_KM, 3.0,
+        density_matter_is_in_g_per_cm3=True, verbose=verbose, **osc))
+    printed = capsys.readouterr().out
+    assert printed.strip(), "verbose=%d printed nothing" % verbose
+    np.testing.assert_allclose(loud, quiet, rtol=0.0, atol=0.0)
+
+
+def test_save_log_writes_the_same_report_to_a_file(tmp_path, capsys):
+    """`save_log` duplicates the report into a file, and the file is the
+    half nobody looks at until they need it."""
+    osc = gd.load_nufit_params('NuFIT 6.1', 'NO')
+    log = tmp_path/'magnus.log'
+    op.osc_prob_3nu_matter_constant_density(
+        1.0*gd.UNIT_GEV, 1000.0*gd.UNIT_KM, 3.0,
+        density_matter_is_in_g_per_cm3=True, verbose=1,
+        save_log=True, filename_log=str(log), **osc)
+    capsys.readouterr()
+    assert log.exists(), "save_log=True wrote no file"
+    assert log.read_text().strip(), "the log file is empty"
