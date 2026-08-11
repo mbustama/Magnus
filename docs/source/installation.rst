@@ -300,6 +300,7 @@ File Tree
        ├── test_adiabatic.py           # Adiabatic + Magnus hybrid strategy: detection, merging, ODE cross-checks
        ├── test_avgprob.py             # Phase-averaged probabilities
        ├── test_cli.py                 # magnus command-line calculator
+       ├── test_documented_examples.py  # Runs the code blocks in README.md and quickstart.rst
        ├── test_earth_matter.py        # PREM profile, chord geometry, electron density
        ├── test_engines.py             # Which engine answers, and the cross-checks between them
        ├── test_expansionterms.py      # The symbolic term generator against the hand-written orders

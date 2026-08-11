@@ -447,6 +447,7 @@ Magnus/
     ├── test_adiabatic.py           # Adiabatic + Magnus hybrid strategy: detection, merging, ODE cross-checks
     ├── test_avgprob.py             # Phase-averaged probabilities
     ├── test_cli.py                 # magnus command-line calculator
+    ├── test_documented_examples.py  # Runs the code blocks in README.md and quickstart.rst
     ├── test_earth_matter.py        # PREM profile, chord geometry, electron density
     ├── test_engines.py             # Which engine answers, and the cross-checks between them
     ├── test_expansionterms.py      # The symbolic term generator against the hand-written orders
@@ -503,14 +504,18 @@ P_scan = oscprob.osc_prob_3nu_earth(
 
 # --- Your own Hamiltonian through the Earth ---
 # H(energy, l, VCC): VCC is the PREM charged-current potential at position l
-h_vac = ...  # your energy-independent vacuum term [eV^2]
+import magnus.hamiltonians as hamiltonians
+osc = gd.load_nufit_params('NuFIT 6.1', 'NO')
+h_vac = np.asarray(hamiltonians.hamiltonian_3nu_vacuum_energy_independent(
+    osc['s12'], osc['s23'], osc['s13'], osc['dCP'], osc['D21'], osc['D31']))
+
 def H(energy, l, VCC):
     return (1.0/energy)*h_vac + np.asarray(VCC)[..., None, None]*np.diag([1.0, 0.0, 0.0])
 
 P = oscprob.osc_prob_earth(H, energy, loc_ini='fermilab', loc_fin='homestake')
 
 # --- Fully generic: any Hamiltonian function of position ---
-P = oscprob.osc_prob(H_func, t_ini=0.0, t_fin=L)   # H_func(l) -> (d, d) array
+P = oscprob.osc_prob(lambda l: h_vac/energy, t_ini=0.0, t_fin=L)  # H(l) -> (d, d)
 ```
 
 Oscillation parameters default to the NuFit 6.0 best fit (normal ordering);

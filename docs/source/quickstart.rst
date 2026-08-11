@@ -83,6 +83,9 @@ through:
 
 .. code-block:: python
 
+   energy = 1.0*gd.UNIT_GEV       # [eV]
+   L = 1000.0*gd.UNIT_KM          # [eV^-1]
+
    osc = gd.load_nufit_params('NuFIT 6.1', 'NO')
 
    P = oscprob.osc_prob_3nu_vacuum(energy, L, **osc)
@@ -224,9 +227,15 @@ internally.  It accepts any square, Hermitian-valued function of position
 
 .. code-block:: python
 
+   # Your own position-dependent Hamiltonian, returning a (d, d) array.
+   # This one is the standard three-flavor vacuum term plus a matter
+   # potential that falls off exponentially with position.
+   h_vac = np.asarray(hamiltonians.hamiltonian_3nu_vacuum_energy_independent(
+       osc['s12'], osc['s23'], osc['s13'], osc['dCP'], osc['D21'], osc['D31']))
+
    def H_func(l):
-       # Your own position-dependent Hamiltonian, returning a (d, d) array
-       ...
+       vcc = 1.0e-13*np.exp(-l/(500.0*gd.UNIT_KM))        # [eV]
+       return h_vac/energy + vcc*np.diag([1.0, 0.0, 0.0])
 
    P = oscprob.osc_prob(H_func, t_ini=0.0, t_fin=L,
                          magnus_exp_order=4,

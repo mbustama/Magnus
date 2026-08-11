@@ -241,6 +241,8 @@ TREE = [
     ('tests/test_adiabatic.py', 'Adiabatic + Magnus hybrid strategy: detection, merging, ODE cross-checks'),
     ('tests/test_avgprob.py', 'Phase-averaged probabilities'),
     ('tests/test_cli.py', 'magnus command-line calculator'),
+    ('tests/test_documented_examples.py',
+     'Runs the code blocks in README.md and quickstart.rst'),
     ('tests/test_earth_matter.py', 'PREM profile, chord geometry, electron density'),
     ('tests/test_engines.py', 'Which engine answers, and the cross-checks between them'),
     ('tests/test_expansionterms.py', 'The symbolic term generator against the hand-written orders'),
