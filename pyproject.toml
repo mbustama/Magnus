@@ -17,7 +17,10 @@ authors = [
     {name = "Mauricio Bustamante", email = "mbustamante@gmail.com"}
 ]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    # 5, not 4: the version below is a 1.0.0 release candidate, and "Beta" is the first
+    # thing a visitor reads on the PyPI page.  The two have to agree, or the page argues
+    # with itself about how finished the project is.
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Science/Research",
     "Programming Language :: Python :: 3",
     "Topic :: Scientific/Engineering :: Physics",
