@@ -218,7 +218,7 @@ def prob_label(nu_i: int, nu_f: int, nubar: Optional[bool] = False) -> str:
     for name, value in (('nu_i', nu_i), ('nu_f', nu_f)):
         if value not in _FLAVOR_TEX:
             raise ValueError(
-                f'plotting.prob_label: {name} must be one of '
+                f'Error in magnus: plotting.prob_label: {name} must be one of '
                 f'{sorted(_FLAVOR_TEX)} (the flavour constants in '
                 f'magnus.globaldefs), not {value!r}'
             )
@@ -242,7 +242,7 @@ def _as_curve_list(curves):
             d = dict(c)
             if 'y' not in d:
                 raise ValueError(
-                    f"plotting: curve {i} is a dict without a 'y' entry; each "
+                    f"Error in magnus: plotting: curve {i} is a dict without a 'y' entry; each "
                     "curve must provide its ordinate as 'y', with any "
                     'remaining keys passed through to Axes.plot'
                 )
@@ -682,17 +682,17 @@ def plot_curves_stacked(
     n = len(panels)
     if n == 0:
         raise ValueError(
-            'plotting.plot_curves_stacked: panels is empty; it needs at least '
+            'Error in magnus: plotting.plot_curves_stacked: panels is empty; it needs at least '
             'one panel, each a sequence of curves'
         )
     if panel_labels is not None and len(panel_labels) != n:
         raise ValueError(
-            f'plotting.plot_curves_stacked: got {len(panel_labels)} panel_labels '
+            f'Error in magnus: plotting.plot_curves_stacked: got {len(panel_labels)} panel_labels '
             f'for {n} panels; there must be exactly one label per panel'
         )
     if not (-n <= legend_panel < n):
         raise ValueError(
-            f'plotting.plot_curves_stacked: legend_panel={legend_panel} is out of '
+            f'Error in magnus: plotting.plot_curves_stacked: legend_panel={legend_panel} is out of '
             f'range for {n} panels'
         )
 
@@ -952,7 +952,7 @@ def _probability_ylabel(nu_i, nu_f, num_flavors):
         return 'Probability,~' + label
     if num_flavors not in _FLAVOR_WORD:
         raise ValueError(
-            'plotting: num_flavors must be one of '
+            'Error in magnus: plotting: num_flavors must be one of '
             f'{sorted(_FLAVOR_WORD)}, not {num_flavors!r}'
         )
     return f'{_FLAVOR_WORD[num_flavors]}-neutrino probability,~' + label
@@ -1133,7 +1133,7 @@ def plot_probability_with_profile(
     _, plt = _mpl()
     n_panels = len(panels)
     if n_panels == 0:
-        raise ValueError('plotting.plot_probability_with_profile: panels is '
+        raise ValueError('Error in magnus: plotting.plot_probability_with_profile: panels is '
                          'empty; at least one probability panel is required')
     has_profile = bool(profiles)
     n_rows = n_panels + (1 if has_profile else 0)
@@ -1322,7 +1322,7 @@ def plot_probability_with_average(
         avgs = avgs[None]
     if len(avgs) != len(probs):
         raise ValueError(
-            'plotting.plot_probability_with_average: got '
+            'Error in magnus: plotting.plot_probability_with_average: got '
             f'{len(probs)} probability curve(s) but {len(avgs)} average(s); '
             'they must correspond one to one'
         )
@@ -1471,7 +1471,7 @@ def plot_biprobability(
     _, plt = _mpl()
     if len(prob_nu) != len(prob_nubar):
         raise ValueError(
-            'plotting.plot_biprobability: prob_nu and prob_nubar must have '
+            'Error in magnus: plotting.plot_biprobability: prob_nu and prob_nubar must have '
             f'the same number of curves, got {len(prob_nu)} and '
             f'{len(prob_nubar)}'
         )
@@ -1500,7 +1500,7 @@ def plot_biprobability(
     for m in (markers or []):
         if 'index' not in m and 'xy' not in m:
             raise ValueError(
-                "plotting.plot_biprobability: each marker needs either an "
+                "Error in magnus: plotting.plot_biprobability: each marker needs either an "
                 "'index' along the curve or an explicit 'xy' coordinate pair; "
                 f'got keys {sorted(m)}'
             )
@@ -1668,7 +1668,7 @@ def plot_oscillogram(
     expected = (len(log10_energy), len(costhz))
     if prob.shape != expected:
         raise ValueError(
-            'plotting.plot_oscillogram: probability must have shape '
+            'Error in magnus: plotting.plot_oscillogram: probability must have shape '
             f'(len(log10_energy), len(costhz)) = {expected}, got {prob.shape}'
         )
 

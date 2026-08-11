@@ -136,7 +136,7 @@ def density_matter_func_prem(r: Union[float, np.ndarray],
     if np.any(x - 1.0 > tol):
         raise ValueError('earth.density_matter_func_prem: value of r cannot exceed ' + \
             'globaldefs.EARTH_RADIUS = ' + str(gd.EARTH_RADIUS) + ' km by more than the ' + \
-            'desired tolerance of tol = ' + str(tol))
+            'Error in magnus: desired tolerance of tol = ' + str(tol))
 
     # Clamp radii within tolerance of the surface onto the surface
     r = np.minimum(r, gd.EARTH_RADIUS)
@@ -234,7 +234,7 @@ def earth_radial_distance_from_depth(costhz: float, l: Union[float, np.ndarray],
     if np.any(l - d > tol):
         raise ValueError('earth_radial_distance_from_depth: value of ' + \
                 'l cannot be larger than the distance traveled ' + \
-                'inside Earth for this value of costhz')
+                'Error in magnus: inside Earth for this value of costhz')
 
     # Clamp values of l within tolerance of the exit point onto the exit point
     l = np.minimum(l, d)
