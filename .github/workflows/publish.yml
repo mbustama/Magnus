@@ -5,8 +5,34 @@ on:
     types: [published]
 
 jobs:
+  # Publishing is irreversible: PyPI does not allow re-uploading a version, even a
+  # deleted one.  Everything that can be checked has to be checked before the upload
+  # step, not after it, and the push-triggered runs on `main` are not enough on their
+  # own -- a release can be cut from any tag, including one whose commit predates a fix
+  # or was never pushed to a branch CI watches.
+  test:
+    name: Test before publishing
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.10"
+
+      - name: Install the package and its test extra
+        run: |
+          python -m pip install --upgrade pip
+          pip install ".[test]"
+
+      - name: Run the suite
+        run: pytest tests/ -q -n auto
+
   build-and-publish:
     name: Build and publish to PyPI
+    needs: test
     runs-on: ubuntu-latest
 
     # These permissions are required for PyPI Trusted Publisher (OIDC) authentication
