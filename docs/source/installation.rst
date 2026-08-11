@@ -83,7 +83,7 @@ is configured correctly for your system:
    pip install -e '.[test]'
    pytest tests/ -v
 
-It is 889 tests and takes about twenty minutes; the same suite runs in CI on
+It is about 1100 tests and takes some fifteen minutes with ``-n auto``; the same suite runs in CI on
 Python 3.10-3.12 on every push, so the badge on the :doc:`index` page tells
 you whether it passes there.
 
