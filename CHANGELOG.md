@@ -7,6 +7,182 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **A `'constant'` engine: a position-independent Hamiltonian is answered in one
+  batched exponential instead of one `osc_prob` call per point.**  When the
+  matter potential does not vary with position, the Magnus series *terminates at
+  its first term* — Ω₁ = −iHΔ and every higher Ω is a nested commutator of H
+  with itself, hence zero — so `U = exp(-iHΔ)` is the exact answer and a whole
+  energy scan is one stacked exponential.
+
+  This case was previously turned away on purpose: `_osc_prob_scan_separable_dispatch`
+  bailed on `not isinstance(VCC_func, Callable)`, its docstring saying "a constant
+  potential falls back to the generic path".  So the easiest Hamiltonian there is
+  took the slowest route available — a 60-energy scan made **18,000 `osc_prob`
+  calls per 300 repetitions**, each rediscovering the same constancy and paying
+  the full wrapper and refinement-ladder overhead.
+
+  Measured against the route it replaces, interleaved with a control that came
+  back at 1.00×:
+
+  | flavours | matter scan | vacuum scan | single point |
+  |---|---|---|---|
+  | 2ν | **17.3×** | **24.7×** | 2.0× |
+  | 3ν | **15.5×** | **18.9×** | 2.1× |
+  | 4ν | 7.2× | 7.4× | 1.4× |
+  | 5ν | 6.0× | 6.2× | 1.4× |
+
+  4ν and 5ν gain less because they are on `eigh` rather than the
+  Cayley–Hamilton kernel, which covers dimensions 2 and 3 only.  A 3ν
+  constant-density scan is now **1.10 µs per energy against NuOscProbExact's
+  1.44 µs batched and 13.25 µs looped**; a single point is 33.8 µs against its
+  19.9 µs, the remainder being wrapper parameter resolution rather than
+  arithmetic.  Results are bit-identical to the per-point route on every
+  flavour count and both neutrino signs, and `n_slabs`, `n_tpts_per_slab`,
+  `t_breakpoints` and `rtol`/`atol` are accepted and ignored because they can
+  only ask for refinement of something already exact.
+
+  **PREM and exponential profiles are untouched** and keep `separable`/`magnus`
+  /`hybrid`: their potential varies with position, and a constant-H engine that
+  captured one would propagate the whole trajectory with a single exponential —
+  wrong by O(1) while still perfectly unitary.  A test asserts the engine
+  identity, not merely the numbers.
+
+
+- **A compiled Cayley–Hamilton backend for the matrix exponential, selected by
+  `magnus.magnus.EXPM_BACKEND`.**  `np.linalg.eigh` costs ~1.27 µs per 3×3
+  *whatever the stack size* (measured 1.268 µs at N=108, 1.279 µs at N=4096 —
+  flat, because it loops over LAPACK internally instead of vectorising).  The
+  new `magnus.expmkernels` applies to `K` the polynomial interpolating
+  `exp(-iλ)` on its spectrum instead: no eigenvectors, and the eigenvalues in
+  closed form.  **6.8× on the exponential** at N=108 (162.6 → 23.8 µs), 7.3× at
+  d=2, and **2.11× end to end** on a 60-energy PREM scan (9291 → 4409 µs, i.e.
+  73.5 µs per energy).
+
+  The gap between 6.8× and 2.11× is Amdahl's law: the exponential is about a
+  third of a slab pass.  Quoting the 6.8× as a package speed-up would be quoting
+  the wrong number.
+
+  `'auto'` (the default) uses the kernel for 2×2 and 3×3 when numba is
+  installed and `eigh` otherwise, and cannot fail; `'numba'` makes a missing
+  numba an error rather than a silent downgrade; `'eigh'` is the reference route.
+  **Dimensions 4 and 5 keep `eigh`** — there is no practical closed form for a
+  4×4 or 5×5 Hermitian eigenproblem, so 4ν and 5ν stay correct and are not
+  accelerated.  numba is an optional dependency (`pip install 'magnuspy[fast]'`),
+  costing ~90 ms of `import magnus` when present plus a one-off ~0.7 s compile
+  per kernel, cached to disk thereafter.
+
+  Switching backend moves probabilities by at most 4.6e-15 across PREM chords,
+  energy scans, NSI resonances, constant density and vacuum.
+
+  Degeneracy is the whole risk in such a scheme, and two facts remove it.  A
+  Hermitian matrix is never defective, so matching `exp` on the *distinct*
+  eigenvalues is already exact and the confluent (Hermite) form is not needed.
+  And with eigenvalues sorted and the spectrum shifted to put the median at
+  zero, the one ill-conditioned coefficient multiplies a matrix whose norm
+  shrinks with the same gap, so its contribution is bounded by `ε·gap` and
+  *vanishes* as the gap closes.  There is therefore no tolerance, no crossover,
+  and no near-degenerate branch to place: the error is 1e-16 at splittings of
+  1e-2, 1e-6, 1e-10, 1e-14 and exactly zero alike.
+
+  Two things this cost, both now pinned by tests.  The closed-form eigenvalues
+  **degrade to ~4e-9 at an exact degeneracy** (`arccos` has infinite derivative
+  where a repeated root sits) and the exponential stays at 2.5e-16 anyway,
+  because interpolation error is *second* order in the displacement of a
+  coalescing node; both halves are asserted, the sloppy one included.  And the
+  kernel must read the **lower** triangle, because that is the one `eigh` reads
+  (`UPLO` defaults to `'L'`) and `_expm_stack` admits input anti-Hermitian only
+  to 1e-12 — a kernel reading the upper triangle exponentiates a different
+  matrix on such input and the two backends diverge by ~2e-12, large enough to
+  matter and small enough to look like rounding.
+
+
+- **Palindromic density profiles are exploited on Earth chords.**  A chord through a
+  spherically symmetric Earth meets every radius twice, so its density profile reads
+  the same from either end.  The Magnus core now evaluates the Hamiltonian on the first
+  half of such a slab chain and derives the rest by reversal, halving the calls to the
+  caller's `H_func`.  Worth **1.4x-1.67x** on a single point and **1.56x-1.64x** on an
+  energy scan when that Hamiltonian is expensive; plain PREM, whose density lookup is
+  cheap, pays about 10% for it.  New public `magnus.magnus.USE_PALINDROME` (module
+  switch, `True`) turns it off, and `magnus.magnus.palindromic()` is the predicate.
+
+  The saving is halved Hamiltonian evaluations and nothing else, so it is worth what
+  that Hamiltonian costs.  Standard PREM *scans* are unaffected: they are answered by
+  the separable engine, which already evaluates the profile once and shares it across
+  energies -- the same saving, taken earlier.
+
+  Symmetry is **declared** by the Earth entry points, where it is a fact of chord
+  geometry, not detected: detecting it would need the very evaluations the optimisation
+  skips.  There is deliberately no user-facing way to declare it of an arbitrary
+  profile.
+
+  **This moves Earth single-point results by up to 8.6e-15 relative.**  The mirrored
+  slab's nodes are reached by a different floating-point expression for the same real
+  number, so the change is inherent rather than incidental.  `USE_PALINDROME = False`
+  reproduces the previous numbers exactly.
+
+### Changed
+
+- **Per-call overhead cut across the wrappers, by caching what is pure and
+  cheapening what is common.**  The largest single item in a single-point profile
+  was `hamiltonian_3nu_vacuum_energy_independent` at ~15 µs, rebuilding the same
+  PMNS matrix on every call; it is a pure function of eight scalars and is now
+  memoized, handing back a copy so a caller writing into the result cannot
+  poison the cache.  Likewise the constant-density branches of
+  `matter.vcc_func_from_rho_func` (the callable branches are deliberately *not*
+  cached: they return a closure over `rho_func` that callers tag with
+  `is_exp_density_profile`, so caching those would trade microseconds for an
+  aliasing bug).  `_n_required_params` cached `inspect.signature` weakly against
+  the function — 42 µs of cumulative time per call, and once per point on the
+  routes that legitimately loop.  `isinstance(x, typing.Callable)`, which routes
+  through `ABCMeta.__instancecheck__`, replaced by the `callable()` builtin at 23
+  sites (~9 `typing.__subclasscheck__` calls per invocation), and scalar fast
+  paths added to `_normalize_energy_L` and the density-units guard.  No
+  behaviour changed by this entry.
+
+- **A verbose run (`verbose >= 1`) takes the per-point route.**  The banner and
+  run-parameter dump describe quantities the batched engines do not have —
+  `magnus_exp_order`, slab counts, tolerances — so emitting them from a batched
+  path would report a refinement ladder that never ran.
+
+
+- **``rtol``/``atol`` are documented for what they are: a stopping criterion,
+  not an accuracy guarantee.**  The ladder halts when two successive levels
+  agree; it never estimates the error of the answer it returns, which is a
+  weaker promise than a stepping ODE integrator's ``rtol`` makes.  Corrected
+  in ``osc_prob``, ``adiabatic.hybrid_propagator``, the CLI's ``--rtol``/
+  ``--atol`` help, ``README.md``, ``architecture.rst`` (which said "until
+  rtol/atol is met"), and a new section of ``implementation_details.rst`` that
+  the others link to.  No behaviour changed by this entry.
+
+- **``convergence_info`` reports what the ladder did.**  Alongside the existing
+  ``n_slabs``/``n_tpts_per_slab`` it now carries ``n_slab_edges`` and
+  ``n_slab_edges_previous`` (which make the real refinement step visible),
+  ``n_slabs_previous``, ``n_tpts_per_slab_previous``, ``last_gap`` (None when
+  only one level was ever computed), ``n_agreements``, and
+  ``tolerance_achieved`` -- the programmatic form of
+  ``ToleranceNotAchievedWarning``.
+
+  It deliberately carries **no error estimate**.  Converting the gap into one by
+  Richardson extrapolation, as the sibling NuOscProbExact does, was measured and
+  rejected: Magnus has no stable convergence order (fitted on Earth chords it
+  scatters from 1.4 to 7.2 against nominal orders of 2 and 4), and because
+  breakpoints make the effective refinement ratio as low as 1.06 rather than
+  1.5, dividing by ``r^p - 1`` under-reports the true error by 6-20x *even
+  where the power law holds exactly*.  Under-reporting is the dangerous
+  direction.
+
+
+- **`oscprob.BATCH_WORKING_ENTRIES` lowered from 4,194,304 to 65,536** (about 67 MB to
+  about 1 MB).  The batched scan engines are memory-bound, and the previous value was
+  large enough that their working set spilled cache.  Measured across fifteen workloads
+  on three engines, the new value is **1.19x-1.38x** quicker on Earth energy scans,
+  1.06x-1.16x on cumulative baseline scans, flat on short scans and on the
+  interaction-picture engine, and never slower anywhere.  **Bit-identical** at every
+  budget tested -- tiles are independent and only concatenated -- so this changes no
+  result.  Peak memory of a long scan drops accordingly.
+
 ### Fixed
 
 - **The evaluation-mode cache answered a question it was never asked, and the
@@ -42,7 +218,6 @@ and the project uses [Semantic Versioning](https://semver.org/).
   The interval key costs nothing measurable: a refinement ladder calling
   repeatedly at one interval still probes once, which is what the cache is for.
 
-### Fixed
 
 - **A second max-effort review, run from a fresh session, found four more; all are
   fixed here.**  The first review below was written *and* verified by the agent
@@ -160,49 +335,6 @@ and the project uses [Semantic Versioning](https://semver.org/).
   Four further findings inherited from earlier commits on this branch are recorded
   in `docs/dev/HANDOVER_OVERHEAD.md` and deliberately left for separate work.
 
-### Added
-
-- **A `'constant'` engine: a position-independent Hamiltonian is answered in one
-  batched exponential instead of one `osc_prob` call per point.**  When the
-  matter potential does not vary with position, the Magnus series *terminates at
-  its first term* — Ω₁ = −iHΔ and every higher Ω is a nested commutator of H
-  with itself, hence zero — so `U = exp(-iHΔ)` is the exact answer and a whole
-  energy scan is one stacked exponential.
-
-  This case was previously turned away on purpose: `_osc_prob_scan_separable_dispatch`
-  bailed on `not isinstance(VCC_func, Callable)`, its docstring saying "a constant
-  potential falls back to the generic path".  So the easiest Hamiltonian there is
-  took the slowest route available — a 60-energy scan made **18,000 `osc_prob`
-  calls per 300 repetitions**, each rediscovering the same constancy and paying
-  the full wrapper and refinement-ladder overhead.
-
-  Measured against the route it replaces, interleaved with a control that came
-  back at 1.00×:
-
-  | flavours | matter scan | vacuum scan | single point |
-  |---|---|---|---|
-  | 2ν | **17.3×** | **24.7×** | 2.0× |
-  | 3ν | **15.5×** | **18.9×** | 2.1× |
-  | 4ν | 7.2× | 7.4× | 1.4× |
-  | 5ν | 6.0× | 6.2× | 1.4× |
-
-  4ν and 5ν gain less because they are on `eigh` rather than the
-  Cayley–Hamilton kernel, which covers dimensions 2 and 3 only.  A 3ν
-  constant-density scan is now **1.10 µs per energy against NuOscProbExact's
-  1.44 µs batched and 13.25 µs looped**; a single point is 33.8 µs against its
-  19.9 µs, the remainder being wrapper parameter resolution rather than
-  arithmetic.  Results are bit-identical to the per-point route on every
-  flavour count and both neutrino signs, and `n_slabs`, `n_tpts_per_slab`,
-  `t_breakpoints` and `rtol`/`atol` are accepted and ignored because they can
-  only ask for refinement of something already exact.
-
-  **PREM and exponential profiles are untouched** and keep `separable`/`magnus`
-  /`hybrid`: their potential varies with position, and a constant-H engine that
-  captured one would propagate the whole trajectory with a single exponential —
-  wrong by O(1) while still perfectly unitary.  A test asserts the engine
-  identity, not merely the numbers.
-
-### Fixed
 
 - **`h_matt` meant two different things depending on the potential, and the new
   engine walked into it.**  `osc_prob_matter_nsi` and `osc_prob_liv` rebound
@@ -232,80 +364,6 @@ and the project uses [Semantic Versioning](https://semver.org/).
   share the *assumption* that H is position-independent, and that assumption is
   the thing that could be wrong.
 
-### Changed
-
-- **Per-call overhead cut across the wrappers, by caching what is pure and
-  cheapening what is common.**  The largest single item in a single-point profile
-  was `hamiltonian_3nu_vacuum_energy_independent` at ~15 µs, rebuilding the same
-  PMNS matrix on every call; it is a pure function of eight scalars and is now
-  memoized, handing back a copy so a caller writing into the result cannot
-  poison the cache.  Likewise the constant-density branches of
-  `matter.vcc_func_from_rho_func` (the callable branches are deliberately *not*
-  cached: they return a closure over `rho_func` that callers tag with
-  `is_exp_density_profile`, so caching those would trade microseconds for an
-  aliasing bug).  `_n_required_params` cached `inspect.signature` weakly against
-  the function — 42 µs of cumulative time per call, and once per point on the
-  routes that legitimately loop.  `isinstance(x, typing.Callable)`, which routes
-  through `ABCMeta.__instancecheck__`, replaced by the `callable()` builtin at 23
-  sites (~9 `typing.__subclasscheck__` calls per invocation), and scalar fast
-  paths added to `_normalize_energy_L` and the density-units guard.  No
-  behaviour changed by this entry.
-
-- **A verbose run (`verbose >= 1`) takes the per-point route.**  The banner and
-  run-parameter dump describe quantities the batched engines do not have —
-  `magnus_exp_order`, slab counts, tolerances — so emitting them from a batched
-  path would report a refinement ladder that never ran.
-
-### Added
-
-- **A compiled Cayley–Hamilton backend for the matrix exponential, selected by
-  `magnus.magnus.EXPM_BACKEND`.**  `np.linalg.eigh` costs ~1.27 µs per 3×3
-  *whatever the stack size* (measured 1.268 µs at N=108, 1.279 µs at N=4096 —
-  flat, because it loops over LAPACK internally instead of vectorising).  The
-  new `magnus.expmkernels` applies to `K` the polynomial interpolating
-  `exp(-iλ)` on its spectrum instead: no eigenvectors, and the eigenvalues in
-  closed form.  **6.8× on the exponential** at N=108 (162.6 → 23.8 µs), 7.3× at
-  d=2, and **2.11× end to end** on a 60-energy PREM scan (9291 → 4409 µs, i.e.
-  73.5 µs per energy).
-
-  The gap between 6.8× and 2.11× is Amdahl's law: the exponential is about a
-  third of a slab pass.  Quoting the 6.8× as a package speed-up would be quoting
-  the wrong number.
-
-  `'auto'` (the default) uses the kernel for 2×2 and 3×3 when numba is
-  installed and `eigh` otherwise, and cannot fail; `'numba'` makes a missing
-  numba an error rather than a silent downgrade; `'eigh'` is the reference route.
-  **Dimensions 4 and 5 keep `eigh`** — there is no practical closed form for a
-  4×4 or 5×5 Hermitian eigenproblem, so 4ν and 5ν stay correct and are not
-  accelerated.  numba is an optional dependency (`pip install 'magnuspy[fast]'`),
-  costing ~90 ms of `import magnus` when present plus a one-off ~0.7 s compile
-  per kernel, cached to disk thereafter.
-
-  Switching backend moves probabilities by at most 4.6e-15 across PREM chords,
-  energy scans, NSI resonances, constant density and vacuum.
-
-  Degeneracy is the whole risk in such a scheme, and two facts remove it.  A
-  Hermitian matrix is never defective, so matching `exp` on the *distinct*
-  eigenvalues is already exact and the confluent (Hermite) form is not needed.
-  And with eigenvalues sorted and the spectrum shifted to put the median at
-  zero, the one ill-conditioned coefficient multiplies a matrix whose norm
-  shrinks with the same gap, so its contribution is bounded by `ε·gap` and
-  *vanishes* as the gap closes.  There is therefore no tolerance, no crossover,
-  and no near-degenerate branch to place: the error is 1e-16 at splittings of
-  1e-2, 1e-6, 1e-10, 1e-14 and exactly zero alike.
-
-  Two things this cost, both now pinned by tests.  The closed-form eigenvalues
-  **degrade to ~4e-9 at an exact degeneracy** (`arccos` has infinite derivative
-  where a repeated root sits) and the exponential stays at 2.5e-16 anyway,
-  because interpolation error is *second* order in the displacement of a
-  coalescing node; both halves are asserted, the sloppy one included.  And the
-  kernel must read the **lower** triangle, because that is the one `eigh` reads
-  (`UPLO` defaults to `'L'`) and `_expm_stack` admits input anti-Hermitian only
-  to 1e-12 — a kernel reading the upper triangle exponentiates a different
-  matrix on such input and the two backends diverge by ~2e-12, large enough to
-  matter and small enough to look like rounding.
-
-### Fixed
 
 - **`_expm_stack`'s docstring claimed the `eigh` route was exactly unitary, and
   it is not.**  `U†U - I` measures 4e-16 for a single 3×3 and 4e-15 for a stack
@@ -339,72 +397,6 @@ and the project uses [Semantic Versioning](https://semver.org/).
   (a 60-energy Earth scan goes from 9 ms to 10 ms) despite the median slab
   count rising from 9 to 21, because the added levels are the cheap small ones.
 
-### Changed
-
-- **``rtol``/``atol`` are documented for what they are: a stopping criterion,
-  not an accuracy guarantee.**  The ladder halts when two successive levels
-  agree; it never estimates the error of the answer it returns, which is a
-  weaker promise than a stepping ODE integrator's ``rtol`` makes.  Corrected
-  in ``osc_prob``, ``adiabatic.hybrid_propagator``, the CLI's ``--rtol``/
-  ``--atol`` help, ``README.md``, ``architecture.rst`` (which said "until
-  rtol/atol is met"), and a new section of ``implementation_details.rst`` that
-  the others link to.  No behaviour changed by this entry.
-
-- **``convergence_info`` reports what the ladder did.**  Alongside the existing
-  ``n_slabs``/``n_tpts_per_slab`` it now carries ``n_slab_edges`` and
-  ``n_slab_edges_previous`` (which make the real refinement step visible),
-  ``n_slabs_previous``, ``n_tpts_per_slab_previous``, ``last_gap`` (None when
-  only one level was ever computed), ``n_agreements``, and
-  ``tolerance_achieved`` -- the programmatic form of
-  ``ToleranceNotAchievedWarning``.
-
-  It deliberately carries **no error estimate**.  Converting the gap into one by
-  Richardson extrapolation, as the sibling NuOscProbExact does, was measured and
-  rejected: Magnus has no stable convergence order (fitted on Earth chords it
-  scatters from 1.4 to 7.2 against nominal orders of 2 and 4), and because
-  breakpoints make the effective refinement ratio as low as 1.06 rather than
-  1.5, dividing by ``r^p - 1`` under-reports the true error by 6-20x *even
-  where the power law holds exactly*.  Under-reporting is the dangerous
-  direction.
-
-### Added
-
-- **Palindromic density profiles are exploited on Earth chords.**  A chord through a
-  spherically symmetric Earth meets every radius twice, so its density profile reads
-  the same from either end.  The Magnus core now evaluates the Hamiltonian on the first
-  half of such a slab chain and derives the rest by reversal, halving the calls to the
-  caller's `H_func`.  Worth **1.4x-1.67x** on a single point and **1.56x-1.64x** on an
-  energy scan when that Hamiltonian is expensive; plain PREM, whose density lookup is
-  cheap, pays about 10% for it.  New public `magnus.magnus.USE_PALINDROME` (module
-  switch, `True`) turns it off, and `magnus.magnus.palindromic()` is the predicate.
-
-  The saving is halved Hamiltonian evaluations and nothing else, so it is worth what
-  that Hamiltonian costs.  Standard PREM *scans* are unaffected: they are answered by
-  the separable engine, which already evaluates the profile once and shares it across
-  energies -- the same saving, taken earlier.
-
-  Symmetry is **declared** by the Earth entry points, where it is a fact of chord
-  geometry, not detected: detecting it would need the very evaluations the optimisation
-  skips.  There is deliberately no user-facing way to declare it of an arbitrary
-  profile.
-
-  **This moves Earth single-point results by up to 8.6e-15 relative.**  The mirrored
-  slab's nodes are reached by a different floating-point expression for the same real
-  number, so the change is inherent rather than incidental.  `USE_PALINDROME = False`
-  reproduces the previous numbers exactly.
-
-### Changed
-
-- **`oscprob.BATCH_WORKING_ENTRIES` lowered from 4,194,304 to 65,536** (about 67 MB to
-  about 1 MB).  The batched scan engines are memory-bound, and the previous value was
-  large enough that their working set spilled cache.  Measured across fifteen workloads
-  on three engines, the new value is **1.19x-1.38x** quicker on Earth energy scans,
-  1.06x-1.16x on cumulative baseline scans, flat on short scans and on the
-  interaction-picture engine, and never slower anywhere.  **Bit-identical** at every
-  budget tested -- tiles are independent and only concatenated -- so this changes no
-  result.  Peak memory of a long scan drops accordingly.
-
-### Fixed
 
 - **The position-profile cache no longer hands out writable arrays.**  Values are
   returned by reference to every later caller asking for the same position grid, so a
@@ -412,7 +404,6 @@ and the project uses [Semantic Versioning](https://semver.org/).
   and the cache sits under the matter term of the Hamiltonian, so the symptom would
   have been a wrong probability with nothing raised.  Cached arrays are now marked
   read-only, turning that into an exception at the point of the write.
-
 
 ## [1.0.0rc1] - 2026-07-31
 
