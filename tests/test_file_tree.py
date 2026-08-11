@@ -55,7 +55,7 @@ TREE = [
     ('.github/workflows/notebooks.yml', 'Executes every notebook; paths-filtered, so docs-only changes skip it'),
     ('.github/workflows/pages.yml', 'GitHub Pages deployment for the Sphinx documentation'),
     ('.github/workflows/publish.yml', 'PyPI (OIDC) automated publishing workflow, on GitHub Release'),
-    ('.github/workflows/tests.yml', 'GitHub Actions CI testing pipeline (Python 3.10-3.12) + coverage'),
+    ('.github/workflows/tests.yml', 'GitHub Actions CI testing pipeline (Python 3.10-3.13) + coverage'),
     ('.gitignore',
      'Build, cache and generated-output artefacts'),
     ('CHANGELOG.md', 'Version history (Keep a Changelog format)'),

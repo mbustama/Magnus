@@ -314,7 +314,7 @@ Magnus/
 │       ├── notebooks.yml           # Executes every notebook; paths-filtered, so docs-only changes skip it
 │       ├── pages.yml               # GitHub Pages deployment for the Sphinx documentation
 │       ├── publish.yml             # PyPI (OIDC) automated publishing workflow, on GitHub Release
-│       └── tests.yml               # GitHub Actions CI testing pipeline (Python 3.10-3.12) + coverage
+│       └── tests.yml               # GitHub Actions CI testing pipeline (Python 3.10-3.13) + coverage
 ├── .gitignore                      # Build, cache and generated-output artefacts
 ├── CHANGELOG.md                    # Version history (Keep a Changelog format)
 ├── CITATION.cff                    # Machine-readable citation metadata; drives GitHub's "Cite this repository"
@@ -477,8 +477,7 @@ required). Use the module for anything programmatic (scans, plots, fitting);
 use the CLI for a quick one-off number, a shell script, or to sanity-check a
 parameter choice.
 
-Install it with `pip install --pre magnuspy` (the `--pre` is needed while the
-current release is a release candidate; drop it once 1.0.0 final is out), or
+Install it with `pip install magnuspy`, or
 `pip install -e .` from a checkout. The distribution is called **magnuspy** on
 PyPI because plain `magnus` was already taken by an unrelated project, but the
 import package is `magnus`, as below.

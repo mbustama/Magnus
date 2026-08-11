@@ -22,15 +22,13 @@ distribution, for the full text.
 Installation
 ------------
 
-Install the current release candidate from PyPI:
+Install from PyPI:
 
 .. code-block:: bash
 
-   pip install --pre magnuspy
+   pip install magnuspy
 
-The ``--pre`` flag is needed while the current release is a release
-candidate (see :doc:`changelog`); it can be dropped once 1.0.0 final is
-out.  This installs the dependencies and the ``magnus`` command-line
+This installs the dependencies and the ``magnus`` command-line
 calculator (see :doc:`cli`).
 
 .. note::
@@ -84,7 +82,7 @@ is configured correctly for your system:
    pytest tests/ -v
 
 It is about 1100 tests and takes some fifteen minutes with ``-n auto``; the same suite runs in CI on
-Python 3.10-3.12 on every push, so the badge on the :doc:`index` page tells
+Python 3.10-3.13 on every push, so the badge on the :doc:`index` page tells
 you whether it passes there.
 
 **What passing means.**  The suite is not only a smoke test, so it is worth
@@ -167,7 +165,7 @@ File Tree
    │       ├── notebooks.yml           # Executes every notebook; paths-filtered, so docs-only changes skip it
    │       ├── pages.yml               # GitHub Pages deployment for the Sphinx documentation
    │       ├── publish.yml             # PyPI (OIDC) automated publishing workflow, on GitHub Release
-   │       └── tests.yml               # GitHub Actions CI testing pipeline (Python 3.10-3.12) + coverage
+   │       └── tests.yml               # GitHub Actions CI testing pipeline (Python 3.10-3.13) + coverage
    ├── .gitignore                      # Build, cache and generated-output artefacts
    ├── CHANGELOG.md                    # Version history (Keep a Changelog format)
    ├── CITATION.cff                    # Machine-readable citation metadata; drives GitHub's "Cite this repository"

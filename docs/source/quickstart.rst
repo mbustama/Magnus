@@ -56,7 +56,7 @@ baseline.
 The last two are the ones to check first when a result looks untouched by the
 parameters you set; see :ref:`conventions`.
 
-Install Magνs with ``pip install --pre magnuspy`` -- the distribution is
+Install Magνs with ``pip install magnuspy`` -- the distribution is
 ``magnuspy`` on PyPI, the import package is ``magnus`` (see
 :doc:`installation`) -- then:
 
