@@ -9,6 +9,40 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **Notebook 27, nine animated scenes, with the clips committed.**  Four are the
+  scenes NuOscProbExact's notebook 19 draws, computed here so the two can be read
+  side by side; the other five need something a closed-form slab code does not
+  have -- a refinement ladder deciding it has converged, a front that travels, an
+  observable that is an average rather than a value, and a Hamiltonian that varies
+  along the path.  The notebook draws stills by default and hides the rendering
+  behind `RENDER = True`, so CI never pays the hour it costs.  Seven shrunk GIFs
+  are tracked in `img/` (14.7 MB); the raw renders go to `img/raw/`, which is
+  gitignored, so a later render cannot silently replace 14.7 MB of committed files
+  with the 224 MB it produces.  `tools/make_demo_video.py` owns the encoding.
+
+- **Notebook 25 became an arbiter of when each code wins**, rather than a list of
+  timings: reach (a slab product's error floors at 2.5e-11 on a smooth profile and
+  then rises, while the Magnus expansion continues to 2.9e-13), generality (five
+  flavours, where there is no comparison to draw), and pre-packaged observables
+  (a solar average in 0.66 s against 130 s).  With it, supernova-shock comparisons
+  against other codes, 3+1 and NSI in both the solar and shock settings, and
+  probability-vs-energy panels for the shock.
+
+- **A README image gallery**, ten figures lifted from the executed notebooks by
+  `extract_gallery()`, so the front page shows the answers rather than describing
+  them and cannot drift from what the notebooks produce.
+
+- **An expansion-order section in notebook 24**: what the truncation order buys in
+  accuracy, and what it costs in correctness, which is nothing -- every truncation
+  lives in the Lie algebra, so the operator is unitary exactly rather than to the
+  accuracy of the truncation.  With it, which engine the dispatcher picks and why,
+  measured across four decades of tolerance.
+
+- **`t_breakpoints`, `n_slabs` and `cumulative` reach the BSM wrappers.**  The
+  keywords that decide a hard profile were in no signature that a caller of
+  `osc_prob_matter_nsi` or `osc_prob_liv` could see, so the comparison those
+  wrappers exist for could not be made on equal terms.
+
 - **A `'constant'` engine: a position-independent Hamiltonian is answered in one
   batched exponential instead of one `osc_prob` call per point.**  When the
   matter potential does not vary with position, the Magnus series *terminates at
@@ -184,6 +218,19 @@ and the project uses [Semantic Versioning](https://semver.org/).
   result.  Peak memory of a long scan drops accordingly.
 
 ### Fixed
+
+- **The memory guard read the host's free memory, not the cgroup's.**  Inside a
+  container the two are unrelated, so a request that would be killed by the cgroup
+  limit was waved through by a guard reading a number that did not apply to it.
+  `_available_memory_bytes` now takes the minimum of the two, walking the cgroup
+  ancestor chain and handling the v1 "no limit" sentinel.
+
+- **The sterile state felt no medium, in six places.**  Four inline copies of the
+  matter projector, plus the two flavour-specific builders, wrote the 3+1 matter
+  term by hand and gave the sterile state a zero where it carries `-V_NC`.  All
+  six now come from `matter.matter_potential_projector`, and a test fails if a
+  seventh copy appears.  On a PREM chord this was worth 0.29 in probability, and
+  it was flat in the requested tolerance, so no amount of refinement revealed it.
 
 - **The evaluation-mode cache answered a question it was never asked, and the
   guarded version of it was dead code.**  `probe_eval_mode`'s `'constant'`
