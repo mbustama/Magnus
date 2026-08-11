@@ -7379,18 +7379,25 @@ Returns
     # The overall antineutrino sign flip is carried by VCC_func (see
     # matter.vcc_func_from_rho_func); for antineutrinos, the NSI couplings are additionally
     # conjugated (H_matt -> -H_matt^* relative to neutrinos).
+    # `matter.matter_potential_projector` for the standard piece, NOT a hand-written
+    # diagonal: beyond three flavours the standard matter term is not e_ee.  The sterile
+    # states carry -V_NC = (r/2) V_CC once the actives' common V_NC is removed, and a
+    # literal [1, 0, 0, 0] gives them zero instead -- which is the same omission that was
+    # found and fixed in the standard-potential path, and it survived here.  With every
+    # eps set to zero this route has to reproduce that path exactly, and did not: it
+    # differed by 5.2e-02 at four flavours and 5.1e-02 at five.
     if num_flavors == 2:
-        h_matt = np.diag([1.0, 0.0]) + \
+        h_matt = matter.matter_potential_projector(2) + \
             hamiltonians.hamiltonian_2nu_nsi(1.0, eps_aa, eps_ab) # VCC = 1.0
     elif num_flavors == 3:
-        h_matt = np.diag([1.0, 0.0, 0.0]) + \
+        h_matt = matter.matter_potential_projector(3) + \
             hamiltonians.hamiltonian_3nu_nsi(1.0, eps_ee, eps_em, eps_et, eps_mm, eps_mt, eps_tt)
     elif num_flavors == 4:
-        h_matt = np.diag([1.0, 0.0, 0.0, 0.0]) + \
+        h_matt = matter.matter_potential_projector(4, ratio_number_neutrons_to_protons) + \
             hamiltonians.hamiltonian_4nu_nsi(1.0, eps_ee, eps_em, eps_et, eps_es, eps_mm, eps_mt,
                 eps_ms, eps_tt, eps_ts, eps_ss)
     elif num_flavors == 5:
-        h_matt = np.diag([1.0, 0.0, 0.0, 0.0, 0.0]) + \
+        h_matt = matter.matter_potential_projector(5, ratio_number_neutrons_to_protons) + \
             hamiltonians.hamiltonian_5nu_nsi(1.0, eps_ee, eps_em, eps_et, eps_es1, eps_es2,
                 eps_mm, eps_mt, eps_ms1, eps_ms2, eps_tt, eps_ts1, eps_ts2, eps_s1s1, eps_s1s2,
                 eps_s2s2)

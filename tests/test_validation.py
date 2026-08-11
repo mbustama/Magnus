@@ -502,3 +502,59 @@ def test_a_non_finite_density_is_refused_and_not_called_a_unit_mistake(bad_densi
             ENERGY, BASELINE, bad_density,
             density_matter_is_in_g_per_cm3=True,
             **gd.load_nufit_params('NuFIT 6.1', 'NO'))
+
+
+# ----------------------------------------------------------------------
+# Zero NSI must be no NSI, at every flavour count
+# ----------------------------------------------------------------------
+
+@pytest.mark.parametrize("num_flavors", [3, 4, 5])
+def test_nsi_with_zero_couplings_reproduces_the_standard_matter_case(num_flavors):
+    """The NSI route built its standard piece as a literal `[1, 0, 0, 0]`
+    diagonal, giving the sterile states zero where they carry
+    -V_NC = (r/2) V_CC.  With every eps set to zero the two routes must be
+    the same calculation, and they differed by 5.2e-02 at four flavours and
+    5.1e-02 at five.  Three flavours is the control: no sterile state, so it
+    agreed all along, which is why nothing noticed.
+
+    This is the same omission that was found in the standard-potential path
+    -- worth 0.29 in probability on a PREM chord -- surviving in the BSM
+    one.  A fix applied per-call-site rather than at the shared definition
+    leaves exactly this kind of remainder."""
+    osc = dict(gd.load_nufit_params('NuFIT 6.1', 'NO'))
+    eps_names = {
+        3: ('eps_ee', 'eps_em', 'eps_et', 'eps_mm', 'eps_mt', 'eps_tt'),
+        4: ('eps_ee', 'eps_em', 'eps_et', 'eps_es', 'eps_mm', 'eps_mt',
+            'eps_ms', 'eps_tt', 'eps_ts', 'eps_ss'),
+        5: ('eps_ee', 'eps_em', 'eps_et', 'eps_es1', 'eps_es2', 'eps_mm', 'eps_mt',
+            'eps_ms1', 'eps_ms2', 'eps_tt', 'eps_ts1', 'eps_ts2',
+            'eps_s1s1', 'eps_s1s2', 'eps_s2s2'),
+    }[num_flavors]
+    if num_flavors >= 4:
+        osc.update(s14=0.3, s24=0.3, s34=0.0, d14=0.0, d24=0.0, D41=1.0)
+    if num_flavors == 5:
+        osc.update(s15=0.2, s25=0.0, s35=0.0, d15=0.0, d35=0.0, D51=2.0)
+
+    std_fn = getattr(op, 'osc_prob_%dnu_matter_constant_density' % num_flavors)
+    nsi_fn = getattr(op, 'osc_prob_%dnu_matter_nsi_constant_density' % num_flavors)
+    common = dict(density_matter_is_in_g_per_cm3=True)
+
+    std = np.asarray(std_fn(ENERGY, BASELINE, 3.0, **osc, **common))
+    nsi = np.asarray(nsi_fn(ENERGY, BASELINE, 3.0, **osc,
+                            **{k: 0.0 for k in eps_names}, **common))
+    np.testing.assert_allclose(nsi, std, rtol=0.0, atol=1.0e-14)
+
+
+def test_a_non_zero_nsi_coupling_still_changes_the_answer():
+    """The guard above is satisfied by an NSI route that ignores eps
+    entirely, so it needs this next to it."""
+    osc = dict(gd.load_nufit_params('NuFIT 6.1', 'NO'))
+    osc.update(s14=0.3, s24=0.3, s34=0.0, d14=0.0, d24=0.0, D41=1.0)
+    eps = {k: 0.0 for k in ('eps_ee', 'eps_em', 'eps_et', 'eps_es', 'eps_mm',
+                            'eps_mt', 'eps_ms', 'eps_tt', 'eps_ts', 'eps_ss')}
+    common = dict(density_matter_is_in_g_per_cm3=True)
+    std = np.asarray(op.osc_prob_4nu_matter_constant_density(
+        ENERGY, BASELINE, 3.0, **osc, **common))
+    nsi = np.asarray(op.osc_prob_4nu_matter_nsi_constant_density(
+        ENERGY, BASELINE, 3.0, **osc, **{**eps, 'eps_ee': 0.1}, **common))
+    assert np.max(np.abs(nsi - std)) > 1.0e-4
