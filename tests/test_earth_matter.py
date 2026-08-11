@@ -9,6 +9,7 @@ import pytest
 import magnus.earth as earth
 import magnus.globaldefs as gd
 import magnus.matter as matter
+import magnus.oscprob as op
 
 
 def prem_reference_scalar(r):
@@ -364,3 +365,94 @@ def test_a_density_that_trips_a_guard_is_not_memoised():
     assert len(matter._VCC_CONST_CACHE) == 1
     assert matter.vcc_func_from_rho_func(
         2.848, L0=0.0, density_matter_is_in_g_per_cm3=True) == first
+
+
+# ----------------------------------------------------------------------
+# Composition: Y_e by PREM layer
+# ----------------------------------------------------------------------
+
+def test_each_prem_layer_gets_its_own_electron_fraction():
+    """PREM is a density model and carries no composition, so Y_e has to be
+    supplied.  The library assumed 0.5 everywhere -- exactly isoscalar matter,
+    which nothing in the Earth is."""
+    cases = [(1000.0, earth.Y_E_CORE_PREM), (3480.0, earth.Y_E_CORE_PREM),
+             (3480.1, earth.Y_E_MANTLE_PREM), (6346.6, earth.Y_E_MANTLE_PREM),
+             (6346.7, earth.Y_E_CRUST_PREM), (6368.0, earth.Y_E_CRUST_PREM),
+             (6368.1, earth.Y_E_OCEAN_PREM), (6371.0, earth.Y_E_OCEAN_PREM)]
+    for r, expected in cases:
+        got = float(earth.electron_fraction_func_prem(r))
+        assert got == pytest.approx(expected), 'r = %.1f km gave Y_e = %r' % (r, got)
+
+
+def test_the_neutron_ratio_is_derived_from_the_electron_fraction():
+    """They are the same statement about composition: with charge neutrality,
+    r = n_n/n_p = (1 - Y_e)/Y_e.  Carried as independent arguments, a caller
+    could describe an iron core with isoscalar neutrons -- and silently, since
+    r only shows up in the sterile sector."""
+    assert earth.neutron_to_proton_ratio_from_electron_fraction(0.5) == pytest.approx(1.0)
+    for ye in (earth.Y_E_CORE_PREM, earth.Y_E_MANTLE_PREM, earth.Y_E_CRUST_PREM, earth.Y_E_OCEAN_PREM):
+        assert earth.neutron_to_proton_ratio_from_electron_fraction(ye) == \
+            pytest.approx((1.0 - ye)/ye)
+
+
+def test_the_uniform_override_reproduces_the_old_isoscalar_answer():
+    """`electron_fraction=0.5` is how a result computed before the layered
+    model is reproduced, so it has to keep meaning exactly that."""
+    costhz = -0.9
+    L = earth.distance_traveled_inside_earth(costhz)*gd.UNIT_KM
+    energy = 1.0*gd.UNIT_GEV
+    uniform = np.asarray(op.osc_prob_3nu_earth(energy, costhz=costhz, L=L,
+                                               electron_fraction=0.5))
+    layered = np.asarray(op.osc_prob_3nu_earth(energy, costhz=costhz, L=L))
+    np.testing.assert_allclose(uniform.sum(axis=1), 1.0, atol=1.0e-12)
+    assert not np.allclose(uniform, layered), \
+        'the layered default should differ from uniform 0.5'
+
+
+def test_a_core_crossing_chord_moves_most():
+    """The core is iron (Y_e = 0.4656) and the mantle is rock (0.4957), so the
+    size of the correction tracks how much core the chord crosses.  A shallow
+    chord sees almost none of it."""
+    energy = 1.0*gd.UNIT_GEV
+    def channel(costhz, **kw):
+        L = earth.distance_traveled_inside_earth(costhz)*gd.UNIT_KM
+        return np.asarray(op.osc_prob_3nu_earth(energy, costhz=costhz, L=L,
+                                                **kw))[gd.NUMU][gd.NUE]
+    deep = abs(channel(-1.0) - channel(-1.0, electron_fraction=0.5))
+    shallow = abs(channel(-0.4) - channel(-0.4, electron_fraction=0.5))
+    assert deep > 10.0*shallow, 'deep %r vs shallow %r' % (deep, shallow)
+
+
+def test_uniform_and_per_layer_together_are_refused():
+    """Any precedence rule would be a rule the caller has to know, and this
+    package has already shipped two bugs of that shape."""
+    costhz = -0.9
+    L = earth.distance_traveled_inside_earth(costhz)*gd.UNIT_KM
+    with pytest.raises(ValueError, match="one or the other"):
+        op.osc_prob_3nu_earth(1.0*gd.UNIT_GEV, costhz=costhz, L=L,
+                              electron_fraction=0.5, electron_fraction_core=0.46)
+
+
+@pytest.mark.parametrize("bad", [0.0, -0.1, 1.5])
+def test_an_electron_fraction_outside_zero_to_one_is_refused(bad):
+    """Y_e = <Z/A> is a fraction.  0.0 and 5.0 used to be accepted, returning
+    answers 0.51 and 0.74 away from the default."""
+    costhz = -0.9
+    L = earth.distance_traveled_inside_earth(costhz)*gd.UNIT_KM
+    with pytest.raises(ValueError, match="electron fraction"):
+        op.osc_prob_3nu_earth(1.0*gd.UNIT_GEV, costhz=costhz, L=L,
+                              electron_fraction_core=bad)
+
+
+def test_the_sun_takes_no_electron_fraction():
+    """The solar profile is an electron NUMBER density -- the standard
+    exponential fit, in which Y_e is already folded in -- so the mass-density
+    conversion never runs and Y_e does not enter.  `sun_liv` used to expose
+    four such parameters and ignore all of them."""
+    import inspect
+    for name in ('osc_prob_2nu_sun', 'osc_prob_3nu_sun_nsi', 'osc_prob_3nu_sun_liv',
+                 'osc_prob_5nu_sun_liv'):
+        params = inspect.signature(getattr(op, name)).parameters
+        for dead in ('electron_fraction', 'ratio_number_neutrons_to_protons',
+                     'density_matter_is_in_g_per_cm3', 'density_is_of_number_of_electrons'):
+            assert dead not in params, '%s still exposes %s' % (name, dead)

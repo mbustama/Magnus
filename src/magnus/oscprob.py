@@ -1742,6 +1742,79 @@ def validate_input_battery(
                 " rho_func must be a float (or int) or must return a float (or int).")
 
 
+def _earth_composition(costhz, electron_fraction, ratio_number_neutrons_to_protons,
+                       electron_fraction_core, electron_fraction_mantle,
+                       electron_fraction_crust, electron_fraction_ocean,
+                       source_func_name):
+    r"""The electron density along a chord, with :math:`Y_e` resolved per PREM layer.
+
+    Returns the ``rho_func`` every Earth entry point hands to
+    :func:`magnus.matter.vcc_func_from_rho_func`.
+
+    Two things happen here that used to be the caller's problem.  :math:`Y_e` becomes a
+    function of radius rather than one number for the whole Earth -- the core is iron and
+    the mantle is rock, and assuming 0.5 for both is worth up to a factor of ten in
+    :math:`P(\nu_\mu \to \nu_e)` on a core-crossing chord.  And the neutron-to-proton
+    ratio is *derived* from :math:`Y_e` rather than carried separately, because the two
+    are the same statement about composition, :math:`r = (1 - Y_e)/Y_e`.  They were
+    independent arguments before, so an iron core's :math:`Y_e` alongside an isoscalar
+    :math:`r` described matter that cannot exist -- silently, since :math:`r` only shows
+    up in the sterile sector.
+
+    The uniform ``electron_fraction`` override is kept, because it is how an earlier
+    result is reproduced: ``electron_fraction=0.5`` is what every Earth number in this
+    library used to assume.  Combining it with a per-layer value is refused rather than
+    silently resolved -- any precedence rule here is a rule the caller has to know, and
+    this is the shape of two bugs already found in this package.
+    """
+    layered = {
+        'electron_fraction_core': electron_fraction_core,
+        'electron_fraction_mantle': electron_fraction_mantle,
+        'electron_fraction_crust': electron_fraction_crust,
+        'electron_fraction_ocean': electron_fraction_ocean,
+    }
+    given = [k for k, v in layered.items() if v is not None]
+
+    if (electron_fraction is not None) and given:
+        raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": "
+            "electron_fraction sets one value for the whole Earth, and " + ", ".join(given) +
+            " set it per layer; pass one or the other, not both.  electron_fraction=0.5 "
+            "reproduces the uniform composition earlier versions assumed.")
+
+    for name, value in list(layered.items()) + [('electron_fraction', electron_fraction)]:
+        if value is None:
+            continue
+        if not (0.0 < float(value) <= 1.0):
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": " +
+                name + " is an electron fraction, Y_e = <Z/A>, so it must be in (0, 1]; "
+                "got " + str(value) + ".")
+
+    if electron_fraction is not None:
+        def ye_of_r(r):
+            return np.full(np.shape(np.asarray(r, dtype=float)), float(electron_fraction))
+    else:
+        def ye_of_r(r):
+            return earth.electron_fraction_func_prem(r, **layered)
+
+    def rho_func(l):
+        r = earth.earth_radial_distance_from_depth(costhz, l/gd.UNIT_KM)
+        ye = ye_of_r(r)
+        # ALWAYS derived from Y_e here, never taken from the caller's
+        # `ratio_number_neutrons_to_protons`.  In this conversion the ratio only sets the
+        # average nucleon mass, which is a property of the local composition and so has to
+        # follow Y_e layer by layer.  The caller's scalar keeps its other role -- the
+        # sterile states' entry in the matter projector, which is one matrix for the whole
+        # chord and cannot vary with position.  See the note in the wrappers' docstrings.
+        return matter.num_density_e_func(
+            r, earth.density_matter_func_prem,
+            ratio_number_neutrons_to_protons=
+                earth.neutron_to_proton_ratio_from_electron_fraction(ye),
+            electron_fraction=ye,
+            density_matter_is_in_g_per_cm3=True)      # [eV^3] (l in eV^{-1})
+
+    return rho_func
+
+
 def validate_input_osc_prob_earth(
     source_func_name: str,
     loc_ini: Optional[Union[Tuple[float, float], list, np.ndarray, str]]=None, 
@@ -9892,7 +9965,11 @@ def osc_prob_2nu_earth(
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
     ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
-    electron_fraction: Optional[Union[int, float]]=0.5,
+    electron_fraction: Optional[Union[int, float]]=None,
+    electron_fraction_core: Optional[Union[int, float]]=None,
+    electron_fraction_mantle: Optional[Union[int, float]]=None,
+    electron_fraction_crust: Optional[Union[int, float]]=None,
+    electron_fraction_ocean: Optional[Union[int, float]]=None,
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
@@ -10061,9 +10138,11 @@ def osc_prob_2nu_earth(
 
     return osc_prob_matter_std_potential(
         num_flavors=2,
-        rho_func=lambda l: matter.num_density_e_func(earth.earth_radial_distance_from_depth(costhz, 
-            l/gd.UNIT_KM), earth.density_matter_func_prem, ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
-            electron_fraction=electron_fraction, density_matter_is_in_g_per_cm3=True), # [eV^3] (l in eV^{-1})
+        rho_func=_earth_composition(
+            costhz, electron_fraction, ratio_number_neutrons_to_protons,
+            electron_fraction_core, electron_fraction_mantle,
+            electron_fraction_crust, electron_fraction_ocean,
+            source_func_name),
         energy=energy,
         L=L, # [eV^{-1}]
         t_breakpoints=t_breakpoints,
@@ -10109,7 +10188,11 @@ def osc_prob_3nu_earth(
     nu_f: Optional[int]=None,
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
     ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
-    electron_fraction: Optional[Union[int, float]]=0.5,
+    electron_fraction: Optional[Union[int, float]]=None,
+    electron_fraction_core: Optional[Union[int, float]]=None,
+    electron_fraction_mantle: Optional[Union[int, float]]=None,
+    electron_fraction_crust: Optional[Union[int, float]]=None,
+    electron_fraction_ocean: Optional[Union[int, float]]=None,
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
@@ -10282,9 +10365,11 @@ def osc_prob_3nu_earth(
 
     return osc_prob_matter_std_potential(
         num_flavors=3,
-        rho_func=lambda l: matter.num_density_e_func(earth.earth_radial_distance_from_depth(costhz, 
-            l/gd.UNIT_KM), earth.density_matter_func_prem, ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
-            electron_fraction=electron_fraction, density_matter_is_in_g_per_cm3=True), # [eV^3] (l in eV^{-1})
+        rho_func=_earth_composition(
+            costhz, electron_fraction, ratio_number_neutrons_to_protons,
+            electron_fraction_core, electron_fraction_mantle,
+            electron_fraction_crust, electron_fraction_ocean,
+            source_func_name),
         energy=energy,
         L=L,
         t_breakpoints=t_breakpoints,
@@ -10337,7 +10422,11 @@ def osc_prob_4nu_earth(
     nu_f: Optional[int]=None,
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
     ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
-    electron_fraction: Optional[Union[int, float]]=0.5,
+    electron_fraction: Optional[Union[int, float]]=None,
+    electron_fraction_core: Optional[Union[int, float]]=None,
+    electron_fraction_mantle: Optional[Union[int, float]]=None,
+    electron_fraction_crust: Optional[Union[int, float]]=None,
+    electron_fraction_ocean: Optional[Union[int, float]]=None,
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
@@ -10525,9 +10614,11 @@ def osc_prob_4nu_earth(
 
     return osc_prob_matter_std_potential(
         num_flavors=4,
-        rho_func=lambda l: matter.num_density_e_func(earth.earth_radial_distance_from_depth(costhz, 
-            l/gd.UNIT_KM), earth.density_matter_func_prem, ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
-            electron_fraction=electron_fraction, density_matter_is_in_g_per_cm3=True), # [eV^3] (l in eV^{-1})
+        rho_func=_earth_composition(
+            costhz, electron_fraction, ratio_number_neutrons_to_protons,
+            electron_fraction_core, electron_fraction_mantle,
+            electron_fraction_crust, electron_fraction_ocean,
+            source_func_name),
         energy=energy,
         L=L,
         t_breakpoints=t_breakpoints,
@@ -10587,7 +10678,11 @@ def osc_prob_5nu_earth(
     nu_f: Optional[int]=None,
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
     ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
-    electron_fraction: Optional[Union[int, float]]=0.5,
+    electron_fraction: Optional[Union[int, float]]=None,
+    electron_fraction_core: Optional[Union[int, float]]=None,
+    electron_fraction_mantle: Optional[Union[int, float]]=None,
+    electron_fraction_crust: Optional[Union[int, float]]=None,
+    electron_fraction_ocean: Optional[Union[int, float]]=None,
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
@@ -10789,9 +10884,11 @@ def osc_prob_5nu_earth(
 
     return osc_prob_matter_std_potential(
         num_flavors=5,
-        rho_func=lambda l: matter.num_density_e_func(earth.earth_radial_distance_from_depth(costhz, 
-            l/gd.UNIT_KM), earth.density_matter_func_prem, ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
-            electron_fraction=electron_fraction, density_matter_is_in_g_per_cm3=True), # [eV^3] (l in eV^{-1})
+        rho_func=_earth_composition(
+            costhz, electron_fraction, ratio_number_neutrons_to_protons,
+            electron_fraction_core, electron_fraction_mantle,
+            electron_fraction_crust, electron_fraction_ocean,
+            source_func_name),
         energy=energy,
         L=L,
         t_breakpoints=t_breakpoints,
@@ -10834,7 +10931,11 @@ def osc_prob_earth(
     nu_i: Optional[int]=None,
     nu_f: Optional[int]=None,
     ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
-    electron_fraction: Optional[Union[int, float]]=0.5,
+    electron_fraction: Optional[Union[int, float]]=None,
+    electron_fraction_core: Optional[Union[int, float]]=None,
+    electron_fraction_mantle: Optional[Union[int, float]]=None,
+    electron_fraction_crust: Optional[Union[int, float]]=None,
+    electron_fraction_ocean: Optional[Union[int, float]]=None,
     magnus_exp_order: Optional[int]=4,
     n_jobs: Optional[int]=1,
     integration_method: Optional[str]='gl',
@@ -10994,12 +11095,11 @@ def osc_prob_earth(
     # sign flip is applied inside matter.vcc_func_from_rho_func.  The profile evaluations are
     # cached on repeated position grids.
     VCC_func = matter.vcc_func_from_rho_func(
-        rho_func=lambda l: matter.num_density_e_func(
-            earth.earth_radial_distance_from_depth(costhz, l/gd.UNIT_KM),
-            earth.density_matter_func_prem,
-            ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
-            electron_fraction=electron_fraction,
-            density_matter_is_in_g_per_cm3=True), # [eV^3] (l in eV^{-1})
+        rho_func=_earth_composition(
+            costhz, electron_fraction, ratio_number_neutrons_to_protons,
+            electron_fraction_core, electron_fraction_mantle,
+            electron_fraction_crust, electron_fraction_ocean,
+            source_func_name),
         nubar=nubar,
         density_is_of_number_of_electrons=True) # [eV]
     VCC_func = _PositionProfileCache(VCC_func)
@@ -13310,7 +13410,11 @@ def osc_prob_2nu_earth_nsi(
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
     ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
-    electron_fraction: Optional[Union[int, float]]=0.5,
+    electron_fraction: Optional[Union[int, float]]=None,
+    electron_fraction_core: Optional[Union[int, float]]=None,
+    electron_fraction_mantle: Optional[Union[int, float]]=None,
+    electron_fraction_crust: Optional[Union[int, float]]=None,
+    electron_fraction_ocean: Optional[Union[int, float]]=None,
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
@@ -13480,9 +13584,11 @@ def osc_prob_2nu_earth_nsi(
 
     return osc_prob_matter_nsi(
         num_flavors=2,
-        rho_func=lambda l: matter.num_density_e_func(earth.earth_radial_distance_from_depth(costhz, 
-            l/gd.UNIT_KM), earth.density_matter_func_prem, ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
-            electron_fraction=electron_fraction, density_matter_is_in_g_per_cm3=True), # [eV^3] (l in eV^{-1})
+        rho_func=_earth_composition(
+            costhz, electron_fraction, ratio_number_neutrons_to_protons,
+            electron_fraction_core, electron_fraction_mantle,
+            electron_fraction_crust, electron_fraction_ocean,
+            source_func_name),
         energy=energy,
         L=L,
         t_breakpoints=t_breakpoints,
@@ -13535,7 +13641,11 @@ def osc_prob_3nu_earth_nsi(
     nu_f: Optional[int]=None,
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
     ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
-    electron_fraction: Optional[Union[int, float]]=0.5,
+    electron_fraction: Optional[Union[int, float]]=None,
+    electron_fraction_core: Optional[Union[int, float]]=None,
+    electron_fraction_mantle: Optional[Union[int, float]]=None,
+    electron_fraction_crust: Optional[Union[int, float]]=None,
+    electron_fraction_ocean: Optional[Union[int, float]]=None,
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
@@ -13719,9 +13829,11 @@ def osc_prob_3nu_earth_nsi(
 
     return osc_prob_matter_nsi(
         num_flavors=3,
-        rho_func=lambda l: matter.num_density_e_func(earth.earth_radial_distance_from_depth(costhz, 
-            l/gd.UNIT_KM), earth.density_matter_func_prem, ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
-            electron_fraction=electron_fraction, density_matter_is_in_g_per_cm3=True), # [eV^3] (l in eV^{-1})
+        rho_func=_earth_composition(
+            costhz, electron_fraction, ratio_number_neutrons_to_protons,
+            electron_fraction_core, electron_fraction_mantle,
+            electron_fraction_crust, electron_fraction_ocean,
+            source_func_name),
         energy=energy,
         L=L,
         t_breakpoints=t_breakpoints,
@@ -13786,7 +13898,11 @@ def osc_prob_4nu_earth_nsi(
     nu_f: Optional[int]=None,
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
     ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
-    electron_fraction: Optional[Union[int, float]]=0.5,
+    electron_fraction: Optional[Union[int, float]]=None,
+    electron_fraction_core: Optional[Union[int, float]]=None,
+    electron_fraction_mantle: Optional[Union[int, float]]=None,
+    electron_fraction_crust: Optional[Union[int, float]]=None,
+    electron_fraction_ocean: Optional[Union[int, float]]=None,
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
@@ -13992,9 +14108,11 @@ def osc_prob_4nu_earth_nsi(
 
     return osc_prob_matter_nsi(
         num_flavors=4,
-        rho_func=lambda l: matter.num_density_e_func(earth.earth_radial_distance_from_depth(costhz, 
-            l/gd.UNIT_KM), earth.density_matter_func_prem, ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
-            electron_fraction=electron_fraction, density_matter_is_in_g_per_cm3=True), # [eV^3] (l in eV^{-1})
+        rho_func=_earth_composition(
+            costhz, electron_fraction, ratio_number_neutrons_to_protons,
+            electron_fraction_core, electron_fraction_mantle,
+            electron_fraction_crust, electron_fraction_ocean,
+            source_func_name),
         energy=energy,
         L=L,
         t_breakpoints=t_breakpoints,
@@ -14072,7 +14190,11 @@ def osc_prob_5nu_earth_nsi(
     nu_f: Optional[int]=None,
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
     ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
-    electron_fraction: Optional[Union[int, float]]=0.5,
+    electron_fraction: Optional[Union[int, float]]=None,
+    electron_fraction_core: Optional[Union[int, float]]=None,
+    electron_fraction_mantle: Optional[Union[int, float]]=None,
+    electron_fraction_crust: Optional[Union[int, float]]=None,
+    electron_fraction_ocean: Optional[Union[int, float]]=None,
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
@@ -14303,9 +14425,11 @@ def osc_prob_5nu_earth_nsi(
 
     return osc_prob_matter_nsi(
         num_flavors=5,
-        rho_func=lambda l: matter.num_density_e_func(earth.earth_radial_distance_from_depth(costhz, 
-            l/gd.UNIT_KM), earth.density_matter_func_prem, ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
-            electron_fraction=electron_fraction, density_matter_is_in_g_per_cm3=True), # [eV^3] (l in eV^{-1})
+        rho_func=_earth_composition(
+            costhz, electron_fraction, ratio_number_neutrons_to_protons,
+            electron_fraction_core, electron_fraction_mantle,
+            electron_fraction_crust, electron_fraction_ocean,
+            source_func_name),
         energy=energy,
         L=L,
         t_breakpoints=t_breakpoints,
@@ -17072,7 +17196,11 @@ def osc_prob_2nu_earth_liv(
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
     ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
-    electron_fraction: Optional[Union[int, float]]=0.5,
+    electron_fraction: Optional[Union[int, float]]=None,
+    electron_fraction_core: Optional[Union[int, float]]=None,
+    electron_fraction_mantle: Optional[Union[int, float]]=None,
+    electron_fraction_crust: Optional[Union[int, float]]=None,
+    electron_fraction_ocean: Optional[Union[int, float]]=None,
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
@@ -17248,9 +17376,11 @@ def osc_prob_2nu_earth_liv(
 
     return osc_prob_liv(
         num_flavors=2,
-        rho_func=lambda l: matter.num_density_e_func(earth.earth_radial_distance_from_depth(costhz, 
-            l/gd.UNIT_KM), earth.density_matter_func_prem, ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
-            electron_fraction=electron_fraction, density_matter_is_in_g_per_cm3=True), # [eV^3] (l in eV^{-1})
+        rho_func=_earth_composition(
+            costhz, electron_fraction, ratio_number_neutrons_to_protons,
+            electron_fraction_core, electron_fraction_mantle,
+            electron_fraction_crust, electron_fraction_ocean,
+            source_func_name),
         energy=energy,
         L=L,
         t_breakpoints=t_breakpoints,
@@ -17306,7 +17436,11 @@ def osc_prob_3nu_earth_liv(
     nu_f: Optional[int]=None,
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
     ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
-    electron_fraction: Optional[Union[int, float]]=0.5,
+    electron_fraction: Optional[Union[int, float]]=None,
+    electron_fraction_core: Optional[Union[int, float]]=None,
+    electron_fraction_mantle: Optional[Union[int, float]]=None,
+    electron_fraction_crust: Optional[Union[int, float]]=None,
+    electron_fraction_ocean: Optional[Union[int, float]]=None,
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
@@ -17498,9 +17632,11 @@ def osc_prob_3nu_earth_liv(
 
     return osc_prob_liv(
         num_flavors=3,
-        rho_func=lambda l: matter.num_density_e_func(earth.earth_radial_distance_from_depth(costhz, 
-            l/gd.UNIT_KM), earth.density_matter_func_prem, ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
-            electron_fraction=electron_fraction, density_matter_is_in_g_per_cm3=True), # [eV^3] (l in eV^{-1})
+        rho_func=_earth_composition(
+            costhz, electron_fraction, ratio_number_neutrons_to_protons,
+            electron_fraction_core, electron_fraction_mantle,
+            electron_fraction_crust, electron_fraction_ocean,
+            source_func_name),
         energy=energy,
         L=L,
         t_breakpoints=t_breakpoints,
@@ -17570,7 +17706,11 @@ def osc_prob_4nu_earth_liv(
     nu_f: Optional[int]=None,
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
     ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
-    electron_fraction: Optional[Union[int, float]]=0.5,
+    electron_fraction: Optional[Union[int, float]]=None,
+    electron_fraction_core: Optional[Union[int, float]]=None,
+    electron_fraction_mantle: Optional[Union[int, float]]=None,
+    electron_fraction_crust: Optional[Union[int, float]]=None,
+    electron_fraction_ocean: Optional[Union[int, float]]=None,
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
@@ -17786,9 +17926,11 @@ def osc_prob_4nu_earth_liv(
 
     return osc_prob_liv(
         num_flavors=4,
-        rho_func=lambda l: matter.num_density_e_func(earth.earth_radial_distance_from_depth(costhz, 
-            l/gd.UNIT_KM), earth.density_matter_func_prem, ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
-            electron_fraction=electron_fraction, density_matter_is_in_g_per_cm3=True), # [eV^3] (l in eV^{-1})
+        rho_func=_earth_composition(
+            costhz, electron_fraction, ratio_number_neutrons_to_protons,
+            electron_fraction_core, electron_fraction_mantle,
+            electron_fraction_crust, electron_fraction_ocean,
+            source_func_name),
         energy=energy,
         L=L,
         t_breakpoints=t_breakpoints,
@@ -17872,7 +18014,11 @@ def osc_prob_5nu_earth_liv(
     nu_f: Optional[int]=None,
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
     ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
-    electron_fraction: Optional[Union[int, float]]=0.5,
+    electron_fraction: Optional[Union[int, float]]=None,
+    electron_fraction_core: Optional[Union[int, float]]=None,
+    electron_fraction_mantle: Optional[Union[int, float]]=None,
+    electron_fraction_crust: Optional[Union[int, float]]=None,
+    electron_fraction_ocean: Optional[Union[int, float]]=None,
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
@@ -18113,9 +18259,11 @@ def osc_prob_5nu_earth_liv(
 
     return osc_prob_liv(
         num_flavors=5,
-        rho_func=lambda l: matter.num_density_e_func(earth.earth_radial_distance_from_depth(costhz, 
-            l/gd.UNIT_KM), earth.density_matter_func_prem, ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
-            electron_fraction=electron_fraction, density_matter_is_in_g_per_cm3=True), # [eV^3] (l in eV^{-1})
+        rho_func=_earth_composition(
+            costhz, electron_fraction, ratio_number_neutrons_to_protons,
+            electron_fraction_core, electron_fraction_mantle,
+            electron_fraction_crust, electron_fraction_ocean,
+            source_func_name),
         energy=energy,
         L=L,
         t_breakpoints=t_breakpoints,
@@ -18166,14 +18314,10 @@ def osc_prob_2nu_sun_liv(
     b2: Optional[Union[int, float]]=0.0,
     Lambda: Optional[Union[int, float]]=1.0,
     n_liv: Optional[int]=0,
-    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0, 
-    electron_fraction: Optional[Union[int, float]]=0.5, 
     nubar: Optional[bool]=False, 
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
     strategy: Optional[str]='auto',
-    density_matter_is_in_g_per_cm3: Optional[bool]=False,
-    density_is_of_number_of_electrons: Optional[bool]=False,
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
@@ -18218,20 +18362,12 @@ def osc_prob_2nu_sun_liv(
         Energy scale of the LIV operator. Default: 1.0.
     n_liv : int, optional
         Power of the energy dependence of the LIV operator (dimension of the operator minus 3). Default: 0.
-    ratio_number_neutrons_to_protons : int or float, optional
-        Ratio of the number of neutrons to protons in matter. Default: 1.0.
-    electron_fraction : int or float, optional
-        Electron fraction. Default: 0.5.
     nubar : bool, optional
         If True, compute the probability for antineutrinos. Default: False.
     nu_i : int, optional
         Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
     nu_f : int, optional
         Final flavor index; see ``nu_i``. Default: None.
-    density_matter_is_in_g_per_cm3 : bool, optional
-        If True, the density is given in :math:`\text{g cm}^{-3}`. Default: False.
-    density_is_of_number_of_electrons : bool, optional
-        If True, the density parameter directly gives the electron number density [:math:`\text{eV}^{3}`]. Default: False.
     strategy : str, optional
         Numerical strategy used to compute the evolution operator: 'auto' (default),
         'hybrid', or 'magnus'; see the ``strategy`` parameter of
@@ -18273,10 +18409,13 @@ def osc_prob_2nu_sun_liv(
         b2=b2,
         Lambda=Lambda,
         n_liv=n_liv,
-        ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
-        # The solar profile below is an ELECTRON NUMBER density, so these are not
-        # the caller's to choose: `osc_prob_Nnu_sun` and `osc_prob_Nnu_sun_nsi`
-        # do not expose them at all, and hardcode what is passed here.
+        # The solar profile is an ELECTRON NUMBER density -- the standard exponential
+        # fit, in which Y_e is already folded in -- so the mass-density conversion
+        # these four describe never runs.  They are fixed here rather than exposed,
+        # matching osc_prob_Nnu_sun and osc_prob_Nnu_sun_nsi, which never took them:
+        # a parameter the caller can set and the calculation ignores is worse than
+        # no parameter, because nothing says it was ignored.
+        ratio_number_neutrons_to_protons=1.0,
         electron_fraction=0.5,
         nubar=nubar,
         nu_i=nu_i,
@@ -18313,14 +18452,10 @@ def osc_prob_3nu_sun_liv(
     b3: Optional[Union[int, float]]=0.0,
     Lambda: Optional[Union[int, float]]=1.0,
     n_liv: Optional[int]=0,
-    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0, 
-    electron_fraction: Optional[Union[int, float]]=0.5, 
     nubar: Optional[bool]=False, 
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
     strategy: Optional[str]='auto',
-    density_matter_is_in_g_per_cm3: Optional[bool]=False,
-    density_is_of_number_of_electrons: Optional[bool]=False,
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
@@ -18381,20 +18516,12 @@ def osc_prob_3nu_sun_liv(
         Energy scale of the LIV operator. Default: 1.0.
     n_liv : int, optional
         Power of the energy dependence of the LIV operator (dimension of the operator minus 3). Default: 0.
-    ratio_number_neutrons_to_protons : int or float, optional
-        Ratio of the number of neutrons to protons in matter. Default: 1.0.
-    electron_fraction : int or float, optional
-        Electron fraction. Default: 0.5.
     nubar : bool, optional
         If True, compute the probability for antineutrinos. Default: False.
     nu_i : int, optional
         Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
     nu_f : int, optional
         Final flavor index; see ``nu_i``. Default: None.
-    density_matter_is_in_g_per_cm3 : bool, optional
-        If True, the density is given in :math:`\text{g cm}^{-3}`. Default: False.
-    density_is_of_number_of_electrons : bool, optional
-        If True, the density parameter directly gives the electron number density [:math:`\text{eV}^{3}`]. Default: False.
     strategy : str, optional
         Numerical strategy used to compute the evolution operator: 'auto' (default),
         'hybrid', or 'magnus'; see the ``strategy`` parameter of
@@ -18444,10 +18571,13 @@ def osc_prob_3nu_sun_liv(
         b3=b3,
         Lambda=Lambda,
         n_liv=n_liv,
-        ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
-        # The solar profile below is an ELECTRON NUMBER density, so these are not
-        # the caller's to choose: `osc_prob_Nnu_sun` and `osc_prob_Nnu_sun_nsi`
-        # do not expose them at all, and hardcode what is passed here.
+        # The solar profile is an ELECTRON NUMBER density -- the standard exponential
+        # fit, in which Y_e is already folded in -- so the mass-density conversion
+        # these four describe never runs.  They are fixed here rather than exposed,
+        # matching osc_prob_Nnu_sun and osc_prob_Nnu_sun_nsi, which never took them:
+        # a parameter the caller can set and the calculation ignores is worse than
+        # no parameter, because nothing says it was ignored.
+        ratio_number_neutrons_to_protons=1.0,
         electron_fraction=0.5,
         nubar=nubar,
         nu_i=nu_i,
@@ -18496,14 +18626,10 @@ def osc_prob_4nu_sun_liv(
     b4: Optional[Union[int, float]]=0.0,
     Lambda: Optional[Union[int, float]]=1.0,
     n_liv: Optional[int]=0,
-    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0, 
-    electron_fraction: Optional[Union[int, float]]=0.5, 
     nubar: Optional[bool]=False, 
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
     strategy: Optional[str]='auto',
-    density_matter_is_in_g_per_cm3: Optional[bool]=False,
-    density_is_of_number_of_electrons: Optional[bool]=False,
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
@@ -18588,20 +18714,12 @@ def osc_prob_4nu_sun_liv(
         Energy scale of the LIV operator. Default: 1.0.
     n_liv : int, optional
         Power of the energy dependence of the LIV operator (dimension of the operator minus 3). Default: 0.
-    ratio_number_neutrons_to_protons : int or float, optional
-        Ratio of the number of neutrons to protons in matter. Default: 1.0.
-    electron_fraction : int or float, optional
-        Electron fraction. Default: 0.5.
     nubar : bool, optional
         If True, compute the probability for antineutrinos. Default: False.
     nu_i : int, optional
         Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
     nu_f : int, optional
         Final flavor index; see ``nu_i``. Default: None.
-    density_matter_is_in_g_per_cm3 : bool, optional
-        If True, the density is given in :math:`\text{g cm}^{-3}`. Default: False.
-    density_is_of_number_of_electrons : bool, optional
-        If True, the density parameter directly gives the electron number density [:math:`\text{eV}^{3}`]. Default: False.
     strategy : str, optional
         Numerical strategy used to compute the evolution operator: 'auto' (default),
         'hybrid', or 'magnus'; see the ``strategy`` parameter of
@@ -18663,10 +18781,13 @@ def osc_prob_4nu_sun_liv(
         b4=b4,
         Lambda=Lambda,
         n_liv=n_liv,
-        ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
-        # The solar profile below is an ELECTRON NUMBER density, so these are not
-        # the caller's to choose: `osc_prob_Nnu_sun` and `osc_prob_Nnu_sun_nsi`
-        # do not expose them at all, and hardcode what is passed here.
+        # The solar profile is an ELECTRON NUMBER density -- the standard exponential
+        # fit, in which Y_e is already folded in -- so the mass-density conversion
+        # these four describe never runs.  They are fixed here rather than exposed,
+        # matching osc_prob_Nnu_sun and osc_prob_Nnu_sun_nsi, which never took them:
+        # a parameter the caller can set and the calculation ignores is worse than
+        # no parameter, because nothing says it was ignored.
+        ratio_number_neutrons_to_protons=1.0,
         electron_fraction=0.5,
         nubar=nubar,
         nu_i=nu_i,
@@ -18727,14 +18848,10 @@ def osc_prob_5nu_sun_liv(
     b5: Optional[Union[int, float]]=0.0,
     Lambda: Optional[Union[int, float]]=1.0,
     n_liv: Optional[int]=0,
-    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0, 
-    electron_fraction: Optional[Union[int, float]]=0.5, 
     nubar: Optional[bool]=False, 
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
     strategy: Optional[str]='auto',
-    density_matter_is_in_g_per_cm3: Optional[bool]=False,
-    density_is_of_number_of_electrons: Optional[bool]=False,
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
@@ -18843,20 +18960,12 @@ def osc_prob_5nu_sun_liv(
         Energy scale of the LIV operator. Default: 1.0.
     n_liv : int, optional
         Power of the energy dependence of the LIV operator (dimension of the operator minus 3). Default: 0.
-    ratio_number_neutrons_to_protons : int or float, optional
-        Ratio of the number of neutrons to protons in matter. Default: 1.0.
-    electron_fraction : int or float, optional
-        Electron fraction. Default: 0.5.
     nubar : bool, optional
         If True, compute the probability for antineutrinos. Default: False.
     nu_i : int, optional
         Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
     nu_f : int, optional
         Final flavor index; see ``nu_i``. Default: None.
-    density_matter_is_in_g_per_cm3 : bool, optional
-        If True, the density is given in :math:`\text{g cm}^{-3}`. Default: False.
-    density_is_of_number_of_electrons : bool, optional
-        If True, the density parameter directly gives the electron number density [:math:`\text{eV}^{3}`]. Default: False.
     strategy : str, optional
         Numerical strategy used to compute the evolution operator: 'auto' (default),
         'hybrid', or 'magnus'; see the ``strategy`` parameter of
@@ -18930,10 +19039,13 @@ def osc_prob_5nu_sun_liv(
         b5=b5,
         Lambda=Lambda,
         n_liv=n_liv,
-        ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
-        # The solar profile below is an ELECTRON NUMBER density, so these are not
-        # the caller's to choose: `osc_prob_Nnu_sun` and `osc_prob_Nnu_sun_nsi`
-        # do not expose them at all, and hardcode what is passed here.
+        # The solar profile is an ELECTRON NUMBER density -- the standard exponential
+        # fit, in which Y_e is already folded in -- so the mass-density conversion
+        # these four describe never runs.  They are fixed here rather than exposed,
+        # matching osc_prob_Nnu_sun and osc_prob_Nnu_sun_nsi, which never took them:
+        # a parameter the caller can set and the calculation ignores is worse than
+        # no parameter, because nothing says it was ignored.
+        ratio_number_neutrons_to_protons=1.0,
         electron_fraction=0.5,
         nubar=nubar,
         nu_i=nu_i,

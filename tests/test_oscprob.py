@@ -272,10 +272,19 @@ def _earth_hamiltonian_chain(costhz):
     e00 = np.diag([1.0, 0.0, 0.0])
 
     def H(enu, l):
+        r = earth.earth_radial_distance_from_depth(costhz, np.asarray(l)/gd.UNIT_KM)
+        # The same layered composition the wrapper uses.  Left at num_density_e_func's
+        # uniform default of Y_e = 0.5 this stops being an independent check of the
+        # *propagation* and becomes a check that the Earth is isoscalar, which it is not:
+        # the reference would disagree with the library by a factor of four on a
+        # core-crossing chord, and blame the integrator for the composition.
+        ye = earth.electron_fraction_func_prem(r)
         ne = matter.num_density_e_func(
-            earth.earth_radial_distance_from_depth(costhz,
-                np.asarray(l)/gd.UNIT_KM),
-            earth.density_matter_func_prem, density_matter_is_in_g_per_cm3=True)
+            r, earth.density_matter_func_prem,
+            electron_fraction=ye,
+            ratio_number_neutrons_to_protons=
+                earth.neutron_to_proton_ratio_from_electron_fraction(ye),
+            density_matter_is_in_g_per_cm3=True)
         vcc = np.sqrt(2.0)*gd.GF*np.asarray(ne)
         return (1.0/enu)*hvac + vcc[..., None, None]*e00
 
