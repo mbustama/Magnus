@@ -92,8 +92,9 @@ Runge–Kutta solver), Magnus wins when one or more of these apply:
    matrix operations, so slabs — and, for the standard/NSI/LIV Hamiltonians,
    the *entire energy axis* — evaluate as batched NumPy/BLAS calls.  Adaptive
    ODE integration is inherently sequential and cannot share steps across
-   energies.  Measured: a 200-energy Earth-crossing scan takes **76 ms**
-   (0.4 ms per energy); a 100×100 oscillogram takes **~2 s**.
+   energies.  Measured on an idle machine: a 200-energy Earth-crossing scan takes
+   **17 ms** with the numba backend and **31 ms** without it (0.08 and 0.15 ms per
+   energy); a 100×100 oscillogram takes **~2 s**.
 
 3. **Unitarity matters more than raw local error** — long baselines, small
    probabilities, CP/T asymmetries.  Runge–Kutta iterates drift off the
