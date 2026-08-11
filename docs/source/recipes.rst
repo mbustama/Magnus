@@ -267,10 +267,14 @@ calculation with a different Hamiltonian.
                                        eps_mm=0.0, eps_mt=0.0, eps_tt=0.0)
 
     # LIV: an energy dependence the vacuum term does not have
-    P = oscprob.osc_prob_3nu_earth_liv(energy, costhz=costhz, L=L, ...)
+    P = oscprob.osc_prob_3nu_earth_liv(energy, costhz=costhz, L=L,
+                                       b1=1.0e-23, b2=0.0, b3=0.0)
 
     # 3+1 sterile: the same machinery at one dimension higher
-    P = oscprob.osc_prob_4nu_earth(energy, costhz=costhz, L=L, ...)
+    P = oscprob.osc_prob_4nu_earth(energy, costhz=costhz, L=L,
+                                   s12=s12, s23=s23, s13=s13, d13=d13,
+                                   s14=0.1, s24=0.1, s34=0.0,
+                                   D21=D21, D31=D31, D41=1.0)
 
 .. figure:: ../../img/gallery/gallery_biprobability.png
    :width: 60%
