@@ -316,6 +316,7 @@ Magnus/
 │       └── tests.yml               # GitHub Actions CI testing pipeline (Python 3.10-3.12) + coverage
 ├── .gitignore                      # Build, cache and generated-output artefacts
 ├── CHANGELOG.md                    # Version history (Keep a Changelog format)
+├── CITATION.cff                    # Machine-readable citation metadata; drives GitHub's "Cite this repository"
 ├── LICENSE                         # GNU GPL v3 (GPL-3.0-only), the full license text
 ├── README.md                       # This file
 ├── docs/                           # Sphinx documentation configuration and source
