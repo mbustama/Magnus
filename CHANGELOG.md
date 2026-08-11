@@ -7,6 +7,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-08-11
+
 ### Added
 
 - **Notebook 27, nine animated scenes, with the clips committed.**  Four are the

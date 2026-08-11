@@ -8,7 +8,7 @@ build-backend = "setuptools.build_meta"
 # [tool.setuptools.packages.find] below); the two are independent, and plain
 # `magnus` was already taken on PyPI by an unrelated project.
 name = "magnuspy"
-version = "1.0.0rc1"
+version = "1.0.0"
 description = "Neutrino oscillation probabilities via the Magnus expansion, for an arbitrary number of flavors and any Hamiltonian, time-dependent or not."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -17,9 +17,9 @@ authors = [
     {name = "Mauricio Bustamante", email = "mbustamante@gmail.com"}
 ]
 classifiers = [
-    # 5, not 4: the version below is a 1.0.0 release candidate, and "Beta" is the first
-    # thing a visitor reads on the PyPI page.  The two have to agree, or the page argues
-    # with itself about how finished the project is.
+    # 5, not 4: this is 1.0.0, and "Beta" is the first thing a visitor reads on the PyPI
+    # page.  The two have to agree, or the page argues with itself about how finished the
+    # project is.
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Science/Research",
     "Programming Language :: Python :: 3",
