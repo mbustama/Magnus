@@ -16,6 +16,8 @@ would then fail on every reworded message rather than on a real change of
 behaviour.
 """
 
+import inspect
+
 import numpy as np
 import pytest
 
@@ -558,3 +560,35 @@ def test_a_non_zero_nsi_coupling_still_changes_the_answer():
     nsi = np.asarray(op.osc_prob_4nu_matter_nsi_constant_density(
         ENERGY, BASELINE, 3.0, **osc, **{**eps, 'eps_ee': 0.1}, **common))
     assert np.max(np.abs(nsi - std)) > 1.0e-4
+
+
+@pytest.mark.parametrize("num_flavors", [2, 3, 4, 5])
+def test_solar_liv_uses_the_solar_electron_density(num_flavors):
+    """`osc_prob_Nnu_sun_liv` builds its profile from NUM_DENSITY_E_SUN_CENTRAL,
+    which is an electron NUMBER density, but forwarded a
+    `density_is_of_number_of_electrons` flag that defaulted to False -- so by
+    default the Sun's electron density was read as a mass density and then
+    scaled by an electron fraction.  With the LIV couplings zeroed it must
+    reproduce `osc_prob_Nnu_sun`, and it differed by up to 0.69 in
+    probability.
+
+    `osc_prob_Nnu_sun` and `osc_prob_Nnu_sun_nsi` do not expose those flags at
+    all, because the profile is not the caller's to describe.  Only the LIV
+    family did, which is why only it was wrong."""
+    osc = dict(gd.load_nufit_params('NuFIT 6.1', 'NO'))
+    if num_flavors == 2:
+        osc = {'sth': osc['s12'], 'Dm2': osc['D21']}
+    if num_flavors >= 4:
+        osc.update(s14=0.15, d14=1.2, s24=0.10, d24=0.0, s34=0.05,
+                   D41=1.5*gd.load_nufit_params('NuFIT 6.1', 'NO')['D31'])
+    if num_flavors == 5:
+        osc.update(s15=0.08, d15=0.5, s25=0.05, s35=0.03, d35=0.9,
+                   D51=2.5*gd.load_nufit_params('NuFIT 6.1', 'NO')['D31'])
+    common = dict(energy=1.0*gd.UNIT_MEV, L=4.0*gd.L_SCALE_SUN, L0=0.0)
+    std = np.asarray(getattr(op, 'osc_prob_%dnu_sun' % num_flavors)(**common, **osc))
+    liv_fn = getattr(op, 'osc_prob_%dnu_sun_liv' % num_flavors)
+    # two flavours has b1, b2 only; take the names from the signature
+    zeros = {k: 0.0 for k in inspect.signature(liv_fn).parameters
+             if len(k) == 2 and k[0] == 'b' and k[1].isdigit()}
+    liv = np.asarray(liv_fn(**common, **osc, **zeros))
+    np.testing.assert_allclose(liv, std, rtol=0.0, atol=1.0e-14)

@@ -18274,12 +18274,15 @@ def osc_prob_2nu_sun_liv(
         Lambda=Lambda,
         n_liv=n_liv,
         ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
-        electron_fraction=electron_fraction,
+        # The solar profile below is an ELECTRON NUMBER density, so these are not
+        # the caller's to choose: `osc_prob_Nnu_sun` and `osc_prob_Nnu_sun_nsi`
+        # do not expose them at all, and hardcode what is passed here.
+        electron_fraction=0.5,
         nubar=nubar,
         nu_i=nu_i,
         nu_f=nu_f,
-        density_matter_is_in_g_per_cm3=density_matter_is_in_g_per_cm3,
-        density_is_of_number_of_electrons=density_is_of_number_of_electrons,
+        density_matter_is_in_g_per_cm3=False,
+        density_is_of_number_of_electrons=True,
         strategy=strategy,
         validate_input=validate_input,
         save_log=save_log,
@@ -18442,12 +18445,15 @@ def osc_prob_3nu_sun_liv(
         Lambda=Lambda,
         n_liv=n_liv,
         ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
-        electron_fraction=electron_fraction,
+        # The solar profile below is an ELECTRON NUMBER density, so these are not
+        # the caller's to choose: `osc_prob_Nnu_sun` and `osc_prob_Nnu_sun_nsi`
+        # do not expose them at all, and hardcode what is passed here.
+        electron_fraction=0.5,
         nubar=nubar,
         nu_i=nu_i,
         nu_f=nu_f,
-        density_matter_is_in_g_per_cm3=density_matter_is_in_g_per_cm3,
-        density_is_of_number_of_electrons=density_is_of_number_of_electrons,
+        density_matter_is_in_g_per_cm3=False,
+        density_is_of_number_of_electrons=True,
         strategy=strategy,
         validate_input=validate_input,
         save_log=save_log,
@@ -18658,12 +18664,15 @@ def osc_prob_4nu_sun_liv(
         Lambda=Lambda,
         n_liv=n_liv,
         ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
-        electron_fraction=electron_fraction,
+        # The solar profile below is an ELECTRON NUMBER density, so these are not
+        # the caller's to choose: `osc_prob_Nnu_sun` and `osc_prob_Nnu_sun_nsi`
+        # do not expose them at all, and hardcode what is passed here.
+        electron_fraction=0.5,
         nubar=nubar,
         nu_i=nu_i,
         nu_f=nu_f,
-        density_matter_is_in_g_per_cm3=density_matter_is_in_g_per_cm3,
-        density_is_of_number_of_electrons=density_is_of_number_of_electrons,
+        density_matter_is_in_g_per_cm3=False,
+        density_is_of_number_of_electrons=True,
         strategy=strategy,
         validate_input=validate_input,
         save_log=save_log,
@@ -18922,12 +18931,15 @@ def osc_prob_5nu_sun_liv(
         Lambda=Lambda,
         n_liv=n_liv,
         ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
-        electron_fraction=electron_fraction,
+        # The solar profile below is an ELECTRON NUMBER density, so these are not
+        # the caller's to choose: `osc_prob_Nnu_sun` and `osc_prob_Nnu_sun_nsi`
+        # do not expose them at all, and hardcode what is passed here.
+        electron_fraction=0.5,
         nubar=nubar,
         nu_i=nu_i,
         nu_f=nu_f,
-        density_matter_is_in_g_per_cm3=density_matter_is_in_g_per_cm3,
-        density_is_of_number_of_electrons=density_is_of_number_of_electrons,
+        density_matter_is_in_g_per_cm3=False,
+        density_is_of_number_of_electrons=True,
         strategy=strategy,
         validate_input=validate_input,
         save_log=save_log,
