@@ -9,7 +9,75 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [1.0.0] - 2026-08-11
 
+### Fixed
+
+- **The sterile states felt no matter at all on the NSI route.**
+  `osc_prob_matter_nsi` built the standard part of its matter Hamiltonian as a
+  literal `diag([1, 0, 0, 0])`, so the sterile states got zero where they carry
+  `-V_NC = (r/2) V_CC`.  With every NSI coupling set to zero the route has to
+  reproduce `osc_prob_matter_std_potential` exactly, and did not: it differed by
+  **5.2e-02 at four flavours and 5.1e-02 at five**.  Three flavours agreed all
+  along, which is why nothing caught it -- the only test that can see it needs a
+  fourth state.  Anyone who has published 3+1 or 3+2 NSI-in-matter numbers from
+  an earlier build should re-run them.
+
+- **The solar LIV routes read the Sun's electron density as a mass density.**
+  `osc_prob_Nnu_sun_liv` builds its profile from `NUM_DENSITY_E_SUN_CENTRAL`, an
+  electron *number* density, but forwarded a `density_is_of_number_of_electrons`
+  flag defaulting to False.  Against `osc_prob_Nnu_sun` with the couplings zeroed
+  they differed by **0.69, 0.69, 0.45 and 0.43** at 2, 3, 4 and 5 flavours.
+  `osc_prob_Nnu_sun` and `..._sun_nsi` never exposed those flags, which is why
+  only the LIV family was affected.
+
+- **A negative energy returned the antineutrino probability.**  `E < 0` flips the
+  sign of the whole Hamiltonian, which is CP conjugation, so the call returned a
+  unitary, entirely plausible answer to a question the caller did not ask --
+  matching `nubar=True` to 1e-15 and differing from the intended answer by
+  2.3e-02 in vacuum and 4.4e-02 in matter.  Non-positive energies are now
+  rejected.
+
+- **A NaN density was reported as a units mistake**, because `nan == 0.0` and
+  `nan >= threshold` are both False and the guard fell through to its warning.
+  Non-finite densities are now rejected, naming the real problem.
+
+- **Notebook 12's four- and five-flavour ground truth** built its comparison
+  Hamiltonian with the same zero-sterile literal, so `solve_ivp` was integrating
+  the wrong problem and the error column blamed the strategy for the reference.
+  The four-flavour standard case goes from `err_magnus = 1.73e-04` to 2.19e-06.
+
+- **The quickstart's and README's code examples could not be run** -- one used
+  names the page defines fifteen lines later, others passed `...` as a
+  Hamiltonian body.  Both are now executed by the suite.
+
 ### Added
+
+- **`matter.matter_potential_projector` is exported.**  It is the one definition
+  of the matter term's structure, and every place that rebuilt that structure by
+  hand instead got the sterile entry wrong.  While it was unexported, autoapi
+  did not document it and references to it from public docstrings resolved to
+  nothing.
+
+- **Input validation for the engine's own knobs**: non-positive `n_slabs`,
+  `min_n_slabs`, `n_tpts_per_slab`, and a floor set above its own ceiling, were
+  all accepted and then quietly ignored, so a typo looked like a setting that had
+  been honoured.  `rtol` and `atol` were already guarded; these now match.
+
+- **A PEP 561 `py.typed` marker**, so the annotations the public API already
+  carries are visible to mypy and pyright instead of being discarded.
+
+- **`CITATION.cff`**, so GitHub offers "Cite this repository" and reference
+  managers can read the metadata.
+
+### Changed
+
+- **The publish workflow gates on the tests, on `twine check --strict`, and on
+  the release tag matching the packaged version.**  It previously built and
+  uploaded on a release with no check of any kind, and PyPI does not allow
+  re-uploading a version.
+
+- **CI tests Python 3.13** as well as 3.10-3.12, since `requires-python` has no
+  upper bound and pip will install on it either way.
+
 
 - **Notebook 27, nine animated scenes, with the clips committed.**  Four are the
   scenes NuOscProbExact's notebook 19 draws, computed here so the two can be read
