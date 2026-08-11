@@ -10548,6 +10548,16 @@ def bench_case(profile, d):
 
 DIAL_STYLE = {'Magnus': ('-*', 'k', 12), 'NuOscProbExact': ('-o', 'C3', 4.4)}
 
+# One hierarchy for these four panels, stated here rather than left to the
+# defaults, because the defaults pull in two directions at once: `matplotlibrc`
+# sets `axes.labelsize` to 25 ABSOLUTELY, for single-panel paper figures, while
+# the annotations below had been tuned down to 5.4 pt to fit between the
+# markers.  The result was a five-fold spread in which the axis labels dwarfed
+# the title and the dial values were unreadable at any size the figure is
+# actually viewed.  Ordered largest to smallest, and every size restated:
+PANEL_FONT = {'title': 18, 'label': 17, 'tick': 14, 'legend': 11, 'dial': 10,
+              'note': 10}
+
 
 def plot_case(ax, case, title):
     for series in case['series']:
@@ -10560,15 +10570,43 @@ def plot_case(ax, case, title):
         if series['name'] == 'NuOscProbExact':
             kw.update(mfc='white', mew=0.9)
         ax.loglog(t, e, marker, **kw)
-        # the dial's value at both ends, so the reader can see which knob buys what
-        for j, ha, dx in ((0, 'right', -4), (len(pts) - 1, 'left', 4)):
-            ax.annotate(pts[j]['label'], xy=(t[j], e[j]), xytext=(dx, 3),
-                        textcoords='offset points', fontsize=5.4, color=colour, ha=ha)
-    ax.set_xlabel(r'Time per probability [$\mu$s]')
-    ax.set_ylabel(r'Error vs.\ the DOP853 referee,  max $|\Delta P|$')
-    ax.set_title(title, fontsize=10)
+        # The dial's value at both ends, so the reader can see which knob buys
+        # what.  Both vertical offsets are deliberate, and both were collisions
+        # first.  The FIRST label sits below its marker because every curve
+        # starts at the top left, which is where the corner note already is --
+        # above-left overprinted the note in three of the four panels.  At the
+        # right-hand end the two series finish at similar errors, so they are
+        # pushed apart vertically rather than left to overlap, which is what
+        # `32768` and `1e-10` did in the four-flavour panel.
+        last_dy = 6 if series['name'] == 'Magnus' else -14
+        for j, ha, dx, dy in ((0, 'right', -4, -14),
+                              (len(pts) - 1, 'left', 4, last_dy)):
+            ax.annotate(pts[j]['label'], xy=(t[j], e[j]), xytext=(dx, dy),
+                        textcoords='offset points', fontsize=PANEL_FONT['dial'],
+                        color=colour, ha=ha)
+    ax.set_xlabel(r'Time per probability [$\mu$s]', fontsize=PANEL_FONT['label'])
+    # Short on purpose.  `matplotlibrc` sets `axes.labelsize` to 25 absolutely,
+    # and at that size the previous wording -- "Error vs. the DOP853 referee,
+    # max |Delta P|" -- was taller than the 5.2 inch figure, so `bbox_inches`
+    # sliced a character off each end and the axis read "rror ... ma".  What
+    # the referee is stays in the section text above, where there is room.
+    ax.set_ylabel(r'max $|\Delta P|$ vs.\ DOP853', fontsize=PANEL_FONT['label'])
+    ax.set_title(title, fontsize=PANEL_FONT['title'], pad=34)
+    # The run's parameters go ABOVE the axes, under the title, rather than into
+    # a corner of them.  Every corner is taken in at least one of the four
+    # panels: the curves begin at the top left, the legend holds the bottom
+    # left, and the end-of-dial labels the bottom right.  In the four-flavour
+    # panel the first point sits hard against the top left corner, so no
+    # nudge inside the axes clears the block -- moving the label down only put
+    # it on the next line of the note.  The series names this used to carry are
+    # gone with it; the legend already names both codes.
+    ax.text(0.5, 1.005, 'Smooth $V_{\\rm CC} = V_0 e^{-3l/L}$,  $L = 3000$ km\n'
+            '$E = 2$--$12$ GeV,  $P(\\nu_\\mu \\to \\nu_\\mu)$',
+            transform=ax.transAxes, ha='center', va='bottom',
+            fontsize=PANEL_FONT['note'], color='0.25', linespacing=1.4)
+    ax.tick_params(labelsize=PANEL_FONT['tick'])
     ax.grid(True, which='both', alpha=0.18)
-    leg = ax.legend(fontsize=6.4, loc='lower left')
+    leg = ax.legend(fontsize=PANEL_FONT['legend'], loc='lower left')
     leg.get_frame().set_linewidth(0.7)
     # No dead margin left or right of the curves: on a log-log plot matplotlib's default
     # padding is a whole decade, which makes two curves look further apart than they are.
@@ -10581,12 +10619,7 @@ def plot_case(ax, case, title):
 for d in (2, 3, 4, 5):
     case = bench_case('exponential', d)
     fig, ax = plt.subplots(figsize=(5.8, 5.2))
-    names = ', '.join(s['name'] for s in case['series'])
     plot_case(ax, case, r'Exponential profile, %d$\nu$' % d)
-    ax.text(0.03, 0.955, 'Smooth $V_{\\rm CC} = V_0 e^{-3l/L}$,  $L = 3000$ km\n'
-            '$E = 2$--$12$ GeV,  $P(\\nu_\\mu \\to \\nu_\\mu)$\n' + names,
-            transform=ax.transAxes, ha='left', va='top', fontsize=6.2,
-            color='0.2', linespacing=1.45)
     fig.tight_layout(pad=1.2)
     fig.savefig('../fig/smooth_speed_accuracy_%dnu.pdf' % d, bbox_inches='tight')'''),
     md(r'''**NuOscProbExact is faster at every accuracy it can reach, and that is the expected
