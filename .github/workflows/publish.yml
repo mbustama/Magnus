@@ -57,6 +57,15 @@ jobs:
       - name: Build the package (sdist and wheel)
         run: python -m build
 
+      # What PyPI will actually render.  A README that fails to parse is not rejected at
+      # upload -- it is accepted and then shown as raw text or an error box on the project
+      # page, which cannot be fixed without publishing a new version.  `twine` was already
+      # in the `dev` extra; it was simply never run.
+      - name: Check the artifacts and the rendered description
+        run: |
+          pip install twine
+          twine check --strict dist/*
+
       # - name: Publish package to TestPyPI
       #   uses: pypa/gh-action-pypi-publish@release/v1
       #   with:
