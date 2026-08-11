@@ -536,7 +536,7 @@ def expm_herm_stack(K: np.ndarray) -> tuple:
     d = K.shape[-1]
     if not supports_dim(d):
         raise ValueError(
-            "magnus.expmkernels.expm_herm_stack: no Cayley-Hamilton kernel for dimension "
+            "Error in magnus: magnus.expmkernels.expm_herm_stack: no Cayley-Hamilton kernel for dimension "
             + str(d) + "; only 2 and 3 are supported (see supports_dim). There is no "
             "practical closed form for a 4x4 or larger Hermitian eigenproblem, so callers "
             "should use numpy.linalg.eigh for those, as magnus.magnus._expm_stack does.")
