@@ -55,6 +55,11 @@ done
 CAP_HEAVY=5G            # notebook build, coverage, full suite
 CAP_LIGHT=3G            # batteries, calibration, clean-room install
 
+# Phase 2 will not start above this 1-minute load average.  1 means "one core
+# busy on a twelve-core box", which is already enough to move a benchmark;
+# raise it only if you accept noisier timings.  Override: QUIET_LOAD=2 ...
+QUIET_LOAD="${QUIET_LOAD:-1}"
+
 mkdir -p "$LOGDIR"
 
 say() { printf '%s\n' "$*" | tee -a "$SUMMARY"; }
@@ -138,9 +143,13 @@ run_job() {
 # ---------------------------------------------------------------------------
 wait_for_quiet() {
     local tries=0 load
+    if [ "$DRYRUN" -eq 1 ]; then
+        say "DRY RUN: would wait here for the machine to go quiet"
+        return 0
+    fi
     while [ $tries -lt 60 ]; do
         load=$(awk '{print int($1+0.5)}' /proc/loadavg)
-        if [ "$load" -le 1 ] && ! pgrep -f 'pytest|make_notebooks|sphinx' >/dev/null; then
+        if [ "$load" -le "$QUIET_LOAD" ] && ! pgrep -f 'pytest|make_notebooks|sphinx' >/dev/null; then
             say "machine quiet (load ${load}); starting the cost measurements"
             return 0
         fi
