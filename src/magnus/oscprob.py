@@ -5725,7 +5725,7 @@ def osc_prob_energy_baseline(
         the Hamiltonian be evaluated on half the slabs.  A declaration, not a test: it
         is not checked.  See :func:`magnus.magnus.magnus_expansion_multislab`.
 
-Returns
+    Returns
     -------
     int, float, or np.ndarray
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for
@@ -6546,7 +6546,7 @@ def osc_prob_vacuum(
     average : bool, optional
         If True, return the phase-averaged probability rather than the oscillating one.
 
-Returns
+    Returns
     -------
     float or np.ndarray
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for
@@ -6889,7 +6889,7 @@ def osc_prob_matter_std_potential(
         the Hamiltonian be evaluated on half the slabs.  A declaration, not a test: it
         is not checked.  See :func:`magnus.magnus.magnus_expansion_multislab`.
 
-Returns
+    Returns
     -------
     float or np.ndarray
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for
@@ -7307,7 +7307,7 @@ def osc_prob_matter_nsi(
         the Hamiltonian be evaluated on half the slabs.  A declaration, not a test: it
         is not checked.  See :func:`magnus.magnus.magnus_expansion_multislab`.
 
-Returns
+    Returns
     -------
     float or np.ndarray
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for
@@ -7744,7 +7744,7 @@ def osc_prob_liv(
         the Hamiltonian be evaluated on half the slabs.  A declaration, not a test: it
         is not checked.  See :func:`magnus.magnus.magnus_expansion_multislab`.
 
-Returns
+    Returns
     -------
     float or np.ndarray
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for
@@ -8090,7 +8090,7 @@ def osc_prob_2nu_vacuum(
     close_file_log_upon_exit : bool, optional
         If True, close ``file_log`` before returning.
 
-Returns
+    Returns
     -------
     Union[float, np.ndarray]
         Neutrino oscillation probability matrix or probability for a 
@@ -8262,7 +8262,7 @@ def osc_prob_3nu_vacuum(
     close_file_log_upon_exit : bool, optional
         If True, close ``file_log`` before returning.
 
-Returns
+    Returns
     -------
     Union[float, np.ndarray]
         Neutrino oscillation probability matrix or probability for a 
@@ -8492,7 +8492,7 @@ def osc_prob_4nu_vacuum(
     close_file_log_upon_exit : bool, optional
         If True, close ``file_log`` before returning.
 
-Returns
+    Returns
     -------
     Union[float, np.ndarray]
         Neutrino oscillation probability matrix or probability for a 
@@ -8743,7 +8743,7 @@ def osc_prob_5nu_vacuum(
     close_file_log_upon_exit : bool, optional
         If True, close ``file_log`` before returning.
 
-Returns
+    Returns
     -------
     Union[float, np.ndarray]
         Neutrino oscillation probability matrix or probability for a 
@@ -10017,7 +10017,7 @@ def osc_prob_2nu_earth(
     electron_fraction : int or float, optional
         Electron fraction, :math:`Y_e`.  Default: 0.5.
 
-Returns
+    Returns
     -------
     float or np.ndarray
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
@@ -10242,7 +10242,7 @@ def osc_prob_3nu_earth(
     electron_fraction : int or float, optional
         Electron fraction, :math:`Y_e`.  Default: 0.5.
 
-Returns
+    Returns
     -------
     float or np.ndarray
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
@@ -10485,7 +10485,7 @@ def osc_prob_4nu_earth(
     electron_fraction : int or float, optional
         Electron fraction, :math:`Y_e`.  Default: 0.5.
 
-Returns
+    Returns
     -------
     float or np.ndarray
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
@@ -10749,7 +10749,7 @@ def osc_prob_5nu_earth(
     electron_fraction : int or float, optional
         Electron fraction, :math:`Y_e`.  Default: 0.5.
 
-Returns
+    Returns
     -------
     float or np.ndarray
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
@@ -10941,7 +10941,7 @@ def osc_prob_earth(
         If given, filled in place with which engine actually answered, following the
         same out-parameter convention as ``convergence_info`` in :func:`osc_prob`.
 
-Returns
+    Returns
     -------
     float or np.ndarray
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for
@@ -11968,7 +11968,7 @@ def osc_prob_sun(
         If given, filled in place with which engine actually answered, following the
         same out-parameter convention as ``convergence_info`` in :func:`osc_prob`.
 
-Returns
+    Returns
     -------
     float or np.ndarray
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for
@@ -13437,7 +13437,7 @@ def osc_prob_2nu_earth_nsi(
     electron_fraction : int or float, optional
         Electron fraction, :math:`Y_e`.  Default: 0.5.
 
-Returns
+    Returns
     -------
     float or np.ndarray
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
@@ -13679,7 +13679,7 @@ def osc_prob_3nu_earth_nsi(
     electron_fraction : int or float, optional
         Electron fraction, :math:`Y_e`.  Default: 0.5.
 
-Returns
+    Returns
     -------
     float or np.ndarray
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
@@ -13952,7 +13952,7 @@ def osc_prob_4nu_earth_nsi(
     electron_fraction : int or float, optional
         Electron fraction, :math:`Y_e`.  Default: 0.5.
 
-Returns
+    Returns
     -------
     float or np.ndarray
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
@@ -14263,7 +14263,7 @@ def osc_prob_5nu_earth_nsi(
     electron_fraction : int or float, optional
         Electron fraction, :math:`Y_e`.  Default: 0.5.
 
-Returns
+    Returns
     -------
     float or np.ndarray
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
@@ -17205,7 +17205,7 @@ def osc_prob_2nu_earth_liv(
     electron_fraction : int or float, optional
         Electron fraction, :math:`Y_e`.  Default: 0.5.
 
-Returns
+    Returns
     -------
     float or np.ndarray
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
@@ -17458,7 +17458,7 @@ def osc_prob_3nu_earth_liv(
     electron_fraction : int or float, optional
         Electron fraction, :math:`Y_e`.  Default: 0.5.
 
-Returns
+    Returns
     -------
     float or np.ndarray
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
@@ -17746,7 +17746,7 @@ def osc_prob_4nu_earth_liv(
     electron_fraction : int or float, optional
         Electron fraction, :math:`Y_e`.  Default: 0.5.
 
-Returns
+    Returns
     -------
     float or np.ndarray
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
@@ -18073,7 +18073,7 @@ def osc_prob_5nu_earth_liv(
     electron_fraction : int or float, optional
         Electron fraction, :math:`Y_e`.  Default: 0.5.
 
-Returns
+    Returns
     -------
     float or np.ndarray
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.

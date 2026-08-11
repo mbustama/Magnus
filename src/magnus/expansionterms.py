@@ -123,7 +123,7 @@ def bernoulli(n: int) -> Fraction:
     """
     if n < 0:
         raise ValueError("magnus.expansionterms.bernoulli: n must be >= 0, not "
-                         + str(n) + "Error in magnus: .")
+                         + str(n) + ".")
     if n == 0:
         return Fraction(1)
     total = Fraction(0)
@@ -231,7 +231,7 @@ def omega_terms(order: int) -> Tuple[Term, ...]:
     """
     if order < 1:
         raise ValueError("magnus.expansionterms.omega_terms: order must be >= 1, not "
-                         + str(order) + "Error in magnus: .")
+                         + str(order) + ".")
     if order == 1:
         return ((Fraction(1), 'A'),)
     out: List[Term] = []
@@ -269,7 +269,7 @@ def magnus_terms(max_order: int) -> Dict[int, Tuple[Term, ...]]:
     """
     if max_order < 1:
         raise ValueError("magnus.expansionterms.magnus_terms: max_order must be >= 1, not "
-                         + str(max_order) + "Error in magnus: .")
+                         + str(max_order) + ".")
     return {n: omega_terms(n) for n in range(1, max_order + 1)}
 
 

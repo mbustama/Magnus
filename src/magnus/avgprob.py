@@ -305,8 +305,8 @@ def averaged_probabilities_from_eigenbasis(
     """
     V = np.asarray(eigenvectors, dtype=complex)
     if V.ndim < 2 or V.shape[-1] != V.shape[-2]:
-        raise ValueError("magnus.avgprob.averaged_probabilities_from_eigenbasis: eigenvectors "
-            "must be square, of shape (..., d, d), not " + str(V.shape) + "Error in magnus: .")
+        raise ValueError("Error in magnus: magnus.avgprob.averaged_probabilities_from_eigenbasis: eigenvectors "
+            "must be square, of shape (..., d, d), not " + str(V.shape) + ".")
 
     d = V.shape[-1]
     if blocks is None:
@@ -314,9 +314,9 @@ def averaged_probabilities_from_eigenbasis(
 
     seen = sorted(i for b in blocks for i in b)
     if seen != list(range(d)):
-        raise ValueError("magnus.avgprob.averaged_probabilities_from_eigenbasis: the blocks must "
+        raise ValueError("Error in magnus: magnus.avgprob.averaged_probabilities_from_eigenbasis: the blocks must "
             "partition the " + str(d) + " eigenvalue indices exactly once each; got " + str(blocks)
-            + "Error in magnus: .")
+            + ".")
 
     P = np.zeros(V.shape[:-2] + (d, d), dtype=float)
     for block in blocks:
@@ -360,8 +360,8 @@ def averaged_probabilities_constant_hamiltonian(
     """
     H = np.asarray(hamiltonian, dtype=complex)
     if H.ndim < 2 or H.shape[-1] != H.shape[-2]:
-        raise ValueError("magnus.avgprob.averaged_probabilities_constant_hamiltonian: the "
-            "Hamiltonian must be square, of shape (..., d, d), not " + str(H.shape) + "Error in magnus: .")
+        raise ValueError("Error in magnus: magnus.avgprob.averaged_probabilities_constant_hamiltonian: the "
+            "Hamiltonian must be square, of shape (..., d, d), not " + str(H.shape) + ".")
 
     eigenvalues, eigenvectors = np.linalg.eigh(H)
 
@@ -369,9 +369,9 @@ def averaged_probabilities_constant_hamiltonian(
         return averaged_probabilities_from_eigenbasis(eigenvectors)
 
     if H.ndim > 2:
-        raise ValueError("magnus.avgprob.averaged_probabilities_constant_hamiltonian: a baseline "
+        raise ValueError("Error in magnus: magnus.avgprob.averaged_probabilities_constant_hamiltonian: a baseline "
             "can only be given for a single Hamiltonian, not for a batch of shape "
-            + str(H.shape) + "Error in magnus: , since the coherence structure may differ from one to the next.")
+            + str(H.shape) + ", since the coherence structure may differ from one to the next.")
 
     blocks = coherence_blocks(eigenvalues, baseline)
 
@@ -433,15 +433,7 @@ def averaged_probabilities_numerically(
     Parameters
     ----------
     prob_of_energy : Callable
-        
-    energy : int, float or np.ndarray
-        Neutrino energy [eV].
-    relative_spread : float, optional
-        Width of the sampling window, as a fraction of ``energy``.
-    n_samples : int, optional
-        Number of samples across the window.
-
-Returns the probability matrix at a given energy; called once per sample.
+        Returns the probability matrix at a given energy; called once per sample.
     energy : float
         Central energy [eV].
     relative_spread : float, optional
@@ -457,11 +449,11 @@ Returns the probability matrix at a given energy; called once per sample.
         entries -- the honest uncertainty of the result, which a closed form would not have.
     """
     if not (0.0 < relative_spread < 1.0):
-        raise ValueError("magnus.avgprob.averaged_probabilities_numerically: relative_spread "
-            "must be between 0 and 1, not " + str(relative_spread) + "Error in magnus: .")
+        raise ValueError("Error in magnus: magnus.avgprob.averaged_probabilities_numerically: relative_spread "
+            "must be between 0 and 1, not " + str(relative_spread) + ".")
     if int(n_samples) < 2:
-        raise ValueError("magnus.avgprob.averaged_probabilities_numerically: n_samples must be "
-            "at least 2, not " + str(n_samples) + "Error in magnus: .")
+        raise ValueError("Error in magnus: magnus.avgprob.averaged_probabilities_numerically: n_samples must be "
+            "at least 2, not " + str(n_samples) + ".")
 
     e_low = float(energy)*(1.0 - relative_spread)
     e_high = float(energy)*(1.0 + relative_spread)
