@@ -592,3 +592,70 @@ def test_solar_liv_uses_the_solar_electron_density(num_flavors):
              if len(k) == 2 and k[0] == 'b' and k[1].isdigit()}
     liv = np.asarray(liv_fn(**common, **osc, **zeros))
     np.testing.assert_allclose(liv, std, rtol=0.0, atol=1.0e-14)
+
+
+# ----------------------------------------------------------------------
+# The whole BSM grid, not just the two entries that were wrong
+#
+# Both physics bugs this audit found were the same shape: a BSM route whose
+# *standard* part had drifted from the standard route it should reduce to.
+# Testing the two that were broken guards those two; testing the grid guards
+# the shape.  Nine families x four flavour counts, and the couplings are
+# taken from each signature rather than hardcoded, so a family that gains a
+# coupling is covered without editing this.
+# ----------------------------------------------------------------------
+
+_BSM_PAIRS = [('matter_nsi_constant_density', 'matter_constant_density'),
+              ('matter_nsi_exp_density', 'matter_exp_density'),
+              ('earth_nsi', 'earth'), ('sun_nsi', 'sun'),
+              ('vacuum_liv', 'vacuum'),
+              ('matter_liv_constant_density', 'matter_constant_density'),
+              ('matter_liv_exp_density', 'matter_exp_density'),
+              ('earth_liv', 'earth'), ('sun_liv', 'sun')]
+
+
+def _osc_params(num_flavors):
+    p = dict(gd.load_nufit_params('NuFIT 6.1', 'NO'))
+    if num_flavors == 2:
+        return {'sth': p['s12'], 'Dm2': p['D21']}
+    if num_flavors == 3:
+        return p
+    d31 = p['D31']
+    p.update(s14=0.15, d14=1.2, s24=0.10, d24=0.0, s34=0.05, D41=1.5*d31)
+    if num_flavors == 5:
+        p.update(s15=0.08, d15=0.5, s25=0.05, s35=0.03, d35=0.9, D51=2.5*d31)
+    return p
+
+
+def _env_kwargs(env, fn):
+    """The arguments each environment needs, filtered to the signature."""
+    import magnus.earth as _earth
+    kw = {'energy': 1.0*gd.UNIT_GEV, 'L': 1300.0*gd.UNIT_KM, 'L0': 0.0}
+    if 'constant_density' in env:
+        kw.update(rho=3.0, density_matter_is_in_g_per_cm3=True)
+    if 'exp_density' in env:
+        kw.update(rho_central=10.0, l_scale=500.0*gd.UNIT_KM,
+                  density_matter_is_in_g_per_cm3=True)
+    if env.startswith('earth'):
+        kw.update(costhz=-0.8,
+                  L=_earth.distance_traveled_inside_earth(-0.8)*gd.UNIT_KM)
+    if env.startswith('sun'):
+        kw.update(energy=1.0*gd.UNIT_MEV, L=4.0*gd.L_SCALE_SUN)
+    sig = set(inspect.signature(fn).parameters)
+    return {k: v for k, v in kw.items() if k in sig}
+
+
+@pytest.mark.parametrize("bsm_env,std_env", _BSM_PAIRS)
+@pytest.mark.parametrize("num_flavors", [2, 3, 4, 5])
+def test_every_bsm_route_reduces_to_its_standard_twin(bsm_env, std_env, num_flavors):
+    """With every new-physics coupling set to zero, a BSM route is the
+    standard calculation and must agree with it to machine precision."""
+    bsm_fn = getattr(op, 'osc_prob_%dnu_%s' % (num_flavors, bsm_env))
+    std_fn = getattr(op, 'osc_prob_%dnu_%s' % (num_flavors, std_env))
+    osc = _osc_params(num_flavors)
+    zeros = {k: 0.0 for k in inspect.signature(bsm_fn).parameters
+             if k.startswith('eps_') or (len(k) == 2 and k[0] == 'b' and k[1].isdigit())}
+    assert zeros, "no couplings found for %s -- the test would prove nothing" % bsm_env
+    bsm = np.asarray(bsm_fn(**_env_kwargs(bsm_env, bsm_fn), **osc, **zeros))
+    std = np.asarray(std_fn(**_env_kwargs(std_env, std_fn), **osc))
+    np.testing.assert_allclose(bsm, std, rtol=0.0, atol=1.0e-13)
