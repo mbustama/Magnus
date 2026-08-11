@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (C) 2026 Mauricio Bustamante
 r"""Pre-packaged figures for Mag :math:`\nu` s.
 
 Every figure in ``notebooks/`` used to be built by hand: roughly 25--40 lines of

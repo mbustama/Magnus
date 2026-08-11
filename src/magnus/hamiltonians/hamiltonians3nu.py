@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (C) 2026 Mauricio Bustamante
 r"""hamiltonians3nu.py
 
 Compute three-neutrino Hamiltonians for selected scenarios.

@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (C) 2026 Mauricio Bustamante
 r"""_angles.py
 
 One guard, shared by every vacuum-Hamiltonian builder: a mixing-angle sine has to lie

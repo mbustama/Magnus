@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (C) 2026 Mauricio Bustamante
 r"""hamiltonians5nu.py
 
 Compute five-neutrino (3+2 sterile) Hamiltonians for selected scenarios.
