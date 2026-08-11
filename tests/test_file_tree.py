@@ -232,6 +232,7 @@ TREE = [
     ('src/magnus/oscprob.py', 'osc_prob and every physics-scenario wrapper (main API)'),
     ('src/magnus/oscprobstd.py', 'Closed-form 2nu/3nu probabilities (used to validate the wrapper API)'),
     ('src/magnus/plotting.py', 'Pre-packaged plotting tools: one call instead of thirty lines'),
+    ('src/magnus/py.typed', 'PEP 561 marker: tells type checkers the annotations are real'),
     ('src/magnus/version.py', 'Resolves the version from pyproject.toml (internal)'),
     ('src/requirements.txt', 'Sphinx + theme + extensions needed to build the docs'),
     ('tests/', 'Test suite (pytest; runs in CI)'),

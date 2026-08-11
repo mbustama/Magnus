@@ -291,6 +291,7 @@ File Tree
    │   │   ├── oscprob.py              # osc_prob and every physics-scenario wrapper (main API)
    │   │   ├── oscprobstd.py           # Closed-form 2nu/3nu probabilities (used to validate the wrapper API)
    │   │   ├── plotting.py             # Pre-packaged plotting tools: one call instead of thirty lines
+   │   │   ├── py.typed                # PEP 561 marker: tells type checkers the annotations are real
    │   │   └── version.py              # Resolves the version from pyproject.toml (internal)
    │   └── requirements.txt            # Sphinx + theme + extensions needed to build the docs
    └── tests/                          # Test suite (pytest; runs in CI)
