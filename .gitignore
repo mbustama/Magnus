@@ -13,3 +13,17 @@ dist/
 .coverage.*
 coverage.xml
 htmlcov/
+
+# Animation clips.  Two directories, and the split is what keeps a 160 MB file
+# out of a commit: notebook 27 writes its RAW renders to img/raw/ (about 225 MB
+# for the seven scenes, an hour of compute), and only the shrunk publishable
+# copies -- around 15 MB for the set, after tools/make_demo_video.py -- live in
+# img/ and are tracked, the same treatment img/gallery/*.png gets.
+#
+# If both had shared a path, the next RENDER = True would quietly replace the
+# committed clips with the raw ones, and the size would only be noticed at
+# `git push`.  None of this reaches PyPI: [tool.setuptools.packages.find] looks
+# only under src/, so the sdist and the wheel never see img/ at all.
+img/raw/
+img/*.mp4
+img/.palette.png
