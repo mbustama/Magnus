@@ -5951,7 +5951,12 @@ D51 = 2.5 * osc["D31"]
 hvac4 = hamiltonians.hamiltonian_4nu_vacuum_energy_independent(
     osc["s12"], osc["s23"], osc["s13"], osc["dCP"], s14, d14, s24, d24, s34,
     osc["D21"], osc["D31"], D41)
-e00_4 = np.diag([1.0, 0.0, 0.0, 0.0])
+# NOT np.diag([1, 0, 0, 0]): beyond three flavours the matter term is not e_ee.
+# The sterile state carries -V_NC = (r/2) V_CC once the actives' common V_NC is
+# removed, and the library's wrapper below uses exactly this projector -- so a
+# hand-built zero there makes the solve_ivp "ground truth" the wrong problem,
+# and the error column would blame the strategy for the reference.
+e00_4 = np.asarray(matter.matter_potential_projector(4))
 
 def H_4nu_std(l):
     return (1.0 / energy) * hvac4 + np.asarray(VCC_func(l)) * e00_4
@@ -5965,7 +5970,8 @@ with warnings.catch_warnings():
              s14=s14, d14=d14, s24=s24, d24=d24, s34=s34, D41=D41),
         H_4nu_std, 0.0, 4.0 * l_scale, 4,
     )'''),
-    code(r'''h_matt4_nsi = np.diag([1.0, 0.0, 0.0, 0.0]) + hamiltonians.hamiltonian_4nu_nsi(
+    code(r'''h_matt4_nsi = np.asarray(matter.matter_potential_projector(4)) \
+    + hamiltonians.hamiltonian_4nu_nsi(
     1.0, 0.0, 0.0j, 3.0, 0.0j, 0.0, 0.0j, 0.0j, 0.0, 0.0j, 0.0)  # eps_et = 3.0
 
 def H_4nu_bsm(l):
@@ -5983,7 +5989,7 @@ with warnings.catch_warnings():
     code(r'''hvac5 = hamiltonians.hamiltonian_5nu_vacuum_energy_independent(
     osc["s12"], osc["s23"], osc["s13"], osc["dCP"], s14, d14, s15, d15, s24, d24,
     s25, s34, s35, d35, osc["D21"], osc["D31"], D41, D51)
-e00_5 = np.diag([1.0, 0.0, 0.0, 0.0, 0.0])
+e00_5 = np.asarray(matter.matter_potential_projector(5))   # see the 4nu note above
 
 def H_5nu_std(l):
     return (1.0 / energy) * hvac5 + np.asarray(VCC_func(l)) * e00_5
@@ -5998,7 +6004,8 @@ with warnings.catch_warnings():
              s25=s25, s34=s34, s35=s35, d35=d35, D41=D41, D51=D51),
         H_5nu_std, 0.0, 4.0 * l_scale, 5,
     )'''),
-    code(r'''h_matt5_nsi = np.diag([1.0, 0.0, 0.0, 0.0, 0.0]) + hamiltonians.hamiltonian_5nu_nsi(
+    code(r'''h_matt5_nsi = np.asarray(matter.matter_potential_projector(5)) \
+    + hamiltonians.hamiltonian_5nu_nsi(
     1.0, 0.0, 0.0j, 3.0, 0.0j, 0.0j, 0.0, 0.0j, 0.0j, 0.0j, 0.0, 0.0j, 0.0j, 0.0, 0.0j, 0.0)
 
 def H_5nu_bsm(l):
