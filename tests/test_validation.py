@@ -428,3 +428,77 @@ def test_the_guard_does_not_reject_legitimate_angles():
     hams.hamiltonian_2nu_vacuum_energy_independent(-1.0, 2.5e-3)
     hams.hamiltonian_3nu_vacuum_energy_independent(0.55, 0.76, 0.15, 3.79,
                                                    7.4e-5, 2.5e-3)
+
+
+# ----------------------------------------------------------------------
+# The guards added by the pre-publish audit (items A1, B3, B4, B5)
+#
+# Each of these closed a path where a wrong argument produced an answer
+# rather than a complaint, so what matters is that they fire at all -- an
+# untested guard is indistinguishable from a guard that cannot fire, which
+# is what the module docstring above records finding once already.
+# ----------------------------------------------------------------------
+
+@pytest.mark.parametrize("bad_energy", [-ENERGY, 0.0])
+def test_non_positive_energy_is_refused(bad_energy):
+    """E < 0 used to return the ANTINEUTRINO probability: unitary, in range,
+    and an answer to a different question.  E = 0 returned NaN."""
+    with pytest.raises(ValueError, match="energy"):
+        op.osc_prob_3nu_vacuum(bad_energy, BASELINE,
+                               **gd.load_nufit_params('NuFIT 6.1', 'NO'))
+
+
+def test_a_negative_energy_hidden_in_an_array_is_refused():
+    """The scalar case is the obvious one; a sign error usually arrives
+    inside a scan, where one element of many has gone negative."""
+    energies = np.array([1.0, -2.0, 3.0])*gd.UNIT_GEV
+    with pytest.raises(ValueError, match="energy"):
+        op.osc_prob_3nu_vacuum(energies, np.full(3, BASELINE),
+                               **gd.load_nufit_params('NuFIT 6.1', 'NO'))
+
+
+def test_a_positive_energy_and_the_antineutrino_flag_both_still_work():
+    """The guard must not have closed the legitimate route to the answer
+    that a negative energy used to return by accident."""
+    osc = gd.load_nufit_params('NuFIT 6.1', 'NO')
+    nu = np.asarray(op.osc_prob_3nu_vacuum(ENERGY, BASELINE, **osc))
+    nubar = np.asarray(op.osc_prob_3nu_vacuum(ENERGY, BASELINE, nubar=True, **osc))
+    np.testing.assert_allclose(nu.sum(axis=1), 1.0, atol=1.0e-12)
+    np.testing.assert_allclose(nubar.sum(axis=1), 1.0, atol=1.0e-12)
+    assert not np.allclose(nu, nubar)      # they are different physics
+
+
+@pytest.mark.parametrize("kwargs", [
+    {'n_slabs': 0}, {'n_slabs': -5}, {'min_n_slabs': 0}, {'n_tpts_per_slab': 1},
+    {'min_n_tpts_per_slab': 1},
+])
+def test_non_positive_slab_and_sample_counts_are_refused(kwargs):
+    """These were accepted and then ignored, so a typo looked like a setting
+    that had been honoured."""
+    key = list(kwargs)[0]
+    with pytest.raises(ValueError, match=key):
+        op.osc_prob(lambda t: np.zeros((3, 3), dtype=complex), 0.0, BASELINE, **kwargs)
+
+
+@pytest.mark.parametrize("kwargs", [
+    {'min_n_slabs': 100, 'max_n_slabs': 5},
+    {'min_n_tpts_per_slab': 400, 'max_n_tpts_per_slab': 100},
+])
+def test_a_floor_above_its_own_ceiling_is_refused(kwargs):
+    """A contradictory pair used to be answered, and which of the two bounds
+    the ladder obeyed was an implementation detail."""
+    with pytest.raises(ValueError, match="must be <="):
+        op.osc_prob(lambda t: np.zeros((3, 3), dtype=complex), 0.0, BASELINE, **kwargs)
+
+
+@pytest.mark.parametrize("bad_density", [float('nan'), float('inf')])
+def test_a_non_finite_density_is_refused_and_not_called_a_unit_mistake(bad_density):
+    """A NaN density used to be reported as a DensityUnitWarning saying it was
+    "far too small to be in natural units" -- a confident diagnosis of the
+    wrong problem, reached because `nan == 0.0` and `nan >= threshold` are
+    both False and the guard fell through to its warning."""
+    with pytest.raises(ValueError, match="finite"):
+        op.osc_prob_3nu_matter_constant_density(
+            ENERGY, BASELINE, bad_density,
+            density_matter_is_in_g_per_cm3=True,
+            **gd.load_nufit_params('NuFIT 6.1', 'NO'))
