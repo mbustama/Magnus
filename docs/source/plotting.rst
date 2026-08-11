@@ -9,7 +9,7 @@ notebooks it was extracted from.
 Why it exists
 ---------------
 
-Every figure across the twelve notebooks used to be built by hand.  A typical
+Every figure across the notebooks used to be built by hand.  A typical
 one ran to twenty-five or forty lines: a ``gridspec_kw`` dictionary, a
 ``subplots_adjust`` call, the plotting itself, a nine-keyword ``legend``
 invocation, four ``MultipleLocator`` assignments, axis limits and scales, and
