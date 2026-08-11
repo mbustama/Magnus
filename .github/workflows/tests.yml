@@ -41,7 +41,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ['3.10', '3.11', '3.12']
+        # `requires-python` is ">=3.10" with no upper bound, so pip will install this
+        # package on 3.13 and later.  Testing only up to 3.12 meant claiming interpreters
+        # nothing ran.  3.13 is added here first; its classifier follows once this job has
+        # been green, rather than the other way round.
+        python-version: ['3.10', '3.11', '3.12', '3.13']
     steps:
       - uses: actions/checkout@v7
 
