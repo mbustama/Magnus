@@ -44,6 +44,42 @@ Usage
 It prints a table and a verdict.  It asserts nothing: this is a measurement, and
 what to do about the number is a judgement about how much margin the gate should
 carry.
+
+UNRESOLVED, 2026-08-12
+----------------------
+
+This grid disagrees with the calibration the gate is set from, and the
+disagreement is **not** settled:
+
+* here, cells the 1e4 gate ADMITS reach 5.1e-13 absolute against ``eigh``'s
+  6e-15 -- past the 2e-13 budget the SEV_TOL docstring claims for admitted
+  cells -- with the smallest offender at m = 4.4e3.
+* ``HANDOVER_OVERHEAD.md`` records the original calibration finding the first
+  unsafe cell at 1.1e5, an 11x margin, and flags it as checked by neither
+  max-effort review.
+* ``tests/test_expm_backend.py::test_sev_tol_sits_inside_its_calibrated_window``
+  encodes the original: it asserts m(scale 1e2) < SEV_TOL < m(scale 1e3), so
+  lowering the gate to 1e3 **fails that test** -- 1e3 would decline cells the
+  original measured as safe.
+
+So the two do not merely differ in margin, they differ about whether a
+scale-1e2 cell is safe at all.  Lowering the gate was considered and reverted
+for exactly that reason: it is not a conservative tweak if it contradicts a
+standing calibration, it is picking a side.
+
+What would settle it, in rough order of cost: compare the spectrum families --
+this script uses ``[-s, -s(1-d), s]`` while the test uses ``_GRID_SHAPES
+['double-low']``, and they need not probe the same corner -- then identify which
+cell here produced the 5.1e-13 and whether its m really sits below 1e4, then
+decide whether the 2e-13 budget in the docstring is the right claim to hold the
+gate to.
+
+Worth knowing before spending that time: instrumenting the kernel across a PREM
+chord, a constant-density call, a 60-energy Earth scan and a solar profile, the
+severity actually reached is m <~ 10.  A Magnus slab has ||Omega|| <~ pi by
+construction, so the ladder cannot produce a badly conditioned exponential and
+neither candidate gate ever fires in ordinary use.  This is a question about
+whether a documented guarantee is true, not about numbers users are getting.
 """
 
 import argparse
@@ -104,7 +140,9 @@ def main():
                     help='random unitary bases per cell (default 8)')
     ap.add_argument('--seed', type=int, default=20260811)
     ap.add_argument('--unsafe-ratio', type=float, default=10.0,
-                    help='ratio to eigh above which a cell counts as unsafe')
+                    help='ratio to eigh above which a cell is flagged (secondary)')
+    ap.add_argument('--abs-budget', type=float, default=2.0e-13,
+                    help='absolute error the gate was calibrated against (primary)')
     args = ap.parse_args()
     rng = np.random.default_rng(args.seed)
 
@@ -117,8 +155,10 @@ def main():
     print('%-10s %-10s %-12s %-12s %-12s %s'
           % ('scale', 'separation', 'm', 'err closed', 'err eigh', 'ratio'))
 
-    unsafe_m = []
+    unsafe_m = []          # by ratio to eigh -- the secondary reading
+    over_budget_m = []     # by absolute error -- what the gate was calibrated on
     safe_max_ratio = 0.0
+    safe_max_abs = 0.0
     for scale in scales:
         for sep in separations:
             worst = None
@@ -130,37 +170,54 @@ def main():
             flag = ''
             if ratio > args.unsafe_ratio:
                 unsafe_m.append(m)
-                flag = '  <-- unsafe'
-                if m < expmkernels.SEV_TOL:
-                    flag = '  <-- UNSAFE AND BELOW THE GATE'
-            elif m < expmkernels.SEV_TOL:
+                flag = '  <-- ratio'
+            if ec > args.abs_budget:
+                over_budget_m.append(m)
+                flag = ('  <-- OVER BUDGET, BELOW THE GATE' if m < expmkernels.SEV_TOL
+                        else '  <-- over budget')
+            if m < expmkernels.SEV_TOL:
                 safe_max_ratio = max(safe_max_ratio, ratio)
+                safe_max_abs = max(safe_max_abs, ec)
             print('%-10.0e %-10.0e %-12.4g %-12.3e %-12.3e %8.1fx%s'
                   % (scale, sep, m, ec, ee, ratio, flag))
 
     print()
+    print('--- the criterion the gate was calibrated against: absolute error ---')
+    print('The docstring of SEV_TOL states a budget, not a ratio: "no cell at spectral')
+    print('scale <= 1e2 is worse than eigh by more than 2e-13 absolute".  A ratio reading')
+    print('is the wrong test and will condemn a gate that is doing its job -- a cell whose')
+    print('errors are 9e-14 against 6e-15 is 15x worse and still far inside the budget.')
+    print()
+    print('worst absolute error among cells the gate ADMITS (m < %.3g): %.3e'
+          % (expmkernels.SEV_TOL, safe_max_abs))
+    print('budget                                                     : %.3e'
+          % args.abs_budget)
+    if safe_max_abs <= args.abs_budget:
+        print('VERDICT: the gate HOLDS.  Everything it admits is inside the budget,')
+        print('         by a factor of %.1f.' % (args.abs_budget/max(safe_max_abs, 1e-300)))
+    else:
+        print('VERDICT: the gate does NOT hold.  A cell below SEV_TOL exceeds the')
+        print('         absolute budget it was calibrated to respect.')
+    if over_budget_m:
+        lo = min(over_budget_m)
+        print('smallest m over budget : %.4g   (gate %.3g, margin %.2fx)'
+              % (lo, expmkernels.SEV_TOL, lo/expmkernels.SEV_TOL))
+        print('the handover records 1.100e5, an 11x margin, from the original')
+        print('calibration -- compare with the number above.')
+
+    print()
+    print('--- secondary: ratio to eigh ---')
+    print('Useful for seeing where the closed form starts to degrade at all, but it')
+    print('amplifies as both errors approach machine epsilon, so it is not a verdict.')
     if unsafe_m:
         lo = min(unsafe_m)
-        print('smallest m with ratio > %.0fx : %.4g' % (args.unsafe_ratio, lo))
-        print('gate                        : %.4g' % expmkernels.SEV_TOL)
-        print('margin                      : %.2fx' % (lo/expmkernels.SEV_TOL))
-        print()
-        if lo <= expmkernels.SEV_TOL:
-            print('VERDICT: the gate does NOT keep the damage out of reach -- a cell')
-            print('         below SEV_TOL is worse than eigh by more than %.0fx.'
-                  % args.unsafe_ratio)
-        else:
-            print('VERDICT: gate holds.  Everything it admits is within %.1fx of eigh;'
-                  % safe_max_ratio)
-            print('         the first unsafe cell sits %.2fx above it.'
-                  % (lo/expmkernels.SEV_TOL))
-            print('         The handover records 1.100e5, an 11x margin, from the')
-            print('         original calibration -- compare with the number above.')
+        print('smallest m with ratio > %.0fx : %.4g  (%s the gate)'
+              % (args.unsafe_ratio, lo, 'below' if lo < expmkernels.SEV_TOL else 'above'))
+        print('worst ratio among admitted cells: %.1fx' % safe_max_ratio)
     else:
-        print('VERDICT: no cell reached %.0fx of eigh anywhere on this grid, so the')
-        print('         grid does not span the corner the gate exists for.  Widen the')
-        print('         scales before concluding the gate is unnecessary.'
-              % ())
+        print('no cell reached %.0fx of eigh on this grid; the grid may not span the'
+              % args.unsafe_ratio)
+        print('corner the gate exists for.  Widen the scales before concluding anything.')
     return 0
 
 

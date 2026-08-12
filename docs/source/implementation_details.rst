@@ -389,10 +389,18 @@ NSI resonances, constant density and vacuum -- except on a solar profile at
 ``strategy='magnus'``, which chains 33,575 slab exponentials and drifts 3.0e-12, within the
 :math:`N\epsilon` = 7.4e-12 that an ordered product of that length allows.
 
-numba is an optional dependency (``pip install 'magnuspy[fast]'``).  Without it,
-``'auto'`` is silently ``'eigh'`` and nothing but speed changes; it costs about 90 ms of
-``import magnus`` when present, and the first call to each kernel pays a one-off ~0.7 s
-compile that is then cached to disk.
+numba is a required dependency, so ``'auto'`` reaches the compiled kernel on any
+ordinary install.  It costs about 90 ms of ``import magnus``, and the first call to each
+kernel pays a one-off ~0.7 s compile that is then cached to disk.
+
+The ``'eigh'`` fallback is still there and still correct -- ``'auto'`` degrades to it if
+the import fails for any reason, and nothing but speed changes, every result agreeing to
+~1e-15.  numba was optional on exactly that argument, which held for the library and not
+for its suite: a clean-room install of the published wheel produced twelve *failures*
+rather than twelve skips, because ``tests/test_engines.py`` asks for
+``expm_backend='numba'`` by name.  The trade is that numba lags new interpreters, so a
+Python release it has no wheel for now makes the package uninstallable rather than merely
+slower.
 
 
 A constant Hamiltonian needs no ladder at all

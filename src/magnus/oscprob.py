@@ -3691,8 +3691,8 @@ the same numbers without them.
 
 
 PASSTHROUGH_KWARGS_DOCUMENTED = (
-    'atol', 'cumulative', 'integration_method', 'magnus_exp_order', 'max_n_slabs',
-    'n_slabs', 'n_tpts_per_slab', 'rtol', 't_breakpoints', 't_slab_edges')
+    'atol', 'cumulative', 'expm_backend', 'integration_method', 'magnus_exp_order',
+    'max_n_slabs', 'n_slabs', 'n_tpts_per_slab', 'rtol', 't_breakpoints', 't_slab_edges')
 r"""tuple of str: Module-level constant
 
 The engine keywords the probability wrappers forward through ``**kwargs``, in the order
@@ -3703,6 +3703,12 @@ problem this constant exists to mitigate: ``t_breakpoints``, ``n_slabs`` and ``c
 are load-bearing on a hard profile -- declaring a shock front changes the answer by parts
 in :math:`10^6` on a scan that otherwise measures straddled slabs -- and a reader working
 from the signature alone will never find them.
+
+``expm_backend`` was accepted and absent from this list, which is the worst of both: it
+works, so it is worth knowing about, and misspelling it produced an error naming ten
+keywords that did not include the one wanted.  Validation is not affected either way --
+that is derived from the signatures by :func:`_passthrough_kwarg_names` -- so this tuple
+is what a caller is *told*, and the whole point of it is to leave nothing out.
 
 Deliberately a *subset* of what ``_passthrough_kwarg_names`` accepts.  That function is
 derived from signatures and includes engine internals no caller of a wrapper should reach

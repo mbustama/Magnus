@@ -37,25 +37,36 @@ dependencies = [
     "numpy>=1.22",
     "scipy>=1.9",
     "joblib>=1.2",
-    "matplotlib>=3.5"
+    "matplotlib>=3.5",
+    # Required, not optional.  It powers the Cayley-Hamilton matrix-exponential
+    # backend (magnus.expmkernels), worth about 6x on a slab chain of 2x2 or 3x3
+    # matrices, and the package is a numerical library whose speed is the reason
+    # to choose it.
+    #
+    # It was optional, on the argument that `EXPM_BACKEND = 'auto'` falls back to
+    # numpy.linalg.eigh and every result is the same to ~1e-15, so nothing but
+    # speed depended on it.  That held for the library and not for the suite: a
+    # clean-room install of the published wheel, without the `test` extra that
+    # carried numba, produced 12 failures rather than 12 skips, because
+    # tests/test_engines.py asks for `expm_backend='numba'` by name.  A user's
+    # first run of the tests should not look like a broken package.
+    #
+    # The cost is real and worth stating: numba lags new interpreters, so a
+    # Python release it has no wheel for makes magnuspy uninstallable, where
+    # before it would have installed without the fast path.  `requires-python` has
+    # no upper bound, so the CI matrix (which now includes 3.13) is the early
+    # warning for that.  numba also caps the numpy version it supports, which can
+    # hold numpy back a minor release.
+    "numba>=0.59"
 ]
 
 [project.optional-dependencies]
 plot = []          # matplotlib is a base dependency; kept so `magnuspy[plot]` still resolves
 
-# numba powers the Cayley-Hamilton matrix-exponential backend (magnus.expmkernels),
-# which is worth about 6x on a slab chain of 2x2 or 3x3 matrices.  Optional, and
-# deliberately so: without it `EXPM_BACKEND = 'auto'` silently uses numpy.linalg.eigh
-# and every result is the same to ~1e-15, so nothing but speed depends on it.
-#
-# It is listed in `test` as well, so that CI exercises the kernel rather than skipping
-# every test of it.  numba caps the numpy version it supports, so this does let the
-# resolver hold numpy back a minor release; that is accepted because the alternative is
-# shipping a compiled numerical kernel no CI job ever runs.
-fast = ["numba>=0.59"]
-test = ["pytest", "pytest-cov", "pytest-xdist", "matplotlib>=3.5", "numba>=0.59"]
+fast = []          # numba is a base dependency; kept so `magnuspy[fast]` still resolves
+test = ["pytest", "pytest-cov", "pytest-xdist", "matplotlib>=3.5"]
 dev = ["pytest", "pytest-cov", "pytest-xdist", "twine", "build", "ruff",
-       "matplotlib>=3.5", "numba>=0.59"]
+       "matplotlib>=3.5"]
 notebooks = ["nbformat", "nbclient", "ipykernel", "matplotlib>=3.5", "scipy"]
 docs = ["sphinx", "sphinx-autoapi", "sphinx-rtd-theme", "sphinx-copybutton", "sphinxcontrib-bibtex", "sphinxcontrib-mermaid", "myst-parser", "jupyter-sphinx", "ipykernel", "matplotlib>=3.5"]
 

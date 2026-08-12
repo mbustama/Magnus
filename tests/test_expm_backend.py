@@ -936,3 +936,4 @@ def test_the_two_backends_are_distinguishable_on_that_workload():
 
     assert not np.array_equal(a, b)
     np.testing.assert_allclose(a, b, rtol=0.0, atol=1.0e-14)
+
