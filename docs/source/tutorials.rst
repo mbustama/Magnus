@@ -49,7 +49,7 @@ oscillations opens with.
    matter profiles.
 
 `03. Three-neutrino probabilities <https://github.com/mbustama/Magnus/blob/main/notebooks/03_magnus_3nu_vacuum_matter.ipynb>`_
-   The same seven settings with three flavours and a CP-violating phase.
+   The same seven settings with three flavors and a CP-violating phase.
    Nothing about the method changes; the Hamiltonian is one dimension larger.
 
 
@@ -79,7 +79,7 @@ Each of these is a different Hermitian matrix in the same slot, so the
 machinery is unchanged and only the Hamiltonian differs.
 
 `07. Sterile neutrinos <https://github.com/mbustama/Magnus/blob/main/notebooks/07_magnus_bsm_sterile_nu.ipynb>`_
-   Four- and five-flavour systems, where the extra states do not couple to the
+   Four- and five-flavor systems, where the extra states do not couple to the
    weak interaction.
 
 `08. Non-standard interactions <https://github.com/mbustama/Magnus/blob/main/notebooks/08_magnus_bsm_nsi.ipynb>`_
@@ -108,7 +108,7 @@ are, rather than how to ask for them.
 
 `12. The strategy parameter <https://github.com/mbustama/Magnus/blob/main/notebooks/12_magnus_adiabatic_hybrid_strategy.ipynb>`_
    ``'auto'`` against ``'magnus'``, timed and scored against ``solve_ivp``. The
-   headline is not the speed: for three or more flavours the old default can hit
+   headline is not the speed: for three or more flavors the old default can hit
    its refinement caps and return a plausible, exactly unitary, **wrong** answer.
 
 
@@ -171,7 +171,7 @@ Using and diagnosing the machinery
 
 `19. Bring your own Hamiltonian <https://github.com/mbustama/Magnus/blob/main/notebooks/19_magnus_custom_hamiltonian.ipynb>`_
    The actual interface is one callable returning a Hermitian matrix. Covers the
-   vectorisation trick, and what the Earth entry point declares on your behalf.
+   vectorization trick, and what the Earth entry point declares on your behalf.
 
 `20. Numerical edge cases <https://github.com/mbustama/Magnus/blob/main/notebooks/20_magnus_numerical_edge_cases.ipynb>`_
    Exact degeneracies, zero baselines and empty requests all return numbers

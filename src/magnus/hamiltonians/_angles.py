@@ -21,7 +21,7 @@ That is exactly how this was found.
 
 Written once here rather than inlined in each of the four builders.  The same structure
 copied into several files, all agreeing with each other, is how this package's
-four-flavour matter term stayed wrong through a max-effort review; see
+four-flavor matter term stayed wrong through a max-effort review; see
 :func:`magnus.matter.matter_potential_projector`.
 
 .. versionadded:: 1.0.0
@@ -176,7 +176,7 @@ def resolve(source_func_name: str, angles: str, sines: dict, phases: dict = None
     The one place any of the four conventions is interpreted.  Written here rather than
     inlined in each builder for the reason given at the top of this module: the same
     structure copied into several files, all agreeing with each other, is how this
-    package's four-flavour matter term stayed wrong through a max-effort review.
+    package's four-flavor matter term stayed wrong through a max-effort review.
 
     **Phases follow the convention only for** ``'deg'``.  A CP phase has no sine
     representation, so under ``'sin'`` and ``'sin2'`` it stays in radians; under
@@ -265,7 +265,7 @@ def from_sines(angles: str, sines: dict, phases: dict = None):
 
     One function rather than a conversion at each site, for the reason at the top of this
     module: two copies of the same arithmetic agreeing with each other is how a wrong
-    four-flavour matter term survived a max-effort review.
+    four-flavor matter term survived a max-effort review.
 
     .. versionadded:: 1.0.0
 

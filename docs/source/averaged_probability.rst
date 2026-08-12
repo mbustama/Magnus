@@ -283,7 +283,7 @@ computing::
 takes less than two samples per oscillation, so the returned array
 **cannot represent the oscillation** and must not be plotted or
 interpolated as a curve -- the individual values are right, the curve
-through them is an artefact.  ``nyquist_points`` says how many baselines
+through them is an artifact.  ``nyquist_points`` says how many baselines
 would be needed to sample it properly.
 
 Those numbers are usually stark.  Measured over the physically-motivated

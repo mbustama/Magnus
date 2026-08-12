@@ -58,7 +58,7 @@ anything above it:
      - The decohered (phase-averaged) limit
    * - ``hamiltonians``
      - Mixing matrices and vacuum/matter/NSI/LIV Hamiltonians, two to
-       five flavours (``hamiltonians{2,3,4,5}nu.py``)
+       five flavors (``hamiltonians{2,3,4,5}nu.py``)
    * - ``oscprobstd``
      - Closed-form standard-oscillation counterparts, for validation
    * - ``oscprob``

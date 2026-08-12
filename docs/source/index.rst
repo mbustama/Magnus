@@ -73,7 +73,7 @@ What "accurate" means here
 ---------------------------
 
 Magνs is a numerical integrator, so unlike a closed-form method it has an error
-that depends on how finely it discretises.  Two properties are exact regardless,
+that depends on how finely it discretizes.  Two properties are exact regardless,
 and the rest is measured rather than asserted.
 
 **Exact at any order, by construction.** Every truncation of the Magnus series is
@@ -108,7 +108,7 @@ tolerance.  Truncating early costs accuracy, never norm.
      - exactly 0.0
 
 The last two rows are the ones worth reading twice: they are *bit-identity*
-assertions, not tolerances, so an optimisation that changed an answer would fail
+assertions, not tolerances, so an optimization that changed an answer would fail
 them rather than pass quietly.
 
 **And the honest caveat.** ``rtol``/``atol`` are a stopping criterion --- the
@@ -257,7 +257,7 @@ buys.  No setting reaches below it.  Magνs continues to
 :math:`2.9\times10^{-13}`.
 
 **Generality.**  An arbitrary :math:`H(t)` --- a custom Hamiltonian, a BSM term
-nobody has diagonalised, a profile interpolated from a simulation --- needs no
+nobody has diagonalized, a profile interpolated from a simulation --- needs no
 per-model work, because nothing in the method assumes a form for :math:`H`.
 The SU(N) closed forms stop at SU(4); Magνs has no ceiling.
 
@@ -285,7 +285,7 @@ energy-batched engine exists to do.
 factor under a caller's control: measured at **4.6x** on a 3ν exponential-density
 profile, with bit-identical output.  A scalar-only Hamiltonian raises
 :class:`~magnus.magnus.ScalarHamiltonianWarning` once per session, naming the fix.
-See :ref:`write-h-func-vectorised`.
+See :ref:`write-h-func-vectorized`.
 
 **An Earth chord is a palindrome.**  A neutrino crossing a spherically symmetric
 Earth meets every radius twice, so the Hamiltonian is evaluated on the first half

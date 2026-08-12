@@ -569,7 +569,7 @@ def electron_fraction_func_prem(
     Parameters
     ----------
     r : float or np.ndarray
-        Radial distance from the Earth's centre [km].
+        Radial distance from the Earth's center [km].
     electron_fraction_core : float, optional
         :math:`Y_e` for :math:`r \le 3480` km.  Default: :data:`Y_E_CORE_PREM`.
     electron_fraction_mantle : float, optional

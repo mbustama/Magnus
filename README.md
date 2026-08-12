@@ -273,7 +273,7 @@ neither code's.
 **Where a closed form exists, use it.**  [NuOscProbExact][npe] solves each
 slab of constant density in closed form, and an exact algebraic solution beats
 a truncated series — that is arithmetic, not a defect in either code.
-Constant density, piecewise-constant PREM and standard three-flavour
+Constant density, piecewise-constant PREM and standard three-flavor
 propagation are exactly what closed forms are built for, and on those Magnus
 does not win: on an Earth chord the closed form is around 20× cheaper per
 call, and the sharper a density jump is, the more decisively so.
@@ -284,24 +284,24 @@ Magnus earns its place on three axes instead.
    second order in the slab width, so halving the width buys a factor of four;
    the Gauss–Legendre Magnus expansion is fourth order and buys sixteen.  More
    importantly the slab product has a *floor*: on a smooth exponential profile
-   at three flavours its error bottoms out at **2.5 × 10⁻¹¹** near 16 000
+   at three flavors its error bottoms out at **2.5 × 10⁻¹¹** near 16 000
    slabs and then **rises** — past that point the round-off of composing so
    many matrix products costs more than another halving buys, so 32 768 slabs
    is worse than 16 384.  There is no setting below that floor.  Magnus
    continues to **2.9 × 10⁻¹³**.
 
-2. **Generality — an arbitrary `H(t)`, and five flavours.**  A custom
-   Hamiltonian, a BSM term nobody has diagonalised, an interpolated profile
+2. **Generality — an arbitrary `H(t)`, and five flavors.**  A custom
+   Hamiltonian, a BSM term nobody has diagonalized, an interpolated profile
    read off a simulation: these need no per-model work here, because nothing
    in the method assumes a form for `H`.  NuOscProbExact has closed forms
-   through four flavours and no five-flavour route at all; at five flavours
+   through four flavors and no five-flavor route at all; at five flavors
    there is no comparison to draw, which is the same point stated at its
    limit.
 
 3. **Pre-packaged observables — the quantity an experiment measures.**  Over
    the ray out of the Sun a 5-MeV neutrino accumulates some 13 000 radians of
    phase, so the *instantaneous* survival probability at the surface is
-   neither measurable nor stable, and neighbouring energies land anywhere
+   neither measurable nor stable, and neighboring energies land anywhere
    between 0.15 and 0.9.  What a solar experiment measures is the
    phase-averaged probability, and `average=True` returns it directly by
    transporting along the levels of the instantaneous Hamiltonian instead of
@@ -315,7 +315,7 @@ Magnus earns its place on three axes instead.
    question actually being asked, not the same algorithm run faster.
 
 The short version: **piecewise-constant and standard, use a closed form;
-smooth, exotic, five-flavour, or phase-averaged, use this.**  The full
+smooth, exotic, five-flavor, or phase-averaged, use this.**  The full
 comparison — a case-by-case table of which to reach for, and the measurements
 behind each row — is on the [Against other
 codes](https://mbustama.github.io/Magnus/comparison.html) documentation page.
@@ -664,7 +664,7 @@ page deliberately leaves to it:
 | [Expansion terms](https://mbustama.github.io/Magnus/expansion_terms.html) | The explicit $\Omega_1$, $\Omega_2$, $\Omega_3$ integrals |
 | [Architecture](https://mbustama.github.io/Magnus/architecture.html) | How the modules fit together, and which layer to call |
 | [Engines and dispatch](https://mbustama.github.io/Magnus/engines.html) | Which engine answers a call, and how the choice is made |
-| [Performance](https://mbustama.github.io/Magnus/performance.html) | Where the time goes, including the palindromic-chord optimisation for Earth trajectories |
+| [Performance](https://mbustama.github.io/Magnus/performance.html) | Where the time goes, including the palindromic-chord optimization for Earth trajectories |
 | [Accuracy and diagnostics](https://mbustama.github.io/Magnus/diagnostics.html) | What `rtol` really controls, what each safeguard cannot catch, and every warning explained |
 | [Against other codes](https://mbustama.github.io/Magnus/comparison.html) | The full cross-code comparison against NuOscProbExact and nuSQuIDS: which to reach for, case by case, and the measurements behind it |
 | [Numerical recipes](https://mbustama.github.io/Magnus/recipes.html) | Runnable snippets for the common tasks |
@@ -681,7 +681,7 @@ so neither can drift from the repository:
 ```text
 Magnus/
 ├── .github/                        # GitHub Actions workflows: tests, lint, notebooks, docs, publishing
-├── .gitignore                      # Build, cache and generated-output artefacts
+├── .gitignore                      # Build, cache and generated-output artifacts
 ├── CHANGELOG.md                    # Version history (Keep a Changelog format)
 ├── CITATION.cff                    # Machine-readable citation metadata; drives GitHub's "Cite this repository"
 ├── LICENSE                         # GNU GPL v3 (GPL-3.0-only), the full license text

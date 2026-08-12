@@ -116,7 +116,7 @@ what a reviewer will not otherwise find.
 whether ``H`` is continuous at the scale this package samples it on, by comparing how much of
 the variation inside a probe interval falls in one half. *What it cannot do:* a jump smaller
 than **1.33×** the local smooth variation is genuinely indistinguishable from steep smooth
-behaviour at that sampling density; see :data:`magnus.adiabatic.RESOLUTION_RATIO` for the
+behavior at that sampling density; see :data:`magnus.adiabatic.RESOLUTION_RATIO` for the
 derivation of that factor from the threshold.
 
 **γ-aware certification** (:data:`magnus.adiabatic.GAMMA_TO_ERROR`). When no non-adiabatic
@@ -174,7 +174,7 @@ reaches that, in the same way that no threshold reaches a feature which was neve
 What saves the answer is unrelated machinery: the errors such a profile produces (up to
 1.4e-02 instantaneous at 45 MeV) are caught by the **convergence** checks, which watch the
 refinement ladder rather than the profile. So the outcome is correct -- the caller is warned --
-but by accident of mechanism rather than because anything recognised the profile. If you are
+but by accident of mechanism rather than because anything recognized the profile. If you are
 propagating through a turbulent or noisy medium, treat the structural diagnostics as silent by
 construction and rely on the tolerance machinery, or supply ``t_breakpoints`` yourself. A cheap
 statistic that *would* see this is described in ``docs/dev/FINDINGS_ROBUSTNESS_PROGRAMME.md``

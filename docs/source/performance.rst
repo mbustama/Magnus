@@ -65,7 +65,7 @@ evaluates :math:`A` on the first half of such a slab chain and derives the rest 
 reversal.  The saving is halved evaluations of the caller's Hamiltonian **and nothing
 else** -- the matrix exponential is untouched, and so is the commutator algebra -- so it
 is worth exactly what that Hamiltonian costs.  Measured through
-:func:`magnus.oscprob.osc_prob_earth`, ``costhz = -0.9``, 2 GeV, against a vectorised
+:func:`magnus.oscprob.osc_prob_earth`, ``costhz = -0.9``, 2 GeV, against a vectorized
 ``H_func`` whose cost scales per position:
 
 .. list-table::
@@ -99,7 +99,7 @@ that engine spends a fraction :math:`f` = 0.001-0.026 of its time in the profile
 caps any possible mirror gain at 1.001×-1.013×.
 
 **Symmetry is declared, never detected.**  It cannot be detected where it would pay to
-know it: the test needs the very evaluations the optimisation skips.  A test on the slab
+know it: the test needs the very evaluations the optimization skips.  A test on the slab
 *widths* is not a substitute -- a monotonic, solar-like profile on a uniform grid has
 perfectly palindromic widths, and mirroring it is wrong by 3.3e-01.  So the declaration is
 made by the Earth entry points, where a chord meeting every radius twice is geometry
@@ -120,7 +120,7 @@ The matrix exponential, and which backend computes it
 
 Every slab ends in a matrix exponential, and ``np.linalg.eigh`` costs **about 1.27 µs per
 3×3 whatever the stack size** -- measured 1.268 µs at N = 108 and 1.279 µs at N = 4096,
-flat, because it loops over LAPACK internally instead of vectorising over the stack.
+flat, because it loops over LAPACK internally instead of vectorizing over the stack.
 :data:`magnus.magnus.EXPM_BACKEND` selects between that and the compiled Cayley-Hamilton
 kernel in :mod:`magnus.expmkernels`, which applies to :math:`K` the polynomial interpolating
 :math:`\exp(-i\lambda)` on its spectrum -- no eigenvectors, and the eigenvalues in closed
@@ -193,14 +193,14 @@ sevenths of a third is about what the table shows.  Anyone quoting the 6.8× as 
 speed-up is quoting the wrong number.
 
 A caution about the PREM row, because the first version of this table got it wrong.
-:func:`magnus.earth.distance_traveled_inside_earth` returns **kilometres**, while every
+:func:`magnus.earth.distance_traveled_inside_earth` returns **kilometers**, while every
 ``osc_prob`` baseline is in natural units, and passing the raw value does not raise: it
-returns a converged, unitary answer for a chord a few metres long, on which the refinement
+returns a converged, unitary answer for a chord a few meters long, on which the refinement
 ladder trivially agrees with itself at every tolerance.  Measured that way the PREM speed-up
-reads 1.45× rather than 2.11×, because a metre-long chord needs almost no slabs and so hardly
+reads 1.45× rather than 2.11×, because a meter-long chord needs almost no slabs and so hardly
 exercises the exponential at all.
 
-**At N = 1 the exponential is no longer the thing to optimise.** ``eigh`` on one 3×3 costs
+**At N = 1 the exponential is no longer the thing to optimize.** ``eigh`` on one 3×3 costs
 3.5 µs, and reaching it through ``_expm_stack`` costs 14.2 µs -- the
 difference is the anti-Hermiticity test and the temporaries around it, which do not shrink
 with the stack.  That fixed cost, not the exponential, is what caps the single-point rows
@@ -264,7 +264,7 @@ made 18,000 ``osc_prob`` calls per 300 repetitions, each one rediscovering the s
    :header-rows: 1
    :widths: 16 22 22 20
 
-   * - Flavours
+   * - Flavors
      - Matter scan
      - Vacuum scan
      - Single point
@@ -291,7 +291,7 @@ energy, against NuOscProbExact's 1.44 µs batched and 13.25 µs looped; a single
 against its 19.9 µs, and **what remains is wrapper parameter resolution rather than
 arithmetic** -- the exponential itself is under a tenth of it.
 
-Results are bit-identical to the per-point route on every flavour count and both neutrino signs.
+Results are bit-identical to the per-point route on every flavor count and both neutrino signs.
 ``n_slabs``, ``n_tpts_per_slab``, ``t_breakpoints`` and ``rtol``/``atol`` are accepted and
 ignored, because they can only ask for a refinement of something already exact.
 
@@ -346,7 +346,7 @@ Measured
      - Fifteen workloads on three batched engines, d = 2…5, scans of 60 to 20 000 points,
        swept over 1 / 4.2 / 12.6 / 67 / 268 MB.  1 MB won eight of the eleven memory-bound
        rows and was never worse than the previous 67 MB: **1.19×-1.38×** on Earth energy
-       scans, growing with both flavour count and scan length, 1.06×-1.16× on cumulative
+       scans, growing with both flavor count and scan length, 1.06×-1.16× on cumulative
        baseline scans, flat within 2 % on short scans.  The interaction-picture engine is
        flat at 1.00× -- it is compute-bound, so the constant does not reach it.  Every row
        was **bit-identical at every budget**, tiles being independent and only
@@ -387,7 +387,7 @@ Measured
      - 0.3
      - 67 smooth and resolvable profiles (ceiling **0.060**) against features in the
        unresolvable band (0.91–1.00). **0 false positives at every threshold from 0.2 to 0.6**;
-       0.3 maximises detection (68–90 %) at five times the measured ceiling.
+       0.3 maximizes detection (68–90 %) at five times the measured ceiling.
    * - :data:`magnus.adiabatic.N_HIDDEN_FEATURE_SUBDIVISION`
      - 8
      - Chosen on cost, not on the statistic (which is flat in it): 0.37 ms against 2.85 ms at
@@ -406,7 +406,7 @@ Measured
        before the floor. **The regime it governs was then constructed rather than assumed**:
        the floor is reached only when :math:`\gamma_\max` is below it *and* the tolerance is
        tighter than ``GAMMA_TO_ERROR`` :math:`\times \gamma_\max`. There it does change
-       behaviour (a window opens below :math:`\gamma_\max`) but not usefully --
+       behavior (a window opens below :math:`\gamma_\max`) but not usefully --
        ``certified=False`` at every value, error three orders inside tolerance either way, and
        the window costs 2.4× the time.
 

@@ -30,17 +30,17 @@ and each declines requests it cannot serve honestly.
      - Nothing beyond a Hermitian ``H(l)``.
      - Always. Every other engine falls back to it.
      - Never -- it is the terminal path.
-   * - **Two-flavour interaction picture**
+   * - **Two-flavor interaction picture**
        (``_osc_prob_ip_exp_dispatch``)
      - A genuine exponential profile, built by
-       :func:`magnus.matter.exp_density_profile`; exactly two flavours.
+       :func:`magnus.matter.exp_density_profile`; exactly two flavors.
      - Single points and multi-energy scans at one baseline.
      - Non-exponential profiles, :math:`d > 2`, LIV, breakpoints, and whenever its own
        iteration fails to converge (typically near an MSW resonance).
    * - **Constant Hamiltonian**
        (``_osc_prob_scan_constant_h``)
      - ``V_CC`` does not depend on position, so neither does ``H``.
-     - Vacuum and constant density, at any flavour count, for a single point or a scan,
+     - Vacuum and constant density, at any flavor count, for a single point or a scan,
        with per-point baselines allowed.
      - A position-dependent potential; user slab edges; parallel, logged or verbose runs.
    * - **Energy-batched separable scan**
@@ -77,7 +77,7 @@ grouping the package will defend:
   three walk slabs with :func:`magnus.magnus.magnus_expansion_multislab`, and the cumulative
   scan additionally *sizes* its grid from an ordinary adaptive :func:`magnus.oscprob.osc_prob`
   probe, so it inherits that path's stopping rule as well.
-* ``'interaction-picture'`` -- the two-flavour fast path. Same Magnus core, but the fast
+* ``'interaction-picture'`` -- the two-flavor fast path. Same Magnus core, but the fast
   vacuum phase is factored out analytically first, so what it must resolve is a different
   function.
 * ``'adiabatic'`` -- the hybrid strategy. A genuinely different method; its blind spots are
@@ -113,7 +113,7 @@ engines in a fixed order, falling through on ``NotImplemented``:
        *and it certifies*
      - adiabatic + Magnus patch
      - Transports along the levels instead of resolving every oscillation
-   * - Exponential profile, two flavours -- *and it converges*
+   * - Exponential profile, two flavors -- *and it converges*
      - interaction picture
      - An exact reference solution exists for this one case
    * - Many energies at a single baseline

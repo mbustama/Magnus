@@ -16,7 +16,7 @@ and the project uses [Semantic Versioning](https://semver.org/).
   literal `diag([1, 0, 0, 0])`, so the sterile states got zero where they carry
   `-V_NC = (r/2) V_CC`.  With every NSI coupling set to zero the route has to
   reproduce `osc_prob_matter_std_potential` exactly, and did not: it differed by
-  **5.2e-02 at four flavours and 5.1e-02 at five**.  Three flavours agreed all
+  **5.2e-02 at four flavors and 5.1e-02 at five**.  Three flavors agreed all
   along, which is why nothing caught it -- the only test that can see it needs a
   fourth state.  Anyone who has published 3+1 or 3+2 NSI-in-matter numbers from
   an earlier build should re-run them.
@@ -25,7 +25,7 @@ and the project uses [Semantic Versioning](https://semver.org/).
   `osc_prob_Nnu_sun_liv` builds its profile from `NUM_DENSITY_E_SUN_CENTRAL`, an
   electron *number* density, but forwarded a `density_is_of_number_of_electrons`
   flag defaulting to False.  Against `osc_prob_Nnu_sun` with the couplings zeroed
-  they differed by **0.69, 0.69, 0.45 and 0.43** at 2, 3, 4 and 5 flavours.
+  they differed by **0.69, 0.69, 0.45 and 0.43** at 2, 3, 4 and 5 flavors.
   `osc_prob_Nnu_sun` and `..._sun_nsi` never exposed those flags, which is why
   only the LIV family was affected.
 
@@ -40,10 +40,10 @@ and the project uses [Semantic Versioning](https://semver.org/).
   `nan >= threshold` are both False and the guard fell through to its warning.
   Non-finite densities are now rejected, naming the real problem.
 
-- **Notebook 12's four- and five-flavour ground truth** built its comparison
+- **Notebook 12's four- and five-flavor ground truth** built its comparison
   Hamiltonian with the same zero-sterile literal, so `solve_ivp` was integrating
   the wrong problem and the error column blamed the strategy for the reference.
-  The four-flavour standard case goes from `err_magnus = 1.73e-04` to 2.19e-06.
+  The four-flavor standard case goes from `err_magnus = 1.73e-04` to 2.19e-06.
 
 - **The quickstart's and README's code examples could not be run** -- one used
   names the page defines fifteen lines later, others passed `...` as a
@@ -92,16 +92,16 @@ and the project uses [Semantic Versioning](https://semver.org/).
   code says why -- a vacuum Hamiltonian is constant in position, so every point
   is exact with a single slab and there is nothing to refine -- so the
   **docstring** was the wrong text, and it is the one a caller reads before
-  passing `rtol=1e-9` and getting silence.  No behaviour changes.  `filename_log`
+  passing `rtol=1e-9` and getting silence.  No behavior changes.  `filename_log`
   and `close_file_log_upon_exit` were documented the same way and are likewise
   never read.
 
-  Found by generalising `tests/test_angles.py`'s "declares the parameter, never
+  Found by generalizing `tests/test_angles.py`'s "declares the parameter, never
   reads it" AST check from `angles` to every parameter in `src/magnus`.  The
   other 51 hits are the legitimate interface-signature pattern -- `_td` builders
   that take `l` and ignore it, constant-density closures -- or already documented
   as inert, such as `hamiltonian_2nu_liv`'s `nubar`, which has nothing to
-  conjugate because the 2-flavour LIV rotation carries no phase.
+  conjugate because the 2-flavor LIV rotation carries no phase.
 
 - **`SEV_TOL`'s documented accuracy guarantee was not the measured one.**  The
   docstring claimed 2e-13 absolute across everything the gate admits; re-measured
@@ -132,7 +132,7 @@ and the project uses [Semantic Versioning](https://semver.org/).
   construction.  Measured at `costhz = -0.95` with `s14 = 0.15`, `s24 = 0.10` and
   `D41 = 1 eV^2`, the isoscalar projector differs from one built with the core's own
   `r = 1.1478` by **2.1e-02** in `P(numu -> numu)` -- twenty times the default tolerance,
-  and silent.  Three flavours never saw it, because the projector's sterile block is
+  and silent.  Three flavors never saw it, because the projector's sterile block is
   empty; that is the same reason `A2b` survived a max-effort review.
 
   No single `r` is right for a chord that crosses iron and rock, so this is **reported
@@ -159,7 +159,7 @@ and the project uses [Semantic Versioning](https://semver.org/).
   `ratio_number_neutrons_to_protons`, and delegated without forwarding it -- two of them
   passing a hardcoded `1.0`.  So `r/2`, the sterile entry in the matter projector, was
   fixed at isoscalar for a medium that is nothing of the kind: the Sun is hydrogen-rich,
-  `Y_e = (1 + X)/2` runs from about 0.68 at the centre to 0.88 near the surface, and
+  `Y_e = (1 + X)/2` runs from about 0.68 at the center to 0.88 near the surface, and
   `r = (1 - Y_e)/Y_e` from about 0.47 down to 0.14.  Unlike the Earth, where 1.0 at
   least sits among the layer values, for the Sun it is outside the physical range
   entirely.
@@ -175,7 +175,7 @@ and the project uses [Semantic Versioning](https://semver.org/).
   edges on the PREM shell crossings themselves, so an argument of the same name arrived
   in `**kwargs` and collided: the caller got `got multiple values for keyword argument
   't_breakpoints'` raised two layers down.  The keyword is listed as forwardable in this
-  package's own unrecognised-keyword message, so it was reachable and broken.  A
+  package's own unrecognized-keyword message, so it was reachable and broken.  A
   caller's breakpoints are now merged with the PREM crossings rather than either
   replacing the other -- dropping the crossings silently would be the very defect
   `t_breakpoints` exists to prevent.  Pass `t_slab_edges` to place every edge yourself.
@@ -198,7 +198,7 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 - **An `angles` keyword on every function that takes a mixing angle.**  It selects
   the convention the angles are stated in: `'sin'` (the default, and the only
-  behaviour before this) their sines, `'sin2'` their sines *squared* -- the form
+  behavior before this) their sines, `'sin2'` their sines *squared* -- the form
   global fits are published in -- `'rad'` the angles in radians, or `'deg'` in
   degrees.  Under `'deg'` the CP phases are read as degrees too; under the other
   three they stay in radians, a sine being no way to state a phase.  Ninety-five
@@ -214,7 +214,7 @@ and the project uses [Semantic Versioning](https://semver.org/).
   from one parameter set when they are compared.
 
   Four guards come with it, because a mis-stated convention is otherwise silent:
-  an unrecognised value, a sine outside `[-1, 1]`, a negative `'sin2'`, and an
+  an unrecognized value, a sine outside `[-1, 1]`, a negative `'sin2'`, and an
   angle above `2*pi` under `'rad'` all raise; a whole parameter set under one
   degree with `'deg'` raises `globaldefs.MixingAngleConventionWarning`, since
   `theta_13` at about 8.5 degrees is the smallest angle anyone measures and
@@ -232,7 +232,7 @@ and the project uses [Semantic Versioning](https://semver.org/).
 - **Input validation for the engine's own knobs**: non-positive `n_slabs`,
   `min_n_slabs`, `n_tpts_per_slab`, and a floor set above its own ceiling, were
   all accepted and then quietly ignored, so a typo looked like a setting that had
-  been honoured.  `rtol` and `atol` were already guarded; these now match.
+  been honored.  `rtol` and `atol` were already guarded; these now match.
 
 - **A PEP 561 `py.typed` marker**, so the annotations the public API already
   carries are visible to mypy and pyright instead of being discarded.
@@ -316,7 +316,7 @@ and the project uses [Semantic Versioning](https://semver.org/).
 - **Notebook 25 became an arbiter of when each code wins**, rather than a list of
   timings: reach (a slab product's error floors at 2.5e-11 on a smooth profile and
   then rises, while the Magnus expansion continues to 2.9e-13), generality (five
-  flavours, where there is no comparison to draw), and pre-packaged observables
+  flavors, where there is no comparison to draw), and pre-packaged observables
   (a solar average in 0.66 s against 130 s).  With it, supernova-shock comparisons
   against other codes, 3+1 and NSI in both the solar and shock settings, and
   probability-vs-energy panels for the shock.
@@ -353,7 +353,7 @@ and the project uses [Semantic Versioning](https://semver.org/).
   Measured against the route it replaces, interleaved with a control that came
   back at 1.00×:
 
-  | flavours | matter scan | vacuum scan | single point |
+  | flavors | matter scan | vacuum scan | single point |
   |---|---|---|---|
   | 2ν | **17.3×** | **24.7×** | 2.0× |
   | 3ν | **15.5×** | **18.9×** | 2.1× |
@@ -366,7 +366,7 @@ and the project uses [Semantic Versioning](https://semver.org/).
   1.44 µs batched and 13.25 µs looped**; a single point is 33.8 µs against its
   19.9 µs, the remainder being wrapper parameter resolution rather than
   arithmetic.  Results are bit-identical to the per-point route on every
-  flavour count and both neutrino signs, and `n_slabs`, `n_tpts_per_slab`,
+  flavor count and both neutrino signs, and `n_slabs`, `n_tpts_per_slab`,
   `t_breakpoints` and `rtol`/`atol` are accepted and ignored because they can
   only ask for refinement of something already exact.
 
@@ -380,7 +380,7 @@ and the project uses [Semantic Versioning](https://semver.org/).
 - **A compiled Cayley–Hamilton backend for the matrix exponential, selected by
   `magnus.magnus.EXPM_BACKEND`.**  `np.linalg.eigh` costs ~1.27 µs per 3×3
   *whatever the stack size* (measured 1.268 µs at N=108, 1.279 µs at N=4096 —
-  flat, because it loops over LAPACK internally instead of vectorising).  The
+  flat, because it loops over LAPACK internally instead of vectorizing).  The
   new `magnus.expmkernels` applies to `K` the polynomial interpolating
   `exp(-iλ)` on its spectrum instead: no eigenvectors, and the eigenvalues in
   closed form.  **6.8× on the exponential** at N=108 (162.6 → 23.8 µs), 7.3× at
@@ -440,7 +440,7 @@ and the project uses [Semantic Versioning](https://semver.org/).
   energies -- the same saving, taken earlier.
 
   Symmetry is **declared** by the Earth entry points, where it is a fact of chord
-  geometry, not detected: detecting it would need the very evaluations the optimisation
+  geometry, not detected: detecting it would need the very evaluations the optimization
   skips.  There is deliberately no user-facing way to declare it of an arbitrary
   profile.
 
@@ -466,7 +466,7 @@ and the project uses [Semantic Versioning](https://semver.org/).
   through `ABCMeta.__instancecheck__`, replaced by the `callable()` builtin at 23
   sites (~9 `typing.__subclasscheck__` calls per invocation), and scalar fast
   paths added to `_normalize_energy_L` and the density-units guard.  No
-  behaviour changed by this entry.
+  behavior changed by this entry.
 
 - **A verbose run (`verbose >= 1`) takes the per-point route.**  The banner and
   run-parameter dump describe quantities the batched engines do not have —
@@ -481,7 +481,7 @@ and the project uses [Semantic Versioning](https://semver.org/).
   in ``osc_prob``, ``adiabatic.hybrid_propagator``, the CLI's ``--rtol``/
   ``--atol`` help, ``README.md``, ``architecture.rst`` (which said "until
   rtol/atol is met"), and a new section of ``implementation_details.rst`` that
-  the others link to.  No behaviour changed by this entry.
+  the others link to.  No behavior changed by this entry.
 
 - **``convergence_info`` reports what the ladder did.**  Alongside the existing
   ``n_slabs``/``n_tpts_per_slab`` it now carries ``n_slab_edges`` and
@@ -519,7 +519,7 @@ and the project uses [Semantic Versioning](https://semver.org/).
   ancestor chain and handling the v1 "no limit" sentinel.
 
 - **The sterile state felt no medium, in six places.**  Four inline copies of the
-  matter projector, plus the two flavour-specific builders, wrote the 3+1 matter
+  matter projector, plus the two flavor-specific builders, wrote the 3+1 matter
   term by hand and gave the sterile state a zero where it carries `-V_NC`.  All
   six now come from `matter.matter_potential_projector`, and a test fails if a
   seventh copy appears.  On a PREM chord this was worth 0.29 in probability, and
@@ -665,7 +665,7 @@ and the project uses [Semantic Versioning](https://semver.org/).
   verified to fail when their target bug is reintroduced.
 
   Also: `expm_herm_stack` ignored `supports_dim` and handed 4x4 input to the 3x3
-  kernel (error 2.4, unitarity 11.3, uninitialised eigenvalues) and segfaulted at
+  kernel (error 2.4, unitarity 11.3, uninitialized eigenvalues) and segfaulted at
   d=1; the constant engine answered `L < L0` with the *transpose* of the right
   answer (29% off, row sums exactly 1) where `main` raised, accepted
   `magnus_exp_order=0`, and bypassed the output-size memory guard; `verbose=1`
@@ -711,7 +711,7 @@ and the project uses [Semantic Versioning](https://semver.org/).
   eigenvectors rounds like any other floating-point product.  The claim that
   probabilities "sum to 1 by construction" was the part worth correcting: they
   sum to 1 to about 1e-15, which is worth relying on, by rounding rather than by
-  construction.  No behaviour changed by this entry.
+  construction.  No behavior changed by this entry.
 
 - **The refinement ladder could stop while the answer was still outside the
   requested tolerance, and report success.**  ``t_breakpoints`` (the ~14 PREM
@@ -817,7 +817,7 @@ that history is the most useful record of *why* the code looks the way it does.
   of 2000 slabs is wrong by 1.6e-2 where the inherited number is right.
 
   Chunked traversal and conversion to probabilities at each snapshot are requirements
-  rather than optimisations: they keep peak memory at `O(block) + O(result)` instead of
+  rather than optimizations: they keep peak memory at `O(block) + O(result)` instead of
   holding N complex unitaries beside the answer.
 
   Measured against `solve_ivp`: a 1000-point solar scan takes 12.0 s per-point for an
@@ -955,7 +955,7 @@ that history is the most useful record of *why* the code looks the way it does.
   worked examples in `notebooks/10_magnus_averaged_probability.ipynb`.
 - `magnus.oscprob.IP_EXP_N_SLABS_CAP` and `magnus.oscprob.IP_EXP_LOOP_CAP`: the
   interaction-picture integrator's slab and loop ceilings, previously written as
-  bare numbers inside the function. Naming them changes no behaviour, and makes
+  bare numbers inside the function. Naming them changes no behavior, and makes
   the method's conduct at the ceiling testable at a small cap -- reaching two
   million slabs to observe what happens at the boundary costs gigabytes and
   minutes, so with the values inlined those paths could not be tested at all.
@@ -969,7 +969,7 @@ that history is the most useful record of *why* the code looks the way it does.
   saying nothing at all about the code, and a page can build cleanly while being
   broken.
 - `tests/test_validation.py`, covering the guards that reject bad input: the
-  per-flavour parameter dictionaries, flavour indices and expansion orders out
+  per-flavor parameter dictionaries, flavor indices and expansion orders out
   of range, mismatched energy/baseline arrays, negative densities and
   composition ratios, and the Earth entry point's location, zenith-angle and
   baseline combinations. Each asserts that the input is refused as a
@@ -1344,7 +1344,7 @@ that history is the most useful record of *why* the code looks the way it does.
   grids -- that kind of agreement is what let this through.
 - **Notebooks 02 and 03 shipped castle-wall figures drawn from those wrong
   probabilities.** Across a 6000-point baseline scan, 7.2% of points were off
-  by more than 1e-2. The scans now get their `n_slabs=150` honoured, and they
+  by more than 1e-2. The scans now get their `n_slabs=150` honored, and they
   also pass the wall positions as `t_breakpoints`: the profile is a step
   function, and high-order quadrature reaches its nominal order only when the
   Hamiltonian is smooth inside each slab. Against a converged reference the
@@ -1381,7 +1381,7 @@ that history is the most useful record of *why* the code looks the way it does.
   other -- with the matter term 20 orders down the sign was invisible, and the
   notebooks' own relative-error subpanels read a healthy 1e-12 because the
   standard formula was being fed the same wrong potential.
-- **PREM was sampled at the centre of the Earth.** Notebooks 04, 05 and 07
+- **PREM was sampled at the center of the Earth.** Notebooks 04, 05 and 07
   wrote `VCC_func_prem(r/gd.CONV_KM_TO_INV_EV)` where `r` was already in km,
   evaluating the profile at r ~ 1e-6 km and so using a constant 13.09 g cm^-3
   everywhere instead of the layered profile. The same notebooks used the

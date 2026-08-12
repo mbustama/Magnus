@@ -208,7 +208,7 @@ g cm^-3 is almost certainly a g cm^-3 number whose
 
 This is the mirror of :data:`IMPLAUSIBLE_DENSITY_G_PER_CM3`, and it guards the
 commoner mistake.  The flag defaults to False, so a density read straight off a
-table -- 2.848 for the Earth's crust, 13 for its core, 150 for the Sun's centre
+table -- 2.848 for the Earth's crust, 13 for its core, 150 for the Sun's center
 -- is taken as already converted unless the caller says otherwise.  Anything
 physical is :math:`4.3 \times 10^{18}` or more in natural units, so a table
 value lands nine orders of magnitude below this threshold, which itself sits at
@@ -267,16 +267,16 @@ def matter_potential_projector(
     r"""Returns the matrix that multiplies :math:`V_{\rm CC}` in the matter Hamiltonian.
 
     :math:`\mathrm{diag}(1, 0, \ldots, 0, r/2, \ldots, r/2)`: one on :math:`\nu_e`, zero on
-    the other active flavours, and :math:`r/2` on every sterile state, with
+    the other active flavors, and :math:`r/2` on every sterile state, with
     :math:`r = n_n/n_p`.
 
     **The sterile entries are the whole reason this function exists.**  In matter the active
-    flavours all feel the same neutral-current potential :math:`V_{\rm NC}`, so it is
+    flavors all feel the same neutral-current potential :math:`V_{\rm NC}`, so it is
     proportional to the identity across them and drops out as an overall phase -- which is
-    why two- and three-flavour codes can write the matter term as :math:`V_{\rm CC}` on
+    why two- and three-flavor codes can write the matter term as :math:`V_{\rm CC}` on
     :math:`\nu_e` alone.  **A sterile state feels neither current**, so once the common
     :math:`V_{\rm NC}` is removed it is left carrying :math:`-V_{\rm NC}`, and that is
-    physical: it is the whole reason a 3+1 scenario is more than a relabelling.  With
+    physical: it is the whole reason a 3+1 scenario is more than a relabeling.  With
     :math:`V_{\rm NC} = -G_F n_n/\sqrt{2}` and :math:`V_{\rm CC} = \sqrt{2} G_F n_e`, and
     :math:`n_e = n_p`,
 
@@ -297,7 +297,7 @@ def matter_potential_projector(
     Parameters
     ----------
     num_flavors : int
-        Number of neutrino flavours; the first three are active, the rest sterile.
+        Number of neutrino flavors; the first three are active, the rest sterile.
     ratio_number_neutrons_to_protons : int or float, optional
         :math:`r = n_n/n_p`.  1.0 (isoscalar matter) by default, matching the default of
         :func:`vcc_func_from_rho_func`, which should be given the same value.
@@ -314,7 +314,7 @@ def matter_potential_projector(
     """
     proj = np.zeros((num_flavors, num_flavors))
     proj[0][0] = 1.0
-    # Active flavours share V_NC and it cancels; sterile states do not, and keep -V_NC.
+    # Active flavors share V_NC and it cancels; sterile states do not, and keep -V_NC.
     for k in range(3, num_flavors):
         proj[k][k] = 0.5*float(ratio_number_neutrons_to_protons)
     return proj
@@ -535,7 +535,7 @@ def VCC_func(l: float, num_density_e_func: Callable) -> float:
 
         profile = matter.exp_density_profile(gd.NUM_DENSITY_E_SUN_CENTRAL,
                                              gd.L_SCALE_SUN)
-        print('V_CC at the centre of the Sun: %.3e eV'
+        print('V_CC at the center of the Sun: %.3e eV'
               % matter.VCC_func(0.0, profile))
 """
 
