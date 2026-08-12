@@ -93,20 +93,39 @@ Every scenario wrapper (:func:`magnus.oscprob.osc_prob_matter_std_potential`,
 :func:`magnus.oscprob.osc_prob_matter_nsi`, :func:`magnus.oscprob.osc_prob_liv`) tries the
 engines in a fixed order, falling through on ``NotImplemented``:
 
-.. mermaid::
+.. list-table::
+   :header-rows: 1
+   :widths: 40 26 34
 
-   flowchart TD
-       A["wrapper call"] --> AV{"average=True<br/>and H is position-independent?"}
-       AV -- yes --> AVG["closed-form phase average<br/>(magnus.avgprob)"]
-       AV -- no --> HY{"hybrid applies?<br/>smooth profile, tolerance requested,<br/>strategy != 'magnus',<br/>fewer than 25 scan points"}
-       HY -- yes, and it certifies --> HYB["adiabatic + Magnus patch"]
-       HY -- no --> IP{"exponential profile, d = 2?"}
-       IP -- yes, and it converges --> IPX["interaction picture"]
-       IP -- no --> SEP{"many energies, one baseline?"}
-       SEP -- yes --> SEPE["energy-batched scan"]
-       SEP -- no --> CUM{"baseline scan at one energy,<br/>2 or more points?"}
-       CUM -- yes --> CUMS["cumulative scan"]
-       CUM -- no --> GEN["general Magnus ladder"]
+   * - Taken when
+     - Engine
+     - Why it is first
+   * - ``average=True`` and the Hamiltonian is position-independent
+     - closed-form phase average (``magnus.avgprob``)
+     - No propagation at all; the decohered limit is algebraic
+   * - Smooth profile, a tolerance was requested, ``strategy != 'magnus'``,
+       and the scan is shorter than
+       :data:`~magnus.oscprob.HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS` --
+       *and it certifies*
+     - adiabatic + Magnus patch
+     - Transports along the levels instead of resolving every oscillation
+   * - Exponential profile, two flavours -- *and it converges*
+     - interaction picture
+     - An exact reference solution exists for this one case
+   * - Many energies at a single baseline
+     - energy-batched scan
+     - One traversal serves every energy
+   * - Baseline scan at one energy, at least
+       :data:`~magnus.oscprob.CUMULATIVE_AUTO_MIN_POINTS` points
+     - cumulative scan
+     - Every baseline is a prefix of the longest one
+   * - Otherwise
+     - general Magnus ladder
+     - Always applicable; the one that is never skipped
+
+Each row falls through to the next on ``NotImplemented``, so the last row is
+reached whenever nothing above it applies.
+
 
 Two thresholds decide the seams, and both are constants with docstrings of their own:
 

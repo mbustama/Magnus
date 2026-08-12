@@ -787,4 +787,4 @@ intended use is compatible, read the license itself rather than this summary.
 
 ## Author
 
-Mauricio Bustamante
+Mauricio Bustamante (mbustamante@gmail.com)
