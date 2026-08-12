@@ -496,7 +496,7 @@ Magnus earns its place on three axes:
 
 * **Reach.** Slab composition floors at ~2.5e-11 on a smooth profile — past ~16 000 slabs,
   round-off in composing that many products beats the discretisation gain, and more slabs make
-  it *worse*. Magnus reaches 1.3e-13.
+  it *worse*. Magnus reaches 2.9e-13.
 * **Generality.** Arbitrary `H(t)`: a custom Hamiltonian, a BSM term nobody has diagonalised,
   an interpolated profile. And five flavours, where NuOscProbExact has no route.
 * **Pre-packaged observables.** `average=True` returns the adiabatic solar average without

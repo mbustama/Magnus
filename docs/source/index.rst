@@ -323,9 +323,9 @@ stable: neighbouring energies land anywhere between 0.15 and 0.9.  What a solar
 experiment measures is the phase-averaged probability, and ``average=True``
 returns it directly, transporting along the levels of the instantaneous
 Hamiltonian instead of propagating.  On one BS2005-AGS,OP model file Magνs
-returns 40 averaged energies in 0.66 s, against 131 s for 12 *instantaneous*
-ones from nuSQuIDS --- and recovering the observable from those means averaging
-many such evaluations on top.  Neither of the other codes offers an averaging
+returns 40 averaged energies in 0.66 s, while nuSQuIDS needs about ten minutes
+merely to reach the solver tolerance at which its output is a probability at
+all --- and then a further factor of *N* to average the phase away.  Neither of the other codes offers an averaging
 flag; this is a different algorithm for the question being asked, not the same
 algorithm run faster.
 

@@ -6685,41 +6685,44 @@ def osc_prob_vacuum(
         Name of the predefined oscillation-parameter set used to fill in any parameter left as
         None in ``osc_params``. Default: 'OSC_PARAMS_DEFAULT'.
     t_slab_edges : list or np.ndarray, optional
-        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+        Accepted for signature parity with the matter routes and **ignored**: a vacuum
+        Hamiltonian is constant in position, so every point is computed exactly with a single
+        slab and there is nothing left to refine.
     magnus_exp_order : int
-        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+        Accepted and **ignored**, as ``t_slab_edges``.
     n_jobs : int
         Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
     integration_method : str
-        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+        Accepted and **ignored**, as ``t_slab_edges``.
     rtol : int or float, optional
-        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+        Accepted and **ignored**, as ``t_slab_edges``.
     atol : int or float, optional
-        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+        Accepted and **ignored**, as ``t_slab_edges``.
     growth_factor_n_slabs : int or float
-        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+        Accepted and **ignored**, as ``t_slab_edges``.
     growth_factor_n_tpts_per_slab : int or float
-        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+        Accepted and **ignored**, as ``t_slab_edges``.
     max_num_loops : int
-        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+        Accepted and **ignored**, as ``t_slab_edges``.
     min_n_slabs : int
-        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+        Accepted and **ignored**, as ``t_slab_edges``.
     max_n_slabs : int
-        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+        Accepted and **ignored**, as ``t_slab_edges``.
     min_n_tpts_per_slab : int
-        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+        Accepted and **ignored**, as ``t_slab_edges``.
     max_n_tpts_per_slab : int
-        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+        Accepted and **ignored**, as ``t_slab_edges``.
     validate_input : bool
         Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
     save_log : bool
         Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
     filename_log : str
-        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+        Accepted and **ignored**; this route logs through ``save_log`` and ``file_log`` only,
+        so pass an already-open file object rather than a name.
     file_log : TextIOWrapper, optional
         Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
     close_file_log_upon_exit : bool
-        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+        Accepted and **ignored**; see ``filename_log``.
     verbose : int
         Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
     \**kwargs

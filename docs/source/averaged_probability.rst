@@ -322,25 +322,49 @@ How much does the phase actually matter?
 It depends on the profile, and the difference is measurable rather than a
 matter of taste.  Averaging an instantaneous scan over six oscillation
 lengths and comparing against a ``solve_ivp`` reference
-(``adversarial_batteries/avg_check.py`` and ``avg_check2.py``):
+(``adversarial_batteries/avg_check.py`` and ``avg_check2.py``).  The solar
+row is the log-linear interpolant of the BS05 table, which is the profile
+notebook 13 works from; ``avg_check.py`` prints a cubic-spline variant of
+the same ray beside it, and that one reads 8.889e-04 and 6.051e-04 for the
+two columns --- a different profile, and the same verdict:
 
-=============================== ================== ================== ============
-configuration                   instantaneous       averaged           reduction
-=============================== ================== ================== ============
-Solar model, d = 2, 5 MeV       1.380e-03           **2.603e-05**      53x
-Supernova turbulence, 45 MeV    1.701e-03           **1.565e-04**      23x
-Supernova shock, 70 km front    1.095e-03           9.773e-04          2x
-Supernova shock, 0.07 km front  2.033e-01           **2.135e-01**      3x
-=============================== ================== ================== ============
+=============================== ================== ================== ====================
+configuration                   instantaneous      averaged           averaged inside 1e-3
+=============================== ================== ================== ====================
+Solar model, d = 2, 5 MeV       6.000e-04          7.110e-04          yes
+Supernova turbulence, 45 MeV    5.584e-03          **3.843e-04**      yes
+Supernova shock, 70 km front    4.917e-04          **2.151e-04**      yes
+Supernova shock, 0.07 km front  1.988e-01          **2.222e-01**      **no**, and warned
+=============================== ================== ================== ====================
 
-The reduction factor separates two physically different things with no
-overlap.  Errors that shrink by more than twentyfold are **phase**: a
-smooth or oscillatory profile perturbs *when* the oscillation is, and no
-observable sees that.  Errors that barely move are **envelope**: a shock
-front changes the adiabaticity of the level crossing, so it moves the
-conversion probability itself, and averaging cannot remove it.  A large
-instantaneous error on a smooth profile is therefore usually harmless,
-and a modest one across a sharp front usually is not.
+The last row is the one that matters, and it is the only one where the
+*observable* is wrong.  A shock front changes the adiabaticity of the level
+crossing, so it moves the conversion probability itself rather than the
+phase at which it oscillates; that is an **envelope** error and no
+averaging operation removes it.  Everywhere else the averaged answer lands
+inside the target even where a single baseline does not, because the
+instantaneous error is largely **phase** -- the profile perturbs *when* the
+oscillation is, and no observable resolves that.
+
+.. warning::
+
+   **Do not read the ratio of these two columns as a diagnostic.**  Both are
+   finite-window means, and such a mean is an estimator with a bias of its
+   own.  On a profile whose density varies across the averaging window the
+   bias does not shrink as the window widens, because a wider window also
+   averages over different matter conditions: on the solar ray above, the
+   window mean moves from 0.5924 to 0.6023 between six and forty-eight
+   oscillation lengths, drifting away from rather than towards a limit.
+   Notebook 13 prints that sweep.
+   The reduction factor is meaningful only on a controlled comparison at
+   fixed matter conditions, as in notebook 23.
+
+   To obtain the averaged probability, ask for it rather than estimating
+   it.  ``average=True`` evaluates the decohered limit in closed form, with
+   no window to choose: on that same solar ray it reproduces the adiabatic
+   MSW expression
+   :math:`\langle P_{ee}\rangle = \tfrac12 + \tfrac12\cos2\theta_m(L_0)\cos2\theta_m(L_1)`
+   to 3e-16 across 1--20 MeV.
 
 Limitations and scope
 -------------------------

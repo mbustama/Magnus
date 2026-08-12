@@ -286,9 +286,11 @@ Magnus earns its place on three axes instead.
    phase-averaged probability, and `average=True` returns it directly by
    transporting along the levels of the instantaneous Hamiltonian instead of
    propagating.  Measured on the same BS2005-AGS,OP model file: Magnus
-   returns **40 averaged energies in 0.66 s**; nuSQuIDS returns **12
-   instantaneous ones in 131 s**, and recovering the observable from those
-   means averaging many such evaluations on top.  Neither NuOscProbExact nor
+   returns **40 averaged energies in 0.66 s**; nuSQuIDS needs about **ten
+   minutes** merely to reach the solver tolerance at which its output is a
+   probability at all — below it the survival probability reaches 2.83, and a
+   unitarity check passes anyway — and then a further factor of *N* to average
+   the phase away.  Neither NuOscProbExact nor
    nuSQuIDS offers an averaging flag — this is a different algorithm for the
    question actually being asked, not the same algorithm run faster.
 

@@ -49,6 +49,60 @@ and the project uses [Semantic Versioning](https://semver.org/).
   names the page defines fifteen lines later, others passed `...` as a
   Hamiltonian body.  Both are now executed by the suite.
 
+- **The documented solar averaging reduction outlived the script it came from.**
+  The averaged-probability page, notebooks 13, 14 and 23 and the tutorials index
+  all asserted "instantaneous 1.4e-03 -> averaged 2.6e-05, a **53x** reduction",
+  citing `adversarial_batteries/avg_check.py`.  That script had gone stale at
+  `0bf3a40`, which is on `main` and predates this audit; re-run, it gives
+  6.000e-04 -> 7.110e-04 on the log-linear BS05 ray notebook 13 actually uses
+  (8.889e-04 -> 6.051e-04 on the cubic-spline variant).  All four rows of the
+  table are now measured values.
+
+  The **rule** stated alongside them was the worse problem and is withdrawn:
+  the docs told the reader to read the ratio of the two columns as a diagnostic,
+  errors shrinking "more than twentyfold" being phase and the rest envelope.  A
+  finite-window mean is an estimator with a bias of its own, and on a profile
+  whose density varies across the window that bias does not shrink as the window
+  widens -- on the solar ray the window mean drifts 0.5924 -> 0.6023 between six
+  and forty-eight oscillation lengths, *away* from a limit rather than towards
+  one.  So the ratio is meaningful only at fixed matter conditions, as in
+  notebook 23, and the page now says so.  To obtain the averaged probability,
+  ask for it: `average=True` evaluates the decohered limit in closed form and
+  reproduces the adiabatic MSW expression to **3.33e-16** across 1--20 MeV.
+
+- **The front page's solar timing comparison outlived its measurement too.**  The
+  README and the docs index both read "40 averaged energies in 0.66 s, against
+  131 s for 12 *instantaneous* ones from nuSQuIDS".  That was measured, but on a
+  superseded design of notebook 25's section 10; the frozen
+  `external_solar_nusquids.json` now sweeps four solver tolerances over a
+  200-point grid targeting 40 energies, and contains no 12-energy run and nothing
+  at 131 s.  Both pages now say what the notebook says and what its data
+  supports: nuSQuIDS needs about **ten minutes** merely to reach the tolerance at
+  which its output is a probability at all (568 s, the cheapest setting the
+  generator marks physical), and a further factor of *N* to average the phase
+  away.  Magnus's own 0.66 s is a live timing and re-measures at 0.68 s, which is
+  run-to-run noise on one machine and is left as it stands.
+
+- **`osc_prob_vacuum` documented twelve refinement knobs as forwarded that it
+  deliberately drops.**  `t_slab_edges`, `magnus_exp_order`, `integration_method`,
+  `rtol`, `atol`, both `growth_factor_*`, `max_num_loops` and the four
+  `min`/`max_n_*` bounds each said "Forwarded to `osc_prob_energy_baseline`
+  /`osc_prob`", while the body forwards only `n_jobs`, `validate_input`,
+  `verbose`, `save_log` and `file_log`.  Not forwarding them is correct and the
+  code says why -- a vacuum Hamiltonian is constant in position, so every point
+  is exact with a single slab and there is nothing to refine -- so the
+  **docstring** was the wrong text, and it is the one a caller reads before
+  passing `rtol=1e-9` and getting silence.  No behaviour changes.  `filename_log`
+  and `close_file_log_upon_exit` were documented the same way and are likewise
+  never read.
+
+  Found by generalising `tests/test_angles.py`'s "declares the parameter, never
+  reads it" AST check from `angles` to every parameter in `src/magnus`.  The
+  other 51 hits are the legitimate interface-signature pattern -- `_td` builders
+  that take `l` and ignore it, constant-density closures -- or already documented
+  as inert, such as `hamiltonian_2nu_liv`'s `nubar`, which has nothing to
+  conjugate because the 2-flavour LIV rotation carries no phase.
+
 - **`SEV_TOL`'s documented accuracy guarantee was not the measured one.**  The
   docstring claimed 2e-13 absolute across everything the gate admits; re-measured
   on two spectrum families with 40 random bases per rung, the admitted range
