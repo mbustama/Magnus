@@ -63,7 +63,7 @@ Every figure below is produced by a notebook in [`notebooks/`](https://github.co
 | <img src="https://raw.githubusercontent.com/mbustama/Magnus/main/img/gallery/gallery_oscillogram.png" width="380"/><br/>**Oscillograms** across zenith angle and energy, in a single call.<br/>[notebook 06](https://github.com/mbustama/Magnus/blob/main/notebooks/06_magnus_oscillograms.ipynb) | <img src="https://raw.githubusercontent.com/mbustama/Magnus/main/img/gallery/gallery_biprobability.png" width="380"/><br/>**CP violation**, as bi-probability ellipses traced by the CP phase.<br/>[notebook 05](https://github.com/mbustama/Magnus/blob/main/notebooks/05_magnus_biprobability.ipynb) |
 | <img src="https://raw.githubusercontent.com/mbustama/Magnus/main/img/gallery/gallery_sterile_3plus2.png" width="380"/><br/>**Five flavors: a 3+2 sterile spectrum**, its fast oscillation filling the three-flavor envelope.<br/>[notebook 07](https://github.com/mbustama/Magnus/blob/main/notebooks/07_magnus_bsm_sterile_nu.ipynb) | <img src="https://raw.githubusercontent.com/mbustama/Magnus/main/img/gallery/gallery_custom_h.png" width="380"/><br/>**A Hamiltonian of your own** — here a long-range $L_e - L_\mu$ force through the Earth, against the standard curve.<br/>[notebook 19](https://github.com/mbustama/Magnus/blob/main/notebooks/19_magnus_custom_hamiltonian.ipynb) |
 | <img src="https://raw.githubusercontent.com/mbustama/Magnus/main/img/gallery/gallery_density_arrangement.png" width="380"/><br/>**Arrangement beats the mean**: the same average density and the same path length, ordered differently, give different probabilities.<br/>[notebook 18](https://github.com/mbustama/Magnus/blob/main/notebooks/18_magnus_unusual_density_profiles.ipynb) | <img src="https://raw.githubusercontent.com/mbustama/Magnus/main/img/gallery/gallery_averaged.png" width="380"/><br/>**Phase-averaged probabilities** — what survives when the oscillation is faster than anything can resolve.<br/>[notebook 10](https://github.com/mbustama/Magnus/blob/main/notebooks/10_magnus_averaged_probability.ipynb) |
-| <img src="https://raw.githubusercontent.com/mbustama/Magnus/main/img/gallery/gallery_solar_averaged.png" width="380"/><br/>**The averaged solar survival probability**, returned directly in 0.66 s. The green trace is the *instantaneous* probability another code returns, thrashing between 0.15 and 0.9.<br/>[notebook 25](https://github.com/mbustama/Magnus/blob/main/notebooks/25_magnus_against_other_codes.ipynb) | <img src="https://raw.githubusercontent.com/mbustama/Magnus/main/img/gallery/gallery_solar_bsm.png" width="380"/><br/>**BSM against the standard curve**: NSI and a sterile state on a real BS2005 solar model, with the departure below.<br/>[notebook 13](https://github.com/mbustama/Magnus/blob/main/notebooks/13_magnus_tabulated_solar_model.ipynb) |
+| <img src="https://raw.githubusercontent.com/mbustama/Magnus/main/img/gallery/gallery_solar_averaged.png" width="380"/><br/>**The averaged solar survival probability**, returned directly in about 0.7 s. The green trace is the *instantaneous* probability another code returns, thrashing between 0.15 and 0.9.<br/>[notebook 25](https://github.com/mbustama/Magnus/blob/main/notebooks/25_magnus_against_other_codes.ipynb) | <img src="https://raw.githubusercontent.com/mbustama/Magnus/main/img/gallery/gallery_solar_bsm.png" width="380"/><br/>**BSM against the standard curve**: NSI and a sterile state on a real BS2005 solar model, with the departure below.<br/>[notebook 13](https://github.com/mbustama/Magnus/blob/main/notebooks/13_magnus_tabulated_solar_model.ipynb) |
 | <img src="https://raw.githubusercontent.com/mbustama/Magnus/main/img/gallery/gallery_shock_bsm.png" width="380"/><br/>**The same two scenarios on a supernova shock**, where the identical $\varepsilon$ moves the answer thirty times further.<br/>[notebook 14](https://github.com/mbustama/Magnus/blob/main/notebooks/14_magnus_supernova_shock.ipynb) | |
 
 ## Table of Contents
@@ -299,14 +299,14 @@ Magnus earns its place on three axes instead.
    limit.
 
 3. **Pre-packaged observables — the quantity an experiment measures.**  Over
-   the ray out of the Sun a 5-MeV neutrino accumulates some 12 800 radians of
+   the ray out of the Sun a 5-MeV neutrino accumulates some 13 000 radians of
    phase, so the *instantaneous* survival probability at the surface is
    neither measurable nor stable, and neighbouring energies land anywhere
    between 0.15 and 0.9.  What a solar experiment measures is the
    phase-averaged probability, and `average=True` returns it directly by
    transporting along the levels of the instantaneous Hamiltonian instead of
    propagating.  Measured on the same BS2005-AGS,OP model file: Magnus
-   returns **40 averaged energies in 0.66 s**; nuSQuIDS needs about **ten
+   returns **40 averaged energies in about 0.7 s**; nuSQuIDS needs about **ten
    minutes** merely to reach the solver tolerance at which its output is a
    probability at all — below it the survival probability reaches 2.83, and a
    unitarity check passes anyway — and then a further factor of *N* to average
@@ -315,7 +315,10 @@ Magnus earns its place on three axes instead.
    question actually being asked, not the same algorithm run faster.
 
 The short version: **piecewise-constant and standard, use a closed form;
-smooth, exotic, five-flavour, or phase-averaged, use this.**
+smooth, exotic, five-flavour, or phase-averaged, use this.**  The full
+comparison — a case-by-case table of which to reach for, and the measurements
+behind each row — is on the [Against other
+codes](https://mbustama.github.io/Magnus/comparison.html) documentation page.
 
 [npe]: https://github.com/mbustama/NuOscProbExact
 
@@ -524,7 +527,7 @@ same table via `--environment`/`--scenario`/`--flavors`.
   always-on warning if the refinement caps are hit before convergence. Note that
   is an *agreement*, not a bound on the error — the ladder never estimates the
   accuracy of what it returns. See
-  [what `rtol`/`atol` actually control](https://mbustama.github.io/Magnus/implementation_details.html#what-rtol-and-atol-actually-control).
+  [what `rtol`/`atol` actually control](https://mbustama.github.io/Magnus/diagnostics.html#what-rtol-and-atol-actually-control).
 - **Slab edges aligned with the PREM layer boundaries**, so the high-order
   quadrature never integrates across a density discontinuity.
 - **Silent vectorization:** Hamiltonian and density-profile functions that
@@ -660,7 +663,10 @@ page deliberately leaves to it:
 | [Mathematical method](https://mbustama.github.io/Magnus/methodology.html) | The Magnus expansion derived term by term: why truncation is exactly unitary at any order, convergence, the position-ordered product, and the two integration methods |
 | [Expansion terms](https://mbustama.github.io/Magnus/expansion_terms.html) | The explicit $\Omega_1$, $\Omega_2$, $\Omega_3$ integrals |
 | [Architecture](https://mbustama.github.io/Magnus/architecture.html) | How the modules fit together, and which layer to call |
-| [Implementation details](https://mbustama.github.io/Magnus/implementation_details.html) | The numerical engine internals, including the palindromic-chord optimisation for Earth trajectories |
+| [Engines and dispatch](https://mbustama.github.io/Magnus/engines.html) | Which engine answers a call, and how the choice is made |
+| [Performance](https://mbustama.github.io/Magnus/performance.html) | Where the time goes, including the palindromic-chord optimisation for Earth trajectories |
+| [Accuracy and diagnostics](https://mbustama.github.io/Magnus/diagnostics.html) | What `rtol` really controls, what each safeguard cannot catch, and every warning explained |
+| [Against other codes](https://mbustama.github.io/Magnus/comparison.html) | The full cross-code comparison against NuOscProbExact and nuSQuIDS: which to reach for, case by case, and the measurements behind it |
 | [Numerical recipes](https://mbustama.github.io/Magnus/recipes.html) | Runnable snippets for the common tasks |
 | [Tutorials](https://mbustama.github.io/Magnus/tutorials.html) | All 27 notebooks, with what each one is for |
 | [API reference](https://mbustama.github.io/Magnus/api_reference.html) | Every public function, generated from the source |

@@ -28,7 +28,8 @@ Every function below returns a full :math:`d \times d` probability matrix
 (:math:`P[i][j] = P(\nu_i \to \nu_j)`), or a single channel if ``nu_i``
 and ``nu_f`` are both given; every one also accepts ``nubar=True`` to
 compute the antineutrino probability. Standard oscillation parameters
-left as ``None`` default to the NuFit 6.1 best fit (normal ordering);
+left as ``None`` default to the NuFIT 6.1 best fit (normal ordering)
+:cite:p:`Esteban:2024eli`;
 sterile-sector parameters (4th/5th flavor) default to zero mixing.
 
 Vacuum

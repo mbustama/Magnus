@@ -328,6 +328,7 @@ Where to go next
 * :doc:`functions` — every ``osc_prob_*`` function, by environment and flavour.
 * :doc:`methodology` — what the Magnus expansion is and why it is unitary at any
   order.
-* :doc:`implementation_details` — the engines, the constants and the populations
-  they were measured on, and what each safeguard cannot do.
+* :doc:`engines` — which engine answers a call, and how the choice is made.
+* :doc:`performance` — the constants and the populations they were measured on.
+* :doc:`diagnostics` — what each safeguard cannot do, and what every warning means.
 * :doc:`cli` — the same calculations from a shell.

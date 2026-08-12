@@ -3004,7 +3004,7 @@ def osc_prob(
         chords it scatters from 1.4 to 7.2 against nominal orders of 2 and 4.
         Every extrapolation tried under-reported the true error on a large
         fraction of real refinement pairs, which is the dangerous direction.
-        See ``docs/source/implementation_details.rst``.
+        See ``docs/source/performance.rst``.
     t_breakpoints : list or np.ndarray, optional
         Optional positions at which the Hamiltonian is known to be
         non-smooth (e.g., density discontinuities such as the PREM

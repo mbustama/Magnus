@@ -116,7 +116,7 @@ ladder halts when two successive refinement levels agree --- not a bound on the
 error of what is returned.  Usually that is conservative.  It is not always:
 :ref:`what-rtol-atol-control` gives the measured detail, including a case where
 two levels agreed coincidentally and the answer was wrong by 0.855.  Magνs warns
-loudly in that regime, and :doc:`implementation_details` reports the measured
+loudly in that regime, and :doc:`diagnostics` reports the measured
 false-alarm rate of each warning.
 
 When is Magνs a win?
@@ -217,11 +217,8 @@ dedicated collective-oscillation codes (for self-interaction problems).
 
 .. _what-magnus-is-not:
 
-What it is not
----------------
-
-Separately from the physics above, and worth saying plainly so that nobody
-evaluates Magνs for a job it was never meant to do:
+**And separately from the physics, worth saying plainly so that nobody
+evaluates Magνs for a job it was never meant to do:**
 
 * **Not a solver for constant Hamiltonians in a hurry.**  It will do them, but
   a closed form beats an integrator every time; see
@@ -237,97 +234,37 @@ evaluates Magνs for a job it was never meant to do:
 When to use NuOscProbExact instead
 -----------------------------------
 
-Magνs integrates a Hamiltonian *across* each slab, which is what lets it follow
-a density that changes as the neutrino moves.  That machinery is wasted --- and
-slower than the alternative --- when the Hamiltonian does not change at all.
+Magνs is not the right tool for a Hamiltonian that does not change: where a
+closed form exists, an exact algebraic solution beats a truncated series.
+:doc:`comparison` carries the decision table --- which of the two to reach for,
+case by case --- together with the measured speed and accuracy behind it.
 
-Reach for `NuOscProbExact <https://github.com/mbustama/NuOscProbExact>`_ instead
-when **the Hamiltonian is constant, or piecewise constant**.  It expands the
-Hamiltonian and the evolution operator in the SU(2), SU(3) and SU(4) bases,
-which gives a closed form rather than a numerical integration: exact up to
-floating-point round-off, and with no slab count to choose.
-
-.. list-table::
-   :header-rows: 1
-   :widths: 46 27 27
-
-   * - Situation
-     - Use this
-     - Because
-   * - Constant density
-     - **NuOscProbExact**
-     - One closed form, no integration
-   * - Piecewise constant, tens of layers --- the Earth through PREM
-     - **NuOscProbExact**
-     - Each layer solved exactly, operators multiplied
-   * - Smoothly varying, slow against the oscillation
-     - Either
-     - Slabbing converges quickly
-   * - Smoothly varying, fast against the oscillation --- the Sun, adiabatic MSW
-     - **Magνs**
-     - Slabbing needs :math:`\sim 10^4` steps per resonance crossing
-   * - A front resolved across many slabs --- a shock from a simulation snapshot
-     - **Magνs**
-     - Smooth on the slab scale, so fourth order beats second
-   * - A front thin against the oscillation length --- a real hydrodynamic shock
-     - **NuOscProbExact**
-     - To any sampling method that is a jump, which is a closed form's home ground
-   * - A kink, a tabulated profile
-     - **Magνs**
-     - ``t_breakpoints`` puts a slab edge on the discontinuity
-   * - More than four flavours
-     - **Magνs**
-     - The SU(N) expansions stop at SU(4); Magνs has no ceiling
-   * - Genuinely open systems: decay, decoherence
-     - Neither
-     - Needs a Lindblad solver, not a unitary one
-
-The two packages share conventions, units and parameter defaults deliberately,
-so a calculation can be moved between them as a cross-check.  That is worth
-doing: agreement between two methods with different failure modes is stronger
-evidence than either one's internal convergence check.
 
 .. _what-magnus-earns-its-place-on:
 
 What Magνs earns its place on
 ------------------------------
 
-Worth stating in one place, because the table above is a list of cases and not
-a reason.  Where a closed form exists, an exact algebraic solution beats a
-truncated series; that is arithmetic rather than a defect, and it is why the
-first two rows go the way they do.  What is left is three axes, all of them
-measured in :doc:`notebook 25 <tutorials>` with every code timed in one process
-on one machine and refereed by a method that is neither code's.
+The lists above are cases, not a reason.  Where a closed form exists, an exact
+algebraic solution beats a truncated series --- that is arithmetic, not a
+defect in anybody's code.  What is left is three axes, every one of them
+measured against the other codes in :doc:`comparison`:
 
-**Reach --- accuracy past where a slab product stalls.**  Composing slabs is
-second order in the slab width, so halving it buys a factor of four; the
-Gauss--Legendre Magnus expansion is fourth order and buys sixteen.  More
-importantly the slab product has a *floor*.  On a smooth exponential profile at
-three flavours its error bottoms out at :math:`2.5\times10^{-11}` near 16 000
-slabs and then **rises** --- past that point the round-off of composing that
-many matrix products costs more than another halving of the width buys, so
-32 768 slabs is worse than 16 384.  No setting reaches below that.  Magνs
-continues to :math:`2.9\times10^{-13}`.
+**Reach.**  A slab product has a *floor*: on a smooth profile its error bottoms
+out near :math:`2.5\times10^{-11}` and then **rises**, because the round-off of
+composing that many matrix products outgrows what another halving of the width
+buys.  No setting reaches below it.  Magνs continues to
+:math:`2.9\times10^{-13}`.
 
-**Generality --- an arbitrary** :math:`H(t)`, **and five flavours.**  A custom
-Hamiltonian, a BSM term nobody has diagonalised, a profile interpolated from a
-simulation: none of these need per-model work, because nothing in the method
-assumes a form for :math:`H`.  The SU(N) expansions stop at SU(4); at five
-flavours there is no comparison to draw at all, which is the same point stated
-at its limit.
+**Generality.**  An arbitrary :math:`H(t)` --- a custom Hamiltonian, a BSM term
+nobody has diagonalised, a profile interpolated from a simulation --- needs no
+per-model work, because nothing in the method assumes a form for :math:`H`.
+The SU(N) closed forms stop at SU(4); Magνs has no ceiling.
 
-**Pre-packaged observables --- the quantity an experiment measures.**  A 5-MeV
-neutrino leaving the Sun accumulates some 12 800 radians of phase, so the
-*instantaneous* survival probability at the surface is neither measurable nor
-stable: neighbouring energies land anywhere between 0.15 and 0.9.  What a solar
-experiment measures is the phase-averaged probability, and ``average=True``
-returns it directly, transporting along the levels of the instantaneous
-Hamiltonian instead of propagating.  On one BS2005-AGS,OP model file Magνs
-returns 40 averaged energies in 0.66 s, while nuSQuIDS needs about ten minutes
-merely to reach the solver tolerance at which its output is a probability at
-all --- and then a further factor of *N* to average the phase away.  Neither of the other codes offers an averaging
-flag; this is a different algorithm for the question being asked, not the same
-algorithm run faster.
+**Pre-packaged observables.**  ``average=True`` returns the phase-averaged
+probability a solar experiment actually measures, evaluated in closed form,
+rather than leaving you to resolve some 13 000 radians of phase and average the
+result yourself.  Neither of the other codes offers it.
 
 .. _performance:
 
@@ -384,7 +321,7 @@ probability at several slab counts and stops when two agree, so a call at a tigh
 tolerance is doing real extra work rather than being slow.  ``rtol=atol=None``
 runs once at the grid you specify.
 
-:doc:`implementation_details` reports where the time goes, and what was tried and
+:doc:`performance` reports where the time goes, and what was tried and
 rejected.
 
 Salient Features
@@ -432,6 +369,7 @@ Salient Features
 
    recipes
    tutorials
+   comparison
    functions
    cli
    plotting
@@ -445,7 +383,9 @@ Salient Features
    adiabatic_strategy
    averaged_probability
    architecture
-   implementation_details
+   engines
+   performance
+   diagnostics
 
 .. toctree::
    :maxdepth: 2

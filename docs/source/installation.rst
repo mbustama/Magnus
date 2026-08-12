@@ -196,13 +196,16 @@ File Tree
    │       ├── changelog.rst           # Renders the root CHANGELOG.md via myst-parser
    │       ├── citing.rst              # How to cite the software, and what to state in the text
    │       ├── cli.rst                 # Command-line calculator: flag reference and examples
+   │       ├── comparison.rst          # Against NuOscProbExact and nuSQuIDS: where each method wins, from notebook 25
    │       ├── conf.py                 # Sphinx build configuration (autoapi + napoleon + bibtex + mermaid + myst)
+   │       ├── diagnostics.rst         # What rtol really controls, what each safeguard cannot do, every warning
+   │       ├── engines.rst             # Which engine answers a call, and how the dispatch order is decided
    │       ├── expansion_terms.rst     # The Omega_k terms to any order, and how they are generated
    │       ├── functions.rst           # Full osc_prob_{2,3,4,5}nu_* listing, grouped by environment/scenario
-   │       ├── implementation_details.rst  # Engines, dispatch, every tuned constant and its population
    │       ├── index.rst               # Master documentation page: overview, features, when Magnus wins
    │       ├── installation.rst        # Requirements, install instructions, file tree
    │       ├── methodology.rst         # The Magnus expansion, integrators, and performance engineering
+   │       ├── performance.rst         # Where the time goes, and the population every tuned constant was measured on
    │       ├── plotting.rst            # The pre-packaged plotting tools
    │       ├── quickstart.rst          # Worked Python-API code examples for every entry point
    │       ├── recipes.rst             # What Magnus can compute, with the code -- executed at build time

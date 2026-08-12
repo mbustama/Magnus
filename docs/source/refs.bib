@@ -31,11 +31,21 @@
     doi     = {10.1016/0031-9201(81)90046-7}
 }
 
-@misc{NuFit6,
-    author = {{NuFit Collaboration}},
-    title  = {{NuFit} 6.0: three-flavour global analyses of neutrino oscillation experiments},
-    year   = {2024},
-    note   = {\url{http://www.nu-fit.org}}
+% The NuFit-6.0 paper is also the reference for the 6.1 parameter update, which
+% is what Magnus defaults to; nu-fit.org carries the numerical tables for both.
+@article{Esteban:2024eli,
+    author = "Esteban, Ivan and Gonzalez-Garcia, M. C. and Maltoni, Michele and Martinez-Soler, Ivan and Pinheiro, Jo{\~a}o Paulo and Schwetz, Thomas",
+    title = "{NuFit-6.0: updated global analysis of three-flavor neutrino oscillations}",
+    eprint = "2410.05380",
+    archivePrefix = "arXiv",
+    primaryClass = "hep-ph",
+    reportNumber = "IFT-UAM/CSIC-24-140, YITP-SB-2024-24, IPPP/24/64, IPPP/24/64, IFT-UAM/CSIC-24-140, YITP-SB-2024-24",
+    doi = "10.1007/JHEP12(2024)216",
+    journal = "JHEP",
+    volume = "12",
+    pages = "216",
+    year = "2024",
+    note = "\url{http://www.nu-fit.org/}"
 }
 
 @book{GiuntiKim,
@@ -44,4 +54,61 @@
     publisher = {Oxford University Press},
     year      = {2007},
     isbn      = {978-0198508717}
+}
+
+@article{Bahcall:2004pz,
+    author = "Bahcall, John N. and Serenelli, Aldo M. and Basu, Sarbani",
+    title = "{New solar opacities, abundances, helioseismology, and neutrino fluxes}",
+    eprint = "astro-ph/0412440",
+    archivePrefix = "arXiv",
+    doi = "10.1086/428929",
+    journal = "Astrophys. J. Lett.",
+    volume = "621",
+    pages = "L85--L88",
+    year = "2005"
+}
+
+@article{Delgado:2014lyt,
+    author = "Delgado, Carlos Alberto Arguelles and Salvado, Jordi and Weaver, Christopher N.",
+    title = "{A Simple Quantum Integro-Differential Solver (SQuIDS)}",
+    eprint = "1412.3832",
+    archivePrefix = "arXiv",
+    primaryClass = "hep-ph",
+    doi = "10.1016/j.cpc.2015.06.022",
+    journal = "Comput. Phys. Commun.",
+    volume = "196",
+    pages = "569--591",
+    year = "2015"
+}
+
+@article{Arguelles:2021twb,
+    author = {Arg{\"u}elles, Carlos A. and Salvado, Jordi and Weaver, Christopher N.},
+    title = "{nuSQuIDS: A toolbox for neutrino propagation}",
+    eprint = "2112.13804",
+    archivePrefix = "arXiv",
+    primaryClass = "hep-ph",
+    doi = "10.1016/j.cpc.2022.108346",
+    journal = "Comput. Phys. Commun.",
+    volume = "277",
+    pages = "108346",
+    year = "2022"
+}
+
+% Carries an empty journal field on purpose: it is unpublished, and
+% sphinxcontrib-bibtex warns on an article entry with no journal at all, which
+% the docs build turns into an error.  Fill it in once it is published.
+%
+% Note for future editors: BibTeX has no comment syntax.  Text outside an entry
+% is ignored, but an "at" sign still opens one -- writing an entry type with
+% its sigil inside a comment here made the parser read it as a new entry and
+% fail with "'(' or '{' expected".
+@article{Bustamante:2019ggq,
+    author = "Bustamante, Mauricio",
+    journal = "",
+    title = "{NuOscProbExact: a general-purpose code to compute exact two-flavor and three-flavor neutrino oscillation probabilities}",
+    eprint = "1904.12391",
+    archivePrefix = "arXiv",
+    primaryClass = "hep-ph",
+    month = "4",
+    year = "2019"
 }

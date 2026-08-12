@@ -10884,7 +10884,7 @@ if HAVE_NPE_EARTH:
     md(r'''## 10. The Sun: an observable the other codes do not offer
 
 The solar case cannot be run as a race, and the reason is physics rather than bookkeeping.
-Over the ray from the core to the surface the accumulated phase is about **12 800 radians** at
+Over the ray from the core to the surface the accumulated phase is about **13 000 radians** at
 5 MeV -- some two thousand oscillations. The *instantaneous* probability at the surface is
 therefore not a measurable quantity and not a stable one: an adaptive DOP853 integration of it
 runs for minutes per energy, and no experiment sees it. What a solar experiment measures is
@@ -11162,7 +11162,7 @@ comparison at that scale is not available at any affordable cost, and saying so 
 than drawing one that looks like it is.
 
 What is left is the horizontal distance, and it is large in a way that is not about
-implementation quality. Mag$\nu$s returns the averaged observable in **0.66 s** because it
+implementation quality. Mag$\nu$s returns the averaged observable in **about 0.7 s** because it
 never propagates and never samples. nuSQuIDS needs about **ten minutes** merely to reach the
 tolerance at which its output is a probability, and then a further factor of $N$ to average
 the phase away. Neither NuOscProbExact nor nuSQuIDS offers an averaging flag.

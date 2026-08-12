@@ -17,35 +17,20 @@ a ``savefig``.  That block was copied from figure to figure and varied
 slightly each time, which is exactly the arrangement in which a figure
 quietly stops matching its neighbours.
 
-Cataloguing the figures first turned out to matter more than writing the code.
-Most of them are the *same figure* with different data.  Probability against
-baseline, probability against energy, probability against a sterile mixing
-angle, and the convergence studies of the matrix-exponential notebook all
-share one shape:
+Cataloguing them first mattered more than writing the code, because most are
+the *same figure* with different data: **a set of curves against a swept
+variable, optionally over a short relative-error subpanel.**  That shape is
+:func:`magnus.plotting.plot_curves`, and the probability-against-baseline and
+probability-against-energy functions are thin presets over it that fix labels,
+scales and tick spacings.
 
-   a set of curves against a swept variable, optionally over a short
-   relative-error subpanel.
+Only four layouts beyond it are genuinely distinct: small multiples (where the
+comparison runs *between* panels, so every panel needs identical limits while
+the labels, title and legend must each appear exactly once), a density profile
+stacked over probability panels, the bi-probability plane, and the oscillogram.
 
-:func:`magnus.plotting.plot_curves` is that shape.
-:func:`~magnus.plotting.plot_probability_vs_baseline` and
-:func:`~magnus.plotting.plot_probability_vs_energy` are thin presets over it
-that fix labels, scales and tick spacings.
-
-One further shape earns its own function:
-:func:`~magnus.plotting.plot_curves_stacked`, the *small-multiples* form --
-the same plot repeated once per configuration down a shared abscissa, as the
-sterile-neutrino notebook does with one panel per detector.  What makes it
-worth packaging is that the reader's comparison runs *between* panels, so
-every panel must carry identical limits, scales and tick spacings, while the
-parts that must not repeat -- the abscissa labels, the title, the legend, the
-ordinate label -- belong to exactly one panel each.  Hand-built, that is four
-formatting loops and a frameless full-figure subplot added purely to hang a
-shared label on; it is also where a stack quietly stops being readable when
-one panel drifts.
-
-Only three layouts beyond these are genuinely distinct: the density profile
-stacked over one or more probability panels, the bi-probability plane, and the
-oscillogram.
+What it draws
+---------------
 
 .. list-table::
    :header-rows: 1
