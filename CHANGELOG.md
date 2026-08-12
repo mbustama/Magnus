@@ -67,6 +67,32 @@ and the project uses [Semantic Versioning](https://semver.org/).
   four in `m`.  Compared at equal `m` they agree.  `m = tr(X^2)/6` is a spectral
   invariant and is the only fair label; "scale" is not.
 
+- **The sterile matter term and the Earth's density describe different media.**  L37
+  made the Earth's `Y_e` a function of radius and derived `r = (1 - Y_e)/Y_e` from it
+  layer by layer, because the two are one statement about composition.  The sterile
+  states' entry in the matter projector, `r/2`, could not follow: it is a single matrix
+  for the whole chord, so it kept taking the caller's scalar, which defaults to 1.0 --
+  isoscalar matter, i.e. `Y_e = 0.5`, precisely the uniform composition L37 replaced.
+
+  So on every Earth chord with a sterile state the density and the projector disagree by
+  construction.  Measured at `costhz = -0.95` with `s14 = 0.15`, `s24 = 0.10` and
+  `D41 = 1 eV^2`, the isoscalar projector differs from one built with the core's own
+  `r = 1.1478` by **2.1e-02** in `P(numu -> numu)` -- twenty times the default tolerance,
+  and silent.  Three flavours never saw it, because the projector's sterile block is
+  empty; that is the same reason `A2b` survived a max-effort review.
+
+  No single `r` is right for a chord that crosses iron and rock, so this is **reported
+  rather than resolved**: the Earth wrappers now raise
+  `globaldefs.SterileMatterCompositionWarning` when the two disagree by more than 2%, and
+  the message names the path-averaged ratio for the chord that was asked for, which
+  silences it.  `electron_fraction=0.5` with the default `1.0` makes them agree exactly
+  and reproduces the older uniform composition.  **No number changes unless you act on
+  the warning.**
+
+  The docstrings were also wrong about this.  Twelve Earth wrappers said the ratio "must
+  match the value given to `vcc_func_from_rho_func`", which on the Earth path is
+  unsatisfiable -- that function is handed a per-layer ratio the caller never supplies.
+
 - **The command line could not reach half its own parameter sets.**
   `--osc-params-set` listed its choices by hand and offered only the NuFit 6.0
   entries, so after the default moved to 6.1 anyone asking for inverted ordering

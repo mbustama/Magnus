@@ -156,6 +156,28 @@ class MixingAngleConventionWarning(UserWarning):
     """
 
 
+class SterileMatterCompositionWarning(UserWarning):
+    r"""The sterile matter entry is built from a different medium than the density.
+
+    An Earth chord takes its neutron-to-proton ratio from :math:`Y_e` layer by layer for the
+    density, but the sterile states' entry in the matter projector is one matrix for the
+    whole chord and takes the caller's scalar instead.  They disagree by construction unless
+    the caller matches them, and the disagreement is worth about 2e-02 in probability at 3+1
+    on a core-crossing chord -- silently, since nothing else about the call looks wrong.
+
+    Its own class so it can be silenced once the choice has been made deliberately::
+
+        import warnings
+        import magnus.globaldefs as gd
+
+        warnings.filterwarnings('ignore', category=gd.SterileMatterCompositionWarning)
+
+    Three flavours never raise it: the projector's sterile block is empty.
+
+    .. versionadded:: 1.0.0
+    """
+
+
 TOL_MSG_NO_COLOR = "Requested tolerance achieved"
 
 TOL_MSG_IN_COLOR = cstyle.CGREENBG + "Requested tolerance achieved" + cstyle.CEND
@@ -1192,6 +1214,7 @@ __all__ = [
     'ERROR_MSG_IN_COLOR',
     'ANGLE_CONVENTIONS',
     'MixingAngleConventionWarning',
+    'SterileMatterCompositionWarning',
     'TOL_MSG_NO_COLOR',
     'TOL_MSG_IN_COLOR',
     'MAGNUS_MAX_PREDEFINED_NUM_FLAVORS',

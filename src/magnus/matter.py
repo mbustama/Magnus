@@ -300,7 +300,12 @@ def matter_potential_projector(
         Number of neutrino flavours; the first three are active, the rest sterile.
     ratio_number_neutrons_to_protons : int or float, optional
         :math:`r = n_n/n_p`.  1.0 (isoscalar matter) by default, matching the default of
-        :func:`vcc_func_from_rho_func`, which must be given the same value.
+        :func:`vcc_func_from_rho_func`, which should be given the same value.
+
+        The Earth entry points are the exception, and deliberately: they take :math:`r`
+        from :math:`Y_e` layer by layer for the *density*, which this one matrix cannot
+        follow.  They warn when the two disagree; see
+        :class:`magnus.globaldefs.SterileMatterCompositionWarning`.
 
     Returns
     -------

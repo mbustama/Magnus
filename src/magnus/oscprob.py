@@ -1743,10 +1743,95 @@ def validate_input_battery(
                 " rho_func must be a float (or int) or must return a float (or int).")
 
 
+def _warn_if_sterile_projector_disagrees_with_composition(
+        source_func_name, num_flavors, costhz, electron_fraction,
+        ratio_number_neutrons_to_protons,
+        core, mantle, crust, ocean):
+    r"""Warns when the sterile matter entry is built from a different medium than the density.
+
+    Two numbers describe the same matter and are supplied separately.  The **density** along
+    an Earth chord takes its neutron-to-proton ratio from :math:`Y_e`, layer by layer, because
+    :math:`r = (1 - Y_e)/Y_e` is the same statement about composition.  The **sterile states'
+    entry in the matter projector**, :math:`r/2`, cannot: it is one matrix for the whole chord,
+    so it takes the caller's scalar, which defaults to 1.0 -- isoscalar matter, i.e.
+    :math:`Y_e = 0.5`, the uniform composition the layered defaults replaced.
+
+    The two therefore disagree by construction on every Earth chord once a sterile state is
+    present.  Measured at :math:`\cos\theta_z = -0.95` with
+    :math:`\sin\theta_{14} = 0.15`, :math:`\sin\theta_{24} = 0.10` and
+    :math:`\Delta m^2_{41} = 1\,{\rm eV}^2`, the isoscalar projector differs from one built
+    with the core's own :math:`r = 1.1478` by **2.1e-02** in
+    :math:`P(\nu_\mu \to \nu_\mu)`, twenty times the default tolerance -- and silently,
+    since nothing else about the call looks wrong.
+
+    Three flavours are unaffected: the projector's sterile block is empty, so the scalar has
+    nowhere to act.  This is the same shape as the four-flavour NSI matter term that shipped
+    wrong, and it is reported rather than resolved because no single :math:`r` is right for a
+    chord that crosses iron and rock.  Pass the one you want.
+
+    .. versionadded:: 1.0.0
+    """
+    if not num_flavors or num_flavors <= 3:
+        return
+
+    import magnus.earth as _earth
+
+    # The composition actually in force: a uniform override if given, else the layer values.
+    if electron_fraction is not None:
+        ye_used = [float(electron_fraction)]
+    else:
+        ye_used = [float(v) if v is not None else d for v, d in (
+            (core, _earth.Y_E_CORE_PREM), (mantle, _earth.Y_E_MANTLE_PREM),
+            (crust, _earth.Y_E_CRUST_PREM), (ocean, _earth.Y_E_OCEAN_PREM))]
+
+    given = float(ratio_number_neutrons_to_protons)
+
+    if electron_fraction is not None:
+        # One medium, so there is a single right answer and the test is exact.
+        target = float(_earth.neutron_to_proton_ratio_from_electron_fraction(ye_used[0]))
+        implied = [target]
+    else:
+        # Path-averaged along THIS chord, not a range over the four layers.  A range is
+        # useless here: the ocean's r = 0.80 drags it below the isoscalar 1.0, so the
+        # default would sit inside it and never be questioned -- while on a core-crossing
+        # chord the ocean is three kilometres of twelve thousand.  Averaging over the path
+        # weights each layer by how much of the trajectory is actually in it, and gives the
+        # caller one number to pass rather than an interval to choose from.
+        chord = float(_earth.distance_traveled_inside_earth(costhz))
+        l_km = np.linspace(0.0, chord, 2001)
+        radii = _earth.earth_radial_distance_from_depth(costhz, l_km)
+        ye_path = _earth.electron_fraction_func_prem(
+            radii, electron_fraction_core=core, electron_fraction_mantle=mantle,
+            electron_fraction_crust=crust, electron_fraction_ocean=ocean)
+        target = float(np.mean(
+            _earth.neutron_to_proton_ratio_from_electron_fraction(ye_path)))
+        implied = sorted({round(float(_earth.neutron_to_proton_ratio_from_electron_fraction(y)), 4)
+                          for y in np.unique(ye_path)})
+
+    # Silent once the caller has matched the medium to within 2%, which is well inside the
+    # spread PREM's own density carries.
+    if abs(given - target) <= 2.0e-2*max(1.0, abs(target)):
+        return
+
+    warnings.warn(
+        gd.WARNING_MSG_NO_COLOR + " oscprob." + source_func_name + ": the density along this"
+        " chord takes its neutron-to-proton ratio from Y_e layer by layer (r = " +
+        ", ".join(format(r, '.4f') for r in implied) + "), but the sterile states' entry in"
+        " the matter projector is one matrix for the whole chord and is being built from"
+        " ratio_number_neutrons_to_protons = " + format(given, '.4f') + ".  The two describe"
+        " different media.  On a core-crossing chord that is worth about 2e-02 in probability"
+        " at 3+1, twenty times the default tolerance, and nothing else about the call looks"
+        " wrong.  For this chord the path-averaged ratio is " + format(target, '.4f') + ";"
+        " passing that as ratio_number_neutrons_to_protons silences this and makes the two"
+        " agree on average.  electron_fraction=0.5 with the default 1.0 instead reproduces"
+        " the uniform composition earlier versions assumed.  Three flavours are unaffected.",
+        gd.SterileMatterCompositionWarning, stacklevel=3)
+
+
 def _earth_composition(costhz, electron_fraction, ratio_number_neutrons_to_protons,
                        electron_fraction_core, electron_fraction_mantle,
                        electron_fraction_crust, electron_fraction_ocean,
-                       source_func_name):
+                       source_func_name, num_flavors=None):
     r"""The electron density along a chord, with :math:`Y_e` resolved per PREM layer.
 
     Returns the ``rho_func`` every Earth entry point hands to
@@ -1768,6 +1853,12 @@ def _earth_composition(costhz, electron_fraction, ratio_number_neutrons_to_proto
     silently resolved -- any precedence rule here is a rule the caller has to know, and
     this is the shape of two bugs already found in this package.
     """
+    _warn_if_sterile_projector_disagrees_with_composition(
+        source_func_name, num_flavors, costhz, electron_fraction,
+        ratio_number_neutrons_to_protons,
+        electron_fraction_core, electron_fraction_mantle,
+        electron_fraction_crust, electron_fraction_ocean)
+
     layered = {
         'electron_fraction_core': electron_fraction_core,
         'electron_fraction_mantle': electron_fraction_mantle,
@@ -10222,9 +10313,20 @@ def osc_prob_2nu_earth(
     
     ratio_number_neutrons_to_protons : int or float, optional
         :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
-        matter term; see :func:`magnus.matter.matter_potential_projector`.  Must match
-        the value given to :func:`magnus.matter.vcc_func_from_rho_func`.  Default: 1.0
-        (isoscalar matter).
+        matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
+        (isoscalar matter, i.e. :math:`Y_e = 0.5`).
+
+        **On an Earth chord this is not the ratio the density uses.**  The density takes
+        :math:`r = (1 - Y_e)/Y_e` layer by layer, because that is the same statement about
+        composition; the projector cannot, being one matrix for the whole chord.  So the
+        two disagree unless you match them, and at four flavours or more that is worth
+        about 2e-02 in probability on a core-crossing chord -- twenty times the default
+        tolerance, and silent.  Mag$\nu$s raises
+        :class:`magnus.globaldefs.SterileMatterCompositionWarning` when they disagree by
+        more than 2%, and names the path-averaged ratio for the chord you asked for.
+        ``electron_fraction=0.5`` with the default 1.0 makes them agree exactly, and
+        reproduces the uniform composition earlier versions assumed.  Three flavours are
+        unaffected: the projector's sterile block is empty.
     electron_fraction : int or float, optional
         One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
         ``0.5`` reproduces the uniform composition assumed before those existed, and is
@@ -10301,7 +10403,7 @@ def osc_prob_2nu_earth(
             costhz, electron_fraction, ratio_number_neutrons_to_protons,
             electron_fraction_core, electron_fraction_mantle,
             electron_fraction_crust, electron_fraction_ocean,
-            source_func_name),
+            source_func_name, num_flavors=2),
         energy=energy,
         L=L, # [eV^{-1}]
         t_breakpoints=t_breakpoints,
@@ -10479,9 +10581,20 @@ def osc_prob_3nu_earth(
     
     ratio_number_neutrons_to_protons : int or float, optional
         :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
-        matter term; see :func:`magnus.matter.matter_potential_projector`.  Must match
-        the value given to :func:`magnus.matter.vcc_func_from_rho_func`.  Default: 1.0
-        (isoscalar matter).
+        matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
+        (isoscalar matter, i.e. :math:`Y_e = 0.5`).
+
+        **On an Earth chord this is not the ratio the density uses.**  The density takes
+        :math:`r = (1 - Y_e)/Y_e` layer by layer, because that is the same statement about
+        composition; the projector cannot, being one matrix for the whole chord.  So the
+        two disagree unless you match them, and at four flavours or more that is worth
+        about 2e-02 in probability on a core-crossing chord -- twenty times the default
+        tolerance, and silent.  Mag$\nu$s raises
+        :class:`magnus.globaldefs.SterileMatterCompositionWarning` when they disagree by
+        more than 2%, and names the path-averaged ratio for the chord you asked for.
+        ``electron_fraction=0.5`` with the default 1.0 makes them agree exactly, and
+        reproduces the uniform composition earlier versions assumed.  Three flavours are
+        unaffected: the projector's sterile block is empty.
     electron_fraction : int or float, optional
         One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
         ``0.5`` reproduces the uniform composition assumed before those existed, and is
@@ -10555,7 +10668,7 @@ def osc_prob_3nu_earth(
             costhz, electron_fraction, ratio_number_neutrons_to_protons,
             electron_fraction_core, electron_fraction_mantle,
             electron_fraction_crust, electron_fraction_ocean,
-            source_func_name),
+            source_func_name, num_flavors=3),
         energy=energy,
         L=L,
         t_breakpoints=t_breakpoints,
@@ -10755,9 +10868,20 @@ def osc_prob_4nu_earth(
     
     ratio_number_neutrons_to_protons : int or float, optional
         :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
-        matter term; see :func:`magnus.matter.matter_potential_projector`.  Must match
-        the value given to :func:`magnus.matter.vcc_func_from_rho_func`.  Default: 1.0
-        (isoscalar matter).
+        matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
+        (isoscalar matter, i.e. :math:`Y_e = 0.5`).
+
+        **On an Earth chord this is not the ratio the density uses.**  The density takes
+        :math:`r = (1 - Y_e)/Y_e` layer by layer, because that is the same statement about
+        composition; the projector cannot, being one matrix for the whole chord.  So the
+        two disagree unless you match them, and at four flavours or more that is worth
+        about 2e-02 in probability on a core-crossing chord -- twenty times the default
+        tolerance, and silent.  Mag$\nu$s raises
+        :class:`magnus.globaldefs.SterileMatterCompositionWarning` when they disagree by
+        more than 2%, and names the path-averaged ratio for the chord you asked for.
+        ``electron_fraction=0.5`` with the default 1.0 makes them agree exactly, and
+        reproduces the uniform composition earlier versions assumed.  Three flavours are
+        unaffected: the projector's sterile block is empty.
     electron_fraction : int or float, optional
         One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
         ``0.5`` reproduces the uniform composition assumed before those existed, and is
@@ -10831,7 +10955,7 @@ def osc_prob_4nu_earth(
             costhz, electron_fraction, ratio_number_neutrons_to_protons,
             electron_fraction_core, electron_fraction_mantle,
             electron_fraction_crust, electron_fraction_ocean,
-            source_func_name),
+            source_func_name, num_flavors=4),
         energy=energy,
         L=L,
         t_breakpoints=t_breakpoints,
@@ -11052,9 +11176,20 @@ def osc_prob_5nu_earth(
     
     ratio_number_neutrons_to_protons : int or float, optional
         :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
-        matter term; see :func:`magnus.matter.matter_potential_projector`.  Must match
-        the value given to :func:`magnus.matter.vcc_func_from_rho_func`.  Default: 1.0
-        (isoscalar matter).
+        matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
+        (isoscalar matter, i.e. :math:`Y_e = 0.5`).
+
+        **On an Earth chord this is not the ratio the density uses.**  The density takes
+        :math:`r = (1 - Y_e)/Y_e` layer by layer, because that is the same statement about
+        composition; the projector cannot, being one matrix for the whole chord.  So the
+        two disagree unless you match them, and at four flavours or more that is worth
+        about 2e-02 in probability on a core-crossing chord -- twenty times the default
+        tolerance, and silent.  Mag$\nu$s raises
+        :class:`magnus.globaldefs.SterileMatterCompositionWarning` when they disagree by
+        more than 2%, and names the path-averaged ratio for the chord you asked for.
+        ``electron_fraction=0.5`` with the default 1.0 makes them agree exactly, and
+        reproduces the uniform composition earlier versions assumed.  Three flavours are
+        unaffected: the projector's sterile block is empty.
     electron_fraction : int or float, optional
         One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
         ``0.5`` reproduces the uniform composition assumed before those existed, and is
@@ -11128,7 +11263,7 @@ def osc_prob_5nu_earth(
             costhz, electron_fraction, ratio_number_neutrons_to_protons,
             electron_fraction_core, electron_fraction_mantle,
             electron_fraction_crust, electron_fraction_ocean,
-            source_func_name),
+            source_func_name, num_flavors=5),
         energy=energy,
         L=L,
         t_breakpoints=t_breakpoints,
@@ -11355,7 +11490,7 @@ def osc_prob_earth(
             costhz, electron_fraction, ratio_number_neutrons_to_protons,
             electron_fraction_core, electron_fraction_mantle,
             electron_fraction_crust, electron_fraction_ocean,
-            source_func_name),
+            source_func_name, num_flavors=None),
         nubar=nubar,
         density_is_of_number_of_electrons=True) # [eV]
     VCC_func = _PositionProfileCache(VCC_func)
@@ -13872,9 +14007,20 @@ def osc_prob_2nu_earth_nsi(
     
     ratio_number_neutrons_to_protons : int or float, optional
         :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
-        matter term; see :func:`magnus.matter.matter_potential_projector`.  Must match
-        the value given to :func:`magnus.matter.vcc_func_from_rho_func`.  Default: 1.0
-        (isoscalar matter).
+        matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
+        (isoscalar matter, i.e. :math:`Y_e = 0.5`).
+
+        **On an Earth chord this is not the ratio the density uses.**  The density takes
+        :math:`r = (1 - Y_e)/Y_e` layer by layer, because that is the same statement about
+        composition; the projector cannot, being one matrix for the whole chord.  So the
+        two disagree unless you match them, and at four flavours or more that is worth
+        about 2e-02 in probability on a core-crossing chord -- twenty times the default
+        tolerance, and silent.  Mag$\nu$s raises
+        :class:`magnus.globaldefs.SterileMatterCompositionWarning` when they disagree by
+        more than 2%, and names the path-averaged ratio for the chord you asked for.
+        ``electron_fraction=0.5`` with the default 1.0 makes them agree exactly, and
+        reproduces the uniform composition earlier versions assumed.  Three flavours are
+        unaffected: the projector's sterile block is empty.
     electron_fraction : int or float, optional
         One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
         ``0.5`` reproduces the uniform composition assumed before those existed, and is
@@ -13950,7 +14096,7 @@ def osc_prob_2nu_earth_nsi(
             costhz, electron_fraction, ratio_number_neutrons_to_protons,
             electron_fraction_core, electron_fraction_mantle,
             electron_fraction_crust, electron_fraction_ocean,
-            source_func_name),
+            source_func_name, num_flavors=2),
         energy=energy,
         L=L,
         t_breakpoints=t_breakpoints,
@@ -14146,9 +14292,20 @@ def osc_prob_3nu_earth_nsi(
     
     ratio_number_neutrons_to_protons : int or float, optional
         :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
-        matter term; see :func:`magnus.matter.matter_potential_projector`.  Must match
-        the value given to :func:`magnus.matter.vcc_func_from_rho_func`.  Default: 1.0
-        (isoscalar matter).
+        matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
+        (isoscalar matter, i.e. :math:`Y_e = 0.5`).
+
+        **On an Earth chord this is not the ratio the density uses.**  The density takes
+        :math:`r = (1 - Y_e)/Y_e` layer by layer, because that is the same statement about
+        composition; the projector cannot, being one matrix for the whole chord.  So the
+        two disagree unless you match them, and at four flavours or more that is worth
+        about 2e-02 in probability on a core-crossing chord -- twenty times the default
+        tolerance, and silent.  Mag$\nu$s raises
+        :class:`magnus.globaldefs.SterileMatterCompositionWarning` when they disagree by
+        more than 2%, and names the path-averaged ratio for the chord you asked for.
+        ``electron_fraction=0.5`` with the default 1.0 makes them agree exactly, and
+        reproduces the uniform composition earlier versions assumed.  Three flavours are
+        unaffected: the projector's sterile block is empty.
     electron_fraction : int or float, optional
         One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
         ``0.5`` reproduces the uniform composition assumed before those existed, and is
@@ -14222,7 +14379,7 @@ def osc_prob_3nu_earth_nsi(
             costhz, electron_fraction, ratio_number_neutrons_to_protons,
             electron_fraction_core, electron_fraction_mantle,
             electron_fraction_crust, electron_fraction_ocean,
-            source_func_name),
+            source_func_name, num_flavors=3),
         energy=energy,
         L=L,
         t_breakpoints=t_breakpoints,
@@ -14452,9 +14609,20 @@ def osc_prob_4nu_earth_nsi(
     
     ratio_number_neutrons_to_protons : int or float, optional
         :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
-        matter term; see :func:`magnus.matter.matter_potential_projector`.  Must match
-        the value given to :func:`magnus.matter.vcc_func_from_rho_func`.  Default: 1.0
-        (isoscalar matter).
+        matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
+        (isoscalar matter, i.e. :math:`Y_e = 0.5`).
+
+        **On an Earth chord this is not the ratio the density uses.**  The density takes
+        :math:`r = (1 - Y_e)/Y_e` layer by layer, because that is the same statement about
+        composition; the projector cannot, being one matrix for the whole chord.  So the
+        two disagree unless you match them, and at four flavours or more that is worth
+        about 2e-02 in probability on a core-crossing chord -- twenty times the default
+        tolerance, and silent.  Mag$\nu$s raises
+        :class:`magnus.globaldefs.SterileMatterCompositionWarning` when they disagree by
+        more than 2%, and names the path-averaged ratio for the chord you asked for.
+        ``electron_fraction=0.5`` with the default 1.0 makes them agree exactly, and
+        reproduces the uniform composition earlier versions assumed.  Three flavours are
+        unaffected: the projector's sterile block is empty.
     electron_fraction : int or float, optional
         One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
         ``0.5`` reproduces the uniform composition assumed before those existed, and is
@@ -14528,7 +14696,7 @@ def osc_prob_4nu_earth_nsi(
             costhz, electron_fraction, ratio_number_neutrons_to_protons,
             electron_fraction_core, electron_fraction_mantle,
             electron_fraction_crust, electron_fraction_ocean,
-            source_func_name),
+            source_func_name, num_flavors=4),
         energy=energy,
         L=L,
         t_breakpoints=t_breakpoints,
@@ -14796,9 +14964,20 @@ def osc_prob_5nu_earth_nsi(
     
     ratio_number_neutrons_to_protons : int or float, optional
         :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
-        matter term; see :func:`magnus.matter.matter_potential_projector`.  Must match
-        the value given to :func:`magnus.matter.vcc_func_from_rho_func`.  Default: 1.0
-        (isoscalar matter).
+        matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
+        (isoscalar matter, i.e. :math:`Y_e = 0.5`).
+
+        **On an Earth chord this is not the ratio the density uses.**  The density takes
+        :math:`r = (1 - Y_e)/Y_e` layer by layer, because that is the same statement about
+        composition; the projector cannot, being one matrix for the whole chord.  So the
+        two disagree unless you match them, and at four flavours or more that is worth
+        about 2e-02 in probability on a core-crossing chord -- twenty times the default
+        tolerance, and silent.  Mag$\nu$s raises
+        :class:`magnus.globaldefs.SterileMatterCompositionWarning` when they disagree by
+        more than 2%, and names the path-averaged ratio for the chord you asked for.
+        ``electron_fraction=0.5`` with the default 1.0 makes them agree exactly, and
+        reproduces the uniform composition earlier versions assumed.  Three flavours are
+        unaffected: the projector's sterile block is empty.
     electron_fraction : int or float, optional
         One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
         ``0.5`` reproduces the uniform composition assumed before those existed, and is
@@ -14872,7 +15051,7 @@ def osc_prob_5nu_earth_nsi(
             costhz, electron_fraction, ratio_number_neutrons_to_protons,
             electron_fraction_core, electron_fraction_mantle,
             electron_fraction_crust, electron_fraction_ocean,
-            source_func_name),
+            source_func_name, num_flavors=5),
         energy=energy,
         L=L,
         t_breakpoints=t_breakpoints,
@@ -17879,9 +18058,20 @@ def osc_prob_2nu_earth_liv(
     
     ratio_number_neutrons_to_protons : int or float, optional
         :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
-        matter term; see :func:`magnus.matter.matter_potential_projector`.  Must match
-        the value given to :func:`magnus.matter.vcc_func_from_rho_func`.  Default: 1.0
-        (isoscalar matter).
+        matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
+        (isoscalar matter, i.e. :math:`Y_e = 0.5`).
+
+        **On an Earth chord this is not the ratio the density uses.**  The density takes
+        :math:`r = (1 - Y_e)/Y_e` layer by layer, because that is the same statement about
+        composition; the projector cannot, being one matrix for the whole chord.  So the
+        two disagree unless you match them, and at four flavours or more that is worth
+        about 2e-02 in probability on a core-crossing chord -- twenty times the default
+        tolerance, and silent.  Mag$\nu$s raises
+        :class:`magnus.globaldefs.SterileMatterCompositionWarning` when they disagree by
+        more than 2%, and names the path-averaged ratio for the chord you asked for.
+        ``electron_fraction=0.5`` with the default 1.0 makes them agree exactly, and
+        reproduces the uniform composition earlier versions assumed.  Three flavours are
+        unaffected: the projector's sterile block is empty.
     electron_fraction : int or float, optional
         One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
         ``0.5`` reproduces the uniform composition assumed before those existed, and is
@@ -17957,7 +18147,7 @@ def osc_prob_2nu_earth_liv(
             costhz, electron_fraction, ratio_number_neutrons_to_protons,
             electron_fraction_core, electron_fraction_mantle,
             electron_fraction_crust, electron_fraction_ocean,
-            source_func_name),
+            source_func_name, num_flavors=2),
         energy=energy,
         L=L,
         t_breakpoints=t_breakpoints,
@@ -18164,9 +18354,20 @@ def osc_prob_3nu_earth_liv(
     
     ratio_number_neutrons_to_protons : int or float, optional
         :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
-        matter term; see :func:`magnus.matter.matter_potential_projector`.  Must match
-        the value given to :func:`magnus.matter.vcc_func_from_rho_func`.  Default: 1.0
-        (isoscalar matter).
+        matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
+        (isoscalar matter, i.e. :math:`Y_e = 0.5`).
+
+        **On an Earth chord this is not the ratio the density uses.**  The density takes
+        :math:`r = (1 - Y_e)/Y_e` layer by layer, because that is the same statement about
+        composition; the projector cannot, being one matrix for the whole chord.  So the
+        two disagree unless you match them, and at four flavours or more that is worth
+        about 2e-02 in probability on a core-crossing chord -- twenty times the default
+        tolerance, and silent.  Mag$\nu$s raises
+        :class:`magnus.globaldefs.SterileMatterCompositionWarning` when they disagree by
+        more than 2%, and names the path-averaged ratio for the chord you asked for.
+        ``electron_fraction=0.5`` with the default 1.0 makes them agree exactly, and
+        reproduces the uniform composition earlier versions assumed.  Three flavours are
+        unaffected: the projector's sterile block is empty.
     electron_fraction : int or float, optional
         One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
         ``0.5`` reproduces the uniform composition assumed before those existed, and is
@@ -18240,7 +18441,7 @@ def osc_prob_3nu_earth_liv(
             costhz, electron_fraction, ratio_number_neutrons_to_protons,
             electron_fraction_core, electron_fraction_mantle,
             electron_fraction_crust, electron_fraction_ocean,
-            source_func_name),
+            source_func_name, num_flavors=3),
         energy=energy,
         L=L,
         t_breakpoints=t_breakpoints,
@@ -18485,9 +18686,20 @@ def osc_prob_4nu_earth_liv(
     
     ratio_number_neutrons_to_protons : int or float, optional
         :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
-        matter term; see :func:`magnus.matter.matter_potential_projector`.  Must match
-        the value given to :func:`magnus.matter.vcc_func_from_rho_func`.  Default: 1.0
-        (isoscalar matter).
+        matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
+        (isoscalar matter, i.e. :math:`Y_e = 0.5`).
+
+        **On an Earth chord this is not the ratio the density uses.**  The density takes
+        :math:`r = (1 - Y_e)/Y_e` layer by layer, because that is the same statement about
+        composition; the projector cannot, being one matrix for the whole chord.  So the
+        two disagree unless you match them, and at four flavours or more that is worth
+        about 2e-02 in probability on a core-crossing chord -- twenty times the default
+        tolerance, and silent.  Mag$\nu$s raises
+        :class:`magnus.globaldefs.SterileMatterCompositionWarning` when they disagree by
+        more than 2%, and names the path-averaged ratio for the chord you asked for.
+        ``electron_fraction=0.5`` with the default 1.0 makes them agree exactly, and
+        reproduces the uniform composition earlier versions assumed.  Three flavours are
+        unaffected: the projector's sterile block is empty.
     electron_fraction : int or float, optional
         One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
         ``0.5`` reproduces the uniform composition assumed before those existed, and is
@@ -18561,7 +18773,7 @@ def osc_prob_4nu_earth_liv(
             costhz, electron_fraction, ratio_number_neutrons_to_protons,
             electron_fraction_core, electron_fraction_mantle,
             electron_fraction_crust, electron_fraction_ocean,
-            source_func_name),
+            source_func_name, num_flavors=4),
         energy=energy,
         L=L,
         t_breakpoints=t_breakpoints,
@@ -18845,9 +19057,20 @@ def osc_prob_5nu_earth_liv(
     
     ratio_number_neutrons_to_protons : int or float, optional
         :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
-        matter term; see :func:`magnus.matter.matter_potential_projector`.  Must match
-        the value given to :func:`magnus.matter.vcc_func_from_rho_func`.  Default: 1.0
-        (isoscalar matter).
+        matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
+        (isoscalar matter, i.e. :math:`Y_e = 0.5`).
+
+        **On an Earth chord this is not the ratio the density uses.**  The density takes
+        :math:`r = (1 - Y_e)/Y_e` layer by layer, because that is the same statement about
+        composition; the projector cannot, being one matrix for the whole chord.  So the
+        two disagree unless you match them, and at four flavours or more that is worth
+        about 2e-02 in probability on a core-crossing chord -- twenty times the default
+        tolerance, and silent.  Mag$\nu$s raises
+        :class:`magnus.globaldefs.SterileMatterCompositionWarning` when they disagree by
+        more than 2%, and names the path-averaged ratio for the chord you asked for.
+        ``electron_fraction=0.5`` with the default 1.0 makes them agree exactly, and
+        reproduces the uniform composition earlier versions assumed.  Three flavours are
+        unaffected: the projector's sterile block is empty.
     electron_fraction : int or float, optional
         One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
         ``0.5`` reproduces the uniform composition assumed before those existed, and is
@@ -18921,7 +19144,7 @@ def osc_prob_5nu_earth_liv(
             costhz, electron_fraction, ratio_number_neutrons_to_protons,
             electron_fraction_core, electron_fraction_mantle,
             electron_fraction_crust, electron_fraction_ocean,
-            source_func_name),
+            source_func_name, num_flavors=5),
         energy=energy,
         L=L,
         t_breakpoints=t_breakpoints,

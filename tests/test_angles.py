@@ -13,6 +13,7 @@ entirely wrong probability rather than an error.  Two of those are pinned here e
 with the size of the answer they would otherwise return.
 """
 
+import re
 import warnings
 
 import numpy as np
@@ -261,3 +262,84 @@ def test_every_public_function_taking_angles_documents_and_uses_it():
 
     assert not missing_doc, 'take `angles` but do not document it: %s' % missing_doc
     assert not inert, 'accept `angles` and never use it: %s' % inert
+
+
+# ----------------------------------------------------------------------
+# A feature *interaction*: the layered Earth composition against the
+# sterile states' entry in the matter projector
+# ----------------------------------------------------------------------
+
+def test_a_sterile_earth_chord_warns_when_the_projector_disagrees_with_the_density():
+    """The density takes r from Y_e layer by layer; the projector takes one scalar.
+
+    They cannot agree by construction on a chord that crosses iron and rock, and the
+    default scalar -- 1.0, isoscalar, i.e. Y_e = 0.5 -- is the uniform composition the
+    layered defaults replaced.  Measured worth 2.1e-02 in probability at 3+1 on a
+    core-crossing chord, which is twenty times the default tolerance and silent.
+
+    This is the same shape as the four-flavour NSI matter term that shipped wrong: a
+    sterile-sector term built from the wrong medium, invisible at three flavours.
+    """
+    costhz = -0.95
+    L = earth.distance_traveled_inside_earth(costhz)*gd.CONV_KM_TO_INV_EV
+    kw = dict(energy=1.0*gd.UNIT_GEV, costhz=costhz, L=L,
+              s12=P['s12'], s23=P['s23'], s13=P['s13'], dCP=P['dCP'],
+              s14=0.15, d14=0.0, s24=0.10, d24=0.0, s34=0.05,
+              D21=P['D21'], D31=P['D31'], D41=1.0)
+
+    with pytest.warns(gd.SterileMatterCompositionWarning, match='path-averaged ratio'):
+        op.osc_prob_4nu_earth(**kw)
+
+
+def test_three_flavours_never_raise_it_because_the_sterile_block_is_empty():
+    costhz = -0.95
+    L = earth.distance_traveled_inside_earth(costhz)*gd.CONV_KM_TO_INV_EV
+    with warnings.catch_warnings():
+        warnings.simplefilter('error', gd.SterileMatterCompositionWarning)
+        op.osc_prob_3nu_earth(1.0*gd.UNIT_GEV, costhz=costhz, L=L,
+                              s12=P['s12'], s23=P['s23'], s13=P['s13'], dCP=P['dCP'],
+                              D21=P['D21'], D31=P['D31'])
+
+
+def test_matching_the_composition_silences_it():
+    """Both ways out: the uniform composition, or the path-averaged ratio it names."""
+    costhz = -0.95
+    L = earth.distance_traveled_inside_earth(costhz)*gd.CONV_KM_TO_INV_EV
+    kw = dict(energy=1.0*gd.UNIT_GEV, costhz=costhz, L=L,
+              s12=P['s12'], s23=P['s23'], s13=P['s13'], dCP=P['dCP'],
+              s14=0.15, d14=0.0, s24=0.10, d24=0.0, s34=0.05,
+              D21=P['D21'], D31=P['D31'], D41=1.0)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('error', gd.SterileMatterCompositionWarning)
+        # a uniform Y_e = 0.5 implies r = 1.0 exactly, which is the default
+        op.osc_prob_4nu_earth(electron_fraction=0.5, **kw)
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter('always')
+        op.osc_prob_4nu_earth(**kw)
+    target = float(re.search(r'path-averaged ratio is ([\d.]+)',
+                             str(caught[0].message)).group(1))
+    with warnings.catch_warnings():
+        warnings.simplefilter('error', gd.SterileMatterCompositionWarning)
+        op.osc_prob_4nu_earth(ratio_number_neutrons_to_protons=target, **kw)
+
+
+def test_the_disagreement_is_worth_what_the_warning_says():
+    """Pin the size, because "subtly different" and "2% different" are different bugs."""
+    costhz = -0.95
+    L = earth.distance_traveled_inside_earth(costhz)*gd.CONV_KM_TO_INV_EV
+    energies = np.logspace(0.0, 1.2, 25)*gd.UNIT_GEV
+    kw = dict(costhz=costhz, L=L, s12=P['s12'], s23=P['s23'], s13=P['s13'], dCP=P['dCP'],
+              s14=0.15, d14=0.0, s24=0.10, d24=0.0, s34=0.05,
+              D21=P['D21'], D31=P['D31'], D41=1.0, nu_i=gd.NUMU, nu_f=gd.NUMU)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        isoscalar = np.asarray(op.osc_prob_4nu_earth(energies, **kw), dtype=float)
+        core_r = float(earth.neutron_to_proton_ratio_from_electron_fraction(
+            earth.Y_E_CORE_PREM))
+        matched = np.asarray(op.osc_prob_4nu_earth(
+            energies, ratio_number_neutrons_to_protons=core_r, **kw), dtype=float)
+
+    assert np.max(np.abs(matched - isoscalar)) > 1.0e-2
