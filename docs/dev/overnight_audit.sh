@@ -217,8 +217,12 @@ if [ "$PHASE2" -eq 1 ]; then
         run_job 12-validate-physical "$CAP_LIGHT" 7200 \
             bash -c 'cd docs/dev/adversarial_batteries && python3 validate_physical.py'
 
+        # bitident.py dumps its raw probabilities to a path it takes as argv[1];
+        # called bare it dies on IndexError before running anything.  The .npz goes
+        # beside the log, i.e. outside the repository, for the same reason the logs
+        # do: nothing this script writes may reach the file-tree guard or a commit.
         run_job 13-bitident "$CAP_LIGHT" 3600 \
-            bash -c 'cd docs/dev/adversarial_batteries && python3 bitident.py'
+            bash -c "cd docs/dev/adversarial_batteries && python3 bitident.py '$LOGDIR/13-bitident.npz'"
     fi
     say ""
 fi
