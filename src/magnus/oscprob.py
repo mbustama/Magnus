@@ -3707,7 +3707,7 @@ from the signature alone will never find them.
 ``expm_backend`` was accepted and absent from this list, which is the worst of both: it
 works, so it is worth knowing about, and misspelling it produced an error naming ten
 keywords that did not include the one wanted.  Validation is not affected either way --
-that is derived from the signatures by :func:`_passthrough_kwarg_names` -- so this tuple
+that is derived from the signatures by ``_passthrough_kwarg_names`` -- so this tuple
 is what a caller is *told*, and the whole point of it is to leave nothing out.
 
 Deliberately a *subset* of what ``_passthrough_kwarg_names`` accepts.  That function is
