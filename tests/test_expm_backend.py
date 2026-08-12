@@ -318,9 +318,21 @@ def test_eigenvalues_are_sloppy_at_a_degeneracy_and_the_exponential_is_not():
     :math:`\delta` from a double eigenvalue is :math:`O(\delta^2)`, not
     :math:`O(\delta)`.
 
-    Both halves are asserted, the bad one included: if a later change made the
-    eigenvalues sharp, this test should be re-derived rather than merely relaxed,
-    because the second assertion is the one carrying the accuracy claim.
+    **The sloppiness is a premise, not a promise, and it is no longer asserted
+    on its own.**  It used to be: ``assert eig_err > 1e-12``.  That compares
+    against ``numpy.linalg.eigvalsh``, whose accuracy at a degeneracy is a
+    property of the platform's LAPACK kernel -- OpenBLAS dispatches by CPU
+    feature -- and not of anything this package controls.  Measured on
+    identical, seeded input: **3.2e-09** on the development machine and on three
+    of CI's runners, **3.9e-16** on a fourth, which failed the suite for being
+    *more* accurate than expected.  A green build should not depend on somebody
+    else's BLAS being bad.
+
+    So the premise now gates the comparison instead of standing as a claim.  The
+    accuracy statement -- that :math:`\exp(-iK)` keeps its digits regardless --
+    is asserted unconditionally, and where the eigenvalues *are* sloppy the
+    decoupling is asserted directly, as a ratio, which is the thing the
+    docstring in ``expmkernels`` actually argues.
     """
     rng = np.random.default_rng(33)
     V = np.linalg.qr(_herm((3, 3), rng) + 1j*np.eye(3))[0]
@@ -329,10 +341,14 @@ def test_eigenvalues_are_sloppy_at_a_degeneracy_and_the_exponential_is_not():
     U, lam, _sev = ek.expm_herm_stack(K[None])
     eig_err = np.max(np.abs(np.sort(lam[0]) - np.linalg.eigvalsh(K)))
     exp_err = np.max(np.abs(U[0] - _scipy_expm(K)))
-    assert eig_err > 1e-12, (
-        "eigenvalues came out sharper than expected (%.2e); the decoupling "
-        "argument in expmkernels' docstring should be revisited" % eig_err)
     assert exp_err < 1e-15, exp_err
+    if eig_err > 1e-12:
+        # The premise holds here, so the decoupling is directly visible: the
+        # eigenvalues lost most of their digits and the exponential lost none.
+        assert exp_err < 1e-6*eig_err, (
+            "eigenvalue error %.2e did propagate into the exponential (%.2e); "
+            "the O(delta^2) argument in expmkernels' docstring is the thing to "
+            "re-derive" % (eig_err, exp_err))
 
 
 @requires_numba
