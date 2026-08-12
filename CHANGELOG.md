@@ -93,6 +93,40 @@ and the project uses [Semantic Versioning](https://semver.org/).
   match the value given to `vcc_func_from_rho_func`", which on the Earth path is
   unsatisfiable -- that function is handed a per-layer ratio the caller never supplies.
 
+- **The sterile states' matter entry was unreachable on the Sun, and locked isoscalar.**
+  `osc_prob_{4,5}nu_sun` and their `_nsi`/`_liv` variants never exposed
+  `ratio_number_neutrons_to_protons`, and delegated without forwarding it -- two of them
+  passing a hardcoded `1.0`.  So `r/2`, the sterile entry in the matter projector, was
+  fixed at isoscalar for a medium that is nothing of the kind: the Sun is hydrogen-rich,
+  `Y_e = (1 + X)/2` runs from about 0.68 at the centre to 0.88 near the surface, and
+  `r = (1 - Y_e)/Y_e` from about 0.47 down to 0.14.  Unlike the Earth, where 1.0 at
+  least sits among the layer values, for the Sun it is outside the physical range
+  entirely.
+
+  The six wrappers now take it and forward it.  Left at the default the averaged solar
+  survival probability moves by about **4e-03** at `s14 = 0.4`, above the 1e-3 default
+  tolerance; at the nominal `s14 = 0.15` it is 7.9e-04, just under.  The solar profile is
+  a fit to the electron *number* density, so `Y_e` is already inside it and there is
+  nothing for the library to derive `r` from -- it has to be stated, which is why this is
+  exposed rather than defaulted to a solar value.  **No number changes unless you set it.**
+
+- **`t_breakpoints` was unusable on every Earth wrapper.**  Those wrappers place slab
+  edges on the PREM shell crossings themselves, so an argument of the same name arrived
+  in `**kwargs` and collided: the caller got `got multiple values for keyword argument
+  't_breakpoints'` raised two layers down.  The keyword is listed as forwardable in this
+  package's own unrecognised-keyword message, so it was reachable and broken.  A
+  caller's breakpoints are now merged with the PREM crossings rather than either
+  replacing the other -- dropping the crossings silently would be the very defect
+  `t_breakpoints` exists to prevent.  Pass `t_slab_edges` to place every edge yourself.
+
+- **`n_jobs` is documented as not being a pure performance knob.**  Splitting slabs
+  across workers changes the order the arithmetic is done in, and the refinement
+  ladder's stopping test compares successive levels, so it can stop one level earlier or
+  later than the serial run.  Measured on a 3nu PREM chord over eight energies, serial
+  against two workers differs by 1.2e-03 at the default `rtol = 1e-3`, 6.6e-08 at
+  `rtol = 1e-6` and 5.6e-11 at `rtol = 1e-9` -- within the tolerance asked for, but not
+  bitwise, which the docstring previously gave no hint of.
+
 - **The command line could not reach half its own parameter sets.**
   `--osc-params-set` listed its choices by hand and offered only the NuFit 6.0
   entries, so after the default moved to 6.1 anyone asking for inverted ordering

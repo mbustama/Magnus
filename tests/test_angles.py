@@ -343,3 +343,66 @@ def test_the_disagreement_is_worth_what_the_warning_says():
             energies, ratio_number_neutrons_to_protons=core_r, **kw), dtype=float)
 
     assert np.max(np.abs(matched - isoscalar)) > 1.0e-2
+
+
+def test_the_sterile_solar_wrappers_expose_the_neutron_to_proton_ratio():
+    """It was not reachable at all, and the Sun is nowhere near isoscalar.
+
+    ``osc_prob_{4,5}nu_sun`` and their _nsi/_liv variants delegated without forwarding
+    it -- two of them passing a hardcoded 1.0 -- so the sterile states' matter entry was
+    locked at isoscalar for a medium whose r runs 0.47 down to 0.14.  Unlike the Earth,
+    where 1.0 at least sits among the layer values, for the Sun it is outside the
+    physical range entirely.
+    """
+    import inspect
+    for name in ('osc_prob_4nu_sun', 'osc_prob_5nu_sun',
+                 'osc_prob_4nu_sun_nsi', 'osc_prob_5nu_sun_nsi',
+                 'osc_prob_4nu_sun_liv', 'osc_prob_5nu_sun_liv'):
+        sig = inspect.signature(getattr(op, name))
+        assert 'ratio_number_neutrons_to_protons' in sig.parameters, name
+        assert 'ratio_number_neutrons_to_protons :' in (inspect.getdoc(getattr(op, name)) or ''), name
+
+
+def test_the_solar_ratio_actually_reaches_the_sterile_matter_entry():
+    """Exposing a parameter that is then ignored would be the same defect one layer up."""
+    energies = np.logspace(np.log10(1.0), np.log10(15.0), 12)*gd.UNIT_MEV
+    kw = dict(energy=energies, L=4.0*gd.L_SCALE_SUN, L0=0.0,
+              s12=P['s12'], s23=P['s23'], s13=P['s13'], dCP=P['dCP'],
+              D21=P['D21'], D31=P['D31'],
+              s14=0.4, d14=0.0, s24=0.3, d24=0.0, s34=0.05, D41=1.0,
+              nu_i=gd.NUE, nu_f=gd.NUE, average=True)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        isoscalar = np.asarray(op.osc_prob_4nu_sun(**kw), dtype=float)
+        solar = np.asarray(op.osc_prob_4nu_sun(
+            ratio_number_neutrons_to_protons=0.290, **kw), dtype=float)
+    # above the package's own default tolerance, so this is not a rounding difference
+    assert np.max(np.abs(solar - isoscalar)) > 1.0e-3
+
+
+def test_an_earth_wrapper_accepts_breakpoints_of_your_own():
+    """It used to raise TypeError from two layers down.
+
+    These wrappers place t_breakpoints on the PREM shell crossings themselves, so a
+    caller's argument of the same name collided in **kwargs -- while the package's own
+    unrecognised-keyword message lists t_breakpoints as forwardable, so it was reachable
+    and broken.  The two sets are merged: dropping the PREM crossings silently would be
+    exactly the defect t_breakpoints exists to prevent.
+    """
+    costhz = -0.7
+    L = earth.distance_traveled_inside_earth(costhz)*gd.CONV_KM_TO_INV_EV
+    kw = dict(energy=1.0*gd.UNIT_GEV, costhz=costhz, L=L,
+              s12=P['s12'], s23=P['s23'], s13=P['s13'], dCP=P['dCP'], **D3)
+    edges = earth.prem_layer_edges_along_chord(costhz)*gd.UNIT_KM
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        auto = np.asarray(op.osc_prob_3nu_earth(**kw), dtype=float)
+        # handing back the very edges the wrapper would have used must change nothing
+        same = np.asarray(op.osc_prob_3nu_earth(t_breakpoints=edges, **kw), dtype=float)
+        # and adding one of your own must be accepted rather than raising
+        extra = np.asarray(op.osc_prob_3nu_earth(
+            t_breakpoints=np.array([0.5*L]), **kw), dtype=float)
+
+    assert np.max(np.abs(same - auto)) == 0.0
+    assert np.all(np.isfinite(extra))

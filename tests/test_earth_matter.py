@@ -453,6 +453,34 @@ def test_the_sun_takes_no_electron_fraction():
     for name in ('osc_prob_2nu_sun', 'osc_prob_3nu_sun_nsi', 'osc_prob_3nu_sun_liv',
                  'osc_prob_5nu_sun_liv'):
         params = inspect.signature(getattr(op, name)).parameters
-        for dead in ('electron_fraction', 'ratio_number_neutrons_to_protons',
-                     'density_matter_is_in_g_per_cm3', 'density_is_of_number_of_electrons'):
+        for dead in ('electron_fraction', 'density_matter_is_in_g_per_cm3',
+                     'density_is_of_number_of_electrons'):
             assert dead not in params, '%s still exposes %s' % (name, dead)
+
+
+def test_the_neutron_to_proton_ratio_is_inert_on_the_sun_only_below_four_flavours():
+    """It has two jobs, and only one of them is dead on a solar profile.
+
+    Converting a mass density to an electron number density needs the average nucleon
+    mass, which depends on r -- and that conversion never runs for the Sun, which is
+    where the test above comes from.  But r also sets the sterile states' entry in the
+    matter projector, r/2, and that has nothing to do with the density conversion.
+
+    So removing it everywhere went one wrapper too far.  At two and three flavours the
+    projector's sterile block is empty and r genuinely has nowhere to act.  At four and
+    five it does: on ``osc_prob_5nu_sun_liv``, which previously pinned r = 1.0 in its
+    own delegation with no way for a caller to reach it, moving to the Sun's own
+    r ~ 0.29 changes the averaged survival probability by 4.5e-03 -- above the default
+    tolerance.  The Sun is hydrogen-rich, so isoscalar r = 1.0 is not merely one choice
+    among several: Y_e = (1 + X)/2 puts the true r between about 0.47 and 0.14, and 1.0
+    is outside that range entirely.
+    """
+    import inspect
+    for name in ('osc_prob_2nu_sun', 'osc_prob_3nu_sun', 'osc_prob_3nu_sun_nsi',
+                 'osc_prob_3nu_sun_liv'):
+        assert 'ratio_number_neutrons_to_protons' not in inspect.signature(
+            getattr(op, name)).parameters, name
+    for name in ('osc_prob_4nu_sun', 'osc_prob_5nu_sun', 'osc_prob_4nu_sun_nsi',
+                 'osc_prob_5nu_sun_nsi', 'osc_prob_4nu_sun_liv', 'osc_prob_5nu_sun_liv'):
+        assert 'ratio_number_neutrons_to_protons' in inspect.signature(
+            getattr(op, name)).parameters, name

@@ -2872,6 +2872,17 @@ def osc_prob(
         slabs are computed in a single vectorized (batched) call, which
         is usually fastest; use ``n_jobs > 1`` only for very expensive
         Hamiltonian functions.
+
+        **It is not a pure performance knob.**  Splitting the slabs across
+        workers changes the order the arithmetic is done in, and the
+        refinement ladder's stopping test compares successive levels, so it
+        can stop one level earlier or later than the serial run.  The two
+        agree to the tolerance you asked for and no better: measured on a
+        3nu PREM chord over eight energies, serial against two workers
+        differs by 1.2e-03 at the default ``rtol = 1e-3``, 6.6e-08 at
+        ``rtol = 1e-6`` and 5.6e-11 at ``rtol = 1e-9``.  If you need runs to
+        be comparable bit for bit, hold ``n_jobs`` fixed, or tighten the
+        tolerance until the difference is below what you care about.
     integration_method : str, optional
         'gl' for Gauss-Legendre collocation, which needs only 1, 2, or 3
         Hamiltonian evaluations per slab for orders <= 2, <= 4, <= 6, and
@@ -10385,6 +10396,21 @@ def osc_prob_2nu_earth(
     # converges at its nominal order only if the Hamiltonian is smooth inside each slab.
     t_breakpoints = earth.prem_layer_edges_along_chord(costhz)*gd.UNIT_KM # [eV^{-1}]
 
+    # A caller may have breakpoints of their own -- a feature in a custom H, say.  These
+    # wrappers set t_breakpoints themselves, so an argument of the same name arrived in
+    # **kwargs and collided, and the caller got "got multiple values for keyword argument
+    # 't_breakpoints'" raised from two layers down.  The keyword is listed as forwardable
+    # in this package's own unrecognised-keyword message, so it was reachable and broken.
+    # The two sets are merged rather than one replacing the other: the PREM crossings are
+    # required for the quadrature to be O(h^2) across a density jump, so dropping them
+    # silently would be the defect t_breakpoints exists to prevent.  To place every edge
+    # yourself instead, pass t_slab_edges, which is the complete set.
+    _user_breakpoints = kwargs.pop('t_breakpoints', None)
+    if _user_breakpoints is not None:
+        t_breakpoints = np.unique(np.concatenate(
+            [np.atleast_1d(np.asarray(t_breakpoints, dtype=float)),
+             np.atleast_1d(np.asarray(_user_breakpoints, dtype=float))]))
+
     # If any of the flavor indices is > 1, fix it (read the docstring above).
     nu_i, nu_f = valid_flavor_indices_2nu(nu_i, nu_f)
 
@@ -10653,6 +10679,21 @@ def osc_prob_3nu_earth(
     # matter density is discontinuous there, and the high-order quadrature of the Magnus kernel
     # converges at its nominal order only if the Hamiltonian is smooth inside each slab.
     t_breakpoints = earth.prem_layer_edges_along_chord(costhz)*gd.UNIT_KM # [eV^{-1}]
+
+    # A caller may have breakpoints of their own -- a feature in a custom H, say.  These
+    # wrappers set t_breakpoints themselves, so an argument of the same name arrived in
+    # **kwargs and collided, and the caller got "got multiple values for keyword argument
+    # 't_breakpoints'" raised from two layers down.  The keyword is listed as forwardable
+    # in this package's own unrecognised-keyword message, so it was reachable and broken.
+    # The two sets are merged rather than one replacing the other: the PREM crossings are
+    # required for the quadrature to be O(h^2) across a density jump, so dropping them
+    # silently would be the defect t_breakpoints exists to prevent.  To place every edge
+    # yourself instead, pass t_slab_edges, which is the complete set.
+    _user_breakpoints = kwargs.pop('t_breakpoints', None)
+    if _user_breakpoints is not None:
+        t_breakpoints = np.unique(np.concatenate(
+            [np.atleast_1d(np.asarray(t_breakpoints, dtype=float)),
+             np.atleast_1d(np.asarray(_user_breakpoints, dtype=float))]))
     
     # The function earth.density_matter_func_prem returns the internal matter density of the Earth
     # as a function of radial distance, r, using the Preliminary Reference Earth Model (PREM). The
@@ -10940,6 +10981,21 @@ def osc_prob_4nu_earth(
     # matter density is discontinuous there, and the high-order quadrature of the Magnus kernel
     # converges at its nominal order only if the Hamiltonian is smooth inside each slab.
     t_breakpoints = earth.prem_layer_edges_along_chord(costhz)*gd.UNIT_KM # [eV^{-1}]
+
+    # A caller may have breakpoints of their own -- a feature in a custom H, say.  These
+    # wrappers set t_breakpoints themselves, so an argument of the same name arrived in
+    # **kwargs and collided, and the caller got "got multiple values for keyword argument
+    # 't_breakpoints'" raised from two layers down.  The keyword is listed as forwardable
+    # in this package's own unrecognised-keyword message, so it was reachable and broken.
+    # The two sets are merged rather than one replacing the other: the PREM crossings are
+    # required for the quadrature to be O(h^2) across a density jump, so dropping them
+    # silently would be the defect t_breakpoints exists to prevent.  To place every edge
+    # yourself instead, pass t_slab_edges, which is the complete set.
+    _user_breakpoints = kwargs.pop('t_breakpoints', None)
+    if _user_breakpoints is not None:
+        t_breakpoints = np.unique(np.concatenate(
+            [np.atleast_1d(np.asarray(t_breakpoints, dtype=float)),
+             np.atleast_1d(np.asarray(_user_breakpoints, dtype=float))]))
     
     # The function earth.density_matter_func_prem returns the internal matter density of the Earth
     # as a function of radial distance, r, using the Preliminary Reference Earth Model (PREM). The
@@ -11248,6 +11304,21 @@ def osc_prob_5nu_earth(
     # matter density is discontinuous there, and the high-order quadrature of the Magnus kernel
     # converges at its nominal order only if the Hamiltonian is smooth inside each slab.
     t_breakpoints = earth.prem_layer_edges_along_chord(costhz)*gd.UNIT_KM # [eV^{-1}]
+
+    # A caller may have breakpoints of their own -- a feature in a custom H, say.  These
+    # wrappers set t_breakpoints themselves, so an argument of the same name arrived in
+    # **kwargs and collided, and the caller got "got multiple values for keyword argument
+    # 't_breakpoints'" raised from two layers down.  The keyword is listed as forwardable
+    # in this package's own unrecognised-keyword message, so it was reachable and broken.
+    # The two sets are merged rather than one replacing the other: the PREM crossings are
+    # required for the quadrature to be O(h^2) across a density jump, so dropping them
+    # silently would be the defect t_breakpoints exists to prevent.  To place every edge
+    # yourself instead, pass t_slab_edges, which is the complete set.
+    _user_breakpoints = kwargs.pop('t_breakpoints', None)
+    if _user_breakpoints is not None:
+        t_breakpoints = np.unique(np.concatenate(
+            [np.atleast_1d(np.asarray(t_breakpoints, dtype=float)),
+             np.atleast_1d(np.asarray(_user_breakpoints, dtype=float))]))
     
     # The function earth.density_matter_func_prem returns the internal matter density of the Earth
     # as a function of radial distance, r, using the Preliminary Reference Earth Model (PREM). The
@@ -11481,6 +11552,21 @@ def osc_prob_earth(
 
     # Align the slab edges with the crossings of the PREM layer boundaries along the chord
     t_breakpoints = earth.prem_layer_edges_along_chord(costhz)*gd.UNIT_KM # [eV^{-1}]
+
+    # A caller may have breakpoints of their own -- a feature in a custom H, say.  These
+    # wrappers set t_breakpoints themselves, so an argument of the same name arrived in
+    # **kwargs and collided, and the caller got "got multiple values for keyword argument
+    # 't_breakpoints'" raised from two layers down.  The keyword is listed as forwardable
+    # in this package's own unrecognised-keyword message, so it was reachable and broken.
+    # The two sets are merged rather than one replacing the other: the PREM crossings are
+    # required for the quadrature to be O(h^2) across a density jump, so dropping them
+    # silently would be the defect t_breakpoints exists to prevent.  To place every edge
+    # yourself instead, pass t_slab_edges, which is the complete set.
+    _user_breakpoints = kwargs.pop('t_breakpoints', None)
+    if _user_breakpoints is not None:
+        t_breakpoints = np.unique(np.concatenate(
+            [np.atleast_1d(np.asarray(t_breakpoints, dtype=float)),
+             np.atleast_1d(np.asarray(_user_breakpoints, dtype=float))]))
 
     # Charged-current potential along the chord from the PREM electron density; the antineutrino
     # sign flip is applied inside matter.vcc_func_from_rho_func.  The profile evaluations are
@@ -12025,6 +12111,7 @@ def osc_prob_4nu_sun(
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
     angles: Optional[str]='sin',
+    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
     **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the four-neutrino (3+1) oscillation 
     probability for neutrinos inside the Sun.
@@ -12131,6 +12218,21 @@ def osc_prob_4nu_sun(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    ratio_number_neutrons_to_protons : int or float, optional
+        :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
+        matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
+        (isoscalar matter, i.e. :math:`Y_e = 0.5`).
+
+        **The Sun is not isoscalar, and this is the only way to say so.**  It is
+        hydrogen-rich, so :math:`Y_e = (1 + X)/2` runs from about 0.68 at the centre to
+        0.88 near the surface, and :math:`r = (1 - Y_e)/Y_e` from about 0.47 down to
+        0.14 -- nowhere near 1.0, unlike the Earth where the isoscalar value at least
+        sits among the layers.  The solar profile is a fit to the electron *number*
+        density, so :math:`Y_e` is already inside it and there is nothing for the
+        library to derive :math:`r` from: it has to be stated here.  Left at 1.0 the
+        averaged survival probability moves by about 4e-03 at
+        :math:`\sin\theta_{14} = 0.4`, above the default tolerance.  Three flavours are
+        unaffected -- the projector's sterile block is empty.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -12175,6 +12277,7 @@ def osc_prob_4nu_sun(
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
         angles=angles,
+        ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
         **kwargs
     )
 
@@ -12213,6 +12316,7 @@ def osc_prob_5nu_sun(
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
     angles: Optional[str]='sin',
+    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
     **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the five-neutrino (3+2) oscillation 
     probability for neutrinos inside the Sun.
@@ -12334,6 +12438,21 @@ def osc_prob_5nu_sun(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    ratio_number_neutrons_to_protons : int or float, optional
+        :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
+        matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
+        (isoscalar matter, i.e. :math:`Y_e = 0.5`).
+
+        **The Sun is not isoscalar, and this is the only way to say so.**  It is
+        hydrogen-rich, so :math:`Y_e = (1 + X)/2` runs from about 0.68 at the centre to
+        0.88 near the surface, and :math:`r = (1 - Y_e)/Y_e` from about 0.47 down to
+        0.14 -- nowhere near 1.0, unlike the Earth where the isoscalar value at least
+        sits among the layers.  The solar profile is a fit to the electron *number*
+        density, so :math:`Y_e` is already inside it and there is nothing for the
+        library to derive :math:`r` from: it has to be stated here.  Left at 1.0 the
+        averaged survival probability moves by about 4e-03 at
+        :math:`\sin\theta_{14} = 0.4`, above the default tolerance.  Three flavours are
+        unaffected -- the projector's sterile block is empty.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -12384,6 +12503,7 @@ def osc_prob_5nu_sun(
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
         angles=angles,
+        ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
         **kwargs
     )
 
@@ -14078,6 +14198,21 @@ def osc_prob_2nu_earth_nsi(
     # matter density is discontinuous there, and the high-order quadrature of the Magnus kernel
     # converges at its nominal order only if the Hamiltonian is smooth inside each slab.
     t_breakpoints = earth.prem_layer_edges_along_chord(costhz)*gd.UNIT_KM # [eV^{-1}]
+
+    # A caller may have breakpoints of their own -- a feature in a custom H, say.  These
+    # wrappers set t_breakpoints themselves, so an argument of the same name arrived in
+    # **kwargs and collided, and the caller got "got multiple values for keyword argument
+    # 't_breakpoints'" raised from two layers down.  The keyword is listed as forwardable
+    # in this package's own unrecognised-keyword message, so it was reachable and broken.
+    # The two sets are merged rather than one replacing the other: the PREM crossings are
+    # required for the quadrature to be O(h^2) across a density jump, so dropping them
+    # silently would be the defect t_breakpoints exists to prevent.  To place every edge
+    # yourself instead, pass t_slab_edges, which is the complete set.
+    _user_breakpoints = kwargs.pop('t_breakpoints', None)
+    if _user_breakpoints is not None:
+        t_breakpoints = np.unique(np.concatenate(
+            [np.atleast_1d(np.asarray(t_breakpoints, dtype=float)),
+             np.atleast_1d(np.asarray(_user_breakpoints, dtype=float))]))
     
     # If any of the flavor indices is > 1, fix it (read the docstring above).
     nu_i, nu_f = valid_flavor_indices_2nu(nu_i, nu_f)
@@ -14364,6 +14499,21 @@ def osc_prob_3nu_earth_nsi(
     # matter density is discontinuous there, and the high-order quadrature of the Magnus kernel
     # converges at its nominal order only if the Hamiltonian is smooth inside each slab.
     t_breakpoints = earth.prem_layer_edges_along_chord(costhz)*gd.UNIT_KM # [eV^{-1}]
+
+    # A caller may have breakpoints of their own -- a feature in a custom H, say.  These
+    # wrappers set t_breakpoints themselves, so an argument of the same name arrived in
+    # **kwargs and collided, and the caller got "got multiple values for keyword argument
+    # 't_breakpoints'" raised from two layers down.  The keyword is listed as forwardable
+    # in this package's own unrecognised-keyword message, so it was reachable and broken.
+    # The two sets are merged rather than one replacing the other: the PREM crossings are
+    # required for the quadrature to be O(h^2) across a density jump, so dropping them
+    # silently would be the defect t_breakpoints exists to prevent.  To place every edge
+    # yourself instead, pass t_slab_edges, which is the complete set.
+    _user_breakpoints = kwargs.pop('t_breakpoints', None)
+    if _user_breakpoints is not None:
+        t_breakpoints = np.unique(np.concatenate(
+            [np.atleast_1d(np.asarray(t_breakpoints, dtype=float)),
+             np.atleast_1d(np.asarray(_user_breakpoints, dtype=float))]))
     
     # The function earth.density_matter_func_prem returns the internal matter density of the Earth
     # as a function of radial distance, r, using the Preliminary Reference Earth Model (PREM). The
@@ -14681,6 +14831,21 @@ def osc_prob_4nu_earth_nsi(
     # matter density is discontinuous there, and the high-order quadrature of the Magnus kernel
     # converges at its nominal order only if the Hamiltonian is smooth inside each slab.
     t_breakpoints = earth.prem_layer_edges_along_chord(costhz)*gd.UNIT_KM # [eV^{-1}]
+
+    # A caller may have breakpoints of their own -- a feature in a custom H, say.  These
+    # wrappers set t_breakpoints themselves, so an argument of the same name arrived in
+    # **kwargs and collided, and the caller got "got multiple values for keyword argument
+    # 't_breakpoints'" raised from two layers down.  The keyword is listed as forwardable
+    # in this package's own unrecognised-keyword message, so it was reachable and broken.
+    # The two sets are merged rather than one replacing the other: the PREM crossings are
+    # required for the quadrature to be O(h^2) across a density jump, so dropping them
+    # silently would be the defect t_breakpoints exists to prevent.  To place every edge
+    # yourself instead, pass t_slab_edges, which is the complete set.
+    _user_breakpoints = kwargs.pop('t_breakpoints', None)
+    if _user_breakpoints is not None:
+        t_breakpoints = np.unique(np.concatenate(
+            [np.atleast_1d(np.asarray(t_breakpoints, dtype=float)),
+             np.atleast_1d(np.asarray(_user_breakpoints, dtype=float))]))
     
     # The function earth.density_matter_func_prem returns the internal matter density of the Earth
     # as a function of radial distance, r, using the Preliminary Reference Earth Model (PREM). The
@@ -15036,6 +15201,21 @@ def osc_prob_5nu_earth_nsi(
     # matter density is discontinuous there, and the high-order quadrature of the Magnus kernel
     # converges at its nominal order only if the Hamiltonian is smooth inside each slab.
     t_breakpoints = earth.prem_layer_edges_along_chord(costhz)*gd.UNIT_KM # [eV^{-1}]
+
+    # A caller may have breakpoints of their own -- a feature in a custom H, say.  These
+    # wrappers set t_breakpoints themselves, so an argument of the same name arrived in
+    # **kwargs and collided, and the caller got "got multiple values for keyword argument
+    # 't_breakpoints'" raised from two layers down.  The keyword is listed as forwardable
+    # in this package's own unrecognised-keyword message, so it was reachable and broken.
+    # The two sets are merged rather than one replacing the other: the PREM crossings are
+    # required for the quadrature to be O(h^2) across a density jump, so dropping them
+    # silently would be the defect t_breakpoints exists to prevent.  To place every edge
+    # yourself instead, pass t_slab_edges, which is the complete set.
+    _user_breakpoints = kwargs.pop('t_breakpoints', None)
+    if _user_breakpoints is not None:
+        t_breakpoints = np.unique(np.concatenate(
+            [np.atleast_1d(np.asarray(t_breakpoints, dtype=float)),
+             np.atleast_1d(np.asarray(_user_breakpoints, dtype=float))]))
     
     # The function earth.density_matter_func_prem returns the internal matter density of the Earth
     # as a function of radial distance, r, using the Preliminary Reference Earth Model (PREM). The
@@ -15458,6 +15638,7 @@ def osc_prob_4nu_sun_nsi(
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
     angles: Optional[str]='sin',
+    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
     **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the four-neutrino (3+1) oscillation 
     probability for neutrinos inside the Sun.
@@ -15582,6 +15763,21 @@ def osc_prob_4nu_sun_nsi(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    ratio_number_neutrons_to_protons : int or float, optional
+        :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
+        matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
+        (isoscalar matter, i.e. :math:`Y_e = 0.5`).
+
+        **The Sun is not isoscalar, and this is the only way to say so.**  It is
+        hydrogen-rich, so :math:`Y_e = (1 + X)/2` runs from about 0.68 at the centre to
+        0.88 near the surface, and :math:`r = (1 - Y_e)/Y_e` from about 0.47 down to
+        0.14 -- nowhere near 1.0, unlike the Earth where the isoscalar value at least
+        sits among the layers.  The solar profile is a fit to the electron *number*
+        density, so :math:`Y_e` is already inside it and there is nothing for the
+        library to derive :math:`r` from: it has to be stated here.  Left at 1.0 the
+        averaged survival probability moves by about 4e-03 at
+        :math:`\sin\theta_{14} = 0.4`, above the default tolerance.  Three flavours are
+        unaffected -- the projector's sterile block is empty.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -15636,6 +15832,7 @@ def osc_prob_4nu_sun_nsi(
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
         angles=angles,
+        ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
         **kwargs
     )
 
@@ -15689,6 +15886,7 @@ def osc_prob_5nu_sun_nsi(
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
     angles: Optional[str]='sin',
+    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
     **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the five-neutrino (3+2) oscillation 
     probability for neutrinos inside the Sun.
@@ -15838,6 +16036,21 @@ def osc_prob_5nu_sun_nsi(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    ratio_number_neutrons_to_protons : int or float, optional
+        :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
+        matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
+        (isoscalar matter, i.e. :math:`Y_e = 0.5`).
+
+        **The Sun is not isoscalar, and this is the only way to say so.**  It is
+        hydrogen-rich, so :math:`Y_e = (1 + X)/2` runs from about 0.68 at the centre to
+        0.88 near the surface, and :math:`r = (1 - Y_e)/Y_e` from about 0.47 down to
+        0.14 -- nowhere near 1.0, unlike the Earth where the isoscalar value at least
+        sits among the layers.  The solar profile is a fit to the electron *number*
+        density, so :math:`Y_e` is already inside it and there is nothing for the
+        library to derive :math:`r` from: it has to be stated here.  Left at 1.0 the
+        averaged survival probability moves by about 4e-03 at
+        :math:`\sin\theta_{14} = 0.4`, above the default tolerance.  Three flavours are
+        unaffected -- the projector's sterile block is empty.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -15903,6 +16116,7 @@ def osc_prob_5nu_sun_nsi(
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
         angles=angles,
+        ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
         **kwargs
     )
 
@@ -18129,6 +18343,21 @@ def osc_prob_2nu_earth_liv(
     # matter density is discontinuous there, and the high-order quadrature of the Magnus kernel
     # converges at its nominal order only if the Hamiltonian is smooth inside each slab.
     t_breakpoints = earth.prem_layer_edges_along_chord(costhz)*gd.UNIT_KM # [eV^{-1}]
+
+    # A caller may have breakpoints of their own -- a feature in a custom H, say.  These
+    # wrappers set t_breakpoints themselves, so an argument of the same name arrived in
+    # **kwargs and collided, and the caller got "got multiple values for keyword argument
+    # 't_breakpoints'" raised from two layers down.  The keyword is listed as forwardable
+    # in this package's own unrecognised-keyword message, so it was reachable and broken.
+    # The two sets are merged rather than one replacing the other: the PREM crossings are
+    # required for the quadrature to be O(h^2) across a density jump, so dropping them
+    # silently would be the defect t_breakpoints exists to prevent.  To place every edge
+    # yourself instead, pass t_slab_edges, which is the complete set.
+    _user_breakpoints = kwargs.pop('t_breakpoints', None)
+    if _user_breakpoints is not None:
+        t_breakpoints = np.unique(np.concatenate(
+            [np.atleast_1d(np.asarray(t_breakpoints, dtype=float)),
+             np.atleast_1d(np.asarray(_user_breakpoints, dtype=float))]))
     
     # If any of the flavor indices is > 1, fix it (read the docstring above).
     nu_i, nu_f = valid_flavor_indices_2nu(nu_i, nu_f)
@@ -18426,6 +18655,21 @@ def osc_prob_3nu_earth_liv(
     # matter density is discontinuous there, and the high-order quadrature of the Magnus kernel
     # converges at its nominal order only if the Hamiltonian is smooth inside each slab.
     t_breakpoints = earth.prem_layer_edges_along_chord(costhz)*gd.UNIT_KM # [eV^{-1}]
+
+    # A caller may have breakpoints of their own -- a feature in a custom H, say.  These
+    # wrappers set t_breakpoints themselves, so an argument of the same name arrived in
+    # **kwargs and collided, and the caller got "got multiple values for keyword argument
+    # 't_breakpoints'" raised from two layers down.  The keyword is listed as forwardable
+    # in this package's own unrecognised-keyword message, so it was reachable and broken.
+    # The two sets are merged rather than one replacing the other: the PREM crossings are
+    # required for the quadrature to be O(h^2) across a density jump, so dropping them
+    # silently would be the defect t_breakpoints exists to prevent.  To place every edge
+    # yourself instead, pass t_slab_edges, which is the complete set.
+    _user_breakpoints = kwargs.pop('t_breakpoints', None)
+    if _user_breakpoints is not None:
+        t_breakpoints = np.unique(np.concatenate(
+            [np.atleast_1d(np.asarray(t_breakpoints, dtype=float)),
+             np.atleast_1d(np.asarray(_user_breakpoints, dtype=float))]))
     
     # The function earth.density_matter_func_prem returns the internal matter density of the Earth
     # as a function of radial distance, r, using the Preliminary Reference Earth Model (PREM). The
@@ -18758,6 +19002,21 @@ def osc_prob_4nu_earth_liv(
     # matter density is discontinuous there, and the high-order quadrature of the Magnus kernel
     # converges at its nominal order only if the Hamiltonian is smooth inside each slab.
     t_breakpoints = earth.prem_layer_edges_along_chord(costhz)*gd.UNIT_KM # [eV^{-1}]
+
+    # A caller may have breakpoints of their own -- a feature in a custom H, say.  These
+    # wrappers set t_breakpoints themselves, so an argument of the same name arrived in
+    # **kwargs and collided, and the caller got "got multiple values for keyword argument
+    # 't_breakpoints'" raised from two layers down.  The keyword is listed as forwardable
+    # in this package's own unrecognised-keyword message, so it was reachable and broken.
+    # The two sets are merged rather than one replacing the other: the PREM crossings are
+    # required for the quadrature to be O(h^2) across a density jump, so dropping them
+    # silently would be the defect t_breakpoints exists to prevent.  To place every edge
+    # yourself instead, pass t_slab_edges, which is the complete set.
+    _user_breakpoints = kwargs.pop('t_breakpoints', None)
+    if _user_breakpoints is not None:
+        t_breakpoints = np.unique(np.concatenate(
+            [np.atleast_1d(np.asarray(t_breakpoints, dtype=float)),
+             np.atleast_1d(np.asarray(_user_breakpoints, dtype=float))]))
     
     # The function earth.density_matter_func_prem returns the internal matter density of the Earth
     # as a function of radial distance, r, using the Preliminary Reference Earth Model (PREM). The
@@ -19129,6 +19388,21 @@ def osc_prob_5nu_earth_liv(
     # matter density is discontinuous there, and the high-order quadrature of the Magnus kernel
     # converges at its nominal order only if the Hamiltonian is smooth inside each slab.
     t_breakpoints = earth.prem_layer_edges_along_chord(costhz)*gd.UNIT_KM # [eV^{-1}]
+
+    # A caller may have breakpoints of their own -- a feature in a custom H, say.  These
+    # wrappers set t_breakpoints themselves, so an argument of the same name arrived in
+    # **kwargs and collided, and the caller got "got multiple values for keyword argument
+    # 't_breakpoints'" raised from two layers down.  The keyword is listed as forwardable
+    # in this package's own unrecognised-keyword message, so it was reachable and broken.
+    # The two sets are merged rather than one replacing the other: the PREM crossings are
+    # required for the quadrature to be O(h^2) across a density jump, so dropping them
+    # silently would be the defect t_breakpoints exists to prevent.  To place every edge
+    # yourself instead, pass t_slab_edges, which is the complete set.
+    _user_breakpoints = kwargs.pop('t_breakpoints', None)
+    if _user_breakpoints is not None:
+        t_breakpoints = np.unique(np.concatenate(
+            [np.atleast_1d(np.asarray(t_breakpoints, dtype=float)),
+             np.atleast_1d(np.asarray(_user_breakpoints, dtype=float))]))
     
     # The function earth.density_matter_func_prem returns the internal matter density of the Earth
     # as a function of radial distance, r, using the Preliminary Reference Earth Model (PREM). The
@@ -19532,6 +19806,7 @@ def osc_prob_4nu_sun_liv(
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
     angles: Optional[str]='sin',
+    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
     **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the four-neutrino oscillation probability 
     for neutrinos inside the Sun, under (one form of) Lorentz-invariance
@@ -19636,6 +19911,21 @@ def osc_prob_4nu_sun_liv(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    ratio_number_neutrons_to_protons : int or float, optional
+        :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
+        matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
+        (isoscalar matter, i.e. :math:`Y_e = 0.5`).
+
+        **The Sun is not isoscalar, and this is the only way to say so.**  It is
+        hydrogen-rich, so :math:`Y_e = (1 + X)/2` runs from about 0.68 at the centre to
+        0.88 near the surface, and :math:`r = (1 - Y_e)/Y_e` from about 0.47 down to
+        0.14 -- nowhere near 1.0, unlike the Earth where the isoscalar value at least
+        sits among the layers.  The solar profile is a fit to the electron *number*
+        density, so :math:`Y_e` is already inside it and there is nothing for the
+        library to derive :math:`r` from: it has to be stated here.  Left at 1.0 the
+        averaged survival probability moves by about 4e-03 at
+        :math:`\sin\theta_{14} = 0.4`, above the default tolerance.  Three flavours are
+        unaffected -- the projector's sterile block is empty.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -19688,7 +19978,6 @@ def osc_prob_4nu_sun_liv(
         # matching osc_prob_Nnu_sun and osc_prob_Nnu_sun_nsi, which never took them:
         # a parameter the caller can set and the calculation ignores is worse than
         # no parameter, because nothing says it was ignored.
-        ratio_number_neutrons_to_protons=1.0,
         electron_fraction=0.5,
         nubar=nubar,
         nu_i=nu_i,
@@ -19703,6 +19992,7 @@ def osc_prob_4nu_sun_liv(
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
         angles=angles,
+        ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
         **kwargs
     )
 
@@ -19761,6 +20051,7 @@ def osc_prob_5nu_sun_liv(
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
     angles: Optional[str]='sin',
+    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
     **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the five-neutrino oscillation probability 
     for neutrinos inside the Sun, under (one form of) Lorentz-invariance
@@ -19889,6 +20180,21 @@ def osc_prob_5nu_sun_liv(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    ratio_number_neutrons_to_protons : int or float, optional
+        :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
+        matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
+        (isoscalar matter, i.e. :math:`Y_e = 0.5`).
+
+        **The Sun is not isoscalar, and this is the only way to say so.**  It is
+        hydrogen-rich, so :math:`Y_e = (1 + X)/2` runs from about 0.68 at the centre to
+        0.88 near the surface, and :math:`r = (1 - Y_e)/Y_e` from about 0.47 down to
+        0.14 -- nowhere near 1.0, unlike the Earth where the isoscalar value at least
+        sits among the layers.  The solar profile is a fit to the electron *number*
+        density, so :math:`Y_e` is already inside it and there is nothing for the
+        library to derive :math:`r` from: it has to be stated here.  Left at 1.0 the
+        averaged survival probability moves by about 4e-03 at
+        :math:`\sin\theta_{14} = 0.4`, above the default tolerance.  Three flavours are
+        unaffected -- the projector's sterile block is empty.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -19953,7 +20259,6 @@ def osc_prob_5nu_sun_liv(
         # matching osc_prob_Nnu_sun and osc_prob_Nnu_sun_nsi, which never took them:
         # a parameter the caller can set and the calculation ignores is worse than
         # no parameter, because nothing says it was ignored.
-        ratio_number_neutrons_to_protons=1.0,
         electron_fraction=0.5,
         nubar=nubar,
         nu_i=nu_i,
@@ -19968,6 +20273,7 @@ def osc_prob_5nu_sun_liv(
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
         angles=angles,
+        ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
         **kwargs
     )
 
