@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (C) 2026 Mauricio Bustamante
 r"""avgprob.py
 
 Contains the *phase-averaged* (fully decohered) oscillation
@@ -303,7 +305,7 @@ def averaged_probabilities_from_eigenbasis(
     """
     V = np.asarray(eigenvectors, dtype=complex)
     if V.ndim < 2 or V.shape[-1] != V.shape[-2]:
-        raise ValueError("magnus.avgprob.averaged_probabilities_from_eigenbasis: eigenvectors "
+        raise ValueError("Error in magnus: magnus.avgprob.averaged_probabilities_from_eigenbasis: eigenvectors "
             "must be square, of shape (..., d, d), not " + str(V.shape) + ".")
 
     d = V.shape[-1]
@@ -312,7 +314,7 @@ def averaged_probabilities_from_eigenbasis(
 
     seen = sorted(i for b in blocks for i in b)
     if seen != list(range(d)):
-        raise ValueError("magnus.avgprob.averaged_probabilities_from_eigenbasis: the blocks must "
+        raise ValueError("Error in magnus: magnus.avgprob.averaged_probabilities_from_eigenbasis: the blocks must "
             "partition the " + str(d) + " eigenvalue indices exactly once each; got " + str(blocks)
             + ".")
 
@@ -358,7 +360,7 @@ def averaged_probabilities_constant_hamiltonian(
     """
     H = np.asarray(hamiltonian, dtype=complex)
     if H.ndim < 2 or H.shape[-1] != H.shape[-2]:
-        raise ValueError("magnus.avgprob.averaged_probabilities_constant_hamiltonian: the "
+        raise ValueError("Error in magnus: magnus.avgprob.averaged_probabilities_constant_hamiltonian: the "
             "Hamiltonian must be square, of shape (..., d, d), not " + str(H.shape) + ".")
 
     eigenvalues, eigenvectors = np.linalg.eigh(H)
@@ -367,7 +369,7 @@ def averaged_probabilities_constant_hamiltonian(
         return averaged_probabilities_from_eigenbasis(eigenvectors)
 
     if H.ndim > 2:
-        raise ValueError("magnus.avgprob.averaged_probabilities_constant_hamiltonian: a baseline "
+        raise ValueError("Error in magnus: magnus.avgprob.averaged_probabilities_constant_hamiltonian: a baseline "
             "can only be given for a single Hamiltonian, not for a batch of shape "
             + str(H.shape) + ", since the coherence structure may differ from one to the next.")
 
@@ -447,10 +449,10 @@ def averaged_probabilities_numerically(
         entries -- the honest uncertainty of the result, which a closed form would not have.
     """
     if not (0.0 < relative_spread < 1.0):
-        raise ValueError("magnus.avgprob.averaged_probabilities_numerically: relative_spread "
+        raise ValueError("Error in magnus: magnus.avgprob.averaged_probabilities_numerically: relative_spread "
             "must be between 0 and 1, not " + str(relative_spread) + ".")
     if int(n_samples) < 2:
-        raise ValueError("magnus.avgprob.averaged_probabilities_numerically: n_samples must be "
+        raise ValueError("Error in magnus: magnus.avgprob.averaged_probabilities_numerically: n_samples must be "
             "at least 2, not " + str(n_samples) + ".")
 
     e_low = float(energy)*(1.0 - relative_spread)

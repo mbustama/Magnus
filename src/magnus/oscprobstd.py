@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (C) 2026 Mauricio Bustamante
 r"""oscprobstd.py
 
 Closed-form (non-Magnus) two- and three-neutrino oscillation
@@ -27,8 +29,11 @@ __email__ = "mbustamante@gmail.com"
 import numpy as np
 from typing import Optional, Union
 
+from magnus.hamiltonians import _angles
 
-def osc_prob_2nu_vacuum_std(sth: float, Dm2: float, energy: float, L: float) -> np.ndarray:
+
+def osc_prob_2nu_vacuum_std(sth: float, Dm2: float, energy: float, L: float,
+    angles: Optional[str]='sin') -> np.ndarray:
     r"""Returns 2nu oscillation vacuum probabilities, std. computation.
 
     Returns the probabilities for two-neutrino oscillations in vacuum, computed using the standard
@@ -39,13 +44,18 @@ def osc_prob_2nu_vacuum_std(sth: float, Dm2: float, energy: float, L: float) -> 
     Parameters
     ----------
     sth : float
-        Sine of the mixing angle :math:`\theta`.
+        Mixing angle :math:`\theta`, in the convention set by ``angles`` (default: its sine).
     Dm2 : float
         Mass-squared difference :math:`\Delta m^2`.
     energy : float
         Neutrino energy.
     L : float
         Baseline.
+    angles : str, optional
+        How the mixing angle is stated: ``'sin'`` (default) its sine,
+        ``'sin2'`` its sine *squared* -- which is what global fits report --
+        ``'rad'`` the angle itself in radians, or ``'deg'`` in degrees.  Any other
+        value raises.
 
     Returns
     -------
@@ -67,6 +77,7 @@ def osc_prob_2nu_vacuum_std(sth: float, Dm2: float, energy: float, L: float) -> 
         print('P_ee = %.6f' % P[0][0])
 """
     # arg = 1.27*Dm2*L/energy#/4.0
+    sth = _angles.resolve('oscprobstd.osc_prob_2nu_vacuum_std', angles, {'sth': sth})[0]['sth']
     cth = np.sqrt(1.0-sth*sth)
     s2th = 2.0*sth*cth
 
@@ -81,7 +92,7 @@ def osc_prob_2nu_vacuum_std(sth: float, Dm2: float, energy: float, L: float) -> 
 
 
 def osc_prob_2nu_matter_std(sth: float, Dm2: float, VCC: float, energy: float, 
-    L: float) -> np.ndarray:
+    L: float, angles: Optional[str]='sin') -> np.ndarray:
     r"""Returns 2nu oscillation matter probabilities, std. computation.
 
     Returns the probabilities for two-neutrino oscillations in matter, computed using the standard
@@ -92,7 +103,7 @@ def osc_prob_2nu_matter_std(sth: float, Dm2: float, VCC: float, energy: float,
     Parameters
     ----------
     sth : float
-        Sine of the mixing angle :math:`\theta`.
+        Mixing angle :math:`\theta`, in the convention set by ``angles`` (default: its sine).
     Dm2 : float
         Mass-squared difference :math:`\Delta m^2`.
     VCC : float
@@ -101,6 +112,11 @@ def osc_prob_2nu_matter_std(sth: float, Dm2: float, VCC: float, energy: float,
         Neutrino energy.
     L : float
         Baseline.
+    angles : str, optional
+        How the mixing angle is stated: ``'sin'`` (default) its sine,
+        ``'sin2'`` its sine *squared* -- which is what global fits report --
+        ``'rad'`` the angle itself in radians, or ``'deg'`` in degrees.  Any other
+        value raises.
 
     Returns
     -------
@@ -123,6 +139,7 @@ def osc_prob_2nu_matter_std(sth: float, Dm2: float, VCC: float, energy: float,
 """
     # x = 2.0*VCC*(energy*1.e9)/Dm2
     x = 2.0*VCC*(energy)/Dm2
+    sth = _angles.resolve('oscprobstd.osc_prob_2nu_matter_std', angles, {'sth': sth})[0]['sth']
     cth = np.sqrt(1.0-sth*sth)
     s2th = 2.0*sth*cth
     s2thsq = s2th*s2th

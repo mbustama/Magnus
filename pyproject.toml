@@ -8,7 +8,7 @@ build-backend = "setuptools.build_meta"
 # [tool.setuptools.packages.find] below); the two are independent, and plain
 # `magnus` was already taken on PyPI by an unrelated project.
 name = "magnuspy"
-version = "1.0.0rc1"
+version = "1.0.0"
 description = "Neutrino oscillation probabilities via the Magnus expansion, for an arbitrary number of flavors and any Hamiltonian, time-dependent or not."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -17,9 +17,19 @@ authors = [
     {name = "Mauricio Bustamante", email = "mbustamante@gmail.com"}
 ]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    # 5, not 4: this is 1.0.0, and "Beta" is the first thing a visitor reads on the PyPI
+    # page.  The two have to agree, or the page argues with itself about how finished the
+    # project is.
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Science/Research",
     "Programming Language :: Python :: 3",
+    # Only the versions CI actually runs.  These are what PyPI filters on, so a version
+    # listed here is a promise that something tested it; 3.13 joins the list when the
+    # matrix job for it has been green, not before.
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: OS Independent",
     "Topic :: Scientific/Engineering :: Physics",
     "Topic :: Scientific/Engineering :: Mathematics"
 ]
@@ -27,25 +37,36 @@ dependencies = [
     "numpy>=1.22",
     "scipy>=1.9",
     "joblib>=1.2",
-    "matplotlib>=3.5"
+    "matplotlib>=3.5",
+    # Required, not optional.  It powers the Cayley-Hamilton matrix-exponential
+    # backend (magnus.expmkernels), worth about 6x on a slab chain of 2x2 or 3x3
+    # matrices, and the package is a numerical library whose speed is the reason
+    # to choose it.
+    #
+    # It was optional, on the argument that `EXPM_BACKEND = 'auto'` falls back to
+    # numpy.linalg.eigh and every result is the same to ~1e-15, so nothing but
+    # speed depended on it.  That held for the library and not for the suite: a
+    # clean-room install of the published wheel, without the `test` extra that
+    # carried numba, produced 12 failures rather than 12 skips, because
+    # tests/test_engines.py asks for `expm_backend='numba'` by name.  A user's
+    # first run of the tests should not look like a broken package.
+    #
+    # The cost is real and worth stating: numba lags new interpreters, so a
+    # Python release it has no wheel for makes magnuspy uninstallable, where
+    # before it would have installed without the fast path.  `requires-python` has
+    # no upper bound, so the CI matrix (which now includes 3.13) is the early
+    # warning for that.  numba also caps the numpy version it supports, which can
+    # hold numpy back a minor release.
+    "numba>=0.59"
 ]
 
 [project.optional-dependencies]
 plot = []          # matplotlib is a base dependency; kept so `magnuspy[plot]` still resolves
 
-# numba powers the Cayley-Hamilton matrix-exponential backend (magnus.expmkernels),
-# which is worth about 6x on a slab chain of 2x2 or 3x3 matrices.  Optional, and
-# deliberately so: without it `EXPM_BACKEND = 'auto'` silently uses numpy.linalg.eigh
-# and every result is the same to ~1e-15, so nothing but speed depends on it.
-#
-# It is listed in `test` as well, so that CI exercises the kernel rather than skipping
-# every test of it.  numba caps the numpy version it supports, so this does let the
-# resolver hold numpy back a minor release; that is accepted because the alternative is
-# shipping a compiled numerical kernel no CI job ever runs.
-fast = ["numba>=0.59"]
-test = ["pytest", "pytest-cov", "pytest-xdist", "matplotlib>=3.5", "numba>=0.59"]
+fast = []          # numba is a base dependency; kept so `magnuspy[fast]` still resolves
+test = ["pytest", "pytest-cov", "pytest-xdist", "matplotlib>=3.5"]
 dev = ["pytest", "pytest-cov", "pytest-xdist", "twine", "build", "ruff",
-       "matplotlib>=3.5", "numba>=0.59"]
+       "matplotlib>=3.5"]
 notebooks = ["nbformat", "nbclient", "ipykernel", "matplotlib>=3.5", "scipy"]
 docs = ["sphinx", "sphinx-autoapi", "sphinx-rtd-theme", "sphinx-copybutton", "sphinxcontrib-bibtex", "sphinxcontrib-mermaid", "myst-parser", "jupyter-sphinx", "ipykernel", "matplotlib>=3.5"]
 
@@ -63,9 +84,24 @@ package-dir = {"" = "src"}
 [tool.setuptools.packages.find]
 where = ["src"]
 
+# PEP 561.  The public API is annotated -- 18 of the 19 parameters on
+# `osc_prob_3nu_vacuum`, and similarly throughout -- but without this marker file in the
+# installed package, mypy and pyright treat magnuspy as untyped and discard every one of
+# those annotations.  The file is empty by design; its presence is the whole signal.
+[tool.setuptools.package-data]
+magnus = ["py.typed"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py310"
+
+# jupyter-sphinx writes the executed source of every `.. jupyter-execute::` block
+# into docs/jupyter_execute/.  It is generated, and the documented lint command
+# names docs/ explicitly, so without this an ordinary `make html` followed by
+# `ruff check` reports a couple of hundred errors in code nobody wrote.  Passing a
+# path explicitly overrides gitignore discovery, so ignoring it in .gitignore is
+# not enough on its own.
+extend-exclude = ["docs/jupyter_execute"]
 
 [tool.ruff.lint]
 # Pinned explicitly rather than left to ruff's default.  The default selection is not

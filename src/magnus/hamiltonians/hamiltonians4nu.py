@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (C) 2026 Mauricio Bustamante
 r"""hamiltonians4nu.py
 
 Compute four-neutrino (3+1 sterile) Hamiltonians for selected scenarios.
@@ -42,7 +44,8 @@ from typing import Optional, Callable, Union
 
 def mixing_matrix_4x4(s12: float, s23: float, s13:float, d13: float, s14: float, d14: float,
     s24: float, d24: float, s34: float,
-    compute_matrix_multiplication: Optional[bool]=False) -> np.ndarray:
+    compute_matrix_multiplication: Optional[bool]=False,
+    angles: Optional[str]='sin') -> np.ndarray:
     r"""Returns the 4x4 (3+1 sterile) mixing matrix.
 
     Computes and returns the 4x4 complex mixing matrix for a 3+1 sterile-neutrino scenario,
@@ -57,27 +60,33 @@ def mixing_matrix_4x4(s12: float, s23: float, s13:float, d13: float, s14: float,
     Parameters
     ----------
     s12 : float
-        Sine of the mixing angle :math:`\theta_{12}`.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine).
     s23 : float
-        Sine of the mixing angle :math:`\theta_{23}`.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine).
     s13 : float
-        Sine of the mixing angle :math:`\theta_{13}`.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine).
     d13 : float
-        :math:`\delta_{13}` [radian].
+        :math:`\delta_{13}` [radian, or degree if ``angles='deg'``].
     s14 : float
-        Sine of the mixing angle :math:`\theta_{14}`.
+        Mixing angle :math:`\theta_{14}`, in the convention set by ``angles`` (default: its sine).
     d14 : float
-        :math:`\delta_{14}` [radian].
+        :math:`\delta_{14}` [radian, or degree if ``angles='deg'``].
     s24 : float
-        Sine of the mixing angle :math:`\theta_{24}`.
+        Mixing angle :math:`\theta_{24}`, in the convention set by ``angles`` (default: its sine).
     d24 : float
-        :math:`\delta_{24}` [radian].
+        :math:`\delta_{24}` [radian, or degree if ``angles='deg'``].
     s34 : float
-        Sine of the mixing angle :math:`\theta_{34}`.
+        Mixing angle :math:`\theta_{34}`, in the convention set by ``angles`` (default: its sine).
     compute_matrix_multiplication : bool, optional
         If False (default), use the pre-computed closed-form expressions for each entry;
         otherwise, build the matrix by multiplying the five rotation matrices live. Both paths
         must (and do, see ``tests/test_hamiltonians.py``) agree to machine precision.
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -101,6 +110,14 @@ def mixing_matrix_4x4(s12: float, s23: float, s13:float, d13: float, s14: float,
         print('unitary to %.1e' % np.max(np.abs(U.conj().T @ U - np.eye(4))))
 """
     # arXiv:1105.3911
+
+    _r, _p = _angles.resolve(
+        'hamiltonians.mixing_matrix_4x4', angles,
+        {'s12': s12, 's23': s23, 's13': s13, 's14': s14, 's24': s24, 's34': s34},
+        {'d13': d13, 'd14': d14, 'd24': d24})
+    s12, s23, s13 = _r['s12'], _r['s23'], _r['s13']
+    s14, s24, s34 = _r['s14'], _r['s24'], _r['s34']
+    d13, d14, d24 = _p['d13'], _p['d14'], _p['d24']
 
     c12 = np.sqrt(1.0-s12*s12)
     c23 = np.sqrt(1.0-s23*s23)
@@ -168,7 +185,8 @@ def mixing_matrix_4x4(s12: float, s23: float, s13:float, d13: float, s14: float,
 
 def hamiltonian_4nu_vacuum_energy_independent(s12: float, s23: float, s13:float, d13: float,
     s14: float, d14: float, s24: float, d24: float, s34: float, D21: float, D31: float, D41: float,
-    nubar: Optional[bool]=False, compute_matrix_multiplication: Optional[bool]=False) -> np.ndarray:
+    nubar: Optional[bool]=False, compute_matrix_multiplication: Optional[bool]=False,
+    angles: Optional[str]='sin') -> np.ndarray:
     r"""Returns the four-neutrino (3+1) Hamiltonian for vacuum oscillations.
 
     Computes and returns the 4x4 complex four-neutrino Hamiltonian for oscillations in vacuum,
@@ -182,23 +200,23 @@ def hamiltonian_4nu_vacuum_energy_independent(s12: float, s23: float, s13:float,
     Parameters
     ----------
     s12 : float
-        Sine of the mixing angle :math:`\theta_{12}`.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine).
     s23 : float
-        Sine of the mixing angle :math:`\theta_{23}`.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine).
     s13 : float
-        Sine of the mixing angle :math:`\theta_{13}`.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine).
     d13 : float
-        :math:`\delta_{13}` [radian].
+        :math:`\delta_{13}` [radian, or degree if ``angles='deg'``].
     s14 : float
-        Sine of the mixing angle :math:`\theta_{14}`.
+        Mixing angle :math:`\theta_{14}`, in the convention set by ``angles`` (default: its sine).
     d14 : float
-        :math:`\delta_{14}` [radian].
+        :math:`\delta_{14}` [radian, or degree if ``angles='deg'``].
     s24 : float
-        Sine of the mixing angle :math:`\theta_{24}`.
+        Mixing angle :math:`\theta_{24}`, in the convention set by ``angles`` (default: its sine).
     d24 : float
-        :math:`\delta_{24}` [radian].
+        :math:`\delta_{24}` [radian, or degree if ``angles='deg'``].
     s34 : float
-        Sine of the mixing angle :math:`\theta_{34}`.
+        Mixing angle :math:`\theta_{34}`, in the convention set by ``angles`` (default: its sine).
     D21 : float
         Mass-squared difference :math:`\Delta m_{21}^2`.
     D31 : float
@@ -211,14 +229,29 @@ def hamiltonian_4nu_vacuum_energy_independent(s12: float, s23: float, s13:float,
     compute_matrix_multiplication : bool, optional
         Forwarded to :func:`mixing_matrix_4x4`. If False (default), use the pre-computed
         expressions; otherwise, multiply R.M2.R^dagger live.
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
     np.ndarray
         Hamiltonian 4x4 matrix.
     """
-    _angles.validate_sines('hamiltonian_4nu_vacuum_energy_independent',
-                           s12=s12, s23=s23, s13=s13, s14=s14, s24=s24, s34=s34)
+    # Converted here rather than forwarded to mixing_matrix_4x4, so the message names THIS
+    # function: the mistake this guard exists for is a phase landing in a sine slot when
+    # thirteen arguments are passed positionally, and naming the mixing matrix instead would
+    # point the reader at the wrong signature.
+    _r, _p = _angles.resolve(
+        'hamiltonians.hamiltonian_4nu_vacuum_energy_independent', angles,
+        {'s12': s12, 's23': s23, 's13': s13, 's14': s14, 's24': s24, 's34': s34},
+        {'d13': d13, 'd14': d14, 'd24': d24})
+    s12, s23, s13 = _r['s12'], _r['s23'], _r['s13']
+    s14, s24, s34 = _r['s14'], _r['s24'], _r['s34']
+    d13, d14, d24 = _p['d13'], _p['d14'], _p['d24']
     # 4x4 mixing matrix
     R = mixing_matrix_4x4(s12, s23, s13, d13, s14, d14, s24, d24, s34,
         compute_matrix_multiplication=compute_matrix_multiplication) if not nubar else \
@@ -234,7 +267,8 @@ def hamiltonian_4nu_vacuum_energy_independent(s12: float, s23: float, s13:float,
 def hamiltonian_4nu_vacuum_energy_independent_td(l: float, s12: float, s23: float, s13:float,
     d13: float, s14: float, d14: float, s24: float, d24: float, s34: float, D21: float, D31: float,
     D41: float, nubar: Optional[bool]=False,
-    compute_matrix_multiplication: Optional[bool]=False) -> np.ndarray:
+    compute_matrix_multiplication: Optional[bool]=False,
+    angles: Optional[str]='sin') -> np.ndarray:
     r"""Returns the four-neutrino Hamiltonian for vacuum oscillations, as a function of distance,
     even if it does not depend on it.
 
@@ -259,6 +293,12 @@ def hamiltonian_4nu_vacuum_energy_independent_td(l: float, s12: float, s23: floa
         If True, compute the Hamiltonian for antineutrinos. Default: False.
     compute_matrix_multiplication : bool, optional
         Forwarded to :func:`mixing_matrix_4x4`.
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -266,12 +306,14 @@ def hamiltonian_4nu_vacuum_energy_independent_td(l: float, s12: float, s23: floa
         Hamiltonian 4x4 matrix.
     """
     return hamiltonian_4nu_vacuum_energy_independent(s12, s23, s13, d13, s14, d14, s24, d24, s34,
-        D21, D31, D41, nubar=nubar, compute_matrix_multiplication=compute_matrix_multiplication)
+        D21, D31, D41, nubar=nubar, compute_matrix_multiplication=compute_matrix_multiplication,
+        angles=angles)
 
 
 def hamiltonian_4nu_vacuum(energy: float, s12: float, s23: float, s13:float, d13: float,
     s14: float, d14: float, s24: float, d24: float, s34: float, D21: float, D31: float, D41: float,
-    nubar: Optional[bool]=False, compute_matrix_multiplication: Optional[bool]=False) -> np.ndarray:
+    nubar: Optional[bool]=False, compute_matrix_multiplication: Optional[bool]=False,
+    angles: Optional[str]='sin') -> np.ndarray:
     r"""Returns the four-neutrino Hamiltonian for vacuum oscillations.
 
     Same as :func:`hamiltonian_4nu_vacuum_energy_independent`, but with the 1/E factor applied.
@@ -294,6 +336,12 @@ def hamiltonian_4nu_vacuum(energy: float, s12: float, s23: float, s13:float, d13
         If True, compute the Hamiltonian for antineutrinos. Default: False.
     compute_matrix_multiplication : bool, optional
         Forwarded to :func:`mixing_matrix_4x4`.
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -302,12 +350,13 @@ def hamiltonian_4nu_vacuum(energy: float, s12: float, s23: float, s13:float, d13
     """
     return (1/energy)*hamiltonian_4nu_vacuum_energy_independent(s12, s23, s13, d13, s14, d14, s24,
         d24, s34, D21, D31, D41, nubar=nubar,
-        compute_matrix_multiplication=compute_matrix_multiplication)
+        compute_matrix_multiplication=compute_matrix_multiplication, angles=angles)
 
 
 def hamiltonian_4nu_vacuum_td(l: float, energy: float, s12: float, s23: float, s13:float, d13: float,
     s14: float, d14: float, s24: float, d24: float, s34: float, D21: float, D31: float, D41: float,
-    nubar: Optional[bool]=False, compute_matrix_multiplication: Optional[bool]=False) -> np.ndarray:
+    nubar: Optional[bool]=False, compute_matrix_multiplication: Optional[bool]=False,
+    angles: Optional[str]='sin') -> np.ndarray:
     r"""Returns the four-neutrino Hamiltonian for vacuum oscillations, as a function of distance,
     even if it does not depend on it.
 
@@ -334,6 +383,12 @@ def hamiltonian_4nu_vacuum_td(l: float, energy: float, s12: float, s23: float, s
         If True, compute the Hamiltonian for antineutrinos. Default: False.
     compute_matrix_multiplication : bool, optional
         Forwarded to :func:`mixing_matrix_4x4`.
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -341,7 +396,8 @@ def hamiltonian_4nu_vacuum_td(l: float, energy: float, s12: float, s23: float, s
         Hamiltonian 4x4 matrix.
     """
     return hamiltonian_4nu_vacuum(energy, s12, s23, s13, d13, s14, d14, s24, d24, s34, D21, D31,
-        D41, nubar=nubar, compute_matrix_multiplication=compute_matrix_multiplication)
+        D41, nubar=nubar, compute_matrix_multiplication=compute_matrix_multiplication,
+        angles=angles)
 
 
 def hamiltonian_4nu_matter(VCC: float,
@@ -359,6 +415,11 @@ def hamiltonian_4nu_matter(VCC: float,
     VCC : float
         Potential due to charged-current interactions of nu_e with
         electrons.
+    ratio_number_neutrons_to_protons : int or float, optional
+        :math:`r = n_n/n_p` of the medium, which sets the sterile states' entry
+        via :math:`-V_{\rm NC} = (r/2) V_{\rm CC}`.  Must match the value given
+        to :func:`magnus.matter.vcc_func_from_rho_func`.  Default: 1.0
+        (isoscalar matter).
 
     Returns
     -------
@@ -376,7 +437,16 @@ def hamiltonian_4nu_matter(VCC: float,
         print(np.asarray(hamiltonians4nu.hamiltonian_4nu_matter(1.0e-13)))
 
     The sterile state feels neither the charged- nor the neutral-current
-    potential, which is what makes a 3+1 scenario more than a relabelling.
+    potential -- it is a Standard Model gauge singlet, so there is no W and no
+    Z for it to scatter off.  That is *why* its entry here is not zero.
+    Oscillations depend only on differences between the diagonal entries, so a
+    multiple of the identity is unobservable and the actives' common
+    :math:`V_{\rm NC}` is subtracted.  What that leaves on the sterile state is
+    :math:`-V_{\rm NC} = (r/2) V_{\rm CC}`, with :math:`r = n_n/n_p`, and it is
+    that residue -- not any interaction of the sterile state -- that makes a 3+1
+    scenario more than a relabelling.  Setting it to zero instead is worth 0.29
+    in probability on a PREM chord.  The derivation is in
+    :func:`magnus.matter.matter_potential_projector`.
 """
     # Built by broadcasting rather than np.diag so that VCC may be an array of
     # positions: VCC[..., None, None] turns one potential per position into a
@@ -508,7 +578,8 @@ def hamiltonian_4nu_nsi_td(l: float, VCC_func: Callable, eps_ee: float, eps_em: 
 def hamiltonian_4nu_liv(energy: float, sxi12: float, sxi23: float, sxi13: float, dxi13: float,
     sxi14: float, dxi14: float, sxi24: float, dxi24: float, sxi34: float, b1: float, b2: float,
     b3: float, b4: float, Lambda: float, n_liv: int, nubar: Optional[bool]=False,
-    compute_matrix_multiplication: Optional[bool]=False) -> np.ndarray:
+    compute_matrix_multiplication: Optional[bool]=False,
+    angles: Optional[str]='sin') -> np.ndarray:
     r"""Returns the four-neutrino Hamiltonian for oscillations w/ LIV.
 
     Computes and returns the 4x4 complex four-neutrino Hamiltonian for oscillations in a CPT-odd
@@ -544,6 +615,12 @@ def hamiltonian_4nu_liv(energy: float, sxi12: float, sxi23: float, sxi13: float,
         Default: False.
     compute_matrix_multiplication : bool, optional
         Forwarded to :func:`mixing_matrix_4x4`.
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -553,13 +630,14 @@ def hamiltonian_4nu_liv(energy: float, sxi12: float, sxi23: float, sxi13: float,
 
     return pow(energy, n_liv) * hamiltonian_4nu_liv_energy_independent(sxi12, sxi23, sxi13, dxi13,
         sxi14, dxi14, sxi24, dxi24, sxi34, b1, b2, b3, b4, Lambda, n_liv, nubar=nubar,
-        compute_matrix_multiplication=compute_matrix_multiplication)
+        compute_matrix_multiplication=compute_matrix_multiplication, angles=angles)
 
 
 def hamiltonian_4nu_liv_energy_independent(sxi12: float, sxi23: float, sxi13: float, dxi13: float,
     sxi14: float, dxi14: float, sxi24: float, dxi24: float, sxi34: float, b1: float, b2: float,
     b3: float, b4: float, Lambda: float, n_liv: int, nubar: Optional[bool]=False,
-    compute_matrix_multiplication: Optional[bool]=False) -> np.ndarray:
+    compute_matrix_multiplication: Optional[bool]=False,
+    angles: Optional[str]='sin') -> np.ndarray:
     r"""Returns the four-neutrino Hamiltonian for oscillations w/ LIV.
 
     Computes and returns the 4x4 complex four-neutrino Hamiltonian for oscillations in a CPT-odd
@@ -592,12 +670,28 @@ def hamiltonian_4nu_liv_energy_independent(sxi12: float, sxi23: float, sxi13: fl
         Default: False.
     compute_matrix_multiplication : bool, optional
         Forwarded to :func:`mixing_matrix_4x4`.
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
     np.ndarray
         Hamiltonian 4x4 matrix.
     """
+    # The LIV angles went through no guard at all before this.
+    _r, _p = _angles.resolve(
+        'hamiltonians.hamiltonian_4nu_liv_energy_independent', angles,
+        {'sxi12': sxi12, 'sxi23': sxi23, 'sxi13': sxi13, 'sxi14': sxi14,
+         'sxi24': sxi24, 'sxi34': sxi34},
+        {'dxi13': dxi13, 'dxi14': dxi14, 'dxi24': dxi24})
+    sxi12, sxi23, sxi13 = _r['sxi12'], _r['sxi23'], _r['sxi13']
+    sxi14, sxi24, sxi34 = _r['sxi14'], _r['sxi24'], _r['sxi34']
+    dxi13, dxi14, dxi24 = _p['dxi13'], _p['dxi14'], _p['dxi24']
+
     # 4x4 mixing matrix
     R = mixing_matrix_4x4(sxi12, sxi23, sxi13, dxi13, sxi14, dxi14, sxi24, dxi24, sxi34,
         compute_matrix_multiplication=compute_matrix_multiplication) if not nubar else \

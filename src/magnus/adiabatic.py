@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (C) 2026 Mauricio Bustamante
 r"""adiabatic.py
 
 Contains the adiabatic-transport-plus-Magnus-patch ("hybrid") propagator
@@ -61,6 +63,8 @@ Routine listings
     * hybrid_propagator - Adiabatic transport with Magnus patches at
            non-adiabatic windows, self-certified against successive
            refinement of every internal tolerance knob
+    * oscillation_sampling - Reports how coarsely a request samples the
+           oscillation it is computing (cycles per step, Nyquist points)
 """
 
 __author__ = "Mauricio Bustamante"

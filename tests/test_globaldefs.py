@@ -173,3 +173,46 @@ def test_warnings_respect_set_color_output(recwarn):
                 assert '\x1b[' not in str(w.message)
     finally:
         gd.set_color_output(True)
+
+
+# ----------------------------------------------------------------------
+# The default oscillation parameters are a contract
+# ----------------------------------------------------------------------
+
+def test_the_implicit_default_is_the_release_the_loader_returns():
+    """There are two ways to get "the default parameters", and they used to
+    disagree.  Omitting them fell back to constants named `*_BF_NUFIT_6_0`,
+    while `load_nufit_params()` with no arguments returned 6.1 -- so the same
+    script got different answers depending on which door it came through, by
+    4.0e-03 in probability at 1 GeV over 1300 km.  Both were documented, which
+    is why neither read as a mistake.
+
+    Nothing pinned it: changing the fallback release broke no test in the
+    suite, which is how the two drifted apart in the first place."""
+    default = gd.OSC_PARAMS_PREDEFINED['OSC_PARAMS_DEFAULT']
+    loaded = gd.load_nufit_params()          # no arguments: the documented default
+    for key, value in loaded.items():
+        assert default[key] == value, (
+            'OSC_PARAMS_DEFAULT[%r] is %r but load_nufit_params() gives %r'
+            % (key, default[key], value))
+
+
+def test_the_default_and_the_loader_give_the_same_probability():
+    """The contract that matters to a caller is not the dictionary, it is the
+    number that comes out."""
+    import magnus.oscprob as op
+    energy, baseline = 1.0*gd.UNIT_GEV, 1300.0*gd.UNIT_KM
+    implicit = np.asarray(op.osc_prob_3nu_vacuum(energy, baseline))
+    explicit = np.asarray(op.osc_prob_3nu_vacuum(energy, baseline,
+                                                 **gd.load_nufit_params()))
+    np.testing.assert_allclose(implicit, explicit, rtol=0.0, atol=0.0)
+
+
+def test_the_superseded_release_is_still_reachable_by_name():
+    """Changing which release is the default must not remove the old one: a
+    caller pinned to 6.0 for reproducibility asks for it explicitly."""
+    for name in ('OSC_PARAMS_NU_FIT_6_0_SK_NO', 'OSC_PARAMS_NU_FIT_6_0_SK_IO',
+                 'OSC_PARAMS_NU_FIT_6_1_SK_NO', 'OSC_PARAMS_NU_FIT_6_1_SK_IO'):
+        assert name in gd.OSC_PARAMS_PREDEFINED
+    old = gd.OSC_PARAMS_PREDEFINED['OSC_PARAMS_NU_FIT_6_0_SK_NO']
+    assert old['D31'] == pytest.approx(2.513e-3)

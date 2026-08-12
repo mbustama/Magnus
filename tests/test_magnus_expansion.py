@@ -597,8 +597,22 @@ def test_cached_eval_mode_bounds_its_per_interval_dictionary():
     for i in range(4*mg._EVAL_MODE_CACHE_MAX):
         mg.cached_eval_mode(A, 0.0, 4.0e12 + float(i))
 
-    held = sum(len(v) for v in mg._EVAL_MODE_CACHE.values())
+    # The ceiling is PER HOLDER -- it bounds each inner dict, not the sum across them.
+    # This assertion used to sum them, which made it depend on what else was still alive
+    # in the cache: any unrelated Hamiltonian left behind by an earlier test in the same
+    # xdist worker contributes its own entries and pushes the total over, with every
+    # inner dict correctly bounded.  That is exactly how it failed -- 257 against 256,
+    # one other holder holding one span -- once locally under `-n auto` and again on
+    # CI's 3.10 job, never standalone.  The library was right both times.
+    held = len(mg._EVAL_MODE_CACHE.get(A, {}))
+    assert held, 'the loop above should have populated the cache for this holder'
     assert held <= mg._EVAL_MODE_CACHE_MAX, (
-        "%d intervals retained against a ceiling of %d" % (held, mg._EVAL_MODE_CACHE_MAX))
+        "%d intervals retained for one holder against a ceiling of %d"
+        % (held, mg._EVAL_MODE_CACHE_MAX))
+    # ...and no holder may exceed it, which is the invariant a broken eviction breaks.
+    worst = max((len(v) for v in mg._EVAL_MODE_CACHE.values()), default=0)
+    assert worst <= mg._EVAL_MODE_CACHE_MAX, (
+        "%d intervals retained by some holder against a ceiling of %d"
+        % (worst, mg._EVAL_MODE_CACHE_MAX))
     # Bounding it must not have broken it: the verdict is still the probe's.
     assert mg.cached_eval_mode(A, 0.0, 2.0e13) == mg.probe_eval_mode(A, 0.0, 2.0e13)

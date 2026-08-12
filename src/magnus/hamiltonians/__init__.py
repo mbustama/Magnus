@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (C) 2026 Mauricio Bustamante
 r"""__init__.py
 
 Subpackage initializer for magnus.hamiltonians. Explicitly imports and
@@ -6,11 +8,18 @@ re-exports the public names of hamiltonians2nu.py, hamiltonians3nu.py,
 hamiltonians4nu.py, and hamiltonians5nu.py: the mixing matrices and
 vacuum/matter/NSI/LIV Hamiltonians for 2, 3, 4, and 5 neutrino flavors.
 
+It also re-exports two names defined in magnus.globaldefs and used throughout
+this subpackage: ANGLE_CONVENTIONS, the values the ``angles`` keyword accepts,
+and MixingAngleConventionWarning, which that keyword can raise.  They live in
+globaldefs because the conversion itself is in the private _angles module, and a
+name a caller is told to filter on has to be documented somewhere public.
+
 Routine listings
 ----------------
 
     (none; only re-exports the four hamiltonians{2,3,4,5}nu.py modules'
-    public names -- see __all__ below for the exact list)
+    public names, plus the two globaldefs names above -- see __all__ below for
+    the exact list)
 """
 
 __author__ = "Mauricio Bustamante"
@@ -69,8 +78,20 @@ from .hamiltonians5nu import (
     hamiltonian_5nu_liv,
     hamiltonian_5nu_liv_energy_independent,
 )
+# The `angles` convention is interpreted in the private _angles module, so the two names
+# callers need -- the accepted values, and the warning class they may want to filter --
+# are DEFINED in magnus.globaldefs, which autoapi documents, and merely re-exported here.
+# A private module is not documented, so a name that only lived there could be named in a
+# docstring and found nowhere in the rendered documentation.  N44 was the same mistake.
+from ..globaldefs import (
+    ANGLE_CONVENTIONS,
+    MixingAngleConventionWarning,
+)
 
 __all__ = [
+    # re-exported from globaldefs, where they are documented
+    'ANGLE_CONVENTIONS',
+    'MixingAngleConventionWarning',
     # hamiltonians2nu
     'mixing_matrix_2nu',
     'hamiltonian_2nu_vacuum_energy_independent',

@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (C) 2026 Mauricio Bustamante
 r"""magnus.py
 
 Compute the time-evolution operator using the Magnus expansion.
@@ -61,6 +63,12 @@ Routine listings
 
     * commutator - Returns [X, Y] = XY - YX
     * probe_eval_mode - Determines how a matrix function can be evaluated
+    * cached_eval_mode - Context manager reusing one probe_eval_mode result
+           for a callable that will be probed more than once
+    * ordered_product - Time-ordered product of a stack of slab operators,
+           earliest slab first
+    * palindromic - Returns whether every array given reads the same both
+           ways, the geometric precondition for the half-chord optimisation
     * suggest_n_slabs - Suggests a starting number of time slabs
     * magnus_expansion - Computes :math:`\exp(\Omega)` for a single time slab
     * evolution_operators_from_samples - Evolution operators of a chain
@@ -949,7 +957,7 @@ def _gl_nodes(order: int) -> np.ndarray:
         # higher requested order would be exactly the kind of quiet wrong answer that is
         # worse than an exception.
         raise ValueError(
-            "magnus._gl_nodes: no Gauss-Legendre scheme of order " + str(order)
+            "Error in magnus: magnus._gl_nodes: no Gauss-Legendre scheme of order " + str(order)
             + " exists (the highest is " + str(MAGNUS_EXP_ORDER_MAX_GL)
             + "); use integration_method='trapezoid' or 'simpson'.")
     if order <= 2:
@@ -1174,14 +1182,14 @@ def _resolve_expm_backend(expm_backend: Optional[str]) -> str:
     backend = EXPM_BACKEND if expm_backend is None else expm_backend
     if backend not in valid_expm_backends:
         raise ValueError(
-            "magnus._expm_stack: expm_backend must be one of "
+            "Error in magnus: magnus._expm_stack: expm_backend must be one of "
             + str(valid_expm_backends) + ", not '" + str(backend) + "'.")
     # Asked for by name, so a silent downgrade would be the wrong answer to give:
     # the caller wanted to know the compiled kernel was running.  'auto' is the
     # value that promises to work anywhere, and it is the default.
     if backend == 'numba' and not expmkernels.HAVE_NUMBA:
         raise ValueError(
-            "magnus._expm_stack: expm_backend='numba' was requested but numba is not "
+            "Error in magnus: magnus._expm_stack: expm_backend='numba' was requested but numba is not "
             "installed. Install it (pip install 'magnuspy[fast]', or pip install numba), "
             "or use expm_backend='auto', which falls back to 'eigh' when numba is absent.")
     return backend
@@ -1326,7 +1334,7 @@ def _validate(order: int, integration_method: str):
 
     if (integration_method == 'gl') and (order > MAGNUS_EXP_ORDER_MAX_GL):
         raise ValueError(
-            "magnus._validate: integration_method 'gl' supports orders up to "
+            "Error in magnus: magnus._validate: integration_method 'gl' supports orders up to "
             + str(MAGNUS_EXP_ORDER_MAX_GL) + ", not " + str(order) + ". The "
             "Gauss-Legendre commutator-free schemes are separately derived integrators, "
             "not products of the Magnus recursion, so they do not extend with it. Use "
@@ -1335,12 +1343,12 @@ def _validate(order: int, integration_method: str):
 
     if integration_method not in valid_integration_methods:
         raise ValueError(
-            "magnus.magnus_expansion: integration_method must be one of "
+            "Error in magnus: magnus.magnus_expansion: integration_method must be one of "
             + str(valid_integration_methods) + ", not '"
             + str(integration_method) + "'.")
     if not (1 <= order <= MAGNUS_EXP_ORDER_MAX):
         raise ValueError(
-            "magnus.magnus_expansion: order must be between 1 and "
+            "Error in magnus: magnus.magnus_expansion: order must be between 1 and "
             + str(MAGNUS_EXP_ORDER_MAX) + ", not " + str(order) + ".")
 
 
@@ -1749,7 +1757,7 @@ def magnus_expansion_multislab(
         _validate(order, integration_method)
         if np.any(widths < 0.0):
             raise ValueError(
-                "magnus.magnus_expansion_multislab: all slabs must have "
+                "Error in magnus: magnus.magnus_expansion_multislab: all slabs must have "
                 "t1 >= t0.")
 
     if integration_method == 'gl':

@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (C) 2026 Mauricio Bustamante
 r"""hamiltonians3nu.py
 
 Compute three-neutrino Hamiltonians for selected scenarios.
@@ -46,7 +48,8 @@ from typing import Optional, Callable
 # from globaldefs import *
 
 
-def pmns_mixing_matrix(s12: float, s23: float, s13:float, dCP: float) -> np.ndarray:
+def pmns_mixing_matrix(s12: float, s23: float, s13:float, dCP: float,
+    angles: Optional[str]='sin') -> np.ndarray:
     r"""Returns the 3x3 PMNS mixing matrix.
 
     Computes and returns the 3x3 complex PMNS mixing matrix parametrized by three rotation angles,
@@ -57,13 +60,19 @@ def pmns_mixing_matrix(s12: float, s23: float, s13:float, dCP: float) -> np.ndar
     Parameters
     ----------
     s12 : float
-        Sine of the mixing angle :math:`\theta_{12}`.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine).
     s23 : float
-        Sine of the mixing angle :math:`\theta_{23}`.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine).
     s13 : float
-        Sine of the mixing angle :math:`\theta_{13}`.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine).
     dCP : float
-        :math:`\delta_\text{CP}` [radian].
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``].
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phase is read as degrees too; under the other three
+        it stays in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -87,6 +96,11 @@ def pmns_mixing_matrix(s12: float, s23: float, s13:float, dCP: float) -> np.ndar
                                                          p['s12']**2))
         print('unitary to %.1e' % np.max(np.abs(U.conj().T @ U - np.eye(3))))
 """
+    _r, _p = _angles.resolve('hamiltonians.pmns_mixing_matrix', angles,
+                             {'s12': s12, 's23': s23, 's13': s13}, {'dCP': dCP})
+    s12, s23, s13 = _r['s12'], _r['s23'], _r['s13']
+    dCP = _p['dCP']
+
     c12 = np.sqrt(1.0-s12*s12)
     c23 = np.sqrt(1.0-s23*s23)
     c13 = np.sqrt(1.0-s13*s13)
@@ -109,7 +123,8 @@ def pmns_mixing_matrix(s12: float, s23: float, s13:float, dCP: float) -> np.ndar
     return np.array([[U00,U01,U02],[U10,U11,U12],[U20,U21,U22]])
 
 
-def mixing_matrix_3x3(s12: float, s23: float, s13:float, dCP: float) -> np.ndarray:
+def mixing_matrix_3x3(s12: float, s23: float, s13:float, dCP: float,
+    angles: Optional[str]='sin') -> np.ndarray:
     r"""Returns the 3x3 PMNS mixing matrix.
 
     Alias of :func:`pmns_mixing_matrix`, kept for naming parity with
@@ -121,20 +136,26 @@ def mixing_matrix_3x3(s12: float, s23: float, s13:float, dCP: float) -> np.ndarr
     Parameters
     ----------
     s12 : float
-        Sine of the mixing angle :math:`\theta_{12}`.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine).
     s23 : float
-        Sine of the mixing angle :math:`\theta_{23}`.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine).
     s13 : float
-        Sine of the mixing angle :math:`\theta_{13}`.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine).
     dCP : float
-        :math:`\delta_\text{CP}` [radian].
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``].
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phase is read as degrees too; under the other three
+        it stays in radians, a sine being no way to state a phase.
 
     Returns
     -------
     np.ndarray
         3x3 PMNS mixing matrix.
     """
-    return pmns_mixing_matrix(s12, s23, s13, dCP)
+    return pmns_mixing_matrix(s12, s23, s13, dCP, angles=angles)
 
 
 _VACUUM_H_CACHE = {}
@@ -151,7 +172,8 @@ r"""int: How many distinct parameter sets :data:`_VACUUM_H_CACHE` holds before c
 
 def hamiltonian_3nu_vacuum_energy_independent(s12: float, s23: float, s13: float, dCP: float,
     D21: float, D31: float, nubar: Optional[bool]=False,
-    compute_matrix_multiplication: Optional[bool]=False) -> np.ndarray:
+    compute_matrix_multiplication: Optional[bool]=False,
+    angles: Optional[str]='sin') -> np.ndarray:
     r"""Returns the three-neutrino Hamiltonian for vacuum oscillations.
 
     Computes and returns the 3x3 complex three-neutrino Hamiltonian for oscillations in vacuum,
@@ -165,13 +187,13 @@ def hamiltonian_3nu_vacuum_energy_independent(s12: float, s23: float, s13: float
     Parameters
     ----------
     s12 : float
-        Sine of the mixing angle :math:`\theta_{12}`.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine).
     s23 : float
-        Sine of the mixing angle :math:`\theta_{23}`.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine).
     s13 : float
-        Sine of the mixing angle :math:`\theta_{13}`.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine).
     dCP : float
-        :math:`\delta_\text{CP}` [radian].
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``].
     D21 : float
         Mass-squared difference :math:`\Delta m_{21}^2`.
     D31 : float
@@ -182,6 +204,12 @@ def hamiltonian_3nu_vacuum_energy_independent(s12: float, s23: float, s13: float
     compute_matrix_multiplication : bool, optional
         If False (default), use the pre-computed expressions; otherwise, multiply R.M2.R^dagger
         live.
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phase is read as degrees too; under the other three
+        it stays in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -207,8 +235,17 @@ def hamiltonian_3nu_vacuum_energy_independent(s12: float, s23: float, s13: float
     The eigenvalues are :math:`(0, \Delta m^2_{21}, \Delta m^2_{31})`: only
     mass-squared *differences* appear, which is why the first is zero.
 """
-    _angles.validate_sines('hamiltonian_3nu_vacuum_energy_independent',
-                           s12=s12, s23=s23, s13=s13)
+    # BEFORE the cache key is built, deliberately.  The key is made of the numbers, so if a
+    # raw 0.554 could arrive meaning either a sine or 0.554 radians, the two would collide on
+    # one entry and the second caller would get the first one's Hamiltonian -- silently, and
+    # only once the cache happened to be warm.  Converting first makes the key canonical:
+    # angles='sin' 0.554 and angles='rad' 0.5872 are the same physics and now share an entry
+    # rather than fighting over one.
+    _resolved, _phases = _angles.resolve(
+        'hamiltonians.hamiltonian_3nu_vacuum_energy_independent', angles,
+        {'s12': s12, 's23': s23, 's13': s13}, {'dCP': dCP})
+    s12, s23, s13 = _resolved['s12'], _resolved['s23'], _resolved['s13']
+    dCP = _phases['dCP']
 
     # f = 0.5
 
@@ -286,7 +323,8 @@ def hamiltonian_3nu_vacuum_energy_independent(s12: float, s23: float, s13: float
 
 def hamiltonian_3nu_vacuum_energy_independent_td(l: float, s12: float, s23: float, s13: float,
     dCP: float, D21: float, D31: float,
-    compute_matrix_multiplication: Optional[bool]=False) -> np.ndarray:
+    compute_matrix_multiplication: Optional[bool]=False,
+    angles: Optional[str]='sin') -> np.ndarray:
     r"""Returns the three-neutrino Hamiltonian for vacuum oscillations, as a function of distance,
     even if it does not depend on it.
 
@@ -300,13 +338,13 @@ def hamiltonian_3nu_vacuum_energy_independent_td(l: float, s12: float, s23: floa
     l : float
         Position at which the Hamiltonian is evaluated.
     s12 : float
-        Sine of the mixing angle :math:`\theta_{12}`.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine).
     s23 : float
-        Sine of the mixing angle :math:`\theta_{23}`.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine).
     s13 : float
-        Sine of the mixing angle :math:`\theta_{13}`.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine).
     dCP : float
-        :math:`\delta_\text{CP}` [radian].
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``].
     D21 : float
         Mass-squared difference :math:`\Delta m_{21}^2`.
     D31 : float
@@ -314,6 +352,12 @@ def hamiltonian_3nu_vacuum_energy_independent_td(l: float, s12: float, s23: floa
     compute_matrix_multiplication : bool, optional
         If False (default), use the pre-computed expressions; otherwise, multiply R.M2.R^dagger
         live.
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phase is read as degrees too; under the other three
+        it stays in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -321,12 +365,13 @@ def hamiltonian_3nu_vacuum_energy_independent_td(l: float, s12: float, s23: floa
         Hamiltonian 3x3 matrix.
     """
     return hamiltonian_3nu_vacuum_energy_independent(s12, s23, s13, dCP, D21, D31,
-        compute_matrix_multiplication=compute_matrix_multiplication)
+        compute_matrix_multiplication=compute_matrix_multiplication, angles=angles)
 
 
 def hamiltonian_3nu_vacuum(energy: float, s12: float, s23: float, s13: float, dCP: float,
     D21: float, D31: float, nubar: Optional[bool]=False,
-    compute_matrix_multiplication: Optional[bool]=False) -> np.ndarray:
+    compute_matrix_multiplication: Optional[bool]=False,
+    angles: Optional[str]='sin') -> np.ndarray:
     r"""Returns the three-neutrino Hamiltonian for vacuum oscillations.
 
     Same as :func:`hamiltonian_3nu_vacuum_energy_independent`, but with the 1/E factor applied.
@@ -338,13 +383,13 @@ def hamiltonian_3nu_vacuum(energy: float, s12: float, s23: float, s13: float, dC
     energy : float
         Neutrino energy.
     s12 : float
-        Sine of the mixing angle :math:`\theta_{12}`.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine).
     s23 : float
-        Sine of the mixing angle :math:`\theta_{23}`.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine).
     s13 : float
-        Sine of the mixing angle :math:`\theta_{13}`.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine).
     dCP : float
-        :math:`\delta_\text{CP}` [radian].
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``].
     D21 : float
         Mass-squared difference :math:`\Delta m_{21}^2`.
     D31 : float
@@ -354,6 +399,12 @@ def hamiltonian_3nu_vacuum(energy: float, s12: float, s23: float, s13: float, dC
     compute_matrix_multiplication : bool, optional
         If False (default), use the pre-computed expressions; otherwise, multiply R.M2.R^dagger
         live.
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phase is read as degrees too; under the other three
+        it stays in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -361,11 +412,13 @@ def hamiltonian_3nu_vacuum(energy: float, s12: float, s23: float, s13: float, dC
         Hamiltonian 3x3 matrix.
     """
     return (1/energy)*hamiltonian_3nu_vacuum_energy_independent(s12, s23, s13, dCP, D21, D31,
-        nubar=nubar, compute_matrix_multiplication=compute_matrix_multiplication)
+        nubar=nubar, compute_matrix_multiplication=compute_matrix_multiplication,
+        angles=angles)
 
 
 def hamiltonian_3nu_vacuum_td(l: float, energy: float, s12: float, s23: float, s13: float, dCP: float,
-    D21: float, D31: float, compute_matrix_multiplication: Optional[bool]=False) -> np.ndarray:
+    D21: float, D31: float, compute_matrix_multiplication: Optional[bool]=False,
+    angles: Optional[str]='sin') -> np.ndarray:
     r"""Returns the three-neutrino Hamiltonian for vacuum oscillations, as a function of distance,
     even if it does not depend on it.
 
@@ -381,13 +434,13 @@ def hamiltonian_3nu_vacuum_td(l: float, energy: float, s12: float, s23: float, s
     energy : float
         Neutrino energy.
     s12 : float
-        Sine of the mixing angle :math:`\theta_{12}`.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine).
     s23 : float
-        Sine of the mixing angle :math:`\theta_{23}`.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine).
     s13 : float
-        Sine of the mixing angle :math:`\theta_{13}`.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine).
     dCP : float
-        :math:`\delta_\text{CP}` [radian].
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``].
     D21 : float
         Mass-squared difference :math:`\Delta m_{21}^2`.
     D31 : float
@@ -395,6 +448,12 @@ def hamiltonian_3nu_vacuum_td(l: float, energy: float, s12: float, s23: float, s
     compute_matrix_multiplication : bool, optional
         If False (default), use the pre-computed expressions; otherwise, multiply R.M2.R^dagger
         live.
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phase is read as degrees too; under the other three
+        it stays in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -402,7 +461,7 @@ def hamiltonian_3nu_vacuum_td(l: float, energy: float, s12: float, s23: float, s
         Hamiltonian 3x3 matrix.
     """
     return hamiltonian_3nu_vacuum(energy, s12, s23, s13, dCP, D21, D31,
-        compute_matrix_multiplication=compute_matrix_multiplication)
+        compute_matrix_multiplication=compute_matrix_multiplication, angles=angles)
 
 
 def hamiltonian_3nu_matter(VCC: float) -> np.ndarray:
@@ -574,7 +633,8 @@ def hamiltonian_3nu_nsi_td(l: float, VCC_func: Callable, eps_ee: float, eps_em: 
 
 def hamiltonian_3nu_liv(energy: float, sxi12: float, sxi23: float, sxi13: float, dxiCP: float, b1: float,
     b2: float, b3: float, Lambda: float, n_liv: int, nubar: Optional[bool]=False,
-    compute_matrix_multiplication: Optional[bool]=False) -> np.ndarray:
+    compute_matrix_multiplication: Optional[bool]=False,
+    angles: Optional[str]='sin') -> np.ndarray:
     r"""Returns the three-neutrino Hamiltonian for oscillations w/ LIV.
 
     Computes and returns the 3x3 complex three-neutrino Hamiltonian for oscillations in a CPT-odd
@@ -615,6 +675,12 @@ def hamiltonian_3nu_liv(energy: float, sxi12: float, sxi23: float, sxi13: float,
     compute_matrix_multiplication : bool, optional
         Forwarded to :func:`hamiltonian_3nu_liv_energy_independent` (currently unused there; kept
         for interface parity with the vacuum Hamiltonian).
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phase is read as degrees too; under the other three
+        it stays in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -623,12 +689,13 @@ def hamiltonian_3nu_liv(energy: float, sxi12: float, sxi23: float, sxi13: float,
     """
     return pow(energy, n_liv) * hamiltonian_3nu_liv_energy_independent(sxi12, sxi23, sxi13, dxiCP,
         b1, b2, b3, Lambda, n_liv, nubar=nubar,
-        compute_matrix_multiplication=compute_matrix_multiplication)
+        compute_matrix_multiplication=compute_matrix_multiplication, angles=angles)
 
 
 def hamiltonian_3nu_liv_energy_independent(sxi12: float, sxi23: float, sxi13: float, dxiCP: float,
     b1: float, b2: float, b3: float, Lambda: float, n_liv: int, nubar: Optional[bool]=False,
-    compute_matrix_multiplication: Optional[bool]=False) -> np.ndarray:
+    compute_matrix_multiplication: Optional[bool]=False,
+    angles: Optional[str]='sin') -> np.ndarray:
     r"""Returns the three-neutrino Hamiltonian for oscillations w/ LIV.
 
     Computes and returns the 3x3 complex three-neutrino Hamiltonian for oscillations in a CPT-odd
@@ -665,12 +732,26 @@ def hamiltonian_3nu_liv_energy_independent(sxi12: float, sxi23: float, sxi13: fl
         equivalent to dxiCP -> -dxiCP). Default: False.
     compute_matrix_multiplication : bool, optional
         Currently unused; accepted for interface parity with the vacuum Hamiltonian.
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phase is read as degrees too; under the other three
+        it stays in radians, a sine being no way to state a phase.
 
     Returns
     -------
     np.ndarray
         Hamiltonian 3x3 matrix.
     """
+    # The LIV angles went through no guard at all before this: only the vacuum builders
+    # validated their sines.  Converting here gives them the same protection.
+    _r, _p = _angles.resolve(
+        'hamiltonians.hamiltonian_3nu_liv_energy_independent', angles,
+        {'sxi12': sxi12, 'sxi23': sxi23, 'sxi13': sxi13}, {'dxiCP': dxiCP})
+    sxi12, sxi23, sxi13 = _r['sxi12'], _r['sxi23'], _r['sxi13']
+    dxiCP = _p['dxiCP']
+
     R = pmns_mixing_matrix(sxi12, sxi23, sxi13, dxiCP) if not nubar \
             else np.conj(pmns_mixing_matrix(sxi12, sxi23, sxi13, dxiCP))
 

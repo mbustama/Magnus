@@ -6,6 +6,12 @@ __pycache__/
 old/
 .ipynb_checkpoints
 docs/build
+# jupyter-sphinx writes the executed source of every `.. jupyter-execute::` block
+# here.  It is generated, it is never tracked -- and until it was listed, a docs
+# build left ~220 untracked .py files that `git add -A` would have swept in, and
+# that the documented `ruff check src/magnus/ tests/ docs/ ...` command reported as
+# 219 lint errors in code nobody wrote.
+docs/jupyter_execute/
 build/
 dist/
 *.egg-info/

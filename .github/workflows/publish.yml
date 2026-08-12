@@ -5,8 +5,34 @@ on:
     types: [published]
 
 jobs:
+  # Publishing is irreversible: PyPI does not allow re-uploading a version, even a
+  # deleted one.  Everything that can be checked has to be checked before the upload
+  # step, not after it, and the push-triggered runs on `main` are not enough on their
+  # own -- a release can be cut from any tag, including one whose commit predates a fix
+  # or was never pushed to a branch CI watches.
+  test:
+    name: Test before publishing
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.10"
+
+      - name: Install the package and its test extra
+        run: |
+          python -m pip install --upgrade pip
+          pip install ".[test]"
+
+      - name: Run the suite
+        run: pytest tests/ -q -n auto
+
   build-and-publish:
     name: Build and publish to PyPI
+    needs: test
     runs-on: ubuntu-latest
 
     # These permissions are required for PyPI Trusted Publisher (OIDC) authentication
@@ -23,13 +49,37 @@ jobs:
         with:
           python-version: "3.10"
 
-      - name: Install build tools
+      # Nothing ties the tag to the packaging metadata: the tag names the release, the
+      # `version` field names the artifact, and they are edited in different places at
+      # different times.  Tagging v1.0.0 while pyproject.toml still said 1.0.0rc1 -- which
+      # is exactly what it says today -- would have published 1.0.0rc1 under a release
+      # called 1.0.0, and PyPI would then refuse the real 1.0.0rc1 forever after, because
+      # a version cannot be uploaded twice.
+      - name: Check the tag matches the packaged version
         run: |
           python -m pip install --upgrade pip
-          pip install build
+          tag="${GITHUB_REF_NAME#v}"
+          pkg="$(python -c 'import tomllib,sys; print(tomllib.load(open("pyproject.toml","rb"))["project"]["version"])')"
+          echo "tag=$tag  pyproject=$pkg"
+          if [ "$tag" != "$pkg" ]; then
+            echo "::error::release tag '$GITHUB_REF_NAME' does not match pyproject version '$pkg'"
+            exit 1
+          fi
+
+      - name: Install build tools
+        run: pip install build
 
       - name: Build the package (sdist and wheel)
         run: python -m build
+
+      # What PyPI will actually render.  A README that fails to parse is not rejected at
+      # upload -- it is accepted and then shown as raw text or an error box on the project
+      # page, which cannot be fixed without publishing a new version.  `twine` was already
+      # in the `dev` extra; it was simply never run.
+      - name: Check the artifacts and the rendered description
+        run: |
+          pip install twine
+          twine check --strict dist/*
 
       # - name: Publish package to TestPyPI
       #   uses: pypa/gh-action-pypi-publish@release/v1

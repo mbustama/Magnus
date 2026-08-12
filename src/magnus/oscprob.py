@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (C) 2026 Mauricio Bustamante
 """oscprob.py
 
 Contains routines to compute the neutrino oscillation probability.
@@ -302,6 +304,7 @@ from inspect import signature
 import magnus.magnus as magnus
 import magnus.globaldefs as gd
 import magnus.hamiltonians as hamiltonians
+from magnus.hamiltonians import _angles
 import magnus.matter as matter
 import magnus.earth as earth
 import magnus.adiabatic as adiabatic
@@ -1615,6 +1618,20 @@ def validate_input_battery(
                     ": since energy is a list or NumPy array, all of its elements must be int" + \
                     " or float.")
 
+        # A non-positive energy is rejected rather than propagated, because it does not
+        # fail: E < 0 flips the sign of the whole Hamiltonian, which is CP conjugation, so
+        # the call returns the ANTINEUTRINO probability -- exactly unitary, entirely
+        # plausible, and an answer to a question the caller did not ask.  Measured on a
+        # 1 GeV, 1300 km baseline, P(-E) matches P(nubar=True) to 1e-15 and differs from
+        # P(+E) by 2.3e-02 in vacuum and 4.4e-02 in matter.  A caller who wants
+        # antineutrinos has `nubar=True`; a caller who arrives here has a sign error.
+        # E = 0 is rejected with it: the vacuum phase goes as L/E and returns NaN.
+        if not np.all(np.asarray(energy, dtype=float) > 0.0):
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + \
+                ": energy must be positive.  A negative energy is not an error the" + \
+                " calculation reports: it returns the antineutrino probability, which is" + \
+                " unitary and looks correct.  Use nubar=True for antineutrinos.")
+
         if ( (not isinstance(L, int)) and (not isinstance(L, float)) and \
             (not isinstance(L, list)) and (not isinstance(L, np.ndarray)) ):
             raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + \
@@ -1687,34 +1704,207 @@ def validate_input_battery(
     if validate_initial_position:
 
         if not ((isinstance(L0, int) or (isinstance(L0, float)))):
-            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob_matter_std_potential:"+\
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ":"+\
                 " the initial neutrino position (L0) must be an int or float.")
 
     if validate_density:
 
         if (ratio_number_neutrons_to_protons < 0.0):
-            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob_matter_std_potential:"+\
-                " the ratio of neutrinos to protons (ratio_number_neutrons_to_protons) must" + \
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ":"+\
+                " the ratio of neutrons to protons (ratio_number_neutrons_to_protons) must" + \
                 " be non-negative.")
 
         if (electron_fraction < 0.0):
-            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob_matter_std_potential:"+\
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ":"+\
                 " the ratio of electrons to protons + neutrons (electron_fraction) must be " + \
                 "non-negative.")
 
         if ((callable(rho_func)) and (_n_required_params(rho_func) > 1)):
-            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob_matter_std_potential:"+\
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ":"+\
                 " the provided rho_func is a function of more than one parameter.")
 
         rho_test = rho_func(L0) if callable(rho_func) else rho_func
 
         if (rho_test < 0.0):
-            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob_matter_std_potential:"+\
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ":"+\
                 " rho_func must be non-negative.")
 
+        # Checked before the density reaches the unit guards, because it reaches them as a
+        # comparison that is False either way: `nan == 0.0` and `nan >= threshold` are both
+        # False, so a NaN fell past the early return and was reported as a *units* mistake
+        # -- "far too small to be in natural units" -- which is a confident diagnosis of
+        # the wrong problem.  A non-finite density is not a units question at all.
+        if not np.all(np.isfinite(np.asarray(rho_test, dtype=float))):
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ":"+\
+                " rho_func must be finite; it returned " + str(rho_test) + ".")
+
         if not (isinstance(rho_test, int) or isinstance(rho_test, float)):
-            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob_matter_std_potential:"+\
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ":"+\
                 " rho_func must be a float (or int) or must return a float (or int).")
+
+
+def _warn_if_sterile_projector_disagrees_with_composition(
+        source_func_name, num_flavors, costhz, electron_fraction,
+        ratio_number_neutrons_to_protons,
+        core, mantle, crust, ocean):
+    r"""Warns when the sterile matter entry is built from a different medium than the density.
+
+    Two numbers describe the same matter and are supplied separately.  The **density** along
+    an Earth chord takes its neutron-to-proton ratio from :math:`Y_e`, layer by layer, because
+    :math:`r = (1 - Y_e)/Y_e` is the same statement about composition.  The **sterile states'
+    entry in the matter projector**, :math:`r/2`, cannot: it is one matrix for the whole chord,
+    so it takes the caller's scalar, which defaults to 1.0 -- isoscalar matter, i.e.
+    :math:`Y_e = 0.5`, the uniform composition the layered defaults replaced.
+
+    The two therefore disagree by construction on every Earth chord once a sterile state is
+    present.  Measured at :math:`\cos\theta_z = -0.95` with
+    :math:`\sin\theta_{14} = 0.15`, :math:`\sin\theta_{24} = 0.10` and
+    :math:`\Delta m^2_{41} = 1\,{\rm eV}^2`, the isoscalar projector differs from one built
+    with the core's own :math:`r = 1.1478` by **2.1e-02** in
+    :math:`P(\nu_\mu \to \nu_\mu)`, twenty times the default tolerance -- and silently,
+    since nothing else about the call looks wrong.
+
+    Three flavours are unaffected: the projector's sterile block is empty, so the scalar has
+    nowhere to act.  This is the same shape as the four-flavour NSI matter term that shipped
+    wrong, and it is reported rather than resolved because no single :math:`r` is right for a
+    chord that crosses iron and rock.  Pass the one you want.
+
+    .. versionadded:: 1.0.0
+    """
+    if not num_flavors or num_flavors <= 3:
+        return
+
+    import magnus.earth as _earth
+
+    # The composition actually in force: a uniform override if given, else the layer values.
+    if electron_fraction is not None:
+        ye_used = [float(electron_fraction)]
+    else:
+        ye_used = [float(v) if v is not None else d for v, d in (
+            (core, _earth.Y_E_CORE_PREM), (mantle, _earth.Y_E_MANTLE_PREM),
+            (crust, _earth.Y_E_CRUST_PREM), (ocean, _earth.Y_E_OCEAN_PREM))]
+
+    given = float(ratio_number_neutrons_to_protons)
+
+    if electron_fraction is not None:
+        # One medium, so there is a single right answer and the test is exact.
+        target = float(_earth.neutron_to_proton_ratio_from_electron_fraction(ye_used[0]))
+        implied = [target]
+    else:
+        # Path-averaged along THIS chord, not a range over the four layers.  A range is
+        # useless here: the ocean's r = 0.80 drags it below the isoscalar 1.0, so the
+        # default would sit inside it and never be questioned -- while on a core-crossing
+        # chord the ocean is three kilometres of twelve thousand.  Averaging over the path
+        # weights each layer by how much of the trajectory is actually in it, and gives the
+        # caller one number to pass rather than an interval to choose from.
+        chord = float(_earth.distance_traveled_inside_earth(costhz))
+        l_km = np.linspace(0.0, chord, 2001)
+        radii = _earth.earth_radial_distance_from_depth(costhz, l_km)
+        ye_path = _earth.electron_fraction_func_prem(
+            radii, electron_fraction_core=core, electron_fraction_mantle=mantle,
+            electron_fraction_crust=crust, electron_fraction_ocean=ocean)
+        target = float(np.mean(
+            _earth.neutron_to_proton_ratio_from_electron_fraction(ye_path)))
+        implied = sorted({round(float(_earth.neutron_to_proton_ratio_from_electron_fraction(y)), 4)
+                          for y in np.unique(ye_path)})
+
+    # Silent once the caller has matched the medium to within 2%, which is well inside the
+    # spread PREM's own density carries.
+    if abs(given - target) <= 2.0e-2*max(1.0, abs(target)):
+        return
+
+    warnings.warn(
+        gd.WARNING_MSG_NO_COLOR + " oscprob." + source_func_name + ": the density along this"
+        " chord takes its neutron-to-proton ratio from Y_e layer by layer (r = " +
+        ", ".join(format(r, '.4f') for r in implied) + "), but the sterile states' entry in"
+        " the matter projector is one matrix for the whole chord and is being built from"
+        " ratio_number_neutrons_to_protons = " + format(given, '.4f') + ".  The two describe"
+        " different media.  On a core-crossing chord that is worth about 2e-02 in probability"
+        " at 3+1, twenty times the default tolerance, and nothing else about the call looks"
+        " wrong.  For this chord the path-averaged ratio is " + format(target, '.4f') + ";"
+        " passing that as ratio_number_neutrons_to_protons silences this and makes the two"
+        " agree on average.  electron_fraction=0.5 with the default 1.0 instead reproduces"
+        " the uniform composition earlier versions assumed.  Three flavours are unaffected.",
+        gd.SterileMatterCompositionWarning, stacklevel=3)
+
+
+def _earth_composition(costhz, electron_fraction, ratio_number_neutrons_to_protons,
+                       electron_fraction_core, electron_fraction_mantle,
+                       electron_fraction_crust, electron_fraction_ocean,
+                       source_func_name, num_flavors=None):
+    r"""The electron density along a chord, with :math:`Y_e` resolved per PREM layer.
+
+    Returns the ``rho_func`` every Earth entry point hands to
+    :func:`magnus.matter.vcc_func_from_rho_func`.
+
+    Two things happen here that used to be the caller's problem.  :math:`Y_e` becomes a
+    function of radius rather than one number for the whole Earth -- the core is iron and
+    the mantle is rock, and assuming 0.5 for both is worth up to a factor of ten in
+    :math:`P(\nu_\mu \to \nu_e)` on a core-crossing chord.  And the neutron-to-proton
+    ratio is *derived* from :math:`Y_e` rather than carried separately, because the two
+    are the same statement about composition, :math:`r = (1 - Y_e)/Y_e`.  They were
+    independent arguments before, so an iron core's :math:`Y_e` alongside an isoscalar
+    :math:`r` described matter that cannot exist -- silently, since :math:`r` only shows
+    up in the sterile sector.
+
+    The uniform ``electron_fraction`` override is kept, because it is how an earlier
+    result is reproduced: ``electron_fraction=0.5`` is what every Earth number in this
+    library used to assume.  Combining it with a per-layer value is refused rather than
+    silently resolved -- any precedence rule here is a rule the caller has to know, and
+    this is the shape of two bugs already found in this package.
+    """
+    _warn_if_sterile_projector_disagrees_with_composition(
+        source_func_name, num_flavors, costhz, electron_fraction,
+        ratio_number_neutrons_to_protons,
+        electron_fraction_core, electron_fraction_mantle,
+        electron_fraction_crust, electron_fraction_ocean)
+
+    layered = {
+        'electron_fraction_core': electron_fraction_core,
+        'electron_fraction_mantle': electron_fraction_mantle,
+        'electron_fraction_crust': electron_fraction_crust,
+        'electron_fraction_ocean': electron_fraction_ocean,
+    }
+    given = [k for k, v in layered.items() if v is not None]
+
+    if (electron_fraction is not None) and given:
+        raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": "
+            "electron_fraction sets one value for the whole Earth, and " + ", ".join(given) +
+            " set it per layer; pass one or the other, not both.  electron_fraction=0.5 "
+            "reproduces the uniform composition earlier versions assumed.")
+
+    for name, value in list(layered.items()) + [('electron_fraction', electron_fraction)]:
+        if value is None:
+            continue
+        if not (0.0 < float(value) <= 1.0):
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": " +
+                name + " is an electron fraction, Y_e = <Z/A>, so it must be in (0, 1]; "
+                "got " + str(value) + ".")
+
+    if electron_fraction is not None:
+        def ye_of_r(r):
+            return np.full(np.shape(np.asarray(r, dtype=float)), float(electron_fraction))
+    else:
+        def ye_of_r(r):
+            return earth.electron_fraction_func_prem(r, **layered)
+
+    def rho_func(l):
+        r = earth.earth_radial_distance_from_depth(costhz, l/gd.UNIT_KM)
+        ye = ye_of_r(r)
+        # ALWAYS derived from Y_e here, never taken from the caller's
+        # `ratio_number_neutrons_to_protons`.  In this conversion the ratio only sets the
+        # average nucleon mass, which is a property of the local composition and so has to
+        # follow Y_e layer by layer.  The caller's scalar keeps its other role -- the
+        # sterile states' entry in the matter projector, which is one matrix for the whole
+        # chord and cannot vary with position.  See the note in the wrappers' docstrings.
+        return matter.num_density_e_func(
+            r, earth.density_matter_func_prem,
+            ratio_number_neutrons_to_protons=
+                earth.neutron_to_proton_ratio_from_electron_fraction(ye),
+            electron_fraction=ye,
+            density_matter_is_in_g_per_cm3=True)      # [eV^3] (l in eV^{-1})
+
+    return rho_func
 
 
 def validate_input_osc_prob_earth(
@@ -1914,7 +2104,8 @@ def values_to_unspecified_osc_params(
     D21: Optional[Union[int, float]]=None, 
     D31: Optional[Union[int, float]]=None, 
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
-    verbose: Optional[int]=0
+    verbose: Optional[int]=0,
+    angles: Optional[str]='sin'
 ) -> Tuple[float, float, float, float, float, float]:
     r"""Return values of unspecified standard oscillation parameters
 
@@ -1929,11 +2120,11 @@ def values_to_unspecified_osc_params(
     Parameters
     ----------
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`; if None, taken from the predefined set.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles``; if None, taken from the predefined set.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`; if None, taken from the predefined set.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles``; if None, taken from the predefined set.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`; if None, taken from the predefined set.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles``; if None, taken from the predefined set.
     dCP : int or float, optional
         :math:`\delta_\text{CP}` [radian]; if None, taken from the predefined set.
     D21 : int or float, optional
@@ -1945,6 +2136,12 @@ def values_to_unspecified_osc_params(
         ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
     verbose : int, optional
         Verbosity level. Default: 0.
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phase is read as degrees too; under the other three
+        it stays in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -1965,6 +2162,21 @@ def values_to_unspecified_osc_params(
         (D21 is None) or (D31 is None)):
 
         default_osc_params = gd.OSC_PARAMS_PREDEFINED[default_osc_params_set_name]
+
+        # The predefined sets are stored as SINES, and the caller may not be working in
+        # sines.  Filling one omitted angle from the stored value while the others arrived
+        # as degrees would hand the builder a parameter set in two conventions at once, and
+        # the builder converts all of them alike -- so 0.1499 would be read as 0.1499
+        # degrees.  Wrong only for the parameters the caller happened to leave out, which is
+        # the hardest kind of wrong to notice.
+        if angles != 'sin':
+            _ang, _ph = _angles.from_sines(
+                angles,
+                {k: default_osc_params[k] for k in ('s12', 's23', 's13')},
+                {'dCP': default_osc_params['dCP']})
+            default_osc_params = dict(default_osc_params)
+            default_osc_params.update(_ang)
+            default_osc_params.update(_ph)
 
         if verbose > 0:
             if verbose >= 2:
@@ -2660,6 +2872,17 @@ def osc_prob(
         slabs are computed in a single vectorized (batched) call, which
         is usually fastest; use ``n_jobs > 1`` only for very expensive
         Hamiltonian functions.
+
+        **It is not a pure performance knob.**  Splitting the slabs across
+        workers changes the order the arithmetic is done in, and the
+        refinement ladder's stopping test compares successive levels, so it
+        can stop one level earlier or later than the serial run.  The two
+        agree to the tolerance you asked for and no better: measured on a
+        3nu PREM chord over eight energies, serial against two workers
+        differs by 1.2e-03 at the default ``rtol = 1e-3``, 6.6e-08 at
+        ``rtol = 1e-6`` and 5.6e-11 at ``rtol = 1e-9``.  If you need runs to
+        be comparable bit for bit, hold ``n_jobs`` fixed, or tighten the
+        tolerance until the difference is below what you care about.
     integration_method : str, optional
         'gl' for Gauss-Legendre collocation, which needs only 1, 2, or 3
         Hamiltonian evaluations per slab for orders <= 2, <= 4, <= 6, and
@@ -2781,7 +3004,7 @@ def osc_prob(
         chords it scatters from 1.4 to 7.2 against nominal orders of 2 and 4.
         Every extrapolation tried under-reported the true error on a large
         fraction of real refinement pairs, which is the dangerous direction.
-        See ``docs/source/implementation_details.rst``.
+        See ``docs/source/performance.rst``.
     t_breakpoints : list or np.ndarray, optional
         Optional positions at which the Hamiltonian is known to be
         non-smooth (e.g., density discontinuities such as the PREM
@@ -2896,9 +3119,49 @@ def osc_prob(
             raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob: t_fin must be >=" + \
                 " t_ini.")
 
-        if (magnus_exp_order < 1): 
+        if (magnus_exp_order < 1):
             raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob: magnus_exp_order " + \
                 "must be >= 1.")
+
+        # The slab counts are checked unconditionally, unlike the refinement ceilings
+        # below, which are only meaningful when a tolerance was requested.  `n_slabs` is
+        # the floor the ladder starts from and is used whether or not rtol/atol are set,
+        # so `n_slabs=0` and `n_slabs=-5` used to be accepted in silence: the ladder
+        # simply ignored them and returned the default answer, which made a typo look
+        # like a setting that had been honoured.  rtol and atol were already rejected
+        # when non-positive; these are the same kind of argument and are now treated the
+        # same way.
+        if (n_slabs is not None) and (n_slabs < 1):
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob: n_slabs must be" + \
+                " >= 1.")
+
+        if (min_n_slabs is not None) and (min_n_slabs < 1):
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob: min_n_slabs must" + \
+                " be >= 1.")
+
+        if (n_tpts_per_slab is not None) and (n_tpts_per_slab < 2):
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob: n_tpts_per_slab" + \
+                " must be >= 2.")
+
+        if (min_n_tpts_per_slab is not None) and (min_n_tpts_per_slab < 2):
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob: min_n_tpts_per_" + \
+                "slab must be >= 2.")
+
+        # A floor above its own ceiling is a contradiction, and it used to be answered:
+        # min_n_slabs=100 with max_n_slabs=5 returned a probability that differed from the
+        # default by 4.2e-04, so the request was neither honoured nor refused.  Which of
+        # the two the ladder ends up obeying is an implementation detail, and a caller who
+        # wrote both cannot have meant either.
+        if ((min_n_slabs is not None) and (max_n_slabs is not None) and
+                (min_n_slabs > max_n_slabs)):
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob: min_n_slabs (" + \
+                str(min_n_slabs) + ") must be <= max_n_slabs (" + str(max_n_slabs) + ").")
+
+        if ((min_n_tpts_per_slab is not None) and (max_n_tpts_per_slab is not None) and
+                (min_n_tpts_per_slab > max_n_tpts_per_slab)):
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob: min_n_tpts_per_" + \
+                "slab (" + str(min_n_tpts_per_slab) + ") must be <= max_n_tpts_per_slab (" + \
+                str(max_n_tpts_per_slab) + ").")
 
         if ((rtol is not None) and (rtol <= 0.0)): 
             raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob: rtol must be None " + \
@@ -3553,8 +3816,8 @@ the same numbers without them.
 
 
 PASSTHROUGH_KWARGS_DOCUMENTED = (
-    'atol', 'cumulative', 'integration_method', 'magnus_exp_order', 'max_n_slabs',
-    'n_slabs', 'n_tpts_per_slab', 'rtol', 't_breakpoints', 't_slab_edges')
+    'atol', 'cumulative', 'expm_backend', 'integration_method', 'magnus_exp_order',
+    'max_n_slabs', 'n_slabs', 'n_tpts_per_slab', 'rtol', 't_breakpoints', 't_slab_edges')
 r"""tuple of str: Module-level constant
 
 The engine keywords the probability wrappers forward through ``**kwargs``, in the order
@@ -3565,6 +3828,12 @@ problem this constant exists to mitigate: ``t_breakpoints``, ``n_slabs`` and ``c
 are load-bearing on a hard profile -- declaring a shock front changes the answer by parts
 in :math:`10^6` on a scan that otherwise measures straddled slabs -- and a reader working
 from the signature alone will never find them.
+
+``expm_backend`` was accepted and absent from this list, which is the worst of both: it
+works, so it is worth knowing about, and misspelling it produced an error naming ten
+keywords that did not include the one wanted.  Validation is not affected either way --
+that is derived from the signatures by ``_passthrough_kwarg_names`` -- so this tuple
+is what a caller is *told*, and the whole point of it is to leave nothing out.
 
 Deliberately a *subset* of what ``_passthrough_kwarg_names`` accepts.  That function is
 derived from signatures and includes engine internals no caller of a wrapper should reach
@@ -5654,6 +5923,12 @@ def osc_prob_energy_baseline(
     \**kwargs
         Additional arguments forwarded to :func:`osc_prob`.
 
+    
+    symmetric_over : tuple, optional
+        Caller's declaration that ``A(t) == A(lo + hi - t)`` on ``(lo, hi)``, which lets
+        the Hamiltonian be evaluated on half the slabs.  A declaration, not a test: it
+        is not checked.  See :func:`magnus.magnus.magnus_expansion_multislab`.
+
     Returns
     -------
     int, float, or np.ndarray
@@ -6372,8 +6647,8 @@ def osc_prob_vacuum(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Computes and returns neutrino oscillation probabilities for
     oscillations in vacuum
 
@@ -6410,41 +6685,44 @@ def osc_prob_vacuum(
         Name of the predefined oscillation-parameter set used to fill in any parameter left as
         None in ``osc_params``. Default: 'OSC_PARAMS_DEFAULT'.
     t_slab_edges : list or np.ndarray, optional
-        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+        Accepted for signature parity with the matter routes and **ignored**: a vacuum
+        Hamiltonian is constant in position, so every point is computed exactly with a single
+        slab and there is nothing left to refine.
     magnus_exp_order : int
-        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+        Accepted and **ignored**, as ``t_slab_edges``.
     n_jobs : int
         Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
     integration_method : str
-        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+        Accepted and **ignored**, as ``t_slab_edges``.
     rtol : int or float, optional
-        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+        Accepted and **ignored**, as ``t_slab_edges``.
     atol : int or float, optional
-        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+        Accepted and **ignored**, as ``t_slab_edges``.
     growth_factor_n_slabs : int or float
-        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+        Accepted and **ignored**, as ``t_slab_edges``.
     growth_factor_n_tpts_per_slab : int or float
-        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+        Accepted and **ignored**, as ``t_slab_edges``.
     max_num_loops : int
-        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+        Accepted and **ignored**, as ``t_slab_edges``.
     min_n_slabs : int
-        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+        Accepted and **ignored**, as ``t_slab_edges``.
     max_n_slabs : int
-        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+        Accepted and **ignored**, as ``t_slab_edges``.
     min_n_tpts_per_slab : int
-        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+        Accepted and **ignored**, as ``t_slab_edges``.
     max_n_tpts_per_slab : int
-        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+        Accepted and **ignored**, as ``t_slab_edges``.
     validate_input : bool
         Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
     save_log : bool
         Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
     filename_log : str
-        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+        Accepted and **ignored**; this route logs through ``save_log`` and ``file_log`` only,
+        so pass an already-open file object rather than a name.
     file_log : TextIOWrapper, optional
         Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
     close_file_log_upon_exit : bool
-        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
+        Accepted and **ignored**; see ``filename_log``.
     verbose : int
         Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
     \**kwargs
@@ -6470,6 +6748,16 @@ def osc_prob_vacuum(
 
         A misspelling is rejected here, naming the near match, rather than several hops
         away by a function the caller never invoked.
+
+    
+    average : bool, optional
+        If True, return the phase-averaged probability rather than the oscillating one.
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -6504,24 +6792,24 @@ def osc_prob_vacuum(
     # modified.
     if num_flavors > 2:
         s12, s23, s13, dCP, D21, D31 = values_to_unspecified_osc_params(s12, s23, s13, dCP, D21, 
-            D31, default_osc_params_set_name, verbose)
+            D31, default_osc_params_set_name, verbose, angles=angles)
 
     # Compute the energy-independent part of the vacuum Hamiltonian, i.e., everything but the 1/E 
     # prefactor, only once, to save time.  Multiply by the 1/E factor later when calling osc_prob.
     # If num_flavors > MAGNUS_MAX_PREDEFINED_NUM_FLAVORS, we use the h_vac_energy_indep that was
     # passed to the function.
     if num_flavors == 2:
-        h_vac_energy_indep = hamiltonians.hamiltonian_2nu_vacuum_energy_independent(sth, Dm2) 
+        h_vac_energy_indep = hamiltonians.hamiltonian_2nu_vacuum_energy_independent(sth, Dm2, angles=angles) 
     elif num_flavors == 3:
         h_vac_energy_indep = hamiltonians.hamiltonian_3nu_vacuum_energy_independent(s12, s23, 
-            s13, dCP, D21, D31, nubar=nubar) 
+            s13, dCP, D21, D31, nubar=nubar, angles=angles) 
     elif num_flavors == 4:
         h_vac_energy_indep = hamiltonians.hamiltonian_4nu_vacuum_energy_independent(s12, s23, 
-            s13, dCP, s14, d14, s24, d24, s34, D21, D31, D41, nubar=nubar) 
+            s13, dCP, s14, d14, s24, d24, s34, D21, D31, D41, nubar=nubar, angles=angles) 
     elif num_flavors == 5:
         h_vac_energy_indep = hamiltonians.hamiltonian_5nu_vacuum_energy_independent(s12, s23,
             s13, dCP, s14, d14, s15, d15, s24, d24, s25, s34, s35, d35, D21, D31, D41, D51,
-            nubar=nubar) 
+            nubar=nubar, angles=angles) 
 
     def htot(enu: Union[int, float]) -> np.ndarray:
         return (1/enu)*h_vac_energy_indep
@@ -6604,8 +6892,8 @@ def osc_prob_matter_std_potential(
     verbose: Optional[int]=0,
     new_recursion_limit: Optional[int]=5000,
     symmetric_over: Optional[tuple]=None,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Computes and returns neutrino oscillation probabilities for
     standard oscillations in matter, i.e., the matter potential is only
     due to the coherent forward scattering of nu_e on electrons.
@@ -6806,6 +7094,20 @@ def osc_prob_matter_std_potential(
         A misspelling is rejected here, naming the near match, rather than several hops
         away by a function the caller never invoked.
 
+    
+    average : bool, optional
+        If True, return the phase-averaged probability rather than the oscillating one.
+    symmetric_over : tuple, optional
+        Caller's declaration that ``A(t) == A(lo + hi - t)`` on ``(lo, hi)``, which lets
+        the Hamiltonian be evaluated on half the slabs.  A declaration, not a test: it
+        is not checked.  See :func:`magnus.magnus.magnus_expansion_multislab`.
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
+
     Returns
     -------
     float or np.ndarray
@@ -6845,24 +7147,24 @@ def osc_prob_matter_std_potential(
     # modified.
     if num_flavors > 2:
         s12, s23, s13, dCP, D21, D31 = values_to_unspecified_osc_params(s12, s23, s13, dCP, D21,
-            D31, default_osc_params_set_name, verbose)
+            D31, default_osc_params_set_name, verbose, angles=angles)
 
     # Compute the energy-independent part of the vacuum Hamiltonian, i.e., everything but the 1/E 
     # prefactor, only once, to save time.  Multiply by the 1/E factor later when calling osc_prob.
     # If num_flavors > MAGNUS_MAX_PREDEFINED_NUM_FLAVORS, we use the h_vac_energy_indep that was
     # passed to the function.
     if num_flavors == 2:
-        h_vac_energy_indep = hamiltonians.hamiltonian_2nu_vacuum_energy_independent(sth, Dm2) 
+        h_vac_energy_indep = hamiltonians.hamiltonian_2nu_vacuum_energy_independent(sth, Dm2, angles=angles) 
     elif num_flavors == 3:
         h_vac_energy_indep = hamiltonians.hamiltonian_3nu_vacuum_energy_independent(s12, s23, 
-            s13, dCP, D21, D31, nubar=nubar) 
+            s13, dCP, D21, D31, nubar=nubar, angles=angles) 
     elif num_flavors == 4:
         h_vac_energy_indep = hamiltonians.hamiltonian_4nu_vacuum_energy_independent(s12, s23, 
-            s13, dCP, s14, d14, s24, d24, s34, D21, D31, D41, nubar=nubar) 
+            s13, dCP, s14, d14, s24, d24, s34, D21, D31, D41, nubar=nubar, angles=angles) 
     elif num_flavors == 5:
         h_vac_energy_indep = hamiltonians.hamiltonian_5nu_vacuum_energy_independent(s12, s23,
             s13, dCP, s14, d14, s15, d15, s24, d24, s25, s34, s35, d35, D21, D31, D41, D51,
-            nubar=nubar)
+            nubar=nubar, angles=angles)
 
     # Build the coherent forward potential function, VCC_func, from the density function, rho_func.
     # If the provided rho_func is the matter density (e.g., g cm^{-3}), convert rho_func to a 
@@ -7060,8 +7362,8 @@ def osc_prob_matter_nsi(
     verbose: Optional[int]=0,
     new_recursion_limit: Optional[int]=5000,
     symmetric_over: Optional[tuple]=None,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Computes and returns neutrino oscillation probabilities for
     oscillations in matter with non-standard interactions (NSI), i.e., the matter potential
     includes both the standard coherent-forward-scattering term and the NSI epsilon couplings.
@@ -7216,6 +7518,20 @@ def osc_prob_matter_nsi(
         A misspelling is rejected here, naming the near match, rather than several hops
         away by a function the caller never invoked.
 
+    
+    average : bool, optional
+        If True, return the phase-averaged probability rather than the oscillating one.
+    symmetric_over : tuple, optional
+        Caller's declaration that ``A(t) == A(lo + hi - t)`` on ``(lo, hi)``, which lets
+        the Hamiltonian be evaluated on half the slabs.  A declaration, not a test: it
+        is not checked.  See :func:`magnus.magnus.magnus_expansion_multislab`.
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
+
     Returns
     -------
     float or np.ndarray
@@ -7263,24 +7579,24 @@ def osc_prob_matter_nsi(
     # modified.
     if num_flavors > 2:
         s12, s23, s13, dCP, D21, D31 = values_to_unspecified_osc_params(s12, s23, s13, dCP, D21, 
-            D31, default_osc_params_set_name, verbose)
+            D31, default_osc_params_set_name, verbose, angles=angles)
 
     # Compute the energy-independent part of the vacuum Hamiltonian, i.e., everything but the 1/E 
     # prefactor, only once, to save time.  Multiply by the 1/E factor later when calling osc_prob.
     # If num_flavors > MAGNUS_MAX_PREDEFINED_NUM_FLAVORS, we use the h_vac_energy_indep that was
     # passed to the function.
     if num_flavors == 2:
-        h_vac_energy_indep = hamiltonians.hamiltonian_2nu_vacuum_energy_independent(sth, Dm2) 
+        h_vac_energy_indep = hamiltonians.hamiltonian_2nu_vacuum_energy_independent(sth, Dm2, angles=angles) 
     elif num_flavors == 3:
         h_vac_energy_indep = hamiltonians.hamiltonian_3nu_vacuum_energy_independent(s12, s23, 
-            s13, dCP, D21, D31, nubar=nubar) 
+            s13, dCP, D21, D31, nubar=nubar, angles=angles) 
     elif num_flavors == 4:
         h_vac_energy_indep = hamiltonians.hamiltonian_4nu_vacuum_energy_independent(s12, s23, 
-            s13, dCP, s14, d14, s24, d24, s34, D21, D31, D41, nubar=nubar) 
+            s13, dCP, s14, d14, s24, d24, s34, D21, D31, D41, nubar=nubar, angles=angles) 
     elif num_flavors == 5:
         h_vac_energy_indep = hamiltonians.hamiltonian_5nu_vacuum_energy_independent(s12, s23,
             s13, dCP, s14, d14, s15, d15, s24, d24, s25, s34, s35, d35, D21, D31, D41, D51,
-            nubar=nubar)
+            nubar=nubar, angles=angles)
 
     # Compute the standard + NSI matter Hamiltonian *without* the multiplicative prefactor of VCC.
     # To do this we call the functions hamiltonians_Xnu_nsi(VCC, ...) with VCC = 1.0.  We add the
@@ -7288,18 +7604,25 @@ def osc_prob_matter_nsi(
     # The overall antineutrino sign flip is carried by VCC_func (see
     # matter.vcc_func_from_rho_func); for antineutrinos, the NSI couplings are additionally
     # conjugated (H_matt -> -H_matt^* relative to neutrinos).
+    # `matter.matter_potential_projector` for the standard piece, NOT a hand-written
+    # diagonal: beyond three flavours the standard matter term is not e_ee.  The sterile
+    # states carry -V_NC = (r/2) V_CC once the actives' common V_NC is removed, and a
+    # literal [1, 0, 0, 0] gives them zero instead -- which is the same omission that was
+    # found and fixed in the standard-potential path, and it survived here.  With every
+    # eps set to zero this route has to reproduce that path exactly, and did not: it
+    # differed by 5.2e-02 at four flavours and 5.1e-02 at five.
     if num_flavors == 2:
-        h_matt = np.diag([1.0, 0.0]) + \
+        h_matt = matter.matter_potential_projector(2) + \
             hamiltonians.hamiltonian_2nu_nsi(1.0, eps_aa, eps_ab) # VCC = 1.0
     elif num_flavors == 3:
-        h_matt = np.diag([1.0, 0.0, 0.0]) + \
+        h_matt = matter.matter_potential_projector(3) + \
             hamiltonians.hamiltonian_3nu_nsi(1.0, eps_ee, eps_em, eps_et, eps_mm, eps_mt, eps_tt)
     elif num_flavors == 4:
-        h_matt = np.diag([1.0, 0.0, 0.0, 0.0]) + \
+        h_matt = matter.matter_potential_projector(4, ratio_number_neutrons_to_protons) + \
             hamiltonians.hamiltonian_4nu_nsi(1.0, eps_ee, eps_em, eps_et, eps_es, eps_mm, eps_mt,
                 eps_ms, eps_tt, eps_ts, eps_ss)
     elif num_flavors == 5:
-        h_matt = np.diag([1.0, 0.0, 0.0, 0.0, 0.0]) + \
+        h_matt = matter.matter_potential_projector(5, ratio_number_neutrons_to_protons) + \
             hamiltonians.hamiltonian_5nu_nsi(1.0, eps_ee, eps_em, eps_et, eps_es1, eps_es2,
                 eps_mm, eps_mt, eps_ms1, eps_ms2, eps_tt, eps_ts1, eps_ts2, eps_s1s1, eps_s1s2,
                 eps_s2s2)
@@ -7481,8 +7804,8 @@ def osc_prob_liv(
     verbose: Optional[int]=0,
     new_recursion_limit: Optional[int]=5000,
     symmetric_over: Optional[tuple]=None,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Computes and returns neutrino oscillation probabilities for
     oscillations under (one form of) Lorentz-invariance violation, in
     vacuum or in matter.
@@ -7638,6 +7961,20 @@ def osc_prob_liv(
         A misspelling is rejected here, naming the near match, rather than several hops
         away by a function the caller never invoked.
 
+    
+    average : bool, optional
+        If True, return the phase-averaged probability rather than the oscillating one.
+    symmetric_over : tuple, optional
+        Caller's declaration that ``A(t) == A(lo + hi - t)`` on ``(lo, hi)``, which lets
+        the Hamiltonian be evaluated on half the slabs.  A declaration, not a test: it
+        is not checked.  See :func:`magnus.magnus.magnus_expansion_multislab`.
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
+
     Returns
     -------
     float or np.ndarray
@@ -7685,24 +8022,24 @@ def osc_prob_liv(
     # modified.
     if num_flavors > 2:
         s12, s23, s13, dCP, D21, D31 = values_to_unspecified_osc_params(s12, s23, s13, dCP, D21, 
-            D31, default_osc_params_set_name, verbose)
+            D31, default_osc_params_set_name, verbose, angles=angles)
 
     # Compute the energy-independent part of the vacuum Hamiltonian, i.e., everything but the 1/E 
     # prefactor, only once, to save time.  Multiply by the 1/E factor later when calling osc_prob.
     # If num_flavors > MAGNUS_MAX_PREDEFINED_NUM_FLAVORS, we use the h_vac_energy_indep that was
     # passed to the function.
     if num_flavors == 2:
-        h_vac_energy_indep = hamiltonians.hamiltonian_2nu_vacuum_energy_independent(sth, Dm2) 
+        h_vac_energy_indep = hamiltonians.hamiltonian_2nu_vacuum_energy_independent(sth, Dm2, angles=angles) 
     elif num_flavors == 3:
         h_vac_energy_indep = hamiltonians.hamiltonian_3nu_vacuum_energy_independent(s12, s23, 
-            s13, dCP, D21, D31, nubar=nubar) 
+            s13, dCP, D21, D31, nubar=nubar, angles=angles) 
     elif num_flavors == 4:
         h_vac_energy_indep = hamiltonians.hamiltonian_4nu_vacuum_energy_independent(s12, s23, 
-            s13, dCP, s14, d14, s24, d24, s34, D21, D31, D41, nubar=nubar) 
+            s13, dCP, s14, d14, s24, d24, s34, D21, D31, D41, nubar=nubar, angles=angles) 
     elif num_flavors == 5:
         h_vac_energy_indep = hamiltonians.hamiltonian_5nu_vacuum_energy_independent(s12, s23,
             s13, dCP, s14, d14, s15, d15, s24, d24, s25, s34, s35, d35, D21, D31, D41, D51,
-            nubar=nubar)
+            nubar=nubar, angles=angles)
     
     # Compute the energy-independent part of the LIV Hamiltonian, i.e., everything but the 1/E 
     # prefactor, only once, to save time.  Multiply by the 1/E factor later when calling osc_prob.
@@ -7710,18 +8047,18 @@ def osc_prob_liv(
     # passed to the function.
     if num_flavors == 2:
         h_liv_energy_indep = hamiltonians.hamiltonian_2nu_liv_energy_independent(sxi, b1, b2, 
-            Lambda, n_liv)
+            Lambda, n_liv, angles=angles)
     elif num_flavors == 3:
         h_liv_energy_indep = hamiltonians.hamiltonian_3nu_liv_energy_independent(sxi12, sxi23,
-            sxi13, dxiCP, b1, b2, b3, Lambda, n_liv, nubar=nubar)
+            sxi13, dxiCP, b1, b2, b3, Lambda, n_liv, nubar=nubar, angles=angles)
     elif num_flavors == 4:
         h_liv_energy_indep = hamiltonians.hamiltonian_4nu_liv_energy_independent(sxi12, sxi23,
             sxi13, dxi13, sxi14, dxi14, sxi24, dxi24, sxi34, b1, b2, b3, b4, Lambda, n_liv,
-            nubar=nubar)
+            nubar=nubar, angles=angles)
     elif num_flavors == 5:
         h_liv_energy_indep = hamiltonians.hamiltonian_5nu_liv_energy_independent(sxi12, sxi23,
             sxi13, dxi13, sxi14, dxi14, sxi15, dxi15, sxi24, dxi24, sxi25, sxi34, sxi35, dxi35, b1,
-            b2, b3, b4, b5, Lambda, n_liv, nubar=nubar)
+            b2, b3, b4, b5, Lambda, n_liv, nubar=nubar, angles=angles)
    
     if (rho_func != 0.0): # Matter density is nonzero, include the matter term in the Hamiltonian
 
@@ -7893,8 +8230,8 @@ def osc_prob_2nu_vacuum(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the two-neutrino oscillation probability in
     vacuum.
 
@@ -7958,7 +8295,7 @@ def osc_prob_2nu_vacuum(
     L : int, float, list, or np.ndarray
         Neutrino baseline, single value or array.
     sth : int or float
-        Sine of the mixing angle :math:`\theta`.
+        Mixing angle :math:`\theta`, in the convention set by ``angles`` (default: its sine).
     Dm2 : int or float
         Mass-squared difference :math:`\Delta m^2`.
     nu_i : int, optional
@@ -7973,6 +8310,21 @@ def osc_prob_2nu_vacuum(
     verbose : int, optional
         0 not to print warnings and errors; 1 to print them; 2 to print
         progress.
+
+    
+    save_log : bool, optional
+        If True, also write all messages to the log file.
+    filename_log : str, optional
+        Name of the log file.
+    file_log : file object, optional
+        Open file handle to write the log to, if one is already open.
+    close_file_log_upon_exit : bool, optional
+        If True, close ``file_log`` before returning.
+    angles : str, optional
+        How the mixing angle is stated: ``'sin'`` (default) its sine,
+        ``'sin2'`` its sine *squared* -- which is what global fits report --
+        ``'rad'`` the angle itself in radians, or ``'deg'`` in degrees.  Any other
+        value raises.
 
     Returns
     -------
@@ -8021,6 +8373,7 @@ def osc_prob_2nu_vacuum(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -8044,8 +8397,8 @@ def osc_prob_3nu_vacuum(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the three-neutrino oscillation probability in
     vacuum.
 
@@ -8107,11 +8460,11 @@ def osc_prob_3nu_vacuum(
     L : int, float, list, or np.ndarray
         Neutrino baseline, single value or array.
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine).
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine).
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine).
     dCP : int or float, optional
         CP-violation phase, :math:`\delta_\text{CP}`.
     D21 : int or float, optional
@@ -8135,6 +8488,22 @@ def osc_prob_3nu_vacuum(
     verbose : int, optional
         0 not to print warnings and errors; 1 to print them; 2 to print
         progress.
+
+    
+    save_log : bool, optional
+        If True, also write all messages to the log file.
+    filename_log : str, optional
+        Name of the log file.
+    file_log : file object, optional
+        Open file handle to write the log to, if one is already open.
+    close_file_log_upon_exit : bool, optional
+        If True, close ``file_log`` before returning.
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phase is read as degrees too; under the other three
+        it stays in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -8220,6 +8589,7 @@ def osc_prob_3nu_vacuum(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )
 
@@ -8249,8 +8619,8 @@ def osc_prob_4nu_vacuum(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the four-neutrino (3+1) oscillation 
     probability in vacuum.
 
@@ -8315,11 +8685,11 @@ def osc_prob_4nu_vacuum(
     L : int, float, list, or np.ndarray
         Neutrino baseline, single value or array.
     s14 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{14}`.
+        Mixing angle :math:`\theta_{14}`, in the convention set by ``angles`` (default: its sine).
     s24 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{24}`.
+        Mixing angle :math:`\theta_{24}`, in the convention set by ``angles`` (default: its sine).
     s34 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{34}`.
+        Mixing angle :math:`\theta_{34}`, in the convention set by ``angles`` (default: its sine).
     d14 : int or float, optional
         CP-violation phase, :math:`\delta_{14}`.
     d24 : int or float, optional
@@ -8327,11 +8697,11 @@ def osc_prob_4nu_vacuum(
     D41 : int or float, optional
         Mass-squared difference :math:`\Delta m_{41}^2`.
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine).
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine).
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine).
     dCP : int or float, optional
         CP-violation phase, :math:`\delta_\text{CP}`.
     D21 : int or float, optional
@@ -8355,6 +8725,22 @@ def osc_prob_4nu_vacuum(
     verbose : int, optional
         0 not to print warnings and errors; 1 to print them; 2 to print
         progress.
+
+    
+    save_log : bool, optional
+        If True, also write all messages to the log file.
+    filename_log : str, optional
+        Name of the log file.
+    file_log : file object, optional
+        Open file handle to write the log to, if one is already open.
+    close_file_log_upon_exit : bool, optional
+        If True, close ``file_log`` before returning.
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -8439,6 +8825,7 @@ def osc_prob_4nu_vacuum(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )
 
@@ -8474,8 +8861,8 @@ def osc_prob_5nu_vacuum(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the five-neutrino (3+2) oscillation 
     probability in vacuum.
 
@@ -8542,17 +8929,17 @@ def osc_prob_5nu_vacuum(
     L : int, float, list, or np.ndarray
         Neutrino baseline, single value or array.
     s14 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{14}`.
+        Mixing angle :math:`\theta_{14}`, in the convention set by ``angles`` (default: its sine).
     s15 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{15}`.
+        Mixing angle :math:`\theta_{15}`, in the convention set by ``angles`` (default: its sine).
     s24 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{24}`.
+        Mixing angle :math:`\theta_{24}`, in the convention set by ``angles`` (default: its sine).
     s25 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{25}`.
+        Mixing angle :math:`\theta_{25}`, in the convention set by ``angles`` (default: its sine).
     s34 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{34}`.
+        Mixing angle :math:`\theta_{34}`, in the convention set by ``angles`` (default: its sine).
     s35 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{35}`.
+        Mixing angle :math:`\theta_{35}`, in the convention set by ``angles`` (default: its sine).
     d14 : int or float, optional
         CP-violation phase, :math:`\delta_{14}`.
     d15 : int or float, optional
@@ -8566,11 +8953,11 @@ def osc_prob_5nu_vacuum(
     D51 : int or float, optional
         Mass-squared difference :math:`\Delta m_{51}^2`.
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine).
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine).
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine).
     dCP : int or float, optional
         CP-violation phase, :math:`\delta_\text{CP}`.
     D21 : int or float, optional
@@ -8596,6 +8983,22 @@ def osc_prob_5nu_vacuum(
     verbose : int, optional
         0 not to print warnings and errors; 1 to print them; 2 to print
         progress.
+
+    
+    save_log : bool, optional
+        If True, also write all messages to the log file.
+    filename_log : str, optional
+        Name of the log file.
+    file_log : file object, optional
+        Open file handle to write the log to, if one is already open.
+    close_file_log_upon_exit : bool, optional
+        If True, close ``file_log`` before returning.
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -8684,6 +9087,7 @@ def osc_prob_5nu_vacuum(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )
 
@@ -8711,8 +9115,8 @@ def osc_prob_2nu_matter_constant_density(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the two-neutrino oscillation probability in
     matter with a constant density profile.
 
@@ -8727,7 +9131,7 @@ def osc_prob_2nu_matter_constant_density(
     rho : int or float
         Matter density (or electron number density, if ``density_is_of_number_of_electrons`` is True).
     sth : int or float
-        Sine of the mixing angle :math:`\theta`, the single mixing angle of the two-flavor system.
+        Mixing angle :math:`\theta` of the two-flavor system, in the convention set by ``angles`` (default: its sine).
     Dm2 : int or float
         Mass-squared difference :math:`\Delta m^2` of the two-flavor system.
     ratio_number_neutrons_to_protons : int or float, optional
@@ -8758,6 +9162,11 @@ def osc_prob_2nu_matter_constant_density(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    angles : str, optional
+        How the mixing angle is stated: ``'sin'`` (default) its sine,
+        ``'sin2'`` its sine *squared* -- which is what global fits report --
+        ``'rad'`` the angle itself in radians, or ``'deg'`` in degrees.  Any other
+        value raises.
 
     Returns
     -------
@@ -8783,6 +9192,7 @@ def osc_prob_2nu_matter_constant_density(
         validate_input=validate_input,
         new_recursion_limit=None,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -8811,8 +9221,8 @@ def osc_prob_3nu_matter_constant_density(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the three-neutrino oscillation probability in
     matter with a constant density profile.
 
@@ -8827,13 +9237,13 @@ def osc_prob_3nu_matter_constant_density(
     rho : int or float
         Matter density (or electron number density, if ``density_is_of_number_of_electrons`` is True).
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
@@ -8868,6 +9278,12 @@ def osc_prob_3nu_matter_constant_density(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phase is read as degrees too; under the other three
+        it stays in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -8894,6 +9310,7 @@ def osc_prob_3nu_matter_constant_density(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -8928,8 +9345,8 @@ def osc_prob_4nu_matter_constant_density(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the four-neutrino oscillation probability in
     matter with a constant density profile.
 
@@ -8944,25 +9361,25 @@ def osc_prob_4nu_matter_constant_density(
     rho : int or float
         Matter density (or electron number density, if ``density_is_of_number_of_electrons`` is True).
     s14 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{14}`. Default: 0.0.
+        Mixing angle :math:`\theta_{14}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s24 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{24}`. Default: 0.0.
+        Mixing angle :math:`\theta_{24}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s34 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{34}`. Default: 0.0.
+        Mixing angle :math:`\theta_{34}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     d14 : int or float, optional
-        :math:`\delta_{14}` [radian]. Default: 0.0.
+        :math:`\delta_{14}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d24 : int or float, optional
-        :math:`\delta_{24}` [radian]. Default: 0.0.
+        :math:`\delta_{24}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     D41 : int or float, optional
         Mass-squared difference :math:`\Delta m_{41}^2`. Default: 0.0.
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
@@ -8997,6 +9414,12 @@ def osc_prob_4nu_matter_constant_density(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -9024,6 +9447,7 @@ def osc_prob_4nu_matter_constant_density(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -9064,8 +9488,8 @@ def osc_prob_5nu_matter_constant_density(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the five-neutrino oscillation probability in
     matter with a constant density profile.
 
@@ -9080,37 +9504,37 @@ def osc_prob_5nu_matter_constant_density(
     rho : int or float
         Matter density (or electron number density, if ``density_is_of_number_of_electrons`` is True).
     s14 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{14}`. Default: 0.0.
+        Mixing angle :math:`\theta_{14}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s15 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{15}`. Default: 0.0.
+        Mixing angle :math:`\theta_{15}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s24 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{24}`. Default: 0.0.
+        Mixing angle :math:`\theta_{24}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s25 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{25}`. Default: 0.0.
+        Mixing angle :math:`\theta_{25}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s34 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{34}`. Default: 0.0.
+        Mixing angle :math:`\theta_{34}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s35 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{35}`. Default: 0.0.
+        Mixing angle :math:`\theta_{35}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     d14 : int or float, optional
-        :math:`\delta_{14}` [radian]. Default: 0.0.
+        :math:`\delta_{14}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d15 : int or float, optional
-        :math:`\delta_{15}` [radian]. Default: 0.0.
+        :math:`\delta_{15}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d24 : int or float, optional
-        :math:`\delta_{24}` [radian]. Default: 0.0.
+        :math:`\delta_{24}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d35 : int or float, optional
-        :math:`\delta_{35}` [radian]. Default: 0.0.
+        :math:`\delta_{35}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     D41 : int or float, optional
         Mass-squared difference :math:`\Delta m_{41}^2`. Default: 0.0.
     D51 : int or float, optional
         Mass-squared difference :math:`\Delta m_{51}^2`. Default: 0.0.
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
@@ -9145,6 +9569,12 @@ def osc_prob_5nu_matter_constant_density(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -9173,6 +9603,7 @@ def osc_prob_5nu_matter_constant_density(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -9202,8 +9633,8 @@ def osc_prob_2nu_matter_exp_density(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the two-neutrino oscillation 
     probability in matter with an exponentially falling density profile.
 
@@ -9231,7 +9662,7 @@ def osc_prob_2nu_matter_exp_density(
     l_scale : int or float
         Length scale of the exponential density decrease.
     sth : int or float
-        Sine of the mixing angle :math:`\theta`, the single mixing angle of the two-flavor system.
+        Mixing angle :math:`\theta` of the two-flavor system, in the convention set by ``angles`` (default: its sine).
     Dm2 : int or float
         Mass-squared difference :math:`\Delta m^2` of the two-flavor system.
     ratio_number_neutrons_to_protons : int or float, optional
@@ -9262,6 +9693,11 @@ def osc_prob_2nu_matter_exp_density(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    angles : str, optional
+        How the mixing angle is stated: ``'sin'`` (default) its sine,
+        ``'sin2'`` its sine *squared* -- which is what global fits report --
+        ``'rad'`` the angle itself in radians, or ``'deg'`` in degrees.  Any other
+        value raises.
 
     Returns
     -------
@@ -9297,6 +9733,7 @@ def osc_prob_2nu_matter_exp_density(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -9327,8 +9764,8 @@ def osc_prob_3nu_matter_exp_density(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the three-neutrino oscillation 
     probability in matter with an exponentially falling density profile.
 
@@ -9347,13 +9784,13 @@ def osc_prob_3nu_matter_exp_density(
     l_scale : int or float
         Length scale of the exponential density decrease.
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
@@ -9388,6 +9825,12 @@ def osc_prob_3nu_matter_exp_density(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phase is read as degrees too; under the other three
+        it stays in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -9421,6 +9864,7 @@ def osc_prob_3nu_matter_exp_density(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -9457,8 +9901,8 @@ def osc_prob_4nu_matter_exp_density(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the four-neutrino (3+1) oscillation 
     probability in matter with an exponentially falling density profile.
 
@@ -9477,27 +9921,27 @@ def osc_prob_4nu_matter_exp_density(
     l_scale : int or float
         Length scale of the exponential density decrease.
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
         Mass-squared difference :math:`\Delta m_{31}^2`. Default: None.
     s14 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{14}`. Default: 0.0.
+        Mixing angle :math:`\theta_{14}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s24 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{24}`. Default: 0.0.
+        Mixing angle :math:`\theta_{24}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s34 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{34}`. Default: 0.0.
+        Mixing angle :math:`\theta_{34}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     d14 : int or float, optional
-        :math:`\delta_{14}` [radian]. Default: 0.0.
+        :math:`\delta_{14}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d24 : int or float, optional
-        :math:`\delta_{24}` [radian]. Default: 0.0.
+        :math:`\delta_{24}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     D41 : int or float, optional
         Mass-squared difference :math:`\Delta m_{41}^2`. Default: 0.0.
     ratio_number_neutrons_to_protons : int or float, optional
@@ -9530,6 +9974,12 @@ def osc_prob_4nu_matter_exp_density(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -9564,6 +10014,7 @@ def osc_prob_4nu_matter_exp_density(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -9606,8 +10057,8 @@ def osc_prob_5nu_matter_exp_density(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the five-neutrino (3+2) oscillation 
     probability in matter with an exponentially falling density profile.
 
@@ -9626,37 +10077,37 @@ def osc_prob_5nu_matter_exp_density(
     l_scale : int or float
         Length scale of the exponential density decrease.
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
         Mass-squared difference :math:`\Delta m_{31}^2`. Default: None.
     s14 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{14}`. Default: 0.0.
+        Mixing angle :math:`\theta_{14}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s15 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{15}`. Default: 0.0.
+        Mixing angle :math:`\theta_{15}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s24 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{24}`. Default: 0.0.
+        Mixing angle :math:`\theta_{24}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s25 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{25}`. Default: 0.0.
+        Mixing angle :math:`\theta_{25}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s34 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{34}`. Default: 0.0.
+        Mixing angle :math:`\theta_{34}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s35 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{35}`. Default: 0.0.
+        Mixing angle :math:`\theta_{35}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     d14 : int or float, optional
-        :math:`\delta_{14}` [radian]. Default: 0.0.
+        :math:`\delta_{14}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d15 : int or float, optional
-        :math:`\delta_{15}` [radian]. Default: 0.0.
+        :math:`\delta_{15}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d24 : int or float, optional
-        :math:`\delta_{24}` [radian]. Default: 0.0.
+        :math:`\delta_{24}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d35 : int or float, optional
-        :math:`\delta_{35}` [radian]. Default: 0.0.
+        :math:`\delta_{35}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     D41 : int or float, optional
         Mass-squared difference :math:`\Delta m_{41}^2`. Default: 0.0.
     D51 : int or float, optional
@@ -9691,6 +10142,12 @@ def osc_prob_5nu_matter_exp_density(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -9726,6 +10183,7 @@ def osc_prob_5nu_matter_exp_density(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -9746,15 +10204,19 @@ def osc_prob_2nu_earth(
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
     ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
-    electron_fraction: Optional[Union[int, float]]=0.5,
+    electron_fraction: Optional[Union[int, float]]=None,
+    electron_fraction_core: Optional[Union[int, float]]=None,
+    electron_fraction_mantle: Optional[Union[int, float]]=None,
+    electron_fraction_crust: Optional[Union[int, float]]=None,
+    electron_fraction_ocean: Optional[Union[int, float]]=None,
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the two-neutrino oscillation probability 
     inside the Earth, either between two locations on the surface of the
     Earth, or between the surface and a point in the interior.
@@ -9830,7 +10292,7 @@ def osc_prob_2nu_earth(
     energy : int, float, list, or np.ndarray
         Neutrino energy/energies.
     sth : int or float
-        Sine of the mixing angle :math:`\theta`, the single mixing angle of the two-flavor system.
+        Mixing angle :math:`\theta` of the two-flavor system, in the convention set by ``angles`` (default: its sine).
     Dm2 : int or float
         Mass-squared difference :math:`\Delta m^2` of the two-flavor system.
     costhz : int or float, optional
@@ -9862,6 +10324,51 @@ def osc_prob_2nu_earth(
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
 
+    
+    ratio_number_neutrons_to_protons : int or float, optional
+        :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
+        matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
+        (isoscalar matter, i.e. :math:`Y_e = 0.5`).
+
+        **On an Earth chord this is not the ratio the density uses.**  The density takes
+        :math:`r = (1 - Y_e)/Y_e` layer by layer, because that is the same statement about
+        composition; the projector cannot, being one matrix for the whole chord.  So the
+        two disagree unless you match them, and at four flavours or more that is worth
+        about 2e-02 in probability on a core-crossing chord -- twenty times the default
+        tolerance, and silent.  Mag$\nu$s raises
+        :class:`magnus.globaldefs.SterileMatterCompositionWarning` when they disagree by
+        more than 2%, and names the path-averaged ratio for the chord you asked for.
+        ``electron_fraction=0.5`` with the default 1.0 makes them agree exactly, and
+        reproduces the uniform composition earlier versions assumed.  Three flavours are
+        unaffected: the projector's sterile block is empty.
+    electron_fraction : int or float, optional
+        One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
+        ``0.5`` reproduces the uniform composition assumed before those existed, and is
+        the way to reproduce a result computed then.  Cannot be combined with any
+        ``electron_fraction_*`` argument; passing both is an error rather than one
+        silently winning.  Default: None, meaning the layered values are used.
+    electron_fraction_core : int or float, optional
+        :math:`Y_e = \langle Z/A \rangle` for :math:`r \le 3480` km.  Default:
+        :data:`magnus.earth.Y_E_CORE_PREM` (0.4656, iron).
+    electron_fraction_mantle : int or float, optional
+        :math:`Y_e` for :math:`3480 < r \le 6346.6` km.  Default:
+        :data:`magnus.earth.Y_E_MANTLE_PREM` (0.4957, peridotite).
+    electron_fraction_crust : int or float, optional
+        :math:`Y_e` for :math:`6346.6 < r \le 6368` km.  Default:
+        :data:`magnus.earth.Y_E_CRUST_PREM` (0.4952, granitic).  Within 0.1% of the
+        mantle, so this exists for explicitness rather than for effect.
+    electron_fraction_ocean : int or float, optional
+        :math:`Y_e` for :math:`r > 6368` km.  Default:
+        :data:`magnus.earth.Y_E_OCEAN_PREM` (0.5551, seawater -- above 0.5 because
+        hydrogen has :math:`Z/A = 1`).  PREM's ocean is a global average that a
+        land-based baseline does not cross; pass
+        :data:`magnus.earth.Y_E_CRUST_PREM` for one.
+    angles : str, optional
+        How the mixing angle is stated: ``'sin'`` (default) its sine,
+        ``'sin2'`` its sine *squared* -- which is what global fits report --
+        ``'rad'`` the angle itself in radians, or ``'deg'`` in degrees.  Any other
+        value raises.
+
     Returns
     -------
     float or np.ndarray
@@ -9892,6 +10399,21 @@ def osc_prob_2nu_earth(
     # converges at its nominal order only if the Hamiltonian is smooth inside each slab.
     t_breakpoints = earth.prem_layer_edges_along_chord(costhz)*gd.UNIT_KM # [eV^{-1}]
 
+    # A caller may have breakpoints of their own -- a feature in a custom H, say.  These
+    # wrappers set t_breakpoints themselves, so an argument of the same name arrived in
+    # **kwargs and collided, and the caller got "got multiple values for keyword argument
+    # 't_breakpoints'" raised from two layers down.  The keyword is listed as forwardable
+    # in this package's own unrecognised-keyword message, so it was reachable and broken.
+    # The two sets are merged rather than one replacing the other: the PREM crossings are
+    # required for the quadrature to be O(h^2) across a density jump, so dropping them
+    # silently would be the defect t_breakpoints exists to prevent.  To place every edge
+    # yourself instead, pass t_slab_edges, which is the complete set.
+    _user_breakpoints = kwargs.pop('t_breakpoints', None)
+    if _user_breakpoints is not None:
+        t_breakpoints = np.unique(np.concatenate(
+            [np.atleast_1d(np.asarray(t_breakpoints, dtype=float)),
+             np.atleast_1d(np.asarray(_user_breakpoints, dtype=float))]))
+
     # If any of the flavor indices is > 1, fix it (read the docstring above).
     nu_i, nu_f = valid_flavor_indices_2nu(nu_i, nu_f)
 
@@ -9906,9 +10428,11 @@ def osc_prob_2nu_earth(
 
     return osc_prob_matter_std_potential(
         num_flavors=2,
-        rho_func=lambda l: matter.num_density_e_func(earth.earth_radial_distance_from_depth(costhz, 
-            l/gd.UNIT_KM), earth.density_matter_func_prem, ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
-            electron_fraction=electron_fraction, density_matter_is_in_g_per_cm3=True), # [eV^3] (l in eV^{-1})
+        rho_func=_earth_composition(
+            costhz, electron_fraction, ratio_number_neutrons_to_protons,
+            electron_fraction_core, electron_fraction_mantle,
+            electron_fraction_crust, electron_fraction_ocean,
+            source_func_name, num_flavors=2),
         energy=energy,
         L=L, # [eV^{-1}]
         t_breakpoints=t_breakpoints,
@@ -9933,6 +10457,7 @@ def osc_prob_2nu_earth(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -9954,15 +10479,19 @@ def osc_prob_3nu_earth(
     nu_f: Optional[int]=None,
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
     ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
-    electron_fraction: Optional[Union[int, float]]=0.5,
+    electron_fraction: Optional[Union[int, float]]=None,
+    electron_fraction_core: Optional[Union[int, float]]=None,
+    electron_fraction_mantle: Optional[Union[int, float]]=None,
+    electron_fraction_crust: Optional[Union[int, float]]=None,
+    electron_fraction_ocean: Optional[Union[int, float]]=None,
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the three-neutrino oscillation probability 
     inside the Earth, either between two locations on the surface of the
     Earth, or between the surface and a point in the interior.
@@ -10044,13 +10573,13 @@ def osc_prob_3nu_earth(
     L : float, list, or np.ndarray, optional
         Baseline(s). Default: None.
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
@@ -10077,6 +10606,52 @@ def osc_prob_3nu_earth(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+
+    
+    ratio_number_neutrons_to_protons : int or float, optional
+        :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
+        matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
+        (isoscalar matter, i.e. :math:`Y_e = 0.5`).
+
+        **On an Earth chord this is not the ratio the density uses.**  The density takes
+        :math:`r = (1 - Y_e)/Y_e` layer by layer, because that is the same statement about
+        composition; the projector cannot, being one matrix for the whole chord.  So the
+        two disagree unless you match them, and at four flavours or more that is worth
+        about 2e-02 in probability on a core-crossing chord -- twenty times the default
+        tolerance, and silent.  Mag$\nu$s raises
+        :class:`magnus.globaldefs.SterileMatterCompositionWarning` when they disagree by
+        more than 2%, and names the path-averaged ratio for the chord you asked for.
+        ``electron_fraction=0.5`` with the default 1.0 makes them agree exactly, and
+        reproduces the uniform composition earlier versions assumed.  Three flavours are
+        unaffected: the projector's sterile block is empty.
+    electron_fraction : int or float, optional
+        One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
+        ``0.5`` reproduces the uniform composition assumed before those existed, and is
+        the way to reproduce a result computed then.  Cannot be combined with any
+        ``electron_fraction_*`` argument; passing both is an error rather than one
+        silently winning.  Default: None, meaning the layered values are used.
+    electron_fraction_core : int or float, optional
+        :math:`Y_e = \langle Z/A \rangle` for :math:`r \le 3480` km.  Default:
+        :data:`magnus.earth.Y_E_CORE_PREM` (0.4656, iron).
+    electron_fraction_mantle : int or float, optional
+        :math:`Y_e` for :math:`3480 < r \le 6346.6` km.  Default:
+        :data:`magnus.earth.Y_E_MANTLE_PREM` (0.4957, peridotite).
+    electron_fraction_crust : int or float, optional
+        :math:`Y_e` for :math:`6346.6 < r \le 6368` km.  Default:
+        :data:`magnus.earth.Y_E_CRUST_PREM` (0.4952, granitic).  Within 0.1% of the
+        mantle, so this exists for explicitness rather than for effect.
+    electron_fraction_ocean : int or float, optional
+        :math:`Y_e` for :math:`r > 6368` km.  Default:
+        :data:`magnus.earth.Y_E_OCEAN_PREM` (0.5551, seawater -- above 0.5 because
+        hydrogen has :math:`Z/A = 1`).  PREM's ocean is a global average that a
+        land-based baseline does not cross; pass
+        :data:`magnus.earth.Y_E_CRUST_PREM` for one.
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phase is read as degrees too; under the other three
+        it stays in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -10107,6 +10682,21 @@ def osc_prob_3nu_earth(
     # matter density is discontinuous there, and the high-order quadrature of the Magnus kernel
     # converges at its nominal order only if the Hamiltonian is smooth inside each slab.
     t_breakpoints = earth.prem_layer_edges_along_chord(costhz)*gd.UNIT_KM # [eV^{-1}]
+
+    # A caller may have breakpoints of their own -- a feature in a custom H, say.  These
+    # wrappers set t_breakpoints themselves, so an argument of the same name arrived in
+    # **kwargs and collided, and the caller got "got multiple values for keyword argument
+    # 't_breakpoints'" raised from two layers down.  The keyword is listed as forwardable
+    # in this package's own unrecognised-keyword message, so it was reachable and broken.
+    # The two sets are merged rather than one replacing the other: the PREM crossings are
+    # required for the quadrature to be O(h^2) across a density jump, so dropping them
+    # silently would be the defect t_breakpoints exists to prevent.  To place every edge
+    # yourself instead, pass t_slab_edges, which is the complete set.
+    _user_breakpoints = kwargs.pop('t_breakpoints', None)
+    if _user_breakpoints is not None:
+        t_breakpoints = np.unique(np.concatenate(
+            [np.atleast_1d(np.asarray(t_breakpoints, dtype=float)),
+             np.atleast_1d(np.asarray(_user_breakpoints, dtype=float))]))
     
     # The function earth.density_matter_func_prem returns the internal matter density of the Earth
     # as a function of radial distance, r, using the Preliminary Reference Earth Model (PREM). The
@@ -10118,9 +10708,11 @@ def osc_prob_3nu_earth(
 
     return osc_prob_matter_std_potential(
         num_flavors=3,
-        rho_func=lambda l: matter.num_density_e_func(earth.earth_radial_distance_from_depth(costhz, 
-            l/gd.UNIT_KM), earth.density_matter_func_prem, ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
-            electron_fraction=electron_fraction, density_matter_is_in_g_per_cm3=True), # [eV^3] (l in eV^{-1})
+        rho_func=_earth_composition(
+            costhz, electron_fraction, ratio_number_neutrons_to_protons,
+            electron_fraction_core, electron_fraction_mantle,
+            electron_fraction_crust, electron_fraction_ocean,
+            source_func_name, num_flavors=3),
         energy=energy,
         L=L,
         t_breakpoints=t_breakpoints,
@@ -10146,6 +10738,7 @@ def osc_prob_3nu_earth(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -10173,15 +10766,19 @@ def osc_prob_4nu_earth(
     nu_f: Optional[int]=None,
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
     ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
-    electron_fraction: Optional[Union[int, float]]=0.5,
+    electron_fraction: Optional[Union[int, float]]=None,
+    electron_fraction_core: Optional[Union[int, float]]=None,
+    electron_fraction_mantle: Optional[Union[int, float]]=None,
+    electron_fraction_crust: Optional[Union[int, float]]=None,
+    electron_fraction_ocean: Optional[Union[int, float]]=None,
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the four-neutrino oscillation probability 
     inside the Earth, either between two locations on the surface of the
     Earth, or between the surface and a point in the interior.
@@ -10266,27 +10863,27 @@ def osc_prob_4nu_earth(
     L : float, list, or np.ndarray, optional
         Baseline(s). Default: None.
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
         Mass-squared difference :math:`\Delta m_{31}^2`. Default: None.
     s14 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{14}`. Default: 0.0.
+        Mixing angle :math:`\theta_{14}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s24 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{24}`. Default: 0.0.
+        Mixing angle :math:`\theta_{24}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s34 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{34}`. Default: 0.0.
+        Mixing angle :math:`\theta_{34}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     d14 : int or float, optional
-        :math:`\delta_{14}` [radian]. Default: 0.0.
+        :math:`\delta_{14}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d24 : int or float, optional
-        :math:`\delta_{24}` [radian]. Default: 0.0.
+        :math:`\delta_{24}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     D41 : int or float, optional
         Mass-squared difference :math:`\Delta m_{41}^2`. Default: 0.0.
     nubar : bool, optional
@@ -10311,6 +10908,52 @@ def osc_prob_4nu_earth(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+
+    
+    ratio_number_neutrons_to_protons : int or float, optional
+        :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
+        matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
+        (isoscalar matter, i.e. :math:`Y_e = 0.5`).
+
+        **On an Earth chord this is not the ratio the density uses.**  The density takes
+        :math:`r = (1 - Y_e)/Y_e` layer by layer, because that is the same statement about
+        composition; the projector cannot, being one matrix for the whole chord.  So the
+        two disagree unless you match them, and at four flavours or more that is worth
+        about 2e-02 in probability on a core-crossing chord -- twenty times the default
+        tolerance, and silent.  Mag$\nu$s raises
+        :class:`magnus.globaldefs.SterileMatterCompositionWarning` when they disagree by
+        more than 2%, and names the path-averaged ratio for the chord you asked for.
+        ``electron_fraction=0.5`` with the default 1.0 makes them agree exactly, and
+        reproduces the uniform composition earlier versions assumed.  Three flavours are
+        unaffected: the projector's sterile block is empty.
+    electron_fraction : int or float, optional
+        One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
+        ``0.5`` reproduces the uniform composition assumed before those existed, and is
+        the way to reproduce a result computed then.  Cannot be combined with any
+        ``electron_fraction_*`` argument; passing both is an error rather than one
+        silently winning.  Default: None, meaning the layered values are used.
+    electron_fraction_core : int or float, optional
+        :math:`Y_e = \langle Z/A \rangle` for :math:`r \le 3480` km.  Default:
+        :data:`magnus.earth.Y_E_CORE_PREM` (0.4656, iron).
+    electron_fraction_mantle : int or float, optional
+        :math:`Y_e` for :math:`3480 < r \le 6346.6` km.  Default:
+        :data:`magnus.earth.Y_E_MANTLE_PREM` (0.4957, peridotite).
+    electron_fraction_crust : int or float, optional
+        :math:`Y_e` for :math:`6346.6 < r \le 6368` km.  Default:
+        :data:`magnus.earth.Y_E_CRUST_PREM` (0.4952, granitic).  Within 0.1% of the
+        mantle, so this exists for explicitness rather than for effect.
+    electron_fraction_ocean : int or float, optional
+        :math:`Y_e` for :math:`r > 6368` km.  Default:
+        :data:`magnus.earth.Y_E_OCEAN_PREM` (0.5551, seawater -- above 0.5 because
+        hydrogen has :math:`Z/A = 1`).  PREM's ocean is a global average that a
+        land-based baseline does not cross; pass
+        :data:`magnus.earth.Y_E_CRUST_PREM` for one.
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -10341,6 +10984,21 @@ def osc_prob_4nu_earth(
     # matter density is discontinuous there, and the high-order quadrature of the Magnus kernel
     # converges at its nominal order only if the Hamiltonian is smooth inside each slab.
     t_breakpoints = earth.prem_layer_edges_along_chord(costhz)*gd.UNIT_KM # [eV^{-1}]
+
+    # A caller may have breakpoints of their own -- a feature in a custom H, say.  These
+    # wrappers set t_breakpoints themselves, so an argument of the same name arrived in
+    # **kwargs and collided, and the caller got "got multiple values for keyword argument
+    # 't_breakpoints'" raised from two layers down.  The keyword is listed as forwardable
+    # in this package's own unrecognised-keyword message, so it was reachable and broken.
+    # The two sets are merged rather than one replacing the other: the PREM crossings are
+    # required for the quadrature to be O(h^2) across a density jump, so dropping them
+    # silently would be the defect t_breakpoints exists to prevent.  To place every edge
+    # yourself instead, pass t_slab_edges, which is the complete set.
+    _user_breakpoints = kwargs.pop('t_breakpoints', None)
+    if _user_breakpoints is not None:
+        t_breakpoints = np.unique(np.concatenate(
+            [np.atleast_1d(np.asarray(t_breakpoints, dtype=float)),
+             np.atleast_1d(np.asarray(_user_breakpoints, dtype=float))]))
     
     # The function earth.density_matter_func_prem returns the internal matter density of the Earth
     # as a function of radial distance, r, using the Preliminary Reference Earth Model (PREM). The
@@ -10352,9 +11010,11 @@ def osc_prob_4nu_earth(
 
     return osc_prob_matter_std_potential(
         num_flavors=4,
-        rho_func=lambda l: matter.num_density_e_func(earth.earth_radial_distance_from_depth(costhz, 
-            l/gd.UNIT_KM), earth.density_matter_func_prem, ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
-            electron_fraction=electron_fraction, density_matter_is_in_g_per_cm3=True), # [eV^3] (l in eV^{-1})
+        rho_func=_earth_composition(
+            costhz, electron_fraction, ratio_number_neutrons_to_protons,
+            electron_fraction_core, electron_fraction_mantle,
+            electron_fraction_crust, electron_fraction_ocean,
+            source_func_name, num_flavors=4),
         energy=energy,
         L=L,
         t_breakpoints=t_breakpoints,
@@ -10381,6 +11041,7 @@ def osc_prob_4nu_earth(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -10414,15 +11075,19 @@ def osc_prob_5nu_earth(
     nu_f: Optional[int]=None,
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
     ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
-    electron_fraction: Optional[Union[int, float]]=0.5,
+    electron_fraction: Optional[Union[int, float]]=None,
+    electron_fraction_core: Optional[Union[int, float]]=None,
+    electron_fraction_mantle: Optional[Union[int, float]]=None,
+    electron_fraction_crust: Optional[Union[int, float]]=None,
+    electron_fraction_ocean: Optional[Union[int, float]]=None,
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the five-neutrino oscillation probability 
     inside the Earth, either between two locations on the surface of the
     Earth, or between the surface and a point in the interior.
@@ -10509,37 +11174,37 @@ def osc_prob_5nu_earth(
     L : float, list, or np.ndarray, optional
         Baseline(s). Default: None.
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
         Mass-squared difference :math:`\Delta m_{31}^2`. Default: None.
     s14 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{14}`. Default: 0.0.
+        Mixing angle :math:`\theta_{14}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s15 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{15}`. Default: 0.0.
+        Mixing angle :math:`\theta_{15}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s24 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{24}`. Default: 0.0.
+        Mixing angle :math:`\theta_{24}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s25 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{25}`. Default: 0.0.
+        Mixing angle :math:`\theta_{25}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s34 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{34}`. Default: 0.0.
+        Mixing angle :math:`\theta_{34}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s35 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{35}`. Default: 0.0.
+        Mixing angle :math:`\theta_{35}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     d14 : int or float, optional
-        :math:`\delta_{14}` [radian]. Default: 0.0.
+        :math:`\delta_{14}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d15 : int or float, optional
-        :math:`\delta_{15}` [radian]. Default: 0.0.
+        :math:`\delta_{15}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d24 : int or float, optional
-        :math:`\delta_{24}` [radian]. Default: 0.0.
+        :math:`\delta_{24}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d35 : int or float, optional
-        :math:`\delta_{35}` [radian]. Default: 0.0.
+        :math:`\delta_{35}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     D41 : int or float, optional
         Mass-squared difference :math:`\Delta m_{41}^2`. Default: 0.0.
     D51 : int or float, optional
@@ -10566,6 +11231,52 @@ def osc_prob_5nu_earth(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+
+    
+    ratio_number_neutrons_to_protons : int or float, optional
+        :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
+        matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
+        (isoscalar matter, i.e. :math:`Y_e = 0.5`).
+
+        **On an Earth chord this is not the ratio the density uses.**  The density takes
+        :math:`r = (1 - Y_e)/Y_e` layer by layer, because that is the same statement about
+        composition; the projector cannot, being one matrix for the whole chord.  So the
+        two disagree unless you match them, and at four flavours or more that is worth
+        about 2e-02 in probability on a core-crossing chord -- twenty times the default
+        tolerance, and silent.  Mag$\nu$s raises
+        :class:`magnus.globaldefs.SterileMatterCompositionWarning` when they disagree by
+        more than 2%, and names the path-averaged ratio for the chord you asked for.
+        ``electron_fraction=0.5`` with the default 1.0 makes them agree exactly, and
+        reproduces the uniform composition earlier versions assumed.  Three flavours are
+        unaffected: the projector's sterile block is empty.
+    electron_fraction : int or float, optional
+        One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
+        ``0.5`` reproduces the uniform composition assumed before those existed, and is
+        the way to reproduce a result computed then.  Cannot be combined with any
+        ``electron_fraction_*`` argument; passing both is an error rather than one
+        silently winning.  Default: None, meaning the layered values are used.
+    electron_fraction_core : int or float, optional
+        :math:`Y_e = \langle Z/A \rangle` for :math:`r \le 3480` km.  Default:
+        :data:`magnus.earth.Y_E_CORE_PREM` (0.4656, iron).
+    electron_fraction_mantle : int or float, optional
+        :math:`Y_e` for :math:`3480 < r \le 6346.6` km.  Default:
+        :data:`magnus.earth.Y_E_MANTLE_PREM` (0.4957, peridotite).
+    electron_fraction_crust : int or float, optional
+        :math:`Y_e` for :math:`6346.6 < r \le 6368` km.  Default:
+        :data:`magnus.earth.Y_E_CRUST_PREM` (0.4952, granitic).  Within 0.1% of the
+        mantle, so this exists for explicitness rather than for effect.
+    electron_fraction_ocean : int or float, optional
+        :math:`Y_e` for :math:`r > 6368` km.  Default:
+        :data:`magnus.earth.Y_E_OCEAN_PREM` (0.5551, seawater -- above 0.5 because
+        hydrogen has :math:`Z/A = 1`).  PREM's ocean is a global average that a
+        land-based baseline does not cross; pass
+        :data:`magnus.earth.Y_E_CRUST_PREM` for one.
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -10596,6 +11307,21 @@ def osc_prob_5nu_earth(
     # matter density is discontinuous there, and the high-order quadrature of the Magnus kernel
     # converges at its nominal order only if the Hamiltonian is smooth inside each slab.
     t_breakpoints = earth.prem_layer_edges_along_chord(costhz)*gd.UNIT_KM # [eV^{-1}]
+
+    # A caller may have breakpoints of their own -- a feature in a custom H, say.  These
+    # wrappers set t_breakpoints themselves, so an argument of the same name arrived in
+    # **kwargs and collided, and the caller got "got multiple values for keyword argument
+    # 't_breakpoints'" raised from two layers down.  The keyword is listed as forwardable
+    # in this package's own unrecognised-keyword message, so it was reachable and broken.
+    # The two sets are merged rather than one replacing the other: the PREM crossings are
+    # required for the quadrature to be O(h^2) across a density jump, so dropping them
+    # silently would be the defect t_breakpoints exists to prevent.  To place every edge
+    # yourself instead, pass t_slab_edges, which is the complete set.
+    _user_breakpoints = kwargs.pop('t_breakpoints', None)
+    if _user_breakpoints is not None:
+        t_breakpoints = np.unique(np.concatenate(
+            [np.atleast_1d(np.asarray(t_breakpoints, dtype=float)),
+             np.atleast_1d(np.asarray(_user_breakpoints, dtype=float))]))
     
     # The function earth.density_matter_func_prem returns the internal matter density of the Earth
     # as a function of radial distance, r, using the Preliminary Reference Earth Model (PREM). The
@@ -10607,9 +11333,11 @@ def osc_prob_5nu_earth(
 
     return osc_prob_matter_std_potential(
         num_flavors=5,
-        rho_func=lambda l: matter.num_density_e_func(earth.earth_radial_distance_from_depth(costhz, 
-            l/gd.UNIT_KM), earth.density_matter_func_prem, ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
-            electron_fraction=electron_fraction, density_matter_is_in_g_per_cm3=True), # [eV^3] (l in eV^{-1})
+        rho_func=_earth_composition(
+            costhz, electron_fraction, ratio_number_neutrons_to_protons,
+            electron_fraction_core, electron_fraction_mantle,
+            electron_fraction_crust, electron_fraction_ocean,
+            source_func_name, num_flavors=5),
         energy=energy,
         L=L,
         t_breakpoints=t_breakpoints,
@@ -10637,6 +11365,7 @@ def osc_prob_5nu_earth(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -10652,7 +11381,11 @@ def osc_prob_earth(
     nu_i: Optional[int]=None,
     nu_f: Optional[int]=None,
     ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
-    electron_fraction: Optional[Union[int, float]]=0.5,
+    electron_fraction: Optional[Union[int, float]]=None,
+    electron_fraction_core: Optional[Union[int, float]]=None,
+    electron_fraction_mantle: Optional[Union[int, float]]=None,
+    electron_fraction_crust: Optional[Union[int, float]]=None,
+    electron_fraction_ocean: Optional[Union[int, float]]=None,
     magnus_exp_order: Optional[int]=4,
     n_jobs: Optional[int]=1,
     integration_method: Optional[str]='gl',
@@ -10727,7 +11460,22 @@ def osc_prob_earth(
     ratio_number_neutrons_to_protons : int or float, optional
         Ratio of the number of neutrons to protons in Earth matter. Default: 1.0.
     electron_fraction : int or float, optional
-        Electron fraction of Earth matter. Default: 0.5.
+        One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
+        ``0.5`` reproduces the uniform composition assumed before those existed.
+        Cannot be combined with any ``electron_fraction_*`` argument.  Default: None,
+        meaning the layered values are used.
+    electron_fraction_core : int or float, optional
+        :math:`Y_e = \langle Z/A \rangle` for :math:`r \le 3480` km.  Default:
+        :data:`magnus.earth.Y_E_CORE_PREM` (0.4656, iron).
+    electron_fraction_mantle : int or float, optional
+        :math:`Y_e` for :math:`3480 < r \le 6346.6` km.  Default:
+        :data:`magnus.earth.Y_E_MANTLE_PREM` (0.4957, peridotite).
+    electron_fraction_crust : int or float, optional
+        :math:`Y_e` for :math:`6346.6 < r \le 6368` km.  Default:
+        :data:`magnus.earth.Y_E_CRUST_PREM` (0.4952, granitic).
+    electron_fraction_ocean : int or float, optional
+        :math:`Y_e` for :math:`r > 6368` km.  Default:
+        :data:`magnus.earth.Y_E_OCEAN_PREM` (0.5551, seawater).
     magnus_exp_order : int, optional
         Highest order of the Magnus expansion. Default: 4.
     n_jobs : int, optional
@@ -10753,6 +11501,11 @@ def osc_prob_earth(
     \**kwargs
         Additional arguments forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`
         (e.g., the refinement-loop bounds).
+
+    
+    strategy_info : dict, optional
+        If given, filled in place with which engine actually answered, following the
+        same out-parameter convention as ``convergence_info`` in :func:`osc_prob`.
 
     Returns
     -------
@@ -10803,16 +11556,30 @@ def osc_prob_earth(
     # Align the slab edges with the crossings of the PREM layer boundaries along the chord
     t_breakpoints = earth.prem_layer_edges_along_chord(costhz)*gd.UNIT_KM # [eV^{-1}]
 
+    # A caller may have breakpoints of their own -- a feature in a custom H, say.  These
+    # wrappers set t_breakpoints themselves, so an argument of the same name arrived in
+    # **kwargs and collided, and the caller got "got multiple values for keyword argument
+    # 't_breakpoints'" raised from two layers down.  The keyword is listed as forwardable
+    # in this package's own unrecognised-keyword message, so it was reachable and broken.
+    # The two sets are merged rather than one replacing the other: the PREM crossings are
+    # required for the quadrature to be O(h^2) across a density jump, so dropping them
+    # silently would be the defect t_breakpoints exists to prevent.  To place every edge
+    # yourself instead, pass t_slab_edges, which is the complete set.
+    _user_breakpoints = kwargs.pop('t_breakpoints', None)
+    if _user_breakpoints is not None:
+        t_breakpoints = np.unique(np.concatenate(
+            [np.atleast_1d(np.asarray(t_breakpoints, dtype=float)),
+             np.atleast_1d(np.asarray(_user_breakpoints, dtype=float))]))
+
     # Charged-current potential along the chord from the PREM electron density; the antineutrino
     # sign flip is applied inside matter.vcc_func_from_rho_func.  The profile evaluations are
     # cached on repeated position grids.
     VCC_func = matter.vcc_func_from_rho_func(
-        rho_func=lambda l: matter.num_density_e_func(
-            earth.earth_radial_distance_from_depth(costhz, l/gd.UNIT_KM),
-            earth.density_matter_func_prem,
-            ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
-            electron_fraction=electron_fraction,
-            density_matter_is_in_g_per_cm3=True), # [eV^3] (l in eV^{-1})
+        rho_func=_earth_composition(
+            costhz, electron_fraction, ratio_number_neutrons_to_protons,
+            electron_fraction_core, electron_fraction_mantle,
+            electron_fraction_crust, electron_fraction_ocean,
+            source_func_name, num_flavors=None),
         nubar=nubar,
         density_is_of_number_of_electrons=True) # [eV]
     VCC_func = _PositionProfileCache(VCC_func)
@@ -11024,8 +11791,8 @@ def osc_prob_2nu_sun(
     file_log: Optional[TextIOWrapper]=None,
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the two-neutrino oscillation probability
     for neutrinos inside the Sun.
 
@@ -11095,7 +11862,7 @@ def osc_prob_2nu_sun(
     L0 : int or float
         Initial position.
     sth : int or float
-        Sine of the mixing angle :math:`\theta`, the single mixing angle of the two-flavor system.
+        Mixing angle :math:`\theta` of the two-flavor system, in the convention set by ``angles`` (default: its sine).
     Dm2 : int or float
         Mass-squared difference :math:`\Delta m^2` of the two-flavor system.
     nubar : bool, optional
@@ -11125,6 +11892,11 @@ def osc_prob_2nu_sun(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    angles : str, optional
+        How the mixing angle is stated: ``'sin'`` (default) its sine,
+        ``'sin2'`` its sine *squared* -- which is what global fits report --
+        ``'rad'`` the angle itself in radians, or ``'deg'`` in degrees.  Any other
+        value raises.
 
     Returns
     -------
@@ -11153,6 +11925,7 @@ def osc_prob_2nu_sun(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )
 
@@ -11178,8 +11951,8 @@ def osc_prob_3nu_sun(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the three-neutrino oscillation probability 
     for neutrinos inside the Sun.
 
@@ -11231,13 +12004,13 @@ def osc_prob_3nu_sun(
     L0 : int or float
         Initial position.
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
@@ -11271,6 +12044,12 @@ def osc_prob_3nu_sun(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phase is read as degrees too; under the other three
+        it stays in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -11302,6 +12081,7 @@ def osc_prob_3nu_sun(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )
 
@@ -11333,8 +12113,9 @@ def osc_prob_4nu_sun(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the four-neutrino (3+1) oscillation 
     probability for neutrinos inside the Sun.
 
@@ -11388,25 +12169,25 @@ def osc_prob_4nu_sun(
     L0 : int or float
         Initial position.
     s14 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{14}`. Default: 0.0.
+        Mixing angle :math:`\theta_{14}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s24 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{24}`. Default: 0.0.
+        Mixing angle :math:`\theta_{24}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s34 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{34}`. Default: 0.0.
+        Mixing angle :math:`\theta_{34}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     d14 : int or float, optional
-        :math:`\delta_{14}` [radian]. Default: 0.0.
+        :math:`\delta_{14}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d24 : int or float, optional
-        :math:`\delta_{24}` [radian]. Default: 0.0.
+        :math:`\delta_{24}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     D41 : int or float, optional
         Mass-squared difference :math:`\Delta m_{41}^2`. Default: 0.0.
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
@@ -11440,6 +12221,27 @@ def osc_prob_4nu_sun(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    ratio_number_neutrons_to_protons : int or float, optional
+        :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
+        matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
+        (isoscalar matter, i.e. :math:`Y_e = 0.5`).
+
+        **The Sun is not isoscalar, and this is the only way to say so.**  It is
+        hydrogen-rich, so :math:`Y_e = (1 + X)/2` runs from about 0.68 at the centre to
+        0.88 near the surface, and :math:`r = (1 - Y_e)/Y_e` from about 0.47 down to
+        0.14 -- nowhere near 1.0, unlike the Earth where the isoscalar value at least
+        sits among the layers.  The solar profile is a fit to the electron *number*
+        density, so :math:`Y_e` is already inside it and there is nothing for the
+        library to derive :math:`r` from: it has to be stated here.  Left at 1.0 the
+        averaged survival probability moves by about 4e-03 at
+        :math:`\sin\theta_{14} = 0.4`, above the default tolerance.  Three flavours are
+        unaffected -- the projector's sterile block is empty.
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -11477,6 +12279,8 @@ def osc_prob_4nu_sun(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
+        ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
         **kwargs
     )
 
@@ -11514,8 +12318,9 @@ def osc_prob_5nu_sun(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the five-neutrino (3+2) oscillation 
     probability for neutrinos inside the Sun.
 
@@ -11572,37 +12377,37 @@ def osc_prob_5nu_sun(
     L0 : int or float
         Initial position.
     s14 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{14}`. Default: 0.0.
+        Mixing angle :math:`\theta_{14}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s15 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{15}`. Default: 0.0.
+        Mixing angle :math:`\theta_{15}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s24 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{24}`. Default: 0.0.
+        Mixing angle :math:`\theta_{24}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s25 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{25}`. Default: 0.0.
+        Mixing angle :math:`\theta_{25}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s34 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{34}`. Default: 0.0.
+        Mixing angle :math:`\theta_{34}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s35 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{35}`. Default: 0.0.
+        Mixing angle :math:`\theta_{35}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     d14 : int or float, optional
-        :math:`\delta_{14}` [radian]. Default: 0.0.
+        :math:`\delta_{14}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d15 : int or float, optional
-        :math:`\delta_{15}` [radian]. Default: 0.0.
+        :math:`\delta_{15}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d24 : int or float, optional
-        :math:`\delta_{24}` [radian]. Default: 0.0.
+        :math:`\delta_{24}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d35 : int or float, optional
-        :math:`\delta_{35}` [radian]. Default: 0.0.
+        :math:`\delta_{35}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     D41 : int or float, optional
         Mass-squared difference :math:`\Delta m_{41}^2`. Default: 0.0.
     D51 : int or float, optional
         Mass-squared difference :math:`\Delta m_{51}^2`. Default: 0.0.
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
@@ -11636,6 +12441,27 @@ def osc_prob_5nu_sun(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    ratio_number_neutrons_to_protons : int or float, optional
+        :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
+        matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
+        (isoscalar matter, i.e. :math:`Y_e = 0.5`).
+
+        **The Sun is not isoscalar, and this is the only way to say so.**  It is
+        hydrogen-rich, so :math:`Y_e = (1 + X)/2` runs from about 0.68 at the centre to
+        0.88 near the surface, and :math:`r = (1 - Y_e)/Y_e` from about 0.47 down to
+        0.14 -- nowhere near 1.0, unlike the Earth where the isoscalar value at least
+        sits among the layers.  The solar profile is a fit to the electron *number*
+        density, so :math:`Y_e` is already inside it and there is nothing for the
+        library to derive :math:`r` from: it has to be stated here.  Left at 1.0 the
+        averaged survival probability moves by about 4e-03 at
+        :math:`\sin\theta_{14} = 0.4`, above the default tolerance.  Three flavours are
+        unaffected -- the projector's sterile block is empty.
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -11679,6 +12505,8 @@ def osc_prob_5nu_sun(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
+        ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
         **kwargs
     )
 
@@ -11776,6 +12604,11 @@ def osc_prob_sun(
         Additional arguments forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`
         (e.g., the refinement-loop bounds).
 
+    
+    strategy_info : dict, optional
+        If given, filled in place with which engine actually answered, following the
+        same out-parameter convention as ``convergence_info`` in :func:`osc_prob`.
+
     Returns
     -------
     float or np.ndarray
@@ -11859,8 +12692,8 @@ def osc_prob_2nu_matter_nsi_constant_density(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the two-neutrino oscillation probability in
     matter with a constant density profile, including non-standard
     interactions (NSI).
@@ -11883,7 +12716,7 @@ def osc_prob_2nu_matter_nsi_constant_density(
     rho : int or float
         Matter density (or electron number density, if ``density_is_of_number_of_electrons`` is True).
     sth : int or float
-        Sine of the mixing angle :math:`\theta`, the single mixing angle of the two-flavor system.
+        Mixing angle :math:`\theta` of the two-flavor system, in the convention set by ``angles`` (default: its sine).
     Dm2 : int or float
         Mass-squared difference :math:`\Delta m^2` of the two-flavor system.
     eps_aa : int or float, optional
@@ -11918,6 +12751,11 @@ def osc_prob_2nu_matter_nsi_constant_density(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    angles : str, optional
+        How the mixing angle is stated: ``'sin'`` (default) its sine,
+        ``'sin2'`` its sine *squared* -- which is what global fits report --
+        ``'rad'`` the angle itself in radians, or ``'deg'`` in degrees.  Any other
+        value raises.
 
     Returns
     -------
@@ -11944,6 +12782,7 @@ def osc_prob_2nu_matter_nsi_constant_density(
         validate_input=validate_input,
         new_recursion_limit=None,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -11978,8 +12817,8 @@ def osc_prob_3nu_matter_nsi_constant_density(
     file_log: Optional[TextIOWrapper]=None,
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the three-neutrino oscillation probability in
     matter with a constant density profile, including non-standard
     interactions (NSI).
@@ -11995,13 +12834,13 @@ def osc_prob_3nu_matter_nsi_constant_density(
     rho : int or float
         Matter density (or electron number density, if ``density_is_of_number_of_electrons`` is True).
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
@@ -12048,6 +12887,12 @@ def osc_prob_3nu_matter_nsi_constant_density(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phase is read as degrees too; under the other three
+        it stays in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -12073,6 +12918,7 @@ def osc_prob_3nu_matter_nsi_constant_density(
         validate_input=validate_input,
         new_recursion_limit=None,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -12117,8 +12963,8 @@ def osc_prob_4nu_matter_nsi_constant_density(
     file_log: Optional[TextIOWrapper]=None,
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the four-neutrino oscillation probability in
     matter with a constant density profile, including non-standard
     interactions (NSI).
@@ -12134,27 +12980,27 @@ def osc_prob_4nu_matter_nsi_constant_density(
     rho : int or float
         Matter density (or electron number density, if ``density_is_of_number_of_electrons`` is True).
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
         Mass-squared difference :math:`\Delta m_{31}^2`. Default: None.
     s14 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{14}`. Default: 0.0.
+        Mixing angle :math:`\theta_{14}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s24 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{24}`. Default: 0.0.
+        Mixing angle :math:`\theta_{24}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s34 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{34}`. Default: 0.0.
+        Mixing angle :math:`\theta_{34}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     d14 : int or float, optional
-        :math:`\delta_{14}` [radian]. Default: 0.0.
+        :math:`\delta_{14}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d24 : int or float, optional
-        :math:`\delta_{24}` [radian]. Default: 0.0.
+        :math:`\delta_{24}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     D41 : int or float, optional
         Mass-squared difference :math:`\Delta m_{41}^2`. Default: 0.0.
     eps_ee : int or float, optional
@@ -12207,6 +13053,12 @@ def osc_prob_4nu_matter_nsi_constant_density(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -12234,6 +13086,7 @@ def osc_prob_4nu_matter_nsi_constant_density(
         validate_input=validate_input,
         new_recursion_limit=None,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -12289,8 +13142,8 @@ def osc_prob_5nu_matter_nsi_constant_density(
     file_log: Optional[TextIOWrapper]=None,
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the five-neutrino oscillation probability in
     matter with a constant density profile, including non-standard
     interactions (NSI).
@@ -12306,37 +13159,37 @@ def osc_prob_5nu_matter_nsi_constant_density(
     rho : int or float
         Matter density (or electron number density, if ``density_is_of_number_of_electrons`` is True).
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
         Mass-squared difference :math:`\Delta m_{31}^2`. Default: None.
     s14 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{14}`. Default: 0.0.
+        Mixing angle :math:`\theta_{14}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s15 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{15}`. Default: 0.0.
+        Mixing angle :math:`\theta_{15}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s24 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{24}`. Default: 0.0.
+        Mixing angle :math:`\theta_{24}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s25 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{25}`. Default: 0.0.
+        Mixing angle :math:`\theta_{25}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s34 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{34}`. Default: 0.0.
+        Mixing angle :math:`\theta_{34}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s35 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{35}`. Default: 0.0.
+        Mixing angle :math:`\theta_{35}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     d14 : int or float, optional
-        :math:`\delta_{14}` [radian]. Default: 0.0.
+        :math:`\delta_{14}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d15 : int or float, optional
-        :math:`\delta_{15}` [radian]. Default: 0.0.
+        :math:`\delta_{15}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d24 : int or float, optional
-        :math:`\delta_{24}` [radian]. Default: 0.0.
+        :math:`\delta_{24}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d35 : int or float, optional
-        :math:`\delta_{35}` [radian]. Default: 0.0.
+        :math:`\delta_{35}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     D41 : int or float, optional
         Mass-squared difference :math:`\Delta m_{41}^2`. Default: 0.0.
     D51 : int or float, optional
@@ -12401,6 +13254,12 @@ def osc_prob_5nu_matter_nsi_constant_density(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -12430,6 +13289,7 @@ def osc_prob_5nu_matter_nsi_constant_density(
         validate_input=validate_input,
         new_recursion_limit=None,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -12461,8 +13321,8 @@ def osc_prob_2nu_matter_nsi_exp_density(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the two-neutrino oscillation probability in
     matter with an exponentially falling density profile, including
     non-standard interactions (NSI).
@@ -12491,7 +13351,7 @@ def osc_prob_2nu_matter_nsi_exp_density(
     l_scale : int or float
         Length scale of the exponential density decrease.
     sth : int or float
-        Sine of the mixing angle :math:`\theta`, the single mixing angle of the two-flavor system.
+        Mixing angle :math:`\theta` of the two-flavor system, in the convention set by ``angles`` (default: its sine).
     Dm2 : int or float
         Mass-squared difference :math:`\Delta m^2` of the two-flavor system.
     eps_aa : int or float, optional
@@ -12526,6 +13386,11 @@ def osc_prob_2nu_matter_nsi_exp_density(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    angles : str, optional
+        How the mixing angle is stated: ``'sin'`` (default) its sine,
+        ``'sin2'`` its sine *squared* -- which is what global fits report --
+        ``'rad'`` the angle itself in radians, or ``'deg'`` in degrees.  Any other
+        value raises.
 
     Returns
     -------
@@ -12562,6 +13427,7 @@ def osc_prob_2nu_matter_nsi_exp_density(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -12598,8 +13464,8 @@ def osc_prob_3nu_matter_nsi_exp_density(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the three-neutrino oscillation probability in
     matter with an exponentially falling density profile, including
     non-standard interactions (NSI).
@@ -12619,13 +13485,13 @@ def osc_prob_3nu_matter_nsi_exp_density(
     l_scale : int or float
         Length scale of the exponential density decrease.
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
@@ -12672,6 +13538,12 @@ def osc_prob_3nu_matter_nsi_exp_density(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phase is read as degrees too; under the other three
+        it stays in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -12707,6 +13579,7 @@ def osc_prob_3nu_matter_nsi_exp_density(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -12753,8 +13626,8 @@ def osc_prob_4nu_matter_nsi_exp_density(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the four-neutrino (3+1) oscillation 
     probability in matter with an exponentially falling density profile,
     including non-standard interactions (NSI).
@@ -12774,27 +13647,27 @@ def osc_prob_4nu_matter_nsi_exp_density(
     l_scale : int or float
         Length scale of the exponential density decrease.
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
         Mass-squared difference :math:`\Delta m_{31}^2`. Default: None.
     s14 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{14}`. Default: 0.0.
+        Mixing angle :math:`\theta_{14}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s24 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{24}`. Default: 0.0.
+        Mixing angle :math:`\theta_{24}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s34 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{34}`. Default: 0.0.
+        Mixing angle :math:`\theta_{34}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     d14 : int or float, optional
-        :math:`\delta_{14}` [radian]. Default: 0.0.
+        :math:`\delta_{14}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d24 : int or float, optional
-        :math:`\delta_{24}` [radian]. Default: 0.0.
+        :math:`\delta_{24}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     D41 : int or float, optional
         Mass-squared difference :math:`\Delta m_{41}^2`. Default: 0.0.
     eps_ee : int or float, optional
@@ -12847,6 +13720,12 @@ def osc_prob_4nu_matter_nsi_exp_density(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -12884,6 +13763,7 @@ def osc_prob_4nu_matter_nsi_exp_density(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -12941,8 +13821,8 @@ def osc_prob_5nu_matter_nsi_exp_density(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the five-neutrino (3+2) oscillation 
     probability in matter with an exponentially falling density profile,
     including non-standard interactions (NSI).
@@ -12962,37 +13842,37 @@ def osc_prob_5nu_matter_nsi_exp_density(
     l_scale : int or float
         Length scale of the exponential density decrease.
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
         Mass-squared difference :math:`\Delta m_{31}^2`. Default: None.
     s14 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{14}`. Default: 0.0.
+        Mixing angle :math:`\theta_{14}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s15 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{15}`. Default: 0.0.
+        Mixing angle :math:`\theta_{15}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s24 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{24}`. Default: 0.0.
+        Mixing angle :math:`\theta_{24}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s25 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{25}`. Default: 0.0.
+        Mixing angle :math:`\theta_{25}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s34 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{34}`. Default: 0.0.
+        Mixing angle :math:`\theta_{34}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s35 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{35}`. Default: 0.0.
+        Mixing angle :math:`\theta_{35}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     d14 : int or float, optional
-        :math:`\delta_{14}` [radian]. Default: 0.0.
+        :math:`\delta_{14}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d15 : int or float, optional
-        :math:`\delta_{15}` [radian]. Default: 0.0.
+        :math:`\delta_{15}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d24 : int or float, optional
-        :math:`\delta_{24}` [radian]. Default: 0.0.
+        :math:`\delta_{24}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d35 : int or float, optional
-        :math:`\delta_{35}` [radian]. Default: 0.0.
+        :math:`\delta_{35}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     D41 : int or float, optional
         Mass-squared difference :math:`\Delta m_{41}^2`. Default: 0.0.
     D51 : int or float, optional
@@ -13057,6 +13937,12 @@ def osc_prob_5nu_matter_nsi_exp_density(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -13096,6 +13982,7 @@ def osc_prob_5nu_matter_nsi_exp_density(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )
 
@@ -13118,15 +14005,19 @@ def osc_prob_2nu_earth_nsi(
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
     ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
-    electron_fraction: Optional[Union[int, float]]=0.5,
+    electron_fraction: Optional[Union[int, float]]=None,
+    electron_fraction_core: Optional[Union[int, float]]=None,
+    electron_fraction_mantle: Optional[Union[int, float]]=None,
+    electron_fraction_crust: Optional[Union[int, float]]=None,
+    electron_fraction_ocean: Optional[Union[int, float]]=None,
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the two-neutrino oscillation probability 
     inside the Earth, either between two locations on the surface of the
     Earth, or between the surface and a point in the interior, including
@@ -13200,7 +14091,7 @@ def osc_prob_2nu_earth_nsi(
     energy : int, float, list, or np.ndarray
         Neutrino energy/energies.
     sth : int or float
-        Sine of the mixing angle :math:`\theta`, the single mixing angle of the two-flavor system.
+        Mixing angle :math:`\theta` of the two-flavor system, in the convention set by ``angles`` (default: its sine).
     Dm2 : int or float
         Mass-squared difference :math:`\Delta m^2` of the two-flavor system.
     eps_aa : int or float, optional
@@ -13236,6 +14127,51 @@ def osc_prob_2nu_earth_nsi(
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
 
+    
+    ratio_number_neutrons_to_protons : int or float, optional
+        :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
+        matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
+        (isoscalar matter, i.e. :math:`Y_e = 0.5`).
+
+        **On an Earth chord this is not the ratio the density uses.**  The density takes
+        :math:`r = (1 - Y_e)/Y_e` layer by layer, because that is the same statement about
+        composition; the projector cannot, being one matrix for the whole chord.  So the
+        two disagree unless you match them, and at four flavours or more that is worth
+        about 2e-02 in probability on a core-crossing chord -- twenty times the default
+        tolerance, and silent.  Mag$\nu$s raises
+        :class:`magnus.globaldefs.SterileMatterCompositionWarning` when they disagree by
+        more than 2%, and names the path-averaged ratio for the chord you asked for.
+        ``electron_fraction=0.5`` with the default 1.0 makes them agree exactly, and
+        reproduces the uniform composition earlier versions assumed.  Three flavours are
+        unaffected: the projector's sterile block is empty.
+    electron_fraction : int or float, optional
+        One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
+        ``0.5`` reproduces the uniform composition assumed before those existed, and is
+        the way to reproduce a result computed then.  Cannot be combined with any
+        ``electron_fraction_*`` argument; passing both is an error rather than one
+        silently winning.  Default: None, meaning the layered values are used.
+    electron_fraction_core : int or float, optional
+        :math:`Y_e = \langle Z/A \rangle` for :math:`r \le 3480` km.  Default:
+        :data:`magnus.earth.Y_E_CORE_PREM` (0.4656, iron).
+    electron_fraction_mantle : int or float, optional
+        :math:`Y_e` for :math:`3480 < r \le 6346.6` km.  Default:
+        :data:`magnus.earth.Y_E_MANTLE_PREM` (0.4957, peridotite).
+    electron_fraction_crust : int or float, optional
+        :math:`Y_e` for :math:`6346.6 < r \le 6368` km.  Default:
+        :data:`magnus.earth.Y_E_CRUST_PREM` (0.4952, granitic).  Within 0.1% of the
+        mantle, so this exists for explicitness rather than for effect.
+    electron_fraction_ocean : int or float, optional
+        :math:`Y_e` for :math:`r > 6368` km.  Default:
+        :data:`magnus.earth.Y_E_OCEAN_PREM` (0.5551, seawater -- above 0.5 because
+        hydrogen has :math:`Z/A = 1`).  PREM's ocean is a global average that a
+        land-based baseline does not cross; pass
+        :data:`magnus.earth.Y_E_CRUST_PREM` for one.
+    angles : str, optional
+        How the mixing angle is stated: ``'sin'`` (default) its sine,
+        ``'sin2'`` its sine *squared* -- which is what global fits report --
+        ``'rad'`` the angle itself in radians, or ``'deg'`` in degrees.  Any other
+        value raises.
+
     Returns
     -------
     float or np.ndarray
@@ -13265,6 +14201,21 @@ def osc_prob_2nu_earth_nsi(
     # matter density is discontinuous there, and the high-order quadrature of the Magnus kernel
     # converges at its nominal order only if the Hamiltonian is smooth inside each slab.
     t_breakpoints = earth.prem_layer_edges_along_chord(costhz)*gd.UNIT_KM # [eV^{-1}]
+
+    # A caller may have breakpoints of their own -- a feature in a custom H, say.  These
+    # wrappers set t_breakpoints themselves, so an argument of the same name arrived in
+    # **kwargs and collided, and the caller got "got multiple values for keyword argument
+    # 't_breakpoints'" raised from two layers down.  The keyword is listed as forwardable
+    # in this package's own unrecognised-keyword message, so it was reachable and broken.
+    # The two sets are merged rather than one replacing the other: the PREM crossings are
+    # required for the quadrature to be O(h^2) across a density jump, so dropping them
+    # silently would be the defect t_breakpoints exists to prevent.  To place every edge
+    # yourself instead, pass t_slab_edges, which is the complete set.
+    _user_breakpoints = kwargs.pop('t_breakpoints', None)
+    if _user_breakpoints is not None:
+        t_breakpoints = np.unique(np.concatenate(
+            [np.atleast_1d(np.asarray(t_breakpoints, dtype=float)),
+             np.atleast_1d(np.asarray(_user_breakpoints, dtype=float))]))
     
     # If any of the flavor indices is > 1, fix it (read the docstring above).
     nu_i, nu_f = valid_flavor_indices_2nu(nu_i, nu_f)
@@ -13279,9 +14230,11 @@ def osc_prob_2nu_earth_nsi(
 
     return osc_prob_matter_nsi(
         num_flavors=2,
-        rho_func=lambda l: matter.num_density_e_func(earth.earth_radial_distance_from_depth(costhz, 
-            l/gd.UNIT_KM), earth.density_matter_func_prem, ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
-            electron_fraction=electron_fraction, density_matter_is_in_g_per_cm3=True), # [eV^3] (l in eV^{-1})
+        rho_func=_earth_composition(
+            costhz, electron_fraction, ratio_number_neutrons_to_protons,
+            electron_fraction_core, electron_fraction_mantle,
+            electron_fraction_crust, electron_fraction_ocean,
+            source_func_name, num_flavors=2),
         energy=energy,
         L=L,
         t_breakpoints=t_breakpoints,
@@ -13307,6 +14260,7 @@ def osc_prob_2nu_earth_nsi(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -13334,15 +14288,19 @@ def osc_prob_3nu_earth_nsi(
     nu_f: Optional[int]=None,
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
     ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
-    electron_fraction: Optional[Union[int, float]]=0.5,
+    electron_fraction: Optional[Union[int, float]]=None,
+    electron_fraction_core: Optional[Union[int, float]]=None,
+    electron_fraction_mantle: Optional[Union[int, float]]=None,
+    electron_fraction_crust: Optional[Union[int, float]]=None,
+    electron_fraction_ocean: Optional[Union[int, float]]=None,
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the three-neutrino oscillation probability 
     inside the Earth, either between two locations on the surface of the
     Earth, or between the surface and a point in the interior, including
@@ -13423,13 +14381,13 @@ def osc_prob_3nu_earth_nsi(
     L : float, list, or np.ndarray, optional
         Baseline(s). Default: None.
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
@@ -13469,6 +14427,52 @@ def osc_prob_3nu_earth_nsi(
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
 
+    
+    ratio_number_neutrons_to_protons : int or float, optional
+        :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
+        matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
+        (isoscalar matter, i.e. :math:`Y_e = 0.5`).
+
+        **On an Earth chord this is not the ratio the density uses.**  The density takes
+        :math:`r = (1 - Y_e)/Y_e` layer by layer, because that is the same statement about
+        composition; the projector cannot, being one matrix for the whole chord.  So the
+        two disagree unless you match them, and at four flavours or more that is worth
+        about 2e-02 in probability on a core-crossing chord -- twenty times the default
+        tolerance, and silent.  Mag$\nu$s raises
+        :class:`magnus.globaldefs.SterileMatterCompositionWarning` when they disagree by
+        more than 2%, and names the path-averaged ratio for the chord you asked for.
+        ``electron_fraction=0.5`` with the default 1.0 makes them agree exactly, and
+        reproduces the uniform composition earlier versions assumed.  Three flavours are
+        unaffected: the projector's sterile block is empty.
+    electron_fraction : int or float, optional
+        One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
+        ``0.5`` reproduces the uniform composition assumed before those existed, and is
+        the way to reproduce a result computed then.  Cannot be combined with any
+        ``electron_fraction_*`` argument; passing both is an error rather than one
+        silently winning.  Default: None, meaning the layered values are used.
+    electron_fraction_core : int or float, optional
+        :math:`Y_e = \langle Z/A \rangle` for :math:`r \le 3480` km.  Default:
+        :data:`magnus.earth.Y_E_CORE_PREM` (0.4656, iron).
+    electron_fraction_mantle : int or float, optional
+        :math:`Y_e` for :math:`3480 < r \le 6346.6` km.  Default:
+        :data:`magnus.earth.Y_E_MANTLE_PREM` (0.4957, peridotite).
+    electron_fraction_crust : int or float, optional
+        :math:`Y_e` for :math:`6346.6 < r \le 6368` km.  Default:
+        :data:`magnus.earth.Y_E_CRUST_PREM` (0.4952, granitic).  Within 0.1% of the
+        mantle, so this exists for explicitness rather than for effect.
+    electron_fraction_ocean : int or float, optional
+        :math:`Y_e` for :math:`r > 6368` km.  Default:
+        :data:`magnus.earth.Y_E_OCEAN_PREM` (0.5551, seawater -- above 0.5 because
+        hydrogen has :math:`Z/A = 1`).  PREM's ocean is a global average that a
+        land-based baseline does not cross; pass
+        :data:`magnus.earth.Y_E_CRUST_PREM` for one.
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phase is read as degrees too; under the other three
+        it stays in radians, a sine being no way to state a phase.
+
     Returns
     -------
     float or np.ndarray
@@ -13498,6 +14502,21 @@ def osc_prob_3nu_earth_nsi(
     # matter density is discontinuous there, and the high-order quadrature of the Magnus kernel
     # converges at its nominal order only if the Hamiltonian is smooth inside each slab.
     t_breakpoints = earth.prem_layer_edges_along_chord(costhz)*gd.UNIT_KM # [eV^{-1}]
+
+    # A caller may have breakpoints of their own -- a feature in a custom H, say.  These
+    # wrappers set t_breakpoints themselves, so an argument of the same name arrived in
+    # **kwargs and collided, and the caller got "got multiple values for keyword argument
+    # 't_breakpoints'" raised from two layers down.  The keyword is listed as forwardable
+    # in this package's own unrecognised-keyword message, so it was reachable and broken.
+    # The two sets are merged rather than one replacing the other: the PREM crossings are
+    # required for the quadrature to be O(h^2) across a density jump, so dropping them
+    # silently would be the defect t_breakpoints exists to prevent.  To place every edge
+    # yourself instead, pass t_slab_edges, which is the complete set.
+    _user_breakpoints = kwargs.pop('t_breakpoints', None)
+    if _user_breakpoints is not None:
+        t_breakpoints = np.unique(np.concatenate(
+            [np.atleast_1d(np.asarray(t_breakpoints, dtype=float)),
+             np.atleast_1d(np.asarray(_user_breakpoints, dtype=float))]))
     
     # The function earth.density_matter_func_prem returns the internal matter density of the Earth
     # as a function of radial distance, r, using the Preliminary Reference Earth Model (PREM). The
@@ -13509,9 +14528,11 @@ def osc_prob_3nu_earth_nsi(
 
     return osc_prob_matter_nsi(
         num_flavors=3,
-        rho_func=lambda l: matter.num_density_e_func(earth.earth_radial_distance_from_depth(costhz, 
-            l/gd.UNIT_KM), earth.density_matter_func_prem, ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
-            electron_fraction=electron_fraction, density_matter_is_in_g_per_cm3=True), # [eV^3] (l in eV^{-1})
+        rho_func=_earth_composition(
+            costhz, electron_fraction, ratio_number_neutrons_to_protons,
+            electron_fraction_core, electron_fraction_mantle,
+            electron_fraction_crust, electron_fraction_ocean,
+            source_func_name, num_flavors=3),
         energy=energy,
         L=L,
         t_breakpoints=t_breakpoints,
@@ -13539,6 +14560,7 @@ def osc_prob_3nu_earth_nsi(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -13576,15 +14598,19 @@ def osc_prob_4nu_earth_nsi(
     nu_f: Optional[int]=None,
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
     ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
-    electron_fraction: Optional[Union[int, float]]=0.5,
+    electron_fraction: Optional[Union[int, float]]=None,
+    electron_fraction_core: Optional[Union[int, float]]=None,
+    electron_fraction_mantle: Optional[Union[int, float]]=None,
+    electron_fraction_crust: Optional[Union[int, float]]=None,
+    electron_fraction_ocean: Optional[Union[int, float]]=None,
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the four-neutrino oscillation probability 
     inside the Earth, either between two locations on the surface of the
     Earth, or between the surface and a point in the interior, including
@@ -13667,27 +14693,27 @@ def osc_prob_4nu_earth_nsi(
     L : float, list, or np.ndarray, optional
         Baseline(s). Default: None.
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
         Mass-squared difference :math:`\Delta m_{31}^2`. Default: None.
     s14 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{14}`. Default: 0.0.
+        Mixing angle :math:`\theta_{14}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s24 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{24}`. Default: 0.0.
+        Mixing angle :math:`\theta_{24}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s34 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{34}`. Default: 0.0.
+        Mixing angle :math:`\theta_{34}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     d14 : int or float, optional
-        :math:`\delta_{14}` [radian]. Default: 0.0.
+        :math:`\delta_{14}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d24 : int or float, optional
-        :math:`\delta_{24}` [radian]. Default: 0.0.
+        :math:`\delta_{24}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     D41 : int or float, optional
         Mass-squared difference :math:`\Delta m_{41}^2`. Default: 0.0.
     eps_ee : int or float, optional
@@ -13733,6 +14759,52 @@ def osc_prob_4nu_earth_nsi(
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
 
+    
+    ratio_number_neutrons_to_protons : int or float, optional
+        :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
+        matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
+        (isoscalar matter, i.e. :math:`Y_e = 0.5`).
+
+        **On an Earth chord this is not the ratio the density uses.**  The density takes
+        :math:`r = (1 - Y_e)/Y_e` layer by layer, because that is the same statement about
+        composition; the projector cannot, being one matrix for the whole chord.  So the
+        two disagree unless you match them, and at four flavours or more that is worth
+        about 2e-02 in probability on a core-crossing chord -- twenty times the default
+        tolerance, and silent.  Mag$\nu$s raises
+        :class:`magnus.globaldefs.SterileMatterCompositionWarning` when they disagree by
+        more than 2%, and names the path-averaged ratio for the chord you asked for.
+        ``electron_fraction=0.5`` with the default 1.0 makes them agree exactly, and
+        reproduces the uniform composition earlier versions assumed.  Three flavours are
+        unaffected: the projector's sterile block is empty.
+    electron_fraction : int or float, optional
+        One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
+        ``0.5`` reproduces the uniform composition assumed before those existed, and is
+        the way to reproduce a result computed then.  Cannot be combined with any
+        ``electron_fraction_*`` argument; passing both is an error rather than one
+        silently winning.  Default: None, meaning the layered values are used.
+    electron_fraction_core : int or float, optional
+        :math:`Y_e = \langle Z/A \rangle` for :math:`r \le 3480` km.  Default:
+        :data:`magnus.earth.Y_E_CORE_PREM` (0.4656, iron).
+    electron_fraction_mantle : int or float, optional
+        :math:`Y_e` for :math:`3480 < r \le 6346.6` km.  Default:
+        :data:`magnus.earth.Y_E_MANTLE_PREM` (0.4957, peridotite).
+    electron_fraction_crust : int or float, optional
+        :math:`Y_e` for :math:`6346.6 < r \le 6368` km.  Default:
+        :data:`magnus.earth.Y_E_CRUST_PREM` (0.4952, granitic).  Within 0.1% of the
+        mantle, so this exists for explicitness rather than for effect.
+    electron_fraction_ocean : int or float, optional
+        :math:`Y_e` for :math:`r > 6368` km.  Default:
+        :data:`magnus.earth.Y_E_OCEAN_PREM` (0.5551, seawater -- above 0.5 because
+        hydrogen has :math:`Z/A = 1`).  PREM's ocean is a global average that a
+        land-based baseline does not cross; pass
+        :data:`magnus.earth.Y_E_CRUST_PREM` for one.
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
+
     Returns
     -------
     float or np.ndarray
@@ -13762,6 +14834,21 @@ def osc_prob_4nu_earth_nsi(
     # matter density is discontinuous there, and the high-order quadrature of the Magnus kernel
     # converges at its nominal order only if the Hamiltonian is smooth inside each slab.
     t_breakpoints = earth.prem_layer_edges_along_chord(costhz)*gd.UNIT_KM # [eV^{-1}]
+
+    # A caller may have breakpoints of their own -- a feature in a custom H, say.  These
+    # wrappers set t_breakpoints themselves, so an argument of the same name arrived in
+    # **kwargs and collided, and the caller got "got multiple values for keyword argument
+    # 't_breakpoints'" raised from two layers down.  The keyword is listed as forwardable
+    # in this package's own unrecognised-keyword message, so it was reachable and broken.
+    # The two sets are merged rather than one replacing the other: the PREM crossings are
+    # required for the quadrature to be O(h^2) across a density jump, so dropping them
+    # silently would be the defect t_breakpoints exists to prevent.  To place every edge
+    # yourself instead, pass t_slab_edges, which is the complete set.
+    _user_breakpoints = kwargs.pop('t_breakpoints', None)
+    if _user_breakpoints is not None:
+        t_breakpoints = np.unique(np.concatenate(
+            [np.atleast_1d(np.asarray(t_breakpoints, dtype=float)),
+             np.atleast_1d(np.asarray(_user_breakpoints, dtype=float))]))
     
     # The function earth.density_matter_func_prem returns the internal matter density of the Earth
     # as a function of radial distance, r, using the Preliminary Reference Earth Model (PREM). The
@@ -13773,9 +14860,11 @@ def osc_prob_4nu_earth_nsi(
 
     return osc_prob_matter_nsi(
         num_flavors=4,
-        rho_func=lambda l: matter.num_density_e_func(earth.earth_radial_distance_from_depth(costhz, 
-            l/gd.UNIT_KM), earth.density_matter_func_prem, ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
-            electron_fraction=electron_fraction, density_matter_is_in_g_per_cm3=True), # [eV^3] (l in eV^{-1})
+        rho_func=_earth_composition(
+            costhz, electron_fraction, ratio_number_neutrons_to_protons,
+            electron_fraction_core, electron_fraction_mantle,
+            electron_fraction_crust, electron_fraction_ocean,
+            source_func_name, num_flavors=4),
         energy=energy,
         L=L,
         t_breakpoints=t_breakpoints,
@@ -13805,6 +14894,7 @@ def osc_prob_4nu_earth_nsi(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -13853,15 +14943,19 @@ def osc_prob_5nu_earth_nsi(
     nu_f: Optional[int]=None,
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
     ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
-    electron_fraction: Optional[Union[int, float]]=0.5,
+    electron_fraction: Optional[Union[int, float]]=None,
+    electron_fraction_core: Optional[Union[int, float]]=None,
+    electron_fraction_mantle: Optional[Union[int, float]]=None,
+    electron_fraction_crust: Optional[Union[int, float]]=None,
+    electron_fraction_ocean: Optional[Union[int, float]]=None,
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the five-neutrino oscillation probability 
     inside the Earth, either between two locations on the surface of the
     Earth, or between the surface and a point in the interior, including
@@ -13947,37 +15041,37 @@ def osc_prob_5nu_earth_nsi(
     L : float, list, or np.ndarray, optional
         Baseline(s). Default: None.
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
         Mass-squared difference :math:`\Delta m_{31}^2`. Default: None.
     s14 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{14}`. Default: 0.0.
+        Mixing angle :math:`\theta_{14}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s15 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{15}`. Default: 0.0.
+        Mixing angle :math:`\theta_{15}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s24 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{24}`. Default: 0.0.
+        Mixing angle :math:`\theta_{24}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s25 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{25}`. Default: 0.0.
+        Mixing angle :math:`\theta_{25}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s34 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{34}`. Default: 0.0.
+        Mixing angle :math:`\theta_{34}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s35 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{35}`. Default: 0.0.
+        Mixing angle :math:`\theta_{35}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     d14 : int or float, optional
-        :math:`\delta_{14}` [radian]. Default: 0.0.
+        :math:`\delta_{14}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d15 : int or float, optional
-        :math:`\delta_{15}` [radian]. Default: 0.0.
+        :math:`\delta_{15}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d24 : int or float, optional
-        :math:`\delta_{24}` [radian]. Default: 0.0.
+        :math:`\delta_{24}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d35 : int or float, optional
-        :math:`\delta_{35}` [radian]. Default: 0.0.
+        :math:`\delta_{35}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     D41 : int or float, optional
         Mass-squared difference :math:`\Delta m_{41}^2`. Default: 0.0.
     D51 : int or float, optional
@@ -14035,6 +15129,52 @@ def osc_prob_5nu_earth_nsi(
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
 
+    
+    ratio_number_neutrons_to_protons : int or float, optional
+        :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
+        matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
+        (isoscalar matter, i.e. :math:`Y_e = 0.5`).
+
+        **On an Earth chord this is not the ratio the density uses.**  The density takes
+        :math:`r = (1 - Y_e)/Y_e` layer by layer, because that is the same statement about
+        composition; the projector cannot, being one matrix for the whole chord.  So the
+        two disagree unless you match them, and at four flavours or more that is worth
+        about 2e-02 in probability on a core-crossing chord -- twenty times the default
+        tolerance, and silent.  Mag$\nu$s raises
+        :class:`magnus.globaldefs.SterileMatterCompositionWarning` when they disagree by
+        more than 2%, and names the path-averaged ratio for the chord you asked for.
+        ``electron_fraction=0.5`` with the default 1.0 makes them agree exactly, and
+        reproduces the uniform composition earlier versions assumed.  Three flavours are
+        unaffected: the projector's sterile block is empty.
+    electron_fraction : int or float, optional
+        One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
+        ``0.5`` reproduces the uniform composition assumed before those existed, and is
+        the way to reproduce a result computed then.  Cannot be combined with any
+        ``electron_fraction_*`` argument; passing both is an error rather than one
+        silently winning.  Default: None, meaning the layered values are used.
+    electron_fraction_core : int or float, optional
+        :math:`Y_e = \langle Z/A \rangle` for :math:`r \le 3480` km.  Default:
+        :data:`magnus.earth.Y_E_CORE_PREM` (0.4656, iron).
+    electron_fraction_mantle : int or float, optional
+        :math:`Y_e` for :math:`3480 < r \le 6346.6` km.  Default:
+        :data:`magnus.earth.Y_E_MANTLE_PREM` (0.4957, peridotite).
+    electron_fraction_crust : int or float, optional
+        :math:`Y_e` for :math:`6346.6 < r \le 6368` km.  Default:
+        :data:`magnus.earth.Y_E_CRUST_PREM` (0.4952, granitic).  Within 0.1% of the
+        mantle, so this exists for explicitness rather than for effect.
+    electron_fraction_ocean : int or float, optional
+        :math:`Y_e` for :math:`r > 6368` km.  Default:
+        :data:`magnus.earth.Y_E_OCEAN_PREM` (0.5551, seawater -- above 0.5 because
+        hydrogen has :math:`Z/A = 1`).  PREM's ocean is a global average that a
+        land-based baseline does not cross; pass
+        :data:`magnus.earth.Y_E_CRUST_PREM` for one.
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
+
     Returns
     -------
     float or np.ndarray
@@ -14064,6 +15204,21 @@ def osc_prob_5nu_earth_nsi(
     # matter density is discontinuous there, and the high-order quadrature of the Magnus kernel
     # converges at its nominal order only if the Hamiltonian is smooth inside each slab.
     t_breakpoints = earth.prem_layer_edges_along_chord(costhz)*gd.UNIT_KM # [eV^{-1}]
+
+    # A caller may have breakpoints of their own -- a feature in a custom H, say.  These
+    # wrappers set t_breakpoints themselves, so an argument of the same name arrived in
+    # **kwargs and collided, and the caller got "got multiple values for keyword argument
+    # 't_breakpoints'" raised from two layers down.  The keyword is listed as forwardable
+    # in this package's own unrecognised-keyword message, so it was reachable and broken.
+    # The two sets are merged rather than one replacing the other: the PREM crossings are
+    # required for the quadrature to be O(h^2) across a density jump, so dropping them
+    # silently would be the defect t_breakpoints exists to prevent.  To place every edge
+    # yourself instead, pass t_slab_edges, which is the complete set.
+    _user_breakpoints = kwargs.pop('t_breakpoints', None)
+    if _user_breakpoints is not None:
+        t_breakpoints = np.unique(np.concatenate(
+            [np.atleast_1d(np.asarray(t_breakpoints, dtype=float)),
+             np.atleast_1d(np.asarray(_user_breakpoints, dtype=float))]))
     
     # The function earth.density_matter_func_prem returns the internal matter density of the Earth
     # as a function of radial distance, r, using the Preliminary Reference Earth Model (PREM). The
@@ -14075,9 +15230,11 @@ def osc_prob_5nu_earth_nsi(
 
     return osc_prob_matter_nsi(
         num_flavors=5,
-        rho_func=lambda l: matter.num_density_e_func(earth.earth_radial_distance_from_depth(costhz, 
-            l/gd.UNIT_KM), earth.density_matter_func_prem, ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
-            electron_fraction=electron_fraction, density_matter_is_in_g_per_cm3=True), # [eV^3] (l in eV^{-1})
+        rho_func=_earth_composition(
+            costhz, electron_fraction, ratio_number_neutrons_to_protons,
+            electron_fraction_core, electron_fraction_mantle,
+            electron_fraction_crust, electron_fraction_ocean,
+            source_func_name, num_flavors=5),
         energy=energy,
         L=L,
         t_breakpoints=t_breakpoints,
@@ -14109,6 +15266,7 @@ def osc_prob_5nu_earth_nsi(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -14135,8 +15293,8 @@ def osc_prob_2nu_sun_nsi(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the two-neutrino oscillation probability 
     for neutrinos inside the Sun, including non-standard interactions
     (NSI).
@@ -14196,7 +15354,7 @@ def osc_prob_2nu_sun_nsi(
     L0 : int or float
         Initial position.
     sth : int or float
-        Sine of the mixing angle :math:`\theta`, the single mixing angle of the two-flavor system.
+        Mixing angle :math:`\theta` of the two-flavor system, in the convention set by ``angles`` (default: its sine).
     Dm2 : int or float
         Mass-squared difference :math:`\Delta m^2` of the two-flavor system.
     eps_aa : int or float, optional
@@ -14230,6 +15388,11 @@ def osc_prob_2nu_sun_nsi(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    angles : str, optional
+        How the mixing angle is stated: ``'sin'`` (default) its sine,
+        ``'sin2'`` its sine *squared* -- which is what global fits report --
+        ``'rad'`` the angle itself in radians, or ``'deg'`` in degrees.  Any other
+        value raises.
 
     Returns
     -------
@@ -14258,6 +15421,7 @@ def osc_prob_2nu_sun_nsi(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )
 
@@ -14289,8 +15453,8 @@ def osc_prob_3nu_sun_nsi(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the three-neutrino oscillation probability 
     for neutrinos inside the Sun.
 
@@ -14339,13 +15503,13 @@ def osc_prob_3nu_sun_nsi(
     L0 : int or float
         Initial position.
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
@@ -14391,6 +15555,12 @@ def osc_prob_3nu_sun_nsi(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phase is read as degrees too; under the other three
+        it stays in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -14428,6 +15598,7 @@ def osc_prob_3nu_sun_nsi(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )
 
@@ -14469,8 +15640,9 @@ def osc_prob_4nu_sun_nsi(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the four-neutrino (3+1) oscillation 
     probability for neutrinos inside the Sun.
 
@@ -14522,27 +15694,27 @@ def osc_prob_4nu_sun_nsi(
     L0 : int or float
         Initial position.
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
         Mass-squared difference :math:`\Delta m_{31}^2`. Default: None.
     s14 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{14}`. Default: 0.0.
+        Mixing angle :math:`\theta_{14}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s24 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{24}`. Default: 0.0.
+        Mixing angle :math:`\theta_{24}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s34 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{34}`. Default: 0.0.
+        Mixing angle :math:`\theta_{34}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     d14 : int or float, optional
-        :math:`\delta_{14}` [radian]. Default: 0.0.
+        :math:`\delta_{14}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d24 : int or float, optional
-        :math:`\delta_{24}` [radian]. Default: 0.0.
+        :math:`\delta_{24}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     D41 : int or float, optional
         Mass-squared difference :math:`\Delta m_{41}^2`. Default: 0.0.
     eps_ee : int or float, optional
@@ -14594,6 +15766,27 @@ def osc_prob_4nu_sun_nsi(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    ratio_number_neutrons_to_protons : int or float, optional
+        :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
+        matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
+        (isoscalar matter, i.e. :math:`Y_e = 0.5`).
+
+        **The Sun is not isoscalar, and this is the only way to say so.**  It is
+        hydrogen-rich, so :math:`Y_e = (1 + X)/2` runs from about 0.68 at the centre to
+        0.88 near the surface, and :math:`r = (1 - Y_e)/Y_e` from about 0.47 down to
+        0.14 -- nowhere near 1.0, unlike the Earth where the isoscalar value at least
+        sits among the layers.  The solar profile is a fit to the electron *number*
+        density, so :math:`Y_e` is already inside it and there is nothing for the
+        library to derive :math:`r` from: it has to be stated here.  Left at 1.0 the
+        averaged survival probability moves by about 4e-03 at
+        :math:`\sin\theta_{14} = 0.4`, above the default tolerance.  Three flavours are
+        unaffected -- the projector's sterile block is empty.
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -14641,6 +15834,8 @@ def osc_prob_4nu_sun_nsi(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
+        ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
         **kwargs
     )
 
@@ -14693,8 +15888,9 @@ def osc_prob_5nu_sun_nsi(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the five-neutrino (3+2) oscillation 
     probability for neutrinos inside the Sun.
 
@@ -14749,37 +15945,37 @@ def osc_prob_5nu_sun_nsi(
     L0 : int or float
         Initial position.
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
         Mass-squared difference :math:`\Delta m_{31}^2`. Default: None.
     s14 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{14}`. Default: 0.0.
+        Mixing angle :math:`\theta_{14}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s15 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{15}`. Default: 0.0.
+        Mixing angle :math:`\theta_{15}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s24 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{24}`. Default: 0.0.
+        Mixing angle :math:`\theta_{24}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s25 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{25}`. Default: 0.0.
+        Mixing angle :math:`\theta_{25}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s34 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{34}`. Default: 0.0.
+        Mixing angle :math:`\theta_{34}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s35 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{35}`. Default: 0.0.
+        Mixing angle :math:`\theta_{35}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     d14 : int or float, optional
-        :math:`\delta_{14}` [radian]. Default: 0.0.
+        :math:`\delta_{14}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d15 : int or float, optional
-        :math:`\delta_{15}` [radian]. Default: 0.0.
+        :math:`\delta_{15}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d24 : int or float, optional
-        :math:`\delta_{24}` [radian]. Default: 0.0.
+        :math:`\delta_{24}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d35 : int or float, optional
-        :math:`\delta_{35}` [radian]. Default: 0.0.
+        :math:`\delta_{35}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     D41 : int or float, optional
         Mass-squared difference :math:`\Delta m_{41}^2`. Default: 0.0.
     D51 : int or float, optional
@@ -14843,6 +16039,27 @@ def osc_prob_5nu_sun_nsi(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    ratio_number_neutrons_to_protons : int or float, optional
+        :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
+        matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
+        (isoscalar matter, i.e. :math:`Y_e = 0.5`).
+
+        **The Sun is not isoscalar, and this is the only way to say so.**  It is
+        hydrogen-rich, so :math:`Y_e = (1 + X)/2` runs from about 0.68 at the centre to
+        0.88 near the surface, and :math:`r = (1 - Y_e)/Y_e` from about 0.47 down to
+        0.14 -- nowhere near 1.0, unlike the Earth where the isoscalar value at least
+        sits among the layers.  The solar profile is a fit to the electron *number*
+        density, so :math:`Y_e` is already inside it and there is nothing for the
+        library to derive :math:`r` from: it has to be stated here.  Left at 1.0 the
+        averaged survival probability moves by about 4e-03 at
+        :math:`\sin\theta_{14} = 0.4`, above the default tolerance.  Three flavours are
+        unaffected -- the projector's sterile block is empty.
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -14901,6 +16118,8 @@ def osc_prob_5nu_sun_nsi(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
+        ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
         **kwargs
     )
 
@@ -14927,8 +16146,8 @@ def osc_prob_2nu_vacuum_liv(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the two-neutrino oscillation probability in
     vacuum under (one form of) Lorentz-invariance violation.
 
@@ -14941,7 +16160,7 @@ def osc_prob_2nu_vacuum_liv(
     L : int, float, list, or np.ndarray
         Baseline(s).
     sth : int or float
-        Sine of the mixing angle :math:`\theta`, the single mixing angle of the two-flavor system.
+        Mixing angle :math:`\theta` of the two-flavor system, in the convention set by ``angles`` (default: its sine).
     Dm2 : int or float
         Mass-squared difference :math:`\Delta m^2` of the two-flavor system.
     sxi : int or float, optional
@@ -14972,6 +16191,11 @@ def osc_prob_2nu_vacuum_liv(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines,
+        ``'sin2'`` their sines *squared* -- which is what global fits report --
+        ``'rad'`` the angles themselves in radians, or ``'deg'`` in degrees.  Any other
+        value raises.
 
     Returns
     -------
@@ -14996,6 +16220,7 @@ def osc_prob_2nu_vacuum_liv(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -15027,8 +16252,8 @@ def osc_prob_3nu_vacuum_liv(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the three-neutrino oscillation probability in
     vacuum under (one form of) Lorentz-invariance violation.
 
@@ -15041,13 +16266,13 @@ def osc_prob_3nu_vacuum_liv(
     L : int, float, list, or np.ndarray
         Baseline(s).
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
@@ -15090,6 +16315,12 @@ def osc_prob_3nu_vacuum_liv(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -15114,6 +16345,7 @@ def osc_prob_3nu_vacuum_liv(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -15157,8 +16389,8 @@ def osc_prob_4nu_vacuum_liv(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the four-neutrino oscillation probability in
     vacuum under (one form of) Lorentz-invariance violation.
 
@@ -15171,27 +16403,27 @@ def osc_prob_4nu_vacuum_liv(
     L : int, float, list, or np.ndarray
         Baseline(s).
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
         Mass-squared difference :math:`\Delta m_{31}^2`. Default: None.
     s14 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{14}`. Default: 0.0.
+        Mixing angle :math:`\theta_{14}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s24 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{24}`. Default: 0.0.
+        Mixing angle :math:`\theta_{24}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s34 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{34}`. Default: 0.0.
+        Mixing angle :math:`\theta_{34}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     d14 : int or float, optional
-        :math:`\delta_{14}` [radian]. Default: 0.0.
+        :math:`\delta_{14}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d24 : int or float, optional
-        :math:`\delta_{24}` [radian]. Default: 0.0.
+        :math:`\delta_{24}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     D41 : int or float, optional
         Mass-squared difference :math:`\Delta m_{41}^2`. Default: 0.0.
     sxi12 : int or float, optional
@@ -15244,6 +16476,12 @@ def osc_prob_4nu_vacuum_liv(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -15270,6 +16508,7 @@ def osc_prob_4nu_vacuum_liv(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -15325,8 +16564,8 @@ def osc_prob_5nu_vacuum_liv(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the five-neutrino oscillation probability in
     vacuum under (one form of) Lorentz-invariance violation.
 
@@ -15339,37 +16578,37 @@ def osc_prob_5nu_vacuum_liv(
     L : int, float, list, or np.ndarray
         Baseline(s).
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
         Mass-squared difference :math:`\Delta m_{31}^2`. Default: None.
     s14 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{14}`. Default: 0.0.
+        Mixing angle :math:`\theta_{14}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s15 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{15}`. Default: 0.0.
+        Mixing angle :math:`\theta_{15}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s24 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{24}`. Default: 0.0.
+        Mixing angle :math:`\theta_{24}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s25 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{25}`. Default: 0.0.
+        Mixing angle :math:`\theta_{25}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s34 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{34}`. Default: 0.0.
+        Mixing angle :math:`\theta_{34}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s35 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{35}`. Default: 0.0.
+        Mixing angle :math:`\theta_{35}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     d14 : int or float, optional
-        :math:`\delta_{14}` [radian]. Default: 0.0.
+        :math:`\delta_{14}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d15 : int or float, optional
-        :math:`\delta_{15}` [radian]. Default: 0.0.
+        :math:`\delta_{15}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d24 : int or float, optional
-        :math:`\delta_{24}` [radian]. Default: 0.0.
+        :math:`\delta_{24}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d35 : int or float, optional
-        :math:`\delta_{35}` [radian]. Default: 0.0.
+        :math:`\delta_{35}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     D41 : int or float, optional
         Mass-squared difference :math:`\Delta m_{41}^2`. Default: 0.0.
     D51 : int or float, optional
@@ -15436,6 +16675,12 @@ def osc_prob_5nu_vacuum_liv(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -15464,6 +16709,7 @@ def osc_prob_5nu_vacuum_liv(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -15496,8 +16742,8 @@ def osc_prob_2nu_matter_liv_constant_density(
     file_log: Optional[TextIOWrapper]=None,
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the two-neutrino oscillation probability in
     matter with a constant density profile, under (one form of)
     Lorentz-invariance violation.
@@ -15513,7 +16759,7 @@ def osc_prob_2nu_matter_liv_constant_density(
     rho : int or float
         Matter density (or electron number density, if ``density_is_of_number_of_electrons`` is True).
     sth : int or float
-        Sine of the mixing angle :math:`\theta`, the single mixing angle of the two-flavor system.
+        Mixing angle :math:`\theta` of the two-flavor system, in the convention set by ``angles`` (default: its sine).
     Dm2 : int or float
         Mass-squared difference :math:`\Delta m^2` of the two-flavor system.
     sxi : int or float, optional
@@ -15554,6 +16800,11 @@ def osc_prob_2nu_matter_liv_constant_density(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines,
+        ``'sin2'`` their sines *squared* -- which is what global fits report --
+        ``'rad'`` the angles themselves in radians, or ``'deg'`` in degrees.  Any other
+        value raises.
 
     Returns
     -------
@@ -15583,6 +16834,7 @@ def osc_prob_2nu_matter_liv_constant_density(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -15620,8 +16872,8 @@ def osc_prob_3nu_matter_liv_constant_density(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the three-neutrino oscillation probability in
     matter with a constant density profile, under (one form of) 
     Lorentz-invariance violation.
@@ -15637,13 +16889,13 @@ def osc_prob_3nu_matter_liv_constant_density(
     rho : int or float
         Matter density (or electron number density, if ``density_is_of_number_of_electrons`` is True).
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
@@ -15696,6 +16948,12 @@ def osc_prob_3nu_matter_liv_constant_density(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -15725,6 +16983,7 @@ def osc_prob_3nu_matter_liv_constant_density(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -15774,8 +17033,8 @@ def osc_prob_4nu_matter_liv_constant_density(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the four-neutrino oscillation probability in
     matter with a constant density profile, under (one form of) 
     Lorentz-invariance violation.
@@ -15791,27 +17050,27 @@ def osc_prob_4nu_matter_liv_constant_density(
     rho : int or float
         Matter density (or electron number density, if ``density_is_of_number_of_electrons`` is True).
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
         Mass-squared difference :math:`\Delta m_{31}^2`. Default: None.
     s14 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{14}`. Default: 0.0.
+        Mixing angle :math:`\theta_{14}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s24 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{24}`. Default: 0.0.
+        Mixing angle :math:`\theta_{24}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s34 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{34}`. Default: 0.0.
+        Mixing angle :math:`\theta_{34}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     d14 : int or float, optional
-        :math:`\delta_{14}` [radian]. Default: 0.0.
+        :math:`\delta_{14}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d24 : int or float, optional
-        :math:`\delta_{24}` [radian]. Default: 0.0.
+        :math:`\delta_{24}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     D41 : int or float, optional
         Mass-squared difference :math:`\Delta m_{41}^2`. Default: 0.0.
     sxi12 : int or float, optional
@@ -15874,6 +17133,12 @@ def osc_prob_4nu_matter_liv_constant_density(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -15905,6 +17170,7 @@ def osc_prob_4nu_matter_liv_constant_density(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -15966,8 +17232,8 @@ def osc_prob_5nu_matter_liv_constant_density(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the five-neutrino oscillation probability in
     matter with a constant density profile, under (one form of) 
     Lorentz-invariance violation.
@@ -15983,37 +17249,37 @@ def osc_prob_5nu_matter_liv_constant_density(
     rho : int or float
         Matter density (or electron number density, if ``density_is_of_number_of_electrons`` is True).
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
         Mass-squared difference :math:`\Delta m_{31}^2`. Default: None.
     s14 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{14}`. Default: 0.0.
+        Mixing angle :math:`\theta_{14}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s15 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{15}`. Default: 0.0.
+        Mixing angle :math:`\theta_{15}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s24 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{24}`. Default: 0.0.
+        Mixing angle :math:`\theta_{24}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s25 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{25}`. Default: 0.0.
+        Mixing angle :math:`\theta_{25}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s34 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{34}`. Default: 0.0.
+        Mixing angle :math:`\theta_{34}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s35 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{35}`. Default: 0.0.
+        Mixing angle :math:`\theta_{35}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     d14 : int or float, optional
-        :math:`\delta_{14}` [radian]. Default: 0.0.
+        :math:`\delta_{14}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d15 : int or float, optional
-        :math:`\delta_{15}` [radian]. Default: 0.0.
+        :math:`\delta_{15}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d24 : int or float, optional
-        :math:`\delta_{24}` [radian]. Default: 0.0.
+        :math:`\delta_{24}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d35 : int or float, optional
-        :math:`\delta_{35}` [radian]. Default: 0.0.
+        :math:`\delta_{35}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     D41 : int or float, optional
         Mass-squared difference :math:`\Delta m_{41}^2`. Default: 0.0.
     D51 : int or float, optional
@@ -16090,6 +17356,12 @@ def osc_prob_5nu_matter_liv_constant_density(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -16123,6 +17395,7 @@ def osc_prob_5nu_matter_liv_constant_density(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -16157,8 +17430,8 @@ def osc_prob_2nu_matter_liv_exp_density(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the two-neutrino oscillation probability in
     matter with an exponentially falling density profile, under (one 
     form of) Lorentz-invariance violation.
@@ -16178,7 +17451,7 @@ def osc_prob_2nu_matter_liv_exp_density(
     l_scale : int or float
         Length scale of the exponential density decrease.
     sth : int or float
-        Sine of the mixing angle :math:`\theta`, the single mixing angle of the two-flavor system.
+        Mixing angle :math:`\theta` of the two-flavor system, in the convention set by ``angles`` (default: its sine).
     Dm2 : int or float
         Mass-squared difference :math:`\Delta m^2` of the two-flavor system.
     sxi : int or float, optional
@@ -16219,6 +17492,11 @@ def osc_prob_2nu_matter_liv_exp_density(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines,
+        ``'sin2'`` their sines *squared* -- which is what global fits report --
+        ``'rad'`` the angles themselves in radians, or ``'deg'`` in degrees.  Any other
+        value raises.
 
     Returns
     -------
@@ -16255,6 +17533,7 @@ def osc_prob_2nu_matter_liv_exp_density(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -16293,8 +17572,8 @@ def osc_prob_3nu_matter_liv_exp_density(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the three-neutrino oscillation probability in
     matter with an exponentially falling density profile, under (one 
     form of) Lorentz-invariance violation.
@@ -16314,13 +17593,13 @@ def osc_prob_3nu_matter_liv_exp_density(
     l_scale : int or float
         Length scale of the exponential density decrease.
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
@@ -16371,6 +17650,12 @@ def osc_prob_3nu_matter_liv_exp_density(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -16405,6 +17690,7 @@ def osc_prob_3nu_matter_liv_exp_density(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -16455,8 +17741,8 @@ def osc_prob_4nu_matter_liv_exp_density(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the four-neutrino oscillation probability in
     matter with an exponentially falling density profile, under (one 
     form of) Lorentz-invariance violation.
@@ -16476,27 +17762,27 @@ def osc_prob_4nu_matter_liv_exp_density(
     l_scale : int or float
         Length scale of the exponential density decrease.
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
         Mass-squared difference :math:`\Delta m_{31}^2`. Default: None.
     s14 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{14}`. Default: 0.0.
+        Mixing angle :math:`\theta_{14}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s24 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{24}`. Default: 0.0.
+        Mixing angle :math:`\theta_{24}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s34 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{34}`. Default: 0.0.
+        Mixing angle :math:`\theta_{34}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     d14 : int or float, optional
-        :math:`\delta_{14}` [radian]. Default: 0.0.
+        :math:`\delta_{14}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d24 : int or float, optional
-        :math:`\delta_{24}` [radian]. Default: 0.0.
+        :math:`\delta_{24}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     D41 : int or float, optional
         Mass-squared difference :math:`\Delta m_{41}^2`. Default: 0.0.
     sxi12 : int or float, optional
@@ -16557,6 +17843,12 @@ def osc_prob_4nu_matter_liv_exp_density(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -16593,6 +17885,7 @@ def osc_prob_4nu_matter_liv_exp_density(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -16655,8 +17948,8 @@ def osc_prob_5nu_matter_liv_exp_density(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the five-neutrino oscillation probability in
     matter with an exponentially falling density profile, under (one 
     form of) Lorentz-invariance violation.
@@ -16676,37 +17969,37 @@ def osc_prob_5nu_matter_liv_exp_density(
     l_scale : int or float
         Length scale of the exponential density decrease.
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
         Mass-squared difference :math:`\Delta m_{31}^2`. Default: None.
     s14 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{14}`. Default: 0.0.
+        Mixing angle :math:`\theta_{14}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s15 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{15}`. Default: 0.0.
+        Mixing angle :math:`\theta_{15}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s24 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{24}`. Default: 0.0.
+        Mixing angle :math:`\theta_{24}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s25 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{25}`. Default: 0.0.
+        Mixing angle :math:`\theta_{25}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s34 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{34}`. Default: 0.0.
+        Mixing angle :math:`\theta_{34}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s35 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{35}`. Default: 0.0.
+        Mixing angle :math:`\theta_{35}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     d14 : int or float, optional
-        :math:`\delta_{14}` [radian]. Default: 0.0.
+        :math:`\delta_{14}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d15 : int or float, optional
-        :math:`\delta_{15}` [radian]. Default: 0.0.
+        :math:`\delta_{15}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d24 : int or float, optional
-        :math:`\delta_{24}` [radian]. Default: 0.0.
+        :math:`\delta_{24}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d35 : int or float, optional
-        :math:`\delta_{35}` [radian]. Default: 0.0.
+        :math:`\delta_{35}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     D41 : int or float, optional
         Mass-squared difference :math:`\Delta m_{41}^2`. Default: 0.0.
     D51 : int or float, optional
@@ -16781,6 +18074,12 @@ def osc_prob_5nu_matter_liv_exp_density(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -16819,6 +18118,7 @@ def osc_prob_5nu_matter_liv_exp_density(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -16844,15 +18144,19 @@ def osc_prob_2nu_earth_liv(
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
     ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
-    electron_fraction: Optional[Union[int, float]]=0.5,
+    electron_fraction: Optional[Union[int, float]]=None,
+    electron_fraction_core: Optional[Union[int, float]]=None,
+    electron_fraction_mantle: Optional[Union[int, float]]=None,
+    electron_fraction_crust: Optional[Union[int, float]]=None,
+    electron_fraction_ocean: Optional[Union[int, float]]=None,
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the two-neutrino oscillation probability 
     inside the Earth, either between two locations on the surface of the
     Earth, or between the surface and a point in the interior, under
@@ -16926,7 +18230,7 @@ def osc_prob_2nu_earth_liv(
     energy : int, float, list, or np.ndarray
         Neutrino energy/energies.
     sth : int or float
-        Sine of the mixing angle :math:`\theta`, the single mixing angle of the two-flavor system.
+        Mixing angle :math:`\theta` of the two-flavor system, in the convention set by ``angles`` (default: its sine).
     Dm2 : int or float
         Mass-squared difference :math:`\Delta m^2` of the two-flavor system.
     sxi : int or float, optional
@@ -16968,6 +18272,51 @@ def osc_prob_2nu_earth_liv(
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
 
+    
+    ratio_number_neutrons_to_protons : int or float, optional
+        :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
+        matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
+        (isoscalar matter, i.e. :math:`Y_e = 0.5`).
+
+        **On an Earth chord this is not the ratio the density uses.**  The density takes
+        :math:`r = (1 - Y_e)/Y_e` layer by layer, because that is the same statement about
+        composition; the projector cannot, being one matrix for the whole chord.  So the
+        two disagree unless you match them, and at four flavours or more that is worth
+        about 2e-02 in probability on a core-crossing chord -- twenty times the default
+        tolerance, and silent.  Mag$\nu$s raises
+        :class:`magnus.globaldefs.SterileMatterCompositionWarning` when they disagree by
+        more than 2%, and names the path-averaged ratio for the chord you asked for.
+        ``electron_fraction=0.5`` with the default 1.0 makes them agree exactly, and
+        reproduces the uniform composition earlier versions assumed.  Three flavours are
+        unaffected: the projector's sterile block is empty.
+    electron_fraction : int or float, optional
+        One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
+        ``0.5`` reproduces the uniform composition assumed before those existed, and is
+        the way to reproduce a result computed then.  Cannot be combined with any
+        ``electron_fraction_*`` argument; passing both is an error rather than one
+        silently winning.  Default: None, meaning the layered values are used.
+    electron_fraction_core : int or float, optional
+        :math:`Y_e = \langle Z/A \rangle` for :math:`r \le 3480` km.  Default:
+        :data:`magnus.earth.Y_E_CORE_PREM` (0.4656, iron).
+    electron_fraction_mantle : int or float, optional
+        :math:`Y_e` for :math:`3480 < r \le 6346.6` km.  Default:
+        :data:`magnus.earth.Y_E_MANTLE_PREM` (0.4957, peridotite).
+    electron_fraction_crust : int or float, optional
+        :math:`Y_e` for :math:`6346.6 < r \le 6368` km.  Default:
+        :data:`magnus.earth.Y_E_CRUST_PREM` (0.4952, granitic).  Within 0.1% of the
+        mantle, so this exists for explicitness rather than for effect.
+    electron_fraction_ocean : int or float, optional
+        :math:`Y_e` for :math:`r > 6368` km.  Default:
+        :data:`magnus.earth.Y_E_OCEAN_PREM` (0.5551, seawater -- above 0.5 because
+        hydrogen has :math:`Z/A = 1`).  PREM's ocean is a global average that a
+        land-based baseline does not cross; pass
+        :data:`magnus.earth.Y_E_CRUST_PREM` for one.
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines,
+        ``'sin2'`` their sines *squared* -- which is what global fits report --
+        ``'rad'`` the angles themselves in radians, or ``'deg'`` in degrees.  Any other
+        value raises.
+
     Returns
     -------
     float or np.ndarray
@@ -16997,6 +18346,21 @@ def osc_prob_2nu_earth_liv(
     # matter density is discontinuous there, and the high-order quadrature of the Magnus kernel
     # converges at its nominal order only if the Hamiltonian is smooth inside each slab.
     t_breakpoints = earth.prem_layer_edges_along_chord(costhz)*gd.UNIT_KM # [eV^{-1}]
+
+    # A caller may have breakpoints of their own -- a feature in a custom H, say.  These
+    # wrappers set t_breakpoints themselves, so an argument of the same name arrived in
+    # **kwargs and collided, and the caller got "got multiple values for keyword argument
+    # 't_breakpoints'" raised from two layers down.  The keyword is listed as forwardable
+    # in this package's own unrecognised-keyword message, so it was reachable and broken.
+    # The two sets are merged rather than one replacing the other: the PREM crossings are
+    # required for the quadrature to be O(h^2) across a density jump, so dropping them
+    # silently would be the defect t_breakpoints exists to prevent.  To place every edge
+    # yourself instead, pass t_slab_edges, which is the complete set.
+    _user_breakpoints = kwargs.pop('t_breakpoints', None)
+    if _user_breakpoints is not None:
+        t_breakpoints = np.unique(np.concatenate(
+            [np.atleast_1d(np.asarray(t_breakpoints, dtype=float)),
+             np.atleast_1d(np.asarray(_user_breakpoints, dtype=float))]))
     
     # If any of the flavor indices is > 1, fix it (read the docstring above).
     nu_i, nu_f = valid_flavor_indices_2nu(nu_i, nu_f)
@@ -17011,9 +18375,11 @@ def osc_prob_2nu_earth_liv(
 
     return osc_prob_liv(
         num_flavors=2,
-        rho_func=lambda l: matter.num_density_e_func(earth.earth_radial_distance_from_depth(costhz, 
-            l/gd.UNIT_KM), earth.density_matter_func_prem, ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
-            electron_fraction=electron_fraction, density_matter_is_in_g_per_cm3=True), # [eV^3] (l in eV^{-1})
+        rho_func=_earth_composition(
+            costhz, electron_fraction, ratio_number_neutrons_to_protons,
+            electron_fraction_core, electron_fraction_mantle,
+            electron_fraction_crust, electron_fraction_ocean,
+            source_func_name, num_flavors=2),
         energy=energy,
         L=L,
         t_breakpoints=t_breakpoints,
@@ -17039,6 +18405,7 @@ def osc_prob_2nu_earth_liv(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -17069,15 +18436,19 @@ def osc_prob_3nu_earth_liv(
     nu_f: Optional[int]=None,
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
     ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
-    electron_fraction: Optional[Union[int, float]]=0.5,
+    electron_fraction: Optional[Union[int, float]]=None,
+    electron_fraction_core: Optional[Union[int, float]]=None,
+    electron_fraction_mantle: Optional[Union[int, float]]=None,
+    electron_fraction_crust: Optional[Union[int, float]]=None,
+    electron_fraction_ocean: Optional[Union[int, float]]=None,
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the three-neutrino oscillation probability 
     inside the Earth, either between two locations on the surface of the
     Earth, or between the surface and a point in the interior, under
@@ -17160,13 +18531,13 @@ def osc_prob_3nu_earth_liv(
     L : float, list, or np.ndarray, optional
         Baseline(s). Default: None.
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
@@ -17212,6 +18583,52 @@ def osc_prob_3nu_earth_liv(
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
 
+    
+    ratio_number_neutrons_to_protons : int or float, optional
+        :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
+        matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
+        (isoscalar matter, i.e. :math:`Y_e = 0.5`).
+
+        **On an Earth chord this is not the ratio the density uses.**  The density takes
+        :math:`r = (1 - Y_e)/Y_e` layer by layer, because that is the same statement about
+        composition; the projector cannot, being one matrix for the whole chord.  So the
+        two disagree unless you match them, and at four flavours or more that is worth
+        about 2e-02 in probability on a core-crossing chord -- twenty times the default
+        tolerance, and silent.  Mag$\nu$s raises
+        :class:`magnus.globaldefs.SterileMatterCompositionWarning` when they disagree by
+        more than 2%, and names the path-averaged ratio for the chord you asked for.
+        ``electron_fraction=0.5`` with the default 1.0 makes them agree exactly, and
+        reproduces the uniform composition earlier versions assumed.  Three flavours are
+        unaffected: the projector's sterile block is empty.
+    electron_fraction : int or float, optional
+        One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
+        ``0.5`` reproduces the uniform composition assumed before those existed, and is
+        the way to reproduce a result computed then.  Cannot be combined with any
+        ``electron_fraction_*`` argument; passing both is an error rather than one
+        silently winning.  Default: None, meaning the layered values are used.
+    electron_fraction_core : int or float, optional
+        :math:`Y_e = \langle Z/A \rangle` for :math:`r \le 3480` km.  Default:
+        :data:`magnus.earth.Y_E_CORE_PREM` (0.4656, iron).
+    electron_fraction_mantle : int or float, optional
+        :math:`Y_e` for :math:`3480 < r \le 6346.6` km.  Default:
+        :data:`magnus.earth.Y_E_MANTLE_PREM` (0.4957, peridotite).
+    electron_fraction_crust : int or float, optional
+        :math:`Y_e` for :math:`6346.6 < r \le 6368` km.  Default:
+        :data:`magnus.earth.Y_E_CRUST_PREM` (0.4952, granitic).  Within 0.1% of the
+        mantle, so this exists for explicitness rather than for effect.
+    electron_fraction_ocean : int or float, optional
+        :math:`Y_e` for :math:`r > 6368` km.  Default:
+        :data:`magnus.earth.Y_E_OCEAN_PREM` (0.5551, seawater -- above 0.5 because
+        hydrogen has :math:`Z/A = 1`).  PREM's ocean is a global average that a
+        land-based baseline does not cross; pass
+        :data:`magnus.earth.Y_E_CRUST_PREM` for one.
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
+
     Returns
     -------
     float or np.ndarray
@@ -17241,6 +18658,21 @@ def osc_prob_3nu_earth_liv(
     # matter density is discontinuous there, and the high-order quadrature of the Magnus kernel
     # converges at its nominal order only if the Hamiltonian is smooth inside each slab.
     t_breakpoints = earth.prem_layer_edges_along_chord(costhz)*gd.UNIT_KM # [eV^{-1}]
+
+    # A caller may have breakpoints of their own -- a feature in a custom H, say.  These
+    # wrappers set t_breakpoints themselves, so an argument of the same name arrived in
+    # **kwargs and collided, and the caller got "got multiple values for keyword argument
+    # 't_breakpoints'" raised from two layers down.  The keyword is listed as forwardable
+    # in this package's own unrecognised-keyword message, so it was reachable and broken.
+    # The two sets are merged rather than one replacing the other: the PREM crossings are
+    # required for the quadrature to be O(h^2) across a density jump, so dropping them
+    # silently would be the defect t_breakpoints exists to prevent.  To place every edge
+    # yourself instead, pass t_slab_edges, which is the complete set.
+    _user_breakpoints = kwargs.pop('t_breakpoints', None)
+    if _user_breakpoints is not None:
+        t_breakpoints = np.unique(np.concatenate(
+            [np.atleast_1d(np.asarray(t_breakpoints, dtype=float)),
+             np.atleast_1d(np.asarray(_user_breakpoints, dtype=float))]))
     
     # The function earth.density_matter_func_prem returns the internal matter density of the Earth
     # as a function of radial distance, r, using the Preliminary Reference Earth Model (PREM). The
@@ -17252,9 +18684,11 @@ def osc_prob_3nu_earth_liv(
 
     return osc_prob_liv(
         num_flavors=3,
-        rho_func=lambda l: matter.num_density_e_func(earth.earth_radial_distance_from_depth(costhz, 
-            l/gd.UNIT_KM), earth.density_matter_func_prem, ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
-            electron_fraction=electron_fraction, density_matter_is_in_g_per_cm3=True), # [eV^3] (l in eV^{-1})
+        rho_func=_earth_composition(
+            costhz, electron_fraction, ratio_number_neutrons_to_protons,
+            electron_fraction_core, electron_fraction_mantle,
+            electron_fraction_crust, electron_fraction_ocean,
+            source_func_name, num_flavors=3),
         energy=energy,
         L=L,
         t_breakpoints=t_breakpoints,
@@ -17282,6 +18716,7 @@ def osc_prob_3nu_earth_liv(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -17324,15 +18759,19 @@ def osc_prob_4nu_earth_liv(
     nu_f: Optional[int]=None,
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
     ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
-    electron_fraction: Optional[Union[int, float]]=0.5,
+    electron_fraction: Optional[Union[int, float]]=None,
+    electron_fraction_core: Optional[Union[int, float]]=None,
+    electron_fraction_mantle: Optional[Union[int, float]]=None,
+    electron_fraction_crust: Optional[Union[int, float]]=None,
+    electron_fraction_ocean: Optional[Union[int, float]]=None,
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the four-neutrino oscillation probability 
     inside the Earth, either between two locations on the surface of the
     Earth, or between the surface and a point in the interior, under
@@ -17415,27 +18854,27 @@ def osc_prob_4nu_earth_liv(
     L : float, list, or np.ndarray, optional
         Baseline(s). Default: None.
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
         Mass-squared difference :math:`\Delta m_{31}^2`. Default: None.
     s14 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{14}`. Default: 0.0.
+        Mixing angle :math:`\theta_{14}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s24 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{24}`. Default: 0.0.
+        Mixing angle :math:`\theta_{24}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s34 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{34}`. Default: 0.0.
+        Mixing angle :math:`\theta_{34}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     d14 : int or float, optional
-        :math:`\delta_{14}` [radian]. Default: 0.0.
+        :math:`\delta_{14}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d24 : int or float, optional
-        :math:`\delta_{24}` [radian]. Default: 0.0.
+        :math:`\delta_{24}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     D41 : int or float, optional
         Mass-squared difference :math:`\Delta m_{41}^2`. Default: 0.0.
     sxi12 : int or float, optional
@@ -17491,6 +18930,52 @@ def osc_prob_4nu_earth_liv(
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
 
+    
+    ratio_number_neutrons_to_protons : int or float, optional
+        :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
+        matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
+        (isoscalar matter, i.e. :math:`Y_e = 0.5`).
+
+        **On an Earth chord this is not the ratio the density uses.**  The density takes
+        :math:`r = (1 - Y_e)/Y_e` layer by layer, because that is the same statement about
+        composition; the projector cannot, being one matrix for the whole chord.  So the
+        two disagree unless you match them, and at four flavours or more that is worth
+        about 2e-02 in probability on a core-crossing chord -- twenty times the default
+        tolerance, and silent.  Mag$\nu$s raises
+        :class:`magnus.globaldefs.SterileMatterCompositionWarning` when they disagree by
+        more than 2%, and names the path-averaged ratio for the chord you asked for.
+        ``electron_fraction=0.5`` with the default 1.0 makes them agree exactly, and
+        reproduces the uniform composition earlier versions assumed.  Three flavours are
+        unaffected: the projector's sterile block is empty.
+    electron_fraction : int or float, optional
+        One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
+        ``0.5`` reproduces the uniform composition assumed before those existed, and is
+        the way to reproduce a result computed then.  Cannot be combined with any
+        ``electron_fraction_*`` argument; passing both is an error rather than one
+        silently winning.  Default: None, meaning the layered values are used.
+    electron_fraction_core : int or float, optional
+        :math:`Y_e = \langle Z/A \rangle` for :math:`r \le 3480` km.  Default:
+        :data:`magnus.earth.Y_E_CORE_PREM` (0.4656, iron).
+    electron_fraction_mantle : int or float, optional
+        :math:`Y_e` for :math:`3480 < r \le 6346.6` km.  Default:
+        :data:`magnus.earth.Y_E_MANTLE_PREM` (0.4957, peridotite).
+    electron_fraction_crust : int or float, optional
+        :math:`Y_e` for :math:`6346.6 < r \le 6368` km.  Default:
+        :data:`magnus.earth.Y_E_CRUST_PREM` (0.4952, granitic).  Within 0.1% of the
+        mantle, so this exists for explicitness rather than for effect.
+    electron_fraction_ocean : int or float, optional
+        :math:`Y_e` for :math:`r > 6368` km.  Default:
+        :data:`magnus.earth.Y_E_OCEAN_PREM` (0.5551, seawater -- above 0.5 because
+        hydrogen has :math:`Z/A = 1`).  PREM's ocean is a global average that a
+        land-based baseline does not cross; pass
+        :data:`magnus.earth.Y_E_CRUST_PREM` for one.
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
+
     Returns
     -------
     float or np.ndarray
@@ -17520,6 +19005,21 @@ def osc_prob_4nu_earth_liv(
     # matter density is discontinuous there, and the high-order quadrature of the Magnus kernel
     # converges at its nominal order only if the Hamiltonian is smooth inside each slab.
     t_breakpoints = earth.prem_layer_edges_along_chord(costhz)*gd.UNIT_KM # [eV^{-1}]
+
+    # A caller may have breakpoints of their own -- a feature in a custom H, say.  These
+    # wrappers set t_breakpoints themselves, so an argument of the same name arrived in
+    # **kwargs and collided, and the caller got "got multiple values for keyword argument
+    # 't_breakpoints'" raised from two layers down.  The keyword is listed as forwardable
+    # in this package's own unrecognised-keyword message, so it was reachable and broken.
+    # The two sets are merged rather than one replacing the other: the PREM crossings are
+    # required for the quadrature to be O(h^2) across a density jump, so dropping them
+    # silently would be the defect t_breakpoints exists to prevent.  To place every edge
+    # yourself instead, pass t_slab_edges, which is the complete set.
+    _user_breakpoints = kwargs.pop('t_breakpoints', None)
+    if _user_breakpoints is not None:
+        t_breakpoints = np.unique(np.concatenate(
+            [np.atleast_1d(np.asarray(t_breakpoints, dtype=float)),
+             np.atleast_1d(np.asarray(_user_breakpoints, dtype=float))]))
     
     # The function earth.density_matter_func_prem returns the internal matter density of the Earth
     # as a function of radial distance, r, using the Preliminary Reference Earth Model (PREM). The
@@ -17531,9 +19031,11 @@ def osc_prob_4nu_earth_liv(
 
     return osc_prob_liv(
         num_flavors=4,
-        rho_func=lambda l: matter.num_density_e_func(earth.earth_radial_distance_from_depth(costhz, 
-            l/gd.UNIT_KM), earth.density_matter_func_prem, ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
-            electron_fraction=electron_fraction, density_matter_is_in_g_per_cm3=True), # [eV^3] (l in eV^{-1})
+        rho_func=_earth_composition(
+            costhz, electron_fraction, ratio_number_neutrons_to_protons,
+            electron_fraction_core, electron_fraction_mantle,
+            electron_fraction_crust, electron_fraction_ocean,
+            source_func_name, num_flavors=4),
         energy=energy,
         L=L,
         t_breakpoints=t_breakpoints,
@@ -17563,6 +19065,7 @@ def osc_prob_4nu_earth_liv(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -17617,15 +19120,19 @@ def osc_prob_5nu_earth_liv(
     nu_f: Optional[int]=None,
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
     ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
-    electron_fraction: Optional[Union[int, float]]=0.5,
+    electron_fraction: Optional[Union[int, float]]=None,
+    electron_fraction_core: Optional[Union[int, float]]=None,
+    electron_fraction_mantle: Optional[Union[int, float]]=None,
+    electron_fraction_crust: Optional[Union[int, float]]=None,
+    electron_fraction_ocean: Optional[Union[int, float]]=None,
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the five-neutrino oscillation probability 
     inside the Earth, either between two locations on the surface of the
     Earth, or between the surface and a point in the interior, under
@@ -17709,37 +19216,37 @@ def osc_prob_5nu_earth_liv(
     L : float, list, or np.ndarray, optional
         Baseline(s). Default: None.
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
         Mass-squared difference :math:`\Delta m_{31}^2`. Default: None.
     s14 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{14}`. Default: 0.0.
+        Mixing angle :math:`\theta_{14}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s15 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{15}`. Default: 0.0.
+        Mixing angle :math:`\theta_{15}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s24 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{24}`. Default: 0.0.
+        Mixing angle :math:`\theta_{24}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s25 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{25}`. Default: 0.0.
+        Mixing angle :math:`\theta_{25}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s34 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{34}`. Default: 0.0.
+        Mixing angle :math:`\theta_{34}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s35 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{35}`. Default: 0.0.
+        Mixing angle :math:`\theta_{35}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     d14 : int or float, optional
-        :math:`\delta_{14}` [radian]. Default: 0.0.
+        :math:`\delta_{14}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d15 : int or float, optional
-        :math:`\delta_{15}` [radian]. Default: 0.0.
+        :math:`\delta_{15}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d24 : int or float, optional
-        :math:`\delta_{24}` [radian]. Default: 0.0.
+        :math:`\delta_{24}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d35 : int or float, optional
-        :math:`\delta_{35}` [radian]. Default: 0.0.
+        :math:`\delta_{35}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     D41 : int or float, optional
         Mass-squared difference :math:`\Delta m_{41}^2`. Default: 0.0.
     D51 : int or float, optional
@@ -17809,6 +19316,52 @@ def osc_prob_5nu_earth_liv(
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
 
+    
+    ratio_number_neutrons_to_protons : int or float, optional
+        :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
+        matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
+        (isoscalar matter, i.e. :math:`Y_e = 0.5`).
+
+        **On an Earth chord this is not the ratio the density uses.**  The density takes
+        :math:`r = (1 - Y_e)/Y_e` layer by layer, because that is the same statement about
+        composition; the projector cannot, being one matrix for the whole chord.  So the
+        two disagree unless you match them, and at four flavours or more that is worth
+        about 2e-02 in probability on a core-crossing chord -- twenty times the default
+        tolerance, and silent.  Mag$\nu$s raises
+        :class:`magnus.globaldefs.SterileMatterCompositionWarning` when they disagree by
+        more than 2%, and names the path-averaged ratio for the chord you asked for.
+        ``electron_fraction=0.5`` with the default 1.0 makes them agree exactly, and
+        reproduces the uniform composition earlier versions assumed.  Three flavours are
+        unaffected: the projector's sterile block is empty.
+    electron_fraction : int or float, optional
+        One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
+        ``0.5`` reproduces the uniform composition assumed before those existed, and is
+        the way to reproduce a result computed then.  Cannot be combined with any
+        ``electron_fraction_*`` argument; passing both is an error rather than one
+        silently winning.  Default: None, meaning the layered values are used.
+    electron_fraction_core : int or float, optional
+        :math:`Y_e = \langle Z/A \rangle` for :math:`r \le 3480` km.  Default:
+        :data:`magnus.earth.Y_E_CORE_PREM` (0.4656, iron).
+    electron_fraction_mantle : int or float, optional
+        :math:`Y_e` for :math:`3480 < r \le 6346.6` km.  Default:
+        :data:`magnus.earth.Y_E_MANTLE_PREM` (0.4957, peridotite).
+    electron_fraction_crust : int or float, optional
+        :math:`Y_e` for :math:`6346.6 < r \le 6368` km.  Default:
+        :data:`magnus.earth.Y_E_CRUST_PREM` (0.4952, granitic).  Within 0.1% of the
+        mantle, so this exists for explicitness rather than for effect.
+    electron_fraction_ocean : int or float, optional
+        :math:`Y_e` for :math:`r > 6368` km.  Default:
+        :data:`magnus.earth.Y_E_OCEAN_PREM` (0.5551, seawater -- above 0.5 because
+        hydrogen has :math:`Z/A = 1`).  PREM's ocean is a global average that a
+        land-based baseline does not cross; pass
+        :data:`magnus.earth.Y_E_CRUST_PREM` for one.
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
+
     Returns
     -------
     float or np.ndarray
@@ -17838,6 +19391,21 @@ def osc_prob_5nu_earth_liv(
     # matter density is discontinuous there, and the high-order quadrature of the Magnus kernel
     # converges at its nominal order only if the Hamiltonian is smooth inside each slab.
     t_breakpoints = earth.prem_layer_edges_along_chord(costhz)*gd.UNIT_KM # [eV^{-1}]
+
+    # A caller may have breakpoints of their own -- a feature in a custom H, say.  These
+    # wrappers set t_breakpoints themselves, so an argument of the same name arrived in
+    # **kwargs and collided, and the caller got "got multiple values for keyword argument
+    # 't_breakpoints'" raised from two layers down.  The keyword is listed as forwardable
+    # in this package's own unrecognised-keyword message, so it was reachable and broken.
+    # The two sets are merged rather than one replacing the other: the PREM crossings are
+    # required for the quadrature to be O(h^2) across a density jump, so dropping them
+    # silently would be the defect t_breakpoints exists to prevent.  To place every edge
+    # yourself instead, pass t_slab_edges, which is the complete set.
+    _user_breakpoints = kwargs.pop('t_breakpoints', None)
+    if _user_breakpoints is not None:
+        t_breakpoints = np.unique(np.concatenate(
+            [np.atleast_1d(np.asarray(t_breakpoints, dtype=float)),
+             np.atleast_1d(np.asarray(_user_breakpoints, dtype=float))]))
     
     # The function earth.density_matter_func_prem returns the internal matter density of the Earth
     # as a function of radial distance, r, using the Preliminary Reference Earth Model (PREM). The
@@ -17849,9 +19417,11 @@ def osc_prob_5nu_earth_liv(
 
     return osc_prob_liv(
         num_flavors=5,
-        rho_func=lambda l: matter.num_density_e_func(earth.earth_radial_distance_from_depth(costhz, 
-            l/gd.UNIT_KM), earth.density_matter_func_prem, ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
-            electron_fraction=electron_fraction, density_matter_is_in_g_per_cm3=True), # [eV^3] (l in eV^{-1})
+        rho_func=_earth_composition(
+            costhz, electron_fraction, ratio_number_neutrons_to_protons,
+            electron_fraction_core, electron_fraction_mantle,
+            electron_fraction_crust, electron_fraction_ocean,
+            source_func_name, num_flavors=5),
         energy=energy,
         L=L,
         t_breakpoints=t_breakpoints,
@@ -17883,6 +19453,7 @@ def osc_prob_5nu_earth_liv(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -17902,22 +19473,18 @@ def osc_prob_2nu_sun_liv(
     b2: Optional[Union[int, float]]=0.0,
     Lambda: Optional[Union[int, float]]=1.0,
     n_liv: Optional[int]=0,
-    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0, 
-    electron_fraction: Optional[Union[int, float]]=0.5, 
     nubar: Optional[bool]=False, 
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
     strategy: Optional[str]='auto',
-    density_matter_is_in_g_per_cm3: Optional[bool]=False,
-    density_is_of_number_of_electrons: Optional[bool]=False,
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the two-neutrino oscillation probability 
     for neutrinos inside the Sun, under (one form of) Lorentz-invariance
     violation.
@@ -17941,7 +19508,7 @@ def osc_prob_2nu_sun_liv(
     L0 : int or float
         Initial position.
     sth : int or float
-        Sine of the mixing angle :math:`\theta`, the single mixing angle of the two-flavor system.
+        Mixing angle :math:`\theta` of the two-flavor system, in the convention set by ``angles`` (default: its sine).
     Dm2 : int or float
         Mass-squared difference :math:`\Delta m^2` of the two-flavor system.
     sxi : int or float, optional
@@ -17954,20 +19521,12 @@ def osc_prob_2nu_sun_liv(
         Energy scale of the LIV operator. Default: 1.0.
     n_liv : int, optional
         Power of the energy dependence of the LIV operator (dimension of the operator minus 3). Default: 0.
-    ratio_number_neutrons_to_protons : int or float, optional
-        Ratio of the number of neutrons to protons in matter. Default: 1.0.
-    electron_fraction : int or float, optional
-        Electron fraction. Default: 0.5.
     nubar : bool, optional
         If True, compute the probability for antineutrinos. Default: False.
     nu_i : int, optional
         Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
     nu_f : int, optional
         Final flavor index; see ``nu_i``. Default: None.
-    density_matter_is_in_g_per_cm3 : bool, optional
-        If True, the density is given in :math:`\text{g cm}^{-3}`. Default: False.
-    density_is_of_number_of_electrons : bool, optional
-        If True, the density parameter directly gives the electron number density [:math:`\text{eV}^{3}`]. Default: False.
     strategy : str, optional
         Numerical strategy used to compute the evolution operator: 'auto' (default),
         'hybrid', or 'magnus'; see the ``strategy`` parameter of
@@ -17989,6 +19548,11 @@ def osc_prob_2nu_sun_liv(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines,
+        ``'sin2'`` their sines *squared* -- which is what global fits report --
+        ``'rad'`` the angles themselves in radians, or ``'deg'`` in degrees.  Any other
+        value raises.
 
     Returns
     -------
@@ -18009,13 +19573,19 @@ def osc_prob_2nu_sun_liv(
         b2=b2,
         Lambda=Lambda,
         n_liv=n_liv,
-        ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
-        electron_fraction=electron_fraction,
+        # The solar profile is an ELECTRON NUMBER density -- the standard exponential
+        # fit, in which Y_e is already folded in -- so the mass-density conversion
+        # these four describe never runs.  They are fixed here rather than exposed,
+        # matching osc_prob_Nnu_sun and osc_prob_Nnu_sun_nsi, which never took them:
+        # a parameter the caller can set and the calculation ignores is worse than
+        # no parameter, because nothing says it was ignored.
+        ratio_number_neutrons_to_protons=1.0,
+        electron_fraction=0.5,
         nubar=nubar,
         nu_i=nu_i,
         nu_f=nu_f,
-        density_matter_is_in_g_per_cm3=density_matter_is_in_g_per_cm3,
-        density_is_of_number_of_electrons=density_is_of_number_of_electrons,
+        density_matter_is_in_g_per_cm3=False,
+        density_is_of_number_of_electrons=True,
         strategy=strategy,
         validate_input=validate_input,
         save_log=save_log,
@@ -18023,6 +19593,7 @@ def osc_prob_2nu_sun_liv(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )
 
@@ -18046,22 +19617,18 @@ def osc_prob_3nu_sun_liv(
     b3: Optional[Union[int, float]]=0.0,
     Lambda: Optional[Union[int, float]]=1.0,
     n_liv: Optional[int]=0,
-    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0, 
-    electron_fraction: Optional[Union[int, float]]=0.5, 
     nubar: Optional[bool]=False, 
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
     strategy: Optional[str]='auto',
-    density_matter_is_in_g_per_cm3: Optional[bool]=False,
-    density_is_of_number_of_electrons: Optional[bool]=False,
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the three-neutrino oscillation probability 
     for neutrinos inside the Sun, under (one form of) Lorentz-invariance
     violation.
@@ -18085,13 +19652,13 @@ def osc_prob_3nu_sun_liv(
     L0 : int or float
         Initial position.
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
@@ -18114,20 +19681,12 @@ def osc_prob_3nu_sun_liv(
         Energy scale of the LIV operator. Default: 1.0.
     n_liv : int, optional
         Power of the energy dependence of the LIV operator (dimension of the operator minus 3). Default: 0.
-    ratio_number_neutrons_to_protons : int or float, optional
-        Ratio of the number of neutrons to protons in matter. Default: 1.0.
-    electron_fraction : int or float, optional
-        Electron fraction. Default: 0.5.
     nubar : bool, optional
         If True, compute the probability for antineutrinos. Default: False.
     nu_i : int, optional
         Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
     nu_f : int, optional
         Final flavor index; see ``nu_i``. Default: None.
-    density_matter_is_in_g_per_cm3 : bool, optional
-        If True, the density is given in :math:`\text{g cm}^{-3}`. Default: False.
-    density_is_of_number_of_electrons : bool, optional
-        If True, the density parameter directly gives the electron number density [:math:`\text{eV}^{3}`]. Default: False.
     strategy : str, optional
         Numerical strategy used to compute the evolution operator: 'auto' (default),
         'hybrid', or 'magnus'; see the ``strategy`` parameter of
@@ -18149,6 +19708,12 @@ def osc_prob_3nu_sun_liv(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -18177,13 +19742,19 @@ def osc_prob_3nu_sun_liv(
         b3=b3,
         Lambda=Lambda,
         n_liv=n_liv,
-        ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
-        electron_fraction=electron_fraction,
+        # The solar profile is an ELECTRON NUMBER density -- the standard exponential
+        # fit, in which Y_e is already folded in -- so the mass-density conversion
+        # these four describe never runs.  They are fixed here rather than exposed,
+        # matching osc_prob_Nnu_sun and osc_prob_Nnu_sun_nsi, which never took them:
+        # a parameter the caller can set and the calculation ignores is worse than
+        # no parameter, because nothing says it was ignored.
+        ratio_number_neutrons_to_protons=1.0,
+        electron_fraction=0.5,
         nubar=nubar,
         nu_i=nu_i,
         nu_f=nu_f,
-        density_matter_is_in_g_per_cm3=density_matter_is_in_g_per_cm3,
-        density_is_of_number_of_electrons=density_is_of_number_of_electrons,
+        density_matter_is_in_g_per_cm3=False,
+        density_is_of_number_of_electrons=True,
         strategy=strategy,
         validate_input=validate_input,
         save_log=save_log,
@@ -18191,6 +19762,7 @@ def osc_prob_3nu_sun_liv(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )
 
@@ -18226,22 +19798,19 @@ def osc_prob_4nu_sun_liv(
     b4: Optional[Union[int, float]]=0.0,
     Lambda: Optional[Union[int, float]]=1.0,
     n_liv: Optional[int]=0,
-    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0, 
-    electron_fraction: Optional[Union[int, float]]=0.5, 
     nubar: Optional[bool]=False, 
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
     strategy: Optional[str]='auto',
-    density_matter_is_in_g_per_cm3: Optional[bool]=False,
-    density_is_of_number_of_electrons: Optional[bool]=False,
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the four-neutrino oscillation probability 
     for neutrinos inside the Sun, under (one form of) Lorentz-invariance
     violation.
@@ -18265,27 +19834,27 @@ def osc_prob_4nu_sun_liv(
     L0 : int or float
         Initial position.
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
         Mass-squared difference :math:`\Delta m_{31}^2`. Default: None.
     s14 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{14}`. Default: 0.0.
+        Mixing angle :math:`\theta_{14}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s24 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{24}`. Default: 0.0.
+        Mixing angle :math:`\theta_{24}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s34 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{34}`. Default: 0.0.
+        Mixing angle :math:`\theta_{34}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     d14 : int or float, optional
-        :math:`\delta_{14}` [radian]. Default: 0.0.
+        :math:`\delta_{14}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d24 : int or float, optional
-        :math:`\delta_{24}` [radian]. Default: 0.0.
+        :math:`\delta_{24}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     D41 : int or float, optional
         Mass-squared difference :math:`\Delta m_{41}^2`. Default: 0.0.
     sxi12 : int or float, optional
@@ -18318,20 +19887,12 @@ def osc_prob_4nu_sun_liv(
         Energy scale of the LIV operator. Default: 1.0.
     n_liv : int, optional
         Power of the energy dependence of the LIV operator (dimension of the operator minus 3). Default: 0.
-    ratio_number_neutrons_to_protons : int or float, optional
-        Ratio of the number of neutrons to protons in matter. Default: 1.0.
-    electron_fraction : int or float, optional
-        Electron fraction. Default: 0.5.
     nubar : bool, optional
         If True, compute the probability for antineutrinos. Default: False.
     nu_i : int, optional
         Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
     nu_f : int, optional
         Final flavor index; see ``nu_i``. Default: None.
-    density_matter_is_in_g_per_cm3 : bool, optional
-        If True, the density is given in :math:`\text{g cm}^{-3}`. Default: False.
-    density_is_of_number_of_electrons : bool, optional
-        If True, the density parameter directly gives the electron number density [:math:`\text{eV}^{3}`]. Default: False.
     strategy : str, optional
         Numerical strategy used to compute the evolution operator: 'auto' (default),
         'hybrid', or 'magnus'; see the ``strategy`` parameter of
@@ -18353,6 +19914,27 @@ def osc_prob_4nu_sun_liv(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    ratio_number_neutrons_to_protons : int or float, optional
+        :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
+        matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
+        (isoscalar matter, i.e. :math:`Y_e = 0.5`).
+
+        **The Sun is not isoscalar, and this is the only way to say so.**  It is
+        hydrogen-rich, so :math:`Y_e = (1 + X)/2` runs from about 0.68 at the centre to
+        0.88 near the surface, and :math:`r = (1 - Y_e)/Y_e` from about 0.47 down to
+        0.14 -- nowhere near 1.0, unlike the Earth where the isoscalar value at least
+        sits among the layers.  The solar profile is a fit to the electron *number*
+        density, so :math:`Y_e` is already inside it and there is nothing for the
+        library to derive :math:`r` from: it has to be stated here.  Left at 1.0 the
+        averaged survival probability moves by about 4e-03 at
+        :math:`\sin\theta_{14} = 0.4`, above the default tolerance.  Three flavours are
+        unaffected -- the projector's sterile block is empty.
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -18393,13 +19975,18 @@ def osc_prob_4nu_sun_liv(
         b4=b4,
         Lambda=Lambda,
         n_liv=n_liv,
-        ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
-        electron_fraction=electron_fraction,
+        # The solar profile is an ELECTRON NUMBER density -- the standard exponential
+        # fit, in which Y_e is already folded in -- so the mass-density conversion
+        # these four describe never runs.  They are fixed here rather than exposed,
+        # matching osc_prob_Nnu_sun and osc_prob_Nnu_sun_nsi, which never took them:
+        # a parameter the caller can set and the calculation ignores is worse than
+        # no parameter, because nothing says it was ignored.
+        electron_fraction=0.5,
         nubar=nubar,
         nu_i=nu_i,
         nu_f=nu_f,
-        density_matter_is_in_g_per_cm3=density_matter_is_in_g_per_cm3,
-        density_is_of_number_of_electrons=density_is_of_number_of_electrons,
+        density_matter_is_in_g_per_cm3=False,
+        density_is_of_number_of_electrons=True,
         strategy=strategy,
         validate_input=validate_input,
         save_log=save_log,
@@ -18407,6 +19994,8 @@ def osc_prob_4nu_sun_liv(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
+        ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
         **kwargs
     )
 
@@ -18454,22 +20043,19 @@ def osc_prob_5nu_sun_liv(
     b5: Optional[Union[int, float]]=0.0,
     Lambda: Optional[Union[int, float]]=1.0,
     n_liv: Optional[int]=0,
-    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0, 
-    electron_fraction: Optional[Union[int, float]]=0.5, 
     nubar: Optional[bool]=False, 
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
     strategy: Optional[str]='auto',
-    density_matter_is_in_g_per_cm3: Optional[bool]=False,
-    density_is_of_number_of_electrons: Optional[bool]=False,
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the five-neutrino oscillation probability 
     for neutrinos inside the Sun, under (one form of) Lorentz-invariance
     violation.
@@ -18493,37 +20079,37 @@ def osc_prob_5nu_sun_liv(
     L0 : int or float
         Initial position.
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
         Mass-squared difference :math:`\Delta m_{31}^2`. Default: None.
     s14 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{14}`. Default: 0.0.
+        Mixing angle :math:`\theta_{14}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s15 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{15}`. Default: 0.0.
+        Mixing angle :math:`\theta_{15}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s24 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{24}`. Default: 0.0.
+        Mixing angle :math:`\theta_{24}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s25 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{25}`. Default: 0.0.
+        Mixing angle :math:`\theta_{25}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s34 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{34}`. Default: 0.0.
+        Mixing angle :math:`\theta_{34}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s35 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{35}`. Default: 0.0.
+        Mixing angle :math:`\theta_{35}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     d14 : int or float, optional
-        :math:`\delta_{14}` [radian]. Default: 0.0.
+        :math:`\delta_{14}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d15 : int or float, optional
-        :math:`\delta_{15}` [radian]. Default: 0.0.
+        :math:`\delta_{15}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d24 : int or float, optional
-        :math:`\delta_{24}` [radian]. Default: 0.0.
+        :math:`\delta_{24}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d35 : int or float, optional
-        :math:`\delta_{35}` [radian]. Default: 0.0.
+        :math:`\delta_{35}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     D41 : int or float, optional
         Mass-squared difference :math:`\Delta m_{41}^2`. Default: 0.0.
     D51 : int or float, optional
@@ -18570,20 +20156,12 @@ def osc_prob_5nu_sun_liv(
         Energy scale of the LIV operator. Default: 1.0.
     n_liv : int, optional
         Power of the energy dependence of the LIV operator (dimension of the operator minus 3). Default: 0.
-    ratio_number_neutrons_to_protons : int or float, optional
-        Ratio of the number of neutrons to protons in matter. Default: 1.0.
-    electron_fraction : int or float, optional
-        Electron fraction. Default: 0.5.
     nubar : bool, optional
         If True, compute the probability for antineutrinos. Default: False.
     nu_i : int, optional
         Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
     nu_f : int, optional
         Final flavor index; see ``nu_i``. Default: None.
-    density_matter_is_in_g_per_cm3 : bool, optional
-        If True, the density is given in :math:`\text{g cm}^{-3}`. Default: False.
-    density_is_of_number_of_electrons : bool, optional
-        If True, the density parameter directly gives the electron number density [:math:`\text{eV}^{3}`]. Default: False.
     strategy : str, optional
         Numerical strategy used to compute the evolution operator: 'auto' (default),
         'hybrid', or 'magnus'; see the ``strategy`` parameter of
@@ -18605,6 +20183,27 @@ def osc_prob_5nu_sun_liv(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    ratio_number_neutrons_to_protons : int or float, optional
+        :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
+        matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
+        (isoscalar matter, i.e. :math:`Y_e = 0.5`).
+
+        **The Sun is not isoscalar, and this is the only way to say so.**  It is
+        hydrogen-rich, so :math:`Y_e = (1 + X)/2` runs from about 0.68 at the centre to
+        0.88 near the surface, and :math:`r = (1 - Y_e)/Y_e` from about 0.47 down to
+        0.14 -- nowhere near 1.0, unlike the Earth where the isoscalar value at least
+        sits among the layers.  The solar profile is a fit to the electron *number*
+        density, so :math:`Y_e` is already inside it and there is nothing for the
+        library to derive :math:`r` from: it has to be stated here.  Left at 1.0 the
+        averaged survival probability moves by about 4e-03 at
+        :math:`\sin\theta_{14} = 0.4`, above the default tolerance.  Three flavours are
+        unaffected -- the projector's sterile block is empty.
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -18657,13 +20256,18 @@ def osc_prob_5nu_sun_liv(
         b5=b5,
         Lambda=Lambda,
         n_liv=n_liv,
-        ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
-        electron_fraction=electron_fraction,
+        # The solar profile is an ELECTRON NUMBER density -- the standard exponential
+        # fit, in which Y_e is already folded in -- so the mass-density conversion
+        # these four describe never runs.  They are fixed here rather than exposed,
+        # matching osc_prob_Nnu_sun and osc_prob_Nnu_sun_nsi, which never took them:
+        # a parameter the caller can set and the calculation ignores is worse than
+        # no parameter, because nothing says it was ignored.
+        electron_fraction=0.5,
         nubar=nubar,
         nu_i=nu_i,
         nu_f=nu_f,
-        density_matter_is_in_g_per_cm3=density_matter_is_in_g_per_cm3,
-        density_is_of_number_of_electrons=density_is_of_number_of_electrons,
+        density_matter_is_in_g_per_cm3=False,
+        density_is_of_number_of_electrons=True,
         strategy=strategy,
         validate_input=validate_input,
         save_log=save_log,
@@ -18671,6 +20275,8 @@ def osc_prob_5nu_sun_liv(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
+        ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
         **kwargs
     )
 

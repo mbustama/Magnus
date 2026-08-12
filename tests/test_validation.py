@@ -16,6 +16,8 @@ would then fail on every reworded message rather than on a real change of
 behaviour.
 """
 
+import inspect
+
 import numpy as np
 import pytest
 
@@ -428,3 +430,232 @@ def test_the_guard_does_not_reject_legitimate_angles():
     hams.hamiltonian_2nu_vacuum_energy_independent(-1.0, 2.5e-3)
     hams.hamiltonian_3nu_vacuum_energy_independent(0.55, 0.76, 0.15, 3.79,
                                                    7.4e-5, 2.5e-3)
+
+
+# ----------------------------------------------------------------------
+# The guards added by the pre-publish audit (items A1, B3, B4, B5)
+#
+# Each of these closed a path where a wrong argument produced an answer
+# rather than a complaint, so what matters is that they fire at all -- an
+# untested guard is indistinguishable from a guard that cannot fire, which
+# is what the module docstring above records finding once already.
+# ----------------------------------------------------------------------
+
+@pytest.mark.parametrize("bad_energy", [-ENERGY, 0.0])
+def test_non_positive_energy_is_refused(bad_energy):
+    """E < 0 used to return the ANTINEUTRINO probability: unitary, in range,
+    and an answer to a different question.  E = 0 returned NaN."""
+    with pytest.raises(ValueError, match="energy"):
+        op.osc_prob_3nu_vacuum(bad_energy, BASELINE,
+                               **gd.load_nufit_params('NuFIT 6.1', 'NO'))
+
+
+def test_a_negative_energy_hidden_in_an_array_is_refused():
+    """The scalar case is the obvious one; a sign error usually arrives
+    inside a scan, where one element of many has gone negative."""
+    energies = np.array([1.0, -2.0, 3.0])*gd.UNIT_GEV
+    with pytest.raises(ValueError, match="energy"):
+        op.osc_prob_3nu_vacuum(energies, np.full(3, BASELINE),
+                               **gd.load_nufit_params('NuFIT 6.1', 'NO'))
+
+
+def test_a_positive_energy_and_the_antineutrino_flag_both_still_work():
+    """The guard must not have closed the legitimate route to the answer
+    that a negative energy used to return by accident."""
+    osc = gd.load_nufit_params('NuFIT 6.1', 'NO')
+    nu = np.asarray(op.osc_prob_3nu_vacuum(ENERGY, BASELINE, **osc))
+    nubar = np.asarray(op.osc_prob_3nu_vacuum(ENERGY, BASELINE, nubar=True, **osc))
+    np.testing.assert_allclose(nu.sum(axis=1), 1.0, atol=1.0e-12)
+    np.testing.assert_allclose(nubar.sum(axis=1), 1.0, atol=1.0e-12)
+    assert not np.allclose(nu, nubar)      # they are different physics
+
+
+@pytest.mark.parametrize("kwargs", [
+    {'n_slabs': 0}, {'n_slabs': -5}, {'min_n_slabs': 0}, {'n_tpts_per_slab': 1},
+    {'min_n_tpts_per_slab': 1},
+])
+def test_non_positive_slab_and_sample_counts_are_refused(kwargs):
+    """These were accepted and then ignored, so a typo looked like a setting
+    that had been honoured."""
+    key = list(kwargs)[0]
+    with pytest.raises(ValueError, match=key):
+        op.osc_prob(lambda t: np.zeros((3, 3), dtype=complex), 0.0, BASELINE, **kwargs)
+
+
+@pytest.mark.parametrize("kwargs", [
+    {'min_n_slabs': 100, 'max_n_slabs': 5},
+    {'min_n_tpts_per_slab': 400, 'max_n_tpts_per_slab': 100},
+])
+def test_a_floor_above_its_own_ceiling_is_refused(kwargs):
+    """A contradictory pair used to be answered, and which of the two bounds
+    the ladder obeyed was an implementation detail."""
+    with pytest.raises(ValueError, match="must be <="):
+        op.osc_prob(lambda t: np.zeros((3, 3), dtype=complex), 0.0, BASELINE, **kwargs)
+
+
+@pytest.mark.parametrize("bad_density", [float('nan'), float('inf')])
+def test_a_non_finite_density_is_refused_and_not_called_a_unit_mistake(bad_density):
+    """A NaN density used to be reported as a DensityUnitWarning saying it was
+    "far too small to be in natural units" -- a confident diagnosis of the
+    wrong problem, reached because `nan == 0.0` and `nan >= threshold` are
+    both False and the guard fell through to its warning."""
+    with pytest.raises(ValueError, match="finite"):
+        op.osc_prob_3nu_matter_constant_density(
+            ENERGY, BASELINE, bad_density,
+            density_matter_is_in_g_per_cm3=True,
+            **gd.load_nufit_params('NuFIT 6.1', 'NO'))
+
+
+# ----------------------------------------------------------------------
+# Zero NSI must be no NSI, at every flavour count
+# ----------------------------------------------------------------------
+
+@pytest.mark.parametrize("num_flavors", [3, 4, 5])
+def test_nsi_with_zero_couplings_reproduces_the_standard_matter_case(num_flavors):
+    """The NSI route built its standard piece as a literal `[1, 0, 0, 0]`
+    diagonal, giving the sterile states zero where they carry
+    -V_NC = (r/2) V_CC.  With every eps set to zero the two routes must be
+    the same calculation, and they differed by 5.2e-02 at four flavours and
+    5.1e-02 at five.  Three flavours is the control: no sterile state, so it
+    agreed all along, which is why nothing noticed.
+
+    This is the same omission that was found in the standard-potential path
+    -- worth 0.29 in probability on a PREM chord -- surviving in the BSM
+    one.  A fix applied per-call-site rather than at the shared definition
+    leaves exactly this kind of remainder."""
+    osc = dict(gd.load_nufit_params('NuFIT 6.1', 'NO'))
+    eps_names = {
+        3: ('eps_ee', 'eps_em', 'eps_et', 'eps_mm', 'eps_mt', 'eps_tt'),
+        4: ('eps_ee', 'eps_em', 'eps_et', 'eps_es', 'eps_mm', 'eps_mt',
+            'eps_ms', 'eps_tt', 'eps_ts', 'eps_ss'),
+        5: ('eps_ee', 'eps_em', 'eps_et', 'eps_es1', 'eps_es2', 'eps_mm', 'eps_mt',
+            'eps_ms1', 'eps_ms2', 'eps_tt', 'eps_ts1', 'eps_ts2',
+            'eps_s1s1', 'eps_s1s2', 'eps_s2s2'),
+    }[num_flavors]
+    if num_flavors >= 4:
+        osc.update(s14=0.3, s24=0.3, s34=0.0, d14=0.0, d24=0.0, D41=1.0)
+    if num_flavors == 5:
+        osc.update(s15=0.2, s25=0.0, s35=0.0, d15=0.0, d35=0.0, D51=2.0)
+
+    std_fn = getattr(op, 'osc_prob_%dnu_matter_constant_density' % num_flavors)
+    nsi_fn = getattr(op, 'osc_prob_%dnu_matter_nsi_constant_density' % num_flavors)
+    common = dict(density_matter_is_in_g_per_cm3=True)
+
+    std = np.asarray(std_fn(ENERGY, BASELINE, 3.0, **osc, **common))
+    nsi = np.asarray(nsi_fn(ENERGY, BASELINE, 3.0, **osc,
+                            **{k: 0.0 for k in eps_names}, **common))
+    np.testing.assert_allclose(nsi, std, rtol=0.0, atol=1.0e-14)
+
+
+def test_a_non_zero_nsi_coupling_still_changes_the_answer():
+    """The guard above is satisfied by an NSI route that ignores eps
+    entirely, so it needs this next to it."""
+    osc = dict(gd.load_nufit_params('NuFIT 6.1', 'NO'))
+    osc.update(s14=0.3, s24=0.3, s34=0.0, d14=0.0, d24=0.0, D41=1.0)
+    eps = {k: 0.0 for k in ('eps_ee', 'eps_em', 'eps_et', 'eps_es', 'eps_mm',
+                            'eps_mt', 'eps_ms', 'eps_tt', 'eps_ts', 'eps_ss')}
+    common = dict(density_matter_is_in_g_per_cm3=True)
+    std = np.asarray(op.osc_prob_4nu_matter_constant_density(
+        ENERGY, BASELINE, 3.0, **osc, **common))
+    nsi = np.asarray(op.osc_prob_4nu_matter_nsi_constant_density(
+        ENERGY, BASELINE, 3.0, **osc, **{**eps, 'eps_ee': 0.1}, **common))
+    assert np.max(np.abs(nsi - std)) > 1.0e-4
+
+
+@pytest.mark.parametrize("num_flavors", [2, 3, 4, 5])
+def test_solar_liv_uses_the_solar_electron_density(num_flavors):
+    """`osc_prob_Nnu_sun_liv` builds its profile from NUM_DENSITY_E_SUN_CENTRAL,
+    which is an electron NUMBER density, but forwarded a
+    `density_is_of_number_of_electrons` flag that defaulted to False -- so by
+    default the Sun's electron density was read as a mass density and then
+    scaled by an electron fraction.  With the LIV couplings zeroed it must
+    reproduce `osc_prob_Nnu_sun`, and it differed by up to 0.69 in
+    probability.
+
+    `osc_prob_Nnu_sun` and `osc_prob_Nnu_sun_nsi` do not expose those flags at
+    all, because the profile is not the caller's to describe.  Only the LIV
+    family did, which is why only it was wrong."""
+    osc = dict(gd.load_nufit_params('NuFIT 6.1', 'NO'))
+    if num_flavors == 2:
+        osc = {'sth': osc['s12'], 'Dm2': osc['D21']}
+    if num_flavors >= 4:
+        osc.update(s14=0.15, d14=1.2, s24=0.10, d24=0.0, s34=0.05,
+                   D41=1.5*gd.load_nufit_params('NuFIT 6.1', 'NO')['D31'])
+    if num_flavors == 5:
+        osc.update(s15=0.08, d15=0.5, s25=0.05, s35=0.03, d35=0.9,
+                   D51=2.5*gd.load_nufit_params('NuFIT 6.1', 'NO')['D31'])
+    common = dict(energy=1.0*gd.UNIT_MEV, L=4.0*gd.L_SCALE_SUN, L0=0.0)
+    std = np.asarray(getattr(op, 'osc_prob_%dnu_sun' % num_flavors)(**common, **osc))
+    liv_fn = getattr(op, 'osc_prob_%dnu_sun_liv' % num_flavors)
+    # two flavours has b1, b2 only; take the names from the signature
+    zeros = {k: 0.0 for k in inspect.signature(liv_fn).parameters
+             if len(k) == 2 and k[0] == 'b' and k[1].isdigit()}
+    liv = np.asarray(liv_fn(**common, **osc, **zeros))
+    np.testing.assert_allclose(liv, std, rtol=0.0, atol=1.0e-14)
+
+
+# ----------------------------------------------------------------------
+# The whole BSM grid, not just the two entries that were wrong
+#
+# Both physics bugs this audit found were the same shape: a BSM route whose
+# *standard* part had drifted from the standard route it should reduce to.
+# Testing the two that were broken guards those two; testing the grid guards
+# the shape.  Nine families x four flavour counts, and the couplings are
+# taken from each signature rather than hardcoded, so a family that gains a
+# coupling is covered without editing this.
+# ----------------------------------------------------------------------
+
+_BSM_PAIRS = [('matter_nsi_constant_density', 'matter_constant_density'),
+              ('matter_nsi_exp_density', 'matter_exp_density'),
+              ('earth_nsi', 'earth'), ('sun_nsi', 'sun'),
+              ('vacuum_liv', 'vacuum'),
+              ('matter_liv_constant_density', 'matter_constant_density'),
+              ('matter_liv_exp_density', 'matter_exp_density'),
+              ('earth_liv', 'earth'), ('sun_liv', 'sun')]
+
+
+def _osc_params(num_flavors):
+    p = dict(gd.load_nufit_params('NuFIT 6.1', 'NO'))
+    if num_flavors == 2:
+        return {'sth': p['s12'], 'Dm2': p['D21']}
+    if num_flavors == 3:
+        return p
+    d31 = p['D31']
+    p.update(s14=0.15, d14=1.2, s24=0.10, d24=0.0, s34=0.05, D41=1.5*d31)
+    if num_flavors == 5:
+        p.update(s15=0.08, d15=0.5, s25=0.05, s35=0.03, d35=0.9, D51=2.5*d31)
+    return p
+
+
+def _env_kwargs(env, fn):
+    """The arguments each environment needs, filtered to the signature."""
+    import magnus.earth as _earth
+    kw = {'energy': 1.0*gd.UNIT_GEV, 'L': 1300.0*gd.UNIT_KM, 'L0': 0.0}
+    if 'constant_density' in env:
+        kw.update(rho=3.0, density_matter_is_in_g_per_cm3=True)
+    if 'exp_density' in env:
+        kw.update(rho_central=10.0, l_scale=500.0*gd.UNIT_KM,
+                  density_matter_is_in_g_per_cm3=True)
+    if env.startswith('earth'):
+        kw.update(costhz=-0.8,
+                  L=_earth.distance_traveled_inside_earth(-0.8)*gd.UNIT_KM)
+    if env.startswith('sun'):
+        kw.update(energy=1.0*gd.UNIT_MEV, L=4.0*gd.L_SCALE_SUN)
+    sig = set(inspect.signature(fn).parameters)
+    return {k: v for k, v in kw.items() if k in sig}
+
+
+@pytest.mark.parametrize("bsm_env,std_env", _BSM_PAIRS)
+@pytest.mark.parametrize("num_flavors", [2, 3, 4, 5])
+def test_every_bsm_route_reduces_to_its_standard_twin(bsm_env, std_env, num_flavors):
+    """With every new-physics coupling set to zero, a BSM route is the
+    standard calculation and must agree with it to machine precision."""
+    bsm_fn = getattr(op, 'osc_prob_%dnu_%s' % (num_flavors, bsm_env))
+    std_fn = getattr(op, 'osc_prob_%dnu_%s' % (num_flavors, std_env))
+    osc = _osc_params(num_flavors)
+    zeros = {k: 0.0 for k in inspect.signature(bsm_fn).parameters
+             if k.startswith('eps_') or (len(k) == 2 and k[0] == 'b' and k[1].isdigit())}
+    assert zeros, "no couplings found for %s -- the test would prove nothing" % bsm_env
+    bsm = np.asarray(bsm_fn(**_env_kwargs(bsm_env, bsm_fn), **osc, **zeros))
+    std = np.asarray(std_fn(**_env_kwargs(std_env, std_fn), **osc))
+    np.testing.assert_allclose(bsm, std, rtol=0.0, atol=1.0e-13)

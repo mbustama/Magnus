@@ -272,10 +272,19 @@ def _earth_hamiltonian_chain(costhz):
     e00 = np.diag([1.0, 0.0, 0.0])
 
     def H(enu, l):
+        r = earth.earth_radial_distance_from_depth(costhz, np.asarray(l)/gd.UNIT_KM)
+        # The same layered composition the wrapper uses.  Left at num_density_e_func's
+        # uniform default of Y_e = 0.5 this stops being an independent check of the
+        # *propagation* and becomes a check that the Earth is isoscalar, which it is not:
+        # the reference would disagree with the library by a factor of four on a
+        # core-crossing chord, and blame the integrator for the composition.
+        ye = earth.electron_fraction_func_prem(r)
         ne = matter.num_density_e_func(
-            earth.earth_radial_distance_from_depth(costhz,
-                np.asarray(l)/gd.UNIT_KM),
-            earth.density_matter_func_prem, density_matter_is_in_g_per_cm3=True)
+            r, earth.density_matter_func_prem,
+            electron_fraction=ye,
+            ratio_number_neutrons_to_protons=
+                earth.neutron_to_proton_ratio_from_electron_fraction(ye),
+            density_matter_is_in_g_per_cm3=True)
         vcc = np.sqrt(2.0)*gd.GF*np.asarray(ne)
         return (1.0/enu)*hvac + vcc[..., None, None]*e00
 
@@ -2941,3 +2950,46 @@ def test_cumulative_scan_accepts_convergence_info_without_raising():
     assert P.shape == (10, 3, 3)
     assert np.all(np.isfinite(P))
     assert np.allclose(np.sum(P, axis=2), 1.0, atol=1e-9)
+
+
+# ----------------------------------------------------------------------
+# The verbose and save_log reporting paths
+#
+# These were the single largest uncovered region of oscprob.py: the module
+# sat at 88.3% and most of what was missing were the
+# `for f in [None, file_log] if save_log else [None]:` runs -- the banner,
+# the per-slab report and the convergence summary.  They are output rather
+# than physics, which is exactly why nothing exercised them, and also why a
+# break in them would reach a user before it reached a test: this is the
+# machinery someone turns on when a result has already surprised them.
+# ----------------------------------------------------------------------
+
+@pytest.mark.parametrize("verbose", [1, 2])
+def test_the_verbose_report_runs_and_does_not_change_the_answer(verbose, capsys):
+    """Diagnostics have to be inert.  A reporting path that perturbs the
+    result is worse than no reporting path, because it is switched on
+    precisely when the result is in question."""
+    osc = gd.load_nufit_params('NuFIT 6.1', 'NO')
+    quiet = np.asarray(op.osc_prob_3nu_matter_constant_density(
+        1.0*gd.UNIT_GEV, 1000.0*gd.UNIT_KM, 3.0,
+        density_matter_is_in_g_per_cm3=True, **osc))
+    loud = np.asarray(op.osc_prob_3nu_matter_constant_density(
+        1.0*gd.UNIT_GEV, 1000.0*gd.UNIT_KM, 3.0,
+        density_matter_is_in_g_per_cm3=True, verbose=verbose, **osc))
+    printed = capsys.readouterr().out
+    assert printed.strip(), "verbose=%d printed nothing" % verbose
+    np.testing.assert_allclose(loud, quiet, rtol=0.0, atol=0.0)
+
+
+def test_save_log_writes_the_same_report_to_a_file(tmp_path, capsys):
+    """`save_log` duplicates the report into a file, and the file is the
+    half nobody looks at until they need it."""
+    osc = gd.load_nufit_params('NuFIT 6.1', 'NO')
+    log = tmp_path/'magnus.log'
+    op.osc_prob_3nu_matter_constant_density(
+        1.0*gd.UNIT_GEV, 1000.0*gd.UNIT_KM, 3.0,
+        density_matter_is_in_g_per_cm3=True, verbose=1,
+        save_log=True, filename_log=str(log), **osc)
+    capsys.readouterr()
+    assert log.exists(), "save_log=True wrote no file"
+    assert log.read_text().strip(), "the log file is empty"

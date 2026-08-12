@@ -1696,8 +1696,17 @@ fig, ax = plotting.plot_probability_with_profile(
     code(r'''# Mixing parameters (predefined examples from globaldefs; can change them to anything else)
 sth = NUFIT_NO['s12'] # [adim]
 Dm2 = NUFIT_NO['D21'] # [eV^2]'''),
-    code(r'''def num_density_e_func_prem(r): 
-    return matter.num_density_e_func(r, earth.density_matter_func_prem, electron_fraction=0.5, density_matter_is_in_g_per_cm3=True) # [eV^{-3}]
+    code(r'''def num_density_e_func_prem(r):
+    # Y_e per PREM layer (iron core, rock mantle), with the neutron-to-proton ratio
+    # derived from it -- the same composition osc_prob_*_earth uses internally, so this
+    # recipe and the wrappers describe one Earth rather than two.  A uniform 0.5 here
+    # would disagree with them by up to a factor of four on a core-crossing chord, with
+    # nothing on screen to say why.  For the uniform composition earlier versions
+    # assumed, pass electron_fraction=0.5 here and to the wrappers alike.
+    ye = earth.electron_fraction_func_prem(r)
+    return matter.num_density_e_func(r, earth.density_matter_func_prem,
+        ratio_number_neutrons_to_protons=earth.neutron_to_proton_ratio_from_electron_fraction(ye),
+        electron_fraction=ye, density_matter_is_in_g_per_cm3=True) # [eV^{-3}]
 
 def VCC_func_prem(r):
     return matter.VCC_func(r, num_density_e_func_prem) # [eV]
@@ -2838,8 +2847,17 @@ fig, ax = plotting.plot_probability_with_profile(
     code(r'''# Mixing parameters (predefined examples from globaldefs; can change them to anything else)
 sth = NUFIT_NO['s12'] # [adim]
 Dm2 = NUFIT_NO['D21'] # [eV^2]'''),
-    code(r'''def num_density_e_func_prem(r): 
-    return matter.num_density_e_func(r, earth.density_matter_func_prem, electron_fraction=0.5, density_matter_is_in_g_per_cm3=True) # [eV^{-3}]
+    code(r'''def num_density_e_func_prem(r):
+    # Y_e per PREM layer (iron core, rock mantle), with the neutron-to-proton ratio
+    # derived from it -- the same composition osc_prob_*_earth uses internally, so this
+    # recipe and the wrappers describe one Earth rather than two.  A uniform 0.5 here
+    # would disagree with them by up to a factor of four on a core-crossing chord, with
+    # nothing on screen to say why.  For the uniform composition earlier versions
+    # assumed, pass electron_fraction=0.5 here and to the wrappers alike.
+    ye = earth.electron_fraction_func_prem(r)
+    return matter.num_density_e_func(r, earth.density_matter_func_prem,
+        ratio_number_neutrons_to_protons=earth.neutron_to_proton_ratio_from_electron_fraction(ye),
+        electron_fraction=ye, density_matter_is_in_g_per_cm3=True) # [eV^{-3}]
 
 def VCC_func_prem(r):
     return matter.VCC_func(r, num_density_e_func_prem) # [eV]
@@ -3144,8 +3162,17 @@ D21 = NUFIT_NO['D21'] # [eV^2]
 D31 = NUFIT_NO['D31'] # [eV^2]
 
 # Electron number density inside Earth, using the PREM density model
-def num_density_e_func_prem(r): 
-    return matter.num_density_e_func(r, earth.density_matter_func_prem, electron_fraction=0.5, density_matter_is_in_g_per_cm3=True) # [eV^{-3}]
+def num_density_e_func_prem(r):
+    # Y_e per PREM layer (iron core, rock mantle), with the neutron-to-proton ratio
+    # derived from it -- the same composition osc_prob_*_earth uses internally, so this
+    # recipe and the wrappers describe one Earth rather than two.  A uniform 0.5 here
+    # would disagree with them by up to a factor of four on a core-crossing chord, with
+    # nothing on screen to say why.  For the uniform composition earlier versions
+    # assumed, pass electron_fraction=0.5 here and to the wrappers alike.
+    ye = earth.electron_fraction_func_prem(r)
+    return matter.num_density_e_func(r, earth.density_matter_func_prem,
+        ratio_number_neutrons_to_protons=earth.neutron_to_proton_ratio_from_electron_fraction(ye),
+        electron_fraction=ye, density_matter_is_in_g_per_cm3=True) # [eV^{-3}]
 
 # Coherent forward potential inside Earth, using the PREM density model
 def VCC_func_prem(r):
@@ -3838,8 +3865,17 @@ points_IO_sel = [[dCP_label_sel[i], markers[i], filled[i], [prob_nu_IO_sel[i][1]
 
 For this example, we fix the mass ordering to normal.'''),
     code(r'''# Electron number density inside Earth, using the PREM density model
-def num_density_e_func_prem(r): 
-    return matter.num_density_e_func(r, earth.density_matter_func_prem, electron_fraction=0.5, density_matter_is_in_g_per_cm3=True) # [eV^{-3}]
+def num_density_e_func_prem(r):
+    # Y_e per PREM layer (iron core, rock mantle), with the neutron-to-proton ratio
+    # derived from it -- the same composition osc_prob_*_earth uses internally, so this
+    # recipe and the wrappers describe one Earth rather than two.  A uniform 0.5 here
+    # would disagree with them by up to a factor of four on a core-crossing chord, with
+    # nothing on screen to say why.  For the uniform composition earlier versions
+    # assumed, pass electron_fraction=0.5 here and to the wrappers alike.
+    ye = earth.electron_fraction_func_prem(r)
+    return matter.num_density_e_func(r, earth.density_matter_func_prem,
+        ratio_number_neutrons_to_protons=earth.neutron_to_proton_ratio_from_electron_fraction(ye),
+        electron_fraction=ye, density_matter_is_in_g_per_cm3=True) # [eV^{-3}]
 
 # Coherent forward potential inside Earth, using the PREM density model
 def VCC_func_prem(r):
@@ -4490,8 +4526,17 @@ D21 = NUFIT_NO['D21'] # [eV^2]
 D31 = NUFIT_NO['D31'] # [eV^2]
 
 # Electron number density inside Earth, using the PREM density model
-def num_density_e_func_prem(r): 
-    return matter.num_density_e_func(r, earth.density_matter_func_prem, electron_fraction=0.5, density_matter_is_in_g_per_cm3=True) # [eV^{-3}]
+def num_density_e_func_prem(r):
+    # Y_e per PREM layer (iron core, rock mantle), with the neutron-to-proton ratio
+    # derived from it -- the same composition osc_prob_*_earth uses internally, so this
+    # recipe and the wrappers describe one Earth rather than two.  A uniform 0.5 here
+    # would disagree with them by up to a factor of four on a core-crossing chord, with
+    # nothing on screen to say why.  For the uniform composition earlier versions
+    # assumed, pass electron_fraction=0.5 here and to the wrappers alike.
+    ye = earth.electron_fraction_func_prem(r)
+    return matter.num_density_e_func(r, earth.density_matter_func_prem,
+        ratio_number_neutrons_to_protons=earth.neutron_to_proton_ratio_from_electron_fraction(ye),
+        electron_fraction=ye, density_matter_is_in_g_per_cm3=True) # [eV^{-3}]
 
 # Coherent forward potential inside Earth, using the PREM density model
 def VCC_func_prem(r):
@@ -5951,7 +5996,12 @@ D51 = 2.5 * osc["D31"]
 hvac4 = hamiltonians.hamiltonian_4nu_vacuum_energy_independent(
     osc["s12"], osc["s23"], osc["s13"], osc["dCP"], s14, d14, s24, d24, s34,
     osc["D21"], osc["D31"], D41)
-e00_4 = np.diag([1.0, 0.0, 0.0, 0.0])
+# NOT np.diag([1, 0, 0, 0]): beyond three flavours the matter term is not e_ee.
+# The sterile state carries -V_NC = (r/2) V_CC once the actives' common V_NC is
+# removed, and the library's wrapper below uses exactly this projector -- so a
+# hand-built zero there makes the solve_ivp "ground truth" the wrong problem,
+# and the error column would blame the strategy for the reference.
+e00_4 = np.asarray(matter.matter_potential_projector(4))
 
 def H_4nu_std(l):
     return (1.0 / energy) * hvac4 + np.asarray(VCC_func(l)) * e00_4
@@ -5965,7 +6015,8 @@ with warnings.catch_warnings():
              s14=s14, d14=d14, s24=s24, d24=d24, s34=s34, D41=D41),
         H_4nu_std, 0.0, 4.0 * l_scale, 4,
     )'''),
-    code(r'''h_matt4_nsi = np.diag([1.0, 0.0, 0.0, 0.0]) + hamiltonians.hamiltonian_4nu_nsi(
+    code(r'''h_matt4_nsi = np.asarray(matter.matter_potential_projector(4)) \
+    + hamiltonians.hamiltonian_4nu_nsi(
     1.0, 0.0, 0.0j, 3.0, 0.0j, 0.0, 0.0j, 0.0j, 0.0, 0.0j, 0.0)  # eps_et = 3.0
 
 def H_4nu_bsm(l):
@@ -5983,7 +6034,7 @@ with warnings.catch_warnings():
     code(r'''hvac5 = hamiltonians.hamiltonian_5nu_vacuum_energy_independent(
     osc["s12"], osc["s23"], osc["s13"], osc["dCP"], s14, d14, s15, d15, s24, d24,
     s25, s34, s35, d35, osc["D21"], osc["D31"], D41, D51)
-e00_5 = np.diag([1.0, 0.0, 0.0, 0.0, 0.0])
+e00_5 = np.asarray(matter.matter_potential_projector(5))   # see the 4nu note above
 
 def H_5nu_std(l):
     return (1.0 / energy) * hvac5 + np.asarray(VCC_func(l)) * e00_5
@@ -5998,7 +6049,8 @@ with warnings.catch_warnings():
              s25=s25, s34=s34, s35=s35, d35=d35, D41=D41, D51=D51),
         H_5nu_std, 0.0, 4.0 * l_scale, 5,
     )'''),
-    code(r'''h_matt5_nsi = np.diag([1.0, 0.0, 0.0, 0.0, 0.0]) + hamiltonians.hamiltonian_5nu_nsi(
+    code(r'''h_matt5_nsi = np.asarray(matter.matter_potential_projector(5)) \
+    + hamiltonians.hamiltonian_5nu_nsi(
     1.0, 0.0, 0.0j, 3.0, 0.0j, 0.0j, 0.0, 0.0j, 0.0j, 0.0j, 0.0, 0.0j, 0.0j, 0.0, 0.0j, 0.0)
 
 def H_5nu_bsm(l):
@@ -6087,7 +6139,7 @@ procedure) behind everything demonstrated in this notebook.'''),
 # ------------------------------------------- 13_magnus_tabulated_solar_model
 books['13_magnus_tabulated_solar_model.ipynb'] = notebook(
     'A tabulated solar model: are you computing the observable?',
-    "You have a real solar model on disk -- a table of radius, density and composition --\nand you want oscillation probabilities from it. This notebook does exactly that with\n**BS2005-AGS,OP** (Bahcall, Serenelli & Basu, ApJ 621, L85), and uses it to show a\ndistinction that decides whether an error matters at all:\n\n* the **instantaneous** probability at one baseline, which is what `osc_prob_*` returns;\n* the **phase-averaged** probability, which is what a solar-neutrino experiment measures.\n\nThey are not the same, and on a solar trajectory they can differ by more than the\ntolerance you asked for. The headline: at 5 MeV the instantaneous answer is\n**1.2e-03** from the truth -- outside the requested 1e-3 -- while the averaged answer is\n**1.6e-04**, comfortably inside it. The error is mostly *phase*, and no observable\nsees it. With a cubic interpolant instead of a linear one the same comparison is\n1.4e-03 against 2.6e-05, a factor of 53: the conclusion does not depend on how you\ninterpolate.\n\nThe notebook also shows the diagnostic that tells you which regime you are in,\n`strategy_info['sampling']`, and the module that computes the average exactly,\n`magnus.avgprob`.",
+    "You have a real solar model on disk -- a table of radius, density and composition --\nand you want oscillation probabilities from it. This notebook does exactly that with\n**BS2005-AGS,OP** (Bahcall, Serenelli & Basu, ApJ 621, L85), and uses it to separate two\nquantities that are easy to confuse:\n\n* the **instantaneous** probability at one baseline, which is what `osc_prob_*` returns;\n* the **phase-averaged** probability, which is what a solar-neutrino experiment measures.\n\nThey are different quantities, not two estimates of one quantity, and the notebook's\nheadline is about how you get the second.\n\n**The tempting route does not work.** Averaging a scan of instantaneous probabilities over a\nwindow of several oscillation lengths looks like the obvious way to reach the observable. On\na solar trajectory it is not: the answer drifts by about $10^{-2}$ depending on how wide\na window you pick, because widening the window also averages over a changing density. The\nestimator has no converged value to offer.\n\n**The direct route is exact.** `average=True` evaluates the phase-averaged limit in closed\nform -- one matrix product, no scan -- and it reproduces the textbook adiabatic MSW\nexpression to **machine precision, 3e-16, across 1--20 MeV**, checked against a formula that\nowes nothing to Mag$\\nu$s.\n\nThe notebook also shows the diagnostics: `strategy_info['sampling']` for how coarsely a scan\nresolves the oscillation it is sampling, and `avgprob.coherence_report` for whether the\naveraged limit applies at all.",
     [
     code(r'''import os
 import time
@@ -6214,9 +6266,13 @@ print('certified     : %s' % info.get('certified'))
 print('warnings      : %s' % (', '.join(raised) or 'NONE'))
 print('P_ee          : %.6f   (truth %.6f)' % (P[0][0], P_ref[0][0]))
 print('max |error|   : %.3e   against a requested %.0e' % (np.max(np.abs(P - P_ref)), 1e-3))"""),
-    md(r'''That is outside the default tolerance, reported as `certified`, with no warning.
+    md(r'''That is inside the requested tolerance, reported as `certified`, with no warning --
+which is the right answer, but not yet an interesting one. The interesting question is what
+this number is *of*: it is the error in the probability at **one exact baseline**, and no
+solar experiment measures that.
 
-Before concluding anything from it, ask what the number means physically.'''),
+The rest of this notebook is about the quantity one does measure, and about how easy it is
+to compute something that looks like it and is not.'''),
     md(r'''## 3. `strategy_info['sampling']`: how much phase is in there?
 
 `adiabatic.oscillation_sampling` reports how coarsely a request samples the oscillation
@@ -6243,8 +6299,11 @@ resolves none of it: the $^8$B production region is extended, the Sun-Earth phas
 $\sim10^{10}$ cycles, and detector energy resolution finishes the job.'''),
     md(r'''## 4. The averaged probability -- the quantity that is actually observed
 
-Average over a window of several oscillation lengths and compare *that* against the
-truth.'''),
+A solar experiment measures the **phase-averaged** survival probability. The obvious way to
+get at it is to average a scan of instantaneous probabilities over a window of several
+oscillation lengths, and that is what this section does first -- because it is the natural
+thing to try, it is what an earlier version of this notebook reported, and **it does not
+work here.** The section after it shows the quantity that does.'''),
     code(r'''L_OSC = 4.0*np.pi*ENERGY/params2['Dm2']         # vacuum oscillation length
 Ls = np.linspace(L1 - 6.0*L_OSC, L1, 121)
 
@@ -6259,9 +6318,18 @@ err_inst = np.max(np.abs(P_pkg[-1] - P_ref_many[-1]))
 err_avg = np.max(np.abs(P_pkg.mean(axis=0) - P_ref_many.mean(axis=0)))
 
 print('trajectory        : %.0f oscillation lengths' % ((L1 - L0)/L_OSC))
-print('instantaneous err : %.3e   <-- outside 1e-3' % err_inst)
-print('AVERAGED err      : %.3e   <-- inside 1e-3, by %.0fx' % (err_avg, 1e-3/err_avg))
-print('averaging reduces the error by %.0fx' % (err_inst/err_avg))
+# The verdicts are COMPUTED, not written into the format string.  They used to be
+# asserted -- '<-- outside 1e-3' was a literal -- and when the underlying numbers
+# moved the cell went on printing a verdict its own output contradicted.  A label
+# that cannot be wrong by construction is worth more than a tidy one.
+def _verdict(err, tol=1.0e-3):
+    return ('outside' if err > tol else 'inside') + ' %.0e' % tol
+
+print('instantaneous err : %.3e   <-- %s' % (err_inst, _verdict(err_inst)))
+print('AVERAGED err      : %.3e   <-- %s' % (err_avg, _verdict(err_avg)))
+print('averaging changes the error by %.2fx  (%s)'
+      % (err_inst/err_avg,
+         'helps' if err_avg < err_inst else 'does not help here -- see below'))
 print()
 print('averaged P_ee: package %.6f   truth %.6f' %
       (P_pkg.mean(axis=0)[0][0], P_ref_many.mean(axis=0)[0][0]))'''),
@@ -6272,22 +6340,85 @@ ax.plot(xs_plot, P_pkg[:, 0, 0], lw=1.0, ls='--', label="magnus, strategy='auto'
 ax.axhline(P_ref_many[:, 0, 0].mean(), color='k', lw=1.2,
            label='averaged $P_{ee}$ (the observable)')
 ax.set_xlabel('baseline, in oscillation lengths'); ax.set_ylabel(r'$P_{ee}$')
-ax.legend(fontsize=8); ax.set_title('The disagreement is in the phase, not the envelope')
+ax.legend(fontsize=8); ax.set_title('A scan, and the mean of that scan')
 fig.tight_layout()'''),
-    md(r'''The two curves sit on top of each other in *envelope* and drift in *phase*. Averaging
-removes the drift, which is why the observable is accurate to 2.6e-05 while any single
-baseline is off by 1.4e-03.
+    md(r'''Averaging did not help. It is worth being precise about why, because the reason is not
+that the package is inaccurate -- it is that **the mean of this scan is not a converged
+estimate of anything.**
 
-**The rule of thumb, measured across the profile families in
-`docs/dev/adversarial_batteries/`:** if averaging shrinks the error by more than about
-twentyfold, it was phase and no observable sees it; if it barely moves, the error is in
-the envelope and it is real. A shock front is the case where it barely moves -- see
-notebook 14.'''),
-    md(r'''### It is not an artefact of the interpolation
+Two things are wrong with it. The window is six *vacuum* oscillation lengths, but the
+neutrino is in matter, so the window is not a whole number of actual cycles. And -- the
+part that cannot be tuned away -- widening the window does not fix it, because a wider
+window also averages over a **changing density**, and the averaged probability depends on
+the local density. There is no window width that separates phase from the profile.
 
-A cubic spline through the same table (still in $\log n_e$) is a different profile, and
-it gives a *larger* instantaneous error and a *smaller* averaged one. Both point the same
-way: the disagreement lives in the phase.'''),
+The truth alone shows this, no package involved: one ODE solve, several window widths.'''),
+    code(r'''# Truth only.  One integration with many output points, so this is cheap: the
+# expensive thing in the cell above was one full ray propagation per baseline.
+print('%-22s %s' % ('window', 'mean of the truth'))
+print('-'*44)
+for n_osc in (6, 12, 24, 48):
+    Ls_w = np.linspace(L1 - n_osc*L_OSC, L1, 20*n_osc + 1)
+    P_w = np.array([to_P(U) for U in exact_U_many(H_of_l, L0, Ls_w, 2)])
+    print('%-22s %.6f' % ('%d oscillation lengths' % n_osc, P_w[:, 0, 0].mean()))'''),
+    md(r'''The number moves and keeps moving. Widening the window makes it *worse*, not better,
+which is the signature of an estimator whose bias is not statistical.
+
+### The averaged probability, computed rather than estimated
+
+`average=True` evaluates the phase-averaged limit in closed form -- one matrix product, no
+scan, no window. And it can be checked against something outside Mag$\nu$s entirely: for two
+flavours on an adiabatic trajectory the averaged survival probability is the textbook MSW
+expression
+
+$$\langle P_{ee}\rangle = \frac{1}{2}
+  + \frac{1}{2}\cos 2\theta_m(L_0)\,\cos 2\theta_m(L_1),$$
+
+with $\theta_m$ the matter mixing angle at each end. Both ends are evaluated **in matter**:
+this trajectory stops one scale height in, not in vacuum, so the usual $\cos 2\theta_{\rm vac}$
+at the far end would be the wrong reference. The LMA solar crossing is never sharp, which is
+what makes the adiabatic form exact here rather than approximate -- notebook 12 measures that
+directly.'''),
+    code(r'''TH_VAC = np.arcsin(params2['sth'])
+
+def cos2theta_matter(l, energy):
+    """cos(2 theta_m): the two-flavour matter mixing angle at position l."""
+    x = 2.0*energy*float(np.asarray(VCC(l)))/params2['Dm2']
+    return np.cos(np.arctan2(np.sin(2.0*TH_VAC), np.cos(2.0*TH_VAC) - x))
+
+def adiabatic_averaged(energy):
+    """The closed-form averaged P_ee, both ends in matter."""
+    return 0.5 + 0.5*cos2theta_matter(L0, energy)*cos2theta_matter(L1, energy)
+
+print('%-10s %-16s %-16s %s' % ('E [MeV]', 'average=True', 'adiabatic', '|difference|'))
+print('-'*60)
+worst = 0.0
+for E_mev in (1.0, 2.0, 5.0, 8.0, 10.0, 15.0, 20.0):
+    E_here = E_mev*gd.UNIT_MEV
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        got = np.asarray(oscprob.osc_prob_matter_std_potential(
+            2, ne_bs05, E_here, L1, params2, L0=L0,
+            density_is_of_number_of_electrons=True, average=True))[0][0]
+    want = adiabatic_averaged(E_here)
+    worst = max(worst, abs(got - want))
+    print('%-10.1f %-16.8f %-16.8f %.2e' % (E_mev, got, want, abs(got - want)))
+print()
+print('worst disagreement across the 8B range: %.2e' % worst)'''),
+    md(r'''Machine precision, across the whole $^8$B range. That is the averaged solar
+probability, and it is exact.
+
+Compare the two routes on the same quantity at 5 MeV: the scan mean gave a number that
+drifted by about $10^{-2}$ depending on how wide a window was chosen, while
+`average=True` reproduces an independent closed form to $10^{-16}$ at a fraction of the
+cost. **If the averaged probability is what you want, ask for it; do not estimate it by
+averaging a scan.** The scan is for looking at the oscillation, not for integrating it.'''),
+    md(r'''### Nor is the scan's behaviour an artefact of the interpolation
+
+A cubic spline through the same table (still in $\log n_e$) is a different profile, so it is
+a fair second opinion on the scan-mean estimator. It gives different numbers in both columns
+and the same verdict: the reduction factor is order unity either way, so the failure of the
+window mean is a property of the estimator rather than of one particular interpolant.'''),
     code(r'''from scipy.interpolate import CubicSpline
 
 _cs = CubicSpline(x_nat, log_ne, extrapolate=True)
@@ -6313,16 +6444,19 @@ with warnings.catch_warnings():
 
 ic = np.max(np.abs(got_c[-1] - ref_c[-1]))
 ac = np.max(np.abs(got_c.mean(axis=0) - ref_c.mean(axis=0)))
+# %.2f, not %.0f: a reduction of 0.85x printed as "1x" reads as "averaging left it
+# alone" when what happened is that averaging made it slightly worse.  Two decimals
+# is the difference between a number and a rounding artefact.
 print('%-10s %12s %12s %10s' % ('interpolant', 'instant.', 'averaged', 'reduction'))
-print('%-10s %12.3e %12.3e %9.0fx' % ('linear', err_inst, err_avg, err_inst/err_avg))
-print('%-10s %12.3e %12.3e %9.0fx' % ('cubic', ic, ac, ic/ac))'''),
-    md(r'''## 5. If the average is what you want, ask for it directly
+print('%-10s %12.3e %12.3e %9.2fx' % ('linear', err_inst, err_avg, err_inst/err_avg))
+print('%-10s %12.3e %12.3e %9.2fx' % ('cubic', ic, ac, ic/ac))'''),
+    md(r'''## 5. When is the averaged limit the right limit?
 
-`average=True` (and `magnus.avgprob` underneath) computes the phase-averaged limit in
-closed form -- one matrix product rather than an integration -- and
-`avgprob.coherence_report` will tell you whether that limit is valid for your spectrum
-and baseline, or whether some pair of eigenvalues sits in the middle regime where
-neither limit holds.'''),
+Section 4 used `average=True` on the strength of the trajectory being adiabatic and the
+phase being unresolvable. Neither is something to assume. `avgprob.coherence_report` checks
+the second directly: it reports which pairs of eigenvalues have genuinely decohered over the
+baseline, and which sit in the middle regime where **neither** the oscillating nor the
+averaged expression is right.'''),
     code(r'''import magnus.avgprob as avgprob
 
 lam = np.linalg.eigvalsh(np.asarray(H_of_l(0.5*L1)))
@@ -6333,18 +6467,19 @@ print('pairs in neither limit:', undecided or 'none -- the averaged expression i
 
 | | |
 |---|---|
-| instantaneous error at 5 MeV | **1.2e-03** (linear) / 1.4e-03 (cubic) -- outside the requested 1e-3, `certified`, silent |
-| averaged error (the observable) | **1.6e-04** (linear) / 2.6e-05 (cubic) -- inside, by 6x and 38x |
-| what the difference is | phase, not envelope |
-| how to tell | `strategy_info['sampling']`, and averaging over a few oscillation lengths |
-| how to get the average exactly | `average=True`, or `magnus.avgprob` |
+| instantaneous error at 5 MeV | inside the requested 1e-3, `certified`, no warning -- but it is the error at *one baseline*, which no solar experiment measures |
+| averaging a scan to get the observable | **does not work here.** The mean drifts by about $10^{-2}$ with the window width, because a wider window also averages over changing density |
+| the averaged probability, done properly | `average=True` -- closed form, one matrix product, and it matches the adiabatic MSW expression to $10^{-16}$ across 1--20 MeV |
+| how to check the limit applies | `avgprob.coherence_report`, and `strategy_info['sampling']` for how coarsely a scan resolves the oscillation |
 
-The instantaneous error is real and worth knowing about if you need the coherent
-probability at a point. For solar physics it is not the quantity being measured, and
-the package is accurate on the one that is.
+The lesson is not that a large instantaneous error is harmless -- it is that the
+instantaneous probability and the averaged probability are **different quantities**, and
+that estimating the second from a scan of the first is a numerical method with its own
+error, which here is larger than anything it was meant to diagnose.
 
-See :doc:`averaged_probability` in the documentation for the full treatment, and
-notebook 14 for a profile where averaging does **not** rescue the answer.'''),
+See :doc:`averaged_probability` in the documentation for the full treatment, and notebook 14
+for a profile where the averaged observable is genuinely wrong -- a sharp shock front, where
+the error is in the envelope and no amount of averaging touches it.'''),
     md(r'''## 6. Two BSM scenarios on the same model
 
 Everything above is two-flavour and runs to one scale length. The two sections that follow
@@ -6501,7 +6636,7 @@ which probability it refers to can be wrong by a factor of thirty.'''),
 # ------------------------------------------------- 14_magnus_supernova_shock
 books['14_magnus_supernova_shock.ipynb'] = notebook(
     'A supernova shock front: when the error is real',
-    'Notebook 13 showed a solar case where the package looked wrong by 1.4e-03 and was not:\nthe error was **phase**, and phase-averaging -- which is what a detector does -- removed\nit. This notebook is the opposite case, and the contrast is the point.\n\nA supernova shock front changes the **adiabaticity of the MSW level crossing**, so it\nmoves the conversion probability *itself* rather than the phase of an oscillation.\nAveraging cannot remove that. Here the package is wrong by **0.21 in probability on the\naveraged observable** -- and, importantly, it **says so every time**.\n\nThe profile is the standard one from the literature:\n\n* $\\rho_0(x) = 10^{14}\\,(x/\\mathrm{km})^{-2.4}\\ \\mathrm{g\\,cm^{-3}}$, forward-shock jump\n  $\\xi = V_+/V_- \\simeq 10$, and the rarefaction shape behind it, from\n  **Fogli, Lisi, Mirizzi & Montanino**, Phys. Rev. D 68, 033005 (2003).\n* Shock radii from **Kneller & Kabadi**, Phys. Rev. D 92, 013009 (2015), Fig. 1, which\n  reads them off a $10.8\\,M_\\odot$ simulation at $t = 3$ s post-bounce: reverse shock\n  1734 km, contact discontinuity 12 348 km, forward shock 30 323 km.',
+    'Notebook 13 ended on a solar case where the averaged observable is exact -- `average=True`\nreproduces the adiabatic MSW expression to machine precision. This notebook is the opposite\ncase, and the contrast is the point: here the averaged observable is genuinely **wrong**, by\n0.21 in probability, and no amount of averaging repairs it.\n\nA supernova shock front changes the **adiabaticity of the MSW level crossing**, so it\nmoves the conversion probability *itself* rather than the phase of an oscillation.\nAveraging cannot remove that. Here the package is wrong by **0.21 in probability on the\naveraged observable** -- and, importantly, it **says so every time**.\n\nThe profile is the standard one from the literature:\n\n* $\\rho_0(x) = 10^{14}\\,(x/\\mathrm{km})^{-2.4}\\ \\mathrm{g\\,cm^{-3}}$, forward-shock jump\n  $\\xi = V_+/V_- \\simeq 10$, and the rarefaction shape behind it, from\n  **Fogli, Lisi, Mirizzi & Montanino**, Phys. Rev. D 68, 033005 (2003).\n* Shock radii from **Kneller & Kabadi**, Phys. Rev. D 92, 013009 (2015), Fig. 1, which\n  reads them off a $10.8\\,M_\\odot$ simulation at $t = 3$ s post-bounce: reverse shock\n  1734 km, contact discontinuity 12 348 km, forward shock 30 323 km.',
     [
     code(r'''import json
 import warnings
@@ -6657,10 +6792,15 @@ print('SHARP FRONT (w = 1e-6, 0.07 km)')
 print('  instantaneous error : %.3e' % inst_sharp)
 print('  AVERAGED error      : %.3e   <-- averaging does NOT rescue this' % avg_sharp)
 print('  warnings raised     : %s' % ', '.join(warn_sharp))"""),
-    md(r'''**This is the whole point of the notebook.** In notebook 13 averaging cut the error by
-53x. Here it does essentially nothing: the error is in the envelope, because the shock
-changes how adiabatic the level crossing is, and that is a change in the conversion
-probability rather than in its phase.
+    md(r'''**This is the whole point of the notebook.** The averaged error is as large as the
+instantaneous one, and both are far outside any tolerance worth asking for. The error is in
+the **envelope**: the shock changes how adiabatic the level crossing is, which moves the
+conversion probability itself rather than the phase of an oscillation, and there is no
+averaging operation that undoes that.
+
+Contrast notebook 13, where the averaged observable came out exact against an independent
+closed form. The difference between the two cases is not the flavour content or the energy;
+it is whether the profile has a feature sharp enough to break adiabaticity.
 
 And the package is not quiet about it. `UnmarkedDiscontinuityWarning` says the
 Hamiltonian is not resolved at the scale being sampled; `HybridCertificationWarning` and
@@ -6743,20 +6883,20 @@ print('configurations outside 1e-3 with NO warning: %d' % len(bad))'''),
 
 | | notebook 13 (solar) | this notebook (shock) |
 |---|---|---|
-| instantaneous error | 1.4e-03 | 2.0e-01 |
-| averaged error | **2.6e-05** | **2.1e-01** |
-| averaging helps by | 53x | ~1x |
-| what the error is | phase | **envelope** |
-| does the package warn? | no | **yes, every time** |
-| cure | none needed -- the observable is right | `t_breakpoints` on a scan |
+| the averaged observable | **exact** -- matches the adiabatic MSW closed form to 1e-16 | **wrong by 0.21** in probability |
+| what the error is | none to speak of | **envelope** -- the front breaks adiabaticity |
+| does the package warn? | nothing to warn about | **yes, every time** |
+| cure | -- | `t_breakpoints` on the front |
 
 A shock front changes the adiabaticity of the level crossing, so it moves the conversion
-probability itself. That is exactly the physics the shock-effect literature studies, and
-it is why averaging cannot remove the error the way it does for a smooth solar profile.
+probability itself. That is exactly the physics the shock-effect literature studies, and it
+is why no averaging operation removes the error the way none is needed on a smooth solar
+profile.
 
-The practical rule: **average your instantaneous scan over a few oscillation lengths and
-see whether the error moves.** If it collapses, it was phase. If it does not, it is real
--- and on this package, it will also have warned you.'''),
+The practical rule is about **which quantity you ask for, and whether the package certified
+it**: compute the observable directly with `average=True` rather than estimating it from a
+scan, and read the warnings. A result that is outside tolerance and silent is the dangerous
+one; here the package is outside tolerance and loud, which is the failure mode you want.'''),
     md(r'''## 6. Two BSM scenarios on the shock
 
 The same two scenarios notebook 13 puts on the Sun, put here on the shock, and the contrast
@@ -8711,14 +8851,24 @@ falling where they fall. Asking for `average=True` where the phase has *not* ave
 | suppressed by averaging | **~100x** | ~7x, fixed |
 | improves with more cycles | yes, then plateaus | no |
 | improves with a smaller error | no -- the ratio is scale-free | no |
-| real instance | notebook 13, solar: **53x** | notebook 14, shock: **~1x** |
+| real instance | supernova turbulence, 45 MeV (`docs/dev/adversarial_batteries/avg_check2.py`): **15x** | notebook 14, shock: **~1x** |
 | is the observable affected? | barely | **yes** |
 
 The reason notebook 14's shock error does not average away is physical rather than numerical: a
 shock front changes the *adiabaticity* of the level crossing, so it moves the conversion
 probability itself rather than the phase at which it oscillates. That is the error becoming an
 envelope, and it is the one case in this package where the instantaneous error and the
-observable error are the same number.'''),
+observable error are the same number.
+
+**A caution about the suppression factor itself, which this notebook is the right place for.**
+Every number in the table above is a ratio of *finite-window* means, and the section just
+above shows that such a mean is an estimator with its own bias -- 6.08e-03 from the analytic
+limit here, over 6.1 cycles. On a profile whose density varies appreciably across the window,
+that bias does not shrink as the window widens, because a wider window also averages over
+different matter conditions; notebook 13's solar ray is exactly that case, and there the
+suppression ratio carries no information at all. Use the ratio to tell phase from envelope on
+a *controlled* comparison like this one. To get the observable, ask for it: `average=True`
+computes the decohered limit in closed form, with no window to choose.'''),
     ])
 
 
@@ -9726,17 +9876,46 @@ Mag$\nu$s integrates within each slab to fourth or sixth order, so its slabs can
 the same accuracy. **The question is not time per call but time at matched accuracy**, and the
 dial is different on each side: `n_slabs_per_segment` for one, `rtol`/`atol` for the other.
 
-Two warnings before the numbers, and they bound what the comparison can mean.
+Three warnings before the numbers, and they bound what the comparison can mean.
 
 *The two PREM implementations need not be identical.* Layer radii, the polynomial coefficients,
 and the electron fraction are all conventions, and NuOscProbExact's own notebook 10 records a
 100 km discrepancy in one boundary against a published table. So a residual between the codes
 here is an upper bound on method disagreement, not a measurement of it.
 
+*The composition is pinned to $Y_e = 0.5$ everywhere in this section*, on all three sides --
+Mag$\nu$s, NuOscProbExact and the referee. Mag$\nu$s's own default is now resolved per PREM
+layer (0.4656 in the iron core, 0.4957 in the mantle), which is the better description of the
+Earth but *not* what the other code assumes here, and the difference is not small: left
+unmatched it moves $P(\nu_\mu \to \nu_e)$ on this chord by up to **7.1e-02**, some five orders
+of magnitude above the referee's own resolution floor below. That would be a comparison of two
+Earths wearing the costume of a comparison of two solvers. The uniform value is passed
+explicitly rather than left to a default, so it cannot drift again.
+
+(The current NuOscProbExact can vary its electron fraction too, so this could be matched from
+the other side instead, or both sides moved to a layered profile. This notebook does not do
+that yet: the frozen dataset in section 7 is built on the uniform convention, and one
+convention across the notebook is worth more here than the better Earth in one section.)
+
 *Each code's self-convergence is the honest accuracy statement.* Refining a code against itself
 measures its own discretisation error without borrowing anyone else's conventions, and that is
 reported first.'''),
     code(r'''COSTHZ = -0.85                     # a chord through mantle and outer core
+
+# ONE COMPOSITION FOR ALL THREE SIDES OF THIS SECTION.  Mag(nu)s resolves Y_e per PREM
+# layer by default now -- 0.4656 for the iron core, 0.4957 for the mantle -- and this
+# chord enters the outer core, so that default disagrees with NuOscProbExact's uniform
+# 0.5 by up to 7.1e-02 in P(numu -> nue).  The referee's floor below is 4.3e-07, so an
+# unmatched composition would sit five orders of magnitude above anything this section
+# can resolve and every curve here would be measuring the Earth model rather than the
+# solver.  Passed explicitly on all three sides, never left to a default: the whole
+# reason this needed fixing is that one side's default moved and the others did not.
+#
+# 0.5 is also exactly self-consistent for the sterile sector: r = (1 - Y_e)/Y_e = 1.0,
+# which is the `ratio_number_neutrons_to_protons` default that `matter_potential_projector`
+# and the 4nu wrapper both take, so the projector's sterile entry is r/2 = 0.5 on both
+# sides with nothing further to pass.
+YE_UNIFORM = 0.5
 
 # Two grids, because the two jobs want opposite things.  E_PREM is the *timing* grid:
 # every convergence row below divides by len(E_PREM), so its only requirement is to be
@@ -9771,7 +9950,7 @@ def magnus_prem(rtol, atol, energies=None):
     return np.asarray(oscprob.osc_prob_3nu_earth(
         E_PREM if energies is None else energies,
         costhz=COSTHZ, L=L_CHORD, **OSC, nu_i=gd.NUMU, nu_f=gd.NUE,
-        rtol=rtol, atol=atol))
+        rtol=rtol, atol=atol, electron_fraction=YE_UNIFORM))
 
 
 def npe_prem(n_per_segment, energies=None):
@@ -9809,8 +9988,12 @@ def prem_referee(energies, n_slabs, dim=3, h_vac_dim=None):
     mid = 0.5*(edges[:-1] + edges[1:])
     widths = np.diff(edges)*gd.CONV_KM_TO_INV_EV
     r = np.sqrt(gd.EARTH_RADIUS**2 + mid*mid + 2.0*gd.EARTH_RADIUS*mid*COSTHZ)
+    # Y_e passed explicitly rather than left to this function's 0.5 default.  The value
+    # is the same, but a referee that judges Mag(nu)s while silently inheriting a default
+    # composition is one library change away from refereeing a different Earth than the
+    # code it referees -- which is exactly what had happened here.
     vcc = np.array([matter.vcc_func_from_rho_func(
-        float(x), density_matter_is_in_g_per_cm3=True)
+        float(x), electron_fraction=YE_UNIFORM, density_matter_is_in_g_per_cm3=True)
         for x in np.asarray(mg_earth.density_matter_func_prem(r), dtype=float)])
     hv = h_vac if h_vac_dim is None else h_vac_dim
     # The projector comes from the library rather than being written out here.  Writing
@@ -9965,7 +10148,8 @@ phase, which is the regime where a refinement ladder works hardest.'''),
 def magnus_prem_4nu(rtol, atol):
     return np.asarray(oscprob.osc_prob_4nu_earth(
         E_PREM, costhz=COSTHZ, L=L_CHORD, **OSC, d14=0.0, d24=0.0,
-        nu_i=gd.NUMU, nu_f=gd.NUE, rtol=rtol, atol=atol, **STERILE))
+        nu_i=gd.NUMU, nu_f=gd.NUE, rtol=rtol, atol=atol, **STERILE,
+        electron_fraction=YE_UNIFORM))
 
 
 def npe_prem_4nu(n_per_segment):
@@ -10700,7 +10884,7 @@ if HAVE_NPE_EARTH:
     md(r'''## 10. The Sun: an observable the other codes do not offer
 
 The solar case cannot be run as a race, and the reason is physics rather than bookkeeping.
-Over the ray from the core to the surface the accumulated phase is about **12 800 radians** at
+Over the ray from the core to the surface the accumulated phase is about **13 000 radians** at
 5 MeV -- some two thousand oscillations. The *instantaneous* probability at the surface is
 therefore not a measurable quantity and not a stable one: an adaptive DOP853 integration of it
 runs for minutes per energy, and no experiment sees it. What a solar experiment measures is
@@ -10978,7 +11162,7 @@ comparison at that scale is not available at any affordable cost, and saying so 
 than drawing one that looks like it is.
 
 What is left is the horizontal distance, and it is large in a way that is not about
-implementation quality. Mag$\nu$s returns the averaged observable in **0.66 s** because it
+implementation quality. Mag$\nu$s returns the averaged observable in **about 0.7 s** because it
 never propagates and never samples. nuSQuIDS needs about **ten minutes** merely to reach the
 tolerance at which its output is a probability, and then a further factor of $N$ to average
 the phase away. Neither NuOscProbExact nor nuSQuIDS offers an averaging flag.
@@ -12591,7 +12775,7 @@ GIFs land in `img/raw/`, every one of them 3000 x 1320. Measured, single-threade
 |---|---|---|
 | `anim_sterile.gif` | 90 | 160.2 MB |
 | `anim_cp.gif` | 120 | 26.7 MB |
-| `anim_earth.gif` | 150 | 20.0 MB |
+| `anim_earth.gif` | 150 | 19.8 MB |
 | `anim_wave.gif` | 90 | 10.1 MB |
 | `anim_solar_nsi.gif` | 89 | 3.5 MB |
 | `anim_shock.gif` | 120 | 2.9 MB |
@@ -12600,6 +12784,10 @@ GIFs land in `img/raw/`, every one of them 3000 x 1320. Measured, single-threade
 about **52 minutes** and **224 MB** in total. Most of that is matplotlib, not the physics: the
 two map scenes recompute tens of thousands of probabilities per frame and still spend longer
 being drawn than being computed.
+
+That 52 minutes is the whole set, and it is split very unevenly: the Earth scene on its own,
+re-rendered on the same machine for this table, took **51 s**. Budget for the set rather than
+per scene, and expect the two map scenes to be most of it.
 
 **Step 2 --- shrink them into `img/`.** A GIF straight out of matplotlib's Pillow writer
 gives every frame its own colour table. One shared palette removes that duplication, and
@@ -12612,7 +12800,7 @@ for f in img/raw/anim_*.gif; do
 done
 ```
 
-That takes the set from **224.1 MB to 14.7 MB**, a factor of 15.3. The factor is not uniform,
+That takes the set from **223.8 MB to 14.6 MB**, a factor of 15.4. The factor is not uniform,
 and the reason is worth knowing before you tune it:
 
 | clip | raw | shrunk | ratio |
@@ -12621,7 +12809,8 @@ and the reason is worth knowing before you tune it:
 | `anim_solar_nsi.gif` | 3.5 MB | 0.28 MB | 12.6x |
 | `anim_wave.gif` | 10.1 MB | 0.85 MB | 11.9x |
 | `anim_cp.gif` | 26.7 MB | 2.45 MB | 10.9x |
-| `anim_earth.gif` | 20.0 MB | 2.61 MB | 7.6x |
+| `anim_shock.gif` | 2.9 MB | 0.34 MB | 8.4x |
+| `anim_earth.gif` | 19.8 MB | 2.50 MB | 7.9x |
 | `anim_slabs.gif` | 0.7 MB | 0.13 MB | **5.1x** |
 
 Note that the *ratio* and the *result* rank differently: the sterile map compresses best of

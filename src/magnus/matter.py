@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (C) 2026 Mauricio Bustamante
 r"""matter.py
 
 Contains helper functions to compute the oscillation probability in
@@ -24,6 +26,9 @@ Routine listings
     * vcc_func_from_rho_func - Builds a VCC function (or constant) from
            a density profile, handling neutrino/antineutrino sign and
            unit conversion
+    * matter_potential_projector - Returns the flavor structure of the
+           matter term, diag(1, 0, ..., 0, r/2, ...), with the sterile
+           states' neutral-current entry included
 """
 
 __author__ = "Mauricio Bustamante"
@@ -295,7 +300,12 @@ def matter_potential_projector(
         Number of neutrino flavours; the first three are active, the rest sterile.
     ratio_number_neutrons_to_protons : int or float, optional
         :math:`r = n_n/n_p`.  1.0 (isoscalar matter) by default, matching the default of
-        :func:`vcc_func_from_rho_func`, which must be given the same value.
+        :func:`vcc_func_from_rho_func`, which should be given the same value.
+
+        The Earth entry points are the exception, and deliberately: they take :math:`r`
+        from :math:`Y_e` layer by layer for the *density*, which this one matrix cannot
+        follow.  They warn when the two disagree; see
+        :class:`magnus.globaldefs.SterileMatterCompositionWarning`.
 
     Returns
     -------
@@ -684,6 +694,14 @@ __all__ = [
     'density_matter_func_const',
     'density_matter_func_exp',
     'exp_density_profile',
+    # Exported because it is the one definition of the matter term's structure, and
+    # because every place that rebuilt that structure by hand instead got it wrong: four
+    # inline copies in oscprob, the NSI route's literal diagonal, and notebook 12's
+    # solve_ivp reference all gave the sterile states a zero where they carry
+    # -V_NC = (r/2) V_CC.  A function that public docstrings point at, and that callers
+    # writing their own H_func need, has no business being unexported -- while it was,
+    # autoapi did not document it and every :func: reference to it failed to resolve.
+    'matter_potential_projector',
     'num_density_e_func',
     'VCC_func',
     'vcc_func_from_rho_func',

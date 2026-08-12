@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (C) 2026 Mauricio Bustamante
 r"""earth.py
 
 Contains helper functions related to the Earth: its internal matter
@@ -23,6 +25,11 @@ Routine listings
            the chord between two locations on the surface of the Earth
     * coordinates_of_named_location - Returns the coordinates of a
            predefined location (e.g., a neutrino detector site)
+    * electron_fraction_func_prem - Returns Y_e at one or more radii,
+           resolved per PREM layer (iron core, rock mantle, crust, ocean)
+    * neutron_to_proton_ratio_from_electron_fraction - Returns the
+           neutron-to-proton ratio implied by an electron fraction,
+           r = (1 - Y_e)/Y_e
 """
 
 __author__ = "Mauricio Bustamante"
@@ -132,7 +139,7 @@ def density_matter_func_prem(r: Union[float, np.ndarray],
     x = r/gd.EARTH_RADIUS
 
     if np.any(x - 1.0 > tol):
-        raise ValueError('earth.density_matter_func_prem: value of r cannot exceed ' + \
+        raise ValueError('Error in magnus: earth.density_matter_func_prem: value of r cannot exceed ' + \
             'globaldefs.EARTH_RADIUS = ' + str(gd.EARTH_RADIUS) + ' km by more than the ' + \
             'desired tolerance of tol = ' + str(tol))
 
@@ -230,7 +237,7 @@ def earth_radial_distance_from_depth(costhz: float, l: Union[float, np.ndarray],
     d = distance_traveled_inside_earth(costhz)
 
     if np.any(l - d > tol):
-        raise ValueError('earth_radial_distance_from_depth: value of ' + \
+        raise ValueError('Error in magnus: earth_radial_distance_from_depth: value of ' + \
                 'l cannot be larger than the distance traveled ' + \
                 'inside Earth for this value of costhz')
 
@@ -480,7 +487,155 @@ def coordinates_of_named_location(source_func_name: str, loc_name: str) -> np.nd
     return np.array([lat, lon])
 
 
+# ---------------------------------------------------------------------------------------
+# Composition: the electron fraction Y_e = <Z/A>, by PREM layer.
+#
+# PREM is a *density* model and carries no composition, so Y_e has to be supplied.  The
+# library used to assume 0.5 everywhere -- exactly isoscalar matter, which nothing in the
+# Earth is -- and that is worth up to a factor of ten in P(nu_mu -> nu_e) on a
+# core-crossing chord, because the core is iron.
+#
+# Each value is <Z/A> of the material:
+#
+#   core     0.4656   pure iron, Z/A = 26/55.845; Ni pulls up, light elements down
+#   mantle   0.4957   peridotite; O and Si sit at ~0.5, a few per cent of Fe pulls it down
+#   crust    0.4952   granitic continental crust -- 0.0005 from the mantle, i.e. nothing
+#   ocean    0.5551   seawater, H2O; hydrogen has Z/A = 1, which is why this is ABOVE 0.5
+#
+# The crust value is here for explicitness rather than for effect: it differs from the
+# mantle by 0.1%, far inside PREM's own density uncertainty.  The two splits that move a
+# number are core-vs-rest (6%) and ocean-vs-rest (12%).
+#
+# The ocean is a caveat rather than a fact about a given baseline.  PREM's outermost 3 km
+# is a global-average ocean; a detector under rock has none, and for a trajectory within
+# ~2.3 degrees of horizontal that shell is the *entire* path.  Pass
+# `electron_fraction_ocean=Y_E_CRUST_PREM` for a land baseline -- PREM cannot know which
+# you mean.
+Y_E_CORE_PREM = 0.4656
+r"""float: Module-level constant
+
+Electron fraction :math:`Y_e = \langle Z/A \rangle` of the Earth's core (:math:`r \le
+3480` km), taken as pure iron.  Units: [Adimensional]
+
+.. versionadded:: 1.0.0
+"""
+
+Y_E_MANTLE_PREM = 0.4957
+r"""float: Module-level constant
+
+Electron fraction of the mantle (:math:`3480 < r \le 6346.6` km), peridotite.
+Units: [Adimensional]
+
+.. versionadded:: 1.0.0
+"""
+
+Y_E_CRUST_PREM = 0.4952
+r"""float: Module-level constant
+
+Electron fraction of the crust (:math:`6346.6 < r \le 6368` km), granitic.  Within
+0.1% of the mantle; separate for explicitness rather than for effect.
+Units: [Adimensional]
+
+.. versionadded:: 1.0.0
+"""
+
+Y_E_OCEAN_PREM = 0.5551
+r"""float: Module-level constant
+
+Electron fraction of PREM's ocean layer (:math:`r > 6368` km), seawater.  Above 0.5
+because hydrogen has :math:`Z/A = 1`.  Units: [Adimensional]
+
+.. versionadded:: 1.0.0
+"""
+
+# The two radii that separate the four compositions.  Both are already PREM shell
+# boundaries (PREM_BOUNDARIES[1] and [6], [8]), so this introduces no new constant.
+_CORE_MANTLE_BOUNDARY = 3480.0
+_MANTLE_CRUST_BOUNDARY = 6346.6
+_CRUST_OCEAN_BOUNDARY = 6368.0
+
+
+def electron_fraction_func_prem(
+    r,
+    electron_fraction_core=None,
+    electron_fraction_mantle=None,
+    electron_fraction_crust=None,
+    electron_fraction_ocean=None,
+):
+    r"""Electron fraction :math:`Y_e` at one or more radii, by PREM layer.
+
+    .. versionadded:: 1.0.0
+
+    Parameters
+    ----------
+    r : float or np.ndarray
+        Radial distance from the Earth's centre [km].
+    electron_fraction_core : float, optional
+        :math:`Y_e` for :math:`r \le 3480` km.  Default: :data:`Y_E_CORE_PREM`.
+    electron_fraction_mantle : float, optional
+        :math:`Y_e` for :math:`3480 < r \le 6346.6` km.  Default: :data:`Y_E_MANTLE_PREM`.
+    electron_fraction_crust : float, optional
+        :math:`Y_e` for :math:`6346.6 < r \le 6368` km.  Default: :data:`Y_E_CRUST_PREM`.
+    electron_fraction_ocean : float, optional
+        :math:`Y_e` for :math:`r > 6368` km.  Default: :data:`Y_E_OCEAN_PREM`.
+
+    Returns
+    -------
+    np.ndarray
+        :math:`Y_e` at each radius, with the shape of ``r``.
+    """
+    core = Y_E_CORE_PREM if electron_fraction_core is None else float(electron_fraction_core)
+    mantle = (Y_E_MANTLE_PREM if electron_fraction_mantle is None
+              else float(electron_fraction_mantle))
+    crust = Y_E_CRUST_PREM if electron_fraction_crust is None else float(electron_fraction_crust)
+    ocean = Y_E_OCEAN_PREM if electron_fraction_ocean is None else float(electron_fraction_ocean)
+
+    rr = np.asarray(r, dtype=float)
+    out = np.full(rr.shape, mantle, dtype=float)
+    out = np.where(rr <= _CORE_MANTLE_BOUNDARY, core, out)
+    out = np.where(rr > _MANTLE_CRUST_BOUNDARY, crust, out)
+    out = np.where(rr > _CRUST_OCEAN_BOUNDARY, ocean, out)
+    return out
+
+
+def neutron_to_proton_ratio_from_electron_fraction(electron_fraction):
+    r"""The neutron-to-proton ratio implied by an electron fraction.
+
+    The two are not independent.  With charge neutrality :math:`n_p = n_e = Y_e
+    n_{\rm nucleon}` and :math:`n_n = (1 - Y_e) n_{\rm nucleon}`, so
+
+    .. math::
+
+       r = \frac{n_n}{n_p} = \frac{1 - Y_e}{Y_e} .
+
+    Deriving one from the other is what keeps a medium physical: the two used to be
+    independent arguments, so setting :math:`Y_e = 0.4656` for an iron core while leaving
+    :math:`r` at its isoscalar default of 1.0 described matter that cannot exist -- and
+    silently, since :math:`r` only shows up in the sterile sector.
+
+    .. versionadded:: 1.0.0
+
+    Parameters
+    ----------
+    electron_fraction : float or np.ndarray
+        :math:`Y_e`, in (0, 1].
+
+    Returns
+    -------
+    np.ndarray
+        :math:`r = n_n/n_p`, with the shape of the input.
+    """
+    ye = np.asarray(electron_fraction, dtype=float)
+    return (1.0 - ye)/ye
+
+
 __all__ = [
+    'Y_E_CORE_PREM',
+    'Y_E_MANTLE_PREM',
+    'Y_E_CRUST_PREM',
+    'Y_E_OCEAN_PREM',
+    'electron_fraction_func_prem',
+    'neutron_to_proton_ratio_from_electron_fraction',
     'loc_coords_dms',
     'PREM_BOUNDARIES',
     'density_matter_func_prem',

@@ -7,7 +7,523 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-08-11
+
 ### Fixed
+
+- **The sterile states felt no matter at all on the NSI route.**
+  `osc_prob_matter_nsi` built the standard part of its matter Hamiltonian as a
+  literal `diag([1, 0, 0, 0])`, so the sterile states got zero where they carry
+  `-V_NC = (r/2) V_CC`.  With every NSI coupling set to zero the route has to
+  reproduce `osc_prob_matter_std_potential` exactly, and did not: it differed by
+  **5.2e-02 at four flavours and 5.1e-02 at five**.  Three flavours agreed all
+  along, which is why nothing caught it -- the only test that can see it needs a
+  fourth state.  Anyone who has published 3+1 or 3+2 NSI-in-matter numbers from
+  an earlier build should re-run them.
+
+- **The solar LIV routes read the Sun's electron density as a mass density.**
+  `osc_prob_Nnu_sun_liv` builds its profile from `NUM_DENSITY_E_SUN_CENTRAL`, an
+  electron *number* density, but forwarded a `density_is_of_number_of_electrons`
+  flag defaulting to False.  Against `osc_prob_Nnu_sun` with the couplings zeroed
+  they differed by **0.69, 0.69, 0.45 and 0.43** at 2, 3, 4 and 5 flavours.
+  `osc_prob_Nnu_sun` and `..._sun_nsi` never exposed those flags, which is why
+  only the LIV family was affected.
+
+- **A negative energy returned the antineutrino probability.**  `E < 0` flips the
+  sign of the whole Hamiltonian, which is CP conjugation, so the call returned a
+  unitary, entirely plausible answer to a question the caller did not ask --
+  matching `nubar=True` to 1e-15 and differing from the intended answer by
+  2.3e-02 in vacuum and 4.4e-02 in matter.  Non-positive energies are now
+  rejected.
+
+- **A NaN density was reported as a units mistake**, because `nan == 0.0` and
+  `nan >= threshold` are both False and the guard fell through to its warning.
+  Non-finite densities are now rejected, naming the real problem.
+
+- **Notebook 12's four- and five-flavour ground truth** built its comparison
+  Hamiltonian with the same zero-sterile literal, so `solve_ivp` was integrating
+  the wrong problem and the error column blamed the strategy for the reference.
+  The four-flavour standard case goes from `err_magnus = 1.73e-04` to 2.19e-06.
+
+- **The quickstart's and README's code examples could not be run** -- one used
+  names the page defines fifteen lines later, others passed `...` as a
+  Hamiltonian body.  Both are now executed by the suite.
+
+- **The documented solar averaging reduction outlived the script it came from.**
+  The averaged-probability page, notebooks 13, 14 and 23 and the tutorials index
+  all asserted "instantaneous 1.4e-03 -> averaged 2.6e-05, a **53x** reduction",
+  citing `adversarial_batteries/avg_check.py`.  That script had gone stale at
+  `0bf3a40`, which is on `main` and predates this audit; re-run, it gives
+  6.000e-04 -> 7.110e-04 on the log-linear BS05 ray notebook 13 actually uses
+  (8.889e-04 -> 6.051e-04 on the cubic-spline variant).  All four rows of the
+  table are now measured values.
+
+  The **rule** stated alongside them was the worse problem and is withdrawn:
+  the docs told the reader to read the ratio of the two columns as a diagnostic,
+  errors shrinking "more than twentyfold" being phase and the rest envelope.  A
+  finite-window mean is an estimator with a bias of its own, and on a profile
+  whose density varies across the window that bias does not shrink as the window
+  widens -- on the solar ray the window mean drifts 0.5924 -> 0.6023 between six
+  and forty-eight oscillation lengths, *away* from a limit rather than towards
+  one.  So the ratio is meaningful only at fixed matter conditions, as in
+  notebook 23, and the page now says so.  To obtain the averaged probability,
+  ask for it: `average=True` evaluates the decohered limit in closed form and
+  reproduces the adiabatic MSW expression to **3.33e-16** across 1--20 MeV.
+
+- **The front page's solar timing comparison outlived its measurement too.**  The
+  README and the docs index both read "40 averaged energies in 0.66 s, against
+  131 s for 12 *instantaneous* ones from nuSQuIDS".  That was measured, but on a
+  superseded design of notebook 25's section 10; the frozen
+  `external_solar_nusquids.json` now sweeps four solver tolerances over a
+  200-point grid targeting 40 energies, and contains no 12-energy run and nothing
+  at 131 s.  Both pages now say what the notebook says and what its data
+  supports: nuSQuIDS needs about **ten minutes** merely to reach the tolerance at
+  which its output is a probability at all (568 s, the cheapest setting the
+  generator marks physical), and a further factor of *N* to average the phase
+  away.  Magnus's own 0.66 s is a live timing and re-measures at 0.68 s, which is
+  run-to-run noise on one machine and is left as it stands.
+
+- **`osc_prob_vacuum` documented twelve refinement knobs as forwarded that it
+  deliberately drops.**  `t_slab_edges`, `magnus_exp_order`, `integration_method`,
+  `rtol`, `atol`, both `growth_factor_*`, `max_num_loops` and the four
+  `min`/`max_n_*` bounds each said "Forwarded to `osc_prob_energy_baseline`
+  /`osc_prob`", while the body forwards only `n_jobs`, `validate_input`,
+  `verbose`, `save_log` and `file_log`.  Not forwarding them is correct and the
+  code says why -- a vacuum Hamiltonian is constant in position, so every point
+  is exact with a single slab and there is nothing to refine -- so the
+  **docstring** was the wrong text, and it is the one a caller reads before
+  passing `rtol=1e-9` and getting silence.  No behaviour changes.  `filename_log`
+  and `close_file_log_upon_exit` were documented the same way and are likewise
+  never read.
+
+  Found by generalising `tests/test_angles.py`'s "declares the parameter, never
+  reads it" AST check from `angles` to every parameter in `src/magnus`.  The
+  other 51 hits are the legitimate interface-signature pattern -- `_td` builders
+  that take `l` and ignore it, constant-density closures -- or already documented
+  as inert, such as `hamiltonian_2nu_liv`'s `nubar`, which has nothing to
+  conjugate because the 2-flavour LIV rotation carries no phase.
+
+- **`SEV_TOL`'s documented accuracy guarantee was not the measured one.**  The
+  docstring claimed 2e-13 absolute across everything the gate admits; re-measured
+  on two spectrum families with 40 random bases per rung, the admitted range
+  reaches **2.0e-12**, and even the `m <= 1.1e3` corner the claim was calibrated
+  on exceeds 2e-13 in about 1% of bases.  No value of the constant could have
+  rescued it, because the test that pins the window requires the gate to sit
+  above the very cell where the claim already fails, so the number was corrected
+  instead: **5e-12** across the admitted range and **5e-13** in that corner, each
+  about twice the worst measured.  The gate itself is unchanged at 1e4 and no
+  result moves.
+
+  Two earlier calibrations of this constant appeared to contradict each other --
+  one putting the first unsafe cell at `m = 1.1e5`, the other at `4.4e3`.  They
+  do not: they used different spectrum families under the same "scale 1e2" label,
+  `[-s, -s(1-d), s]` spanning `2s` against `[0, d, S]` spanning `S`, a factor of
+  four in `m`.  Compared at equal `m` they agree.  `m = tr(X^2)/6` is a spectral
+  invariant and is the only fair label; "scale" is not.
+
+- **The sterile matter term and the Earth's density describe different media.**  L37
+  made the Earth's `Y_e` a function of radius and derived `r = (1 - Y_e)/Y_e` from it
+  layer by layer, because the two are one statement about composition.  The sterile
+  states' entry in the matter projector, `r/2`, could not follow: it is a single matrix
+  for the whole chord, so it kept taking the caller's scalar, which defaults to 1.0 --
+  isoscalar matter, i.e. `Y_e = 0.5`, precisely the uniform composition L37 replaced.
+
+  So on every Earth chord with a sterile state the density and the projector disagree by
+  construction.  Measured at `costhz = -0.95` with `s14 = 0.15`, `s24 = 0.10` and
+  `D41 = 1 eV^2`, the isoscalar projector differs from one built with the core's own
+  `r = 1.1478` by **2.1e-02** in `P(numu -> numu)` -- twenty times the default tolerance,
+  and silent.  Three flavours never saw it, because the projector's sterile block is
+  empty; that is the same reason `A2b` survived a max-effort review.
+
+  No single `r` is right for a chord that crosses iron and rock, so this is **reported
+  rather than resolved**: the Earth wrappers now raise
+  `globaldefs.SterileMatterCompositionWarning` when the two disagree by more than 2%, and
+  the message names the path-averaged ratio for the chord that was asked for, which
+  silences it.  `electron_fraction=0.5` with the default `1.0` makes them agree exactly
+  and reproduces the older uniform composition.  **No number changes unless you act on
+  the warning.**
+
+  The default was deliberately left at `1.0` rather than moved to the path-averaged value,
+  because no single `r` is right for a chord crossing iron and rock and a self-consistent
+  *looking* default would hide that.  The real fix is a position-dependent projector,
+  `H_matt(l) = V_CC(l) x P(l)`, which is a structural change to the scalar-times-constant-
+  matrix factorisation the matter path is built on; it is tracked for a future release as
+  [issue #47](https://github.com/mbustama/Magnus/issues/47).
+
+  The docstrings were also wrong about this.  Twelve Earth wrappers said the ratio "must
+  match the value given to `vcc_func_from_rho_func`", which on the Earth path is
+  unsatisfiable -- that function is handed a per-layer ratio the caller never supplies.
+
+- **The sterile states' matter entry was unreachable on the Sun, and locked isoscalar.**
+  `osc_prob_{4,5}nu_sun` and their `_nsi`/`_liv` variants never exposed
+  `ratio_number_neutrons_to_protons`, and delegated without forwarding it -- two of them
+  passing a hardcoded `1.0`.  So `r/2`, the sterile entry in the matter projector, was
+  fixed at isoscalar for a medium that is nothing of the kind: the Sun is hydrogen-rich,
+  `Y_e = (1 + X)/2` runs from about 0.68 at the centre to 0.88 near the surface, and
+  `r = (1 - Y_e)/Y_e` from about 0.47 down to 0.14.  Unlike the Earth, where 1.0 at
+  least sits among the layer values, for the Sun it is outside the physical range
+  entirely.
+
+  The six wrappers now take it and forward it.  Left at the default the averaged solar
+  survival probability moves by about **4e-03** at `s14 = 0.4`, above the 1e-3 default
+  tolerance; at the nominal `s14 = 0.15` it is 7.9e-04, just under.  The solar profile is
+  a fit to the electron *number* density, so `Y_e` is already inside it and there is
+  nothing for the library to derive `r` from -- it has to be stated, which is why this is
+  exposed rather than defaulted to a solar value.  **No number changes unless you set it.**
+
+- **`t_breakpoints` was unusable on every Earth wrapper.**  Those wrappers place slab
+  edges on the PREM shell crossings themselves, so an argument of the same name arrived
+  in `**kwargs` and collided: the caller got `got multiple values for keyword argument
+  't_breakpoints'` raised two layers down.  The keyword is listed as forwardable in this
+  package's own unrecognised-keyword message, so it was reachable and broken.  A
+  caller's breakpoints are now merged with the PREM crossings rather than either
+  replacing the other -- dropping the crossings silently would be the very defect
+  `t_breakpoints` exists to prevent.  Pass `t_slab_edges` to place every edge yourself.
+
+- **`n_jobs` is documented as not being a pure performance knob.**  Splitting slabs
+  across workers changes the order the arithmetic is done in, and the refinement
+  ladder's stopping test compares successive levels, so it can stop one level earlier or
+  later than the serial run.  Measured on a 3nu PREM chord over eight energies, serial
+  against two workers differs by 1.2e-03 at the default `rtol = 1e-3`, 6.6e-08 at
+  `rtol = 1e-6` and 5.6e-11 at `rtol = 1e-9` -- within the tolerance asked for, but not
+  bitwise, which the docstring previously gave no hint of.
+
+- **The command line could not reach half its own parameter sets.**
+  `--osc-params-set` listed its choices by hand and offered only the NuFit 6.0
+  entries, so after the default moved to 6.1 anyone asking for inverted ordering
+  on the command line silently dropped a release behind the default.  The choices
+  now come from `globaldefs.OSC_PARAMS_PREDEFINED` itself.
+
+### Added
+
+- **An `angles` keyword on every function that takes a mixing angle.**  It selects
+  the convention the angles are stated in: `'sin'` (the default, and the only
+  behaviour before this) their sines, `'sin2'` their sines *squared* -- the form
+  global fits are published in -- `'rad'` the angles in radians, or `'deg'` in
+  degrees.  Under `'deg'` the CP phases are read as degrees too; under the other
+  three they stay in radians, a sine being no way to state a phase.  Ninety-five
+  functions take it, across `hamiltonians`, `oscprob`, `oscprobstd`, the
+  `magnus prob` command line and `globaldefs.load_nufit_params`, and the four
+  routes agree to 2.2e-13 end to end.  The default is a pass-through, so nothing
+  that does not ask for it changes.
+
+  It exists so a published parameter set can be typed in as published:
+  `s12=0.308, ..., angles='sin2'`, or `s12=33.76, ..., dCP=212.0, angles='deg'`,
+  rather than square-rooted and degree-converted by hand at the call site.  It
+  also matches the keyword NuOscProbExact uses, so the two codes can be driven
+  from one parameter set when they are compared.
+
+  Four guards come with it, because a mis-stated convention is otherwise silent:
+  an unrecognised value, a sine outside `[-1, 1]`, a negative `'sin2'`, and an
+  angle above `2*pi` under `'rad'` all raise; a whole parameter set under one
+  degree with `'deg'` raises `globaldefs.MixingAngleConventionWarning`, since
+  `theta_13` at about 8.5 degrees is the smallest angle anyone measures and
+  values that small are sines.  `'rad'` and `'sin'` are the one pairing no bound
+  can separate -- `theta_12 = 0.589` against `sin theta_12 = 0.556` -- which is
+  why `load_nufit_params` takes the keyword too: convert once, at the source,
+  rather than by hand between the two.
+
+- **`matter.matter_potential_projector` is exported.**  It is the one definition
+  of the matter term's structure, and every place that rebuilt that structure by
+  hand instead got the sterile entry wrong.  While it was unexported, autoapi
+  did not document it and references to it from public docstrings resolved to
+  nothing.
+
+- **Input validation for the engine's own knobs**: non-positive `n_slabs`,
+  `min_n_slabs`, `n_tpts_per_slab`, and a floor set above its own ceiling, were
+  all accepted and then quietly ignored, so a typo looked like a setting that had
+  been honoured.  `rtol` and `atol` were already guarded; these now match.
+
+- **A PEP 561 `py.typed` marker**, so the annotations the public API already
+  carries are visible to mypy and pyright instead of being discarded.
+
+- **`CITATION.cff`**, so GitHub offers "Cite this repository" and reference
+  managers can read the metadata.
+
+### Changed
+
+- **The Earth's electron fraction is now resolved per PREM layer, and results
+  change.**  Every Earth entry point assumed `Y_e = 0.5` -- exactly isoscalar
+  matter, which nothing in the Earth is.  PREM is a density model and carries no
+  composition, so `Y_e = <Z/A>` has to be supplied; it is now taken per layer, at
+  radii that are already PREM boundaries:
+
+  | layer | radii [km] | `Y_e` | material |
+  |---|---|---|---|
+  | core | `r <= 3480` | **0.4656** | iron |
+  | mantle | 3480 - 6346.6 | **0.4957** | peridotite |
+  | crust | 6346.6 - 6368 | **0.4952** | granitic |
+  | ocean | `r > 6368` | **0.5551** | seawater (H has `Z/A = 1`) |
+
+  The correction tracks how much core a chord crosses: at 1 GeV,
+  `P(nu_mu -> nu_e)` falls to **23%** of its previous value at
+  `cos(theta_z) = -1`, and moves by about 1% at -0.4.  **Anyone with published
+  Earth numbers from an earlier build should re-run them**; passing
+  `electron_fraction=0.5` reproduces the old uniform composition exactly.
+
+  Each layer is settable (`electron_fraction_core` and friends).  Combining a
+  per-layer value with the uniform `electron_fraction` is refused rather than
+  silently resolved, and `Y_e` is validated as a fraction in `(0, 1]` -- 0.0 and
+  5.0 used to be accepted, returning answers 0.51 and 0.74 away from the default.
+  The neutron-to-proton ratio is derived from `Y_e` in the density conversion,
+  `r = (1 - Y_e)/Y_e`, so a caller can no longer describe an iron core with
+  isoscalar neutrons.
+
+  Two caveats are documented rather than guessed at: the crust value differs from
+  the mantle by 0.1%, so it exists for explicitness rather than effect; and PREM's
+  ocean is a global average that a land-based baseline does not cross, for which
+  `electron_fraction_ocean=Y_E_CRUST_PREM` is the right setting.
+
+- **The solar LIV routes no longer accept four parameters they ignored.**
+  `osc_prob_Nnu_sun_liv` took `electron_fraction`,
+  `ratio_number_neutrons_to_protons` and two density flags and used none of them:
+  passing `electron_fraction=0.25` changed the answer by exactly zero.  The solar
+  profile is the standard exponential fit to the electron *number* density, so the
+  mass-density conversion those describe never runs and `Y_e` is already inside
+  the fit.  `osc_prob_Nnu_sun` and `..._sun_nsi` never exposed them.
+
+- **The default oscillation parameters are NuFit 6.1, and there is now only one
+  set of them.**  Omitting oscillation parameters used to fall back to a second
+  copy of the numbers built from NuFit 6.0 constants, while
+  `load_nufit_params()` with no arguments returned 6.1 -- so the same script got
+  different answers depending on which door it came through, by **4.0e-03** in
+  probability at 1 GeV over 1300 km.  `OSC_PARAMS_DEFAULT` is now derived from
+  `load_nufit_params`, so the two cannot drift apart again.
+  `OSC_PARAMS_NU_FIT_6_0_SK_NO` and `..._SK_IO` remain available by name for
+  anyone reproducing an earlier number.  **Results that relied on the implicit
+  default will change.**
+
+- **The publish workflow gates on the tests, on `twine check --strict`, and on
+  the release tag matching the packaged version.**  It previously built and
+  uploaded on a release with no check of any kind, and PyPI does not allow
+  re-uploading a version.
+
+- **CI tests Python 3.13** as well as 3.10-3.12, since `requires-python` has no
+  upper bound and pip will install on it either way.
+
+
+- **Notebook 27, nine animated scenes, with the clips committed.**  Four are the
+  scenes NuOscProbExact's notebook 19 draws, computed here so the two can be read
+  side by side; the other five need something a closed-form slab code does not
+  have -- a refinement ladder deciding it has converged, a front that travels, an
+  observable that is an average rather than a value, and a Hamiltonian that varies
+  along the path.  The notebook draws stills by default and hides the rendering
+  behind `RENDER = True`, so CI never pays the hour it costs.  Seven shrunk GIFs
+  are tracked in `img/` (14.7 MB); the raw renders go to `img/raw/`, which is
+  gitignored, so a later render cannot silently replace 14.7 MB of committed files
+  with the 224 MB it produces.  `tools/make_demo_video.py` owns the encoding.
+
+- **Notebook 25 became an arbiter of when each code wins**, rather than a list of
+  timings: reach (a slab product's error floors at 2.5e-11 on a smooth profile and
+  then rises, while the Magnus expansion continues to 2.9e-13), generality (five
+  flavours, where there is no comparison to draw), and pre-packaged observables
+  (a solar average in 0.66 s against 130 s).  With it, supernova-shock comparisons
+  against other codes, 3+1 and NSI in both the solar and shock settings, and
+  probability-vs-energy panels for the shock.
+
+- **A README image gallery**, ten figures lifted from the executed notebooks by
+  `extract_gallery()`, so the front page shows the answers rather than describing
+  them and cannot drift from what the notebooks produce.
+
+- **An expansion-order section in notebook 24**: what the truncation order buys in
+  accuracy, and what it costs in correctness, which is nothing -- every truncation
+  lives in the Lie algebra, so the operator is unitary exactly rather than to the
+  accuracy of the truncation.  With it, which engine the dispatcher picks and why,
+  measured across four decades of tolerance.
+
+- **`t_breakpoints`, `n_slabs` and `cumulative` reach the BSM wrappers.**  The
+  keywords that decide a hard profile were in no signature that a caller of
+  `osc_prob_matter_nsi` or `osc_prob_liv` could see, so the comparison those
+  wrappers exist for could not be made on equal terms.
+
+- **A `'constant'` engine: a position-independent Hamiltonian is answered in one
+  batched exponential instead of one `osc_prob` call per point.**  When the
+  matter potential does not vary with position, the Magnus series *terminates at
+  its first term* — Ω₁ = −iHΔ and every higher Ω is a nested commutator of H
+  with itself, hence zero — so `U = exp(-iHΔ)` is the exact answer and a whole
+  energy scan is one stacked exponential.
+
+  This case was previously turned away on purpose: `_osc_prob_scan_separable_dispatch`
+  bailed on `not isinstance(VCC_func, Callable)`, its docstring saying "a constant
+  potential falls back to the generic path".  So the easiest Hamiltonian there is
+  took the slowest route available — a 60-energy scan made **18,000 `osc_prob`
+  calls per 300 repetitions**, each rediscovering the same constancy and paying
+  the full wrapper and refinement-ladder overhead.
+
+  Measured against the route it replaces, interleaved with a control that came
+  back at 1.00×:
+
+  | flavours | matter scan | vacuum scan | single point |
+  |---|---|---|---|
+  | 2ν | **17.3×** | **24.7×** | 2.0× |
+  | 3ν | **15.5×** | **18.9×** | 2.1× |
+  | 4ν | 7.2× | 7.4× | 1.4× |
+  | 5ν | 6.0× | 6.2× | 1.4× |
+
+  4ν and 5ν gain less because they are on `eigh` rather than the
+  Cayley–Hamilton kernel, which covers dimensions 2 and 3 only.  A 3ν
+  constant-density scan is now **1.10 µs per energy against NuOscProbExact's
+  1.44 µs batched and 13.25 µs looped**; a single point is 33.8 µs against its
+  19.9 µs, the remainder being wrapper parameter resolution rather than
+  arithmetic.  Results are bit-identical to the per-point route on every
+  flavour count and both neutrino signs, and `n_slabs`, `n_tpts_per_slab`,
+  `t_breakpoints` and `rtol`/`atol` are accepted and ignored because they can
+  only ask for refinement of something already exact.
+
+  **PREM and exponential profiles are untouched** and keep `separable`/`magnus`
+  /`hybrid`: their potential varies with position, and a constant-H engine that
+  captured one would propagate the whole trajectory with a single exponential —
+  wrong by O(1) while still perfectly unitary.  A test asserts the engine
+  identity, not merely the numbers.
+
+
+- **A compiled Cayley–Hamilton backend for the matrix exponential, selected by
+  `magnus.magnus.EXPM_BACKEND`.**  `np.linalg.eigh` costs ~1.27 µs per 3×3
+  *whatever the stack size* (measured 1.268 µs at N=108, 1.279 µs at N=4096 —
+  flat, because it loops over LAPACK internally instead of vectorising).  The
+  new `magnus.expmkernels` applies to `K` the polynomial interpolating
+  `exp(-iλ)` on its spectrum instead: no eigenvectors, and the eigenvalues in
+  closed form.  **6.8× on the exponential** at N=108 (162.6 → 23.8 µs), 7.3× at
+  d=2, and **2.11× end to end** on a 60-energy PREM scan (9291 → 4409 µs, i.e.
+  73.5 µs per energy).
+
+  The gap between 6.8× and 2.11× is Amdahl's law: the exponential is about a
+  third of a slab pass.  Quoting the 6.8× as a package speed-up would be quoting
+  the wrong number.
+
+  `'auto'` (the default) uses the kernel for 2×2 and 3×3 when numba is
+  installed and `eigh` otherwise, and cannot fail; `'numba'` makes a missing
+  numba an error rather than a silent downgrade; `'eigh'` is the reference route.
+  **Dimensions 4 and 5 keep `eigh`** — there is no practical closed form for a
+  4×4 or 5×5 Hermitian eigenproblem, so 4ν and 5ν stay correct and are not
+  accelerated.  numba is an optional dependency (`pip install 'magnuspy[fast]'`),
+  costing ~90 ms of `import magnus` when present plus a one-off ~0.7 s compile
+  per kernel, cached to disk thereafter.
+
+  Switching backend moves probabilities by at most 4.6e-15 across PREM chords,
+  energy scans, NSI resonances, constant density and vacuum.
+
+  Degeneracy is the whole risk in such a scheme, and two facts remove it.  A
+  Hermitian matrix is never defective, so matching `exp` on the *distinct*
+  eigenvalues is already exact and the confluent (Hermite) form is not needed.
+  And with eigenvalues sorted and the spectrum shifted to put the median at
+  zero, the one ill-conditioned coefficient multiplies a matrix whose norm
+  shrinks with the same gap, so its contribution is bounded by `ε·gap` and
+  *vanishes* as the gap closes.  There is therefore no tolerance, no crossover,
+  and no near-degenerate branch to place: the error is 1e-16 at splittings of
+  1e-2, 1e-6, 1e-10, 1e-14 and exactly zero alike.
+
+  Two things this cost, both now pinned by tests.  The closed-form eigenvalues
+  **degrade to ~4e-9 at an exact degeneracy** (`arccos` has infinite derivative
+  where a repeated root sits) and the exponential stays at 2.5e-16 anyway,
+  because interpolation error is *second* order in the displacement of a
+  coalescing node; both halves are asserted, the sloppy one included.  And the
+  kernel must read the **lower** triangle, because that is the one `eigh` reads
+  (`UPLO` defaults to `'L'`) and `_expm_stack` admits input anti-Hermitian only
+  to 1e-12 — a kernel reading the upper triangle exponentiates a different
+  matrix on such input and the two backends diverge by ~2e-12, large enough to
+  matter and small enough to look like rounding.
+
+
+- **Palindromic density profiles are exploited on Earth chords.**  A chord through a
+  spherically symmetric Earth meets every radius twice, so its density profile reads
+  the same from either end.  The Magnus core now evaluates the Hamiltonian on the first
+  half of such a slab chain and derives the rest by reversal, halving the calls to the
+  caller's `H_func`.  Worth **1.4x-1.67x** on a single point and **1.56x-1.64x** on an
+  energy scan when that Hamiltonian is expensive; plain PREM, whose density lookup is
+  cheap, pays about 10% for it.  New public `magnus.magnus.USE_PALINDROME` (module
+  switch, `True`) turns it off, and `magnus.magnus.palindromic()` is the predicate.
+
+  The saving is halved Hamiltonian evaluations and nothing else, so it is worth what
+  that Hamiltonian costs.  Standard PREM *scans* are unaffected: they are answered by
+  the separable engine, which already evaluates the profile once and shares it across
+  energies -- the same saving, taken earlier.
+
+  Symmetry is **declared** by the Earth entry points, where it is a fact of chord
+  geometry, not detected: detecting it would need the very evaluations the optimisation
+  skips.  There is deliberately no user-facing way to declare it of an arbitrary
+  profile.
+
+  **This moves Earth single-point results by up to 8.6e-15 relative.**  The mirrored
+  slab's nodes are reached by a different floating-point expression for the same real
+  number, so the change is inherent rather than incidental.  `USE_PALINDROME = False`
+  reproduces the previous numbers exactly.
+
+### Changed
+
+- **Per-call overhead cut across the wrappers, by caching what is pure and
+  cheapening what is common.**  The largest single item in a single-point profile
+  was `hamiltonian_3nu_vacuum_energy_independent` at ~15 µs, rebuilding the same
+  PMNS matrix on every call; it is a pure function of eight scalars and is now
+  memoized, handing back a copy so a caller writing into the result cannot
+  poison the cache.  Likewise the constant-density branches of
+  `matter.vcc_func_from_rho_func` (the callable branches are deliberately *not*
+  cached: they return a closure over `rho_func` that callers tag with
+  `is_exp_density_profile`, so caching those would trade microseconds for an
+  aliasing bug).  `_n_required_params` cached `inspect.signature` weakly against
+  the function — 42 µs of cumulative time per call, and once per point on the
+  routes that legitimately loop.  `isinstance(x, typing.Callable)`, which routes
+  through `ABCMeta.__instancecheck__`, replaced by the `callable()` builtin at 23
+  sites (~9 `typing.__subclasscheck__` calls per invocation), and scalar fast
+  paths added to `_normalize_energy_L` and the density-units guard.  No
+  behaviour changed by this entry.
+
+- **A verbose run (`verbose >= 1`) takes the per-point route.**  The banner and
+  run-parameter dump describe quantities the batched engines do not have —
+  `magnus_exp_order`, slab counts, tolerances — so emitting them from a batched
+  path would report a refinement ladder that never ran.
+
+
+- **``rtol``/``atol`` are documented for what they are: a stopping criterion,
+  not an accuracy guarantee.**  The ladder halts when two successive levels
+  agree; it never estimates the error of the answer it returns, which is a
+  weaker promise than a stepping ODE integrator's ``rtol`` makes.  Corrected
+  in ``osc_prob``, ``adiabatic.hybrid_propagator``, the CLI's ``--rtol``/
+  ``--atol`` help, ``README.md``, ``architecture.rst`` (which said "until
+  rtol/atol is met"), and a new section of ``implementation_details.rst`` that
+  the others link to.  No behaviour changed by this entry.
+
+- **``convergence_info`` reports what the ladder did.**  Alongside the existing
+  ``n_slabs``/``n_tpts_per_slab`` it now carries ``n_slab_edges`` and
+  ``n_slab_edges_previous`` (which make the real refinement step visible),
+  ``n_slabs_previous``, ``n_tpts_per_slab_previous``, ``last_gap`` (None when
+  only one level was ever computed), ``n_agreements``, and
+  ``tolerance_achieved`` -- the programmatic form of
+  ``ToleranceNotAchievedWarning``.
+
+  It deliberately carries **no error estimate**.  Converting the gap into one by
+  Richardson extrapolation, as the sibling NuOscProbExact does, was measured and
+  rejected: Magnus has no stable convergence order (fitted on Earth chords it
+  scatters from 1.4 to 7.2 against nominal orders of 2 and 4), and because
+  breakpoints make the effective refinement ratio as low as 1.06 rather than
+  1.5, dividing by ``r^p - 1`` under-reports the true error by 6-20x *even
+  where the power law holds exactly*.  Under-reporting is the dangerous
+  direction.
+
+
+- **`oscprob.BATCH_WORKING_ENTRIES` lowered from 4,194,304 to 65,536** (about 67 MB to
+  about 1 MB).  The batched scan engines are memory-bound, and the previous value was
+  large enough that their working set spilled cache.  Measured across fifteen workloads
+  on three engines, the new value is **1.19x-1.38x** quicker on Earth energy scans,
+  1.06x-1.16x on cumulative baseline scans, flat on short scans and on the
+  interaction-picture engine, and never slower anywhere.  **Bit-identical** at every
+  budget tested -- tiles are independent and only concatenated -- so this changes no
+  result.  Peak memory of a long scan drops accordingly.
+
+### Fixed
+
+- **The memory guard read the host's free memory, not the cgroup's.**  Inside a
+  container the two are unrelated, so a request that would be killed by the cgroup
+  limit was waved through by a guard reading a number that did not apply to it.
+  `_available_memory_bytes` now takes the minimum of the two, walking the cgroup
+  ancestor chain and handling the v1 "no limit" sentinel.
+
+- **The sterile state felt no medium, in six places.**  Four inline copies of the
+  matter projector, plus the two flavour-specific builders, wrote the 3+1 matter
+  term by hand and gave the sterile state a zero where it carries `-V_NC`.  All
+  six now come from `matter.matter_potential_projector`, and a test fails if a
+  seventh copy appears.  On a PREM chord this was worth 0.29 in probability, and
+  it was flat in the requested tolerance, so no amount of refinement revealed it.
 
 - **The evaluation-mode cache answered a question it was never asked, and the
   guarded version of it was dead code.**  `probe_eval_mode`'s `'constant'`
@@ -42,7 +558,6 @@ and the project uses [Semantic Versioning](https://semver.org/).
   The interval key costs nothing measurable: a refinement ladder calling
   repeatedly at one interval still probes once, which is what the cache is for.
 
-### Fixed
 
 - **A second max-effort review, run from a fresh session, found four more; all are
   fixed here.**  The first review below was written *and* verified by the agent
@@ -160,49 +675,6 @@ and the project uses [Semantic Versioning](https://semver.org/).
   Four further findings inherited from earlier commits on this branch are recorded
   in `docs/dev/HANDOVER_OVERHEAD.md` and deliberately left for separate work.
 
-### Added
-
-- **A `'constant'` engine: a position-independent Hamiltonian is answered in one
-  batched exponential instead of one `osc_prob` call per point.**  When the
-  matter potential does not vary with position, the Magnus series *terminates at
-  its first term* — Ω₁ = −iHΔ and every higher Ω is a nested commutator of H
-  with itself, hence zero — so `U = exp(-iHΔ)` is the exact answer and a whole
-  energy scan is one stacked exponential.
-
-  This case was previously turned away on purpose: `_osc_prob_scan_separable_dispatch`
-  bailed on `not isinstance(VCC_func, Callable)`, its docstring saying "a constant
-  potential falls back to the generic path".  So the easiest Hamiltonian there is
-  took the slowest route available — a 60-energy scan made **18,000 `osc_prob`
-  calls per 300 repetitions**, each rediscovering the same constancy and paying
-  the full wrapper and refinement-ladder overhead.
-
-  Measured against the route it replaces, interleaved with a control that came
-  back at 1.00×:
-
-  | flavours | matter scan | vacuum scan | single point |
-  |---|---|---|---|
-  | 2ν | **17.3×** | **24.7×** | 2.0× |
-  | 3ν | **15.5×** | **18.9×** | 2.1× |
-  | 4ν | 7.2× | 7.4× | 1.4× |
-  | 5ν | 6.0× | 6.2× | 1.4× |
-
-  4ν and 5ν gain less because they are on `eigh` rather than the
-  Cayley–Hamilton kernel, which covers dimensions 2 and 3 only.  A 3ν
-  constant-density scan is now **1.10 µs per energy against NuOscProbExact's
-  1.44 µs batched and 13.25 µs looped**; a single point is 33.8 µs against its
-  19.9 µs, the remainder being wrapper parameter resolution rather than
-  arithmetic.  Results are bit-identical to the per-point route on every
-  flavour count and both neutrino signs, and `n_slabs`, `n_tpts_per_slab`,
-  `t_breakpoints` and `rtol`/`atol` are accepted and ignored because they can
-  only ask for refinement of something already exact.
-
-  **PREM and exponential profiles are untouched** and keep `separable`/`magnus`
-  /`hybrid`: their potential varies with position, and a constant-H engine that
-  captured one would propagate the whole trajectory with a single exponential —
-  wrong by O(1) while still perfectly unitary.  A test asserts the engine
-  identity, not merely the numbers.
-
-### Fixed
 
 - **`h_matt` meant two different things depending on the potential, and the new
   engine walked into it.**  `osc_prob_matter_nsi` and `osc_prob_liv` rebound
@@ -232,80 +704,6 @@ and the project uses [Semantic Versioning](https://semver.org/).
   share the *assumption* that H is position-independent, and that assumption is
   the thing that could be wrong.
 
-### Changed
-
-- **Per-call overhead cut across the wrappers, by caching what is pure and
-  cheapening what is common.**  The largest single item in a single-point profile
-  was `hamiltonian_3nu_vacuum_energy_independent` at ~15 µs, rebuilding the same
-  PMNS matrix on every call; it is a pure function of eight scalars and is now
-  memoized, handing back a copy so a caller writing into the result cannot
-  poison the cache.  Likewise the constant-density branches of
-  `matter.vcc_func_from_rho_func` (the callable branches are deliberately *not*
-  cached: they return a closure over `rho_func` that callers tag with
-  `is_exp_density_profile`, so caching those would trade microseconds for an
-  aliasing bug).  `_n_required_params` cached `inspect.signature` weakly against
-  the function — 42 µs of cumulative time per call, and once per point on the
-  routes that legitimately loop.  `isinstance(x, typing.Callable)`, which routes
-  through `ABCMeta.__instancecheck__`, replaced by the `callable()` builtin at 23
-  sites (~9 `typing.__subclasscheck__` calls per invocation), and scalar fast
-  paths added to `_normalize_energy_L` and the density-units guard.  No
-  behaviour changed by this entry.
-
-- **A verbose run (`verbose >= 1`) takes the per-point route.**  The banner and
-  run-parameter dump describe quantities the batched engines do not have —
-  `magnus_exp_order`, slab counts, tolerances — so emitting them from a batched
-  path would report a refinement ladder that never ran.
-
-### Added
-
-- **A compiled Cayley–Hamilton backend for the matrix exponential, selected by
-  `magnus.magnus.EXPM_BACKEND`.**  `np.linalg.eigh` costs ~1.27 µs per 3×3
-  *whatever the stack size* (measured 1.268 µs at N=108, 1.279 µs at N=4096 —
-  flat, because it loops over LAPACK internally instead of vectorising).  The
-  new `magnus.expmkernels` applies to `K` the polynomial interpolating
-  `exp(-iλ)` on its spectrum instead: no eigenvectors, and the eigenvalues in
-  closed form.  **6.8× on the exponential** at N=108 (162.6 → 23.8 µs), 7.3× at
-  d=2, and **2.11× end to end** on a 60-energy PREM scan (9291 → 4409 µs, i.e.
-  73.5 µs per energy).
-
-  The gap between 6.8× and 2.11× is Amdahl's law: the exponential is about a
-  third of a slab pass.  Quoting the 6.8× as a package speed-up would be quoting
-  the wrong number.
-
-  `'auto'` (the default) uses the kernel for 2×2 and 3×3 when numba is
-  installed and `eigh` otherwise, and cannot fail; `'numba'` makes a missing
-  numba an error rather than a silent downgrade; `'eigh'` is the reference route.
-  **Dimensions 4 and 5 keep `eigh`** — there is no practical closed form for a
-  4×4 or 5×5 Hermitian eigenproblem, so 4ν and 5ν stay correct and are not
-  accelerated.  numba is an optional dependency (`pip install 'magnuspy[fast]'`),
-  costing ~90 ms of `import magnus` when present plus a one-off ~0.7 s compile
-  per kernel, cached to disk thereafter.
-
-  Switching backend moves probabilities by at most 4.6e-15 across PREM chords,
-  energy scans, NSI resonances, constant density and vacuum.
-
-  Degeneracy is the whole risk in such a scheme, and two facts remove it.  A
-  Hermitian matrix is never defective, so matching `exp` on the *distinct*
-  eigenvalues is already exact and the confluent (Hermite) form is not needed.
-  And with eigenvalues sorted and the spectrum shifted to put the median at
-  zero, the one ill-conditioned coefficient multiplies a matrix whose norm
-  shrinks with the same gap, so its contribution is bounded by `ε·gap` and
-  *vanishes* as the gap closes.  There is therefore no tolerance, no crossover,
-  and no near-degenerate branch to place: the error is 1e-16 at splittings of
-  1e-2, 1e-6, 1e-10, 1e-14 and exactly zero alike.
-
-  Two things this cost, both now pinned by tests.  The closed-form eigenvalues
-  **degrade to ~4e-9 at an exact degeneracy** (`arccos` has infinite derivative
-  where a repeated root sits) and the exponential stays at 2.5e-16 anyway,
-  because interpolation error is *second* order in the displacement of a
-  coalescing node; both halves are asserted, the sloppy one included.  And the
-  kernel must read the **lower** triangle, because that is the one `eigh` reads
-  (`UPLO` defaults to `'L'`) and `_expm_stack` admits input anti-Hermitian only
-  to 1e-12 — a kernel reading the upper triangle exponentiates a different
-  matrix on such input and the two backends diverge by ~2e-12, large enough to
-  matter and small enough to look like rounding.
-
-### Fixed
 
 - **`_expm_stack`'s docstring claimed the `eigh` route was exactly unitary, and
   it is not.**  `U†U - I` measures 4e-16 for a single 3×3 and 4e-15 for a stack
@@ -339,72 +737,6 @@ and the project uses [Semantic Versioning](https://semver.org/).
   (a 60-energy Earth scan goes from 9 ms to 10 ms) despite the median slab
   count rising from 9 to 21, because the added levels are the cheap small ones.
 
-### Changed
-
-- **``rtol``/``atol`` are documented for what they are: a stopping criterion,
-  not an accuracy guarantee.**  The ladder halts when two successive levels
-  agree; it never estimates the error of the answer it returns, which is a
-  weaker promise than a stepping ODE integrator's ``rtol`` makes.  Corrected
-  in ``osc_prob``, ``adiabatic.hybrid_propagator``, the CLI's ``--rtol``/
-  ``--atol`` help, ``README.md``, ``architecture.rst`` (which said "until
-  rtol/atol is met"), and a new section of ``implementation_details.rst`` that
-  the others link to.  No behaviour changed by this entry.
-
-- **``convergence_info`` reports what the ladder did.**  Alongside the existing
-  ``n_slabs``/``n_tpts_per_slab`` it now carries ``n_slab_edges`` and
-  ``n_slab_edges_previous`` (which make the real refinement step visible),
-  ``n_slabs_previous``, ``n_tpts_per_slab_previous``, ``last_gap`` (None when
-  only one level was ever computed), ``n_agreements``, and
-  ``tolerance_achieved`` -- the programmatic form of
-  ``ToleranceNotAchievedWarning``.
-
-  It deliberately carries **no error estimate**.  Converting the gap into one by
-  Richardson extrapolation, as the sibling NuOscProbExact does, was measured and
-  rejected: Magnus has no stable convergence order (fitted on Earth chords it
-  scatters from 1.4 to 7.2 against nominal orders of 2 and 4), and because
-  breakpoints make the effective refinement ratio as low as 1.06 rather than
-  1.5, dividing by ``r^p - 1`` under-reports the true error by 6-20x *even
-  where the power law holds exactly*.  Under-reporting is the dangerous
-  direction.
-
-### Added
-
-- **Palindromic density profiles are exploited on Earth chords.**  A chord through a
-  spherically symmetric Earth meets every radius twice, so its density profile reads
-  the same from either end.  The Magnus core now evaluates the Hamiltonian on the first
-  half of such a slab chain and derives the rest by reversal, halving the calls to the
-  caller's `H_func`.  Worth **1.4x-1.67x** on a single point and **1.56x-1.64x** on an
-  energy scan when that Hamiltonian is expensive; plain PREM, whose density lookup is
-  cheap, pays about 10% for it.  New public `magnus.magnus.USE_PALINDROME` (module
-  switch, `True`) turns it off, and `magnus.magnus.palindromic()` is the predicate.
-
-  The saving is halved Hamiltonian evaluations and nothing else, so it is worth what
-  that Hamiltonian costs.  Standard PREM *scans* are unaffected: they are answered by
-  the separable engine, which already evaluates the profile once and shares it across
-  energies -- the same saving, taken earlier.
-
-  Symmetry is **declared** by the Earth entry points, where it is a fact of chord
-  geometry, not detected: detecting it would need the very evaluations the optimisation
-  skips.  There is deliberately no user-facing way to declare it of an arbitrary
-  profile.
-
-  **This moves Earth single-point results by up to 8.6e-15 relative.**  The mirrored
-  slab's nodes are reached by a different floating-point expression for the same real
-  number, so the change is inherent rather than incidental.  `USE_PALINDROME = False`
-  reproduces the previous numbers exactly.
-
-### Changed
-
-- **`oscprob.BATCH_WORKING_ENTRIES` lowered from 4,194,304 to 65,536** (about 67 MB to
-  about 1 MB).  The batched scan engines are memory-bound, and the previous value was
-  large enough that their working set spilled cache.  Measured across fifteen workloads
-  on three engines, the new value is **1.19x-1.38x** quicker on Earth energy scans,
-  1.06x-1.16x on cumulative baseline scans, flat on short scans and on the
-  interaction-picture engine, and never slower anywhere.  **Bit-identical** at every
-  budget tested -- tiles are independent and only concatenated -- so this changes no
-  result.  Peak memory of a long scan drops accordingly.
-
-### Fixed
 
 - **The position-profile cache no longer hands out writable arrays.**  Values are
   returned by reference to every later caller asking for the same position grid, so a
@@ -412,7 +744,6 @@ and the project uses [Semantic Versioning](https://semver.org/).
   and the cache sits under the matter term of the Hamiltonian, so the symptom would
   have been a wrong probability with nothing raised.  Cached arrays are now marked
   read-only, turning that into an exception at the point of the write.
-
 
 ## [1.0.0rc1] - 2026-07-31
 

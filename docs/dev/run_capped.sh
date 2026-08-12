@@ -24,11 +24,18 @@
 # USAGE
 #     docs/dev/run_capped.sh [-m 6G] -- <command> [args...]
 #
-#     docs/dev/run_capped.sh -m 6G -- make -C docs clean html SPHINXOPTS="-n -W --keep-going"
+#     docs/dev/run_capped.sh -m 10G -- make -C docs clean html SPHINXOPTS="-n -W --keep-going"
 #     docs/dev/run_capped.sh -m 4G -- python notebooks/gen_shock_benchmarks.py > out.json
 #
 # Pick the cap from what is FREE (`free -g`), not from what is installed, and leave a couple
 # of gigabytes for everything else.
+#
+# THE DOCS BUILD NEEDS ~10G, not the 6G this file used to suggest.  source/ carries 22
+# `jupyter-execute` directives, each spawning a kernel that imports Magnus, and AutoAPI holds
+# the whole parsed package alongside them.  Measured 2026-08-12: 5G dies at 44% of `reading
+# sources`, 6G at 23%, 9G and 10G complete.  The cgroup kills silently -- the log simply stops
+# mid-progress-line with no traceback -- so a build that "ends early with no error" is this,
+# not a Sphinx bug.
 
 set -euo pipefail
 

@@ -115,12 +115,15 @@ are, rather than how to ask for them.
 Where the limits are
 --------------------
 
-The two notebooks that show what Magνs gets wrong, and how to tell the two
+The three notebooks that show what Magνs gets wrong, and how to tell the two
 kinds of wrong apart.
 
 `13. A tabulated solar model <https://github.com/mbustama/Magnus/blob/main/notebooks/13_magnus_tabulated_solar_model.ipynb>`_
-   A real BS05 profile rather than an exponential. A case that looks wrong by
-   1.4e-03 and is not: the error is a phase, and averaging removes 53x of it.
+   A real BS05 profile rather than an exponential, separating the instantaneous
+   probability from the one an experiment measures. Averaging a scan over a
+   window is the tempting route to the second and has no converged value to
+   offer; ``average=True`` reaches it in closed form instead, matching the
+   adiabatic MSW expression to 3e-16.
 
 `14. A supernova shock front <https://github.com/mbustama/Magnus/blob/main/notebooks/14_magnus_supernova_shock.ipynb>`_
    The contrast. Here averaging does essentially nothing, because a shock

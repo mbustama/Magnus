@@ -7,6 +7,25 @@ required -- see :doc:`cli`). Use the module for anything programmatic
 (scans, plots, fitting); use the CLI for a quick one-off number or a shell
 script.
 
+Your first probability
+------------------------
+
+Install with ``pip install magnuspy``, then:
+
+.. code-block:: python
+
+   import magnus.oscprob as oscprob
+   import magnus.globaldefs as gd
+
+   # 3-flavour vacuum probability at 1 GeV over 1000 km
+   P = oscprob.osc_prob_3nu_vacuum(1.0*gd.UNIT_GEV, 1000.0*gd.UNIT_KM)
+   print(P[gd.NUMU][gd.NUE])        # P(nu_mu -> nu_e)
+
+Oscillation parameters left unset default to the current global fit, so that
+call is complete as it stands.  The two things worth knowing before going
+further are what ``UNIT_GEV`` and ``UNIT_KM`` are doing --- next --- and how to
+choose a different fit.
+
 .. _units-table:
 
 Units
@@ -56,7 +75,7 @@ baseline.
 The last two are the ones to check first when a result looks untouched by the
 parameters you set; see :ref:`conventions`.
 
-Install Magνs with ``pip install --pre magnuspy`` -- the distribution is
+Install Magνs with ``pip install magnuspy`` -- the distribution is
 ``magnuspy`` on PyPI, the import package is ``magnus`` (see
 :doc:`installation`) -- then:
 
@@ -67,13 +86,18 @@ Install Magνs with ``pip install --pre magnuspy`` -- the distribution is
    import magnus.globaldefs as gd
 
 Oscillation parameters that are not passed explicitly default to the
-`NuFit 6.0 <http://www.nu-fit.org>`_ best fit (normal ordering); pass
+`NuFit 6.1 <http://www.nu-fit.org>`_ best fit (normal ordering) -- the same
+release :func:`~magnus.globaldefs.load_nufit_params` returns by default; pass
 ``s12``, ``D31``, ``dCP``, etc., or ``nubar=True``, to change them.
 
 .. _nufit-parameters:
 
 Choosing a global fit
 ---------------------
+
+Magνs defaults to the **NuFIT 6.1** best fit, normal ordering
+:cite:p:`Esteban:2024eli`; the numerical tables for every release are at
+`nu-fit.org <http://www.nu-fit.org/>`_.
 
 To use a different release, or the inverted ordering, ask
 :func:`magnus.globaldefs.load_nufit_params` for it.  It returns **exactly the
@@ -82,6 +106,9 @@ six parameters** every ``osc_prob_3nu_*`` function takes -- ``s12``, ``s23``,
 through:
 
 .. code-block:: python
+
+   energy = 1.0*gd.UNIT_GEV       # [eV]
+   L = 1000.0*gd.UNIT_KM          # [eV^-1]
 
    osc = gd.load_nufit_params('NuFIT 6.1', 'NO')
 
@@ -211,6 +238,32 @@ built-in potential entirely.
 
    P = oscprob.osc_prob_earth(H, energy, loc_ini='fermilab', loc_fin='homestake')
 
+.. note::
+
+   Those square roots and that ``212./180.*np.pi`` are the shape a global fit is
+   published in, converted by hand.  ``angles`` takes the conversion instead --
+   every function that accepts a mixing angle accepts it:
+
+   .. code-block:: python
+
+      h_vac = hamiltonians.hamiltonian_3nu_vacuum_energy_independent(
+          s12=0.308, s23=0.470, s13=2.215e-2,
+          dCP=212./180.*np.pi, D21=7.49e-5, D31=2.513e-3, angles='sin2')
+
+      # or straight off the NuFit table, degrees and all
+      h_vac = hamiltonians.hamiltonian_3nu_vacuum_energy_independent(
+          s12=33.76, s23=43.28, s13=8.62,
+          dCP=212.0, D21=7.49e-5, D31=2.513e-3, angles='deg')
+
+   ``'sin'`` (the default) is the sine, ``'sin2'`` the sine squared, ``'rad'`` the
+   angle in radians, ``'deg'`` in degrees; under ``'deg'`` the CP phase is read as
+   degrees too.  :func:`~magnus.globaldefs.load_nufit_params` takes the same
+   keyword, and **the two must agree** -- its output is sines by default, so
+   ``osc_prob_3nu_earth(E, **load_nufit_params(), angles='deg')`` would read
+   0.55 as half a degree.  That particular pairing raises
+   :class:`~magnus.globaldefs.MixingAngleConventionWarning`, but stating the
+   convention once and passing it to both is the habit worth having.
+
 ``H`` may accept an array of positions ``l`` and return a stack of
 Hamiltonians (position axis leading) for extra speed; this is detected
 automatically, with a safe per-point fallback if it is not supported.
@@ -224,9 +277,15 @@ internally.  It accepts any square, Hermitian-valued function of position
 
 .. code-block:: python
 
+   # Your own position-dependent Hamiltonian, returning a (d, d) array.
+   # This one is the standard three-flavor vacuum term plus a matter
+   # potential that falls off exponentially with position.
+   h_vac = np.asarray(hamiltonians.hamiltonian_3nu_vacuum_energy_independent(
+       osc['s12'], osc['s23'], osc['s13'], osc['dCP'], osc['D21'], osc['D31']))
+
    def H_func(l):
-       # Your own position-dependent Hamiltonian, returning a (d, d) array
-       ...
+       vcc = 1.0e-13*np.exp(-l/(500.0*gd.UNIT_KM))        # [eV]
+       return h_vac/energy + vcc*np.diag([1.0, 0.0, 0.0])
 
    P = oscprob.osc_prob(H_func, t_ini=0.0, t_fin=L,
                          magnus_exp_order=4,

@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (C) 2026 Mauricio Bustamante
 r"""expansionterms.py
 
 Generate the terms of the Magnus expansion symbolically, to any order.
@@ -120,7 +122,7 @@ def bernoulli(n: int) -> Fraction:
         [str(et.bernoulli(n)) for n in range(9)]
     """
     if n < 0:
-        raise ValueError("magnus.expansionterms.bernoulli: n must be >= 0, not "
+        raise ValueError("Error in magnus: magnus.expansionterms.bernoulli: n must be >= 0, not "
                          + str(n) + ".")
     if n == 0:
         return Fraction(1)
@@ -228,7 +230,7 @@ def omega_terms(order: int) -> Tuple[Term, ...]:
             print(f"{str(coeff):>6s}  {et.format_term((coeff, word), with_coeff=False)}")
     """
     if order < 1:
-        raise ValueError("magnus.expansionterms.omega_terms: order must be >= 1, not "
+        raise ValueError("Error in magnus: magnus.expansionterms.omega_terms: order must be >= 1, not "
                          + str(order) + ".")
     if order == 1:
         return ((Fraction(1), 'A'),)
@@ -266,7 +268,7 @@ def magnus_terms(max_order: int) -> Dict[int, Tuple[Term, ...]]:
         {n: len(terms) for n, terms in et.magnus_terms(8).items()}
     """
     if max_order < 1:
-        raise ValueError("magnus.expansionterms.magnus_terms: max_order must be >= 1, not "
+        raise ValueError("Error in magnus: magnus.expansionterms.magnus_terms: max_order must be >= 1, not "
                          + str(max_order) + ".")
     return {n: omega_terms(n) for n in range(1, max_order + 1)}
 
