@@ -215,6 +215,32 @@ built-in potential entirely.
 
    P = oscprob.osc_prob_earth(H, energy, loc_ini='fermilab', loc_fin='homestake')
 
+.. note::
+
+   Those square roots and that ``212./180.*np.pi`` are the shape a global fit is
+   published in, converted by hand.  ``angles`` takes the conversion instead --
+   every function that accepts a mixing angle accepts it:
+
+   .. code-block:: python
+
+      h_vac = hamiltonians.hamiltonian_3nu_vacuum_energy_independent(
+          s12=0.308, s23=0.470, s13=2.215e-2,
+          dCP=212./180.*np.pi, D21=7.49e-5, D31=2.513e-3, angles='sin2')
+
+      # or straight off the NuFit table, degrees and all
+      h_vac = hamiltonians.hamiltonian_3nu_vacuum_energy_independent(
+          s12=33.76, s23=43.28, s13=8.62,
+          dCP=212.0, D21=7.49e-5, D31=2.513e-3, angles='deg')
+
+   ``'sin'`` (the default) is the sine, ``'sin2'`` the sine squared, ``'rad'`` the
+   angle in radians, ``'deg'`` in degrees; under ``'deg'`` the CP phase is read as
+   degrees too.  :func:`~magnus.globaldefs.load_nufit_params` takes the same
+   keyword, and **the two must agree** -- its output is sines by default, so
+   ``osc_prob_3nu_earth(E, **load_nufit_params(), angles='deg')`` would read
+   0.55 as half a degree.  That particular pairing raises
+   :class:`~magnus.globaldefs.MixingAngleConventionWarning`, but stating the
+   convention once and passing it to both is the habit worth having.
+
 ``H`` may accept an array of positions ``l`` and return a stack of
 Hamiltonians (position axis leading) for extra speed; this is detected
 automatically, with a safe per-point fallback if it is not supported.

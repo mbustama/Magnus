@@ -43,7 +43,8 @@ from typing import Optional, Callable, Union
 
 def mixing_matrix_5x5(s12: float, s23: float, s13:float, d13: float, s14: float, d14: float,
     s15: float, d15: float, s24: float, d24: float, s25: float, s34: float, s35: float, d35: float,
-    compute_matrix_multiplication: Optional[bool]=False) -> np.ndarray:
+    compute_matrix_multiplication: Optional[bool]=False,
+    angles: Optional[str]='sin') -> np.ndarray:
     r"""Returns the 5x5 (3+2 sterile) mixing matrix.
 
     Computes and returns the 5x5 complex mixing matrix for a 3+2 sterile-neutrino scenario,
@@ -60,37 +61,43 @@ def mixing_matrix_5x5(s12: float, s23: float, s13:float, d13: float, s14: float,
     Parameters
     ----------
     s12 : float
-        Sine of the mixing angle :math:`\theta_{12}`.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine).
     s23 : float
-        Sine of the mixing angle :math:`\theta_{23}`.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine).
     s13 : float
-        Sine of the mixing angle :math:`\theta_{13}`.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine).
     d13 : float
-        :math:`\delta_{13}` [radian].
+        :math:`\delta_{13}` [radian, or degree if ``angles='deg'``].
     s14 : float
-        Sine of the mixing angle :math:`\theta_{14}`.
+        Mixing angle :math:`\theta_{14}`, in the convention set by ``angles`` (default: its sine).
     d14 : float
-        :math:`\delta_{14}` [radian].
+        :math:`\delta_{14}` [radian, or degree if ``angles='deg'``].
     s15 : float
-        Sine of the mixing angle :math:`\theta_{15}`.
+        Mixing angle :math:`\theta_{15}`, in the convention set by ``angles`` (default: its sine).
     d15 : float
-        :math:`\delta_{15}` [radian].
+        :math:`\delta_{15}` [radian, or degree if ``angles='deg'``].
     s24 : float
-        Sine of the mixing angle :math:`\theta_{24}`.
+        Mixing angle :math:`\theta_{24}`, in the convention set by ``angles`` (default: its sine).
     d24 : float
-        :math:`\delta_{24}` [radian].
+        :math:`\delta_{24}` [radian, or degree if ``angles='deg'``].
     s25 : float
-        Sine of the mixing angle :math:`\theta_{25}`.
+        Mixing angle :math:`\theta_{25}`, in the convention set by ``angles`` (default: its sine).
     s34 : float
-        Sine of the mixing angle :math:`\theta_{34}`.
+        Mixing angle :math:`\theta_{34}`, in the convention set by ``angles`` (default: its sine).
     s35 : float
-        Sine of the mixing angle :math:`\theta_{35}`.
+        Mixing angle :math:`\theta_{35}`, in the convention set by ``angles`` (default: its sine).
     d35 : float
-        :math:`\delta_{35}` [radian].
+        :math:`\delta_{35}` [radian, or degree if ``angles='deg'``].
     compute_matrix_multiplication : bool, optional
         If False (default), use the pre-computed closed-form expressions for each entry;
         otherwise, build the matrix by multiplying the nine rotation matrices live. Both paths
         must (and do, see ``tests/test_hamiltonians.py``) agree to machine precision.
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -115,6 +122,17 @@ def mixing_matrix_5x5(s12: float, s23: float, s13:float, d13: float, s14: float,
         print('unitary to %.1e' % np.max(np.abs(U.conj().T @ U - np.eye(5))))
 """
     # arXiv:1105.3911
+
+    _r, _p = _angles.resolve(
+        'hamiltonians.mixing_matrix_5x5', angles,
+        {'s12': s12, 's23': s23, 's13': s13, 's14': s14, 's15': s15,
+         's24': s24, 's25': s25, 's34': s34, 's35': s35},
+        {'d13': d13, 'd14': d14, 'd15': d15, 'd24': d24, 'd35': d35})
+    s12, s23, s13 = _r['s12'], _r['s23'], _r['s13']
+    s14, s15, s24 = _r['s14'], _r['s15'], _r['s24']
+    s25, s34, s35 = _r['s25'], _r['s34'], _r['s35']
+    d13, d14, d15 = _p['d13'], _p['d14'], _p['d15']
+    d24, d35 = _p['d24'], _p['d35']
 
     c12 = np.sqrt(1.0-s12*s12)
     c23 = np.sqrt(1.0-s23*s23)
@@ -265,7 +283,8 @@ def mixing_matrix_5x5(s12: float, s23: float, s13:float, d13: float, s14: float,
 def hamiltonian_5nu_vacuum_energy_independent(s12: float, s23: float, s13:float, d13: float,
     s14: float, d14: float, s15: float, d15: float, s24: float, d24: float, s25: float, s34: float,
     s35: float, d35: float, D21: float, D31: float, D41: float, D51: float,
-    nubar: Optional[bool]=False, compute_matrix_multiplication: Optional[bool]=False) -> np.ndarray:
+    nubar: Optional[bool]=False, compute_matrix_multiplication: Optional[bool]=False,
+    angles: Optional[str]='sin') -> np.ndarray:
     r"""Returns the five-neutrino (3+2) Hamiltonian for vacuum oscillations.
 
     Computes and returns the 5x5 complex five-neutrino Hamiltonian for oscillations in vacuum,
@@ -294,15 +313,31 @@ def hamiltonian_5nu_vacuum_energy_independent(s12: float, s23: float, s13:float,
     compute_matrix_multiplication : bool, optional
         Forwarded to :func:`mixing_matrix_5x5`. If False (default), use the pre-computed
         expressions; otherwise, multiply R.M2.R^dagger live.
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
     np.ndarray
         Hamiltonian 5x5 matrix.
     """
-    _angles.validate_sines('hamiltonian_5nu_vacuum_energy_independent',
-                           s12=s12, s23=s23, s13=s13, s14=s14, s15=s15,
-                           s24=s24, s25=s25, s34=s34, s35=s35)
+    # Converted here rather than left to mixing_matrix_5x5 so the message names THIS
+    # function: eighteen positional arguments interleaving each angle with its CP phase is
+    # exactly the signature the slot-error guard exists for.
+    _r, _p = _angles.resolve(
+        'hamiltonians.hamiltonian_5nu_vacuum_energy_independent', angles,
+        {'s12': s12, 's23': s23, 's13': s13, 's14': s14, 's15': s15,
+         's24': s24, 's25': s25, 's34': s34, 's35': s35},
+        {'d13': d13, 'd14': d14, 'd15': d15, 'd24': d24, 'd35': d35})
+    s12, s23, s13 = _r['s12'], _r['s23'], _r['s13']
+    s14, s15, s24 = _r['s14'], _r['s15'], _r['s24']
+    s25, s34, s35 = _r['s25'], _r['s34'], _r['s35']
+    d13, d14, d15 = _p['d13'], _p['d14'], _p['d15']
+    d24, d35 = _p['d24'], _p['d35']
     # 5x5 mixing matrix
     R = mixing_matrix_5x5(s12, s23, s13, d13, s14, d14, s15, d15, s24, d24, s25, s34, s35, d35,
         compute_matrix_multiplication=compute_matrix_multiplication) if not nubar else \
@@ -318,7 +353,8 @@ def hamiltonian_5nu_vacuum_energy_independent(s12: float, s23: float, s13:float,
 def hamiltonian_5nu_vacuum_energy_independent_td(l: float, s12: float, s23: float, s13:float,
     d13: float, s14: float, d14: float, s15: float, d15: float, s24: float, d24: float, s25: float,
     s34: float, s35: float, d35: float, D21: float, D31: float, D41: float, D51: float,
-    nubar: Optional[bool]=False, compute_matrix_multiplication: Optional[bool]=False) -> np.ndarray:
+    nubar: Optional[bool]=False, compute_matrix_multiplication: Optional[bool]=False,
+    angles: Optional[str]='sin') -> np.ndarray:
     r"""Returns the five-neutrino Hamiltonian for vacuum oscillations, as a function of distance,
     even if it does not depend on it.
 
@@ -345,6 +381,12 @@ def hamiltonian_5nu_vacuum_energy_independent_td(l: float, s12: float, s23: floa
         If True, compute the Hamiltonian for antineutrinos. Default: False.
     compute_matrix_multiplication : bool, optional
         Forwarded to :func:`mixing_matrix_5x5`.
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -353,13 +395,14 @@ def hamiltonian_5nu_vacuum_energy_independent_td(l: float, s12: float, s23: floa
     """
     return hamiltonian_5nu_vacuum_energy_independent(s12, s23, s13, d13, s14, d14, s15, d15, s24,
         d24, s25, s34, s35, d35, D21, D31, D41, D51, nubar=nubar,
-        compute_matrix_multiplication=compute_matrix_multiplication)
+        compute_matrix_multiplication=compute_matrix_multiplication, angles=angles)
 
 
 def hamiltonian_5nu_vacuum(energy: float, s12: float, s23: float, s13:float, d13: float, s14: float,
     d14: float, s15: float, d15: float, s24: float, d24: float, s25: float, s34: float, s35: float,
     d35: float, D21: float, D31: float, D41: float, D51: float, nubar: Optional[bool]=False,
-    compute_matrix_multiplication: Optional[bool]=False) -> np.ndarray:
+    compute_matrix_multiplication: Optional[bool]=False,
+    angles: Optional[str]='sin') -> np.ndarray:
     r"""Returns the five-neutrino Hamiltonian for vacuum oscillations.
 
     Same as :func:`hamiltonian_5nu_vacuum_energy_independent`, but with the 1/E factor applied.
@@ -384,6 +427,12 @@ def hamiltonian_5nu_vacuum(energy: float, s12: float, s23: float, s13:float, d13
         If True, compute the Hamiltonian for antineutrinos. Default: False.
     compute_matrix_multiplication : bool, optional
         Forwarded to :func:`mixing_matrix_5x5`.
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -392,13 +441,14 @@ def hamiltonian_5nu_vacuum(energy: float, s12: float, s23: float, s13:float, d13
     """
     return (1/energy)*hamiltonian_5nu_vacuum_energy_independent(s12, s23, s13, d13, s14, d14, s15,
         d15, s24, d24, s25, s34, s35, d35, D21, D31, D41, D51, nubar=nubar,
-        compute_matrix_multiplication=compute_matrix_multiplication)
+        compute_matrix_multiplication=compute_matrix_multiplication, angles=angles)
 
 
 def hamiltonian_5nu_vacuum_td(l: float, energy: float, s12: float, s23: float, s13:float,
     d13: float, s14: float, d14: float, s15: float, d15: float, s24: float, d24: float, s25: float,
     s34: float, s35: float, d35: float, D21: float, D31: float, D41: float, D51: float,
-    nubar: Optional[bool]=False, compute_matrix_multiplication: Optional[bool]=False) -> np.ndarray:
+    nubar: Optional[bool]=False, compute_matrix_multiplication: Optional[bool]=False,
+    angles: Optional[str]='sin') -> np.ndarray:
     r"""Returns the five-neutrino Hamiltonian for vacuum oscillations, as a function of distance,
     even if it does not depend on it.
 
@@ -427,6 +477,12 @@ def hamiltonian_5nu_vacuum_td(l: float, energy: float, s12: float, s23: float, s
         If True, compute the Hamiltonian for antineutrinos. Default: False.
     compute_matrix_multiplication : bool, optional
         Forwarded to :func:`mixing_matrix_5x5`.
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -435,7 +491,7 @@ def hamiltonian_5nu_vacuum_td(l: float, energy: float, s12: float, s23: float, s
     """
     return hamiltonian_5nu_vacuum(energy, s12, s23, s13, d13, s14, d14, s15, d15, s24, d24, s25,
         s34, s35, d35, D21, D31, D41, D51, nubar=nubar,
-        compute_matrix_multiplication=compute_matrix_multiplication)
+        compute_matrix_multiplication=compute_matrix_multiplication, angles=angles)
 
 
 def hamiltonian_5nu_matter(VCC: float,
@@ -592,7 +648,8 @@ def hamiltonian_5nu_liv(energy: float, sxi12: float, sxi23: float, sxi13:float, 
     sxi14: float, dxi14: float, sxi15: float, dxi15: float, sxi24: float, dxi24: float,
     sxi25: float, sxi34: float, sxi35: float, dxi35: float, b1: float, b2: float, b3: float,
     b4: float, b5: float, Lambda: float, n_liv: int, nubar: Optional[bool]=False,
-    compute_matrix_multiplication: Optional[bool]=False) -> np.ndarray:
+    compute_matrix_multiplication: Optional[bool]=False,
+    angles: Optional[str]='sin') -> np.ndarray:
     r"""Returns the five-neutrino Hamiltonian for oscillations w/ LIV.
 
     Computes and returns the 5x5 complex five-neutrino Hamiltonian for oscillations in a CPT-odd
@@ -630,6 +687,12 @@ def hamiltonian_5nu_liv(energy: float, sxi12: float, sxi23: float, sxi13:float, 
         Default: False.
     compute_matrix_multiplication : bool, optional
         Forwarded to :func:`mixing_matrix_5x5`.
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -639,14 +702,16 @@ def hamiltonian_5nu_liv(energy: float, sxi12: float, sxi23: float, sxi13:float, 
 
     return pow(energy, n_liv) * hamiltonian_5nu_liv_energy_independent(sxi12, sxi23, sxi13, dxi13,
         sxi14, dxi14, sxi15, dxi15, sxi24, dxi24, sxi25, sxi34, sxi35, dxi35, b1, b2, b3, b4, b5,
-        Lambda, n_liv, nubar=nubar, compute_matrix_multiplication=compute_matrix_multiplication)
+        Lambda, n_liv, nubar=nubar,
+        compute_matrix_multiplication=compute_matrix_multiplication, angles=angles)
 
 
 def hamiltonian_5nu_liv_energy_independent(sxi12: float, sxi23: float, sxi13:float, dxi13: float,
     sxi14: float, dxi14: float, sxi15: float, dxi15: float, sxi24: float, dxi24: float,
     sxi25: float, sxi34: float, sxi35: float, dxi35: float, b1: float, b2: float, b3: float,
     b4: float, b5: float, Lambda: float, n_liv: int, nubar: Optional[bool]=False,
-    compute_matrix_multiplication: Optional[bool]=False) -> np.ndarray:
+    compute_matrix_multiplication: Optional[bool]=False,
+    angles: Optional[str]='sin') -> np.ndarray:
     r"""Returns the five-neutrino Hamiltonian for oscillations w/ LIV.
 
     Computes and returns the 5x5 complex five-neutrino Hamiltonian for oscillations in a CPT-odd
@@ -681,12 +746,30 @@ def hamiltonian_5nu_liv_energy_independent(sxi12: float, sxi23: float, sxi13:flo
         Default: False.
     compute_matrix_multiplication : bool, optional
         Forwarded to :func:`mixing_matrix_5x5`.
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
     np.ndarray
         Hamiltonian 5x5 matrix.
     """
+    # The LIV angles went through no guard at all before this.
+    _r, _p = _angles.resolve(
+        'hamiltonians.hamiltonian_5nu_liv_energy_independent', angles,
+        {'sxi12': sxi12, 'sxi23': sxi23, 'sxi13': sxi13, 'sxi14': sxi14, 'sxi15': sxi15,
+         'sxi24': sxi24, 'sxi25': sxi25, 'sxi34': sxi34, 'sxi35': sxi35},
+        {'dxi13': dxi13, 'dxi14': dxi14, 'dxi15': dxi15, 'dxi24': dxi24, 'dxi35': dxi35})
+    sxi12, sxi23, sxi13 = _r['sxi12'], _r['sxi23'], _r['sxi13']
+    sxi14, sxi15, sxi24 = _r['sxi14'], _r['sxi15'], _r['sxi24']
+    sxi25, sxi34, sxi35 = _r['sxi25'], _r['sxi34'], _r['sxi35']
+    dxi13, dxi14, dxi15 = _p['dxi13'], _p['dxi14'], _p['dxi15']
+    dxi24, dxi35 = _p['dxi24'], _p['dxi35']
+
     # 5x5 mixing matrix
 
     if not nubar:

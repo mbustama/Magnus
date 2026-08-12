@@ -49,7 +49,58 @@ and the project uses [Semantic Versioning](https://semver.org/).
   names the page defines fifteen lines later, others passed `...` as a
   Hamiltonian body.  Both are now executed by the suite.
 
+- **`SEV_TOL`'s documented accuracy guarantee was not the measured one.**  The
+  docstring claimed 2e-13 absolute across everything the gate admits; re-measured
+  on two spectrum families with 40 random bases per rung, the admitted range
+  reaches **2.0e-12**, and even the `m <= 1.1e3` corner the claim was calibrated
+  on exceeds 2e-13 in about 1% of bases.  No value of the constant could have
+  rescued it, because the test that pins the window requires the gate to sit
+  above the very cell where the claim already fails, so the number was corrected
+  instead: **5e-12** across the admitted range and **5e-13** in that corner, each
+  about twice the worst measured.  The gate itself is unchanged at 1e4 and no
+  result moves.
+
+  Two earlier calibrations of this constant appeared to contradict each other --
+  one putting the first unsafe cell at `m = 1.1e5`, the other at `4.4e3`.  They
+  do not: they used different spectrum families under the same "scale 1e2" label,
+  `[-s, -s(1-d), s]` spanning `2s` against `[0, d, S]` spanning `S`, a factor of
+  four in `m`.  Compared at equal `m` they agree.  `m = tr(X^2)/6` is a spectral
+  invariant and is the only fair label; "scale" is not.
+
+- **The command line could not reach half its own parameter sets.**
+  `--osc-params-set` listed its choices by hand and offered only the NuFit 6.0
+  entries, so after the default moved to 6.1 anyone asking for inverted ordering
+  on the command line silently dropped a release behind the default.  The choices
+  now come from `globaldefs.OSC_PARAMS_PREDEFINED` itself.
+
 ### Added
+
+- **An `angles` keyword on every function that takes a mixing angle.**  It selects
+  the convention the angles are stated in: `'sin'` (the default, and the only
+  behaviour before this) their sines, `'sin2'` their sines *squared* -- the form
+  global fits are published in -- `'rad'` the angles in radians, or `'deg'` in
+  degrees.  Under `'deg'` the CP phases are read as degrees too; under the other
+  three they stay in radians, a sine being no way to state a phase.  Ninety-five
+  functions take it, across `hamiltonians`, `oscprob`, `oscprobstd`, the
+  `magnus prob` command line and `globaldefs.load_nufit_params`, and the four
+  routes agree to 2.2e-13 end to end.  The default is a pass-through, so nothing
+  that does not ask for it changes.
+
+  It exists so a published parameter set can be typed in as published:
+  `s12=0.308, ..., angles='sin2'`, or `s12=33.76, ..., dCP=212.0, angles='deg'`,
+  rather than square-rooted and degree-converted by hand at the call site.  It
+  also matches the keyword NuOscProbExact uses, so the two codes can be driven
+  from one parameter set when they are compared.
+
+  Four guards come with it, because a mis-stated convention is otherwise silent:
+  an unrecognised value, a sine outside `[-1, 1]`, a negative `'sin2'`, and an
+  angle above `2*pi` under `'rad'` all raise; a whole parameter set under one
+  degree with `'deg'` raises `globaldefs.MixingAngleConventionWarning`, since
+  `theta_13` at about 8.5 degrees is the smallest angle anyone measures and
+  values that small are sines.  `'rad'` and `'sin'` are the one pairing no bound
+  can separate -- `theta_12 = 0.589` against `sin theta_12 = 0.556` -- which is
+  why `load_nufit_params` takes the keyword too: convert once, at the source,
+  rather than by hand between the two.
 
 - **`matter.matter_potential_projector` is exported.**  It is the one definition
   of the matter term's structure, and every place that rebuilt that structure by

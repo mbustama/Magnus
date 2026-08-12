@@ -63,6 +63,12 @@ Routine listings
 
     * commutator - Returns [X, Y] = XY - YX
     * probe_eval_mode - Determines how a matrix function can be evaluated
+    * cached_eval_mode - Context manager reusing one probe_eval_mode result
+           for a callable that will be probed more than once
+    * ordered_product - Time-ordered product of a stack of slab operators,
+           earliest slab first
+    * palindromic - Returns whether every array given reads the same both
+           ways, the geometric precondition for the half-chord optimisation
     * suggest_n_slabs - Suggests a starting number of time slabs
     * magnus_expansion - Computes :math:`\exp(\Omega)` for a single time slab
     * evolution_operators_from_samples - Evolution operators of a chain

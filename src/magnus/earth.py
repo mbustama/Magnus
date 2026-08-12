@@ -25,6 +25,11 @@ Routine listings
            the chord between two locations on the surface of the Earth
     * coordinates_of_named_location - Returns the coordinates of a
            predefined location (e.g., a neutrino detector site)
+    * electron_fraction_func_prem - Returns Y_e at one or more radii,
+           resolved per PREM layer (iron core, rock mantle, crust, ocean)
+    * neutron_to_proton_ratio_from_electron_fraction - Returns the
+           neutron-to-proton ratio implied by an electron fraction,
+           r = (1 - Y_e)/Y_e
 """
 
 __author__ = "Mauricio Bustamante"

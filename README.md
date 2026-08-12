@@ -429,7 +429,7 @@ Magnus/
 │   │   ├── globaldefs.py           # Units, physical constants, NuFit parameter sets
 │   │   ├── hamiltonians/           # 2nu-5nu Hamiltonians: vacuum, matter, NSI, LIV (the one true subpackage)
 │   │   │   ├── __init__.py         # Explicit named imports from the four hamiltonians{2,3,4,5}nu.py modules
-│   │   │   ├── _angles.py          # Rejects a sine outside [-1, 1] before it becomes a NaN Hamiltonian
+│   │   │   ├── _angles.py          # Interprets the four angles conventions; rejects an out-of-range sine
 │   │   │   ├── hamiltonians2nu.py
 │   │   │   ├── hamiltonians3nu.py
 │   │   │   ├── hamiltonians4nu.py
@@ -445,6 +445,7 @@ Magnus/
 └── tests/                          # Test suite (pytest; runs in CI)
     ├── conftest.py                 # Path setup so magnus is importable without installation
     ├── test_adiabatic.py           # Adiabatic + Magnus hybrid strategy: detection, merging, ODE cross-checks
+    ├── test_angles.py              # The four `angles` conventions and the guards between them
     ├── test_avgprob.py             # Phase-averaged probabilities
     ├── test_cli.py                 # magnus command-line calculator
     ├── test_documented_examples.py  # Runs the code blocks in README.md and quickstart.rst
@@ -461,6 +462,7 @@ Magnus/
     ├── test_oscprob.py             # Oscillation-probability engine, closed-form and ODE cross-checks
     ├── test_palindrome.py          # The palindromic-profile optimisation and its gate
     ├── test_plotting.py            # Pre-packaged plotting tools: house-style defaults, layouts
+    ├── test_routine_listings.py    # Each module's Routine listings names every public function it defines
     ├── test_tolerance.py           # What rtol/atol promise, and the effective-refinement gate
     ├── test_validation.py          # Input-validation guards and their error messages
     └── test_version.py             # Version resolution from pyproject.toml / installed metadata
@@ -521,6 +523,28 @@ Oscillation parameters default to the NuFit 6.1 best fit (normal ordering);
 pass `s12`, `D31`, `dCP`, ..., or `nubar=True`, to change them.  Find many
 worked examples — vacuum, matter, Earth, Sun, oscillograms, biprobability
 plots, steriles, NSI, LIV — in the [Jupyter notebooks](notebooks/).
+
+Mixing angles are sines by default, which is what `load_nufit_params` returns.
+`angles` takes any of the four conventions a fit might be published in, so a
+parameter set can be typed in as printed rather than converted by hand:
+
+```python
+# sin^2, the form global fits report
+P = oscprob.osc_prob_3nu_vacuum(energy, L, s12=0.308, s23=0.470, s13=2.215e-2,
+                                dCP=3.70, D21=7.49e-5, D31=2.513e-3, angles='sin2')
+
+# or degrees, straight off the NuFit table -- dCP included
+P = oscprob.osc_prob_3nu_vacuum(energy, L, s12=33.76, s23=43.28, s13=8.62,
+                                dCP=212.0, D21=7.49e-5, D31=2.513e-3, angles='deg')
+```
+
+`'sin'` (default), `'sin2'`, `'rad'` and `'deg'`; under `'deg'` the CP phases are
+read as degrees too.  Every function that takes a mixing angle takes it, the
+`magnus prob` command line included, and `load_nufit_params(angles=...)` returns a
+set in the matching convention — **pass the same value to both**, since sines read
+as degrees are about fifty times too small and would otherwise give a converged,
+unitary, wrong answer.  That particular pairing raises a
+`MixingAngleConventionWarning`.
 
 ### As a command-line calculator
 
@@ -1152,7 +1176,7 @@ Tools](https://mbustama.github.io/Magnus/plotting.html).
 
 ## Accuracy and validation
 
-The [test suite](tests/) (running in CI on Python 3.10–3.12) validates:
+The [test suite](tests/) (running in CI on Python 3.10–3.13) validates:
 
 - Magnus terms against an independently coded Bernoulli-number recursion
   (orders 1–6, machine precision) and Gauss–Legendre convergence rates
@@ -1180,7 +1204,9 @@ Four GitHub Actions workflows run under [`.github/workflows/`](.github/workflows
   jobs run only for forks, whose branches never push here. Without that, a
   commit on a branch with an open PR was built twice, identically.) Runs
   `pytest tests/ -v` on a
-  matrix of Python 3.10, 3.11, and 3.12. The suite (see
+  matrix of Python 3.10, 3.11, 3.12 and 3.13. (The PyPI classifiers deliberately
+  stop at 3.12: a classifier is a promise that something tested that version, and
+  3.13 joins the list once its matrix job has been green, not before.) The suite (see
   [`tests/`](tests/)) covers:
   - [`test_magnus_expansion.py`](tests/test_magnus_expansion.py) — the
     Magnus term recursion against an independently coded Bernoulli-number

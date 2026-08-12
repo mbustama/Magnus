@@ -155,41 +155,50 @@ def build_parser() -> argparse.ArgumentParser:
         help='Final location name; see --loc-ini.')
 
     g_osc = p.add_argument_group('Standard oscillation parameters (2-flavor)')
-    g_osc.add_argument('--sth', type=float, default=None, help='Sin(theta) (required for --flavors 2).')
+    g_osc.add_argument('--angles', default='sin', choices=list(gd.ANGLE_CONVENTIONS),
+        help='Convention for every mixing angle below (--sth, --s12.., --sxi..): sin (default) '
+             'their sines, sin2 their sines squared -- the form global fits report -- rad the '
+             'angles in radians, deg in degrees. Under deg the CP phases (--dcp, --d14, ...) '
+             'are read as degrees too; otherwise they stay in radians.')
+    g_osc.add_argument('--sth', type=float, default=None,
+        help='Mixing angle theta, in the convention set by --angles (required for --flavors 2).')
     g_osc.add_argument('--dm2', type=float, default=None, dest='Dm2',
         help='Mass-squared difference Delta m^2 (required for --flavors 2).')
 
     g_osc3 = p.add_argument_group('Standard oscillation parameters (3+ flavors)')
-    g_osc3.add_argument('--s12', type=float, default=None, help='Sin(theta_12). Default: NuFit 6.1.')
-    g_osc3.add_argument('--s23', type=float, default=None, help='Sin(theta_23). Default: NuFit 6.1.')
-    g_osc3.add_argument('--s13', type=float, default=None, help='Sin(theta_13). Default: NuFit 6.1.')
+    g_osc3.add_argument('--s12', type=float, default=None, help='Mixing angle theta_12, per --angles. Default: NuFit 6.1.')
+    g_osc3.add_argument('--s23', type=float, default=None, help='Mixing angle theta_23, per --angles. Default: NuFit 6.1.')
+    g_osc3.add_argument('--s13', type=float, default=None, help='Mixing angle theta_13, per --angles. Default: NuFit 6.1.')
     g_osc3.add_argument('--dcp', type=float, default=None, dest='dCP',
-        help='delta_CP [radian]. Default: NuFit 6.1.')
+        help='delta_CP [radian, or degree with --angles deg]. Default: NuFit 6.1.')
     g_osc3.add_argument('--dm21', type=float, default=None, dest='D21',
         help='Mass-squared difference Delta m^2_21. Default: NuFit 6.1.')
     g_osc3.add_argument('--dm31', type=float, default=None, dest='D31',
         help='Mass-squared difference Delta m^2_31. Default: NuFit 6.1.')
     g_osc3.add_argument('--osc-params-set', default='OSC_PARAMS_DEFAULT',
         dest='default_osc_params_set_name',
-        choices=['OSC_PARAMS_DEFAULT', 'OSC_PARAMS_NU_FIT_6_0_SK_NO', 'OSC_PARAMS_NU_FIT_6_0_SK_IO'],
+        choices=sorted(gd.OSC_PARAMS_PREDEFINED),
         help='Predefined set used to fill in any of s12/s23/s13/dCP/D21/D31 left unspecified: '
-             'normal ordering (..._NO, the default) or inverted ordering (..._IO).')
+             'normal ordering (..._NO) or inverted ordering (..._IO).  OSC_PARAMS_DEFAULT is '
+             'NuFit 6.1 NO.  Taken from globaldefs.OSC_PARAMS_PREDEFINED rather than listed here, '
+             'because a hand-written list went stale: it offered only the 6.0 sets, so asking for '
+             'inverted ordering silently dropped a release behind the default.')
 
     g_osc4 = p.add_argument_group('Additional sterile mixing (4+ flavors)')
-    g_osc4.add_argument('--s14', type=float, default=0.0, help='Sin(theta_14). Default: 0.0.')
-    g_osc4.add_argument('--d14', type=float, default=0.0, help='delta_14 [radian]. Default: 0.0.')
-    g_osc4.add_argument('--s24', type=float, default=0.0, help='Sin(theta_24). Default: 0.0.')
-    g_osc4.add_argument('--d24', type=float, default=0.0, help='delta_24 [radian]. Default: 0.0.')
-    g_osc4.add_argument('--s34', type=float, default=0.0, help='Sin(theta_34). Default: 0.0.')
+    g_osc4.add_argument('--s14', type=float, default=0.0, help='Mixing angle theta_14, per --angles. Default: 0.0.')
+    g_osc4.add_argument('--d14', type=float, default=0.0, help='delta_14 [radian, or degree with --angles deg]. Default: 0.0.')
+    g_osc4.add_argument('--s24', type=float, default=0.0, help='Mixing angle theta_24, per --angles. Default: 0.0.')
+    g_osc4.add_argument('--d24', type=float, default=0.0, help='delta_24 [radian, or degree with --angles deg]. Default: 0.0.')
+    g_osc4.add_argument('--s34', type=float, default=0.0, help='Mixing angle theta_34, per --angles. Default: 0.0.')
     g_osc4.add_argument('--dm41', type=float, default=0.0, dest='D41',
         help='Mass-squared difference Delta m^2_41. Default: 0.0.')
 
     g_osc5 = p.add_argument_group('Additional sterile mixing (5 flavors)')
-    g_osc5.add_argument('--s15', type=float, default=0.0, help='Sin(theta_15). Default: 0.0.')
-    g_osc5.add_argument('--d15', type=float, default=0.0, help='delta_15 [radian]. Default: 0.0.')
-    g_osc5.add_argument('--s25', type=float, default=0.0, help='Sin(theta_25). Default: 0.0.')
-    g_osc5.add_argument('--s35', type=float, default=0.0, help='Sin(theta_35). Default: 0.0.')
-    g_osc5.add_argument('--d35', type=float, default=0.0, help='delta_35 [radian]. Default: 0.0.')
+    g_osc5.add_argument('--s15', type=float, default=0.0, help='Mixing angle theta_15, per --angles. Default: 0.0.')
+    g_osc5.add_argument('--d15', type=float, default=0.0, help='delta_15 [radian, or degree with --angles deg]. Default: 0.0.')
+    g_osc5.add_argument('--s25', type=float, default=0.0, help='Mixing angle theta_25, per --angles. Default: 0.0.')
+    g_osc5.add_argument('--s35', type=float, default=0.0, help='Mixing angle theta_35, per --angles. Default: 0.0.')
+    g_osc5.add_argument('--d35', type=float, default=0.0, help='delta_35 [radian, or degree with --angles deg]. Default: 0.0.')
     g_osc5.add_argument('--dm51', type=float, default=0.0, dest='D51',
         help='Mass-squared difference Delta m^2_51. Default: 0.0.')
 
@@ -217,23 +226,23 @@ def build_parser() -> argparse.ArgumentParser:
     g_nsi.add_argument('--eps-s2s2', type=float, default=0.0, help='(5nu) Diagonal NSI coupling of nu_s2.')
 
     g_liv = p.add_argument_group('LIV parameters (--scenario liv)')
-    g_liv.add_argument('--sxi', type=float, default=0.0, help='2-flavor LIV mixing angle sine.')
-    g_liv.add_argument('--sxi12', type=float, default=0.0, help='LIV mixing angle sine xi_12.')
-    g_liv.add_argument('--sxi23', type=float, default=0.0, help='LIV mixing angle sine xi_23.')
-    g_liv.add_argument('--sxi13', type=float, default=0.0, help='LIV mixing angle sine xi_13.')
+    g_liv.add_argument('--sxi', type=float, default=0.0, help='2-flavor LIV mixing angle xi, per --angles.')
+    g_liv.add_argument('--sxi12', type=float, default=0.0, help='LIV mixing angle xi_12, per --angles.')
+    g_liv.add_argument('--sxi23', type=float, default=0.0, help='LIV mixing angle xi_23, per --angles.')
+    g_liv.add_argument('--sxi13', type=float, default=0.0, help='LIV mixing angle xi_13, per --angles.')
     g_liv.add_argument('--dxicp', type=float, default=0.0, dest='dxiCP',
         help='(3nu) LIV CP-violation phase [radian].')
     g_liv.add_argument('--dxi13', type=float, default=0.0,
         help='(4/5nu) LIV CP-violation phase [radian] (replaces --dxicp).')
-    g_liv.add_argument('--sxi14', type=float, default=0.0, help='(4/5nu) LIV mixing angle sine xi_14.')
+    g_liv.add_argument('--sxi14', type=float, default=0.0, help='(4/5nu) LIV mixing angle xi_14, per --angles.')
     g_liv.add_argument('--dxi14', type=float, default=0.0, help='(4/5nu) LIV CP-violation phase [radian].')
-    g_liv.add_argument('--sxi24', type=float, default=0.0, help='(4/5nu) LIV mixing angle sine xi_24.')
+    g_liv.add_argument('--sxi24', type=float, default=0.0, help='(4/5nu) LIV mixing angle xi_24, per --angles.')
     g_liv.add_argument('--dxi24', type=float, default=0.0, help='(4/5nu) LIV CP-violation phase [radian].')
-    g_liv.add_argument('--sxi34', type=float, default=0.0, help='(4/5nu) LIV mixing angle sine xi_34.')
-    g_liv.add_argument('--sxi15', type=float, default=0.0, help='(5nu) LIV mixing angle sine xi_15.')
+    g_liv.add_argument('--sxi34', type=float, default=0.0, help='(4/5nu) LIV mixing angle xi_34, per --angles.')
+    g_liv.add_argument('--sxi15', type=float, default=0.0, help='(5nu) LIV mixing angle xi_15, per --angles.')
     g_liv.add_argument('--dxi15', type=float, default=0.0, help='(5nu) LIV CP-violation phase [radian].')
-    g_liv.add_argument('--sxi25', type=float, default=0.0, help='(5nu) LIV mixing angle sine xi_25.')
-    g_liv.add_argument('--sxi35', type=float, default=0.0, help='(5nu) LIV mixing angle sine xi_35.')
+    g_liv.add_argument('--sxi25', type=float, default=0.0, help='(5nu) LIV mixing angle xi_25, per --angles.')
+    g_liv.add_argument('--sxi35', type=float, default=0.0, help='(5nu) LIV mixing angle xi_35, per --angles.')
     g_liv.add_argument('--dxi35', type=float, default=0.0, help='(5nu) LIV CP-violation phase [radian].')
     g_liv.add_argument('--b1', type=float, default=0.0, help='LIV eigenvalue b1.')
     g_liv.add_argument('--b2', type=float, default=0.0, help='LIV eigenvalue b2.')
@@ -286,9 +295,10 @@ def build_parser() -> argparse.ArgumentParser:
 
 def _std_osc_kwargs(flavors: int, args: argparse.Namespace) -> dict:
     if flavors == 2:
-        return {'sth': args.sth, 'Dm2': args.Dm2}
+        return {'sth': args.sth, 'Dm2': args.Dm2, 'angles': args.angles}
     kw = {'s12': args.s12, 's23': args.s23, 's13': args.s13, 'dCP': args.dCP,
-          'D21': args.D21, 'D31': args.D31, 'default_osc_params_set_name': args.default_osc_params_set_name}
+          'D21': args.D21, 'D31': args.D31, 'angles': args.angles,
+          'default_osc_params_set_name': args.default_osc_params_set_name}
     if flavors >= 4:
         kw.update({'s14': args.s14, 'd14': args.d14, 's24': args.s24, 'd24': args.d24,
                    's34': args.s34, 'D41': args.D41})

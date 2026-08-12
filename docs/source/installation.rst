@@ -81,7 +81,7 @@ is configured correctly for your system:
    pip install -e '.[test]'
    pytest tests/ -v
 
-It is about 1100 tests and takes some fifteen minutes with ``-n auto``; the same suite runs in CI on
+It is about 1200 tests and takes some fifteen minutes with ``-n auto``; the same suite runs in CI on
 Python 3.10-3.13 on every push, so the badge on the :doc:`index` page tells
 you whether it passes there.
 
@@ -280,7 +280,7 @@ File Tree
    │   │   ├── globaldefs.py           # Units, physical constants, NuFit parameter sets
    │   │   ├── hamiltonians/           # 2nu-5nu Hamiltonians: vacuum, matter, NSI, LIV (the one true subpackage)
    │   │   │   ├── __init__.py         # Explicit named imports from the four hamiltonians{2,3,4,5}nu.py modules
-   │   │   │   ├── _angles.py          # Rejects a sine outside [-1, 1] before it becomes a NaN Hamiltonian
+   │   │   │   ├── _angles.py          # Interprets the four angles conventions; rejects an out-of-range sine
    │   │   │   ├── hamiltonians2nu.py
    │   │   │   ├── hamiltonians3nu.py
    │   │   │   ├── hamiltonians4nu.py
@@ -296,6 +296,7 @@ File Tree
    └── tests/                          # Test suite (pytest; runs in CI)
        ├── conftest.py                 # Path setup so magnus is importable without installation
        ├── test_adiabatic.py           # Adiabatic + Magnus hybrid strategy: detection, merging, ODE cross-checks
+       ├── test_angles.py              # The four `angles` conventions and the guards between them
        ├── test_avgprob.py             # Phase-averaged probabilities
        ├── test_cli.py                 # magnus command-line calculator
        ├── test_documented_examples.py  # Runs the code blocks in README.md and quickstart.rst
@@ -312,6 +313,7 @@ File Tree
        ├── test_oscprob.py             # Oscillation-probability engine, closed-form and ODE cross-checks
        ├── test_palindrome.py          # The palindromic-profile optimisation and its gate
        ├── test_plotting.py            # Pre-packaged plotting tools: house-style defaults, layouts
+       ├── test_routine_listings.py    # Each module's Routine listings names every public function it defines
        ├── test_tolerance.py           # What rtol/atol promise, and the effective-refinement gate
        ├── test_validation.py          # Input-validation guards and their error messages
        └── test_version.py             # Version resolution from pyproject.toml / installed metadata

@@ -63,6 +63,8 @@ Routine listings
     * hybrid_propagator - Adiabatic transport with Magnus patches at
            non-adiabatic windows, self-certified against successive
            refinement of every internal tolerance knob
+    * oscillation_sampling - Reports how coarsely a request samples the
+           oscillation it is computing (cycles per step, Nyquist points)
 """
 
 __author__ = "Mauricio Bustamante"

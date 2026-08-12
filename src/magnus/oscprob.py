@@ -304,6 +304,7 @@ from inspect import signature
 import magnus.magnus as magnus
 import magnus.globaldefs as gd
 import magnus.hamiltonians as hamiltonians
+from magnus.hamiltonians import _angles
 import magnus.matter as matter
 import magnus.earth as earth
 import magnus.adiabatic as adiabatic
@@ -1703,29 +1704,29 @@ def validate_input_battery(
     if validate_initial_position:
 
         if not ((isinstance(L0, int) or (isinstance(L0, float)))):
-            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob_matter_std_potential:"+\
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ":"+\
                 " the initial neutrino position (L0) must be an int or float.")
 
     if validate_density:
 
         if (ratio_number_neutrons_to_protons < 0.0):
-            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob_matter_std_potential:"+\
-                " the ratio of neutrinos to protons (ratio_number_neutrons_to_protons) must" + \
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ":"+\
+                " the ratio of neutrons to protons (ratio_number_neutrons_to_protons) must" + \
                 " be non-negative.")
 
         if (electron_fraction < 0.0):
-            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob_matter_std_potential:"+\
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ":"+\
                 " the ratio of electrons to protons + neutrons (electron_fraction) must be " + \
                 "non-negative.")
 
         if ((callable(rho_func)) and (_n_required_params(rho_func) > 1)):
-            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob_matter_std_potential:"+\
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ":"+\
                 " the provided rho_func is a function of more than one parameter.")
 
         rho_test = rho_func(L0) if callable(rho_func) else rho_func
 
         if (rho_test < 0.0):
-            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob_matter_std_potential:"+\
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ":"+\
                 " rho_func must be non-negative.")
 
         # Checked before the density reaches the unit guards, because it reaches them as a
@@ -1734,11 +1735,11 @@ def validate_input_battery(
         # -- "far too small to be in natural units" -- which is a confident diagnosis of
         # the wrong problem.  A non-finite density is not a units question at all.
         if not np.all(np.isfinite(np.asarray(rho_test, dtype=float))):
-            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob_matter_std_potential:"+\
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ":"+\
                 " rho_func must be finite; it returned " + str(rho_test) + ".")
 
         if not (isinstance(rho_test, int) or isinstance(rho_test, float)):
-            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob_matter_std_potential:"+\
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ":"+\
                 " rho_func must be a float (or int) or must return a float (or int).")
 
 
@@ -2012,7 +2013,8 @@ def values_to_unspecified_osc_params(
     D21: Optional[Union[int, float]]=None, 
     D31: Optional[Union[int, float]]=None, 
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
-    verbose: Optional[int]=0
+    verbose: Optional[int]=0,
+    angles: Optional[str]='sin'
 ) -> Tuple[float, float, float, float, float, float]:
     r"""Return values of unspecified standard oscillation parameters
 
@@ -2027,11 +2029,11 @@ def values_to_unspecified_osc_params(
     Parameters
     ----------
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`; if None, taken from the predefined set.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles``; if None, taken from the predefined set.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`; if None, taken from the predefined set.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles``; if None, taken from the predefined set.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`; if None, taken from the predefined set.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles``; if None, taken from the predefined set.
     dCP : int or float, optional
         :math:`\delta_\text{CP}` [radian]; if None, taken from the predefined set.
     D21 : int or float, optional
@@ -2043,6 +2045,12 @@ def values_to_unspecified_osc_params(
         ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
     verbose : int, optional
         Verbosity level. Default: 0.
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phase is read as degrees too; under the other three
+        it stays in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -2063,6 +2071,21 @@ def values_to_unspecified_osc_params(
         (D21 is None) or (D31 is None)):
 
         default_osc_params = gd.OSC_PARAMS_PREDEFINED[default_osc_params_set_name]
+
+        # The predefined sets are stored as SINES, and the caller may not be working in
+        # sines.  Filling one omitted angle from the stored value while the others arrived
+        # as degrees would hand the builder a parameter set in two conventions at once, and
+        # the builder converts all of them alike -- so 0.1499 would be read as 0.1499
+        # degrees.  Wrong only for the parameters the caller happened to leave out, which is
+        # the hardest kind of wrong to notice.
+        if angles != 'sin':
+            _ang, _ph = _angles.from_sines(
+                angles,
+                {k: default_osc_params[k] for k in ('s12', 's23', 's13')},
+                {'dCP': default_osc_params['dCP']})
+            default_osc_params = dict(default_osc_params)
+            default_osc_params.update(_ang)
+            default_osc_params.update(_ph)
 
         if verbose > 0:
             if verbose >= 2:
@@ -6522,8 +6545,8 @@ def osc_prob_vacuum(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Computes and returns neutrino oscillation probabilities for
     oscillations in vacuum
 
@@ -6624,6 +6647,12 @@ def osc_prob_vacuum(
     
     average : bool, optional
         If True, return the phase-averaged probability rather than the oscillating one.
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -6658,24 +6687,24 @@ def osc_prob_vacuum(
     # modified.
     if num_flavors > 2:
         s12, s23, s13, dCP, D21, D31 = values_to_unspecified_osc_params(s12, s23, s13, dCP, D21, 
-            D31, default_osc_params_set_name, verbose)
+            D31, default_osc_params_set_name, verbose, angles=angles)
 
     # Compute the energy-independent part of the vacuum Hamiltonian, i.e., everything but the 1/E 
     # prefactor, only once, to save time.  Multiply by the 1/E factor later when calling osc_prob.
     # If num_flavors > MAGNUS_MAX_PREDEFINED_NUM_FLAVORS, we use the h_vac_energy_indep that was
     # passed to the function.
     if num_flavors == 2:
-        h_vac_energy_indep = hamiltonians.hamiltonian_2nu_vacuum_energy_independent(sth, Dm2) 
+        h_vac_energy_indep = hamiltonians.hamiltonian_2nu_vacuum_energy_independent(sth, Dm2, angles=angles) 
     elif num_flavors == 3:
         h_vac_energy_indep = hamiltonians.hamiltonian_3nu_vacuum_energy_independent(s12, s23, 
-            s13, dCP, D21, D31, nubar=nubar) 
+            s13, dCP, D21, D31, nubar=nubar, angles=angles) 
     elif num_flavors == 4:
         h_vac_energy_indep = hamiltonians.hamiltonian_4nu_vacuum_energy_independent(s12, s23, 
-            s13, dCP, s14, d14, s24, d24, s34, D21, D31, D41, nubar=nubar) 
+            s13, dCP, s14, d14, s24, d24, s34, D21, D31, D41, nubar=nubar, angles=angles) 
     elif num_flavors == 5:
         h_vac_energy_indep = hamiltonians.hamiltonian_5nu_vacuum_energy_independent(s12, s23,
             s13, dCP, s14, d14, s15, d15, s24, d24, s25, s34, s35, d35, D21, D31, D41, D51,
-            nubar=nubar) 
+            nubar=nubar, angles=angles) 
 
     def htot(enu: Union[int, float]) -> np.ndarray:
         return (1/enu)*h_vac_energy_indep
@@ -6758,8 +6787,8 @@ def osc_prob_matter_std_potential(
     verbose: Optional[int]=0,
     new_recursion_limit: Optional[int]=5000,
     symmetric_over: Optional[tuple]=None,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Computes and returns neutrino oscillation probabilities for
     standard oscillations in matter, i.e., the matter potential is only
     due to the coherent forward scattering of nu_e on electrons.
@@ -6967,6 +6996,12 @@ def osc_prob_matter_std_potential(
         Caller's declaration that ``A(t) == A(lo + hi - t)`` on ``(lo, hi)``, which lets
         the Hamiltonian be evaluated on half the slabs.  A declaration, not a test: it
         is not checked.  See :func:`magnus.magnus.magnus_expansion_multislab`.
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -7007,24 +7042,24 @@ def osc_prob_matter_std_potential(
     # modified.
     if num_flavors > 2:
         s12, s23, s13, dCP, D21, D31 = values_to_unspecified_osc_params(s12, s23, s13, dCP, D21,
-            D31, default_osc_params_set_name, verbose)
+            D31, default_osc_params_set_name, verbose, angles=angles)
 
     # Compute the energy-independent part of the vacuum Hamiltonian, i.e., everything but the 1/E 
     # prefactor, only once, to save time.  Multiply by the 1/E factor later when calling osc_prob.
     # If num_flavors > MAGNUS_MAX_PREDEFINED_NUM_FLAVORS, we use the h_vac_energy_indep that was
     # passed to the function.
     if num_flavors == 2:
-        h_vac_energy_indep = hamiltonians.hamiltonian_2nu_vacuum_energy_independent(sth, Dm2) 
+        h_vac_energy_indep = hamiltonians.hamiltonian_2nu_vacuum_energy_independent(sth, Dm2, angles=angles) 
     elif num_flavors == 3:
         h_vac_energy_indep = hamiltonians.hamiltonian_3nu_vacuum_energy_independent(s12, s23, 
-            s13, dCP, D21, D31, nubar=nubar) 
+            s13, dCP, D21, D31, nubar=nubar, angles=angles) 
     elif num_flavors == 4:
         h_vac_energy_indep = hamiltonians.hamiltonian_4nu_vacuum_energy_independent(s12, s23, 
-            s13, dCP, s14, d14, s24, d24, s34, D21, D31, D41, nubar=nubar) 
+            s13, dCP, s14, d14, s24, d24, s34, D21, D31, D41, nubar=nubar, angles=angles) 
     elif num_flavors == 5:
         h_vac_energy_indep = hamiltonians.hamiltonian_5nu_vacuum_energy_independent(s12, s23,
             s13, dCP, s14, d14, s15, d15, s24, d24, s25, s34, s35, d35, D21, D31, D41, D51,
-            nubar=nubar)
+            nubar=nubar, angles=angles)
 
     # Build the coherent forward potential function, VCC_func, from the density function, rho_func.
     # If the provided rho_func is the matter density (e.g., g cm^{-3}), convert rho_func to a 
@@ -7222,8 +7257,8 @@ def osc_prob_matter_nsi(
     verbose: Optional[int]=0,
     new_recursion_limit: Optional[int]=5000,
     symmetric_over: Optional[tuple]=None,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Computes and returns neutrino oscillation probabilities for
     oscillations in matter with non-standard interactions (NSI), i.e., the matter potential
     includes both the standard coherent-forward-scattering term and the NSI epsilon couplings.
@@ -7385,6 +7420,12 @@ def osc_prob_matter_nsi(
         Caller's declaration that ``A(t) == A(lo + hi - t)`` on ``(lo, hi)``, which lets
         the Hamiltonian be evaluated on half the slabs.  A declaration, not a test: it
         is not checked.  See :func:`magnus.magnus.magnus_expansion_multislab`.
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -7433,24 +7474,24 @@ def osc_prob_matter_nsi(
     # modified.
     if num_flavors > 2:
         s12, s23, s13, dCP, D21, D31 = values_to_unspecified_osc_params(s12, s23, s13, dCP, D21, 
-            D31, default_osc_params_set_name, verbose)
+            D31, default_osc_params_set_name, verbose, angles=angles)
 
     # Compute the energy-independent part of the vacuum Hamiltonian, i.e., everything but the 1/E 
     # prefactor, only once, to save time.  Multiply by the 1/E factor later when calling osc_prob.
     # If num_flavors > MAGNUS_MAX_PREDEFINED_NUM_FLAVORS, we use the h_vac_energy_indep that was
     # passed to the function.
     if num_flavors == 2:
-        h_vac_energy_indep = hamiltonians.hamiltonian_2nu_vacuum_energy_independent(sth, Dm2) 
+        h_vac_energy_indep = hamiltonians.hamiltonian_2nu_vacuum_energy_independent(sth, Dm2, angles=angles) 
     elif num_flavors == 3:
         h_vac_energy_indep = hamiltonians.hamiltonian_3nu_vacuum_energy_independent(s12, s23, 
-            s13, dCP, D21, D31, nubar=nubar) 
+            s13, dCP, D21, D31, nubar=nubar, angles=angles) 
     elif num_flavors == 4:
         h_vac_energy_indep = hamiltonians.hamiltonian_4nu_vacuum_energy_independent(s12, s23, 
-            s13, dCP, s14, d14, s24, d24, s34, D21, D31, D41, nubar=nubar) 
+            s13, dCP, s14, d14, s24, d24, s34, D21, D31, D41, nubar=nubar, angles=angles) 
     elif num_flavors == 5:
         h_vac_energy_indep = hamiltonians.hamiltonian_5nu_vacuum_energy_independent(s12, s23,
             s13, dCP, s14, d14, s15, d15, s24, d24, s25, s34, s35, d35, D21, D31, D41, D51,
-            nubar=nubar)
+            nubar=nubar, angles=angles)
 
     # Compute the standard + NSI matter Hamiltonian *without* the multiplicative prefactor of VCC.
     # To do this we call the functions hamiltonians_Xnu_nsi(VCC, ...) with VCC = 1.0.  We add the
@@ -7658,8 +7699,8 @@ def osc_prob_liv(
     verbose: Optional[int]=0,
     new_recursion_limit: Optional[int]=5000,
     symmetric_over: Optional[tuple]=None,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Computes and returns neutrino oscillation probabilities for
     oscillations under (one form of) Lorentz-invariance violation, in
     vacuum or in matter.
@@ -7822,6 +7863,12 @@ def osc_prob_liv(
         Caller's declaration that ``A(t) == A(lo + hi - t)`` on ``(lo, hi)``, which lets
         the Hamiltonian be evaluated on half the slabs.  A declaration, not a test: it
         is not checked.  See :func:`magnus.magnus.magnus_expansion_multislab`.
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -7870,24 +7917,24 @@ def osc_prob_liv(
     # modified.
     if num_flavors > 2:
         s12, s23, s13, dCP, D21, D31 = values_to_unspecified_osc_params(s12, s23, s13, dCP, D21, 
-            D31, default_osc_params_set_name, verbose)
+            D31, default_osc_params_set_name, verbose, angles=angles)
 
     # Compute the energy-independent part of the vacuum Hamiltonian, i.e., everything but the 1/E 
     # prefactor, only once, to save time.  Multiply by the 1/E factor later when calling osc_prob.
     # If num_flavors > MAGNUS_MAX_PREDEFINED_NUM_FLAVORS, we use the h_vac_energy_indep that was
     # passed to the function.
     if num_flavors == 2:
-        h_vac_energy_indep = hamiltonians.hamiltonian_2nu_vacuum_energy_independent(sth, Dm2) 
+        h_vac_energy_indep = hamiltonians.hamiltonian_2nu_vacuum_energy_independent(sth, Dm2, angles=angles) 
     elif num_flavors == 3:
         h_vac_energy_indep = hamiltonians.hamiltonian_3nu_vacuum_energy_independent(s12, s23, 
-            s13, dCP, D21, D31, nubar=nubar) 
+            s13, dCP, D21, D31, nubar=nubar, angles=angles) 
     elif num_flavors == 4:
         h_vac_energy_indep = hamiltonians.hamiltonian_4nu_vacuum_energy_independent(s12, s23, 
-            s13, dCP, s14, d14, s24, d24, s34, D21, D31, D41, nubar=nubar) 
+            s13, dCP, s14, d14, s24, d24, s34, D21, D31, D41, nubar=nubar, angles=angles) 
     elif num_flavors == 5:
         h_vac_energy_indep = hamiltonians.hamiltonian_5nu_vacuum_energy_independent(s12, s23,
             s13, dCP, s14, d14, s15, d15, s24, d24, s25, s34, s35, d35, D21, D31, D41, D51,
-            nubar=nubar)
+            nubar=nubar, angles=angles)
     
     # Compute the energy-independent part of the LIV Hamiltonian, i.e., everything but the 1/E 
     # prefactor, only once, to save time.  Multiply by the 1/E factor later when calling osc_prob.
@@ -7895,18 +7942,18 @@ def osc_prob_liv(
     # passed to the function.
     if num_flavors == 2:
         h_liv_energy_indep = hamiltonians.hamiltonian_2nu_liv_energy_independent(sxi, b1, b2, 
-            Lambda, n_liv)
+            Lambda, n_liv, angles=angles)
     elif num_flavors == 3:
         h_liv_energy_indep = hamiltonians.hamiltonian_3nu_liv_energy_independent(sxi12, sxi23,
-            sxi13, dxiCP, b1, b2, b3, Lambda, n_liv, nubar=nubar)
+            sxi13, dxiCP, b1, b2, b3, Lambda, n_liv, nubar=nubar, angles=angles)
     elif num_flavors == 4:
         h_liv_energy_indep = hamiltonians.hamiltonian_4nu_liv_energy_independent(sxi12, sxi23,
             sxi13, dxi13, sxi14, dxi14, sxi24, dxi24, sxi34, b1, b2, b3, b4, Lambda, n_liv,
-            nubar=nubar)
+            nubar=nubar, angles=angles)
     elif num_flavors == 5:
         h_liv_energy_indep = hamiltonians.hamiltonian_5nu_liv_energy_independent(sxi12, sxi23,
             sxi13, dxi13, sxi14, dxi14, sxi15, dxi15, sxi24, dxi24, sxi25, sxi34, sxi35, dxi35, b1,
-            b2, b3, b4, b5, Lambda, n_liv, nubar=nubar)
+            b2, b3, b4, b5, Lambda, n_liv, nubar=nubar, angles=angles)
    
     if (rho_func != 0.0): # Matter density is nonzero, include the matter term in the Hamiltonian
 
@@ -8078,8 +8125,8 @@ def osc_prob_2nu_vacuum(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the two-neutrino oscillation probability in
     vacuum.
 
@@ -8143,7 +8190,7 @@ def osc_prob_2nu_vacuum(
     L : int, float, list, or np.ndarray
         Neutrino baseline, single value or array.
     sth : int or float
-        Sine of the mixing angle :math:`\theta`.
+        Mixing angle :math:`\theta`, in the convention set by ``angles`` (default: its sine).
     Dm2 : int or float
         Mass-squared difference :math:`\Delta m^2`.
     nu_i : int, optional
@@ -8168,6 +8215,11 @@ def osc_prob_2nu_vacuum(
         Open file handle to write the log to, if one is already open.
     close_file_log_upon_exit : bool, optional
         If True, close ``file_log`` before returning.
+    angles : str, optional
+        How the mixing angle is stated: ``'sin'`` (default) its sine,
+        ``'sin2'`` its sine *squared* -- which is what global fits report --
+        ``'rad'`` the angle itself in radians, or ``'deg'`` in degrees.  Any other
+        value raises.
 
     Returns
     -------
@@ -8216,6 +8268,7 @@ def osc_prob_2nu_vacuum(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -8239,8 +8292,8 @@ def osc_prob_3nu_vacuum(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the three-neutrino oscillation probability in
     vacuum.
 
@@ -8302,11 +8355,11 @@ def osc_prob_3nu_vacuum(
     L : int, float, list, or np.ndarray
         Neutrino baseline, single value or array.
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine).
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine).
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine).
     dCP : int or float, optional
         CP-violation phase, :math:`\delta_\text{CP}`.
     D21 : int or float, optional
@@ -8340,6 +8393,12 @@ def osc_prob_3nu_vacuum(
         Open file handle to write the log to, if one is already open.
     close_file_log_upon_exit : bool, optional
         If True, close ``file_log`` before returning.
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phase is read as degrees too; under the other three
+        it stays in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -8425,6 +8484,7 @@ def osc_prob_3nu_vacuum(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )
 
@@ -8454,8 +8514,8 @@ def osc_prob_4nu_vacuum(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the four-neutrino (3+1) oscillation 
     probability in vacuum.
 
@@ -8520,11 +8580,11 @@ def osc_prob_4nu_vacuum(
     L : int, float, list, or np.ndarray
         Neutrino baseline, single value or array.
     s14 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{14}`.
+        Mixing angle :math:`\theta_{14}`, in the convention set by ``angles`` (default: its sine).
     s24 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{24}`.
+        Mixing angle :math:`\theta_{24}`, in the convention set by ``angles`` (default: its sine).
     s34 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{34}`.
+        Mixing angle :math:`\theta_{34}`, in the convention set by ``angles`` (default: its sine).
     d14 : int or float, optional
         CP-violation phase, :math:`\delta_{14}`.
     d24 : int or float, optional
@@ -8532,11 +8592,11 @@ def osc_prob_4nu_vacuum(
     D41 : int or float, optional
         Mass-squared difference :math:`\Delta m_{41}^2`.
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine).
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine).
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine).
     dCP : int or float, optional
         CP-violation phase, :math:`\delta_\text{CP}`.
     D21 : int or float, optional
@@ -8570,6 +8630,12 @@ def osc_prob_4nu_vacuum(
         Open file handle to write the log to, if one is already open.
     close_file_log_upon_exit : bool, optional
         If True, close ``file_log`` before returning.
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -8654,6 +8720,7 @@ def osc_prob_4nu_vacuum(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )
 
@@ -8689,8 +8756,8 @@ def osc_prob_5nu_vacuum(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the five-neutrino (3+2) oscillation 
     probability in vacuum.
 
@@ -8757,17 +8824,17 @@ def osc_prob_5nu_vacuum(
     L : int, float, list, or np.ndarray
         Neutrino baseline, single value or array.
     s14 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{14}`.
+        Mixing angle :math:`\theta_{14}`, in the convention set by ``angles`` (default: its sine).
     s15 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{15}`.
+        Mixing angle :math:`\theta_{15}`, in the convention set by ``angles`` (default: its sine).
     s24 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{24}`.
+        Mixing angle :math:`\theta_{24}`, in the convention set by ``angles`` (default: its sine).
     s25 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{25}`.
+        Mixing angle :math:`\theta_{25}`, in the convention set by ``angles`` (default: its sine).
     s34 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{34}`.
+        Mixing angle :math:`\theta_{34}`, in the convention set by ``angles`` (default: its sine).
     s35 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{35}`.
+        Mixing angle :math:`\theta_{35}`, in the convention set by ``angles`` (default: its sine).
     d14 : int or float, optional
         CP-violation phase, :math:`\delta_{14}`.
     d15 : int or float, optional
@@ -8781,11 +8848,11 @@ def osc_prob_5nu_vacuum(
     D51 : int or float, optional
         Mass-squared difference :math:`\Delta m_{51}^2`.
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine).
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine).
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine).
     dCP : int or float, optional
         CP-violation phase, :math:`\delta_\text{CP}`.
     D21 : int or float, optional
@@ -8821,6 +8888,12 @@ def osc_prob_5nu_vacuum(
         Open file handle to write the log to, if one is already open.
     close_file_log_upon_exit : bool, optional
         If True, close ``file_log`` before returning.
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -8909,6 +8982,7 @@ def osc_prob_5nu_vacuum(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )
 
@@ -8936,8 +9010,8 @@ def osc_prob_2nu_matter_constant_density(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the two-neutrino oscillation probability in
     matter with a constant density profile.
 
@@ -8952,7 +9026,7 @@ def osc_prob_2nu_matter_constant_density(
     rho : int or float
         Matter density (or electron number density, if ``density_is_of_number_of_electrons`` is True).
     sth : int or float
-        Sine of the mixing angle :math:`\theta`, the single mixing angle of the two-flavor system.
+        Mixing angle :math:`\theta` of the two-flavor system, in the convention set by ``angles`` (default: its sine).
     Dm2 : int or float
         Mass-squared difference :math:`\Delta m^2` of the two-flavor system.
     ratio_number_neutrons_to_protons : int or float, optional
@@ -8983,6 +9057,11 @@ def osc_prob_2nu_matter_constant_density(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    angles : str, optional
+        How the mixing angle is stated: ``'sin'`` (default) its sine,
+        ``'sin2'`` its sine *squared* -- which is what global fits report --
+        ``'rad'`` the angle itself in radians, or ``'deg'`` in degrees.  Any other
+        value raises.
 
     Returns
     -------
@@ -9008,6 +9087,7 @@ def osc_prob_2nu_matter_constant_density(
         validate_input=validate_input,
         new_recursion_limit=None,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -9036,8 +9116,8 @@ def osc_prob_3nu_matter_constant_density(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the three-neutrino oscillation probability in
     matter with a constant density profile.
 
@@ -9052,13 +9132,13 @@ def osc_prob_3nu_matter_constant_density(
     rho : int or float
         Matter density (or electron number density, if ``density_is_of_number_of_electrons`` is True).
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
@@ -9093,6 +9173,12 @@ def osc_prob_3nu_matter_constant_density(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phase is read as degrees too; under the other three
+        it stays in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -9119,6 +9205,7 @@ def osc_prob_3nu_matter_constant_density(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -9153,8 +9240,8 @@ def osc_prob_4nu_matter_constant_density(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the four-neutrino oscillation probability in
     matter with a constant density profile.
 
@@ -9169,25 +9256,25 @@ def osc_prob_4nu_matter_constant_density(
     rho : int or float
         Matter density (or electron number density, if ``density_is_of_number_of_electrons`` is True).
     s14 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{14}`. Default: 0.0.
+        Mixing angle :math:`\theta_{14}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s24 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{24}`. Default: 0.0.
+        Mixing angle :math:`\theta_{24}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s34 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{34}`. Default: 0.0.
+        Mixing angle :math:`\theta_{34}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     d14 : int or float, optional
-        :math:`\delta_{14}` [radian]. Default: 0.0.
+        :math:`\delta_{14}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d24 : int or float, optional
-        :math:`\delta_{24}` [radian]. Default: 0.0.
+        :math:`\delta_{24}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     D41 : int or float, optional
         Mass-squared difference :math:`\Delta m_{41}^2`. Default: 0.0.
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
@@ -9222,6 +9309,12 @@ def osc_prob_4nu_matter_constant_density(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -9249,6 +9342,7 @@ def osc_prob_4nu_matter_constant_density(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -9289,8 +9383,8 @@ def osc_prob_5nu_matter_constant_density(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the five-neutrino oscillation probability in
     matter with a constant density profile.
 
@@ -9305,37 +9399,37 @@ def osc_prob_5nu_matter_constant_density(
     rho : int or float
         Matter density (or electron number density, if ``density_is_of_number_of_electrons`` is True).
     s14 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{14}`. Default: 0.0.
+        Mixing angle :math:`\theta_{14}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s15 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{15}`. Default: 0.0.
+        Mixing angle :math:`\theta_{15}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s24 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{24}`. Default: 0.0.
+        Mixing angle :math:`\theta_{24}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s25 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{25}`. Default: 0.0.
+        Mixing angle :math:`\theta_{25}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s34 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{34}`. Default: 0.0.
+        Mixing angle :math:`\theta_{34}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s35 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{35}`. Default: 0.0.
+        Mixing angle :math:`\theta_{35}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     d14 : int or float, optional
-        :math:`\delta_{14}` [radian]. Default: 0.0.
+        :math:`\delta_{14}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d15 : int or float, optional
-        :math:`\delta_{15}` [radian]. Default: 0.0.
+        :math:`\delta_{15}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d24 : int or float, optional
-        :math:`\delta_{24}` [radian]. Default: 0.0.
+        :math:`\delta_{24}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d35 : int or float, optional
-        :math:`\delta_{35}` [radian]. Default: 0.0.
+        :math:`\delta_{35}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     D41 : int or float, optional
         Mass-squared difference :math:`\Delta m_{41}^2`. Default: 0.0.
     D51 : int or float, optional
         Mass-squared difference :math:`\Delta m_{51}^2`. Default: 0.0.
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
@@ -9370,6 +9464,12 @@ def osc_prob_5nu_matter_constant_density(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -9398,6 +9498,7 @@ def osc_prob_5nu_matter_constant_density(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -9427,8 +9528,8 @@ def osc_prob_2nu_matter_exp_density(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the two-neutrino oscillation 
     probability in matter with an exponentially falling density profile.
 
@@ -9456,7 +9557,7 @@ def osc_prob_2nu_matter_exp_density(
     l_scale : int or float
         Length scale of the exponential density decrease.
     sth : int or float
-        Sine of the mixing angle :math:`\theta`, the single mixing angle of the two-flavor system.
+        Mixing angle :math:`\theta` of the two-flavor system, in the convention set by ``angles`` (default: its sine).
     Dm2 : int or float
         Mass-squared difference :math:`\Delta m^2` of the two-flavor system.
     ratio_number_neutrons_to_protons : int or float, optional
@@ -9487,6 +9588,11 @@ def osc_prob_2nu_matter_exp_density(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    angles : str, optional
+        How the mixing angle is stated: ``'sin'`` (default) its sine,
+        ``'sin2'`` its sine *squared* -- which is what global fits report --
+        ``'rad'`` the angle itself in radians, or ``'deg'`` in degrees.  Any other
+        value raises.
 
     Returns
     -------
@@ -9522,6 +9628,7 @@ def osc_prob_2nu_matter_exp_density(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -9552,8 +9659,8 @@ def osc_prob_3nu_matter_exp_density(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the three-neutrino oscillation 
     probability in matter with an exponentially falling density profile.
 
@@ -9572,13 +9679,13 @@ def osc_prob_3nu_matter_exp_density(
     l_scale : int or float
         Length scale of the exponential density decrease.
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
@@ -9613,6 +9720,12 @@ def osc_prob_3nu_matter_exp_density(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phase is read as degrees too; under the other three
+        it stays in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -9646,6 +9759,7 @@ def osc_prob_3nu_matter_exp_density(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -9682,8 +9796,8 @@ def osc_prob_4nu_matter_exp_density(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the four-neutrino (3+1) oscillation 
     probability in matter with an exponentially falling density profile.
 
@@ -9702,27 +9816,27 @@ def osc_prob_4nu_matter_exp_density(
     l_scale : int or float
         Length scale of the exponential density decrease.
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
         Mass-squared difference :math:`\Delta m_{31}^2`. Default: None.
     s14 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{14}`. Default: 0.0.
+        Mixing angle :math:`\theta_{14}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s24 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{24}`. Default: 0.0.
+        Mixing angle :math:`\theta_{24}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s34 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{34}`. Default: 0.0.
+        Mixing angle :math:`\theta_{34}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     d14 : int or float, optional
-        :math:`\delta_{14}` [radian]. Default: 0.0.
+        :math:`\delta_{14}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d24 : int or float, optional
-        :math:`\delta_{24}` [radian]. Default: 0.0.
+        :math:`\delta_{24}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     D41 : int or float, optional
         Mass-squared difference :math:`\Delta m_{41}^2`. Default: 0.0.
     ratio_number_neutrons_to_protons : int or float, optional
@@ -9755,6 +9869,12 @@ def osc_prob_4nu_matter_exp_density(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -9789,6 +9909,7 @@ def osc_prob_4nu_matter_exp_density(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -9831,8 +9952,8 @@ def osc_prob_5nu_matter_exp_density(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the five-neutrino (3+2) oscillation 
     probability in matter with an exponentially falling density profile.
 
@@ -9851,37 +9972,37 @@ def osc_prob_5nu_matter_exp_density(
     l_scale : int or float
         Length scale of the exponential density decrease.
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
         Mass-squared difference :math:`\Delta m_{31}^2`. Default: None.
     s14 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{14}`. Default: 0.0.
+        Mixing angle :math:`\theta_{14}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s15 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{15}`. Default: 0.0.
+        Mixing angle :math:`\theta_{15}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s24 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{24}`. Default: 0.0.
+        Mixing angle :math:`\theta_{24}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s25 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{25}`. Default: 0.0.
+        Mixing angle :math:`\theta_{25}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s34 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{34}`. Default: 0.0.
+        Mixing angle :math:`\theta_{34}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s35 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{35}`. Default: 0.0.
+        Mixing angle :math:`\theta_{35}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     d14 : int or float, optional
-        :math:`\delta_{14}` [radian]. Default: 0.0.
+        :math:`\delta_{14}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d15 : int or float, optional
-        :math:`\delta_{15}` [radian]. Default: 0.0.
+        :math:`\delta_{15}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d24 : int or float, optional
-        :math:`\delta_{24}` [radian]. Default: 0.0.
+        :math:`\delta_{24}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d35 : int or float, optional
-        :math:`\delta_{35}` [radian]. Default: 0.0.
+        :math:`\delta_{35}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     D41 : int or float, optional
         Mass-squared difference :math:`\Delta m_{41}^2`. Default: 0.0.
     D51 : int or float, optional
@@ -9916,6 +10037,12 @@ def osc_prob_5nu_matter_exp_density(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -9951,6 +10078,7 @@ def osc_prob_5nu_matter_exp_density(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -9982,8 +10110,8 @@ def osc_prob_2nu_earth(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the two-neutrino oscillation probability 
     inside the Earth, either between two locations on the surface of the
     Earth, or between the surface and a point in the interior.
@@ -10059,7 +10187,7 @@ def osc_prob_2nu_earth(
     energy : int, float, list, or np.ndarray
         Neutrino energy/energies.
     sth : int or float
-        Sine of the mixing angle :math:`\theta`, the single mixing angle of the two-flavor system.
+        Mixing angle :math:`\theta` of the two-flavor system, in the convention set by ``angles`` (default: its sine).
     Dm2 : int or float
         Mass-squared difference :math:`\Delta m^2` of the two-flavor system.
     costhz : int or float, optional
@@ -10119,6 +10247,11 @@ def osc_prob_2nu_earth(
         hydrogen has :math:`Z/A = 1`).  PREM's ocean is a global average that a
         land-based baseline does not cross; pass
         :data:`magnus.earth.Y_E_CRUST_PREM` for one.
+    angles : str, optional
+        How the mixing angle is stated: ``'sin'`` (default) its sine,
+        ``'sin2'`` its sine *squared* -- which is what global fits report --
+        ``'rad'`` the angle itself in radians, or ``'deg'`` in degrees.  Any other
+        value raises.
 
     Returns
     -------
@@ -10193,6 +10326,7 @@ def osc_prob_2nu_earth(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -10225,8 +10359,8 @@ def osc_prob_3nu_earth(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the three-neutrino oscillation probability 
     inside the Earth, either between two locations on the surface of the
     Earth, or between the surface and a point in the interior.
@@ -10308,13 +10442,13 @@ def osc_prob_3nu_earth(
     L : float, list, or np.ndarray, optional
         Baseline(s). Default: None.
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
@@ -10370,6 +10504,12 @@ def osc_prob_3nu_earth(
         hydrogen has :math:`Z/A = 1`).  PREM's ocean is a global average that a
         land-based baseline does not cross; pass
         :data:`magnus.earth.Y_E_CRUST_PREM` for one.
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phase is read as degrees too; under the other three
+        it stays in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -10441,6 +10581,7 @@ def osc_prob_3nu_earth(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -10479,8 +10620,8 @@ def osc_prob_4nu_earth(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the four-neutrino oscillation probability 
     inside the Earth, either between two locations on the surface of the
     Earth, or between the surface and a point in the interior.
@@ -10565,27 +10706,27 @@ def osc_prob_4nu_earth(
     L : float, list, or np.ndarray, optional
         Baseline(s). Default: None.
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
         Mass-squared difference :math:`\Delta m_{31}^2`. Default: None.
     s14 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{14}`. Default: 0.0.
+        Mixing angle :math:`\theta_{14}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s24 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{24}`. Default: 0.0.
+        Mixing angle :math:`\theta_{24}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s34 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{34}`. Default: 0.0.
+        Mixing angle :math:`\theta_{34}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     d14 : int or float, optional
-        :math:`\delta_{14}` [radian]. Default: 0.0.
+        :math:`\delta_{14}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d24 : int or float, optional
-        :math:`\delta_{24}` [radian]. Default: 0.0.
+        :math:`\delta_{24}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     D41 : int or float, optional
         Mass-squared difference :math:`\Delta m_{41}^2`. Default: 0.0.
     nubar : bool, optional
@@ -10639,6 +10780,12 @@ def osc_prob_4nu_earth(
         hydrogen has :math:`Z/A = 1`).  PREM's ocean is a global average that a
         land-based baseline does not cross; pass
         :data:`magnus.earth.Y_E_CRUST_PREM` for one.
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -10711,6 +10858,7 @@ def osc_prob_4nu_earth(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -10755,8 +10903,8 @@ def osc_prob_5nu_earth(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the five-neutrino oscillation probability 
     inside the Earth, either between two locations on the surface of the
     Earth, or between the surface and a point in the interior.
@@ -10843,37 +10991,37 @@ def osc_prob_5nu_earth(
     L : float, list, or np.ndarray, optional
         Baseline(s). Default: None.
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
         Mass-squared difference :math:`\Delta m_{31}^2`. Default: None.
     s14 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{14}`. Default: 0.0.
+        Mixing angle :math:`\theta_{14}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s15 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{15}`. Default: 0.0.
+        Mixing angle :math:`\theta_{15}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s24 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{24}`. Default: 0.0.
+        Mixing angle :math:`\theta_{24}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s25 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{25}`. Default: 0.0.
+        Mixing angle :math:`\theta_{25}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s34 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{34}`. Default: 0.0.
+        Mixing angle :math:`\theta_{34}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s35 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{35}`. Default: 0.0.
+        Mixing angle :math:`\theta_{35}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     d14 : int or float, optional
-        :math:`\delta_{14}` [radian]. Default: 0.0.
+        :math:`\delta_{14}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d15 : int or float, optional
-        :math:`\delta_{15}` [radian]. Default: 0.0.
+        :math:`\delta_{15}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d24 : int or float, optional
-        :math:`\delta_{24}` [radian]. Default: 0.0.
+        :math:`\delta_{24}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d35 : int or float, optional
-        :math:`\delta_{35}` [radian]. Default: 0.0.
+        :math:`\delta_{35}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     D41 : int or float, optional
         Mass-squared difference :math:`\Delta m_{41}^2`. Default: 0.0.
     D51 : int or float, optional
@@ -10929,6 +11077,12 @@ def osc_prob_5nu_earth(
         hydrogen has :math:`Z/A = 1`).  PREM's ocean is a global average that a
         land-based baseline does not cross; pass
         :data:`magnus.earth.Y_E_CRUST_PREM` for one.
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -11002,6 +11156,7 @@ def osc_prob_5nu_earth(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -11412,8 +11567,8 @@ def osc_prob_2nu_sun(
     file_log: Optional[TextIOWrapper]=None,
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the two-neutrino oscillation probability
     for neutrinos inside the Sun.
 
@@ -11483,7 +11638,7 @@ def osc_prob_2nu_sun(
     L0 : int or float
         Initial position.
     sth : int or float
-        Sine of the mixing angle :math:`\theta`, the single mixing angle of the two-flavor system.
+        Mixing angle :math:`\theta` of the two-flavor system, in the convention set by ``angles`` (default: its sine).
     Dm2 : int or float
         Mass-squared difference :math:`\Delta m^2` of the two-flavor system.
     nubar : bool, optional
@@ -11513,6 +11668,11 @@ def osc_prob_2nu_sun(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    angles : str, optional
+        How the mixing angle is stated: ``'sin'`` (default) its sine,
+        ``'sin2'`` its sine *squared* -- which is what global fits report --
+        ``'rad'`` the angle itself in radians, or ``'deg'`` in degrees.  Any other
+        value raises.
 
     Returns
     -------
@@ -11541,6 +11701,7 @@ def osc_prob_2nu_sun(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )
 
@@ -11566,8 +11727,8 @@ def osc_prob_3nu_sun(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the three-neutrino oscillation probability 
     for neutrinos inside the Sun.
 
@@ -11619,13 +11780,13 @@ def osc_prob_3nu_sun(
     L0 : int or float
         Initial position.
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
@@ -11659,6 +11820,12 @@ def osc_prob_3nu_sun(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phase is read as degrees too; under the other three
+        it stays in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -11690,6 +11857,7 @@ def osc_prob_3nu_sun(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )
 
@@ -11721,8 +11889,8 @@ def osc_prob_4nu_sun(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the four-neutrino (3+1) oscillation 
     probability for neutrinos inside the Sun.
 
@@ -11776,25 +11944,25 @@ def osc_prob_4nu_sun(
     L0 : int or float
         Initial position.
     s14 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{14}`. Default: 0.0.
+        Mixing angle :math:`\theta_{14}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s24 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{24}`. Default: 0.0.
+        Mixing angle :math:`\theta_{24}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s34 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{34}`. Default: 0.0.
+        Mixing angle :math:`\theta_{34}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     d14 : int or float, optional
-        :math:`\delta_{14}` [radian]. Default: 0.0.
+        :math:`\delta_{14}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d24 : int or float, optional
-        :math:`\delta_{24}` [radian]. Default: 0.0.
+        :math:`\delta_{24}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     D41 : int or float, optional
         Mass-squared difference :math:`\Delta m_{41}^2`. Default: 0.0.
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
@@ -11828,6 +11996,12 @@ def osc_prob_4nu_sun(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -11865,6 +12039,7 @@ def osc_prob_4nu_sun(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )
 
@@ -11902,8 +12077,8 @@ def osc_prob_5nu_sun(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the five-neutrino (3+2) oscillation 
     probability for neutrinos inside the Sun.
 
@@ -11960,37 +12135,37 @@ def osc_prob_5nu_sun(
     L0 : int or float
         Initial position.
     s14 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{14}`. Default: 0.0.
+        Mixing angle :math:`\theta_{14}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s15 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{15}`. Default: 0.0.
+        Mixing angle :math:`\theta_{15}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s24 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{24}`. Default: 0.0.
+        Mixing angle :math:`\theta_{24}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s25 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{25}`. Default: 0.0.
+        Mixing angle :math:`\theta_{25}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s34 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{34}`. Default: 0.0.
+        Mixing angle :math:`\theta_{34}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s35 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{35}`. Default: 0.0.
+        Mixing angle :math:`\theta_{35}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     d14 : int or float, optional
-        :math:`\delta_{14}` [radian]. Default: 0.0.
+        :math:`\delta_{14}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d15 : int or float, optional
-        :math:`\delta_{15}` [radian]. Default: 0.0.
+        :math:`\delta_{15}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d24 : int or float, optional
-        :math:`\delta_{24}` [radian]. Default: 0.0.
+        :math:`\delta_{24}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d35 : int or float, optional
-        :math:`\delta_{35}` [radian]. Default: 0.0.
+        :math:`\delta_{35}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     D41 : int or float, optional
         Mass-squared difference :math:`\Delta m_{41}^2`. Default: 0.0.
     D51 : int or float, optional
         Mass-squared difference :math:`\Delta m_{51}^2`. Default: 0.0.
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
@@ -12024,6 +12199,12 @@ def osc_prob_5nu_sun(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -12067,6 +12248,7 @@ def osc_prob_5nu_sun(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )
 
@@ -12252,8 +12434,8 @@ def osc_prob_2nu_matter_nsi_constant_density(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the two-neutrino oscillation probability in
     matter with a constant density profile, including non-standard
     interactions (NSI).
@@ -12276,7 +12458,7 @@ def osc_prob_2nu_matter_nsi_constant_density(
     rho : int or float
         Matter density (or electron number density, if ``density_is_of_number_of_electrons`` is True).
     sth : int or float
-        Sine of the mixing angle :math:`\theta`, the single mixing angle of the two-flavor system.
+        Mixing angle :math:`\theta` of the two-flavor system, in the convention set by ``angles`` (default: its sine).
     Dm2 : int or float
         Mass-squared difference :math:`\Delta m^2` of the two-flavor system.
     eps_aa : int or float, optional
@@ -12311,6 +12493,11 @@ def osc_prob_2nu_matter_nsi_constant_density(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    angles : str, optional
+        How the mixing angle is stated: ``'sin'`` (default) its sine,
+        ``'sin2'`` its sine *squared* -- which is what global fits report --
+        ``'rad'`` the angle itself in radians, or ``'deg'`` in degrees.  Any other
+        value raises.
 
     Returns
     -------
@@ -12337,6 +12524,7 @@ def osc_prob_2nu_matter_nsi_constant_density(
         validate_input=validate_input,
         new_recursion_limit=None,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -12371,8 +12559,8 @@ def osc_prob_3nu_matter_nsi_constant_density(
     file_log: Optional[TextIOWrapper]=None,
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the three-neutrino oscillation probability in
     matter with a constant density profile, including non-standard
     interactions (NSI).
@@ -12388,13 +12576,13 @@ def osc_prob_3nu_matter_nsi_constant_density(
     rho : int or float
         Matter density (or electron number density, if ``density_is_of_number_of_electrons`` is True).
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
@@ -12441,6 +12629,12 @@ def osc_prob_3nu_matter_nsi_constant_density(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phase is read as degrees too; under the other three
+        it stays in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -12466,6 +12660,7 @@ def osc_prob_3nu_matter_nsi_constant_density(
         validate_input=validate_input,
         new_recursion_limit=None,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -12510,8 +12705,8 @@ def osc_prob_4nu_matter_nsi_constant_density(
     file_log: Optional[TextIOWrapper]=None,
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the four-neutrino oscillation probability in
     matter with a constant density profile, including non-standard
     interactions (NSI).
@@ -12527,27 +12722,27 @@ def osc_prob_4nu_matter_nsi_constant_density(
     rho : int or float
         Matter density (or electron number density, if ``density_is_of_number_of_electrons`` is True).
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
         Mass-squared difference :math:`\Delta m_{31}^2`. Default: None.
     s14 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{14}`. Default: 0.0.
+        Mixing angle :math:`\theta_{14}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s24 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{24}`. Default: 0.0.
+        Mixing angle :math:`\theta_{24}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s34 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{34}`. Default: 0.0.
+        Mixing angle :math:`\theta_{34}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     d14 : int or float, optional
-        :math:`\delta_{14}` [radian]. Default: 0.0.
+        :math:`\delta_{14}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d24 : int or float, optional
-        :math:`\delta_{24}` [radian]. Default: 0.0.
+        :math:`\delta_{24}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     D41 : int or float, optional
         Mass-squared difference :math:`\Delta m_{41}^2`. Default: 0.0.
     eps_ee : int or float, optional
@@ -12600,6 +12795,12 @@ def osc_prob_4nu_matter_nsi_constant_density(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -12627,6 +12828,7 @@ def osc_prob_4nu_matter_nsi_constant_density(
         validate_input=validate_input,
         new_recursion_limit=None,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -12682,8 +12884,8 @@ def osc_prob_5nu_matter_nsi_constant_density(
     file_log: Optional[TextIOWrapper]=None,
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the five-neutrino oscillation probability in
     matter with a constant density profile, including non-standard
     interactions (NSI).
@@ -12699,37 +12901,37 @@ def osc_prob_5nu_matter_nsi_constant_density(
     rho : int or float
         Matter density (or electron number density, if ``density_is_of_number_of_electrons`` is True).
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
         Mass-squared difference :math:`\Delta m_{31}^2`. Default: None.
     s14 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{14}`. Default: 0.0.
+        Mixing angle :math:`\theta_{14}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s15 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{15}`. Default: 0.0.
+        Mixing angle :math:`\theta_{15}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s24 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{24}`. Default: 0.0.
+        Mixing angle :math:`\theta_{24}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s25 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{25}`. Default: 0.0.
+        Mixing angle :math:`\theta_{25}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s34 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{34}`. Default: 0.0.
+        Mixing angle :math:`\theta_{34}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s35 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{35}`. Default: 0.0.
+        Mixing angle :math:`\theta_{35}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     d14 : int or float, optional
-        :math:`\delta_{14}` [radian]. Default: 0.0.
+        :math:`\delta_{14}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d15 : int or float, optional
-        :math:`\delta_{15}` [radian]. Default: 0.0.
+        :math:`\delta_{15}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d24 : int or float, optional
-        :math:`\delta_{24}` [radian]. Default: 0.0.
+        :math:`\delta_{24}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d35 : int or float, optional
-        :math:`\delta_{35}` [radian]. Default: 0.0.
+        :math:`\delta_{35}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     D41 : int or float, optional
         Mass-squared difference :math:`\Delta m_{41}^2`. Default: 0.0.
     D51 : int or float, optional
@@ -12794,6 +12996,12 @@ def osc_prob_5nu_matter_nsi_constant_density(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -12823,6 +13031,7 @@ def osc_prob_5nu_matter_nsi_constant_density(
         validate_input=validate_input,
         new_recursion_limit=None,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -12854,8 +13063,8 @@ def osc_prob_2nu_matter_nsi_exp_density(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the two-neutrino oscillation probability in
     matter with an exponentially falling density profile, including
     non-standard interactions (NSI).
@@ -12884,7 +13093,7 @@ def osc_prob_2nu_matter_nsi_exp_density(
     l_scale : int or float
         Length scale of the exponential density decrease.
     sth : int or float
-        Sine of the mixing angle :math:`\theta`, the single mixing angle of the two-flavor system.
+        Mixing angle :math:`\theta` of the two-flavor system, in the convention set by ``angles`` (default: its sine).
     Dm2 : int or float
         Mass-squared difference :math:`\Delta m^2` of the two-flavor system.
     eps_aa : int or float, optional
@@ -12919,6 +13128,11 @@ def osc_prob_2nu_matter_nsi_exp_density(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    angles : str, optional
+        How the mixing angle is stated: ``'sin'`` (default) its sine,
+        ``'sin2'`` its sine *squared* -- which is what global fits report --
+        ``'rad'`` the angle itself in radians, or ``'deg'`` in degrees.  Any other
+        value raises.
 
     Returns
     -------
@@ -12955,6 +13169,7 @@ def osc_prob_2nu_matter_nsi_exp_density(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -12991,8 +13206,8 @@ def osc_prob_3nu_matter_nsi_exp_density(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the three-neutrino oscillation probability in
     matter with an exponentially falling density profile, including
     non-standard interactions (NSI).
@@ -13012,13 +13227,13 @@ def osc_prob_3nu_matter_nsi_exp_density(
     l_scale : int or float
         Length scale of the exponential density decrease.
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
@@ -13065,6 +13280,12 @@ def osc_prob_3nu_matter_nsi_exp_density(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phase is read as degrees too; under the other three
+        it stays in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -13100,6 +13321,7 @@ def osc_prob_3nu_matter_nsi_exp_density(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -13146,8 +13368,8 @@ def osc_prob_4nu_matter_nsi_exp_density(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the four-neutrino (3+1) oscillation 
     probability in matter with an exponentially falling density profile,
     including non-standard interactions (NSI).
@@ -13167,27 +13389,27 @@ def osc_prob_4nu_matter_nsi_exp_density(
     l_scale : int or float
         Length scale of the exponential density decrease.
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
         Mass-squared difference :math:`\Delta m_{31}^2`. Default: None.
     s14 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{14}`. Default: 0.0.
+        Mixing angle :math:`\theta_{14}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s24 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{24}`. Default: 0.0.
+        Mixing angle :math:`\theta_{24}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s34 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{34}`. Default: 0.0.
+        Mixing angle :math:`\theta_{34}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     d14 : int or float, optional
-        :math:`\delta_{14}` [radian]. Default: 0.0.
+        :math:`\delta_{14}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d24 : int or float, optional
-        :math:`\delta_{24}` [radian]. Default: 0.0.
+        :math:`\delta_{24}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     D41 : int or float, optional
         Mass-squared difference :math:`\Delta m_{41}^2`. Default: 0.0.
     eps_ee : int or float, optional
@@ -13240,6 +13462,12 @@ def osc_prob_4nu_matter_nsi_exp_density(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -13277,6 +13505,7 @@ def osc_prob_4nu_matter_nsi_exp_density(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -13334,8 +13563,8 @@ def osc_prob_5nu_matter_nsi_exp_density(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the five-neutrino (3+2) oscillation 
     probability in matter with an exponentially falling density profile,
     including non-standard interactions (NSI).
@@ -13355,37 +13584,37 @@ def osc_prob_5nu_matter_nsi_exp_density(
     l_scale : int or float
         Length scale of the exponential density decrease.
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
         Mass-squared difference :math:`\Delta m_{31}^2`. Default: None.
     s14 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{14}`. Default: 0.0.
+        Mixing angle :math:`\theta_{14}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s15 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{15}`. Default: 0.0.
+        Mixing angle :math:`\theta_{15}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s24 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{24}`. Default: 0.0.
+        Mixing angle :math:`\theta_{24}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s25 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{25}`. Default: 0.0.
+        Mixing angle :math:`\theta_{25}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s34 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{34}`. Default: 0.0.
+        Mixing angle :math:`\theta_{34}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s35 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{35}`. Default: 0.0.
+        Mixing angle :math:`\theta_{35}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     d14 : int or float, optional
-        :math:`\delta_{14}` [radian]. Default: 0.0.
+        :math:`\delta_{14}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d15 : int or float, optional
-        :math:`\delta_{15}` [radian]. Default: 0.0.
+        :math:`\delta_{15}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d24 : int or float, optional
-        :math:`\delta_{24}` [radian]. Default: 0.0.
+        :math:`\delta_{24}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d35 : int or float, optional
-        :math:`\delta_{35}` [radian]. Default: 0.0.
+        :math:`\delta_{35}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     D41 : int or float, optional
         Mass-squared difference :math:`\Delta m_{41}^2`. Default: 0.0.
     D51 : int or float, optional
@@ -13450,6 +13679,12 @@ def osc_prob_5nu_matter_nsi_exp_density(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -13489,6 +13724,7 @@ def osc_prob_5nu_matter_nsi_exp_density(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )
 
@@ -13522,8 +13758,8 @@ def osc_prob_2nu_earth_nsi(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the two-neutrino oscillation probability 
     inside the Earth, either between two locations on the surface of the
     Earth, or between the surface and a point in the interior, including
@@ -13597,7 +13833,7 @@ def osc_prob_2nu_earth_nsi(
     energy : int, float, list, or np.ndarray
         Neutrino energy/energies.
     sth : int or float
-        Sine of the mixing angle :math:`\theta`, the single mixing angle of the two-flavor system.
+        Mixing angle :math:`\theta` of the two-flavor system, in the convention set by ``angles`` (default: its sine).
     Dm2 : int or float
         Mass-squared difference :math:`\Delta m^2` of the two-flavor system.
     eps_aa : int or float, optional
@@ -13661,6 +13897,11 @@ def osc_prob_2nu_earth_nsi(
         hydrogen has :math:`Z/A = 1`).  PREM's ocean is a global average that a
         land-based baseline does not cross; pass
         :data:`magnus.earth.Y_E_CRUST_PREM` for one.
+    angles : str, optional
+        How the mixing angle is stated: ``'sin'`` (default) its sine,
+        ``'sin2'`` its sine *squared* -- which is what global fits report --
+        ``'rad'`` the angle itself in radians, or ``'deg'`` in degrees.  Any other
+        value raises.
 
     Returns
     -------
@@ -13735,6 +13976,7 @@ def osc_prob_2nu_earth_nsi(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -13773,8 +14015,8 @@ def osc_prob_3nu_earth_nsi(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the three-neutrino oscillation probability 
     inside the Earth, either between two locations on the surface of the
     Earth, or between the surface and a point in the interior, including
@@ -13855,13 +14097,13 @@ def osc_prob_3nu_earth_nsi(
     L : float, list, or np.ndarray, optional
         Baseline(s). Default: None.
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
@@ -13929,6 +14171,12 @@ def osc_prob_3nu_earth_nsi(
         hydrogen has :math:`Z/A = 1`).  PREM's ocean is a global average that a
         land-based baseline does not cross; pass
         :data:`magnus.earth.Y_E_CRUST_PREM` for one.
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phase is read as degrees too; under the other three
+        it stays in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -14002,6 +14250,7 @@ def osc_prob_3nu_earth_nsi(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -14050,8 +14299,8 @@ def osc_prob_4nu_earth_nsi(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the four-neutrino oscillation probability 
     inside the Earth, either between two locations on the surface of the
     Earth, or between the surface and a point in the interior, including
@@ -14134,27 +14383,27 @@ def osc_prob_4nu_earth_nsi(
     L : float, list, or np.ndarray, optional
         Baseline(s). Default: None.
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
         Mass-squared difference :math:`\Delta m_{31}^2`. Default: None.
     s14 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{14}`. Default: 0.0.
+        Mixing angle :math:`\theta_{14}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s24 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{24}`. Default: 0.0.
+        Mixing angle :math:`\theta_{24}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s34 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{34}`. Default: 0.0.
+        Mixing angle :math:`\theta_{34}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     d14 : int or float, optional
-        :math:`\delta_{14}` [radian]. Default: 0.0.
+        :math:`\delta_{14}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d24 : int or float, optional
-        :math:`\delta_{24}` [radian]. Default: 0.0.
+        :math:`\delta_{24}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     D41 : int or float, optional
         Mass-squared difference :math:`\Delta m_{41}^2`. Default: 0.0.
     eps_ee : int or float, optional
@@ -14228,6 +14477,12 @@ def osc_prob_4nu_earth_nsi(
         hydrogen has :math:`Z/A = 1`).  PREM's ocean is a global average that a
         land-based baseline does not cross; pass
         :data:`magnus.earth.Y_E_CRUST_PREM` for one.
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -14303,6 +14558,7 @@ def osc_prob_4nu_earth_nsi(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -14362,8 +14618,8 @@ def osc_prob_5nu_earth_nsi(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the five-neutrino oscillation probability 
     inside the Earth, either between two locations on the surface of the
     Earth, or between the surface and a point in the interior, including
@@ -14449,37 +14705,37 @@ def osc_prob_5nu_earth_nsi(
     L : float, list, or np.ndarray, optional
         Baseline(s). Default: None.
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
         Mass-squared difference :math:`\Delta m_{31}^2`. Default: None.
     s14 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{14}`. Default: 0.0.
+        Mixing angle :math:`\theta_{14}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s15 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{15}`. Default: 0.0.
+        Mixing angle :math:`\theta_{15}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s24 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{24}`. Default: 0.0.
+        Mixing angle :math:`\theta_{24}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s25 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{25}`. Default: 0.0.
+        Mixing angle :math:`\theta_{25}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s34 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{34}`. Default: 0.0.
+        Mixing angle :math:`\theta_{34}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s35 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{35}`. Default: 0.0.
+        Mixing angle :math:`\theta_{35}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     d14 : int or float, optional
-        :math:`\delta_{14}` [radian]. Default: 0.0.
+        :math:`\delta_{14}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d15 : int or float, optional
-        :math:`\delta_{15}` [radian]. Default: 0.0.
+        :math:`\delta_{15}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d24 : int or float, optional
-        :math:`\delta_{24}` [radian]. Default: 0.0.
+        :math:`\delta_{24}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d35 : int or float, optional
-        :math:`\delta_{35}` [radian]. Default: 0.0.
+        :math:`\delta_{35}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     D41 : int or float, optional
         Mass-squared difference :math:`\Delta m_{41}^2`. Default: 0.0.
     D51 : int or float, optional
@@ -14565,6 +14821,12 @@ def osc_prob_5nu_earth_nsi(
         hydrogen has :math:`Z/A = 1`).  PREM's ocean is a global average that a
         land-based baseline does not cross; pass
         :data:`magnus.earth.Y_E_CRUST_PREM` for one.
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -14642,6 +14904,7 @@ def osc_prob_5nu_earth_nsi(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -14668,8 +14931,8 @@ def osc_prob_2nu_sun_nsi(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the two-neutrino oscillation probability 
     for neutrinos inside the Sun, including non-standard interactions
     (NSI).
@@ -14729,7 +14992,7 @@ def osc_prob_2nu_sun_nsi(
     L0 : int or float
         Initial position.
     sth : int or float
-        Sine of the mixing angle :math:`\theta`, the single mixing angle of the two-flavor system.
+        Mixing angle :math:`\theta` of the two-flavor system, in the convention set by ``angles`` (default: its sine).
     Dm2 : int or float
         Mass-squared difference :math:`\Delta m^2` of the two-flavor system.
     eps_aa : int or float, optional
@@ -14763,6 +15026,11 @@ def osc_prob_2nu_sun_nsi(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    angles : str, optional
+        How the mixing angle is stated: ``'sin'`` (default) its sine,
+        ``'sin2'`` its sine *squared* -- which is what global fits report --
+        ``'rad'`` the angle itself in radians, or ``'deg'`` in degrees.  Any other
+        value raises.
 
     Returns
     -------
@@ -14791,6 +15059,7 @@ def osc_prob_2nu_sun_nsi(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )
 
@@ -14822,8 +15091,8 @@ def osc_prob_3nu_sun_nsi(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the three-neutrino oscillation probability 
     for neutrinos inside the Sun.
 
@@ -14872,13 +15141,13 @@ def osc_prob_3nu_sun_nsi(
     L0 : int or float
         Initial position.
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
@@ -14924,6 +15193,12 @@ def osc_prob_3nu_sun_nsi(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phase is read as degrees too; under the other three
+        it stays in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -14961,6 +15236,7 @@ def osc_prob_3nu_sun_nsi(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )
 
@@ -15002,8 +15278,8 @@ def osc_prob_4nu_sun_nsi(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the four-neutrino (3+1) oscillation 
     probability for neutrinos inside the Sun.
 
@@ -15055,27 +15331,27 @@ def osc_prob_4nu_sun_nsi(
     L0 : int or float
         Initial position.
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
         Mass-squared difference :math:`\Delta m_{31}^2`. Default: None.
     s14 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{14}`. Default: 0.0.
+        Mixing angle :math:`\theta_{14}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s24 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{24}`. Default: 0.0.
+        Mixing angle :math:`\theta_{24}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s34 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{34}`. Default: 0.0.
+        Mixing angle :math:`\theta_{34}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     d14 : int or float, optional
-        :math:`\delta_{14}` [radian]. Default: 0.0.
+        :math:`\delta_{14}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d24 : int or float, optional
-        :math:`\delta_{24}` [radian]. Default: 0.0.
+        :math:`\delta_{24}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     D41 : int or float, optional
         Mass-squared difference :math:`\Delta m_{41}^2`. Default: 0.0.
     eps_ee : int or float, optional
@@ -15127,6 +15403,12 @@ def osc_prob_4nu_sun_nsi(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -15174,6 +15456,7 @@ def osc_prob_4nu_sun_nsi(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )
 
@@ -15226,8 +15509,8 @@ def osc_prob_5nu_sun_nsi(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the five-neutrino (3+2) oscillation 
     probability for neutrinos inside the Sun.
 
@@ -15282,37 +15565,37 @@ def osc_prob_5nu_sun_nsi(
     L0 : int or float
         Initial position.
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
         Mass-squared difference :math:`\Delta m_{31}^2`. Default: None.
     s14 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{14}`. Default: 0.0.
+        Mixing angle :math:`\theta_{14}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s15 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{15}`. Default: 0.0.
+        Mixing angle :math:`\theta_{15}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s24 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{24}`. Default: 0.0.
+        Mixing angle :math:`\theta_{24}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s25 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{25}`. Default: 0.0.
+        Mixing angle :math:`\theta_{25}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s34 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{34}`. Default: 0.0.
+        Mixing angle :math:`\theta_{34}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s35 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{35}`. Default: 0.0.
+        Mixing angle :math:`\theta_{35}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     d14 : int or float, optional
-        :math:`\delta_{14}` [radian]. Default: 0.0.
+        :math:`\delta_{14}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d15 : int or float, optional
-        :math:`\delta_{15}` [radian]. Default: 0.0.
+        :math:`\delta_{15}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d24 : int or float, optional
-        :math:`\delta_{24}` [radian]. Default: 0.0.
+        :math:`\delta_{24}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d35 : int or float, optional
-        :math:`\delta_{35}` [radian]. Default: 0.0.
+        :math:`\delta_{35}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     D41 : int or float, optional
         Mass-squared difference :math:`\Delta m_{41}^2`. Default: 0.0.
     D51 : int or float, optional
@@ -15376,6 +15659,12 @@ def osc_prob_5nu_sun_nsi(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -15434,6 +15723,7 @@ def osc_prob_5nu_sun_nsi(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )
 
@@ -15460,8 +15750,8 @@ def osc_prob_2nu_vacuum_liv(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the two-neutrino oscillation probability in
     vacuum under (one form of) Lorentz-invariance violation.
 
@@ -15474,7 +15764,7 @@ def osc_prob_2nu_vacuum_liv(
     L : int, float, list, or np.ndarray
         Baseline(s).
     sth : int or float
-        Sine of the mixing angle :math:`\theta`, the single mixing angle of the two-flavor system.
+        Mixing angle :math:`\theta` of the two-flavor system, in the convention set by ``angles`` (default: its sine).
     Dm2 : int or float
         Mass-squared difference :math:`\Delta m^2` of the two-flavor system.
     sxi : int or float, optional
@@ -15505,6 +15795,11 @@ def osc_prob_2nu_vacuum_liv(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines,
+        ``'sin2'`` their sines *squared* -- which is what global fits report --
+        ``'rad'`` the angles themselves in radians, or ``'deg'`` in degrees.  Any other
+        value raises.
 
     Returns
     -------
@@ -15529,6 +15824,7 @@ def osc_prob_2nu_vacuum_liv(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -15560,8 +15856,8 @@ def osc_prob_3nu_vacuum_liv(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the three-neutrino oscillation probability in
     vacuum under (one form of) Lorentz-invariance violation.
 
@@ -15574,13 +15870,13 @@ def osc_prob_3nu_vacuum_liv(
     L : int, float, list, or np.ndarray
         Baseline(s).
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
@@ -15623,6 +15919,12 @@ def osc_prob_3nu_vacuum_liv(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -15647,6 +15949,7 @@ def osc_prob_3nu_vacuum_liv(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -15690,8 +15993,8 @@ def osc_prob_4nu_vacuum_liv(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the four-neutrino oscillation probability in
     vacuum under (one form of) Lorentz-invariance violation.
 
@@ -15704,27 +16007,27 @@ def osc_prob_4nu_vacuum_liv(
     L : int, float, list, or np.ndarray
         Baseline(s).
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
         Mass-squared difference :math:`\Delta m_{31}^2`. Default: None.
     s14 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{14}`. Default: 0.0.
+        Mixing angle :math:`\theta_{14}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s24 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{24}`. Default: 0.0.
+        Mixing angle :math:`\theta_{24}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s34 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{34}`. Default: 0.0.
+        Mixing angle :math:`\theta_{34}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     d14 : int or float, optional
-        :math:`\delta_{14}` [radian]. Default: 0.0.
+        :math:`\delta_{14}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d24 : int or float, optional
-        :math:`\delta_{24}` [radian]. Default: 0.0.
+        :math:`\delta_{24}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     D41 : int or float, optional
         Mass-squared difference :math:`\Delta m_{41}^2`. Default: 0.0.
     sxi12 : int or float, optional
@@ -15777,6 +16080,12 @@ def osc_prob_4nu_vacuum_liv(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -15803,6 +16112,7 @@ def osc_prob_4nu_vacuum_liv(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -15858,8 +16168,8 @@ def osc_prob_5nu_vacuum_liv(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the five-neutrino oscillation probability in
     vacuum under (one form of) Lorentz-invariance violation.
 
@@ -15872,37 +16182,37 @@ def osc_prob_5nu_vacuum_liv(
     L : int, float, list, or np.ndarray
         Baseline(s).
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
         Mass-squared difference :math:`\Delta m_{31}^2`. Default: None.
     s14 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{14}`. Default: 0.0.
+        Mixing angle :math:`\theta_{14}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s15 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{15}`. Default: 0.0.
+        Mixing angle :math:`\theta_{15}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s24 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{24}`. Default: 0.0.
+        Mixing angle :math:`\theta_{24}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s25 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{25}`. Default: 0.0.
+        Mixing angle :math:`\theta_{25}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s34 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{34}`. Default: 0.0.
+        Mixing angle :math:`\theta_{34}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s35 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{35}`. Default: 0.0.
+        Mixing angle :math:`\theta_{35}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     d14 : int or float, optional
-        :math:`\delta_{14}` [radian]. Default: 0.0.
+        :math:`\delta_{14}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d15 : int or float, optional
-        :math:`\delta_{15}` [radian]. Default: 0.0.
+        :math:`\delta_{15}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d24 : int or float, optional
-        :math:`\delta_{24}` [radian]. Default: 0.0.
+        :math:`\delta_{24}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d35 : int or float, optional
-        :math:`\delta_{35}` [radian]. Default: 0.0.
+        :math:`\delta_{35}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     D41 : int or float, optional
         Mass-squared difference :math:`\Delta m_{41}^2`. Default: 0.0.
     D51 : int or float, optional
@@ -15969,6 +16279,12 @@ def osc_prob_5nu_vacuum_liv(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -15997,6 +16313,7 @@ def osc_prob_5nu_vacuum_liv(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -16029,8 +16346,8 @@ def osc_prob_2nu_matter_liv_constant_density(
     file_log: Optional[TextIOWrapper]=None,
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the two-neutrino oscillation probability in
     matter with a constant density profile, under (one form of)
     Lorentz-invariance violation.
@@ -16046,7 +16363,7 @@ def osc_prob_2nu_matter_liv_constant_density(
     rho : int or float
         Matter density (or electron number density, if ``density_is_of_number_of_electrons`` is True).
     sth : int or float
-        Sine of the mixing angle :math:`\theta`, the single mixing angle of the two-flavor system.
+        Mixing angle :math:`\theta` of the two-flavor system, in the convention set by ``angles`` (default: its sine).
     Dm2 : int or float
         Mass-squared difference :math:`\Delta m^2` of the two-flavor system.
     sxi : int or float, optional
@@ -16087,6 +16404,11 @@ def osc_prob_2nu_matter_liv_constant_density(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines,
+        ``'sin2'`` their sines *squared* -- which is what global fits report --
+        ``'rad'`` the angles themselves in radians, or ``'deg'`` in degrees.  Any other
+        value raises.
 
     Returns
     -------
@@ -16116,6 +16438,7 @@ def osc_prob_2nu_matter_liv_constant_density(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -16153,8 +16476,8 @@ def osc_prob_3nu_matter_liv_constant_density(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the three-neutrino oscillation probability in
     matter with a constant density profile, under (one form of) 
     Lorentz-invariance violation.
@@ -16170,13 +16493,13 @@ def osc_prob_3nu_matter_liv_constant_density(
     rho : int or float
         Matter density (or electron number density, if ``density_is_of_number_of_electrons`` is True).
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
@@ -16229,6 +16552,12 @@ def osc_prob_3nu_matter_liv_constant_density(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -16258,6 +16587,7 @@ def osc_prob_3nu_matter_liv_constant_density(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -16307,8 +16637,8 @@ def osc_prob_4nu_matter_liv_constant_density(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the four-neutrino oscillation probability in
     matter with a constant density profile, under (one form of) 
     Lorentz-invariance violation.
@@ -16324,27 +16654,27 @@ def osc_prob_4nu_matter_liv_constant_density(
     rho : int or float
         Matter density (or electron number density, if ``density_is_of_number_of_electrons`` is True).
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
         Mass-squared difference :math:`\Delta m_{31}^2`. Default: None.
     s14 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{14}`. Default: 0.0.
+        Mixing angle :math:`\theta_{14}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s24 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{24}`. Default: 0.0.
+        Mixing angle :math:`\theta_{24}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s34 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{34}`. Default: 0.0.
+        Mixing angle :math:`\theta_{34}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     d14 : int or float, optional
-        :math:`\delta_{14}` [radian]. Default: 0.0.
+        :math:`\delta_{14}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d24 : int or float, optional
-        :math:`\delta_{24}` [radian]. Default: 0.0.
+        :math:`\delta_{24}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     D41 : int or float, optional
         Mass-squared difference :math:`\Delta m_{41}^2`. Default: 0.0.
     sxi12 : int or float, optional
@@ -16407,6 +16737,12 @@ def osc_prob_4nu_matter_liv_constant_density(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -16438,6 +16774,7 @@ def osc_prob_4nu_matter_liv_constant_density(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -16499,8 +16836,8 @@ def osc_prob_5nu_matter_liv_constant_density(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the five-neutrino oscillation probability in
     matter with a constant density profile, under (one form of) 
     Lorentz-invariance violation.
@@ -16516,37 +16853,37 @@ def osc_prob_5nu_matter_liv_constant_density(
     rho : int or float
         Matter density (or electron number density, if ``density_is_of_number_of_electrons`` is True).
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
         Mass-squared difference :math:`\Delta m_{31}^2`. Default: None.
     s14 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{14}`. Default: 0.0.
+        Mixing angle :math:`\theta_{14}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s15 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{15}`. Default: 0.0.
+        Mixing angle :math:`\theta_{15}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s24 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{24}`. Default: 0.0.
+        Mixing angle :math:`\theta_{24}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s25 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{25}`. Default: 0.0.
+        Mixing angle :math:`\theta_{25}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s34 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{34}`. Default: 0.0.
+        Mixing angle :math:`\theta_{34}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s35 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{35}`. Default: 0.0.
+        Mixing angle :math:`\theta_{35}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     d14 : int or float, optional
-        :math:`\delta_{14}` [radian]. Default: 0.0.
+        :math:`\delta_{14}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d15 : int or float, optional
-        :math:`\delta_{15}` [radian]. Default: 0.0.
+        :math:`\delta_{15}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d24 : int or float, optional
-        :math:`\delta_{24}` [radian]. Default: 0.0.
+        :math:`\delta_{24}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d35 : int or float, optional
-        :math:`\delta_{35}` [radian]. Default: 0.0.
+        :math:`\delta_{35}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     D41 : int or float, optional
         Mass-squared difference :math:`\Delta m_{41}^2`. Default: 0.0.
     D51 : int or float, optional
@@ -16623,6 +16960,12 @@ def osc_prob_5nu_matter_liv_constant_density(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -16656,6 +16999,7 @@ def osc_prob_5nu_matter_liv_constant_density(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -16690,8 +17034,8 @@ def osc_prob_2nu_matter_liv_exp_density(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the two-neutrino oscillation probability in
     matter with an exponentially falling density profile, under (one 
     form of) Lorentz-invariance violation.
@@ -16711,7 +17055,7 @@ def osc_prob_2nu_matter_liv_exp_density(
     l_scale : int or float
         Length scale of the exponential density decrease.
     sth : int or float
-        Sine of the mixing angle :math:`\theta`, the single mixing angle of the two-flavor system.
+        Mixing angle :math:`\theta` of the two-flavor system, in the convention set by ``angles`` (default: its sine).
     Dm2 : int or float
         Mass-squared difference :math:`\Delta m^2` of the two-flavor system.
     sxi : int or float, optional
@@ -16752,6 +17096,11 @@ def osc_prob_2nu_matter_liv_exp_density(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines,
+        ``'sin2'`` their sines *squared* -- which is what global fits report --
+        ``'rad'`` the angles themselves in radians, or ``'deg'`` in degrees.  Any other
+        value raises.
 
     Returns
     -------
@@ -16788,6 +17137,7 @@ def osc_prob_2nu_matter_liv_exp_density(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -16826,8 +17176,8 @@ def osc_prob_3nu_matter_liv_exp_density(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the three-neutrino oscillation probability in
     matter with an exponentially falling density profile, under (one 
     form of) Lorentz-invariance violation.
@@ -16847,13 +17197,13 @@ def osc_prob_3nu_matter_liv_exp_density(
     l_scale : int or float
         Length scale of the exponential density decrease.
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
@@ -16904,6 +17254,12 @@ def osc_prob_3nu_matter_liv_exp_density(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -16938,6 +17294,7 @@ def osc_prob_3nu_matter_liv_exp_density(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -16988,8 +17345,8 @@ def osc_prob_4nu_matter_liv_exp_density(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the four-neutrino oscillation probability in
     matter with an exponentially falling density profile, under (one 
     form of) Lorentz-invariance violation.
@@ -17009,27 +17366,27 @@ def osc_prob_4nu_matter_liv_exp_density(
     l_scale : int or float
         Length scale of the exponential density decrease.
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
         Mass-squared difference :math:`\Delta m_{31}^2`. Default: None.
     s14 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{14}`. Default: 0.0.
+        Mixing angle :math:`\theta_{14}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s24 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{24}`. Default: 0.0.
+        Mixing angle :math:`\theta_{24}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s34 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{34}`. Default: 0.0.
+        Mixing angle :math:`\theta_{34}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     d14 : int or float, optional
-        :math:`\delta_{14}` [radian]. Default: 0.0.
+        :math:`\delta_{14}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d24 : int or float, optional
-        :math:`\delta_{24}` [radian]. Default: 0.0.
+        :math:`\delta_{24}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     D41 : int or float, optional
         Mass-squared difference :math:`\Delta m_{41}^2`. Default: 0.0.
     sxi12 : int or float, optional
@@ -17090,6 +17447,12 @@ def osc_prob_4nu_matter_liv_exp_density(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -17126,6 +17489,7 @@ def osc_prob_4nu_matter_liv_exp_density(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -17188,8 +17552,8 @@ def osc_prob_5nu_matter_liv_exp_density(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the five-neutrino oscillation probability in
     matter with an exponentially falling density profile, under (one 
     form of) Lorentz-invariance violation.
@@ -17209,37 +17573,37 @@ def osc_prob_5nu_matter_liv_exp_density(
     l_scale : int or float
         Length scale of the exponential density decrease.
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
         Mass-squared difference :math:`\Delta m_{31}^2`. Default: None.
     s14 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{14}`. Default: 0.0.
+        Mixing angle :math:`\theta_{14}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s15 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{15}`. Default: 0.0.
+        Mixing angle :math:`\theta_{15}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s24 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{24}`. Default: 0.0.
+        Mixing angle :math:`\theta_{24}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s25 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{25}`. Default: 0.0.
+        Mixing angle :math:`\theta_{25}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s34 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{34}`. Default: 0.0.
+        Mixing angle :math:`\theta_{34}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s35 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{35}`. Default: 0.0.
+        Mixing angle :math:`\theta_{35}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     d14 : int or float, optional
-        :math:`\delta_{14}` [radian]. Default: 0.0.
+        :math:`\delta_{14}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d15 : int or float, optional
-        :math:`\delta_{15}` [radian]. Default: 0.0.
+        :math:`\delta_{15}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d24 : int or float, optional
-        :math:`\delta_{24}` [radian]. Default: 0.0.
+        :math:`\delta_{24}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d35 : int or float, optional
-        :math:`\delta_{35}` [radian]. Default: 0.0.
+        :math:`\delta_{35}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     D41 : int or float, optional
         Mass-squared difference :math:`\Delta m_{41}^2`. Default: 0.0.
     D51 : int or float, optional
@@ -17314,6 +17678,12 @@ def osc_prob_5nu_matter_liv_exp_density(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -17352,6 +17722,7 @@ def osc_prob_5nu_matter_liv_exp_density(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -17388,8 +17759,8 @@ def osc_prob_2nu_earth_liv(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the two-neutrino oscillation probability 
     inside the Earth, either between two locations on the surface of the
     Earth, or between the surface and a point in the interior, under
@@ -17463,7 +17834,7 @@ def osc_prob_2nu_earth_liv(
     energy : int, float, list, or np.ndarray
         Neutrino energy/energies.
     sth : int or float
-        Sine of the mixing angle :math:`\theta`, the single mixing angle of the two-flavor system.
+        Mixing angle :math:`\theta` of the two-flavor system, in the convention set by ``angles`` (default: its sine).
     Dm2 : int or float
         Mass-squared difference :math:`\Delta m^2` of the two-flavor system.
     sxi : int or float, optional
@@ -17533,6 +17904,11 @@ def osc_prob_2nu_earth_liv(
         hydrogen has :math:`Z/A = 1`).  PREM's ocean is a global average that a
         land-based baseline does not cross; pass
         :data:`magnus.earth.Y_E_CRUST_PREM` for one.
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines,
+        ``'sin2'`` their sines *squared* -- which is what global fits report --
+        ``'rad'`` the angles themselves in radians, or ``'deg'`` in degrees.  Any other
+        value raises.
 
     Returns
     -------
@@ -17607,6 +17983,7 @@ def osc_prob_2nu_earth_liv(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -17648,8 +18025,8 @@ def osc_prob_3nu_earth_liv(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the three-neutrino oscillation probability 
     inside the Earth, either between two locations on the surface of the
     Earth, or between the surface and a point in the interior, under
@@ -17732,13 +18109,13 @@ def osc_prob_3nu_earth_liv(
     L : float, list, or np.ndarray, optional
         Baseline(s). Default: None.
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
@@ -17812,6 +18189,12 @@ def osc_prob_3nu_earth_liv(
         hydrogen has :math:`Z/A = 1`).  PREM's ocean is a global average that a
         land-based baseline does not cross; pass
         :data:`magnus.earth.Y_E_CRUST_PREM` for one.
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -17885,6 +18268,7 @@ def osc_prob_3nu_earth_liv(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -17938,8 +18322,8 @@ def osc_prob_4nu_earth_liv(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the four-neutrino oscillation probability 
     inside the Earth, either between two locations on the surface of the
     Earth, or between the surface and a point in the interior, under
@@ -18022,27 +18406,27 @@ def osc_prob_4nu_earth_liv(
     L : float, list, or np.ndarray, optional
         Baseline(s). Default: None.
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
         Mass-squared difference :math:`\Delta m_{31}^2`. Default: None.
     s14 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{14}`. Default: 0.0.
+        Mixing angle :math:`\theta_{14}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s24 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{24}`. Default: 0.0.
+        Mixing angle :math:`\theta_{24}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s34 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{34}`. Default: 0.0.
+        Mixing angle :math:`\theta_{34}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     d14 : int or float, optional
-        :math:`\delta_{14}` [radian]. Default: 0.0.
+        :math:`\delta_{14}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d24 : int or float, optional
-        :math:`\delta_{24}` [radian]. Default: 0.0.
+        :math:`\delta_{24}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     D41 : int or float, optional
         Mass-squared difference :math:`\Delta m_{41}^2`. Default: 0.0.
     sxi12 : int or float, optional
@@ -18126,6 +18510,12 @@ def osc_prob_4nu_earth_liv(
         hydrogen has :math:`Z/A = 1`).  PREM's ocean is a global average that a
         land-based baseline does not cross; pass
         :data:`magnus.earth.Y_E_CRUST_PREM` for one.
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -18201,6 +18591,7 @@ def osc_prob_4nu_earth_liv(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -18266,8 +18657,8 @@ def osc_prob_5nu_earth_liv(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the five-neutrino oscillation probability 
     inside the Earth, either between two locations on the surface of the
     Earth, or between the surface and a point in the interior, under
@@ -18351,37 +18742,37 @@ def osc_prob_5nu_earth_liv(
     L : float, list, or np.ndarray, optional
         Baseline(s). Default: None.
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
         Mass-squared difference :math:`\Delta m_{31}^2`. Default: None.
     s14 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{14}`. Default: 0.0.
+        Mixing angle :math:`\theta_{14}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s15 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{15}`. Default: 0.0.
+        Mixing angle :math:`\theta_{15}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s24 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{24}`. Default: 0.0.
+        Mixing angle :math:`\theta_{24}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s25 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{25}`. Default: 0.0.
+        Mixing angle :math:`\theta_{25}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s34 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{34}`. Default: 0.0.
+        Mixing angle :math:`\theta_{34}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s35 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{35}`. Default: 0.0.
+        Mixing angle :math:`\theta_{35}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     d14 : int or float, optional
-        :math:`\delta_{14}` [radian]. Default: 0.0.
+        :math:`\delta_{14}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d15 : int or float, optional
-        :math:`\delta_{15}` [radian]. Default: 0.0.
+        :math:`\delta_{15}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d24 : int or float, optional
-        :math:`\delta_{24}` [radian]. Default: 0.0.
+        :math:`\delta_{24}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d35 : int or float, optional
-        :math:`\delta_{35}` [radian]. Default: 0.0.
+        :math:`\delta_{35}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     D41 : int or float, optional
         Mass-squared difference :math:`\Delta m_{41}^2`. Default: 0.0.
     D51 : int or float, optional
@@ -18479,6 +18870,12 @@ def osc_prob_5nu_earth_liv(
         hydrogen has :math:`Z/A = 1`).  PREM's ocean is a global average that a
         land-based baseline does not cross; pass
         :data:`magnus.earth.Y_E_CRUST_PREM` for one.
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -18556,6 +18953,7 @@ def osc_prob_5nu_earth_liv(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )  
 
@@ -18585,8 +18983,8 @@ def osc_prob_2nu_sun_liv(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the two-neutrino oscillation probability 
     for neutrinos inside the Sun, under (one form of) Lorentz-invariance
     violation.
@@ -18610,7 +19008,7 @@ def osc_prob_2nu_sun_liv(
     L0 : int or float
         Initial position.
     sth : int or float
-        Sine of the mixing angle :math:`\theta`, the single mixing angle of the two-flavor system.
+        Mixing angle :math:`\theta` of the two-flavor system, in the convention set by ``angles`` (default: its sine).
     Dm2 : int or float
         Mass-squared difference :math:`\Delta m^2` of the two-flavor system.
     sxi : int or float, optional
@@ -18650,6 +19048,11 @@ def osc_prob_2nu_sun_liv(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines,
+        ``'sin2'`` their sines *squared* -- which is what global fits report --
+        ``'rad'`` the angles themselves in radians, or ``'deg'`` in degrees.  Any other
+        value raises.
 
     Returns
     -------
@@ -18690,6 +19093,7 @@ def osc_prob_2nu_sun_liv(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )
 
@@ -18723,8 +19127,8 @@ def osc_prob_3nu_sun_liv(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the three-neutrino oscillation probability 
     for neutrinos inside the Sun, under (one form of) Lorentz-invariance
     violation.
@@ -18748,13 +19152,13 @@ def osc_prob_3nu_sun_liv(
     L0 : int or float
         Initial position.
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
@@ -18804,6 +19208,12 @@ def osc_prob_3nu_sun_liv(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -18852,6 +19262,7 @@ def osc_prob_3nu_sun_liv(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )
 
@@ -18897,8 +19308,8 @@ def osc_prob_4nu_sun_liv(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the four-neutrino oscillation probability 
     for neutrinos inside the Sun, under (one form of) Lorentz-invariance
     violation.
@@ -18922,27 +19333,27 @@ def osc_prob_4nu_sun_liv(
     L0 : int or float
         Initial position.
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
         Mass-squared difference :math:`\Delta m_{31}^2`. Default: None.
     s14 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{14}`. Default: 0.0.
+        Mixing angle :math:`\theta_{14}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s24 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{24}`. Default: 0.0.
+        Mixing angle :math:`\theta_{24}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s34 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{34}`. Default: 0.0.
+        Mixing angle :math:`\theta_{34}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     d14 : int or float, optional
-        :math:`\delta_{14}` [radian]. Default: 0.0.
+        :math:`\delta_{14}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d24 : int or float, optional
-        :math:`\delta_{24}` [radian]. Default: 0.0.
+        :math:`\delta_{24}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     D41 : int or float, optional
         Mass-squared difference :math:`\Delta m_{41}^2`. Default: 0.0.
     sxi12 : int or float, optional
@@ -19002,6 +19413,12 @@ def osc_prob_4nu_sun_liv(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -19062,6 +19479,7 @@ def osc_prob_4nu_sun_liv(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )
 
@@ -19119,8 +19537,8 @@ def osc_prob_5nu_sun_liv(
     file_log: Optional[TextIOWrapper]=None, 
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
-    **kwargs
-) -> Union[float, np.ndarray]:
+    angles: Optional[str]='sin',
+    **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the five-neutrino oscillation probability 
     for neutrinos inside the Sun, under (one form of) Lorentz-invariance
     violation.
@@ -19144,37 +19562,37 @@ def osc_prob_5nu_sun_liv(
     L0 : int or float
         Initial position.
     s12 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{12}`. Default: None.
+        Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{23}`. Default: None.
+        Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s13 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{13}`. Default: None.
+        Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine). Default: None.
     dCP : int or float, optional
-        :math:`\delta_\text{CP}` [radian]. Default: None.
+        :math:`\delta_\text{CP}` [radian, or degree if ``angles='deg'``]. Default: None.
     D21 : int or float, optional
         Mass-squared difference :math:`\Delta m_{21}^2`. Default: None.
     D31 : int or float, optional
         Mass-squared difference :math:`\Delta m_{31}^2`. Default: None.
     s14 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{14}`. Default: 0.0.
+        Mixing angle :math:`\theta_{14}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s15 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{15}`. Default: 0.0.
+        Mixing angle :math:`\theta_{15}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s24 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{24}`. Default: 0.0.
+        Mixing angle :math:`\theta_{24}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s25 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{25}`. Default: 0.0.
+        Mixing angle :math:`\theta_{25}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s34 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{34}`. Default: 0.0.
+        Mixing angle :math:`\theta_{34}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s35 : int or float, optional
-        Sine of the mixing angle :math:`\theta_{35}`. Default: 0.0.
+        Mixing angle :math:`\theta_{35}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     d14 : int or float, optional
-        :math:`\delta_{14}` [radian]. Default: 0.0.
+        :math:`\delta_{14}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d15 : int or float, optional
-        :math:`\delta_{15}` [radian]. Default: 0.0.
+        :math:`\delta_{15}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d24 : int or float, optional
-        :math:`\delta_{24}` [radian]. Default: 0.0.
+        :math:`\delta_{24}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     d35 : int or float, optional
-        :math:`\delta_{35}` [radian]. Default: 0.0.
+        :math:`\delta_{35}` [radian, or degree if ``angles='deg'``]. Default: 0.0.
     D41 : int or float, optional
         Mass-squared difference :math:`\Delta m_{41}^2`. Default: 0.0.
     D51 : int or float, optional
@@ -19248,6 +19666,12 @@ def osc_prob_5nu_sun_liv(
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
         Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
 
     Returns
     -------
@@ -19320,6 +19744,7 @@ def osc_prob_5nu_sun_liv(
         file_log=file_log,
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
+        angles=angles,
         **kwargs
     )
 

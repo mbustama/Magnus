@@ -26,6 +26,9 @@ Routine listings
     * vcc_func_from_rho_func - Builds a VCC function (or constant) from
            a density profile, handling neutrino/antineutrino sign and
            unit conversion
+    * matter_potential_projector - Returns the flavor structure of the
+           matter term, diag(1, 0, ..., 0, r/2, ...), with the sterile
+           states' neutral-current entry included
 """
 
 __author__ = "Mauricio Bustamante"

@@ -40,7 +40,7 @@ from typing import Optional, Callable
 # from globaldefs import *
 
 
-def mixing_matrix_2nu(sth: float) -> np.ndarray:
+def mixing_matrix_2nu(sth: float, angles: Optional[str]='sin') -> np.ndarray:
     r"""Returns the 2x2 rotation matrix.
 
     Computes and returns a 2x2 real rotation matrix parametrized by a single rotation angle theta.
@@ -50,7 +50,12 @@ def mixing_matrix_2nu(sth: float) -> np.ndarray:
     Parameters
     ----------
     sth : float
-        Sine of the mixing angle :math:`\theta`.
+        Mixing angle :math:`\theta`, in whichever convention ``angles`` names -- by
+        default its sine.
+    angles : str, optional
+        How ``sth`` is stated: ``'sin'`` (default) its sine, ``'sin2'`` its sine
+        *squared* -- which is what global fits report -- ``'rad'`` the angle itself in
+        radians, or ``'deg'`` in degrees.  Any other value raises.
 
     Returns
     -------
@@ -71,15 +76,19 @@ def mixing_matrix_2nu(sth: float) -> np.ndarray:
         print('unitary to %.1e' % np.max(np.abs(U.conj().T @ U - np.eye(2))))
 
     Note the argument is :math:`\sin\theta`, not :math:`\sin^2\theta`; fits
-    are usually quoted as the latter, hence the square root.
+    are usually quoted as the latter -- pass ``angles='sin2'`` and hand the fitted
+    value straight in, rather than taking the square root yourself.
 """
+    sines, _ = _angles.resolve('hamiltonians.mixing_matrix_2nu', angles, {'sth': sth})
+    sth = sines['sth']
     cth = np.sqrt(1.0-sth*sth)
 
     return np.array([[cth,sth],[-sth,cth]])
 
 
 def hamiltonian_2nu_vacuum_energy_independent(sth: float, Dm2: float,
-    compute_matrix_multiplication: Optional[bool]=False) -> np.ndarray:
+    compute_matrix_multiplication: Optional[bool]=False,
+    angles: Optional[str]='sin') -> np.ndarray:
     r"""Returns the two-neutrino Hamiltonian for vacuum oscillations.
 
     Computes and returns the 2x2 real two-neutrino Hamiltonian for oscillations in vacuum,
@@ -92,18 +101,25 @@ def hamiltonian_2nu_vacuum_energy_independent(sth: float, Dm2: float,
     Parameters
     ----------
     sth : float
-        Sine of the mixing angle :math:`\theta`.
+        Mixing angle :math:`\theta`, in whichever convention ``angles`` names -- by
+        default its sine.
     Dm2 : float
         Mass-squared difference :math:`\Delta m^2`.
     compute_matrix_multiplication : bool, optional
         If False (default), use the pre-computed expressions; otherwise,
         multiply R.M2.R^dagger live.
+    angles : str, optional
+        How ``sth`` is stated: ``'sin'`` (default) its sine, ``'sin2'`` its sine
+        *squared* -- which is what global fits report -- ``'rad'`` the angle itself in
+        radians, or ``'deg'`` in degrees.  Any other value raises.
+        :func:`magnus.globaldefs.load_nufit_params` returns sines, so its output goes
+        with the default.
 
     Returns
     -------
     np.ndarray
         Hamiltonian 2x2 matrix.
-    
+
     Examples
     --------
     .. jupyter-execute::
@@ -122,7 +138,9 @@ def hamiltonian_2nu_vacuum_energy_independent(sth: float, Dm2: float,
     The energy is divided out separately, which is what makes this the piece to
     build once and reuse across a scan over energies.
 """
-    _angles.validate_sines('hamiltonian_2nu_vacuum_energy_independent', sth=sth)
+    sines, _ = _angles.resolve(
+        'hamiltonians.hamiltonian_2nu_vacuum_energy_independent', angles, {'sth': sth})
+    sth = sines['sth']
     cth = np.sqrt(1.0-sth*sth)
     c2th = cth*cth-sth*sth
     s2th = 2.0*cth*sth
@@ -148,7 +166,8 @@ def hamiltonian_2nu_vacuum_energy_independent(sth: float, Dm2: float,
 
 
 def hamiltonian_2nu_vacuum_energy_independent_td(l: float, sth: float, Dm2: float,
-    compute_matrix_multiplication: Optional[bool]=False) -> np.ndarray:
+    compute_matrix_multiplication: Optional[bool]=False,
+    angles: Optional[str]='sin') -> np.ndarray:
     r"""Returns the two-neutrino Hamiltonian for vacuum oscillations, as a function of distance,
     even if it does not depend on it.
 
@@ -166,12 +185,17 @@ def hamiltonian_2nu_vacuum_energy_independent_td(l: float, sth: float, Dm2: floa
     l : float
         Position at which the Hamiltonian is evaluated.
     sth : float
-        Sine of the mixing angle :math:`\theta`.
+        Mixing angle :math:`\theta`, in whichever convention ``angles`` names -- by
+        default its sine.
     Dm2 : float
         Mass-squared difference :math:`\Delta m^2`.
     compute_matrix_multiplication : bool, optional
         If False (default), use the pre-computed expressions; otherwise, multiply R.M2.R^dagger
         live.
+    angles : str, optional
+        How ``sth`` is stated: ``'sin'`` (default) its sine, ``'sin2'`` its sine
+        *squared* -- which is what global fits report -- ``'rad'`` the angle itself in
+        radians, or ``'deg'`` in degrees.  Any other value raises.
 
     Returns
     -------
@@ -180,11 +204,12 @@ def hamiltonian_2nu_vacuum_energy_independent_td(l: float, sth: float, Dm2: floa
     """
 
     return hamiltonian_2nu_vacuum_energy_independent(sth, Dm2,
-        compute_matrix_multiplication=compute_matrix_multiplication)
+        compute_matrix_multiplication=compute_matrix_multiplication, angles=angles)
 
 
 def hamiltonian_2nu_vacuum(energy: float, sth: float, Dm2: float,
-    compute_matrix_multiplication: Optional[bool]=False) -> np.ndarray:
+    compute_matrix_multiplication: Optional[bool]=False,
+    angles: Optional[str]='sin') -> np.ndarray:
     r"""Returns the two-neutrino Hamiltonian for vacuum oscillations.
 
     Same as :func:`hamiltonian_2nu_vacuum_energy_independent`, but with the 1/E factor applied.
@@ -196,12 +221,17 @@ def hamiltonian_2nu_vacuum(energy: float, sth: float, Dm2: float,
     energy : float
         Neutrino energy.
     sth : float
-        Sine of the mixing angle :math:`\theta`.
+        Mixing angle :math:`\theta`, in whichever convention ``angles`` names -- by
+        default its sine.
     Dm2 : float
         Mass-squared difference :math:`\Delta m^2`.
     compute_matrix_multiplication : bool, optional
         If False (default), use the pre-computed expressions; otherwise,
         multiply R.M2.R^dagger live.
+    angles : str, optional
+        How ``sth`` is stated: ``'sin'`` (default) its sine, ``'sin2'`` its sine
+        *squared* -- which is what global fits report -- ``'rad'`` the angle itself in
+        radians, or ``'deg'`` in degrees.  Any other value raises.
 
     Returns
     -------
@@ -209,11 +239,12 @@ def hamiltonian_2nu_vacuum(energy: float, sth: float, Dm2: float,
         Hamiltonian 2x2 matrix.
     """
     return (1/energy)*hamiltonian_2nu_vacuum_energy_independent(sth, Dm2,
-        compute_matrix_multiplication=compute_matrix_multiplication)
+        compute_matrix_multiplication=compute_matrix_multiplication, angles=angles)
 
 
 def hamiltonian_2nu_vacuum_td(l: float, energy: float, sth: float, Dm2: float,
-    compute_matrix_multiplication: Optional[bool]=False) -> np.ndarray:
+    compute_matrix_multiplication: Optional[bool]=False,
+    angles: Optional[str]='sin') -> np.ndarray:
     r"""Returns the two-neutrino Hamiltonian for vacuum oscillations, as a function of distance,
     even if it does not depend on it.
 
@@ -233,12 +264,17 @@ def hamiltonian_2nu_vacuum_td(l: float, energy: float, sth: float, Dm2: float,
     energy : float
         Neutrino energy.
     sth : float
-        Sine of the mixing angle :math:`\theta`.
+        Mixing angle :math:`\theta`, in whichever convention ``angles`` names -- by
+        default its sine.
     Dm2 : float
         Mass-squared difference :math:`\Delta m^2`.
     compute_matrix_multiplication : bool, optional
         If False (default), use the pre-computed expressions; otherwise,
         multiply R.M2.R^dagger live.
+    angles : str, optional
+        How ``sth`` is stated: ``'sin'`` (default) its sine, ``'sin2'`` its sine
+        *squared* -- which is what global fits report -- ``'rad'`` the angle itself in
+        radians, or ``'deg'`` in degrees.  Any other value raises.
 
     Returns
     -------
@@ -247,7 +283,7 @@ def hamiltonian_2nu_vacuum_td(l: float, energy: float, sth: float, Dm2: float,
     """
 
     return hamiltonian_2nu_vacuum(energy, sth, Dm2,
-        compute_matrix_multiplication=compute_matrix_multiplication)
+        compute_matrix_multiplication=compute_matrix_multiplication, angles=angles)
 
 
 def hamiltonian_2nu_matter(VCC: float) -> np.ndarray:
@@ -390,7 +426,7 @@ def hamiltonian_2nu_nsi_td(l: float, VCC_func: Callable, eps_aa: float,
 
 
 def hamiltonian_2nu_liv(energy: float, sxi: float, b1: float, b2: float, Lambda: float, n_liv: int,
-    nubar: Optional[bool]=False) -> np.ndarray:
+    nubar: Optional[bool]=False, angles: Optional[str]='sin') -> np.ndarray:
     r"""Returns the two-neutrino Hamiltonian for oscillations with LIV.
 
     Computes and returns the 2x2 real two-neutrino Hamiltonian for oscillations in a CPT-odd Lorentz
@@ -405,8 +441,8 @@ def hamiltonian_2nu_liv(energy: float, sxi: float, b1: float, b2: float, Lambda:
     energy : float
         Neutrino energy.
     sxi : float
-        Sin(xi), with xi the rotation angle between the space of the eigenvectors of B2 and the
-        flavor states.
+        Rotation angle :math:`\xi` between the space of the eigenvectors of B2 and the
+        flavor states, in whichever convention ``angles`` names -- by default its sine.
     b1 : float
         Eigenvalue b1 of the LIV operator B2.
     b2 : float
@@ -420,17 +456,22 @@ def hamiltonian_2nu_liv(energy: float, sxi: float, b1: float, b2: float, Lambda:
         4nu/5nu siblings, which conjugate their (complex) LIV mixing matrix for antineutrinos.  The
         2-flavor LIV rotation has no CP-violating phase (only the real angle ``sxi``), so there is
         nothing to conjugate and this parameter currently has no effect. Default: False.
+    angles : str, optional
+        How ``sxi`` is stated: ``'sin'`` (default) its sine, ``'sin2'`` its sine
+        *squared*, ``'rad'`` the angle itself in radians, or ``'deg'`` in degrees.  Any
+        other value raises.
 
     Returns
     -------
     np.ndarray
         Hamiltonian 2x2 matrix.
     """
-    return pow(energy, n_liv) * hamiltonian_2nu_liv_energy_independent(sxi, b1, b2, Lambda, n_liv)
+    return pow(energy, n_liv) * hamiltonian_2nu_liv_energy_independent(
+        sxi, b1, b2, Lambda, n_liv, angles=angles)
 
 
 def hamiltonian_2nu_liv_energy_independent(sxi: float, b1: float, b2: float,
-    Lambda: float, n_liv: int) -> np.ndarray:
+    Lambda: float, n_liv: int, angles: Optional[str]='sin') -> np.ndarray:
     r"""Returns the two-neutrino Hamiltonian for oscillations with LIV.
 
     Computes and returns the 2x2 real two-neutrino Hamiltonian for oscillations in a CPT-odd Lorentz
@@ -441,8 +482,8 @@ def hamiltonian_2nu_liv_energy_independent(sxi: float, b1: float, b2: float,
     Parameters
     ----------
     sxi : float
-        Sin(xi), with xi the rotation angle between the space of the eigenvectors of B2 and the
-        flavor states.
+        Rotation angle :math:`\xi` between the space of the eigenvectors of B2 and the
+        flavor states, in whichever convention ``angles`` names -- by default its sine.
     b1 : float
         Eigenvalue b1 of the LIV operator B2.
     b2 : float
@@ -451,12 +492,23 @@ def hamiltonian_2nu_liv_energy_independent(sxi: float, b1: float, b2: float,
         Energy scale of the LIV operator B2.
     n_liv : int
         Power of the energy dependence of the LIV operator (dimension of the operator minus 3).
+    angles : str, optional
+        How ``sxi`` is stated: ``'sin'`` (default) its sine, ``'sin2'`` its sine
+        *squared*, ``'rad'`` the angle itself in radians, or ``'deg'`` in degrees.  Any
+        other value raises.
 
     Returns
     -------
     np.ndarray
         Hamiltonian 2x2 matrix.
     """
+    # Until now the LIV angle went through no guard at all: only the vacuum builders
+    # validated their sines, so an out-of-range sxi reached np.sqrt(1 - sxi*sxi) and
+    # became a NaN Hamiltonian in silence.  resolve() closes that as a side effect of
+    # accepting the convention.
+    _sines, _ = _angles.resolve(
+        'hamiltonians.hamiltonian_2nu_liv_energy_independent', angles, {'sxi': sxi})
+    sxi = _sines['sxi']
     # H = R . diag(b1, b2) . R^T, with R = mixing_matrix_2nu(sxi) -- the same convention used by
     # every sibling Hamiltonian (2nu vacuum's slow path, and the 3/4/5nu LIV Hamiltonians).  The
     # off-diagonal sign below was previously flipped relative to this convention (a confirmed bug).

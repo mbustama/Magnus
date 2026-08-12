@@ -10,7 +10,7 @@ factors used by the various modules of Magnus: unit conversions (km,
 cm, GeV, etc., to natural units of eV), fundamental constants (G_F,
 particle masses, Avogadro's number), Earth/Sun radii and reference
 densities, flavor index constants (NUE, NUMU, NUTAU, NUS), predefined
-oscillation/NSI/LIV parameter sets (e.g., NuFit 6.0), and ANSI terminal
+oscillation/NSI/LIV parameter sets (e.g., NuFit 6.1, the default), and ANSI terminal
 color codes (class ``cstyle``) used to format warning/error messages.
 
 Routine listings
@@ -20,11 +20,12 @@ Routine listings
     * set_color_output - Enables or disables ANSI color in the warning
            and error message prefixes
     * load_nufit_params - Loads one NuFit release/ordering/category as a
-           dict of standard oscillation parameters
+           dict of standard oscillation parameters, in whichever ``angles``
+           convention is asked for
 
-The remaining module-level names are physical constants and
-unit-conversion factors, not routines; see the module source for the
-full list.
+The remaining module-level names are physical constants, unit-conversion
+factors, the ANGLE_CONVENTIONS tuple and the MixingAngleConventionWarning
+class, not routines; see the module source for the full list.
 """
 
 
@@ -117,6 +118,43 @@ WARNING_MSG_IN_COLOR = cstyle.CVIOLETBG + "Warning:" + cstyle.CEND
 ERROR_MSG_NO_COLOR = "Error in magnus:"
 
 ERROR_MSG_IN_COLOR = cstyle.CREDBG + "Error in magnus:" + cstyle.CEND
+
+ANGLE_CONVENTIONS = ('sin', 'sin2', 'rad', 'deg')
+r"""tuple: The values the ``angles`` keyword accepts, in the order they are documented.
+
+``'sin'`` (the default everywhere) is the sine of the mixing angle, ``'sin2'`` its
+square -- which is what global fits report -- ``'rad'`` the angle itself in radians, and
+``'deg'`` in degrees.  Under ``'deg'`` the CP phases are read as degrees too; under the
+other three they stay in radians, a sine being no way to state a phase.
+
+Defined here rather than in :mod:`magnus.hamiltonians` because the conversion itself lives
+in a private module, and a name users are told to filter or compare against has to be
+documented somewhere public.
+
+.. versionadded:: 1.0.0
+"""
+
+
+class MixingAngleConventionWarning(UserWarning):
+    r"""A parameter set is very probably not in the ``angles`` convention it declared.
+
+    Raised only where the mistake is diagnosable from the values themselves: sines handed
+    to ``angles='deg'`` are about fifty times too small to be angles, and the call would
+    otherwise return a converged, unitary, entirely wrong probability rather than an
+    error.  A warning rather than an exception, for the same reason as
+    :class:`magnus.matter.DensityUnitWarning`: the threshold reflects the mixing people
+    currently study, not a law.
+
+    Its own class so it can be silenced or promoted on its own::
+
+        import warnings
+        import magnus.globaldefs as gd
+
+        warnings.filterwarnings('error', category=gd.MixingAngleConventionWarning)
+
+    .. versionadded:: 1.0.0
+    """
+
 
 TOL_MSG_NO_COLOR = "Requested tolerance achieved"
 
@@ -986,7 +1024,7 @@ NUFIT_GLOBAL_FITS = {
 }
 
 
-def load_nufit_params(version='NuFIT 6.1', ordering='NO', category=None):
+def load_nufit_params(version='NuFIT 6.1', ordering='NO', category=None, angles='sin'):
     r"""Load standard three-flavor mixing parameters from a NuFit global fit.
 
     Looks up ``NUFIT_GLOBAL_FITS`` for the requested release, mass
@@ -1007,6 +1045,20 @@ def load_nufit_params(version='NuFIT 6.1', ordering='NO', category=None):
     ordering : str, optional
         Neutrino mass ordering: ``'NO'`` (normal) or ``'IO'`` (inverted).
         Default: ``'NO'``.
+    angles : str, optional
+        Convention the three mixing angles are returned in: ``'sin'`` (default) their sines,
+        ``'sin2'`` their sines *squared* -- which is the form NuFit itself reports --
+        ``'rad'`` the angles in radians, or ``'deg'`` in degrees.  Under ``'deg'`` ``dCP``
+        is converted too.
+
+        **Pass the same value here that you pass to the probability function.**  The two are
+        one setting in two places: ``osc_prob_3nu_earth(E, **load_nufit_params(), angles='deg')``
+        reads perfectly and is silently wrong, because the loader's sines (0.15 to 0.85) are
+        then interpreted as degrees, about fifty times too small.  The result is a converged,
+        unitary, entirely wrong probability.  The guard in
+        :func:`magnus.hamiltonians.hamiltonians3nu.hamiltonian_3nu_vacuum_energy_independent`
+        catches that particular pairing, but the reliable fix is to state the convention once
+        and use it on both calls.
     category : str or None, optional
         Release-specific secondary category (e.g. ``'with_SK'`` /
         ``'without_SK'`` for v4.0+, ``'LEM'`` / ``'LID'`` for v2.1,
@@ -1019,8 +1071,10 @@ def load_nufit_params(version='NuFIT 6.1', ordering='NO', category=None):
     Returns
     -------
     dict
-        Dict with keys ``s12``, ``s23``, ``s13`` (:math:`\sin\theta_{ij}`,
-        adimensional), ``dCP`` (radian), ``D21`` and ``D31`` (:math:`\text{eV}^{2}`).
+        Dict with keys ``s12``, ``s23``, ``s13``, ``dCP``, ``D21`` and ``D31``.  The three
+        angles are in whichever convention ``angles`` names -- by default their sines,
+        adimensional -- and ``dCP`` is in radians unless ``angles='deg'``, which puts it in
+        degrees.  ``D21`` and ``D31`` are always :math:`\text{eV}^{2}`.
 
     Raises
     ------
@@ -1081,7 +1135,21 @@ def load_nufit_params(version='NuFIT 6.1', ordering='NO', category=None):
             "is not available for %s. Available categories: %s."
             % (category, version, ', '.join(categories.keys())))
 
-    return dict(categories[category][ordering])
+    out = dict(categories[category][ordering])
+
+    # The stored tables are sines, so 'sin' is a pass-through and costs nothing.  The other
+    # three are computed from them here rather than by the caller, because a caller who
+    # converts by hand and then names a convention has two places to get it wrong.
+    if angles != 'sin':
+        from magnus.hamiltonians import _angles as _a
+        _a.validate_convention('globaldefs.load_nufit_params', angles)
+        ang, ph = _a.from_sines(angles,
+                                {k: out[k] for k in ('s12', 's23', 's13')},
+                                {'dCP': out['dCP']})
+        out.update(ang)
+        out.update(ph)
+
+    return out
 
 
 # ---------------------------------------------------------------------------------------
@@ -1122,6 +1190,8 @@ __all__ = [
     'WARNING_MSG_IN_COLOR',
     'ERROR_MSG_NO_COLOR',
     'ERROR_MSG_IN_COLOR',
+    'ANGLE_CONVENTIONS',
+    'MixingAngleConventionWarning',
     'TOL_MSG_NO_COLOR',
     'TOL_MSG_IN_COLOR',
     'MAGNUS_MAX_PREDEFINED_NUM_FLAVORS',

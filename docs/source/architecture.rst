@@ -307,6 +307,7 @@ closest sibling to copy from. The recipe:
            nubar=False, nu_i=None, nu_f=None,
            validate_input=True, save_log=False, filename_log='./out.log',
            file_log=None, close_file_log_upon_exit=True, verbose=0,
+           angles='sin',
            **kwargs
        ):
            r"""Compute the 3nu NSI oscillation probability for a
@@ -329,8 +330,17 @@ closest sibling to copy from. The recipe:
                filename_log=filename_log, file_log=file_log,
                close_file_log_upon_exit=close_file_log_upon_exit,
                verbose=verbose,
+               angles=angles,
                **kwargs
            )
+
+   ``angles`` is worth a word: it is a pure pass-through, and every wrapper in the
+   package forwards it unexamined to the layer below, which is where the four
+   conventions are interpreted.  A wrapper that accepts it and forgets to forward it
+   compiles, documents itself correctly and silently ignores the caller -- four
+   functions in this package did exactly that before a check was written for it, so
+   the family-consistency tests below now assert that anything taking ``angles``
+   also reads it.
 
 #. **Add it to the family-consistency tests.** ``test_oscprob.py``
    parametrizes several checks over "every osc_prob wrapper family" by

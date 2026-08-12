@@ -261,10 +261,10 @@ configures):
                       [--rho RHO] [--rho-central RHO_CENTRAL] [--l-scale L_SCALE]
                       [--density-unit {g/cm3,natural}] [--ratio-n-to-p RATIO_N_TO_P]
                       [--electron-fraction ELECTRON_FRACTION] [--costhz COSTHZ]
-                      [--loc-ini LOC_INI] [--loc-fin LOC_FIN] [--sth STH] [--dm2 DM2]
-                      [--s12 S12] [--s23 S23] [--s13 S13] [--dcp DCP] [--dm21 D21]
-                      [--dm31 D31]
-                      [--osc-params-set {OSC_PARAMS_DEFAULT,OSC_PARAMS_NU_FIT_6_0_SK_NO,OSC_PARAMS_NU_FIT_6_0_SK_IO}]
+                      [--loc-ini LOC_INI] [--loc-fin LOC_FIN] [--angles {sin,sin2,rad,deg}]
+                      [--sth STH] [--dm2 DM2] [--s12 S12] [--s23 S23] [--s13 S13]
+                      [--dcp DCP] [--dm21 D21] [--dm31 D31]
+                      [--osc-params-set {OSC_PARAMS_DEFAULT,OSC_PARAMS_NU_FIT_6_0_SK_IO,OSC_PARAMS_NU_FIT_6_0_SK_NO,OSC_PARAMS_NU_FIT_6_1_SK_IO,OSC_PARAMS_NU_FIT_6_1_SK_NO}]
                       [--s14 S14] [--d14 D14] [--s24 S24] [--d24 D24] [--s34 S34]
                       [--dm41 D41] [--s15 S15] [--d15 D15] [--s25 S25] [--s35 S35]
                       [--d35 D35] [--dm51 D51] [--eps-aa EPS_AA] [--eps-ab EPS_AB]
@@ -339,35 +339,47 @@ configures):
      --loc-fin LOC_FIN     Final location name; see --loc-ini.
 
    Standard oscillation parameters (2-flavor):
-     --sth STH             Sin(theta) (required for --flavors 2).
+     --angles {sin,sin2,rad,deg}
+                           Convention for every mixing angle below (--sth, --s12..,
+                           --sxi..): sin (default) their sines, sin2 their sines squared --
+                           the form global fits report -- rad the angles in radians, deg in
+                           degrees. Under deg the CP phases (--dcp, --d14, ...) are read as
+                           degrees too; otherwise they stay in radians.
+     --sth STH             Mixing angle theta, in the convention set by --angles (required
+                           for --flavors 2).
      --dm2 DM2             Mass-squared difference Delta m^2 (required for --flavors 2).
 
    Standard oscillation parameters (3+ flavors):
-     --s12 S12             Sin(theta_12). Default: NuFit 6.1.
-     --s23 S23             Sin(theta_23). Default: NuFit 6.1.
-     --s13 S13             Sin(theta_13). Default: NuFit 6.1.
-     --dcp DCP             delta_CP [radian]. Default: NuFit 6.1.
+     --s12 S12             Mixing angle theta_12, per --angles. Default: NuFit 6.1.
+     --s23 S23             Mixing angle theta_23, per --angles. Default: NuFit 6.1.
+     --s13 S13             Mixing angle theta_13, per --angles. Default: NuFit 6.1.
+     --dcp DCP             delta_CP [radian, or degree with --angles deg]. Default: NuFit
+                           6.1.
      --dm21 D21            Mass-squared difference Delta m^2_21. Default: NuFit 6.1.
      --dm31 D31            Mass-squared difference Delta m^2_31. Default: NuFit 6.1.
-     --osc-params-set {OSC_PARAMS_DEFAULT,OSC_PARAMS_NU_FIT_6_0_SK_NO,OSC_PARAMS_NU_FIT_6_0_SK_IO}
+     --osc-params-set {OSC_PARAMS_DEFAULT,OSC_PARAMS_NU_FIT_6_0_SK_IO,OSC_PARAMS_NU_FIT_6_0_SK_NO,OSC_PARAMS_NU_FIT_6_1_SK_IO,OSC_PARAMS_NU_FIT_6_1_SK_NO}
                            Predefined set used to fill in any of s12/s23/s13/dCP/D21/D31
-                           left unspecified: normal ordering (..._NO, the default) or
-                           inverted ordering (..._IO).
+                           left unspecified: normal ordering (..._NO) or inverted ordering
+                           (..._IO). OSC_PARAMS_DEFAULT is NuFit 6.1 NO. Taken from
+                           globaldefs.OSC_PARAMS_PREDEFINED rather than listed here,
+                           because a hand-written list went stale: it offered only the 6.0
+                           sets, so asking for inverted ordering silently dropped a release
+                           behind the default.
 
    Additional sterile mixing (4+ flavors):
-     --s14 S14             Sin(theta_14). Default: 0.0.
-     --d14 D14             delta_14 [radian]. Default: 0.0.
-     --s24 S24             Sin(theta_24). Default: 0.0.
-     --d24 D24             delta_24 [radian]. Default: 0.0.
-     --s34 S34             Sin(theta_34). Default: 0.0.
+     --s14 S14             Mixing angle theta_14, per --angles. Default: 0.0.
+     --d14 D14             delta_14 [radian, or degree with --angles deg]. Default: 0.0.
+     --s24 S24             Mixing angle theta_24, per --angles. Default: 0.0.
+     --d24 D24             delta_24 [radian, or degree with --angles deg]. Default: 0.0.
+     --s34 S34             Mixing angle theta_34, per --angles. Default: 0.0.
      --dm41 D41            Mass-squared difference Delta m^2_41. Default: 0.0.
 
    Additional sterile mixing (5 flavors):
-     --s15 S15             Sin(theta_15). Default: 0.0.
-     --d15 D15             delta_15 [radian]. Default: 0.0.
-     --s25 S25             Sin(theta_25). Default: 0.0.
-     --s35 S35             Sin(theta_35). Default: 0.0.
-     --d35 D35             delta_35 [radian]. Default: 0.0.
+     --s15 S15             Mixing angle theta_15, per --angles. Default: 0.0.
+     --d15 D15             delta_15 [radian, or degree with --angles deg]. Default: 0.0.
+     --s25 S25             Mixing angle theta_25, per --angles. Default: 0.0.
+     --s35 S35             Mixing angle theta_35, per --angles. Default: 0.0.
+     --d35 D35             delta_35 [radian, or degree with --angles deg]. Default: 0.0.
      --dm51 D51            Mass-squared difference Delta m^2_51. Default: 0.0.
 
    NSI parameters (--scenario nsi):
@@ -394,21 +406,21 @@ configures):
      --eps-s2s2 EPS_S2S2   (5nu) Diagonal NSI coupling of nu_s2.
 
    LIV parameters (--scenario liv):
-     --sxi SXI             2-flavor LIV mixing angle sine.
-     --sxi12 SXI12         LIV mixing angle sine xi_12.
-     --sxi23 SXI23         LIV mixing angle sine xi_23.
-     --sxi13 SXI13         LIV mixing angle sine xi_13.
+     --sxi SXI             2-flavor LIV mixing angle xi, per --angles.
+     --sxi12 SXI12         LIV mixing angle xi_12, per --angles.
+     --sxi23 SXI23         LIV mixing angle xi_23, per --angles.
+     --sxi13 SXI13         LIV mixing angle xi_13, per --angles.
      --dxicp DXICP         (3nu) LIV CP-violation phase [radian].
      --dxi13 DXI13         (4/5nu) LIV CP-violation phase [radian] (replaces --dxicp).
-     --sxi14 SXI14         (4/5nu) LIV mixing angle sine xi_14.
+     --sxi14 SXI14         (4/5nu) LIV mixing angle xi_14, per --angles.
      --dxi14 DXI14         (4/5nu) LIV CP-violation phase [radian].
-     --sxi24 SXI24         (4/5nu) LIV mixing angle sine xi_24.
+     --sxi24 SXI24         (4/5nu) LIV mixing angle xi_24, per --angles.
      --dxi24 DXI24         (4/5nu) LIV CP-violation phase [radian].
-     --sxi34 SXI34         (4/5nu) LIV mixing angle sine xi_34.
-     --sxi15 SXI15         (5nu) LIV mixing angle sine xi_15.
+     --sxi34 SXI34         (4/5nu) LIV mixing angle xi_34, per --angles.
+     --sxi15 SXI15         (5nu) LIV mixing angle xi_15, per --angles.
      --dxi15 DXI15         (5nu) LIV CP-violation phase [radian].
-     --sxi25 SXI25         (5nu) LIV mixing angle sine xi_25.
-     --sxi35 SXI35         (5nu) LIV mixing angle sine xi_35.
+     --sxi25 SXI25         (5nu) LIV mixing angle xi_25, per --angles.
+     --sxi35 SXI35         (5nu) LIV mixing angle xi_35, per --angles.
      --dxi35 DXI35         (5nu) LIV CP-violation phase [radian].
      --b1 B1               LIV eigenvalue b1.
      --b2 B2               LIV eigenvalue b2.
