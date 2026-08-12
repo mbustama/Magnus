@@ -140,7 +140,19 @@ right about the three density parameters and right at 2ν/3ν; it went one step 
 
 ## 3. What is left
 
-### 3.1 The notebook rebuild — **needs an idle machine**, blocks two files
+### 3.1 The notebook rebuild — **DONE in `O53`**, kept for the procedure
+
+**Completed 2026-08-12.** All ten (the nine below plus 27, which joined when its compression
+table changed) rebuilt on an idle machine; all 27 match the generator and carry outputs.
+Notebook 25 executed in **38.0 s** against the overnight log's 38.5 s, with its two interleaved
+controls at 0.986 and 0.996, so its timings are comparable to the ones its prose quotes. Every
+value predicted below was checked and holds. **Do not re-run this**; the procedure is kept
+because it is the one that works.
+
+One trap learned the hard way and worth adding: **do not edit `make_notebooks.py` while a build
+is running.** The running process holds its own in-memory copy of `books`, so it writes the
+pre-edit text and its own staleness check passes — the edit only reappears as staleness in the
+*next* process. It cost one extra 460 s rebuild of notebook 27.
 
 **Nine notebooks must rebuild together.** `make_notebooks.py --only` refuses to finish while
 any *other* notebook on disk is stale, so they cannot be done piecemeal, and its staleness
@@ -199,17 +211,26 @@ were replaced with measured values and the unsupported "twentyfold" rule dropped
 
 ### 3.3 Open decisions — **for the user, not the next session to decide alone**
 
-1. **Should the Earth's sterile projector `r` default to the path-averaged value instead of
-   `1.0`?** Physics. It would make the default self-consistent, but changes 3+1/3+2 Earth
-   results by up to 2.1e-02 without the caller asking, on an already-audited branch. If it
-   changes: notebook 07 and notebook 25 §5/§7 need re-execution, and §7's frozen dataset is
-   built on the uniform convention so it would need `electron_fraction=0.5` pinned to stay a
-   like-for-like comparison.
-2. **`anim_earth.gif`** still shows the old uniform composition. `RENDER = True` in notebook
-   27, ~9 min for that scene, then `tools/make_demo_video.py --shrink`. **Safe on a busy
-   machine** — rendering is deterministic, not a measurement. It changes tracked files under
-   `img/`, which makes notebook 27's compression table (`anim_earth.gif | 20.0 MB | 2.61 MB |
-   7.6x`) stale, so 27 joins the rebuild set.
+1. ~~**Should the Earth's sterile projector `r` default to the path-averaged value instead of
+   `1.0`?**~~ **DECIDED 2026-08-12 (`O53`): no — 1.0.0 ships the warning, and the default
+   stays `1.0`.** No single `r` is right for a chord crossing iron and rock, so a
+   self-consistent *looking* default would hide the approximation rather than surface it,
+   and flipping it would move 3+1/3+2 Earth results by up to 2.1e-02 without the caller
+   asking, on an already-audited branch. The real fix is a **position-dependent** projector,
+   `H_matt(l) = V_CC(l) x P(l)` — a structural change to the scalar-times-constant-matrix
+   factorisation the matter path is built on, not a default swap. Filed in full, with the
+   layer table, the call sites and acceptance criteria, at
+   https://github.com/mbustama/Magnus/issues/47. **Do not re-open this as a 1.0.0 question.**
+2. ~~**`anim_earth.gif`** still shows the old uniform composition.~~ **DONE in `O53`.**
+   Re-rendered against the layered composition: raw 19.8 MB / 150 frames / **51 s** (not the
+   ~9 min estimated here), shrunk to 2.50 MB, 7.9x. Verified physical rather than encoding
+   noise — the frame-by-frame difference is largest at `costhz = -1.00`, straight through the
+   iron core, and falls to nothing by `costhz = -0.05` on a chord that never reaches it. Only
+   that scene was re-rendered; the other six do not depend on composition, and re-rendering
+   them would add ~15 MB of binaries for nothing. Notebook 27's table is updated and 27 was
+   rebuilt. *Method, if it is ever needed again:* drive the notebook's own render cell with
+   `RENDER = True` and a `write()` that returns early for every name but the one wanted —
+   that keeps the notebook the single owner of the scene rather than copying it out.
 3. **Release**: push, PR, merge, tag **`v1.0.0`**. `D15` enforces tag == `pyproject` version.
    The 3.13 CI job (`C9`) has never run and is the early warning for numba lacking a wheel.
    Note `pyproject`'s classifiers **deliberately** stop at 3.12 — a classifier is a promise

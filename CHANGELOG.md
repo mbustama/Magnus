@@ -143,6 +143,13 @@ and the project uses [Semantic Versioning](https://semver.org/).
   and reproduces the older uniform composition.  **No number changes unless you act on
   the warning.**
 
+  The default was deliberately left at `1.0` rather than moved to the path-averaged value,
+  because no single `r` is right for a chord crossing iron and rock and a self-consistent
+  *looking* default would hide that.  The real fix is a position-dependent projector,
+  `H_matt(l) = V_CC(l) x P(l)`, which is a structural change to the scalar-times-constant-
+  matrix factorisation the matter path is built on; it is tracked for a future release as
+  [issue #47](https://github.com/mbustama/Magnus/issues/47).
+
   The docstrings were also wrong about this.  Twelve Earth wrappers said the ratio "must
   match the value given to `vcc_func_from_rho_func`", which on the Earth path is
   unsatisfiable -- that function is handed a per-layer ratio the caller never supplies.
