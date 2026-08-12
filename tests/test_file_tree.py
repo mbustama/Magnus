@@ -49,7 +49,7 @@ COMMENT_COLUMN = 36
 COLLAPSED = ('docs/dev/', 'img/gallery/', 'fig/')
 
 TREE = [
-    ('.github/', None),
+    ('.github/', 'GitHub Actions workflows: tests, lint, notebooks, docs, publishing'),
     ('.github/workflows/', None),
     ('.github/workflows/lint.yml', 'Ruff lint (blocking) + CLI-reference drift check'),
     ('.github/workflows/notebooks.yml', 'Executes every notebook; paths-filtered, so docs-only changes skip it'),
@@ -208,7 +208,7 @@ TREE = [
     ('tools/', 'Standalone utilities that are not part of the package'),
     ('tools/make_demo_video.py',
      "Joins and shrinks notebook 27's clips; shared with NuOscProbExact"),
-    ('src/', None),
+    ('src/', 'The package itself -- the only thing a `pip install` delivers'),
     ('src/magnus/', 'Main Python package'),
     ('src/magnus/__init__.py', 'Explicit named imports from the four hamiltonians{2,3,4,5}nu.py modules'),
     ('src/magnus/__main__.py', 'Entry point for `python -m magnus`'),
@@ -267,13 +267,17 @@ TREE = [
 ]
 
 
-def render_tree():
+def render_tree(entries=None):
     r"""The tree as a list of lines, box-drawing connectors and all.
 
     Depth and connectors are derived from the paths alone, so `TREE` carries no
     drawing characters and reordering an entry cannot leave a stale one behind.
+
+    ``entries`` defaults to the whole of `TREE`; pass a subset to render a
+    partial tree, as `render_summary_tree` does.
     """
-    paths = [p for p, _ in TREE]
+    entries = TREE if entries is None else entries
+    paths = [p for p, _ in entries]
     depths = [p.rstrip('/').count('/') for p in paths]
 
     def has_later_sibling(index):
@@ -291,7 +295,7 @@ def render_tree():
     # that is what decides a vertical bar rather than blank space.
     trailing = []
     lines = [ROOT_LABEL]
-    for index, (path, comment) in enumerate(TREE):
+    for index, (path, comment) in enumerate(entries):
         depth = depths[index]
         del trailing[depth:]
         prefix = ''.join('│   ' if more else '    ' for more in trailing[:depth])
@@ -304,6 +308,22 @@ def render_tree():
         lines.append(line)
         trailing.append(has_later_sibling(index))
     return lines
+
+
+def render_summary_tree():
+    r"""The top level only, for the README.
+
+    The README is also the PyPI long description (``readme = "README.md"`` in
+    ``pyproject.toml``), and the full tree is 158 entries of which **27** are
+    under ``src/`` -- so 83% of it describes files a ``pip install`` never
+    delivers, rendered on a page whose readers have only the wheel.  The
+    complete listing stays in ``docs/source/installation.rst``, where the reader
+    has the repository in front of them.
+
+    Generated from the same `TREE`, so the two cannot disagree and a new
+    top-level directory cannot be forgotten here.
+    """
+    return render_tree([(p, c) for p, c in TREE if p.rstrip('/').count('/') == 0])
 
 
 def _readme_block(text):
@@ -350,11 +370,13 @@ def write():
     generated = render_tree()
     changed = []
 
+    summary = render_summary_tree()
+
     with open(README) as handle:
         text = handle.read()
     lines, start, end = _readme_block(text)
-    if lines[start:end] != generated:
-        lines[start:end] = generated
+    if lines[start:end] != summary:
+        lines[start:end] = summary
         with open(README, 'w') as handle:
             handle.write('\n'.join(lines))
         changed.append(README)
@@ -416,10 +438,42 @@ def test_every_directory_in_tree_has_a_parent_entry():
 
 
 def test_readme_tree_is_generated():
-    r"""README.md carries exactly what `render_tree` produces."""
-    assert current_readme_tree() == render_tree(), (
+    r"""README.md carries exactly what `render_summary_tree` produces."""
+    assert current_readme_tree() == render_summary_tree(), (
         'the file tree in README.md is out of date; regenerate it with '
         '`python tests/test_file_tree.py --write`')
+
+
+def test_readme_summary_covers_every_top_level_entry():
+    r"""The abbreviated tree may be short, but it may not be selective.
+
+    Its whole risk is that it is a hand-picked subset that quietly stops
+    matching the repository.  It is not hand-picked -- it is every depth-0
+    entry of `TREE`, which `test_tree_matches_git` already ties to
+    ``git ls-files`` -- and this says so, so that a future edit cannot turn it
+    into a curated list without failing.
+    """
+    rendered = '\n'.join(render_summary_tree())
+    top = [p for p, _ in TREE if p.rstrip('/').count('/') == 0]
+    assert top, 'TREE has no top-level entries, which cannot be right'
+    for path in top:
+        name = path.rstrip('/').split('/')[-1] + ('/' if path.endswith('/') else '')
+        assert name in rendered, (
+            '%s is a top-level entry but is missing from the README summary' % name)
+    # ...and nothing deeper leaked in: one line per entry, plus the root label.
+    assert len(render_summary_tree()) == len(top) + 1
+
+
+def test_every_top_level_directory_is_described():
+    r"""A bare directory name in the README summary tells a reader nothing.
+
+    The full tree can leave a directory uncommented because its children are
+    enumerated underneath it.  The summary has no children to fall back on, so
+    every top-level entry has to carry its own one-line comment.
+    """
+    missing = [p for p, c in TREE
+               if p.rstrip('/').count('/') == 0 and not c]
+    assert not missing, 'top-level entries without a comment: %s' % missing
 
 
 def test_installation_rst_tree_is_generated():

@@ -159,7 +159,7 @@ File Tree
 .. code-block:: text
 
    Magnus/
-   ├── .github/
+   ├── .github/                        # GitHub Actions workflows: tests, lint, notebooks, docs, publishing
    │   └── workflows/
    │       ├── lint.yml                # Ruff lint (blocking) + CLI-reference drift check
    │       ├── notebooks.yml           # Executes every notebook; paths-filtered, so docs-only changes skip it
@@ -266,7 +266,7 @@ File Tree
    ├── pyproject.toml                  # Build system, dependencies, and the `magnus` console-script entry point
    ├── tools/                          # Standalone utilities that are not part of the package
    │   └── make_demo_video.py          # Joins and shrinks notebook 27's clips; shared with NuOscProbExact
-   ├── src/
+   ├── src/                            # The package itself -- the only thing a `pip install` delivers
    │   ├── magnus/                     # Main Python package
    │   │   ├── __init__.py             # Explicit named imports from the four hamiltonians{2,3,4,5}nu.py modules
    │   │   ├── __main__.py             # Entry point for `python -m magnus`
