@@ -181,11 +181,44 @@ SEV_TOL = 1.0e4
 r"""float: Above this :math:`m = \mathrm{tr}(X^2)/6`, a 3x3 is handed back to ``eigh``.
 
 The closed-form solve is used only in the range of :math:`\lVert K \rVert` where it is
-*measured* to match ``eigh``, and ``eigh`` answers beyond it.  Calibrated against the
-separation-by-scale grid in ``tests/test_expm_backend.py``: no cell at spectral scale
-:math:`\le 10^2` (:math:`m \le 1.1\times10^3`) is worse than ``eigh`` by more than 2e-13
-absolute, while cells at scale :math:`10^3` (:math:`m \ge 1.1\times10^5`) reach 131x and at
-:math:`10^5` reach 7440x.  This sits between them with a factor-100 margin either way.
+*measured* to behave, and ``eigh`` answers beyond it.  What the gate admits, worst over two
+spectrum families x 6 separations x 40 random bases per rung
+(``docs/dev/calibrate_sev_tol.py``):
+
+.. code-block:: text
+
+    m         worst |closed - expm|    eigh, same cells
+    4.4e1     1.0e-14                  1.4e-15
+    4.0e2     8.1e-14                  2.0e-14
+    1.1e3     2.1e-13                  3.9e-14
+    4.4e3     8.5e-13                  7.8e-14
+    1.0e4     2.0e-12                  6.1e-14
+
+The worst measured is 2.0e-12 just under the gate and 2.3e-13 in the
+:math:`m \le 1.1\times10^3` corner, so the guarantee is stated with headroom at **5e-12
+absolute across everything the gate admits**, and **5e-13** in that corner.  The headroom is
+deliberate: these are worst-over-random-bases quantities and more sampling keeps finding
+slightly worse ones, which is exactly how the previous claim came to be false.  Both bounds
+are far below any tolerance this package is asked for, and far below where the closed form
+runs away past the gate: cells at :math:`m \ge 1.1\times10^5` reach 131x ``eigh``, and at
+:math:`m \sim 4\times10^9`, 7440x.
+
+An earlier version of this docstring claimed 2e-13 across the admitted range.  That was
+measured on one corner of it and is not true of the rest; at :math:`m = 1.1\times10^3` itself
+about 1% of random bases exceed it (11 of 1200, worst 2.3e-13).  No value of this constant
+could have rescued that claim, because ``test_sev_tol_sits_inside_its_calibrated_window`` pins
+:math:`m = 1.1\times10^3` as a cell that must stay on the kernel, so the gate cannot be
+lowered past the point where the claim already fails.  The number was corrected instead.
+
+**Read m, never "spectral scale".**  Two calibrations of this constant appeared to contradict
+each other -- one finding the first unsafe cell at :math:`1.1\times10^5`, the other at
+:math:`4.4\times10^3` -- purely because they used different spectrum families and both called
+the result "scale :math:`10^2`".  :math:`[-s, -s(1-d), s]` spans :math:`2s` and gives
+:math:`m \simeq 0.44\,s^2`; :math:`[0, d, S]` spans :math:`S` and gives
+:math:`m \simeq 0.11\,S^2` -- a factor of four in :math:`m` at the same nominal scale.
+Compared at equal :math:`m` the two families agree to within their sampling scatter, and the
+disagreement dissolves.  :math:`m = \mathrm{tr}(X^2)/6` is a spectral invariant; the word
+"scale" is not, and is what made this look like a contradiction.
 
 **Why the scale and not the clustering, which is the actual mechanism.**  The damage needs a
 clustered spectrum *and* a large norm together: :math:`\arccos` has infinite derivative at

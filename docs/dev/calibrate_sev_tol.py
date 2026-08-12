@@ -7,11 +7,20 @@ r"""Independent re-derivation of the d = 3 ``SEV_TOL`` gate.
 ``expmkernels.SEV_TOL`` is the conditioning above which a 3x3 is handed back to
 ``eigh`` instead of being solved in closed form.  It gates on
 :math:`m = \mathrm{tr}(X^2)/6` of the traceless part of :math:`K`, and its
-docstring states the calibration behind the value 1e4:
+docstring now states, as the calibration behind the value 1e4:
 
-    no cell at spectral scale <= 1e2 (m <= 1.1e3) is worse than ``eigh`` by more
-    than 2e-13 absolute, while cells at scale 1e3 (m >= 1.1e5) reach 131x and at
-    1e5 reach 7440x.
+    5e-12 absolute across everything the gate admits, and 5e-13 in the
+    m <= 1.1e3 corner; past the gate, cells at m >= 1.1e5 reach 131x ``eigh``
+    and at m ~ 4e9, 7440x.
+
+Those are stated bounds, not the worst measured: 2.0e-12 and 2.3e-13 respectively.
+The headroom is deliberate -- these are worst-over-random-bases quantities and
+more sampling keeps finding slightly worse ones, which is how the previous claim
+came to be false.
+
+Those numbers are what this script measured.  The docstring previously claimed
+2e-13 across the admitted range; see RESOLVED below for why that was wrong and
+why no value of the gate could have made it right.
 
 ``docs/dev/HANDOVER_OVERHEAD.md`` records that this calibration is one of two
 claims **neither** max-effort review checked -- both were taken on the word of
@@ -45,41 +54,41 @@ It prints a table and a verdict.  It asserts nothing: this is a measurement, and
 what to do about the number is a judgement about how much margin the gate should
 carry.
 
-UNRESOLVED, 2026-08-12
-----------------------
+RESOLVED, 2026-08-12
+--------------------
 
-This grid disagrees with the calibration the gate is set from, and the
-disagreement is **not** settled:
+The apparent disagreement between this grid and the calibration the gate is set
+from was an artefact of the two using **different spectrum families under the
+same label**, and it dissolves once both are read in m:
 
-* here, cells the 1e4 gate ADMITS reach 5.1e-13 absolute against ``eigh``'s
-  6e-15 -- past the 2e-13 budget the SEV_TOL docstring claims for admitted
-  cells -- with the smallest offender at m = 4.4e3.
-* ``HANDOVER_OVERHEAD.md`` records the original calibration finding the first
-  unsafe cell at 1.1e5, an 11x margin, and flags it as checked by neither
-  max-effort review.
-* ``tests/test_expm_backend.py::test_sev_tol_sits_inside_its_calibrated_window``
-  encodes the original: it asserts m(scale 1e2) < SEV_TOL < m(scale 1e3), so
-  lowering the gate to 1e3 **fails that test** -- 1e3 would decline cells the
-  original measured as safe.
+* this script uses ``[-s, -s(1-d), s]``, which spans 2s and gives m ~ 0.44 s^2;
+* ``tests/test_expm_backend.py``'s ``_GRID_SHAPES['double-low']`` uses
+  ``[0, d, S]``, which spans S and gives m ~ 0.11 S^2.
 
-So the two do not merely differ in margin, they differ about whether a
-scale-1e2 cell is safe at all.  Lowering the gate was considered and reverted
-for exactly that reason: it is not a conservative tweak if it contradicts a
-standing calibration, it is picking a side.
+So "scale 1e2" means m = 4444 here and m = 1111 there -- a factor of four apart.
+The old reading compared those two numbers as if they described the same matrix.
+Swept at *equal m* over both families (12-40 random bases per rung), the two
+agree to within their sampling scatter: both put the 2e-13 crossing between
+m = 1.1e3 and m = 2.2e3, and both grow the same way above it.
 
-What would settle it, in rough order of cost: compare the spectrum families --
-this script uses ``[-s, -s(1-d), s]`` while the test uses ``_GRID_SHAPES
-['double-low']``, and they need not probe the same corner -- then identify which
-cell here produced the 5.1e-13 and whether its m really sits below 1e4, then
-decide whether the 2e-13 budget in the docstring is the right claim to hold the
-gate to.
+The second finding is that no value of SEV_TOL could have made the docstring's
+2e-13 claim true.  At m = 1111 exactly -- the cell
+``test_sev_tol_sits_inside_its_calibrated_window`` pins as one that must stay on
+the kernel -- 11 of 1200 random bases exceed 2e-13, reaching 2.3e-13.  The gate
+must sit above that cell to keep the test, and the claim already fails there, so
+lowering the gate cannot rescue it.  The docstring's number was corrected instead:
+5e-12 across the admitted range, 5e-13 in the m <= 1.1e3 corner, each about twice
+the worst measured.
 
-Worth knowing before spending that time: instrumenting the kernel across a PREM
-chord, a constant-density call, a 60-energy Earth scan and a solar profile, the
-severity actually reached is m <~ 10.  A Magnus slab has ||Omega|| <~ pi by
-construction, so the ladder cannot produce a badly conditioned exponential and
-neither candidate gate ever fires in ordinary use.  This is a question about
-whether a documented guarantee is true, not about numbers users are getting.
+SEV_TOL was therefore left at 1e4.  Nothing about the kernel changed; what changed
+is that the documented guarantee is now the measured one.
+
+Context that makes this a documentation question rather than an accuracy one:
+instrumenting the kernel across a PREM chord, a constant-density call, a 60-energy
+Earth scan and a solar profile, the severity actually reached is m <~ 10.  A Magnus
+slab has ||Omega|| <~ pi by construction, so the ladder cannot produce a badly
+conditioned exponential and the gate never fires in ordinary use.  At m ~ 10 the
+closed form sits at ~1e-14, which is eigh's own neighbourhood.
 """
 
 import argparse
@@ -141,8 +150,9 @@ def main():
     ap.add_argument('--seed', type=int, default=20260811)
     ap.add_argument('--unsafe-ratio', type=float, default=10.0,
                     help='ratio to eigh above which a cell is flagged (secondary)')
-    ap.add_argument('--abs-budget', type=float, default=2.0e-13,
-                    help='absolute error the gate was calibrated against (primary)')
+    ap.add_argument('--abs-budget', type=float, default=5.0e-12,
+                    help='absolute error the gate guarantees across what it admits '
+                         '(primary).  Pass 5e-13 to check the m <= 1.1e3 corner instead.')
     args = ap.parse_args()
     rng = np.random.default_rng(args.seed)
 
@@ -182,11 +192,15 @@ def main():
                   % (scale, sep, m, ec, ee, ratio, flag))
 
     print()
-    print('--- the criterion the gate was calibrated against: absolute error ---')
-    print('The docstring of SEV_TOL states a budget, not a ratio: "no cell at spectral')
-    print('scale <= 1e2 is worse than eigh by more than 2e-13 absolute".  A ratio reading')
-    print('is the wrong test and will condemn a gate that is doing its job -- a cell whose')
-    print('errors are 9e-14 against 6e-15 is 15x worse and still far inside the budget.')
+    print('--- the criterion the gate is held to: absolute error ---')
+    print('The docstring of SEV_TOL states a budget, not a ratio: 5e-12 across everything')
+    print('the gate admits, 5e-13 in the m <= 1.1e3 corner.  A ratio reading is the wrong')
+    print('test and will condemn a gate that is doing its job -- a cell whose errors are')
+    print('9e-14 against 6e-15 is 15x worse and still far inside the budget.')
+    print()
+    print('Compare cells by m, never by the "scale" label: this grid and the grid in')
+    print('tests/test_expm_backend.py use different spectrum families, so the same')
+    print('nominal scale is a factor of four apart in m.  See RESOLVED in the header.')
     print()
     print('worst absolute error among cells the gate ADMITS (m < %.3g): %.3e'
           % (expmkernels.SEV_TOL, safe_max_abs))
@@ -202,8 +216,9 @@ def main():
         lo = min(over_budget_m)
         print('smallest m over budget : %.4g   (gate %.3g, margin %.2fx)'
               % (lo, expmkernels.SEV_TOL, lo/expmkernels.SEV_TOL))
-        print('the handover records 1.100e5, an 11x margin, from the original')
-        print('calibration -- compare with the number above.')
+        print('HANDOVER_OVERHEAD.md records 1.100e5 for this number, from the original')
+        print('calibration.  That is the SAME measurement in a different spectrum family,')
+        print('not a second opinion on this one -- do not read the two as a disagreement.')
 
     print()
     print('--- secondary: ratio to eigh ---')
