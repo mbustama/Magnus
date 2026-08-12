@@ -113,10 +113,23 @@ neither candidate gate ever fires in ordinary use. This is about whether a docum
 true, not about numbers users are getting. Deciding to leave it and correct the docstring instead is
 a defensible outcome.
 
-### 3.5 One intermittent test
+### 3.5 One intermittent test — **DIAGNOSED AND FIXED in `O55`**
 `test_magnus_expansion.py::test_cached_eval_mode_bounds_its_per_interval_dictionary` failed once
 under `-n auto --cov` and **passes standalone and under `--cov`** — verified both. Order- or
 state-dependent under xdist, not a defect.
+
+**That was right about the library and wrong to leave alone.** It failed again on CI's 3.10 job
+in PR #48, `257 intervals retained against a ceiling of 256`. The cause is in the *test*:
+`_EVAL_MODE_CACHE_MAX` bounds **each inner dict per holder**, and the assertion summed
+`len(v)` across *all* holders. Any unrelated Hamiltonian still alive in the weak-key cache —
+left by an earlier test in the same worker — contributes its own entries, so 256 + 1 = 257 with
+every inner dict correctly bounded. Reproduced deterministically by seeding one foreign holder.
+The assertion now checks the per-holder bound and that no holder exceeds it; verified it still
+fails on a deliberately over-full inner dict, so it is not inert.
+
+**The general lesson:** an "order-dependent under xdist" verdict is a statement about the test,
+not an excuse for it. This one was a wrong invariant, and a wrong invariant fails on a schedule
+nobody controls.
 
 ### 3.6 Release
 Push, open the PR, merge, then tag **`v1.0.0`**. `D15` enforces tag == `pyproject` version, so any
