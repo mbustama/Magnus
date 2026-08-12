@@ -10725,7 +10725,7 @@ print('control ratio %.3f  (%s)' % (BENCH['control_ratio'], BENCH['control_note'
 
 def bench_case(profile, d):
     for c in BENCH['cases']:
-        if c['profile'] == profile and c['flavors'] == d:
+        if c['profile'] == profile and c['flavours'] == d:
             return c
     return None
 
