@@ -172,7 +172,7 @@ class SterileMatterCompositionWarning(UserWarning):
 
         warnings.filterwarnings('ignore', category=gd.SterileMatterCompositionWarning)
 
-    Three flavours never raise it: the projector's sterile block is empty.
+    Three flavors never raise it: the projector's sterile block is empty.
 
     .. versionadded:: 1.0.0
     """
@@ -423,7 +423,7 @@ Normalization of the standard exponential fit to the solar electron number densi
 This is the :math:`r \to 0` **intercept of that fit**, not the central density of a solar model.
 The two differ by more than a factor of two: the BS2005-AGS,OP table gives
 :math:`n_e = 102.7\,N_A\ \text{cm}^{-3}` at its innermost point :math:`r = 0.0016\,R_\odot`,
-against the fit's 245, because the real profile flattens towards the centre while an exponential
+against the fit's 245, because the real profile flattens towards the center while an exponential
 does not.  Measured against that table across the whole star:
 
 ===========================  =========================

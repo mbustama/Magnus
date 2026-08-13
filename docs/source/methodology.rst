@@ -452,20 +452,20 @@ Everything below is a *choice*. None of it is forced by the physics, all of it
 is forced by consistency, and a convention that is wrong **consistently** passes
 every internal test — which is why they are written down here rather than left
 in the code. Magνs has been bitten by exactly that: a reversed slab ordering, a
-doubled antineutrino potential sign and a flipped two-flavour mass ordering were
+doubled antineutrino potential sign and a flipped two-flavor mass ordering were
 all fixed on the same day, and each had been silently self-consistent.
 
 Ordering of the probabilities
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Every ``osc_prob_*`` function returns the probability matrix indexed
-**initial flavour first**:
+**initial flavor first**:
 
 .. math::
 
    P[\nu_i][\nu_f] \;=\; P(\nu_i \to \nu_f) .
 
-So ``P[1][0]`` is :math:`P(\nu_\mu \to \nu_e)`, not the reverse. Flavours are
+So ``P[1][0]`` is :math:`P(\nu_\mu \to \nu_e)`, not the reverse. Flavors are
 in the standard order :math:`(e, \mu, \tau, s_1, s_2)`, so index 0 is always
 :math:`\nu_e`.
 
@@ -480,7 +480,7 @@ For a batched call the point index comes **first**: the shape is
 Sign of the matter potential
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The charged-current potential enters the electron-flavour diagonal entry,
+The charged-current potential enters the electron-flavor diagonal entry,
 
 .. math::
 
@@ -506,8 +506,8 @@ from it rather than written out a second time.
 ``OSC_PARAMS_NU_FIT_6_1_SK_NO``, ``..._SK_IO`` and the 6.0 pair, if you want to
 name the fit explicitly.
 
-For two flavours the same rule applies to :math:`\Delta m^2`, which is what
-makes the two-flavour case easy to get backwards: flipping its sign moves the
+For two flavors the same rule applies to :math:`\Delta m^2`, which is what
+makes the two-flavor case easy to get backwards: flipping its sign moves the
 MSW resonance into the other channel, and the result is still a perfectly
 ordinary-looking probability.
 
@@ -521,9 +521,9 @@ take the square root — ``gd.S12_NO_BF_NUFIT_6_0`` is ``np.sqrt(0.308)``.
 Phases are in **radians**; the default :math:`\delta_{CP}` is 3.7001 rad, i.e.
 212 degrees.
 
-Two flavours take ``sth`` and ``Dm2`` rather than ``s12`` and ``D21``. Passing
-the three-flavour names to a two-flavour call is not an error — the keys are
-simply not recognised — so check the names if a two-flavour result looks
+Two flavors take ``sth`` and ``Dm2`` rather than ``s12`` and ``D21``. Passing
+the three-flavor names to a two-flavor call is not an error — the keys are
+simply not recognized — so check the names if a two-flavor result looks
 untouched by the parameters you set.
 
 Units

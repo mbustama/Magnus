@@ -11,7 +11,7 @@ there is no third version to drift out of step.
 
 If you are looking for *which function* rather than *how to call it*, see
 :doc:`functions`, which lays out the whole ``osc_prob_*`` family by environment
-and flavour count.
+and flavor count.
 
 .. contents::
    :local:
@@ -37,7 +37,7 @@ oscillation parameters it defaults to.
     print('P_mue  = %.6f' % np.asarray(P)[1][0])
 
 The return is the probability matrix, indexed ``P[nu_i][nu_f]``: the *initial*
-flavour first. Pass ``nu_i`` and ``nu_f`` to get a single channel instead of the
+flavor first. Pass ``nu_i`` and ``nu_f`` to get a single channel instead of the
 matrix. Full walk-through:
 `notebook 01 <https://github.com/mbustama/Magnus/blob/main/notebooks/01_magnus_introduction.ipynb>`_.
 
@@ -65,13 +65,13 @@ A batched call returns ``(n_points, d, d)``, with the point index **first**, so
 
 .. figure:: ../../img/gallery/gallery_3nu_vacuum.png
    :width: 90%
-   :alt: Three-flavour vacuum oscillation probabilities
+   :alt: Three-flavor vacuum oscillation probabilities
 
-   Three-flavour vacuum oscillations.
+   Three-flavor vacuum oscillations.
 
 Writing your own ``H_func`` so that it accepts an *array* of positions is the
 other half of this, and is worth a factor of several: see
-:ref:`write-h-func-vectorised` below.
+:ref:`write-h-func-vectorized` below.
 
 
 Through the Earth
@@ -113,7 +113,7 @@ A profile of your own
 
 Any callable returning a density as a function of position works. The Sun's
 exponential profile ships as a helper, and carries a tag that lets the
-interaction-picture fast path recognise it.
+interaction-picture fast path recognize it.
 
 .. jupyter-execute::
 
@@ -181,7 +181,7 @@ disappears under averaging, and one that is an *envelope* does not. See
 Asking for an accuracy instead of a slab count
 ----------------------------------------------
 
-``n_slabs`` fixes the discretisation, not the error. Pass ``rtol``/``atol``
+``n_slabs`` fixes the discretization, not the error. Pass ``rtol``/``atol``
 instead — they are on by default at ``1e-3`` — and the slab grid is refined until
 two successive levels agree.
 
@@ -290,7 +290,7 @@ and
 work through each.
 
 
-.. _write-h-func-vectorised:
+.. _write-h-func-vectorized:
 
 Writing an ``H_func`` that does not cost you a factor of five
 -------------------------------------------------------------
@@ -325,7 +325,7 @@ Where to go next
 ----------------
 
 * :doc:`tutorials` — the same calculations with the reasoning around them.
-* :doc:`functions` — every ``osc_prob_*`` function, by environment and flavour.
+* :doc:`functions` — every ``osc_prob_*`` function, by environment and flavor.
 * :doc:`methodology` — what the Magnus expansion is and why it is unitary at any
   order.
 * :doc:`engines` — which engine answers a call, and how the choice is made.

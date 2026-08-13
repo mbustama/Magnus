@@ -15,7 +15,7 @@ one ran to twenty-five or forty lines: a ``gridspec_kw`` dictionary, a
 invocation, four ``MultipleLocator`` assignments, axis limits and scales, and
 a ``savefig``.  That block was copied from figure to figure and varied
 slightly each time, which is exactly the arrangement in which a figure
-quietly stops matching its neighbours.
+quietly stops matching its neighbors.
 
 Cataloguing them first mattered more than writing the code, because most are
 the *same figure* with different data: **a set of curves against a swept
@@ -166,7 +166,7 @@ Matplotlib settings: ``legend_kw``, ``grid_kw``, ``savefig_kw``,
 There is deliberately no bare ``**kwargs`` on any of them.  A catch-all
 signature accepts a misspelled keyword in silence, and this project has
 already paid for that: ``oscprob``'s keyword chain used to forward unknown
-names down several layers before failing somewhere unrecognisable.  Here
+names down several layers before failing somewhere unrecognizable.  Here
 every keyword either appears in the signature, so a typo is a
 :class:`TypeError` at the call site, or lands in a dictionary destined for one
 specific Matplotlib call, so a typo is an error from that call naming the
@@ -184,7 +184,7 @@ Curves
 
 ``curves`` is a sequence, one entry per line.  An entry is either a bare
 ordinate array or a dictionary carrying the ordinate under ``'y'`` plus any
-Line2D keyword.  Entries without an explicit colour take the ``'C0'``,
+Line2D keyword.  Entries without an explicit color take the ``'C0'``,
 ``'C1'``, ... cycle in order, matching the notebooks; reference curves are
 conventionally given ``color='k', ls='--'``.
 
@@ -222,8 +222,8 @@ Labels
 --------
 
 :func:`~magnus.plotting.prob_label` builds the LaTeX for a probability from a
-flavour pair.  A helper of this name was defined separately in several
-notebooks, each covering only the three active flavours; this one also covers
+flavor pair.  A helper of this name was defined separately in several
+notebooks, each covering only the three active flavors; this one also covers
 the sterile states, so the sterile-neutrino notebook can use it:
 
 .. jupyter-execute::

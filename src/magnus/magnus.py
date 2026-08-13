@@ -68,7 +68,7 @@ Routine listings
     * ordered_product - Time-ordered product of a stack of slab operators,
            earliest slab first
     * palindromic - Returns whether every array given reads the same both
-           ways, the geometric precondition for the half-chord optimisation
+           ways, the geometric precondition for the half-chord optimization
     * suggest_n_slabs - Suggests a starting number of time slabs
     * magnus_expansion - Computes :math:`\exp(\Omega)` for a single time slab
     * evolution_operators_from_samples - Evolution operators of a chain
@@ -546,10 +546,10 @@ def probe_eval_mode(A: Callable, t0: float, t1: float,
 
         from magnus import magnus
 
-        def vectorised(t):
+        def vectorized(t):
             return -1j*np.eye(2)*np.asarray(t)[..., None, None]
 
-        print('array-capable :', magnus.probe_eval_mode(vectorised, 0.0, 1.0))
+        print('array-capable :', magnus.probe_eval_mode(vectorized, 0.0, 1.0))
         print('constant      :', magnus.probe_eval_mode(lambda t: -1j*np.eye(2),
                                                         0.0, 1.0))
 """
@@ -1073,7 +1073,7 @@ def ordered_product(U: np.ndarray) -> np.ndarray:
 
     The difference is how it gets there.  ``reduce`` walks the stack one matrix
     at a time, which is :math:`n-1` separate Python-level calls into NumPy for
-    matrices of size 3; the array was already materialised as a single
+    matrices of size 3; the array was already materialized as a single
     ``(n, d, d)`` block, so nearly all of that time is call overhead rather than
     arithmetic.  Multiplying adjacent pairs instead collapses the stack in
     :math:`\lceil\log_2 n\rceil` **batched** matmuls, each of which does its
@@ -1127,7 +1127,7 @@ r"""str: Module-level switch selecting how :math:`\exp(\Omega)` is computed.
 Which routine exponentiates each slab.  This is not a correctness switch: the two
 backends agree to about 1e-15 wherever the kernel is used, which is the accuracy either one
 has -- and where it would not, it is not used: the kernel reports the conditioning of its own
-characteristic cubic and ``eigh`` answers instead.  See :data:`magnus.expmkernels.SEV_TOL`.
+characteriztic cubic and ``eigh`` answers instead.  See :data:`magnus.expmkernels.SEV_TOL`.
 
 * ``'auto'`` (the default): the compiled Cayley-Hamilton kernel of
   :mod:`magnus.expmkernels` for 2x2 and 3x3 matrices when numba is installed,
@@ -1142,7 +1142,7 @@ characteristic cubic and ``eigh`` answers instead.  See :data:`magnus.expmkernel
   and what to set when comparing the two.
 
 ``eigh`` costs about 1.25 us per 3x3 whatever the stack size, because it loops
-over LAPACK internally instead of vectorising, which makes it roughly a quarter
+over LAPACK internally instead of vectorizing, which makes it roughly a quarter
 of a 108-slab Magnus pass.  The kernel removes that.
 
 Setting this is the way to reach the whole package, including every
@@ -1176,7 +1176,7 @@ def _resolve_expm_backend(expm_backend: Optional[str]) -> str:
     Raises
     ------
     ValueError
-        If the name is not recognised, or if ``'numba'`` was asked for by name
+        If the name is not recognized, or if ``'numba'`` was asked for by name
         and numba is not installed.
     """
     backend = EXPM_BACKEND if expm_backend is None else expm_backend
@@ -1262,7 +1262,7 @@ def _expm_stack(Om: np.ndarray, warn_wide: bool = False,
         if (backend != 'eigh' and expmkernels.HAVE_NUMBA
                 and expmkernels.supports_dim(Om.shape[-1])):
             U, lam, sev = expmkernels.expm_herm_stack(K)
-            # The kernel forecasts, from the conditioning of its own characteristic cubic,
+            # The kernel forecasts, from the conditioning of its own characteriztic cubic,
             # whether it has lost more digits than eigh would; where it has, eigh answers
             # instead.  It needs a clustered spectrum AND a large norm together -- measured
             # up to 7440x worse than eigh in that corner, and no worse at all outside it --
@@ -1275,7 +1275,7 @@ def _expm_stack(Om: np.ndarray, warn_wide: bool = False,
                 Vh = np.conj(np.swapaxes(V, -1, -2))
                 U = (V*np.exp(-1j*lam)[..., None, :]) @ Vh
         else:
-            # eigh reads a single triangle, so the explicit symmetrisation it used to be handed
+            # eigh reads a single triangle, so the explicit symmetrization it used to be handed
             # was doing nothing the routine does not already do -- and the branch condition has
             # just established that the two triangles agree to 1e-12 anyway.  The kernel reads
             # the same triangle eigh does (the lower; eigh's UPLO defaults to 'L'), so at the
@@ -1579,7 +1579,7 @@ def palindromic(*arrays: np.ndarray) -> bool:
     The comparison is exact, deliberately.  The saving relies on the mirrored slab's inputs being
     *identical* to the reversal of its partner's, which follows from identical inputs and from
     nothing weaker; a tolerance here would silently return a different answer for a
-    nearly-symmetric profile, which is the one thing an optimisation must never do.  It is the
+    nearly-symmetric profile, which is the one thing an optimization must never do.  It is the
     producer's business to make a profile exactly symmetric rather than nearly so.
 
     This mirrors ``fastkernels.palindromic`` in NuOscProbExact, deliberately, down to treating an
@@ -1650,8 +1650,8 @@ def _mirror_applies(edges: np.ndarray, widths: np.ndarray,
     its widths as ``edges[:, 1] - edges[:, 0]``, and that subtraction does not preserve symmetry:
     a grid built from a single width ``w0`` as ``w0*arange(n+1)`` comes back with **six to nine
     distinct** width values, none of them bitwise palindromic.  An exact test on them therefore
-    almost never passes, and the optimisation would ship as a silent no-op.  NuOscProbExact can
-    keep its test exact because it carries ``widths`` as an array its producer symmetrises
+    almost never passes, and the optimization would ship as a silent no-op.  NuOscProbExact can
+    keep its test exact because it carries ``widths`` as an array its producer symmetrizes
     (``earth._earth_slabs_cached``); here the producer cannot reach past the subtraction.
 
     So the roles differ from that project's, deliberately: **the declaration is the correctness
@@ -1770,7 +1770,7 @@ def magnus_expansion_multislab(
         # Both node sets are symmetric within their slab (Gauss-Legendre nodes are, and so is
         # linspace(0, 1, m)), so reversing the sample axis lands on the mirror slab's own nodes.
         #
-        # n_half counts the middle slab in when the count is odd: that slab straddles the centre,
+        # n_half counts the middle slab in when the count is odd: that slab straddles the center,
         # is its own mirror, and is evaluated forward like any other.  Writing the mirrored block
         # as ``At[n_half:]`` rather than ``At[n_slabs-n_half:]`` is what keeps it from being
         # overwritten -- the two differ only for odd counts, where the latter aliases the middle

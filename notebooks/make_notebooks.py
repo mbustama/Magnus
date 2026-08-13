@@ -72,7 +72,7 @@ books = {}
 # ---------------------------------------------------- 01_magnus_introduction
 books['01_magnus_introduction.ipynb'] = notebook(
     'Introduction',
-    'The shortest path to a probability, and the conventions the rest of these notebooks assume.\n\nMag$\\nu$s computes neutrino oscillation probabilities by the **Magnus expansion**: the evolution operator over a slab is $\\exp(\\Omega)$, with $\\Omega$ built from time-ordered integrals of nested commutators of the Hamiltonian. Truncating the series is exactly unitary at any order, which is the property that makes it worth doing this way rather than exponentiating a discretised Hamiltonian.',
+    'The shortest path to a probability, and the conventions the rest of these notebooks assume.\n\nMag$\\nu$s computes neutrino oscillation probabilities by the **Magnus expansion**: the evolution operator over a slab is $\\exp(\\Omega)$, with $\\Omega$ built from time-ordered integrals of nested commutators of the Hamiltonian. Truncating the series is exactly unitary at any order, which is the property that makes it worth doing this way rather than exponentiating a discretized Hamiltonian.',
     [
     code(r'''import numpy as np
 import matplotlib as mpl
@@ -864,7 +864,7 @@ print('   Done\n')'''),
 # ----------------------------------------------- 02_magnus_2nu_vacuum_matter
 books['02_magnus_2nu_vacuum_matter.ipynb'] = notebook(
     'Two-neutrino probabilities',
-    'Oscillation probabilities in a two-flavour system, against energy and against direction, in seven settings: vacuum, constant density, an exponential and a Gaussian profile, a periodic castle wall, a noisy profile, and then the Earth and the Sun.\n\nEach is validated against the closed-form expression where one exists, which is what makes this the notebook to read before trusting any of the others.',
+    'Oscillation probabilities in a two-flavor system, against energy and against direction, in seven settings: vacuum, constant density, an exponential and a Gaussian profile, a periodic castle wall, a noisy profile, and then the Earth and the Sun.\n\nEach is validated against the closed-form expression where one exists, which is what makes this the notebook to read before trusting any of the others.',
     [
     code(r'''import numpy as np
 import scipy as sp
@@ -1964,7 +1964,7 @@ fig, ax = plotting.plot_probability_vs_energy(
 # ----------------------------------------------- 03_magnus_3nu_vacuum_matter
 books['03_magnus_3nu_vacuum_matter.ipynb'] = notebook(
     'Three-neutrino probabilities',
-    'The same seven settings as the previous notebook, with three flavours and a CP-violating phase.\n\nNothing about the method changes -- the Hamiltonian is a $3\\times 3$ matrix in the same slot -- so the interest is in what the extra flavour and the phase do to the probabilities.',
+    'The same seven settings as the previous notebook, with three flavors and a CP-violating phase.\n\nNothing about the method changes -- the Hamiltonian is a $3\\times 3$ matrix in the same slot -- so the interest is in what the extra flavor and the phase do to the probabilities.',
     [
     code(r'''import numpy as np
 import scipy as sp
@@ -3225,7 +3225,7 @@ def prob_label(nu_i, nu_f):
             label = r'$P_{\nu_\tau \to \nu_\tau}$'
     return label
 
-# Per-detector colours and line styles, shared by both figures
+# Per-detector colors and line styles, shared by both figures
 lc = ['C0', 'C2', 'C3', 'C4']
 ls = ['-', '-', '-', '-']'''),
     md(r'''First, we compute the probabilities vs. baseline:'''),
@@ -4074,8 +4074,8 @@ density jumps by roughly a factor of two, and trajectories steeper than it
 sample a genuinely different profile.
 
 Below we define a helper that computes an oscillogram and draws it. The
-drawing is a single call to `magnus.plotting.plot_oscillogram`; the colour
-map, the colour-bar label, the tick spacings, and the white-stroked corner
+drawing is a single call to `magnus.plotting.plot_oscillogram`; the color
+map, the color-bar label, the tick spacings, and the white-stroked corner
 annotation (which has to stay legible against a `plasma` background) are its
 defaults.'''),
     code(r'''def make_oscillogram_plot(nu_i, nu_f, H_func, costhz_arr, log10_Enu_arr,
@@ -4089,7 +4089,7 @@ defaults.'''),
     Only the computation lives here now; the drawing is one call to
     magnus.plotting.plot_oscillogram, which carries the house style.
     """
-    # For 2nu oscillations in the 23 sector the flavour indices have to be
+    # For 2nu oscillations in the 23 sector the flavor indices have to be
     # remapped onto the 2x2 block the Hamiltonian actually spans.
     if sector_2nu == '23':
         nu_i_ = 0 if nu_i == gd.NUMU else 1
@@ -4228,7 +4228,7 @@ Let's increase the number of slabs used to `n_slabs = 10` and use third-order Ma
 # -------------------------------------------------- 07_magnus_bsm_sterile_nu
 books['07_magnus_bsm_sterile_nu.ipynb'] = notebook(
     'BSM: sterile neutrinos',
-    'Four- and five-flavour systems, where the extra states do not couple to the weak interaction.\n\nThe machinery is unchanged; only the dimension of the Hamiltonian and the number of mixing angles and phases grow.',
+    'Four- and five-flavor systems, where the extra states do not couple to the weak interaction.\n\nThe machinery is unchanged; only the dimension of the Hamiltonian and the number of mixing angles and phases grow.',
     [
     code(r'''import numpy as np
 import matplotlib as mpl
@@ -4288,7 +4288,7 @@ def _curves(prob_Nnu_all, prob_3nu_all, nu_i, nu_f, N):
 
 def make_plot_prob_Nnu_3nu_vs_baseline(nu_i, nu_f, distances, prob_Nnu_all,
                                        prob_3nu_all, N=1, title=None, save_plot=True):
-    """A sterile scenario against standard three-flavour, versus baseline."""
+    """A sterile scenario against standard three-flavor, versus baseline."""
     filename = ('prob_3plus' + str(N) + '_vs_3nu_vs_baseline_'
                 + flavor_index_to_str(nu_i) + '_' + flavor_index_to_str(nu_f))
     return plotting.plot_probability_vs_baseline(
@@ -4580,7 +4580,7 @@ def H_4nu_prem(costhz, l, energy):
     return (1/energy)*H_4nu_vac_en_indep + hamiltonians.hamiltonian_4nu_matter(VCC_func_prem(r))'''),
     md(r'''Generate the probabilities'''),
     code(r'''# This scan is the most expensive cell in the notebook: four trajectories, two
-# flavour counts, and a genuine PREM profile sampled inside every slab.
+# flavor counts, and a genuine PREM profile sampled inside every slab.
 #
 # The grid is deliberately coarse. With D41 = 0.5 eV^2 the sterile oscillation
 # accumulates ~1e9 radians over an Earth-crossing baseline at these energies, so
@@ -4613,8 +4613,8 @@ for i in range(len(costhz_arr)):
 # tick spacings. plot_curves_stacked enforces that rather than leaving it to
 # four hand-repeated formatting loops.
 #
-# The legend describes line *style*, not colour -- the 3+1 curve is a different
-# colour in every panel -- so it is built from legend_proxies. That replaces the
+# The legend describes line *style*, not color -- the 3+1 curve is a different
+# color in every panel -- so it is built from legend_proxies. That replaces the
 # older trick of plotting dummy points at (-1, -1), outside the axis limits,
 # purely to manufacture legend handles.
 lc = ['C0', 'C2', 'C3', 'C4']
@@ -5073,7 +5073,7 @@ prob_matt_nsi_all = np.array([oscprob.osc_prob(lambda l: H_matt_nsi(enu*gd.UNIT_
 # --------------------------------------------------------- 09_magnus_bsm_liv
 books['09_magnus_bsm_liv.ipynb'] = notebook(
     'BSM: Lorentz-invariance violation',
-    "Some extensions of the Standard Model -- string-inspired constructions, models\nwith a preferred frame, effective descriptions of quantum gravity -- break\nLorentz invariance. If they do, neutrinos are an unusually good place to look:\noscillations measure a *phase*, and a phase accumulated over an astrophysical\nbaseline is sensitive to energies that no accelerator reaches.\n\nMag$\\nu$s treats this as an extra, CPT-odd term in the Hamiltonian,\n\n$$\\mathbf{H} = \\frac{1}{2E}\\,\\mathbf{U}\\,\\mathbf{M}^2\\,\\mathbf{U}^\\dagger\n             \\;+\\; \\mathbf{V}_{\\rm CC}\n             \\;+\\; E^{\\,n}\\,\n               \\mathbf{U}_\\xi\\,\n               \\frac{\\mathbf{B}}{\\Lambda^{\\,n}}\\,\n               \\mathbf{U}_\\xi^\\dagger ,$$\n\nwhere $\\mathbf{B} = {\\rm diag}(b_1, b_2, b_3)$ holds the eigenvalues of the LIV\noperator, $\\mathbf{U}_\\xi$ rotates from its eigenbasis to the flavour basis\nthrough angles $\\xi_{12}, \\xi_{23}, \\xi_{13}$ and a phase $\\delta_{\\xi\\rm CP}$,\n$\\Lambda$ is the scale that makes the eigenvalues dimensionless, and $n$ is the\noperator's dimension minus three.\n\n## Why the exponent is the whole story\n\nLook at how the three terms scale with energy:\n\n| term | scaling | behaviour at high $E$ |\n|---|---|---|\n| vacuum | $\\Delta m^2 / 2E \\;\\propto\\; E^{-1}$ | switches **off** |\n| matter | $V_{\\rm CC}$, independent of $E$ | flat |\n| LIV | $E^{\\,n}\\, b/\\Lambda^{\\,n}$ | switches **on** (for $n \\geq 0$) |\n\nStandard oscillations die away at high energy: the phase $\\Delta m^2 L / 2E$\nshrinks, and the probability freezes at its zero-baseline value. A LIV term\ndoes the opposite. So the signature is not that oscillations look slightly\ndifferent -- it is that they are still *there*, at energies where the Standard\nModel says they should have stopped.\n\nThat is what the figures below show, and it is why every one of them is plotted\nagainst energy.",
+    "Some extensions of the Standard Model -- string-inspired constructions, models\nwith a preferred frame, effective descriptions of quantum gravity -- break\nLorentz invariance. If they do, neutrinos are an unusually good place to look:\noscillations measure a *phase*, and a phase accumulated over an astrophysical\nbaseline is sensitive to energies that no accelerator reaches.\n\nMag$\\nu$s treats this as an extra, CPT-odd term in the Hamiltonian,\n\n$$\\mathbf{H} = \\frac{1}{2E}\\,\\mathbf{U}\\,\\mathbf{M}^2\\,\\mathbf{U}^\\dagger\n             \\;+\\; \\mathbf{V}_{\\rm CC}\n             \\;+\\; E^{\\,n}\\,\n               \\mathbf{U}_\\xi\\,\n               \\frac{\\mathbf{B}}{\\Lambda^{\\,n}}\\,\n               \\mathbf{U}_\\xi^\\dagger ,$$\n\nwhere $\\mathbf{B} = {\\rm diag}(b_1, b_2, b_3)$ holds the eigenvalues of the LIV\noperator, $\\mathbf{U}_\\xi$ rotates from its eigenbasis to the flavor basis\nthrough angles $\\xi_{12}, \\xi_{23}, \\xi_{13}$ and a phase $\\delta_{\\xi\\rm CP}$,\n$\\Lambda$ is the scale that makes the eigenvalues dimensionless, and $n$ is the\noperator's dimension minus three.\n\n## Why the exponent is the whole story\n\nLook at how the three terms scale with energy:\n\n| term | scaling | behavior at high $E$ |\n|---|---|---|\n| vacuum | $\\Delta m^2 / 2E \\;\\propto\\; E^{-1}$ | switches **off** |\n| matter | $V_{\\rm CC}$, independent of $E$ | flat |\n| LIV | $E^{\\,n}\\, b/\\Lambda^{\\,n}$ | switches **on** (for $n \\geq 0$) |\n\nStandard oscillations die away at high energy: the phase $\\Delta m^2 L / 2E$\nshrinks, and the probability freezes at its zero-baseline value. A LIV term\ndoes the opposite. So the signature is not that oscillations look slightly\ndifferent -- it is that they are still *there*, at energies where the Standard\nModel says they should have stopped.\n\nThat is what the figures below show, and it is why every one of them is plotted\nagainst energy.",
     [
     code(r'''import numpy as np
 import matplotlib as mpl
@@ -5091,8 +5091,8 @@ Every `osc_prob_{2,3,4,5}nu_*` family has a `_liv` counterpart -- in vacuum, in
 constant- and exponential-density matter, inside the Earth, and inside the Sun:'''),
     code(r'''[n for n in dir(oscprob) if n.startswith('osc_prob') and n.endswith('liv')]'''),
     md(r'''They take the standard mixing parameters plus the LIV ones. For three
-flavours those are `sxi12`, `sxi23`, `sxi13`, `dxiCP` (the mixing of the LIV
-eigenbasis into flavour), `b1`, `b2`, `b3` (its eigenvalues), `Lambda`, and
+flavors those are `sxi12`, `sxi23`, `sxi13`, `dxiCP` (the mixing of the LIV
+eigenbasis into flavor), `b1`, `b2`, `b3` (its eigenvalues), `Lambda`, and
 `n_liv`.
 
 We use NuFIT 6.1 for the standard parameters, and a baseline equal to the
@@ -5159,7 +5159,7 @@ astrophysical neutrinos rather than from beam experiments.'''),
 `n_liv` is the operator's dimension minus three, so $n = 0$ is a
 dimension-three (CPT-odd mass-like) term, $n = 1$ dimension four, and so on.
 
-Each curve below is normalised to the *same* LIV phase at 100 GeV, so they are
+Each curve below is normalized to the *same* LIV phase at 100 GeV, so they are
 not being compared at different strengths -- what differs is only how fast the
 term grows. The higher the dimension, the more abruptly LIV appears: a steeper
 power stays negligible for longer and then takes over faster.'''),
@@ -5214,9 +5214,9 @@ $V_{\rm CC}$ is a few $\times 10^{-13}$ eV in the core and does not grow with
 energy, so once the vacuum phase has shrunk away there is nothing left to make
 the probability move -- while the LIV term is still climbing. Matter changes
 *where* the standard curve flattens, not *that* it flattens.'''),
-    md(r'''## 5. Two flavours, and setting a limit
+    md(r'''## 5. Two flavors, and setting a limit
 
-The two-flavour interface is the same with one angle and two eigenvalues
+The two-flavor interface is the same with one angle and two eigenvalues
 (`sxi`, `b1`, `b2`), which is often how published constraints are quoted.
 
 Here is the shape of a limit. A detector that sees standard oscillations up to
@@ -5268,7 +5268,7 @@ set the strongest limits on the higher-dimension operators.
 
 ## Where to go next
 
-* `magnus.oscprob` has `_liv` wrappers for 2, 3, 4 and 5 flavours and for every
+* `magnus.oscprob` has `_liv` wrappers for 2, 3, 4 and 5 flavors and for every
   environment; sterile states and LIV can be switched on together.
 * The same `strategy`, `average` and tolerance keywords documented elsewhere
   apply here unchanged -- LIV is a term in the Hamiltonian, not a separate code
@@ -5309,7 +5309,7 @@ formatting used in the other probability-vs-baseline notebooks.'''),
     code(r'''def plot_oscillating_and_averaged(distances, prob_curves, prob_averages, labels,
                                   title, filename, ylabel=None, colors=None):
     """Plot oscillating probabilities against baseline, each with its averaged
-    value overlaid as a dashed line of the same colour.
+    value overlaid as a dashed line of the same color.
 
     One call to magnus.plotting: the house style, the shared legend entry for
     the dashed lines, and the tick spacings are its defaults.
@@ -5996,7 +5996,7 @@ D51 = 2.5 * osc["D31"]
 hvac4 = hamiltonians.hamiltonian_4nu_vacuum_energy_independent(
     osc["s12"], osc["s23"], osc["s13"], osc["dCP"], s14, d14, s24, d24, s34,
     osc["D21"], osc["D31"], D41)
-# NOT np.diag([1, 0, 0, 0]): beyond three flavours the matter term is not e_ee.
+# NOT np.diag([1, 0, 0, 0]): beyond three flavors the matter term is not e_ee.
 # The sterile state carries -V_NC = (r/2) V_CC once the actives' common V_NC is
 # removed, and the library's wrapper below uses exactly this projector -- so a
 # hand-built zero there makes the solve_ivp "ground truth" the wrong problem,
@@ -6168,7 +6168,7 @@ details matter and are easy to get wrong:
 
 * **The electron fraction is not 0.5.** For fully ionized H + He,
   $n_e = \rho\,N_A\,(1+X)/2$, and the hydrogen mass fraction $X$ runs from 0.36 at the
-  centre to 0.75 at the surface. Using a fixed $Y_e = 0.5$ would be wrong by up to 70 %,
+  center to 0.75 at the surface. Using a fixed $Y_e = 0.5$ would be wrong by up to 70 %,
   which is why we build the number density ourselves rather than handing a mass density
   to `vcc_func_from_rho_func` (that function takes a *scalar* electron fraction).
 * **Interpolate in $\log n_e$.** The density spans five orders of magnitude; a linear
@@ -6225,7 +6225,7 @@ ax.legend(fontsize=8); ax.set_title('A real solar model against the exponential 
 fig.tight_layout()'''),
     md(r'''## 2. The instantaneous probability, and its error
 
-We take a two-flavour calculation at **5 MeV** -- in the $^8$B range -- over one solar
+We take a two-flavor calculation at **5 MeV** -- in the $^8$B range -- over one solar
 scale height, and check it against a tight-tolerance `solve_ivp` ground truth.'''),
     code(r"""def exact_U_many(H_func, l0, Ls, dim):
     '''Ground truth at many baselines from ONE integration.'''
@@ -6290,9 +6290,9 @@ for k, v in sorted(info_scan['sampling'].items()):
     print('%-24s %s' % (k, ('%.4e' % v) if isinstance(v, float) else v))'''),
     md(r'''`cycles_per_step` is the number to read. It is far above 0.5, so this eight-point scan
 takes **less than two samples per oscillation**: the individual values are correct, but
-the curve through them is an artefact. `nyquist_points` says how many baselines you would
+the curve through them is an artifact. `nyquist_points` says how many baselines you would
 need to sample the oscillation properly -- about 900 here, and several thousand at the
-energies and flavour counts used elsewhere in the documentation.
+energies and flavor counts used elsewhere in the documentation.
 
 That is the signature of a quantity dominated by phase. A solar-neutrino experiment
 resolves none of it: the $^8$B production region is extended, the Sun-Earth phase is
@@ -6368,7 +6368,7 @@ which is the signature of an estimator whose bias is not statistical.
 
 `average=True` evaluates the phase-averaged limit in closed form -- one matrix product, no
 scan, no window. And it can be checked against something outside Mag$\nu$s entirely: for two
-flavours on an adiabatic trajectory the averaged survival probability is the textbook MSW
+flavors on an adiabatic trajectory the averaged survival probability is the textbook MSW
 expression
 
 $$\langle P_{ee}\rangle = \frac{1}{2}
@@ -6382,7 +6382,7 @@ directly.'''),
     code(r'''TH_VAC = np.arcsin(params2['sth'])
 
 def cos2theta_matter(l, energy):
-    """cos(2 theta_m): the two-flavour matter mixing angle at position l."""
+    """cos(2 theta_m): the two-flavor matter mixing angle at position l."""
     x = 2.0*energy*float(np.asarray(VCC(l)))/params2['Dm2']
     return np.cos(np.arctan2(np.sin(2.0*TH_VAC), np.cos(2.0*TH_VAC) - x))
 
@@ -6413,7 +6413,7 @@ drifted by about $10^{-2}$ depending on how wide a window was chosen, while
 `average=True` reproduces an independent closed form to $10^{-16}$ at a fraction of the
 cost. **If the averaged probability is what you want, ask for it; do not estimate it by
 averaging a scan.** The scan is for looking at the oscillation, not for integrating it.'''),
-    md(r'''### Nor is the scan's behaviour an artefact of the interpolation
+    md(r'''### Nor is the scan's behavior an artifact of the interpolation
 
 A cubic spline through the same table (still in $\log n_e$) is a different profile, so it is
 a fair second opinion on the scan-mean estimator. It gives different numbers in both columns
@@ -6446,7 +6446,7 @@ ic = np.max(np.abs(got_c[-1] - ref_c[-1]))
 ac = np.max(np.abs(got_c.mean(axis=0) - ref_c.mean(axis=0)))
 # %.2f, not %.0f: a reduction of 0.85x printed as "1x" reads as "averaging left it
 # alone" when what happened is that averaging made it slightly worse.  Two decimals
-# is the difference between a number and a rounding artefact.
+# is the difference between a number and a rounding artifact.
 print('%-10s %12s %12s %10s' % ('interpolant', 'instant.', 'averaged', 'reduction'))
 print('%-10s %12.3e %12.3e %9.2fx' % ('linear', err_inst, err_avg, err_inst/err_avg))
 print('%-10s %12.3e %12.3e %9.2fx' % ('cubic', ic, ac, ic/ac))'''),
@@ -6482,18 +6482,18 @@ for a profile where the averaged observable is genuinely wrong -- a sharp shock 
 the error is in the envelope and no amount of averaging touches it.'''),
     md(r'''## 6. Two BSM scenarios on the same model
 
-Everything above is two-flavour and runs to one scale length. The two sections that follow
+Everything above is two-flavor and runs to one scale length. The two sections that follow
 change three things at once, deliberately, and it is worth saying which:
 
-* **Three flavours**, because NSI and a sterile state are both defined against the
-  three-flavour picture.
-* **The whole ray**, centre to surface, because the averaged survival probability is a
+* **Three flavors**, because NSI and a sterile state are both defined against the
+  three-flavor picture.
+* **The whole ray**, center to surface, because the averaged survival probability is a
   property of the full path.
 * **`average=True`**, because that is the observable -- notebook 25 section 10 measures what
   recovering it from instantaneous evaluations costs another code, and the answer is a
   Monte-Carlo estimate at $1/\sqrt{N}$.
 
-**In both sections the standard three-flavour curve is drawn alongside.** A BSM curve on its
+**In both sections the standard three-flavor curve is drawn alongside.** A BSM curve on its
 own says nothing about size, and size is the only thing worth reading off these panels.'''),
     code(r'''OSC3_BSM = dict(NUFIT_NO)
 R_SUN_BSM = float(x_nat[-1])
@@ -6519,8 +6519,8 @@ print('  <P_ee> runs %.4f (low energy) -> %.4f (high energy)'
     md(r'''### 6.1 Non-standard interactions
 
 NSI adds $\varepsilon$ to the matter matrix: $V_{\rm CC}(\mathrm{diag}(1,0,0) + \varepsilon)$,
-with $\varepsilon$ dimensionless. Magνs offers this at two and three flavours only --- there is
-no four- or five-flavour NSI route --- so "NSI at 3+1" is not a thing that can be asked for
+with $\varepsilon$ dimensionless. Magνs offers this at two and three flavors only --- there is
+no four- or five-flavor NSI route --- so "NSI at 3+1" is not a thing that can be asked for
 here.
 
 **One check first.** `average=True` can be served either by the adiabatic route or by a
@@ -6549,7 +6549,7 @@ print('departure from the standard curve: max %.4f at %.2f MeV, mean %.4f'
     md(r'''### 6.2 A sterile state
 
 3+1 changes the matter term as well as the mixing, and that is the part most easily got wrong.
-The active flavours share the neutral-current potential $V_{\rm NC}$ and it cancels; a **sterile
+The active flavors share the neutral-current potential $V_{\rm NC}$ and it cancels; a **sterile
 state feels neither current**, so once the actives' common piece is removed it carries
 $-V_{\rm NC} = (r/2)\,V_{\rm CC}$ with $r = n_n/n_p$. The projector is
 $\mathrm{diag}(1, 0, 0, r/2)$, and it comes from `matter.matter_potential_projector` rather than
@@ -6573,7 +6573,7 @@ def averaged_4nu(ratio=1.0, energies=None):
 t0 = time.perf_counter()
 P_ster_bsm = averaged_4nu()
 t_ster_bsm = time.perf_counter() - t0
-print('3+1, %d averaged energies: %.3f s  (the adiabatic route reaches four flavours)'
+print('3+1, %d averaged energies: %.3f s  (the adiabatic route reaches four flavors)'
       % (len(E_BSM), t_ster_bsm))
 print()
 print('IS THE STERILE NEUTRAL-CURRENT ENTRY LIVE?  <P_ee> at 1, 5, 15 MeV:')
@@ -6704,11 +6704,11 @@ ax.set_xlabel('radius [km]'); ax.set_ylabel(r'$n_e\ [{\rm eV}^3]$')
 ax.legend(fontsize=8); ax.set_title('Post-bounce envelope with a forward shock')
 fig.tight_layout()'''),
     md(r'''The density *rises* outward through the shocked shell and drops by an order of
-magnitude across the forward shock -- that is the real shape, not an artefact: the
+magnitude across the forward shock -- that is the real shape, not an artifact: the
 shocked material is compressed, and behind it the rarefaction ("hot bubble") thins out.'''),
     md(r'''## 2. The sharp shock: wrong by 0.2, and loud about it
 
-Three flavours at 15 MeV, so the **H resonance** ($\Delta m^2_{31}$) sits on the ray at
+Three flavors at 15 MeV, so the **H resonance** ($\Delta m^2_{31}$) sits on the ray at
 about $4\times10^4$ km -- just outside the forward shock, which is the configuration the
 shock-effect literature studies.'''),
     md(r'''### The ground truth, and why it is stored rather than recomputed
@@ -6799,7 +6799,7 @@ conversion probability itself rather than the phase of an oscillation, and there
 averaging operation that undoes that.
 
 Contrast notebook 13, where the averaged observable came out exact against an independent
-closed form. The difference between the two cases is not the flavour content or the energy;
+closed form. The difference between the two cases is not the flavor content or the energy;
 it is whether the profile has a feature sharp enough to break adiabaticity.
 
 And the package is not quiet about it. `UnmarkedDiscontinuityWarning` says the
@@ -6908,7 +6908,7 @@ measuring straddled slabs rather than physics. A BSM comparison run without them
 comparing two wrong answers, and the difference between two wrong answers is not the BSM
 effect.
 
-**The standard three-flavour curve is drawn alongside in both cases**, because a departure is
+**The standard three-flavor curve is drawn alongside in both cases**, because a departure is
 only legible against what it departs from.'''),
     code(r'''ne_bsm = sn_shock_ne(1e-3)                 # the 70 km, simulation-smeared front
 bps_bsm = shock_breakpoints(1e-3)
@@ -6943,7 +6943,7 @@ print('departure from the standard curve: max %.4f, mean %.4f'
 short-baseline value -- and notebook 25 deliberately uses $10^{-2}$ instead.** That is not an
 inconsistency, and the reason is worth stating because it decides what each notebook can claim.
 
-This section compares Magνs against *itself* at three flavours, so no independent referee is
+This section compares Magνs against *itself* at three flavors, so no independent referee is
 needed. Notebook 25 compares it against another code and referees both with an adaptive DOP853
 integration --- and at an eV-scale splitting that referee has to resolve about
 $5.9\times10^{6}$ radians of phase over this ray, some 940 000 oscillations, which costs of
@@ -7013,7 +7013,7 @@ detector detail entered.
 
 The practical warning is the same one this notebook opens with: none of these curves means
 anything without `t_breakpoints`. Run the identical comparison without them and the differences
-you measure are between two straddled discretisations, not between two physics models.'''),
+you measure are between two straddled discretizations, not between two physics models.'''),
     ])
 
 
@@ -7177,7 +7177,7 @@ do not, the potential is not zero when you think it is.'''),
     print('dCP = %.4f   P = %.9f   Pbar = %.9f   |P - Pbar| = %.2e'
           % (dcp, p, pbar, abs(p - pbar)))'''),
     md(r'''**CPT: in vacuum, $P(\nu_\alpha \to \nu_\beta) = P(\bar\nu_\beta \to \bar\nu_\alpha)$
-for any $\delta_{\rm CP}$.** Note the reversed flavour indices -- this is the *transpose*, not
+for any $\delta_{\rm CP}$.** Note the reversed flavor indices -- this is the *transpose*, not
 the matrix itself. CP is violated here and CPT is not, so the first number below is zero and
 the second is not.'''),
     code(r'''Q = dict(OSC, dCP=1.234)
@@ -7221,7 +7221,7 @@ failure in matter.'''),
 # ------------------------------------------- 16_magnus_exact_vs_approximations
 books['16_magnus_exact_vs_approximations.ipynb'] = notebook(
     'Exact versus the textbook approximations',
-    r'''The familiar oscillation formulas -- the two-flavour $\sin^2(2\theta)\sin^2(\Delta m^2
+    r'''The familiar oscillation formulas -- the two-flavor $\sin^2(2\theta)\sin^2(\Delta m^2
 L/4E)$, its constant-density counterpart with the matter-resonant mixing angle -- are not
 approximations. Each is the **exact** solution of the problem it was derived for, and Mag$\nu$s
 reproduces every one of them to machine precision. Showing that is the first half of this
@@ -7253,11 +7253,11 @@ import magnus.plotting as plotting
 # into any osc_prob_3nu_* call.  'NuFIT 6.1' is the package default.
 OSC = gd.load_nufit_params('NuFIT 6.1', 'NO')
 osc = OSC'''),
-    md(r'''## 1. The two-flavour vacuum formula is not an approximation
+    md(r'''## 1. The two-flavor vacuum formula is not an approximation
 
 $$P(\nu_e \to \nu_\mu) = \sin^2 2\theta \,\sin^2\!\left(\frac{\Delta m^2 L}{4E}\right)$$
 
-is exact for two flavours in vacuum, and the Magnus expansion has nothing to correct. Note
+is exact for two flavors in vacuum, and the Magnus expansion has nothing to correct. Note
 that `oscprobstd.osc_prob_2nu_vacuum_std` returns the full $2\times2$ probability **matrix**,
 not a single number -- so it is indexed the same way as everything else in the package.'''),
     code(r'''sth, Dm2 = osc['s12'], osc['D21']
@@ -7271,9 +7271,9 @@ closed_2nu = np.array([oscprobstd.osc_prob_2nu_vacuum_std(sth, Dm2, e, L)[gd.NUE
 
 print('2nu, vacuum       : max |Magnus - closed form| = %.2e'
       % np.max(np.abs(magnus_2nu - closed_2nu)))'''),
-    md(r'''## 2. Three flavours in vacuum: still exact
+    md(r'''## 2. Three flavors in vacuum: still exact
 
-Three flavours in vacuum has a closed form too, built from the PMNS matrix and the two
+Three flavors in vacuum has a closed form too, built from the PMNS matrix and the two
 mass-squared splittings. Same story.'''),
     code(r'''U = hamiltonians.pmns_mixing_matrix(OSC['s12'], OSC['s23'], OSC['s13'], OSC['dCP'])
 
@@ -7557,7 +7557,7 @@ Now hold the ordering fixed and move $\theta_{23}$ either side of maximal.
 $\sin^2\theta_{23} = 0.45$ and $0.55$ give the *same* $\sin^2 2\theta_{23} = 0.99$, so the
 leading term of the disappearance probability cannot distinguish them.
 
-"Cannot distinguish" is often stated as an exact degeneracy. In three flavours it is not
+"Cannot distinguish" is often stated as an exact degeneracy. In three flavors it is not
 exact -- subleading terms and the matter potential both break it -- but the residual is
 small, which is the practical difficulty.'''),
     code(r'''s2_lo, s2_hi = 0.45, 0.55
@@ -7607,7 +7607,7 @@ different probabilities.
 
 It also isolates one arrangement that is **not** free to matter. Reversing a profile
 end-to-end leaves every probability untouched -- but only when the Hamiltonian is complex
-symmetric, which for three flavours means $\delta_{\rm CP} = 0$ or $\pi$. That distinction
+symmetric, which for three flavors means $\delta_{\rm CP} = 0$ or $\pi$. That distinction
 turns out to be exact, measurable at the $10^{-16}$ level, and is the reason Mag$\nu$s can
 halve the Hamiltonian evaluations on an Earth chord.''',
     [
@@ -7671,7 +7671,7 @@ def scan(densities, energies, dim, h_vac, nu_i, nu_f, **kwargs):
                      for e in energies])'''),
     md(r'''## 2. The probabilities they produce
 
-Two flavours first, in the atmospheric sector, muon-neutrino survival.'''),
+Two flavors first, in the atmospheric sector, muon-neutrino survival.'''),
     code(r'''h2 = np.asarray(hamiltonians.hamiltonian_2nu_vacuum_energy_independent(
     osc['s23'], osc['D31']))
 
@@ -7734,12 +7734,12 @@ slab Hamiltonian is complex symmetric*, $\mathbf{H}^{T} = \mathbf{H}$. Then
 $P_{\rm reversed}(\nu_\alpha \to \nu_\beta) = P(\nu_\beta \to \nu_\alpha)$, and survival
 probabilities are invariant outright.
 
-For two flavours the Hamiltonian is real, hence symmetric, and this always holds:'''),
+For two flavors the Hamiltonian is real, hence symmetric, and this always holds:'''),
     code(r'''castle = PROFILES['castle  LHLHLHLH']
 print('2nu, castle vs its own reversal: max |diff| = %.2e'
       % np.max(np.abs(scan(castle, E, 2, h2, gd.NUMU, gd.NUMU)
                       - scan(castle[::-1], E, 2, h2, gd.NUMU, gd.NUMU))))'''),
-    md(r'''For **three** flavours the vacuum Hamiltonian is Hermitian, but it is only *symmetric*
+    md(r'''For **three** flavors the vacuum Hamiltonian is Hermitian, but it is only *symmetric*
 when $\delta_{\rm CP}$ is $0$ or $\pi$ -- a nonzero CP phase puts genuine complex numbers off
 the diagonal. So the reversal symmetry is exactly as good as CP conservation:'''),
     code(r'''segregated = PROFILES['segregated LLLLHHHH']
@@ -7768,7 +7768,7 @@ halves the calls to your `H_func`. It is worth 1.4--1.67x on an expensive Hamilt
 about 0.91x on plain PREM, where a density lookup is too cheap to be worth halving.
 `magnus.magnus.USE_PALINDROME` disarms it. Notebook 24 measures this.
 
-Note that the optimisation reuses *evaluations of the profile*, which is valid whatever
+Note that the optimization reuses *evaluations of the profile*, which is valid whatever
 $\delta_{\rm CP}$ is -- it does not assume the probability-level symmetry explored above.
 
 ## 4. A caution about `t_breakpoints`
@@ -7838,7 +7838,7 @@ They know the density along the path, so they call `H(energy, l, VCC)` and hand 
 potential; you decide what to do with it. This is the interface to reach for when your new
 physics lives in a *known* environment.
 
-The dimension is read from what you return, so 2, 3, 4 and 5 flavours all work with no flag.'''),
+The dimension is read from what you return, so 2, 3, 4 and 5 flavors all work with no flag.'''),
     code(r'''e00 = np.diag([1.0, 0.0, 0.0])          # the nu_e--nu_e slot the potential occupies
 
 COSTHZ = -0.9
@@ -7846,7 +7846,7 @@ L_EARTH = earth.distance_traveled_inside_earth(COSTHZ)*gd.CONV_KM_TO_INV_EV
 ENERGY = 5.0*gd.UNIT_GEV
 
 def H_standard(energy, l, VCC):
-    """Ordinary three-flavour oscillation, written out by hand."""
+    """Ordinary three-flavor oscillation, written out by hand."""
     return h_vac/energy + np.asarray(VCC)[..., None, None]*e00
 
 print('P(nu_mu -> nu_mu) = %.9f'
@@ -7863,7 +7863,7 @@ broadcasts against it for free.
 
 Written the naive way -- `float(VCC)` and a fresh `(3,3)` -- everything still works, and
 Mag$\nu$s tells you what you are paying for with a `ScalarHamiltonianWarning`.'''),
-    code(r'''def make_H(extra_ops, vectorised):
+    code(r'''def make_H(extra_ops, vectorized):
     """The same Hamiltonian, written the fast way or the slow way.
 
     extra_ops stands in for a genuinely expensive H_func: a table lookup, an
@@ -7873,7 +7873,7 @@ Mag$\nu$s tells you what you are paying for with a `ScalarHamiltonianWarning`.''
         V = np.asarray(VCC)
         for _ in range(extra_ops):
             V = V + 1.0e-30*np.sin(V*1.0e13)
-        if vectorised:
+        if vectorized:
             return h_vac/energy + V[..., None, None]*e00
         m = np.zeros((3, 3))
         m[0][0] = float(V)
@@ -7902,7 +7902,7 @@ for extra, label in ((0, 'plain PREM lookup'), (5, '5 extra ops/call'),
     md(r'''Bit-identical output, every time -- this is a pure restructuring, not an
 approximation. The gain grows with what your Hamiltonian costs, which is the point: on a bare
 PREM lookup there is little to save, and on a real interpolated profile or an integral there is
-a great deal. The package documentation quotes **4.6x** on a three-flavour exponential-density
+a great deal. The package documentation quotes **4.6x** on a three-flavor exponential-density
 profile, measured the same way.
 
 The warning fires once per session and names the fix:'''),
@@ -7953,7 +7953,7 @@ $$V_{e\mu}(\mathbf{r}) = \frac{g'^2}{4\pi}\int d^3r'\;
 
 **That matrix is the reason this notebook exists.** It is not
 $\mathbf{H}_{\rm vac}/E + V_{\rm CC}\mathbf{P}_{ee}$ for any choice of $V_{\rm CC}$, so no
-amount of arguing with `osc_prob_3nu_earth` will produce it -- the flavour structure
+amount of arguing with `osc_prob_3nu_earth` will produce it -- the flavor structure
 ${\rm diag}(1,-1,0)$ is not in that function's vocabulary. And unlike $V_{\rm CC}$, which reads
 the density at the neutrino's own position, $V_{e\mu}$ integrates the whole body: it varies
 along the trajectory for reasons that have nothing to do with the local density.
@@ -7976,7 +7976,7 @@ body, not once per slab. And nothing diverges as $m \to 0$.'''),
     """Trapezoidal running integral of y over x, zero at the first node.
 
     Spelled out rather than imported: numpy has no cumulative trapezoid, and
-    the plain one changed name in NumPy 2.0 (np.trapz was removed in favour of
+    the plain one changed name in NumPy 2.0 (np.trapz was removed in favor of
     np.trapezoid), so neither spelling is portable.  This is one cumsum, works
     on every version, and keeps the example to plain numpy."""
     return np.concatenate([[0.0], np.cumsum(0.5*(y[1:] + y[:-1])*np.diff(x))])
@@ -8034,12 +8034,12 @@ necessary for the propagation itself (notebook 18).
 
 Two limits are worth holding in mind:
 
-* **Short range**, $1/m \ll R$: only the neighbourhood contributes and
+* **Short range**, $1/m \ll R$: only the neighborhood contributes and
   $V_{e\mu} \to g'^2 n_e(r)/m^2$. The potential tracks the *local* density, which makes it
-  degenerate with an NSI -- notebook 08's $\epsilon_{\alpha\beta}$ with a particular flavour
+  degenerate with an NSI -- notebook 08's $\epsilon_{\alpha\beta}$ with a particular flavor
   structure.
 * **Long range**, $1/m \gg R$: the whole body contributes, and the potential is smooth,
-  largest at the centre, and indifferent to where any individual electron sits.
+  largest at the center, and indifferent to where any individual electron sits.
 
 Only the second is genuinely new as far as this package is concerned, and only the second
 needs the profile machinery at all.'''),
@@ -8072,8 +8072,8 @@ axL.legend(fontsize=7)
 axL.set_xlim(0.0, 1.0)
 
 inv = np.logspace(-2.0, 1.5, 30)
-centre = [long_range_potential(r_prem, ne_prem, 1.0/(v*R_E))[0] for v in inv]
-axR.loglog(inv, centre, marker='o', ms=3)
+center = [long_range_potential(r_prem, ne_prem, 1.0/(v*R_E))[0] for v in inv]
+axR.loglog(inv, center, marker='o', ms=3)
 axR.set_xlabel(r'$1/m$  [units of $R$]')
 axR.set_ylabel(r'$V_{e\mu}(0)$')
 axR.set_xlim(inv[0], inv[-1])
@@ -8092,10 +8092,10 @@ above, so the cost of the new physics is one interpolation per position.'''),
 V_LRF = long_range_potential(r_prem, ne_prem, 1.0/(INVERSE_M*R_E))
 lrf_charge = np.diag([1.0, -1.0, 0.0])     # the L_e - L_mu charge
 
-# g'^2 chosen so the new potential is a tenth of V_CC at the centre: small
+# g'^2 chosen so the new potential is a tenth of V_CC at the center: small
 # enough to be plausible, large enough to see.
-VCC_centre = matter.VCC_func(0.0, lambda l: ne_prem[0])
-G_SQUARED = 0.1*VCC_centre/V_LRF[0]
+VCC_center = matter.VCC_func(0.0, lambda l: ne_prem[0])
+G_SQUARED = 0.1*VCC_center/V_LRF[0]
 
 def H_long_range(energy, l, VCC):
     """Standard oscillation plus the long-range term, both position dependent."""
@@ -8129,14 +8129,14 @@ print('max |standard - long range| = %.4f  at %.2f GeV'
     legend_title='Hamiltonian', legend_loc='lower right',
     title=r'A long-range force through the Earth')'''),
     md(r'''The shift is not a rescaling of the standard curve: the new term has a different
-flavour structure, so it moves the oscillation rather than damping it.
+flavor structure, so it moves the oscillation rather than damping it.
 
 Everything the package needed from you was a callable. What it gave back was the whole slab
 machinery -- adaptive refinement, the palindrome, the engine dispatch of notebook 22 -- applied
 to a Hamiltonian it has never seen.'''),
     md(r'''## Summary -- a checklist for your own `H_func`
 
-1. **Return a Hermitian matrix.** The dimension is inferred; 2 to 5 flavours need no flag.
+1. **Return a Hermitian matrix.** The dimension is inferred; 2 to 5 flavors need no flag.
 2. **Accept an array of positions**, and use `np.asarray(VCC)[..., None, None]` to build the
    stack. Bit-identical results, and the gain grows with what your Hamiltonian costs.
 3. **Take the matter potential from the entry point** (`osc_prob_earth`/`osc_prob_sun`) or
@@ -8308,7 +8308,7 @@ provoke('average=True, few cycles', lambda: oscprob.osc_prob_3nu_vacuum(
 # ... and the same request where it genuinely has
 provoke('average=True, many cycles', lambda: oscprob.osc_prob_3nu_vacuum(
     ENERGY, 5.0e4*gd.UNIT_KM, **OSC, average=True))'''),
-    md(r'''The last two lines are the pattern worth internalising. `PhaseAveragingWarning` is
+    md(r'''The last two lines are the pattern worth internalizing. `PhaseAveragingWarning` is
 not about accuracy -- the returned matrix is a perfectly valid doubly stochastic probability
 matrix either way. It says the *question* does not apply at that baseline, because the phase
 has not averaged and no averaged expression describes it. Move far enough out and it goes
@@ -8755,7 +8755,7 @@ the potential) were slightly different. The curve is displaced along the energy 
 An **envelope** error: the oscillation is in the right place but its amplitude is wrong. The
 curve is compressed towards its mean.
 
-Both are parametrised so that their *instantaneous* size is comparable, which is the point --
+Both are parametrized so that their *instantaneous* size is comparable, which is the point --
 they look equally bad point by point.'''),
     code(r'''def phase_error(fraction):
     """The right oscillation, in slightly the wrong place."""
@@ -8881,7 +8881,7 @@ substantially faster **without changing any answer**.
 
 Every measurement here is taken live. Timings vary between machines and between runs, so treat
 the ratios rather than the absolute numbers as the result, and note that two of the three
-optimisations are worth nothing at all in the wrong circumstances -- which is more useful to
+optimizations are worth nothing at all in the wrong circumstances -- which is more useful to
 know than a headline speed-up.''',
     [
     code(r'''import time
@@ -8979,7 +8979,7 @@ print('plain PREM lookup, single point')
 print('  palindrome on  : %.4f s' % on)
 print('  palindrome off : %.4f s   speed-up %.2fx' % (off, off/on))'''),
     md(r'''About 1.00x -- the bookkeeping costs as much as the lookups it saves. The package
-documentation quotes 0.91x for this case, and disarming the optimisation here would cost you
+documentation quotes 0.91x for this case, and disarming the optimization here would cost you
 nothing.
 
 Now a Hamiltonian whose cost genuinely scales with the number of positions it is given. The
@@ -9049,7 +9049,7 @@ of them free. Tolerances are usually worth tightening.
 | the palindrome, plain PREM | ~1.0x | this is the "worth nothing" case |
 | tightening `rtol` by $10^{3}$ | costs ~2x | -- |
 
-Ranked by what you control: **vectorise your `H_func` first** (notebook 19), **pass arrays
+Ranked by what you control: **vectorize your `H_func` first** (notebook 19), **pass arrays
 second**, and let the palindrome look after itself -- it is on by default, it is free when it
 helps, and it costs a few percent when it does not.
 
@@ -9418,7 +9418,7 @@ Two limitations, both worth stating before any number is produced.
 **Two sources, not one.** From v2.0 onward NuFIT publishes machine-readable
 $\Delta\chi^2$ files, and those are read directly. Releases v1.0--v1.3 (2012--2014) publish
 theirs only as figures -- but those figures are **vector** PDFs, so the curves are stroke
-operators rather than pixels. Nothing is digitised: the colour operator separates the
+operators rather than pixels. Nothing is digitized: the color operator separates the
 orderings exactly (`1 0 0 RG` is NO, `0 0 1 RG` is IO) and the dash pattern separates the
 analyses exactly (solid is Free+RSBL, dashed is Huber). Each release records which route it
 came by in its `source` field.
@@ -9449,7 +9449,7 @@ much each parameter was individually known, and an imperfect one of their joint 
 def sample_profile(profile, size, rng):
     """Draw from exp(-Delta_chi^2 / 2) on the tabulated grid, by inverse CDF.
 
-    The profiles are normalised so the best fit sits at Delta_chi^2 = 0, so
+    The profiles are normalized so the best fit sits at Delta_chi^2 = 0, so
     exp(-chi2/2) is the likelihood up to a constant -- which the CDF divides
     out anyway."""
     x = np.asarray(profile['x'], dtype=float)
@@ -9499,13 +9499,13 @@ for release in ('NuFIT 1.0', 'NuFIT 1.3', 'NuFIT 2.0', 'NuFIT 4.0', 'NuFIT 6.1')
 minima, and the deeper one on the normal-ordering curve (0.445 and 0.451) is not the branch
 `globaldefs` quotes as the best fit (0.593 and 0.577). Both numbers are in NuFIT's own table,
 joined by $\oplus$; the extraction recovers both to about 0.002. That is the bimodality this
-notebook exists to keep, and it is exactly what a Gaussian centred on either branch would
+notebook exists to keep, and it is exactly what a Gaussian centerd on either branch would
 throw away -- so the check above compares the *pair* of minima for those releases rather than
 insisting on one.
 
 ## 2. How the parameters themselves moved
 
-Before any probability, the inputs. Each parameter is summarised by the central 68% of its
+Before any probability, the inputs. Each parameter is summarized by the central 68% of its
 own sampled distribution, with the width of that interval in the narrower panel below it.
 
 $\delta_{\rm CP}$ is circular, and the releases disagree about where its period starts: the
@@ -9814,7 +9814,7 @@ is that it pays for the generality here.
 **Both codes are given both of their modes.** NuOscProbExact can be called once per energy or
 handed a stacked array, and the two differ by an order of magnitude; comparing a batched
 Mag$\nu$s against a looped NuOscProbExact would be a statement about Python loop overhead
-rather than about either method. Mag$\nu$s likewise recognises a position-independent
+rather than about either method. Mag$\nu$s likewise recognizes a position-independent
 Hamiltonian and exponentiates the whole scan at once -- for a constant density the Magnus series
 terminates at its first term, so one exponential per energy is not an approximation but the
 exact answer.'''),
@@ -9867,11 +9867,11 @@ closed-form code is the better tool.** Mag$\nu$s earns its cost on profiles that
 closed form exists -- notebook 16 measures a mean-density substitution being wrong by 0.51 on
 an Earth chord.
 
-## 4. PREM, three flavours: the comparison that is actually about method
+## 4. PREM, three flavors: the comparison that is actually about method
 
 Constant density is where a closed form is at its best, and it is not what either code exists
 for. The Earth is: a varying profile, where the two take genuinely different routes.
-NuOscProbExact discretises PREM into piecewise-constant slabs and propagates each exactly.
+NuOscProbExact discretizes PREM into piecewise-constant slabs and propagates each exactly.
 Mag$\nu$s integrates within each slab to fourth or sixth order, so its slabs can be wider for
 the same accuracy. **The question is not time per call but time at matched accuracy**, and the
 dial is different on each side: `n_slabs_per_segment` for one, `rtol`/`atol` for the other.
@@ -9898,7 +9898,7 @@ that yet: the frozen dataset in section 7 is built on the uniform convention, an
 convention across the notebook is worth more here than the better Earth in one section.)
 
 *Each code's self-convergence is the honest accuracy statement.* Refining a code against itself
-measures its own discretisation error without borrowing anyone else's conventions, and that is
+measures its own discretization error without borrowing anyone else's conventions, and that is
 reported first.'''),
     code(r'''COSTHZ = -0.85                     # a chord through mantle and outer core
 
@@ -9919,7 +9919,7 @@ YE_UNIFORM = 0.5
 
 # Two grids, because the two jobs want opposite things.  E_PREM is the *timing* grid:
 # every convergence row below divides by len(E_PREM), so its only requirement is to be
-# large enough to amortise per-call overhead and small enough that sweeping four
+# large enough to amortize per-call overhead and small enough that sweeping four
 # tolerances and four slab counts stays affordable.  E_PLOT is the *picture*: an Earth
 # chord at these energies oscillates fast enough that 24 points join peak to trough with
 # a straight line and invent structure that is not there.
@@ -9935,10 +9935,10 @@ except Exception as exc:
     print('NuOscProbExact earth module not importable: %s' % exc)
 
 import magnus.earth as mg_earth
-# distance_traveled_inside_earth returns KILOMETRES; every osc_prob baseline is in
+# distance_traveled_inside_earth returns KILOMETERS; every osc_prob baseline is in
 # natural units (eV^-1).  Passing the raw value is a factor of 5.07e9 too short, and
 # it does not raise: the call returns a converged, unitary, entirely wrong answer at
-# a baseline of a few metres, on which the refinement ladder trivially agrees with
+# a baseline of a few meters, on which the refinement ladder trivially agrees with
 # itself at every tolerance.  That is what this section measured on its first run.
 CHORD_KM = mg_earth.distance_traveled_inside_earth(COSTHZ)
 L_CHORD = CHORD_KM*gd.CONV_KM_TO_INV_EV
@@ -9976,7 +9976,7 @@ def npe_prem(n_per_segment, energies=None):
 #   `prem_layer_edges_along_chord` returns the INTERIOR crossings only.  Without the
 #   two endpoints the referee drops ~7 km of a 10 830 km chord: 0.065% of the path,
 #   and it then converged beautifully to an answer 1.8e-03 away from both codes.  A
-#   clean convergence rate says the discretisation is consistent, never that it is
+#   clean convergence rate says the discretization is consistent, never that it is
 #   right.
 def prem_referee(energies, n_slabs, dim=3, h_vac_dim=None):
     seg = np.concatenate(([0.0],
@@ -9998,12 +9998,12 @@ def prem_referee(energies, n_slabs, dim=3, h_vac_dim=None):
     hv = h_vac if h_vac_dim is None else h_vac_dim
     # The projector comes from the library rather than being written out here.  Writing
     # it out is precisely how this referee was wrong: it carried diag(1, 0, 0, 0), which
-    # gives a sterile state the ACTIVE flavours' neutral-current potential.  A sterile
+    # gives a sterile state the ACTIVE flavors' neutral-current potential.  A sterile
     # state feels neither current, so once the actives' common V_NC is removed it keeps
     # -V_NC = (r/2) V_CC.  With the hand-written version this referee sat 2.6e-02 from
     # Magnus AND from NuOscProbExact while the two agreed with each other to 3.7e-04 --
     # a referee disagreeing with every code it referees is the tell, and it is the
-    # referee that is wrong.  Three flavours are unaffected: the sterile block is empty.
+    # referee that is wrong.  Three flavors are unaffected: the sterile block is empty.
     proj = matter.matter_potential_projector(dim)
     out = []
     for e in np.atleast_1d(energies):
@@ -10027,8 +10027,8 @@ def refereed(energies, n_lo=1600, dim=3, h_vac_dim=None):
 
 
 P_REF3, REF3_UNC = refereed(E_PREM)
-print('referee (scipy slab product, PREM edges honoured, Richardson-extrapolated)')
-print('  its own residual discretisation error: %.2e' % REF3_UNC)
+print('referee (scipy slab product, PREM edges honored, Richardson-extrapolated)')
+print('  its own residual discretization error: %.2e' % REF3_UNC)
 print('  nothing below that line can be resolved by this comparison')'''),
     md(r'''### Self-convergence: each code refined against itself'''),
     code(r'''print('Magnus, refined against its own tightest setting')
@@ -10083,7 +10083,7 @@ competes.
     print('Compare that against each code\'s own convergence above: Magnus reaches ~3e-10,')
     print('NuOscProbExact ~6e-05 at the densest slabbing tried.  The residual between them')
     print('is the same order as the looser of the two, so most of it is NuOscProbExact\'s')
-    print('discretisation rather than a convention difference -- which a residual far above')
+    print('discretization rather than a convention difference -- which a residual far above')
     print('BOTH curves would have indicated instead.')
 
     # Drawn on E_PLOT, not on the 24-point timing grid.  The curve below has structure
@@ -10099,7 +10099,7 @@ competes.
     ax[0].plot(E_PLOT/gd.UNIT_GEV, P_npe_plot, lw=1.1, ls='--',
                label='NuOscProbExact')
     ax[0].set_ylabel(r'$P(\nu_\mu \to \nu_e)$')
-    ax[0].set_title(r'PREM chord, $\cos\theta_z = %.2f$, three flavours, %d energies'
+    ax[0].set_title(r'PREM chord, $\cos\theta_z = %.2f$, three flavors, %d energies'
                     % (COSTHZ, len(E_PLOT)), fontsize=10)
     ax[0].grid(True, alpha=0.2)
     ax[0].legend(fontsize=8)
@@ -10137,9 +10137,9 @@ setting of that code's own dial.'''),
 
 The 3+1 case is where the two codes' cost structures separate most, and for a reason worth
 naming: Mag$\nu$s's compiled Cayley--Hamilton exponential covers $2\times2$ and $3\times3$ only,
-because there is no practical closed form for a $4\times4$ Hermitian eigenproblem. Four flavours
+because there is no practical closed form for a $4\times4$ Hermitian eigenproblem. Four flavors
 therefore exponentiate through `numpy.linalg.eigh`, and Mag$\nu$s loses the factor it had at
-three flavours. NuOscProbExact's SU(4) closed form has no such cliff.
+three flavors. NuOscProbExact's SU(4) closed form has no such cliff.
 
 An eV-scale splitting over an Earth-crossing baseline also carries a very large accumulated
 phase, which is the regime where a refinement ladder works hardest.'''),
@@ -10168,7 +10168,7 @@ magnus_prem_4nu(1.0e-2, 1.0e-4)
 if HAVE_NPE_EARTH:
     npe_prem_4nu(4)
 
-# Refereed by the same scipy slab product as the three-flavour case, not by either
+# Refereed by the same scipy slab product as the three-flavor case, not by either
 # code.  That matters most here: Magnus does not converge in this regime -- it runs to
 # its slab ceiling and warns -- so its answer at rtol=1e-5 is the same as at 1e-3, and
 # a *self*-convergence curve would report an error near zero for a result that carries
@@ -10179,7 +10179,7 @@ h_vac4 = np.asarray(hamiltonians.hamiltonian_4nu_vacuum_energy_independent(
     STERILE['s14'], 0.0, STERILE['s24'], 0.0, STERILE['s34'],
     OSC['D21'], OSC['D31'], STERILE['D41']))
 P_REF4, REF4_UNC = refereed(E_PREM, dim=4, h_vac_dim=h_vac4)
-print('4nu referee residual discretisation error: %.2e' % REF4_UNC)
+print('4nu referee residual discretization error: %.2e' % REF4_UNC)
 print()
 P_ref4 = P_REF4
 
@@ -10228,12 +10228,12 @@ why a `MagnusConvergenceWarning` appears on every row. An eV-scale $\Delta m^2_{
 $\lVert\Omega\rVert < \pi$ is below what the ladder will reach.
 
 **Accuracy: Mag$\nu$s, and it reaches the floor of the measurement.** Its residual against the
-referee is $4.5\times10^{-8}$, which is *below the referee's own discretisation error of*
+referee is $4.5\times10^{-8}$, which is *below the referee's own discretization error of*
 $4.1\times10^{-7}$ -- so the honest statement is that Mag$\nu$s agrees with the referee to
 within the referee's own uncertainty, and this comparison cannot resolve it any further.
 NuOscProbExact sits at $2.6\times10^{-4}$, some six hundred times above that floor, and its
 convergence is **not monotonic**: 32 slabs per segment is worse than 8. Non-monotonic
-convergence is the classic signature of a discretisation whose edges are straddling structure
+convergence is the classic signature of a discretization whose edges are straddling structure
 they do not resolve, and it means there is no setting of that dial to read off as "converged".
 
 **Note what the warning does and does not say.** Mag$\nu$s warns on every row here and is
@@ -10243,14 +10243,14 @@ answer -- it is the most accurate one on the plot. A convergence warning is a st
 
 **This section previously reported the opposite, and the reason is worth recording.** Its
 referee built the matter potential by hand as $\mathrm{diag}(1, 0, 0, 0)$, which gives a
-sterile state the *active* flavours' neutral-current potential. Against that referee both codes
+sterile state the *active* flavors' neutral-current potential. Against that referee both codes
 appeared wrong by $2.6\times10^{-2}$ while agreeing with each other to $3.7\times10^{-4}$ -- and
 a referee that disagrees with every code it referees is the tell. The projector now comes from
 `matter.matter_potential_projector`, and the corrected referee lands on Mag$\nu$s.
 
 The residual between the two codes is still $3.7\times10^{-4}$ and is bounded by convention as
 well as by convergence: the channel index differs (`[..., 4]` is $\nu_\mu \to \nu_e$ in a
-four-flavour 16-tuple) and the sterile parametrisations are not identical, NuOscProbExact
+four-flavor 16-tuple) and the sterile parametrizations are not identical, NuOscProbExact
 taking no $\delta_{34}$.
 
 The recommendation this notebook keeps arriving at is unchanged, because it was always about
@@ -10258,18 +10258,18 @@ cost: **for a piecewise-constant profile with a large accumulated phase, use a c
 What has changed is the reason -- not that Mag$\nu$s is inaccurate there, but that it is slow
 there, and a closed form gets to a perfectly adequate answer far more cheaply.
 
-### Accuracy against cost, three flavours and 3+1 side by side
+### Accuracy against cost, three flavors and 3+1 side by side
 
 The figure this whole speed-up effort was for. Each point is one setting of that code's own
 dial, so the curve -- not any single point -- is what a code offers you.
 
-**Seven codes at three flavours, five at 3+1, and none of them its own judge.** The external
+**Seven codes at three flavors, five at 3+1, and none of them its own judge.** The external
 numbers are frozen in `external_prem_speed_accuracy.json` and none of those codes is needed to
 run this notebook -- the same arrangement NuOscProbExact uses, and the same dataset.
 
 The referee is a Richardson extrapolation $(4P_{256} - P_{128})/3$ of a 30-digit `mpmath` slab
 product, cross-checked against an adaptive DOP853 integration of the *continuous* profile. They
-agree to $2.3\times10^{-11}$ at three flavours and $1.2\times10^{-9}$ at 3+1, and that is the
+agree to $2.3\times10^{-11}$ at three flavors and $1.2\times10^{-9}$ at 3+1, and that is the
 dotted floor on each panel: **nothing below it is resolved**, and no point should be read as
 more accurate than the ruler.
 
@@ -10288,7 +10288,7 @@ dial is evidence about the *setup*, not yet about the solver.'''),
 # none of these codes is needed to run this notebook, and none is its own judge.  The
 # referee is a Richardson extrapolation (4*P(256) - P(128))/3 of a 30-digit mpmath slab
 # product, cross-checked against an adaptive DOP853 integration of the CONTINUOUS
-# profile.  Those two agree to 2.3e-11 at three flavours and 1.2e-09 at 3+1, which is
+# profile.  Those two agree to 2.3e-11 at three flavors and 1.2e-09 at 3+1, which is
 # the dotted floor on each panel.
 PREM_EXT = json.loads(
     (pathlib.Path.cwd()/'external_prem_speed_accuracy.json').read_text())
@@ -10348,7 +10348,7 @@ print('frozen dataset: costhz = %.2f, chord %.1f km, P(numu -> numu), NuFIT 4.0 
       % (COSTHZ_EXT, PREM_EXT['baseline_km']))
 print('our chord at that costhz: %.1f km   V_CC matched via Y_e = %.10f'
       % (mg_earth.distance_traveled_inside_earth(COSTHZ_EXT), YE_EXT))'''),
-    code(r'''# Marker, colour and size per code, fixed once so a reader tracks one code across
+    code(r'''# Marker, color and size per code, fixed once so a reader tracks one code across
 # both panels; NuOscProbExact drawn hollow, as the code the reference came from.
 STYLE = {'NuOscProbExact': ('-o', 'C3', 4.4),
          'NuOscProbExact (tolerance)': ('-o', 'C3', 3.4),
@@ -10368,7 +10368,7 @@ RTOLS = (1.0e-1, 1.0e-2, 1.0e-3, 1.0e-4, 1.0e-6, 1.0e-8, 1.0e-10)
 # One figure per case, square, in the style of NuOscProbExact's paper figures: the two
 # panels answer different questions and are read separately.
 for key, title, sub, outfile in (
-        ('three_flavor', r'PREM, three flavours',
+        ('three_flavor', r'PREM, three flavors',
          'PREM chord,  $\\cos\\theta_z = -0.9$\n$E = 3$--$40$ GeV,  '
          r'$P(\nu_\mu \to \nu_\mu)$' + '\nNuFIT 4.0 NO',
          'prem_speed_accuracy_3nu.pdf'),
@@ -10384,9 +10384,9 @@ for key, title, sub, outfile in (
     fig, a = plt.subplots(figsize=(5.8, 5.4))
     for series in blk['series']:
         pts = series['points']
-        marker, colour, size = STYLE.get(series['name'], ('-o', '0.4', 3.6))
+        marker, color, size = STYLE.get(series['name'], ('-o', '0.4', 3.6))
         dial = next((k for k in DIALS if pts[0].get(k) is not None), None)
-        kw = dict(ms=size, color=colour, lw=1.0, zorder=4,
+        kw = dict(ms=size, color=color, lw=1.0, zorder=4,
                   label='%s%s' % (series['name'],
                                   '' if dial is None else '  (%s)' % dial))
         if series['name'].startswith('NuOscProbExact'):
@@ -10397,7 +10397,7 @@ for key, title, sub, outfile in (
         for j, ha, dx in ((0, 'right', -4), (len(pts) - 1, 'left', 4)):
             if len(pts) > 1:
                 a.annotate(pts[j]['label'], xy=(t[j], e[j]), xytext=(dx, 3),
-                           textcoords='offset points', fontsize=5.2, color=colour,
+                           textcoords='offset points', fontsize=5.2, color=color,
                            ha=ha)
 
     mg_t, mg_e = [], []
@@ -10503,7 +10503,7 @@ about four orders of magnitude.'''),
     print('         at Magnus\'s own V_CC   (scale %.3f), residual %.2e'
           % (scales[unity], gaps[unity]))'''),
     md(r'''In vacuum nuSQuIDS reproduces the exact answer to $\sim10^{-8}$ -- its solver is doing
-its job. In matter, the disagreement is minimised at a matter potential about **1% larger**
+its job. In matter, the disagreement is minimized at a matter potential about **1% larger**
 than the one Mag$\nu$s builds from the same nominal $\rho$ and $Y_e$. That is a difference in
 how the electron number density is derived from a mass density -- the average nucleon mass and
 the electron fraction convention -- and **not** an accuracy difference in either code.
@@ -10522,7 +10522,7 @@ trade-off: every code has a dial -- a solver tolerance, a number of Newton steps
 The NuOscProbExact project measured five external codes this way and published the result;
 `notebooks/external_speed_accuracy.json` is that measurement, redistributed with attribution.
 The configuration is the one used above -- $L = 1300$ km, $\rho = 3$ g cm$^{-3}$, three
-flavours, $P(\nu_\mu \to \nu_e)$, 60 energies from 0.6 to 20 GeV -- scored against a 50-digit
+flavors, $P(\nu_\mu \to \nu_e)$, 60 energies from 0.6 to 20 GeV -- scored against a 50-digit
 `mpmath` matrix exponential.
 
 **A warning about the timings, which is worth more than the figure.** Those numbers were taken
@@ -10612,7 +10612,7 @@ The comparison worth making is not "which code is fastest" but "which code solve
 and the table above does not have a winner in it -- it has a boundary. A **piecewise-constant**
 profile is what a closed form is for, and the larger the accumulated phase the more decisively
 so: on 3+1 PREM the closed form is cheaper by some 400x, which is the clearest cost result in
-this notebook and is not in Mag$\nu$s's favour. Below about $10^{-4}$ on PREM it is also the
+this notebook and is not in Mag$\nu$s's favor. Below about $10^{-4}$ on PREM it is also the
 cheaper way to reach a given accuracy.
 
 **Cost and accuracy part company on that row, though, and it is worth not eliding them.** The
@@ -10621,8 +10621,8 @@ where the closed form stalls near $3\times10^{-4}$ and stops converging monotoni
 those matters is a property of the problem being solved, not of the codes.
 
 What Mag$\nu$s buys is everything that is not that: accuracy past where a piecewise-constant
-discretisation stalls, an arbitrary varying profile, a custom Hamiltonian, a BSM term nobody has
-diagonalised. Where a closed form exists and the phase is large, use it.
+discretization stalls, an arbitrary varying profile, a custom Hamiltonian, a BSM term nobody has
+diagonalized. Where a closed form exists and the phase is large, use it.
 
 And before comparing any two codes' numbers: **check that they agree in vacuum first.** If they
 do not, the disagreement is in the solvers. If they do and they disagree in matter, it is in
@@ -10695,12 +10695,12 @@ fig.savefig('../fig/performance.pdf', bbox_inches='tight')'''),
     md(r'''Read the *shape*, not the endpoints. All three routes meet at $N = 1$, where the
 answer is one exponential and everything else is wrapper: that is the regime this library is
 worst in, and no amount of batching or compilation touches it. They separate as the request
-grows, because the per-call overhead is amortised while the arithmetic is not.
+grows, because the per-call overhead is amortized while the arithmetic is not.
 
 The two gaps are different in kind. **Batching** removes Python-level dispatch -- it is the
 same arithmetic, called once instead of $N$ times. **The kernel** removes the arithmetic's own
 overhead, replacing `numpy.linalg.eigh`'s per-matrix LAPACK loop with a closed form over the
-whole stack. That second gap is the one that closes for four and five flavours, where no closed
+whole stack. That second gap is the one that closes for four and five flavors, where no closed
 form for the eigenproblem exists and the `eigh` path is all there is.'''),
     md(r'''## 9. A smooth profile: where each method runs out
 
@@ -10745,11 +10745,11 @@ PANEL_FONT = {'title': 18, 'label': 17, 'tick': 14, 'legend': 11, 'dial': 10,
 
 def plot_case(ax, case, title):
     for series in case['series']:
-        marker, colour, size = DIAL_STYLE[series['name']]
+        marker, color, size = DIAL_STYLE[series['name']]
         pts = series['points']
         t = [p['us_per_probability'] for p in pts]
         e = [p['max_abs_error'] for p in pts]
-        kw = dict(ms=size, color=colour, lw=1.1, zorder=4,
+        kw = dict(ms=size, color=color, lw=1.1, zorder=4,
                   label='%s  (%s)' % (series['name'], series['dial']))
         if series['name'] == 'NuOscProbExact':
             kw.update(mfc='white', mew=0.9)
@@ -10761,13 +10761,13 @@ def plot_case(ax, case, title):
         # above-left overprinted the note in three of the four panels.  At the
         # right-hand end the two series finish at similar errors, so they are
         # pushed apart vertically rather than left to overlap, which is what
-        # `32768` and `1e-10` did in the four-flavour panel.
+        # `32768` and `1e-10` did in the four-flavor panel.
         last_dy = 6 if series['name'] == 'Magnus' else -14
         for j, ha, dx, dy in ((0, 'right', -4, -14),
                               (len(pts) - 1, 'left', 4, last_dy)):
             ax.annotate(pts[j]['label'], xy=(t[j], e[j]), xytext=(dx, dy),
                         textcoords='offset points', fontsize=PANEL_FONT['dial'],
-                        color=colour, ha=ha)
+                        color=color, ha=ha)
     ax.set_xlabel(r'Time per probability [$\mu$s]', fontsize=PANEL_FONT['label'])
     # Short on purpose.  `matplotlibrc` sets `axes.labelsize` to 25 absolutely,
     # and at that size the previous wording -- "Error vs. the DOP853 referee,
@@ -10779,7 +10779,7 @@ def plot_case(ax, case, title):
     # The run's parameters go ABOVE the axes, under the title, rather than into
     # a corner of them.  Every corner is taken in at least one of the four
     # panels: the curves begin at the top left, the legend holds the bottom
-    # left, and the end-of-dial labels the bottom right.  In the four-flavour
+    # left, and the end-of-dial labels the bottom right.  In the four-flavor
     # panel the first point sits hard against the top left corner, so no
     # nudge inside the axes clears the block -- moving the label down only put
     # it on the next line of the note.  The series names this used to carry are
@@ -10816,7 +10816,7 @@ that many matrix products costs more than another halving of $h$ buys, so 32 768
 worse than 16 384. That is a floor with no setting below it. Mag$\nu$s continues to
 $3\times10^{-13}$, because halving $h$ buys it a factor of sixteen rather than four.
 
-At five flavours there is no comparison to draw: NuOscProbExact has no five-flavour route, so
+At five flavors there is no comparison to draw: NuOscProbExact has no five-flavor route, so
 the panel carries one curve. That is the other half of the same point -- reach, in the sense of
 which problems a method can address at all.'''),
     md(r'''### The probability itself
@@ -10840,7 +10840,7 @@ def ne_expo(x):
 
 # The frozen benchmark used NuFIT 4.0, because that is the point the external dataset in
 # section 7 was generated at.  This panel follows it, so the two halves of section 9
-# describe the same physics rather than two neighbouring ones.
+# describe the same physics rather than two neighboring ones.
 OSC_EXPO = gd.load_nufit_params('NuFIT 4.0', 'NO')
 h_vac_expo = np.asarray(
     hamiltonians.hamiltonian_3nu_vacuum_energy_independent(**OSC_EXPO))
@@ -10871,7 +10871,7 @@ if HAVE_NPE_EARTH:
     ax[0].plot(E_EXPO/gd.UNIT_GEV, P_npe_expo, lw=1.1, ls='--', color='C3',
                label='NuOscProbExact  (16384 slabs)')
     ax[0].set_ylabel(r'$P(\nu_\mu \to \nu_\mu)$')
-    ax[0].set_title('Exponential profile, three flavours, 200 energies', fontsize=10)
+    ax[0].set_title('Exponential profile, three flavors, 200 energies', fontsize=10)
     ax[0].grid(True, alpha=0.2)
     ax[0].legend(fontsize=8)
 
@@ -10970,14 +10970,14 @@ print()
 print('nuSQuIDS, same model file, %d energies, over its solver tolerance:'
       % NSQ['n_grid'])
 print('  %-9s %9s %12s %26s %s'
-      % ('rel_error', 'seconds', '|1 - sum|', 'P over all flavours', 'a probability?'))
+      % ('rel_error', 'seconds', '|1 - sum|', 'P over all flavors', 'a probability?'))
 for s in NSQ['series']:
     print('  %-9.0e %9.1f %12.1e %26s %s'
           % (s['tolerance'], s['seconds_total'], s['unitarity'],
              '%.4f .. %.4f' % (s['p_min'], s['p_max']),
              'yes' if s['physical'] else 'NO'))
 print()
-print('Read the last two columns together. The flavour sum is conserved to ~1e-16 on')
+print('Read the last two columns together. The flavor sum is conserved to ~1e-16 on')
 print('every row, including the rows returning P = 2.83 -- so the obvious check passes')
 print('on output that is not a probability. See the discussion below.')'''),
     code(r'''fig, ax = plt.subplots(2, 1, figsize=(6.4, 5.6), sharex=True,
@@ -11028,7 +11028,7 @@ crossed. The analytic limit omits that by construction; Mag$\nu$s carries it, be
 adiabatic route uses the exact crossing probabilities where the evolution stops being
 adiabatic. So the referee here validates Mag$\nu$s and cannot rank it -- below about
 $10^{-5}$ Mag$\nu$s is the more correct of the two, and an accuracy axis drawn against the
-analytic limit would penalise it for that.
+analytic limit would penalize it for that.
 
 The upper panel is the MSW transition, from the vacuum-averaged regime near 0.55 at low energy
 to the matter-dominated one near 0.31 above 10 MeV.
@@ -11074,10 +11074,10 @@ gives the speed-against-accuracy curve below -- and something more useful than t
 
 **Below `rel_error` $=10^{-6}$ this calculation stops returning probabilities, and says
 nothing about it.** At $10^{-4}$ the survival probability reaches **2.83**; on looser settings
-still, the flavour probabilities run from $-19$ to $+45$. The obvious guard against that --
-sum the flavour probabilities and check they are 1 -- **passes on every one of those rows, to
+still, the flavor probabilities run from $-19$ to $+45$. The obvious guard against that --
+sum the flavor probabilities and check they are 1 -- **passes on every one of those rows, to
 $10^{-16}$**. That is not a bug in the guard. nuSQuIDS evolves the density matrix in an SU(3)
-basis whose identity component is the trace, so the flavour sum is conserved *by construction*
+basis whose identity component is the trace, so the flavor sum is conserved *by construction*
 however badly the traceless components are integrated. Unitarity is structural here, and a
 structural invariant cannot test the thing it is built into.
 
@@ -11174,11 +11174,11 @@ experiment actually asks** -- and the gap is a property of the question, not of 
 A sterile state changes the solar answer through the matter term, not just through mixing, and
 that is worth showing here because **this notebook's own referee was wrong about it until
 today** (section 5). The matter potential carries $\mathrm{diag}(1, 0, 0, r/2)$ with
-$r = n_n/n_p$: the active flavours share $V_{\rm NC}$ and it cancels, a sterile state feels
+$r = n_n/n_p$: the active flavors share $V_{\rm NC}$ and it cancels, a sterile state feels
 neither current and so keeps $-V_{\rm NC} = (r/2)\,V_{\rm CC}$.
 
 Two things are checked below rather than assumed. **That the adiabatic route reaches four
-flavours at all** -- `average=True` takes the adiabatic path on a smooth profile, and that path
+flavors at all** -- `average=True` takes the adiabatic path on a smooth profile, and that path
 has to find the level crossings of a $4\times4$ Hamiltonian rather than a $3\times3$ one. And
 **that the sterile entry is actually live**, by varying $r$ and watching the curve move. If it
 did not move, the term would be absent and every 3+1 solar number here would be quietly wrong
@@ -11194,7 +11194,7 @@ h_vac4_sun = np.asarray(hamiltonians.hamiltonian_4nu_vacuum_energy_independent(
 
 
 def adiabatic_reference_4nu(energy, ratio=1.0, a=gd.NUE, b=gd.NUE):
-    """The same analytic limit as before, at four flavours.
+    """The same analytic limit as before, at four flavors.
 
     The projector comes from the library.  Writing it out here is exactly the mistake
     section 5's referee made, and it is the reason that section reported the wrong
@@ -11214,7 +11214,7 @@ P_sun4 = np.asarray(oscprob.osc_prob_matter_std_potential(
 t_sun4 = time.perf_counter() - t0
 P_adiab4 = np.array([adiabatic_reference_4nu(e) for e in E_SUN])
 
-print('CHECK 1 -- does the adiabatic route reach four flavours?')
+print('CHECK 1 -- does the adiabatic route reach four flavors?')
 print('  yes: %d averaged energies in %.3f s (%.1f ms per energy)'
       % (len(E_SUN), t_sun4, 1.0e3*t_sun4/len(E_SUN)))
 print('  worst |magnus - analytic adiabatic, 4nu| = %.2e'
@@ -11240,7 +11240,7 @@ ax[0].semilogx(E_SUN/gd.UNIT_MEV, P_sun4, lw=1.6, color='C0',
 ax[0].semilogx(E_SUN/gd.UNIT_MEV, P_adiab4, lw=1.0, ls='--', color='C3',
                label=r'Analytic adiabatic limit, 3+1')
 ax[0].set_ylabel(r'$\langle P(\nu_e \to \nu_e)\rangle$')
-ax[0].set_title('The Sun with a sterile state: the departure from the 3-flavour curve',
+ax[0].set_title('The Sun with a sterile state: the departure from the 3-flavor curve',
                 fontsize=10)
 ax[0].grid(True, alpha=0.2)
 ax[0].legend(fontsize=7.6)
@@ -11262,14 +11262,14 @@ print('magnus 3nu %.3f s, 3+1 %.3f s for the same %d energies'
       % (t_sun, t_sun4, len(E_SUN)))'''),
     md(r"""**On timing this against another code: there is nothing to time it against.** The
 observable is the phase-averaged probability, and neither NuOscProbExact nor nuSQuIDS offers an
-averaging flag at any flavour count -- which section 10 already established at three flavours,
+averaging flag at any flavor count -- which section 10 already established at three flavors,
 where recovering the average from instantaneous evaluations cost a Monte-Carlo estimate with a
 $1/\sqrt{N}$ error. Nothing about that improves at four. NuOscProbExact does have an SU(4)
 closed form, but it solves *piecewise-constant* slabs and the solar profile is smooth, so it
 would be back to resolving a 13 000-radian phase.
 
 So the honest entry for this row is not a ratio. It is that the comparison has no second
-entrant, which is the "pre-packaged observables" axis stated at four flavours instead of
+entrant, which is the "pre-packaged observables" axis stated at four flavors instead of
 three."""),
     md(r"""### 10c. The same observable with NSI, and a route that has to be checked
 
@@ -11344,13 +11344,13 @@ ax[0].set_ylim(0.0, 1.0)
 fig.savefig('../fig/solar_nsi.pdf', bbox_inches='tight')'''),
     md(r"""**The same $\varepsilon$ that moves the shock by 0.44 moves this curve by 0.014.**
 That is a factor of thirty, with an identical Hamiltonian modification, and it is not a
-numerical artefact -- it is what averaging does. The shock panel in section 13 shows an
+numerical artifact -- it is what averaging does. The shock panel in section 13 shows an
 *instantaneous* probability along a ray, where NSI shifts both the level structure and the
 phase, and the phase term is large. The solar observable is **phase-averaged**, so everything
 that enters through the phase integrates away and only the change in the eigenvectors and the
 level crossings survives.
 
-The lesson generalises past NSI: **a BSM effect's size depends on the observable at least as
+The lesson generalizes past NSI: **a BSM effect's size depends on the observable at least as
 much as on the model.** Quoting "NSI changes the probability by 0.44" without saying which
 probability would be misleading in either direction, and a sensitivity study that used the
 wrong one would be wrong by a factor of thirty before any experimental detail entered.
@@ -11365,7 +11365,7 @@ Section 9 put the two codes on a *smooth* profile and section 5 put them on a
 *piecewise-constant* one. A supernova shock is the case that contains both, and which one it
 behaves like is set by a single parameter: how wide the front is.
 
-The case is notebook 14's, unchanged -- 15 MeV, three flavours, along a ray from
+The case is notebook 14's, unchanged -- 15 MeV, three flavors, along a ray from
 $10^4$ to $8\times10^4$ km, with the H resonance ($\Delta m^2_{31}$) sitting on the ray just
 outside the forward shock. The observable is $P_{ee}$ at **61 points along one ray**, and the
 referee is that notebook's frozen `solve_ivp`/DOP853 solution at `rtol=1e-12` -- an adaptive
@@ -11434,18 +11434,18 @@ for c in SHOCK['cases']:
     code(r'''fig, axes = plt.subplots(1, 2, figsize=(10.4, 4.9))
 for ax, c in zip(axes, SHOCK['cases']):
     for s in c['series']:
-        marker, colour, size = DIAL_STYLE[s['name']]
+        marker, color, size = DIAL_STYLE[s['name']]
         pts = s['points']
         t = [p['us_per_probability'] for p in pts]
         e = [p['max_abs_error'] for p in pts]
-        kw = dict(ms=size, color=colour, lw=1.1, zorder=4,
+        kw = dict(ms=size, color=color, lw=1.1, zorder=4,
                   label='%s  (%s)' % (s['name'], s['dial']))
         if s['name'] == 'NuOscProbExact':
             kw.update(mfc='white', mew=0.9)
         ax.loglog(t, e, marker, **kw)
         for j, ha, dx in ((0, 'right', -4), (len(pts) - 1, 'left', 4)):
             ax.annotate(pts[j]['label'], xy=(t[j], e[j]), xytext=(dx, 3),
-                        textcoords='offset points', fontsize=5.4, color=colour, ha=ha)
+                        textcoords='offset points', fontsize=5.4, color=color, ha=ha)
     # The referee's own unitarity: nothing below this line is a measurement.
     ax.axhspan(1.0e-16, c['reference_unitarity'], color='0.85', alpha=0.55, zorder=0)
     ax.text(0.03, 0.03, 'below: the referee$\'$s own floor', transform=ax.transAxes,
@@ -11475,7 +11475,7 @@ $2.4\times10^{-9}$ against its $4.1\times10^{-10}$ -- but NuOscProbExact gets th
 $2.5\times10^3\ \mu$s per probability against Mag$\nu$s's $5.5\times10^5$: a factor of
 roughly **230**.
 
-On the **70 km front** the ordering reverses below about $10^{-5}$. Seventy kilometres is
+On the **70 km front** the ordering reverses below about $10^{-5}$. Seventy kilometers is
 several oscillation lengths, so the front is *resolved* rather than jumped, and the profile
 is smooth on the scale of the slabs -- which is section 9's regime, where fourth-order
 Gauss--Legendre integration beats second-order midpoint sampling. NuOscProbExact's finest
@@ -11591,7 +11591,7 @@ killing it after an hour with the referee still unfinished. So **an eV-scale ste
 this ray is not a case that can be refereed by an independent integrator at all**, which is
 worth knowing before attempting it: the comparison would have to fall back to the two codes
 checking each other, and section 11 showed exactly how little that settles when they agree and
-are both wrong. At $10^{-2}$ the referee costs four times the three-flavour one, and the
+are both wrong. At $10^{-2}$ the referee costs four times the three-flavor one, and the
 sterile oscillation is still fast against the shock structure, which is what the case is about.
 
 The matter term carries $\mathrm{diag}(1, 0, 0, r/2)$ from
@@ -11610,18 +11610,18 @@ for s in SHOCK4['series']:
              best['us_per_probability']))'''),
     code(r'''fig, ax = plt.subplots(figsize=(6.2, 5.0))
 for s in SHOCK4['series']:
-    marker, colour, size = DIAL_STYLE[s['name']]
+    marker, color, size = DIAL_STYLE[s['name']]
     pts = s['points']
     t = [p['us_per_probability'] for p in pts]
     e = [p['max_abs_error'] for p in pts]
-    kw = dict(ms=size, color=colour, lw=1.1, zorder=4,
+    kw = dict(ms=size, color=color, lw=1.1, zorder=4,
               label='%s  (%s)' % (s['name'], s['dial']))
     if s['name'] == 'NuOscProbExact':
         kw.update(mfc='white', mew=0.9)
     ax.loglog(t, e, marker, **kw)
     for j, ha, dx in ((0, 'right', -4), (len(pts) - 1, 'left', 4)):
         ax.annotate(pts[j]['label'], xy=(t[j], e[j]), xytext=(dx, 3),
-                    textcoords='offset points', fontsize=5.4, color=colour, ha=ha)
+                    textcoords='offset points', fontsize=5.4, color=color, ha=ha)
 ax.axhspan(1.0e-16, SHOCK4['reference_unitarity'], color='0.85', alpha=0.55, zorder=0)
 ax.text(0.03, 0.03, "below: the referee's own floor", transform=ax.transAxes,
         fontsize=5.8, color='0.35', va='bottom')
@@ -11638,7 +11638,7 @@ ax.set_xlim(min(allt)/1.6, max(allt)*1.6)
 ax.set_ylim(min(alle)/3.0, max(alle)*3.0)
 fig.tight_layout(pad=1.2)
 fig.savefig('../fig/shock_3plus1_speed_accuracy.pdf', bbox_inches='tight')'''),
-    md(r"""**On the resolved front, the fourth flavour does not change the verdict -- it
+    md(r"""**On the resolved front, the fourth flavor does not change the verdict -- it
 sharpens it.** Mag$\nu$s reaches $1.1\times10^{-8}$; NuOscProbExact's finest setting here
 reaches $1.2\times10^{-4}$, four orders of magnitude short, and at matched accuracy Mag$\nu$s
 is also the *cheaper* of the two. That is the same mechanism as section 11's 70 km panel --
@@ -11646,9 +11646,9 @@ a front spread over many slabs is smooth on the slab scale, where fourth-order i
 beats second-order midpoint sampling -- and adding a sterile state does not alter it.
 
 Compare that with **section 5**, where the same two codes met at 3+1 on *PREM* and the closed
-form won the cost by 400x. Same flavour content, opposite result, and the difference is the
+form won the cost by 400x. Same flavor content, opposite result, and the difference is the
 profile: piecewise-constant is a closed form's home ground, a resolved front is not. The
-flavour count is not what decides these cases, which is worth saying because the 3+1 row is
+flavor count is not what decides these cases, which is worth saying because the 3+1 row is
 the one most often quoted as though it were about dimension.
 
 **What this section cannot tell you** is what happens at an eV-scale splitting, because
@@ -11693,18 +11693,18 @@ print('departure from the standard 3nu curve: max %.4f, mean %.4f'
     code(r'''fig, ax = plt.subplots(1, 2, figsize=(10.6, 4.6))
 
 for s in NSI_SHOCK['series']:
-    marker, colour, size = DIAL_STYLE[s['name']]
+    marker, color, size = DIAL_STYLE[s['name']]
     pts = s['points']
     t = [p['us_per_probability'] for p in pts]
     e = [p['max_abs_error'] for p in pts]
-    kw = dict(ms=size, color=colour, lw=1.1, zorder=4,
+    kw = dict(ms=size, color=color, lw=1.1, zorder=4,
               label='%s  (%s)' % (s['name'], s['dial']))
     if s['name'] == 'NuOscProbExact':
         kw.update(mfc='white', mew=0.9)
     ax[0].loglog(t, e, marker, **kw)
     for j, ha, dx in ((0, 'right', -4), (len(pts) - 1, 'left', 4)):
         ax[0].annotate(pts[j]['label'], xy=(t[j], e[j]), xytext=(dx, 3),
-                       textcoords='offset points', fontsize=5.4, color=colour, ha=ha)
+                       textcoords='offset points', fontsize=5.4, color=color, ha=ha)
 ax[0].axhspan(1.0e-16, NSI_SHOCK['reference_unitarity'], color='0.85', alpha=0.55,
               zorder=0)
 ax[0].text(0.03, 0.03, "below: the referee's own floor", transform=ax[0].transAxes,
@@ -11899,7 +11899,7 @@ def ellipse_point(dcp, energy=0.8*GEV, baseline=1300.0*KM):
 PHASES_SHOWN = [0.0, 2.0*np.pi/3.0, 4.0*np.pi/3.0]
 locus_cp = np.array([ellipse_point(d)
                      for d in np.linspace(0.0, 2.0*np.pi, 160)])
-# One colour scale for the whole sweep. Taking it from a single frame lets the
+# One color scale for the whole sweep. Taking it from a single frame lets the
 # others clip silently, and clipping reads as structure rather than saturation.
 CEIL_CP = max(float(oscillogram_cp(d).max())
               for d in np.linspace(0.0, 2.0*np.pi, 8, endpoint=False))
@@ -11934,9 +11934,9 @@ ax.set_title('Bi-probability locus', fontsize=10)
 fig.tight_layout(pad=1.2)'''),
     md(r'''## 2. A sterile state
 
-Four flavours, in matter of constant density so the whole map is again one call. The sterile
+Four flavors, in matter of constant density so the whole map is again one call. The sterile
 state feels neither the charged- nor the neutral-current potential, so $V_{\rm NC}$ stops
-cancelling between the flavours and sits on the sterile entry --- which is what places the
+canceling between the flavors and sits on the sterile entry --- which is what places the
 resonance that moves across the frame as $\Delta m^2_{41}$ sweeps.
 
 **That term is the one this library got wrong and fixed.** It comes from
@@ -12002,7 +12002,7 @@ def chord_entry(costhz):
     """Where a neutrino with this zenith angle enters, to reach the detector.
 
     The chord subtends a central angle of 2 arcsin(-cos theta_z), so the entry
-    point is the detector rotated by that much around the centre.
+    point is the detector rotated by that much around the center.
     """
     alpha = 2.0*np.arcsin(min(-costhz, 1.0))
     phi = -0.5*np.pi + alpha
@@ -12066,7 +12066,7 @@ that really varies is sliced.
 `strategy='auto'` does not use the slab ladder on a smooth exponential at all: it takes the
 adiabatic route, and the answer is then *identical* at 2, 8 and 40 slabs. The sweep below
 therefore passes `strategy='magnus'` and pins the slab count at both ends, which is the only
-way to watch the discretisation converge rather than watch the dispatcher avoid it.'''),
+way to watch the discretization converge rather than watch the dispatcher avoid it.'''),
     code(r'''PER_NE = matter.VCC_func(l=0.0, num_density_e_func=lambda l: 1.0)
 L_SLAB = 4000.0*KM
 
@@ -12184,13 +12184,13 @@ Every frame is a different Hamiltonian along the whole ray, and the front is dec
 told about.
 
 The resulting trace looks ragged, and that is the answer rather than a defect in it. Between
-neighbouring front positions the survival probability really does swing by tenths, and
+neighboring front positions the survival probability really does swing by tenths, and
 checking that takes more care than it looks: comparing a coarse sampling against a finer one
 proves nothing if both are under-resolved, because then the two agree about a number neither
 of them has right. Driven to convergence instead --- $102\,400$ slabs, where the answer is
 stable to $8 \times 10^{-6}$ --- forty points spaced $103$ km apart across the busy stretch
 still step by $0.142$ on average, and still span $0.228$ to $0.570$. The structure is
-physical, and finer than a hundred kilometres in front position.
+physical, and finer than a hundred kilometers in front position.
 
 It is drawn as markers on a faint line for that reason: a confident curve through these
 points would claim a resolution that no affordable sampling has. The points themselves are
@@ -12362,7 +12362,7 @@ N_WAVES = 3.0
 
 
 def ne_wave(phase):
-    """A density profile with a travelling crest."""
+    """A density profile with a traveling crest."""
     def ne(l):
         x = np.asarray(l, dtype=float)/L_WAVE
         env = 1.0 + 0.75*np.sin(2.0*np.pi*(N_WAVES*x - phase))*np.exp(-2.0*x)
@@ -12411,7 +12411,7 @@ print('Moving the crest through one period changes the probability by up to %.3f
     md(r'''## 9. The Sun, with and without NSI
 
 The solar case is the one where Mag$\nu$s returns the *observable* directly, and it is also
-where a BSM term is most cleanly read: the standard three-flavour curve is fixed, and the NSI
+where a BSM term is most cleanly read: the standard three-flavor curve is fixed, and the NSI
 curve moves away from it as $\varepsilon_{ee}$ grows.
 
 The standard curve is drawn as a fixed reference in every frame. What sweeps is
@@ -12478,7 +12478,7 @@ print('At eps_ee = 0.30 they differ by up to %.3f.'
     md(r'''## Rendering them as animations
 
 Six of the nine scenes animate: the CP phase, the sterile state, the Earth, the slab count,
-the shock and the travelling crest, plus the Sun with NSI. The ladder and the averaging scenes
+the shock and the traveling crest, plus the Sun with NSI. The ladder and the averaging scenes
 do not --- one is a table and the other costs about a minute per point.
 
 The stills above are what this notebook draws by default. Set `RENDER = True` to write the
@@ -12513,7 +12513,7 @@ if RENDER:
         smaller than the words under the x axis.
 
         `w_pad` widens the gutter between panels, which one scene needs: a
-        colour bar carries its own rotated label, and with the default gutter
+        color bar carries its own rotated label, and with the default gutter
         that label and the next panel's y label sit close enough to be read as
         one two-line label rather than two separate ones.
         """
@@ -12656,7 +12656,7 @@ if RENDER:
     ax_p.text(0.03, 0.96, SHOCK_NOTE, transform=ax_p.transAxes, ha='left',
               va='top', fontsize=9, color='0.25', linespacing=1.4)
     # Markers carrying a faint line, rather than a bold line through the
-    # markers.  The trace really does swing by tenths between neighbouring
+    # markers.  The trace really does swing by tenths between neighboring
     # front positions, and that was checked against CONVERGED values rather
     # than against a finer sampling at the same settings -- two under-resolved
     # runs agree about a number neither has right.  At 102400 slabs, where the
@@ -12688,7 +12688,7 @@ if RENDER:
 
     write(fig, update_shock, len(fronts_anim), 'anim_shock.gif')
 
-    # ---- 8. a travelling density crest -------------------------------------
+    # ---- 8. a traveling density crest -------------------------------------
     wave_phases = np.linspace(0.0, 1.0, 90, endpoint=False)
     fig, (ax_prof, ax_p) = plt.subplots(1, 2, figsize=FIGSIZE, dpi=DPI)
     prof_w, = ax_prof.plot(xx/KM, np.asarray(ne_wave(0.0)(xx))*PER_NE/1.0e-13,
@@ -12716,7 +12716,7 @@ if RENDER:
         ph = wave_phases[k]
         prof_w.set_ydata(np.asarray(ne_wave(ph)(xx))*PER_NE/1.0e-13)
         curve_w.set_ydata(wave_curve(ph))
-        head.set_text('A travelling crest:  phase %.2f' % ph)
+        head.set_text('A traveling crest:  phase %.2f' % ph)
         return prof_w, curve_w
 
     write(fig, update_wave, len(wave_phases), 'anim_wave.gif')
@@ -12764,7 +12764,7 @@ the machine that wrote it.
 
 **Which files are tracked, and which are not.** The shrunk clips in `img/` **are** committed,
 because a reader should not have to spend an hour to see what the notebook is about. Their
-raw originals in `img/raw/` are not: they are reproducible build artefacts in the sense
+raw originals in `img/raw/` are not: they are reproducible build artifacts in the sense
 `fig/*.pdf` already is. Nothing under `img/` reaches PyPI either way --- the packaging
 configuration looks only under `src/`, so neither the sdist nor the wheel contains any of it.
 
@@ -12790,7 +12790,7 @@ re-rendered on the same machine for this table, took **51 s**. Budget for the se
 per scene, and expect the two map scenes to be most of it.
 
 **Step 2 --- shrink them into `img/`.** A GIF straight out of matplotlib's Pillow writer
-gives every frame its own colour table. One shared palette removes that duplication, and
+gives every frame its own color table. One shared palette removes that duplication, and
 combined with a lower frame rate and a smaller width it is what makes a file publishable:
 
 ```shell
@@ -12875,7 +12875,7 @@ READING_ORDER = [
     ('02_magnus_2nu_vacuum_matter.ipynb', 'Two-neutrino probabilities',
      'vacuum, constant and varying density, castle wall, Earth and Sun'),
     ('03_magnus_3nu_vacuum_matter.ipynb', 'Three-neutrino probabilities',
-     'the same ground with three flavours and a CP phase'),
+     'the same ground with three flavors and a CP phase'),
     ('04_magnus_long_baseline.ipynb', 'Long baselines',
      'probabilities between two points on the surface'),
     ('05_magnus_biprobability.ipynb', 'Biprobability plots',
@@ -12883,7 +12883,7 @@ READING_ORDER = [
     ('06_magnus_oscillograms.ipynb', 'Oscillograms',
      'probability across zenith angle and energy at once'),
     ('07_magnus_bsm_sterile_nu.ipynb', 'BSM: sterile neutrinos',
-     'four and five flavours'),
+     'four and five flavors'),
     ('08_magnus_bsm_nsi.ipynb', 'BSM: non-standard interactions',
      'a new matter potential in the same slot'),
     ('09_magnus_bsm_liv.ipynb', 'BSM: Lorentz-invariance violation',
@@ -12907,7 +12907,7 @@ READING_ORDER = [
     ('18_magnus_unusual_density_profiles.ipynb', 'Unusual density profiles',
      'arrangement beats the mean, except for one exact symmetry'),
     ('19_magnus_custom_hamiltonian.ipynb', 'Bring your own Hamiltonian',
-     'the contract, the vectorisation trick, and what the Earth declares for you'),
+     'the contract, the vectorization trick, and what the Earth declares for you'),
     ('20_magnus_numerical_edge_cases.ipynb', 'Numerical edge cases',
      'degeneracies that return numbers, and what the nine warnings mean'),
     ('21_magnus_what_tolerance_means.ipynb', 'What rtol and atol promise',
@@ -12969,7 +12969,7 @@ GALLERY = {
     ('14_magnus_supernova_shock.ipynb', 0): 'gallery_shock.png',
     # The README gallery draws on these as well.  They carry what this package offers
     # that a closed-form code does not -- an averaged observable nothing else exposes,
-    # the boundary where each method wins, and a Hamiltonian nobody has diagonalised --
+    # the boundary where each method wins, and a Hamiltonian nobody has diagonalized --
     # so the front page argues from measurements rather than from claims.
     ('04_magnus_long_baseline.ipynb', 1): 'gallery_long_baseline.png',
     ('13_magnus_tabulated_solar_model.ipynb', 2): 'gallery_solar_bsm.png',

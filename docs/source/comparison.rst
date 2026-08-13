@@ -32,12 +32,12 @@ The boundary, stated once
 **Where a closed form exists and the accumulated phase is large, use the
 closed form.**  An exact algebraic solution beats a truncated series; that is
 arithmetic, not a defect in either code.  Constant density, piecewise-constant
-PREM and standard three-flavour propagation are precisely what closed forms are
+PREM and standard three-flavor propagation are precisely what closed forms are
 built for, and on those Magνs does not win on cost.
 
 What Magνs buys is everything that is not that: accuracy past the point where
-a piecewise-constant discretisation stalls, an arbitrary varying profile, a
-Hamiltonian nobody has diagonalised, five flavours, and observables that are
+a piecewise-constant discretization stalls, an arbitrary varying profile, a
+Hamiltonian nobody has diagonalized, five flavors, and observables that are
 returned rather than reconstructed.
 
 Which one should I use?
@@ -81,7 +81,7 @@ choose.
    * - A kink, a tabulated profile
      - **Magνs**
      - ``t_breakpoints`` puts a slab edge on the discontinuity
-   * - More than four flavours
+   * - More than four flavors
      - **Magνs**
      - The SU(N) expansions stop at SU(4); Magνs has no ceiling
    * - Genuinely open systems: decay, decoherence
@@ -128,11 +128,11 @@ about **batching, not about codes**: either code called one energy at a time
 costs about an order of magnitude more than the same physics asked for in one
 call.
 
-PREM, three flavours
+PREM, three flavors
 ----------------------
 
 An Earth chord at :math:`\cos\theta_z = -0.85` (10 831 km), refereed by a
-Richardson-extrapolated slab product whose own residual discretisation error is
+Richardson-extrapolated slab product whose own residual discretization error is
 **4.3e-07** — nothing below that line is resolvable by this comparison.
 
 Refined against itself, each code reaches:
@@ -152,7 +152,7 @@ Refined against itself, each code reaches:
      - ~20× less
 
 The residual between the two codes is 4.1e-04, which is the same order as the
-*looser* of the two curves — so most of it is NuOscProbExact's discretisation
+*looser* of the two curves — so most of it is NuOscProbExact's discretization
 rather than a disagreement about physics.  A residual far above **both** curves
 would have meant a convention mismatch instead, and that is the check worth
 making before concluding anything from a cross-code difference.
@@ -173,12 +173,12 @@ the ladder will reach, which is why a ``MagnusConvergenceWarning`` appears on
 every row.
 
 **Accuracy: Magνs, and it reaches the floor of the measurement.**  Its residual
-against the referee is 4.5e-08, *below the referee's own discretisation error of
+against the referee is 4.5e-08, *below the referee's own discretization error of
 4.1e-07* — so the honest statement is that Magνs agrees with the referee to
 within the referee's uncertainty, and this comparison cannot resolve it further.
 NuOscProbExact sits at 2.6e-04, some six hundred times above that floor, and its
 convergence is **not monotonic**: 32 slabs per segment is worse than 8.
-Non-monotonic convergence is the signature of a discretisation whose edges
+Non-monotonic convergence is the signature of a discretization whose edges
 straddle structure they do not resolve, and it means there is no setting of that
 dial to read off as "converged".
 
@@ -213,8 +213,8 @@ and buys sixteen.  More importantly the slab product has a *floor*:
 
 Past about 16 000 slabs the round-off of composing that many matrix products
 costs more than another halving of the width buys.  No setting reaches below
-that floor.  At five flavours there is no comparison to draw at all —
-NuOscProbExact has no five-flavour route — which is the other half of the same
+that floor.  At five flavors there is no comparison to draw at all —
+NuOscProbExact has no five-flavor route — which is the other half of the same
 point.
 
 The Sun: an observable the others do not offer
@@ -232,7 +232,7 @@ The model is the tabulated BS2005-AGS,OP solar profile
 :cite:p:`Bahcall:2004pz`.  A neutrino leaving the Sun accumulates some 13 000
 radians of phase at 5 MeV,
 so the instantaneous survival probability at the surface is neither measurable
-nor stable: neighbouring energies land anywhere between 0.15 and 0.9.  What a
+nor stable: neighboring energies land anywhere between 0.15 and 0.9.  What a
 solar experiment measures is the phase-averaged probability, and ``average=True``
 returns it directly — 40 averaged energies in **about 0.7 s**, matching the analytic
 adiabatic limit to 1.3e-05.
@@ -247,7 +247,7 @@ average the phase away:
 
    * - ``rel_error``
      - Seconds
-     - P over all flavours
+     - P over all flavors
      - A probability?
    * - 1e-04
      - 160.8
@@ -269,10 +269,10 @@ average the phase away:
 .. warning::
 
    **The obvious guard passes on every one of those rows.**  Summing the
-   flavour probabilities and checking they come to one holds to 1e-16 even
+   flavor probabilities and checking they come to one holds to 1e-16 even
    where the survival probability reaches 2.83.  That is not a bug in the
    guard: nuSQuIDS evolves the density matrix in an SU(3) basis whose identity
-   component is the trace, so the flavour sum is conserved *by construction*
+   component is the trace, so the flavor sum is conserved *by construction*
    however badly the traceless components are integrated.  **A structural
    invariant cannot test the thing it is built into.**  The check that does
    bite is each probability lying in :math:`[0, 1]`.
@@ -332,12 +332,12 @@ Summary
        3e-04, non-monotonically
    * - Smooth profile, reach
      - Slab product floors at 2.5e-11 and then rises; Magνs continues to 2.9e-13
-   * - Five flavours
+   * - Five flavors
      - Magνs only — NuOscProbExact has no route
    * - Solar averaged observable
      - Magνs returns it directly; nothing else here offers it
    * - Supernova shock
-     - The width of the front decides, not the flavour content
+     - The width of the front decides, not the flavor content
 
 The table has no winner in it.  It has a **boundary**.
 
@@ -354,5 +354,5 @@ reads exactly like an accuracy difference until you look.
 .. seealso::
 
    :doc:`notebook 25 <tutorials>` runs all of it, including the sections not
-   summarised here: the six-code speed/accuracy sweep, what batching and the
+   summarized here: the six-code speed/accuracy sweep, what batching and the
    compiled kernel are each worth, and the same shock at 3+1 and with NSI.

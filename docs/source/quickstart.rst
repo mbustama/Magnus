@@ -17,7 +17,7 @@ Install with ``pip install magnuspy``, then:
    import magnus.oscprob as oscprob
    import magnus.globaldefs as gd
 
-   # 3-flavour vacuum probability at 1 GeV over 1000 km
+   # 3-flavor vacuum probability at 1 GeV over 1000 km
    P = oscprob.osc_prob_3nu_vacuum(1.0*gd.UNIT_GEV, 1000.0*gd.UNIT_KM)
    print(P[gd.NUMU][gd.NUE])        # P(nu_mu -> nu_e)
 

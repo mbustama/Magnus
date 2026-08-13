@@ -88,8 +88,8 @@ you whether it passes there.
 **What passing means.**  The suite is not only a smoke test, so it is worth
 knowing what it establishes:
 
-* **Against closed forms.**  Two- and three-flavour vacuum probabilities, and
-  two-flavour constant-density matter, for neutrinos and antineutrinos, to
+* **Against closed forms.**  Two- and three-flavor vacuum probabilities, and
+  two-flavor constant-density matter, for neutrinos and antineutrinos, to
   machine precision.
 * **Against an independent integrator.**  Asymmetric profiles with complex
   Hamiltonians and full PREM Earth crossings, scored against
@@ -99,7 +99,7 @@ knowing what it establishes:
   ratios 4, 16, 64).
 * **Properties that must hold exactly.**  Unitarity, and two *bit-identity*
   assertions rather than tolerances: the energy-batched scan against the
-  per-point path, and ``n_jobs > 1`` against serial.  An optimisation that
+  per-point path, and ``n_jobs > 1`` against serial.  An optimization that
   changed an answer fails those rather than passing quietly.
 * **Conventions.**  Slab ordering, the antineutrino potential sign, the mass
   ordering and the channel indexing -- each of which has been wrong here at
@@ -166,7 +166,7 @@ File Tree
    │       ├── pages.yml               # GitHub Pages deployment for the Sphinx documentation
    │       ├── publish.yml             # PyPI (OIDC) automated publishing workflow, on GitHub Release
    │       └── tests.yml               # GitHub Actions CI testing pipeline (Python 3.10-3.13) + coverage
-   ├── .gitignore                      # Build, cache and generated-output artefacts
+   ├── .gitignore                      # Build, cache and generated-output artifacts
    ├── CHANGELOG.md                    # Version history (Keep a Changelog format)
    ├── CITATION.cff                    # Machine-readable citation metadata; drives GitHub's "Cite this repository"
    ├── LICENSE                         # GNU GPL v3 (GPL-3.0-only), the full license text
@@ -218,18 +218,18 @@ File Tree
    │   ├── anim_earth.gif              # Animated: a chord swinging to a detector at the South Pole
    │   ├── anim_shock.gif              # Animated: a supernova shock front sweeping outward
    │   ├── anim_slabs.gif              # Animated: a profile cut into more and more slabs
-   │   ├── anim_solar_nsi.gif          # Animated: the Sun, with a non-standard interaction dialled up
+   │   ├── anim_solar_nsi.gif          # Animated: the Sun, with a non-standard interaction dialed up
    │   ├── anim_sterile.gif            # Animated: a sterile state as its mass splitting grows
-   │   ├── anim_wave.gif               # Animated: a density crest travelling along the baseline
+   │   ├── anim_wave.gif               # Animated: a density crest traveling along the baseline
    │   └── gallery/                    # Figures lifted from the executed notebooks, embedded in the docs
    ├── notebooks/                      # Numbered Jupyter notebooks -- see docs/source/tutorials.rst
    │   ├── 01_magnus_introduction.ipynb  # The shortest path to a probability
-   │   ├── 02_magnus_2nu_vacuum_matter.ipynb  # Two flavours, across seven matter profiles
-   │   ├── 03_magnus_3nu_vacuum_matter.ipynb  # The same, with three flavours and a CP phase
+   │   ├── 02_magnus_2nu_vacuum_matter.ipynb  # Two flavors, across seven matter profiles
+   │   ├── 03_magnus_3nu_vacuum_matter.ipynb  # The same, with three flavors and a CP phase
    │   ├── 04_magnus_long_baseline.ipynb  # Between two points on the surface
    │   ├── 05_magnus_biprobability.ipynb  # The CP ellipse
    │   ├── 06_magnus_oscillograms.ipynb  # Zenith angle against energy, in one call
-   │   ├── 07_magnus_bsm_sterile_nu.ipynb  # Four and five flavours
+   │   ├── 07_magnus_bsm_sterile_nu.ipynb  # Four and five flavors
    │   ├── 08_magnus_bsm_nsi.ipynb     # Non-standard interactions
    │   ├── 09_magnus_bsm_liv.ipynb     # Lorentz-invariance violation
    │   ├── 10_magnus_averaged_probability.ipynb  # What survives when the phase is unresolvable
@@ -241,7 +241,7 @@ File Tree
    │   ├── 16_magnus_exact_vs_approximations.ipynb  # Where the textbook formulas are exact, and where the substitution breaks
    │   ├── 17_magnus_ordering_and_octant.ipynb  # The sign of D31, and how large the two open questions are
    │   ├── 18_magnus_unusual_density_profiles.ipynb  # Arrangement beats the mean, except for one exact symmetry
-   │   ├── 19_magnus_custom_hamiltonian.ipynb  # The H_func contract, and the vectorisation trick
+   │   ├── 19_magnus_custom_hamiltonian.ipynb  # The H_func contract, and the vectorization trick
    │   ├── 20_magnus_numerical_edge_cases.ipynb  # Degeneracies that return numbers, and the nine warnings
    │   ├── 21_magnus_what_tolerance_means.ipynb  # rtol is a stopping criterion, not an error bound
    │   ├── 22_magnus_which_engine_answered.ipynb  # strategy_info, and an error bar with no oracle
@@ -310,14 +310,14 @@ File Tree
        ├── test_engines.py             # Which engine answers, and the cross-checks between them
        ├── test_expansionterms.py      # The symbolic term generator against the hand-written orders
        ├── test_expm_backend.py        # The two matrix-exponential backends, their switch, and degeneracies
-       ├── test_fuzz_statistics.py     # Randomised profiles, scored in bulk
+       ├── test_fuzz_statistics.py     # Randomized profiles, scored in bulk
        ├── test_file_tree.py           # This file: generates the tree above and checks it against git
        ├── test_globaldefs.py          # NuFit historical parameter dict/loader
        ├── test_hamiltonians.py        # Hamiltonian/mixing-matrix builders
        ├── test_invariants.py          # Properties that must hold across the whole engine matrix
        ├── test_magnus_expansion.py    # Magnus-core correctness (terms, orders, GL rates, unitarity)
        ├── test_oscprob.py             # Oscillation-probability engine, closed-form and ODE cross-checks
-       ├── test_palindrome.py          # The palindromic-profile optimisation and its gate
+       ├── test_palindrome.py          # The palindromic-profile optimization and its gate
        ├── test_plotting.py            # Pre-packaged plotting tools: house-style defaults, layouts
        ├── test_routine_listings.py    # Each module's Routine listings names every public function it defines
        ├── test_tolerance.py           # What rtol/atol promise, and the effective-refinement gate

@@ -314,8 +314,8 @@ def hamiltonian_2nu_matter(VCC: float) -> np.ndarray:
 
         print(np.asarray(hamiltonians2nu.hamiltonian_2nu_matter(1.0e-13)))
 
-    Only the electron-flavour entry is filled: matter is what the other
-    flavours do not feel.
+    Only the electron-flavor entry is filled: matter is what the other
+    flavors do not feel.
 """
     # The matter Hamiltonian is [[VCC,0],[0,0]]
     # Built by broadcasting rather than np.diag so that VCC may be an array of

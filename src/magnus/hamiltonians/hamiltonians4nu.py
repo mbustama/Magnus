@@ -444,7 +444,7 @@ def hamiltonian_4nu_matter(VCC: float,
     :math:`V_{\rm NC}` is subtracted.  What that leaves on the sterile state is
     :math:`-V_{\rm NC} = (r/2) V_{\rm CC}`, with :math:`r = n_n/n_p`, and it is
     that residue -- not any interaction of the sterile state -- that makes a 3+1
-    scenario more than a relabelling.  Setting it to zero instead is worth 0.29
+    scenario more than a relabeling.  Setting it to zero instead is worth 0.29
     in probability on a PREM chord.  The derivation is in
     :func:`magnus.matter.matter_potential_projector`.
 """

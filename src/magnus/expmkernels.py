@@ -22,7 +22,7 @@ Why this is worth a compiled kernel
 
 ``np.linalg.eigh`` costs about 1.25 us per 3x3 *regardless of stack size* --
 1, 108 or 4096 matrices, the per-matrix cost is flat -- because it loops over
-LAPACK internally rather than vectorising over the stack.  On a 108-slab Magnus
+LAPACK internally rather than vectorizing over the stack.  On a 108-slab Magnus
 pass that single call is roughly a quarter of the total.
 
 The same algebra written in pure numpy does not help below stacks of about a
@@ -48,7 +48,7 @@ differences.  Two facts remove it here, and both are load-bearing enough to
 state:
 
 *A Hermitian matrix is never defective.*  Its minimal polynomial has simple
-roots even when its characteristic polynomial does not, so a polynomial
+roots even when its characteriztic polynomial does not, so a polynomial
 matching :math:`\exp(-i\lambda)` on the *distinct* eigenvalues already
 reproduces the function exactly.  The confluent (Hermite) form, which matches
 derivatives as well and is unavoidable for a general matrix, is not needed for
@@ -155,7 +155,7 @@ def _sinc(x: float) -> float:
     r"""Returns :math:`\sin(x)/x`, including at :math:`x = 0`.
 
     Not :func:`numpy.sinc`, which carries a factor :math:`\pi`.  This is the
-    unnormalised cardinal sine, and it is the reason the divided differences of
+    unnormalized cardinal sine, and it is the reason the divided differences of
     :math:`\exp` in this module need no degenerate branch: the first divided
     difference of :math:`e^{-i\lambda}` over nodes a and b is
     :math:`-i e^{-i(a+b)/2}\,\mathrm{sinc}((a-b)/2)`, an expression in which
@@ -277,7 +277,7 @@ def _ch2_core(K, out, lam):
     Returns
     -------
     float
-        Always 0.0.  A 2x2 has no characteristic cubic and no ``arccos``, so it has nothing
+        Always 0.0.  A 2x2 has no characteriztic cubic and no ``arccos``, so it has nothing
         to be ill-conditioned about: measured against a 60-digit reference it tracks ``eigh``
         at every scale from 1 to 1e5 and at every eigenvalue separation down to exact
         degeneracy (ratios 0.4-1.0).  The return value exists only so both kernels share a
@@ -311,9 +311,9 @@ def _ch2_core(K, out, lam):
 def _ch3_core(K, out, lam):
     r"""Fills ``out`` with :math:`\exp(-iK)` and ``lam`` with K's eigenvalues, d = 3.
 
-    Eigenvalues come from the trigonometric solution of the characteristic
+    Eigenvalues come from the trigonometric solution of the characteriztic
     cubic of the traceless part :math:`X = K - (\mathrm{tr}K/3) I`, whose
-    characteristic polynomial is :math:`y^3 - 3my - 2n` with
+    characteriztic polynomial is :math:`y^3 - 3my - 2n` with
     :math:`m = \mathrm{tr}(X^2)/6` and :math:`n = \det(X)/2`.  Substituting
     :math:`y = 2\sqrt{m}\cos\theta` turns it into
     :math:`\cos 3\theta = n/m^{3/2}`, so
@@ -561,7 +561,7 @@ def expm_herm_stack(K: np.ndarray) -> tuple:
     ValueError
         If ``d`` is not 2 or 3.  Without this the ``else`` below handed 4x4 and 5x5 input to
         the 3x3 kernel, which returned no exception, an error of 2.4 against
-        ``scipy.linalg.expm``, a unitarity violation of 11.3, and uninitialised memory in the
+        ``scipy.linalg.expm``, a unitarity violation of 11.3, and uninitialized memory in the
         fourth eigenvalue -- and segfaulted at d=1 by indexing ``K[i,2,1]`` with numba's
         bounds checking off.  :func:`supports_dim` is documented as the single place that
         decides which dimensions are handled, and now actually is.

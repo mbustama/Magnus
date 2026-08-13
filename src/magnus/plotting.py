@@ -31,7 +31,7 @@ curve any :class:`~matplotlib.lines.Line2D` keyword.
 There is deliberately **no bare** ``**kwargs`` **on any of these functions**. A
 catch-all signature accepts a misspelled keyword in silence, and this project
 has already paid for that once: ``oscprob``'s keyword chain forwarded unknown
-names down several layers before failing somewhere unrecognisable, which is why
+names down several layers before failing somewhere unrecognizable, which is why
 :func:`magnus.oscprob.osc_prob` now raises on stray keys. Here every keyword is
 either named in the signature -- so a typo is a :class:`TypeError` at the call
 site -- or lands in a dictionary destined for one specific Matplotlib call --
@@ -42,7 +42,7 @@ Styling that is global (fonts, tick sizes and directions, LaTeX rendering)
 belongs to ``notebooks/matplotlibrc`` and is deliberately **not** set here; the
 defaults below cover only what the notebooks were overriding per figure.
 
-All functions return ``(fig, ax)`` so that the caller can keep customising:
+All functions return ``(fig, ax)`` so that the caller can keep customizing:
 ``fig`` for figure-level work and saving, ``ax`` for anything Matplotlib
 exposes on an axes.
 
@@ -165,7 +165,7 @@ r"""Default :func:`~matplotlib.pyplot.savefig` keywords; figures go to ``../fig/
 _HSPACE = 0.05
 _WSPACE = 0.05
 
-# Flavour index -> LaTeX, covering the sterile states used by the 4nu/5nu notebooks.
+# Flavor index -> LaTeX, covering the sterile states used by the 4nu/5nu notebooks.
 _FLAVOR_TEX = {
     0: r'\nu_e',
     1: r'\nu_\mu',
@@ -179,7 +179,7 @@ def prob_label(nu_i: int, nu_f: int, nubar: Optional[bool] = False) -> str:
     r"""Return the LaTeX label for an oscillation probability.
 
     A ``prob_label`` helper was defined separately in several notebooks, with
-    hand-written ``if``/``elif`` chains covering only the three active flavours.
+    hand-written ``if``/``elif`` chains covering only the three active flavors.
     This version also covers the sterile states, so the sterile-neutrino
     notebook can use it too.
 
@@ -188,10 +188,10 @@ def prob_label(nu_i: int, nu_f: int, nubar: Optional[bool] = False) -> str:
     Parameters
     ----------
     nu_i : int
-        Initial flavour, as one of the ``magnus.globaldefs`` constants
+        Initial flavor, as one of the ``magnus.globaldefs`` constants
         ``NUE``, ``NUMU``, ``NUTAU``, ``NUS1``, ``NUS2``.
     nu_f : int
-        Final flavour, same encoding.
+        Final flavor, same encoding.
     nubar : bool, optional
         If ``True``, label the antineutrino channel. Default is ``False``.
 
@@ -203,7 +203,7 @@ def prob_label(nu_i: int, nu_f: int, nubar: Optional[bool] = False) -> str:
     Raises
     ------
     ValueError
-        If either flavour index is not one of the known values.
+        If either flavor index is not one of the known values.
 
     Examples
     --------
@@ -219,7 +219,7 @@ def prob_label(nu_i: int, nu_f: int, nubar: Optional[bool] = False) -> str:
         if value not in _FLAVOR_TEX:
             raise ValueError(
                 f'Error in magnus: plotting.prob_label: {name} must be one of '
-                f'{sorted(_FLAVOR_TEX)} (the flavour constants in '
+                f'{sorted(_FLAVOR_TEX)} (the flavor constants in '
                 f'magnus.globaldefs), not {value!r}'
             )
     ini, fin = _FLAVOR_TEX[nu_i], _FLAVOR_TEX[nu_f]
@@ -232,7 +232,7 @@ def prob_label(nu_i: int, nu_f: int, nubar: Optional[bool] = False) -> str:
 
 
 def _as_curve_list(curves):
-    r"""Normalise the ``curves`` argument into a list of ``(y, plot_kwargs)``.
+    r"""Normalize the ``curves`` argument into a list of ``(y, plot_kwargs)``.
 
     .. versionadded:: 1.0.0
     """
@@ -335,7 +335,7 @@ def plot_curves(
         One entry per curve. An entry is either a bare ordinate array, or a
         dict carrying the ordinate under ``'y'`` plus any
         :class:`~matplotlib.lines.Line2D` keyword (``label``, ``color``,
-        ``ls``, ``lw``, ...). Entries without an explicit colour take the
+        ``ls``, ``lw``, ...). Entries without an explicit color take the
         ``'C0'``, ``'C1'``, ... cycle in order.
     xlabel, ylabel, title : str, optional
         Axis labels and title. ``ylabel`` goes on the main panel.
@@ -401,7 +401,7 @@ def plot_curves(
     Returns
     -------
     fig : matplotlib.figure.Figure
-        The figure, ready for further customisation or saving.
+        The figure, ready for further customization or saving.
     ax : matplotlib.axes.Axes or numpy.ndarray of Axes
         A single axes when there is no residual panel; an array of two
         (main, residual) when there is.
@@ -573,7 +573,7 @@ def plot_curves_stacked(
         :func:`plot_curves` accepts: a bare ordinate array, or a dict carrying
         the ordinate under ``'y'`` plus any
         :class:`~matplotlib.lines.Line2D` keyword. Curves without an explicit
-        colour take the ``'C0'``, ``'C1'``, ... cycle *within* their panel, so
+        color take the ``'C0'``, ``'C1'``, ... cycle *within* their panel, so
         the n-th curve of every panel matches by default.
     xlabel : str, optional
         Abscissa label, placed on the bottom panel only.
@@ -608,7 +608,7 @@ def plot_curves_stacked(
         Which panel carries the legend. Default ``0``.
     legend_proxies : sequence of dict, optional
         Legend entries that describe a *style* shared across panels rather than
-        any one curve -- e.g. "solid: 3+1, dashed: standard" when the colour
+        any one curve -- e.g. "solid: 3+1, dashed: standard" when the color
         varies from panel to panel. Each entry is a set of
         :class:`~matplotlib.lines.Line2D` keywords including ``label``, drawn
         as an empty proxy artist. When given, these replace the labels picked
@@ -645,7 +645,7 @@ def plot_curves_stacked(
     Returns
     -------
     fig : matplotlib.figure.Figure
-        The figure, ready for further customisation or saving.
+        The figure, ready for further customization or saving.
     ax : numpy.ndarray of Axes
         One axes per panel, top to bottom. Always an array, including for a
         single panel, so that indexing does not depend on the panel count.
@@ -794,7 +794,7 @@ def plot_probability_vs_baseline(
 
     A thin preset over :func:`plot_curves`: log abscissa, ordinate on
     :math:`[0, 1]` with the notebooks' tick spacings, and an ordinate label
-    built from the flavour pair.
+    built from the flavor pair.
 
     .. versionadded:: 1.0.0
 
@@ -805,7 +805,7 @@ def plot_probability_vs_baseline(
     curves : sequence
         As in :func:`plot_curves`.
     nu_i, nu_f : int, optional
-        Flavour pair, used to build the ordinate label via :func:`prob_label`
+        Flavor pair, used to build the ordinate label via :func:`prob_label`
         when ``ylabel`` is not given.
     num_flavors : int, optional
         If given, prefixes the ordinate label with ``'Two-'``, ``'Three-'``,
@@ -813,7 +813,7 @@ def plot_probability_vs_baseline(
     xlabel : str, optional
         Abscissa label.
     ylabel : str, optional
-        Ordinate label; overrides the one built from the flavour pair.
+        Ordinate label; overrides the one built from the flavor pair.
     ylim : tuple of float, optional
         Ordinate limits. Default is ``(0.0, 1.0)``.
     xscale : str, optional
@@ -886,9 +886,9 @@ def plot_probability_vs_energy(
     curves : sequence
         As in :func:`plot_curves`.
     nu_i, nu_f : int, optional
-        Flavour pair for the ordinate label.
+        Flavor pair for the ordinate label.
     num_flavors : int, optional
-        Flavour count, for the ordinate label prefix.
+        Flavor count, for the ordinate label prefix.
     energy_unit : str, optional
         Unit shown in the abscissa label. Default is ``'GeV'``.
     xlabel : str, optional
@@ -1005,7 +1005,7 @@ def plot_probability_with_profile(
     profile along the trajectory on top, then one probability panel per
     detector or per profile, sharing the abscissa. With a single probability
     panel it is the profile-plus-probability figure of the introduction and the
-    two-flavour notebooks.
+    two-flavor notebooks.
 
     .. versionadded:: 1.0.0
 
@@ -1035,7 +1035,7 @@ def plot_probability_with_profile(
         dict with ``'text'`` plus any other
         :meth:`~matplotlib.axes.Axes.annotate` keyword -- a ``bbox``, for
         instance, when the text would otherwise sit over dense curves. Entries
-        may be ``None``. The three-flavour notebook uses this to name the
+        may be ``None``. The three-flavor notebook uses this to name the
         channel each panel shows, rather than repeating it in the ordinate
         label.
     panel_annotation_xy : tuple of float, optional
@@ -1252,7 +1252,7 @@ def plot_probability_with_average(
 
     The figure of the averaged-probability notebook: rapidly oscillating
     curves, each with its decohered limit drawn through it as a dashed line of
-    the same colour -- the value :func:`magnus.oscprob.osc_prob` returns with
+    the same color -- the value :func:`magnus.oscprob.osc_prob` returns with
     ``average=True``.
 
     Several channels are usually shown at once, so the legend carries one
@@ -1274,8 +1274,8 @@ def plot_probability_with_average(
     labels : sequence of str, optional
         Legend label per channel.
     colors : sequence of str, optional
-        Colour per channel. Defaults to the ``'C0'``, ``'C1'``, ... cycle;
-        each average takes its channel's colour.
+        Color per channel. Defaults to the ``'C0'``, ``'C1'``, ... cycle;
+        each average takes its channel's color.
     average_label : str, optional
         Text of the single legend entry explaining the dashed lines.
     oscillating_kw, average_kw : dict, optional
@@ -1589,8 +1589,8 @@ def plot_oscillogram(
 
     A filled contour map of the oscillation probability in the plane of
     :math:`\cos\theta_z` (equivalently, baseline through the Earth) and
-    :math:`\log_{10} E_\nu`, with a colour bar and the channel annotated in the
-    corner over a white stroke so it stays legible against the colour map.
+    :math:`\log_{10} E_\nu`, with a color bar and the channel annotated in the
+    corner over a white stroke so it stays legible against the color map.
 
     .. versionadded:: 1.0.0
 
@@ -1603,22 +1603,22 @@ def plot_oscillogram(
     probability : sequence of sequence of float
         Probability with shape ``(len(log10_energy), len(costhz))``.
     nu_i, nu_f : int, optional
-        Flavour pair, used for the colour-bar label and the annotation when
+        Flavor pair, used for the color-bar label and the annotation when
         those are not given explicitly.
     levels : int, optional
         Number of filled contour levels. Default is ``120``.
     cmap : str, optional
-        Colour map. Default is ``'plasma'``.
+        Color map. Default is ``'plasma'``.
     xlabel, ylabel : str, optional
         Axis labels.
     cbar_label : str, optional
-        Colour-bar label; overrides the one built from the flavour pair.
+        Color-bar label; overrides the one built from the flavor pair.
     cbar_label_prefix : str, optional
-        Text placed before the probability label on the colour bar.
+        Text placed before the probability label on the color bar.
     cbar_fontsize, cbar_labelsize : float, optional
-        Colour-bar label and tick-label sizes.
+        Color-bar label and tick-label sizes.
     annotation : str, optional
-        Corner annotation. Defaults to the probability label when the flavour
+        Corner annotation. Defaults to the probability label when the flavor
         pair is given; pass ``''`` to suppress it.
     annotation_fontsize : float, optional
         Corner annotation size.

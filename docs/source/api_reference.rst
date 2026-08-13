@@ -9,7 +9,7 @@ This is the exhaustive view. Three other pages are usually the faster way in:
 
 * :doc:`recipes` — what the package can compute, with the code that computes it.
 * :doc:`functions` — the whole ``osc_prob_*`` family laid out by environment and
-  flavour count, for when you know roughly what you want but not its name.
+  flavor count, for when you know roughly what you want but not its name.
 * :doc:`engines` — how the engines choose between themselves.
 * :doc:`performance` — the population every tuned constant was measured on.
 

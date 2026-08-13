@@ -361,7 +361,7 @@ energy** -- enough for a batched solar call to exhaust the machine.  The working
 is now tiled to :data:`BATCH_WORKING_ENTRIES` independently of both, so this ceiling
 bounds only time.  See ``docs/dev/BUG_IP_EXP_MEMORY.md``.
 
-Named rather than inlined so that the method's give-up behaviour at the ceiling can
+Named rather than inlined so that the method's give-up behavior at the ceiling can
 be exercised by a test at a small cap: reaching two million slabs to check what
 happens at the boundary would cost minutes, so with the value buried in the function
 body those branches could not be tested at all.
@@ -404,17 +404,17 @@ ones, so wall clock rises far less than the slab count: a 60-energy Earth scan g
 to 10 ms.
 
 **One constant covers every case measured; none of them wanted their own.**  Repeating the
-sweep at four and five flavours (same chords and energies, three tolerances, against a
+sweep at four and five flavors (same chords and energies, three tolerances, against a
 4000-slab reference) gives zero silent violations at 1.25 in all of 3nu, 4nu and 5nu.  Four
-and five flavours each keep one case that misses but *warns*, which is the existing contract
+and five flavors each keep one case that misses but *warns*, which is the existing contract
 rather than this defect.  Breakpoint density does not reach it either: swept at 0, 10, 50, 200
 and 1000 user-supplied breakpoints, the ladder converged with identical slab counts either
 side of the gate, because its seed starts in the thousands and never visits the small counts
 where dense breakpoints would dominate the ratio.
 
 **The bound must stay below ``growth_factor_n_slabs``, and the cliff is sharp.**  At 1.50 the
-ratio is only reachable when rounding happens to favour it, so the ladder runs to the cap
-instead: median slabs returned goes to **20 000** -- ``max_n_slabs`` -- at every flavour count,
+ratio is only reachable when rounding happens to favor it, so the ladder runs to the cap
+instead: median slabs returned goes to **20 000** -- ``max_n_slabs`` -- at every flavor count,
 for no accuracy gained over 1.25.  That is the failure mode of a bound set too high, and it is
 why the measured value sits a comfortable distance under the growth factor rather than just
 beneath it.
@@ -460,7 +460,7 @@ cumulative, 2nu, 60 L         1720.4   1909.4   1984.0   1995.5   1996.5
 
 1 MB won eight of the eleven memory-bound workloads and was never worse than the
 previous 67 MB default; the gain over it runs to **1.19x-1.38x** on Earth energy
-scans and grows with both flavour count and scan length.  Short scans (a few hundred
+scans and grows with both flavor count and scan length.  Short scans (a few hundred
 points) are flat within 2%, where fixed overhead dominates.  The interaction-picture
 engine is flat at 1.00x throughout -- it is compute-bound, so this constant does not
 reach it.
@@ -471,7 +471,7 @@ performance knob, and retuning it needs no accuracy justification.
 
 Two caveats on the number.  It was measured on one machine (13 MB L3, 6.5 MB L2), and
 the optimum sits *below* the last-level cache -- 1 MB beat 12.6 MB -- which suggests
-L2 or streaming behaviour, not last-level residency, is what actually matters.  That
+L2 or streaming behavior, not last-level residency, is what actually matters.  That
 also means autodetecting the last-level cache and sizing to it, as NuOscProbExact
 does for its own chunking, would have landed on a *worse* value here than this fixed
 constant.  Set the constant to retune; nothing caches it, and both batched engines
@@ -535,7 +535,7 @@ milliseconds for that is the right way round.
 #   * with the shipped constant, over 200 random smooth profiles, 25 results were window-free
 #     and certified and the ladder agreed with ALL 25.  Zero disagreements, so zero benefit
 #     against a measured 9% of calls paying for a second engine.
-#   * with GAMMA_TO_ERROR deliberately made optimistic by 2x, 41 results were certified,
+#   * with GAMMA_TO_ERROR deliberately made optimiztic by 2x, 41 results were certified,
 #     3 of them genuinely outside tolerance -- and the check still fired zero times.  The
 #     first version's trigger was computed FROM GAMMA_TO_ERROR, so mis-calibrating the
 #     constant shrank the trigger in step with it: a check insured against a constant, keyed
@@ -566,7 +566,7 @@ scan can never decline both paths and land on the general per-point method.
 
 **This was 25, and both halves of the justification for that turned out to be wrong.**  The
 original reasoning was that below N = 25 the cumulative scan's near-constant cost is not yet
-amortised, so yielding would make a small scan "several times slower (7.6x at N = 2) to buy
+amortized, so yielding would make a small scan "several times slower (7.6x at N = 2) to buy
 accuracy that was already two orders inside what the caller asked for".  Both clauses were
 measured on **solar profiles only**, which is the easiest case for the hybrid path and the
 hardest for the cumulative scan's strict probe.
@@ -626,7 +626,7 @@ supernova shock w = 1e-3, d = 3, 15 MeV       1.095e-03      **2.586e-06**
 ============================================ ============== ===============
 
 The first is the one that decided it: a real published solar model, at an energy in the 8B
-spectrum, in the two-flavour treatment that is standard for the solar problem, returning a
+spectrum, in the two-flavor treatment that is standard for the solar problem, returning a
 *certified* answer outside the caller's tolerance in silence.
 
 *And the cost objection did not survive measurement either.*  Re-measured on the physical
@@ -818,7 +818,7 @@ def _n_required_params(func):
     Counting required parameters instead makes both forms work and changes nothing for a function
     written without defaults.  A ``*args`` function is not counted this way -- it declares no
     required parameters at all, and the old total is the better guess there -- so those keep the
-    previous behaviour.
+    previous behavior.
 
     .. versionadded:: 1.0.0
 
@@ -1197,7 +1197,7 @@ class UnmarkedDiscontinuityWarning(ToleranceNotAchievedWarning):
 
     Subclasses :class:`ToleranceNotAchievedWarning` so that code already filtering on the parent
     also catches this.  Not raised when ``t_breakpoints`` was supplied: the caller has then said
-    where the edges are, and the grid honours them.
+    where the edges are, and the grid honors them.
 
     **Measured rates** (``docs/dev/adversarial_batteries/warn_fp.py``, 168 configurations
     including 48 random piecewise-constant profiles with the edges deliberately left
@@ -1273,7 +1273,7 @@ class HiddenFeatureWarning(ToleranceNotAchievedWarning):
     it does not conjure resolution that the sampling never had.  For a feature you know the width
     of, a denser grid there is better still.
 
-    **When it is safe to ignore.**  When the narrow structure is an artefact of how the profile
+    **When it is safe to ignore.**  When the narrow structure is an artifact of how the profile
     function was written rather than physics -- an interpolation kink, a rounding step in a
     tabulated density -- and you know the physical profile is smooth there.
 
@@ -1764,8 +1764,8 @@ def _warn_if_sterile_projector_disagrees_with_composition(
     :math:`P(\nu_\mu \to \nu_\mu)`, twenty times the default tolerance -- and silently,
     since nothing else about the call looks wrong.
 
-    Three flavours are unaffected: the projector's sterile block is empty, so the scalar has
-    nowhere to act.  This is the same shape as the four-flavour NSI matter term that shipped
+    Three flavors are unaffected: the projector's sterile block is empty, so the scalar has
+    nowhere to act.  This is the same shape as the four-flavor NSI matter term that shipped
     wrong, and it is reported rather than resolved because no single :math:`r` is right for a
     chord that crosses iron and rock.  Pass the one you want.
 
@@ -1794,7 +1794,7 @@ def _warn_if_sterile_projector_disagrees_with_composition(
         # Path-averaged along THIS chord, not a range over the four layers.  A range is
         # useless here: the ocean's r = 0.80 drags it below the isoscalar 1.0, so the
         # default would sit inside it and never be questioned -- while on a core-crossing
-        # chord the ocean is three kilometres of twelve thousand.  Averaging over the path
+        # chord the ocean is three kilometers of twelve thousand.  Averaging over the path
         # weights each layer by how much of the trajectory is actually in it, and gives the
         # caller one number to pass rather than an interval to choose from.
         chord = float(_earth.distance_traveled_inside_earth(costhz))
@@ -1824,7 +1824,7 @@ def _warn_if_sterile_projector_disagrees_with_composition(
         " wrong.  For this chord the path-averaged ratio is " + format(target, '.4f') + ";"
         " passing that as ratio_number_neutrons_to_protons silences this and makes the two"
         " agree on average.  electron_fraction=0.5 with the default 1.0 instead reproduces"
-        " the uniform composition earlier versions assumed.  Three flavours are unaffected.",
+        " the uniform composition earlier versions assumed.  Three flavors are unaffected.",
         gd.SterileMatterCompositionWarning, stacklevel=3)
 
 
@@ -2033,7 +2033,7 @@ def _earth_chord_symmetry(costhz: float,
     midpoint **exactly** -- ``max|tb + tb[::-1] - d|`` is 0.0 at every zenith angle tested, because
     the two roots of the crossing quadratic come out as :math:`d/2 \pm s`.
 
-    Returns None -- declining the optimisation rather than risking it -- whenever the propagation
+    Returns None -- declining the optimization rather than risking it -- whenever the propagation
     is not over the whole chord.  A chord is symmetric over its full length and over no shorter
     prefix, so a request at a shorter baseline must not be mirrored; the comparison is exact, and
     an array of baselines qualifies only if every one of them is the full chord.
@@ -2859,7 +2859,7 @@ def osc_prob(
 
         **Not the same as** ``t_breakpoints``, despite the similar name, and
         usually not the one wanted.  This is the *complete* partition and it
-        fixes the discretisation, so refinement can no longer add slabs.
+        fixes the discretization, so refinement can no longer add slabs.
         ``t_breakpoints`` instead names positions that must fall on an edge and
         lets the ladder fill in between, which is what a density jump, a kink or
         a shock front calls for.
@@ -3128,7 +3128,7 @@ def osc_prob(
         # the floor the ladder starts from and is used whether or not rtol/atol are set,
         # so `n_slabs=0` and `n_slabs=-5` used to be accepted in silence: the ladder
         # simply ignored them and returned the default answer, which made a typo look
-        # like a setting that had been honoured.  rtol and atol were already rejected
+        # like a setting that had been honored.  rtol and atol were already rejected
         # when non-positive; these are the same kind of argument and are now treated the
         # same way.
         if (n_slabs is not None) and (n_slabs < 1):
@@ -3149,7 +3149,7 @@ def osc_prob(
 
         # A floor above its own ceiling is a contradiction, and it used to be answered:
         # min_n_slabs=100 with max_n_slabs=5 returned a probability that differed from the
-        # default by 4.2e-04, so the request was neither honoured nor refused.  Which of
+        # default by 4.2e-04, so the request was neither honored nor refused.  Which of
         # the two the ladder ends up obeying is an implementation detail, and a caller who
         # wrote both cannot have meant either.
         if ((min_n_slabs is not None) and (max_n_slabs is not None) and
@@ -3498,7 +3498,7 @@ def osc_prob(
         # declaration is passed as the interval rather than as a flag so that the Magnus layer
         # can check the two agree, which is what keeps a blocked sub-range (see the cumulative
         # scan below) off the mirrored path even if a flag reached it by mistake.
-        # ``not kwargs`` is a correctness condition, not an optimisation.  Anything left in
+        # ``not kwargs`` is a correctness condition, not an optimization.  Anything left in
         # kwargs is the Magnus core's to accept or reject, and the fast path below never calls
         # it -- so a misspelled keyword would be silently swallowed here rather than raising,
         # which test_only_the_labelling_keys_are_rejected exists to prevent.  Falling through
@@ -3876,7 +3876,7 @@ def _check_passthrough_kwargs(kwargs: dict, source_func_name: str) -> None:
     ``t_breakpoints``, ``n_slabs`` and ``cumulative`` reach these entry points only through
     ``**kwargs`` and appear in none of their signatures, while ``t_slab_edges`` -- the full
     explicit edge set, which is rarely what a caller wants -- *is* declared.  So the
-    discoverable keyword is the specialised one and the everyday one is invisible.
+    discoverable keyword is the specialized one and the everyday one is invisible.
 
     Left to itself a typo surfaces as ``TypeError: magnus_expansion_multislab() got an
     unexpected keyword argument 't_breakpoint'``, naming a function the caller never
@@ -3887,7 +3887,7 @@ def _check_passthrough_kwargs(kwargs: dict, source_func_name: str) -> None:
     Raises
     ------
     ValueError
-        Naming the entry point that was called, the keyword that is not recognised, and
+        Naming the entry point that was called, the keyword that is not recognized, and
         the closest keyword that is.
 
     .. versionadded:: 1.0.0
@@ -3909,7 +3909,7 @@ def _check_passthrough_kwargs(kwargs: dict, source_func_name: str) -> None:
         lines.append("'" + key + "'" + (", did you mean '" + close[0] + "'?"
                                         if close else ''))
     raise ValueError(
-        gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": unrecognised keyword "
+        gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": unrecognized keyword "
         "argument(s): " + '; '.join(lines) + ".  The engine keywords these wrappers forward "
         "are: " + ', '.join(PASSTHROUGH_KWARGS_DOCUMENTED) + ".  Note that t_breakpoints "
         "(positions at which to place slab edges, filling in between) and t_slab_edges (the "
@@ -3940,7 +3940,7 @@ def _reject_parameter_set_metadata(kwargs: dict, source_func_name: str) -> None:
         "physics.  This happens when an entry of globaldefs.OSC_PARAMS_PREDEFINED is passed "
         "whole, as **OSC_PARAMS_PREDEFINED['OSC_PARAMS_DEFAULT'].  Use "
         "globaldefs.load_nufit_params(...), which returns the same numbers without the labels, "
-        "or drop the labelling keys.")
+        "or drop the labeling keys.")
 
 
 def _normalize_energy_L(
@@ -4022,7 +4022,7 @@ families fail for different reasons.
   rule as well.  Grouping them is deliberate: the accuracy step at
   :data:`HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS` shows they are not interchangeable, but a
   quadrature that cannot see a feature will not see it on any of the three grids.
-* ``'interaction-picture'`` -- the 2-flavour exponential-profile fast path.  It uses the same
+* ``'interaction-picture'`` -- the 2-flavor exponential-profile fast path.  It uses the same
   Magnus core, but factors the fast vacuum phase out analytically first, so what it must resolve
   is a different function; it is kept separate for that reason and not because the core differs.
 * ``'exact'`` -- ``scipy.linalg.expm``, used only where it is the exact answer rather than an
@@ -4117,7 +4117,7 @@ def _scan_for_hidden_features(profile, l0, L, t_breakpoints=None) -> Optional[Di
         + format(scan['l_lo'] - pad, '.6e') + ", " + format(scan['l_centre'], '.6e') + ", "
         + format(scan['l_hi'] + pad, '.6e') + "] to put slab edges on it; that is a partial "
         "cure (measured 3.9e-03 -> 8.5e-05), not a complete one. If the narrow structure is an "
-        "artefact of how the profile function was written rather than physics, this is safe to "
+        "artifact of how the profile function was written rather than physics, this is safe to "
         "ignore. Shown once per profile per session.",
         HiddenFeatureWarning, stacklevel=3)
     return scan
@@ -5190,10 +5190,10 @@ def _resolve_cumulative_kwarg(kwargs, strategy):
     **An explicit value from the caller always wins**, including over the ``strategy='magnus'``
     opt-out below: naming ``cumulative`` is a specific request about the scan engine, and
     ``cumulative=True`` is documented to *raise* rather than fall back when it cannot be served,
-    so honouring it cannot silently do the wrong thing.
+    so honoring it cannot silently do the wrong thing.
 
     Otherwise ``strategy='magnus'`` resolves to ``False`` and everything else to ``'auto'``.
-    That strategy promises the behaviour Mag(nu)s had before the adiabatic strategy existed,
+    That strategy promises the behavior Mag(nu)s had before the adiabatic strategy existed,
     *unconditionally*; the cumulative scan is Magnus machinery but postdates the promise and
     builds a different grid, so the escape hatch would quietly stop being one for exactly the
     case -- a single-energy baseline scan -- where someone reproducing older numbers reaches
@@ -5341,7 +5341,7 @@ def _osc_prob_hybrid_dispatch(
     #
     # The threshold is not 2.  This method is accurate and cheap per point, so below
     # HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS the cumulative scan's near-constant cost -- its
-    # strict probe -- is not yet amortised, and yielding would make a small scan several times
+    # strict probe -- is not yet amortized, and yielding would make a small scan several times
     # slower (7.6x at N = 2) to buy accuracy that was already two orders inside what the caller
     # asked for.  See that constant for the measurements.
     #
@@ -5681,7 +5681,7 @@ def _osc_prob_cumulative_scan(H_func, L_out, L0, n_acc, magnus_exp_order,
     records the running product wherever an answer was asked for -- the ``reduce`` in
     :func:`osc_prob` with its intermediates kept rather than discarded.
 
-    Two properties are requirements rather than optimisations, and both are about memory:
+    Two properties are requirements rather than optimizations, and both are about memory:
 
     * the traversal is **chunked**, so the slab operators are never all live at once;
     * each snapshot is converted to a probability **immediately**, so the recorded term
@@ -5852,7 +5852,7 @@ def osc_prob_energy_baseline(
         **Provenance.**  Swept over 2, 4, 8 on the same 18 workloads: worst error 4.49e-04 at
         every value.  With the default ``integration_method='gl'`` this is expected --
         Gauss-Legendre pins the node count per slab and ignores it -- so the sweep confirms the
-        documented behaviour rather than calibrating anything.
+        documented behavior rather than calibrating anything.
     max_n_tpts_per_slab : int
         Forwarded to :func:`osc_prob` for each (energy, L) point; see its docstring.
     validate_input : bool
@@ -6071,7 +6071,7 @@ def osc_prob_energy_baseline(
     if cumulative:
         if t_slab_edges is not None:
             raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob_energy_baseline: "
-                "cumulative=True builds its own slab grid and cannot also honour "
+                "cumulative=True builds its own slab grid and cannot also honor "
                 "t_slab_edges.")
         if not np.all(energy == energy[0]):
             raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob_energy_baseline: "
@@ -6108,7 +6108,7 @@ def osc_prob_energy_baseline(
             # (see the strict_convergence entry in osc_prob's docstring).  Measured on the solar
             # profile at 10 MeV, where that is exactly what the ordinary ladder does: the scan
             # came out at 5.2e-3 against a requested 1e-3 with a loose probe, and 1.0e-6 with a
-            # strict one.  It costs one extra refinement level on a single call, amortised over
+            # strict one.  It costs one extra refinement level on a single call, amortized over
             # every baseline in the scan.
             probe_kwargs['strict_convergence'] = True
             # The probe runs a uniform-density Hamiltonian over the longest baseline, not the
@@ -6268,7 +6268,7 @@ def osc_prob_energy_baseline(
         # function has, so leaving it behind meant an explicit request was silently ignored for
         # every point but the first -- worst for the one use the switch is documented for,
         # comparing the two backends, which would have compared 'auto' against itself.  The
-        # answers agree to ~1e-15 either way, so this is about honouring the request, not about
+        # answers agree to ~1e-15 either way, so this is about honoring the request, not about
         # the numbers.  Carried by value and re-applied inside the worker.
         def compute_single_point_in_worker(enu: float, baseline: float,
                                            _backend: str = magnus.EXPM_BACKEND):
@@ -6433,7 +6433,7 @@ def cross_check_strategies(entry_point: Callable, *args, engines=None, **kwargs)
     entry_point : Callable
         The function to cross-check: :func:`osc_prob_matter_std_potential`,
         :func:`osc_prob_matter_nsi`, :func:`osc_prob_liv`, :func:`osc_prob_sun`,
-        :func:`osc_prob_earth`, one of their fixed-flavour wrappers, or
+        :func:`osc_prob_earth`, one of their fixed-flavor wrappers, or
         :func:`osc_prob_energy_baseline`.  ``strategy`` and ``cumulative`` are supplied by this
         function and dropped from ``kwargs`` if the caller passed them, since forcing them is
         how each engine is reached.
@@ -7178,7 +7178,7 @@ def osc_prob_matter_std_potential(
     # matter.vcc_func_from_rho_func), so no extra sign is applied here.  [Previously, the sign was
     # applied twice, which gave the antineutrino matter potential the wrong (positive) sign.]
     # Sterile states do not share the actives' neutral-current potential, so beyond three
-    # flavours this is not e_ee; see matter.matter_potential_projector for the physics and
+    # flavors this is not e_ee; see matter.matter_potential_projector for the physics and
     # for what omitting it cost.
     h_matt_proj = matter.matter_potential_projector(
         num_flavors, ratio_number_neutrons_to_protons)
@@ -7605,12 +7605,12 @@ def osc_prob_matter_nsi(
     # matter.vcc_func_from_rho_func); for antineutrinos, the NSI couplings are additionally
     # conjugated (H_matt -> -H_matt^* relative to neutrinos).
     # `matter.matter_potential_projector` for the standard piece, NOT a hand-written
-    # diagonal: beyond three flavours the standard matter term is not e_ee.  The sterile
+    # diagonal: beyond three flavors the standard matter term is not e_ee.  The sterile
     # states carry -V_NC = (r/2) V_CC once the actives' common V_NC is removed, and a
     # literal [1, 0, 0, 0] gives them zero instead -- which is the same omission that was
     # found and fixed in the standard-potential path, and it survived here.  With every
     # eps set to zero this route has to reproduce that path exactly, and did not: it
-    # differed by 5.2e-02 at four flavours and 5.1e-02 at five.
+    # differed by 5.2e-02 at four flavors and 5.1e-02 at five.
     if num_flavors == 2:
         h_matt = matter.matter_potential_projector(2) + \
             hamiltonians.hamiltonian_2nu_nsi(1.0, eps_aa, eps_ab) # VCC = 1.0
@@ -7660,7 +7660,7 @@ def osc_prob_matter_nsi(
         # to take h_matt as "the constant matrix multiplying VCC_func(l)", and folding VCC into
         # that name broke the contract for whichever dispatcher went on to multiply by VCC
         # itself -- silently, since VCC^2 is both tiny and sign-independent, so the matter term
-        # all but vanished and the antineutrino sign cancelled with it.  The separable engine
+        # all but vanished and the antineutrino sign canceled with it.  The separable engine
         # never noticed because it declined the constant case that reaches this line.
         h_matt_scaled = VCC_func*h_matt
         def htot(enu: Union[int, float]) -> np.ndarray:
@@ -8065,7 +8065,7 @@ def osc_prob_liv(
         # Projector onto the nu_e--nu_e entry, multiplied below by the potential VCC.  Note that
         # VCC_func already carries the antineutrino sign flip (applied inside
         # matter.vcc_func_from_rho_func), so no extra sign is applied here.
-        # See matter.matter_potential_projector: beyond three flavours this is not e_ee.
+        # See matter.matter_potential_projector: beyond three flavors this is not e_ee.
         h_matt = matter.matter_potential_projector(
             num_flavors, ratio_number_neutrons_to_protons)
 
@@ -10333,13 +10333,13 @@ def osc_prob_2nu_earth(
         **On an Earth chord this is not the ratio the density uses.**  The density takes
         :math:`r = (1 - Y_e)/Y_e` layer by layer, because that is the same statement about
         composition; the projector cannot, being one matrix for the whole chord.  So the
-        two disagree unless you match them, and at four flavours or more that is worth
+        two disagree unless you match them, and at four flavors or more that is worth
         about 2e-02 in probability on a core-crossing chord -- twenty times the default
         tolerance, and silent.  Mag$\nu$s raises
         :class:`magnus.globaldefs.SterileMatterCompositionWarning` when they disagree by
         more than 2%, and names the path-averaged ratio for the chord you asked for.
         ``electron_fraction=0.5`` with the default 1.0 makes them agree exactly, and
-        reproduces the uniform composition earlier versions assumed.  Three flavours are
+        reproduces the uniform composition earlier versions assumed.  Three flavors are
         unaffected: the projector's sterile block is empty.
     electron_fraction : int or float, optional
         One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
@@ -10403,7 +10403,7 @@ def osc_prob_2nu_earth(
     # wrappers set t_breakpoints themselves, so an argument of the same name arrived in
     # **kwargs and collided, and the caller got "got multiple values for keyword argument
     # 't_breakpoints'" raised from two layers down.  The keyword is listed as forwardable
-    # in this package's own unrecognised-keyword message, so it was reachable and broken.
+    # in this package's own unrecognized-keyword message, so it was reachable and broken.
     # The two sets are merged rather than one replacing the other: the PREM crossings are
     # required for the quadrature to be O(h^2) across a density jump, so dropping them
     # silently would be the defect t_breakpoints exists to prevent.  To place every edge
@@ -10447,7 +10447,7 @@ def osc_prob_2nu_earth(
         nu_i=nu_i,
         nu_f=nu_f,
         density_is_of_number_of_electrons=True,
-        # Forwarded as well as used above: beyond three flavours the matter
+        # Forwarded as well as used above: beyond three flavors the matter
         # projector needs it for the sterile entries, and a projector built from a
         # different r than the density would be this same defect a second time.
         ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
@@ -10616,13 +10616,13 @@ def osc_prob_3nu_earth(
         **On an Earth chord this is not the ratio the density uses.**  The density takes
         :math:`r = (1 - Y_e)/Y_e` layer by layer, because that is the same statement about
         composition; the projector cannot, being one matrix for the whole chord.  So the
-        two disagree unless you match them, and at four flavours or more that is worth
+        two disagree unless you match them, and at four flavors or more that is worth
         about 2e-02 in probability on a core-crossing chord -- twenty times the default
         tolerance, and silent.  Mag$\nu$s raises
         :class:`magnus.globaldefs.SterileMatterCompositionWarning` when they disagree by
         more than 2%, and names the path-averaged ratio for the chord you asked for.
         ``electron_fraction=0.5`` with the default 1.0 makes them agree exactly, and
-        reproduces the uniform composition earlier versions assumed.  Three flavours are
+        reproduces the uniform composition earlier versions assumed.  Three flavors are
         unaffected: the projector's sterile block is empty.
     electron_fraction : int or float, optional
         One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
@@ -10687,7 +10687,7 @@ def osc_prob_3nu_earth(
     # wrappers set t_breakpoints themselves, so an argument of the same name arrived in
     # **kwargs and collided, and the caller got "got multiple values for keyword argument
     # 't_breakpoints'" raised from two layers down.  The keyword is listed as forwardable
-    # in this package's own unrecognised-keyword message, so it was reachable and broken.
+    # in this package's own unrecognized-keyword message, so it was reachable and broken.
     # The two sets are merged rather than one replacing the other: the PREM crossings are
     # required for the quadrature to be O(h^2) across a density jump, so dropping them
     # silently would be the defect t_breakpoints exists to prevent.  To place every edge
@@ -10727,7 +10727,7 @@ def osc_prob_3nu_earth(
         nu_i=nu_i,
         nu_f=nu_f,
         density_is_of_number_of_electrons=True,
-        # Forwarded as well as used above: beyond three flavours the matter
+        # Forwarded as well as used above: beyond three flavors the matter
         # projector needs it for the sterile entries, and a projector built from a
         # different r than the density would be this same defect a second time.
         ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
@@ -10918,13 +10918,13 @@ def osc_prob_4nu_earth(
         **On an Earth chord this is not the ratio the density uses.**  The density takes
         :math:`r = (1 - Y_e)/Y_e` layer by layer, because that is the same statement about
         composition; the projector cannot, being one matrix for the whole chord.  So the
-        two disagree unless you match them, and at four flavours or more that is worth
+        two disagree unless you match them, and at four flavors or more that is worth
         about 2e-02 in probability on a core-crossing chord -- twenty times the default
         tolerance, and silent.  Mag$\nu$s raises
         :class:`magnus.globaldefs.SterileMatterCompositionWarning` when they disagree by
         more than 2%, and names the path-averaged ratio for the chord you asked for.
         ``electron_fraction=0.5`` with the default 1.0 makes them agree exactly, and
-        reproduces the uniform composition earlier versions assumed.  Three flavours are
+        reproduces the uniform composition earlier versions assumed.  Three flavors are
         unaffected: the projector's sterile block is empty.
     electron_fraction : int or float, optional
         One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
@@ -10989,7 +10989,7 @@ def osc_prob_4nu_earth(
     # wrappers set t_breakpoints themselves, so an argument of the same name arrived in
     # **kwargs and collided, and the caller got "got multiple values for keyword argument
     # 't_breakpoints'" raised from two layers down.  The keyword is listed as forwardable
-    # in this package's own unrecognised-keyword message, so it was reachable and broken.
+    # in this package's own unrecognized-keyword message, so it was reachable and broken.
     # The two sets are merged rather than one replacing the other: the PREM crossings are
     # required for the quadrature to be O(h^2) across a density jump, so dropping them
     # silently would be the defect t_breakpoints exists to prevent.  To place every edge
@@ -11030,7 +11030,7 @@ def osc_prob_4nu_earth(
         nu_i=nu_i,
         nu_f=nu_f,
         density_is_of_number_of_electrons=True,
-        # Forwarded as well as used above: beyond three flavours the matter
+        # Forwarded as well as used above: beyond three flavors the matter
         # projector needs it for the sterile entries, and a projector built from a
         # different r than the density would be this same defect a second time.
         ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
@@ -11241,13 +11241,13 @@ def osc_prob_5nu_earth(
         **On an Earth chord this is not the ratio the density uses.**  The density takes
         :math:`r = (1 - Y_e)/Y_e` layer by layer, because that is the same statement about
         composition; the projector cannot, being one matrix for the whole chord.  So the
-        two disagree unless you match them, and at four flavours or more that is worth
+        two disagree unless you match them, and at four flavors or more that is worth
         about 2e-02 in probability on a core-crossing chord -- twenty times the default
         tolerance, and silent.  Mag$\nu$s raises
         :class:`magnus.globaldefs.SterileMatterCompositionWarning` when they disagree by
         more than 2%, and names the path-averaged ratio for the chord you asked for.
         ``electron_fraction=0.5`` with the default 1.0 makes them agree exactly, and
-        reproduces the uniform composition earlier versions assumed.  Three flavours are
+        reproduces the uniform composition earlier versions assumed.  Three flavors are
         unaffected: the projector's sterile block is empty.
     electron_fraction : int or float, optional
         One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
@@ -11312,7 +11312,7 @@ def osc_prob_5nu_earth(
     # wrappers set t_breakpoints themselves, so an argument of the same name arrived in
     # **kwargs and collided, and the caller got "got multiple values for keyword argument
     # 't_breakpoints'" raised from two layers down.  The keyword is listed as forwardable
-    # in this package's own unrecognised-keyword message, so it was reachable and broken.
+    # in this package's own unrecognized-keyword message, so it was reachable and broken.
     # The two sets are merged rather than one replacing the other: the PREM crossings are
     # required for the quadrature to be O(h^2) across a density jump, so dropping them
     # silently would be the defect t_breakpoints exists to prevent.  To place every edge
@@ -11354,7 +11354,7 @@ def osc_prob_5nu_earth(
         nu_i=nu_i,
         nu_f=nu_f,
         density_is_of_number_of_electrons=True,
-        # Forwarded as well as used above: beyond three flavours the matter
+        # Forwarded as well as used above: beyond three flavors the matter
         # projector needs it for the sterile entries, and a projector built from a
         # different r than the density would be this same defect a second time.
         ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
@@ -11560,7 +11560,7 @@ def osc_prob_earth(
     # wrappers set t_breakpoints themselves, so an argument of the same name arrived in
     # **kwargs and collided, and the caller got "got multiple values for keyword argument
     # 't_breakpoints'" raised from two layers down.  The keyword is listed as forwardable
-    # in this package's own unrecognised-keyword message, so it was reachable and broken.
+    # in this package's own unrecognized-keyword message, so it was reachable and broken.
     # The two sets are merged rather than one replacing the other: the PREM crossings are
     # required for the quadrature to be O(h^2) across a density jump, so dropping them
     # silently would be the defect t_breakpoints exists to prevent.  To place every edge
@@ -12227,14 +12227,14 @@ def osc_prob_4nu_sun(
         (isoscalar matter, i.e. :math:`Y_e = 0.5`).
 
         **The Sun is not isoscalar, and this is the only way to say so.**  It is
-        hydrogen-rich, so :math:`Y_e = (1 + X)/2` runs from about 0.68 at the centre to
+        hydrogen-rich, so :math:`Y_e = (1 + X)/2` runs from about 0.68 at the center to
         0.88 near the surface, and :math:`r = (1 - Y_e)/Y_e` from about 0.47 down to
         0.14 -- nowhere near 1.0, unlike the Earth where the isoscalar value at least
         sits among the layers.  The solar profile is a fit to the electron *number*
         density, so :math:`Y_e` is already inside it and there is nothing for the
         library to derive :math:`r` from: it has to be stated here.  Left at 1.0 the
         averaged survival probability moves by about 4e-03 at
-        :math:`\sin\theta_{14} = 0.4`, above the default tolerance.  Three flavours are
+        :math:`\sin\theta_{14} = 0.4`, above the default tolerance.  Three flavors are
         unaffected -- the projector's sterile block is empty.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
@@ -12447,14 +12447,14 @@ def osc_prob_5nu_sun(
         (isoscalar matter, i.e. :math:`Y_e = 0.5`).
 
         **The Sun is not isoscalar, and this is the only way to say so.**  It is
-        hydrogen-rich, so :math:`Y_e = (1 + X)/2` runs from about 0.68 at the centre to
+        hydrogen-rich, so :math:`Y_e = (1 + X)/2` runs from about 0.68 at the center to
         0.88 near the surface, and :math:`r = (1 - Y_e)/Y_e` from about 0.47 down to
         0.14 -- nowhere near 1.0, unlike the Earth where the isoscalar value at least
         sits among the layers.  The solar profile is a fit to the electron *number*
         density, so :math:`Y_e` is already inside it and there is nothing for the
         library to derive :math:`r` from: it has to be stated here.  Left at 1.0 the
         averaged survival probability moves by about 4e-03 at
-        :math:`\sin\theta_{14} = 0.4`, above the default tolerance.  Three flavours are
+        :math:`\sin\theta_{14} = 0.4`, above the default tolerance.  Three flavors are
         unaffected -- the projector's sterile block is empty.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
@@ -14136,13 +14136,13 @@ def osc_prob_2nu_earth_nsi(
         **On an Earth chord this is not the ratio the density uses.**  The density takes
         :math:`r = (1 - Y_e)/Y_e` layer by layer, because that is the same statement about
         composition; the projector cannot, being one matrix for the whole chord.  So the
-        two disagree unless you match them, and at four flavours or more that is worth
+        two disagree unless you match them, and at four flavors or more that is worth
         about 2e-02 in probability on a core-crossing chord -- twenty times the default
         tolerance, and silent.  Mag$\nu$s raises
         :class:`magnus.globaldefs.SterileMatterCompositionWarning` when they disagree by
         more than 2%, and names the path-averaged ratio for the chord you asked for.
         ``electron_fraction=0.5`` with the default 1.0 makes them agree exactly, and
-        reproduces the uniform composition earlier versions assumed.  Three flavours are
+        reproduces the uniform composition earlier versions assumed.  Three flavors are
         unaffected: the projector's sterile block is empty.
     electron_fraction : int or float, optional
         One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
@@ -14206,7 +14206,7 @@ def osc_prob_2nu_earth_nsi(
     # wrappers set t_breakpoints themselves, so an argument of the same name arrived in
     # **kwargs and collided, and the caller got "got multiple values for keyword argument
     # 't_breakpoints'" raised from two layers down.  The keyword is listed as forwardable
-    # in this package's own unrecognised-keyword message, so it was reachable and broken.
+    # in this package's own unrecognized-keyword message, so it was reachable and broken.
     # The two sets are merged rather than one replacing the other: the PREM crossings are
     # required for the quadrature to be O(h^2) across a density jump, so dropping them
     # silently would be the defect t_breakpoints exists to prevent.  To place every edge
@@ -14250,7 +14250,7 @@ def osc_prob_2nu_earth_nsi(
         nu_i=nu_i,
         nu_f=nu_f,
         density_is_of_number_of_electrons=True,
-        # Forwarded as well as used above: beyond three flavours the matter
+        # Forwarded as well as used above: beyond three flavors the matter
         # projector needs it for the sterile entries, and a projector built from a
         # different r than the density would be this same defect a second time.
         ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
@@ -14436,13 +14436,13 @@ def osc_prob_3nu_earth_nsi(
         **On an Earth chord this is not the ratio the density uses.**  The density takes
         :math:`r = (1 - Y_e)/Y_e` layer by layer, because that is the same statement about
         composition; the projector cannot, being one matrix for the whole chord.  So the
-        two disagree unless you match them, and at four flavours or more that is worth
+        two disagree unless you match them, and at four flavors or more that is worth
         about 2e-02 in probability on a core-crossing chord -- twenty times the default
         tolerance, and silent.  Mag$\nu$s raises
         :class:`magnus.globaldefs.SterileMatterCompositionWarning` when they disagree by
         more than 2%, and names the path-averaged ratio for the chord you asked for.
         ``electron_fraction=0.5`` with the default 1.0 makes them agree exactly, and
-        reproduces the uniform composition earlier versions assumed.  Three flavours are
+        reproduces the uniform composition earlier versions assumed.  Three flavors are
         unaffected: the projector's sterile block is empty.
     electron_fraction : int or float, optional
         One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
@@ -14507,7 +14507,7 @@ def osc_prob_3nu_earth_nsi(
     # wrappers set t_breakpoints themselves, so an argument of the same name arrived in
     # **kwargs and collided, and the caller got "got multiple values for keyword argument
     # 't_breakpoints'" raised from two layers down.  The keyword is listed as forwardable
-    # in this package's own unrecognised-keyword message, so it was reachable and broken.
+    # in this package's own unrecognized-keyword message, so it was reachable and broken.
     # The two sets are merged rather than one replacing the other: the PREM crossings are
     # required for the quadrature to be O(h^2) across a density jump, so dropping them
     # silently would be the defect t_breakpoints exists to prevent.  To place every edge
@@ -14549,7 +14549,7 @@ def osc_prob_3nu_earth_nsi(
         nu_i=nu_i,
         nu_f=nu_f,
         density_is_of_number_of_electrons=True,
-        # Forwarded as well as used above: beyond three flavours the matter
+        # Forwarded as well as used above: beyond three flavors the matter
         # projector needs it for the sterile entries, and a projector built from a
         # different r than the density would be this same defect a second time.
         ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
@@ -14768,13 +14768,13 @@ def osc_prob_4nu_earth_nsi(
         **On an Earth chord this is not the ratio the density uses.**  The density takes
         :math:`r = (1 - Y_e)/Y_e` layer by layer, because that is the same statement about
         composition; the projector cannot, being one matrix for the whole chord.  So the
-        two disagree unless you match them, and at four flavours or more that is worth
+        two disagree unless you match them, and at four flavors or more that is worth
         about 2e-02 in probability on a core-crossing chord -- twenty times the default
         tolerance, and silent.  Mag$\nu$s raises
         :class:`magnus.globaldefs.SterileMatterCompositionWarning` when they disagree by
         more than 2%, and names the path-averaged ratio for the chord you asked for.
         ``electron_fraction=0.5`` with the default 1.0 makes them agree exactly, and
-        reproduces the uniform composition earlier versions assumed.  Three flavours are
+        reproduces the uniform composition earlier versions assumed.  Three flavors are
         unaffected: the projector's sterile block is empty.
     electron_fraction : int or float, optional
         One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
@@ -14839,7 +14839,7 @@ def osc_prob_4nu_earth_nsi(
     # wrappers set t_breakpoints themselves, so an argument of the same name arrived in
     # **kwargs and collided, and the caller got "got multiple values for keyword argument
     # 't_breakpoints'" raised from two layers down.  The keyword is listed as forwardable
-    # in this package's own unrecognised-keyword message, so it was reachable and broken.
+    # in this package's own unrecognized-keyword message, so it was reachable and broken.
     # The two sets are merged rather than one replacing the other: the PREM crossings are
     # required for the quadrature to be O(h^2) across a density jump, so dropping them
     # silently would be the defect t_breakpoints exists to prevent.  To place every edge
@@ -14883,7 +14883,7 @@ def osc_prob_4nu_earth_nsi(
         nu_i=nu_i,
         nu_f=nu_f,
         density_is_of_number_of_electrons=True,
-        # Forwarded as well as used above: beyond three flavours the matter
+        # Forwarded as well as used above: beyond three flavors the matter
         # projector needs it for the sterile entries, and a projector built from a
         # different r than the density would be this same defect a second time.
         ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
@@ -15138,13 +15138,13 @@ def osc_prob_5nu_earth_nsi(
         **On an Earth chord this is not the ratio the density uses.**  The density takes
         :math:`r = (1 - Y_e)/Y_e` layer by layer, because that is the same statement about
         composition; the projector cannot, being one matrix for the whole chord.  So the
-        two disagree unless you match them, and at four flavours or more that is worth
+        two disagree unless you match them, and at four flavors or more that is worth
         about 2e-02 in probability on a core-crossing chord -- twenty times the default
         tolerance, and silent.  Mag$\nu$s raises
         :class:`magnus.globaldefs.SterileMatterCompositionWarning` when they disagree by
         more than 2%, and names the path-averaged ratio for the chord you asked for.
         ``electron_fraction=0.5`` with the default 1.0 makes them agree exactly, and
-        reproduces the uniform composition earlier versions assumed.  Three flavours are
+        reproduces the uniform composition earlier versions assumed.  Three flavors are
         unaffected: the projector's sterile block is empty.
     electron_fraction : int or float, optional
         One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
@@ -15209,7 +15209,7 @@ def osc_prob_5nu_earth_nsi(
     # wrappers set t_breakpoints themselves, so an argument of the same name arrived in
     # **kwargs and collided, and the caller got "got multiple values for keyword argument
     # 't_breakpoints'" raised from two layers down.  The keyword is listed as forwardable
-    # in this package's own unrecognised-keyword message, so it was reachable and broken.
+    # in this package's own unrecognized-keyword message, so it was reachable and broken.
     # The two sets are merged rather than one replacing the other: the PREM crossings are
     # required for the quadrature to be O(h^2) across a density jump, so dropping them
     # silently would be the defect t_breakpoints exists to prevent.  To place every edge
@@ -15255,7 +15255,7 @@ def osc_prob_5nu_earth_nsi(
         nu_i=nu_i,
         nu_f=nu_f,
         density_is_of_number_of_electrons=True,
-        # Forwarded as well as used above: beyond three flavours the matter
+        # Forwarded as well as used above: beyond three flavors the matter
         # projector needs it for the sterile entries, and a projector built from a
         # different r than the density would be this same defect a second time.
         ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
@@ -15772,14 +15772,14 @@ def osc_prob_4nu_sun_nsi(
         (isoscalar matter, i.e. :math:`Y_e = 0.5`).
 
         **The Sun is not isoscalar, and this is the only way to say so.**  It is
-        hydrogen-rich, so :math:`Y_e = (1 + X)/2` runs from about 0.68 at the centre to
+        hydrogen-rich, so :math:`Y_e = (1 + X)/2` runs from about 0.68 at the center to
         0.88 near the surface, and :math:`r = (1 - Y_e)/Y_e` from about 0.47 down to
         0.14 -- nowhere near 1.0, unlike the Earth where the isoscalar value at least
         sits among the layers.  The solar profile is a fit to the electron *number*
         density, so :math:`Y_e` is already inside it and there is nothing for the
         library to derive :math:`r` from: it has to be stated here.  Left at 1.0 the
         averaged survival probability moves by about 4e-03 at
-        :math:`\sin\theta_{14} = 0.4`, above the default tolerance.  Three flavours are
+        :math:`\sin\theta_{14} = 0.4`, above the default tolerance.  Three flavors are
         unaffected -- the projector's sterile block is empty.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
@@ -16045,14 +16045,14 @@ def osc_prob_5nu_sun_nsi(
         (isoscalar matter, i.e. :math:`Y_e = 0.5`).
 
         **The Sun is not isoscalar, and this is the only way to say so.**  It is
-        hydrogen-rich, so :math:`Y_e = (1 + X)/2` runs from about 0.68 at the centre to
+        hydrogen-rich, so :math:`Y_e = (1 + X)/2` runs from about 0.68 at the center to
         0.88 near the surface, and :math:`r = (1 - Y_e)/Y_e` from about 0.47 down to
         0.14 -- nowhere near 1.0, unlike the Earth where the isoscalar value at least
         sits among the layers.  The solar profile is a fit to the electron *number*
         density, so :math:`Y_e` is already inside it and there is nothing for the
         library to derive :math:`r` from: it has to be stated here.  Left at 1.0 the
         averaged survival probability moves by about 4e-03 at
-        :math:`\sin\theta_{14} = 0.4`, above the default tolerance.  Three flavours are
+        :math:`\sin\theta_{14} = 0.4`, above the default tolerance.  Three flavors are
         unaffected -- the projector's sterile block is empty.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
@@ -18281,13 +18281,13 @@ def osc_prob_2nu_earth_liv(
         **On an Earth chord this is not the ratio the density uses.**  The density takes
         :math:`r = (1 - Y_e)/Y_e` layer by layer, because that is the same statement about
         composition; the projector cannot, being one matrix for the whole chord.  So the
-        two disagree unless you match them, and at four flavours or more that is worth
+        two disagree unless you match them, and at four flavors or more that is worth
         about 2e-02 in probability on a core-crossing chord -- twenty times the default
         tolerance, and silent.  Mag$\nu$s raises
         :class:`magnus.globaldefs.SterileMatterCompositionWarning` when they disagree by
         more than 2%, and names the path-averaged ratio for the chord you asked for.
         ``electron_fraction=0.5`` with the default 1.0 makes them agree exactly, and
-        reproduces the uniform composition earlier versions assumed.  Three flavours are
+        reproduces the uniform composition earlier versions assumed.  Three flavors are
         unaffected: the projector's sterile block is empty.
     electron_fraction : int or float, optional
         One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
@@ -18351,7 +18351,7 @@ def osc_prob_2nu_earth_liv(
     # wrappers set t_breakpoints themselves, so an argument of the same name arrived in
     # **kwargs and collided, and the caller got "got multiple values for keyword argument
     # 't_breakpoints'" raised from two layers down.  The keyword is listed as forwardable
-    # in this package's own unrecognised-keyword message, so it was reachable and broken.
+    # in this package's own unrecognized-keyword message, so it was reachable and broken.
     # The two sets are merged rather than one replacing the other: the PREM crossings are
     # required for the quadrature to be O(h^2) across a density jump, so dropping them
     # silently would be the defect t_breakpoints exists to prevent.  To place every edge
@@ -18395,7 +18395,7 @@ def osc_prob_2nu_earth_liv(
         nu_i=nu_i,
         nu_f=nu_f,
         density_is_of_number_of_electrons=True,
-        # Forwarded as well as used above: beyond three flavours the matter
+        # Forwarded as well as used above: beyond three flavors the matter
         # projector needs it for the sterile entries, and a projector built from a
         # different r than the density would be this same defect a second time.
         ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
@@ -18592,13 +18592,13 @@ def osc_prob_3nu_earth_liv(
         **On an Earth chord this is not the ratio the density uses.**  The density takes
         :math:`r = (1 - Y_e)/Y_e` layer by layer, because that is the same statement about
         composition; the projector cannot, being one matrix for the whole chord.  So the
-        two disagree unless you match them, and at four flavours or more that is worth
+        two disagree unless you match them, and at four flavors or more that is worth
         about 2e-02 in probability on a core-crossing chord -- twenty times the default
         tolerance, and silent.  Mag$\nu$s raises
         :class:`magnus.globaldefs.SterileMatterCompositionWarning` when they disagree by
         more than 2%, and names the path-averaged ratio for the chord you asked for.
         ``electron_fraction=0.5`` with the default 1.0 makes them agree exactly, and
-        reproduces the uniform composition earlier versions assumed.  Three flavours are
+        reproduces the uniform composition earlier versions assumed.  Three flavors are
         unaffected: the projector's sterile block is empty.
     electron_fraction : int or float, optional
         One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
@@ -18663,7 +18663,7 @@ def osc_prob_3nu_earth_liv(
     # wrappers set t_breakpoints themselves, so an argument of the same name arrived in
     # **kwargs and collided, and the caller got "got multiple values for keyword argument
     # 't_breakpoints'" raised from two layers down.  The keyword is listed as forwardable
-    # in this package's own unrecognised-keyword message, so it was reachable and broken.
+    # in this package's own unrecognized-keyword message, so it was reachable and broken.
     # The two sets are merged rather than one replacing the other: the PREM crossings are
     # required for the quadrature to be O(h^2) across a density jump, so dropping them
     # silently would be the defect t_breakpoints exists to prevent.  To place every edge
@@ -18705,7 +18705,7 @@ def osc_prob_3nu_earth_liv(
         nu_i=nu_i,
         nu_f=nu_f,
         density_is_of_number_of_electrons=True,
-        # Forwarded as well as used above: beyond three flavours the matter
+        # Forwarded as well as used above: beyond three flavors the matter
         # projector needs it for the sterile entries, and a projector built from a
         # different r than the density would be this same defect a second time.
         ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
@@ -18939,13 +18939,13 @@ def osc_prob_4nu_earth_liv(
         **On an Earth chord this is not the ratio the density uses.**  The density takes
         :math:`r = (1 - Y_e)/Y_e` layer by layer, because that is the same statement about
         composition; the projector cannot, being one matrix for the whole chord.  So the
-        two disagree unless you match them, and at four flavours or more that is worth
+        two disagree unless you match them, and at four flavors or more that is worth
         about 2e-02 in probability on a core-crossing chord -- twenty times the default
         tolerance, and silent.  Mag$\nu$s raises
         :class:`magnus.globaldefs.SterileMatterCompositionWarning` when they disagree by
         more than 2%, and names the path-averaged ratio for the chord you asked for.
         ``electron_fraction=0.5`` with the default 1.0 makes them agree exactly, and
-        reproduces the uniform composition earlier versions assumed.  Three flavours are
+        reproduces the uniform composition earlier versions assumed.  Three flavors are
         unaffected: the projector's sterile block is empty.
     electron_fraction : int or float, optional
         One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
@@ -19010,7 +19010,7 @@ def osc_prob_4nu_earth_liv(
     # wrappers set t_breakpoints themselves, so an argument of the same name arrived in
     # **kwargs and collided, and the caller got "got multiple values for keyword argument
     # 't_breakpoints'" raised from two layers down.  The keyword is listed as forwardable
-    # in this package's own unrecognised-keyword message, so it was reachable and broken.
+    # in this package's own unrecognized-keyword message, so it was reachable and broken.
     # The two sets are merged rather than one replacing the other: the PREM crossings are
     # required for the quadrature to be O(h^2) across a density jump, so dropping them
     # silently would be the defect t_breakpoints exists to prevent.  To place every edge
@@ -19054,7 +19054,7 @@ def osc_prob_4nu_earth_liv(
         nu_i=nu_i,
         nu_f=nu_f,
         density_is_of_number_of_electrons=True,
-        # Forwarded as well as used above: beyond three flavours the matter
+        # Forwarded as well as used above: beyond three flavors the matter
         # projector needs it for the sterile entries, and a projector built from a
         # different r than the density would be this same defect a second time.
         ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
@@ -19325,13 +19325,13 @@ def osc_prob_5nu_earth_liv(
         **On an Earth chord this is not the ratio the density uses.**  The density takes
         :math:`r = (1 - Y_e)/Y_e` layer by layer, because that is the same statement about
         composition; the projector cannot, being one matrix for the whole chord.  So the
-        two disagree unless you match them, and at four flavours or more that is worth
+        two disagree unless you match them, and at four flavors or more that is worth
         about 2e-02 in probability on a core-crossing chord -- twenty times the default
         tolerance, and silent.  Mag$\nu$s raises
         :class:`magnus.globaldefs.SterileMatterCompositionWarning` when they disagree by
         more than 2%, and names the path-averaged ratio for the chord you asked for.
         ``electron_fraction=0.5`` with the default 1.0 makes them agree exactly, and
-        reproduces the uniform composition earlier versions assumed.  Three flavours are
+        reproduces the uniform composition earlier versions assumed.  Three flavors are
         unaffected: the projector's sterile block is empty.
     electron_fraction : int or float, optional
         One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
@@ -19396,7 +19396,7 @@ def osc_prob_5nu_earth_liv(
     # wrappers set t_breakpoints themselves, so an argument of the same name arrived in
     # **kwargs and collided, and the caller got "got multiple values for keyword argument
     # 't_breakpoints'" raised from two layers down.  The keyword is listed as forwardable
-    # in this package's own unrecognised-keyword message, so it was reachable and broken.
+    # in this package's own unrecognized-keyword message, so it was reachable and broken.
     # The two sets are merged rather than one replacing the other: the PREM crossings are
     # required for the quadrature to be O(h^2) across a density jump, so dropping them
     # silently would be the defect t_breakpoints exists to prevent.  To place every edge
@@ -19442,7 +19442,7 @@ def osc_prob_5nu_earth_liv(
         nu_i=nu_i,
         nu_f=nu_f,
         density_is_of_number_of_electrons=True,
-        # Forwarded as well as used above: beyond three flavours the matter
+        # Forwarded as well as used above: beyond three flavors the matter
         # projector needs it for the sterile entries, and a projector built from a
         # different r than the density would be this same defect a second time.
         ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
@@ -19920,14 +19920,14 @@ def osc_prob_4nu_sun_liv(
         (isoscalar matter, i.e. :math:`Y_e = 0.5`).
 
         **The Sun is not isoscalar, and this is the only way to say so.**  It is
-        hydrogen-rich, so :math:`Y_e = (1 + X)/2` runs from about 0.68 at the centre to
+        hydrogen-rich, so :math:`Y_e = (1 + X)/2` runs from about 0.68 at the center to
         0.88 near the surface, and :math:`r = (1 - Y_e)/Y_e` from about 0.47 down to
         0.14 -- nowhere near 1.0, unlike the Earth where the isoscalar value at least
         sits among the layers.  The solar profile is a fit to the electron *number*
         density, so :math:`Y_e` is already inside it and there is nothing for the
         library to derive :math:`r` from: it has to be stated here.  Left at 1.0 the
         averaged survival probability moves by about 4e-03 at
-        :math:`\sin\theta_{14} = 0.4`, above the default tolerance.  Three flavours are
+        :math:`\sin\theta_{14} = 0.4`, above the default tolerance.  Three flavors are
         unaffected -- the projector's sterile block is empty.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
@@ -20189,14 +20189,14 @@ def osc_prob_5nu_sun_liv(
         (isoscalar matter, i.e. :math:`Y_e = 0.5`).
 
         **The Sun is not isoscalar, and this is the only way to say so.**  It is
-        hydrogen-rich, so :math:`Y_e = (1 + X)/2` runs from about 0.68 at the centre to
+        hydrogen-rich, so :math:`Y_e = (1 + X)/2` runs from about 0.68 at the center to
         0.88 near the surface, and :math:`r = (1 - Y_e)/Y_e` from about 0.47 down to
         0.14 -- nowhere near 1.0, unlike the Earth where the isoscalar value at least
         sits among the layers.  The solar profile is a fit to the electron *number*
         density, so :math:`Y_e` is already inside it and there is nothing for the
         library to derive :math:`r` from: it has to be stated here.  Left at 1.0 the
         averaged survival probability moves by about 4e-03 at
-        :math:`\sin\theta_{14} = 0.4`, above the default tolerance.  Three flavours are
+        :math:`\sin\theta_{14} = 0.4`, above the default tolerance.  Three flavors are
         unaffected -- the projector's sterile block is empty.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``

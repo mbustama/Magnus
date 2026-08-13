@@ -112,7 +112,7 @@ asymptotically.  0.85 covers the worst case in the governed regime (0.812) with 
 **This constant was wrong twice, in opposite directions.**  It began at 1.0 alongside a slack
 factor of 2.0, derived from five points that all happened to sit at :math:`\gamma_\max <
 10^{-3}` where :math:`k \approx 0.5`; that pair encoded :math:`k \le 0.5`, right for those five
-and optimistic by up to 1.6x elsewhere in the governed regime.  Reading the *unrestricted*
+and optimiztic by up to 1.6x elsewhere in the governed regime.  Reading the *unrestricted*
 maximum (1.136) then argued for a far stricter bound -- an over-correction, since those rows sit
 at :math:`\gamma_\max \sim 0.2`, open a window immediately, and are never decided by this rule.
 The slack factor is gone: it existed only to compensate for the mis-measured value, and with
@@ -151,7 +151,7 @@ a jump 4.7x smaller than the steepest smooth step   0.773
 weakest genuine discontinuity.  It also states what the test can and cannot catch: solving
 :math:`(J + S/2)/(J + S) > t` gives :math:`J/S > (2t-1)/(1-t)`, so at 0.70 a jump must be at
 least **1.33x the local smooth variation** to be seen.  A smaller one is genuinely
-indistinguishable from steep smooth behaviour at that sampling density.
+indistinguishable from steep smooth behavior at that sampling density.
 
 Two earlier formulations were wrong, both caught by measurement.  Comparing the *global* largest
 adjacent change at two grid densities masks any jump smaller than the largest smooth variation
@@ -1480,7 +1480,7 @@ def hybrid_propagator(H_func: Callable, l0: float, l1: float, rtol: Optional[flo
         1e-10             3.24e-12   1        13         7.9 s
         ================= ========== ======== ========== ======
 
-        So it does change behaviour there -- below :math:`\gamma_\max` a window opens -- but
+        So it does change behavior there -- below :math:`\gamma_\max` a window opens -- but
         **not usefully**: the result is ``certified=False`` at every value, and the error is
         three orders inside the requested tolerance either way, with the window costing a
         factor of 2.4 in time and making the answer very slightly *worse*.  The floor decides
