@@ -109,24 +109,57 @@ The comparison figures draw their external-code numbers from data frozen in
 | `external_speed_accuracy.json` | the six-code constant-density plane |
 
 One further dataset in `notebooks/` is not another code's but our own, and is
-frozen for a different reason. The right panel of Fig. 2 measures deviations
-down to $10^{-15}$, which no double-precision reference can certify, so it is
-measured against a midpoint slab product carried at fifty decimal digits in
-`mpmath` and Richardson-extrapolated three times. That reference is converged to
-$3 \cdot 10^{-20}$ — nothing in the panel is the reference rather than the
-method — and it costs about two and a half minutes to build, which is not worth
-paying on every rebuild of the figure. It is therefore stored in
-`mpmath_phase_reference.json` under a fingerprint of the configuration that
-produced it: nine samples of the Hamiltonian along the trajectory, the baseline,
-the working precision and the slab counts. Change any of those and the notebook
-recomputes and rewrites the file by itself; change none of them and it reads it.
+frozen for a different reason. The lower right panel of Fig. 2 measures
+deviations down to $10^{-15}$, which no double-precision reference can certify,
+so it is measured against a midpoint slab product carried at fifty decimal
+digits in `mpmath` and Richardson-extrapolated three times, converged to
+$3 \cdot 10^{-20}$.
+
+**Everything that depends on the configuration rather than on the run is stored
+in `notebooks/paper_figure_cache.json`.** That is both kinds of expensive input:
+the reference probabilities, and the wall-clock timings. Each section carries a
+fingerprint of the configuration it was computed for — the samples of the
+profile along the trajectory, the baseline, the energies, the tolerances, the
+codes and their tuned settings — together with the machine and the date it was
+measured on. Change any of them and the notebook recomputes that section and
+rewrites the file by itself; change none of them and it reads them back.
 Nothing has to be invalidated by hand.
 
-Magνs's own numbers on those planes are computed live rather than frozen,
-because a timing is only comparable if it was taken on the machine the other
-timings came from — and because the conventions that make the comparison mean
-anything (the matched matter potential above all) are then visible in the
-notebook rather than buried in a generator that ran once.
+**A regeneration that changes no configuration must cost nothing.** That is the rule the
+caching is written to, and it takes more than storing the expensive results:
+
+- Each section carries its own fingerprint, so moving a tolerance re-measures the
+  timings and leaves the order curves alone.
+- The stored accuracies are re-verified **once per released version of the package**, not
+  once per regeneration. A fingerprint covers the configuration but cannot see a change
+  *inside* `magnus` that moves the answers under a configuration that did not move; tying
+  that check to `magnus.__version__` catches exactly that case and costs nothing on the
+  label-and-axis edits that make up most rebuilds.
+- The interleaved control workload is measured lazily, behind the timing cache, rather
+  than at cell scope. At cell scope it ran a warm-up and five timed repeats on every
+  regeneration, including the ones that only moved a legend.
+
+Set **`MAGNUS_PAPER_CACHE_ONLY=1`** in continuous integration. A cache miss then stops the
+build and names the section that moved, instead of quietly spending the better part of an
+hour recomputing it on a shared runner whose timings would be meaningless anyway. The
+message it raises says what to run:
+
+```bash
+MAGNUS_PAPER_REDO=1 python notebooks/make_notebooks.py --only 28
+```
+
+Re-measure on a quiet machine, commit the refreshed `paper_figure_cache.json`, and CI goes
+green again. The cache is a tracked input to the paper, not a build artifact.
+
+The point is continuous integration. The notebooks are regenerated on every
+push, and re-deriving fifty-digit references and re-running a stopwatch each
+time would cost many minutes to produce numbers that cannot have moved. A
+timing is still only comparable on the machine it was taken on, which is why the
+machine is recorded beside it; after moving the paper to another machine, set
+`MAGNUS_PAPER_REDO=1` once to re-measure every section. The conventions that
+make the cross-code comparisons mean anything (the matched matter potential
+above all) stay visible in the notebook rather than buried in a generator that
+ran once.
 
 ## Timings
 

@@ -12908,6 +12908,7 @@ shows, happens at $10^{-12}$ and not below.'''),
 import json
 import os
 import pathlib
+import platform
 import time
 import warnings
 
@@ -12915,7 +12916,7 @@ import numpy as np
 import mpmath as mp
 import matplotlib.pyplot as plt
 import matplotlib.patheffects as pe
-from matplotlib.ticker import FuncFormatter, LogLocator, AutoMinorLocator
+from matplotlib.ticker import FuncFormatter, LogLocator, AutoMinorLocator, NullLocator
 from scipy.integrate import solve_ivp
 from scipy.linalg import expm
 
@@ -12924,6 +12925,7 @@ import magnus.oscprob as oscprob
 import magnus.hamiltonians as hamiltonians
 import magnus.matter as matter
 import magnus.earth as earth
+import magnus.avgprob as avgprob
 import magnus.globaldefs as gd
 
 HERE = pathlib.Path.cwd()
@@ -13024,6 +13026,34 @@ def xticks_at(ax, values):
     ax.xaxis.set_major_formatter(FuncFormatter(_plain))
 
 
+def minor_log_ticks(ax, which='y', length=3.6):
+    r"""Minor ticks between the decades of a log axis, drawn on both sides.
+
+    ``ytick.minor.visible`` is off in the rc, and a minor locator alone is not enough to
+    guarantee they are drawn at a useful size: the length has to be set explicitly, and
+    generously, or they vanish against the major ticks the rc sets to 10 points.
+    """
+    axis = ax.yaxis if which == 'y' else ax.xaxis
+    axis.set_minor_locator(LogLocator(base=10.0, subs=tuple(range(2, 10)), numticks=200))
+    axis.set_minor_formatter(FuncFormatter(lambda *_: ''))
+    side = dict(left=True, right=True) if which == 'y' else dict(bottom=True, top=True)
+    ax.tick_params(axis=which, which='minor', length=length, width=0.8,
+                   direction='in', **side)
+
+
+def unit_as_one(ax, which='y'):
+    r"""Write the decade $10^0$ as ``1``.
+
+    A log axis that crosses unity reads better with the unit written plainly: the
+    surrounding ticks are powers because they have to be, but ``1`` is not clearer as
+    $10^{0}$.  Every other decade keeps its exponent.
+    """
+    axis = ax.yaxis if which == 'y' else ax.xaxis
+    axis.set_major_formatter(FuncFormatter(
+        lambda v, _p=None: r'$1$' if abs(np.log10(v)) < 1.0e-9
+        else r'$10^{%d}$' % round(np.log10(v))))
+
+
 def minor_y(ax, n=5):
     ax.yaxis.set_minor_locator(AutoMinorLocator(n))
 
@@ -13034,10 +13064,12 @@ def corner(ax, text, loc='upper right', fontsize=8.5, x=None, y=0.94):
     xx = 0.965 if x is None else x
     if loc == 'upper left':
         xx, ha = (0.035 if x is None else x), 'left'
+    # Black, not the INK grey the curves use: a boxed label is a caption on the panel and
+    # should read as text rather than as another datum.
     ax.text(xx, y, text, transform=ax.transAxes, ha=ha, va=va, fontsize=fontsize,
-            color=INK, zorder=10,
+            color='black', zorder=10,
             bbox=dict(boxstyle='round,pad=0.32', facecolor='white',
-                      edgecolor=INK, linewidth=0.6))
+                      edgecolor='black', linewidth=0.6))
 
 
 def stamp(ax, text, x=0.035, y=0.06, fontsize=8.0, ha='left', va='bottom'):
@@ -13045,6 +13077,104 @@ def stamp(ax, text, x=0.035, y=0.06, fontsize=8.0, ha='left', va='bottom'):
     ax.text(x, y, text, transform=ax.transAxes, ha=ha, va=va, fontsize=fontsize,
             color='black', zorder=10,
             path_effects=[pe.withStroke(linewidth=1.8, foreground='white')])
+
+
+MP_CACHE = pathlib.Path('paper_figure_cache.json')
+# Continuous integration regenerates these notebooks on every push, and the expensive
+# inputs here are either machine-specific (timings) or settled functions of the
+# configuration (references).  Neither is worth re-deriving there.  With
+# MAGNUS_PAPER_CACHE_ONLY set, a cache miss stops the build and says which section moved,
+# instead of quietly spending the better part of an hour recomputing it.
+CACHE_ONLY = bool(os.environ.get('MAGNUS_PAPER_CACHE_ONLY'))
+# What the stored numbers were produced by.  A configuration fingerprint cannot see a
+# change inside the package, so the version is what decides when the stored accuracies
+# are worth re-checking.
+# `magnus` is bound to the submodule in these notebooks, so the package is imported
+# again under its own name to read the version off it.
+import magnus as _magnus_pkg
+MAGNUS_VERSION = getattr(_magnus_pkg, '__version__', 'unknown')
+
+
+def cache_miss(section, key):
+    if CACHE_ONLY:
+        raise RuntimeError(
+            'paper cache miss in section %r (fingerprint %s) while '
+            'MAGNUS_PAPER_CACHE_ONLY is set.  The configuration behind this section '
+            'changed, so it has to be re-measured on a quiet machine and the refreshed '
+            '%s committed:  MAGNUS_PAPER_REDO=1 python notebooks/make_notebooks.py '
+            '--only 28' % (section, key[:12], MP_CACHE.name))
+CACHE_SECTIONS = ('what', 'fixed', 'scan', 'orders', 'timings', 'oracle', 'prem_timings')
+CACHE_WHAT = ('Everything in the paper figures that is a property of the CONFIGURATION '
+              'rather than of this run: reference probabilities, and wall-clock timings. '
+              'Each section is keyed on a fingerprint of the configuration it was computed '
+              'for, so changing an energy, a tolerance or a code recomputes it and changing '
+              'nothing reuses it.  This exists so that regenerating the notebooks -- which '
+              'continuous integration does on every push -- does not re-measure minutes of '
+              'reference arithmetic and stopwatch that cannot have moved.  Set '
+              'MAGNUS_PAPER_REDO=1 to force every section to be recomputed, which is what '
+              'to do after moving the paper to another machine.')
+
+
+def write_cache(blob):
+    """Write only the sections this notebook knows about.
+
+    A change of format would otherwise leave its predecessor's keys behind in a tracked
+    file, where nothing reads them and nothing removes them.
+    """
+    blob.setdefault('what', CACHE_WHAT)
+    MP_CACHE.write_text(json.dumps({k: blob[k] for k in CACHE_SECTIONS if k in blob},
+                                   indent=1) + '\n')
+
+
+# Profiles enter every fingerprint as nine samples of what they return, never as the
+# callable itself: a function's repr carries its memory address, which changes on every
+# run and would invalidate the cache each time it was consulted.
+def profile_samples(func, L):
+    return np.asarray(func(np.linspace(0.0, L, 9)), dtype=float)
+
+
+def fingerprint(*parts):
+    """Everything a stored result depends on, in one hash.
+
+    Profiles enter as samples of the array they produce rather than as the parameters that
+    built them, so a change anywhere upstream -- a mixing angle, an energy, a potential, a
+    baseline -- invalidates the entry without having to be enumerated.
+    """
+    h = hashlib.sha256()
+    for part in parts:
+        if isinstance(part, np.ndarray):
+            h.update(np.ascontiguousarray(part).tobytes())
+        else:
+            h.update(repr(part).encode())
+    return h.hexdigest()
+
+
+def cached(section, key_parts, compute, what=''):
+    """Compute a figure input once, then read it from disk until its configuration moves.
+
+    References and timings are both properties of the configuration: the first exactly,
+    the second up to the machine.  Re-deriving either on every rebuild costs minutes and
+    tells nobody anything, so both are stored, keyed on the configuration alone.  The
+    machine and the date are stored beside them, because a number that does not say where
+    it came from cannot be checked.
+    """
+    blob = json.loads(MP_CACHE.read_text()) if MP_CACHE.exists() else {}
+    key = fingerprint(*key_parts)
+    got = blob.get(section)
+    if got and got.get('fingerprint') == key and not os.environ.get('MAGNUS_PAPER_REDO'):
+        print('  %s read from %s, unchanged configuration %s (measured %s on %s)'
+              % (section, MP_CACHE.name, key[:12], got.get('measured', '?'),
+                 got.get('machine', 'an unrecorded machine')))
+        return got['value']
+    print('  %s: configuration moved, recomputing' % section)
+    t0 = time.perf_counter()
+    value = compute()
+    blob[section] = dict(fingerprint=key, value=value, what=what,
+                         machine=platform.node(), measured=time.strftime('%Y-%m-%d'),
+                         seconds=round(time.perf_counter() - t0, 1))
+    write_cache(blob)
+    print('    %s computed in %.0f s' % (section, time.perf_counter() - t0))
+    return value
 
 
 def save(fig, name):
@@ -13156,32 +13286,48 @@ N_PLOT, N_REF = 140, 26
 # problem: at two and three flavors it is 4e-14, at four and five it is 4e-11, which
 # is ABOVE the residual being measured there.  Drawn as a floor on each panel rather
 # than left for a reader to assume it away.
-results = {}
-for d, (lo, hi) in CASES.items():
-    E_plot = np.logspace(np.log10(lo), np.log10(hi), N_PLOT)*gd.UNIT_GEV
-    E_ref = np.logspace(np.log10(lo), np.log10(hi), N_REF)*gd.UNIT_GEV
-    t0 = time.perf_counter()
-    P_plot = np.array([np.asarray(quiet(oscprob.osc_prob, make_H_func(d, E, VCC_1),
-                                        0.0, L_1, rtol=RTOL_ACC, atol=ATOL_ACC))
-                       for E in E_plot])
-    t_m = time.perf_counter() - t0
-    Pm, Pr, floor = [], [], []
-    for E in E_ref:
-        Hf = make_H_func(d, E, VCC_1)
-        Pm.append(np.asarray(quiet(oscprob.osc_prob, Hf, 0.0, L_1,
-                                   rtol=RTOL_ACC, atol=ATOL_ACC)))
-        r12 = ode_reference(Hf, L_1, d, rtol=1.0e-12, atol=1.0e-14)
-        r13 = ode_reference(Hf, L_1, d, rtol=1.0e-13, atol=1.0e-15)
-        Pr.append(r12)
-        floor.append(float(np.max(np.abs(r12 - r13))))
-    Pm, Pr, floor = np.array(Pm), np.array(Pr), np.array(floor)
-    results[d] = dict(E_plot=E_plot, P_plot=P_plot, E_ref=E_ref, Pr=Pr, floor=floor,
-                      resid=np.max(np.abs(Pm - Pr), axis=(1, 2)),
-                      unit=np.max(np.abs(P_plot.sum(axis=2) - 1.0), axis=1))
-    print('d=%d  E = %g-%g GeV, %d points in %5.2f s   max|dP| %.2e   '
-          'oracle floor %.2e   unitarity %.2e'
-          % (d, lo, hi, N_PLOT, t_m, results[d]['resid'].max(), floor.max(),
-             results[d]['unit'].max()))'''),
+def compute_validation():
+    """Probabilities, the DOP853 oracle, and the oracle's own spread, for every panel.
+
+    Two {\tt DOP853} solutions per reference energy at four flavor counts is the bulk of
+    this figure's cost, and none of it depends on the machine: it is arithmetic on a fixed
+    configuration.  Computed once and stored.
+    """
+    out = {}
+    for d, (lo, hi) in CASES.items():
+        E_plot = np.logspace(np.log10(lo), np.log10(hi), N_PLOT)*gd.UNIT_GEV
+        E_ref = np.logspace(np.log10(lo), np.log10(hi), N_REF)*gd.UNIT_GEV
+        P_plot = np.array([np.asarray(quiet(oscprob.osc_prob, make_H_func(d, E, VCC_1),
+                                            0.0, L_1, rtol=RTOL_ACC, atol=ATOL_ACC))
+                           for E in E_plot])
+        Pm, Pr, floor = [], [], []
+        for E in E_ref:
+            Hf = make_H_func(d, E, VCC_1)
+            Pm.append(np.asarray(quiet(oscprob.osc_prob, Hf, 0.0, L_1,
+                                       rtol=RTOL_ACC, atol=ATOL_ACC)))
+            r12 = ode_reference(Hf, L_1, d, rtol=1.0e-12, atol=1.0e-14)
+            r13 = ode_reference(Hf, L_1, d, rtol=1.0e-13, atol=1.0e-15)
+            Pr.append(r12)
+            floor.append(float(np.max(np.abs(r12 - r13))))
+        Pm, Pr = np.array(Pm), np.array(Pr)
+        out[str(d)] = dict(E_plot=E_plot.tolist(), P_plot=P_plot.tolist(),
+                           E_ref=E_ref.tolist(), Pr=Pr.tolist(), floor=floor,
+                           resid=np.max(np.abs(Pm - Pr), axis=(1, 2)).tolist(),
+                           unit=np.max(np.abs(P_plot.sum(axis=2) - 1.0), axis=1).tolist())
+    return out
+
+
+_val = cached('oracle',
+              (profile_samples(VCC_1, L_1), float(L_1), N_PLOT, N_REF, RTOL_ACC, ATOL_ACC,
+               repr(sorted(CASES.items())), repr(sorted(OSC.items())),
+               repr(sorted(STERILE4.items())), repr(sorted(STERILE5.items()))),
+              compute_validation,
+              what='Figure 1: probabilities, the DOP853 oracle, and the oracle spread.')
+results = {int(k): {kk: np.array(vv) for kk, vv in v.items()} for k, v in _val.items()}
+for d in sorted(results):
+    r = results[d]
+    print('d=%d  %d points   max|dP| %.2e   oracle floor %.2e   unitarity %.2e'
+          % (d, N_PLOT, r['resid'].max(), r['floor'].max(), r['unit'].max()))'''),
     md(r'''### Drawing it'''),
     code(r'''fig, axes = plt.subplots(2, 4, figsize=(WIDE, 3.25), sharex='col',
                          gridspec_kw=dict(height_ratios=[2.05, 1.0], hspace=0.06,
@@ -13222,6 +13368,98 @@ box = [axes[1, j].get_position() for j in range(4)]
 fig.text(0.5*(box[0].x0 + box[3].x1), box[0].y0 - 0.075,
          r'Neutrino energy, $E$ [GeV]', ha='center', va='top', fontsize=8)
 save(fig, 'validation.pdf')'''),
+    md(r'''### Figure 1b --- how a call is answered
+
+Six engines can answer a request, tried in a fixed order; each declines what it cannot
+serve honestly and falls through to the next.'''),
+    code(r'''# ------------------------------------------- Figure 1b: the six engines, in order
+# Same idiom as the slab-composition figure of the companion paper: one bar per
+# strategy, shaded by density, with what each does to the trajectory drawn rather
+# than named.
+SLAB = ['#eaf2fb', '#bcd8f3', '#7fb4e6', '#3a86d4', '#1c71d8']
+from matplotlib.patches import Rectangle
+fig, ax = plt.subplots(figsize=(7.2, 4.9))
+ax.set_xlim(0, 100); ax.set_ylim(0, 100); ax.axis('off')
+X0, X1 = 30.0, 76.0                      # the bar spans the same x in every row
+H = 6.2                                  # bar height
+rows = [
+ ('Closed-form average',   'Averaged $P$ asked for,\n$\\mathbb{H}$ independent of $l$'),
+ ('Adiabatic $+$ Magnus',  'Smooth profile, no declared\nbreakpoints --- and it certifies'),
+ ('Interaction picture',   'Tagged exponential profile,\nexactly two flavors'),
+ ('Energy-batched scan',   'Many energies sharing\none baseline'),
+ ('Cumulative scan',       'A baseline scan\nat one energy'),
+ ('General Magnus ladder', 'Otherwise; never skipped'),
+]
+ys = np.linspace(84, 6, len(rows))
+
+def bar(y, edges, shades, lw=0.7):
+    for (a, b), c in zip(edges, shades):
+        ax.add_patch(Rectangle((a, y), b-a, H, facecolor=c, edgecolor=INK, lw=lw, zorder=2))
+
+for i, ((name, when), y) in enumerate(zip(rows, ys)):
+    ax.text(X0-2.5, y+H/2, name, ha='right', va='center', fontsize=8.6, color='black')
+    dx = 7.0 if i == 5 else 2.5
+    ax.text(X1+dx, y+H/2, when, ha='left', va='center', fontsize=6.9, color=INK)
+    ax.annotate('', xy=(X0-0.6, y+H/2), xytext=(X0-1.8, y+H/2),
+                arrowprops=dict(arrowstyle='-|>', color=INK, lw=0.8))
+    if i == 0:                                   # one block, no composition at all
+        bar(y, [(X0, X1)], [SLAB[2]])
+        ax.text((X0+X1)/2, y+H/2, r'$\langle P\rangle$ in closed form',
+                ha='center', va='center', fontsize=7.6, color='white')
+    elif i == 1:                                 # smooth gradient, one exact patch
+        n = 60; e = np.linspace(X0, X1, n+1)
+        g = plt.cm.Blues(np.linspace(0.15, 0.75, n))
+        bar(y, list(zip(e[:-1], e[1:])), g, lw=0.0)
+        ax.add_patch(Rectangle((X0, y), X1-X0, H, fill=False, edgecolor=INK, lw=0.7, zorder=3))
+        px = X0 + 0.56*(X1-X0)
+        ax.add_patch(Rectangle((px, y), 5.0, H, facecolor=ORANGE, edgecolor='black',
+                               lw=0.8, zorder=4))
+        ax.text(px+2.5, y+H+1.4, 'Magnus patch', ha='center', va='bottom',
+                fontsize=6.6, color=ORANGE)
+        ax.text(X0+0.22*(X1-X0), y+H/2, 'Adiabatic transport', ha='center', va='center',
+                fontsize=7.0, color='white', zorder=5)
+    elif i == 2:                                 # fast phase factored out first
+        n = 40; e = np.linspace(X0, X1, n+1)
+        g = plt.cm.Blues(np.linspace(0.65, 0.12, n))
+        bar(y, list(zip(e[:-1], e[1:])), g, lw=0.0)
+        ax.add_patch(Rectangle((X0, y), X1-X0, H, fill=False, edgecolor=INK, lw=0.7, zorder=3))
+        xs = np.linspace(X0+1, X1-1, 300)
+        ax.plot(xs, y+H/2 + 1.5*np.sin((xs-X0)*1.5), color='white', lw=0.9, zorder=5)
+        ax.text((X0+X1)/2, y-2.2, r'Vacuum phase removed analytically, then one Magnus pass',
+                ha='center', va='top', fontsize=6.6, color=INK)
+    elif i == 3:                                 # profile once, many energies
+        ed = np.linspace(X0, X1, 6)
+        bar(y, list(zip(ed[:-1], ed[1:])), [SLAB[1], SLAB[3], SLAB[2], SLAB[4], SLAB[1]])
+        for dy in (1.9, 0.0, -1.9):
+            ax.annotate('', xy=(X0-0.6, y+H/2+dy), xytext=(X0-3.4, y+H/2+dy),
+                        arrowprops=dict(arrowstyle='-|>', color=BLUE, lw=0.7))
+        ax.text(X0-2.0, y+H+1.2, r'$E_1 \ldots E_n$', ha='center', va='bottom',
+                fontsize=6.6, color=BLUE)
+    elif i == 4:                                 # one pass, many baselines out
+        ed = np.linspace(X0, X1, 6)
+        bar(y, list(zip(ed[:-1], ed[1:])), [SLAB[1], SLAB[3], SLAB[2], SLAB[4], SLAB[1]])
+        for xx in ed[1:]:
+            ax.annotate('', xy=(xx, y-2.6), xytext=(xx, y+0.2),
+                        arrowprops=dict(arrowstyle='-|>', color=GREEN, lw=0.7))
+        ax.text((X0+X1)/2, y-4.2, r'$P(L_1),\, P(L_2),\, \ldots$', ha='center', va='top',
+                fontsize=6.6, color=GREEN)
+    else:                                        # the ladder: refine until two levels agree
+        for tier, (nsl, dy, al) in enumerate([(4, 3.4, 0.40), (6, 1.7, 0.68), (10, 0.0, 1.0)]):
+            ed = np.linspace(X0, X1, nsl+1)
+            for a, b in zip(ed[:-1], ed[1:]):
+                ax.add_patch(Rectangle((a, y+dy), b-a, H*0.62, facecolor=SLAB[2],
+                                       edgecolor=INK, lw=0.5, alpha=al, zorder=2))
+        ax.annotate('', xy=(X1+1.8, y+0.4), xytext=(X1+1.8, y+4.6),
+                    arrowprops=dict(arrowstyle='-|>', color=INK, lw=0.8))
+        ax.text(X1+2.9, y+2.5, 'Refine', ha='left', va='center', fontsize=6.6,
+                color=INK, rotation=90)
+
+ax.text((X0+X1)/2, 97.0, r'How Mag$\nu$s answers a call: the six engines, in dispatch order',
+        ha='center', va='center', fontsize=9.4, color='black')
+ax.text((X0+X1)/2, 92.0, 'Each declines what it cannot serve and falls through to the next',
+        ha='center', va='center', fontsize=6.9, color=INK)
+fig.subplots_adjust(left=0.01, right=0.99, top=0.99, bottom=0.01)
+save(fig, 'strategies.pdf')'''),
     md(r'''## Figure 2 --- slab width follows the profile, not the phase
 
 Three measurements: one slab against a constant Hamiltonian over six decades of $\Phi$;
@@ -13243,17 +13481,15 @@ L2 = 3000.0*gd.UNIT_KM
 E_FIX = 0.2*gd.UNIT_GEV
 Hf2 = make_H_func(D2, E_FIX, VCC2)
 
+# The six configurations both lower panels carry: what an order buys, beside what it costs.
+# Orders two, four and six run on the commutator-free Gauss-Legendre schemes, which is what
+# the package does by default.  Above six no such scheme exists, so the only route is
+# cumulative quadrature; order six is run on it too, as a control, because the change in
+# convergence rate belongs to the quadrature path and not to the higher orders.
+SERIES = [('gl', 2), ('gl', 4), ('gl', 6), ('simpson', 6), ('simpson', 8), ('simpson', 10)]
+
 MP_DPS_FIX, MP_NS_FIX = 50, (4096, 8192, 16384, 32768)
 MP_DPS_SCAN, MP_SCAN_TARGET = 30, 1.0e-11
-MP_CACHE = pathlib.Path('mpmath_phase_reference.json')
-CACHE_WHAT = ('Reference probabilities for Fig. 2 of the CPC paper: midpoint slab '
-              'products in mpmath, Richardson-extrapolated three times.  Under "fixed", '
-              'the fixed-phase configuration of the right panel at 50 digits; under '
-              '"scan", one reference per energy for the center panel at 30 digits, each '
-              'with the base slab count it needed.  Regenerated automatically when a '
-              'fingerprint stops matching the configuration it was computed for.')
-
-
 def slab_product(H_func, L, n_slabs):
     """The piecewise-constant operator, H frozen at each slab midpoint.
 
@@ -13358,36 +13594,8 @@ def mp_reference(H_func, L, base, dps=MP_DPS_SCAN, target=MP_SCAN_TARGET, cap=20
         base *= 2
 
 
-CACHE_SECTIONS = ('what', 'fixed', 'scan', 'orders')
 
 
-def write_cache(blob):
-    """Write only the sections this notebook knows about.
-
-    A change of format would otherwise leave its predecessor's keys behind in a tracked
-    file, where nothing reads them and nothing removes them.
-    """
-    blob.setdefault('what', CACHE_WHAT)
-    MP_CACHE.write_text(json.dumps({k: blob[k] for k in CACHE_SECTIONS if k in blob},
-                                   indent=1) + '\n')
-
-
-def fingerprint(*parts):
-    """Everything the stored numbers depend on, in one hash.
-
-    A profile enters as nine samples of $H$ along it rather than as the parameters that
-    built it, so a change anywhere upstream -- a mixing angle, the energy, the
-    potential, the baseline -- invalidates the cache without having to be enumerated.
-    """
-    h = hashlib.sha256()
-    for p in parts:
-        if callable(p):
-            h.update(np.asarray(p(np.linspace(0.0, L2, 9)), dtype=complex).tobytes())
-        else:
-            h.update(repr(p).encode())
-    return h.hexdigest()'''),
-    md(r'''### The left panel --- a constant Hamiltonian costs one slab'''),
-    code(r'''# ------------------------------------------- Figure 2, left panel: constant H
 # One reference machinery serves all three panels.  For a constant Hamiltonian every
 # midpoint slab product is the same exponential whatever N, so the triple Richardson of
 # them collapses to that one exponential; the print below measures the collapse rather
@@ -13425,58 +13633,107 @@ print('  deviation of one slab: %.1e to %.1e, growing as Phi^%.2f'
          np.polyfit(np.log(phase_a[phase_a > 1e2]), np.log(err_a[phase_a > 1e2]), 1)[0]))
 print('  for comparison, Phi*eps at the largest phase is %.1e' % (phase_a.max()*2.220446e-16))'''),
     md(r'''### The center panel --- cost at an accuracy each code actually delivers'''),
-    code(r'''# ------------------------------- Figure 2, center panel: cost at a fixed ACCURACY
-# Each code is tightened until what it DELIVERS against the reference is at or below
-# ACC_TARGET, and only then timed.  Asking one code for 1e-8 and the other for 1e-10 and
-# calling the result a fixed-accuracy comparison hands the first a factor of about two,
-# which is the size of the effect being measured.  Checked against a half-decade ladder:
-# the cost ratio moved by at most one unit, so the decade steps below are fine enough.
-ACC_TARGET = 1.0e-8
-TOL_LADDER = [1e-4, 1e-5, 1e-6, 1e-7, 1e-8, 1e-9, 1e-10, 1e-11, 1e-12]
-ENERGIES2 = np.logspace(np.log10(20.0), np.log10(0.02), 25)
+    code(r'''# --------------------------- Figure 2, cost panel: price at one fixed, tight tolerance
+# Every configuration is run at one tolerance, fixed before the sweep starts and never
+# retuned -- the solver included, so that nothing is asked for less than anything else.
+# Searching per energy for the cheapest setting that just clears an accuracy target was
+# what made this panel jagged: the ladders are discrete, so neighbouring energies landed
+# on different rungs and the cost jumped between them for no reason a reader could see.
+# It is also not how the code is used.  A tolerance is chosen once and the energies are
+# swept under it, so that is what the panel measures.
+#
+# A tolerance is a request, not a guarantee, so what each configuration DELIVERS at it is
+# measured rather than assumed, and the spread is reported with the figure.
+RTOL_FIXED = 1.0e-8
+ENERGIES2 = np.logspace(np.log10(20.0), np.log10(0.02), 41)
 
 
-def magnus_call(Hf, order):
-    return lambda rt: np.asarray(quiet(oscprob.osc_prob, Hf, 0.0, L2, rtol=rt, atol=rt*1e-2,
-                                       magnus_exp_order=order))
+# Order two converges as N^-2, so it refines to 106204 slabs at the highest phase swept
+# here -- five times the 20000 the Gauss-Legendre path caps at by default, which would
+# have truncated it silently.  The ceiling is raised for every Gauss-Legendre
+# configuration rather than for order two alone, so that none of them is capped where the
+# others are not, and the cost each is charged is the cost of the work it actually did.
+GL_SLAB_CEILING = 400000
+
+
+def magnus_call(Hf, order, meth, n_tpts):
+    kw = dict(magnus_exp_order=order, integration_method=meth)
+    if meth == 'gl':
+        kw.update(max_n_slabs=GL_SLAB_CEILING, max_num_loops=80)
+    elif n_tpts is not None:
+        kw.update(n_tpts_per_slab=n_tpts, min_n_tpts_per_slab=n_tpts,
+                  max_n_tpts_per_slab=n_tpts)
+    return lambda rt: np.asarray(quiet(oscprob.osc_prob, Hf, 0.0, L2, rtol=rt,
+                                       atol=rt*1e-2, **kw))
 
 
 def dop853_call(Hf):
     return lambda rt: ode_reference(Hf, L2, D2, rtol=rt, atol=rt*1e-2)
 
 
-# One entry per curve of the center panel.  Order four is the package default; order six
-# is shown beside it because the two trade off differently as the phase grows.
-CODES = [('dop853', 'Runge-Kutta order 8 (DOP853)', INK, lambda Hf: dop853_call(Hf)),
-         ('magnus4', r'Mag$\nu$s (order 4)', ORDER_COLOR[4], lambda Hf: magnus_call(Hf, 4)),
-         ('magnus6', r'Mag$\nu$s (order 6)', ORDER_COLOR[6], lambda Hf: magnus_call(Hf, 6))]
+# One entry per curve.  The panel carries the same six configurations as the panel beside
+# it, so that what an order costs can be read against what it buys, together with the
+# solver they are all measured against.
+CODES = [('dop853', 'Ref.: Runge-Kutta order 8 (DOP853)', INK, '-', None, None)]
+for _meth, _order in SERIES:
+    CODES.append(('%s%d' % (_meth, _order),
+                  '%d, %s' % (_order, 'GL' if _meth == 'gl' else 'Simpson'),
+                  ORDER_COLOR[_order], '-' if _meth == 'gl' else '--', _meth, _order))
+
+
+def fixed_setting(name, meth):
+    """The single setting this configuration is run at, at every energy.
+
+    A tolerance and nothing else.  Pinning the samples per slab for the cumulative-
+    quadrature configurations would hold their delivered accuracies closer together, but
+    it is a setting no caller types: the package refines that knob from the tolerance
+    along with the slab count, and whatever it costs to do so is part of what the call
+    costs.  The panel beside this one pins it, on purpose --- there the slab count is the
+    variable under study, so the quadrature has to be held out of the way.
+    """
+    return {'rtol': RTOL_FIXED}
+
+
+def call_for(name, meth, order, Hf, setting):
+    return (dop853_call(Hf) if name == 'dop853'
+            else magnus_call(Hf, order, meth, setting.get('n_tpts')))
 
 
 def delivered(call, rt, T):
     return float(max(abs(x) for x in (np.asarray(call(rt)) - T).ravel()))
 
 
-def loosest_setting(call, T):
-    """The loosest tolerance on the ladder whose delivered accuracy clears the target."""
-    for rt in TOL_LADDER:
-        d = delivered(call, rt, T)
-        if d <= ACC_TARGET:
-            return rt, d
-    return TOL_LADDER[-1], d
+def measure_once(name, meth, order, Hf, rt, T):
+    """One call, read twice: what it delivers, and what its ladder settled on.
+
+    Asking those separately would run the whole configuration twice at identical settings
+    --- order ten unpinned is not cheap enough to pay for that.
+    """
+    if name == 'dop853':
+        P = np.asarray(dop853_call(Hf)(rt))
+        return float(max(abs(x) for x in (P - T).ravel())), {}
+    info = {}
+    kw = dict(magnus_exp_order=order, integration_method=meth, convergence_info=info)
+    if meth == 'gl':
+        kw.update(max_n_slabs=GL_SLAB_CEILING, max_num_loops=80)
+    P = np.asarray(quiet(oscprob.osc_prob, Hf, 0.0, L2, rtol=rt, atol=rt*1e-2, **kw))
+    return (float(max(abs(x) for x in (P - T).ravel())),
+            {k: int(info[k]) for k in ('n_slabs', 'n_tpts_per_slab') if k in info})
 
 
 def scan_setup():
-    """Reference and tuned tolerance at each energy, computed once and read from disk after.
+    """Reference and tuned setting at each energy, computed once and read from disk after.
 
-    Five minutes of mpmath and a tolerance search that runs DOP853 at its tightest
-    settings are worth spending once rather than on every rebuild.  Both are properties
-    of the configuration and not of the machine, so both are cached; only the timings
-    below have to be measured live.  The cached tolerances are re-verified rather than
-    trusted --- one call per code per energy --- so a change in the package that moved
-    them cannot pass silently.
+    Five minutes of mpmath and a two-knob search that runs order ten at its tightest
+    settings are worth spending once rather than on every rebuild.  Both are properties of
+    the configuration and not of the machine, so both are cached; only the timings below
+    have to be measured live.  The cached settings are re-verified rather than trusted ---
+    one call per configuration per energy --- so a change in the package that moved them
+    cannot pass silently.
     """
-    key = fingerprint(VCC2, float(L2), D2, MP_DPS_SCAN, MP_SCAN_TARGET, ACC_TARGET,
-                      [c[0] for c in CODES], [float(e) for e in ENERGIES2])
+    key = fingerprint(profile_samples(VCC2, L2), float(L2), D2, MP_DPS_SCAN, MP_SCAN_TARGET,
+                      [c[0] for c in CODES],
+                      [float(e) for e in ENERGIES2], RTOL_FIXED, 'fixed-tolerance')
     blob = json.loads(MP_CACHE.read_text()) if MP_CACHE.exists() else {}
     cached = blob.get('scan', {})
     entries = cached.get('entries') if cached.get('fingerprint') == key else None
@@ -13484,38 +13741,85 @@ def scan_setup():
         mp.mp.dps = MP_DPS_SCAN
         Ts = [np.array([[mp.mpf(x) for x in row] for row in e['P']], dtype=object)
               for e in entries]
-        stale = [e['E'] for e, T in zip(entries, Ts)
-                 for name, _, _, mk in CODES
-                 if delivered(mk(make_H_func(D2, e['E']*gd.UNIT_GEV, VCC2)),
-                              e['rtol'][name], T) > ACC_TARGET]
-        if not stale:
-            print('  references and tuned tolerances read from %s, configuration %s, '
-                  'all re-verified' % (MP_CACHE.name, key[:12]))
+        # Spot-checked rather than fully re-run: the fingerprint already covers the
+        # configuration, so this is here to catch a change inside the package that moved
+        # the answers under an unchanged configuration.  Three energies at the ends and
+        # the middle of the sweep do that; forty-one would cost minutes on every
+        # regeneration to re-derive what the fingerprint already settled.
+        # Once per package version, not once per regeneration.  The fingerprint already
+        # covers the configuration; what it cannot see is a change inside the package
+        # that moves the answers under a configuration that did not move.  Tying the
+        # check to the version catches exactly that, and costs nothing on the format
+        # edits that make up most rebuilds.  A cache written before this field existed
+        # is adopted rather than re-probed: the code that wrote it was this code.
+        seen_version = cached.get('magnus_version')
+        if seen_version == MAGNUS_VERSION or seen_version is None:
+            if seen_version is None:
+                blob['scan'] = dict(cached, magnus_version=MAGNUS_VERSION)
+                write_cache(blob)
+            print('  references and delivered accuracies read from %s, configuration %s'
+                  % (MP_CACHE.name, key[:12]))
             return Ts, entries
-        print('  cached tolerances no longer deliver at %d energies: recomputing' % len(stale))
+        print('  package moved from %s to %s: spot-checking the stored accuracies'
+              % (seen_version, MAGNUS_VERSION))
+        probe = sorted({0, len(entries)//2, len(entries) - 1})
+        stale = []
+        for i in probe:
+            e, T = entries[i], Ts[i]
+            Hf = make_H_func(D2, e['E']*gd.UNIT_GEV, VCC2)
+            for name, _, _, _, meth, order in CODES:
+                st = e['setting'][name]
+                now = delivered(call_for(name, meth, order, Hf, st), st['rtol'], T)
+                if not (0.5 <= now/max(e['acc'][name], 1.0e-18) <= 2.0):
+                    stale.append((e['E'], name, e['acc'][name], now))
+        if not stale:
+            blob['scan'] = dict(cached, magnus_version=MAGNUS_VERSION)
+            write_cache(blob)
+            print('  stored accuracies still hold under %s, re-verified at %d energies'
+                  % (MAGNUS_VERSION, len(probe)))
+            return Ts, entries
+        print('  the package now delivers differently at %d spot checks '
+              '(e.g. %s at %.3f GeV: %.1e stored, %.1e now): recomputing'
+              % (len(stale), stale[0][1], stale[0][0], stale[0][2], stale[0][3]))
     else:
-        print('  energy scan: configuration moved, recomputing')
+        cache_miss('scan', key)
+    print('  energy scan: configuration moved, recomputing')
     t0 = time.perf_counter()
     Ts, entries = [], []
     for Egev in ENERGIES2:
         Hf = make_H_func(D2, Egev*gd.UNIT_GEV, VCC2)
         T, sc, base = mp_reference(Hf, L2, 32)
-        tuned = {name: loosest_setting(mk(Hf), T) for name, _, _, mk in CODES}
+        setting = {name: fixed_setting(name, meth)
+                   for name, _, _, _, meth, _ in CODES}
+        got = {name: measure_once(name, meth, order, Hf, setting[name]['rtol'], T)
+               for name, _, _, _, meth, order in CODES}
+        acc = {k: v[0] for k, v in got.items()}
+        chose = {k: v[1] for k, v in got.items()}
         Ts.append(T)
         entries.append(dict(E=float(Egev), phase=accumulated_phase(Hf, L2), base=int(base),
-                            self_conv=float(sc),
-                            rtol={k: v[0] for k, v in tuned.items()},
-                            acc={k: v[1] for k, v in tuned.items()},
+                            self_conv=float(sc), setting=setting, acc=acc, chose=chose,
                             P=[[mp.nstr(x, MP_DPS_SCAN - 5) for x in row] for row in T]))
-    print('  %d references and tolerance searches in %.0f s, worst self-convergence %.1e'
+        print('    %6.3f GeV done, worst delivered %.1e (%.0f s elapsed)'
+              % (Egev, max(acc.values()), time.perf_counter() - t0), flush=True)
+    print('  %d references in %.0f s, worst self-convergence %.1e'
           % (len(Ts), time.perf_counter() - t0, max(e['self_conv'] for e in entries)))
-    blob['scan'] = dict(dps=MP_DPS_SCAN, target=MP_SCAN_TARGET, acc_target=ACC_TARGET,
+    blob['scan'] = dict(dps=MP_DPS_SCAN, target=MP_SCAN_TARGET, rtol=RTOL_FIXED,
                         fingerprint=key, entries=entries)
     write_cache(blob)
     return Ts, entries
 
 
 REFS2, REF_INFO2 = scan_setup()
+print('at rtol = %.0e, over %d energies:' % (RTOL_FIXED, len(REF_INFO2)))
+for _n, _lab, _, _, _, _ in CODES:
+    _a = [e['acc'][_n] for e in REF_INFO2]
+    _c = [e.get('chose', {}).get(_n, {}) for e in REF_INFO2]
+    _ns = [d['n_slabs'] for d in _c if 'n_slabs' in d]
+    _nt = [d['n_tpts_per_slab'] for d in _c if 'n_tpts_per_slab' in d]
+    print('  %-30s delivered %.1e to %.1e%s%s'
+          % (_lab, min(_a), max(_a),
+             '' if not _ns else ',  %d-%d slabs' % (min(_ns), max(_ns)),
+             '' if not _nt else ',  %d-%d samples/slab' % (min(_nt), max(_nt))))
 
 
 def best_of(fn, k=5):
@@ -13530,33 +13834,79 @@ def best_of(fn, k=5):
 # A fixed workload interleaved through the sweep, so machine drift is visible rather than
 # absorbed into the curves.
 H_CTRL = make_H_func(D2, 1.0*gd.UNIT_GEV, VCC2)
-quiet(oscprob.osc_prob, H_CTRL, 0.0, L2, rtol=1e-8, atol=1e-10)   # warm the numba backend
-CTRL0 = best_of(lambda: quiet(oscprob.osc_prob, H_CTRL, 0.0, L2, rtol=1e-8, atol=1e-10))
+_CTRL0 = []
 
-rows = []
-for e in REF_INFO2:
-    Hf = make_H_func(D2, e['E']*gd.UNIT_GEV, VCC2)
-    t = {}
-    for name, _, _, mk in CODES:
-        call, rt = mk(Hf), e['rtol'][name]
-        t[name] = best_of(lambda: call(rt))
-    ctrl = best_of(lambda: quiet(oscprob.osc_prob, H_CTRL, 0.0, L2, rtol=1e-8, atol=1e-10), 3)
-    rows.append(dict(phase=e['phase'], E=e['E'], t=t, acc=e['acc'], ctrl=ctrl/CTRL0))
+
+def control_baseline():
+    """The control's first value, measured on demand.
+
+    At cell scope this ran a warm-up and five timed repeats on every regeneration of the
+    notebook, including the ones that only moved a label.  It is an input to the timings
+    and to nothing else, so it belongs behind the same cache they do.
+    """
+    if not _CTRL0:
+        quiet(oscprob.osc_prob, H_CTRL, 0.0, L2, rtol=1e-8, atol=1e-10)  # warm numba
+        _CTRL0.append(best_of(lambda: quiet(oscprob.osc_prob, H_CTRL, 0.0, L2,
+                                            rtol=1e-8, atol=1e-10)))
+    return _CTRL0[0]
+
+def measure_timings():
+    """Time each configuration at its tuned setting, once, and read from disk after.
+
+    Timing is the only part of this figure that is a property of the machine rather than
+    of the configuration, which is the argument for measuring it live.  It is also minutes
+    of work on every rebuild, and the notebooks are regenerated in continuous integration,
+    where minutes of stopwatch tell nobody anything.  So it is cached like everything else,
+    keyed on the configuration alone: change an energy, a code, a tolerance target or a
+    tuned setting and it is re-measured; change nothing and the stored numbers stand.
+
+    The machine and the date are stored beside the numbers, because a timing that does not
+    say where it came from cannot be checked.  Set MAGNUS_PAPER_RETIME=1 to force a fresh
+    measurement without changing the configuration -- which is what to do after moving the
+    paper to another machine.
+    """
+    key = fingerprint(profile_samples(VCC2, L2), float(L2), D2, RTOL_FIXED, [c[0] for c in CODES],
+                      [float(e['E']) for e in REF_INFO2],
+                      [repr(e['setting']) for e in REF_INFO2])
+    blob = json.loads(MP_CACHE.read_text()) if MP_CACHE.exists() else {}
+    stored = blob.get('timings', {})
+    if stored.get('fingerprint') == key and not os.environ.get('MAGNUS_PAPER_RETIME'):
+        print('  timings read from %s, unchanged configuration %s, measured on %s'
+              % (MP_CACHE.name, key[:12], stored.get('machine', 'an unrecorded machine')))
+        return stored['rows']
+    cache_miss('timings', key)
+    print('  timings: configuration moved, re-measuring')
+    out = []
+    for e in REF_INFO2:
+        Hf = make_H_func(D2, e['E']*gd.UNIT_GEV, VCC2)
+        # The control is measured beside the point, not once at the start, and divided
+        # out.  A sweep of forty-one energies takes long enough that the machine drifts
+        # under it, and drift that is not divided out is read off the panel as structure.
+        ctrl = best_of(lambda: quiet(oscprob.osc_prob, H_CTRL, 0.0, L2,
+                                     rtol=1e-8, atol=1e-10), 5)
+        drift = ctrl/control_baseline()
+        t = {}
+        for name, _, _, _, meth, order in CODES:
+            st = e['setting'][name]
+            call, rt = call_for(name, meth, order, Hf, st), st['rtol']
+            t[name] = best_of(lambda c=call, x=rt: c(x), 5)/drift
+        out.append(dict(phase=e['phase'], E=e['E'], t=t, acc=e['acc'], ctrl=drift))
+    blob['timings'] = dict(fingerprint=key, rows=out,
+                           machine=platform.node() + ', ' + platform.processor(),
+                           measured=time.strftime('%Y-%m-%d'))
+    write_cache(blob)
+    return out
+
+
+rows = measure_timings()
 ph = np.array([r['phase'] for r in rows])
-print('center panel: %d points, phase %.1f to %.0f rad' % (len(rows), ph.min(), ph.max()))
-times = {name: np.array([r['t'][name] for r in rows]) for name, _, _, _ in CODES}
-for name, lab, _, _ in CODES:
-    t = times[name]
-    print('  %-28s grows as phase^%.2f (%.2f ms to %.0f ms)'
-          % (lab.replace(r'Mag$\nu$s', 'Magnus'), np.polyfit(np.log(ph), np.log(t), 1)[0],
-             1e3*t[0], 1e3*t[-1]))
-for name, lab, _, _ in CODES[1:]:
-    r_ = times['dop853']/times[name]
-    print('  DOP853 costs %.0fx %s at %.0f rad and %.0fx at %.0f rad'
-          % (r_[0], lab.replace(r'Mag$\nu$s', 'Magnus'), ph[0], r_[-1], ph[-1]))
-print('  delivered accuracy, worst over the sweep: %s, target %.0e'
-      % (', '.join('%s %.1e' % (n, max(r['acc'][n] for r in rows)) for n, _, _, _ in CODES),
-         ACC_TARGET))
+times = {name: np.array([r['t'][name] for r in rows]) for name, _, _, _, _, _ in CODES}
+print('cost panel: %d points, phase %.1f to %.0f rad' % (len(rows), ph.min(), ph.max()))
+for name, lab, _, _, _, _ in CODES:
+    tt = times[name]
+    print('  %-28s phase^%5.2f  %7.2f ms to %8.1f ms   worst delivered %.1e'
+          % (lab, np.polyfit(np.log(ph), np.log(tt), 1)[0], 1e3*tt[0], 1e3*tt[-1],
+             max(r['acc'][name] for r in rows)))
 ctrl = np.array([r['ctrl'] for r in rows])
 print('  interleaved control held between %.2f and %.2f of its first value'
       % (ctrl.min(), ctrl.max()))'''),
@@ -13567,7 +13917,7 @@ def fixed_reference():
 
     Two and a half minutes of mpmath is not worth paying on every rebuild of the figure.
     """
-    key = fingerprint(Hf2, float(L2), MP_DPS_FIX, MP_NS_FIX)
+    key = fingerprint(np.asarray(Hf2(np.linspace(0.0, L2, 9))).view(float), float(L2), MP_DPS_FIX, MP_NS_FIX)
     blob = json.loads(MP_CACHE.read_text()) if MP_CACHE.exists() else {}
     if blob.get('fixed', {}).get('fingerprint') == key:
         mp.mp.dps = MP_DPS_FIX
@@ -13605,7 +13955,6 @@ M_HI = 65
 # the package does by default.  Above six no such scheme exists, so the only route is
 # cumulative quadrature; order six is run on it too, as a control, because the change in
 # convergence rate belongs to the quadrature path and not to the higher orders.
-SERIES = [('gl', 2), ('gl', 4), ('gl', 6), ('simpson', 6), ('simpson', 8), ('simpson', 10)]
 
 
 def order_curves():
@@ -13615,7 +13964,7 @@ def order_curves():
     cumulative quadrature.  The curves are exact functions of the configuration, so they
     cache exactly as the reference does.
     """
-    key = fingerprint(Hf2, float(L2), MP_DPS_FIX, MP_NS_FIX, [int(n) for n in NS], M_HI,
+    key = fingerprint(np.asarray(Hf2(np.linspace(0.0, L2, 9))).view(float), float(L2), MP_DPS_FIX, MP_NS_FIX, [int(n) for n in NS], M_HI,
                       [list(x) for x in SERIES])
     blob = json.loads(MP_CACHE.read_text()) if MP_CACHE.exists() else {}
     if blob.get('orders', {}).get('fingerprint') == key:
@@ -13685,7 +14034,7 @@ for k in SERIES:
                 rotation_mode='anchor')
 
 
-def phase_axis(axis, energy, phase, ticks):
+def phase_axis(axis, energy, phase, ticks, powers=False):
     r"""A secondary top axis carrying the accumulated phase.
 
     The phase is what a stepping solver's cost tracks, but it is not a dial: what a user
@@ -13701,10 +14050,18 @@ def phase_axis(axis, energy, phase, ticks):
     tw.set_xlim(axis.get_xlim())
     tw.set_xticks(np.exp(np.interp(np.log(ticks), np.log(np.asarray(phase)[o]),
                                    np.log(np.asarray(energy)[o]))))
-    tw.set_xticklabels([('%g' % t) for t in ticks])
-    tw.set_xlabel(r'Accumulated phase, $\Phi$ [rad]', labelpad=2.0, fontsize=9.5)
-    tw.tick_params(axis='x', direction='in', which='both', top=True, pad=1.8, labelsize=8.5)
-    tw.minorticks_off()
+    # Powers of ten only where every tick is one.  Writing half-decades that way rounds
+    # 30 and 300 onto 10^1 and 10^2, which prints the same label twice.
+    tw.set_xticklabels([(r'$10^{%d}$' % round(np.log10(t))) if powers else ('%g' % t)
+                        for t in ticks])
+    tw.set_xlabel(r'Accumulated phase, $\Phi$ [rad]', labelpad=8.5, fontsize=9.5)
+    # Ticks point inward, so the labels have to be pushed clear of the spine or they
+    # sit on top of it.
+    tw.tick_params(axis='x', direction='in', which='both', top=True, pad=2.2, labelsize=8.5)
+    # Only the twin's OWN x minors.  minorticks_off() would take the y axis with it,
+    # and twiny() shares that axis with the panel underneath --- which silently
+    # stripped the minor ticks off both panels that carry a phase axis.
+    tw.xaxis.set_minor_locator(NullLocator())
     return tw
 
 
@@ -13716,67 +14073,78 @@ ax = [fig.add_subplot(gs[0, 1]), fig.add_subplot(gs[1, 0]), fig.add_subplot(gs[1
 l_km = np.linspace(0.0, 3000.0, 600)
 axd.semilogy(l_km, RHO0_2*np.exp(-l_km/LS_KM_2), '-', color=INK, lw=1.2)
 axd.axhline(RHO_CONST, color=INK, ls='--', lw=1.1)
-axd.set_xlim(0.0, 3000.0); axd.set_ylim(3.0e-3, 3.0e2)
+axd.set_xlim(0.0, 3000.0); axd.set_ylim(3.0e-3, 1.0e2)
 axd.set_xlabel(r'Distance along the trajectory, $l$ [km]', labelpad=1.5)
-axd.set_ylabel(r'$\rho$ [g cm$^{-3}$]', labelpad=2.0)
+axd.set_ylabel(r'Matter density, $\rho$ [g cm$^{-3}$]', labelpad=2.0)
 logy(axd)
+unit_as_one(axd)
 RHO_EXP = RHO0_2*np.exp(-l_km/LS_KM_2)
 
 ax[0].loglog(E_CONST/gd.UNIT_GEV, err_a, '-', color=BLUE, lw=1.2)
 ax[0].axhline(2.2e-16, color=INK, ls=':', lw=0.8)
 ax[0].loglog(E_CONST/gd.UNIT_GEV, np.maximum(phase_a*2.2e-16, 2.2e-16), ls='--',
              color=INK, lw=0.7)
-stamp(ax[0], r'Round-off,  $\varepsilon$ and $\Phi\varepsilon$', y=0.05)
+stamp(ax[0], r'Round-off, $\varepsilon$', y=0.075)
 ax[0].set_xlabel(r'Neutrino energy, $E$ [GeV]')
 ax[0].set_ylabel(r'Max $|\Delta P|$, one slab')
-ax[0].set_ylim(1.0e-17, 1.0e-8)
+ax[0].set_ylim(1.0e-16, 1.0e-9)
 logx(ax[0]); logy(ax[0]); snug(ax[0], E_CONST/gd.UNIT_GEV)
+# Every decade carries a label; the default locator thins them once the range is
+# this deep, which leaves the panel with three ticks over eight decades.
+ax[0].yaxis.set_major_locator(LogLocator(base=10.0, numticks=20))
+# Minor ticks between the decades, and the energy labels pushed clear of the spine
+# that the inward-pointing ticks share with them.
+minor_log_ticks(ax[0])
+ax[0].tick_params(axis='x', which='major', pad=4.2)
 corner(ax[0], r'Constant $\mathbb{H}$', x=0.955, y=0.94)
 
 E_row = np.array([r['E'] for r in rows])
-for name, lab, col, _ in CODES:
-    ax[1].loglog(E_row, 1e3*times[name], '-', color=col, lw=1.2, label=lab)
+# Only the solver is named here.  The six Magnus configurations are named in the panel
+# beside it, where the rate they converge at belongs; colour and line style are the same
+# in both, so one legend identifies them twice.
+for name, lab, col, ls, meth, order in CODES:
+    ax[1].loglog(E_row, 1e3*times[name], ls=ls, color=col, lw=1.2,
+                 label=(lab if meth is None else '_nolegend_'))
 ax[1].set_xlabel(r'Neutrino energy, $E$ [GeV]')
 ax[1].set_ylabel(r'Time per probability [ms]')
-ax[1].set_ylim(0.8, 2.0e3)
+ax[1].set_ylim(1.0, 1.0e5)
+# Five decades now that the cumulative-quadrature curves reach a minute per
+# probability, so the ticks go by decade rather than by halves.
+ax[1].yaxis.set_major_locator(LogLocator(base=10.0, subs=(1.0,), numticks=20))
+unit_as_one(ax[1])
+minor_log_ticks(ax[1])
 logx(ax[1]); logy(ax[1]); snug(ax[1], E_row)
 corner(ax[1], r'Varying $\mathbb{H}$', x=0.955, y=0.94)
-ax[1].legend(loc='upper right', bbox_to_anchor=(0.985, 0.855), handlelength=1.5,
-             fontsize=8.0, labelspacing=0.22, borderpad=0.3, handletextpad=0.5)
+ax[1].legend(loc='lower right', handlelength=1.5,
+             fontsize=7.2, labelspacing=0.2, borderpad=0.3, handletextpad=0.5,
+             framealpha=0.75)
 
 STYLE = {k: (ORDER_COLOR[k[1]], '-' if k[0] == 'gl' else '--') for k in SERIES}
-LABELS = {('gl',2):'Order 2, Gauss-Legendre', ('gl',4):'Order 4, Gauss-Legendre',
-          ('gl',6):'Order 6, Gauss-Legendre', ('simpson',6):'Order 6, Simpson',
+LABELS = {('gl',2):'Order 2, G-L', ('gl',4):'Order 4, G-L',
+          ('gl',6):'Order 6, G-L', ('simpson',6):'Order 6, Simpson',
           ('simpson',8):'Order 8, Simpson', ('simpson',10):'Order 10, Simpson'}
-# Anchored by slab count, not by height: the four steep curves separate vertically at a
-# fixed N and hardly at all at a fixed height, and these all sit clear of the legend.
-# One anchor per curve, spread along the diagonal the four steep curves make, so no two
-# labels land at the same place.
-ANCHOR_N = {('gl',2):2048, ('gl',4):724, ('gl',6):256,
-            ('simpson',6):128, ('simpson',8):64, ('simpson',10):32}
-OFFSET = {('gl',2):(6,4), ('gl',4):(6,4), ('gl',6):(7,3),
-          ('simpson',6):(7,3), ('simpson',8):(7,3), ('simpson',10):(7,3)}
 for k in SERIES:
     col, ls = STYLE[k]
     ax[2].loglog(NS, curves[k], ls=ls, color=col, lw=1.2,
                  label=r'%s, $N^{%d}$' % (LABELS[k], POWERS[k]))
 ax[2].set_xlabel(r'Slabs along the trajectory, $N$')
-ax[2].set_ylabel(r'Max $|\Delta P|$')
+ax[2].set_ylabel(r'Max $|\Delta P|$, multiple slabs')
 logx(ax[2]); logy(ax[2]); snug(ax[2], NS)
-ax[2].set_ylim(3.0e-16, 1.0e4)
-corner(ax[2], r'Varying $\mathbb{H}$', loc='upper left', x=0.035, y=0.175)
-ax[2].text(0.035, 0.075, r'Fixed $E = %g$ GeV' % (E_FIX/gd.UNIT_GEV),
-           transform=ax[2].transAxes, ha='left', va='bottom', fontsize=8.5, color=INK,
-           zorder=10)
-# Two columns: six entries stacked at a legible size reach a third of the way up the
-# panel and sit on the curves they describe.
-# Above the curves rather than below them: the floor the curves settle onto is the point
-# of the panel, so nothing may cover it.
-# Above the curves, never below: the floor they settle onto is the point of the panel.
-# Each entry is set in its own curve's colour, so the measured power reads off the legend
-# rather than from six labels competing for the same stretch of plunging curve.
-_leg = ax[2].legend(loc='upper right', handlelength=1.4, fontsize=8.0, labelspacing=0.24,
-                    borderpad=0.32, handletextpad=0.5)
+ax[2].set_ylim(3.0e-16, 1.0)
+unit_as_one(ax[2])
+corner(ax[2], r'Varying $\mathbb{H}$', x=0.955, y=0.94)
+# Flush with the *border* of the box above it, not with the text inside it: the box
+# adds 0.32 of its font size as padding, so the two align only once that is added back.
+ax[2].annotate(r'Fixed $E = %g$ GeV' % (E_FIX/gd.UNIT_GEV), xy=(0.955, 0.868),
+               xycoords='axes fraction', xytext=(0.32*8.5 + 0.3, 0),
+               textcoords='offset points', ha='right', va='top', fontsize=8.5,
+               color=INK, zorder=10)
+# The six configurations are named here rather than in the cost panel, because the rate
+# each converges at is what this panel measures.  Each entry is set in its curve's colour.
+_leg = ax[2].legend(loc='lower left', handlelength=1.5, fontsize=7.4, labelspacing=0.2,
+                    borderpad=0.3, handletextpad=0.5, title='Magnus order',
+                    framealpha=0.75)
+_leg.get_title().set_fontsize(7.4)
 for _txt, _k in zip(_leg.get_texts(), SERIES):
     _txt.set_color(STYLE[_k][0])
 
@@ -13789,14 +14157,23 @@ for _a in [axd] + list(ax):
 # margins here makes the geometry deterministic and lets the twins be added safely.
 # Sized so the cells are square before set_box_aspect has to shrink anything: leftover
 # slack inside a cell is what opens the gaps between panels.
-fig.subplots_adjust(left=0.092, right=0.985, top=0.935, bottom=0.072,
+fig.subplots_adjust(left=0.108, right=0.985, top=0.935, bottom=0.072,
                     wspace=0.20, hspace=0.26)
 # The profile labels ride their own curves, at the angle the curve makes on the page.
-label_along(axd, l_km, RHO_EXP, 150, 'Exponential', INK, fontsize=8.0, offset=(4, 5))
+label_along(axd, l_km, RHO_EXP, 330, 'Varying (exponential)', INK, fontsize=8.0,
+            offset=(4, 5))
 label_along(axd, l_km, np.full_like(l_km, RHO_CONST), 470, 'Constant', INK, fontsize=8.0,
             offset=(0, 4))
-phase_axis(ax[0], E_CONST/gd.UNIT_GEV, phase_a, [10, 1000, 100000])
-phase_axis(ax[1], E_row, ph, [10, 100, 1000])
+phase_axis(ax[0], E_CONST/gd.UNIT_GEV, phase_a,
+           [10, 100, 1000, 10000, 100000, 1000000], powers=True)
+# The rising guide carries its own name, upright and at the middle of its own line:
+# rotating it to the curve angle left the epsilon unreadable at this size, and a stamp
+# cannot say which of the two guides it means.
+_g = np.maximum(phase_a*2.2e-16, 2.2e-16)
+_i = len(_g)//2
+ax[0].annotate(r'$\Phi\varepsilon$', xy=(E_CONST[_i]/gd.UNIT_GEV, _g[_i]),
+               xytext=(4, 3.5), textcoords='offset points', color=INK, fontsize=9.5)
+phase_axis(ax[1], E_row, ph, [10, 30, 100, 300, 1000])
 save(fig, 'phase_vs_profile.pdf')'''),
 
 
@@ -13893,9 +14270,16 @@ SCEN = [
      lambda E, cz, Lc: oscprob.osc_prob_4nu_earth(
          E, costhz=cz, L=Lc, nu_i=gd.NUMU, nu_f=gd.NUMU, rtol=RTOL_FIG,
          atol=ATOL_FIG, **OSC, **STERILE4)),
+    # The wrapper takes s25 but has no d25: the phase is not independent there, so we
+    # pass the angles and leave every CP phase of the sterile sector at its default.
+    (r'Earth, $3+2$', E_TEV_OSC, gd.UNIT_TEV, r'Neutrino energy, $E$ [TeV]',
+     TEV_TICKS,
+     lambda E, cz, Lc: oscprob.osc_prob_5nu_earth(
+         E, costhz=cz, L=Lc, nu_i=gd.NUMU, nu_f=gd.NUMU, rtol=RTOL_FIG,
+         atol=ATOL_FIG, **OSC, **STERILE5)),
 ]
 
-fig, axes = plt.subplots(3, 1, figsize=(COL, 5.6),
+fig, axes = plt.subplots(4, 1, figsize=(COL, 7.3),
                          gridspec_kw=dict(hspace=0.42))
 for ax, (label, E_ax, unit, xlabel, ticks, call) in zip(axes, SCEN):
     t0 = time.perf_counter()
@@ -13976,25 +14360,26 @@ def adiabatic_limit(build_H, energy, vcc0, a=gd.NUE, b=gd.NUE):
 
 
 OSC4 = dict(OSC); OSC4.update(STERILE4); OSC4.update(d14=0.0, d24=0.0)
+OSC5 = dict(OSC); OSC5.update(STERILE5)
+OSC5.update(d14=0.0, d24=0.0, d15=0.0, d25=0.0, d35=0.0)
 E_AVG = np.logspace(np.log10(0.1), np.log10(20.0), 90)*gd.UNIT_MEV
 COMMON = dict(L0=0.0, nu_i=gd.NUE, nu_f=gd.NUE, density_is_of_number_of_electrons=True)
 VCC0 = float(PER_NE*ne_sun(0.0))
 
 HV3 = np.asarray(vacuum_hamiltonian(3), dtype=complex)
 HV4 = np.asarray(vacuum_hamiltonian(4), dtype=complex)
+HV5 = np.asarray(vacuum_hamiltonian(5), dtype=complex)
 P3 = np.asarray(matter.matter_potential_projector(3), dtype=complex)
 P4 = np.asarray(matter.matter_potential_projector(4), dtype=complex)
+P5 = np.asarray(matter.matter_potential_projector(5), dtype=complex)
 EPS_ORDER = ('eps_ee', 'eps_em', 'eps_et', 'eps_mm', 'eps_mt', 'eps_tt')
 
+# 3nu, then the NSI case, then the two steriles: the order the middle panel reads in.
 SCEN = [
     (r'$3\nu$', BLUE,
      lambda E: oscprob.osc_prob_matter_std_potential(3, ne_sun, E, R_SUN, OSC,
                                                      average=True, **COMMON),
      lambda E, v: HV3/E + v*P3),
-    (r'$3+1$', RED,
-     lambda E: oscprob.osc_prob_matter_std_potential(4, ne_sun, E, R_SUN, OSC4,
-                                                     average=True, **COMMON),
-     lambda E, v: HV4/E + v*P4),
     (r'$3\nu$ + NSI', ORANGE,
      lambda E: oscprob.osc_prob_matter_nsi(3, ne_sun, E, R_SUN, OSC, EPS,
                                            average=True, **COMMON),
@@ -14003,9 +14388,18 @@ SCEN = [
      # Omitting it put this reference 0.178 away from the answer rather than 1e-5.
      lambda E, v: HV3/E + v*P3 + np.asarray(hamiltonians.hamiltonian_3nu_nsi(
          v, *[EPS[k] for k in EPS_ORDER]), dtype=complex)),
+    (r'$3+1$', RED,
+     lambda E: oscprob.osc_prob_matter_std_potential(4, ne_sun, E, R_SUN, OSC4,
+                                                     average=True, **COMMON),
+     lambda E, v: HV4/E + v*P4),
+    # Green, not purple: purple marks the resonance densities in the panel above.
+    (r'$3+2$', GREEN,
+     lambda E: oscprob.osc_prob_matter_std_potential(5, ne_sun, E, R_SUN, OSC5,
+                                                     average=True, **COMMON),
+     lambda E, v: HV5/E + v*P5),
 ]'''),
     code(r'''fig = plt.figure(figsize=(COL, 5.0))
-outer = fig.add_gridspec(2, 1, height_ratios=[1.05, 2.30], hspace=0.34)
+outer = fig.add_gridspec(2, 1, height_ratios=[1.22, 2.30], hspace=0.22)
 gs_low = outer[1].subgridspec(2, 1, height_ratios=[1.60, 0.90], hspace=0.09)
 axes = [fig.add_subplot(outer[0]), fig.add_subplot(gs_low[0]), None]
 axes[2] = fig.add_subplot(gs_low[1], sharex=axes[1])
@@ -14017,23 +14411,25 @@ rr = x_solar/R_SUN
 # density that way.  gd.UNIT_PER_CM3 is one cm^-3 expressed in eV^3.
 PER_CM3 = gd.UNIT_PER_CM3
 print('  central n_e = %.2e cm^-3 (the Sun\'s core is ~6e25)' % (ne_tab[0]/PER_CM3))
-ax.semilogy(rr, ne_tab/PER_CM3, color=INK, lw=1.4, label='BS2005-AGS,OP')
+ax.semilogy(rr, ne_tab/PER_CM3, color=INK, lw=1.4)
 cos2th12 = 1.0 - 2.0*OSC['s12']**2
 # Staggered horizontally: the three resonance densities are within a decade of each
 # other, so labels at a common x sit on top of one another.
 # The first label carries the whole statement; the other two need only their energy,
 # right-aligned under it so the three read as one column.
-LAB = {1.0: 'MSW resonance density at 1 MeV', 5.0: '5 MeV', 20.0: '20 MeV'}
+LAB = {1.0: r'$3\nu$ MSW resonance density at 1 MeV', 5.0: '5 MeV', 20.0: '20 MeV'}
 for Emev in (1.0, 5.0, 20.0):
     nr = OSC['D21']*cos2th12/(2.0*Emev*gd.UNIT_MEV)/PER_NE
-    ax.axhline(nr/PER_CM3, color=ORANGE, lw=0.7, ls='--')
-    ax.text(0.975, nr/PER_CM3, LAB[Emev], color=ORANGE, fontsize=8.0, ha='right',
+    ax.axhline(nr/PER_CM3, color=PURPLE, lw=0.7, ls='--')
+    ax.text(0.975, nr/PER_CM3, LAB[Emev], color=PURPLE, fontsize=8.0, ha='right',
             va='top')
 logy(ax); ax.set_xlim(0.0, 1.0)
 ax.xaxis.set_minor_locator(AutoMinorLocator(5))
 ax.set_xlabel(r'Radius, $r/R_\odot$', labelpad=1.5)
 ax.set_ylabel(r'Electron density, $n_e$ [cm$^{-3}$]', fontsize=8.0)
-ax.legend(loc='lower left', handlelength=1.4)
+# Below the curve and to the left of the resonance labels, which are right-aligned.
+label_along(ax, rr, ne_tab/PER_CM3, int(0.34*len(rr)),
+            'Solar model BS2005-AGS,OP', INK, fontsize=8.0, offset=(0, -15))
 
 # --- the averaged observable, and the residual under it
 resid = {}
@@ -14062,10 +14458,107 @@ for label, (color, dP) in resid.items():
 logx(b); logy(b); snug(b, E_AVG/gd.UNIT_MEV); xticks_at(b, (0.1, 0.3, 1, 3, 10, 20))
 b.set_xlabel(r'Neutrino energy, $E$ [MeV]')
 b.set_ylabel(r'$|\Delta P|$', fontsize=8.0)
-corner(b, r'Vs.\ the adiabatic limit', loc='upper left', x=0.035, y=0.94,
+corner(b, r'Vs.\ adiabatic limit', loc='upper left', x=0.035, y=0.94,
        fontsize=8.0)
 fig.subplots_adjust(left=0.20)
 save(fig, 'solar_averaged.pdf')'''),
+    md(r'''### Figure 5b --- a Hamiltonian the package never heard of
+
+A gauged $L_e - L_\mu$ symmetry adds a long-range potential sourced by the electrons of the
+Sun itself. Nothing about it is built in: it is a callable returning a Hermitian matrix,
+which is the whole of the interface.'''),
+    code(r'''# ------------------------------------------------ Figure 5b: L_e - L_mu in the Sun
+def running_integral(y, x):
+    """Trapezoidal running integral of y over x, zero at the first node."""
+    return np.concatenate([[0.0], np.cumsum(0.5*(y[1:] + y[:-1])*np.diff(x))])
+
+
+def shc(x):
+    """sinh(x)/x, continued to 1 at the origin."""
+    x = np.asarray(x, dtype=float)
+    out = np.ones_like(x)
+    big = np.abs(x) > 1.0e-8
+    out[big] = np.sinh(x[big])/x[big]
+    return out
+
+
+def long_range_potential(r_grid, ne_grid, m):
+    """V_{e-mu}(r) on r_grid, in units of g'^2, for a spherical n_e(r)."""
+    inner = r_grid**2*ne_grid*shc(m*r_grid)
+    outer = r_grid*ne_grid*np.exp(-m*r_grid)
+    I_in = running_integral(inner, r_grid)
+    running_out = running_integral(outer, r_grid)
+    I_out = running_out[-1] - running_out
+    r_safe = np.where(r_grid > 0.0, r_grid, 1.0e-30)
+    return np.exp(-m*r_grid)*I_in/r_safe + shc(m*r_grid)*I_out
+
+
+LR_CHARGE = np.diag([1.0, -1.0, 0.0]).astype(complex)      # the L_e - L_mu charge
+# Two mediator ranges: the solar radius, the analogue of 1/m = R_earth in notebook 19,
+# and a tenth of it.  The shorter range samples the profile where it is steepest, so the
+# two are not a rescaling of each other.
+LR_RANGES = [(1.0, r'$1/m = R_\odot$', RED),
+             (0.1, r'$1/m = R_\odot/10$', BLUE)]
+V_LR = {}
+G2 = {}
+for frac, _, _ in LR_RANGES:
+    V_LR[frac] = long_range_potential(x_solar, ne_tab, 1.0/(frac*R_SUN))
+    # g'^2 fixed so the new potential is a tenth of V_CC at the center in each case,
+    # which is what makes the two curves comparable.
+    G2[frac] = 0.1*VCC0/V_LR[frac][0]
+    print('L_e - L_mu, 1/m = %.1f R_sun: V_new/V_CC = %.3f at the center, %.4f at 0.5 R_sun'
+          % (frac, G2[frac]*V_LR[frac][0]/VCC0,
+             G2[frac]*np.interp(0.5*R_SUN, x_solar, V_LR[frac])
+             / float(PER_NE*ne_sun(0.5*R_SUN))))
+
+
+def H_lr(E, frac=None):
+    """Standard three-flavor solar Hamiltonian, with a long-range term or without."""
+    def f(l):
+        v = float(PER_NE*ne_sun(l))
+        h = HV3/E + v*P3
+        if frac is not None:
+            h = h + float(G2[frac]*np.interp(l, x_solar, V_LR[frac]))*LR_CHARGE
+        return h
+    return f
+
+
+E_LR = np.logspace(np.log10(0.1), np.log10(20.0), 70)*gd.UNIT_MEV
+t0 = time.perf_counter()
+avg = lambda H: avgprob.averaged_probabilities_adiabatic(H, 0.0, R_SUN)[0][0, 0]
+P_std = np.array([avg(H_lr(e)) for e in E_LR])
+P_lr = {frac: np.array([avg(H_lr(e, frac)) for e in E_LR]) for frac, _, _ in LR_RANGES}
+print('  %d energies, %d Hamiltonians, in %.1f s'
+      % (len(E_LR), 1 + len(LR_RANGES), time.perf_counter() - t0))
+print('  P_ee standard %.3f-%.3f' % (P_std.min(), P_std.max()))
+for frac, lab, _ in LR_RANGES:
+    print('    1/m = %.1f R_sun: %.3f-%.3f, largest shift %.3f'
+          % (frac, P_lr[frac].min(), P_lr[frac].max(),
+             np.max(np.abs(P_lr[frac] - P_std))))
+
+fig, axes = plt.subplots(2, 1, figsize=(COL, 3.9), sharex=True,
+                         gridspec_kw=dict(height_ratios=[2.0, 1.0], hspace=0.08))
+a = axes[0]
+a.semilogx(E_LR/gd.UNIT_MEV, P_std, color=INK, lw=1.3, ls='--', label=r'Standard $3\nu$')
+for frac, lab, col in LR_RANGES:
+    a.semilogx(E_LR/gd.UNIT_MEV, P_lr[frac], color=col, lw=1.3,
+               label=r'$+\;L_e - L_\mu$,  ' + lab)
+logx(a); snug(a, E_LR/gd.UNIT_MEV); xticks_at(a, (0.1, 0.3, 1, 3, 10, 20))
+a.set_ylabel(r'Average probability, $\langle P_{\nu_e \to \nu_e}\rangle$', fontsize=8.0)
+a.tick_params(labelbottom=False); minor_y(a, 5)
+a.legend(loc='lower left', handlelength=1.6)
+corner(a, r'Sun, BS2005-AGS,OP', loc='upper right', fontsize=8.0)
+
+b = axes[1]
+for frac, _, col in LR_RANGES:
+    b.semilogx(E_LR/gd.UNIT_MEV, P_lr[frac] - P_std, color=col, lw=1.1)
+b.axhline(0.0, color=INK, lw=0.6, ls=':')
+logx(b); snug(b, E_LR/gd.UNIT_MEV); xticks_at(b, (0.1, 0.3, 1, 3, 10, 20))
+b.set_xlabel(r'Neutrino energy, $E$ [MeV]')
+b.set_ylabel(r'$\Delta \langle P \rangle$', fontsize=8.0)
+minor_y(b, 5)
+fig.subplots_adjust(left=0.20)
+save(fig, 'solar_long_range.pdf')'''),
     md(r'''## Figure 6 --- a supernova shock
 
 Rows 1 and 2 share the full-ray axis; row 3 is a window at the front and gets its own.
@@ -14123,6 +14616,8 @@ def shock_breakpoints(width_frac):
 
 WIDTHS = (1.0e-6, 1.0e-3)
 OSC4 = dict(OSC); OSC4.update(STERILE4); OSC4.update(d14=0.0, d24=0.0)
+OSC5_SHOCK = dict(OSC); OSC5_SHOCK.update(STERILE5)
+OSC5_SHOCK.update(d14=0.0, d24=0.0, d15=0.0, d25=0.0, d35=0.0)
 OSC2 = dict(sth=OSC['s12'], Dm2=OSC['D21'])
 HALF_KM = 75.0
 WIN = (R_FORWARD_KM - HALF_KM, R_FORWARD_KM + HALF_KM)
@@ -14142,6 +14637,8 @@ SCEN = [
         4, ne, ENERGY, Ls, OSC4, t_breakpoints=bp, **COMMON)),
     (r'$3\nu$ + NSI', PURPLE, lambda ne, bp, Ls: oscprob.osc_prob_matter_nsi(
         3, ne, ENERGY, Ls, OSC, EPS, t_breakpoints=bp, **COMMON)),
+    (r'$3+2$', GREEN, lambda ne, bp, Ls: oscprob.osc_prob_matter_std_potential(
+        5, ne, ENERGY, Ls, OSC5_SHOCK, t_breakpoints=bp, **COMMON)),
 ]
 
 # Which engine answers?  Worth reporting, because the paper describes an adiabatic
@@ -14158,8 +14655,8 @@ print('engine answering this figure: %r (declined: %s)'
 # Rows 1 and 2 share the full-ray axis and sit tight against each other; row 3 is a
 # different axis entirely (a window at the front), so it gets its own block and its
 # own gap.  A single hspace cannot do both.
-fig = plt.figure(figsize=(WIDE*0.90, 5.2))
-outer = fig.add_gridspec(2, 1, height_ratios=[2.25, 1.15], hspace=0.20)
+fig = plt.figure(figsize=(WIDE, 6.3))
+outer = fig.add_gridspec(2, 1, height_ratios=[2.25, 1.15], hspace=0.30)
 gs_top = outer[0].subgridspec(2, 2, height_ratios=[1.05, 1.15], hspace=0.08,
                               wspace=0.06)
 gs_bot = outer[1].subgridspec(1, 2, wspace=0.06)
@@ -14193,7 +14690,7 @@ for col, width in enumerate(WIDTHS):
     # view shows a vertical line and no shaded band at all.
     half_in = max(1.5*w_km, 0.05)
     r_in = np.linspace(R_FORWARD_KM - half_in, R_FORWARD_KM + half_in, 600)
-    ins = top.inset_axes([0.60, 0.08, 0.37, 0.46])
+    ins = top.inset_axes([0.60, 0.50, 0.37, 0.46])
     # Scaled to 1e-5 MeV^3 so the axis needs no offset text, which collided with the
     # inset's own title at this size.
     ins.plot(r_in - R_FORWARD_KM,
@@ -14206,7 +14703,7 @@ for col, width in enumerate(WIDTHS):
     ins.tick_params(labelsize=8.0, pad=0.8, length=1.6)
     for side in ins.spines.values():
         side.set_linewidth(0.6)
-    ins.text(0.5, 1.03, r'$\pm %g$ km, $n_e$ in $10^{24}$ cm$^{-3}$' % half_in,
+    ins.text(0.5, 1.03, r'$n_e$ in $10^{24}$ cm$^{-3}$',
              transform=ins.transAxes, ha='center', va='bottom', fontsize=8.0,
              color=INK)
     # A box on the parent marking where the inset was taken from, with corner
@@ -14215,8 +14712,9 @@ for col, width in enumerate(WIDTHS):
     rect, lines = top.indicate_inset(
         ((R_FORWARD_KM - half_in)/1.0e3, lo, 2.0*half_in/1.0e3, hi - lo),
         inset_ax=ins, edgecolor='0.45', linewidth=0.5, alpha=1.0)
+    # The marking box stays; its corner connectors do not, since they cross the data.
     for ln in lines:
-        ln.set(linewidth=0.4, color='0.6')
+        ln.set(visible=False)
 
     for label, color, call in SCEN:
         t0 = time.perf_counter()
@@ -14283,6 +14781,20 @@ for ax, case in zip(axes, BENCH['cases']):
         else:
             ax.loglog(t, e, '-o', color=RED, ms=4.0, mfc='none', mew=0.9, lw=1.0,
                       zorder=4, label='NuOscProbExact')
+    if case is BENCH['cases'][0]:
+        # The dial each code is turned by, written beside its markers.  The name appears
+        # once per curve, on the topmost point; the rest carry the value alone.
+        for series in case['series']:
+            pts = series['points']
+            dial = next((k for k in ('rtol', 'n_slabs', 'tolerance', 'num_prec')
+                         if k in pts[0]), None)
+            col = INK if series['name'] == 'Magnus' else RED
+            top = max(range(len(pts)), key=lambda k: pts[k]['max_abs_error'])
+            for k, pt in enumerate(pts):
+                txt = ('%s = %s' % (dial, pt['label'])) if k == top and dial else pt['label']
+                ax.annotate(txt, xy=(pt['us_per_probability'], pt['max_abs_error']),
+                            xytext=(3.5, 3.5), textcoords='offset points',
+                            fontsize=5.6, color=col, zorder=6)
     logx(ax); logy(ax)
     corner(ax, FLAVOR_LABEL[case['flavours']], loc='upper right', fontsize=8.5)
     if case['flavours'] == 5:
@@ -14293,15 +14805,19 @@ for ax, case in zip(axes, BENCH['cases']):
 # range is what makes the flavor counts comparable at a glance.
 ALL_T = [p['us_per_probability'] for c in BENCH['cases'] for s_ in c['series']
          for p in s_['points']]
+ALL_E = [p['max_abs_error'] for c in BENCH['cases'] for s_ in c['series']
+         for p in s_['points']]
 for ax in axes:
     ax.set_xlim(min(ALL_T), max(ALL_T))
-# The legend goes in the last panel: it is the only one with empty upper-left corner,
-# and in the first it sits under the closed-form curve.
-axes[-1].legend(loc='upper left', handlelength=1.4)
+    # A shared vertical range too: a reach that differs by flavor count is the point,
+    # and per-panel autoscaling hides it.
+    ax.set_ylim(min(ALL_E)/2.5, max(ALL_E)*2.5)
+axes[0].legend(loc='lower left', handlelength=1.4)
 axes[-1].set_xlabel(r'Time per probability [$\mu$s]')
 fig.tight_layout(pad=0.3, h_pad=0.4)
 # One y-label for the four panels, centred on the block rather than on any one of them.
-fig.supylabel(r'Maximum probability deviation, max $|\Delta P|$', fontsize=8, x=0.005)
+fig.supylabel(r'Maximum probability deviation, max $|\Delta P|$',
+              fontsize=plt.rcParams['axes.labelsize'], x=0.005)
 save(fig, 'smooth_reach.pdf')
 for case in BENCH['cases']:
     for s in case['series']:
@@ -14328,6 +14844,20 @@ for ax, case in zip(axes, SHOCK['cases']):
         else:
             ax.loglog(t, e, '-o', color=RED, ms=4.0, mfc='none', mew=0.9, lw=1.0,
                       zorder=4, label='NuOscProbExact')
+    if case is SHOCK['cases'][0]:
+        # Same convention as Fig. 7: the dial's value beside every marker, its name
+        # written once per curve on the topmost point.
+        for series in case['series']:
+            pts = series['points']
+            dial = next((k for k in ('rtol', 'n_slabs', 'tolerance', 'num_prec')
+                         if k in pts[0]), None)
+            col = INK if series['name'] == 'Magnus' else RED
+            top = max(range(len(pts)), key=lambda k: pts[k]['max_abs_error'])
+            for k, pt in enumerate(pts):
+                txt = ('%s = %s' % (dial, pt['label'])) if k == top and dial else pt['label']
+                ax.annotate(txt, xy=(pt['us_per_probability'], pt['max_abs_error']),
+                            xytext=(3.5, 3.5), textcoords='offset points',
+                            fontsize=5.6, color=col, zorder=6)
     ax.axhline(case['reference_unitarity'], color='0.5', ls=':', lw=0.8)
     logx(ax); logy(ax)
     corner(ax, 'SN: front width %s km'
@@ -14392,6 +14922,51 @@ STYLE = {'NuOscProbExact': ('-o', RED, 3.6),
          'Prob3++': ('-P', '#986a44', 3.6)}
 DIALS = ('n_slabs_per_segment', 'rtol', 'tolerance', 'num_prec', 'n_shells_per_layer')
 
+def prem_magnus_curve():
+    """The \\magnus\\ curve of this plane: one timed batch per tolerance, at both flavor counts.
+
+    The five external curves are frozen in the repository, and this one is measured here.
+    Measuring it on every rebuild would put minutes of stopwatch into continuous
+    integration for numbers that cannot have moved unless the configuration did, so it is
+    stored the same way the references are.
+    """
+    out = {}
+    for key in ('three_flavor', 'sterile_3plus1'):
+        blk = PREM[key]
+        E_ext = np.asarray(blk['energy_gev'])*gd.UNIT_GEV
+        P_ref = np.asarray(blk['reference'])
+        floor = float(blk['reference_vs_ode_max_abs'])
+        mg_t, mg_e = [], []
+        for rtol in RTOLS:
+            if key == 'three_flavor':
+                call = (lambda r=rtol, E=E_ext: np.asarray(quiet(
+                    oscprob.osc_prob_3nu_earth, E, costhz=CZ, L=L_EXT, **OSC_EXT,
+                    nu_i=gd.NUMU, nu_f=gd.NUMU, rtol=r, atol=r*1.0e-2,
+                    electron_fraction=YE_EXT)))
+            else:
+                call = (lambda r=rtol, E=E_ext: np.asarray(quiet(
+                    oscprob.osc_prob_4nu_earth, E, costhz=CZ, L=L_EXT, **OSC_EXT,
+                    d14=0.0, d24=0.0, nu_i=gd.NUMU, nu_f=gd.NUMU, rtol=r, atol=r*1.0e-2,
+                    **STER_EXT, electron_fraction=YE_EXT)))
+            P = call()
+            mg_t.append(timed_batch(call, len(E_ext)))
+            mg_e.append(max(float(np.max(np.abs(P - P_ref))), floor))
+        out[key] = dict(t=mg_t, e=mg_e)
+    return out
+
+
+PREM_MAGNUS = cached(
+    'prem_timings',
+    (repr(RTOLS), float(CZ), float(L_EXT), float(YE_EXT), repr(sorted(OSC_EXT.items())),
+     repr(sorted(STER_EXT.items())),
+     np.asarray(PREM['three_flavor']['energy_gev']),
+     np.asarray(PREM['sterile_3plus1']['energy_gev'])),
+    prem_magnus_curve,
+    what='Figure 9: the Magnus curve of the six-code Earth plane, timed per tolerance.')
+for _k in ('three_flavor', 'sterile_3plus1'):
+    for _r, _t, _e in zip(RTOLS, PREM_MAGNUS[_k]['t'], PREM_MAGNUS[_k]['e']):
+        print('  %-14s rtol %.0e -> %9.1f us/prob, err %.2e' % (_k, _r, _t, _e))
+
 fig, axes = plt.subplots(1, 2, figsize=(WIDE, 3.1))
 for ax, (key, label) in zip(axes, (('three_flavor', r'$3\nu$'),
                                    ('sterile_3plus1', r'$3+1$'))):
@@ -14413,23 +14988,7 @@ for ax, (key, label) in zip(axes, (('three_flavor', r'$3\nu$'),
         allt += t
         ax.loglog(t, [max(p['max_abs_error'], floor) for p in pts], marker, **kw)
 
-    mg_t, mg_e = [], []
-    for rtol in RTOLS:
-        if key == 'three_flavor':
-            call = (lambda r=rtol: np.asarray(quiet(
-                oscprob.osc_prob_3nu_earth, E_ext, costhz=CZ, L=L_EXT, **OSC_EXT,
-                nu_i=gd.NUMU, nu_f=gd.NUMU, rtol=r, atol=r*1.0e-2,
-                electron_fraction=YE_EXT)))
-        else:
-            call = (lambda r=rtol: np.asarray(quiet(
-                oscprob.osc_prob_4nu_earth, E_ext, costhz=CZ, L=L_EXT, **OSC_EXT,
-                d14=0.0, d24=0.0, nu_i=gd.NUMU, nu_f=gd.NUMU, rtol=r, atol=r*1.0e-2,
-                **STER_EXT, electron_fraction=YE_EXT)))
-        P = call()
-        mg_t.append(timed_batch(call, len(E_ext)))
-        mg_e.append(max(float(np.max(np.abs(P - P_ref))), floor))
-        print('  %-14s rtol %.0e -> %9.1f us/prob, err %.2e' % (key, rtol, mg_t[-1],
-                                                                mg_e[-1]))
+    mg_t, mg_e = PREM_MAGNUS[key]['t'], PREM_MAGNUS[key]['e']
     allt += mg_t
     ax.loglog(mg_t, mg_e, '-*', ms=11, color=INK, lw=1.3, zorder=6,
               label=r'Mag$\nu$s  (rtol)')
@@ -14681,7 +15240,13 @@ def build(execute=True, only=None):
         started = time.perf_counter()
         try:
             NotebookClient(
-                nb, timeout=3600, kernel_name='python3',
+                # Six hours, not one.  A cold paper cache re-derives fifty-digit
+                # references and re-runs the whole timing sweep in a single cell, which
+                # is well over an hour on its own -- and the old one-hour limit killed
+                # that cell *after* it had written its results, so the work was done and
+                # thrown away.  Every warm rebuild is seconds, so this ceiling only ever
+                # applies to the rare re-measurement it exists to protect.
+                nb, timeout=21600, kernel_name='python3',
                 resources={'metadata': {'path': str(path.parent)}}).execute()
             nbf.write(nb, path)
             print('  executed %-44s %6.1f s'

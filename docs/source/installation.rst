@@ -268,7 +268,7 @@ File Tree
    │   ├── make_nufit_chi2.py          # Extracts notebook 26's NuFIT chi^2 profiles
    │   ├── make_shock_reference.py     # Freezes notebook 14's solve_ivp oracle
    │   ├── matplotlibrc                # Shared plot styling for the notebooks
-   │   ├── mpmath_phase_reference.json  # Notebook 28 figure 2: the mpmath reference products every panel is measured against, and the order curves drawn from them
+   │   ├── paper_figure_cache.json     # Every paper-figure input that depends on the configuration and not on the run: reference probabilities, order curves, and timings
    │   ├── nufit_chi2.json             # Those profiles, v2.0-v6.1 (NuFIT collaboration)
    │   └── shock_reference.json        # That oracle, as exact hex floats
    ├── pyproject.toml                  # Build system, dependencies, and the `magnus` console-script entry point
