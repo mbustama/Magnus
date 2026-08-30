@@ -288,7 +288,6 @@ __author__ = 'Mauricio Bustamante'
 
 
 import numpy as np
-import os
 import sys
 import warnings
 import weakref
@@ -945,118 +944,6 @@ def _tile_for_working_set(n_energies, n_inner, cell_entries, live_arrays=1,
     return energy_chunk, inner_block
 
 
-def _cgroup_headroom_bytes():
-    """Headroom left by a cgroup memory limit, or None if there is no limit to find.
-
-    **This is the figure that matters wherever the library actually runs at scale.**
-    ``/proc/meminfo`` is not namespaced: inside a container or a batch-scheduler cgroup
-    it reports the *host's* memory, so a guard built on it alone sees far more headroom
-    than the process can use.  Measured inside a 3 GiB scope on an 8 GiB machine, the
-    host figure read 8.27 GiB and a 2.2 GiB allocation was waved through and then killed
-    by the cgroup -- which is the exact outcome :func:`_check_output_fits` exists to
-    prevent.  Docker, Kubernetes, SLURM and HPC schedulers all impose limits this way.
-
-    Both cgroup versions are read, and in both the effective limit is the **minimum over
-    the whole ancestor chain**: a limit may be set on any ancestor rather than on the
-    leaf, and the tightest one binds.  Headroom is ``limit - current`` rather than the
-    limit itself, because the process is already using some of it.
-
-    Returns None when unlimited, unreadable, or absent, so that a caller can fall back to
-    the host figure.  A guard that cannot measure must not block.
-
-    .. versionadded:: 1.0.0
-    """
-    # cgroup v2: one unified hierarchy on the "0::" line of /proc/self/cgroup.
-    # cgroup v1: a "N:memory:/path" line, mounted under /sys/fs/cgroup/memory.
-    v2_path, v1_path = None, None
-    try:
-        with open('/proc/self/cgroup') as f:
-            for line in f:
-                parts = line.strip().split(':', 2)
-                if len(parts) != 3:
-                    continue
-                if parts[0] == '0' and not parts[1]:
-                    v2_path = parts[2]
-                elif 'memory' in parts[1].split(','):
-                    v1_path = parts[2]
-    except OSError:
-        return None
-
-    def read_int(path):
-        """The file's contents as an int; None for absent, unreadable or 'max'."""
-        try:
-            with open(path) as f:
-                text = f.read().strip()
-        except (OSError, ValueError):
-            return None
-        if text == 'max':
-            return None
-        try:
-            value = int(text)
-        except ValueError:
-            return None
-        # cgroup v1 spells "unlimited" as a sentinel near 2**63 rather than as a word.
-        return None if value >= 2**62 else value
-
-    best = None
-    for root, rel, limit_name, usage_name in (
-            ('/sys/fs/cgroup', v2_path, 'memory.max', 'memory.current'),
-            ('/sys/fs/cgroup/memory', v1_path,
-             'memory.limit_in_bytes', 'memory.usage_in_bytes')):
-        if rel is None:
-            continue
-        # Walk from the process's own cgroup up to the mount root; the tightest limit
-        # anywhere on the chain is the one that will kill us.
-        parts = [p for p in rel.split('/') if p]
-        for depth in range(len(parts), -1, -1):
-            base = os.path.join(root, *parts[:depth])
-            limit = read_int(os.path.join(base, limit_name))
-            if limit is None:
-                continue
-            used = read_int(os.path.join(base, usage_name)) or 0
-            headroom = max(limit - used, 0)
-            best = headroom if best is None else min(best, headroom)
-    return best
-
-
-def _available_memory_bytes():
-    """Best-effort free memory for *this* process, or None if it cannot be had cheaply.
-
-    ``MemAvailable`` is preferred over the raw free-page count because it accounts for
-    reclaimable page cache: on a machine with a warm cache the latter understates what a
-    large allocation can actually get, and a guard built on it would refuse work that
-    would have succeeded.
-
-    Whatever the host reports is then **capped by any cgroup limit** applying to this
-    process -- see :func:`_cgroup_headroom_bytes` for why that is not optional.  The
-    minimum of the two is what an allocation can actually claim.
-
-    Returns None rather than guessing on platforms that expose none of these.  A guard
-    that cannot measure must not block.
-
-    .. versionadded:: 1.0.0
-    """
-    host = None
-    try:
-        with open('/proc/meminfo') as f:
-            for line in f:
-                if line.startswith('MemAvailable:'):
-                    host = int(line.split()[1])*1024
-                    break
-    except (OSError, ValueError, IndexError):
-        pass
-    if host is None:
-        try:
-            host = os.sysconf('SC_AVPHYS_PAGES')*os.sysconf('SC_PAGE_SIZE')
-        except (AttributeError, ValueError, OSError):
-            host = None
-
-    cgroup = _cgroup_headroom_bytes()
-    if cgroup is None:
-        return host
-    return cgroup if host is None else min(host, cgroup)
-
-
 def _check_output_fits(n_points, dim, source_func_name):
     """Refuse a scan whose *result* cannot fit in memory, before allocating anything.
 
@@ -1081,7 +968,7 @@ def _check_output_fits(n_points, dim, source_func_name):
     needed = int(n_points)*int(dim)*int(dim)*8          # float64 probability matrices
     if needed < OUTPUT_GUARD_MIN_BYTES:
         return
-    available = _available_memory_bytes()
+    available = magnus._available_memory_bytes()
     if available is None:
         return
     if needed*OUTPUT_GUARD_SAFETY > available:

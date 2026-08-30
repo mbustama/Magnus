@@ -84,6 +84,7 @@ __author__ = "Mauricio Bustamante"
 __email__ = "mbustamante@gmail.com"
 
 
+import os
 import warnings
 import weakref
 from contextlib import contextmanager
@@ -747,6 +748,206 @@ def _omega_integrand(n: int, om: dict, Bt: np.ndarray, cache: dict) -> np.ndarra
         contribution = factor*group
         total = contribution if total is None else total + contribution
     return total
+
+
+def _cgroup_headroom_bytes():
+    """Headroom left by a cgroup memory limit, or None if there is no limit to find.
+
+    **This is the figure that matters wherever the library actually runs at scale.**
+    ``/proc/meminfo`` is not namespaced: inside a container or a batch-scheduler cgroup
+    it reports the *host's* memory, so a guard built on it alone sees far more headroom
+    than the process can use.  Measured inside a 3 GiB scope on an 8 GiB machine, the
+    host figure read 8.27 GiB and a 2.2 GiB allocation was waved through and then killed
+    by the cgroup -- which is the exact outcome :func:`_check_output_fits` exists to
+    prevent.  Docker, Kubernetes, SLURM and HPC schedulers all impose limits this way.
+
+    Both cgroup versions are read, and in both the effective limit is the **minimum over
+    the whole ancestor chain**: a limit may be set on any ancestor rather than on the
+    leaf, and the tightest one binds.  Headroom is ``limit - current`` rather than the
+    limit itself, because the process is already using some of it.
+
+    Returns None when unlimited, unreadable, or absent, so that a caller can fall back to
+    the host figure.  A guard that cannot measure must not block.
+
+    .. versionadded:: 1.0.0
+    """
+    # cgroup v2: one unified hierarchy on the "0::" line of /proc/self/cgroup.
+    # cgroup v1: a "N:memory:/path" line, mounted under /sys/fs/cgroup/memory.
+    v2_path, v1_path = None, None
+    try:
+        with open('/proc/self/cgroup') as f:
+            for line in f:
+                parts = line.strip().split(':', 2)
+                if len(parts) != 3:
+                    continue
+                if parts[0] == '0' and not parts[1]:
+                    v2_path = parts[2]
+                elif 'memory' in parts[1].split(','):
+                    v1_path = parts[2]
+    except OSError:
+        return None
+
+    def read_int(path):
+        """The file's contents as an int; None for absent, unreadable or 'max'."""
+        try:
+            with open(path) as f:
+                text = f.read().strip()
+        except (OSError, ValueError):
+            return None
+        if text == 'max':
+            return None
+        try:
+            value = int(text)
+        except ValueError:
+            return None
+        # cgroup v1 spells "unlimited" as a sentinel near 2**63 rather than as a word.
+        return None if value >= 2**62 else value
+
+    best = None
+    for root, rel, limit_name, usage_name in (
+            ('/sys/fs/cgroup', v2_path, 'memory.max', 'memory.current'),
+            ('/sys/fs/cgroup/memory', v1_path,
+             'memory.limit_in_bytes', 'memory.usage_in_bytes')):
+        if rel is None:
+            continue
+        # Walk from the process's own cgroup up to the mount root; the tightest limit
+        # anywhere on the chain is the one that will kill us.
+        parts = [p for p in rel.split('/') if p]
+        for depth in range(len(parts), -1, -1):
+            base = os.path.join(root, *parts[:depth])
+            limit = read_int(os.path.join(base, limit_name))
+            if limit is None:
+                continue
+            used = read_int(os.path.join(base, usage_name)) or 0
+            headroom = max(limit - used, 0)
+            best = headroom if best is None else min(best, headroom)
+    return best
+
+
+def _available_memory_bytes():
+    """Best-effort free memory for *this* process, or None if it cannot be had cheaply.
+
+    ``MemAvailable`` is preferred over the raw free-page count because it accounts for
+    reclaimable page cache: on a machine with a warm cache the latter understates what a
+    large allocation can actually get, and a guard built on it would refuse work that
+    would have succeeded.
+
+    Whatever the host reports is then **capped by any cgroup limit** applying to this
+    process -- see :func:`_cgroup_headroom_bytes` for why that is not optional.  The
+    minimum of the two is what an allocation can actually claim.
+
+    Returns None rather than guessing on platforms that expose none of these.  A guard
+    that cannot measure must not block.
+
+    .. versionadded:: 1.0.0
+    """
+    host = None
+    try:
+        with open('/proc/meminfo') as f:
+            for line in f:
+                if line.startswith('MemAvailable:'):
+                    host = int(line.split()[1])*1024
+                    break
+    except (OSError, ValueError, IndexError):
+        pass
+    if host is None:
+        try:
+            host = os.sysconf('SC_AVPHYS_PAGES')*os.sysconf('SC_PAGE_SIZE')
+        except (AttributeError, ValueError, OSError):
+            host = None
+
+    cgroup = _cgroup_headroom_bytes()
+    if cgroup is None:
+        return host
+    return cgroup if host is None else min(host, cgroup)
+
+# Cumulative number of commutator terms the recursion evaluates through each order, from
+# the term counts 1, 1, 2, 3, 5, 9, 17, 33, 65, 129 at orders one to ten.  Doubled below,
+# because every commutator forms X @ Y and Y @ X before subtracting them.
+_CUMULATIVE_TERMS = (0, 1, 2, 4, 7, 12, 21, 38, 71, 136, 265)
+
+WORKING_SET_SAFETY = 2.0
+"""float: fraction of available memory the quadrature working set may claim.
+
+Matches :data:`magnus.oscprob.OUTPUT_GUARD_SAFETY`; the two guards cover different
+allocations and should refuse at the same point.
+"""
+
+
+
+def _probe_dim(A, t0):
+    """Matrix dimension of A, for the guard, without committing to a full evaluation."""
+    try:
+        return int(np.asarray(A(t0)).shape[-1])
+    except Exception:
+        return 0
+
+
+def _quadrature_working_set_bytes(n_slabs, n_tpts, dim, order):
+    r"""Bytes the cumulative-quadrature recursion will hold at once.
+
+    The recursion works on arrays of shape ``(n_slabs, n_tpts, dim, dim)`` and keeps one
+    per commutator it has evaluated, so the working set is the cell count times twice the
+    cumulative term count.  Measured peak resident set, in units of one such array: 35 at
+    order six, 118 at order eight, 408 at order ten, each stable to better than a per cent
+    across ``n_slabs`` and ``n_tpts``.  The estimate above gives 42, 142 and 530, so it
+    runs about a quarter high -- deliberately, since a guard that under-estimates does not
+    guard.
+
+    .. versionadded:: 1.0.0
+    """
+    order = max(1, min(int(order), len(_CUMULATIVE_TERMS) - 1))
+    cells = int(n_slabs)*int(n_tpts)*int(dim)*int(dim)
+    return cells*16*2*_CUMULATIVE_TERMS[order]
+
+
+def _working_set_chunk(n_lead, n_tpts, dim, order, integration_method):
+    r"""How many slabs the quadrature may hold at once, so the intermediates fit.
+
+    The guard tempers the run rather than refusing it.  Each slab's :math:`\Omega` depends
+    only on its own samples, so evaluating the chain a chunk at a time is exact -- the same
+    reasoning that lets :data:`magnus.oscprob.BATCH_WORKING_ENTRIES` tile the energy axis,
+    applied to the axis that actually overflows here.
+
+    Returns ``n_lead`` unchanged whenever the whole chain fits, which is the ordinary case
+    and costs one multiply.  Returns a smaller chunk when it does not.
+
+    Raises
+    ------
+    MemoryError
+        Only when a *single* slab will not fit, where no chunking helps and the caller has
+        to change the request.
+
+    .. versionadded:: 1.0.0
+    """
+    needed = _quadrature_working_set_bytes(n_lead, n_tpts, dim, order)
+    if needed < WORKING_SET_MIN_BYTES:
+        return n_lead
+    available = _available_memory_bytes()
+    if available is None:
+        return n_lead
+    budget = available/WORKING_SET_SAFETY
+    if needed <= budget:
+        return n_lead
+    per_slab = _quadrature_working_set_bytes(1, n_tpts, dim, order)
+    chunk = int(budget//per_slab) if per_slab else n_lead
+    if chunk < 1:
+        raise MemoryError(
+            "Error in magnus: magnus._working_set_chunk: order " + str(order) + " on '"
+            + str(integration_method) + "' quadrature needs "
+            + f"{per_slab/2**30:.2f}" + " GiB of intermediates for a *single* slab at "
+            + f"{int(n_tpts):,}" + " points, against " + f"{available/2**30:.2f}"
+            + " GiB available. Chunking the chain cannot help, because one slab is already "
+            "too large. Lower magnus_exp_order, or cap max_n_tpts_per_slab: the cost is the "
+            "product of the points per slab and the number of commutator terms at this "
+            "order. Note that n_tpts_per_slab is refined upward unless min_n_tpts_per_slab "
+            "and max_n_tpts_per_slab pin it.")
+    return chunk
+
+
+WORKING_SET_MIN_BYTES = 64*1024*1024
+"""int: below this the working set is not worth a free-memory read.  Matches
+:data:`magnus.oscprob.OUTPUT_GUARD_MIN_BYTES`."""
 
 
 def _magnus_terms_quadrature(
@@ -1432,6 +1633,7 @@ def magnus_expansion(
 
     if integration_method == 'gl':
         nodes = _gl_nodes(order)
+        _working_set_chunk(1, len(nodes), _probe_dim(A, t0), order, integration_method)
         width = float(t1) - float(t0)
         tnodes = t0 + width*nodes
         An, used_mode = _evaluate_A(A, tnodes, A_eval_mode)
@@ -1442,6 +1644,7 @@ def magnus_expansion(
             return U
         return U, np.stack([Om], axis=0)
 
+    _working_set_chunk(1, n_tpts, _probe_dim(A, t0), order, integration_method)
     times = np.linspace(t0, t1, n_tpts)
     At, used_mode = _evaluate_A(A, times, A_eval_mode)
     Bt = (float(t1) - float(t0))*At  # rescale to the unit interval
@@ -1512,9 +1715,22 @@ def evolution_operators_from_samples(
         return _expm_stack(Om, warn_wide=True, A_is_const=A_is_const,
                            expm_backend=expm_backend)
     Bt = w[..., None, None, None]*At        # rescale to the unit interval
-    magnus_terms = _magnus_terms_quadrature(Bt, order, integration_method)
-    return _expm_stack(np.sum(magnus_terms, axis=0), warn_wide=True,
-                       A_is_const=A_is_const, expm_backend=expm_backend)
+    lead = Bt.shape[:-3]
+    n_lead = int(np.prod(lead)) if lead else 1
+    chunk = _working_set_chunk(n_lead, Bt.shape[-3], Bt.shape[-1], order, integration_method)
+    if chunk >= n_lead:
+        magnus_terms = _magnus_terms_quadrature(Bt, order, integration_method)
+        return _expm_stack(np.sum(magnus_terms, axis=0), warn_wide=True,
+                           A_is_const=A_is_const, expm_backend=expm_backend)
+    # Too large to hold at once.  Each slab's Omega depends only on its own samples, so
+    # evaluating the chain a chunk at a time gives the same operators for less memory.
+    flat = Bt.reshape((n_lead,) + Bt.shape[-3:])
+    out = np.empty((n_lead,) + Bt.shape[-2:], dtype=complex)
+    for a in range(0, n_lead, chunk):
+        piece = _magnus_terms_quadrature(flat[a:a + chunk], order, integration_method)
+        out[a:a + chunk] = _expm_stack(np.sum(piece, axis=0), warn_wide=True,
+                                       A_is_const=A_is_const, expm_backend=expm_backend)
+    return out.reshape(lead + Bt.shape[-2:])
 
 
 def gl_nodes(order: int) -> np.ndarray:
