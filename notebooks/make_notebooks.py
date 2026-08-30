@@ -12939,8 +12939,12 @@ PURPLE, INK, GRID = '#813d9c', '#333333', '#cccccc'
 ORDER_COLOR = {2: GREEN, 4: BLUE, 6: PURPLE, 8: ORANGE, 10: RED}
 
 plt.rcParams.update({
-    'font.size': 8, 'axes.labelsize': 8, 'axes.titlesize': 8.5,
-    'xtick.labelsize': 7, 'ytick.labelsize': 7, 'legend.fontsize': 6.6,
+    # These override notebooks/matplotlibrc, whose sizes are set for a 5-inch standalone
+    # figure.  Every figure here is drawn at the width it is included at, so a size set
+    # here is the size it renders at on the page: the paper's body is 10 pt and its
+    # captions are 8 pt, and nothing in a figure should be smaller than its own caption.
+    'font.size': 9, 'axes.labelsize': 9.5, 'axes.titlesize': 9.5,
+    'xtick.labelsize': 8.5, 'ytick.labelsize': 8.5, 'legend.fontsize': 8,
     'axes.linewidth': 0.7, 'lines.linewidth': 1.2,
     'xtick.direction': 'in', 'ytick.direction': 'in',
     'xtick.top': True, 'ytick.right': True,
@@ -12953,7 +12957,10 @@ plt.rcParams.update({
     'figure.dpi': 130, 'savefig.bbox': 'tight', 'savefig.pad_inches': 0.02,
 })
 
-COL, WIDE = 3.45, 7.05
+# The real \columnwidth and \textwidth of the paper, so that a size set here is the
+# size that reaches the page: drawing narrower and letting \includegraphics stretch
+# the result was scaling text by 1.01 to 1.34, differently in every figure.
+COL, WIDE = 3.487, 7.224
 trapz = getattr(np, 'trapezoid', None) or np.trapz
 
 OSC = gd.load_nufit_params('NuFIT 6.1')
@@ -13021,7 +13028,7 @@ def minor_y(ax, n=5):
     ax.yaxis.set_minor_locator(AutoMinorLocator(n))
 
 
-def corner(ax, text, loc='upper right', fontsize=6.6, x=None, y=0.94):
+def corner(ax, text, loc='upper right', fontsize=8.5, x=None, y=0.94):
     r"""A rounded-box label in a corner, in place of a panel title."""
     ha, va = 'right', 'top'
     xx = 0.965 if x is None else x
@@ -13033,7 +13040,7 @@ def corner(ax, text, loc='upper right', fontsize=6.6, x=None, y=0.94):
                       edgecolor=INK, linewidth=0.6))
 
 
-def stamp(ax, text, x=0.035, y=0.06, fontsize=6.2, ha='left', va='bottom'):
+def stamp(ax, text, x=0.035, y=0.06, fontsize=8.0, ha='left', va='bottom'):
     r"""Free text over a busy panel: black, outlined in white so it stays legible."""
     ax.text(x, y, text, transform=ax.transAxes, ha=ha, va=va, fontsize=fontsize,
             color='black', zorder=10,
@@ -13188,7 +13195,7 @@ for j, d in enumerate((2, 3, 4, 5)):
     top.plot(r['E_ref']/gd.UNIT_GEV, r['Pr'][:, 0, 0], ls='none', marker='o', ms=2.0,
              mfc='none', mew=0.7, color=INK, zorder=4)
     logx(top); snug(top, x); top.set_ylim(0.0, 1.0); minor_y(top, 5)
-    corner(top, FLAVOR_LABEL[d], fontsize=7.0, x=0.955, y=0.975)
+    corner(top, FLAVOR_LABEL[d], fontsize=8.0, x=0.955, y=0.975)
     bot.semilogy(r['E_ref']/gd.UNIT_GEV, np.maximum(r['resid'], 1.0e-18),
                  color=COLORS[d], lw=1.0)
     bot.semilogy(r['E_ref']/gd.UNIT_GEV, np.maximum(r['floor'], 1.0e-18), color=INK,
@@ -13207,7 +13214,7 @@ axes[0, 0].legend(loc='lower right', handlelength=1.3)
 axes[1, 0].plot([], [], color=INK, lw=1.0, label=r'Max $|\Delta P|$')
 axes[1, 0].plot([], [], color=INK, lw=0.7, ls='--', label='Oracle floor')
 axes[1, 0].plot([], [], color='0.55', lw=0.5, label=r'$|\sum_\beta P - 1|$')
-axes[1, 0].legend(loc='upper left', handlelength=1.4, labelspacing=0.18, fontsize=5.4)
+axes[1, 0].legend(loc='upper left', handlelength=1.4, labelspacing=0.18, fontsize=8.0)
 # Centred on the four columns rather than on the figure, which the y-axis label
 # would otherwise pull left, and close to the axis it belongs to.
 fig.align_labels()
@@ -13662,7 +13669,7 @@ for k in SERIES:
     print('    order %2d on %-8s  minimum %.1e at N = %5d, %.1e at N = %d'
           % (k[1], k[0], c[i], NS[i], c[-1], NS[-1]))'''),
     md(r'''### Drawing it'''),
-    code(r'''def label_along(ax, xs, ys, i, text, color, fontsize=5.8, offset=(4, 4)):
+    code(r'''def label_along(ax, xs, ys, i, text, color, fontsize=8.0, offset=(4, 4)):
     """Label a curve in place, rotated to the angle its curve makes ON THE PAGE.
 
     A fixed rotation cannot serve six slopes differing by a factor of six: it put the
@@ -13695,8 +13702,8 @@ def phase_axis(axis, energy, phase, ticks):
     tw.set_xticks(np.exp(np.interp(np.log(ticks), np.log(np.asarray(phase)[o]),
                                    np.log(np.asarray(energy)[o]))))
     tw.set_xticklabels([('%g' % t) for t in ticks])
-    tw.set_xlabel(r'Accumulated phase, $\Phi$ [rad]', labelpad=2.0, fontsize=7.2)
-    tw.tick_params(axis='x', direction='in', which='both', top=True, pad=1.8, labelsize=6.4)
+    tw.set_xlabel(r'Accumulated phase, $\Phi$ [rad]', labelpad=2.0, fontsize=9.5)
+    tw.tick_params(axis='x', direction='in', which='both', top=True, pad=1.8, labelsize=8.5)
     tw.minorticks_off()
     return tw
 
@@ -13709,14 +13716,13 @@ ax = [fig.add_subplot(gs[0, 1]), fig.add_subplot(gs[1, 0]), fig.add_subplot(gs[1
 l_km = np.linspace(0.0, 3000.0, 600)
 axd.semilogy(l_km, RHO0_2*np.exp(-l_km/LS_KM_2), '-', color=INK, lw=1.2)
 axd.axhline(RHO_CONST, color=INK, ls='--', lw=1.1)
-axd.set_xlim(0.0, 3000.0)
-axd.set_ylim(3.0e-3, 3.0e2)
+axd.set_xlim(0.0, 3000.0); axd.set_ylim(3.0e-3, 3.0e2)
 axd.set_xlabel(r'Distance along the trajectory, $l$ [km]', labelpad=1.5)
 axd.set_ylabel(r'$\rho$ [g cm$^{-3}$]', labelpad=2.0)
 logy(axd)
 RHO_EXP = RHO0_2*np.exp(-l_km/LS_KM_2)
 
-ax[0].loglog(E_CONST/gd.UNIT_GEV, err_a, '-', color=ORDER_COLOR[4], lw=1.2)
+ax[0].loglog(E_CONST/gd.UNIT_GEV, err_a, '-', color=BLUE, lw=1.2)
 ax[0].axhline(2.2e-16, color=INK, ls=':', lw=0.8)
 ax[0].loglog(E_CONST/gd.UNIT_GEV, np.maximum(phase_a*2.2e-16, 2.2e-16), ls='--',
              color=INK, lw=0.7)
@@ -13736,7 +13742,7 @@ ax[1].set_ylim(0.8, 2.0e3)
 logx(ax[1]); logy(ax[1]); snug(ax[1], E_row)
 corner(ax[1], r'Varying $\mathbb{H}$', x=0.955, y=0.94)
 ax[1].legend(loc='upper right', bbox_to_anchor=(0.985, 0.855), handlelength=1.5,
-             fontsize=6.0, labelspacing=0.22, borderpad=0.3, handletextpad=0.5)
+             fontsize=8.0, labelspacing=0.22, borderpad=0.3, handletextpad=0.5)
 
 STYLE = {k: (ORDER_COLOR[k[1]], '-' if k[0] == 'gl' else '--') for k in SERIES}
 LABELS = {('gl',2):'Order 2, Gauss-Legendre', ('gl',4):'Order 4, Gauss-Legendre',
@@ -13744,23 +13750,35 @@ LABELS = {('gl',2):'Order 2, Gauss-Legendre', ('gl',4):'Order 4, Gauss-Legendre'
           ('simpson',8):'Order 8, Simpson', ('simpson',10):'Order 10, Simpson'}
 # Anchored by slab count, not by height: the four steep curves separate vertically at a
 # fixed N and hardly at all at a fixed height, and these all sit clear of the legend.
-ANCHOR_N = {('gl',2):2048, ('gl',4):512, ('gl',6):91,
-            ('simpson',6):45, ('simpson',8):64, ('simpson',10):23}
-OFFSET = {('gl',2):(5,4), ('gl',4):(5,4), ('gl',6):(6,4),
-          ('simpson',6):(6,4), ('simpson',8):(10,-10), ('simpson',10):(-30,2)}
+# One anchor per curve, spread along the diagonal the four steep curves make, so no two
+# labels land at the same place.
+ANCHOR_N = {('gl',2):2048, ('gl',4):724, ('gl',6):256,
+            ('simpson',6):128, ('simpson',8):64, ('simpson',10):32}
+OFFSET = {('gl',2):(6,4), ('gl',4):(6,4), ('gl',6):(7,3),
+          ('simpson',6):(7,3), ('simpson',8):(7,3), ('simpson',10):(7,3)}
 for k in SERIES:
     col, ls = STYLE[k]
-    ax[2].loglog(NS, curves[k], ls=ls, color=col, lw=1.2, label=LABELS[k])
+    ax[2].loglog(NS, curves[k], ls=ls, color=col, lw=1.2,
+                 label=r'%s, $N^{%d}$' % (LABELS[k], POWERS[k]))
 ax[2].set_xlabel(r'Slabs along the trajectory, $N$')
 ax[2].set_ylabel(r'Max $|\Delta P|$')
 logx(ax[2]); logy(ax[2]); snug(ax[2], NS)
-ax[2].set_ylim(3.0e-16, 3.0)
-corner(ax[2], r'Varying $\mathbb{H}$', x=0.955, y=0.94)
-ax[2].text(0.955, 0.845, r'Fixed $E = %g$ GeV' % (E_FIX/gd.UNIT_GEV),
-           transform=ax[2].transAxes, ha='right', va='top', fontsize=6.4, color=INK,
+ax[2].set_ylim(3.0e-16, 1.0e4)
+corner(ax[2], r'Varying $\mathbb{H}$', loc='upper left', x=0.035, y=0.175)
+ax[2].text(0.035, 0.075, r'Fixed $E = %g$ GeV' % (E_FIX/gd.UNIT_GEV),
+           transform=ax[2].transAxes, ha='left', va='bottom', fontsize=8.5, color=INK,
            zorder=10)
-ax[2].legend(loc='lower left', handlelength=1.5, fontsize=5.4, labelspacing=0.17,
-             borderpad=0.28, handletextpad=0.5)
+# Two columns: six entries stacked at a legible size reach a third of the way up the
+# panel and sit on the curves they describe.
+# Above the curves rather than below them: the floor the curves settle onto is the point
+# of the panel, so nothing may cover it.
+# Above the curves, never below: the floor they settle onto is the point of the panel.
+# Each entry is set in its own curve's colour, so the measured power reads off the legend
+# rather than from six labels competing for the same stretch of plunging curve.
+_leg = ax[2].legend(loc='upper right', handlelength=1.4, fontsize=8.0, labelspacing=0.24,
+                    borderpad=0.32, handletextpad=0.5)
+for _txt, _k in zip(_leg.get_texts(), SERIES):
+    _txt.set_color(STYLE[_k][0])
 
 # Square panels: the box aspect is set on the axes rather than left to the figure shape,
 # so it survives whatever the layout does to the margins.
@@ -13771,19 +13789,16 @@ for _a in [axd] + list(ax):
 # margins here makes the geometry deterministic and lets the twins be added safely.
 # Sized so the cells are square before set_box_aspect has to shrink anything: leftover
 # slack inside a cell is what opens the gaps between panels.
-fig.subplots_adjust(left=0.078, right=0.985, top=0.945, bottom=0.062,
-                    wspace=0.17, hspace=0.24)
+fig.subplots_adjust(left=0.092, right=0.985, top=0.935, bottom=0.072,
+                    wspace=0.20, hspace=0.26)
 # The profile labels ride their own curves, at the angle the curve makes on the page.
-label_along(axd, l_km, RHO_EXP, 150, 'Exponential', INK, fontsize=7.0, offset=(4, 5))
-label_along(axd, l_km, np.full_like(l_km, RHO_CONST), 470, 'Constant', INK, fontsize=7.0,
+label_along(axd, l_km, RHO_EXP, 150, 'Exponential', INK, fontsize=8.0, offset=(4, 5))
+label_along(axd, l_km, np.full_like(l_km, RHO_CONST), 470, 'Constant', INK, fontsize=8.0,
             offset=(0, 4))
 phase_axis(ax[0], E_CONST/gd.UNIT_GEV, phase_a, [10, 1000, 100000])
 phase_axis(ax[1], E_row, ph, [10, 100, 1000])
-for k in SERIES:
-    c = curves[k]
-    i = int(np.argmin(np.abs(NS - ANCHOR_N[k])))
-    label_along(ax[2], NS, c, i, r'$N^{%d}$' % POWERS[k], STYLE[k][0], offset=OFFSET[k])
 save(fig, 'phase_vs_profile.pdf')'''),
+
 
 
 
@@ -13836,9 +13851,9 @@ for k, (ax, (x, base, curve, color, label, xl)) in enumerate(zip(axes.ravel(), P
     logx(ax); snug(ax, x); xticks_at(ax, TICKS[xl])
     ax.set_ylim(*YLIM[k//2]); minor_y(ax, 5)
     ax.set_xlabel(xl, labelpad=1.5)
-    ax.legend(loc='lower left', handlelength=1.3, labelspacing=0.2, fontsize=6.0)
+    ax.legend(loc='lower left', handlelength=1.3, labelspacing=0.2, fontsize=8.0)
 for ax in axes[:, 0]:
-    ax.set_ylabel(r'Survival probability, $P_{\nu_\mu \to \nu_\mu}$', fontsize=7.4)
+    ax.set_ylabel(r'Survival probability, $P_{\nu_\mu \to \nu_\mu}$', fontsize=8.0)
 fig.tight_layout(pad=0.3, w_pad=0.8, h_pad=0.9)
 save(fig, 'bsm.pdf')'''),
     md(r'''## Figure 4 --- three oscillograms
@@ -13893,15 +13908,15 @@ for ax, (label, E_ax, unit, xlabel, ticks, call) in zip(axes, SCEN):
     logx(ax); snug(ax, E_ax/unit); xticks_at(ax, ticks)
     ax.set_ylim(CZ.min(), CZ.max())
     ax.set_yticks(np.arange(-1.0, 0.0, 0.2)); minor_y(ax, 2)
-    ax.set_ylabel(r'Direction, $\cos\theta_z$', fontsize=7.4)
+    ax.set_ylabel(r'Direction, $\cos\theta_z$', fontsize=8.0)
     ax.set_xlabel(xlabel, labelpad=1.5)
     ax.axhline(-0.837, color='w', lw=0.8, ls='--', alpha=0.9)
-    corner(ax, label, fontsize=6.6)
-axes[0].text(2.3, -0.822, 'Core-mantle boundary', color='white', fontsize=6.2,
+    corner(ax, label, fontsize=8.5)
+axes[0].text(2.3, -0.822, 'Core-mantle boundary', color='white', fontsize=8.0,
              va='bottom', path_effects=[pe.withStroke(linewidth=1.6, foreground='0.25')])
 cb = fig.colorbar(im, ax=list(axes), pad=0.07, fraction=0.045, aspect=42)
-cb.set_label(r'Survival probability, $P_{\nu_\mu \to \nu_\mu}$', fontsize=7.5)
-cb.ax.tick_params(labelsize=6.5)
+cb.set_label(r'Survival probability, $P_{\nu_\mu \to \nu_\mu}$', fontsize=8.0)
+cb.ax.tick_params(labelsize=8.0)
 save(fig, 'earth_oscillogram.pdf')'''),
     md(r'''## Figure 5 --- the Sun: model, observable, and residual
 
@@ -14012,12 +14027,12 @@ LAB = {1.0: 'MSW resonance density at 1 MeV', 5.0: '5 MeV', 20.0: '20 MeV'}
 for Emev in (1.0, 5.0, 20.0):
     nr = OSC['D21']*cos2th12/(2.0*Emev*gd.UNIT_MEV)/PER_NE
     ax.axhline(nr/PER_CM3, color=ORANGE, lw=0.7, ls='--')
-    ax.text(0.975, nr/PER_CM3, LAB[Emev], color=ORANGE, fontsize=5.8, ha='right',
+    ax.text(0.975, nr/PER_CM3, LAB[Emev], color=ORANGE, fontsize=8.0, ha='right',
             va='top')
 logy(ax); ax.set_xlim(0.0, 1.0)
 ax.xaxis.set_minor_locator(AutoMinorLocator(5))
 ax.set_xlabel(r'Radius, $r/R_\odot$', labelpad=1.5)
-ax.set_ylabel(r'Electron density, $n_e$ [cm$^{-3}$]', fontsize=7.2)
+ax.set_ylabel(r'Electron density, $n_e$ [cm$^{-3}$]', fontsize=8.0)
 ax.legend(loc='lower left', handlelength=1.4)
 
 # --- the averaged observable, and the residual under it
@@ -14036,7 +14051,7 @@ a = axes[1]
 logx(a); snug(a, E_AVG/gd.UNIT_MEV); xticks_at(a, (0.1, 0.3, 1, 3, 10, 20))
 a.set_ylim(0.25, 0.60); minor_y(a, 5)
 a.set_ylabel(r'Average probability, $\langle P_{\nu_e \to \nu_e}\rangle$',
-             fontsize=7.2)
+             fontsize=8.0)
 a.tick_params(labelbottom=False)
 a.legend(loc='lower left', handlelength=1.4)
 corner(a, r'Sun', loc='upper left', x=0.035, y=0.965)
@@ -14046,9 +14061,9 @@ for label, (color, dP) in resid.items():
     b.semilogy(E_AVG/gd.UNIT_MEV, np.maximum(dP, 1.0e-17), color=color, lw=1.0)
 logx(b); logy(b); snug(b, E_AVG/gd.UNIT_MEV); xticks_at(b, (0.1, 0.3, 1, 3, 10, 20))
 b.set_xlabel(r'Neutrino energy, $E$ [MeV]')
-b.set_ylabel(r'$|\Delta P|$', fontsize=7.4)
+b.set_ylabel(r'$|\Delta P|$', fontsize=8.0)
 corner(b, r'Vs.\ the adiabatic limit', loc='upper left', x=0.035, y=0.94,
-       fontsize=6.0)
+       fontsize=8.0)
 fig.subplots_adjust(left=0.20)
 save(fig, 'solar_averaged.pdf')'''),
     md(r'''## Figure 6 --- a supernova shock
@@ -14143,7 +14158,7 @@ print('engine answering this figure: %r (declined: %s)'
 # Rows 1 and 2 share the full-ray axis and sit tight against each other; row 3 is a
 # different axis entirely (a window at the front), so it gets its own block and its
 # own gap.  A single hspace cannot do both.
-fig = plt.figure(figsize=(WIDE*0.80, 5.2))
+fig = plt.figure(figsize=(WIDE*0.90, 5.2))
 outer = fig.add_gridspec(2, 1, height_ratios=[2.25, 1.15], hspace=0.20)
 gs_top = outer[0].subgridspec(2, 2, height_ratios=[1.05, 1.15], hspace=0.08,
                               wspace=0.06)
@@ -14169,7 +14184,7 @@ for col, width in enumerate(WIDTHS):
     ne_full = np.asarray(ne(Ls_full))/gd.UNIT_PER_CM3
     top.set_ylim(0.55*ne_full.min(), 2.2*ne_full.max())
     corner(top, r'SN: front width %s km' % wlab, loc='upper left', x=0.035, y=0.93,
-           fontsize=6.2)
+           fontsize=8.0)
 
     # The front is 0.1% of the ray at most, so it cannot show on the axis above.  The
     # inset is the same window the bottom row uses, and is the only place the two
@@ -14188,11 +14203,11 @@ for col, width in enumerate(WIDTHS):
     ins.set_xticks((-half_in, 0.0, half_in))
     ins.set_xticklabels([('%g' % v) for v in (-half_in, 0, half_in)])
     ins.yaxis.set_major_locator(plt.MaxNLocator(2))
-    ins.tick_params(labelsize=4.8, pad=0.8, length=1.6)
+    ins.tick_params(labelsize=8.0, pad=0.8, length=1.6)
     for side in ins.spines.values():
         side.set_linewidth(0.6)
     ins.text(0.5, 1.03, r'$\pm %g$ km, $n_e$ in $10^{24}$ cm$^{-3}$' % half_in,
-             transform=ins.transAxes, ha='center', va='bottom', fontsize=4.6,
+             transform=ins.transAxes, ha='center', va='bottom', fontsize=8.0,
              color=INK)
     # A box on the parent marking where the inset was taken from, with corner
     # connectors.  At 0.07 km the box is a hairline, which is the honest width.
@@ -14232,17 +14247,17 @@ for col, width in enumerate(WIDTHS):
         for ax in (top, mid, bot):
             ax.tick_params(labelleft=False)
 
-axes[0, 0].set_ylabel(r'$n_e$ [cm$^{-3}$]', fontsize=7.0)
-axes[1, 0].set_ylabel(r'$P_{\nu_e \to \nu_e}$, whole ray', fontsize=7.0)
-axes[2, 0].set_ylabel(r'$P_{\nu_e \to \nu_e}$, at the front', fontsize=7.0)
+axes[0, 0].set_ylabel(r'$n_e$ [cm$^{-3}$]', fontsize=8.0)
+axes[1, 0].set_ylabel(r'$P_{\nu_e \to \nu_e}$, whole ray', fontsize=8.0)
+axes[2, 0].set_ylabel(r'$P_{\nu_e \to \nu_e}$, at the front', fontsize=8.0)
 axes[2, 0].legend(loc='lower left', handlelength=1.3, ncol=3, columnspacing=0.7,
-                  labelspacing=0.2, fontsize=5.8)
+                  labelspacing=0.2, fontsize=8.0)
 # Named on both rows that show them: the bottom row speaks of "the forward shock"
 # while the profile above carries two, which is a question a reader should not have
 # to hold open.
 for row in (0, 1):
     for r, name in ((R_CONTACT_KM, 'Contact'), (R_FORWARD_KM, 'Forward shock')):
-        axes[row, 0].text(r/1.0e3, 0.04, ' ' + name, fontsize=5.6, color='0.35',
+        axes[row, 0].text(r/1.0e3, 0.04, ' ' + name, fontsize=8.0, color='0.35',
                           transform=axes[row, 0].get_xaxis_transform(), ha='left',
                           va='bottom')
 save(fig, 'shock_probability.pdf')'''),
@@ -14269,10 +14284,10 @@ for ax, case in zip(axes, BENCH['cases']):
             ax.loglog(t, e, '-o', color=RED, ms=4.0, mfc='none', mew=0.9, lw=1.0,
                       zorder=4, label='NuOscProbExact')
     logx(ax); logy(ax)
-    corner(ax, FLAVOR_LABEL[case['flavours']], loc='upper right', fontsize=6.8)
+    corner(ax, FLAVOR_LABEL[case['flavours']], loc='upper right', fontsize=8.5)
     if case['flavours'] == 5:
         ax.text(0.06, 0.20, 'No route beyond SU(4)', transform=ax.transAxes,
-                ha='left', va='center', fontsize=6.4, color=RED, style='italic')
+                ha='left', va='center', fontsize=8.0, color=RED, style='italic')
 
 # One x-axis for all four: the panels differ by three decades in cost, so a shared
 # range is what makes the flavor counts comparable at a glance.
@@ -14316,8 +14331,8 @@ for ax, case in zip(axes, SHOCK['cases']):
     ax.axhline(case['reference_unitarity'], color='0.5', ls=':', lw=0.8)
     logx(ax); logy(ax)
     corner(ax, 'SN: front width %s km'
-           % ('%.2f' % width_km).rstrip('0').rstrip('.'), fontsize=6.4)
-    ax.set_ylabel(r'Max $|\Delta P|$', fontsize=7.4)
+           % ('%.2f' % width_km).rstrip('0').rstrip('.'), fontsize=8.0)
+    ax.set_ylabel(r'Max $|\Delta P|$', fontsize=8.0)
     print('  width %6.2f km: Magnus %.2e   NuOscProbExact %.2e'
           % (width_km,
              min(p['max_abs_error'] for p in case['series'][0]['points']),
@@ -14327,7 +14342,7 @@ ALL_TS = [p['us_per_probability'] for c in SHOCK['cases'] for s_ in c['series']
 for ax in axes:
     ax.set_xlim(min(ALL_TS), max(ALL_TS))
 axes[0].legend(loc='lower left', handlelength=1.4)
-stamp(axes[1], 'Referee floor', x=0.04, y=0.04, fontsize=5.8)
+stamp(axes[1], 'Referee floor', x=0.04, y=0.04, fontsize=8.0)
 axes[-1].set_xlabel(r'Time per probability [$\mu$s]')
 fig.tight_layout(pad=0.3, h_pad=0.4)
 save(fig, 'shock_speed_accuracy.pdf')'''),
@@ -14420,10 +14435,10 @@ for ax, (key, label) in zip(axes, (('three_flavor', r'$3\nu$'),
               label=r'Mag$\nu$s  (rtol)')
     ax.axhline(floor, color='0.5', ls=':', lw=0.8, zorder=1)
     logx(ax); logy(ax); snug(ax, allt)
-    corner(ax, label, loc='upper right', fontsize=6.8)
-    stamp(ax, 'Referee floor', x=0.035, y=0.035, fontsize=5.8)
+    corner(ax, label, loc='upper right', fontsize=8.5)
+    stamp(ax, 'Referee floor', x=0.035, y=0.035, fontsize=8.0)
     ax.set_xlabel(r'Time per probability [$\mu$s]')
-    ax.legend(loc='lower left', fontsize=5.4, handlelength=1.5, labelspacing=0.24)
+    ax.legend(loc='lower left', fontsize=8.0, handlelength=1.5, labelspacing=0.24)
 axes[0].set_ylabel(r'Error against the converged reference, max $|\Delta P|$')
 fig.tight_layout(pad=0.3, w_pad=1.6)
 save(fig, 'prem_speed_accuracy.pdf')'''),
