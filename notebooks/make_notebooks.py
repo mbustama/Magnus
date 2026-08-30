@@ -14759,6 +14759,104 @@ for row in (0, 1):
                           transform=axes[row, 0].get_xaxis_transform(), ha='left',
                           va='bottom')
 save(fig, 'shock_probability.pdf')'''),
+    md(r'''### Figure 8 --- what an astrophysical flux arrives as
+
+Decohered over the distance, so the observable is the flavor composition. Standard
+oscillations make it independent of energy; the figure asks which new physics does not.'''),
+    code(r'''# ------------------------------------ Figure 8: what an astrophysical flux arrives as
+# A neutrino from a distant source arrives decohered, so what is observable is not a
+# probability curve but the flavor composition.  For standard oscillations that
+# composition does not depend on energy at all; the point of the figure is which new
+# physics makes it depend on energy, and where.
+E_ASTRO = np.logspace(np.log10(1.0e3), np.log10(1.0e7), 60)*gd.UNIT_GEV   # 1 TeV to 10 PeV
+PION_SOURCE = np.array([1.0/3.0, 2.0/3.0, 0.0])       # pion decay, before oscillating
+COSTHZ_ASTRO = -1.0                                   # straight through the core
+L_ASTRO = earth.distance_traveled_inside_earth(COSTHZ_ASTRO)*gd.CONV_KM_TO_INV_EV
+
+# The LIV eigenvalue is fixed by where we want the new term to equal the vacuum one,
+# rather than chosen for its size: at E_STAR the two are the same to within a percent.
+N_LIV, E_STAR = 1, 100.0e3*gd.UNIT_GEV
+B3_ASTRO = float(OSC['D31'])/(2.0*E_STAR**(N_LIV + 1))
+
+HVA3 = np.asarray(vacuum_hamiltonian(3), dtype=complex)
+HVA4 = np.asarray(vacuum_hamiltonian(4), dtype=complex)
+P_VAC3 = np.array([avgprob.averaged_probabilities_constant_hamiltonian(HVA3/e)
+                   for e in E_ASTRO])
+P_VAC4 = np.array([avgprob.averaged_probabilities_constant_hamiltonian(HVA4/e)
+                   for e in E_ASTRO])
+
+
+def liv_term(e):
+    return np.asarray(hamiltonians.hamiltonian_3nu_liv(
+        e, sxi12=OSC['s12'], sxi23=OSC['s23'], sxi13=OSC['s13'], dxiCP=0.0,
+        b1=0.0, b2=0.0, b3=B3_ASTRO, Lambda=1.0, n_liv=N_LIV), dtype=complex)
+
+
+P_LIV = np.array([avgprob.averaged_probabilities_constant_hamiltonian(HVA3/e + liv_term(e))
+                  for e in E_ASTRO])
+# Through the Earth the flux is already decohered when it arrives, so the two legs
+# compose as probability matrices rather than as amplitudes.
+P_EARTH = np.asarray(quiet(oscprob.osc_prob_3nu_earth_nsi, E_ASTRO, costhz=COSTHZ_ASTRO,
+                           L=L_ASTRO, **OSC, **EPS, rtol=1e-6, atol=1e-8))
+P_NSI = np.einsum('ij,ejk->eik', P_VAC3[0], P_EARTH)
+
+COMP_STD = np.einsum('a,eab->eb', PION_SOURCE, P_VAC3)
+COMP_STD = COMP_STD/COMP_STD.sum(axis=1)[:, None]
+CASES = [(r'Standard $3\nu$', P_VAC3, 3),
+         (r'LIV, $n = 1$',    P_LIV,  3),
+         (r'NSI through Earth', P_NSI, 3),
+         (r'$3+1$',           P_VAC4, 4)]
+FCOL = {0: BLUE, 1: RED, 2: GREEN}
+FLAB = {0: r'$\nu_e$', 1: r'$\nu_\mu$', 2: r'$\nu_\tau$'}
+
+fig, axes = plt.subplots(2, 4, figsize=(WIDE, 4.5), sharex=True, sharey='row',
+                         gridspec_kw=dict(hspace=0.10, wspace=0.10))
+for col, (label, P, d) in enumerate(CASES):
+    src = np.zeros(d); src[:3] = PION_SOURCE
+    comp = np.einsum('a,eab->eb', src, P)[:, :3]
+    # Renormalized to the active flavors: what a detector measures is the ratio among
+    # the three it can see, and the sterile share is not observed rather than being a
+    # fourth number to compare against.
+    comp = comp/comp.sum(axis=1)[:, None]
+    top, bot = axes[0, col], axes[1, col]
+    for a in range(3):
+        # The standard case under every panel, so that a small departure from it is
+        # visible.  Three of the four cases are flat in energy; without the reference a
+        # reader cannot see which of them sit at a different value.
+        if col > 0:
+            top.semilogx(E_ASTRO/gd.UNIT_TEV, P_VAC3[:, a, a], color='0.65', lw=0.7,
+                         ls='--', zorder=1)
+            bot.semilogx(E_ASTRO/gd.UNIT_TEV, COMP_STD[:, a], color='0.65', lw=0.7,
+                         ls='--', zorder=1)
+        top.semilogx(E_ASTRO/gd.UNIT_TEV, P[:, a, a], color=FCOL[a], lw=1.3, zorder=3)
+        bot.semilogx(E_ASTRO/gd.UNIT_TEV, comp[:, a], color=FCOL[a], lw=1.3, zorder=3,
+                     label=FLAB[a] if col == 0 else None)
+    for ax in (top, bot):
+        logx(ax); snug(ax, E_ASTRO/gd.UNIT_TEV)
+    corner(top, label, fontsize=7.6)
+    if d > 3:
+        lost = 1.0 - np.einsum('a,eab->eb', src, P)[:, :3].sum(axis=1)
+        print('  %-20s sterile takes %.3f-%.3f of the flux before renormalizing'
+              % (label.replace('$', ''), lost.min(), lost.max()))
+    print('  %-20s survival at 1 TeV %.3f/%.3f/%.3f -> at 10 PeV %.3f/%.3f/%.3f'
+          % (label.replace('$', ''), P[0, 0, 0], P[0, 1, 1], P[0, 2, 2],
+             P[-1, 0, 0], P[-1, 1, 1], P[-1, 2, 2]))
+fig.supxlabel(r'Neutrino energy, $E$ [TeV]',
+              fontsize=plt.rcParams['axes.labelsize'], y=0.015)
+axes[0, 0].set_ylabel(r'Survival, $\langle P_{\alpha\alpha}\rangle$', fontsize=8.0)
+axes[1, 0].set_ylabel(r'Flavor fraction at Earth', fontsize=8.0)
+# Ranges chosen to show the differences rather than the distance from zero: every
+# survival probability here lives above 0.28, and every flavor fraction between 0.30
+# and 0.35.  The top is left to the data, so the LIV excursion is not clipped.
+_ptop = max(float(np.max(P[:, a, a])) for _, P, _ in CASES for a in range(3))
+axes[0, 0].set_ylim(0.28, _ptop + 0.03); minor_y(axes[0, 0], 5)
+axes[1, 0].set_ylim(0.30, 0.35); minor_y(axes[1, 0], 5)
+axes[1, 0].legend(loc='upper left', handlelength=1.3, fontsize=7.4, ncol=3,
+                  columnspacing=0.9)
+axes[0, 1].axvline(E_STAR/gd.UNIT_TEV, color=INK, lw=0.7, ls=':')
+axes[1, 1].axvline(E_STAR/gd.UNIT_TEV, color=INK, lw=0.7, ls=':')
+fig.tight_layout(pad=0.3, w_pad=0.3, h_pad=0.4)
+save(fig, 'astro_composition.pdf')'''),
     md(r'''## Figure 7 --- a smooth profile: reach, and the flavor ceiling
 
 Four rows on one shared time axis, which spans three decades, so the cost of a flavor
