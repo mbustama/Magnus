@@ -668,7 +668,7 @@ page deliberately leaves to it:
 | [Accuracy and diagnostics](https://mbustama.github.io/Magnus/diagnostics.html) | What `rtol` really controls, what each safeguard cannot catch, and every warning explained |
 | [Against other codes](https://mbustama.github.io/Magnus/comparison.html) | The full cross-code comparison against NuOscProbExact and nuSQuIDS: which to reach for, case by case, and the measurements behind it |
 | [Numerical recipes](https://mbustama.github.io/Magnus/recipes.html) | Runnable snippets for the common tasks |
-| [Tutorials](https://mbustama.github.io/Magnus/tutorials.html) | All 27 notebooks, with what each one is for |
+| [Tutorials](https://mbustama.github.io/Magnus/tutorials.html) | All 28 notebooks, with what each one is for |
 | [API reference](https://mbustama.github.io/Magnus/api_reference.html) | Every public function, generated from the source |
 
 ## File Tree
@@ -691,6 +691,7 @@ Magnus/
 ├── img/                            # Figures used by the documentation
 ├── notebooks/                      # Numbered Jupyter notebooks -- see docs/source/tutorials.rst
 ├── pyproject.toml                  # Build system, dependencies, and the `magnus` console-script entry point
+├── resources/                      # Travels with the code; reaches neither the wheel nor the sdist
 ├── tools/                          # Standalone utilities that are not part of the package
 ├── src/                            # The package itself -- the only thing a `pip install` delivers
 └── tests/                          # Test suite (pytest; runs in CI)
@@ -700,7 +701,7 @@ Magnus/
 
 ## Continuous Integration
 
-Every push runs the full suite on Python 3.10-3.13, executes all 27
+Every push runs the full suite on Python 3.10-3.13, executes all 28
 notebooks, builds the documentation with warnings-as-errors, and lints with
 Ruff — the badges at the top of this page report those runs.  The workflows
 live in `.github/workflows/`.

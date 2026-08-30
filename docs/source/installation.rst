@@ -250,6 +250,7 @@ File Tree
    │   ├── 25_magnus_against_other_codes.ipynb  # Where a closed form wins, and a conventions trap that looks like accuracy
    │   ├── 26_magnus_nufit_evolution.ipynb  # How the NuFIT likelihood, not just the best fit, moves the probability
    │   ├── 27_magnus_animations.ipynb  # Ten sweeps as filmstrips; RENDER = True writes them as GIFs
+   │   ├── 28_magnus_paper_figures.ipynb  # Every figure in the CPC article, in one run
    │   ├── README.md                   # This file
    │   ├── make_notebooks.py           # BUILDS the notebooks above -- edit this, not the .ipynb
    │   ├── external_speed_accuracy.json  # Five external codes' speed and accuracy (NuOscProbExact project)
@@ -267,9 +268,18 @@ File Tree
    │   ├── make_nufit_chi2.py          # Extracts notebook 26's NuFIT chi^2 profiles
    │   ├── make_shock_reference.py     # Freezes notebook 14's solve_ivp oracle
    │   ├── matplotlibrc                # Shared plot styling for the notebooks
+   │   ├── mpmath_phase_reference.json  # Notebook 28 figure 2: the mpmath reference products every panel is measured against, and the order curves drawn from them
    │   ├── nufit_chi2.json             # Those profiles, v2.0-v6.1 (NuFIT collaboration)
    │   └── shock_reference.json        # That oracle, as exact hex floats
    ├── pyproject.toml                  # Build system, dependencies, and the `magnus` console-script entry point
+   ├── resources/                      # Travels with the code; reaches neither the wheel nor the sdist
+   │   └── paper/                      # The Computer Physics Communications article documenting this package
+   │       ├── README.md               # How to build the paper, and where each of its numbers comes from
+   │       ├── main.tex                # The paper -- ordinary LaTeX; a revision diff is mechanical
+   │       ├── refs.bib                # NuOscProbExact's bibliography, with the Magnus entries appended below a separator
+   │       ├── elsarticle.cls          # Bundled, so the folder compiles without the Elsevier bundle
+   │       ├── elsarticle-num.bst
+   │       └── figs/                   # Its eight figures, written by notebook 28
    ├── tools/                          # Standalone utilities that are not part of the package
    │   └── make_demo_video.py          # Joins and shrinks notebook 27's clips; shared with NuOscProbExact
    ├── src/                            # The package itself -- the only thing a `pip install` delivers

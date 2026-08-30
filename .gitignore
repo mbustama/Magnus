@@ -33,3 +33,14 @@ htmlcov/
 img/raw/
 img/*.mp4
 img/.palette.png
+
+# LaTeX build products of resources/paper/.  *.pdf above already covers main.pdf and
+# the figures; these are the rest of what a pdflatex/bibtex run leaves behind.
+resources/paper/*.aux
+resources/paper/*.bbl
+resources/paper/*.blg
+resources/paper/*.log
+resources/paper/*.out
+resources/paper/*.spl
+resources/paper/*.png
+resources/paper/figs/*.png

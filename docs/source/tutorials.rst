@@ -1,7 +1,7 @@
 Tutorial notebooks
 ==================
 
-Twenty-seven worked notebooks live in `notebooks/
+Twenty-eight worked notebooks live in `notebooks/
 <https://github.com/mbustama/Magnus/tree/main/notebooks>`_, numbered in reading
 order. Each carries its figures inline, so they can be read on GitHub without
 being run, and each ends with a footer pointing at the previous notebook, the
@@ -20,7 +20,7 @@ To run them rather than read them::
 
 .. note::
 
-   The notebooks are not built into this documentation — executing twenty-seven of
+   The notebooks are not built into this documentation — executing twenty-eight of
    them on every docs build would take the better part of an hour, and they are
    more useful where their outputs are already stored. The links below go to
    GitHub, which renders them with their figures.
@@ -228,3 +228,18 @@ Watching it happen
    ``tools/make_demo_video.py`` joins and shrinks them. The notebook carries the
    full procedure, the measured costs, and the three traps worth knowing before
    you spend twenty minutes on it.
+
+
+The paper
+---------
+
+`28. The paper's figures <https://github.com/mbustama/Magnus/blob/main/notebooks/28_magnus_paper_figures.ipynb>`_
+   Every figure in the Computer Physics Communications article
+   (``resources/paper/``), produced in one run. Magνs's own numbers are computed as
+   it runs, so a figure cannot go stale without the notebook failing; every other
+   code's are read from the frozen ``external_*.json`` datasets, so none of them has
+   to be installed. It also carries the measurement behind the paper's sharpest
+   methodological caveat: on an Earth chord the probability inherits the relative
+   error of the matter potential essentially one for one, so a cross-code comparison
+   there is limited by the two Earth models long before it is limited by either
+   solver.

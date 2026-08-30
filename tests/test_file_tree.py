@@ -46,7 +46,7 @@ COMMENT_COLUMN = 36
 # reader needs named: developer findings and adversarial batteries, figures
 # lifted out of the executed notebooks, and notebook output.  Listing them
 # would triple the tree without telling anyone anything.
-COLLAPSED = ('docs/dev/', 'img/gallery/', 'fig/')
+COLLAPSED = ('docs/dev/', 'img/gallery/', 'fig/', 'resources/paper/figs/')
 
 TREE = [
     ('.github/', 'GitHub Actions workflows: tests, lint, notebooks, docs, publishing'),
@@ -185,6 +185,8 @@ TREE = [
      'How the NuFIT likelihood, not just the best fit, moves the probability'),
     ('notebooks/27_magnus_animations.ipynb',
      'Ten sweeps as filmstrips; RENDER = True writes them as GIFs'),
+    ('notebooks/28_magnus_paper_figures.ipynb',
+     "Every figure in the CPC article, in one run"),
     ('notebooks/README.md', 'This file'),
     ('notebooks/make_notebooks.py', 'BUILDS the notebooks above -- edit this, not the .ipynb'),
     ('notebooks/external_speed_accuracy.json',
@@ -214,9 +216,21 @@ TREE = [
     ('notebooks/make_nufit_chi2.py', "Extracts notebook 26's NuFIT chi^2 profiles"),
     ('notebooks/make_shock_reference.py', "Freezes notebook 14's solve_ivp oracle"),
     ('notebooks/matplotlibrc', 'Shared plot styling for the notebooks'),
+    ('notebooks/mpmath_phase_reference.json',
+     'Notebook 28 figure 2: the mpmath reference products every panel is measured'
+     ' against, and the order curves drawn from them'),
     ('notebooks/nufit_chi2.json', 'Those profiles, v2.0-v6.1 (NuFIT collaboration)'),
     ('notebooks/shock_reference.json', 'That oracle, as exact hex floats'),
     ('pyproject.toml', 'Build system, dependencies, and the `magnus` console-script entry point'),
+    ('resources/', 'Travels with the code; reaches neither the wheel nor the sdist'),
+    ('resources/paper/', 'The Computer Physics Communications article documenting this package'),
+    ('resources/paper/README.md', 'How to build the paper, and where each of its numbers comes from'),
+    ('resources/paper/main.tex', 'The paper -- ordinary LaTeX; a revision diff is mechanical'),
+    ('resources/paper/refs.bib',
+     "NuOscProbExact's bibliography, with the Magnus entries appended below a separator"),
+    ('resources/paper/elsarticle.cls', 'Bundled, so the folder compiles without the Elsevier bundle'),
+    ('resources/paper/elsarticle-num.bst', None),
+    ('resources/paper/figs/', 'Its eight figures, written by notebook 28'),
     ('tools/', 'Standalone utilities that are not part of the package'),
     ('tools/make_demo_video.py',
      "Joins and shrinks notebook 27's clips; shared with NuOscProbExact"),
