@@ -13474,12 +13474,10 @@ for i, ((name, when), y) in enumerate(zip(rows, ys)):
 ax.text(56.0, 97.0, r'How Mag$\nu$s answers a call: the six engines, in dispatch order',
         ha='center', va='center', fontsize=9.4, color='black')
 
-# One arrow per stage, so the fall-through reads as six separate refusals rather than
-# a single slide.  They sit in the margin: drawn down the middle they crossed every bar
-# and collided with the notes under rows 1, 3 and 5, which is what made the figure messy.
-for i in range(len(rows) - 1):
-    ax.annotate('', xy=(6.0, ys[i+1] + H + 0.5), xytext=(6.0, ys[i] - 0.5),
-                arrowprops=dict(arrowstyle='-|>', color='black', lw=1.1))
+# The order they are tried in, drawn once in the margin: down the middle it crossed
+# every bar and collided with the notes under rows 1, 3 and 5.
+ax.annotate('', xy=(6.0, ys[-1]-1.0), xytext=(6.0, ys[0]+H+1.0),
+            arrowprops=dict(arrowstyle='-|>', color='black', lw=1.2))
 ax.text(3.2, (ys[0]+ys[-1])/2 + H/2, 'Tried in this order; each falls through to the next',
         rotation=90, ha='center', va='center', fontsize=7.0, color='black')
 
@@ -14968,7 +14966,7 @@ for col, (label, P, d) in enumerate(CASES):
 for _a in axes[1, :]:
     _a.tick_params(axis='x', which='major', pad=4.5)
 fig.supxlabel(r'Neutrino energy, $E$ [TeV]',
-              fontsize=plt.rcParams['axes.labelsize'], x=0.55, y=0.022)
+              fontsize=plt.rcParams['axes.labelsize'], x=0.55, y=0.050)
 axes[0, 0].set_ylabel(r'Avg.~survival probability, $\langle P_{\alpha\alpha}\rangle$',
                       fontsize=8.0)
 axes[1, 0].set_ylabel(r'Flavor fraction at Earth', fontsize=8.0)
