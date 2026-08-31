@@ -13384,7 +13384,7 @@ serve honestly and falls through to the next.'''),
 SLAB = ['#eaf2fb', '#bcd8f3', '#7fb4e6', '#3a86d4', '#1c71d8']
 from matplotlib.patches import Rectangle
 fig, ax = plt.subplots(figsize=(WIDE, 4.3))
-ax.set_xlim(0, 112); ax.set_ylim(0, 100); ax.axis('off')
+ax.set_xlim(0, 100); ax.set_ylim(0, 100); ax.axis('off')
 X0, X1 = 30.0, 66.0                      # the bar spans the same x in every row
 H = 6.2                                  # bar height
 rows = [
@@ -13393,7 +13393,7 @@ rows = [
  ('Interaction picture',   'Declared exponential, two flavors,\nand its iteration converges'),
  ('Energy-batched scan',   'Many energies,\none baseline'),
  ('Cumulative scan',       'One energy,\nmany baselines'),
- ('General Magnus ladder', 'Anything else;\nnever skipped'),
+ ('General Magnus ladder', 'Anything else'),
 ]
 ys = np.linspace(84, 6, len(rows))
 
@@ -13408,21 +13408,21 @@ for i, ((name, when), y) in enumerate(zip(rows, ys)):
             fontsize=8.6, color='black')
     # The ladder row carries the refine arrow just past its bar, so its condition
     # text starts further right than the others'.
-    ax.text(X1+(9.0 if i == 5 else 2.6), y+H/2, when, ha='left', va='center',
+    ax.text(X1+(6.0 if i == 5 else 2.6), y+H/2, when, ha='left', va='center',
             fontsize=6.6, color=INK)
     if i:                                        # every engine but the first walks a path
         ax.annotate('', xy=(X0-0.6, y+H/2), xytext=(X0-1.8, y+H/2),
                     arrowprops=dict(arrowstyle='-|>', color=INK, lw=0.8))
     if i == 0:
-        # No propagation at all: the decohered limit is algebraic, so this row gets a
-        # single plain box rather than a trajectory that is never traversed.
-        bx0, bx1 = X0 + 0.30*(X1-X0), X0 + 0.70*(X1-X0)
-        ax.add_patch(Rectangle((bx0, y), bx1-bx0, H, facecolor=SLAB[2], edgecolor=INK,
-                               lw=0.7, zorder=2))
-        ax.text((bx0+bx1)/2, y+H/2, r'$\langle P\rangle$ in closed form',
+        # One undivided block: nothing is composed along it, because nothing is
+        # propagated.  avgprob diagonalises H once and sums |sum_i V*_ai V_bi|^2 over
+        # the eigenbasis, which is exact for the averaged observable -- not a closed
+        # form in the mixing parameters, since it still needs the eigenvectors.
+        bar(y, [(X0, X1)], [SLAB[2]])
+        ax.text((X0+X1)/2, y+H/2, r'$\langle P\rangle$ from the eigenbasis',
                 ha='center', va='center', fontsize=7.0, color='white')
-        ax.text((bx0+bx1)/2, y-1.6, 'No trajectory is walked', ha='center', va='top',
-                fontsize=6.4, color=INK)
+        ax.text((X0+X1)/2, y-1.6, 'Exact for the average; nothing is propagated',
+                ha='center', va='top', fontsize=6.4, color=INK)
     elif i == 1:                                 # smooth gradient, one exact patch
         n = 60; e = np.linspace(X0, X1, n+1)
         g = plt.cm.Blues(np.linspace(0.15, 0.75, n))
@@ -13474,11 +13474,12 @@ for i, ((name, when), y) in enumerate(zip(rows, ys)):
 ax.text(56.0, 97.0, r'How Mag$\nu$s answers a call: the six engines, in dispatch order',
         ha='center', va='center', fontsize=9.4, color='black')
 
-# The order they are tried in, and the fall-through, are the same arrow: each engine
-# declines what it cannot serve and the next one down is tried.  Drawing it once in the
-# margin keeps it off the bars.
-ax.annotate('', xy=(6.0, ys[-1]-1.0), xytext=(6.0, ys[0]+H+1.0),
-            arrowprops=dict(arrowstyle='-|>', color='black', lw=1.2))
+# One arrow per stage, so the fall-through reads as six separate refusals rather than
+# a single slide.  They sit in the margin: drawn down the middle they crossed every bar
+# and collided with the notes under rows 1, 3 and 5, which is what made the figure messy.
+for i in range(len(rows) - 1):
+    ax.annotate('', xy=(6.0, ys[i+1] + H + 0.5), xytext=(6.0, ys[i] - 0.5),
+                arrowprops=dict(arrowstyle='-|>', color='black', lw=1.1))
 ax.text(3.2, (ys[0]+ys[-1])/2 + H/2, 'Tried in this order; each falls through to the next',
         rotation=90, ha='center', va='center', fontsize=7.0, color='black')
 
@@ -13486,7 +13487,7 @@ ax.text(3.2, (ys[0]+ys[-1])/2 + H/2, 'Tried in this order; each falls through to
 # two of them means anything.  The energy-batched row is the exception noted beside it:
 # a potential that does not vary is served by a single exact exponential instead.
 gy0, gy1 = ys[5] - 1.6, ys[3] + H + 1.6
-gx = 104.0
+gx = 92.0
 ax.plot([gx, gx+1.2, gx+1.2, gx], [gy0, gy0, gy1, gy1], color=INK, lw=0.8,
         solid_joinstyle='miter')
 ax.text(gx + 2.8, (gy0 + gy1)/2, 'One slab kernel,\nthree ways of batching', rotation=90,
@@ -14809,7 +14810,9 @@ for col, width in enumerate(WIDTHS):
     rect, lines = top.indicate_inset(
         ((R_FORWARD_KM - half_in)/1.0e3, lo, 2.0*half_in/1.0e3, hi - lo),
         inset_ax=ins, edgecolor='0.45', linewidth=0.5, alpha=1.0)
-    # The marking box stays; its corner connectors do not, since they cross the data.
+    # Neither the marking box nor its connectors survive: the box spans the full height
+    # of the panel, so at 70 km it reads as a shaded block standing over the shock.
+    rect.set(visible=False)
     for ln in lines:
         ln.set(visible=False)
 
@@ -14962,8 +14965,10 @@ for col, (label, P, d) in enumerate(CASES):
     print('  %-20s survival at 1 TeV %.3f/%.3f/%.3f -> at 10 PeV %.3f/%.3f/%.3f'
           % (label.replace('$', ''), P[0, 0, 0], P[0, 1, 1], P[0, 2, 2],
              P[-1, 0, 0], P[-1, 1, 1], P[-1, 2, 2]))
+for _a in axes[1, :]:
+    _a.tick_params(axis='x', which='major', pad=4.5)
 fig.supxlabel(r'Neutrino energy, $E$ [TeV]',
-              fontsize=plt.rcParams['axes.labelsize'], x=0.55, y=0.075)
+              fontsize=plt.rcParams['axes.labelsize'], x=0.55, y=0.022)
 axes[0, 0].set_ylabel(r'Avg.~survival probability, $\langle P_{\alpha\alpha}\rangle$',
                       fontsize=8.0)
 axes[1, 0].set_ylabel(r'Flavor fraction at Earth', fontsize=8.0)
