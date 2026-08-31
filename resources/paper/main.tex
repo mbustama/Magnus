@@ -598,11 +598,11 @@ The sections above describe six ways of computing a probability, and a caller as
 Table~\ref{tab:engines} gives the condition under which each is taken.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\begin{figure}[t!]
+\begin{figure*}[t!]
  \centering
- \includegraphics[width=\columnwidth]{strategies.pdf}
+ \includegraphics[width=\textwidth]{strategies.pdf}
  \caption{\label{fig:strategies}The six engines that can answer a request, in the order they are tried. Each row draws what its engine does to the trajectory rather than naming it: one exponential for the closed-form average; adiabatic transport with an exact Magnus patch stitched in across the resonance; the fast vacuum phase removed analytically before a single Magnus pass; one evaluation of the profile shared across many energies; one pass returning many baselines; and the general ladder, refining until two successive stages agree. Shading is the matter density. An engine declines what it cannot serve honestly and falls through to the next, so the last is reached whenever nothing above it applies; \tabl{engines} gives the conditions}
-\end{figure}
+\end{figure*}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 None is a special case of another. Each declines requests it cannot serve honestly and falls through to the next, and the last accepts whatever reaches it. The fallbacks are silent by design, because they happen on ordinary calls and warning about them would be noise. Any call can be asked which engine answered it, whether the hybrid strategy certified, and which engines declined and why---which is the answer to ``why did my result move?'' and ``why did this call get slow?'', neither of which was answerable from outside the package before.
@@ -610,7 +610,7 @@ None is a special case of another. Each declines requests it cannot serve honest
 The grouping matters more than the list, because a cross-check between two engines is worth something only if they can fail differently. The general ladder, the cumulative baseline scan and the energy-batched scan all walk slabs with the same kernel and are one family. The two-flavor interaction-picture path factors the fast vacuum phase out analytically first, so what it must resolve is a different function. The hybrid strategy is a genuinely different method, whose blind spots are the resonance detector's rather than the quadrature's. And {\tt scipy.linalg.expm} is independent of all of them, but is exact only where the Hamiltonian is constant or declared piecewise constant. Two engines in the same family can be wrong in the same way at the same time: their disagreement is informative, their agreement is not.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-{\def\arraystretch{1.15}
+{\def\arraystretch{1.2}
 \begin{table}[t!]
  {\small
  \begin{tabular}{@{}lp{4.4cm}@{}}
@@ -750,7 +750,7 @@ Limitations are of two kinds. Those of the method are assumptions no better prog
 \section{\magnus\ examples}
 \label{sec:examples}
 
-Listing \ref{lst:minimal} is a complete calculation. Everything in this section is a variation on it: a different Hamiltonian, a different profile, or a different observable, through the same call.
+Listing \ref{lst:minimal} is a complete calculation. Everything in this section is a variation on it: a different Hamiltonian, a different profile, or a different observable, through the same call. The listings below are extracts; the full code behind every figure in this paper is notebook \#28 of \ref{app:notebooks}, and the notebooks named as we go carry each topic further than a page here allows.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \begin{lstlisting}[language=Python, caption={A three-flavor probability for a neutrino crossing the Earth, with the density taken from PREM along the chord. {\tt distance\_traveled\_inside\_earth} returns \emph{kilometers} while every {\tt osc\_prob} baseline is in natural units, so the conversion is not optional: passing the raw value does not raise, and returns a converged, unitary, entirely wrong answer for a chord a few meters long. The printed output is what v1.0.0 produces.}, label={lst:minimal}, float=tbp]
@@ -799,7 +799,31 @@ These are the closed form's home ground. We compute them, and quickly: a constan
 
 Figure~\ref{fig:bsm} shows four departures from the standard three-flavor case along one Earth chord: non-standard interactions\ \cite{Farzan:2017xzy}, Lorentz-invariance violation\ \cite{Kostelecky:2003xn, Kostelecky:2011gq}, a sterile state\ \cite{Gariazzo:2015rra, Dentler:2018sju}, and two\ \cite{Sorel:2003hf}. Each enters the Hamiltonian as an additional Hermitian term, which is how we treat them: the same call, a different matrix.
 
-The $3+2$ curve is the one that could not be drawn with a closed form. The SU($n$) constructions need the eigenvalues of the Hamiltonian in radicals. The Abel--Ruffini theorem stops that at four: the characteristic polynomial of a five-flavor Hamiltonian is a quintic (not soluble in radicals). The obstruction is a theorem external to neutrino physics. Nothing in the Magnus expansion refers to the dimension of the matrix at any point, so five flavors is not a new case but the same one. We ship wrappers for it throughout: in vacuum, in matter, through the Earth, through the Sun, with non-standard interactions, and with Lorentz-invariance violation.
+The $3+2$ curve is the one that could not be drawn with a closed form. The SU($n$) constructions need the eigenvalues of the Hamiltonian in radicals. The Abel--Ruffini theorem stops that at four: the characteristic polynomial of a five-flavor Hamiltonian is a quintic (not soluble in radicals). The obstruction is a theorem external to neutrino physics. Nothing in the Magnus expansion refers to the dimension of the matrix at any point, so five flavors is not a new case but the same one. We ship wrappers for it throughout: in vacuum, in matter, through the Earth, through the Sun, with non-standard interactions, and with Lorentz-invariance violation. Listing \ref{lst:fivenu} is the whole of the difference between three flavors and five. Notebooks \#7, \#8 and \#9 take the sterile, non-standard-interaction and Lorentz-violating cases in turn.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{lstlisting}[language=Python, caption={Three flavors and five, on the same chord. The two calls differ only in the wrapper's name and in the parameters the extra states bring; nothing about the method changes, and nothing in it refers to the size of the matrix. The $3+2$ case is the one \figu{bsm} draws that no closed form reaches.}, label={lst:fivenu}, float=tbp]
+import magnus.oscprob as oscprob
+import magnus.globaldefs as gd
+import magnus.earth as earth
+
+costhz = -0.9
+L = earth.distance_traveled_inside_earth(costhz) \
+ *gd.UNIT_KM
+E = 10.0*gd.UNIT_TEV
+osc = gd.load_nufit_params('NuFIT 6.1')
+
+P3 = oscprob.osc_prob_3nu_earth(
+ E, costhz=costhz, L=L, **osc)
+
+# Two extra states: same call, more parameters
+P5 = oscprob.osc_prob_5nu_earth(
+ E, costhz=costhz, L=L, **osc,
+ s14=0.32, s24=0.32, s34=0.0,
+ s15=0.24, s25=0.24, s35=0.0,
+ D41=1.0, D51=1.7)
+\end{lstlisting}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -814,7 +838,7 @@ The $3+2$ curve is the one that could not be drawn with a closed form. The SU($n
 \end{figure}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-Figure~\ref{fig:oscillogram} shows the survival probability over energy and arrival direction, for the standard case, with a sterile state, and with non-standard interactions. The Earth is the case most codes meet most often. For \magnus\ it is a mixed one: the PREM profile\ \cite{Dziewonski:1981xy} varies smoothly \emph{within} each of its ten shells and jumps \emph{between} them, so it exercises both halves of Section \ref{sec:refinement}. The {\tt earth} module solves the chord geometry, finds the exact positions at which a trajectory crosses each shell boundary, and hands them to the refinement as mandatory slab edges.
+Figure~\ref{fig:oscillogram} shows the survival probability over energy and arrival direction, for the standard case, with a sterile state, and with non-standard interactions. The Earth is the case most codes meet most often. For \magnus\ it is a mixed one: the PREM profile\ \cite{Dziewonski:1981xy} varies smoothly \emph{within} each of its ten shells and jumps \emph{between} them, so it exercises both halves of Section \ref{sec:refinement}. The {\tt earth} module solves the chord geometry, finds the exact positions at which a trajectory crosses each shell boundary, and hands them to the refinement as mandatory slab edges. Notebook \#6 builds oscillograms like these from scratch, and notebook \#4 treats the long-baseline case they generalize.
 
 One convention goes with it and is not a default the caller cannot reach. PREM is a density model and fixes no composition, so the electron fraction is supplied separately. \magnus\ resolves it per PREM layer (about $0.4656$ for the iron core and $0.4957$ for the mantle) which differs from a uniform $0.5$ by up to $7 \cdot 10^{-2}$ in $P_{\nu_\mu \to \nu_e}$ on a core-crossing chord. That is far above anything a solver comparison can resolve, which is why every cross-code measurement in Section \ref{sec:comparison} passes the composition explicitly on both sides rather than leaving it to a default.
 
@@ -835,7 +859,7 @@ One convention goes with it and is not a default the caller cannot reach. PREM i
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \begin{figure}[t!]
  \centering
- \includegraphics[width=0.90\columnwidth]{solar_long_range.pdf}
+ \includegraphics[width=\columnwidth]{solar_long_range.pdf}
  \caption{\label{fig:solar_lri}Phase-averaged solar survival probability under a gauged $L_e - L_\mu$ symmetry. \emph{Top}: $\langle P_{\nu_e \to \nu_e}\rangle$ along a radial ray of the same BS2005-AGS,OP model as \figu{solar}, with and without a long-range potential sourced by the Sun's own electrons, at two mediator ranges. We fix the coupling separately for each, so that the new potential is a tenth of $V_{\rm CC}$ at the center in both cases; what differs is its shape along the ray. At half a solar radius the longer-ranged one still stands at $2.5$ times $V_{\rm CC}$ where the shorter has fallen to $0.4$. \emph{Bottom}: the difference from the standard case, reaching $0.021$ and $0.018$. The new term is not a feature of \magnus: the Hamiltonian is a callable returning a Hermitian matrix, and the charge ${\rm diag}(1, -1, 0)$ enters it as one more additive piece}
 \end{figure}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -843,7 +867,25 @@ One convention goes with it and is not a default the caller cannot reach. PREM i
 
 Figure~\ref{fig:solar} shows the solar electron density, the averaged survival probability it produces at four different Hamiltonians, and how far each of those is from the adiabatic limit. The Sun is the case that needs both the method of Section \ref{sec:method} and the observable of Section \ref{sec:averaged}. Its density falls smoothly by five orders of magnitude along a radial ray, with no discontinuity anywhere to align a slab edge to. A $5$~MeV neutrino leaving it accumulates $\Phi \approx 1.3 \cdot 10^{4}$ radians.
 
-The model is the tabulated BS2005-AGS,OP profile\ \cite{Bahcall:2004pz}, interpolated log-linearly in the electron number density: a real tabulated profile rather than an exponential fit (the case the method is for). Asked for the instantaneous probability, \magnus\ answers correctly and the answer is not plottable---over the last few thousand kilometres of the ray it covers most of the unit interval, because the phase changes by thousands of radians across that stretch. That is why no panel of it appears in \figu{solar}. Asked with {\tt average=True} instead, \magnus\ returns \equ{averaged_varying} directly, for any of the four Hamiltonians drawn and without propagating at all.
+The model is the tabulated BS2005-AGS,OP profile\ \cite{Bahcall:2004pz}, interpolated log-linearly in the electron number density: a real tabulated profile rather than an exponential fit (the case the method is for). Asked for the instantaneous probability, \magnus\ answers correctly and the answer is not plottable---over the last few thousand kilometres of the ray it covers most of the unit interval, because the phase changes by thousands of radians across that stretch. That is why no panel of it appears in \figu{solar}. Asked with {\tt average=True} instead, \magnus\ returns \equ{averaged_varying} directly, for any of the four Hamiltonians drawn and without propagating at all. Listing \ref{lst:sun} is that call. Notebook \#13 works through the tabulated model itself, and notebook \#10 the averaged observable.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{lstlisting}[language=Python, caption={The averaged solar probability. The whole of the difference from an ordinary call is {\tt average=True}: it returns \equ{averaged_varying} from the instantaneous eigenbases, without propagating the phase it would otherwise have to average away. Forty energies take about $0.7$~s, against the ten minutes a solver needs to reach a tolerance at which its output is a probability at all.}, label={lst:sun}, float=tbp]
+import numpy as np
+import magnus.oscprob as oscprob
+import magnus.globaldefs as gd
+
+E = np.logspace(-1.0, np.log10(20.0), 40) \
+ *gd.UNIT_MEV
+osc = gd.load_nufit_params('NuFIT 6.1')
+
+P = oscprob.osc_prob_matter_std_potential(
+ 3, ne_sun, E, R_SUN, osc,
+ average=True, L0=0.0,
+ nu_i=gd.NUE, nu_f=gd.NUE,
+ density_is_of_number_of_electrons=True)
+\end{lstlisting}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 The lowest panel is the check. Its reference is the adiabatic limit assembled from the instantaneous eigenbases alone: diagonalize $\mathbb{H}$ at production and at the surface, then contract the two sets of eigenvector magnitudes. That touches none of the machinery of Section \ref{sec:averaged}, so it serves all four scenarios rather than only the standard one, where it reduces to the textbook expression. All four agree with it to between $10^{-5}$ and $10^{-8}$ across $0.1$--$20$~MeV.
 
@@ -865,12 +907,30 @@ The obvious guard does not catch the related trap. \magnus\ reports, on request,
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \begin{figure*}[t!]
  \centering
- \includegraphics[width=0.90\textwidth]{shock_probability.pdf}
+ \includegraphics[width=\textwidth]{shock_probability.pdf}
  \caption{\label{fig:shock}Electron number density along a supernova ray, and the survival probability $P_{\nu_e \to \nu_e}$ it produces at $15$~MeV. {\it Top}: the density from $10^{4}$ to $8 \cdot 10^{4}$~km, carrying two fronts\ \cite{Schirato:2002tg, Fogli:2003dw}. The forward shock at $30\,323$~km is the outward-moving front itself. The contact discontinuity behind it, at $12\,348$~km, is the surface dividing the material the shock has swept up from the ejecta driving it, across which the density jumps but the pressure does not. A neutrino leaving the core meets the contact first. The left and right columns widen both jumps from $0.07$ to $70$~km and differ in nothing else; neither width exceeds $0.1\%$ of the ray, hence the insets. {\it Center}: the probability along the whole ray, computed with \magnus\ at ${\tt rtol} = 10^{-8}$ for four Hamiltonians. The ray is some $140$ oscillation lengths long, so the panel resolves the envelope and not the oscillation. The two columns agree bitwise until the wider contact ramp begins at $12\,313$~km, and differ by $0.22$ on average beyond it. {\it Bottom}: the same probability through a $\pm 75$~km window at the forward shock, where it is resolved, with the front itself shaded. We omit two flavors: with only $\Delta m^2_{21}$ available at this energy it spans $0.998$ to $1.000$}
 \end{figure*}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-Figure~\ref{fig:shock} shows a supernova ray, the probability along the whole of it, and the same probability resolved at the shock front, for two front widths that differ by three orders of magnitude and in nothing else. A shock sweeping outward through the envelope changes the adiabaticity of a level crossing and so leaves a signature in the neutrino signal\ \cite{Schirato:2002tg, Fogli:2003dw}. The ray carries two such crossings rather than one. Ahead of the neutrino lies the \emph{forward shock}, the outward-moving front itself; behind that sits the \emph{contact discontinuity}, the surface separating the material the shock has swept up from the ejecta driving it, across which the density jumps although the pressure does not. A neutrino leaving the core meets the contact first. The pair of columns is also the cleanest demonstration in this paper that the boundary between a closed form and an integrator is a property of the \emph{problem} rather than of either code: here we move it by turning one dial.
+Figure~\ref{fig:shock} shows a supernova ray, the probability along the whole of it, and the same probability resolved at the shock front, for two front widths that differ by three orders of magnitude and in nothing else. A shock sweeping outward through the envelope changes the adiabaticity of a level crossing and so leaves a signature in the neutrino signal\ \cite{Schirato:2002tg, Fogli:2003dw}. The ray carries two such crossings rather than one. Ahead of the neutrino lies the \emph{forward shock}, the outward-moving front itself; behind that sits the \emph{contact discontinuity}, the surface separating the material the shock has swept up from the ejecta driving it, across which the density jumps although the pressure does not. A neutrino leaving the core meets the contact first. Both are declared to the refinement rather than left to be found, which is what Listing \ref{lst:shock} shows. Notebook \#14 follows the front outward and notebook \#18 collects the profiles that break a fixed grid. The pair of columns is also the cleanest demonstration in this paper that the boundary between a closed form and an integrator is a property of the \emph{problem} rather than of either code: here we move it by turning one dial.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{lstlisting}[language=Python, caption={A shock front, declared. {\tt t\_breakpoints} names the positions at which the profile jumps, and the refinement puts slab edges there and fills in between; without it a $0.07$~km front falls between two nodes of whatever grid the ladder happens to reach. It is not the same parameter as {\tt t\_slab\_edges}, which replaces the grid rather than seeding it.}, label={lst:shock}, float=tbp]
+import magnus.oscprob as oscprob
+import magnus.globaldefs as gd
+
+# Where the density jumps, in natural units
+edges = [r_contact*gd.UNIT_KM,
+ r_forward*gd.UNIT_KM]
+
+P = oscprob.osc_prob_matter_std_potential(
+ 3, ne_shock, 15.0*gd.UNIT_MEV, L, osc,
+ t_breakpoints=edges,
+ rtol=1.0e-8, atol=1.0e-10,
+ L0=0.0, nu_i=gd.NUE, nu_f=gd.NUE,
+ density_is_of_number_of_electrons=True)
+\end{lstlisting}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 At a front width of $0.07$~km each jump is, on the scale of the oscillation length, a discontinuity: the probability changes character across a single point. Widened to $70$~km, nothing else altered, the same jump becomes a smooth function spanning half the window and the transition is gradual. We widen both jumps together, which is why the two columns already differ below the forward shock and not only at it. 
 
@@ -898,9 +958,24 @@ The lesson generalizes past this example. The question to ask of a profile is no
 
 Figure~\ref{fig:astro} shows the flavor composition that a TeV--PeV astrophysical flux arrives with at Earth, and the average flavor-transition probabilities behind it, for four Hamiltonians over $1$~TeV to $10$~PeV. The top row carries the survival probabilities $\langle P_{\nu_\alpha \to \nu_\alpha}\rangle$; the bottom row carries the flavor fractions reaching Earth from a source that produces neutrinos through the full pion decay chain. The standard three-flavor case is repeated beneath each panel so that a departure from it is legible, and the dotted line in the second column marks the energy at which the Lorentz-violating term equals the vacuum one.
 
-\textit{Producing them.}---In cosmic accelerators---active galaxies, gamma-ray bursts, supernovae---protons interact with ambient matter and radiation to produce pions\ \cite{Margolis:1977wt, Stecker:1978ah, Kelner:2006tc}. The pions decay through $\pi^+ \to \mu^+ + \nu_\mu$, followed by $\mu^+ \to \bar{\nu}_\mu + \nu_e + e^+$, and their charge conjugates, so that the flux leaving the source carries flavor ratios $(f_e, f_\mu, f_\tau)_{\rm S} = \left(\frac{1}{3}, \frac{2}{3}, 0\right)$, with $f_{\alpha, {\rm S}}$ the fraction of $\nu_\alpha + \bar{\nu}_\alpha$ in the total. Neutrino telescopes cannot ordinarily tell $\nu$ from $\bar\nu$, so $\nu_\alpha$ below means $\nu_\alpha + \bar{\nu}_\alpha$. We take that full pion-decay composition throughout.
+\textit{Producing them.}---In cosmic accelerators---active galaxies, gamma-ray bursts, supernovae---protons interact with ambient matter and radiation to produce pions\ \cite{Margolis:1977wt, Stecker:1978ah, Kelner:2006tc}. The pions decay through $\pi^+ \to \mu^+ + \nu_\mu$, followed by $\mu^+ \to \bar{\nu}_\mu + \nu_e + e^+$, and their charge conjugates, so that the flux leaving the source carries flavor ratios $(f_e, f_\mu, f_\tau)_{\rm S} = \left(\frac{1}{3}, \frac{2}{3}, 0\right)$, with $f_{\alpha, {\rm S}}$ the fraction of $\nu_\alpha + \bar{\nu}_\alpha$ in the total. Neutrino telescopes cannot ordinarily tell $\nu$ from $\bar\nu$, so $\nu_\alpha$ below means $\nu_\alpha + \bar{\nu}_\alpha$. We take that full pion-decay composition throughout. Notebook \#10 develops the averaged limit that this section rests on, and notebook \#23 says when averaging a scan is not the same as asking for the average.
 
-\textit{What is observable.}---Over Mpc--Gpc baselines the oscillation length is minute against the distance, and neither the distance, the size of the production region, nor the energy resolution of a detector is known to anything approaching the precision the phase would demand. A telescope is therefore sensitive only to the average flavor-transition probabilities $\langle P_{\nu_\alpha \to \nu_\beta}\rangle$ of \equ{averaged}, which \magnus\ returns in closed form from the eigenvectors of $\mathbb{H}$ rather than by propagating a phase it is about to average away. In vacuum $\mathbb{V}$ is the PMNS matrix and \equ{averaged} is the familiar $\sum_i \lvert U_{\alpha i}\rvert^2 \lvert U_{\beta i}\rvert^2$; with matter, a sterile state or a new term in $\mathbb{H}$ it is the same expression evaluated in whatever eigenbasis that Hamiltonian has. The composition at Earth follows as $f_{\alpha, \oplus} = \sum_\beta \langle P_{\nu_\beta \to \nu_\alpha}\rangle f_{\beta, {\rm S}}$.
+\textit{What is observable.}---Over Mpc--Gpc baselines the oscillation length is minute against the distance, and neither the distance, the size of the production region, nor the energy resolution of a detector is known to anything approaching the precision the phase would demand. A telescope is therefore sensitive only to the average flavor-transition probabilities $\langle P_{\nu_\alpha \to \nu_\beta}\rangle$ of \equ{averaged}, which \magnus\ returns in closed form from the eigenvectors of $\mathbb{H}$ rather than by propagating a phase it is about to average away. In vacuum $\mathbb{V}$ is the PMNS matrix and \equ{averaged} is the familiar $\sum_i \lvert U_{\alpha i}\rvert^2 \lvert U_{\beta i}\rvert^2$; with matter, a sterile state or a new term in $\mathbb{H}$ it is the same expression evaluated in whatever eigenbasis that Hamiltonian has. The composition at Earth follows as $f_{\alpha, \oplus} = \sum_\beta \langle P_{\nu_\beta \to \nu_\alpha}\rangle f_{\beta, {\rm S}}$. Listing \ref{lst:astro} is both steps.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{lstlisting}[language=Python, caption={The flavor composition an astrophysical flux arrives with. {\tt averaged\_probabilities\_constant\_hamiltonian} returns the full matrix $\langle P_{\nu_\alpha \to \nu_\beta}\rangle$ of \equ{averaged} from the eigenvectors of whatever Hamiltonian it is handed, so the composition is one contraction away. Nothing here is specific to the standard case: pass a Hamiltonian carrying a sterile state or a new term and the same two lines answer.}, label={lst:astro}, float=tbp]
+import numpy as np
+import magnus.avgprob as avgprob
+
+# Any Hermitian matrix; here the vacuum term at E
+P = avgprob.\
+ averaged_probabilities_constant_hamiltonian(H)
+
+# Pion decay at the source, 1 : 2 : 0
+f_source = np.array([1.0/3.0, 2.0/3.0, 0.0])
+f_earth = np.einsum('a,ab->b', f_source, P)
+\end{lstlisting}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \textit{What varies with energy, and what does not.}---For standard oscillations the composition does not depend on the energy at all. Equation~(\ref{equ:averaged}) is built from $\lvert \mathbb{V}_{\alpha i}\rvert^2$ alone, and in vacuum no energy enters it. Two of the three departures we draw are flat for the same reason. A sterile state moves the composition from $0.326:0.343:0.330$ to $0.330:0.325:0.346$ and leaves it there, after we renormalize past the $13.3\%$ of the flux it removes. Non-standard interactions through the Earth move it by less than $0.005$ and likewise do not vary, because above a TeV the matter term dominates the Hamiltonian inside the Earth and carries no energy dependence of its own. Both are shifts to a different constant.
 
@@ -912,30 +987,32 @@ Only a term that grows with the energy leaves a signature that varies with it. T
 Everything above goes through named wrappers, none of which is privileged. Listing \ref{lst:arbitrary} passes a Hamiltonian the package knows nothing about, which is the escape hatch and also the design: the wrappers build a callable and hand it to {\tt osc\_prob}, and a caller can skip the first step.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\begin{lstlisting}[language=Python, caption={An arbitrary position-dependent Hamiltonian, here a three-flavor vacuum term plus a matter potential that falls off exponentially. The two lines that matter are the last two of {\tt H\_func}: the position dependence is written with {\tt NumPy} and the matrix part broadcasts, so one call evaluates the Hamiltonian at every quadrature node of every slab at once. Written to take a scalar only, the same function returns bit-identical numbers $4.6$ times slower, and \magnus\ says so once per session rather than leaving the caller to discover it.}, label={lst:arbitrary}, float=t]
+\begin{lstlisting}[language=Python, caption={\magnus\ with an arbitrary, user-supplied Hamiltonian, here the long-range $L_e - L_\mu$ interaction of \equ{h3_lri} sourced by the electrons of the Sun. The profile and $V_{\rm CC}$ are the solar model of \figu{solar}; only $V_{e\mu}$ is new, and what it costs the caller is the last two lines. The {\tt [..., None, None]} is what lets one call evaluate the Hamiltonian at every quadrature node of every slab at once; written to take a scalar, the same function returns bit-identical numbers $4.6$ times slower.}, label={lst:arbitrary}, float=tbp]
 import numpy as np
-import magnus.oscprob as oscprob
-import magnus.hamiltonians as hamiltonians
+import magnus.avgprob as avgprob
 import magnus.globaldefs as gd
-
-energy = 5.0*gd.UNIT_GEV
-L = 3000.0*gd.UNIT_KM
-osc = gd.load_nufit_params('NuFIT 6.1')
 
 h_vac = hamiltonians.\
  hamiltonian_3nu_vacuum_energy_independent(**osc)
 e00 = np.diag([1.0, 0.0, 0.0])
-VCC0 = 1.0e-13 # eV, at l = 0
-l_scale = 1000.0*gd.UNIT_KM
+
+# V_emu [eV] on the solar radial grid, from the
+# Yukawa integral of Eq. (20) over the same n_e(r)
+# the matter term reads, so the two potentials
+# cannot disagree about the electron distribution
+v_emu = g2*long_range_potential(r, n_e, 1.0/R_SUN)
+
+# nu_e and nu_mu carry opposite charge, nu_tau none
+q = np.diag([1.0, -1.0, 0.0])
 
 def H_func(l):
- l = np.asarray(l, dtype=float)
- VCC = VCC0*np.exp(-l/l_scale) # an array
+ VCC = np.asarray(vcc_sun(l))
  return (h_vac/energy
- + VCC[..., None, None]*e00)
+ + VCC[..., None, None]*e00
+ + np.interp(l, r, v_emu)[..., None, None]*q)
 
-P = oscprob.osc_prob(H_func, 0.0, L,
- rtol=1.e-8, atol=1.e-10)
+P = avgprob.averaged_probabilities_adiabatic(
+ H_func, 0.0, R_SUN)[0]
 \end{lstlisting}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -967,7 +1044,7 @@ with $g^\prime$ the new gauge coupling. Where $V_{\rm CC}$ reads the density at 
 
 That is what makes the Sun a sharper test of it than the Earth. The solar density falls by five orders of magnitude along the ray, so $V_{\rm CC}$ and $V_{e\mu}$ fall at quite different rates, and the shape of the new potential---not merely its size---is what the observable responds to. We fix the coupling separately for each mediator range so that both put $V_{e\mu}$ at a tenth of $V_{\rm CC}$ at the center; what then differs between the two curves is that shape alone. At half a solar radius the longer-ranged potential still stands at $2.5$ times $V_{\rm CC}$ where the shorter has fallen to $0.4$.
 
-The two shift the averaged probability by up to $0.021$ and $0.018$ across $0.1$--$20$~MeV, and they are not a rescaling of one another: the shorter range samples the profile where it falls fastest, and its shift changes sign at a different energy. Both curves are computed with no expansion in $V_{e\mu}$, because the method does not care what the Hermitian matrix contains.
+The two shift the averaged probability by up to $0.021$ and $0.018$ across $0.1$--$20$~MeV, and they are not a rescaling of one another: the shorter range samples the profile where it falls fastest, and its shift changes sign at a different energy. Both curves are computed with no expansion in $V_{e\mu}$, because the method does not care what the Hermitian matrix contains. Notebook \#19 develops the potential and checks it against a closed form.
 
 The second is that a Hamiltonian which ignores its argument is detected separately and routed to the constant-Hamiltonian engine, so the easiest case there is does not take the slowest path available. It used to: the dispatcher declined a non-callable potential, so a $60$-energy constant-density scan made $18\,000$ separate calls, each rediscovering the same constancy.
 
@@ -1033,10 +1110,10 @@ The conclusion is a boundary rather than a ranking. It is short enough to state 
 
 \tabl{summary} collects the outcome of every comparison in this section, one row each. The subsections below carry the measurements those rows stand for.
 
+{\def\arraystretch{1.2}
 \begin{table}[t!]
-{\def\arraystretch{1.15}\small
-\begin{tabular}{@{}p{3.6cm}p{4.4cm}@{}}
- \hline\hline
+ {\small
+ \begin{tabular}{@{}p{3.6cm}p{4.4cm}@{}}
  Case & Outcome \\
  \hline
  Constant density, exactness & Both $\sim\!10^{-16}$ \\
@@ -1049,10 +1126,9 @@ The conclusion is a boundary rather than a ranking. It is short enough to state 
  Five flavors & \magnus\ only \\
  Solar averaged observable & \magnus\ returns it directly; nothing else here offers it \\
  Supernova shock & The width of the front decides, not the flavor content \\
- \hline\hline
 \end{tabular}}
 \caption{\label{tab:summary}What each comparison in Section \ref{sec:comparison} found. The boundary falls on the shape of the profile rather than on the physics: a jump belongs to the closed form, a continuous variation to \magnus. Every row is measured in notebook \#25 of the repository, with all codes timed in one process on one machine and each case refereed by a third method.}
-\end{table}
+\end{table}}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -1069,7 +1145,7 @@ Both codes are exact here, to round-off. The interesting lesson is not about cod
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \tabl{prem} separates cost from reach along a single Earth chord, one row per setting of each code. Through the Earth the two point in opposite directions---the closed form is far cheaper, \magnus\ reaches far deeper---so a single figure of merit would hide one of them.
 
-{\def\arraystretch{1.15}
+{\def\arraystretch{1.2}
 \begin{table}[t!]
  {\small
  \begin{tabular}{@{}lrr@{}}
@@ -1170,11 +1246,10 @@ Two entries in \tabl{which} resist the sorting the rest obey. A supernova shock 
 Because the two packages share conventions, a calculation can be moved from one to the other and run both ways. That is worth doing on any result that matters: agreement between two methods whose failure modes differ is stronger evidence than either one's internal convergence check, which Section \ref{sec:refinement} is careful to describe as evidence rather than proof.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-{\def\arraystretch{1.15}
+{\def\arraystretch{1.2}
 \begin{table}[t!]
 {\small
 \begin{tabular}{@{}p{3.15cm}p{1.55cm}p{2.7cm}@{}}
- \hline\hline
  The problem & Reach for & Because \\
  \hline
  Constant density & closed form & One exponential, nothing to refine \\
@@ -1188,7 +1263,6 @@ Because the two packages share conventions, a calculation can be moved from one 
  An arbitrary $\mathbb{H}(l)$ nobody has diagonalized & \magnus & Nothing in the method assumes a form for $\mathbb{H}$ \\
  The phase-averaged probability & \magnus & Returned in closed form rather than reconstructed \\
  Decay, decoherence, collective effects & neither & Needs a density matrix, not a unitary solver \\
- \hline\hline
 \end{tabular}}
 \caption{\label{tab:which}Choosing between \magnus\ and {\tt NuOscProbExact}\ \cite{NuOscProbExact, Bustamante:2019ggq} on eleven problems. ``Closed form'' means the latter throughout. The rows are ordered by the shape of the profile rather than by the physics in the Hamiltonian, which is what the two methods differ over: both take an arbitrary Hermitian matrix, so the last row is the only one where the answer turns on physics. Sections \ref{sec:const_density} to \ref{sec:solar_comparison} measure the rows that are measurable; the last three are statements about what each code can express at all.}
 \end{table}}
@@ -1290,7 +1364,7 @@ The contract between the layers is enforced rather than documented: a wrapper mu
 
 Extending the package means writing a Hamiltonian, and usually nothing else. {\tt osc\_prob} accepts any callable returning a Hermitian matrix of any size and does not ask where it came from, so a new term is added to whatever an existing builder returns, \ie, to an ordinary array and passed on unchanged. Only genuinely new physics---a term that fits none of vacuum, matter, non-standard interactions or Lorentz violation---calls for a new layer-two function.
 
-{\def\arraystretch{1.15}
+{\def\arraystretch{1.2}
 \begin{table}[t!]
  {\small
  \begin{tabular}{@{}lp{5.0cm}@{}}

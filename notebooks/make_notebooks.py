@@ -12906,6 +12906,7 @@ until the residual stops being a property of the setting --- which, as the next 
 shows, happens at $10^{-12}$ and not below.'''),
     code(r'''import hashlib
 import json
+import re
 import os
 import pathlib
 import platform
@@ -13116,14 +13117,18 @@ CACHE_WHAT = ('Everything in the paper figures that is a property of the CONFIGU
 
 
 def write_cache(blob):
-    """Write only the sections this notebook knows about.
+    """Write the whole blob.
 
-    A change of format would otherwise leave its predecessor's keys behind in a tracked
-    file, where nothing reads them and nothing removes them.
+    This used to write only an allow-list of section names, so that a change of format
+    could not leave its predecessor's keys behind.  That silently threw away every
+    section not on the list --- which is every section added after the list was written
+    --- and it was unsafe besides: sections are written the moment one of them
+    recomputes, so an early section writing before a later one had been read would have
+    dropped the later one's stored value.  Stale keys are a job for a one-off cleanup,
+    not for a filter that runs on every write.
     """
     blob.setdefault('what', CACHE_WHAT)
-    MP_CACHE.write_text(json.dumps({k: blob[k] for k in CACHE_SECTIONS if k in blob},
-                                   indent=1) + '\n')
+    MP_CACHE.write_text(json.dumps(blob, indent=1) + '\n')
 
 
 # Profiles enter every fingerprint as nine samples of what they return, never as the
@@ -13374,21 +13379,21 @@ Six engines can answer a request, tried in a fixed order; each declines what it 
 serve honestly and falls through to the next.'''),
     code(r'''# ------------------------------------------- Figure 1b: the six engines, in order
 # Same idiom as the slab-composition figure of the companion paper: one bar per
-# strategy, shaded by density, with what each does to the trajectory drawn rather
-# than named.
+# engine, shaded by density, with what each does to the trajectory drawn rather
+# than named.  The order is the dispatch order of the three scenario wrappers.
 SLAB = ['#eaf2fb', '#bcd8f3', '#7fb4e6', '#3a86d4', '#1c71d8']
 from matplotlib.patches import Rectangle
-fig, ax = plt.subplots(figsize=(7.2, 4.9))
-ax.set_xlim(0, 100); ax.set_ylim(0, 100); ax.axis('off')
-X0, X1 = 30.0, 76.0                      # the bar spans the same x in every row
+fig, ax = plt.subplots(figsize=(WIDE, 4.3))
+ax.set_xlim(0, 112); ax.set_ylim(0, 100); ax.axis('off')
+X0, X1 = 30.0, 66.0                      # the bar spans the same x in every row
 H = 6.2                                  # bar height
 rows = [
- ('Closed-form average',   'Averaged $P$ asked for,\n$\\mathbb{H}$ independent of $l$'),
- ('Adiabatic $+$ Magnus',  'Smooth profile, no declared\nbreakpoints --- and it certifies'),
- ('Interaction picture',   'Tagged exponential profile,\nexactly two flavors'),
- ('Energy-batched scan',   'Many energies sharing\none baseline'),
- ('Cumulative scan',       'A baseline scan\nat one energy'),
- ('General Magnus ladder', 'Otherwise; never skipped'),
+ ('Closed-form average',   'An average is asked for,\nand $\\mathbb{H}$ does not vary'),
+ ('Adiabatic $+$ Magnus',  'Smooth profile, a tolerance,\nand it certifies itself'),
+ ('Interaction picture',   'Declared exponential, two flavors,\nand its iteration converges'),
+ ('Energy-batched scan',   'Many energies,\none baseline'),
+ ('Cumulative scan',       'One energy,\nmany baselines'),
+ ('General Magnus ladder', 'Anything else;\nnever skipped'),
 ]
 ys = np.linspace(84, 6, len(rows))
 
@@ -13397,15 +13402,24 @@ def bar(y, edges, shades, lw=0.7):
         ax.add_patch(Rectangle((a, y), b-a, H, facecolor=c, edgecolor=INK, lw=lw, zorder=2))
 
 for i, ((name, when), y) in enumerate(zip(rows, ys)):
-    ax.text(X0-2.5, y+H/2, name, ha='right', va='center', fontsize=8.6, color='black')
-    dx = 7.0 if i == 5 else 2.5
-    ax.text(X1+dx, y+H/2, when, ha='left', va='center', fontsize=6.9, color=INK)
-    ax.annotate('', xy=(X0-0.6, y+H/2), xytext=(X0-1.8, y+H/2),
-                arrowprops=dict(arrowstyle='-|>', color=INK, lw=0.8))
-    if i == 0:                                   # one block, no composition at all
-        bar(y, [(X0, X1)], [SLAB[2]])
-        ax.text((X0+X1)/2, y+H/2, r'$\langle P\rangle$ in closed form',
-                ha='center', va='center', fontsize=7.6, color='white')
+    # The energy-batched row has arrows entering at its left edge, so its name needs
+    # more clearance than the others.
+    ax.text(X0-(4.2 if i == 3 else 2.5), y+H/2, name, ha='right', va='center',
+            fontsize=8.6, color='black')
+    ax.text(X1+2.6, y+H/2, when, ha='left', va='center', fontsize=6.6, color=INK)
+    if i:                                        # every engine but the first walks a path
+        ax.annotate('', xy=(X0-0.6, y+H/2), xytext=(X0-1.8, y+H/2),
+                    arrowprops=dict(arrowstyle='-|>', color=INK, lw=0.8))
+    if i == 0:
+        # No propagation at all: the decohered limit is algebraic, so this row gets a
+        # single plain box rather than a trajectory that is never traversed.
+        bx0, bx1 = X0 + 0.30*(X1-X0), X0 + 0.70*(X1-X0)
+        ax.add_patch(Rectangle((bx0, y), bx1-bx0, H, facecolor=SLAB[2], edgecolor=INK,
+                               lw=0.7, zorder=2))
+        ax.text((bx0+bx1)/2, y+H/2, r'$\langle P\rangle$ in closed form',
+                ha='center', va='center', fontsize=7.0, color='white')
+        ax.text((bx0+bx1)/2, y-1.6, 'No trajectory is walked', ha='center', va='top',
+                fontsize=6.4, color=INK)
     elif i == 1:                                 # smooth gradient, one exact patch
         n = 60; e = np.linspace(X0, X1, n+1)
         g = plt.cm.Blues(np.linspace(0.15, 0.75, n))
@@ -13425,13 +13439,13 @@ for i, ((name, when), y) in enumerate(zip(rows, ys)):
         ax.add_patch(Rectangle((X0, y), X1-X0, H, fill=False, edgecolor=INK, lw=0.7, zorder=3))
         xs = np.linspace(X0+1, X1-1, 300)
         ax.plot(xs, y+H/2 + 1.5*np.sin((xs-X0)*1.5), color='white', lw=0.9, zorder=5)
-        ax.text((X0+X1)/2, y-2.2, r'Vacuum phase removed analytically, then one Magnus pass',
-                ha='center', va='top', fontsize=6.6, color=INK)
+        ax.text((X0+X1)/2, y-1.6, r'Vacuum phase removed analytically, then one Magnus pass',
+                ha='center', va='top', fontsize=6.4, color=INK)
     elif i == 3:                                 # profile once, many energies
         ed = np.linspace(X0, X1, 6)
         bar(y, list(zip(ed[:-1], ed[1:])), [SLAB[1], SLAB[3], SLAB[2], SLAB[4], SLAB[1]])
         for dy in (1.9, 0.0, -1.9):
-            ax.annotate('', xy=(X0-0.6, y+H/2+dy), xytext=(X0-3.4, y+H/2+dy),
+            ax.annotate('', xy=(X0-0.5, y+H/2+dy), xytext=(X0-2.1, y+H/2+dy),
                         arrowprops=dict(arrowstyle='-|>', color=BLUE, lw=0.7))
         ax.text(X0-2.0, y+H+1.2, r'$E_1 \ldots E_n$', ha='center', va='bottom',
                 fontsize=6.6, color=BLUE)
@@ -13449,15 +13463,33 @@ for i, ((name, when), y) in enumerate(zip(rows, ys)):
             for a, b in zip(ed[:-1], ed[1:]):
                 ax.add_patch(Rectangle((a, y+dy), b-a, H*0.62, facecolor=SLAB[2],
                                        edgecolor=INK, lw=0.5, alpha=al, zorder=2))
-        ax.annotate('', xy=(X1+1.8, y+0.4), xytext=(X1+1.8, y+4.6),
-                    arrowprops=dict(arrowstyle='-|>', color=INK, lw=0.8))
-        ax.text(X1+2.9, y+2.5, 'Refine', ha='left', va='center', fontsize=6.6,
+        ax.annotate('', xy=(X0-6.0, y-0.8), xytext=(X0-6.0, y+H+4.2),
+                    arrowprops=dict(arrowstyle='-|>', color=INK, lw=0.9))
+        ax.text(X0-7.2, y+H/2+1.7, 'Refine', ha='right', va='center', fontsize=6.6,
                 color=INK, rotation=90)
 
-ax.text((X0+X1)/2, 97.0, r'How Mag$\nu$s answers a call: the six engines, in dispatch order',
+ax.text(56.0, 97.0, r'How Mag$\nu$s answers a call: the six engines, in dispatch order',
         ha='center', va='center', fontsize=9.4, color='black')
-ax.text((X0+X1)/2, 92.0, 'Each declines what it cannot serve and falls through to the next',
-        ha='center', va='center', fontsize=6.9, color=INK)
+
+# The order they are tried in, and the fall-through, are the same arrow: each engine
+# declines what it cannot serve and the next one down is tried.  Drawing it once in the
+# margin keeps it off the bars.
+ax.annotate('', xy=(6.0, ys[-1]-1.0), xytext=(6.0, ys[0]+H+1.0),
+            arrowprops=dict(arrowstyle='-|>', color='black', lw=1.2))
+ax.text(3.2, (ys[0]+ys[-1])/2 + H/2, 'Tried in this order; each falls through to the next',
+        rotation=90, ha='center', va='center', fontsize=7.0, color='black')
+
+# The last three share one kernel, which is what decides whether a disagreement between
+# two of them means anything.  The energy-batched row is the exception noted beside it:
+# a potential that does not vary is served by a single exact exponential instead.
+gy0, gy1 = ys[5] - 1.6, ys[3] + H + 1.6
+gx = 104.0
+ax.plot([gx, gx+1.2, gx+1.2, gx], [gy0, gy0, gy1, gy1], color=INK, lw=0.8,
+        solid_joinstyle='miter')
+ax.text(gx + 2.8, (gy0 + gy1)/2, 'One slab kernel,\nthree ways of batching', rotation=90,
+        ha='center', va='center', fontsize=6.4, color=INK)
+ax.text(X1+2.6, ys[3]-1.4, r'(constant $\mathbb{H}$: one exact exponential instead)',
+        ha='left', va='top', fontsize=6.0, color=INK, style='italic')
 fig.subplots_adjust(left=0.01, right=0.99, top=0.99, bottom=0.01)
 save(fig, 'strategies.pdf')'''),
     md(r'''## Figure 2 --- slab width follows the profile, not the phase
@@ -14281,12 +14313,27 @@ SCEN = [
 
 fig, axes = plt.subplots(4, 1, figsize=(COL, 7.3),
                          gridspec_kw=dict(hspace=0.42))
+def oscillogram_grid(label, E_ax, call):
+    """One panel's worth of probability, computed once and read from disk after.
+
+    Four panels of 170 x 200 points are about three minutes, and every one of those
+    points is a function of the configuration rather than of the run.  Cosmetic work on
+    this figure -- a tick label, a colorbar -- must not pay for them again.
+    """
+    def run():
+        grid = np.empty((NZ, NE))
+        for i, cz in enumerate(CZ):
+            grid[i] = np.asarray(quiet(call, E_ax, float(cz), chord(float(cz))))
+        return grid.tolist()
+    key = ('oscillogram', label, [float(e) for e in E_ax], [float(c) for c in CZ],
+           RTOL_FIG, ATOL_FIG, sorted(OSC.items()), sorted(STERILE4.items()),
+           sorted(STERILE5.items()), sorted((k, str(v)) for k, v in EPS.items()))
+    return np.asarray(cached('oscillogram_%s' % re.sub(r'\W+', '_', label).strip('_'),
+                             key, run, what='one oscillogram panel'))
+
+
 for ax, (label, E_ax, unit, xlabel, ticks, call) in zip(axes, SCEN):
-    t0 = time.perf_counter()
-    grid = np.empty((NZ, NE))
-    for i, cz in enumerate(CZ):
-        grid[i] = np.asarray(quiet(call, E_ax, float(cz), chord(float(cz))))
-    print('  %-22s %d x %d in %5.1f s' % (label, NZ, NE, time.perf_counter() - t0))
+    grid = oscillogram_grid(label, E_ax, call)
     im = ax.pcolormesh(E_ax/unit, CZ, grid, cmap='viridis', vmin=0.0, vmax=1.0,
                        shading='gouraud', rasterized=True)
     logx(ax); snug(ax, E_ax/unit); xticks_at(ax, ticks)
@@ -14298,7 +14345,8 @@ for ax, (label, E_ax, unit, xlabel, ticks, call) in zip(axes, SCEN):
     corner(ax, label, fontsize=8.5)
 axes[0].text(2.3, -0.822, 'Core-mantle boundary', color='white', fontsize=8.0,
              va='bottom', path_effects=[pe.withStroke(linewidth=1.6, foreground='0.25')])
-cb = fig.colorbar(im, ax=list(axes), pad=0.07, fraction=0.045, aspect=42)
+# aspect follows the panel count, so the bar is as tall as the stack beside it.
+cb = fig.colorbar(im, ax=list(axes), pad=0.07, fraction=0.045, aspect=56)
 cb.set_label(r'Survival probability, $P_{\nu_\mu \to \nu_\mu}$', fontsize=8.0)
 cb.ax.tick_params(labelsize=8.0)
 save(fig, 'earth_oscillogram.pdf')'''),
@@ -14421,27 +14469,37 @@ LAB = {1.0: r'$3\nu$ MSW resonance density at 1 MeV', 5.0: '5 MeV', 20.0: '20 Me
 for Emev in (1.0, 5.0, 20.0):
     nr = OSC['D21']*cos2th12/(2.0*Emev*gd.UNIT_MEV)/PER_NE
     ax.axhline(nr/PER_CM3, color=PURPLE, lw=0.7, ls='--')
-    ax.text(0.975, nr/PER_CM3, LAB[Emev], color=PURPLE, fontsize=8.0, ha='right',
-            va='top')
+    # Under its own line, clear of it: the top line sits at the very top of the panel,
+    # so a label placed above it lands outside the axes.
+    ax.annotate(LAB[Emev], xy=(0.975, nr/PER_CM3), xytext=(0, -3.5),
+                textcoords='offset points', color=PURPLE, fontsize=8.0, ha='right',
+                va='top')
 logy(ax); ax.set_xlim(0.0, 1.0)
 ax.xaxis.set_minor_locator(AutoMinorLocator(5))
 ax.set_xlabel(r'Radius, $r/R_\odot$', labelpad=1.5)
 ax.set_ylabel(r'Electron density, $n_e$ [cm$^{-3}$]', fontsize=8.0)
-# Below the curve and to the left of the resonance labels, which are right-aligned.
-label_along(ax, rr, ne_tab/PER_CM3, int(0.34*len(rr)),
-            'Solar model BS2005-AGS,OP', INK, fontsize=8.0, offset=(0, -15))
+# Set horizontally in the open space under the curve, not rotated along it: following
+# the slope put the words across the density line they were meant to name.
+ax.text(0.16, 2.0e23, 'Sun (BS2005-AGS,OP)', ha='left', va='center',
+        fontsize=8.0, color=INK)
 
 # --- the averaged observable, and the residual under it
 resid = {}
 for label, color, call, build_H in SCEN:
-    t0 = time.perf_counter()
-    P = np.asarray(quiet(call, E_AVG))
-    R = np.array([adiabatic_limit(build_H, e, VCC0) for e in E_AVG])
+    def run(call=call, build_H=build_H):
+        P = np.asarray(quiet(call, E_AVG))
+        R = np.array([adiabatic_limit(build_H, e, VCC0) for e in E_AVG])
+        return dict(P=P.tolist(), R=R.tolist())
+    got = cached('solar_%s' % re.sub(r'\W+', '_', label).strip('_'),
+                 ('solar', label, [float(e) for e in E_AVG], float(R_SUN),
+                  profile_samples(lambda l: PER_NE*ne_sun(l), R_SUN),
+                  sorted(OSC.items())),
+                 run, what='one averaged solar scenario')
+    P, R = np.asarray(got['P']), np.asarray(got['R'])
     axes[1].semilogx(E_AVG/gd.UNIT_MEV, P, color=color, lw=1.3, label=label)
     resid[label] = (color, np.abs(P - R))
-    print('%-14s %d energies in %.2f s, P in %.3f-%.3f, worst |Magnus - adiabatic| %.2e'
-          % (label, len(E_AVG), time.perf_counter() - t0, P.min(), P.max(),
-             resid[label][1].max()))
+    print('%-14s P in %.3f-%.3f, worst |Magnus - adiabatic| %.2e'
+          % (label, P.min(), P.max(), resid[label][1].max()))
 
 a = axes[1]
 logx(a); snug(a, E_AVG/gd.UNIT_MEV); xticks_at(a, (0.1, 0.3, 1, 3, 10, 20))
@@ -14449,7 +14507,7 @@ a.set_ylim(0.25, 0.60); minor_y(a, 5)
 a.set_ylabel(r'Average probability, $\langle P_{\nu_e \to \nu_e}\rangle$',
              fontsize=8.0)
 a.tick_params(labelbottom=False)
-a.legend(loc='lower left', handlelength=1.4)
+a.legend(loc='upper right', handlelength=1.4)
 corner(a, r'Sun', loc='upper left', x=0.035, y=0.965)
 
 b = axes[2]
@@ -14524,12 +14582,22 @@ def H_lr(E, frac=None):
 
 
 E_LR = np.logspace(np.log10(0.1), np.log10(20.0), 70)*gd.UNIT_MEV
-t0 = time.perf_counter()
 avg = lambda H: avgprob.averaged_probabilities_adiabatic(H, 0.0, R_SUN)[0][0, 0]
-P_std = np.array([avg(H_lr(e)) for e in E_LR])
-P_lr = {frac: np.array([avg(H_lr(e, frac)) for e in E_LR]) for frac, _, _ in LR_RANGES}
-print('  %d energies, %d Hamiltonians, in %.1f s'
-      % (len(E_LR), 1 + len(LR_RANGES), time.perf_counter() - t0))
+
+
+def _lri_sweep():
+    out = {'std': [avg(H_lr(e)) for e in E_LR]}
+    for frac, _, _ in LR_RANGES:
+        out['%g' % frac] = [avg(H_lr(e, frac)) for e in E_LR]
+    return out
+
+
+_got = cached('solar_long_range',
+              ('lri', [float(e) for e in E_LR], float(R_SUN), [f for f, _, _ in LR_RANGES],
+               {'%g' % f: float(G2[f]) for f, _, _ in LR_RANGES}, sorted(OSC.items())),
+              _lri_sweep, what='the long-range solar sweep')
+P_std = np.asarray(_got['std'])
+P_lr = {frac: np.asarray(_got['%g' % frac]) for frac, _, _ in LR_RANGES}
 print('  P_ee standard %.3f-%.3f' % (P_std.min(), P_std.max()))
 for frac, lab, _ in LR_RANGES:
     print('    1/m = %.1f R_sun: %.3f-%.3f, largest shift %.3f'
@@ -14545,9 +14613,10 @@ for frac, lab, col in LR_RANGES:
                label=r'$+\;L_e - L_\mu$,  ' + lab)
 logx(a); snug(a, E_LR/gd.UNIT_MEV); xticks_at(a, (0.1, 0.3, 1, 3, 10, 20))
 a.set_ylabel(r'Average probability, $\langle P_{\nu_e \to \nu_e}\rangle$', fontsize=8.0)
+a.set_ylim(top=0.55)
 a.tick_params(labelbottom=False); minor_y(a, 5)
 a.legend(loc='lower left', handlelength=1.6)
-corner(a, r'Sun, BS2005-AGS,OP', loc='upper right', fontsize=8.0)
+corner(a, r'Sun (BS2005-AGS,OP)', loc='upper right', fontsize=8.0)
 
 b = axes[1]
 for frac, _, col in LR_RANGES:
@@ -14556,6 +14625,7 @@ b.axhline(0.0, color=INK, lw=0.6, ls=':')
 logx(b); snug(b, E_LR/gd.UNIT_MEV); xticks_at(b, (0.1, 0.3, 1, 3, 10, 20))
 b.set_xlabel(r'Neutrino energy, $E$ [MeV]')
 b.set_ylabel(r'$\Delta \langle P \rangle$', fontsize=8.0)
+b.set_ylim(-0.02, 0.02)
 minor_y(b, 5)
 fig.subplots_adjust(left=0.20)
 save(fig, 'solar_long_range.pdf')'''),
@@ -14656,8 +14726,8 @@ print('engine answering this figure: %r (declined: %s)'
 # different axis entirely (a window at the front), so it gets its own block and its
 # own gap.  A single hspace cannot do both.
 fig = plt.figure(figsize=(WIDE, 6.3))
-outer = fig.add_gridspec(2, 1, height_ratios=[2.25, 1.15], hspace=0.30)
-gs_top = outer[0].subgridspec(2, 2, height_ratios=[1.05, 1.15], hspace=0.08,
+outer = fig.add_gridspec(2, 1, height_ratios=[2.25, 1.15], hspace=0.20)
+gs_top = outer[0].subgridspec(2, 2, height_ratios=[1.15, 1.15], hspace=0.08,
                               wspace=0.06)
 gs_bot = outer[1].subgridspec(1, 2, wspace=0.06)
 axes = np.empty((3, 2), dtype=object)
@@ -14680,8 +14750,13 @@ for col, width in enumerate(WIDTHS):
     # cm^-3 curve thirty decades off the panel.
     ne_full = np.asarray(ne(Ls_full))/gd.UNIT_PER_CM3
     top.set_ylim(0.55*ne_full.min(), 2.2*ne_full.max())
-    corner(top, r'SN: front width %s km' % wlab, loc='upper left', x=0.035, y=0.93,
-           fontsize=8.0)
+    # Placed against the density rather than the panel top, so it sits over the flat
+    # part of the profile instead of over its rise.
+    top.text(0.035, 1.5e26, r'SN: front width %s km' % wlab, transform=
+             top.get_yaxis_transform(), ha='left', va='center', fontsize=8.0,
+             color='black', zorder=10,
+             bbox=dict(boxstyle='round,pad=0.32', facecolor='white',
+                       edgecolor='black', linewidth=0.6))
 
     # The front is 0.1% of the ray at most, so it cannot show on the axis above.  The
     # inset is the same window the bottom row uses, and is the only place the two
@@ -14690,11 +14765,11 @@ for col, width in enumerate(WIDTHS):
     # view shows a vertical line and no shaded band at all.
     half_in = max(1.5*w_km, 0.05)
     r_in = np.linspace(R_FORWARD_KM - half_in, R_FORWARD_KM + half_in, 600)
-    ins = top.inset_axes([0.60, 0.50, 0.37, 0.46])
+    ins = top.inset_axes([0.60, 0.50, 0.34, 0.42])
     # Scaled to 1e-5 MeV^3 so the axis needs no offset text, which collided with the
     # inset's own title at this size.
     ins.plot(r_in - R_FORWARD_KM,
-             np.asarray(ne(r_in*KM))/gd.UNIT_PER_CM3/1.0e24, color=INK, lw=0.9)
+             np.asarray(ne(r_in*KM))/gd.UNIT_PER_CM3/1.0e26, color=INK, lw=0.9)
     ins.axvspan(-0.5*w_km, 0.5*w_km, color=GREEN, alpha=0.35, lw=0, zorder=0)
     ins.set_xlim(-half_in, half_in)
     ins.set_xticks((-half_in, 0.0, half_in))
@@ -14703,9 +14778,8 @@ for col, width in enumerate(WIDTHS):
     ins.tick_params(labelsize=8.0, pad=0.8, length=1.6)
     for side in ins.spines.values():
         side.set_linewidth(0.6)
-    ins.text(0.5, 1.03, r'$n_e$ in $10^{24}$ cm$^{-3}$',
-             transform=ins.transAxes, ha='center', va='bottom', fontsize=8.0,
-             color=INK)
+    ins.set_xlabel(r'Distance from FS [km]', fontsize=7.4, labelpad=1.0)
+    ins.set_ylabel(r'$n_e$ [$10^{26}$ cm$^{-3}$]', fontsize=7.4, labelpad=1.0)
     # A box on the parent marking where the inset was taken from, with corner
     # connectors.  At 0.07 km the box is a hairline, which is the honest width.
     lo, hi = top.get_ylim()
@@ -14717,27 +14791,34 @@ for col, width in enumerate(WIDTHS):
         ln.set(visible=False)
 
     for label, color, call in SCEN:
-        t0 = time.perf_counter()
-        P_full = np.asarray(quiet(call, ne, bp, Ls_full))
-        P_win = np.asarray(quiet(call, ne, bp, Ls_win))
+        def _run(call=call, ne=ne, bp=bp):
+            return dict(full=np.asarray(quiet(call, ne, bp, Ls_full)).tolist(),
+                        win=np.asarray(quiet(call, ne, bp, Ls_win)).tolist())
+        _g = cached('shock_%s_%s' % (re.sub(r'\W+', '_', label).strip('_'),
+                                     ('%g' % w_km).replace('.', 'p')),
+                    ('shock', label, float(w_km), float(ENERGY),
+                     [float(x) for x in Ls_full[::40]], [float(x) for x in Ls_win[::40]],
+                     sorted(OSC.items()), sorted(STERILE4.items()),
+                     sorted(STERILE5.items()), sorted((k, str(v)) for k, v in EPS.items())),
+                    _run, what='one shock scenario at one front width')
+        P_full, P_win = np.asarray(_g['full']), np.asarray(_g['win'])
         mid.plot(Ls_full/KM/1.0e3, P_full, color=color, lw=0.3, alpha=0.8)
         bot.plot(Ls_win/KM - R_FORWARD_KM, P_win, color=color, lw=0.8, label=label)
-        print('  width %6.2f km  %-13s %.2f s, full P in %.3f-%.3f'
-              % (w_km, label, time.perf_counter() - t0, P_full.min(), P_full.max()))
+        print('  width %6.2f km  %-13s full P in %.3f-%.3f'
+              % (w_km, label, P_full.min(), P_full.max()))
 
     for ax in (top, mid):
         ax.set_xlim(R0_KM/1.0e3, R1_KM/1.0e3)
         ax.xaxis.set_minor_locator(AutoMinorLocator(5))
         for r in (R_CONTACT_KM, R_FORWARD_KM):
-            ax.axvline(r/1.0e3, color='0.55', lw=0.6, ls=':')
+            ax.axvline(r/1.0e3, color='0.45', lw=1.1, ls=':')
     top.tick_params(labelbottom=False)
     mid.set_ylim(0.0, 1.0); minor_y(mid, 5)
     mid.set_xlabel(r'Radius, $r$ [$10^3$ km]')
 
     bot.set_xlim(-HALF_KM, HALF_KM)
     bot.xaxis.set_minor_locator(AutoMinorLocator(5))
-    bot.axvspan(-0.5*w_km, 0.5*w_km, color=GREEN, alpha=0.28, lw=0, zorder=0)
-    bot.axvline(0.0, color='0.4', lw=0.7, ls=':')
+    bot.axvline(0.0, color='0.4', lw=1.1, ls=':')
     bot.set_ylim(0.0, 1.0); minor_y(bot, 5)
     bot.set_xlabel(r'Distance from the forward shock [km]')
 
@@ -14747,17 +14828,17 @@ for col, width in enumerate(WIDTHS):
 
 axes[0, 0].set_ylabel(r'$n_e$ [cm$^{-3}$]', fontsize=8.0)
 axes[1, 0].set_ylabel(r'$P_{\nu_e \to \nu_e}$, whole ray', fontsize=8.0)
-axes[2, 0].set_ylabel(r'$P_{\nu_e \to \nu_e}$, at the front', fontsize=8.0)
-axes[2, 0].legend(loc='lower left', handlelength=1.3, ncol=3, columnspacing=0.7,
+axes[2, 0].set_ylabel(r'$P_{\nu_e \to \nu_e}$, at the FS', fontsize=8.0)
+axes[2, 1].legend(loc='lower left', handlelength=1.3, ncol=2, columnspacing=0.7,
                   labelspacing=0.2, fontsize=8.0)
 # Named on both rows that show them: the bottom row speaks of "the forward shock"
 # while the profile above carries two, which is a question a reader should not have
 # to hold open.
-for row in (0, 1):
-    for r, name in ((R_CONTACT_KM, 'Contact'), (R_FORWARD_KM, 'Forward shock')):
-        axes[row, 0].text(r/1.0e3, 0.04, ' ' + name, fontsize=8.0, color='0.35',
-                          transform=axes[row, 0].get_xaxis_transform(), ha='left',
-                          va='bottom')
+for r, name in ((R_CONTACT_KM, 'Contact'), (R_FORWARD_KM, 'Forward shock (FS)')):
+    axes[0, 0].annotate(name, xy=(r/1.0e3, 0.04),
+                        xycoords=axes[0, 0].get_xaxis_transform(),
+                        xytext=(4.5, 0), textcoords='offset points',
+                        fontsize=8.0, color='0.35', ha='left', va='bottom')
 save(fig, 'shock_probability.pdf')'''),
     md(r'''### Figure 8 --- what an astrophysical flux arrives as
 
@@ -14780,10 +14861,17 @@ B3_ASTRO = float(OSC['D31'])/(2.0*E_STAR**(N_LIV + 1))
 
 HVA3 = np.asarray(vacuum_hamiltonian(3), dtype=complex)
 HVA4 = np.asarray(vacuum_hamiltonian(4), dtype=complex)
-P_VAC3 = np.array([avgprob.averaged_probabilities_constant_hamiltonian(HVA3/e)
-                   for e in E_ASTRO])
-P_VAC4 = np.array([avgprob.averaged_probabilities_constant_hamiltonian(HVA4/e)
-                   for e in E_ASTRO])
+def _astro_vac():
+    return dict(p3=[avgprob.averaged_probabilities_constant_hamiltonian(HVA3/e).tolist()
+                    for e in E_ASTRO],
+                p4=[avgprob.averaged_probabilities_constant_hamiltonian(HVA4/e).tolist()
+                    for e in E_ASTRO])
+
+
+_av = cached('astro_vacuum',
+             ('astro_vac', [float(e) for e in E_ASTRO], sorted(OSC.items()),
+              sorted(STERILE4.items())), _astro_vac, what='the decohered vacuum matrices')
+P_VAC3, P_VAC4 = np.asarray(_av['p3']), np.asarray(_av['p4'])
 
 
 def liv_term(e):
@@ -14792,12 +14880,20 @@ def liv_term(e):
         b1=0.0, b2=0.0, b3=B3_ASTRO, Lambda=1.0, n_liv=N_LIV), dtype=complex)
 
 
-P_LIV = np.array([avgprob.averaged_probabilities_constant_hamiltonian(HVA3/e + liv_term(e))
-                  for e in E_ASTRO])
+P_LIV = np.asarray(cached(
+    'astro_liv',
+    ('astro_liv', [float(e) for e in E_ASTRO], N_LIV, float(B3_ASTRO), sorted(OSC.items())),
+    lambda: [avgprob.averaged_probabilities_constant_hamiltonian(HVA3/e + liv_term(e)).tolist()
+             for e in E_ASTRO], what='the decohered matrices with a Lorentz-violating term'))
 # Through the Earth the flux is already decohered when it arrives, so the two legs
 # compose as probability matrices rather than as amplitudes.
-P_EARTH = np.asarray(quiet(oscprob.osc_prob_3nu_earth_nsi, E_ASTRO, costhz=COSTHZ_ASTRO,
-                           L=L_ASTRO, **OSC, **EPS, rtol=1e-6, atol=1e-8))
+P_EARTH = np.asarray(cached(
+    'astro_earth_nsi',
+    ('astro_earth', [float(e) for e in E_ASTRO], COSTHZ_ASTRO, float(L_ASTRO),
+     sorted(OSC.items()), sorted((k, str(v)) for k, v in EPS.items())),
+    lambda: np.asarray(quiet(oscprob.osc_prob_3nu_earth_nsi, E_ASTRO, costhz=COSTHZ_ASTRO,
+                             L=L_ASTRO, **OSC, **EPS, rtol=1e-6, atol=1e-8)).tolist(),
+    what='the Earth leg with non-standard interactions'))
 P_NSI = np.einsum('ij,ejk->eik', P_VAC3[0], P_EARTH)
 
 COMP_STD = np.einsum('a,eab->eb', PION_SOURCE, P_VAC3)
@@ -14809,7 +14905,7 @@ CASES = [(r'Standard $3\nu$', P_VAC3, 3),
 FCOL = {0: BLUE, 1: RED, 2: GREEN}
 FLAB = {0: r'$\nu_e$', 1: r'$\nu_\mu$', 2: r'$\nu_\tau$'}
 
-fig, axes = plt.subplots(2, 4, figsize=(WIDE, 4.5), sharex=True, sharey='row',
+fig, axes = plt.subplots(2, 4, figsize=(WIDE, 4.1), sharex=True, sharey='row',
                          gridspec_kw=dict(hspace=0.10, wspace=0.10))
 for col, (label, P, d) in enumerate(CASES):
     src = np.zeros(d); src[:3] = PION_SOURCE
@@ -14828,12 +14924,14 @@ for col, (label, P, d) in enumerate(CASES):
                          ls='--', zorder=1)
             bot.semilogx(E_ASTRO/gd.UNIT_TEV, COMP_STD[:, a], color='0.65', lw=0.7,
                          ls='--', zorder=1)
-        top.semilogx(E_ASTRO/gd.UNIT_TEV, P[:, a, a], color=FCOL[a], lw=1.3, zorder=3)
-        bot.semilogx(E_ASTRO/gd.UNIT_TEV, comp[:, a], color=FCOL[a], lw=1.3, zorder=3,
+        top.semilogx(E_ASTRO/gd.UNIT_TEV, P[:, a, a], color=FCOL[a], lw=1.3, zorder=3,
                      label=FLAB[a] if col == 0 else None)
+        bot.semilogx(E_ASTRO/gd.UNIT_TEV, comp[:, a], color=FCOL[a], lw=1.3, zorder=3)
     for ax in (top, bot):
         logx(ax); snug(ax, E_ASTRO/gd.UNIT_TEV)
-    corner(top, label, fontsize=7.6)
+    bot.xaxis.set_major_locator(LogLocator(base=10.0, subs=(1.0,), numticks=12))
+    unit_as_one(bot, which='x')
+    corner(top, label, loc='upper left', x=0.075, fontsize=7.6)
     if d > 3:
         lost = 1.0 - np.einsum('a,eab->eb', src, P)[:, :3].sum(axis=1)
         print('  %-20s sterile takes %.3f-%.3f of the flux before renormalizing'
@@ -14842,17 +14940,17 @@ for col, (label, P, d) in enumerate(CASES):
           % (label.replace('$', ''), P[0, 0, 0], P[0, 1, 1], P[0, 2, 2],
              P[-1, 0, 0], P[-1, 1, 1], P[-1, 2, 2]))
 fig.supxlabel(r'Neutrino energy, $E$ [TeV]',
-              fontsize=plt.rcParams['axes.labelsize'], y=0.015)
-axes[0, 0].set_ylabel(r'Survival, $\langle P_{\alpha\alpha}\rangle$', fontsize=8.0)
+              fontsize=plt.rcParams['axes.labelsize'], x=0.55, y=0.075)
+axes[0, 0].set_ylabel(r'Avg.~survival probability, $\langle P_{\alpha\alpha}\rangle$',
+                      fontsize=8.0)
 axes[1, 0].set_ylabel(r'Flavor fraction at Earth', fontsize=8.0)
 # Ranges chosen to show the differences rather than the distance from zero: every
 # survival probability here lives above 0.28, and every flavor fraction between 0.30
 # and 0.35.  The top is left to the data, so the LIV excursion is not clipped.
-_ptop = max(float(np.max(P[:, a, a])) for _, P, _ in CASES for a in range(3))
-axes[0, 0].set_ylim(0.28, _ptop + 0.03); minor_y(axes[0, 0], 5)
-axes[1, 0].set_ylim(0.30, 0.35); minor_y(axes[1, 0], 5)
-axes[1, 0].legend(loc='upper left', handlelength=1.3, fontsize=7.4, ncol=3,
-                  columnspacing=0.9)
+axes[0, 0].set_ylim(0.30, 0.90); minor_y(axes[0, 0], 5)
+axes[1, 0].set_ylim(0.316, 0.35); minor_y(axes[1, 0], 5)
+axes[0, 0].legend(loc='upper left', bbox_to_anchor=(0.02, 0.86), handlelength=1.3,
+                  fontsize=7.4, ncol=3, columnspacing=0.9)
 axes[0, 1].axvline(E_STAR/gd.UNIT_TEV, color=INK, lw=0.7, ls=':')
 axes[1, 1].axvline(E_STAR/gd.UNIT_TEV, color=INK, lw=0.7, ls=':')
 fig.tight_layout(pad=0.3, w_pad=0.3, h_pad=0.4)
@@ -14890,9 +14988,16 @@ for ax, case in zip(axes, BENCH['cases']):
             top = max(range(len(pts)), key=lambda k: pts[k]['max_abs_error'])
             for k, pt in enumerate(pts):
                 txt = ('%s = %s' % (dial, pt['label'])) if k == top and dial else pt['label']
+                # Down and to the right of the marker.  Up and to the right put the
+                # topmost label of each curve outside the axes, where it was clipped.
+                # The last point of a series is its rightmost, so that one is set to
+                # the left instead: to the right it ran past the axis.
+                last = (k == len(pts) - 1)
                 ax.annotate(txt, xy=(pt['us_per_probability'], pt['max_abs_error']),
-                            xytext=(3.5, 3.5), textcoords='offset points',
-                            fontsize=5.6, color=col, zorder=6)
+                            xytext=(-4.0 if last else 4.0, -6.5),
+                            textcoords='offset points', ha='right' if last else 'left',
+                            fontsize=5.6, color=col, zorder=6,
+                            annotation_clip=True)
     logx(ax); logy(ax)
     corner(ax, FLAVOR_LABEL[case['flavours']], loc='upper right', fontsize=8.5)
     if case['flavours'] == 5:
@@ -14906,11 +15011,12 @@ ALL_T = [p['us_per_probability'] for c in BENCH['cases'] for s_ in c['series']
 ALL_E = [p['max_abs_error'] for c in BENCH['cases'] for s_ in c['series']
          for p in s_['points']]
 for ax in axes:
-    ax.set_xlim(min(ALL_T), max(ALL_T))
+    # Room past the extreme markers, so their labels have somewhere to sit.
+    ax.set_xlim(0.7*min(ALL_T), 1.5*max(ALL_T))
     # A shared vertical range too: a reach that differs by flavor count is the point,
     # and per-panel autoscaling hides it.
     ax.set_ylim(min(ALL_E)/2.5, max(ALL_E)*2.5)
-axes[0].legend(loc='lower left', handlelength=1.4)
+axes[1].legend(loc='lower right', handlelength=1.4)
 axes[-1].set_xlabel(r'Time per probability [$\mu$s]')
 fig.tight_layout(pad=0.3, h_pad=0.4)
 # One y-label for the four panels, centred on the block rather than on any one of them.
@@ -14953,9 +15059,16 @@ for ax, case in zip(axes, SHOCK['cases']):
             top = max(range(len(pts)), key=lambda k: pts[k]['max_abs_error'])
             for k, pt in enumerate(pts):
                 txt = ('%s = %s' % (dial, pt['label'])) if k == top and dial else pt['label']
+                # Down and to the right of the marker.  Up and to the right put the
+                # topmost label of each curve outside the axes, where it was clipped.
+                # The last point of a series is its rightmost, so that one is set to
+                # the left instead: to the right it ran past the axis.
+                last = (k == len(pts) - 1)
                 ax.annotate(txt, xy=(pt['us_per_probability'], pt['max_abs_error']),
-                            xytext=(3.5, 3.5), textcoords='offset points',
-                            fontsize=5.6, color=col, zorder=6)
+                            xytext=(-4.0 if last else 4.0, -6.5),
+                            textcoords='offset points', ha='right' if last else 'left',
+                            fontsize=5.6, color=col, zorder=6,
+                            annotation_clip=True)
     ax.axhline(case['reference_unitarity'], color='0.5', ls=':', lw=0.8)
     logx(ax); logy(ax)
     corner(ax, 'SN: front width %s km'
@@ -14968,7 +15081,9 @@ for ax, case in zip(axes, SHOCK['cases']):
 ALL_TS = [p['us_per_probability'] for c in SHOCK['cases'] for s_ in c['series']
           for p in s_['points']]
 for ax in axes:
-    ax.set_xlim(min(ALL_TS), max(ALL_TS))
+    # A little room past the extreme markers, which otherwise sit on the spines and
+    # leave their labels nowhere to go.
+    ax.set_xlim(0.7*min(ALL_TS), 1.5*max(ALL_TS))
 axes[0].legend(loc='lower left', handlelength=1.4)
 stamp(axes[1], 'Referee floor', x=0.04, y=0.04, fontsize=8.0)
 axes[-1].set_xlabel(r'Time per probability [$\mu$s]')
