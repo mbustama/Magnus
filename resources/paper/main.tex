@@ -583,52 +583,6 @@ We show what this is worth on the Sun in Section \ref{sec:solar}, and why estima
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\subsection{The six engines}
-\label{sec:engines}
-
-The sections above describe six ways of computing a probability, and a caller asks for none of them by name. Figure~\ref{fig:strategies} shows all six and the order in which they are tried. Each row draws what its engine does to the trajectory: one exponential for the closed-form average of Section \ref{sec:averaged}; adiabatic transport with an exact Magnus patch across the resonance, from Section \ref{sec:hybrid}; the fast vacuum phase removed analytically before a single Magnus pass; one evaluation of the profile shared across many energies; one pass returning many baselines; and the general ladder of Section \ref{sec:refinement}, refining until two successive stages agree. In the order they are tried:
-\begin{enumerate}
- \item \emph{Closed-form average.} Evaluates $\langle P \rangle$ directly from the eigenvectors of a position-independent $\mathbb{H}$, propagating nothing (Section \ref{sec:averaged}).
- \item \emph{Adiabatic $+$ Magnus.} Carries the state along the instantaneous eigenbasis and stitches an exact Magnus patch across each resonance, so the accumulated phase costs nothing away from a crossing (Section \ref{sec:hybrid}).
- \item \emph{Interaction picture.} Removes the fast vacuum phase analytically and takes one Magnus pass over what is left; two flavors, on a profile tagged as exponential.
- \item \emph{Energy-batched scan.} Builds the profile once and shares it across every energy of a scan, rather than rebuilding it per point.
- \item \emph{Cumulative scan.} Walks the trajectory once and returns the probability at every baseline along it.
- \item \emph{General Magnus ladder.} The slab chain of Section \ref{sec:refinement}, refined until two successive stages agree. It is never skipped.
-\end{enumerate}
-Table~\ref{tab:engines} gives the condition under which each is taken.
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\begin{figure*}[t!]
- \centering
- \includegraphics[width=\textwidth]{strategies.pdf}
- \caption{\label{fig:strategies}The six engines that can answer a request, in the order they are tried. Each row draws what its engine does to the trajectory rather than naming it: one exponential for the closed-form average; adiabatic transport with an exact Magnus patch stitched in across the resonance; the fast vacuum phase removed analytically before a single Magnus pass; one evaluation of the profile shared across many energies; one pass returning many baselines; and the general ladder, refining until two successive stages agree. Shading is the matter density. An engine declines what it cannot serve honestly and falls through to the next, so the last is reached whenever nothing above it applies; \tabl{engines} gives the conditions}
-\end{figure*}
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-None is a special case of another. Each declines requests it cannot serve honestly and falls through to the next, and the last accepts whatever reaches it. The fallbacks are silent by design, because they happen on ordinary calls and warning about them would be noise. Any call can be asked which engine answered it, whether the hybrid strategy certified, and which engines declined and why---which is the answer to ``why did my result move?'' and ``why did this call get slow?'', neither of which was answerable from outside the package before.
-
-The grouping matters more than the list, because a cross-check between two engines is worth something only if they can fail differently. The general ladder, the cumulative baseline scan and the energy-batched scan all walk slabs with the same kernel and are one family. The two-flavor interaction-picture path factors the fast vacuum phase out analytically first, so what it must resolve is a different function. The hybrid strategy is a genuinely different method, whose blind spots are the resonance detector's rather than the quadrature's. And {\tt scipy.linalg.expm} is independent of all of them, but is exact only where the Hamiltonian is constant or declared piecewise constant. Two engines in the same family can be wrong in the same way at the same time: their disagreement is informative, their agreement is not.
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-{\def\arraystretch{1.2}
-\begin{table}[t!]
- {\small
- \begin{tabular}{@{}lp{4.4cm}@{}}
- Engine & Taken when \\
- \hline
- Closed-form average & An averaged probability is asked for and $\mathbb{H}$ is position-independent \\
- Adiabatic $+$ Magnus & Smooth profile, a tolerance requested, no declared breakpoints --- \emph{and it certifies} \\
- Interaction picture & A tagged exponential profile at exactly two flavors --- \emph{and it converges} \\
- Energy-batched scan & Many energies sharing one baseline \\
- Cumulative scan & A baseline scan at one energy \\
- General Magnus ladder & Otherwise; never skipped \\
- \end{tabular}}
- \caption{\label{tab:engines}The six engines, in the order they are tried. Each row falls through to the next on a decline, so the last is reached whenever nothing above it applies. The accuracy \emph{steps} at a seam rather than varying smoothly, because the engines are different methods; the step is always toward the truth. Section \ref{sec:implementation_limits} treats the seams}
-\end{table}}
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
 \section{Code description}
 \label{sec:code}
 
@@ -642,6 +596,76 @@ The grouping matters more than the list, because a cross-check between two engin
 The primordial entry point is {\tt osc\_prob}. Its argument is a Hamiltonian: any callable ${\tt H\_func}(l)$ returning a Hermitian matrix of any size, or a constant matrix. Everything else in the public interface builds one. Around it we provide some sixty explicitly named wrappers, covering every combination of flavor count ($2$, $3$, $4$, $5$), environment (vacuum, constant density, exponential density, the Earth through PREM, the Sun) and scenario (standard, non-standard interactions, Lorentz-invariance violation). A user working on a standard case then passes named parameters ({\tt s12}, {\tt eps\_em}, {\tt rho}) rather than assembling dictionaries. \ref{app:structure} describes the three layers this is organized into and the contract between them.
 
 Every entry point takes arrays. An energy scan, a set of baselines, or an oscillogram in energy and arrival direction is one call, and we recognize several structures that make a batch cheaper than its parts. When the Hamiltonian separates as $\mathbb{H}(E, l) = \mathbb{H}_E(E) + V_{\rm CC}(l)\,\mathbb{P}$ (which the standard, non-standard-interaction and Lorentz-violating Hamiltonians all do), we sample the potential once per refinement level and share it across every energy. The quadrature, the commutator algebra, the exponentials and the slab products then carry the energy axis as a batch dimension, and per-energy convergence masking stops recomputing the energies that have already converged. When the potential does not vary at all, the series terminates at its first term and a whole scan is one stacked exponential. When many baselines share one energy, each is a prefix of the longest and a single traversal answers all of them. Section \ref{sec:engines} lists the six engines and the order they are tried in. Any call can be asked which one answered it.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{The six engines}
+\label{sec:engines}
+
+A user asks for a probability, not for a method. Behind the interface of Section \ref{sec:scope_interface}, six engines can answer a request. Every entry point tries them in one fixed order, taking the first whose assumptions the request actually satisfies. That order runs from the most specialized engine to the most general. An engine that cannot serve a request honestly declines it; the request then falls through to the next one down, until it reaches the general Magnus ladder at the bottom of the list, which accepts whatever arrives and never declines.
+
+Figure~\ref{fig:strategies} shows the six in that order. Each row draws what its engine does to the trajectory rather than naming it: a single undivided block for the phase average, which walks no trajectory at all; adiabatic transport with an exact Magnus patch stitched across a resonance; the fast vacuum phase removed analytically before one Magnus pass over what is left; one evaluation of the profile shared across many energies; one traversal returning many baselines; and the general slab ladder, refining until two successive stages agree. Shading is the matter density along the trajectory, darkest where the medium is densest.
+
+\begin{enumerate}
+
+\item \emph{Closed-form average.} Some experiments do not measure an oscillation. They measure what is left of one: a solar neutrino arrives after a baseline so long, and with an energy resolution so broad, that the oscillating terms in the probability average away. What survives is an incoherent sum over mass eigenstates. When a caller asks for that averaged quantity and $\mathbb{H}$ does not depend on position, no propagation is needed at all. We diagonalize $\mathbb{H}$ once and form $\langle P_{\alpha\beta}\rangle = \sum_i |V_{\alpha i}|^2 |V_{\beta i}|^2$ from the eigenvectors alone (Section \ref{sec:averaged}), which is exact for the averaged observable. No baseline enters the calculation; nothing is integrated. We call this a closed-form average because the averaged probability follows algebraically once the eigenbasis is known. The eigenbasis itself is still obtained numerically, so this is not a closed-form expression in the mixing parameters of the kind available for two flavors in vacuum, where the whole probability collapses to a single sine squared in $L/E$ with a constant amplitude.
+
+\item \emph{Adiabatic $+$ Magnus.} If the matter profile varies slowly enough, a neutrino that starts in one instantaneous eigenstate of $\mathbb{H}(l)$ stays in it. The whole evolution is then a dynamical phase---the integral of the eigenvalues along the trajectory---together with a geometric phase. Both can be computed on a coarse grid however large the accumulated phase becomes, which is the point of the engine: a slab method pays for oscillation phase, whereas this one does not. The approximation fails only over the narrow window around an MSW resonance, where two eigenvalues approach each other and the eigenstates rotate quickly.
+
+There the engine falls back on the package's own integrator. It solves that short window with an exact Magnus computation, then stitches the pieces together with the composition law $U(l_2, l_0) = U(l_2, l_1)\,U(l_1, l_0)$, so the result is exactly unitary whatever the accuracy of the approximation. Where a patch is needed is decided by an exact Hellmann--Feynman diagnostic on the eigenvalue gaps rather than by finite-differencing eigenvectors, which are gauge-ambiguous. The test therefore works at any flavor count, with any number of resonances along the trajectory (Section \ref{sec:hybrid}). The engine finally certifies itself, refining each of its internal tolerances and checking that the answer does not move. It declines when the caller supplies slab edges or breakpoints, when no tolerance was requested, when the profile fails its resolution test, and---the case worth stating plainly---when it runs but cannot certify the answer it produced, in which case the request falls through untouched to the engine below it.
+
+\item \emph{Interaction picture.} At low energy the vacuum oscillation phase is enormous. A slab method must resolve every cycle of it, even though that part of the problem already has an exact solution. This engine removes it from the integration. For a Hamiltonian of the separable form $\mathbb{H}(E, l) = \mathbb{H}_E(E) + V_{\rm CC}(l)\,\mathbb{P}$, the first term does not depend on position, so we diagonalize it once. In its eigenbasis the free evolution $e^{-i \mathbb{H}_E s}$ is a known diagonal phase for any distance $s$, which we factor out analytically instead of resolving it with narrow slabs. What is left to integrate is only the matter envelope $V_{\rm CC}(l)$, which varies on the scale height of the profile rather than on that of the oscillation.
+
+When that envelope is a genuine exponential, $V_{\rm CC}(l_0 + s) = V_{\rm CC}(l_0)\,e^{-s/l_{\rm scale}}$, the first-order Magnus term of the resulting generator has a closed form. Over a slab of length $h$ that begins at position $l_0$, that first-order term reads
+\begin{equation}
+ \label{equ:ip_omega1}
+ \big(\tilde{\Omega}_1\big)_{jk}(h)
+ = -i\, \big(\tilde{\mathbb{P}}\big)_{jk}\, V_{\rm CC}(l_0)\,
+ \frac{e^{(i \Delta_{jk} - 1/l_{\rm scale})h} - 1}{i \Delta_{jk} - 1/l_{\rm scale}} ,
+\end{equation}
+where a tilde marks a matrix written in the eigenbasis of $\mathbb{H}_E$, the indices $j$ and $k$ run over its eigenvalues $\lambda_j$, the gaps are $\Delta_{jk} = \lambda_j - \lambda_k$, and $l_{\rm scale}$ is the scale height of the density profile. The expression holds for $j = k$ as well, since that denominator is $-1/l_{\rm scale}$, which never vanishes for any finite scale height, so one expression serves the diagonal and the off-diagonal entries alike.
+
+This is exact in the envelope: we make no piecewise-constant or piecewise-linear approximation of $V_{\rm CC}$. The only approximation left is truncating the interaction-picture series at first order, which is accurate wherever the matter term is a small perturbation on the vacuum splitting. That truncation \emph{improves} as the energy falls, because $\Delta_{jk}$ grows as $1/E$; the regime that is hardest for a slab method is therefore the easiest for this one. The engine serves a single point as readily as a scan over energies at a shared baseline. It declines for more than two flavors, for a profile not tagged as exponential, for supplied slab edges, and when its own iteration fails to converge---which is what happens at an MSW resonance, where the matter term becomes comparable to the vacuum splitting rather than small. The first-order truncation then loses its justification, which the engine detects and reports.
+
+\item \emph{Energy-batched scan.} Computed point by point, a scan over many energies at one baseline traverses the same profile once per energy, even though the profile does not depend on the energy. When $\mathbb{H}$ separates as above---which the standard, non-standard-interaction and Lorentz-violating Hamiltonians all do---we sample the potential once per refinement level and share it across every energy in the batch. The quadrature, the commutator algebra, the matrix exponentials and the slab products then carry the energy axis as a batch dimension. Energies that have already converged are masked out of further refinement rather than recomputed. One case collapses further: if $V_{\rm CC}$ does not vary along the trajectory at all, the expansion terminates at its first term. The entire scan is then a single stacked matrix exponential, exact because the expansion has no further terms left to converge.
+
+\item \emph{Cumulative scan.} The mirror image is one energy at many baselines. Evolution operators are time-ordered products, so each requested baseline is a prefix of the next, $U(0 \to L_2) = U(L_1 \to L_2)\,U(0 \to L_1)$. Computing $N$ baselines independently therefore re-walks the profile $N$ times over. This engine walks it once, recording the running product wherever an answer was asked for. Two details are requirements rather than optimizations, both of them about memory. The traversal is chunked, so the slab operators are never all live at once. Each snapshot is converted to a probability immediately, so it collapses into the number the caller wanted instead of sitting beside it as one more complex matrix. Peak memory then scales with the chunk rather than with the number of baselines.
+
+\item \emph{General Magnus ladder.} The terminal engine is the one described in Section \ref{sec:refinement}. It assumes nothing beyond a Hermitian $\mathbb{H}(l)$. It lays slabs along the trajectory, builds the expansion on each of them, composes them in order, and raises the slab count until two successive stages agree to the requested tolerance. Because it applies to everything, it is reached whenever nothing above it does. It is also the engine against which we check the others, since it is the only one that carries no structural assumption a test could violate, at any flavor count and on any profile.
+
+\end{enumerate}
+
+\textit{Seeing which engine answered.}---The fallbacks are silent by design. They happen on ordinary calls, where a warning on each would be noise. Any call can nevertheless be asked which engine answered it, whether the adiabatic strategy certified its result, and which engines stood aside and why. This is the answer to ``why did my result move when I added a point to my scan?'' and to ``why did this call suddenly get slow?'', neither of which could be answered from outside the package before. \tabl{engines} collects the condition under which each engine is taken.
+
+\textit{Why the grouping matters more than the list.}---A cross-check between two engines is worth something only if the two can fail differently, so it matters that these six are not six independent methods. The general ladder, the cumulative scan and the energy-batched scan all walk slabs with the same kernel. They differ in how the work is batched rather than in what is computed, which makes them one family. The interaction-picture path shares that kernel but factors the fast vacuum phase out first, so the function it must resolve is a different one.
+
+The remaining three stand apart. The adiabatic strategy is a genuinely different method, whose blind spots belong to the resonance detector rather than to the quadrature. The phase average propagates nothing at all. Finally, {\tt scipy.linalg.expm} is independent of all of them. We use it as a reference wherever it is exact---for a constant Hamiltonian, or a piecewise-constant one whose edges are declared---which is also the case the energy-batched row collapses to. The practical consequence is worth stating: two engines in the same family can be wrong in the same way at the same time, so their disagreement is informative while their agreement is not.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{figure*}[t!]
+ \centering
+ \includegraphics[width=\textwidth]{strategies.pdf}
+ \caption{\label{fig:strategies}The six engines that can answer a request, in the order they are tried. Each row draws what its engine does to the trajectory rather than naming it: one exponential for the closed-form average; adiabatic transport with an exact Magnus patch stitched in across the resonance; the fast vacuum phase removed analytically before a single Magnus pass; one evaluation of the profile shared across many energies; one pass returning many baselines; and the general ladder, refining until two successive stages agree. Shading is the matter density. An engine declines what it cannot serve honestly and falls through to the next, so the last is reached whenever nothing above it applies; \tabl{engines} gives the conditions}
+\end{figure*}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+{\def\arraystretch{1.2}
+\begin{table}[t!]
+ {\small
+ \begin{tabular}{@{}lp{4.4cm}@{}}
+ Engine & Taken when \\
+ \hline
+ Closed-form average & An averaged probability is asked for and $\mathbb{H}$ is position-independent \\
+ Adiabatic $+$ Magnus & Smooth profile, a tolerance requested, no declared breakpoints --- \emph{and it certifies} \\
+ Interaction picture & A tagged exponential profile at exactly two flavors --- \emph{and it converges} \\
+ Energy-batched scan & Many energies sharing one baseline \\
+ Cumulative scan & A baseline scan at one energy \\
+ General Magnus ladder & Otherwise \\
+ \end{tabular}}
+ \caption{\label{tab:engines}The six engines, in the order they are tried. Each row falls through to the next on a decline, so the last is reached whenever nothing above it applies. The accuracy \emph{steps} at a seam rather than varying smoothly, because the engines are different methods; the step is always toward the truth. Section \ref{sec:implementation_limits} treats the seams}
+\end{table}}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -696,7 +720,7 @@ The repository carries $1207$ tests, run on Python $3.10$ through $3.13$, coveri
 
 \smallskip
 
-\textit{Statistically.}---We fuzz. A suite asserts on the \emph{distribution} of the error over populations of random profiles---silent-miss rate, median, worst case---rather than on individual cases, because a per-case assertion on random input is brittle while an aggregate one still catches a regression that moves the distribution. Over $145$ random smooth profiles at two through five flavors the median error is $6.1 \cdot 10^{-8}$ with $4.1\%$ silent misses; over $150$ random piecewise-constant profiles with their edges declared it is $1.3 \cdot 10^{-12}$ with none; over $164$ Earth and solar configurations, none. A \emph{silent miss} is an answer outside the requested tolerance carrying no warning of any kind. It is the only failure mode that matters: an inaccurate answer that says so is the warnings' job.
+\textit{Statistically.}---A suite asserts on the \emph{distribution} of the error over populations of randomly generated profiles---silent-miss rate, median, worst case---rather than on individual cases, because a per-case assertion on random input is brittle while an aggregate one still catches a regression that moves the distribution. Over $145$ random smooth profiles at two through five flavors the median error is $6.1 \cdot 10^{-8}$ with $4.1\%$ silent misses; over $150$ random piecewise-constant profiles with their edges declared it is $1.3 \cdot 10^{-12}$ with none; over $164$ Earth and solar configurations, none. A \emph{silent miss} is an answer outside the requested tolerance carrying no warning of any kind. It is the only failure mode that matters: an inaccurate answer that says so is the warnings' job.
 
 We run all of it in continuous integration on every push, across the four supported Python versions, together with a linter, a documentation build with warnings as errors, and the execution of every notebook, so that an example which stops working cannot survive a merge.
 
