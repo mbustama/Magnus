@@ -14053,16 +14053,32 @@ for k in SERIES:
     print('    order %2d on %-8s  minimum %.1e at N = %5d, %.1e at N = %d'
           % (k[1], k[0], c[i], NS[i], c[-1], NS[-1]))'''),
     md(r'''### Drawing it'''),
-    code(r'''def label_along(ax, xs, ys, i, text, color, fontsize=8.0, offset=(4, 4)):
+    code(r'''def label_along(ax, xs, ys, i, text, color, fontsize=8.0, offset=(4, 4), chord=False):
     """Label a curve in place, rotated to the angle its curve makes ON THE PAGE.
 
     A fixed rotation cannot serve six slopes differing by a factor of six: it put the
     shallowest label through its own curve and the steepest one off the edge.  The angle
     is read from ``ax.transData``, so this must be called once the geometry is final.
     """
-    j, k = max(i - 1, 0), min(i + 1, len(xs) - 1)
-    a = ax.transData.transform((xs[j], ys[j]))
-    b = ax.transData.transform((xs[k], ys[k]))
+    if chord:
+        # The angle a straight label needs is the one of the chord it actually spans,
+        # not the tangent at its anchor.  On a curve that steepens under the words --
+        # the solar profile does -- the tangent is the shallower of the two, and the
+        # curve closes on the text and cuts through it before the last character.
+        f = ax.figure
+        f.canvas.draw()
+        probe = ax.text(0, 0, text, fontsize=fontsize)
+        w = probe.get_window_extent(f.canvas.get_renderer()).width
+        probe.remove()
+        P = ax.transData.transform(np.column_stack([np.asarray(xs), np.asarray(ys)]))
+        m = i
+        while m < len(xs) - 1 and P[m, 0] - P[i, 0] < w:
+            m += 1
+        a, b = P[i], P[m]
+    else:
+        j, k = max(i - 1, 0), min(i + 1, len(xs) - 1)
+        a = ax.transData.transform((xs[j], ys[j]))
+        b = ax.transData.transform((xs[k], ys[k]))
     ax.annotate(text, xy=(xs[i], ys[i]), xytext=offset, textcoords='offset points',
                 color=color, fontsize=fontsize,
                 rotation=np.degrees(np.arctan2(b[1] - a[1], b[0] - a[0])),
@@ -14522,8 +14538,10 @@ fig.subplots_adjust(left=0.20)
 # Along the curve, and last: label_along reads the slope off transData, so it has to
 # run once the axes have their final width.  Called before subplots_adjust, it was
 # rotated to an angle the panel no longer had, and the curve cut through the words.
-label_along(ax, rr, ne_tab/PER_CM3, int(0.42*len(rr)),
-            'Sun (BS2005-AGS,OP)', INK, fontsize=8.0, offset=(0, -21))
+# Anchored by radius, not by index: the model table is sampled far more densely in
+# the core, so a fraction of len(rr) lands nowhere near that fraction of the Sun.
+label_along(ax, rr, ne_tab/PER_CM3, int(np.searchsorted(rr, 0.30)),
+            'Sun (BS2005-AGS,OP)', INK, fontsize=8.0, offset=(0, -13), chord=True)
 save(fig, 'solar_averaged.pdf')'''),
     md(r'''### Figure 5b --- a Hamiltonian the package never heard of
 
