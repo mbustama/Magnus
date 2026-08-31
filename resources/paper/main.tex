@@ -775,6 +775,7 @@ One convention goes with it and is not a default the caller cannot reach. PREM i
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \subsection{The Sun and the observable a solar experiment measures}
+\label{sec:sun}
 \label{sec:solar}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -806,7 +807,6 @@ The lowest panel is the check. Its reference is the adiabatic limit assembled fr
 The tempting route to the averaged quantity is to compute the instantaneous probability across an energy window and take the mean. It does not converge.
 
 A finite-window mean is an estimator with a bias of its own, and on a profile whose density varies across the window that bias does not shrink as the window widens---because a wider window also averages over different matter conditions. Measured on the solar ray above, the window mean moves from $0.5924$ to $0.6023$ between six and forty-eight oscillation lengths, drifting \emph{away} from rather than toward a limit. There is no width at which one can stop and claim convergence. Asked for the limit instead, \magnus\ reproduces the analytic adiabatic MSW expression $\langle P_{ee}\rangle = \tfrac12 + \tfrac12\cos2\theta_m(l_0)\cos2\theta_m(l_1)$ to $3 \cdot 10^{-16}$ across $1$--$20$~MeV, and matches it to $1.3 \cdot 10^{-5}$ on the full tabulated model where the analytic expression is itself an idealization. Forty averaged energies take about $0.7$~s.
-Figure~\ref{fig:solar_lri} takes the same ray and puts a Hamiltonian on it that the package has never heard of. A gauged $L_e - L_\mu$ symmetry adds a potential sourced by the electrons of the Sun itself, falling off over the range of its mediator, and carrying the charge ${\rm diag}(1, -1, 0)$ rather than the projector on $\nu_e$ that the matter term carries. We build it as three lines of {\tt NumPy} and hand it over as a callable. Nothing else changes: the same averaging machinery of Section \ref{sec:averaged} answers, because it never asked what the Hamiltonian was. At a coupling that puts the new potential a tenth of the way to $V_{\rm CC}$ at the center, it moves the averaged probability by up to $0.021$ across $0.1$--$20$~MeV for a mediator of range $R_\odot$, and by $0.018$ for one of a tenth of that. The two are not a rescaling of one another: a shorter range samples the profile where it falls fastest, and the shift changes sign at a different energy.
 
 
 The obvious guard does not catch the related trap. \magnus\ reports, on request, how coarsely a scan samples the oscillation it is computing---the number of cycles per step, and how many points a Nyquist-adequate scan would need. On the trajectories this package serves those numbers are stark: an Earth chord is about $430$ oscillations long and would need $861$ baselines, a solar ray about $2200$ and $4390$, a supernova ray about $37\,000$ and $73\,392$. The measurement is \emph{reported and never warned about}, deliberately: the Nyquist criterion is objectively correct and would fire on $44$ of $45$ realistic scan sizes, and a warning firing on $98\%$ of calls is noise however right each firing is---and it would teach users to silence a category that also carries genuine discontinuity warnings.
@@ -894,6 +894,34 @@ P = oscprob.osc_prob(H_func, 0.0, L,
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 Two properties govern how one should be written. The engine samples the Hamiltonian at every quadrature node of every slab (a few hundred positions for a single probability, repeated at each refinement level) so a function that accepts only one position at a time turns that into a Python loop. \magnus\ probes the function once, verifies a vectorized evaluation against a scalar spot-check, and uses whichever form works; the fallback is correct and $4.6$ times slower, with bit-identical output, and since v1.0.0 it says so once per session and names the fix. The {\tt [..., None, None]} in Listing \ref{lst:arbitrary} is the whole of that fix.
+
+Figure~\ref{fig:solar_lri} shows what that buys, on the solar ray of Section \ref{sec:sun}. \emph{Top}: the phase-averaged survival probability $\langle P_{\nu_e \to \nu_e}\rangle$ against energy, for the standard three-flavor Hamiltonian and for two versions of a new one, at mediator ranges of $R_\odot$ and a tenth of it. \emph{Bottom}: the difference each makes. Nothing in the package anticipates the new term, and nothing needs to: the same averaging machinery of Section \ref{sec:averaged} answers, because it never asked what the Hamiltonian contained.
+
+\textit{The interaction.}---The example is a long-range neutrino-electron interaction, made possible by a new light neutral gauge boson $Z^\prime$ from gauging the anomaly-free combination $L_e - L_\mu$\ \cite{He:1990pn, Foot:1994vd}, with $L_e$ and $L_\mu$ the electron and muon lepton numbers. The charge under it, $Q \equiv L_e - L_\mu$, is $+1$ for the electron and $\nu_e$, $-1$ for the muon and $\nu_\mu$, and zero for every other Standard-Model field. A new matter potential sourced by electrons therefore enters the Hamiltonian,
+\begin{equation}
+ \label{equ:h3_lri}
+ \mathbb{H}^{\rm LRI}(E, l)
+ =
+ \frac{\mathbb{A}}{E} + V_{\rm CC}(l)\,\mathbb{P}
+ + V_{e\mu}(l)\,{\rm diag}\left(1, -1, 0\right) \;,
+\end{equation}
+where the first two terms are the vacuum and charged-current matter terms of Section \ref{sec:recap} and the third is the whole of the modification.
+
+\textit{Why it is worth the example.}---It is not a new number in an existing formula. Under $L_e - L_\mu$ an electron sources a Yukawa potential centered on its position, so what a neutrino at $\mathbf{r}$ feels is an integral over the electrons around it,
+\begin{equation}
+ \label{equ:yukawa}
+ V_{e\mu}(\mathbf{r})
+ =
+ \frac{g^{\prime 2}}{4\pi}
+ \int d^3r^\prime \, n_e(\mathbf{r}^\prime) \,
+ \frac{e^{-m_{Z^\prime} \lvert \mathbf{r} - \mathbf{r}^\prime \rvert}}
+      {\lvert \mathbf{r} - \mathbf{r}^\prime \rvert} \;,
+\end{equation}
+with $g^\prime$ the new gauge coupling. Where $V_{\rm CC}$ reads the density at the neutrino's own position, \equ{yukawa} is \emph{non-local}: at mediator masses light enough to matter its value at any radius is an integral over the whole electron distribution, so it depends on how many electrons there are and only weakly on where they sit\ \cite{Wise:2018rnb}. Its variation along a trajectory is a matter of geometry rather than of the local density.
+
+That is what makes the Sun a sharper test of it than the Earth. The solar density falls by five orders of magnitude along the ray, so $V_{\rm CC}$ and $V_{e\mu}$ fall at quite different rates, and the shape of the new potential---not merely its size---is what the observable responds to. We fix the coupling separately for each mediator range so that both put $V_{e\mu}$ at a tenth of $V_{\rm CC}$ at the center; what then differs between the two curves is that shape alone. At half a solar radius the longer-ranged potential still stands at $2.5$ times $V_{\rm CC}$ where the shorter has fallen to $0.4$.
+
+The two shift the averaged probability by up to $0.021$ and $0.018$ across $0.1$--$20$~MeV, and they are not a rescaling of one another: the shorter range samples the profile where it falls fastest, and its shift changes sign at a different energy. Both curves are computed with no expansion in $V_{e\mu}$, because the method does not care what the Hermitian matrix contains.
 
 The second is that a Hamiltonian which ignores its argument is detected separately and routed to the constant-Hamiltonian engine, so the easiest case there is does not take the slowest path available. It used to: the dispatcher declined a non-callable potential, so a $60$-energy constant-density scan made $18\,000$ separate calls, each rediscovering the same constancy.
 
