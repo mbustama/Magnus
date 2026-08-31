@@ -13406,7 +13406,10 @@ for i, ((name, when), y) in enumerate(zip(rows, ys)):
     # more clearance than the others.
     ax.text(X0-(4.2 if i == 3 else 2.5), y+H/2, name, ha='right', va='center',
             fontsize=8.6, color='black')
-    ax.text(X1+2.6, y+H/2, when, ha='left', va='center', fontsize=6.6, color=INK)
+    # The ladder row carries the refine arrow just past its bar, so its condition
+    # text starts further right than the others'.
+    ax.text(X1+(9.0 if i == 5 else 2.6), y+H/2, when, ha='left', va='center',
+            fontsize=6.6, color=INK)
     if i:                                        # every engine but the first walks a path
         ax.annotate('', xy=(X0-0.6, y+H/2), xytext=(X0-1.8, y+H/2),
                     arrowprops=dict(arrowstyle='-|>', color=INK, lw=0.8))
@@ -13463,9 +13466,9 @@ for i, ((name, when), y) in enumerate(zip(rows, ys)):
             for a, b in zip(ed[:-1], ed[1:]):
                 ax.add_patch(Rectangle((a, y+dy), b-a, H*0.62, facecolor=SLAB[2],
                                        edgecolor=INK, lw=0.5, alpha=al, zorder=2))
-        ax.annotate('', xy=(X0-6.0, y-0.8), xytext=(X0-6.0, y+H+4.2),
+        ax.annotate('', xy=(X1+1.8, y-0.8), xytext=(X1+1.8, y+H+4.2),
                     arrowprops=dict(arrowstyle='-|>', color=INK, lw=0.9))
-        ax.text(X0-7.2, y+H/2+1.7, 'Refine', ha='right', va='center', fontsize=6.6,
+        ax.text(X1+3.4, y+H/2+1.7, 'Refine', ha='center', va='center', fontsize=6.6,
                 color=INK, rotation=90)
 
 ax.text(56.0, 97.0, r'How Mag$\nu$s answers a call: the six engines, in dispatch order',
@@ -14478,10 +14481,7 @@ logy(ax); ax.set_xlim(0.0, 1.0)
 ax.xaxis.set_minor_locator(AutoMinorLocator(5))
 ax.set_xlabel(r'Radius, $r/R_\odot$', labelpad=1.5)
 ax.set_ylabel(r'Electron density, $n_e$ [cm$^{-3}$]', fontsize=8.0)
-# Set horizontally in the open space under the curve, not rotated along it: following
-# the slope put the words across the density line they were meant to name.
-ax.text(0.16, 2.0e23, 'Sun (BS2005-AGS,OP)', ha='left', va='center',
-        fontsize=8.0, color=INK)
+
 
 # --- the averaged observable, and the residual under it
 resid = {}
@@ -14519,6 +14519,11 @@ b.set_ylabel(r'$|\Delta P|$', fontsize=8.0)
 corner(b, r'Vs.\ adiabatic limit', loc='upper left', x=0.035, y=0.94,
        fontsize=8.0)
 fig.subplots_adjust(left=0.20)
+# Along the curve, and last: label_along reads the slope off transData, so it has to
+# run once the axes have their final width.  Called before subplots_adjust, it was
+# rotated to an angle the panel no longer had, and the curve cut through the words.
+label_along(ax, rr, ne_tab/PER_CM3, int(0.42*len(rr)),
+            'Sun (BS2005-AGS,OP)', INK, fontsize=8.0, offset=(0, -21))
 save(fig, 'solar_averaged.pdf')'''),
     md(r'''### Figure 5b --- a Hamiltonian the package never heard of
 
@@ -14992,10 +14997,15 @@ for ax, case in zip(axes, BENCH['cases']):
                 # topmost label of each curve outside the axes, where it was clipped.
                 # The last point of a series is its rightmost, so that one is set to
                 # the left instead: to the right it ran past the axis.
+                # The last point is a series' rightmost and usually its lowest, so its
+                # label goes up and to the left: to the right it ran past the axis, and
+                # below it landed on the reference floor.
                 last = (k == len(pts) - 1)
                 ax.annotate(txt, xy=(pt['us_per_probability'], pt['max_abs_error']),
-                            xytext=(-4.0 if last else 4.0, -6.5),
-                            textcoords='offset points', ha='right' if last else 'left',
+                            xytext=(-4.0, 10.0) if last else (4.0, -6.5),
+                            textcoords='offset points',
+                            ha='right' if last else 'left',
+                            va='bottom' if last else 'baseline',
                             fontsize=5.6, color=col, zorder=6,
                             annotation_clip=True)
     logx(ax); logy(ax)
@@ -15063,10 +15073,15 @@ for ax, case in zip(axes, SHOCK['cases']):
                 # topmost label of each curve outside the axes, where it was clipped.
                 # The last point of a series is its rightmost, so that one is set to
                 # the left instead: to the right it ran past the axis.
+                # The last point is a series' rightmost and usually its lowest, so its
+                # label goes up and to the left: to the right it ran past the axis, and
+                # below it landed on the reference floor.
                 last = (k == len(pts) - 1)
                 ax.annotate(txt, xy=(pt['us_per_probability'], pt['max_abs_error']),
-                            xytext=(-4.0 if last else 4.0, -6.5),
-                            textcoords='offset points', ha='right' if last else 'left',
+                            xytext=(-4.0, 10.0) if last else (4.0, -6.5),
+                            textcoords='offset points',
+                            ha='right' if last else 'left',
+                            va='bottom' if last else 'baseline',
                             fontsize=5.6, color=col, zorder=6,
                             annotation_clip=True)
     ax.axhline(case['reference_unitarity'], color='0.5', ls=':', lw=0.8)
