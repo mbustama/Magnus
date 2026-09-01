@@ -14626,8 +14626,46 @@ for frac, lab, _ in LR_RANGES:
           % (frac, P_lr[frac].min(), P_lr[frac].max(),
              np.max(np.abs(P_lr[frac] - P_std))))
 
-fig, axes = plt.subplots(2, 1, figsize=(COL, 3.9), sharex=True,
-                         gridspec_kw=dict(height_ratios=[2.0, 1.0], hspace=0.08))
+from matplotlib.patches import Circle
+# The data panels are inset to leave room for their y-labels; the diagram above them is
+# given its own axes so that it can span the full column, as a schematic should.
+fig = plt.figure(figsize=(COL, 5.15))
+_gs = fig.add_gridspec(2, 1, height_ratios=[2.0, 1.0], hspace=0.08,
+                       left=0.20, right=0.985, bottom=0.072, top=0.715)
+axes = [fig.add_subplot(_gs[0]), None]
+axes[1] = fig.add_subplot(_gs[1], sharex=axes[0])
+axd = fig.add_axes([0.005, 0.735, 0.99, 0.255])
+
+# What each mediator range lets the neutrino feel.  The charged-current potential is
+# local, so the standard case carries no disc at all; a Yukawa term of range 1/m lets
+# the neutrino feel every electron within that distance, which at 1/m = R_sun is most
+# of the Sun at once and reaches past its surface.
+axd.set_xlim(-1.55, 9.45); axd.set_ylim(-1.62, 1.52)
+axd.set_aspect('equal'); axd.axis('off')
+SUN_FILL = '#f7d68a'
+R_D, CX_D, PROD_D = 1.0, [0.0, 3.55, 7.10], -0.06
+for _cx, (_rng, _col, _lab) in zip(CX_D, [(None, INK, r'Standard'),
+                                          (0.10, BLUE, r'$1/m = R_\odot/10$'),
+                                          (1.00, RED,  r'$1/m = R_\odot$')]):
+    axd.add_patch(Circle((_cx, 0), R_D, facecolor=SUN_FILL, edgecolor=INK, lw=0.9, zorder=2))
+    if _rng is not None:
+        # The long-range discs are outlines: filled at this radius they hide the Sun.
+        for _s in np.linspace(PROD_D, 1.06, 7 if _rng < 0.5 else 5):
+            axd.add_patch(Circle((_cx + _s, 0), _rng*R_D,
+                                 facecolor=_col if _rng < 0.5 else 'none',
+                                 alpha=0.55 if _rng < 0.5 else 1.0,
+                                 edgecolor=_col, lw=0.5, zorder=5))
+    axd.add_patch(Circle((_cx, 0), 0.10*R_D, facecolor='white', edgecolor=INK, lw=0.6,
+                         ls=(0, (2.2, 1.6)), zorder=6))
+    axd.annotate('', xy=(_cx + 1.26, 0), xytext=(_cx + PROD_D, 0), zorder=8,
+                 arrowprops=dict(arrowstyle='-|>', color=INK, lw=1.15, shrinkA=0, shrinkB=0))
+    axd.plot([_cx + PROD_D], [0], marker='o', ms=2.8, color=INK, zorder=9)
+    axd.text(_cx, -1.34, _lab, ha='center', va='top', fontsize=6.8, color=_col)
+axd.annotate(r'$\nu_e$ born inside $0.1\,R_\odot$', xy=(CX_D[0], 0.10),
+             xytext=(CX_D[0] + 0.35, 1.36), ha='center', va='bottom', fontsize=6.3,
+             color=INK, arrowprops=dict(arrowstyle='-', color=INK, lw=0.5,
+                                        shrinkA=1, shrinkB=1))
+
 a = axes[0]
 a.semilogx(E_LR/gd.UNIT_MEV, P_std, color=INK, lw=1.3, ls='--', label=r'Standard $3\nu$')
 for frac, lab, col in LR_RANGES:
@@ -14649,7 +14687,6 @@ b.set_xlabel(r'Neutrino energy, $E$ [MeV]')
 b.set_ylabel(r'$\Delta \langle P \rangle$', fontsize=8.0)
 b.set_ylim(-0.02, 0.02)
 minor_y(b, 5)
-fig.subplots_adjust(left=0.20)
 save(fig, 'solar_long_range.pdf')'''),
     md(r'''## Figure 6 --- a supernova shock
 
