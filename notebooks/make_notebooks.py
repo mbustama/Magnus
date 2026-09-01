@@ -13498,55 +13498,58 @@ save(fig, 'strategies.pdf')'''),
     md(r'''## Figure 1c --- how the modules fit together'''),
 
     code(r'''# ------------------------------------------- Figure 1c: the module architecture
-# Same idiom as the architecture figure of the companion paper: one box per module,
-# a line of what it is for, and arrows for what hands work to what.
+# Same idiom, and deliberately the same style, as the architecture figure of the
+# companion paper: the four colour pairs, the box geometry, and the title and body
+# both set from the top of the box so that no box carries dead space at its foot.
 from matplotlib.patches import FancyBboxPatch
 
+C_IN, C_CORE, C_ACC, C_COMP = '#e8eef6', '#dce9dc', '#f6ecd9', '#efe2ee'
+E_IN, E_CORE, E_ACC, E_COMP = '#4a6fa5', '#4a7a4a', '#b07d2a', '#8a5a86'
 
-def _abox(ax, x, y, w, h, title, body, col, fill, ts=8.0):
-    ax.add_patch(FancyBboxPatch((x, y), w, h, boxstyle='round,pad=0.10,rounding_size=0.22',
-                                lw=0.9, edgecolor=col, facecolor=fill, zorder=2))
-    ax.text(x + w/2, y + h - 0.34, title, ha='center', va='center', color=col,
-            fontsize=ts, zorder=4)
-    ax.text(x + w/2, y + h/2 - 0.34, body, ha='center', va='center', color=INK,
-            fontsize=5.8, linespacing=1.5, zorder=4)
+fig, axd = plt.subplots(figsize=(WIDE, WIDE*0.34))
+axd.set_axis_off(); axd.set_xlim(0.0, 30.0); axd.set_ylim(0.0, 10.2)
 
 
-def _aarr(ax, p, q, col=INK, ls='-'):
-    ax.annotate('', xy=q, xytext=p, zorder=3,
-                arrowprops=dict(arrowstyle='-|>', color=col, lw=1.0, linestyle=ls,
-                                shrinkA=2, shrinkB=2))
+def _abox(x, y, w, h, face, edge, title, body):
+    axd.add_patch(FancyBboxPatch((x, y), w, h,
+                                 boxstyle='round,pad=0.12,rounding_size=0.25',
+                                 facecolor=face, edgecolor=edge, lw=0.9, zorder=2))
+    axd.text(x + w/2.0, y + h - 0.42, title, ha='center', va='top', fontsize=7.6,
+             color=edge, zorder=3,
+             fontfamily='monospace' if title[0].islower() else None)
+    if body:
+        axd.text(x + w/2.0, y + h - 1.30, body, ha='center', va='top', fontsize=6.0,
+                 color='0.25', zorder=3, linespacing=1.5)
 
 
-fig, ax = plt.subplots(figsize=(WIDE, 2.52))
-ax.set_xlim(0, 30.0); ax.set_ylim(0, 10.6); ax.axis('off')
-_abox(ax, 0.15, 6.05, 6.5, 4.35, 'Your Hamiltonian',
-      'Any callable $\\mathbb{H}(l)$ returning a\nHermitian matrix, of any size,\n'
-      'or a constant one', BLUE, '#eaf2fb')
-_abox(ax, 0.15, 0.25, 6.5, 4.35, 'hamiltonians, matter, earth',
-      'The worked scenarios and the\nprofiles they run through:\n'
-      'PREM, the Sun, NSI, LIV, sterile', BLUE, '#eaf2fb', 7.2)
-_abox(ax, 8.05, 2.15, 6.6, 6.3, 'oscprob',
-      'Sixty named wrappers over four\nscenario functions over osc_prob:\n'
-      'three layers, one refinement\nladder, six engines that\nchoose themselves',
-      GREEN, '#e9f7ef')
-_abox(ax, 16.05, 6.05, 6.6, 4.35, 'magnus',
-      'The expansion to order ten, the\nquadrature, the slab composition.\n'
-      'Knows no physics', RED, '#fdeaec')
-_abox(ax, 16.05, 0.25, 6.6, 4.35, 'avgprob, adiabatic',
-      'The routes that walk no slabs:\nthe phase average in closed form,\n'
-      'and adiabatic transport', PURPLE, '#f5edf9', 7.6)
-_abox(ax, 24.05, 3.35, 5.8, 3.9, 'expmkernels',
-      'Compiled Cayley\u2013Hamilton\nexponential: the same\n'
-      'numbers, $6.8\\times$ faster', ORANGE, '#fdf1e3')
-_aarr(ax, (6.80, 7.95), (7.90, 6.60))
-_aarr(ax, (6.80, 2.60), (7.90, 3.95))
-_aarr(ax, (14.80, 6.60), (15.90, 7.80))
-_aarr(ax, (14.80, 3.95), (15.90, 2.75), col=PURPLE)
-_aarr(ax, (19.35, 4.72), (19.35, 5.92), col=PURPLE)
-_aarr(ax, (22.80, 7.70), (23.90, 6.10), col=ORANGE, ls=(0, (2.6, 1.8)))
-ax.text(19.72, 5.32, 'patches', ha='left', va='center', fontsize=5.4, color=PURPLE)
-fig.subplots_adjust(left=0.004, right=0.996, top=0.99, bottom=0.01)
+def _aarr(x0, y0, x1, y1, color='0.35', ls='-'):
+    axd.annotate('', xy=(x1, y1), xytext=(x0, y0), zorder=1,
+                 arrowprops=dict(arrowstyle='-|>', mutation_scale=8, lw=0.9,
+                                 color=color, linestyle=ls, shrinkA=2, shrinkB=2))
+
+
+# Left: what goes in.  Middle: where a request is met.  Right: the three routes out.
+_abox(0.3, 5.6, 7.1, 3.9, C_IN, E_IN, 'Your Hamiltonian',
+      'Any callable $\\mathbb{H}(l)$ returning\na Hermitian matrix, of any\nsize, or a constant one')
+_abox(0.3, 0.5, 7.1, 3.9, C_IN, E_IN, 'hamiltonians, matter, earth',
+      'The worked scenarios and the\nprofiles they run through: PREM,\nthe Sun, NSI, LIV, sterile')
+_abox(8.9, 2.9, 7.3, 5.4, C_CORE, E_CORE, 'oscprob',
+      'Sixty named wrappers\n$\\rightarrow$ four scenario functions\n'
+      '$\\rightarrow$ {\\tt osc\\_prob} and its ladder\n$\\rightarrow$ six engines, self-chosen')
+_abox(17.7, 5.6, 6.4, 3.9, C_CORE, E_CORE, 'magnus',
+      'The expansion to order ten,\nthe quadrature, the slab\ncomposition. No physics in it')
+_abox(17.7, 0.5, 6.4, 3.9, C_COMP, E_COMP, 'avgprob, adiabatic',
+      'The routes that walk no\nslabs: the phase average, and\ntransport along the eigenbasis')
+_abox(25.6, 3.05, 4.1, 3.9, C_ACC, E_ACC, 'expmkernels',
+      'Compiled kernels:\nthe same numbers,\n$6.8{\\times}$ faster')
+
+_aarr(7.6, 7.5, 8.7, 7.0)
+_aarr(7.6, 2.4, 8.7, 4.2)
+_aarr(16.4, 7.0, 17.5, 7.6)
+_aarr(16.4, 4.2, 17.5, 2.6, color=E_COMP)
+_aarr(20.9, 4.6, 20.9, 5.4, color=E_COMP)
+_aarr(24.3, 6.6, 25.4, 5.9, color=E_ACC, ls='--')
+axd.text(21.2, 5.02, 'patches', ha='left', va='center', fontsize=5.6, color=E_COMP)
 save(fig, 'architecture.pdf')'''),
     md(r'''## Figure 2 --- slab width follows the profile, not the phase
 
