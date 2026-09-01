@@ -14985,12 +14985,6 @@ for col, (label, P, d) in enumerate(CASES):
         logx(ax); snug(ax, E_ASTRO/gd.UNIT_TEV)
     bot.xaxis.set_major_locator(LogLocator(base=10.0, subs=(1.0,), numticks=12))
     unit_as_one(bot, which='x')
-    if col > 0:
-        # The leftmost label sits against the previous panel's right spine once there
-        # are five columns, so only the first column carries it.
-        _fmt = bot.xaxis.get_major_formatter()
-        bot.xaxis.set_major_formatter(FuncFormatter(
-            lambda v, _p=None, _f=_fmt: '' if abs(np.log10(v)) < 1.0e-9 else _f(v)))
     corner(top, label, loc='upper left', x=0.075, fontsize=7.6)
     if d > 3:
         lost = 1.0 - np.einsum('a,eab->eb', src, P)[:, :3].sum(axis=1)
@@ -15016,6 +15010,15 @@ axes[0, 0].legend(loc='upper left', bbox_to_anchor=(0.02, 0.82), handlelength=1.
 axes[0, 1].axvline(E_STAR/gd.UNIT_TEV, color=INK, lw=0.7, ls=':')
 axes[1, 1].axvline(E_STAR/gd.UNIT_TEV, color=INK, lw=0.7, ls=':')
 fig.tight_layout(pad=0.3, w_pad=0.3, h_pad=0.4)
+# Only the first column keeps its leftmost tick label; in the others it would sit
+# against the previous panel's right spine.  This has to be done on the drawn text.
+# sharex makes the five columns share one Ticker, so a formatter set on any of them
+# governs all of them, and hiding a tick's label is undone by the next draw.
+fig.canvas.draw()
+for _ax in axes[1, 1:]:
+    for _lb in _ax.get_xticklabels():
+        if _lb.get_text() in ('$1$', '1'):
+            _lb.set_visible(False)
 save(fig, 'astro_composition.pdf')'''),
     md(r'''## Figure 7 --- a smooth profile: reach, and the flavor ceiling
 
