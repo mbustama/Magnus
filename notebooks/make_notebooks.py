@@ -13549,7 +13549,7 @@ _aarr(16.3, 6.6, 17.6, 7.7)
 _aarr(16.3, 3.6, 17.6, 2.6, color=E_COMP)
 _aarr(20.9, 4.15, 20.9, 5.85, color=E_COMP)
 _aarr(24.2, 6.6, 25.5, 5.9, color=E_ACC, ls='--')
-axd.text(21.2, 5.00, 'patches', ha='left', va='center', fontsize=5.6, color=E_COMP)
+axd.text(21.2, 5.00, 'Magnus patches', ha='left', va='center', fontsize=5.6, color=E_COMP)
 save(fig, 'architecture.pdf')'''),
     md(r'''## Figure 2 --- slab width follows the profile, not the phase
 

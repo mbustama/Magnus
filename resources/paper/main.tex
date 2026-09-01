@@ -611,7 +611,7 @@ We show what this is worth on the Sun in Section \ref{sec:solar}, and why estima
 
 \magnus\ is written entirely in Python and requires version 3.10 or later. Its dependencies ({\tt NumPy}\ \cite{Harris:2020xlr}, {\tt SciPy}\ \cite{Virtanen:2019joe}, {\tt joblib}, {\tt Numba}\ \cite{Lam:2015numba} and {\tt Matplotlib}\ \cite{Hunter:2007ouj}) are installed with it. We import {\tt Matplotlib} lazily inside the plotting helpers, so {\tt import magnus} does not pay for it.
 
-The primordial entry point is {\tt osc\_prob}. Its argument is a Hamiltonian: any callable ${\tt H\_func}(l)$ returning a Hermitian matrix of any size, or a constant matrix. Everything else in the public interface builds one. Around it we provide some sixty explicitly named wrappers, covering every combination of flavor count ($2$, $3$, $4$, $5$), environment (vacuum, constant density, exponential density, the Earth through PREM, the Sun) and scenario (standard, non-standard interactions, Lorentz-invariance violation). A user working on a standard case then passes named parameters ({\tt s12}, {\tt eps\_em}, {\tt rho}) rather than assembling dictionaries. \ref{app:structure} describes the three layers this is organized into and the contract between them.
+The primordial entry point is {\tt osc\_prob}. Its argument is a Hamiltonian: any callable ${\tt H\_func}(l)$ returning a Hermitian matrix of any size, or a constant matrix. Everything else in the public interface builds one. Around it we provide some sixty explicitly named wrappers, covering every combination of flavor count ($2$, $3$, $4$, $5$), environment (vacuum, constant density, exponential density, the Earth through PREM, the Sun) and scenario (standard, non-standard interactions, Lorentz-invariance violation). A user working on a standard case then passes named parameters ({\tt s12}, {\tt eps\_em}, {\tt rho}) rather than assembling dictionaries. Section \ref{sec:architecture} describes the three layers this is organized into and the contract between them.
 
 Every entry point takes arrays. An energy scan, a set of baselines, or an oscillogram in energy and arrival direction is one call, and we recognize several structures that make a batch cheaper than its parts. When the Hamiltonian separates as $\mathbb{H}(E, l) = \mathbb{H}_E(E) + V_{\rm CC}(l)\,\mathbb{P}$ (which the standard, non-standard-interaction and Lorentz-violating Hamiltonians all do), we sample the potential once per refinement level and share it across every energy. The quadrature, the commutator algebra, the exponentials and the slab products then carry the energy axis as a batch dimension, and per-energy convergence masking stops recomputing the energies that have already converged. When the potential does not vary at all, the series terminates at its first term and a whole scan is one stacked exponential. When many baselines share one energy, each is a prefix of the longest and a single traversal answers all of them. Section \ref{sec:engines} lists the six engines and the order they are tried in. Any call can be asked which one answered it.
 
@@ -624,7 +624,7 @@ Every entry point takes arrays. An energy scan, a set of baselines, or an oscill
 \begin{figure*}[t!]
  \centering
  \includegraphics[width=0.98\textwidth]{architecture.pdf}
- \caption{\label{fig:architecture}The modules of \magnus\ and what hands work to what. A Hamiltonian enters from the left, either supplied by the caller as a callable of any size or built by {\tt hamiltonians} for one of the worked scenarios, with {\tt matter} and {\tt earth} providing the profile it runs through. {\tt oscprob} is where a request is met: three layers deep, carrying one refinement ladder and the dispatch of Section \ref{sec:engines}. It hands the work either to {\tt magnus}, which walks the slabs and contains no physics at all, or to the two modules that walk none---{\tt avgprob} for the phase-averaged limit and {\tt adiabatic} for transport along the instantaneous eigenbasis, which calls the core back for the Magnus patch at a resonance. {\tt expmkernels} changes only the speed: behind it is a {\tt NumPy} path returning the same numbers, which the test suite holds to round-off}
+ \caption{\label{fig:architecture}The modules of \magnus\ and what hands work to what. A Hamiltonian enters from the left, either supplied by the caller as a callable of any size or built by {\tt hamiltonians} for one of the worked scenarios, with {\tt matter} and {\tt earth} providing the profile it runs through. {\tt oscprob} is where a request is met: three layers deep, carrying one refinement ladder and the dispatch of Section \ref{sec:engines}. It hands the work either to {\tt magnus}, which walks the slabs and contains no physics at all, or to the two modules that walk none---{\tt avgprob} for the phase-averaged limit and {\tt adiabatic} for transport along the instantaneous eigenbasis, which calls the core back for the Magnus patch at a resonance. {\tt expmkernels} changes only the speed, which is why its arrow is dashed: behind it is a {\tt NumPy} path returning the same numbers, and the test suite holds the two to round-off}
 \end{figure*}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -632,7 +632,36 @@ Figure~\ref{fig:architecture} shows how the parts of \magnus\ stand to one anoth
 
 Two properties of that layout are easy to lose, and neither is visible from outside the package. The first is that {\tt magnus} imports nothing from the rest of the package. It is numerical linear algebra on an arbitrary matrix function $\mathbb{A}(l)$, with no notion of a neutrino anywhere in it, so it can be tested against the Bernoulli recursion without any of the probability machinery being involved. The second is the converse: {\tt oscprob} is the only module that imports every other one. Wiring the physics, the environments and the numerical core together happens deliberately in one place rather than a little at a time across the modules it draws on.
 
-That single place is also the largest module, since it exposes a named function for every combination of flavor count, environment and scenario. \ref{app:structure} gives the module table and the three-layer contract that keeps those sixty entry points from becoming sixty copies of the same logic.
+\tabl{modules} says what each module of \magnus\ is for. Twelve of them sit under {\tt src/magnus/}, together with the {\tt hamiltonians} subpackage, each carrying a single responsibility that no other module shares. {\tt magnus.oscprob} is the largest of them, because it exposes an explicitly named function for every combination of flavor count, environment and scenario---about sixty of them. To keep that from becoming sixty copies of the same logic, which is exactly what once let several bugs hide, every one of those functions is a thin call into a much smaller set, in three layers. Layer one is {\tt osc\_prob}, the only function that calls the Magnus core, owning the refinement loop, validation and logging, and itself a first-class public entry point for an arbitrary Hamiltonian. Layer two is four scenario functions---vacuum, standard matter, non-standard interactions, Lorentz-invariance violation---each generic in the flavor count. Layer three is the named wrappers, whose entire job is to repackage named parameters into the dictionaries layer two expects.
+
+The contract between the layers is enforced rather than documented: a wrapper must \emph{not} redeclare any of the fifteen refinement and logging keyword arguments that layers one and two own, and two permanent tests inspect every wrapper's signature and fail if it does. Before that contract existed, every wrapper declared its own copy of those parameters with its own defaults, and fixing a default meant remembering to fix it in sixty places. Inevitably some were missed: a wrapper with a silently different default tolerance than its siblings, a wrapper missing the antineutrino flag entirely, a wrapper whose validation bound disagreed with its siblings.
+
+Extending the package means writing a Hamiltonian, and usually nothing else. {\tt osc\_prob} accepts any callable returning a Hermitian matrix of any size and does not ask where it came from, so a new term is added to whatever an existing builder returns---an ordinary array---which is then passed on unchanged. Only genuinely new physics---a term that fits none of vacuum, matter, non-standard interactions or Lorentz violation---calls for a new layer-two function.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+{\def\arraystretch{1.2}
+\begin{table}[t!]
+ {\small
+ \begin{tabular}{@{}lp{5.0cm}@{}}
+ Module & Responsibility \\
+ \hline
+ {\tt magnus} & The expansion itself: Gauss--Legendre integrators, slab composition, the exactly unitary exponential \\
+ {\tt expmkernels} & Compiled Cayley--Hamilton kernels for the $2\times2$ and $3\times3$ exponential \\
+ {\tt expansionterms} & The recursion, in exact rational arithmetic, at any order \\
+ {\tt adiabatic} & Adiabatic transport, resonance detection, the hybrid propagator \\
+ {\tt avgprob} & The decohered, phase-averaged limit \\
+ {\tt earth} & PREM, chord and zenith-angle geometry \\
+ {\tt matter} & Density profiles, electron density, $V_{\rm CC}$, the matter-potential projector \\
+ {\tt hamiltonians} & Mixing matrices and vacuum/matter/NSI/LIV Hamiltonians, two to five flavors \\
+ {\tt globaldefs} & Constants, unit conversions, NuFIT parameter sets \\
+ {\tt oscprobstd} & Closed-form standard counterparts, for validation \\
+ {\tt oscprob} & The public API; the only module importing every other \\
+ {\tt plotting} & Pre-packaged figures; imports only {\tt globaldefs} \\
+ {\tt cli} & The {\tt magnus} console script \\
+ \end{tabular}}
+ \caption{\label{tab:modules}The modules of \magnus\ v1.0.0. {\tt magnus.magnus} and {\tt magnus.hamiltonians} are self-contained enough to be used and tested outside the probability API entirely; {\tt plotting} is outside the dependency picture altogether, importing only {\tt globaldefs} and imported by nothing.}
+\end{table}}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -1434,42 +1463,6 @@ The module {\tt magnus.expansionterms} evaluates all of this in exact rational a
 Higher order buys a genuinely faster convergence rate in the slab width---measured against a tight reference on a smooth Hamiltonian with a single slab, orders four, six and eight converge as $h^{6.6}$, $h^{8.3}$ and $h^{10.2}$---but the cost per slab grows faster than the order does, and narrowing the slabs at order four or six usually reaches a given accuracy for less total work. \magnus\ warns when an order above six is requested. More fundamentally, the series converges only while $\int\lVert\mathbb{A}\rVert\,dl < \pi$: beyond that radius no order helps. The answer is narrower slabs.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-\section{Structure of the code}
-\label{app:structure}
-\appresetfloats
-
-\tabl{modules} says what each module of \magnus\ is for. Twelve of them sit under {\tt src/magnus/}, together with the {\tt hamiltonians} subpackage, each carrying a single responsibility that no other module shares.
-
-Section \ref{sec:architecture} draws how they stand to one another. {\tt magnus.oscprob} is the largest of them, because it exposes an explicitly named function for every combination of flavor count, environment and scenario---about sixty of them. To keep that from becoming sixty copies of the same logic, which is exactly what once let several bugs hide, every one of those functions is a thin call into a much smaller set, in three layers. Layer one is {\tt osc\_prob}, the only function that calls the Magnus core, owning the refinement loop, validation and logging, and itself a first-class public entry point for an arbitrary Hamiltonian. Layer two is four scenario functions---vacuum, standard matter, non-standard interactions, Lorentz-invariance violation---each generic in the flavor count. Layer three is the named wrappers, whose entire job is to repackage named parameters into the dictionaries layer two expects.
-
-The contract between the layers is enforced rather than documented: a wrapper must \emph{not} redeclare any of the fifteen refinement and logging keyword arguments that layers one and two own, and two permanent tests inspect every wrapper's signature and fail if it does. Before that contract existed, every wrapper declared its own copy of those parameters with its own defaults, and fixing a default meant remembering to fix it in sixty places. Inevitably some were missed: a wrapper with a silently different default tolerance than its siblings, a wrapper missing the antineutrino flag entirely, a wrapper whose validation bound disagreed with its siblings.
-
-Extending the package means writing a Hamiltonian, and usually nothing else. {\tt osc\_prob} accepts any callable returning a Hermitian matrix of any size and does not ask where it came from, so a new term is added to whatever an existing builder returns---an ordinary array---which is then passed on unchanged. Only genuinely new physics---a term that fits none of vacuum, matter, non-standard interactions or Lorentz violation---calls for a new layer-two function.
-
-{\def\arraystretch{1.2}
-\begin{table}[t!]
- {\small
- \begin{tabular}{@{}lp{5.0cm}@{}}
- Module & Responsibility \\
- \hline
- {\tt magnus} & The expansion itself: Gauss--Legendre integrators, slab composition, the exactly unitary exponential \\
- {\tt expmkernels} & Compiled Cayley--Hamilton kernels for the $2\times2$ and $3\times3$ exponential \\
- {\tt expansionterms} & The recursion, in exact rational arithmetic, at any order \\
- {\tt adiabatic} & Adiabatic transport, resonance detection, the hybrid propagator \\
- {\tt avgprob} & The decohered, phase-averaged limit \\
- {\tt earth} & PREM, chord and zenith-angle geometry \\
- {\tt matter} & Density profiles, electron density, $V_{\rm CC}$, the matter-potential projector \\
- {\tt hamiltonians} & Mixing matrices and vacuum/matter/NSI/LIV Hamiltonians, two to five flavors \\
- {\tt globaldefs} & Constants, unit conversions, NuFIT parameter sets \\
- {\tt oscprobstd} & Closed-form standard counterparts, for validation \\
- {\tt oscprob} & The public API; the only module importing every other \\
- {\tt plotting} & Pre-packaged figures; imports only {\tt globaldefs} \\
- {\tt cli} & The {\tt magnus} console script \\
- \end{tabular}}
- \caption{\label{tab:modules}The modules of \magnus\ v1.0.0. {\tt magnus.magnus} and {\tt magnus.hamiltonians} are self-contained enough to be used and tested outside the probability API entirely; {\tt plotting} is outside the dependency picture altogether, importing only {\tt globaldefs} and imported by nothing.}
-\end{table}}
-
 
 \section{The test suite}
 \label{app:tests}
