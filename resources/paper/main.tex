@@ -740,7 +740,7 @@ The repository carries $1207$ tests, run on Python $3.10$ through $3.13$, coveri
 
 \smallskip
 
-\textit{Statistically.}---A suite asserts on the \emph{distribution} of the error over populations of randomly generated profiles---silent-miss rate, median, worst case---rather than on individual cases, because a per-case assertion on random input is brittle while an aggregate one still catches a regression that moves the distribution. Over $145$ random smooth profiles at two through five flavors the median error is $6.1 \cdot 10^{-8}$ with $4.1\%$ silent misses; over $150$ random piecewise-constant profiles with their edges declared it is $1.3 \cdot 10^{-12}$ with none; over $164$ Earth and solar configurations, none. A \emph{silent miss} is an answer outside the requested tolerance carrying no warning of any kind. It is the only failure mode that matters: an inaccurate answer that says so is the warnings' job.
+\textit{Against a population.}---A suite asserts on the \emph{distribution} of the error over populations of randomly generated profiles---silent-miss rate, median, worst case---rather than on individual cases, because a per-case assertion on random input is brittle while an aggregate one still catches a regression that moves the distribution. Over $145$ random smooth profiles at two through five flavors the median error is $6.1 \cdot 10^{-8}$ with $4.1\%$ silent misses; over $150$ random piecewise-constant profiles with their edges declared it is $1.3 \cdot 10^{-12}$ with none; over $164$ Earth and solar configurations, none. A \emph{silent miss} is an answer outside the requested tolerance carrying no warning of any kind. It is the only failure mode that matters: an inaccurate answer that says so is the warnings' job.
 
 We run all of it in continuous integration on every push, across the four supported Python versions, together with a linter, a documentation build with warnings as errors, and the execution of every notebook, so that an example which stops working cannot survive a merge.
 
@@ -1162,7 +1162,7 @@ The tolerance is a stopping criterion rather than an error bound, so a user lean
 \section{Comparison to other codes}
 \label{sec:comparison}
 
-This section measures \magnus\ against {\tt NuOscProbExact}\ \cite{NuOscProbExact, Bustamante:2019ggq}. We referee every case by a method that is neither code's, we time every code in one process on one machine, and the frozen datasets behind the figures are in the repository so that none of the external codes has to be installed to redraw them.
+This section measures \magnus\ against {\tt NuOscProbExact}\ \cite{NuOscProbExact, Bustamante:2019ggq} throughout, and against {\tt nuSQuIDS}\ \cite{Delgado:2014kpa, Arguelles:2021twb, NuSQuIDS} in Section \ref{sec:solar_comparison} alone, where the observable is the phase-averaged solar probability. We referee every case by a method that is neither code's, we time every code in one process on one machine, and the frozen datasets behind the figures are in the repository so that none of the external codes has to be installed to redraw them.
 
 \textbf{Where a closed form exists and the accumulated phase is large, use the closed form.} An exact algebraic solution beats a truncated series; that is arithmetic. Constant density, piecewise-constant PREM, and standard three-flavor propagation are exactly what closed forms are built for, and on those \magnus\ does not win on cost. What it buys is everything that is not that.
 
@@ -1235,7 +1235,7 @@ Both codes are exact here, to round-off. Over $60$ energies from $0.6$ to $20$~G
 
 \smallskip
 
-\textit{Reach: the other way.}---Refined against its own tightest setting, \magnus\ reaches $3.3 \cdot 10^{-10}$ at three flavors where {\tt NuOscProbExact} stalls near $5.6 \cdot 10^{-5}$ at its densest slabbing. The residual between the two codes is $4.1 \cdot 10^{-4}$, the same order as the \emph{looser} of the two curves, so most of it is the closed form's discretization rather than a disagreement about physics. A residual far above \emph{both} curves would have meant a convention mismatch instead, which is the check we make before concluding anything from a cross-code difference.
+\textit{Reach: the expansion, decisively.}---Refined against its own tightest setting, \magnus\ reaches $3.3 \cdot 10^{-10}$ at three flavors where {\tt NuOscProbExact} stalls near $5.6 \cdot 10^{-5}$ at its densest slabbing. The residual between the two codes is $4.1 \cdot 10^{-4}$, the same order as the \emph{looser} of the two curves, so most of it is the closed form's discretization rather than a disagreement about physics. A residual far above \emph{both} curves would have meant a convention mismatch instead, which is the check we make before concluding anything from a cross-code difference.
 
 At $3+1$ the accuracy runs the same way, with a sharper diagnosis. \magnus's residual against the referee is $4.5 \cdot 10^{-8}$, \emph{below} the referee's own discretization error of $4.1 \cdot 10^{-7}$, so the honest statement is that it agrees with the referee to within the referee's uncertainty and this comparison cannot resolve it further. {\tt NuOscProbExact} sits at $2.6 \cdot 10^{-4}$, some six hundred times above that floor. Its convergence is \emph{not monotonic}: $32$ slabs per segment is worse than $8$. Non-monotonic convergence is the signature of a discretization whose edges straddle structure they do not resolve. There is no setting of that dial to read off as converged, because the error does not fall as it is turned.
 
@@ -1377,7 +1377,7 @@ MB is supported by the Villum Fonden projects no.~13164 and 29388.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\section{The expansion terms at any order}
+\section{The Magnus expansion at any order}
 \label{app:terms}
 \appresetfloats
 
