@@ -13529,27 +13529,27 @@ def _aarr(x0, y0, x1, y1, color='0.35', ls='-'):
 
 
 # Left: what goes in.  Middle: where a request is met.  Right: the three routes out.
-_abox(0.3, 5.6, 7.1, 3.9, C_IN, E_IN, 'Your Hamiltonian',
+_abox(0.3, 6.00, 7.1, 3.50, C_IN, E_IN, 'Your Hamiltonian',
       'Any callable $\\mathbb{H}(l)$ returning\na Hermitian matrix, of any\nsize, or a constant one')
-_abox(0.3, 0.5, 7.1, 3.9, C_IN, E_IN, 'hamiltonians, matter, earth',
+_abox(0.3, 0.50, 7.1, 3.50, C_IN, E_IN, 'hamiltonians, matter, earth',
       'The worked scenarios and the\nprofiles they run through: PREM,\nthe Sun, NSI, LIV, sterile')
-_abox(8.9, 2.9, 7.3, 5.4, C_CORE, E_CORE, 'oscprob',
+_abox(8.9, 2.85, 7.3, 4.30, C_CORE, E_CORE, 'oscprob',
       'Sixty named wrappers\n$\\rightarrow$ four scenario functions\n'
       '$\\rightarrow$ {\\tt osc\\_prob} and its ladder\n$\\rightarrow$ six engines, self-chosen')
-_abox(17.7, 5.6, 6.4, 3.9, C_CORE, E_CORE, 'magnus',
+_abox(17.7, 6.00, 6.4, 3.50, C_CORE, E_CORE, 'magnus',
       'The expansion to order ten,\nthe quadrature, the slab\ncomposition. No physics in it')
-_abox(17.7, 0.5, 6.4, 3.9, C_COMP, E_COMP, 'avgprob, adiabatic',
+_abox(17.7, 0.50, 6.4, 3.50, C_COMP, E_COMP, 'avgprob, adiabatic',
       'The routes that walk no\nslabs: the phase average, and\ntransport along the eigenbasis')
-_abox(25.6, 3.05, 4.1, 3.9, C_ACC, E_ACC, 'expmkernels',
+_abox(25.6, 3.30, 4.1, 3.40, C_ACC, E_ACC, 'expmkernels',
       'Compiled kernels:\nthe same numbers,\n$6.8{\\times}$ faster')
 
-_aarr(7.6, 7.5, 8.7, 7.0)
-_aarr(7.6, 2.4, 8.7, 4.2)
-_aarr(16.4, 7.0, 17.5, 7.6)
-_aarr(16.4, 4.2, 17.5, 2.6, color=E_COMP)
-_aarr(20.9, 4.6, 20.9, 5.4, color=E_COMP)
-_aarr(24.3, 6.6, 25.4, 5.9, color=E_ACC, ls='--')
-axd.text(21.2, 5.02, 'patches', ha='left', va='center', fontsize=5.6, color=E_COMP)
+_aarr(7.5, 7.4, 8.8, 6.6)
+_aarr(7.5, 2.6, 8.8, 3.6)
+_aarr(16.3, 6.6, 17.6, 7.7)
+_aarr(16.3, 3.6, 17.6, 2.6, color=E_COMP)
+_aarr(20.9, 4.15, 20.9, 5.85, color=E_COMP)
+_aarr(24.2, 6.6, 25.5, 5.9, color=E_ACC, ls='--')
+axd.text(21.2, 5.00, 'patches', ha='left', va='center', fontsize=5.6, color=E_COMP)
 save(fig, 'architecture.pdf')'''),
     md(r'''## Figure 2 --- slab width follows the profile, not the phase
 
