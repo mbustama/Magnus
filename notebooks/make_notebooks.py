@@ -14920,16 +14920,46 @@ P_EARTH = np.asarray(cached(
     what='the Earth leg with non-standard interactions'))
 P_NSI = np.einsum('ij,ejk->eik', P_VAC3[0], P_EARTH)
 
+# Pseudo-Dirac: each mass state may be two states split by a tiny delta m^2.  Pairing is
+# chosen per state, and that is the whole of the physics here: pair all three and every
+# active-active probability halves by the same factor, so the composition is untouched.
+# Pair one, and the suppression is uneven and the composition moves.  We pair the second
+# mass state alone.  At 100 Mpc a splitting of 1e-13 eV^2 leaves both members of the pair
+# decohered from each other across the whole range drawn, so no averaged expression is
+# being stretched: avgprob groups the spectrum itself, and finds six singletons.
+L_SOURCE = 100.0*3.0857e19*gd.CONV_KM_TO_INV_EV        # 100 Mpc [eV^-1]
+PD_PAIRS = {1: 1.0e-13}
+U_PMNS = np.asarray(hamiltonians.pmns_mixing_matrix(
+    OSC['s12'], OSC['s23'], OSC['s13'], OSC['dCP']), dtype=complex)
+M2_PMNS = np.array([0.0, float(OSC['D21']), float(OSC['D31'])])
+
+
+def _astro_pd():
+    out = []
+    for e in E_ASTRO:
+        H = hamiltonians.hamiltonian_pseudo_dirac_vacuum(e, U_PMNS, M2_PMNS, PD_PAIRS)
+        out.append(avgprob.averaged_probabilities_constant_hamiltonian(
+            np.asarray(H, dtype=complex), baseline=L_SOURCE).tolist())
+    return out
+
+
+P_PD = np.asarray(cached(
+    'astro_pseudo_dirac',
+    ('astro_pd', [float(e) for e in E_ASTRO], sorted(PD_PAIRS.items()),
+     float(L_SOURCE), sorted(OSC.items())),
+    _astro_pd, what='the decohered matrices with one pseudo-Dirac pair'))
+
 COMP_STD = np.einsum('a,eab->eb', PION_SOURCE, P_VAC3)
 COMP_STD = COMP_STD/COMP_STD.sum(axis=1)[:, None]
 CASES = [(r'Standard $3\nu$', P_VAC3, 3),
          (r'LIV, $n = 1$',    P_LIV,  3),
          (r'NSI through Earth', P_NSI, 3),
-         (r'$3+1$',           P_VAC4, 4)]
+         (r'$3+1$',           P_VAC4, 4),
+         (r'Pseudo-Dirac, $\nu_2$', P_PD, 4)]
 FCOL = {0: BLUE, 1: RED, 2: GREEN}
 FLAB = {0: r'$\nu_e$', 1: r'$\nu_\mu$', 2: r'$\nu_\tau$'}
 
-fig, axes = plt.subplots(2, 4, figsize=(WIDE, 4.1), sharex=True, sharey='row',
+fig, axes = plt.subplots(2, 5, figsize=(WIDE, 4.1), sharex=True, sharey='row',
                          gridspec_kw=dict(hspace=0.10, wspace=0.10))
 for col, (label, P, d) in enumerate(CASES):
     src = np.zeros(d); src[:3] = PION_SOURCE
@@ -14971,12 +15001,12 @@ axes[0, 0].set_ylabel(r'Avg.~survival probability, $\langle P_{\nu_\alpha \to \n
                       fontsize=8.0)
 axes[1, 0].set_ylabel(r'Flavor fraction at Earth', fontsize=8.0)
 # Ranges chosen to show the differences rather than the distance from zero: every
-# survival probability here lives above 0.28, and every flavor fraction between 0.30
+# survival probability here lives above 0.30, and every flavor fraction between 0.31
 # and 0.35.  The top is left to the data, so the LIV excursion is not clipped.
-axes[0, 0].set_ylim(0.30, 0.90); minor_y(axes[0, 0], 5)
+axes[0, 0].set_ylim(0.28, 0.90); minor_y(axes[0, 0], 5)
 axes[1, 0].set_ylim(0.316, 0.35); minor_y(axes[1, 0], 5)
-axes[0, 0].legend(loc='upper left', bbox_to_anchor=(0.02, 0.86), handlelength=1.3,
-                  fontsize=7.4, ncol=3, columnspacing=0.9)
+axes[0, 0].legend(loc='upper left', bbox_to_anchor=(0.02, 0.90), handlelength=1.1,
+                  fontsize=7.4, ncol=1, labelspacing=0.25, borderpad=0.3)
 axes[0, 1].axvline(E_STAR/gd.UNIT_TEV, color=INK, lw=0.7, ls=':')
 axes[1, 1].axvline(E_STAR/gd.UNIT_TEV, color=INK, lw=0.7, ls=':')
 fig.tight_layout(pad=0.3, w_pad=0.3, h_pad=0.4)
