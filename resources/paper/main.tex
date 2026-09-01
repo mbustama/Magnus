@@ -69,7 +69,7 @@
 \providecommand{\Ref}{}
 \AtBeginDocument{\renewcommand{\Ref}{Ref.}}
 \newcommand{\Refs}{Refs.}
-\newcommand{\Tab}{Tab.}
+\newcommand{\Tab}{Table}
 \newcommand{\Tabs}{Tabs.}
 \newcommand{\equ}[1]{\eq~(\ref{equ:#1})}
 \newcommand{\figu}[1]{\fig~\ref{fig:#1}}
@@ -921,7 +921,7 @@ One convention goes with it and is not a default the caller cannot reach. PREM i
 
 Figure~\ref{fig:solar} shows the solar electron density, the averaged survival probability it produces at four different Hamiltonians, and how far each of those is from the adiabatic limit. The Sun is the case that needs both the method of Section \ref{sec:method} and the observable of Section \ref{sec:averaged}. Its density falls smoothly by five orders of magnitude along a radial ray, with no discontinuity anywhere to align a slab edge to. A $5$~MeV neutrino leaving it accumulates $\Phi \approx 1.3 \cdot 10^{4}$ radians.
 
-The model is the tabulated BS2005-AGS,OP profile\ \cite{Bahcall:2004pz}, interpolated log-linearly in the electron number density: a real tabulated profile rather than an exponential fit (the case the method is for). Asked for the instantaneous probability, \magnus\ answers correctly and the answer is not plottable---over the last few thousand kilometres of the ray it covers most of the unit interval, because the phase changes by thousands of radians across that stretch. That is why no panel of it appears in \figu{solar}. Asked with {\tt average=True} instead, \magnus\ returns \equ{averaged_varying} directly, for any of the four Hamiltonians drawn and without propagating at all. Listing \ref{lst:sun} is that call. Notebook \#13 works through the tabulated model itself, and notebook \#10 the averaged observable that a solar experiment reports.
+The model is the tabulated BS2005-AGS,OP profile\ \cite{Bahcall:2004pz}, interpolated log-linearly in the electron number density: a real tabulated profile rather than an exponential fit (the case the method is for). Asked for the instantaneous probability, \magnus\ answers correctly, but the answer is not plottable---over the last few thousand kilometres of the ray it covers most of the unit interval, because the phase changes by thousands of radians across that stretch. That is why no panel of it appears in \figu{solar}. Asked with {\tt average=True} instead, \magnus\ returns \equ{averaged_varying} directly, for any of the four Hamiltonians drawn and without propagating at all. Listing \ref{lst:sun} is that call. Notebook \#13 works through the tabulated model itself, and notebook \#10 the averaged observable that a solar experiment reports.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \begin{lstlisting}[language=Python, caption={The averaged solar probability. The whole of the difference from an ordinary call is {\tt average=True}: it returns \equ{averaged_varying} from the instantaneous eigenbases, without propagating the phase it would otherwise have to average away. Forty energies take about $0.7$~s, against the ten minutes a solver needs to reach a tolerance at which its output is a probability at all.}, label={lst:sun}, float=tbp]
@@ -990,7 +990,7 @@ P = oscprob.osc_prob_matter_std_potential(
 \end{lstlisting}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-At a front width of $0.07$~km each jump is, on the scale of the oscillation length, a discontinuity: the probability changes character across a single point. Widened to $70$~km, nothing else altered, the same jump becomes a smooth function spanning half the window and the transition is gradual. We widen both jumps together, which is why the two columns already differ below the forward shock and not only at it. 
+At a front width of $0.07$~km each jump is, on the scale of the oscillation length, a discontinuity: the probability changes character across a single point. Widened to $70$~km, nothing else altered, the same jump becomes a smooth function spanning half the window, across which the transition is gradual. We widen both jumps together, which is why the two columns already differ below the forward shock and not only at it. 
 
 The oscillation length that matters here is the local one. In vacuum at $15$~MeV it is some $500$~km, which is what makes the ray $140$ of them long, but at the density of the contact discontinuity the matter potential shortens it to $16$~km. A $0.07$~km ramp is therefore crossed faster than the state can respond, which projects it onto the new eigenbasis; a $70$~km one is crossed slowly enough that the state follows the instantaneous eigenstate instead. What differs between the columns is therefore the conversion probability itself rather than the phase of an oscillation, which the two columns share.
 
@@ -1154,7 +1154,7 @@ Such accuracy is the binding constraint in some uses and in others it is not. In
 
 What the extra digits do buy is everything upstream of it: a reference against which another code, or a coarser setting of this one, can be checked; a regime where no closed form exists and there is nothing else to compare against; an observable that is computed once rather than binned, as in Sections \ref{sec:sun} and \ref{sec:astro}; and the ability to separate a method's error from a model's, which is what Section \ref{sec:comparison} does throughout. We report the reach because it is what makes those uses possible, not because a fit needs it. Section \ref{sec:comparison} is where it does that work, separating one method's error from another's.
 
-The tolerance is a stopping criterion rather than an error bound, so a user leans on the warnings instead: measured over $168$ configurations spanning the profile families the package serves, they carry high false-positive rates by design, most reporting a condition about the input rather than a prediction about the error, while $2$ answers in that population came back wrong with no warning at all.
+The tolerance is a stopping criterion rather than an error bound, so a user leans on the warnings instead: measured across the profile families the package serves, they carry high false-positive rates by design, most reporting a condition about the input rather than a prediction about the error, while about one answer in a hundred came back wrong with no warning at all.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1162,9 +1162,9 @@ The tolerance is a stopping criterion rather than an error bound, so a user lean
 \section{Comparison to other codes}
 \label{sec:comparison}
 
-This section measures \magnus\ against {\tt NuOscProbExact}\ \cite{NuOscProbExact, Bustamante:2019ggq} and {\tt nuSQuIDS}\ \cite{Delgado:2014kpa, Arguelles:2021twb, NuSQuIDS}. We referee every case by a method that is neither code's, we time every code in one process on one machine, and the frozen datasets behind the figures are in the repository so that none of the external codes has to be installed to redraw them.
+This section measures \magnus\ against {\tt NuOscProbExact}\ \cite{NuOscProbExact, Bustamante:2019ggq}. We referee every case by a method that is neither code's, we time every code in one process on one machine, and the frozen datasets behind the figures are in the repository so that none of the external codes has to be installed to redraw them.
 
-The conclusion is a boundary rather than a ranking. It is short enough to state first. \textbf{Where a closed form exists and the accumulated phase is large, use the closed form.} An exact algebraic solution beats a truncated series; that is arithmetic. Constant density, piecewise-constant PREM, and standard three-flavor propagation are exactly what closed forms are built for, and on those \magnus\ does not win on cost. What it buys is everything that is not that.
+\textbf{Where a closed form exists and the accumulated phase is large, use the closed form.} An exact algebraic solution beats a truncated series; that is arithmetic. Constant density, piecewise-constant PREM, and standard three-flavor propagation are exactly what closed forms are built for, and on those \magnus\ does not win on cost. What it buys is everything that is not that.
 
 \tabl{summary} collects the outcome of every comparison in this section, one row each. The subsections below carry the measurements those rows stand for.
 
@@ -1193,7 +1193,7 @@ The conclusion is a boundary rather than a ranking. It is short enough to state 
 \subsection{Constant density}
 \label{sec:const_density}
 
-Both codes are exact here, to round-off. The interesting lesson is not about codes. Over $60$ energies from $0.6$ to $20$~GeV at $1300$~km through $2.848$~g~cm$^{-3}$, \magnus\ reaches $9.0 \cdot 10^{-17}$ and {\tt NuOscProbExact} $4.9 \cdot 10^{-16}$, both at round-off; batched, \magnus\ costs $9.7~\mu$s per point and {\tt NuOscProbExact} $1.3~\mu$s. Called one energy at a time, \emph{either} code costs about an order of magnitude more per probability---$95~\mu$s and $14~\mu$s respectively. The dominant effect on this problem is how the code is called, not which code it is.
+Both codes are exact here, to round-off. Over $60$ energies from $0.6$ to $20$~GeV at $1300$~km through $2.848$~g~cm$^{-3}$, \magnus\ reaches $9.0 \cdot 10^{-17}$ and {\tt NuOscProbExact} $4.9 \cdot 10^{-16}$, both at round-off; batched, \magnus\ costs $9.7~\mu$s per point and {\tt NuOscProbExact} $1.3~\mu$s. Called one energy at a time, \emph{either} code costs about an order of magnitude more per probability---$95~\mu$s and $14~\mu$s respectively. The dominant effect on this problem is how the code is called, not which code it is.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -1237,7 +1237,7 @@ Both codes are exact here, to round-off. The interesting lesson is not about cod
 
 \textit{Reach: the other way.}---Refined against its own tightest setting, \magnus\ reaches $3.3 \cdot 10^{-10}$ at three flavors where {\tt NuOscProbExact} stalls near $5.6 \cdot 10^{-5}$ at its densest slabbing. The residual between the two codes is $4.1 \cdot 10^{-4}$, the same order as the \emph{looser} of the two curves, so most of it is the closed form's discretization rather than a disagreement about physics. A residual far above \emph{both} curves would have meant a convention mismatch instead, which is the check we make before concluding anything from a cross-code difference.
 
-At $3+1$ the accuracy runs the same way and the diagnosis is sharper. \magnus's residual against the referee is $4.5 \cdot 10^{-8}$, \emph{below} the referee's own discretization error of $4.1 \cdot 10^{-7}$, so the honest statement is that it agrees with the referee to within the referee's uncertainty and this comparison cannot resolve it further. {\tt NuOscProbExact} sits at $2.6 \cdot 10^{-4}$, some six hundred times above that floor. Its convergence is \emph{not monotonic}: $32$ slabs per segment is worse than $8$. Non-monotonic convergence is the signature of a discretization whose edges straddle structure they do not resolve. There is no setting of that dial to read off as converged, because the error does not fall as it is turned.
+At $3+1$ the accuracy runs the same way, with a sharper diagnosis. \magnus's residual against the referee is $4.5 \cdot 10^{-8}$, \emph{below} the referee's own discretization error of $4.1 \cdot 10^{-7}$, so the honest statement is that it agrees with the referee to within the referee's uncertainty and this comparison cannot resolve it further. {\tt NuOscProbExact} sits at $2.6 \cdot 10^{-4}$, some six hundred times above that floor. Its convergence is \emph{not monotonic}: $32$ slabs per segment is worse than $8$. Non-monotonic convergence is the signature of a discretization whose edges straddle structure they do not resolve. There is no setting of that dial to read off as converged, because the error does not fall as it is turned.
 
 \smallskip
 
@@ -1288,7 +1288,7 @@ Section \ref{sec:solar} showed what \magnus\ returns on a tabulated solar model:
 
 Driven on the same model file, {\tt nuSQuIDS} needs about ten minutes merely to reach a solver tolerance at which its output is a probability at all---and then a further factor of $N$ to average the phase away. At {\tt rel\_error} $=10^{-4}$ it takes $161$~s and returns values from $-1.19$ to $3.09$; at $10^{-5}$, $251$~s and $-0.011$ to $1.007$; only at $10^{-6}$, after $568$~s, does every value lie in $[0,1]$.
 
-One methodological point belongs here, because it is a real trap and it cost us time. \textbf{The obvious guard passes on every one of those rows.} Summing the flavor probabilities and checking they come to one holds to $10^{-16}$ even where the survival probability reaches $2.83$. That is not a bug in the guard: {\tt nuSQuIDS} evolves the density matrix in an SU(3) basis whose identity component is the trace, so the flavor sum is conserved \emph{by construction} however badly the traceless components are integrated. A structural invariant cannot test the thing it is built into. The check that bites is each probability lying in $[0,1]$.
+\textbf{The obvious guard passes on every one of those rows.} Summing the flavor probabilities and checking they come to one holds to $10^{-16}$ even where the survival probability reaches $2.83$. That is not a bug in the guard: {\tt nuSQuIDS} evolves the density matrix in an SU(3) basis whose identity component is the trace, so the flavor sum is conserved \emph{by construction} however badly the traceless components are integrated. A structural invariant cannot test the thing it is built into. The check that bites is each probability lying in $[0,1]$.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -1297,7 +1297,7 @@ One methodological point belongs here, because it is a real trap and it cost us 
 
 \tabl{which} answers the question a reader actually arrives with: what to run on the problem in front of them. Each measurement above answers one narrower question. We include {\tt NuOscProbExact} rather than only \magnus\ because the two are close relatives. They take the same arbitrary Hermitian Hamiltonian, compose the same ordered product of slab operators, and share units, conventions, and parameter defaults deliberately. The choice between them therefore turns on the shape of the profile rather than on the physics in the Hamiltonian.
 
-One line covers most of it. \textbf{If the Hamiltonian is constant over each stretch you hand it, use the closed form; if it varies across that stretch, use the expansion.} An exact algebraic solution beats a truncated series wherever an exact algebraic solution exists. Section \ref{sec:order_is_the_slab_product} shows why the two meet: a piecewise-constant composition \emph{is} the Magnus method at second order, so on a staircase the closed form is doing the same arithmetic in fewer operations. What \magnus\ adds is orders four and six on the same chain, which pays only when there is curvature within a slab for them to resolve.
+\textbf{If the Hamiltonian is constant over each stretch you hand it, use the closed form; if it varies across that stretch, use the expansion.} An exact algebraic solution beats a truncated series wherever an exact algebraic solution exists. Section \ref{sec:order_is_the_slab_product} shows why the two meet: a piecewise-constant composition \emph{is} the Magnus method at second order, so on a staircase the closed form is doing the same arithmetic in fewer operations. What \magnus\ adds is orders four and six on the same chain, which pays only when there is curvature within a slab for them to resolve.
 
 Two entries in \tabl{which} resist the sorting the rest obey. A supernova shock appears twice with opposite answers; the parameter that separates them is not the physics but the width of the front measured against the oscillation length (Section \ref{sec:shock_comparison}). A tabulated profile belongs to \magnus\ not because tables are special but because the interpolant between samples is smooth, so a method that integrates across a slab has something to integrate.
 
@@ -1472,11 +1472,11 @@ Twenty-eight notebooks sit in {\tt notebooks/}, numbered in reading order. They 
 
 They are \emph{generated}: one script builds all of them, executes them, and refuses to finish if any came back without stored outputs, and continuous integration re-executes them on every change to the notebooks or to the package. A notebook is documentation that claims to work; running it is what makes the claim checkable, so the suite runs all twenty-eight of them on every push, across the four supported versions of Python.
 
-Three of them carry more of this paper than the others. Notebook \#28 produces every figure in it: the probabilities are computed as the notebook runs, except in the figures comparing this code against another, where every code's numbers---including this one's, where the timing has to be comparable---are read from data frozen in the repository. Notebook \#25 is the whole of Section \ref{sec:comparison}, including the sections not summarized there. Notebook \#13 is the tabulated solar model of Section \ref{sec:solar}, including the window-mean sweep that does not converge.
+Three of the notebooks carry more of the paper's content than the rest. Notebook \#28 produces every figure in it: the probabilities are computed as the notebook runs, except in the figures comparing this code against another, where every code's numbers---including this one's, where the timing has to be comparable---are read from data frozen in the repository. Notebook \#25 is the whole of Section \ref{sec:comparison}, including the sections not summarized there. Notebook \#13 is the tabulated solar model of Section \ref{sec:solar}, including the window-mean sweep that does not converge.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\section{A six-code plane, and what it can resolve}
+\section{\magnus\ on a plane of six codes}
 \label{app:prem_conventions}
 \appresetfloats
 
@@ -1499,13 +1499,13 @@ The reference is consequently a \emph{converged} PREM solution rather than an ex
 \subsection{What limits a cross-code comparison on an Earth chord}
 \label{app:the_floor}
 
-The conventions matched before any curve was drawn are not optional. Every code is given the same oscillation parameters, expressed in the convention that code expects; the same PREM implementation, chord, and baseline in eV$^{-1}$; and the same $V_{\rm CC}$. That last one is where the interesting number is.
+The conventions matched before any curve was drawn are not optional. Every code is given the same oscillation parameters, expressed in the convention that code expects; the same PREM implementation, chord, and baseline in eV$^{-1}$; and the same $V_{\rm CC}$.
 
 \magnus's charged-current potential sits $1.9 \cdot 10^{-4}$ below {\tt NuOscProbExact}'s at the same density, the two codes rounding the nucleon mass differently. Left unmatched, that difference pins \magnus's error on this plane at $2.35 \cdot 10^{-4}$ however tight the tolerance, so the curve comes out flat---points stacked at one height, above every other code, saying nothing about either. Matching it, by passing an electron fraction of $0.5000948$ rather than $0.5$, is what produces the curve drawn.
 
 It does not produce a curve that falls forever. The reason is a general fact about this kind of comparison. \magnus\ is self-converged where its curve flattens---its answers at ${\tt rtol} = 10^{-10}$ and $10^{-12}$ agree to $3 \cdot 10^{-12}$---and the residual against the reference is a smooth, energy-dependent offset rather than a discretization error. It is the potential match running out. Changing the matched scale by a further $1.6$ parts in $10^{7}$ moves the floor from $1.6 \cdot 10^{-7}$ to $3.3 \cdot 10^{-8}$, so \textbf{on this chord the probability inherits the relative error of the matter potential essentially one for one}. Matching two codes' potentials to seven digits therefore leaves a floor in the seventh digit of the probability. No solver setting on either side reaches beneath it.
 
-We do not tune the scale to minimize the residual. The distinction matters. The value used is the one the two codes' own constants imply; fitting it instead would make the figure prettier and the measurement meaningless. What \figu{prem_plane} therefore shows for \magnus\ is an upper bound on its error, floored by the Earth-model agreement, while for {\tt NuOscProbExact}---which shares that Earth model with the reference exactly---it shows discretization error. The two quantities are not comparable below $10^{-7}$, and \tabl{prem} is where the comparable measurement lives.
+We do not tune the scale to minimize the residual. The value used is the one the two codes' own constants imply; fitting it instead would make the figure prettier and the measurement meaningless. What \figu{prem_plane} therefore shows for \magnus\ is an upper bound on its error, floored by the Earth-model agreement, while for {\tt NuOscProbExact}---which shares that Earth model with the reference exactly---it shows discretization error. The two quantities are not comparable below $10^{-7}$, and \tabl{prem} is where the comparable measurement lives.
 
 The transferable version: \textbf{a cross-code comparison through the Earth is limited by the agreement of the two Earth models long before it is limited by either solver}, and any such comparison reaching past $10^{-7}$ without saying how its potentials were matched is reporting a convention.
 
