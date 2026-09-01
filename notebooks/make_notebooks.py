@@ -13494,6 +13494,60 @@ ax.text(X1+2.6, ys[3]-1.4, r'(constant $\mathbb{H}$: one exact exponential inste
         ha='left', va='top', fontsize=6.0, color=INK, style='italic')
 fig.subplots_adjust(left=0.01, right=0.99, top=0.99, bottom=0.01)
 save(fig, 'strategies.pdf')'''),
+
+    md(r'''## Figure 1c --- how the modules fit together'''),
+
+    code(r'''# ------------------------------------------- Figure 1c: the module architecture
+# Same idiom as the architecture figure of the companion paper: one box per module,
+# a line of what it is for, and arrows for what hands work to what.
+from matplotlib.patches import FancyBboxPatch
+
+
+def _abox(ax, x, y, w, h, title, body, col, fill, ts=8.0):
+    ax.add_patch(FancyBboxPatch((x, y), w, h, boxstyle='round,pad=0.10,rounding_size=0.22',
+                                lw=0.9, edgecolor=col, facecolor=fill, zorder=2))
+    ax.text(x + w/2, y + h - 0.34, title, ha='center', va='center', color=col,
+            fontsize=ts, zorder=4)
+    ax.text(x + w/2, y + h/2 - 0.34, body, ha='center', va='center', color=INK,
+            fontsize=5.8, linespacing=1.5, zorder=4)
+
+
+def _aarr(ax, p, q, col=INK, ls='-'):
+    ax.annotate('', xy=q, xytext=p, zorder=3,
+                arrowprops=dict(arrowstyle='-|>', color=col, lw=1.0, linestyle=ls,
+                                shrinkA=2, shrinkB=2))
+
+
+fig, ax = plt.subplots(figsize=(WIDE, 2.52))
+ax.set_xlim(0, 30.0); ax.set_ylim(0, 10.6); ax.axis('off')
+_abox(ax, 0.15, 6.05, 6.5, 4.35, 'Your Hamiltonian',
+      'Any callable $\\mathbb{H}(l)$ returning a\nHermitian matrix, of any size,\n'
+      'or a constant one', BLUE, '#eaf2fb')
+_abox(ax, 0.15, 0.25, 6.5, 4.35, 'hamiltonians, matter, earth',
+      'The worked scenarios and the\nprofiles they run through:\n'
+      'PREM, the Sun, NSI, LIV, sterile', BLUE, '#eaf2fb', 7.2)
+_abox(ax, 8.05, 2.15, 6.6, 6.3, 'oscprob',
+      'Sixty named wrappers over four\nscenario functions over osc_prob:\n'
+      'three layers, one refinement\nladder, six engines that\nchoose themselves',
+      GREEN, '#e9f7ef')
+_abox(ax, 16.05, 6.05, 6.6, 4.35, 'magnus',
+      'The expansion to order ten, the\nquadrature, the slab composition.\n'
+      'Knows no physics', RED, '#fdeaec')
+_abox(ax, 16.05, 0.25, 6.6, 4.35, 'avgprob, adiabatic',
+      'The routes that walk no slabs:\nthe phase average in closed form,\n'
+      'and adiabatic transport', PURPLE, '#f5edf9', 7.6)
+_abox(ax, 24.05, 3.35, 5.8, 3.9, 'expmkernels',
+      'Compiled Cayley\u2013Hamilton\nexponential: the same\n'
+      'numbers, $6.8\\times$ faster', ORANGE, '#fdf1e3')
+_aarr(ax, (6.80, 7.95), (7.90, 6.60))
+_aarr(ax, (6.80, 2.60), (7.90, 3.95))
+_aarr(ax, (14.80, 6.60), (15.90, 7.80))
+_aarr(ax, (14.80, 3.95), (15.90, 2.75), col=PURPLE)
+_aarr(ax, (19.35, 4.72), (19.35, 5.92), col=PURPLE)
+_aarr(ax, (22.80, 7.70), (23.90, 6.10), col=ORANGE, ls=(0, (2.6, 1.8)))
+ax.text(19.72, 5.32, 'patches', ha='left', va='center', fontsize=5.4, color=PURPLE)
+fig.subplots_adjust(left=0.004, right=0.996, top=0.99, bottom=0.01)
+save(fig, 'architecture.pdf')'''),
     md(r'''## Figure 2 --- slab width follows the profile, not the phase
 
 Three measurements: one slab against a constant Hamiltonian over six decades of $\Phi$;

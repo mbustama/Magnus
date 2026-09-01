@@ -617,6 +617,25 @@ Every entry point takes arrays. An energy scan, a set of baselines, or an oscill
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+\subsection{How the modules fit together}
+\label{sec:architecture}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{figure*}[t!]
+ \centering
+ \includegraphics[width=0.98\textwidth]{architecture.pdf}
+ \caption{\label{fig:architecture}The modules of \magnus\ and what hands work to what. A Hamiltonian enters from the left, either supplied by the caller as a callable of any size or built by {\tt hamiltonians} for one of the worked scenarios, with {\tt matter} and {\tt earth} providing the profile it runs through. {\tt oscprob} is where a request is met: three layers deep, carrying one refinement ladder and the dispatch of Section \ref{sec:engines}. It hands the work either to {\tt magnus}, which walks the slabs and contains no physics at all, or to the two modules that walk none---{\tt avgprob} for the phase-averaged limit and {\tt adiabatic} for transport along the instantaneous eigenbasis, which calls the core back for the Magnus patch at a resonance. {\tt expmkernels} changes only the speed: behind it is a {\tt NumPy} path returning the same numbers, which the test suite holds to round-off}
+\end{figure*}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+Figure~\ref{fig:architecture} shows how the parts of \magnus\ stand to one another. The flow runs left to right, from a Hamiltonian to a probability, and the interesting structure is in the middle: a request arrives at {\tt oscprob} and leaves it by one of three routes, only one of which walks slabs at all. Which route it takes is chosen from the request rather than by the caller, and Section \ref{sec:engines} sets out the order in which the choice is made.
+
+Two properties of that layout are easy to lose, and neither is visible from outside the package. The first is that {\tt magnus} imports nothing from the rest of the package. It is numerical linear algebra on an arbitrary matrix function $\mathbb{A}(l)$, with no notion of a neutrino anywhere in it, so it can be tested against the Bernoulli recursion without any of the probability machinery being involved. The second is the converse: {\tt oscprob} is the only module that imports every other one. Wiring the physics, the environments and the numerical core together happens deliberately in one place rather than a little at a time across the modules it draws on.
+
+That single place is also the largest module, since it exposes a named function for every combination of flavor count, environment and scenario. \ref{app:structure} gives the module table and the three-layer contract that keeps those sixty entry points from becoming sixty copies of the same logic.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 \subsection{The six engines}
 \label{sec:engines}
 
@@ -1422,9 +1441,7 @@ Higher order buys a genuinely faster convergence rate in the slab width---measur
 
 \tabl{modules} says what each module of \magnus\ is for. Twelve of them sit under {\tt src/magnus/}, together with the {\tt hamiltonians} subpackage, each carrying a single responsibility that no other module shares.
 
-Two properties of the layout are easy to break by accident. The Magnus core, {\tt magnus.magnus}, imports nothing from the rest of the package: it is pure numerical linear algebra on an arbitrary matrix function $\mathbb{A}(l)$ and knows nothing about neutrinos, which is why it can be unit tested without touching the probability API at all. {\tt magnus.oscprob} is the only module that imports every other one; it is where physics scenarios, environments, and the numerical core are wired together, deliberately in one place rather than scattered across the modules it draws on.
-
-{\tt magnus.oscprob} is also the largest module, because it exposes an explicitly named function for every combination of flavor count, environment and scenario---about sixty of them. To keep that from becoming sixty copies of the same logic, which is exactly what once let several bugs hide, every one of those functions is a thin call into a much smaller set, in three layers. Layer one is {\tt osc\_prob}, the only function that calls the Magnus core, owning the refinement loop, validation and logging, and itself a first-class public entry point for an arbitrary Hamiltonian. Layer two is four scenario functions---vacuum, standard matter, non-standard interactions, Lorentz-invariance violation---each generic in the flavor count. Layer three is the named wrappers, whose entire job is to repackage named parameters into the dictionaries layer two expects.
+Section \ref{sec:architecture} draws how they stand to one another. {\tt magnus.oscprob} is the largest of them, because it exposes an explicitly named function for every combination of flavor count, environment and scenario---about sixty of them. To keep that from becoming sixty copies of the same logic, which is exactly what once let several bugs hide, every one of those functions is a thin call into a much smaller set, in three layers. Layer one is {\tt osc\_prob}, the only function that calls the Magnus core, owning the refinement loop, validation and logging, and itself a first-class public entry point for an arbitrary Hamiltonian. Layer two is four scenario functions---vacuum, standard matter, non-standard interactions, Lorentz-invariance violation---each generic in the flavor count. Layer three is the named wrappers, whose entire job is to repackage named parameters into the dictionaries layer two expects.
 
 The contract between the layers is enforced rather than documented: a wrapper must \emph{not} redeclare any of the fifteen refinement and logging keyword arguments that layers one and two own, and two permanent tests inspect every wrapper's signature and fail if it does. Before that contract existed, every wrapper declared its own copy of those parameters with its own defaults, and fixing a default meant remembering to fix it in sixty places. Inevitably some were missed: a wrapper with a silently different default tolerance than its siblings, a wrapper missing the antineutrino flag entirely, a wrapper whose validation bound disagreed with its siblings.
 
