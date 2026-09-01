@@ -1,7 +1,7 @@
 Tutorial notebooks
 ==================
 
-Twenty-eight worked notebooks live in `notebooks/
+Twenty-nine worked notebooks live in `notebooks/
 <https://github.com/mbustama/Magnus/tree/main/notebooks>`_, numbered in reading
 order. Each carries its figures inline, so they can be read on GitHub without
 being run, and each ends with a footer pointing at the previous notebook, the
@@ -20,7 +20,7 @@ To run them rather than read them::
 
 .. note::
 
-   The notebooks are not built into this documentation — executing twenty-eight of
+   The notebooks are not built into this documentation — executing twenty-nine of
    them on every docs build would take the better part of an hour, and they are
    more useful where their outputs are already stored. The links below go to
    GitHub, which renders them with their figures.

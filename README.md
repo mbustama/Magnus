@@ -668,7 +668,7 @@ page deliberately leaves to it:
 | [Accuracy and diagnostics](https://mbustama.github.io/Magnus/diagnostics.html) | What `rtol` really controls, what each safeguard cannot catch, and every warning explained |
 | [Against other codes](https://mbustama.github.io/Magnus/comparison.html) | The full cross-code comparison against NuOscProbExact and nuSQuIDS: which to reach for, case by case, and the measurements behind it |
 | [Numerical recipes](https://mbustama.github.io/Magnus/recipes.html) | Runnable snippets for the common tasks |
-| [Tutorials](https://mbustama.github.io/Magnus/tutorials.html) | All 28 notebooks, with what each one is for |
+| [Tutorials](https://mbustama.github.io/Magnus/tutorials.html) | All 29 notebooks, with what each one is for |
 | [API reference](https://mbustama.github.io/Magnus/api_reference.html) | Every public function, generated from the source |
 
 ## File Tree

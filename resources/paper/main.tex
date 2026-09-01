@@ -232,7 +232,7 @@ The difficulty this paper addresses begins where the density varies \emph{contin
 
 We introduce \magnus\ \cite{Magnus}, a code that computes oscillation probabilities by propagating the evolution operator with the \textit{Magnus expansion}\ \cite{Magnus:1954zz, Blanes:2008xlr}. Over a segment of the trajectory the operator is written as a \emph{single} exponential, $\mathbb{U} = \exp(\Omega)$, whose argument is a series of time-ordered integrals of nested commutators of the Hamiltonian. Two properties follow.
 
-First, \textbf{truncating the series is exact for the group even where it is approximate for the answer}. Each term of $\Omega$ is a real combination of nested commutators of anti-Hermitian matrices and is therefore itself anti-Hermitian, so any truncation stays in the Lie algebra and its exponential is \emph{exactly} unitary. Probabilities are non-negative and their rows sum to one at machine precision, at any truncation order, any quadrature accuracy, and any slab count. Figure~\ref{fig:validation} shows this beside the accuracy. The two live at different scales, the lower one not moving when the upper one does.
+First, \textbf{truncating the series is exact for the group even where it is approximate for the answer}. Each term of $\Omega$ is a real combination of nested commutators of anti-Hermitian matrices and is therefore itself anti-Hermitian, so any truncation stays in the Lie algebra and its exponential is \emph{exactly} unitary. Probabilities are non-negative and their rows sum to one at machine precision, at any truncation order, any quadrature accuracy, and any slab count. Figure~\ref{fig:validation} shows this beside the accuracy. The two live at different scales; the lower one does not move when the upper one does.
 
 Second, \textbf{a segment is exact for a constant Hamiltonian however many oscillation cycles it spans}. When $\mathbb{H}$ does not vary, every nested commutator vanishes, the series terminates at its first term, and $\exp(-i\mathbb{H}\Delta l)$ is not an approximation to be refined but the answer. What forces a segment to be narrow is therefore the variation of the \emph{profile} across it, not the phase accumulated inside it. A differential-equation solver has the opposite constraint. Section~\ref{sec:phase_vs_profile} measures both statements.
 
@@ -381,7 +381,7 @@ The guarantee is only as good as the exponential that realizes it. An anti-Hermi
 \end{equation}
 which is a diagonal phase conjugated by a unitary matrix. Section \ref{sec:exponential} describes the compiled kernel that evaluates \equ{expm} at two and three flavors.
 
-We state the residual rather than round it away: neither route is unitary to the last bit, because $\mathbb{V}$ itself is computed in floating point. Measured, $\lVert \mathbb{U}^\dagger \mathbb{U} - \mathbb{1}\rVert$ is $4 \cdot 10^{-16}$ for a single $3 \times 3$ and $4 \cdot 10^{-15}$ for a stack of $4096$, and on \magnus's own probability output it degrades only from $3 \cdot 10^{-12}$ to $1.6 \cdot 10^{-11}$ across four decades in the number of points, at two through five flavors. What the construction removes is the \emph{growth} of a unitarity defect with the accuracy setting, the baseline, or the truncation order, which is what an integrator that only approaches the unitary manifold cannot avoid.
+Neither route is unitary to the last bit, because $\mathbb{V}$ itself is computed in floating point. Measured, $\lVert \mathbb{U}^\dagger \mathbb{U} - \mathbb{1}\rVert$ is $4 \cdot 10^{-16}$ for a single $3 \times 3$ and $4 \cdot 10^{-15}$ for a stack of $4096$, and on \magnus's own probability output it degrades only from $3 \cdot 10^{-12}$ to $1.6 \cdot 10^{-11}$ across four decades in the number of points, at two through five flavors. What the construction removes is the \emph{growth} of a unitarity defect with the accuracy setting, the baseline, or the truncation order, which is what an integrator that only approaches the unitary manifold cannot avoid.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -692,7 +692,7 @@ The remaining three stand apart. The adiabatic strategy is a genuinely different
 \subsection{Documentation and executable examples}
 \label{sec:documentation}
 
-The main documentation is the accompanying site\ \cite{MagnusDocs}, whose source sits in the repository beside the code. Besides an API reference generated from the source, it carries the methodology of Section \ref{sec:method} in the form in which it is implemented, a page deriving the expansion terms at any order, separate treatments of the hybrid strategy and of the phase-averaged limit, and a page on engines and dispatch. Two further pages record what a reader would otherwise have to take on trust: a performance page giving every tuned constant together with the population it was measured on (or an explicit statement that it has none), and a diagnostics page giving the measured false-alarm rate of every warning. Twenty-eight executable notebooks (\ref{app:notebooks}) are the long form of all of it, one of which produces every figure in this paper, and all of which we execute in the test suite on every push.
+The main documentation is the accompanying site\ \cite{MagnusDocs}, whose source sits in the repository beside the code. Besides an API reference generated from the source, it carries the methodology of Section \ref{sec:method} in the form in which it is implemented, a page deriving the expansion terms at any order, separate treatments of the hybrid strategy and of the phase-averaged limit, and a page on engines and dispatch. Two further pages record what a reader would otherwise have to take on trust: a performance page giving every tuned constant together with the population it was measured on (or an explicit statement that it has none), and a diagnostics page giving the measured false-alarm rate of every warning. Twenty-nine executable notebooks (\ref{app:notebooks}) are the long form of all of it, one of which produces every figure in this paper, and all of which we execute in the test suite on every push.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -720,7 +720,7 @@ We develop in the public GitHub repository\ \cite{Magnus}, which carries the sou
 \subsection{Code validation}
 \label{sec:validation}
 
-The repository carries $1207$ tests, run on Python $3.10$ through $3.13$, covering $93\%$ of the library, and including a clean-room installation of the built wheel. \ref{app:tests} groups them by what they cover. The validation is layered, its layers independent on purpose.
+The repository carries $1250$ tests, run on Python $3.10$ through $3.13$, covering $93\%$ of the library, and including a clean-room installation of the built wheel. \ref{app:tests} groups them by what they cover. The validation is layered, its layers independent on purpose.
 
 \smallskip
 
@@ -1039,9 +1039,9 @@ f_earth = np.einsum('a,ab->b', f_source, P)
 
 What separates the fourth case is that its term keeps growing relative to the others across the decade drawn, so the eigenvectors never settle; the other three reach a regime in which one term dominates and the composition stops moving. The Lorentz-violating case carries $\nu_e$ from $0.326$ up to $0.348$ and down again to $0.317$ across the crossover, with $\nu_\mu$ dipping to $0.328$ and recovering; the survival probability driving it reaches $0.894$. That is what a flavor measurement across a decade of energy could distinguish, and it requires evaluating \equ{averaged} for a Hamiltonian nobody has written down.
 
-The fifth case tests \equ{averaged_blocks}. If neutrinos are pseudo-Dirac, each mass state is really two, separated by a splitting far below anything a terrestrial experiment resolves; the pair then stays mutually coherent long after the three standard splittings have averaged away. Which expression applies is then a question about the spectrum rather than about the code: at $100$~Mpc and $100$~TeV the pair contributes coherently below about $2 \cdot 10^{-19}$~eV$^2$, where \equ{averaged_blocks} returns the Dirac answer exactly, and has decohered above about $10^{-16}$~eV$^2$, where \equ{averaged} applies to all six states and halves every active-active probability at once.
+The fifth case tests \equ{averaged_blocks}. If neutrinos are pseudo-Dirac, a mass state is really two, separated by a splitting far below anything a terrestrial experiment resolves; the pair then stays mutually coherent long after the three standard splittings have averaged away. Which expression applies is then a question about the spectrum rather than about the code: at $100$~Mpc and $100$~TeV a pair contributes coherently below about $2 \cdot 10^{-19}$~eV$^2$, where \equ{averaged_blocks} returns the unpaired answer exactly, and has decohered above about $10^{-16}$~eV$^2$, where \equ{averaged} counts its two members separately and halves the channels they carry.
 
-\magnus\ groups the spectrum itself rather than being told which case it is in, and refuses to average at all in the band between, where neither expression describes the physics. We pair the second mass state alone, which is the case the interface exists for: pairing all three suppresses every channel by the same factor and leaves the fractions where they were, so only an uneven pairing moves the observable. Notebook \#29 develops the model, sweeps a splitting through all three regimes, and shows that the same spectrum is invisible at a terrestrial baseline.
+\magnus\ groups the spectrum itself rather than being told which case it is in, and refuses to average at all in the band between, where neither expression describes the physics. We pair the second mass state alone, a four-state spectrum, which is the case the interface exists for: pairing all three would suppress every channel by the same factor and leave the fractions where they were, so only an uneven pairing moves the observable. Notebook \#29 develops the model, sweeps a splitting through all three regimes, and shows that the same spectrum is invisible at a terrestrial baseline.
 
 \subsection{A Hamiltonian of your own}
 \label{sec:arbitrary}
@@ -1154,7 +1154,7 @@ Precision and accuracy have separate limits here. Precision is internal. The bat
 
 Accuracy is measured against something outside the library. Section \ref{sec:validation} gives the oracles and the distributions. At the default {\tt rtol} $=$ {\tt atol} $= 10^{-3}$ an Earth crossing comes back accurate to about $5 \cdot 10^{-4}$ against a $10^{-7}$-tolerance reference.
 
-Such accuracy is the binding constraint in some uses and in others it is not. In a binned atmospheric analysis it is not. The probability is evaluated on a grid in energy and arrival direction and interpolated between the nodes, then folded with a flux, a cross-section and a detector response. The error introduced by that grid and its interpolant is orders of magnitude larger than anything the engine beneath contributes\ \cite{IceCube:2018ikn}. A code accurate to $10^{-13}$ and one accurate to $10^{-6}$ are indistinguishable once both have passed through that chain. 
+In a binned atmospheric analysis that accuracy is not the binding constraint. The probability is evaluated on a grid in energy and arrival direction and interpolated between the nodes, then folded with a flux, a cross-section and a detector response. The error introduced by that grid and its interpolant is orders of magnitude larger than anything the engine beneath contributes\ \cite{IceCube:2018ikn}. A code accurate to $10^{-13}$ and one accurate to $10^{-6}$ are indistinguishable once both have passed through that chain. 
 
 What the extra digits do buy is everything upstream of it: a reference against which another code, or a coarser setting of this one, can be checked; a regime where no closed form exists and there is nothing else to compare against; an observable that is computed once rather than binned, as in Sections \ref{sec:sun} and \ref{sec:astro}; and the ability to separate a method's error from a model's, which is what Section \ref{sec:comparison} does throughout. We report the reach because it is what makes those uses possible, not because a fit needs it. Section \ref{sec:comparison} is where it does that work, separating one method's error from another's.
 
@@ -1408,7 +1408,7 @@ The surviving coefficients are
  \frac{B_4}{4!} = -\frac{1}{720} , \;
  \frac{B_6}{6!} = \frac{1}{30240} ,
 \end{equation}
-and $B_8/8! = -1/1\,209\,600$. Equation (\ref{equ:term_count}) gives $1, 1, 2, 3, 5, 9, 17, 33, 65, 129$ terms at orders one to ten, the count roughly doubling at each step, doubling from order five onward, which is why the implemented ceiling is a deliberate choice rather than an accident: the terms remain easy to \emph{generate} far beyond it, but the work per slab grows with their number.
+and $B_8/8! = -1/1\,209\,600$. Equation (\ref{equ:term_count}) gives $1, 1, 2, 3, 5, 9, 17, 33, 65, 129$ terms at orders one to ten, the count doubling from order five onward, which is why the implemented ceiling is a deliberate choice rather than an accident: the terms remain easy to \emph{generate} far beyond it, but the work per slab grows with their number.
 
 The module {\tt magnus.expansionterms} evaluates all of this in exact rational arithmetic at any order, with coefficients returned as fractions so that they can be compared without a tolerance. It shares no code with the numerical core: the test suite regenerates the hard-coded group factors and compares them against the derived ones, and separately evaluates the generated terms numerically on a sampled $\mathbb{A}(l)$ and compares them order by order against what the core produces internally. Agreement is at machine precision for every order from one to ten, covering the hand-written low orders and the generated high ones in one check.
 
@@ -1428,7 +1428,7 @@ Two properties of the layout are easy to break by accident. The Magnus core, {\t
 
 The contract between the layers is enforced rather than documented: a wrapper must \emph{not} redeclare any of the fifteen refinement and logging keyword arguments that layers one and two own, and two permanent tests inspect every wrapper's signature and fail if it does. Before that contract existed, every wrapper declared its own copy of those parameters with its own defaults, and fixing a default meant remembering to fix it in sixty places. Inevitably some were missed: a wrapper with a silently different default tolerance than its siblings, a wrapper missing the antineutrino flag entirely, a wrapper whose validation bound disagreed with its siblings.
 
-Extending the package means writing a Hamiltonian, and usually nothing else. {\tt osc\_prob} accepts any callable returning a Hermitian matrix of any size and does not ask where it came from, so a new term is added to whatever an existing builder returns, \ie, to an ordinary array and passed on unchanged. Only genuinely new physics---a term that fits none of vacuum, matter, non-standard interactions or Lorentz violation---calls for a new layer-two function.
+Extending the package means writing a Hamiltonian, and usually nothing else. {\tt osc\_prob} accepts any callable returning a Hermitian matrix of any size and does not ask where it came from, so a new term is added to whatever an existing builder returns---an ordinary array---which is then passed on unchanged. Only genuinely new physics---a term that fits none of vacuum, matter, non-standard interactions or Lorentz violation---calls for a new layer-two function.
 
 {\def\arraystretch{1.2}
 \begin{table}[t!]
@@ -1458,7 +1458,7 @@ Extending the package means writing a Hamiltonian, and usually nothing else. {\t
 \label{app:tests}
 \appresetfloats
 
-The repository carries $1207$ tests covering $93\%$ of the library, run on Python $3.10$ through $3.13$ on every push and every pull request, together with a clean-room installation of the built wheel. They are not packaged with the library; from a clone,
+The repository carries $1250$ tests covering $93\%$ of the library, run on Python $3.10$ through $3.13$ on every push and every pull request, together with a clean-room installation of the built wheel. They are not packaged with the library; from a clone,
 \begin{verbatim}
 pip install -e ".[test]"
 pytest
@@ -1472,9 +1472,9 @@ The suite is not only a regression net. One part of it checks the mathematics ag
 \label{app:notebooks}
 \appresetfloats
 
-Twenty-eight notebooks sit in {\tt notebooks/}, numbered in reading order. They are the long form of Section \ref{sec:examples}: what is a paragraph and a figure here is, in a notebook, the same calculation with the reasoning around it---why a convention is what it is, what happens at the edges of the parameter range, and what the numbers were checked against. Each is stored with its outputs, so it can be read without being run. Each ends with a pointer to its neighbors.
+Twenty-nine notebooks sit in {\tt notebooks/}, numbered in reading order. They are the long form of Section \ref{sec:examples}: what is a paragraph and a figure here is, in a notebook, the same calculation with the reasoning around it---why a convention is what it is, what happens at the edges of the parameter range, and what the numbers were checked against. Each is stored with its outputs, so it can be read without being run. Each ends with a pointer to its neighbors.
 
-They are \emph{generated}: one script builds all of them, executes them, and refuses to finish if any came back without stored outputs, and continuous integration re-executes them on every change to the notebooks or to the package. A notebook is documentation that claims to work; running it is what makes the claim checkable, so the suite runs all twenty-eight of them on every push, across the four supported versions of Python.
+They are \emph{generated}: one script builds all of them, executes them, and refuses to finish if any came back without stored outputs, and continuous integration re-executes them on every change to the notebooks or to the package. A notebook is documentation that claims to work; running it is what makes the claim checkable, so the suite runs all twenty-nine of them on every push, across the four supported versions of Python.
 
 Three of the notebooks carry more of the paper's content than the rest. Notebook \#28 produces every figure in it: the probabilities are computed as the notebook runs, except in the figures comparing this code against another, where every code's numbers---including this one's, where the timing has to be comparable---are read from data frozen in the repository. Notebook \#25 is the whole of Section \ref{sec:comparison}, including the sections not summarized there. Notebook \#13 is the tabulated solar model of Section \ref{sec:solar}, including the window-mean sweep that does not converge.
 
