@@ -14952,7 +14952,7 @@ P_PD = np.asarray(cached(
 COMP_STD = np.einsum('a,eab->eb', PION_SOURCE, P_VAC3)
 COMP_STD = COMP_STD/COMP_STD.sum(axis=1)[:, None]
 CASES = [(r'Standard $3\nu$', P_VAC3, 3),
-         (r'LIV, $n = 1$',    P_LIV,  3),
+         (r'LIV',            P_LIV,  3),
          (r'NSI through Earth', P_NSI, 3),
          (r'$3+1$',           P_VAC4, 4),
          (r'Pseudo-Dirac, $\nu_2$', P_PD, 4)]
@@ -14985,6 +14985,12 @@ for col, (label, P, d) in enumerate(CASES):
         logx(ax); snug(ax, E_ASTRO/gd.UNIT_TEV)
     bot.xaxis.set_major_locator(LogLocator(base=10.0, subs=(1.0,), numticks=12))
     unit_as_one(bot, which='x')
+    if col > 0:
+        # The leftmost label sits against the previous panel's right spine once there
+        # are five columns, so only the first column carries it.
+        _fmt = bot.xaxis.get_major_formatter()
+        bot.xaxis.set_major_formatter(FuncFormatter(
+            lambda v, _p=None, _f=_fmt: '' if abs(np.log10(v)) < 1.0e-9 else _f(v)))
     corner(top, label, loc='upper left', x=0.075, fontsize=7.6)
     if d > 3:
         lost = 1.0 - np.einsum('a,eab->eb', src, P)[:, :3].sum(axis=1)
@@ -15005,7 +15011,7 @@ axes[1, 0].set_ylabel(r'Flavor fraction at Earth', fontsize=8.0)
 # and 0.35.  The top is left to the data, so the LIV excursion is not clipped.
 axes[0, 0].set_ylim(0.28, 0.90); minor_y(axes[0, 0], 5)
 axes[1, 0].set_ylim(0.316, 0.35); minor_y(axes[1, 0], 5)
-axes[0, 0].legend(loc='upper left', bbox_to_anchor=(0.02, 0.90), handlelength=1.1,
+axes[0, 0].legend(loc='upper left', bbox_to_anchor=(0.02, 0.82), handlelength=1.1,
                   fontsize=7.4, ncol=1, labelspacing=0.25, borderpad=0.3)
 axes[0, 1].axvline(E_STAR/gd.UNIT_TEV, color=INK, lw=0.7, ls=':')
 axes[1, 1].axvline(E_STAR/gd.UNIT_TEV, color=INK, lw=0.7, ls=':')
