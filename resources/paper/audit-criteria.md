@@ -2,7 +2,7 @@
 
 *Local copy for the Mag(nu)s paper, kept beside the manuscript it governs.  The
 upstream original is `~/Research/NuOscProbReview/reports/audit-criteria.md`; criteria
-20, 21 and 22 were added here.*
+20 through 23 were added here.*
 
 A section-by-section standard. **Apply every point, every time. Do not choose among
 them.** Running a subset and reporting the section done is the characteristic
@@ -128,6 +128,35 @@ for the first time, not to someone who already knows what it refers to. Both hal
 sentence that carry nothing, and never pad to fill a line. But when brevity would cost
 clarity or correctness, brevity loses. The test is two questions in order --- "can a
 first-time reader follow it?", then "can it be shorter without breaking that?"
+
+**23. The sentence that does no work: announce nothing, and say nothing twice.**
+Two faults with one diagnosis --- a sentence or clause carries no information --- and
+one test: delete it and see whether anything changes. If nothing does, it was never
+saying anything.
+
+  a. *The announcement instead of the claim.* Do not tell the reader that what
+     follows matters; say the thing and let it matter. "Two features of the panel are
+     worth naming" is the announcement; "not all of that structure is MSW resonance"
+     is the claim it was introducing. The same shape hides in "the distinction is not
+     academic", "it is worth being plain about", "the practical consequence is worth
+     stating", "the reason is worth stating", "one convention is worth naming", and
+     "we name them rather than pursue them here". Every one of these can be deleted
+     with its content promoted into its place. This is criterion 20 turned toward the
+     commonest form the fault takes, and it is stubborn: it survives one pass and
+     reappears in the sentences written to repair the first pass. Sweep for it
+     section by section, not only over new text. **Exception:** "worth" used
+     quantitatively --- what a thing buys or costs, "worth a factor of three", "worth
+     1.7 in slabs" --- is not this fault and must not be swept away with it.
+
+  b. *The empty second half.* A clause appended to a sentence must add something the
+     first half did not have. Three ways it fails. It restates: "a measurement rather
+     than a curiosity, resting on an argument that is old". It asserts a negation with
+     no content: "named wrappers, none of which is privileged". Or it is true by
+     definition: "only a term that grows with the energy leaves a signature that
+     varies with it" --- which is what "grows with the energy" already means, and which
+     replaced a real statement about the term failing to saturate where the others do.
+     A tautology is worse than a gap, because it reads as an explanation and leaves the
+     reader believing the point was made.
 
 ## C. Criterion 13 — dangling words (run LAST, iterate to clean)
 
