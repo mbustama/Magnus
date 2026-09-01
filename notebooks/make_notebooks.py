@@ -14967,7 +14967,7 @@ for _a in axes[1, :]:
     _a.tick_params(axis='x', which='major', pad=4.5)
 fig.supxlabel(r'Neutrino energy, $E$ [TeV]',
               fontsize=plt.rcParams['axes.labelsize'], x=0.55, y=0.050)
-axes[0, 0].set_ylabel(r'Avg.~survival probability, $\langle P_{\alpha\alpha}\rangle$',
+axes[0, 0].set_ylabel(r'Avg.~survival probability, $\langle P_{\nu_\alpha \to \nu_\alpha}\rangle$',
                       fontsize=8.0)
 axes[1, 0].set_ylabel(r'Flavor fraction at Earth', fontsize=8.0)
 # Ranges chosen to show the differences rather than the distance from zero: every
