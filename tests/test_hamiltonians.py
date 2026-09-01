@@ -233,6 +233,14 @@ BUILDER_ARGS = {
     'eps_es1': 0.02 + 0.005j, 'eps_ms1': 0.01 - 0.003j, 'eps_ts1': 0.005 + 0.002j,
     'eps_es2': 0.01 - 0.004j, 'eps_ms2': 0.005 + 0.001j, 'eps_ts2': 0.002 - 0.001j,
     'eps_s1s1': 0.01, 'eps_s1s2': 0.005 + 0.001j, 'eps_s2s2': 0.01,
+    # The pseudo-Dirac builders take the spectrum as arguments rather than as
+    # angles, since their dimension is set by the pairing and not by the name.
+    # Left at the default empty pairing they are the ordinary three-flavor
+    # Hamiltonians, which is the case worth checking here: whatever the pairing
+    # does, it must not break Hermiticity of the unpaired limit.
+    'mixing_matrix': hams.pmns_mixing_matrix(0.55, 0.68, 0.15, 3.7),
+    'mass_squared': [0.0, 7.5e-5, 2.5e-3],
+    'n_active': 3,
 }
 
 
@@ -260,7 +268,11 @@ def test_every_exported_hamiltonian_builder_is_hermitian(name):
     assert not missing, f"{name}: no test value for {missing} -- add it to BUILDER_ARGS"
 
     H = np.asarray(fn(**{p: BUILDER_ARGS[p] for p in required}))
-    dim = int(name[len('hamiltonian_')])
+    # The flavor-count builders state their dimension in the name
+    # (hamiltonian_3nu_...); the pseudo-Dirac ones take theirs from the inputs,
+    # which at the default empty pairing is the three actives of BUILDER_ARGS.
+    head = name[len('hamiltonian_'):]
+    dim = int(head[0]) if head[0].isdigit() else 3
     assert H.shape == (dim, dim), f"{name}: expected {dim}x{dim}, got {H.shape}"
     assert np.all(np.isfinite(H)), f"{name}: non-finite entries"
 

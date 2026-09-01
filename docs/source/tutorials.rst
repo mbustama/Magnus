@@ -89,6 +89,13 @@ machinery is unchanged and only the Hamiltonian differs.
 `09. Lorentz-invariance violation <https://github.com/mbustama/Magnus/blob/main/notebooks/09_magnus_bsm_liv.ipynb>`_
    An energy dependence the vacuum term does not have.
 
+`29. Pseudo-Dirac neutrinos <https://github.com/mbustama/Magnus/blob/main/notebooks/29_magnus_pseudo_dirac.ipynb>`_
+   A sterile partner for each mass state, split by a :math:`\delta m^2` small
+   enough that the pair stays coherent after everything else has averaged.
+   Numbered late because it was written last, but it belongs here: it is the
+   physical case behind the coherent-block form of
+   :doc:`averaged_probability`.
+
 
 What the method actually does
 -----------------------------

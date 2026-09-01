@@ -251,6 +251,7 @@ File Tree
    │   ├── 26_magnus_nufit_evolution.ipynb  # How the NuFIT likelihood, not just the best fit, moves the probability
    │   ├── 27_magnus_animations.ipynb  # Ten sweeps as filmstrips; RENDER = True writes them as GIFs
    │   ├── 28_magnus_paper_figures.ipynb  # Every figure in the CPC article, in one run
+   │   ├── 29_magnus_pseudo_dirac.ipynb  # Tiny splittings, coherent blocks, and where the effect is invisible
    │   ├── README.md                   # This file
    │   ├── make_notebooks.py           # BUILDS the notebooks above -- edit this, not the .ipynb
    │   ├── external_speed_accuracy.json  # Five external codes' speed and accuracy (NuOscProbExact project)
@@ -275,6 +276,10 @@ File Tree
    ├── resources/                      # Travels with the code; reaches neither the wheel nor the sdist
    │   └── paper/                      # The Computer Physics Communications article documenting this package
    │       ├── README.md               # How to build the paper, and where each of its numbers comes from
+   │       ├── HANDOVER-pseudodirac.md  # Brief for adding pseudo-Dirac neutrinos to the library
+   │       ├── API-pseudodirac.md      # The pseudo-Dirac API, summarized for the session writing the panel
+   │       ├── audit-criteria.md       # What the manuscript audit checks
+   │       ├── review-crossread.md     # A cross-read of the manuscript against the code
    │       ├── main.tex                # The paper -- ordinary LaTeX; a revision diff is mechanical
    │       ├── refs.bib                # NuOscProbExact's bibliography, with the Magnus entries appended below a separator
    │       ├── elsarticle.cls          # Bundled, so the folder compiles without the Elsevier bundle
@@ -300,7 +305,8 @@ File Tree
    │   │   │   ├── hamiltonians2nu.py
    │   │   │   ├── hamiltonians3nu.py
    │   │   │   ├── hamiltonians4nu.py
-   │   │   │   └── hamiltonians5nu.py
+   │   │   │   ├── hamiltonians5nu.py
+   │   │   │   └── hamiltonians_pseudodirac.py  # Pseudo-Dirac spectra: per-mass-state pairing, and the sterile partners
    │   │   ├── magnus.py               # Magnus-expansion numerical core: term recursion, GL integrators, batched kernel
    │   │   ├── matter.py               # Density profiles, electron number density, CC potential
    │   │   ├── oscprob.py              # osc_prob and every physics-scenario wrapper (main API)
@@ -315,6 +321,7 @@ File Tree
        ├── test_angles.py              # The four `angles` conventions and the guards between them
        ├── test_avgprob.py             # Phase-averaged probabilities
        ├── test_cli.py                 # magnus command-line calculator
+       ├── test_pseudodirac.py         # Pseudo-Dirac Hamiltonians: the Dirac limit, blocks, and the factor of two
        ├── test_documented_examples.py  # Runs the code blocks in README.md and quickstart.rst
        ├── test_earth_matter.py        # PREM profile, chord geometry, electron density
        ├── test_engines.py             # Which engine answers, and the cross-checks between them
