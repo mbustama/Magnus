@@ -15495,7 +15495,7 @@ annotate(axes[1], a1, [
     (('GLoBES', '65536'), '65536', -14.6, 17.8, 'left', True),
     (('nuCraft', '1e-02'), r'numPrec $= 10^{-2}$', -7.0, -1.8, 'right'),
     (('nuCraft', '1e-10'), r'$10^{-10}$', 0.2, 3.7, 'left'),
-    (('nuSQuIDS', '1e-03'), r'tol $= 10^{-3}$', 5.0, 2.5, 'left'),
+    (('nuSQuIDS', '1e-03'), r'tol $= 10^{-3}$', -15.9, 6.8, 'left'),
     (('NuFast-Earth', '65536'), '65536', 1.7, 32.1, 'left', True),
     ((r'NuFast-Earth ($\delta_{\rm CP}$ only)', '65536'), '65536',
      7.4, -9.8, 'right'),
@@ -15503,10 +15503,10 @@ annotate(axes[1], a1, [
     (('NuOscProbExact, rtol', '1e+00'), '1', 6, -2, 'left'),
     (('NuOscProbExact, rtol', '1e-08'), r'$10^{-8}$', 3.1, -0.9, 'left'),
     # Both ends of both Magnus curves, on the same principle as the rest.
-    ((r'Mag$\nu$s, $N_{\rm slabs}$', '1'), r'$N_{\rm slabs} = 1$', -7.0, 9.5, 'right'),
-    ((r'Mag$\nu$s, $N_{\rm slabs}$', '256'), '256', 5.0, 3.5, 'left'),
-    ((r'Mag$\nu$s, rtol', '1e-01'), r'rtol $= 10^{-1}$', 6.5, -6.5, 'left'),
-    ((r'Mag$\nu$s, rtol', '1e-08'), r'$10^{-8}$', 5.5, 1.5, 'left')])
+    ((r'Mag$\nu$s, $N_{\rm slabs}$', '1'), r'$N_{\rm slabs} = 1$', 24.7, 5.9, 'right'),
+    ((r'Mag$\nu$s, $N_{\rm slabs}$', '256'), '256', -18.8, -3.7, 'left'),
+    ((r'Mag$\nu$s, rtol', '1e-01'), r'rtol $= 10^{-1}$', -5.0, 6.5, 'left'),
+    ((r'Mag$\nu$s, rtol', '1e-08'), r'$10^{-8}$', 4.1, -0.7, 'left')])
 axes[1].set_yticks([10.0**k for k in range(-10, 0)])
 axes[1].set_ylim(1.0e-10, 2.0e-1)
 corner(axes[1], r'PREM, three flavors:  $\cos\theta_z = -0.9$,' + '\n'
@@ -15532,9 +15532,9 @@ annotate(axes[2], a2, [
     (('NuOscProbExact, rtol', '1e-08'), r'$10^{-8}$', -2.6, 5.4, 'left'),
     # Both ends of both Magnus curves.  The slab curve's last drawn rung is 512: its
     # 2048-slab point reaches 1.0e-11, below this panel's lower edge.
-    ((r'Mag$\nu$s, $N_{\rm slabs}$', '1'), r'$N_{\rm slabs} = 1$', -46.0, -26.0, 'right', True),
+    ((r'Mag$\nu$s, $N_{\rm slabs}$', '1'), r'$N_{\rm slabs} = 1$', 51.2, 0.6, 'right', True),
     ((r'Mag$\nu$s, $N_{\rm slabs}$', '512'), '512', -6.0, -3.0, 'right'),
-    ((r'Mag$\nu$s, rtol', '1e-01'), r'rtol $= 10^{-1}$', 6.5, 3.0, 'left'),
+    ((r'Mag$\nu$s, rtol', '1e-01'), r'rtol $= 10^{-1}$', -2.9, 5.9, 'left'),
     ((r'Mag$\nu$s, rtol', '1e-08'), r'$10^{-8}$', 5.5, 1.5, 'left')])
 axes[2].set_yticks([10.0**k for k in range(-11, 0)])
 axes[2].set_ylim(2.0e-11, 1.0e-1)
