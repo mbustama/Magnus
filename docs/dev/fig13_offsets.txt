@@ -27,7 +27,7 @@
     (('NuOscProbExact, rtol', '1e-08'), '$10^{-8}$', 3.1, -0.9, 'left'),
     (('Mag$\\nu$s, $N_{\\rm slabs}$', '1'), '$N_{\\rm slabs} = 1$', 28.3, 5.9, 'right'),
     (('Mag$\\nu$s, $N_{\\rm slabs}$', '256'), '256', -18.8, -3.7, 'left'),
-    (('Mag$\\nu$s, rtol', '1e-01'), 'rtol $= 10^{-1}$', -2.8, 5.8, 'left'),
+    (('Mag$\\nu$s, rtol', '1e-01'), 'rtol $= 10^{-1}$', -2.8, 5.8, 'left', True),
     (('Mag$\\nu$s, rtol', '1e-08'), '$10^{-8}$', 4.1, -0.7, 'left'),
 # --- panel 2 ---
     (('NuOscProbExact, rtol', '3e+00'), 'rtol $=3$', 7.5, -2.5, 'left'),
@@ -43,5 +43,5 @@
     (('NuOscProbExact, rtol', '1e-08'), '$10^{-8}$', -2.6, 5.4, 'left'),
     (('Mag$\\nu$s, $N_{\\rm slabs}$', '1'), '$N_{\\rm slabs} = 1$', 62.7, 0.6, 'right', True),
     (('Mag$\\nu$s, $N_{\\rm slabs}$', '512'), '512', -8.2, -3.7, 'right'),
-    (('Mag$\\nu$s, rtol', '1e-01'), 'rtol $= 10^{-1}$', 5.1, 5.1, 'left'),
+    (('Mag$\\nu$s, rtol', '1e-01'), 'rtol $= 10^{-1}$', 17.3, 2.9, 'left', True),
     (('Mag$\\nu$s, rtol', '1e-08'), '$10^{-8}$', 5.5, 1.5, 'left'),

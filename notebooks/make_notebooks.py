@@ -15505,7 +15505,7 @@ annotate(axes[1], a1, [
     # Both ends of both Magnus curves, on the same principle as the rest.
     ((r'Mag$\nu$s, $N_{\rm slabs}$', '1'), r'$N_{\rm slabs} = 1$', 28.3, 5.9, 'right'),
     ((r'Mag$\nu$s, $N_{\rm slabs}$', '256'), '256', -18.8, -3.7, 'left'),
-    ((r'Mag$\nu$s, rtol', '1e-01'), r'rtol $= 10^{-1}$', -2.8, 5.8, 'left', True),
+    ((r'Mag$\nu$s, rtol', '1e-01'), r'rtol $= 10^{-1}$', -2.8, 5.8, 'left'),
     ((r'Mag$\nu$s, rtol', '1e-08'), r'$10^{-8}$', 4.1, -0.7, 'left')])
 axes[1].set_yticks([10.0**k for k in range(-10, 0)])
 axes[1].set_ylim(1.0e-10, 2.0e-1)
@@ -15534,7 +15534,7 @@ annotate(axes[2], a2, [
     # 2048-slab point reaches 1.0e-11, below this panel's lower edge.
     ((r'Mag$\nu$s, $N_{\rm slabs}$', '1'), r'$N_{\rm slabs} = 1$', 62.7, 0.6, 'right', True),
     ((r'Mag$\nu$s, $N_{\rm slabs}$', '512'), '512', -8.2, -3.7, 'right'),
-    ((r'Mag$\nu$s, rtol', '1e-01'), r'rtol $= 10^{-1}$', 5.1, 5.1, 'left', True),
+    ((r'Mag$\nu$s, rtol', '1e-01'), r'rtol $= 10^{-1}$', 17.3, 2.9, 'left', True),
     ((r'Mag$\nu$s, rtol', '1e-08'), r'$10^{-8}$', 5.5, 1.5, 'left')])
 axes[2].set_yticks([10.0**k for k in range(-11, 0)])
 axes[2].set_ylim(2.0e-11, 1.0e-1)
