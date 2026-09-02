@@ -1275,7 +1275,7 @@ Both codes are exact here, to round-off. Over $60$ energies from $0.6$ to $20$~G
  {\tt NuOscProbExact}, $8$ slabs & $38$ & $2.6 \cdot 10^{-4}$ \\
  {\tt NuOscProbExact}, $32$ slabs & $142$ & $3.7 \cdot 10^{-4}$ \\
  \end{tabular}}
- \caption{\label{tab:prem}Cost against reach along a PREM chord at $\cos\theta_z = -0.85$, a baseline of $10\,831$~km, over $24$ energies from $0.6$ to $20$~GeV in the appearance channel $P_{\nu_\mu \to \nu_e}$. We pin the electron fraction to $0.5$ on both sides and on the referee, since \magnus's own layered default differs from a uniform value by up to $7 \cdot 10^{-2}$ on this chord and would turn a comparison of two solvers into a comparison of two Earths. The two blocks measure error differently. At three flavors each code is refined against its own tightest setting (its own discretization error borrowing nobody else's conventions). At $3+1$ that would be meaningless for \magnus: it does not converge there but runs to its slab ceiling, so its answers at $10^{-3}$ and $10^{-5}$ are identical and a self-convergence figure would report near-zero for a result that carries a convergence warning. Those rows are therefore scored against an independent slab-product referee whose own discretization error is $4.1 \cdot 10^{-7}$, and \magnus's $4.5 \cdot 10^{-8}$ is \emph{below} it. In the last row, {\tt NuOscProbExact} at $32$ slabs per segment is \emph{worse} than at $8$. Measured in notebook \#25 of the repository, which needs both codes installed; \ref{app:prem_conventions} carries a six-code plane that needs neither.}
+ \caption{\label{tab:prem}Cost against reach along a PREM chord at $\cos\theta_z = -0.85$, a baseline of $10\,831$~km, over $24$ energies from $0.6$ to $20$~GeV in the appearance channel $P_{\nu_\mu \to \nu_e}$. We pin the electron fraction to $0.5$ on both sides and on the referee, since \magnus's own layered default differs from a uniform value by up to $7 \cdot 10^{-2}$ on this chord and would turn a comparison of two solvers into a comparison of two Earths. The two blocks measure error differently. At three flavors each code is refined against its own tightest setting (its own discretization error borrowing nobody else's conventions). At $3+1$ that would be meaningless for \magnus: it does not converge there but runs to its slab ceiling, so its answers at $10^{-3}$ and $10^{-5}$ are identical and a self-convergence figure would report near-zero for a result that carries a convergence warning. Those rows are therefore scored against an independent slab-product referee whose own discretization error is $4.1 \cdot 10^{-7}$, and \magnus's $4.5 \cdot 10^{-8}$ is \emph{below} it. In the last row, {\tt NuOscProbExact} at $32$ slabs per segment is \emph{worse} than at $8$. Measured in notebook \#25 of the repository, which needs both codes installed; Section \ref{sec:prem_planes} carries three planes of eight codes that need neither, on a different chord and channel. Nothing there shows this row's limitation, which is why it stays: at $3+1$ over these energies a $1$~eV$^2$ splitting oscillates fast enough that \magnus\ runs to its slab ceiling instead of converging.}
 \end{table}}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -1357,9 +1357,9 @@ Because the two packages share conventions, a calculation can be moved from one 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 {\def\arraystretch{1.2}
-\begin{table}[t!]
+\begin{table*}[t!]
 {\small
-\begin{tabular}{@{}p{3.15cm}p{1.55cm}p{2.7cm}@{}}
+\begin{tabular}{@{}p{5.9cm}p{2.1cm}p{9.4cm}@{}}
  The problem & Reach for & Because \\
  \hline
  Constant density & closed form & One exponential, nothing to refine \\
@@ -1375,7 +1375,7 @@ Because the two packages share conventions, a calculation can be moved from one 
  Decay, decoherence, collective effects & neither & Needs a density matrix, not a unitary solver \\
 \end{tabular}}
 \caption{\label{tab:which}Choosing between \magnus\ and {\tt NuOscProbExact}\ \cite{NuOscProbExact, Bustamante:2019ggq} on eleven problems. ``Closed form'' means the latter throughout. The rows are ordered by the shape of the profile rather than by the physics in the Hamiltonian, which is what the two methods differ over: both take an arbitrary Hermitian matrix, so the last row is the only one where the answer turns on physics. Sections \ref{sec:const_density} to \ref{sec:solar_comparison} measure the rows that are measurable; the last three are statements about what each code can express at all.}
-\end{table}}
+\end{table*}}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1385,7 +1385,54 @@ Because the two packages share conventions, a calculation can be moved from one 
 
 One piece of method decided several results in this section, and would have decided them wrongly had we skipped it.
 
-\textbf{Check that the two codes agree in vacuum first.} If they do not, the disagreement is in the solvers. If they agree in vacuum and disagree in matter, it is in the conventions---a matter-potential factor, an electron fraction, a channel index---and no amount of tolerance will close it. Concretely: \magnus's $V_{\rm CC}$ sits $1.9 \cdot 10^{-4}$ below {\tt NuOscProbExact}'s at the same density. Left unmatched, that difference pins \magnus's error on the Earth plane of \figu{prem_plane} at $2.35 \cdot 10^{-4}$ however tight the tolerance, so the curve comes out \emph{flat}---points stacked at one height, above every other code, saying nothing. A trade-off curve that does not respond to its own dial is reporting a convention difference, not a solver. \ref{app:prem_conventions} follows that thread to its end, and finds that even a matched potential leaves a floor. The probability on an Earth chord inherits the relative error of the matter potential essentially one for one. Two codes whose potentials agree to seven digits therefore cannot be compared below the seventh digit of the probability.
+\textbf{Check that the two codes agree in vacuum first.} If they do not, the disagreement is in the solvers. If they agree in vacuum and disagree in matter, it is in the conventions---a matter-potential factor, an electron fraction, a channel index---and no amount of tolerance will close it. Concretely: \magnus's $V_{\rm CC}$ sits $1.9 \cdot 10^{-4}$ below {\tt NuOscProbExact}'s at the same density. Left unmatched, that difference pins \magnus's error on the Earth plane of \figu{prem_plane} at $2.35 \cdot 10^{-4}$ however tight the tolerance, so the curve comes out \emph{flat}---points stacked at one height, above every other code, saying nothing. A trade-off curve that does not respond to its own dial is reporting a convention difference, not a solver. Section \ref{sec:prem_planes} follows that thread to its end. Matching the potential is the obvious repair and it does not work past $10^{-7}$, for a reason worth knowing before trying it: the parameter that carries the potential usually carries something else as well. Give each code its own reference instead.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{\magnus\ on three speed--accuracy planes}
+\label{sec:prem_planes}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{figure*}[t!]
+ \centering
+ \includegraphics[width=\textwidth]{speed_accuracy_combined.pdf}
+ \caption{\label{fig:prem_plane}Error against the reference of each panel, against time per probability, for eight codes on three setups: constant density ({\it top}); a PREM chord at $\cos\theta_z = -0.9$, baseline $11\,468$~km, at three flavors ({\it middle}); and the same chord with a sterile state ({\it bottom}). One time axis serves all three, so a cost carries by eye from one setup to the next. We dial each code over the range its own interface offers and name the dial in the legend; \magnus\ appears twice for the same reason {\tt NuFast-Earth} does, its slab count and its tolerance being dials that do not dominate one another. Every point pairs a timing with the accuracy that same setting reached against a reference built \emph{in its own code's conventions}---no two codes here share one, and Section \ref{sec:the_floor} is why. The external series were measured by the companion project on an Intel Core i5-1334U and are frozen in this repository, so none of those codes need be installed to redraw this; we measured \magnus\ on the same machine model in a separate session, so a cross-code timing carries that caveat, while an accuracy, being untimed, does not. Nothing is clipped: a second, disjoint high-precision extrapolation confirms the three-flavor reference to $1.1 \cdot 10^{-16}$ and the $3+1$ one to $1.2 \cdot 10^{-12}$, so the accurate end of a curve is as real as the cheap end}
+\end{figure*}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\figu{prem_plane} places \magnus\ on three planes of external codes measured by the companion project, whose numbers are frozen in this repository. Section \ref{sec:prem_comparison} instead compares it against {\tt NuOscProbExact} directly, with both codes installed and each refined against its own tightest setting. The planes carry a caution that transfers to any comparison of this kind.
+
+The top panel and the lower two ask different questions. At constant density every code can be handed the same Hamiltonian, so the comparison measures how exactly each evaluates the probability from it, and an exact answer exists to measure against---one matrix exponential, carrying no discretization at all. Through the Earth there is no single Hamiltonian to hand over: the density changes continuously along the chord and the Hamiltonian with it, and every code---\magnus\ included---must first build its own approximation of the profile. The lower two panels therefore measure how finely a code resolves that profile rather than the exactness of its probability formula.
+
+Each Earth reference is consequently a \emph{converged} PREM solution rather than an exact one: a Richardson extrapolation of a high-precision slab product, which cancels the leading discretization error rather than shrinking it---a full $50$-digit Romberg ladder at three flavors, a single $30$-digit pair at $3+1$, where each rung costs far more. Because that combination is built by cutting the chord the way a slab code cuts it, an error in the cutting would sit in both and cancel from the comparison instead of showing up in it. We therefore check it against a calculation sharing none of that machinery: an adaptive integration of the flavor state through the \emph{continuous} profile, restarted at every density jump so that no step straddles one. Run to the double-precision limit that check follows the reference to $9 \cdot 10^{-12}$ and no further---but the limit is the check's, not the reference's, and reading it as a floor would throw away four orders of real accuracy. What settles the question is a second extrapolation at full precision sharing no slab count with the first: at three flavors two disjoint $50$-digit ladders agree to $1.1 \cdot 10^{-16}$. The $3+1$ referee is the coarser construction of the two, a single Richardson pair rather than a ladder, and a disjoint pair confirms it to $1.2 \cdot 10^{-12}$; \magnus's tightest point there sits a factor of six above that, so it is resolved, but not by much. Nothing in \figu{prem_plane} is clipped.
+
+One reference per code is not a convenience but a requirement, and Section \ref{sec:the_floor} is the measurement that forces it.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsubsection{What limits a cross-code comparison on an Earth chord}
+\label{sec:the_floor}
+
+The conventions matched before any curve was drawn are not optional. Every code is given the same oscillation parameters, expressed in the convention that code expects, and the same PREM implementation, chord, and baseline in eV$^{-1}$. The matter potential is the one convention we could not match, and the rest of this section is why.
+
+\magnus's charged-current potential sits $1.9 \cdot 10^{-4}$ below {\tt NuOscProbExact}'s at the same density, the two codes rounding the nucleon mass differently. Left unmatched, that difference pins \magnus's error against the other code's reference at $2.4 \cdot 10^{-4}$ however tight the tolerance, so the curve comes out flat---points stacked at one height, above every other code, saying nothing about either.
+
+The obvious repair is to match the two potentials, which is what the frozen dataset does for {\tt nuSQuIDS} and {\tt nuCraft} by scaling the density each is handed. Through \magnus's Earth entry points the only handle is the electron fraction, and passing $0.5000948$ rather than $0.5$ does produce a falling curve. It stops falling at $1.6 \cdot 10^{-7}$, and we first read that floor as the potential match running out in some general way. It is not general. It has one cause, and the cause is worth stating because it is invisible from outside the code.
+
+On a chord \magnus\ derives the average nucleon mass from the composition---$r = n_n/n_p = (1 - Y_e)/Y_e$, layer by layer---because a medium carrying an iron core's $Y_e$ alongside an isoscalar $r$ is matter that cannot exist. The consequence is that $V_{\rm CC}$ is \emph{not} linear in $Y_e$: raising $Y_e$ by $1.9$ parts in $10^{4}$ moves the nucleon mass too, and the potential picks up a further $1.31 \cdot 10^{-7}$ that was never asked for. That number is the floor. Matching a potential through a composition parameter is therefore only ever good to the order at which composition enters the nucleon mass, and no solver setting on either side reaches beneath it.
+
+The repair is not a better scale factor but a different measurement. We give each code its own high-precision reference, built with that code's own constants, and score it at $Y_e = 1/2$ where its conventions are self-consistent---which is what the benchmark manifest asks for in any case. Measured that way on the same chord, \magnus\ reaches $3.9 \cdot 10^{-14}$: four orders below where the matched curve stalled, and below every other code on the panel. The floor was never \magnus's.
+
+The transferable version: \textbf{a cross-code comparison through the Earth is limited by the agreement of the two Earth models long before it is limited by either solver}, and any such comparison reaching past $10^{-7}$ without saying how its potentials were matched is reporting a convention. Matching them is harder than it looks, because the parameter that carries the potential usually carries something else as well; giving each code its own reference sidesteps the question rather than answering it, which is why we do that instead.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsubsection{Timing conventions}
+
+Every code in \figu{prem_plane}, \magnus\ included, is timed by one rule, and it is the companion project's rather than ours: the timed region is a scan of twenty-five steps in $\delta_{\rm CP}$, each step configuring the one parameter that moves and then asking for the whole energy grid, with everything invariant under the scan hoisted outside. What that reports is the cost inside a fit, with each code's caching working as designed, normalized to microseconds per grid point. Each code is dialed over the range its own interface offers, through whatever batched interface it has.
+
+Two conventions in that rule are not fussiness. Ignoring either made \magnus\ look like one of the slowest codes on the plane for reasons having nothing to do with its arithmetic. The first call in a session pays a one-off compilation of the {\tt Numba} kernel, about $0.7$~s; charged to twelve energies that alone is $58\,000~\mu$s per probability, and a user pays it once per session rather than once per call, so a warm-up pass is run and discarded. And a fixed repetition count gave the cheapest settings a timed block well under a millisecond, which returns the clock's spread rather than the code's, so the block autoranges until it is long enough to measure. We record the coefficient of variation across blocks for every point and admit none above $0.10$; the worst of \magnus's is $0.076$.
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1488,51 +1535,5 @@ They are \emph{generated}: one script builds all of them, executes them, and ref
 
 Three of the notebooks carry more of the paper's content than the rest. Notebook \#28 produces every figure in it: the probabilities are computed as the notebook runs, except in the figures comparing this code against another, where every code's numbers---including this one's, where the timing has to be comparable---are read from data frozen in the repository. Notebook \#25 is the whole of Section \ref{sec:comparison}, including the sections not summarized there. Notebook \#13 is the tabulated solar model of Section \ref{sec:solar}, including the window-mean sweep that does not converge.
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-\section{\magnus\ on three speed--accuracy planes}
-\label{app:prem_conventions}
-\appresetfloats
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\begin{figure*}[t!]
- \centering
- \includegraphics[width=\textwidth]{speed_accuracy_combined.pdf}
- \caption{\label{fig:prem_plane}Error against the reference of each panel, against time per probability, for eight codes on three setups: constant density ({\it top}); a PREM chord at $\cos\theta_z = -0.9$, baseline $11\,468$~km, at three flavors ({\it middle}); and the same chord with a sterile state ({\it bottom}). One time axis serves all three, so a cost carries by eye from one setup to the next. We dial each code over the range its own interface offers and name the dial in the legend; \magnus\ appears twice for the same reason {\tt NuFast-Earth} does, its slab count and its tolerance being dials that do not dominate one another. Every point pairs a timing with the accuracy that same setting reached against a reference built \emph{in its own code's conventions}---no two codes here share one, and \ref{app:the_floor} is why. The external series were measured by the companion project on an Intel Core i5-1334U and are frozen in this repository, so none of those codes need be installed to redraw this; we measured \magnus\ on the same machine model in a separate session, so a cross-code timing carries that caveat, while an accuracy, being untimed, does not. Dotted lines mark where a reference stops resolving: below one, nothing is measured but the ruler}
-\end{figure*}
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-\figu{prem_plane} places \magnus\ on three planes of external codes measured by the companion project, whose numbers are frozen in this repository. Section \ref{sec:prem_comparison} instead compares it against {\tt NuOscProbExact} directly, with both codes installed and each refined against its own tightest setting. The planes carry a caution that transfers to any comparison of this kind.
-
-The top panel and the lower two ask different questions. At constant density every code can be handed the same Hamiltonian, so the comparison measures how exactly each evaluates the probability from it, and an exact answer exists to measure against---one matrix exponential, carrying no discretization at all. Through the Earth there is no single Hamiltonian to hand over: the density changes continuously along the chord and the Hamiltonian with it, and every code---\magnus\ included---must first build its own approximation of the profile. The lower two panels therefore measure how finely a code resolves that profile rather than the exactness of its probability formula.
-
-Each Earth reference is consequently a \emph{converged} PREM solution rather than an exact one: a second-order Richardson extrapolation of a $50$-digit slab product, which cancels the leading discretization error rather than shrinking it. Because that combination is built by cutting the chord the way a slab code cuts it, an error in the cutting would sit in both and cancel from the comparison instead of showing up in it. We therefore check it against a calculation sharing none of that machinery: an adaptive integration of the flavor state through the \emph{continuous} profile, restarted at every density jump so that no step straddles one. Run to the double-precision limit the two agree to $3.3 \cdot 10^{-14}$ at three flavors; at $3+1$ the same integration is itself held near $10^{-11}$ by the far faster oscillation a $1$~eV$^2$ splitting drives, and $9.6 \cdot 10^{-12}$ is as close as it comes. Those are the dotted floors in \figu{prem_plane}, and nothing below one of them is resolved.
-
-One reference per code is not a convenience but a requirement, and \ref{app:the_floor} is the measurement that forces it.
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-\subsection{What limits a cross-code comparison on an Earth chord}
-\label{app:the_floor}
-
-The conventions matched before any curve was drawn are not optional. Every code is given the same oscillation parameters, expressed in the convention that code expects; the same PREM implementation, chord, and baseline in eV$^{-1}$; and the same $V_{\rm CC}$.
-
-\magnus's charged-current potential sits $1.9 \cdot 10^{-4}$ below {\tt NuOscProbExact}'s at the same density, the two codes rounding the nucleon mass differently. Left unmatched, that difference pins \magnus's error against the other code's reference at $2.4 \cdot 10^{-4}$ however tight the tolerance, so the curve comes out flat---points stacked at one height, above every other code, saying nothing about either.
-
-The obvious repair is to match the two potentials, which is what the frozen dataset does for {\tt nuSQuIDS} and {\tt nuCraft} by scaling the density each is handed. Through \magnus's Earth entry points the only handle is the electron fraction, and passing $0.5000948$ rather than $0.5$ does produce a falling curve. It stops falling at $1.6 \cdot 10^{-7}$, and we first read that floor as the potential match running out in some general way. It is not general. It has one cause, and the cause is worth stating because it is invisible from outside the code.
-
-On a chord \magnus\ derives the average nucleon mass from the composition---$r = n_n/n_p = (1 - Y_e)/Y_e$, layer by layer---because a medium carrying an iron core's $Y_e$ alongside an isoscalar $r$ is matter that cannot exist. The consequence is that $V_{\rm CC}$ is \emph{not} linear in $Y_e$: raising $Y_e$ by $1.9$ parts in $10^{4}$ moves the nucleon mass too, and the potential picks up a further $1.31 \cdot 10^{-7}$ that was never asked for. That number is the floor. Matching a potential through a composition parameter is therefore only ever good to the order at which composition enters the nucleon mass, and no solver setting on either side reaches beneath it.
-
-The repair is not a better scale factor but a different measurement. We give each code its own $50$-digit reference, built with that code's own constants, and score it at $Y_e = 1/2$ where its conventions are self-consistent---which is what the benchmark manifest asks for in any case. Measured that way on the same chord, \magnus\ reaches $3.9 \cdot 10^{-14}$: four orders below where the matched curve stalled, and below every other code on the panel. The floor was never \magnus's.
-
-The transferable version: \textbf{a cross-code comparison through the Earth is limited by the agreement of the two Earth models long before it is limited by either solver}, and any such comparison reaching past $10^{-7}$ without saying how its potentials were matched is reporting a convention. Matching them is harder than it looks, because the parameter that carries the potential usually carries something else as well; giving each code its own reference sidesteps the question rather than answering it, which is why we do that instead.
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-\subsection{Timing conventions}
-
-Every code in \figu{prem_plane}, \magnus\ included, is timed by one rule, and it is the companion project's rather than ours: the timed region is a scan of twenty-five steps in $\delta_{\rm CP}$, each step configuring the one parameter that moves and then asking for the whole energy grid, with everything invariant under the scan hoisted outside. What that reports is the cost inside a fit, with each code's caching working as designed, normalized to microseconds per grid point. Each code is dialed over the range its own interface offers, through whatever batched interface it has.
-
-Two conventions in that rule are not fussiness. Ignoring either made \magnus\ look like one of the slowest codes on the plane for reasons having nothing to do with its arithmetic. The first call in a session pays a one-off compilation of the {\tt Numba} kernel, about $0.7$~s; charged to twelve energies that alone is $58\,000~\mu$s per probability, and a user pays it once per session rather than once per call, so a warm-up pass is run and discarded. And a fixed repetition count gave the cheapest settings a timed block well under a millisecond, which returns the clock's spread rather than the code's, so the block autoranges until it is long enough to measure. We record the coefficient of variation across blocks for every point and admit none above $0.10$; the worst of \magnus's is $0.076$.
 
 \end{document}

@@ -8,10 +8,8 @@
   "manifest_sha256": "d758e1935f45312b4ce1e66dd1a89cff9dab7678629b66fe70a6a48e9cbee6fa",
   "protocol": "manifest.json AMORTIZED (25-step delta_CP scan) for timing and ACCURACY (untimed) for error, driven through resources/benchmarks/bench/runner.py",
   "reference": "built in this repository: Mag(nu)s V_CC differs from NuOscProbExact's by 1.896e-04 relative, so the two cannot share a reference; the manifest requires a per-code one in any case",
-  "reference_floor": {
-   "3nu": 3.342e-14,
-   "3plus1": 9.587e-12,
-   "const": 0.0
+  "reference_confirmed_to": {
+   "note": "exact: one matrix exponential at 50 digits"
   },
   "thread_environment": {
    "blas_threads": [

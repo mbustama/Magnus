@@ -259,6 +259,7 @@ File Tree
    │   ├── external_speed_accuracy_const.json  # Figure 12, top panel: constant density, seven codes plus Magnus
    │   ├── external_earth_plane.json   # Figure 12, middle panel: a PREM chord at three flavors
    │   ├── external_prem_speed_accuracy_new.json  # Figure 12, bottom panel: the same chord at 3+1
+   │   ├── magnus_own_reference.json   # Magnus's own 50-digit references, in its own conventions, on those three grids
    │   ├── external_profile_benchmarks.json  # Notebook 25 section 9: smooth-profile speed/accuracy, all codes on one machine
    │   ├── external_shock_benchmarks.json  # Notebook 25 section 11: the supernova shock, both front widths
    │   ├── external_shock_4nu.json     # Notebook 25 section 12: the same shock at 3+1

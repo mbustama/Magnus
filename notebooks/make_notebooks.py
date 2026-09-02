@@ -10264,14 +10264,26 @@ The figure this whole speed-up effort was for. Each point is one setting of that
 dial, so the curve -- not any single point -- is what a code offers you.
 
 **Seven codes at three flavors, five at 3+1, and none of them its own judge.** The external
-numbers are frozen in `external_prem_speed_accuracy.json` and none of those codes is needed to
-run this notebook -- the same arrangement NuOscProbExact uses, and the same dataset.
+numbers are frozen in `external_prem_speed_accuracy_new.json` and none of those codes is needed
+to run this notebook -- the same arrangement NuOscProbExact uses, and the same dataset.
 
-The referee is a Richardson extrapolation $(4P_{256} - P_{128})/3$ of a 30-digit `mpmath` slab
-product, cross-checked against an adaptive DOP853 integration of the *continuous* profile. They
-agree to $2.3\times10^{-11}$ at three flavors and $1.2\times10^{-9}$ at 3+1, and that is the
-dotted floor on each panel: **nothing below it is resolved**, and no point should be read as
-more accurate than the ruler.
+**Each code is scored against a reference built in its own conventions**, which the benchmark
+manifest asks for and which is not a formality here. Mag$\nu$s' charged-current potential sits
+$1.9\times10^{-4}$ below NuOscProbExact's at the same density, the two rounding the nucleon
+mass differently, so the two $50$-digit references differ by $4.8\times10^{-6}$ in
+$P(\nu_\mu \to \nu_\mu)$ -- five orders above anything either solver contributes. Sharing one
+would report that rounding as Mag$\nu$s' error. Ours is frozen in `magnus_own_reference.json`
+and Mag$\nu$s is measured live against it.
+
+Each referee is a Richardson extrapolation of a high-precision slab product on the *continuous*
+profile, cross-checked against an adaptive DOP853 integration sharing none of that machinery.
+That cross-check is itself double precision and stalls near $10^{-11}$, which is **its** limit
+and not the reference's. What settles it is a second extrapolation at full precision sharing no
+slab count with the first: at three flavors two disjoint $50$-digit ladders agree to
+$1.1\times10^{-16}$, six orders beneath the stall. The 3+1 referee is the coarser construction,
+a single Richardson pair rather than a ladder, and a disjoint pair confirms it to
+$1.2\times10^{-12}$. So nothing here is clipped, and the accurate end of a curve is as real as
+the cheap end -- though at 3+1 the last point sits only a factor of six above its referee.
 
 This is a different chord, channel **and physics point** from the tables above --
 $\cos\theta_z = -0.9$, $P(\nu_\mu \to \nu_\mu)$, NuFIT 4.0 NO, $\sin^2\theta_{14} =
@@ -10285,36 +10297,57 @@ defect in the code looks like, and is nothing of the kind. Matching the paramete
 by two and a half orders of magnitude. A disagreement that does not respond to the tolerance
 dial is evidence about the *setup*, not yet about the solver.'''),
     code(r'''# The external numbers are frozen, exactly as in NuOscProbExact's own comparison:
-# none of these codes is needed to run this notebook, and none is its own judge.  The
-# referee is a Richardson extrapolation (4*P(256) - P(128))/3 of a 30-digit mpmath slab
-# product, cross-checked against an adaptive DOP853 integration of the CONTINUOUS
-# profile.  Those two agree to 2.3e-11 at three flavors and 1.2e-09 at 3+1, which is
-# the dotted floor on each panel.
+# none of these codes is needed to run this notebook, and none is its own judge.
+#
+# EVERY CODE IS SCORED AGAINST A REFERENCE BUILT IN ITS OWN CONVENTIONS, which is what
+# the benchmark manifest in resources/benchmarks asks for and is not a formality here.
+# Mag(nu)s' charged-current potential sits 1.9e-04 below NuOscProbExact's at the same
+# density -- CONV_EV_TO_G is 1.783e-33 here and 1.78266192e-33 there -- so the two
+# 50-digit references differ by 4.8e-06 in P(numu -> numu), five orders above anything
+# either solver contributes.  Sharing one would report that rounding as Magnus' error.
 PREM_EXT = json.loads(
-    (pathlib.Path.cwd()/'external_prem_speed_accuracy.json').read_text())
+    (pathlib.Path.cwd()/'external_prem_speed_accuracy_new.json').read_text())
+MG_REF = json.loads((pathlib.Path.cwd()/'magnus_own_reference.json').read_text())
 COSTHZ_EXT = PREM_EXT['costhz']
 L_EXT = PREM_EXT['baseline_km']*gd.CONV_KM_TO_INV_EV
-OSC_EXT = gd.load_nufit_params('NuFIT 4.0', 'NO')
-STERILE_EXT = dict(s14=np.sqrt(0.10), s24=np.sqrt(0.10), s34=0.0, D41=1.0)
 
-# THE MATTER POTENTIAL IS MATCHED FIRST, or the comparison measures bookkeeping rather
-# than physics.  The dataset hands every external code a scaled density for exactly this
-# reason -- it records density_scale_nusquids = 0.99209 and density_scale_nucraft =
-# 0.99267 -- and Mag(nu)s needs the same: its V_CC sits 1.90e-04 below NuOscProbExact's
-# at the same density.
-#
-# Left unmatched, that 1.9e-04 pins the error at 2.35e-04 however tight the tolerance,
-# and the curve comes out FLAT -- points stacked at one height, above every other code,
-# saying nothing.  A trade-off curve that does not respond to its own dial is reporting
-# a convention difference, not a solver.
-VCC_MATCH = 1.0001896490
+# THE PHYSICS POINT COMES FROM THE REFERENCE FILE, not from load_nufit_params, and the
+# difference is not cosmetic.  This dataset is NuFIT 4.0 NO, and `load_nufit_params`
+# stores those angles rounded to ten decimals: sin(theta_12) as 0.5567764363 against
+# the sqrt(0.31) = 0.5567764362830022 both references were built on, and likewise for
+# the other three.  Handing Magnus the rounded values while scoring it against a
+# reference built on the exact ones puts a floor of 1.2e-10 under its curve -- four
+# orders above the 1.5e-14 it actually reaches, and flat in rtol, which is precisely
+# the signature this section warns about two cells further down.  Reading both from
+# one file is what keeps them from drifting apart again.
+_OP = MG_REF['oscillation_parameters']
+OSC_EXT = dict(s12=np.sqrt(_OP['s12sq']), s23=np.sqrt(_OP['s23sq']),
+               s13=np.sqrt(_OP['s13sq']), dCP=_OP['dcp_deg']*np.pi/180.0,
+               D21=_OP['dmsq21_ev2'], D31=_OP['dmsq31_ev2'])
+STERILE_EXT = dict(s14=np.sqrt(_OP['sinsq_th14']), s24=np.sqrt(_OP['sinsq_th24']),
+                   s34=_OP['th34'], D41=_OP['dmsq41_ev2'])
 
+# Magnus runs at its OWN composition, Y_e = 1/2, where its conventions are
+# self-consistent.  An earlier version of this cell instead matched the two potentials
+# by passing Y_e = 0.5000948, and scored Magnus against NuOscProbExact's reference.
+# That curve flattened at 1.6e-07 and no setting on either side reached beneath it.
+# The floor was the match, not the solver: on a chord Magnus derives the average
+# nucleon mass from the composition, r = (1 - Y_e)/Y_e layer by layer, so V_CC is NOT
+# linear in Y_e -- scaling it by 1.9e-04 moves the potential by a further 1.31e-07,
+# which is exactly the height the curve flattened at.  Matching a potential through a
+# composition parameter is only ever good to that order; a per-code reference has no
+# such limit, and the cell after the figure measures both statements.
+YE_EXT = 0.5
 
-# V_CC is linear in the electron fraction, so matching their potential is one keyword.
-# `osc_prob_*_earth` used to pin Y_e = 0.5 with no way to reach it, which is why an
-# earlier draft of this cell dropped to `osc_prob_matter_std_potential` and rebuilt the
-# PREM chord by hand.  The Earth entry points take the composition now.
-YE_EXT = 0.5*VCC_MATCH
+# Magnus' own P(numu -> numu) on the two chords, from magnus_own_reference.json.
+MG_P_REF = {'three_flavor': np.array([row[1] for row in
+                                      MG_REF['three_flavor']['numu_row']]),
+            'sterile_3plus1': np.asarray(MG_REF['sterile_3plus1']['p_numu_numu'])}
+# What an INDEPENDENT method confirms of each reference.  The cross-check is an
+# adaptive DOP853 integration of the continuous profile run to the double-precision
+# limit; being double precision it stalls near 1e-11, so it cannot referee below that.
+MG_FLOOR = {k: float(MG_REF[k]['ode_crosscheck_max_abs'])
+            for k in ('three_flavor', 'sterile_3plus1')}
 
 
 def timed_batch(call, n_energies, repeat=7, min_block=0.05):
@@ -10346,8 +10379,13 @@ def timed_batch(call, n_energies, repeat=7, min_block=0.05):
 
 print('frozen dataset: costhz = %.2f, chord %.1f km, P(numu -> numu), NuFIT 4.0 NO'
       % (COSTHZ_EXT, PREM_EXT['baseline_km']))
-print('our chord at that costhz: %.1f km   V_CC matched via Y_e = %.10f'
-      % (mg_earth.distance_traveled_inside_earth(COSTHZ_EXT), YE_EXT))'''),
+print('our chord at that costhz: %.1f km   Magnus at its own Y_e = %.4f'
+      % (mg_earth.distance_traveled_inside_earth(COSTHZ_EXT), YE_EXT))
+for _k in ('three_flavor', 'sterile_3plus1'):
+    print('  %-14s double-precision cross-check follows the external referee to %.1e and '
+          'ours to %.1e; a disjoint high-precision extrapolation confirms ours to %.1e'
+          % (_k, PREM_EXT[_k]['reference_vs_ode_max_abs'], MG_FLOOR[_k],
+             MG_REF[_k]['disjoint_ladder_max_abs']))'''),
     code(r'''# Marker, color and size per code, fixed once so a reader tracks one code across
 # both panels; NuOscProbExact drawn hollow, as the code the reference came from.
 STYLE = {'NuOscProbExact': ('-o', 'C3', 4.4),
@@ -10363,7 +10401,9 @@ DIALS = ('n_slabs_per_segment', 'rtol', 'tolerance', 'num_prec', 'n_shells_per_l
 # Started at 1e-1, not 1e-3: the curve should enter the plot at the cheap, inaccurate
 # corner like every other code's, so the reader sees the whole trade-off rather than
 # its converged tail.
-RTOLS = (1.0e-1, 1.0e-2, 1.0e-3, 1.0e-4, 1.0e-6, 1.0e-8, 1.0e-10)
+# Runs to 1e-12, the same range Section 8.8 plots, so the notebook and the paper
+# agree about how far Magnus reaches rather than stopping at different rungs.
+RTOLS = (1.0e-1, 1.0e-2, 1.0e-3, 1.0e-4, 1.0e-6, 1.0e-8, 1.0e-10, 1.0e-12)
 
 # One figure per case, square, in the style of NuOscProbExact's paper figures: the two
 # panels answer different questions and are read separately.
@@ -10378,8 +10418,15 @@ for key, title, sub, outfile in (
          'prem_speed_accuracy_3plus1.pdf')):
     blk = PREM_EXT[key]
     E_ext = np.asarray(blk['energy_gev'])*gd.UNIT_GEV
-    P_ref = np.asarray(blk['reference'])
-    floor = float(blk['reference_vs_ode_max_abs'])
+    P_ref = np.asarray(blk['reference'])          # the EXTERNAL codes' reference
+    P_ref_mg = MG_P_REF[key]                      # Magnus' own, in Magnus' conventions
+    # No clipping.  Earlier drafts clipped every point at the reference-vs-DOP853
+    # disagreement, on the reading that nothing below it was resolved.  That check is
+    # itself double precision and stalls near 1e-11 for reasons of its own: two
+    # DISJOINT 50-digit Richardson ladders agree with the reference to 5.6e-17, six
+    # orders beneath the stall, so the reference resolves far below where the check
+    # can follow it.  Clipping there would have hidden real accuracy.  It never bound
+    # an external point in any case -- the smallest is 2.2e-10 at three flavors.
 
     fig, a = plt.subplots(figsize=(5.8, 5.4))
     for series in blk['series']:
@@ -10392,7 +10439,7 @@ for key, title, sub, outfile in (
         if series['name'].startswith('NuOscProbExact'):
             kw.update(mfc='white', mew=0.9, zorder=5)
         t = [p['us_per_probability'] for p in pts]
-        e = [max(p['max_abs_error'], floor) for p in pts]
+        e = [p['max_abs_error'] for p in pts]
         a.loglog(t, e, marker, **kw)
         for j, ha, dx in ((0, 'right', -4), (len(pts) - 1, 'left', 4)):
             if len(pts) > 1:
@@ -10414,16 +10461,13 @@ for key, title, sub, outfile in (
                 electron_fraction=YE_EXT)))
         P = call()
         mg_t.append(timed_batch(call, len(E_ext)))
-        mg_e.append(max(float(np.max(np.abs(P - P_ref))), floor))
+        mg_e.append(float(np.max(np.abs(P - P_ref_mg))))
     a.loglog(mg_t, mg_e, '-*', ms=13, color='k', lw=1.4, zorder=6,
              label=r'Mag$\nu$s  (rtol)')
     for j, ha, dx in ((0, 'right', -5), (len(RTOLS) - 1, 'left', 5)):
         a.annotate(r'$10^{%d}$' % round(np.log10(RTOLS[j])), xy=(mg_t[j], mg_e[j]),
                    xytext=(dx, 4), textcoords='offset points', fontsize=5.8, ha=ha)
 
-    a.axhline(floor, color='0.5', ls=':', lw=0.8, zorder=1)
-    a.text(0.03, 0.032, 'Referee floor  (mpmath vs DOP853)', transform=a.transAxes,
-           fontsize=5.8, color='0.45')
     a.text(0.03, 0.955, sub, transform=a.transAxes, ha='left', va='top',
            fontsize=6.2, color='0.2', linespacing=1.45)
     a.set_xlabel(r'Time per probability [$\mu$s]')
@@ -10432,12 +10476,9 @@ for key, title, sub, outfile in (
     a.grid(True, which='both', alpha=0.18)
     leg = a.legend(loc='lower left', fontsize=5.8)
     leg.get_frame().set_linewidth(0.7)
-    # No dead margin left or right of the curves.  The floor line is included in the
-    # vertical extent deliberately -- it is the thing everything else is read against,
-    # so a limit that clipped it would hide the only absolute scale on the plot.
+    # No dead margin left or right of the curves, and none above or below them.
     allt = [p['us_per_probability'] for s in blk['series'] for p in s['points']] + mg_t
-    alle = ([max(p['max_abs_error'], floor) for s in blk['series']
-             for p in s['points']] + mg_e + [floor])
+    alle = ([p['max_abs_error'] for s in blk['series'] for p in s['points']] + mg_e)
     a.set_xlim(min(allt)/1.7, max(allt)*1.7)
     a.set_ylim(min(alle)/3.5, max(alle)*3.5)
     fig.tight_layout(pad=0.4)
@@ -15274,12 +15315,17 @@ CONST_PLANE = json.loads((HERE/'external_speed_accuracy_const.json').read_text()
 EARTH_PLANE = json.loads((HERE/'external_earth_plane.json').read_text())
 PREM = json.loads((HERE/'external_prem_speed_accuracy_new.json').read_text())
 
-# Nothing below this is resolved.  Each Earth reference is a Richardson extrapolation
-# of a 50-digit slab product, and the number here is how far an adaptive integration
-# of the CONTINUOUS profile -- sharing none of that machinery -- sits from it when run
-# to the double-precision limit.  At three flavors that check reaches 3.3e-14; at 3+1
-# the same integration is itself limited near 1e-11 by the far faster oscillation.
-FLOOR = {'three_flavor': 3.34e-14, 'sterile_3plus1': 9.59e-12}
+# Nothing is clipped.  An earlier draft clipped every point at the disagreement
+# between each reference and an adaptive integration of the CONTINUOUS profile
+# sharing none of its machinery, on the reading that nothing below that was resolved.
+# The reading was wrong: that integration is itself double precision and stalls near
+# 1e-11 for reasons of its own.  A second extrapolation at full precision sharing no
+# slab count with the first is what settles it: at three flavors two disjoint 50-digit
+# ladders agree to 1.1e-16, six orders beneath the stall.  The 3+1 referee is coarser --
+# a single Richardson pair, not a ladder -- and a disjoint pair confirms it to 1.2e-12,
+# which Magnus' tightest point there clears by a factor of six.  Clipping would have
+# hidden four orders of real accuracy, and never bound an external point in any case:
+# the smallest is 1.3e-10 at three flavors and 4.4e-11 at 3+1.
 
 # One x range for all three panels, the union of what they reach.  It costs the outer
 # two some width and buys the thing separate figures cannot show: 0.06 us for a cached
@@ -15300,7 +15346,9 @@ STYLE = {'NuOscProbExact': ('-o', RED, 3.6),
          'NuFast-Earth': ('-D', PURPLE, 2.8),
          'NuFast-Earth (dCP only)': ('--h', PURPLE, 3.0),
          'NuFast-LBL': ('-D', PURPLE, 2.8),
-         'GLoBES': ('-*', '#a51d2d', 5.2), 'Prob3++': ('-P', '#986a44', 3.6),
+         # GLoBES keeps the colour the companion paper gave it, so a reader holding
+         # the two figures side by side tracks one code by one colour.
+         'GLoBES': ('-*', '#e377c2', 5.2), 'Prob3++': ('-P', '#986a44', 3.6),
          'Second-order expansion': ('-s', BLUE, 3.0),
          'Magnus': ('-X', INK, 4.2), 'Magnus (tolerance)': ('--P', INK, 4.0)}
 
@@ -15331,10 +15379,21 @@ def by_dial(points):
                   reverse=min(values) < 1.0)
 
 
-def draw_plane(ax, series_list, floor, only=None):
+def magnus_first(series_list):
+    r"""Mag(nu)s at the head of the list, everything else in file order.
+
+    Drawing order is legend order, and this is the paper's own code: a reader
+    looking for it should not have to search two columns of a legend box for it.
+    Overplotting is unaffected -- the Mag(nu)s curves carry their own zorder.
+    """
+    mag = [s for s in series_list if s['name'].startswith('Magnus')]
+    return mag + [s for s in series_list if not s['name'].startswith('Magnus')]
+
+
+def draw_plane(ax, series_list, only=None):
     r"""Draws one speed-accuracy plane, and returns every time it plotted."""
     allt = []
-    for series in series_list:
+    for series in magnus_first(series_list):
         if only is not None and series['name'] not in only:
             continue
         pts = by_dial(series['points'])
@@ -15347,9 +15406,7 @@ def draw_plane(ax, series_list, floor, only=None):
             kw.update(zorder=6, lw=1.2)
         t = [p['us_per_probability'] for p in pts]
         allt += t
-        # Clipped at the floor: a point below it is not more accurate than the ruler,
-        # and drawing it there would claim a resolution the reference does not have.
-        ax.loglog(t, [max(p['max_abs_error'], floor) for p in pts], marker, **kw)
+        ax.loglog(t, [p['max_abs_error'] for p in pts], marker, **kw)
     return allt
 
 
@@ -15365,7 +15422,7 @@ fig, axes = plt.subplots(3, 1, sharex=True, figsize=(WIDE, 7.4))
 # anything a second line on this panel would add.
 CONST_ONLY = ('GLoBES', 'NuFast-LBL', 'NuOscProbExact', 'Prob3++',
               'Second-order expansion', 'nuSQuIDS', 'Magnus')
-for series in CONST_PLANE['series']:
+for series in magnus_first(CONST_PLANE['series']):
     if series['name'] not in CONST_ONLY:
         continue
     pts = [q for q in series['points']
@@ -15393,19 +15450,15 @@ corner(axes[0], 'Constant density:  $L = 1300$~km,\n'
 # that can express a sterile state, and to one of NuOscProbExact's two root
 # strategies: they are both measured and frozen, but the curves coincide to the last
 # bit and plotting both put two labels on one line.
-draw_plane(axes[1], EARTH_PLANE['series'], FLOOR['three_flavor'])
-axes[1].axhline(FLOOR['three_flavor'], color='0.5', ls=':', lw=0.8, zorder=1)
+draw_plane(axes[1], EARTH_PLANE['series'])
 axes[1].set_ylim(1.0e-14, 2.0e-1)
-stamp(axes[1], 'Referee floor', x=0.985, y=0.045, fontsize=7.6, ha='right')
 corner(axes[1], r'PREM, three flavors:  $\cos\theta_z = -0.9$,' + '\n'
        r'$E = 3$--$40$ GeV,  $L = 11\,468$~km', loc='upper right', fontsize=7.6)
 
-draw_plane(axes[2], PREM['sterile_3plus1']['series'], FLOOR['sterile_3plus1'],
+draw_plane(axes[2], PREM['sterile_3plus1']['series'],
            only={'NuOscProbExact (double-double)', 'NuOscProbExact (tolerance)',
                  'nuSQuIDS', 'nuCraft', 'Magnus', 'Magnus (tolerance)'})
-axes[2].axhline(FLOOR['sterile_3plus1'], color='0.5', ls=':', lw=0.8, zorder=1)
 axes[2].set_ylim(4.0e-12, 1.0e-1)
-stamp(axes[2], 'Referee floor', x=0.985, y=0.045, fontsize=7.6, ha='right')
 corner(axes[2], r'PREM, $3+1$:  $\cos\theta_z = -0.9$,' + '\n'
        r'$E = 0.3$--$30$ TeV,  $\Delta m_{41}^2 = 1$ eV$^2$', loc='upper right',
        fontsize=7.6)

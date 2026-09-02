@@ -202,6 +202,8 @@ TREE = [
      'Figure 12, middle panel: a PREM chord at three flavors'),
     ('notebooks/external_prem_speed_accuracy_new.json',
      'Figure 12, bottom panel: the same chord at 3+1'),
+    ('notebooks/magnus_own_reference.json',
+     "Magnus's own 50-digit references, in its own conventions, on those three grids"),
     ('notebooks/external_profile_benchmarks.json',
      "Notebook 25 section 9: smooth-profile speed/accuracy, all codes on one machine"),
     ('notebooks/external_shock_benchmarks.json',
