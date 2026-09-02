@@ -860,7 +860,7 @@ costhz = -0.4
 L = earth.distance_traveled_inside_earth(costhz) \
  *gd.UNIT_KM
 
-# Parameters default to NuFIT 6.1 NO
+# Defaults: NuFIT 6.1, normal ordering
 P = oscprob.osc_prob_3nu_earth(10.0*gd.UNIT_GEV,
  costhz=costhz, L=L)
 
@@ -908,7 +908,7 @@ import magnus.earth as earth
 costhz = -0.9
 L = earth.distance_traveled_inside_earth(costhz) \
  *gd.UNIT_KM
-# Where an eV-scale splitting resonates
+# Where an eV-scale splitting resonates in matter
 E = 10.0*gd.UNIT_TEV
 osc = gd.load_nufit_params('NuFIT 6.1')
 
@@ -990,7 +990,7 @@ P = oscprob.osc_prob_matter_std_potential(
  3, ne_sun, E, R_SUN, osc,
  average=True, L0=0.0,
  nu_i=gd.NUE, nu_f=gd.NUE,
- # ne_sun returns n_e itself, not a density
+ # ne_sun gives n_e, not a mass density
  density_is_of_number_of_electrons=True)
 \end{lstlisting}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1038,7 +1038,7 @@ edges = [r_contact*gd.UNIT_KM,
 P = oscprob.osc_prob_matter_std_potential(
  3, ne_shock, 15.0*gd.UNIT_MEV, L, osc,
  t_breakpoints=edges,
- # Tight: the front is what must be resolved
+ # A tolerance small enough to resolve the front
  rtol=1.0e-8, atol=1.0e-10,
  L0=0.0, nu_i=gd.NUE, nu_f=gd.NUE,
  density_is_of_number_of_electrons=True)
