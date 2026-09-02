@@ -1542,6 +1542,23 @@ def validate_input_battery(
                 ": since the input energy and L are both lists or NumPy arrays, they must have " + \
                 "the same length.")
 
+        # A baseline that looks like kilometers.  This does not fail on its own: the call
+        # returns a converged, unitary probability for a baseline a few meters long, which
+        # is why it is worth a warning.  See globaldefs.BaselineUnitWarning.
+        if L is not None:
+            _largest_L = float(np.max(np.abs(np.asarray(L, dtype=float))))
+            if 0.0 < _largest_L < gd.IMPLAUSIBLE_BASELINE_NATURAL_UNITS:
+                warnings.warn(gd.WARNING_MSG_NO_COLOR + " oscprob." + source_func_name +
+                    ": a baseline of " + format(_largest_L, '.4g') + " was given. Every length "
+                    "crossing this API is in natural units, and " + format(_largest_L, '.4g') +
+                    " eV^-1 is about " + format(_largest_L/gd.CONV_KM_TO_INV_EV*1.0e3, '.2g') +
+                    " m, so this was most likely read in kilometers and left unconverted. The "
+                    "call will not fail: it will return a converged, unitary probability for a "
+                    "baseline a few meters long, which looks like an ordinary answer rather "
+                    "than a wrong one. Multiply by gd.UNIT_KM (or gd.CONV_KM_TO_INV_EV) to "
+                    "convert. Silence with warnings.filterwarnings('ignore', "
+                    "category=gd.BaselineUnitWarning).", gd.BaselineUnitWarning, stacklevel=3)
+
         if (((nu_i is not None) and (nu_f is None)) or ((nu_i is None) and (nu_f is not None))):
             raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + \
                 ": if either nu_i or nu_f is not None, the other flavor must also be not None.")
@@ -9048,7 +9065,14 @@ def osc_prob_2nu_matter_constant_density(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     angles : str, optional
         How the mixing angle is stated: ``'sin'`` (default) its sine,
         ``'sin2'`` its sine *squared* -- which is what global fits report --
@@ -9164,7 +9188,14 @@ def osc_prob_3nu_matter_constant_density(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -9300,7 +9331,14 @@ def osc_prob_4nu_matter_constant_density(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -9455,7 +9493,14 @@ def osc_prob_5nu_matter_constant_density(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -9579,7 +9624,14 @@ def osc_prob_2nu_matter_exp_density(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     angles : str, optional
         How the mixing angle is stated: ``'sin'`` (default) its sine,
         ``'sin2'`` its sine *squared* -- which is what global fits report --
@@ -9711,7 +9763,14 @@ def osc_prob_3nu_matter_exp_density(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -9860,7 +9919,14 @@ def osc_prob_4nu_matter_exp_density(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -10028,7 +10094,14 @@ def osc_prob_5nu_matter_exp_density(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -10209,7 +10282,14 @@ def osc_prob_2nu_earth(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
 
     
     ratio_number_neutrons_to_protons : int or float, optional
@@ -10492,7 +10572,14 @@ def osc_prob_3nu_earth(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
 
     
     ratio_number_neutrons_to_protons : int or float, optional
@@ -10794,7 +10881,14 @@ def osc_prob_4nu_earth(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
 
     
     ratio_number_neutrons_to_protons : int or float, optional
@@ -11117,7 +11211,14 @@ def osc_prob_5nu_earth(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
 
     
     ratio_number_neutrons_to_protons : int or float, optional
@@ -11778,7 +11879,14 @@ def osc_prob_2nu_sun(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     angles : str, optional
         How the mixing angle is stated: ``'sin'`` (default) its sine,
         ``'sin2'`` its sine *squared* -- which is what global fits report --
@@ -11930,7 +12038,14 @@ def osc_prob_3nu_sun(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -12107,7 +12222,14 @@ def osc_prob_4nu_sun(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     ratio_number_neutrons_to_protons : int or float, optional
         :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
         matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
@@ -12327,7 +12449,14 @@ def osc_prob_5nu_sun(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     ratio_number_neutrons_to_protons : int or float, optional
         :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
         matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
@@ -12637,7 +12766,14 @@ def osc_prob_2nu_matter_nsi_constant_density(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     angles : str, optional
         How the mixing angle is stated: ``'sin'`` (default) its sine,
         ``'sin2'`` its sine *squared* -- which is what global fits report --
@@ -12773,7 +12909,14 @@ def osc_prob_3nu_matter_nsi_constant_density(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -12939,7 +13082,14 @@ def osc_prob_4nu_matter_nsi_constant_density(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -13140,7 +13290,14 @@ def osc_prob_5nu_matter_nsi_constant_density(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -13272,7 +13429,14 @@ def osc_prob_2nu_matter_nsi_exp_density(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     angles : str, optional
         How the mixing angle is stated: ``'sin'`` (default) its sine,
         ``'sin2'`` its sine *squared* -- which is what global fits report --
@@ -13424,7 +13588,14 @@ def osc_prob_3nu_matter_nsi_exp_density(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -13606,7 +13777,14 @@ def osc_prob_4nu_matter_nsi_exp_density(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -13823,7 +14001,14 @@ def osc_prob_5nu_matter_nsi_exp_density(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -14012,7 +14197,14 @@ def osc_prob_2nu_earth_nsi(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
 
     
     ratio_number_neutrons_to_protons : int or float, optional
@@ -14312,7 +14504,14 @@ def osc_prob_3nu_earth_nsi(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
 
     
     ratio_number_neutrons_to_protons : int or float, optional
@@ -14644,7 +14843,14 @@ def osc_prob_4nu_earth_nsi(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
 
     
     ratio_number_neutrons_to_protons : int or float, optional
@@ -15014,7 +15220,14 @@ def osc_prob_5nu_earth_nsi(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
 
     
     ratio_number_neutrons_to_protons : int or float, optional
@@ -15274,7 +15487,14 @@ def osc_prob_2nu_sun_nsi(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     angles : str, optional
         How the mixing angle is stated: ``'sin'`` (default) its sine,
         ``'sin2'`` its sine *squared* -- which is what global fits report --
@@ -15441,7 +15661,14 @@ def osc_prob_3nu_sun_nsi(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -15652,7 +15879,14 @@ def osc_prob_4nu_sun_nsi(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     ratio_number_neutrons_to_protons : int or float, optional
         :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
         matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
@@ -15925,7 +16159,14 @@ def osc_prob_5nu_sun_nsi(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     ratio_number_neutrons_to_protons : int or float, optional
         :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
         matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
@@ -16077,7 +16318,14 @@ def osc_prob_2nu_vacuum_liv(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines,
         ``'sin2'`` their sines *squared* -- which is what global fits report --
@@ -16201,7 +16449,14 @@ def osc_prob_3nu_vacuum_liv(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -16362,7 +16617,14 @@ def osc_prob_4nu_vacuum_liv(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -16561,7 +16823,14 @@ def osc_prob_5nu_vacuum_liv(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -16686,7 +16955,14 @@ def osc_prob_2nu_matter_liv_constant_density(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines,
         ``'sin2'`` their sines *squared* -- which is what global fits report --
@@ -16834,7 +17110,14 @@ def osc_prob_3nu_matter_liv_constant_density(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -17019,7 +17302,14 @@ def osc_prob_4nu_matter_liv_constant_density(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -17242,7 +17532,14 @@ def osc_prob_5nu_matter_liv_constant_density(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -17378,7 +17675,14 @@ def osc_prob_2nu_matter_liv_exp_density(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines,
         ``'sin2'`` their sines *squared* -- which is what global fits report --
@@ -17536,7 +17840,14 @@ def osc_prob_3nu_matter_liv_exp_density(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -17729,7 +18040,14 @@ def osc_prob_4nu_matter_liv_exp_density(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -17960,7 +18278,14 @@ def osc_prob_5nu_matter_liv_exp_density(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -18157,7 +18482,14 @@ def osc_prob_2nu_earth_liv(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
 
     
     ratio_number_neutrons_to_protons : int or float, optional
@@ -18468,7 +18800,14 @@ def osc_prob_3nu_earth_liv(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
 
     
     ratio_number_neutrons_to_protons : int or float, optional
@@ -18815,7 +19154,14 @@ def osc_prob_4nu_earth_liv(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
 
     
     ratio_number_neutrons_to_protons : int or float, optional
@@ -19201,7 +19547,14 @@ def osc_prob_5nu_earth_liv(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
 
     
     ratio_number_neutrons_to_protons : int or float, optional
@@ -19434,7 +19787,14 @@ def osc_prob_2nu_sun_liv(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines,
         ``'sin2'`` their sines *squared* -- which is what global fits report --
@@ -19594,7 +19954,14 @@ def osc_prob_3nu_sun_liv(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -19800,7 +20167,14 @@ def osc_prob_4nu_sun_liv(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     ratio_number_neutrons_to_protons : int or float, optional
         :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
         matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
@@ -20069,7 +20443,14 @@ def osc_prob_5nu_sun_liv(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     ratio_number_neutrons_to_protons : int or float, optional
         :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
         matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0

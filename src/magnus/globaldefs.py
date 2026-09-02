@@ -156,6 +156,37 @@ class MixingAngleConventionWarning(UserWarning):
     """
 
 
+class BaselineUnitWarning(UserWarning):
+    r"""A baseline was passed that looks like kilometers rather than eV\ :sup:`-1`.
+
+    Every length crossing this API is in natural units, so a baseline is
+    :math:`L_{\rm km} \times` :data:`CONV_KM_TO_INV_EV`, some 5.07e9 per kilometer.
+    Passing the raw kilometer value does not fail: the call returns a converged, exactly
+    unitary probability for a baseline a few meters long, which looks like an ordinary
+    answer rather than a wrong one.  Measured on the Sun, 694700 passed raw returns 0.910
+    at 20 MeV where the correct value is 0.290, and the survival probability comes out
+    *rising* with energy, which is backwards for an MSW resonance.
+
+    The threshold is :data:`IMPLAUSIBLE_BASELINE_NATURAL_UNITS`, about two meters in
+    natural units, so a genuinely short baseline is still reachable without tripping it.
+
+    Its own class so it can be silenced deliberately::
+
+        import warnings
+        import magnus.globaldefs as gd
+
+        warnings.filterwarnings('ignore', category=gd.BaselineUnitWarning)
+
+    .. versionadded:: 1.0.5
+    """
+
+
+#: Below this, a baseline in natural units is almost certainly kilometers left
+#: unconverted: 1e7 eV^-1 is about two meters, and the shortest oscillation baselines
+#: anyone runs are meters, which land above it once converted.
+IMPLAUSIBLE_BASELINE_NATURAL_UNITS = 1.0e7
+
+
 class SterileMatterCompositionWarning(UserWarning):
     r"""The sterile matter entry is built from a different medium than the density.
 
