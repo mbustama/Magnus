@@ -191,7 +191,7 @@ the answer is narrower slabs -- see :doc:`methodology` and
 
 .. note::
    Orders above 6 require ``integration_method='trapezoid'`` or ``'simpson'``.
-   The Gauss-Legendre commutator-free schemes (``'gl'``, the default) are
+   The Gauss-Legendre collocation schemes (``'gl'``, the default) are
    separately derived integrators :cite:p:`Blanes2000`, not products of this
    recursion, and exist only up to order 6; requesting more from them raises a
    :class:`ValueError` rather than quietly returning an order-6 result.

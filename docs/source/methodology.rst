@@ -77,7 +77,7 @@ Evaluating the nested integrals above requires sampling :math:`A(l)` inside
 each slab.  Magνs offers two families, selected via
 ``integration_method``, which defaults to ``'gl'``:
 
-**Gauss-Legendre commutator-free integrators (** ``'gl'`` **, the default).**
+**Gauss-Legendre collocation integrators (** ``'gl'`` **, the default).**
 Following :cite:t:`Blanes2000`, orders 2, 4, and 6 can be reached from only
 1, 2, or 3 evaluations of :math:`A` per slab, at the Gauss-Legendre nodes,
 with no cumulative quadrature and no separate commutator bookkeeping:

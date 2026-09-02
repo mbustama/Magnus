@@ -33,7 +33,7 @@ terms with :math:`A`.  Orders 1--6 are implemented (:math:`B_3 = B_5 =
 Two families of methods are available, selected via
 ``integration_method``:
 
-* ``'gl'`` (the default): Gauss-Legendre commutator-free collocation
+* ``'gl'`` (the default): Gauss-Legendre collocation
   [1]_ [2]_.  For a slab of width :math:`h` it needs only 1, 2, or 3
   evaluations of :math:`A` to reach order 2, 4, or 6, respectively, with
   quadrature error matched to the truncation order.  ``n_tpts`` is
@@ -239,7 +239,8 @@ _GROUP_FACTORS = {1: -0.5, 2: F1, 4: F2, 6: F3, 8: F4}
 # there is one definition rather than two that have to be kept in step by hand.
 MAGNUS_EXP_ORDER_MAX = 10
 
-# Highest order for which the Gauss-Legendre commutator-free schemes exist.  These are
+# Highest order we implement on Gauss-Legendre nodes: one, two and three nodes give
+# orders two, four and six.  These are
 # separately derived integrators (Blanes, Casas & Ros 2000), not products of the Magnus
 # recursion, so they do not extend along with it: there is no 3-node scheme of order 8.
 MAGNUS_EXP_ORDER_MAX_GL = 6
@@ -1081,7 +1082,7 @@ def _magnus_gl(
 ) -> np.ndarray:
     r"""Magnus operator :math:`\Omega` from Gauss-Legendre collocation.
 
-    Commutator-free Magnus integrators of order 2, 4, and 6 based on
+    Gauss-Legendre collocation Magnus integrators of order 2, 4 and 6 based on
     Gauss-Legendre nodes (Blanes, Casas & Ros 2000; Blanes et al. 2009,
     Sec. 5.4).  Exact quadrature order matched to the truncation order,
     using only 1, 2, or 3 evaluations of A per slab.
@@ -1537,7 +1538,7 @@ def _validate(order: int, integration_method: str):
         raise ValueError(
             "Error in magnus: magnus._validate: integration_method 'gl' supports orders up to "
             + str(MAGNUS_EXP_ORDER_MAX_GL) + ", not " + str(order) + ". The "
-            "Gauss-Legendre commutator-free schemes are separately derived integrators, "
+            "Gauss-Legendre collocation schemes are separately derived integrators, "
             "not products of the Magnus recursion, so they do not extend with it. Use "
             "integration_method='trapezoid' or 'simpson' for orders above "
             + str(MAGNUS_EXP_ORDER_MAX_GL) + ", or lower the order.")
