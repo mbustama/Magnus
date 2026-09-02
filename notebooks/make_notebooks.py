@@ -15308,55 +15308,44 @@ forever. The cell after the figure shows why.'''),
 # repository, and so is Mag(nu)s' -- both produced by the benchmark harness in
 # resources/benchmarks under its manifest's own protocols: ACCURACY untimed against
 # each code's own 50-digit reference in that code's own conventions, and AMORTIZED,
-# a 25-step delta_CP scan, for the time per grid point.  Measuring Mag(nu)s live
-# here instead put minutes of stopwatch into continuous integration and, worse,
-# timed it by a different rule than the codes it is drawn against.
+# a 25-step delta_CP scan, for the time per grid point.
 CONST_PLANE = json.loads((HERE/'external_speed_accuracy_const.json').read_text())
 EARTH_PLANE = json.loads((HERE/'external_earth_plane.json').read_text())
 PREM = json.loads((HERE/'external_prem_speed_accuracy_new.json').read_text())
 
-# Nothing is clipped.  An earlier draft clipped every point at the disagreement
-# between each reference and an adaptive integration of the CONTINUOUS profile
-# sharing none of its machinery, on the reading that nothing below that was resolved.
-# The reading was wrong: that integration is itself double precision and stalls near
-# 1e-11 for reasons of its own.  A second extrapolation at full precision sharing no
-# slab count with the first is what settles it: at three flavors two disjoint 50-digit
-# ladders agree to 1.1e-16, six orders beneath the stall.  The 3+1 referee is coarser --
-# a single Richardson pair, not a ladder -- and a disjoint pair confirms it to 1.2e-12,
-# which Magnus' tightest point there clears by a factor of six.  Clipping would have
-# hidden four orders of real accuracy, and never bound an external point in any case:
-# the smallest is 1.3e-10 at three flavors and 4.4e-11 at 3+1.
-
-# One x range for all three panels, the union of what they reach.  It costs the outer
-# two some width and buys the thing separate figures cannot show: 0.06 us for a cached
-# NuFast-Earth and 6e4 us for nuCraft are the same distance apart in every panel.
+# One x range for all three panels, the union of what they reach, so that a cost
+# carries by eye from one setup to the next.
 XLIM_ALL = (3.0e-2, 6.0e5)
+LABEL_TR = (0.985, 0.95, 'right', 'top')
 
-# Colour identifies a code across all three panels.  Mag(nu)s is the only curve drawn
-# in ink, as it is throughout this paper: it is the code the paper is about, and
+# Marker, colour and size EXACTLY as the companion paper draws them, so that a reader
+# holding the two figures together tracks one code by one appearance.  Mag(nu)s is the
+# only addition, and the only curve in ink: it is the code this paper is about, and
 # nothing else on the plane is black except the axes and the legend frames.  It gets
-# two curves for the same reason NuFast-Earth does -- one code, two dials that do not
+# two curves for the reason NuFast-Earth does -- one code, two dials that do not
 # dominate one another -- so they share a colour and differ in marker and line.
-STYLE = {'NuOscProbExact': ('-o', RED, 3.6),
-         'NuOscProbExact (1 thread)': ('-o', RED, 3.6),
-         'NuOscProbExact (tolerance)': ('--o', RED, 2.8),
-         'NuOscProbExact (double-double)': ('-o', RED, 3.6),
-         'NuOscProbExact (eigensolver)': (':h', RED, 3.4),
-         'nuSQuIDS': ('-v', GREEN, 3.2), 'nuCraft': ('-s', ORANGE, 3.0),
-         'NuFast-Earth': ('-D', PURPLE, 2.8),
-         'NuFast-Earth (dCP only)': ('--h', PURPLE, 3.0),
-         'NuFast-LBL': ('-D', PURPLE, 2.8),
-         # GLoBES keeps the colour the companion paper gave it, so a reader holding
-         # the two figures side by side tracks one code by one colour.
-         'GLoBES': ('-*', '#e377c2', 5.2), 'Prob3++': ('-P', '#986a44', 3.6),
-         'Second-order expansion': ('-s', BLUE, 3.0),
+STYLE = {'NuOscProbExact': ('-o', 'C3', 4.0),
+         'NuOscProbExact (1 thread)': ('-o', 'C3', 4.0),
+         'NuOscProbExact (tolerance)': ('-o', 'C3', 4.0),
+         'NuOscProbExact (double-double)': ('--s', 'C3', 3.2),
+         'NuOscProbExact (eigensolver)': (':^', 'C1', 3.8),
+         'nuSQuIDS': ('-v', 'C2', 3.6),
+         'nuCraft': ('-s', 'C0', 3.4),
+         'NuFast-LBL': ('-D', 'C4', 3.2),
+         'NuFast-Earth': ('-D', 'C4', 3.2),
+         'NuFast-Earth (dCP only)': ('--h', 'C4', 3.4),
+         'GLoBES': ('-*', 'C6', 6.0),
+         'Prob3++': ('-P', 'C5', 4.4),
+         'Second-order expansion': ('-s', 'C1', 3.6),
          'Magnus': ('-X', INK, 4.2), 'Magnus (tolerance)': ('--P', INK, 4.0)}
+# The slab curve on the Earth panels is the broken one, as it is there.
+PREM_STYLE_OVERRIDE = {'NuOscProbExact': ('--s', 'C3', 3.2)}
 
-RELABEL = {'NuOscProbExact': r'{\tt NuOscProbExact}, $N_{\rm slabs}$',
-           'NuOscProbExact (tolerance)': r'{\tt NuOscProbExact}, rtol',
-           'NuOscProbExact (double-double)': r'{\tt NuOscProbExact}, $N_{\rm slabs}$',
-           'NuOscProbExact (eigensolver)': r'{\tt NuOscProbExact}, eigensolver',
-           'NuOscProbExact (1 thread)': r'{\tt NuOscProbExact}, 1 thread',
+RELABEL = {'NuOscProbExact': r'NuOscProbExact, $N_{\rm slabs}$',
+           'NuOscProbExact (tolerance)': 'NuOscProbExact, rtol',
+           'NuOscProbExact (double-double)': r'NuOscProbExact, $N_{\rm slabs}$',
+           'NuOscProbExact (eigensolver)': 'NuOscProbExact, eigensolver',
+           'NuOscProbExact (1 thread)': 'NuOscProbExact, 1 thread',
            'NuFast-Earth (dCP only)': r'NuFast-Earth ($\delta_{\rm CP}$ only)',
            'Magnus': r'Mag$\nu$s, $N_{\rm slabs}$',
            'Magnus (tolerance)': r'Mag$\nu$s, rtol'}
@@ -15368,8 +15357,7 @@ def by_dial(points):
     Sorting by cost is right whenever the cost actually moves.  It is wrong for a
     series whose cost does not: NuFast-Earth's delta_CP curve spans 1.1x in cost
     against 15x to 7880x for everything else here, so ordering it by cost orders it
-    by measurement noise and draws a U that is entirely an artifact.  A tolerance
-    runs loose to tight and sorts descending; a slab or shell count sorts ascending.
+    by measurement noise and draws a U that is entirely an artifact.
     """
     try:
         values = [float(q['label']) for q in points]
@@ -15380,48 +15368,64 @@ def by_dial(points):
 
 
 def magnus_first(series_list):
-    r"""Mag(nu)s at the head of the list, everything else in file order.
-
-    Drawing order is legend order, and this is the paper's own code: a reader
-    looking for it should not have to search two columns of a legend box for it.
-    Overplotting is unaffected -- the Mag(nu)s curves carry their own zorder.
-    """
+    r"""Mag(nu)s at the head, everything else in file order: drawing order is legend
+    order, and a reader looking for this paper's own code should not have to search
+    two columns for it.  Overplotting is unaffected; the Mag(nu)s curves carry their
+    own zorder."""
     mag = [s for s in series_list if s['name'].startswith('Magnus')]
     return mag + [s for s in series_list if not s['name'].startswith('Magnus')]
 
 
-def draw_plane(ax, series_list, only=None):
-    r"""Draws one speed-accuracy plane, and returns every time it plotted."""
-    allt = []
+def draw_plane(ax, series_list, only=None, prem=False):
+    r"""Draws one speed-accuracy plane; returns the anchors its labels attach to."""
+    anchors = {}
     for series in magnus_first(series_list):
         if only is not None and series['name'] not in only:
             continue
+        style = STYLE.copy()
+        if prem:
+            style.update(PREM_STYLE_OVERRIDE)
+        marker, color, size = style.get(series['name'], ('-o', '0.4', 3.2))
         pts = by_dial(series['points'])
-        marker, color, size = STYLE.get(series['name'], ('-o', '0.4', 3.2))
-        kw = dict(ms=size, color=color, lw=0.9, zorder=4,
-                  label=RELABEL.get(series['name'], series['name']))
+        label = RELABEL.get(series['name'], series['name'])
+        kw = dict(ms=size, color=color, lw=0.9, zorder=4, label=label)
         if series['name'].startswith('NuOscProbExact'):
             kw.update(mfc='white', mew=0.8, zorder=5)
         if series['name'].startswith('Magnus'):
             kw.update(zorder=6, lw=1.2)
-        t = [p['us_per_probability'] for p in pts]
-        allt += t
-        ax.loglog(t, [p['max_abs_error'] for p in pts], marker, **kw)
-    return allt
+        t = [q['us_per_probability'] for q in pts]
+        e = [q['max_abs_error'] for q in pts]
+        ax.loglog(t, e, marker, **kw)
+        for q in pts:
+            anchors[(label, q['label'])] = (q['us_per_probability'],
+                                            q['max_abs_error'], color)
+    return anchors
+
+
+def annotate(ax, anchors, items, fontsize=6.6):
+    r"""The knob rungs, named on the curve they belong to.  A sixth element asks for a
+    thin leader line, for a label that has to sit clear of the curves to stay legible."""
+    for item in items:
+        (name, label), text, dx, dy, ha = item[:5]
+        if (name, label) not in anchors:
+            continue
+        x, y, colour = anchors[(name, label)]
+        extra = {}
+        if len(item) > 5 and item[5]:
+            extra['arrowprops'] = dict(arrowstyle='-', linewidth=0.5, color=colour,
+                                       shrinkA=1.0, shrinkB=2.5)
+        ax.annotate(text, xy=(x, y), xytext=(dx, dy), textcoords='offset points',
+                    fontsize=fontsize, color=colour, ha=ha, **extra)
 
 
 fig, axes = plt.subplots(3, 1, sharex=True, figsize=(WIDE, 7.4))
 
 # --- constant density.  Only the fastest point at each accuracy is drawn: four of
 # these codes have an INERT dial here, Mag(nu)s among them.  With one slab of constant
-# density there is nothing to subdivide, so every setting returns the same answer and
-# a sweep would be a stack of points at one height.
-# Six codes, not eight: the file also holds NuFast-Earth, whose constant-density
-# numbers repeat NuFast-LBL's, and a one-thread control for NuOscProbExact that lands
-# on top of its own curve.  Both are measurements worth keeping and neither says
-# anything a second line on this panel would add.
+# density there is nothing to subdivide, so every setting returns the same answer.
 CONST_ONLY = ('GLoBES', 'NuFast-LBL', 'NuOscProbExact', 'Prob3++',
               'Second-order expansion', 'nuSQuIDS', 'Magnus')
+a0 = {}
 for series in magnus_first(CONST_PLANE['series']):
     if series['name'] not in CONST_ONLY:
         continue
@@ -15431,52 +15435,99 @@ for series in magnus_first(CONST_PLANE['series']):
         continue
     pts.sort(key=lambda q: (-q['max_abs_error'], q['us_per_probability']))
     marker, color, size = STYLE.get(series['name'], ('-o', '0.4', 3.2))
-    kw = dict(ms=size, color=color, lw=0.9, zorder=4,
-              label=RELABEL.get(series['name'], series['name']))
+    label = RELABEL.get(series['name'], series['name'])
+    kw = dict(ms=size, color=color, lw=0.9, zorder=4, label=label)
     if series['name'].startswith('NuOscProbExact'):
         kw.update(mfc='white', mew=0.8, zorder=5)
     if series['name'].startswith('Magnus'):
         kw.update(zorder=6, lw=1.2)
     axes[0].loglog([q['us_per_probability'] for q in pts],
                    [q['max_abs_error'] for q in pts], marker, **kw)
-axes[0].axhline(2.2e-16, color='0.5', ls=':', lw=0.8, zorder=1)
+    for q in pts:
+        a0[(label, q['label'])] = (q['us_per_probability'], q['max_abs_error'], color)
+
+annotate(axes[0], a0, [
+    (('NuFast-LBL', '0'), r'$N_{\rm Newton} = 0$', 6.0, -1.5, 'left'),
+    (('NuFast-LBL', '1'), '1', 7, -2, 'left'),
+    (('NuFast-LBL', '2'), '2', -4, 2, 'right'),
+    (('NuFast-LBL', '3'), '3', 4.2, 4.1, 'right'),
+    (('NuFast-LBL', '-1'), r'$-1$', 5.6, -2.0, 'left'),
+    (('nuSQuIDS', '1e-03'), r'tol $= 10^{-3}$', 6.0, -1.8, 'left'),
+    (('nuSQuIDS', '1e-12'), r'$10^{-12}$', 21.3, -2.9, 'right')])
+axes[0].axhline(2.2e-16, color='0.5', ls=':', lw=0.7, zorder=1)
+axes[0].set_yticks([10.0**k for k in range(-16, -1)])
 axes[0].set_ylim(1.0e-16, 1.0e-2)
 stamp(axes[0], 'Double precision', x=0.42, y=0.045, fontsize=7.6)
 corner(axes[0], 'Constant density:  $L = 1300$~km,\n'
        r'$E = 0.6$--$20$ GeV,  $\rho = 3$ g cm$^{-3}$', loc='upper right',
        fontsize=7.6)
 
-# --- PREM, three flavors, and PREM 3+1.  The bottom panel is restricted to the codes
-# that can express a sterile state, and to one of NuOscProbExact's two root
-# strategies: they are both measured and frozen, but the curves coincide to the last
-# bit and plotting both put two labels on one line.
-draw_plane(axes[1], EARTH_PLANE['series'])
-axes[1].set_ylim(1.0e-14, 2.0e-1)
+# --- PREM, three flavors.
+a1 = draw_plane(axes[1], EARTH_PLANE['series'], prem=True)
+annotate(axes[1], a1, [
+    (('NuOscProbExact, rtol', '3e+00'), r'rtol $= 3$', 5.1, -2.0, 'left'),
+    (('NuOscProbExact, rtol', '1e-05'), r'$10^{-5}$', 3.1, 0.7, 'left'),
+    ((r'NuOscProbExact, $N_{\rm slabs}$', '1'), r'$N_{\rm slabs} = 1$',
+     -5.8, -29.0, 'right', True),
+    ((r'NuOscProbExact, $N_{\rm slabs}$', '256'), '256', -5, -4, 'right'),
+    (('nuSQuIDS', '1e-12'), r'tol $= 10^{-12}$', -42.5, 2.8, 'left'),
+    ((r'NuFast-Earth ($\delta_{\rm CP}$ only)', '1'),
+     r'$N_{\rm layers} = 1$', 18.0, -14.3, 'left'),
+    (('Prob3++', '1'), r'$N_{\rm shells} = 1$', -59.3, -29.6, 'left', True),
+    (('Prob3++', '65536'), '65536', 6, -2, 'left'),
+    (('GLoBES', '1'), r'$N_{\rm shells} = 1$', -31.0, -36.3, 'left', True),
+    (('GLoBES', '65536'), '65536', -14.6, 17.8, 'left', True),
+    (('nuCraft', '1e-02'), r'numPrec $= 10^{-2}$', -7.0, -1.8, 'right'),
+    (('nuCraft', '1e-10'), r'$10^{-10}$', 0.2, 3.7, 'left'),
+    (('nuSQuIDS', '1e-03'), r'tol $= 10^{-3}$', 5.0, 2.5, 'left'),
+    (('NuFast-Earth', '65536'), '65536', 1.7, 32.1, 'left', True),
+    ((r'NuFast-Earth ($\delta_{\rm CP}$ only)', '65536'), '65536',
+     7.4, -9.8, 'right'),
+    ((r'NuOscProbExact, $N_{\rm slabs}$', '65536'), '65536', -19.0, 3.3, 'left'),
+    (('NuOscProbExact, rtol', '1e+00'), '1', 6, -2, 'left'),
+    (('NuOscProbExact, rtol', '1e-08'), r'$10^{-8}$', 3.1, -0.9, 'left')])
+axes[1].set_yticks([10.0**k for k in range(-10, 0)])
+axes[1].set_ylim(1.0e-10, 2.0e-1)
 corner(axes[1], r'PREM, three flavors:  $\cos\theta_z = -0.9$,' + '\n'
        r'$E = 3$--$40$ GeV,  $L = 11\,468$~km', loc='upper right', fontsize=7.6)
 
-draw_plane(axes[2], PREM['sterile_3plus1']['series'],
-           only={'NuOscProbExact (double-double)', 'NuOscProbExact (tolerance)',
-                 'nuSQuIDS', 'nuCraft', 'Magnus', 'Magnus (tolerance)'})
-axes[2].set_ylim(4.0e-12, 1.0e-1)
+# --- PREM, 3+1: restricted to the codes that can express a sterile state, and to one
+# of NuOscProbExact's two root strategies, whose curves coincide to the last bit.
+a2 = draw_plane(axes[2], PREM['sterile_3plus1']['series'], prem=True,
+                only={'NuOscProbExact (double-double)', 'NuOscProbExact (tolerance)',
+                      'nuSQuIDS', 'nuCraft', 'Magnus', 'Magnus (tolerance)'})
+annotate(axes[2], a2, [
+    (('NuOscProbExact, rtol', '3e+00'), r'rtol $=3$', 7.5, -2.5, 'left'),
+    (('NuOscProbExact, rtol', '1e-05'), r'$10^{-5}$', -0.8, 3.1, 'left'),
+    ((r'NuOscProbExact, $N_{\rm slabs}$', '1'), r'$N_{\rm slabs}=1$',
+     -37.8, -1.2, 'left'),
+    ((r'NuOscProbExact, $N_{\rm slabs}$', '256'), '256', 8.4, -9.8, 'right'),
+    (('nuSQuIDS', '1e-03'), r'tol $= 10^{-3}$', 20.4, 1.9, 'left', True),
+    (('nuSQuIDS', '1e-12'), r'$10^{-12}$', 5.1, -2.9, 'left'),
+    (('nuCraft', '1e-02'), r'numPrec $= 10^{-2}$', 3.6, 4.0, 'right'),
+    (('nuCraft', '1e-10'), r'$10^{-10}$', 2.1, 4.2, 'left'),
+    ((r'NuOscProbExact, $N_{\rm slabs}$', '8192'), '8192', -16.6, -7.3, 'left'),
+    (('NuOscProbExact, rtol', '1e+00'), '1', -7.4, -5.8, 'left'),
+    (('NuOscProbExact, rtol', '1e-08'), r'$10^{-8}$', -2.6, 5.4, 'left')])
+axes[2].set_yticks([10.0**k for k in range(-11, 0)])
+axes[2].set_ylim(2.0e-11, 1.0e-1)
 corner(axes[2], r'PREM, $3+1$:  $\cos\theta_z = -0.9$,' + '\n'
        r'$E = 0.3$--$30$ TeV,  $\Delta m_{41}^2 = 1$ eV$^2$', loc='upper right',
        fontsize=7.6)
 
 for ax in axes:
-    logx(ax); logy(ax)
+    logx(ax)
+    ax.set_yscale('log')
+    ax.yaxis.set_minor_locator(LogLocator(base=10.0, subs=tuple(np.arange(2, 10)*0.1),
+                                          numticks=100))
+    ax.yaxis.set_minor_formatter(FuncFormatter(lambda *_: ''))
     ax.set_xlim(*XLIM_ALL)
-    # A vertical rule per decade of time, so a cost carries by eye from one panel to
-    # the next -- which is the whole point of the shared axis.  Behind the data.
     ax.set_axisbelow(True)
     ax.grid(True, axis='both', which='major', color=GRID, lw=0.8, alpha=0.5, zorder=0)
-# The top panel's points sit at the cheap, accurate corner, so its legend goes to the
-# right; the Earth panels leave the lower left empty and fill the right, so theirs go
-# to the left.  Both are the corners the curves do not reach.
 for ax, loc, anchor, ncol in ((axes[0], 'lower right', (0.995, 0.03), 2),
-                              (axes[1], 'lower left', (0.012, 0.03), 2),
+                              (axes[1], 'lower left', (0.0716, 0.03), 2),
                               (axes[2], 'lower left', (0.012, 0.03), 1)):
-    leg = ax.legend(loc=loc, bbox_to_anchor=anchor, fontsize=7.2, ncol=ncol,
+    leg = ax.legend(loc=loc, bbox_to_anchor=anchor, fontsize=6.4, ncol=ncol,
                     handlelength=1.5, labelspacing=0.22, columnspacing=0.9,
                     borderpad=0.3)
     leg.get_frame().set_linewidth(0.6)
