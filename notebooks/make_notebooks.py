@@ -15486,7 +15486,7 @@ annotate(axes[1], a1, [
     ((r'NuOscProbExact, $N_{\rm slabs}$', '1'), r'$N_{\rm slabs} = 1$',
      -5.8, -29.0, 'right', True),
     ((r'NuOscProbExact, $N_{\rm slabs}$', '256'), '256', -5, -4, 'right'),
-    (('nuSQuIDS', '1e-12'), r'tol $= 10^{-12}$', -42.5, 2.8, 'left'),
+    (('nuSQuIDS', '1e-12'), r'$10^{-12}$', -42.5, 2.8, 'left'),
     ((r'NuFast-Earth ($\delta_{\rm CP}$ only)', '1'),
      r'$N_{\rm layers} = 1$', 18.0, -14.3, 'left'),
     (('Prob3++', '1'), r'$N_{\rm shells} = 1$', -59.3, -29.6, 'left', True),
