@@ -967,7 +967,9 @@ def _magnus_terms_quadrature(
         with m points, so that all integrals run over :math:`[0, 1]`.  Any
         leading axes (e.g., a slab axis) broadcast through.
     order : int
-        Highest Magnus order to compute (1 <= order <= 6).
+        Index of the last term computed: returns Omega_1 ... Omega_order.
+        This is the cumulative path's meaning of ``order``; see
+        ``magnus_expansion`` for how it maps onto a delivered order.
     integration_method : str
         'trapezoid' or 'simpson'.
 
@@ -1585,7 +1587,29 @@ def magnus_expansion(
         Number of uniformly spaced time points used to evaluate the
         integrals ('trapezoid'/'simpson' methods only; >= 2).
     order : int, optional
-        Highest Magnus order (1 to 6).
+        Requested Magnus order.  Its meaning depends on
+        ``integration_method``, and so does the order actually delivered.
+        On ``'gl'`` (the default) it is the classical order of the method,
+        reached by the smallest collocation scheme that attains it: 1-2 use
+        one node, 3-4 two, 5-6 three, and a request above 6 raises rather
+        than quietly returning order 6.  On ``'simpson'`` and ``'trapz'``
+        it is instead the index of the last term ``Omega_k`` retained, and
+        the delivered order is ``2*(order//2) + 2`` because the truncation
+        is symmetric about the slab midpoint.  Measured global rates:
+
+        ==========  ==  ==  ==  ==  ==  ==  ==  ==
+        ``order``    1   2   3   4   5   6   8  10
+        ==========  ==  ==  ==  ==  ==  ==  ==  ==
+        ``'gl'``     2   2   4   4   6   6   -   -
+        cumulative   2   4   4   6   6   8  10  12
+        ==========  ==  ==  ==  ==  ==  ==  ==  ==
+
+        So ``order=6`` is a sixth-order method on ``'gl'`` and an
+        eighth-order one on ``'simpson'``.  The two extra orders come from
+        the three further ``Omega`` terms the cumulative path keeps under
+        the same label, not from the quadrature rule: ``order=3`` on
+        ``'simpson'`` retains the same ``Omega_1 + Omega_2 + Omega_3`` as
+        ``order=6`` on ``'gl'`` and converges two orders more slowly.
     integration_method : str, optional
         'gl' (Gauss-Legendre collocation; ignores ``n_tpts`` and uses 1, 2,
         or 3 nodes for orders <= 2, <= 4, <= 6, respectively), 'trapezoid',
@@ -1690,7 +1714,29 @@ def evolution_operators_from_samples(
         Slab widths, shape (n_slabs,) (or broadcastable to the leading
         axes of ``At`` without the last three).
     order : int, optional
-        Highest Magnus order (1 to 6).
+        Requested Magnus order.  Its meaning depends on
+        ``integration_method``, and so does the order actually delivered.
+        On ``'gl'`` (the default) it is the classical order of the method,
+        reached by the smallest collocation scheme that attains it: 1-2 use
+        one node, 3-4 two, 5-6 three, and a request above 6 raises rather
+        than quietly returning order 6.  On ``'simpson'`` and ``'trapz'``
+        it is instead the index of the last term ``Omega_k`` retained, and
+        the delivered order is ``2*(order//2) + 2`` because the truncation
+        is symmetric about the slab midpoint.  Measured global rates:
+
+        ==========  ==  ==  ==  ==  ==  ==  ==  ==
+        ``order``    1   2   3   4   5   6   8  10
+        ==========  ==  ==  ==  ==  ==  ==  ==  ==
+        ``'gl'``     2   2   4   4   6   6   -   -
+        cumulative   2   4   4   6   6   8  10  12
+        ==========  ==  ==  ==  ==  ==  ==  ==  ==
+
+        So ``order=6`` is a sixth-order method on ``'gl'`` and an
+        eighth-order one on ``'simpson'``.  The two extra orders come from
+        the three further ``Omega`` terms the cumulative path keeps under
+        the same label, not from the quadrature rule: ``order=3`` on
+        ``'simpson'`` retains the same ``Omega_1 + Omega_2 + Omega_3`` as
+        ``order=6`` on ``'gl'`` and converges two orders more slowly.
     integration_method : str, optional
         'gl', 'trapezoid', or 'simpson'. Default: 'gl'.
     A_is_const : bool, optional
@@ -1923,7 +1969,29 @@ def magnus_expansion_multislab(
     n_tpts_per_slab : int, optional
         Number of time points per slab ('trapezoid'/'simpson' only).
     order : int, optional
-        Highest Magnus order (1 to 6).
+        Requested Magnus order.  Its meaning depends on
+        ``integration_method``, and so does the order actually delivered.
+        On ``'gl'`` (the default) it is the classical order of the method,
+        reached by the smallest collocation scheme that attains it: 1-2 use
+        one node, 3-4 two, 5-6 three, and a request above 6 raises rather
+        than quietly returning order 6.  On ``'simpson'`` and ``'trapz'``
+        it is instead the index of the last term ``Omega_k`` retained, and
+        the delivered order is ``2*(order//2) + 2`` because the truncation
+        is symmetric about the slab midpoint.  Measured global rates:
+
+        ==========  ==  ==  ==  ==  ==  ==  ==  ==
+        ``order``    1   2   3   4   5   6   8  10
+        ==========  ==  ==  ==  ==  ==  ==  ==  ==
+        ``'gl'``     2   2   4   4   6   6   -   -
+        cumulative   2   4   4   6   6   8  10  12
+        ==========  ==  ==  ==  ==  ==  ==  ==  ==
+
+        So ``order=6`` is a sixth-order method on ``'gl'`` and an
+        eighth-order one on ``'simpson'``.  The two extra orders come from
+        the three further ``Omega`` terms the cumulative path keeps under
+        the same label, not from the quadrature rule: ``order=3`` on
+        ``'simpson'`` retains the same ``Omega_1 + Omega_2 + Omega_3`` as
+        ``order=6`` on ``'gl'`` and converges two orders more slowly.
     integration_method : str, optional
         'gl', 'trapezoid', or 'simpson'. Default: 'gl'.
     validate_input : bool, optional
