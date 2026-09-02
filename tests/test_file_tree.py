@@ -46,7 +46,8 @@ COMMENT_COLUMN = 36
 # reader needs named: developer findings and adversarial batteries, figures
 # lifted out of the executed notebooks, and notebook output.  Listing them
 # would triple the tree without telling anyone anything.
-COLLAPSED = ('docs/dev/', 'img/gallery/', 'fig/', 'resources/paper/figs/')
+COLLAPSED = ('docs/dev/', 'img/gallery/', 'fig/', 'resources/paper/figs/',
+             'resources/benchmarks/')
 
 TREE = [
     ('.github/', 'GitHub Actions workflows: tests, lint, notebooks, docs, publishing'),
@@ -195,6 +196,12 @@ TREE = [
      "Five external codes' speed and accuracy (NuOscProbExact project)"),
     ('notebooks/external_prem_speed_accuracy.json',
      "Notebook 25 section 5: the same, on a PREM chord, both codes batched"),
+    ('notebooks/external_speed_accuracy_const.json',
+     'Figure 12, top panel: constant density, seven codes plus Magnus'),
+    ('notebooks/external_earth_plane.json',
+     'Figure 12, middle panel: a PREM chord at three flavors'),
+    ('notebooks/external_prem_speed_accuracy_new.json',
+     'Figure 12, bottom panel: the same chord at 3+1'),
     ('notebooks/external_profile_benchmarks.json',
      "Notebook 25 section 9: smooth-profile speed/accuracy, all codes on one machine"),
     ('notebooks/external_shock_benchmarks.json',
@@ -225,6 +232,9 @@ TREE = [
     ('notebooks/shock_reference.json', 'That oracle, as exact hex floats'),
     ('pyproject.toml', 'Build system, dependencies, and the `magnus` console-script entry point'),
     ('resources/', 'Travels with the code; reaches neither the wheel nor the sdist'),
+    ('resources/benchmarks/',
+     'The cross-code benchmark harness and its frozen artifacts, copied from '
+     'NuOscProbExact so its measurements can be reproduced here'),
     ('resources/paper/', 'The Computer Physics Communications article documenting this package'),
     ('resources/paper/README.md', 'How to build the paper, and where each of its numbers comes from'),
     # Working notes for the paper, tracked so a session can pick the work up.

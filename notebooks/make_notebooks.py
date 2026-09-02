@@ -15262,163 +15262,215 @@ save(fig, 'shock_speed_accuracy.pdf')'''),
 
 **The matter potential is matched first**, and matching it does not buy a curve that falls
 forever. The cell after the figure shows why.'''),
-    code(r'''# ------------------------------------------------------------- the Earth plane
-PREM = json.loads((HERE/'external_prem_speed_accuracy.json').read_text())
-CZ = PREM['costhz']
-L_EXT = PREM['baseline_km']*gd.CONV_KM_TO_INV_EV
-OSC_EXT = gd.load_nufit_params('NuFIT 4.0', 'NO')
-STER_EXT = dict(s14=np.sqrt(0.10), s24=np.sqrt(0.10), s34=0.0, D41=1.0)
-VCC_MATCH = 1.0001896490
-YE_EXT = 0.5*VCC_MATCH
-RTOLS = (1.0e-1, 1.0e-2, 1.0e-3, 1.0e-4, 1.0e-6, 1.0e-8, 1.0e-10)
-print('frozen dataset: costhz = %.2f, chord %.1f km; V_CC matched via Y_e = %.10f'
-      % (CZ, PREM['baseline_km'], YE_EXT))
+    code(r'''# ------------------------------------------------ three speed-accuracy planes
+# Nothing here is measured at build time.  The external series are frozen in the
+# repository, and so is Mag(nu)s' -- both produced by the benchmark harness in
+# resources/benchmarks under its manifest's own protocols: ACCURACY untimed against
+# each code's own 50-digit reference in that code's own conventions, and AMORTIZED,
+# a 25-step delta_CP scan, for the time per grid point.  Measuring Mag(nu)s live
+# here instead put minutes of stopwatch into continuous integration and, worse,
+# timed it by a different rule than the codes it is drawn against.
+CONST_PLANE = json.loads((HERE/'external_speed_accuracy_const.json').read_text())
+EARTH_PLANE = json.loads((HERE/'external_earth_plane.json').read_text())
+PREM = json.loads((HERE/'external_prem_speed_accuracy_new.json').read_text())
 
+# Nothing below this is resolved.  Each Earth reference is a Richardson extrapolation
+# of a 50-digit slab product, and the number here is how far an adaptive integration
+# of the CONTINUOUS profile -- sharing none of that machinery -- sits from it when run
+# to the double-precision limit.  At three flavors that check reaches 3.3e-14; at 3+1
+# the same integration is itself limited near 1e-11 by the far faster oscillation.
+FLOOR = {'three_flavor': 3.34e-14, 'sterile_3plus1': 9.59e-12}
 
-def timed_batch(call, n, repeat=5, min_block=0.05):
-    call()
-    reps = 1
-    while True:
-        t0 = time.perf_counter()
-        for _ in range(reps):
-            call()
-        el = time.perf_counter() - t0
-        if el >= min_block:
-            break
-        reps *= 2
-    best = el/reps
-    for _ in range(repeat - 1):
-        t0 = time.perf_counter()
-        for _ in range(reps):
-            call()
-        best = min(best, (time.perf_counter() - t0)/reps)
-    return 1.0e6*best/n
+# One x range for all three panels, the union of what they reach.  It costs the outer
+# two some width and buys the thing separate figures cannot show: 0.06 us for a cached
+# NuFast-Earth and 6e4 us for nuCraft are the same distance apart in every panel.
+XLIM_ALL = (3.0e-2, 6.0e5)
 
-
+# Colour identifies a code across all three panels.  Mag(nu)s is the only curve drawn
+# in ink, as it is throughout this paper: it is the code the paper is about, and
+# nothing else on the plane is black except the axes and the legend frames.  It gets
+# two curves for the same reason NuFast-Earth does -- one code, two dials that do not
+# dominate one another -- so they share a colour and differ in marker and line.
 STYLE = {'NuOscProbExact': ('-o', RED, 3.6),
-         'NuOscProbExact (tolerance)': ('-o', RED, 2.8),
+         'NuOscProbExact (1 thread)': ('-o', RED, 3.6),
+         'NuOscProbExact (tolerance)': ('--o', RED, 2.8),
          'NuOscProbExact (double-double)': ('-o', RED, 3.6),
-         'NuOscProbExact (eigensolver)': ('-h', RED, 3.4),
+         'NuOscProbExact (eigensolver)': (':h', RED, 3.4),
          'nuSQuIDS': ('-v', GREEN, 3.2), 'nuCraft': ('-s', ORANGE, 3.0),
-         'NuFast-Earth': ('-D', PURPLE, 2.8), 'GLoBES': ('-*', '#a51d2d', 5.2),
-         'Prob3++': ('-P', '#986a44', 3.6)}
-DIALS = ('n_slabs_per_segment', 'rtol', 'tolerance', 'num_prec', 'n_shells_per_layer')
+         'NuFast-Earth': ('-D', PURPLE, 2.8),
+         'NuFast-Earth (dCP only)': ('--h', PURPLE, 3.0),
+         'NuFast-LBL': ('-D', PURPLE, 2.8),
+         'GLoBES': ('-*', '#a51d2d', 5.2), 'Prob3++': ('-P', '#986a44', 3.6),
+         'Second-order expansion': ('-s', BLUE, 3.0),
+         'Magnus': ('-X', INK, 4.2), 'Magnus (tolerance)': ('--P', INK, 4.0)}
 
-def prem_magnus_curve():
-    """The \\magnus\\ curve of this plane: one timed batch per tolerance, at both flavor counts.
+RELABEL = {'NuOscProbExact': r'{\tt NuOscProbExact}, $N_{\rm slabs}$',
+           'NuOscProbExact (tolerance)': r'{\tt NuOscProbExact}, rtol',
+           'NuOscProbExact (double-double)': r'{\tt NuOscProbExact}, $N_{\rm slabs}$',
+           'NuOscProbExact (eigensolver)': r'{\tt NuOscProbExact}, eigensolver',
+           'NuOscProbExact (1 thread)': r'{\tt NuOscProbExact}, 1 thread',
+           'NuFast-Earth (dCP only)': r'NuFast-Earth ($\delta_{\rm CP}$ only)',
+           'Magnus': r'Mag$\nu$s, $N_{\rm slabs}$',
+           'Magnus (tolerance)': r'Mag$\nu$s, rtol'}
 
-    The five external curves are frozen in the repository, and this one is measured here.
-    Measuring it on every rebuild would put minutes of stopwatch into continuous
-    integration for numbers that cannot have moved unless the configuration did, so it is
-    stored the same way the references are.
+
+def by_dial(points):
+    r"""Returns `points` in the order the DIAL sets, not the order of cost.
+
+    Sorting by cost is right whenever the cost actually moves.  It is wrong for a
+    series whose cost does not: NuFast-Earth's delta_CP curve spans 1.1x in cost
+    against 15x to 7880x for everything else here, so ordering it by cost orders it
+    by measurement noise and draws a U that is entirely an artifact.  A tolerance
+    runs loose to tight and sorts descending; a slab or shell count sorts ascending.
     """
-    out = {}
-    for key in ('three_flavor', 'sterile_3plus1'):
-        blk = PREM[key]
-        E_ext = np.asarray(blk['energy_gev'])*gd.UNIT_GEV
-        P_ref = np.asarray(blk['reference'])
-        floor = float(blk['reference_vs_ode_max_abs'])
-        mg_t, mg_e = [], []
-        for rtol in RTOLS:
-            if key == 'three_flavor':
-                call = (lambda r=rtol, E=E_ext: np.asarray(quiet(
-                    oscprob.osc_prob_3nu_earth, E, costhz=CZ, L=L_EXT, **OSC_EXT,
-                    nu_i=gd.NUMU, nu_f=gd.NUMU, rtol=r, atol=r*1.0e-2,
-                    electron_fraction=YE_EXT)))
-            else:
-                call = (lambda r=rtol, E=E_ext: np.asarray(quiet(
-                    oscprob.osc_prob_4nu_earth, E, costhz=CZ, L=L_EXT, **OSC_EXT,
-                    d14=0.0, d24=0.0, nu_i=gd.NUMU, nu_f=gd.NUMU, rtol=r, atol=r*1.0e-2,
-                    **STER_EXT, electron_fraction=YE_EXT)))
-            P = call()
-            mg_t.append(timed_batch(call, len(E_ext)))
-            mg_e.append(max(float(np.max(np.abs(P - P_ref))), floor))
-        out[key] = dict(t=mg_t, e=mg_e)
-    return out
+    try:
+        values = [float(q['label']) for q in points]
+    except (ValueError, KeyError):
+        return list(points)
+    return sorted(points, key=lambda q: float(q['label']),
+                  reverse=min(values) < 1.0)
 
 
-PREM_MAGNUS = cached(
-    'prem_timings',
-    (repr(RTOLS), float(CZ), float(L_EXT), float(YE_EXT), repr(sorted(OSC_EXT.items())),
-     repr(sorted(STER_EXT.items())),
-     np.asarray(PREM['three_flavor']['energy_gev']),
-     np.asarray(PREM['sterile_3plus1']['energy_gev'])),
-    prem_magnus_curve,
-    what='Figure 9: the Magnus curve of the six-code Earth plane, timed per tolerance.')
-for _k in ('three_flavor', 'sterile_3plus1'):
-    for _r, _t, _e in zip(RTOLS, PREM_MAGNUS[_k]['t'], PREM_MAGNUS[_k]['e']):
-        print('  %-14s rtol %.0e -> %9.1f us/prob, err %.2e' % (_k, _r, _t, _e))
-
-fig, axes = plt.subplots(1, 2, figsize=(WIDE, 3.1))
-for ax, (key, label) in zip(axes, (('three_flavor', r'$3\nu$'),
-                                   ('sterile_3plus1', r'$3+1$'))):
-    blk = PREM[key]
-    E_ext = np.asarray(blk['energy_gev'])*gd.UNIT_GEV
-    P_ref = np.asarray(blk['reference'])
-    floor = float(blk['reference_vs_ode_max_abs'])
+def draw_plane(ax, series_list, floor, only=None):
+    r"""Draws one speed-accuracy plane, and returns every time it plotted."""
     allt = []
-    for series in blk['series']:
-        pts = series['points']
+    for series in series_list:
+        if only is not None and series['name'] not in only:
+            continue
+        pts = by_dial(series['points'])
         marker, color, size = STYLE.get(series['name'], ('-o', '0.4', 3.2))
-        dial = next((k for k in DIALS if pts[0].get(k) is not None), None)
         kw = dict(ms=size, color=color, lw=0.9, zorder=4,
-                  label='%s%s' % (series['name'],
-                                  '' if dial is None else ' (%s)' % dial))
+                  label=RELABEL.get(series['name'], series['name']))
         if series['name'].startswith('NuOscProbExact'):
             kw.update(mfc='white', mew=0.8, zorder=5)
+        if series['name'].startswith('Magnus'):
+            kw.update(zorder=6, lw=1.2)
         t = [p['us_per_probability'] for p in pts]
         allt += t
+        # Clipped at the floor: a point below it is not more accurate than the ruler,
+        # and drawing it there would claim a resolution the reference does not have.
         ax.loglog(t, [max(p['max_abs_error'], floor) for p in pts], marker, **kw)
-
-    mg_t, mg_e = PREM_MAGNUS[key]['t'], PREM_MAGNUS[key]['e']
-    allt += mg_t
-    ax.loglog(mg_t, mg_e, '-*', ms=11, color=INK, lw=1.3, zorder=6,
-              label=r'Mag$\nu$s  (rtol)')
-    ax.axhline(floor, color='0.5', ls=':', lw=0.8, zorder=1)
-    logx(ax); logy(ax); snug(ax, allt)
-    corner(ax, label, loc='upper right', fontsize=8.5)
-    stamp(ax, 'Referee floor', x=0.035, y=0.035, fontsize=8.0)
-    ax.set_xlabel(r'Time per probability [$\mu$s]')
-    ax.legend(loc='lower left', fontsize=8.0, handlelength=1.5, labelspacing=0.24)
-axes[0].set_ylabel(r'Error against the converged reference, max $|\Delta P|$')
-fig.tight_layout(pad=0.3, w_pad=1.6)
-save(fig, 'prem_speed_accuracy.pdf')'''),
-    md(r'''### Why that curve stops falling
-
-Is Mag$\nu$s still converging where its curve flattens? If it is self-converged and still
-disagreeing, what the plane measures beyond that point is a difference between two Earth
-models, and calling it accuracy would be wrong.'''),
-    code(r'''blk = PREM['three_flavor']
-E_ext = np.asarray(blk['energy_gev'])*gd.UNIT_GEV
-P_ref = np.asarray(blk['reference'])
+    return allt
 
 
-def magnus_prem_3nu(rtol, ye=YE_EXT):
-    return np.asarray(quiet(oscprob.osc_prob_3nu_earth, E_ext, costhz=CZ, L=L_EXT,
-                            **OSC_EXT, nu_i=gd.NUMU, nu_f=gd.NUMU, rtol=rtol,
-                            atol=rtol*1.0e-2, electron_fraction=ye))
+fig, axes = plt.subplots(3, 1, sharex=True, figsize=(WIDE, 7.4))
+
+# --- constant density.  Only the fastest point at each accuracy is drawn: four of
+# these codes have an INERT dial here, Mag(nu)s among them.  With one slab of constant
+# density there is nothing to subdivide, so every setting returns the same answer and
+# a sweep would be a stack of points at one height.
+# Six codes, not eight: the file also holds NuFast-Earth, whose constant-density
+# numbers repeat NuFast-LBL's, and a one-thread control for NuOscProbExact that lands
+# on top of its own curve.  Both are measurements worth keeping and neither says
+# anything a second line on this panel would add.
+CONST_ONLY = ('GLoBES', 'NuFast-LBL', 'NuOscProbExact', 'Prob3++',
+              'Second-order expansion', 'nuSQuIDS', 'Magnus')
+for series in CONST_PLANE['series']:
+    if series['name'] not in CONST_ONLY:
+        continue
+    pts = [q for q in series['points']
+           if q.get('best_at_this_accuracy', True) and q['max_abs_error'] is not None]
+    if not pts:
+        continue
+    pts.sort(key=lambda q: (-q['max_abs_error'], q['us_per_probability']))
+    marker, color, size = STYLE.get(series['name'], ('-o', '0.4', 3.2))
+    kw = dict(ms=size, color=color, lw=0.9, zorder=4,
+              label=RELABEL.get(series['name'], series['name']))
+    if series['name'].startswith('NuOscProbExact'):
+        kw.update(mfc='white', mew=0.8, zorder=5)
+    if series['name'].startswith('Magnus'):
+        kw.update(zorder=6, lw=1.2)
+    axes[0].loglog([q['us_per_probability'] for q in pts],
+                   [q['max_abs_error'] for q in pts], marker, **kw)
+axes[0].axhline(2.2e-16, color='0.5', ls=':', lw=0.8, zorder=1)
+axes[0].set_ylim(1.0e-16, 1.0e-2)
+stamp(axes[0], 'Double precision', x=0.42, y=0.045, fontsize=7.6)
+corner(axes[0], 'Constant density:  $L = 1300$~km,\n'
+       r'$E = 0.6$--$20$ GeV,  $\rho = 3$ g cm$^{-3}$', loc='upper right',
+       fontsize=7.6)
+
+# --- PREM, three flavors, and PREM 3+1.  The bottom panel is restricted to the codes
+# that can express a sterile state, and to one of NuOscProbExact's two root
+# strategies: they are both measured and frozen, but the curves coincide to the last
+# bit and plotting both put two labels on one line.
+draw_plane(axes[1], EARTH_PLANE['series'], FLOOR['three_flavor'])
+axes[1].axhline(FLOOR['three_flavor'], color='0.5', ls=':', lw=0.8, zorder=1)
+axes[1].set_ylim(1.0e-14, 2.0e-1)
+stamp(axes[1], 'Referee floor', x=0.985, y=0.045, fontsize=7.6, ha='right')
+corner(axes[1], r'PREM, three flavors:  $\cos\theta_z = -0.9$,' + '\n'
+       r'$E = 3$--$40$ GeV,  $L = 11\,468$~km', loc='upper right', fontsize=7.6)
+
+draw_plane(axes[2], PREM['sterile_3plus1']['series'], FLOOR['sterile_3plus1'],
+           only={'NuOscProbExact (double-double)', 'NuOscProbExact (tolerance)',
+                 'nuSQuIDS', 'nuCraft', 'Magnus', 'Magnus (tolerance)'})
+axes[2].axhline(FLOOR['sterile_3plus1'], color='0.5', ls=':', lw=0.8, zorder=1)
+axes[2].set_ylim(4.0e-12, 1.0e-1)
+stamp(axes[2], 'Referee floor', x=0.985, y=0.045, fontsize=7.6, ha='right')
+corner(axes[2], r'PREM, $3+1$:  $\cos\theta_z = -0.9$,' + '\n'
+       r'$E = 0.3$--$30$ TeV,  $\Delta m_{41}^2 = 1$ eV$^2$', loc='upper right',
+       fontsize=7.6)
+
+for ax in axes:
+    logx(ax); logy(ax)
+    ax.set_xlim(*XLIM_ALL)
+    # A vertical rule per decade of time, so a cost carries by eye from one panel to
+    # the next -- which is the whole point of the shared axis.  Behind the data.
+    ax.set_axisbelow(True)
+    ax.grid(True, axis='both', which='major', color=GRID, lw=0.8, alpha=0.5, zorder=0)
+# The top panel's points sit at the cheap, accurate corner, so its legend goes to the
+# right; the Earth panels leave the lower left empty and fill the right, so theirs go
+# to the left.  Both are the corners the curves do not reach.
+for ax, loc, anchor, ncol in ((axes[0], 'lower right', (0.995, 0.03), 2),
+                              (axes[1], 'lower left', (0.012, 0.03), 2),
+                              (axes[2], 'lower left', (0.012, 0.03), 1)):
+    leg = ax.legend(loc=loc, bbox_to_anchor=anchor, fontsize=7.2, ncol=ncol,
+                    handlelength=1.5, labelspacing=0.22, columnspacing=0.9,
+                    borderpad=0.3)
+    leg.get_frame().set_linewidth(0.6)
+axes[2].set_xlabel(r'Time per probability [$\mu$s]')
+fig.supylabel(r'Error against the reference of each panel,  max $|\Delta P|$',
+              fontsize=9.5, x=0.038)
+fig.subplots_adjust(hspace=0.07, left=0.115, right=0.995, top=0.995, bottom=0.06)
+save(fig, 'speed_accuracy_combined.pdf')'''),
+    md(r'''### Why the matched curve used to stop falling
+
+An earlier version of this plane scored Mag$\nu$s against {\tt NuOscProbExact}'s
+reference, matching the two charged-current potentials by handing Mag$\nu$s an electron
+fraction of $0.5000948$ instead of $0.5$. That curve flattened near $1.6 \cdot 10^{-7}$
+and no solver setting on either side reached beneath it. The floor was not a property of
+either solver, and it was not, as we first read it, the potential match running out in
+some general way. It has a single identifiable cause, and the cell below names it.'''),
+    code(r'''# Why matching V_CC through the electron fraction leaves a floor, and what the
+# floor is worth.  This is a note about a measurement convention, not about the solver:
+# every number the paper quotes for Magnus is measured against Magnus' OWN reference,
+# where no such floor exists.
+VCC_MATCH = 1.0001896489716906     # NuOscProbExact's V_CC over ours, at any density
+
+print('On an Earth chord V_CC is NOT linear in Y_e.  oscprob.py derives the average')
+print('nucleon mass from the composition -- r = (1-Y_e)/Y_e, layer by layer -- because')
+print('a medium with Y_e = 0.4656 and r = 1 is matter that cannot exist.  So scaling')
+print('Y_e scales the potential by very slightly more than the scale asked for:')
+r_half = earth.neutron_to_proton_ratio_from_electron_fraction(0.5)
+r_match = earth.neutron_to_proton_ratio_from_electron_fraction(0.5*VCC_MATCH)
 
 
-a, b, c = magnus_prem_3nu(1.0e-8), magnus_prem_3nu(1.0e-10), magnus_prem_3nu(1.0e-12)
-print('Is Magnus self-converged where the curve flattens?')
-print('  |P(1e-8)  - P(1e-12)|  = %.3e' % np.max(np.abs(a - c)))
-print('  |P(1e-10) - P(1e-12)|  = %.3e   <- yes, to a few 1e-12' % np.max(np.abs(b - c)))
-print('  |P(1e-12) - reference| = %.3e   <- and yet this is the floor'
-      % np.max(np.abs(c - P_ref)))
+def avg_nucleon(r):
+    return (gd.MASS_PROTON + gd.MASS_NEUTRON*r)/(1.0 + r)
+
+
+slip = avg_nucleon(r_half)/avg_nucleon(r_match) - 1.0
+print('  r  goes %.10f -> %.10f' % (r_half, r_match))
+print('  the average nucleon mass moves with it, and V_CC picks up a further %.3e' % slip)
+print('  which is exactly the height the matched curve used to flatten at.')
 print()
-print('Does the floor move with the matched potential?  (V_CC is linear in Y_e)')
-for scale in (1.0, 1.0001894920, VCC_MATCH, 1.0003):
-    print('  Y_e = 0.5 * %.10f  ->  |P - reference| = %.3e'
-          % (scale, np.max(np.abs(magnus_prem_3nu(1.0e-10, 0.5*scale) - P_ref))))
-print()
-print('A relative change of %.1e in the potential moves the floor by about 5x, so the'
-      % ((VCC_MATCH - 1.0001894920)/VCC_MATCH))
-print('probability inherits the relative error of V_CC essentially one for one.  The')
-print('scale used is the one the two codes\' own constants imply: fitting it to minimise')
-print('the residual would make the figure prettier and the measurement meaningless.')'''),
+print('Matching a potential through the composition is therefore only ever good to')
+print('that order.  The measurement this paper reports avoids the question entirely:')
+print('the benchmark manifest asks for a per-code reference in each code\'s own')
+print('conventions, so Magnus is scored at Y_e = 1/2 against a reference built with')
+print('Magnus\' own constants, and the residual is the solver\'s alone.')'''),
     md(r'''## What was written
 
-Nine PDFs, which is every figure in `resources/paper/main.tex`.
+Thirteen PDFs, which is every figure in `resources/paper/main.tex`.
 
 ```bash
 python notebooks/make_notebooks.py --only 28

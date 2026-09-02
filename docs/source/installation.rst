@@ -256,6 +256,9 @@ File Tree
    │   ├── make_notebooks.py           # BUILDS the notebooks above -- edit this, not the .ipynb
    │   ├── external_speed_accuracy.json  # Five external codes' speed and accuracy (NuOscProbExact project)
    │   ├── external_prem_speed_accuracy.json  # Notebook 25 section 5: the same, on a PREM chord, both codes batched
+   │   ├── external_speed_accuracy_const.json  # Figure 12, top panel: constant density, seven codes plus Magnus
+   │   ├── external_earth_plane.json   # Figure 12, middle panel: a PREM chord at three flavors
+   │   ├── external_prem_speed_accuracy_new.json  # Figure 12, bottom panel: the same chord at 3+1
    │   ├── external_profile_benchmarks.json  # Notebook 25 section 9: smooth-profile speed/accuracy, all codes on one machine
    │   ├── external_shock_benchmarks.json  # Notebook 25 section 11: the supernova shock, both front widths
    │   ├── external_shock_4nu.json     # Notebook 25 section 12: the same shock at 3+1
@@ -274,6 +277,7 @@ File Tree
    │   └── shock_reference.json        # That oracle, as exact hex floats
    ├── pyproject.toml                  # Build system, dependencies, and the `magnus` console-script entry point
    ├── resources/                      # Travels with the code; reaches neither the wheel nor the sdist
+   │   ├── benchmarks/                 # The cross-code benchmark harness and its frozen artifacts, copied from NuOscProbExact so its measurements can be reproduced here
    │   └── paper/                      # The Computer Physics Communications article documenting this package
    │       ├── README.md               # How to build the paper, and where each of its numbers comes from
    │       ├── HANDOVER-pseudodirac.md  # Brief for adding pseudo-Dirac neutrinos to the library
