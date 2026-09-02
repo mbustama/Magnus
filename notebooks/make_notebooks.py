@@ -15486,9 +15486,9 @@ annotate(axes[1], a1, [
     ((r'NuOscProbExact, $N_{\rm slabs}$', '1'), r'$N_{\rm slabs} = 1$',
      -5.8, -29.0, 'right', True),
     ((r'NuOscProbExact, $N_{\rm slabs}$', '256'), '256', -5, -4, 'right'),
-    (('nuSQuIDS', '1e-12'), r'$10^{-12}$', -42.5, 2.8, 'left'),
+    (('nuSQuIDS', '1e-12'), r'$10^{-12}$', -27.4, 2.1, 'left'),
     ((r'NuFast-Earth ($\delta_{\rm CP}$ only)', '1'),
-     r'$N_{\rm layers} = 1$', 18.0, -14.3, 'left'),
+     r'$N_{\rm layers} = 1$', 12.2, -10.7, 'left'),
     (('Prob3++', '1'), r'$N_{\rm shells} = 1$', -59.3, -29.6, 'left', True),
     (('Prob3++', '65536'), '65536', 6, -2, 'left'),
     (('GLoBES', '1'), r'$N_{\rm shells} = 1$', -31.0, -36.3, 'left', True),
@@ -15503,9 +15503,9 @@ annotate(axes[1], a1, [
     (('NuOscProbExact, rtol', '1e+00'), '1', 6, -2, 'left'),
     (('NuOscProbExact, rtol', '1e-08'), r'$10^{-8}$', 3.1, -0.9, 'left'),
     # Both ends of both Magnus curves, on the same principle as the rest.
-    ((r'Mag$\nu$s, $N_{\rm slabs}$', '1'), r'$N_{\rm slabs} = 1$', 24.7, 5.9, 'right'),
+    ((r'Mag$\nu$s, $N_{\rm slabs}$', '1'), r'$N_{\rm slabs} = 1$', 28.3, 5.9, 'right'),
     ((r'Mag$\nu$s, $N_{\rm slabs}$', '256'), '256', -18.8, -3.7, 'left'),
-    ((r'Mag$\nu$s, rtol', '1e-01'), r'rtol $= 10^{-1}$', -5.0, 6.5, 'left'),
+    ((r'Mag$\nu$s, rtol', '1e-01'), r'rtol $= 10^{-1}$', -2.8, 5.8, 'left'),
     ((r'Mag$\nu$s, rtol', '1e-08'), r'$10^{-8}$', 4.1, -0.7, 'left')])
 axes[1].set_yticks([10.0**k for k in range(-10, 0)])
 axes[1].set_ylim(1.0e-10, 2.0e-1)
@@ -15523,7 +15523,7 @@ annotate(axes[2], a2, [
     ((r'NuOscProbExact, $N_{\rm slabs}$', '1'), r'$N_{\rm slabs}=1$',
      -37.8, -1.2, 'left'),
     ((r'NuOscProbExact, $N_{\rm slabs}$', '256'), '256', 8.4, -9.8, 'right'),
-    (('nuSQuIDS', '1e-03'), r'tol $= 10^{-3}$', 20.4, 1.9, 'left', True),
+    (('nuSQuIDS', '1e-03'), r'tol $= 10^{-3}$', 46.3, 3.3, 'left', True),
     (('nuSQuIDS', '1e-12'), r'$10^{-12}$', 5.1, -2.9, 'left'),
     (('nuCraft', '1e-02'), r'numPrec $= 10^{-2}$', 3.6, 4.0, 'right'),
     (('nuCraft', '1e-10'), r'$10^{-10}$', 2.1, 4.2, 'left'),
@@ -15534,7 +15534,7 @@ annotate(axes[2], a2, [
     # 2048-slab point reaches 1.0e-11, below this panel's lower edge.
     ((r'Mag$\nu$s, $N_{\rm slabs}$', '1'), r'$N_{\rm slabs} = 1$', 51.2, 0.6, 'right', True),
     ((r'Mag$\nu$s, $N_{\rm slabs}$', '512'), '512', -6.0, -3.0, 'right'),
-    ((r'Mag$\nu$s, rtol', '1e-01'), r'rtol $= 10^{-1}$', -2.9, 5.9, 'left'),
+    ((r'Mag$\nu$s, rtol', '1e-01'), r'rtol $= 10^{-1}$', -22.3, 3.7, 'left'),
     ((r'Mag$\nu$s, rtol', '1e-08'), r'$10^{-8}$', 5.5, 1.5, 'left')])
 axes[2].set_yticks([10.0**k for k in range(-11, 0)])
 axes[2].set_ylim(2.0e-11, 1.0e-1)
@@ -15558,6 +15558,28 @@ for ax, loc, anchor, ncol in ((axes[0], 'lower right', (0.995, 0.03), 2),
                     handlelength=1.5, labelspacing=0.22, columnspacing=0.9,
                     borderpad=0.3)
     leg.get_frame().set_linewidth(0.6)
+# One "N_layers = 1" serves both NuFast-Earth curves, so it gets a leader to each:
+# out of its left edge to the delta_CP-only curve's first marker, out of its right edge
+# to the full curve's.  Drawn only after the limits are set, since the label's own box
+# is not known until it has been rendered.
+def _first_marker(series_name):
+    series = next(x for x in EARTH_PLANE['series'] if x['name'] == series_name)
+    point = by_dial(series['points'])[0]
+    return point['us_per_probability'], point['max_abs_error']
+
+
+_label = next(t for t in axes[1].texts
+              if hasattr(t, 'xyann') and t.get_text() == r'$N_{\rm layers} = 1$')
+# Anchored to the LABEL, not to converted data coordinates: savefig re-lays the figure
+# out with a tight bounding box, which moves the axes under any data-space endpoint and
+# leaves the line detached from the text it is meant to touch.
+for _side, _target in (((0.0, 0.5), _first_marker('NuFast-Earth (dCP only)')),
+                       ((1.0, 0.5), _first_marker('NuFast-Earth'))):
+    axes[1].annotate('', xy=_target, xycoords='data', xytext=_side,
+                     textcoords=_label, zorder=6,
+                     arrowprops=dict(arrowstyle='-', linewidth=0.5, color='C4',
+                                     shrinkA=2.0, shrinkB=2.5))
+
 axes[2].set_xlabel(r'Time per probability [$\mu$s]')
 fig.supylabel(r'Error against the reference of each panel,  max $|\Delta P|$',
               fontsize=9.5, x=0.038)

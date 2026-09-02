@@ -90,7 +90,9 @@ def main():
     drawn = []
     for ax, anch, items in zip(axes, anchors, lists):
         kept = [it for it in items if tuple(it[0]) in anch]
-        anns = [t for t in ax.texts if isinstance(t, Annotation)]
+        # Empty-text annotations are leader lines, not labels: the two that join
+        # the shared "N_layers = 1" to both NuFast-Earth curves are drawn that way.
+        anns = [t for t in ax.texts if isinstance(t, Annotation) and t.get_text()]
         if len(kept) != len(anns):
             print('panel mismatch: %d items kept, %d annotations drawn'
                   % (len(kept), len(anns)))
