@@ -15376,6 +15376,22 @@ def magnus_first(series_list):
     return mag + [s for s in series_list if not s['name'].startswith('Magnus')]
 
 
+#: Mag(nu)s' tolerance sweep is drawn only to here.  The two tighter rungs it was
+#: measured at, 1e-10 and 1e-12, land beneath the lower edge of both Earth panels on
+#: the companion figure's ranges, which this figure keeps; they are in the frozen
+#: series either way, and Section 8.8 quotes what they reach.
+MAGNUS_RTOL_FLOOR = 1.0e-8
+
+
+def _drawn(series):
+    r"""The points of `series` this figure draws, which for Mag(nu)s' tolerance curve
+    stops at MAGNUS_RTOL_FLOOR rather than running off the bottom of the panel."""
+    pts = by_dial(series['points'])
+    if series['name'] == 'Magnus (tolerance)':
+        pts = [q for q in pts if float(q['label']) >= MAGNUS_RTOL_FLOOR]
+    return pts
+
+
 def draw_plane(ax, series_list, only=None, prem=False):
     r"""Draws one speed-accuracy plane; returns the anchors its labels attach to."""
     anchors = {}
@@ -15386,7 +15402,7 @@ def draw_plane(ax, series_list, only=None, prem=False):
         if prem:
             style.update(PREM_STYLE_OVERRIDE)
         marker, color, size = style.get(series['name'], ('-o', '0.4', 3.2))
-        pts = by_dial(series['points'])
+        pts = _drawn(series)
         label = RELABEL.get(series['name'], series['name'])
         kw = dict(ms=size, color=color, lw=0.9, zorder=4, label=label)
         if series['name'].startswith('NuOscProbExact'):
@@ -15485,7 +15501,12 @@ annotate(axes[1], a1, [
      7.4, -9.8, 'right'),
     ((r'NuOscProbExact, $N_{\rm slabs}$', '65536'), '65536', -19.0, 3.3, 'left'),
     (('NuOscProbExact, rtol', '1e+00'), '1', 6, -2, 'left'),
-    (('NuOscProbExact, rtol', '1e-08'), r'$10^{-8}$', 3.1, -0.9, 'left')])
+    (('NuOscProbExact, rtol', '1e-08'), r'$10^{-8}$', 3.1, -0.9, 'left'),
+    # Both ends of both Magnus curves, on the same principle as the rest.
+    ((r'Mag$\nu$s, $N_{\rm slabs}$', '1'), r'$N_{\rm slabs} = 1$', -7.0, 9.5, 'right'),
+    ((r'Mag$\nu$s, $N_{\rm slabs}$', '256'), '256', 5.0, 3.5, 'left'),
+    ((r'Mag$\nu$s, rtol', '1e-01'), r'rtol $= 10^{-1}$', 6.5, -6.5, 'left'),
+    ((r'Mag$\nu$s, rtol', '1e-08'), r'$10^{-8}$', 5.5, 1.5, 'left')])
 axes[1].set_yticks([10.0**k for k in range(-10, 0)])
 axes[1].set_ylim(1.0e-10, 2.0e-1)
 corner(axes[1], r'PREM, three flavors:  $\cos\theta_z = -0.9$,' + '\n'
@@ -15508,7 +15529,13 @@ annotate(axes[2], a2, [
     (('nuCraft', '1e-10'), r'$10^{-10}$', 2.1, 4.2, 'left'),
     ((r'NuOscProbExact, $N_{\rm slabs}$', '8192'), '8192', -16.6, -7.3, 'left'),
     (('NuOscProbExact, rtol', '1e+00'), '1', -7.4, -5.8, 'left'),
-    (('NuOscProbExact, rtol', '1e-08'), r'$10^{-8}$', -2.6, 5.4, 'left')])
+    (('NuOscProbExact, rtol', '1e-08'), r'$10^{-8}$', -2.6, 5.4, 'left'),
+    # Both ends of both Magnus curves.  The slab curve's last drawn rung is 512: its
+    # 2048-slab point reaches 1.0e-11, below this panel's lower edge.
+    ((r'Mag$\nu$s, $N_{\rm slabs}$', '1'), r'$N_{\rm slabs} = 1$', -46.0, -26.0, 'right', True),
+    ((r'Mag$\nu$s, $N_{\rm slabs}$', '512'), '512', -6.0, -3.0, 'right'),
+    ((r'Mag$\nu$s, rtol', '1e-01'), r'rtol $= 10^{-1}$', 6.5, 3.0, 'left'),
+    ((r'Mag$\nu$s, rtol', '1e-08'), r'$10^{-8}$', 5.5, 1.5, 'left')])
 axes[2].set_yticks([10.0**k for k in range(-11, 0)])
 axes[2].set_ylim(2.0e-11, 1.0e-1)
 corner(axes[2], r'PREM, $3+1$:  $\cos\theta_z = -0.9$,' + '\n'
