@@ -854,11 +854,13 @@ import magnus.oscprob as oscprob
 import magnus.globaldefs as gd
 import magnus.earth as earth
 
+# A shallow chord; -1 would cross the core
 costhz = -0.4
 # km -> eV^-1. Not optional; see the caption.
 L = earth.distance_traveled_inside_earth(costhz) \
  *gd.UNIT_KM
 
+# Parameters default to NuFIT 6.1 NO
 P = oscprob.osc_prob_3nu_earth(10.0*gd.UNIT_GEV,
  costhz=costhz, L=L)
 
@@ -906,6 +908,7 @@ import magnus.earth as earth
 costhz = -0.9
 L = earth.distance_traveled_inside_earth(costhz) \
  *gd.UNIT_KM
+# Where an eV-scale splitting resonates
 E = 10.0*gd.UNIT_TEV
 osc = gd.load_nufit_params('NuFIT 6.1')
 
@@ -977,14 +980,17 @@ import numpy as np
 import magnus.oscprob as oscprob
 import magnus.globaldefs as gd
 
+# The solar spectrum, 0.1 to 20 MeV
 E = np.logspace(-1.0, np.log10(20.0), 40) \
  *gd.UNIT_MEV
 osc = gd.load_nufit_params('NuFIT 6.1')
 
+# Production at the center, out to the surface
 P = oscprob.osc_prob_matter_std_potential(
  3, ne_sun, E, R_SUN, osc,
  average=True, L0=0.0,
  nu_i=gd.NUE, nu_f=gd.NUE,
+ # ne_sun returns n_e itself, not a density
  density_is_of_number_of_electrons=True)
 \end{lstlisting}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1032,6 +1038,7 @@ edges = [r_contact*gd.UNIT_KM,
 P = oscprob.osc_prob_matter_std_potential(
  3, ne_shock, 15.0*gd.UNIT_MEV, L, osc,
  t_breakpoints=edges,
+ # Tight: the front is what must be resolved
  rtol=1.0e-8, atol=1.0e-10,
  L0=0.0, nu_i=gd.NUE, nu_f=gd.NUE,
  density_is_of_number_of_electrons=True)
@@ -1079,6 +1086,7 @@ P = avgprob.\
 
 # Pion decay at the source, 1 : 2 : 0
 f_source = np.array([1.0/3.0, 2.0/3.0, 0.0])
+# Row a is the initial flavor, so sum over it
 f_earth = np.einsum('a,ab->b', f_source, P)
 \end{lstlisting}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1102,8 +1110,10 @@ import numpy as np
 import magnus.avgprob as avgprob
 import magnus.globaldefs as gd
 
+# Energy-independent; H_func divides by E below
 h_vac = hamiltonians.\
  hamiltonian_3nu_vacuum_energy_independent(**osc)
+# V_CC reaches nu_e only
 e00 = np.diag([1.0, 0.0, 0.0])
 
 # V_emu [eV] on the solar radial grid, from the
@@ -1121,6 +1131,7 @@ def H_func(l):
  + VCC[..., None, None]*e00
  + np.interp(l, r, v_emu)[..., None, None]*q)
 
+# Center to surface; [0] is the single energy
 P = avgprob.averaged_probabilities_adiabatic(
  H_func, 0.0, R_SUN)[0]
 \end{lstlisting}
