@@ -15505,7 +15505,7 @@ annotate(axes[1], a1, [
     # Both ends of both Magnus curves, on the same principle as the rest.
     ((r'Mag$\nu$s, $N_{\rm slabs}$', '1'), r'$N_{\rm slabs} = 1$', 28.3, 5.9, 'right'),
     ((r'Mag$\nu$s, $N_{\rm slabs}$', '256'), '256', -18.8, -3.7, 'left'),
-    ((r'Mag$\nu$s, rtol', '1e-01'), r'rtol $= 10^{-1}$', -2.8, 5.8, 'left'),
+    ((r'Mag$\nu$s, rtol', '1e-01'), r'rtol $= 10^{-1}$', -2.8, 5.8, 'left', True),
     ((r'Mag$\nu$s, rtol', '1e-08'), r'$10^{-8}$', 4.1, -0.7, 'left')])
 axes[1].set_yticks([10.0**k for k in range(-10, 0)])
 axes[1].set_ylim(1.0e-10, 2.0e-1)
@@ -15523,7 +15523,7 @@ annotate(axes[2], a2, [
     ((r'NuOscProbExact, $N_{\rm slabs}$', '1'), r'$N_{\rm slabs}=1$',
      -37.8, -1.2, 'left'),
     ((r'NuOscProbExact, $N_{\rm slabs}$', '256'), '256', 8.4, -9.8, 'right'),
-    (('nuSQuIDS', '1e-03'), r'tol $= 10^{-3}$', 46.3, 3.3, 'left', True),
+    (('nuSQuIDS', '1e-03'), r'tol $= 10^{-3}$', 46.3, 1.9, 'left', True),
     (('nuSQuIDS', '1e-12'), r'$10^{-12}$', 5.1, -2.9, 'left'),
     (('nuCraft', '1e-02'), r'numPrec $= 10^{-2}$', 3.6, 4.0, 'right'),
     (('nuCraft', '1e-10'), r'$10^{-10}$', 2.1, 4.2, 'left'),
@@ -15532,9 +15532,9 @@ annotate(axes[2], a2, [
     (('NuOscProbExact, rtol', '1e-08'), r'$10^{-8}$', -2.6, 5.4, 'left'),
     # Both ends of both Magnus curves.  The slab curve's last drawn rung is 512: its
     # 2048-slab point reaches 1.0e-11, below this panel's lower edge.
-    ((r'Mag$\nu$s, $N_{\rm slabs}$', '1'), r'$N_{\rm slabs} = 1$', 51.2, 0.6, 'right', True),
-    ((r'Mag$\nu$s, $N_{\rm slabs}$', '512'), '512', -6.0, -3.0, 'right'),
-    ((r'Mag$\nu$s, rtol', '1e-01'), r'rtol $= 10^{-1}$', -22.3, 3.7, 'left'),
+    ((r'Mag$\nu$s, $N_{\rm slabs}$', '1'), r'$N_{\rm slabs} = 1$', 62.7, 0.6, 'right', True),
+    ((r'Mag$\nu$s, $N_{\rm slabs}$', '512'), '512', -8.2, -3.7, 'right'),
+    ((r'Mag$\nu$s, rtol', '1e-01'), r'rtol $= 10^{-1}$', 5.1, 5.1, 'left', True),
     ((r'Mag$\nu$s, rtol', '1e-08'), r'$10^{-8}$', 5.5, 1.5, 'left')])
 axes[2].set_yticks([10.0**k for k in range(-11, 0)])
 axes[2].set_ylim(2.0e-11, 1.0e-1)
@@ -15542,12 +15542,14 @@ corner(axes[2], r'PREM, $3+1$:  $\cos\theta_z = -0.9$,' + '\n'
        r'$E = 0.3$--$30$ TeV,  $\Delta m_{41}^2 = 1$ eV$^2$', loc='upper right',
        fontsize=7.6)
 
+# Ticks are matplotlib's defaults on both axes, which is what the companion figure
+# uses: decade majors labelled in scientific notation and the default minor subdivision.
+# This paper's own `logx` would print them as 0.1, 1, 10, 10000, which is the house
+# style everywhere else here but not what this figure is meant to be laid beside.
 for ax in axes:
-    logx(ax)
-    ax.set_yscale('log')
-    ax.yaxis.set_minor_locator(LogLocator(base=10.0, subs=tuple(np.arange(2, 10)*0.1),
-                                          numticks=100))
-    ax.yaxis.set_minor_formatter(FuncFormatter(lambda *_: ''))
+    # No set_xscale/set_yscale here: loglog() has already set both, and calling them
+    # again resets the locators, which silently discarded the explicit decade ticks
+    # set above.
     ax.set_xlim(*XLIM_ALL)
     ax.set_axisbelow(True)
     ax.grid(True, axis='both', which='major', color=GRID, lw=0.8, alpha=0.5, zorder=0)
