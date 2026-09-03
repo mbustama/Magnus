@@ -27,8 +27,9 @@ numbers [1]_ (in the :math:`B_1 = -1/2` convention):
    \Omega_n(t) &= \sum_{j=1}^{n-1} \frac{B_j}{j!} \int_0^t S_n^{(j)}(s)\, ds ,
 
 with :math:`S_n^{(j)}` the sums of nested commutators of the lower-order
-terms with :math:`A`.  Orders 1--6 are implemented (:math:`B_3 = B_5 =
-0`, so those groups vanish identically).
+terms with :math:`A` (:math:`B_3 = B_5 = 0`, so those groups vanish
+identically).  Orders 1--6 are written out inline; above that the terms
+are generated from the same recursion, at any order.
 
 Two families of methods are available, selected via
 ``integration_method``:
