@@ -1497,7 +1497,7 @@ def test_validate_input_battery_returns_none_on_valid_input():
 # ----------------------------------------------------------------------
 
 def test_max_n_slabs_default_is_method_aware():
-    """'gl' costs 1-3 Hamiltonian evaluations per slab against the quadrature methods'
+    """'gl' costs 1-4 Hamiltonian evaluations per slab against the quadrature methods'
     n_tpts_per_slab, so a cap that bounds cost has to differ between them."""
     assert op.MAX_N_SLABS_DEFAULT['gl'] > op.MAX_N_SLABS_DEFAULT['trapezoid']
     assert op.MAX_N_SLABS_DEFAULT['trapezoid'] == op.MAX_N_SLABS_DEFAULT['simpson']

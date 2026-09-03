@@ -218,7 +218,7 @@ def test_non_antihermitian_A_falls_back_to_expm():
     assert maxabs(U - Uex) < 5e-3
 
 
-@pytest.mark.parametrize("bad_kwargs", [dict(order=0), dict(order=7),
+@pytest.mark.parametrize("bad_kwargs", [dict(order=0), dict(order=9),
                                         dict(integration_method='nope')])
 def test_invalid_input_raises_value_error(bad_kwargs):
     with pytest.raises(ValueError):

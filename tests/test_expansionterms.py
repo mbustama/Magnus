@@ -192,8 +192,8 @@ def test_higher_orders_converge_faster():
 # ----------------------------------------------------------------------
 
 def test_gl_refuses_orders_it_has_no_scheme_for():
-    """'gl' tops out at order 6: the Gauss-Legendre commutator-free schemes are separately
-    derived, not products of the Magnus recursion.  Silently computing order 6 for a
+    """'gl' tops out at order 8: the Gauss-Legendre collocation schemes are separately
+    derived, not products of the Magnus recursion.  Silently computing order 8 for a
     higher request would be a quiet wrong answer."""
     def A(t):
         return -1j*np.eye(DIM, dtype=complex)
@@ -210,7 +210,7 @@ def test_gl_ceiling_holds_even_without_input_validation():
         return -1j*np.eye(DIM, dtype=complex)
 
     with pytest.raises(ValueError):
-        mg.magnus_expansion(A, 0.0, 1.0, order=7, integration_method='gl',
+        mg.magnus_expansion(A, 0.0, 1.0, order=9, integration_method='gl',
                             validate_input=False)
 
 

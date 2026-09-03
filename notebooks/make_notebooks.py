@@ -572,8 +572,8 @@ oscprob.osc_prob(lambda l: H_exp_density(l, energy), 0, baseline*gd.UNIT_KM, ver
 
 Let's see how the probability changes with the order of the expansion (we loosen the target tolerance so that the order, rather than the adaptive refinement, is what limits the answer).
 
-One limit is worth knowing about here.  The default integrator, `integration_method = 'gl'`, is a set of Gauss-Legendre *commutator-free* schemes: they are separately derived integrators rather than truncations of the Magnus recursion, so they exist only up to order 6, not up to `gd.MAGNUS_EXP_ORDER_MAX = 10`.  Asking for a higher order with `'gl'` raises a `ValueError` saying so.  The `'trapezoid'` and `'simpson'` integrators do build the terms from the recursion and go all the way to 10, at the cost of many more commutators per order.'''),
-    code(r'''# The default 'gl' integrator exists up to order 6; 'trapezoid'/'simpson' go to 10.
+One limit is worth knowing about here.  The default integrator, `integration_method = 'gl'`, is a set of Gauss-Legendre *collocation* schemes: they are separately derived integrators rather than truncations of the Magnus recursion, so they exist only up to order 8, not up to `gd.MAGNUS_EXP_ORDER_MAX = 10`.  Asking for a higher order with `'gl'` raises a `ValueError` saying so.  The `'trapezoid'` and `'simpson'` integrators do build the terms from the recursion and go all the way to 10, at the cost of many more commutators per order.'''),
+    code(r'''# The default 'gl' integrator exists up to order 8; 'trapezoid'/'simpson' go to 10.
 max_order_gl = magnus.MAGNUS_EXP_ORDER_MAX_GL
 
 [[magnus_exp_order, oscprob.osc_prob(lambda l: H_exp_density(l, energy), 0, baseline*gd.UNIT_KM,
@@ -5574,7 +5574,7 @@ t_i, t_f = 0, 1 # Initial and final times of the matrix integral'''),
 
 By default the matrix integral is evaluated on a grid of `n_tpts = 50` points, spaced *linearly* between $t_i$ and $t_f$, and the expansion is truncated at `order = 2`.
 
-One caveat matters here.  The default integration method is `'gl'` (Gauss-Legendre), which is *commutator-free*: it never forms the individual $\Omega_k$ at all, and so returns only their combined effect, no matter what `order` you ask for.  Because this section is specifically about the term-by-term structure of the series, we ask for `'trapezoid'`, which does build each term explicitly.'''),
+One caveat matters here.  The default integration method is `'gl'` (Gauss-Legendre), which is a *collocation* scheme: it never forms the individual $\Omega_k$ at all, and so returns only their combined effect, no matter what `order` you ask for.  Because this section is specifically about the term-by-term structure of the series, we ask for `'trapezoid'`, which does build each term explicitly.'''),
     code(r'''# 'trapezoid' (not the default 'gl') so that the individual terms actually exist
 _, (Omega_1, Omega_2) = magnus.magnus_expansion(A3, t_i, t_f, order=2,
                                                 integration_method='trapezoid',
@@ -13614,8 +13614,8 @@ E_FIX = 0.2*gd.UNIT_GEV
 Hf2 = make_H_func(D2, E_FIX, VCC2)
 
 # The six configurations both lower panels carry: what an order buys, beside what it costs.
-# Orders two, four and six run on the commutator-free Gauss-Legendre schemes, which is what
-# the package does by default.  Above six no such scheme exists, so the only route is
+# Orders two, four and six run on the Gauss-Legendre collocation schemes, which is what
+# the package does by default.  Above eight no such scheme exists, so the only route is
 # cumulative quadrature; order six is run on it too, as a control, because the change in
 # convergence rate belongs to the quadrature path and not to the higher orders.
 SERIES = [('gl', 2), ('gl', 4), ('gl', 6), ('simpson', 6), ('simpson', 8), ('simpson', 10)]
@@ -13805,8 +13805,8 @@ def dop853_call(Hf):
 
 # One entry per curve.  The panel carries the same six configurations as the panel beside
 # it, so that what an order costs can be read against what it buys, together with the
-# solver they are all measured against.
-CODES = [('dop853', 'Ref.: Runge-Kutta order 8 (DOP853)', INK, '-', None, None)]
+# solver they are all timed against.
+CODES = [('dop853', 'Runge-Kutta order 8 (DOP853)', INK, '-', None, None)]
 for _meth, _order in SERIES:
     CODES.append(('%s%d' % (_meth, _order),
                   '%d, %s' % (_order, 'GL' if _meth == 'gl' else 'Simpson'),
@@ -14083,8 +14083,8 @@ for order, meth in ((2, 'gl'), (6, 'gl'), (8, 'simpson'), (10, 'simpson')):
 # Half-octave steps, so the curves read as curves rather than as line segments.
 NS = np.array(sorted(set(int(round(2**(k/2.0))) for k in range(2, 29))))
 M_HI = 65
-# Orders two, four and six on the commutator-free Gauss-Legendre schemes, which is what
-# the package does by default.  Above six no such scheme exists, so the only route is
+# Orders two, four and six on the Gauss-Legendre collocation schemes, which is what
+# the package does by default.  Above eight no such scheme exists, so the only route is
 # cumulative quadrature; order six is run on it too, as a control, because the change in
 # convergence rate belongs to the quadrature path and not to the higher orders.
 

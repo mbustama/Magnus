@@ -342,10 +342,10 @@ Salient Features
 * **Beyond the Standard Model**: non-standard neutrino interactions (NSI)
   and CPT-odd Lorentz-invariance violation (LIV), for every flavor count and
   environment above.
-* **Magnus expansion to order 6**, with the term recursion verified
+* **Magnus expansion to order 8**, with the term recursion verified
   term-by-term against the literature, and three integration methods.  The
   default, **Gauss-Legendre collocation integrators**, reaches orders
-  2/4/6 from only 1/2/3 Hamiltonian evaluations per slab; cumulative
+  2/4/6/8 from only 1/2/3/4 Hamiltonian evaluations per slab; cumulative
   trapezoid/Simpson quadrature remains available for Hamiltonians that are
   not smooth within a slab.
 * **Exact unitarity**, adaptive refinement to a requested tolerance with

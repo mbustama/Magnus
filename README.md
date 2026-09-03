@@ -499,11 +499,11 @@ same table via `--environment`/`--scenario`/`--flavors`.
 
 ## Numerical engine
 
-- Magnus expansion to **order 6**, with the term recursion verified
+- Magnus expansion to **order 8**, with the term recursion verified
   term-by-term against Blanes, Casas, Oteo & Ros,
   [Phys. Rep. 470, 151 (2009)](https://doi.org/10.1016/j.physrep.2008.11.001).
 - Three integration methods.  The default, `'gl'` — **Gauss–Legendre
-  commutator-free integrators** of orders 2/4/6 that need only 1/2/3
+  collocation integrators** of orders 2/4/6/8 that need only 1/2/3/4
   Hamiltonian evaluations per slab (Blanes, Casas & Ros, BIT 40, 434
   (2000)) — is both the fastest and the most accurate for a
   smooth-per-slab profile, which layer-aligned slabs make the common case.

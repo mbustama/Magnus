@@ -78,15 +78,17 @@ each slab.  Magνs offers two families, selected via
 ``integration_method``, which defaults to ``'gl'``:
 
 **Gauss-Legendre collocation integrators (** ``'gl'`` **, the default).**
-Following :cite:t:`Blanes2000`, orders 2, 4, and 6 can be reached from only
-1, 2, or 3 evaluations of :math:`A` per slab, at the Gauss-Legendre nodes,
+Following :cite:t:`Blanes2000` and :cite:t:`Blanes2002`, orders 2, 4, 6, and 8
+can be reached from only 1, 2, 3, or 4 evaluations of :math:`A` per slab, at the
+Gauss-Legendre nodes,
 with no cumulative quadrature and no separate commutator bookkeeping:
 
 .. math::
 
    \Omega^{(2)} &= h\, A_1 \\
    \Omega^{(4)} &= \frac{h}{2}(A_1 + A_2) + \frac{\sqrt{3}}{12} h^2\, [A_2, A_1] \\
-   \Omega^{(6)} &= \ldots \quad \text{(three-node scheme; see the reference)}
+   \Omega^{(6)} &= \ldots \quad \text{(three-node scheme; see the reference)} \\
+   \Omega^{(8)} &= \ldots \quad \text{(four-node scheme; see the reference)}
 
 with :math:`h` the slab width and :math:`A_i` the Hamiltonian sampled at
 the corresponding node.  Because the quadrature order is matched exactly
@@ -96,7 +98,7 @@ the most accurate choice whenever the Hamiltonian is smooth within a slab,
 which is why it is the default.  Layer-aligned slabs (below) make that the
 common case even across the Earth.
 
-Because ``'gl'`` uses a fixed 1, 2, or 3 nodes per slab, ``n_tpts_per_slab``
+Because ``'gl'`` uses a fixed 1, 2, 3, or 4 nodes per slab, ``n_tpts_per_slab``
 plays no role for it: accuracy is controlled by the slab count alone, and the
 adaptive refinement below grows only ``n_slabs``.  The physics-informed
 starting slab count is likewise applied only for ``'gl'``, since for the

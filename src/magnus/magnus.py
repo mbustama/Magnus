@@ -35,8 +35,8 @@ Two families of methods are available, selected via
 ``integration_method``:
 
 * ``'gl'`` (the default): Gauss-Legendre collocation
-  [1]_ [2]_.  For a slab of width :math:`h` it needs only 1, 2, or 3
-  evaluations of :math:`A` to reach order 2, 4, or 6, respectively, with
+  [1]_ [2]_.  For a slab of width :math:`h` it needs only 1, 2, 3, or 4
+  evaluations of :math:`A` to reach order 2, 4, 6, or 8, respectively, with
   quadrature error matched to the truncation order.  ``n_tpts`` is
   ignored.  Both faster and more accurate than the alternatives whenever
   :math:`A(t)` is smooth within each slab, which is the common case --
@@ -240,11 +240,13 @@ _GROUP_FACTORS = {1: -0.5, 2: F1, 4: F2, 6: F3, 8: F4}
 # there is one definition rather than two that have to be kept in step by hand.
 MAGNUS_EXP_ORDER_MAX = 10
 
-# Highest order we implement on Gauss-Legendre nodes: one, two and three nodes give
-# orders two, four and six.  These are
-# separately derived integrators (Blanes, Casas & Ros 2000), not products of the Magnus
-# recursion, so they do not extend along with it: there is no 3-node scheme of order 8.
-MAGNUS_EXP_ORDER_MAX_GL = 6
+# Highest order we implement on Gauss-Legendre nodes: one, two, three and four nodes
+# give orders two, four, six and eight.  These are separately derived integrators, not
+# products of the Magnus recursion, so they do not extend along with it -- each order is
+# its own construction.  Orders two to six follow Blanes, Casas & Ros, BIT 40 (2000) 434;
+# orders six and eight use the commutator-optimal forms of Blanes, Casas & Ros, BIT 42
+# (2002) 262, which need three and six commutators, the fewest possible at each order.
+MAGNUS_EXP_ORDER_MAX_GL = 8
 
 # Valid values of integration_method
 valid_integration_methods = ['gl', 'trapezoid', 'simpson']
@@ -254,6 +256,15 @@ _GL1_NODES = np.array([0.5])
 _GL2_NODES = np.array([0.5 - np.sqrt(3.0)/6.0, 0.5 + np.sqrt(3.0)/6.0])
 _GL3_NODES = np.array([0.5 - np.sqrt(15.0)/10.0, 0.5,
                        0.5 + np.sqrt(15.0)/10.0])
+# Four-node Gauss-Legendre, for the order-8 scheme.  The offsets from the slab midpoint
+# and the matching weights are kept as named constants because the order-8 expression
+# needs the weights themselves, not only the node positions.
+_GL4_V1 = 0.5*np.sqrt((3.0 + 2.0*np.sqrt(6.0/5.0))/7.0)
+_GL4_V2 = 0.5*np.sqrt((3.0 - 2.0*np.sqrt(6.0/5.0))/7.0)
+_GL4_W1 = 0.5 - np.sqrt(5.0/6.0)/6.0
+_GL4_W2 = 0.5 + np.sqrt(5.0/6.0)/6.0
+_GL4_NODES = np.array([0.5 - _GL4_V1, 0.5 - _GL4_V2,
+                       0.5 + _GL4_V2, 0.5 + _GL4_V1])
 
 _HAS_CUMULATIVE_SIMPSON = hasattr(sp.integrate, 'cumulative_simpson')
 
@@ -1085,10 +1096,12 @@ def _magnus_gl(
 ) -> np.ndarray:
     r"""Magnus operator :math:`\Omega` from Gauss-Legendre collocation.
 
-    Gauss-Legendre collocation Magnus integrators of order 2, 4 and 6 based on
-    Gauss-Legendre nodes (Blanes, Casas & Ros 2000; Blanes et al. 2009,
-    Sec. 5.4).  Exact quadrature order matched to the truncation order,
-    using only 1, 2, or 3 evaluations of A per slab.
+    Gauss-Legendre collocation Magnus integrators of order 2, 4, 6 and 8 based on
+    Gauss-Legendre nodes (Blanes, Casas & Ros 2000; Blanes, Casas & Ros 2002;
+    Blanes et al. 2009, Sec. 5.4).  Exact quadrature order matched to the
+    truncation order, using only 1, 2, 3, or 4 evaluations of A per slab.
+    Orders 6 and 8 use the commutator-optimal forms of the 2002 paper, which
+    need three and six commutators, the fewest possible at each order.
 
     Parameters
     ----------
@@ -1126,20 +1139,57 @@ def _magnus_gl(
             return h*A1
         return 0.5*h*(A1 + A2) + (np.sqrt(3.0)/12.0)*h*h*commutator(A2, A1)
 
-    # Order 6 (Blanes, Casas & Ros 2000):
+    if order <= 6:
+        # Order 6 (Blanes, Casas & Ros 2002, Eqs. 3.5-3.7): three commutators, the fewest
+        # with which sixth order can be reached.
+        A1 = An[..., 0, :, :]
+        A2 = An[..., 1, :, :]
+        A3 = An[..., 2, :, :]
+        if _samples_identical(A1, A2) and _samples_identical(A2, A3):
+            # Same argument as at order 4, and worth more here: the order-6 expression
+            # builds three nested commutators, all of which vanish for constant A.
+            return h*A1
+        a1 = h*A2
+        a2 = (np.sqrt(15.0)/3.0)*h*(A3 - A1)
+        a3 = (10.0/3.0)*h*(A3 - 2.0*A2 + A1)
+        C1 = commutator(a1, a2)
+        C2 = (-1.0/60.0)*commutator(a1, 2.0*a3 + C1)
+        return a1 + a3/12.0 + (1.0/240.0)*commutator(-20.0*a1 - a3 + C1, a2 + C2)
+
+    # Order 8 (Blanes, Casas & Ros 2002, Eqs. 3.8-3.10): six commutators, again the
+    # fewest possible.  The four alpha are that paper's b_1..b_4, obtained from the
+    # univariate integrals B^(i) of its Eq. (3.2) -- note those carry a 1/h^i prefactor,
+    # one power of h more than the 1/h^(i+1) of the 2000 paper, so the B^(i) below are
+    # h times a quadrature average rather than the average itself.
     A1 = An[..., 0, :, :]
     A2 = An[..., 1, :, :]
     A3 = An[..., 2, :, :]
-    if _samples_identical(A1, A2) and _samples_identical(A2, A3):
-        # Same argument as at order 4, and worth more here: the order-6 expression builds
-        # three nested commutators, all of which vanish for constant A.
+    A4 = An[..., 3, :, :]
+    if (_samples_identical(A1, A2) and _samples_identical(A2, A3)
+            and _samples_identical(A3, A4)):
+        # As at orders 4 and 6, and worth most here: six commutators all vanish.
         return h*A1
-    a1 = h*A2
-    a2 = (np.sqrt(15.0)/3.0)*h*(A3 - A1)
-    a3 = (10.0/3.0)*h*(A3 - 2.0*A2 + A1)
-    C1 = commutator(a1, a2)
-    C2 = (-1.0/60.0)*commutator(a1, 2.0*a3 + C1)
-    return a1 + a3/12.0 + (1.0/240.0)*commutator(-20.0*a1 - a3 + C1, a2 + C2)
+    S1 = A1 + A4
+    S2 = A2 + A3
+    R1 = A4 - A1
+    R2 = A3 - A2
+    hh = 0.5*h
+    B0 = hh*(_GL4_W1*S1 + _GL4_W2*S2)
+    B1 = hh*(_GL4_W1*_GL4_V1*R1 + _GL4_W2*_GL4_V2*R2)
+    B2 = hh*(_GL4_W1*_GL4_V1**2*S1 + _GL4_W2*_GL4_V2**2*S2)
+    B3 = hh*(_GL4_W1*_GL4_V1**3*R1 + _GL4_W2*_GL4_V2**3*R2)
+    a1 = 0.75*(3.0*B0 - 20.0*B2)
+    a2 = 15.0*(5.0*B1 - 28.0*B3)
+    a3 = -15.0*(B0 - 12.0*B2)
+    a4 = -140.0*(3.0*B1 - 20.0*B3)
+    C1 = (-1.0/28.0)*commutator(a1 + a3/28.0, a2 + (3.0/28.0)*a4)
+    C2 = (1.0/3.0)*commutator(a1, -a3/14.0 + C1)
+    C3 = commutator(a1 + a3/28.0 + C1, a2 + (3.0/28.0)*a4 + C2)
+    C4 = commutator(a2, C1)
+    C5 = commutator(a1 + 1.25*C1, 2.0*a3 + C3 + 0.5*C4)
+    C6 = commutator(a1 + a3/12.0 - (7.0/3.0)*C1 - C3/6.0,
+                    -9.0*a2 - 2.25*a4 + 63.0*C2 + C5)
+    return a1 + a3/12.0 - (7.0/120.0)*C3 + (1.0/360.0)*C6
 
 
 def _gl_nodes(order: int) -> np.ndarray:
@@ -1149,12 +1199,12 @@ def _gl_nodes(order: int) -> np.ndarray:
     ----------
     order : int
         Requested Magnus order; mapped to the smallest GL scheme with at least that order
-        (1-2 -> 1 node, 3-4 -> 2 nodes, 5-6 -> 3 nodes).
+        (1-2 -> 1 node, 3-4 -> 2 nodes, 5-6 -> 3 nodes, 7-8 -> 4 nodes).
 
     Returns
     -------
     np.ndarray
-        GL nodes on [0, 1] (1, 2, or 3 of them).
+        GL nodes on [0, 1] (1, 2, 3, or 4 of them).
     """
     if order > MAGNUS_EXP_ORDER_MAX_GL:
         # Backstop.  _validate() reports this with a fuller message, but it is skipped when
@@ -1169,7 +1219,9 @@ def _gl_nodes(order: int) -> np.ndarray:
         return _GL1_NODES
     if order <= 4:
         return _GL2_NODES
-    return _GL3_NODES
+    if order <= 6:
+        return _GL3_NODES
+    return _GL4_NODES
 
 
 _SLAB_NORM_SINK = None
@@ -1592,8 +1644,8 @@ def magnus_expansion(
         ``integration_method``, and so does the order actually delivered.
         On ``'gl'`` (the default) it is the classical order of the method,
         reached by the smallest collocation scheme that attains it: 1-2 use
-        one node, 3-4 two, 5-6 three, and a request above 6 raises rather
-        than quietly returning order 6.  On ``'simpson'`` and ``'trapz'``
+        one node, 3-4 two, 5-6 three, 7-8 four, and a request above 8 raises
+        rather than quietly returning order 8.  On ``'simpson'`` and ``'trapz'``
         it is instead the index of the last term ``Omega_k`` retained, and
         the delivered order is ``2*(order//2) + 2`` because the truncation
         is symmetric about the slab midpoint.  Measured global rates:
@@ -1613,7 +1665,7 @@ def magnus_expansion(
         ``order=6`` on ``'gl'`` and converges two orders more slowly.
     integration_method : str, optional
         'gl' (Gauss-Legendre collocation; ignores ``n_tpts`` and uses 1, 2,
-        or 3 nodes for orders <= 2, <= 4, <= 6, respectively), 'trapezoid',
+        3, or 4 nodes for orders <= 2, <= 4, <= 6, <= 8, respectively), 'trapezoid',
         or 'simpson'. Default: 'gl'.
     return_magnus_terms : bool, optional
         If True, also return the individual Magnus terms.  For the
@@ -1709,7 +1761,7 @@ def evolution_operators_from_samples(
         quadrature methods ('trapezoid'/'simpson'), the m samples of
         each slab lie on the uniform grid spanning the slab (endpoints
         included).  For 'gl', they lie on the Gauss-Legendre nodes
-        (m = 1, 2, or 3 for orders <= 2, <= 4, <= 6; see
+        (m = 1, 2, 3, or 4 for orders <= 2, <= 4, <= 6, <= 8; see
         :func:`gl_nodes`).
     widths : list or np.ndarray
         Slab widths, shape (n_slabs,) (or broadcastable to the leading
@@ -1719,8 +1771,8 @@ def evolution_operators_from_samples(
         ``integration_method``, and so does the order actually delivered.
         On ``'gl'`` (the default) it is the classical order of the method,
         reached by the smallest collocation scheme that attains it: 1-2 use
-        one node, 3-4 two, 5-6 three, and a request above 6 raises rather
-        than quietly returning order 6.  On ``'simpson'`` and ``'trapz'``
+        one node, 3-4 two, 5-6 three, 7-8 four, and a request above 8 raises
+        rather than quietly returning order 8.  On ``'simpson'`` and ``'trapz'``
         it is instead the index of the last term ``Omega_k`` retained, and
         the delivered order is ``2*(order//2) + 2`` because the truncation
         is symmetric about the slab midpoint.  Measured global rates:
@@ -1790,12 +1842,12 @@ def gl_nodes(order: int) -> np.ndarray:
     ----------
     order : int
         Requested Magnus order; mapped to the smallest GL scheme with at least that order
-        (1-2 -> 1 node, 3-4 -> 2 nodes, 5-6 -> 3 nodes).
+        (1-2 -> 1 node, 3-4 -> 2 nodes, 5-6 -> 3 nodes, 7-8 -> 4 nodes).
 
     Returns
     -------
     np.ndarray
-        GL nodes on [0, 1] (1, 2, or 3 of them).
+        GL nodes on [0, 1] (1, 2, 3, or 4 of them).
     
     Examples
     --------
@@ -1805,10 +1857,10 @@ def gl_nodes(order: int) -> np.ndarray:
 
         from magnus import magnus
 
-        for order in (2, 4, 6):
+        for order in (2, 4, 6, 8):
             print('order %d -> %s' % (order, np.round(magnus.gl_nodes(order), 6)))
 
-    One, two or three nodes: the scheme uses the fewest that reach the order.
+    One to four nodes: the scheme uses the fewest that reach the order.
 """
     return _gl_nodes(order)
 
@@ -1974,8 +2026,8 @@ def magnus_expansion_multislab(
         ``integration_method``, and so does the order actually delivered.
         On ``'gl'`` (the default) it is the classical order of the method,
         reached by the smallest collocation scheme that attains it: 1-2 use
-        one node, 3-4 two, 5-6 three, and a request above 6 raises rather
-        than quietly returning order 6.  On ``'simpson'`` and ``'trapz'``
+        one node, 3-4 two, 5-6 three, 7-8 four, and a request above 8 raises
+        rather than quietly returning order 8.  On ``'simpson'`` and ``'trapz'``
         it is instead the index of the last term ``Omega_k`` retained, and
         the delivered order is ``2*(order//2) + 2`` because the truncation
         is symmetric about the slab midpoint.  Measured global rates:

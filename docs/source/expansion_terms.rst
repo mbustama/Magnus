@@ -182,7 +182,8 @@ Two caveats keep this from being a simple "higher is better".
 First, the cost grows faster than the order does, and narrowing the slabs at order
 4 or 6 often reaches a given accuracy for less total work than raising the order.
 Magνs warns (``magnus.magnus.MagnusHighOrderCostWarning``) when an order above 6 is
-requested, for exactly this reason.
+requested *on the quadrature path*, for exactly this reason.  The collocation schemes
+are unaffected: order 8 there costs four Hamiltonian evaluations and six commutators.
 
 Second, and more fundamentally, the Magnus series converges only while
 :math:`\int \lVert A \rVert\, dt < \pi`.  Beyond that radius **no** order helps, and
@@ -190,11 +191,12 @@ the answer is narrower slabs -- see :doc:`methodology` and
 ``magnus.magnus.MagnusConvergenceWarning``.
 
 .. note::
-   Orders above 6 require ``integration_method='trapezoid'`` or ``'simpson'``.
+   Orders above 8 require ``integration_method='trapezoid'`` or ``'simpson'``.
    The Gauss-Legendre collocation schemes (``'gl'``, the default) are
-   separately derived integrators :cite:p:`Blanes2000`, not products of this
-   recursion, and exist only up to order 6; requesting more from them raises a
-   :class:`ValueError` rather than quietly returning an order-6 result.
+   separately derived integrators :cite:p:`Blanes2000,Blanes2002`, not products
+   of this recursion, and are implemented up to order 8; requesting more from
+   them raises a :class:`ValueError` rather than quietly returning an order-8
+   result.
 
 API
 -----

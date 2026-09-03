@@ -7,6 +7,25 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Order-8 Gauss-Legendre collocation integrator, on four nodes.  `'gl'` now
+  reaches orders 2, 4, 6 and 8 from 1, 2, 3 and 4 Hamiltonian evaluations per
+  slab; `MAGNUS_EXP_ORDER_MAX_GL` rises from 6 to 8, and a request above 8
+  raises as before.  Orders 6 and 8 use the commutator-optimal forms of Blanes,
+  Casas & Ros, *BIT* **42**, 262 (2002), needing three and six commutators --
+  the fewest possible at each order.  Verified against a `DOP853` reference:
+  local error converges as `h^9` (measured slopes 8.3-9.7 over three
+  Hamiltonians), and on a PREM chord the row sums hold to 1.8e-15.
+
+### Changed
+
+- The Gauss-Legendre schemes are described as *collocation* integrators
+  throughout.  Several places had called them "commutator-free", which is the
+  distinct family of Blanes & Moan (2006) and Alvermann & Fehske (2011) that
+  replaces commutators with products of exponentials; these schemes are built
+  from commutators, three at order 6 and six at order 8.
+
 ## [1.0.0] - 2026-08-11
 
 ### Fixed

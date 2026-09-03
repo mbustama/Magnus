@@ -259,7 +259,7 @@ much*, where the code knows), what to change, and when it is genuinely safe to i
      - The matrix is valid; the *question* does not apply there.
      - Use ``average=False``; the s.e.m. is reported.
    * - :class:`magnus.magnus.MagnusHighOrderCostWarning`
-     - ``magnus_exp_order`` above 6.
+     - ``magnus_exp_order`` above 6 on ``'trapezoid'``/``'simpson'``.
      - No -- it is a cost trade, not an error.
      - Usually narrower slabs at order 4 or 6 instead.
    * - :class:`magnus.oscprob.ToleranceNotAchievedWarning`

@@ -153,7 +153,7 @@ def test_use_palindrome_switch_disarms_the_gate(monkeypatch):
 
 @pytest.mark.parametrize('n_slabs', [2, 3, 7, 31, 32, 63, 64, 127, 128, 129])
 @pytest.mark.parametrize('order, method', [
-    (1, 'gl'), (2, 'gl'), (4, 'gl'), (6, 'gl'),
+    (1, 'gl'), (2, 'gl'), (4, 'gl'), (6, 'gl'), (8, 'gl'),
     (2, 'trapezoid'), (4, 'trapezoid'), (6, 'trapezoid'),
     (4, 'simpson'), (6, 'simpson'),
 ])

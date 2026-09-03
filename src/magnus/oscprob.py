@@ -323,7 +323,7 @@ Default cap on the number of slabs, per ``integration_method``, used when
 
 The cap exists to bound cost, and cost per slab differs by more than an order of
 magnitude between the two families of integrators.  ``'gl'`` evaluates the Hamiltonian
-1, 2, or 3 times per slab (set by the expansion order), while ``'trapezoid'`` and
+1, 2, 3, or 4 times per slab (set by the expansion order), while ``'trapezoid'`` and
 ``'simpson'`` evaluate it ``n_tpts_per_slab`` times (100 by default, up to 500).  A
 single cap tuned for one family therefore starves the other: at 2000 slabs -- the
 quadrature cap, unchanged here -- ``'gl'`` was hitting the ceiling on cases it could
@@ -334,7 +334,7 @@ own cap.
 The ``'gl'`` value is set from both directions.  The hardest case in the validation
 suite (5 flavors, eV-scale sterile splittings, Earth-crossing baseline) converges at
 about 8,600 slabs, so 20000 leaves better than a factor of two of headroom.  At the
-same time, 20000 slabs at 2-3 nodes is roughly 40,000-60,000 Hamiltonian evaluations,
+same time, 20000 slabs at 2-4 nodes is roughly 40,000-80,000 Hamiltonian evaluations,
 still well under the ~200,000 that 2000 quadrature slabs at 100 points per slab
 already permit -- so the more generous cap is also the cheaper worst case.
 
@@ -2788,8 +2788,8 @@ def osc_prob(
         be comparable bit for bit, hold ``n_jobs`` fixed, or tighten the
         tolerance until the difference is below what you care about.
     integration_method : str, optional
-        'gl' for Gauss-Legendre collocation, which needs only 1, 2, or 3
-        Hamiltonian evaluations per slab for orders <= 2, <= 4, <= 6, and
+        'gl' for Gauss-Legendre collocation, which needs only 1, 2, 3, or 4
+        Hamiltonian evaluations per slab for orders <= 2, <= 4, <= 6, <= 8, and
         ignores ``n_tpts_per_slab``; or 'trapezoid'/'simpson' for cumulative
         quadrature over ``n_tpts_per_slab`` points per slab. Default: 'gl'.
     rtol : int or float, optional
@@ -2833,7 +2833,7 @@ def osc_prob(
     max_n_slabs : int, optional
         Maximum allowed number of slabs.  If None (default), a cap appropriate to
         ``integration_method`` is used: 20000 for 'gl', 2000 for the cumulative-quadrature
-        methods (see :data:`MAX_N_SLABS_DEFAULT`).  'gl' costs 1-3 Hamiltonian evaluations
+        methods (see :data:`MAX_N_SLABS_DEFAULT`).  'gl' costs 1-4 Hamiltonian evaluations
         per slab against the quadrature methods' ``n_tpts_per_slab``, so the same cost
         budget buys it far more slabs.  An explicit value is always used as given.
     min_n_tpts_per_slab : int, optional
@@ -3130,7 +3130,7 @@ def osc_prob(
         atol = 0.0 if atol is None else atol
 
     # The Gauss-Legendre integration method ('gl') uses a fixed, small number of Hamiltonian
-    # evaluations per slab (1, 2, or 3, depending on magnus_exp_order), so n_tpts_per_slab plays no
+    # evaluations per slab (1, 2, 3, or 4, depending on magnus_exp_order), so n_tpts_per_slab plays no
     # role: the accuracy is controlled by the number of slabs only.  Neutralize the growth of
     # n_tpts_per_slab so that the adaptive loop below grows only n_slabs.
     if integration_method == 'gl':
@@ -3326,7 +3326,7 @@ def osc_prob(
             # Reached maximum allowed number of slabs and maximum allowed number of time-points per
             # slab: exit loop, return the probability matrix
             if (loop_count > 1) and ran_with_max_n_slabs and ran_with_max_n_tpts_per_slab:
-                # 'gl' pins n_tpts_per_slab (it uses a fixed 1-3 nodes per slab), so only
+                # 'gl' pins n_tpts_per_slab (it uses a fixed 1-4 nodes per slab), so only
                 # max_n_slabs is a meaningful knob for it; naming max_n_tpts_per_slab in the
                 # message would send the reader after a setting that cannot help them.
                 knobs = ("max_n_slabs" if integration_method == 'gl'
