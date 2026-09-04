@@ -15164,69 +15164,185 @@ BENCH = json.loads((HERE/'external_profile_benchmarks.json').read_text())
 print('machine: %s | interleaved control: %s'
       % (BENCH['machine'], BENCH['control_ratio']))
 
-fig, axes = plt.subplots(4, 1, figsize=(COL, 5.0), sharex=True,
-                         gridspec_kw=dict(hspace=0.10))
-for ax, case in zip(axes, BENCH['cases']):
-    allt = []
-    for series in case['series']:
-        t = [p['us_per_probability'] for p in series['points']]
-        e = [p['max_abs_error'] for p in series['points']]
-        allt += t
-        if series['name'] == 'Magnus':
-            ax.loglog(t, e, '-*', color=INK, ms=8, lw=1.2, zorder=5, label=r'Mag$\nu$s')
-        else:
-            ax.loglog(t, e, '-o', color=RED, ms=4.0, mfc='none', mew=0.9, lw=1.0,
-                      zorder=4, label='NuOscProbExact')
-    if case is BENCH['cases'][0]:
-        # The dial each code is turned by, written beside its markers.  The name appears
-        # once per curve, on the topmost point; the rest carry the value alone.
-        for series in case['series']:
-            pts = series['points']
-            dial = next((k for k in ('rtol', 'n_slabs', 'tolerance', 'num_prec')
-                         if k in pts[0]), None)
-            col = INK if series['name'] == 'Magnus' else RED
-            top = max(range(len(pts)), key=lambda k: pts[k]['max_abs_error'])
-            for k, pt in enumerate(pts):
-                txt = ('%s = %s' % (dial, pt['label'])) if k == top and dial else pt['label']
-                # Down and to the right of the marker.  Up and to the right put the
-                # topmost label of each curve outside the axes, where it was clipped.
-                # The last point of a series is its rightmost, so that one is set to
-                # the left instead: to the right it ran past the axis.
-                # The last point is a series' rightmost and usually its lowest, so its
-                # label goes up and to the left: to the right it ran past the axis, and
-                # below it landed on the reference floor.
-                last = (k == len(pts) - 1)
-                ax.annotate(txt, xy=(pt['us_per_probability'], pt['max_abs_error']),
-                            xytext=(-4.0, 10.0) if last else (4.0, -6.5),
-                            textcoords='offset points',
-                            ha='right' if last else 'left',
-                            va='bottom' if last else 'baseline',
-                            fontsize=5.6, color=col, zorder=6,
-                            annotation_clip=True)
-    logx(ax); logy(ax)
-    corner(ax, FLAVOR_LABEL[case['flavours']], loc='upper right', fontsize=8.5)
-    if case['flavours'] == 5:
-        ax.text(0.06, 0.20, 'No route beyond SU(4)', transform=ax.transAxes,
-                ha='left', va='center', fontsize=8.0, color=RED, style='italic')
+GREY = '#8a8a8a'
+# Where each rtol label sits relative to its marker, in points, with its alignment.
+# The order-4 curve is nearly vertical on this profile -- five points spanning eight
+# decades in error and barely one in time -- so no rule places these well and they are
+# positioned by hand.  Drag them with docs/dev/nudge_fig11_labels.py, which prints this
+# dict back with whatever you leave them at.
+RTOL_LABEL_OFFSETS = {
+    '1e-03': (-19.4, -8.6, 'center', 'bottom'),
+    '1e-04': (18.7, -0.3, 'right', 'center'),
+    '1e-06': (18.7, 0.2, 'right', 'center'),
+    '1e-08': (6.0, 0.0, 'left', 'center'),
+    '1e-10': (6.0, 0.0, 'left', 'center'),
+}
+# The Earth column.  Its reference is still being built, so the right-hand panels are
+# laid out and left empty rather than drawn from partial data -- a half-filled panel
+# would be read as a result.
+_prem = HERE/'external_prem_chord_benchmarks.json'
+PREM_BENCH = json.loads(_prem.read_text()) if _prem.exists() else None
+print('Earth column: %s' % ('present' if PREM_BENCH else 'not yet measured'))
 
-# One x-axis for all four: the panels differ by three decades in cost, so a shared
-# range is what makes the flavor counts comparable at a glance.
+fig, all_axes = plt.subplots(5, 2, figsize=(WIDE, 7.0),
+                             gridspec_kw=dict(hspace=0.11, wspace=0.06,
+                                              height_ratios=[0.80, 1, 1, 1, 1],
+                                              left=0.085, right=0.985,
+                                              top=0.985, bottom=0.062))
+ax_rho = all_axes[0]
+cols = [all_axes[1:, 0], all_axes[1:, 1]]
+# The extra air under the top row: its abscissa is a distance and the four below it are a
+# time, so the two blocks are different plots that happen to share a page.  Without the
+# gap the density panel reads as the first row of the block underneath it.
+for _a in ax_rho:
+    _b = _a.get_position()
+    _a.set_position([_b.x0, _b.y0 + 0.042, _b.width, _b.height])
+
+# ---- top row: what each column's neutrinos actually cross -----------------------
+PER_NE = matter.VCC_func(l=0.0, num_density_e_func=lambda l: 1.0)
+
+
+def ne_of_rho(rho_g_cm3):
+    """Electron number density from a matter density, in N_A cm^-3."""
+    return np.array([matter.num_density_e_func(
+        0.0, lambda _l, _v=v: _v, electron_fraction=0.5,
+        density_matter_is_in_g_per_cm3=True) for v in np.atleast_1d(rho_g_cm3)]
+    )/gd.N_AV/gd.UNIT_PER_CM3
+
+
+# Left: the exponential profile Figure 11 is measured on, V0 exp(-3 l / L) over 3000 km.
+_l_exp = np.linspace(0.0, 3000.0, 400)
+ax_rho[0].semilogy(_l_exp, 1.0e-13*np.exp(-3.0*_l_exp/3000.0)/PER_NE/gd.N_AV
+                   / gd.UNIT_PER_CM3, '-', color=INK, lw=1.3)
+ax_rho[0].set_xlim(0.0, 3000.0)
+corner(ax_rho[0], 'Exponential profile', loc='upper left', fontsize=7.5, y=0.93)
+
+# Right: the PREM chord at cos(theta_z) = -0.9.  Its closest approach to the centre is at
+# the midpoint, so r^2 = r_min^2 + (l - L/2)^2 along the chord.
+_L_ch = earth.distance_traveled_inside_earth(-0.9)
+_half = 0.5*_L_ch
+_rmin = np.sqrt(gd.EARTH_RADIUS**2 - _half**2)
+_l_ch = np.linspace(0.0, _L_ch, 1500)
+ax_rho[1].semilogy(_l_ch, ne_of_rho(earth.density_matter_func_prem(
+    np.sqrt(_rmin**2 + (_l_ch - _half)**2))), '-', color=INK, lw=1.3)
+ax_rho[1].set_xlim(0.0, _L_ch)
+corner(ax_rho[1], r'Earth, $\cos\theta_z = -0.9$', loc='upper left', fontsize=7.5,
+       y=0.93)
+
+for _a in ax_rho:
+    logy(_a)
+# A shared vertical range across the two profiles.  Separate ranges made the exponential
+# and the Earth look comparably dense, which is the one thing this row exists to deny.
+_ne_all = np.concatenate([_ln.get_ydata() for _a in ax_rho for _ln in _a.get_lines()])
+for _a in ax_rho:
+    _a.set_ylim(_ne_all.min()/2.5, _ne_all.max()*7.0)   # headroom for the corner label
+ax_rho[0].set_ylabel(r'$n_e\ [N_A\ {\rm cm}^{-3}]$')
+ax_rho[1].tick_params(labelleft=False)
+
+# ---- the four flavor panels of each column --------------------------------------
+# Order 4 takes the red the closed form used to carry, and the closed form goes grey:
+# the three Magnus orders are the comparison this figure now makes, and the slab code is
+# the baseline they are read against.
+SERIES_STYLE = [
+    ('Magnus',          '-*', RED,   8.0, 'Mag$\\nu$s, order 4\n(default)'),
+    ('Magnus, order 6', '-s', BLUE,  3.6, r'Mag$\nu$s, order 6'),
+    ('Magnus, order 8', '-^', GREEN, 4.0, r'Mag$\nu$s, order 8'),
+    ('NuOscProbExact',  '-o', GREY,  4.0, 'NuOscProbExact'),
+]
+
+for axes, bench in zip(cols, (BENCH, PREM_BENCH)):
+    if bench is None:
+        # Frames, ticks and flavour labels, but no curves: the reference is still being
+        # built, and a partially drawn panel would be read as a measurement.
+        for ax, fl in zip(axes, (2, 3, 4, 5)):
+            logx(ax); logy(ax)
+            ax.tick_params(axis='x', pad=4.5)
+            ax.xaxis.set_major_formatter(FuncFormatter(
+                lambda v, _p: r'$10^{%d}$' % int(round(np.log10(v)))))
+            ax.grid(True, which='major', color=GRID, lw=0.5, zorder=0)
+            ax.set_axisbelow(True)
+            corner(ax, FLAVOR_LABEL[fl], loc='upper left', fontsize=8.0)
+        stamp(axes[0], 'Earth chord: measurement pending', x=0.05, y=0.12,
+              fontsize=7.0)
+        continue
+    for ax, case in zip(axes, bench['cases']):
+        by_name = {s['name']: s for s in case['series']}
+        for name, mk, colr, ms, lab in SERIES_STYLE:
+            s = by_name.get(name)
+            if s is None:
+                continue
+            t = [p['us_per_probability'] for p in s['points']]
+            e = [p['max_abs_error'] for p in s['points']]
+            ax.loglog(t, e, mk, color=colr, ms=ms, mfc='none' if mk != '-*' else colr,
+                      mew=0.9, lw=1.1, zorder=5, label=lab)
+        logx(ax); logy(ax)
+        ax.tick_params(axis='x', pad=4.5)      # a little air under the 10^x labels
+        # 10^x on the shared time axis, in place of the plain integers used elsewhere.
+        ax.xaxis.set_major_formatter(FuncFormatter(
+            lambda v, _p: r'$10^{%d}$' % int(round(np.log10(v)))))
+        if case is bench['cases'][0]:
+            # The dial that produced each point, written beside the default-order curve
+            # only.  On four curves the labels collided; on one they still say what the
+            # sweep was, which is the thing a reader cannot infer from the axes.
+            pts = by_name['Magnus']['points']
+            hi = max(range(len(pts)), key=lambda k: pts[k]['max_abs_error'])
+            for k, pt in enumerate(pts):
+                exp = int(round(np.log10(pt['rtol'])))
+                txt = r'$10^{%d}$' % exp
+                if k == hi:
+                    txt = r'rtol $=10^{%d}$' % exp
+                dx, dy, ha, va = RTOL_LABEL_OFFSETS[pt['label']]
+                ax.annotate(txt, xy=(pt['us_per_probability'], pt['max_abs_error']),
+                            xytext=(dx, dy), textcoords='offset points',
+                            ha=ha, va=va,
+                            fontsize=5.6, color=RED, zorder=6, annotation_clip=True)
+
+        # Major ticks only: the minor decades of a four-decade log axis would put nine
+        # lines between every label and swamp the curves they are meant to help read.
+        ax.grid(True, which='major', color=GRID, lw=0.5, zorder=0)
+        ax.set_axisbelow(True)
+        corner(ax, FLAVOR_LABEL[case['flavours']], loc='upper left', fontsize=8.0)
+        if case['flavours'] == 5:
+            ax.text(0.06, 0.20, 'NuOscProbExact: no route past SU(4)',
+                    transform=ax.transAxes, ha='left', va='center', fontsize=7.0,
+                    color='#4a4a4a', style='italic')
+
 ALL_T = [p['us_per_probability'] for c in BENCH['cases'] for s_ in c['series']
          for p in s_['points']]
 ALL_E = [p['max_abs_error'] for c in BENCH['cases'] for s_ in c['series']
          for p in s_['points']]
-for ax in axes:
-    # Room past the extreme markers, so their labels have somewhere to sit.
-    ax.set_xlim(0.7*min(ALL_T), 1.5*max(ALL_T))
-    # A shared vertical range too: a reach that differs by flavor count is the point,
-    # and per-panel autoscaling hides it.
-    ax.set_ylim(min(ALL_E)/2.5, max(ALL_E)*2.5)
-axes[1].legend(loc='lower right', handlelength=1.4)
-axes[-1].set_xlabel(r'Time per probability [$\mu$s]')
-fig.tight_layout(pad=0.3, h_pad=0.4)
-# One y-label for the four panels, centred on the block rather than on any one of them.
-fig.supylabel(r'Maximum probability deviation, max $|\Delta P|$',
-              fontsize=plt.rcParams['axes.labelsize'], x=0.005)
+for axes in cols:
+    for ax in axes:
+        ax.set_xlim(0.7*min(ALL_T), 1.5*max(ALL_T))
+        ax.set_ylim(min(ALL_E)/2.5, max(ALL_E)*2.5)
+for ax in cols[0][:-1]:
+    ax.tick_params(labelbottom=False)
+for ax in cols[1]:
+    ax.tick_params(labelleft=False)
+for ax in cols[1][:-1]:
+    ax.tick_params(labelbottom=False)
+
+# The legend belongs with the profiles: it names the curves before the reader meets them.
+_h, _l = cols[0][0].get_legend_handles_labels()
+cols[0][0].legend(_h, _l, loc='lower right', fontsize=7.2, handlelength=1.4,
+                  borderpad=0.35, labelspacing=0.35, framealpha=0.92,
+                  handletextpad=0.5)
+
+# One label per shared axis, centred on the block rather than on a panel.
+fig.text(0.535, 0.022, r'Time per probability [$\mu$s]', ha='center',
+         fontsize=plt.rcParams['axes.labelsize'])
+# One label for the density row too.  The two panels keep their own tick values, since
+# the trajectories differ in length, but the quantity is the same and saying so twice
+# is just noise.
+fig.text(0.535, ax_rho[0].get_position().y0 - 0.038,
+         'Distance along the trajectory [km]', ha='center',
+         fontsize=plt.rcParams['axes.labelsize'])
+# Centred on the four measurement panels, not on the figure: the top row is a different
+# quantity and this label does not describe it.
+_top = cols[0][0].get_position().y1
+_bot = cols[0][-1].get_position().y0
+fig.text(0.006, 0.5*(_top + _bot), r'Maximum probability deviation, max $|\Delta P|$',
+         va='center', rotation='vertical', fontsize=plt.rcParams['axes.labelsize'])
 save(fig, 'smooth_reach.pdf')
 for case in BENCH['cases']:
     for s in case['series']:

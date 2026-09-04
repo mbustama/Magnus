@@ -26,6 +26,195 @@
     12000000000.0
    ],
    "reference": [
+    0.06206020207846482,
+    0.9825403991864148,
+    0.6174235872976498,
+    0.19382347986034212,
+    0.046614688479408264,
+    0.057686665691650645,
+    0.1320306542348496,
+    0.22380516401689154,
+    0.3139508770945663,
+    0.3955820236018919,
+    0.4669892982660728,
+    0.5285287268282324
+   ],
+   "series": [
+    {
+     "name": "Magnus",
+     "dial": "rtol",
+     "points": [
+      {
+       "label": "1e-03",
+       "rtol": 0.001,
+       "us_per_probability": 113.55343622199143,
+       "max_abs_error": 0.00012273411159213765,
+       "max_abs_error_ode": 0.0001227341116048497
+      },
+      {
+       "label": "1e-04",
+       "rtol": 0.0001,
+       "us_per_probability": 143.97116653223443,
+       "max_abs_error": 9.308151452780411e-06,
+       "max_abs_error_ode": 9.308151468045978e-06
+      },
+      {
+       "label": "1e-06",
+       "rtol": 1e-06,
+       "us_per_probability": 209.20314060883052,
+       "max_abs_error": 7.11709251532966e-08,
+       "max_abs_error_ode": 7.117094286135384e-08
+      },
+      {
+       "label": "1e-08",
+       "rtol": 1e-08,
+       "us_per_probability": 391.6660316463094,
+       "max_abs_error": 5.718575335489362e-10,
+       "max_abs_error_ode": 5.718779338970137e-10
+      },
+      {
+       "label": "1e-10",
+       "rtol": 1e-10,
+       "us_per_probability": 962.0408127375413,
+       "max_abs_error": 7.998268714004553e-12,
+       "max_abs_error_ode": 7.918665723138929e-12
+      }
+     ]
+    },
+    {
+     "name": "NuOscProbExact",
+     "dial": "n_slabs",
+     "points": [
+      {
+       "label": "256",
+       "n_slabs": 256,
+       "us_per_probability": 5.056950849772572,
+       "max_abs_error": 4.202432090094632e-07,
+       "max_abs_error_ode": 4.2024317059574656e-07
+      },
+      {
+       "label": "512",
+       "n_slabs": 512,
+       "us_per_probability": 5.27140446138219,
+       "max_abs_error": 1.0506312378422145e-07,
+       "max_abs_error_ode": 1.050630853705048e-07
+      },
+      {
+       "label": "2048",
+       "n_slabs": 2048,
+       "us_per_probability": 13.2847324418132,
+       "max_abs_error": 6.5664905457563094e-09,
+       "max_abs_error_ode": 6.566452132039657e-09
+      },
+      {
+       "label": "8192",
+       "n_slabs": 8192,
+       "us_per_probability": 43.96370506280315,
+       "max_abs_error": 4.1040576492790137e-10,
+       "max_abs_error_ode": 4.1036735121124934e-10
+      },
+      {
+       "label": "16384",
+       "n_slabs": 16384,
+       "us_per_probability": 88.88617306486897,
+       "max_abs_error": 1.0260209348800231e-10,
+       "max_abs_error_ode": 1.0256367977135028e-10
+      },
+      {
+       "label": "32768",
+       "n_slabs": 32768,
+       "us_per_probability": 178.80095553361267,
+       "max_abs_error": 2.564848333719283e-11,
+       "max_abs_error_ode": 2.56100696205408e-11
+      }
+     ]
+    },
+    {
+     "name": "Magnus, order 6",
+     "dial": "rtol",
+     "magnus_exp_order": 6,
+     "points": [
+      {
+       "label": "1e-03",
+       "rtol": 0.001,
+       "us_per_probability": 131.73579426014234,
+       "max_abs_error": 8.048715638975246e-06,
+       "max_abs_error_ode": 8.048715559372255e-06
+      },
+      {
+       "label": "1e-04",
+       "rtol": 0.0001,
+       "us_per_probability": 151.32661981927717,
+       "max_abs_error": 1.3714503180883852e-06,
+       "max_abs_error_ode": 1.3714502384853944e-06
+      },
+      {
+       "label": "1e-06",
+       "rtol": 1e-06,
+       "us_per_probability": 193.45572134928565,
+       "max_abs_error": 7.450001393571881e-08,
+       "max_abs_error_ode": 7.450000272246626e-08
+      },
+      {
+       "label": "1e-08",
+       "rtol": 1e-08,
+       "us_per_probability": 270.92092189680744,
+       "max_abs_error": 2.1077184442219732e-10,
+       "max_abs_error_ode": 2.1078710998878591e-10
+      },
+      {
+       "label": "1e-10",
+       "rtol": 1e-10,
+       "us_per_probability": 416.5038958490186,
+       "max_abs_error": 1.309063968335522e-12,
+       "max_abs_error_ode": 1.324329534924118e-12
+      }
+     ]
+    },
+    {
+     "name": "Magnus, order 8",
+     "dial": "rtol",
+     "magnus_exp_order": 8,
+     "points": [
+      {
+       "label": "1e-03",
+       "rtol": 0.001,
+       "us_per_probability": 144.67118489847053,
+       "max_abs_error": 4.652965998989955e-06,
+       "max_abs_error_ode": 4.652965992189839e-06
+      },
+      {
+       "label": "1e-04",
+       "rtol": 0.0001,
+       "us_per_probability": 161.71180467002463,
+       "max_abs_error": 1.3597827495104298e-06,
+       "max_abs_error_ode": 1.359782669907439e-06
+      },
+      {
+       "label": "1e-06",
+       "rtol": 1e-06,
+       "us_per_probability": 213.64412244414174,
+       "max_abs_error": 8.525068762033072e-09,
+       "max_abs_error_ode": 8.52505105397583e-09
+      },
+      {
+       "label": "1e-08",
+       "rtol": 1e-08,
+       "us_per_probability": 261.2759009631797,
+       "max_abs_error": 2.5794988367522365e-10,
+       "max_abs_error_ode": 2.579371716215917e-10
+      },
+      {
+       "label": "1e-10",
+       "rtol": 1e-10,
+       "us_per_probability": 354.4962290410088,
+       "max_abs_error": 1.1345369088644475e-12,
+       "max_abs_error_ode": 1.1168288516216762e-12
+      }
+     ]
+    }
+   ],
+   "reference_ode": [
     0.06206020207845802,
     0.9825403991863995,
     0.6174235872975702,
@@ -39,85 +228,33 @@
     0.46698929826608554,
     0.5285287268282436
    ],
-   "series": [
-    {
-     "name": "Magnus",
-     "dial": "rtol",
-     "points": [
-      {
-       "label": "1e-03",
-       "rtol": 0.001,
-       "us_per_probability": 113.55343622199143,
-       "max_abs_error": 0.0001227341116048497
-      },
-      {
-       "label": "1e-04",
-       "rtol": 0.0001,
-       "us_per_probability": 143.97116653223443,
-       "max_abs_error": 9.308151468045978e-06
-      },
-      {
-       "label": "1e-06",
-       "rtol": 1e-06,
-       "us_per_probability": 209.20314060883052,
-       "max_abs_error": 7.117094286135384e-08
-      },
-      {
-       "label": "1e-08",
-       "rtol": 1e-08,
-       "us_per_probability": 391.6660316463094,
-       "max_abs_error": 5.718779338970137e-10
-      },
-      {
-       "label": "1e-10",
-       "rtol": 1e-10,
-       "us_per_probability": 962.0408127375413,
-       "max_abs_error": 7.918665723138929e-12
-      }
-     ]
-    },
-    {
-     "name": "NuOscProbExact",
-     "dial": "n_slabs",
-     "points": [
-      {
-       "label": "256",
-       "n_slabs": 256,
-       "us_per_probability": 5.056950849772572,
-       "max_abs_error": 4.2024317059574656e-07
-      },
-      {
-       "label": "512",
-       "n_slabs": 512,
-       "us_per_probability": 5.27140446138219,
-       "max_abs_error": 1.050630853705048e-07
-      },
-      {
-       "label": "2048",
-       "n_slabs": 2048,
-       "us_per_probability": 13.2847324418132,
-       "max_abs_error": 6.566452132039657e-09
-      },
-      {
-       "label": "8192",
-       "n_slabs": 8192,
-       "us_per_probability": 43.96370506280315,
-       "max_abs_error": 4.1036735121124934e-10
-      },
-      {
-       "label": "16384",
-       "n_slabs": 16384,
-       "us_per_probability": 88.88617306486897,
-       "max_abs_error": 1.0256367977135028e-10
-      },
-      {
-       "label": "32768",
-       "n_slabs": 32768,
-       "us_per_probability": 178.80095553361267,
-       "max_abs_error": 2.56100696205408e-11
-      }
-     ]
-    }
+   "reference_self_convergence": [
+    2.1029202590200736e-17,
+    1.7829849488064074e-16,
+    3.0430850211567e-17,
+    2.823305593844245e-17,
+    2.2479185019174814e-17,
+    4.720322763097573e-17,
+    2.116648111677298e-17,
+    3.4678410154769376e-17,
+    4.2281674887464814e-17,
+    4.576526434255821e-17,
+    4.661708181874957e-17,
+    4.5879512647860496e-17
+   ],
+   "reference_ode_crosscheck": [
+    6.800116025829084e-15,
+    1.532107773982716e-14,
+    7.960299086562372e-14,
+    3.8413716652030416e-14,
+    2.4341639814906557e-14,
+    4.510281037539698e-16,
+    1.7541523789077473e-14,
+    2.040034807748725e-14,
+    1.7708057242771247e-14,
+    1.5265566588595902e-14,
+    1.2712053631958042e-14,
+    1.1213252548714081e-14
    ]
   },
   {
@@ -139,6 +276,195 @@
     12000000000.0
    ],
    "reference": [
+    0.020494357890231393,
+    0.9844735712893079,
+    0.598110266588179,
+    0.1721765462987122,
+    0.025253663323347553,
+    0.03680291655541317,
+    0.11184921133839934,
+    0.20456961232693677,
+    0.29582586153995427,
+    0.37864119948682706,
+    0.4512368215373887,
+    0.5139242712648011
+   ],
+   "series": [
+    {
+     "name": "Magnus",
+     "dial": "rtol",
+     "points": [
+      {
+       "label": "1e-03",
+       "rtol": 0.001,
+       "us_per_probability": 116.52242316510335,
+       "max_abs_error": 4.052830906875471e-06,
+       "max_abs_error_ode": 4.052830909873073e-06
+      },
+      {
+       "label": "1e-04",
+       "rtol": 0.0001,
+       "us_per_probability": 143.3871978709552,
+       "max_abs_error": 3.005907563413679e-07,
+       "max_abs_error_ode": 3.005907608932823e-07
+      },
+      {
+       "label": "1e-06",
+       "rtol": 1e-06,
+       "us_per_probability": 233.923242376477,
+       "max_abs_error": 2.713101965312603e-09,
+       "max_abs_error_ode": 2.7131216717712903e-09
+      },
+      {
+       "label": "1e-08",
+       "rtol": 1e-08,
+       "us_per_probability": 443.0882654560264,
+       "max_abs_error": 3.7386649331949684e-11,
+       "max_abs_error_ode": 3.738964693411617e-11
+      },
+      {
+       "label": "1e-10",
+       "rtol": 1e-10,
+       "us_per_probability": 1095.5013325049852,
+       "max_abs_error": 2.8987923172962837e-13,
+       "max_abs_error_ode": 2.928768338961163e-13
+      }
+     ]
+    },
+    {
+     "name": "NuOscProbExact",
+     "dial": "n_slabs",
+     "points": [
+      {
+       "label": "256",
+       "n_slabs": 256,
+       "us_per_probability": 10.349435228818038,
+       "max_abs_error": 5.507150269146166e-08,
+       "max_abs_error_ode": 5.5071505689063827e-08
+      },
+      {
+       "label": "512",
+       "n_slabs": 512,
+       "us_per_probability": 17.489389013765805,
+       "max_abs_error": 1.3768297613125924e-08,
+       "max_abs_error_ode": 1.376830061072809e-08
+      },
+      {
+       "label": "2048",
+       "n_slabs": 2048,
+       "us_per_probability": 65.3313632786497,
+       "max_abs_error": 8.619533975462446e-10,
+       "max_abs_error_ode": 8.61956395148411e-10
+      },
+      {
+       "label": "8192",
+       "n_slabs": 8192,
+       "us_per_probability": 255.46486995153828,
+       "max_abs_error": 6.000222541047151e-11,
+       "max_abs_error_ode": 6.0005223012638e-11
+      },
+      {
+       "label": "16384",
+       "n_slabs": 16384,
+       "us_per_probability": 497.8518118150532,
+       "max_abs_error": 2.5205726394972316e-11,
+       "max_abs_error_ode": 2.5208723997138804e-11
+      },
+      {
+       "label": "32768",
+       "n_slabs": 32768,
+       "us_per_probability": 956.877956923563,
+       "max_abs_error": 2.6263102803625316e-11,
+       "max_abs_error_ode": 2.6266100405791803e-11
+      }
+     ]
+    },
+    {
+     "name": "Magnus, order 6",
+     "dial": "rtol",
+     "magnus_exp_order": 6,
+     "points": [
+      {
+       "label": "1e-03",
+       "rtol": 0.001,
+       "us_per_probability": 125.75440886545645,
+       "max_abs_error": 6.00741701529961e-07,
+       "max_abs_error_ode": 6.00741709308461e-07
+      },
+      {
+       "label": "1e-04",
+       "rtol": 0.0001,
+       "us_per_probability": 146.6382239717253,
+       "max_abs_error": 4.733737594617149e-08,
+       "max_abs_error_ode": 4.7337383724671556e-08
+      },
+      {
+       "label": "1e-06",
+       "rtol": 1e-06,
+       "us_per_probability": 196.2224635766082,
+       "max_abs_error": 7.361681958473199e-10,
+       "max_abs_error_ode": 7.361862057464474e-10
+      },
+      {
+       "label": "1e-08",
+       "rtol": 1e-08,
+       "us_per_probability": 275.7550155365607,
+       "max_abs_error": 9.775485976248888e-12,
+       "max_abs_error_ode": 9.8433483586291e-12
+      },
+      {
+       "label": "1e-10",
+       "rtol": 1e-10,
+       "us_per_probability": 421.5585104248021,
+       "max_abs_error": 1.5698553568199713e-13,
+       "max_abs_error_ode": 1.5998313784848506e-13
+      }
+     ]
+    },
+    {
+     "name": "Magnus, order 8",
+     "dial": "rtol",
+     "magnus_exp_order": 8,
+     "points": [
+      {
+       "label": "1e-03",
+       "rtol": 0.001,
+       "us_per_probability": 149.94774740747138,
+       "max_abs_error": 2.2757266182615865e-07,
+       "max_abs_error_ode": 2.2757266482376082e-07
+      },
+      {
+       "label": "1e-04",
+       "rtol": 0.0001,
+       "us_per_probability": 163.30192966051982,
+       "max_abs_error": 5.967533313680495e-08,
+       "max_abs_error_ode": 5.967534091530502e-08
+      },
+      {
+       "label": "1e-06",
+       "rtol": 1e-06,
+       "us_per_probability": 214.20888803428775,
+       "max_abs_error": 9.065905803851138e-10,
+       "max_abs_error_ode": 9.064650141610286e-10
+      },
+      {
+       "label": "1e-08",
+       "rtol": 1e-08,
+       "us_per_probability": 306.71570311824325,
+       "max_abs_error": 1.0734746425100639e-12,
+       "max_abs_error_ode": 1.003752636563604e-12
+      },
+      {
+       "label": "1e-10",
+       "rtol": 1e-10,
+       "us_per_probability": 395.6575677269332,
+       "max_abs_error": 3.175237850427948e-14,
+       "max_abs_error_ode": 1.2423395645555502e-13
+      }
+     ]
+    }
+   ],
+   "reference_ode": [
     0.020494357890239172,
     0.9844735712893109,
     0.5981102665880534,
@@ -152,85 +478,33 @@
     0.45123682153739325,
     0.5139242712648041
    ],
-   "series": [
-    {
-     "name": "Magnus",
-     "dial": "rtol",
-     "points": [
-      {
-       "label": "1e-03",
-       "rtol": 0.001,
-       "us_per_probability": 116.52242316510335,
-       "max_abs_error": 4.052830909873073e-06
-      },
-      {
-       "label": "1e-04",
-       "rtol": 0.0001,
-       "us_per_probability": 143.3871978709552,
-       "max_abs_error": 3.005907608932823e-07
-      },
-      {
-       "label": "1e-06",
-       "rtol": 1e-06,
-       "us_per_probability": 233.923242376477,
-       "max_abs_error": 2.7131216717712903e-09
-      },
-      {
-       "label": "1e-08",
-       "rtol": 1e-08,
-       "us_per_probability": 443.0882654560264,
-       "max_abs_error": 3.738964693411617e-11
-      },
-      {
-       "label": "1e-10",
-       "rtol": 1e-10,
-       "us_per_probability": 1095.5013325049852,
-       "max_abs_error": 2.928768338961163e-13
-      }
-     ]
-    },
-    {
-     "name": "NuOscProbExact",
-     "dial": "n_slabs",
-     "points": [
-      {
-       "label": "256",
-       "n_slabs": 256,
-       "us_per_probability": 10.349435228818038,
-       "max_abs_error": 5.5071505689063827e-08
-      },
-      {
-       "label": "512",
-       "n_slabs": 512,
-       "us_per_probability": 17.489389013765805,
-       "max_abs_error": 1.376830061072809e-08
-      },
-      {
-       "label": "2048",
-       "n_slabs": 2048,
-       "us_per_probability": 65.3313632786497,
-       "max_abs_error": 8.61956395148411e-10
-      },
-      {
-       "label": "8192",
-       "n_slabs": 8192,
-       "us_per_probability": 255.46486995153828,
-       "max_abs_error": 6.0005223012638e-11
-      },
-      {
-       "label": "16384",
-       "n_slabs": 16384,
-       "us_per_probability": 497.8518118150532,
-       "max_abs_error": 2.5208723997138804e-11
-      },
-      {
-       "label": "32768",
-       "n_slabs": 32768,
-       "us_per_probability": 956.877956923563,
-       "max_abs_error": 2.6266100405791803e-11
-      }
-     ]
-    }
+   "reference_self_convergence": [
+    3.5989612053416543e-16,
+    2.2725746041575606e-17,
+    2.495671203459476e-17,
+    4.261372322915633e-16,
+    9.022718789920713e-16,
+    9.204567444597567e-16,
+    7.212950568715735e-16,
+    5.311620812810444e-16,
+    4.510423182372628e-16,
+    3.746418429162392e-16,
+    3.090023623148347e-16,
+    2.6793223106972683e-16
+   ],
+   "reference_ode_crosscheck": [
+    7.778500066280003e-15,
+    2.9976021664879227e-15,
+    1.255662240851052e-13,
+    6.786238238021269e-14,
+    1.800989912759121e-14,
+    1.830480211850727e-14,
+    2.7977620220553945e-14,
+    1.970645868709653e-14,
+    1.2989609388114332e-14,
+    7.271960811294775e-15,
+    4.551914400963142e-15,
+    2.9976021664879227e-15
    ]
   },
   {
@@ -252,6 +526,195 @@
     12000000000.0
    ],
    "reference": [
+    0.007081003154274506,
+    0.9415242852665192,
+    0.6489394695626797,
+    0.19269252354429628,
+    0.06862686889620788,
+    0.01077375713583119,
+    0.15888185676464697,
+    0.10925247250899064,
+    0.2283661525905179,
+    0.2736886605070028,
+    0.48591236214919303,
+    0.39592576717933503
+   ],
+   "series": [
+    {
+     "name": "Magnus",
+     "dial": "rtol",
+     "points": [
+      {
+       "label": "1e-03",
+       "rtol": 0.001,
+       "us_per_probability": 4024.148501533394,
+       "max_abs_error": 1.6736654950832985e-08,
+       "max_abs_error_ode": 1.6761761423289556e-08
+      },
+      {
+       "label": "1e-04",
+       "rtol": 0.0001,
+       "us_per_probability": 4068.8644997620336,
+       "max_abs_error": 1.6736654950832985e-08,
+       "max_abs_error_ode": 1.6761761423289556e-08
+      },
+      {
+       "label": "1e-06",
+       "rtol": 1e-06,
+       "us_per_probability": 5195.1047498732805,
+       "max_abs_error": 2.518705688459022e-09,
+       "max_abs_error_ode": 2.543812160915593e-09
+      },
+      {
+       "label": "1e-08",
+       "rtol": 1e-08,
+       "us_per_probability": 17159.472588294495,
+       "max_abs_error": 1.516010650348676e-10,
+       "max_abs_error_ode": 1.5776921435950442e-10
+      },
+      {
+       "label": "1e-10",
+       "rtol": 1e-10,
+       "us_per_probability": 57799.81108692785,
+       "max_abs_error": 1.883937450486428e-12,
+       "max_abs_error_ode": 2.6990409907057256e-11
+      }
+     ]
+    },
+    {
+     "name": "NuOscProbExact",
+     "dial": "n_slabs",
+     "points": [
+      {
+       "label": "256",
+       "n_slabs": 256,
+       "us_per_probability": 137.07223448970277,
+       "max_abs_error": 6.352337803411379e-06,
+       "max_abs_error_ode": 6.352329571829296e-06
+      },
+      {
+       "label": "512",
+       "n_slabs": 512,
+       "us_per_probability": 260.2652390730024,
+       "max_abs_error": 1.267204783328424e-07,
+       "max_abs_error_ode": 1.2674558480529896e-07
+      },
+      {
+       "label": "2048",
+       "n_slabs": 2048,
+       "us_per_probability": 1239.9819145988051,
+       "max_abs_error": 2.194299852931181e-09,
+       "max_abs_error_ode": 2.2194063253877516e-09
+      },
+      {
+       "label": "8192",
+       "n_slabs": 8192,
+       "us_per_probability": 4119.820461104003,
+       "max_abs_error": 1.2910261748544372e-10,
+       "max_abs_error_ode": 1.5420908994201454e-10
+      },
+      {
+       "label": "16384",
+       "n_slabs": 16384,
+       "us_per_probability": 10162.66708029434,
+       "max_abs_error": 3.2175151432056737e-11,
+       "max_abs_error_ode": 5.7281623888627564e-11
+      },
+      {
+       "label": "32768",
+       "n_slabs": 32768,
+       "us_per_probability": 25162.20275235052,
+       "max_abs_error": 8.029243936391595e-12,
+       "max_abs_error_ode": 3.3081981598570565e-11
+      }
+     ]
+    },
+    {
+     "name": "Magnus, order 6",
+     "dial": "rtol",
+     "magnus_exp_order": 6,
+     "points": [
+      {
+       "label": "1e-03",
+       "rtol": 0.001,
+       "us_per_probability": 5407.814499145995,
+       "max_abs_error": 6.938419135245344e-09,
+       "max_abs_error_ode": 6.942281500534053e-09
+      },
+      {
+       "label": "1e-04",
+       "rtol": 0.0001,
+       "us_per_probability": 5392.994583720186,
+       "max_abs_error": 6.938419135245344e-09,
+       "max_abs_error_ode": 6.942281500534053e-09
+      },
+      {
+       "label": "1e-06",
+       "rtol": 1e-06,
+       "us_per_probability": 7228.8095834665,
+       "max_abs_error": 3.944543580658433e-10,
+       "max_abs_error_ode": 4.195608305224141e-10
+      },
+      {
+       "label": "1e-08",
+       "rtol": 1e-08,
+       "us_per_probability": 12589.471417110568,
+       "max_abs_error": 3.149647209710338e-11,
+       "max_abs_error_ode": 5.6602944553674206e-11
+      },
+      {
+       "label": "1e-10",
+       "rtol": 1e-10,
+       "us_per_probability": 32221.986167617917,
+       "max_abs_error": 7.281952818516402e-13,
+       "max_abs_error_ode": 2.5834667738422468e-11
+      }
+     ]
+    },
+    {
+     "name": "Magnus, order 8",
+     "dial": "rtol",
+     "magnus_exp_order": 8,
+     "points": [
+      {
+       "label": "1e-03",
+       "rtol": 0.001,
+       "us_per_probability": 7845.368250855245,
+       "max_abs_error": 5.452914403000775e-09,
+       "max_abs_error_ode": 5.456776768289484e-09
+      },
+      {
+       "label": "1e-04",
+       "rtol": 0.0001,
+       "us_per_probability": 7881.800998196316,
+       "max_abs_error": 5.452914403000775e-09,
+       "max_abs_error_ode": 5.456776768289484e-09
+      },
+      {
+       "label": "1e-06",
+       "rtol": 1e-06,
+       "us_per_probability": 9286.999583612973,
+       "max_abs_error": 6.854932420308213e-11,
+       "max_abs_error_ode": 8.959200048508364e-11
+      },
+      {
+       "label": "1e-08",
+       "rtol": 1e-08,
+       "us_per_probability": 14206.736251556626,
+       "max_abs_error": 2.4750201887968615e-12,
+       "max_abs_error_ode": 2.758149264536769e-11
+      },
+      {
+       "label": "1e-10",
+       "rtol": 1e-10,
+       "us_per_probability": 27675.145749526564,
+       "max_abs_error": 4.1100456371623295e-13,
+       "max_abs_error_ode": 2.551747702028706e-11
+      }
+     ]
+    }
+   ],
+   "reference_ode": [
     0.007081003158136871,
     0.9415242852414127,
     0.6489394695624328,
@@ -265,85 +728,33 @@
     0.4859123621465223,
     0.39592576717306405
    ],
-   "series": [
-    {
-     "name": "Magnus",
-     "dial": "rtol",
-     "points": [
-      {
-       "label": "1e-03",
-       "rtol": 0.001,
-       "us_per_probability": 4024.148501533394,
-       "max_abs_error": 1.6761761423289556e-08
-      },
-      {
-       "label": "1e-04",
-       "rtol": 0.0001,
-       "us_per_probability": 4068.8644997620336,
-       "max_abs_error": 1.6761761423289556e-08
-      },
-      {
-       "label": "1e-06",
-       "rtol": 1e-06,
-       "us_per_probability": 5195.1047498732805,
-       "max_abs_error": 2.543812160915593e-09
-      },
-      {
-       "label": "1e-08",
-       "rtol": 1e-08,
-       "us_per_probability": 17159.472588294495,
-       "max_abs_error": 1.5776921435950442e-10
-      },
-      {
-       "label": "1e-10",
-       "rtol": 1e-10,
-       "us_per_probability": 57799.81108692785,
-       "max_abs_error": 2.6990409907057256e-11
-      }
-     ]
-    },
-    {
-     "name": "NuOscProbExact",
-     "dial": "n_slabs",
-     "points": [
-      {
-       "label": "256",
-       "n_slabs": 256,
-       "us_per_probability": 137.07223448970277,
-       "max_abs_error": 6.352329571829296e-06
-      },
-      {
-       "label": "512",
-       "n_slabs": 512,
-       "us_per_probability": 260.2652390730024,
-       "max_abs_error": 1.2674558480529896e-07
-      },
-      {
-       "label": "2048",
-       "n_slabs": 2048,
-       "us_per_probability": 1239.9819145988051,
-       "max_abs_error": 2.2194063253877516e-09
-      },
-      {
-       "label": "8192",
-       "n_slabs": 8192,
-       "us_per_probability": 4119.820461104003,
-       "max_abs_error": 1.5420908994201454e-10
-      },
-      {
-       "label": "16384",
-       "n_slabs": 16384,
-       "us_per_probability": 10162.66708029434,
-       "max_abs_error": 5.7281623888627564e-11
-      },
-      {
-       "label": "32768",
-       "n_slabs": 32768,
-       "us_per_probability": 25162.20275235052,
-       "max_abs_error": 3.3081981598570565e-11
-      }
-     ]
-    }
+   "reference_self_convergence": [
+    1.1870570307486315e-16,
+    3.34708530181135e-17,
+    6.958962426211257e-16,
+    2.1898254964033178e-16,
+    1.0041304457222537e-16,
+    7.114974875733072e-17,
+    3.966056495989102e-17,
+    1.7623128208719596e-17,
+    7.636282254070295e-16,
+    7.094174968843627e-16,
+    3.011476683883416e-16,
+    3.609891474503168e-16
+   ],
+   "reference_ode_crosscheck": [
+    3.862365288709313e-12,
+    2.5106472456570827e-11,
+    2.469136006766348e-13,
+    8.23158208262953e-12,
+    1.1709799796477682e-12,
+    3.513665053356263e-13,
+    8.699152509450414e-13,
+    2.1272289485452234e-12,
+    6.168149324636829e-12,
+    5.704769989733904e-12,
+    2.6707525080382766e-12,
+    6.270983732292734e-12
    ]
   },
   {
@@ -365,6 +776,147 @@
     12000000000.0
    ],
    "reference": [
+    0.010038867910516931,
+    0.8697946717552144,
+    0.6436816115633102,
+    0.2140018197214385,
+    0.0567619938848918,
+    0.01148252778509393,
+    0.12709595543690672,
+    0.13704113106253357,
+    0.21391538953404224,
+    0.21070932630796996,
+    0.5007685867362882,
+    0.31427533220325665
+   ],
+   "series": [
+    {
+     "name": "Magnus",
+     "dial": "rtol",
+     "points": [
+      {
+       "label": "1e-03",
+       "rtol": 0.001,
+       "us_per_probability": 10590.294249899065,
+       "max_abs_error": 5.164379701660948e-09,
+       "max_abs_error_ode": 5.222252852377096e-09
+      },
+      {
+       "label": "1e-04",
+       "rtol": 0.0001,
+       "us_per_probability": 10601.51790928406,
+       "max_abs_error": 5.164379701660948e-09,
+       "max_abs_error_ode": 5.222252852377096e-09
+      },
+      {
+       "label": "1e-06",
+       "rtol": 1e-06,
+       "us_per_probability": 12200.402076511333,
+       "max_abs_error": 1.313056552376679e-09,
+       "max_abs_error_ode": 1.3411327604018197e-09
+      },
+      {
+       "label": "1e-08",
+       "rtol": 1e-08,
+       "us_per_probability": 26117.236741508048,
+       "max_abs_error": 1.3631495932031612e-10,
+       "max_abs_error_ode": 1.9418811003646397e-10
+      },
+      {
+       "label": "1e-10",
+       "rtol": 1e-10,
+       "us_per_probability": 93821.36800559238,
+       "max_abs_error": 1.0215162049576065e-12,
+       "max_abs_error_ode": 5.889466692110545e-11
+      }
+     ]
+    },
+    {
+     "name": "Magnus, order 6",
+     "dial": "rtol",
+     "magnus_exp_order": 6,
+     "points": [
+      {
+       "label": "1e-03",
+       "rtol": 0.001,
+       "us_per_probability": 13482.14841709705,
+       "max_abs_error": 4.3792086866500934e-09,
+       "max_abs_error_ode": 4.387460781837826e-09
+      },
+      {
+       "label": "1e-04",
+       "rtol": 0.0001,
+       "us_per_probability": 13389.77608490192,
+       "max_abs_error": 4.3792086866500934e-09,
+       "max_abs_error_ode": 4.387460781837826e-09
+      },
+      {
+       "label": "1e-06",
+       "rtol": 1e-06,
+       "us_per_probability": 15698.330666054972,
+       "max_abs_error": 3.183640018278311e-10,
+       "max_abs_error_ode": 3.4644020985297175e-10
+      },
+      {
+       "label": "1e-08",
+       "rtol": 1e-08,
+       "us_per_probability": 20724.509333376773,
+       "max_abs_error": 2.481707200852057e-11,
+       "max_abs_error_ode": 6.723699375044134e-11
+      },
+      {
+       "label": "1e-10",
+       "rtol": 1e-10,
+       "us_per_probability": 57069.83250032257,
+       "max_abs_error": 2.3037127760972e-13,
+       "max_abs_error_ode": 5.78181946764289e-11
+      }
+     ]
+    },
+    {
+     "name": "Magnus, order 8",
+     "dial": "rtol",
+     "magnus_exp_order": 8,
+     "points": [
+      {
+       "label": "1e-03",
+       "rtol": 0.001,
+       "us_per_probability": 19943.890084202092,
+       "max_abs_error": 3.929470502456178e-09,
+       "max_abs_error_ode": 3.937722597643911e-09
+      },
+      {
+       "label": "1e-04",
+       "rtol": 0.0001,
+       "us_per_probability": 20035.667332801193,
+       "max_abs_error": 3.929470502456178e-09,
+       "max_abs_error_ode": 3.937722597643911e-09
+      },
+      {
+       "label": "1e-06",
+       "rtol": 1e-06,
+       "us_per_probability": 23290.814834278233,
+       "max_abs_error": 7.870815110777585e-11,
+       "max_abs_error_ode": 1.0678435913291651e-10
+      },
+      {
+       "label": "1e-08",
+       "rtol": 1e-08,
+       "us_per_probability": 28911.9247487785,
+       "max_abs_error": 2.1712964759501574e-11,
+       "max_abs_error_ode": 7.958611547564942e-11
+      },
+      {
+       "label": "1e-10",
+       "rtol": 1e-10,
+       "us_per_probability": 58571.09841599595,
+       "max_abs_error": 1.0177275688860732e-13,
+       "max_abs_error_ode": 5.7950200194056833e-11
+      }
+     ]
+    }
+   ],
+   "reference_ode": [
     0.010038867918769026,
     0.8697946716973413,
     0.643681611535234,
@@ -378,45 +930,48 @@
     0.5007685867379168,
     0.3142753322017585
    ],
-   "series": [
-    {
-     "name": "Magnus",
-     "dial": "rtol",
-     "points": [
-      {
-       "label": "1e-03",
-       "rtol": 0.001,
-       "us_per_probability": 10590.294249899065,
-       "max_abs_error": 5.222252852377096e-09
-      },
-      {
-       "label": "1e-04",
-       "rtol": 0.0001,
-       "us_per_probability": 10601.51790928406,
-       "max_abs_error": 5.222252852377096e-09
-      },
-      {
-       "label": "1e-06",
-       "rtol": 1e-06,
-       "us_per_probability": 12200.402076511333,
-       "max_abs_error": 1.3411327604018197e-09
-      },
-      {
-       "label": "1e-08",
-       "rtol": 1e-08,
-       "us_per_probability": 26117.236741508048,
-       "max_abs_error": 1.9418811003646397e-10
-      },
-      {
-       "label": "1e-10",
-       "rtol": 1e-10,
-       "us_per_probability": 93821.36800559238,
-       "max_abs_error": 5.889466692110545e-11
-      }
-     ]
-    }
+   "reference_self_convergence": [
+    1.327470158885769e-15,
+    2.6047773985272328e-16,
+    9.429272653735364e-17,
+    4.675137852783978e-17,
+    1.533123596497624e-17,
+    5.64528430513258e-16,
+    2.390867778473474e-16,
+    1.949036786243583e-16,
+    1.1269453580535075e-16,
+    7.860987575836247e-17,
+    5.4610859578324825e-17,
+    3.9991041478499214e-17
+   ],
+   "reference_ode_crosscheck": [
+    8.252095187732955e-12,
+    5.787315071614785e-11,
+    2.807620802514066e-11,
+    7.547379388128661e-12,
+    7.577091731825192e-12,
+    3.018805691534787e-12,
+    8.655798300338802e-12,
+    3.342298660058418e-12,
+    9.595574335108381e-12,
+    5.717648576819556e-14,
+    1.6285861548226421e-12,
+    1.4981349494291862e-12
    ]
   }
  ],
- "control_note": "interleaved, best of 9 alternating blocks; a sequential pair on the same machine reads 1.133 and is measuring drift"
+ "control_note": "interleaved, best of 9 alternating blocks; a sequential pair on the same machine reads 1.133 and is measuring drift",
+ "appended": {
+  "what": "Magnus order-6 and order-8 series, scored against the stored references; nothing already in this file was re-timed",
+  "orders": [
+   6,
+   8
+  ],
+  "unlabelled_magnus_series_is_order": 4,
+  "date": "2026-09-04",
+  "machine": "Linux-7.0.0-30-generic-x86_64-with-glibc2.39",
+  "control_ratio": 1.0191842609376227,
+  "commensurability_probe": "control 0.986 -> 1.003; one stored order-4 point re-timed to -0.5% with its error reproducing exactly at 2.929e-13"
+ },
+ "referee": "mp_reference_profile.json -- triple-Richardson mpmath; the former DOP853 errors are kept as max_abs_error_ode"
 }

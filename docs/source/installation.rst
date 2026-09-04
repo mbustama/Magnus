@@ -266,6 +266,15 @@ File Tree
    │   ├── external_shock_nsi.json     # Notebook 25 section 13: the same shock with NSI
    │   ├── external_solar_nusquids.json  # Notebook 25 section 10: nuSQuIDS's energy-averaged solar survival probability
    │   ├── gen_profile_benchmarks.py   # GENERATES external_profile_benchmarks.json -- needs the external codes
+   │   ├── gen_mp_reference.py         # GENERATES mp_reference_profile.json -- the mpmath referee for Figure 11
+   │   ├── mp_reference_profile.json   # Triple-Richardson mpmath reference, exponential profile, 2-5 flavors
+   │   ├── rescore_against_mp_reference.py  # RE-SCORES external_profile_benchmarks.json against it; timings untouched
+   │   ├── append_order_series.py      # ADDS the order-6 and order-8 Magnus series to that file
+   │   ├── probe_commensurability.py   # Asks whether a timing taken today is comparable with the stored ones
+   │   ├── prem_chord_common.py        # The PREM chord at cos(theta_z) = -0.9, shared by the two scripts below
+   │   ├── gen_prem_reference.py       # GENERATES prem_chord_reference.json -- segment-aligned, layer edges respected
+   │   ├── prem_chord_reference.json   # That reference; PARTIAL, 4nu stops at 6 of 12 energies and 5nu is unstarted
+   │   ├── gen_prem_benchmarks.py      # GENERATES external_prem_chord_benchmarks.json -- the Earth analogue of Fig. 11
    │   ├── gen_shock_benchmarks.py     # GENERATES external_shock_benchmarks.json -- runs notebook 14s own cells
    │   ├── gen_shock_4nu.py            # GENERATES external_shock_4nu.json -- the shock at 3+1, own DOP853 referee
    │   ├── gen_shock_nsi.py            # GENERATES external_shock_nsi.json -- the shock with NSI, own DOP853 referee

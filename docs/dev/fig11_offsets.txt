@@ -1,0 +1,7 @@
+RTOL_LABEL_OFFSETS = {
+    '1e-03': (-19.4, -8.6, 'center', 'bottom'),
+    '1e-04': (18.7, -0.3, 'right', 'center'),
+    '1e-06': (18.7, 0.2, 'right', 'center'),
+    '1e-08': (6.0, 0.0, 'left', 'center'),
+    '1e-10': (6.0, 0.0, 'left', 'center'),
+}
