@@ -54,15 +54,32 @@ def chord():
         l = np.asarray(l_km, dtype=float)
         return earth.density_matter_func_prem(np.sqrt(r_min**2 + (l - half)**2))
 
+    # The promised check.  Both endpoints must land on the surface, or r_min and the
+    # baseline disagree and every density along the chord is read at the wrong radius --
+    # which would still converge, still be unitary, and still be wrong.
+    ends = np.sqrt(r_min**2 + (np.array([0.0, L_km]) - half)**2)
+    if not np.allclose(ends, gd.EARTH_RADIUS, rtol=0.0, atol=1.0e-6):
+        raise ValueError(
+            'prem_chord_common: the chord endpoints land at %s km rather than the '
+            'Earth radius %g km, so r_min and the baseline disagree.'
+            % (np.array2string(ends, precision=6), gd.EARTH_RADIUS))
+
+    # V_CC is linear in the density, so the per-unit-density factor is formed once and
+    # multiplied through.  What this replaced was a list comprehension calling
+    # matter.VCC_func and matter.num_density_e_func once per position: 6.1 us a point,
+    # against 0.06 us here, for numbers that agree to 3.3e-16.  What is left is PREM's own
+    # polynomial, which is vectorized already.  Magnus paid the old cost and
+    # the closed-form comparison did not, since that route builds its potential from
+    # earth.earth_slabs and never calls this -- so it was a handicap on one code only.
+    per_unit_rho = matter.VCC_func(0.0, lambda _l: matter.num_density_e_func(
+        0.0, lambda _x: 1.0, electron_fraction=ELECTRON_FRACTION,
+        density_matter_is_in_g_per_cm3=True))
+
     def vcc(l):
         """V_CC in eV at distance ``l`` (eV^-1) along the chord."""
         scalar = np.ndim(l) == 0
         rho = np.atleast_1d(density_along_chord(np.asarray(l, dtype=float)/gd.UNIT_KM))
-        out = np.array([
-            matter.VCC_func(0.0, lambda _l, _n=matter.num_density_e_func(
-                0.0, lambda _x, _v=v: _v, electron_fraction=ELECTRON_FRACTION,
-                density_matter_is_in_g_per_cm3=True): _n)
-            for v in rho])
+        out = rho*per_unit_rho
         return float(out[0]) if scalar else out
 
     return dict(baseline=L, baseline_km=L_km, edges=edges,

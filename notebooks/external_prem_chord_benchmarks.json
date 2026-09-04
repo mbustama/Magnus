@@ -899,5 +899,17 @@
   "nuoscprobexact": "1.14.0",
   "route": "earth.earth_slabs for the shell-aligned geometry, slabs.probabilities_Nnu_slabs to compose, slabs._n_for_tolerance to refine",
   "hamiltonian": "Magnus's V_CC, shared with the Magnus series, so one reference serves both; the packages' own V_CC differ by 1.90e-04"
+ },
+ "timing_caveat": {
+  "opened": "2026-09-05",
+  "what": "Magnus timings in this file are inflated: prem_chord_common.vcc evaluated the potential point by point in Python (6.1 us/point, since vectorized to 0.063). NuOscProbExact never called it, so the handicap is one-sided.",
+  "share_of_magnus_time_at_2nu": {
+   "1e-03": 0.38,
+   "1e-04": 0.44,
+   "1e-06": 0.49,
+   "1e-08": 0.61
+  },
+  "unaffected": "all probabilities and errors, the reference, every slab and sample count, and the entire NuOscProbExact series",
+  "action": "see resources/paper/pending-edits.md"
  }
 }
