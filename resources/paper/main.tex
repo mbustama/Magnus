@@ -254,7 +254,7 @@ Finally, \magnus~ships with Hamiltonians that tackle commonly explored scenarios
 % There is no ceiling on the number of flavors. Nothing in the Magnus expansion refers to the size of the matrix at all; we ship two, three, four, and five flavors with the code, but there is no ceiling on what the Hamiltonian contains. In the code, it is a callable returning a Hermitian matrix, so non-standard interactions, a Lorentz-violating background, sterile states (or all of them at once), or a completely novel term are the same call with a different matrix. In addition, \texttt{Magnus} also returns the \emph{phase-averaged} (decohered) limit of the probabilities, \ie, the $L/E \to \infty$ limit a solar or astrophysical measurement returns because it integrates over many cycles of a phase that cannot be resolved, computed in closed form from the eigenvectors of $\mathbb{H}$ rather than by propagating that phase.
 
 
-Section \ref{sec:scope} sets the scope and the relation to existing codes. Section \ref{sec:recap} fixes notation. Section \ref{sec:method} presents the method. Section \ref{sec:code} describes the code, Section \ref{sec:examples} shows it in use, Section \ref{sec:performance} measures its speed and precision, and Section \ref{sec:comparison} compares it against two other public codes on problems refereed by a third method. Section \ref{sec:conclusions} concludes; the appendices hold supporting detail: the structure of the expansion, the test suite, the notebooks, and the conventions behind the Earth comparison.
+Section \ref{sec:recap} fixes notation. Section \ref{sec:method} presents the method. Section \ref{sec:code} describes the code, Section \ref{sec:examples} shows it in use, Section \ref{sec:performance} measures its speed and precision, and Section \ref{sec:comparison} compares it against two other public codes on problems refereed by a third method. Section \ref{sec:conclusions} concludes; the appendices hold supporting detail: the structure of the expansion, the test suite, the notebooks, and the conventions behind the Earth comparison.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -469,30 +469,49 @@ The cumulative-quadrature configurations of Section \ref{sec:quadrature}---which
 \subsection{Two quadrature rules for the Magnus expansion}
 \label{sec:quadrature}
 
-Evaluating the Magnus recursion, \equ{recursion}, means sampling $\mathbb{A}$ inside each slab; \magnus\ offers two families of quadrature rule.
+Evaluating the Magnus recursion, \equ{recursion}, means sampling $\mathbb{A}$ inside each slab; \magnus\ offers two families of quadrature rule to approximate the integrals in the recursion.
 
 \smallskip
 
-\textit{Collocation integrators (default).---}The default rule follows \Ref\ \cite{Blanes:2000bit}: Magnus orders 2, 4, 6, and 8 are reached from only one, two, three, or four evaluations of $\mathbb{A}$ per slab, taken at the Gauss-Legendre nodes, with the quadrature order matched exactly to the truncation order. \magnus\ implements all four: order 8 on a four-node rule, and orders 2, 4, and 6 on one, two, and three nodes. These are \emph{collocation} integrators: they retain the few commutators written below rather than the general nested-commutator expansion of \equ{recursion}. (They are \textit{not} the commutator-free family of \Refs\ \cite{Blanes:2006cf, Alvermann:2011cf}, which replaces every commutator by a product of exponentials of linear combinations of the $\mathbb{A}_i$.) With $h$ the slab width and $\mathbb{A}_j \equiv -i \mathbb{H}_j$ the Hamiltonian at node $j$, 
+\textit{Collocation integrators (default).---}We do not evaluate \equ{recursion} as it stands. Each $\Omega_k$ there is a $k$-fold integral over a simplex of $(k-1)$-fold nested commutators, so the integration and the commutator count both grow steeply with $k$; the sixth-order truncation alone would call for four such integrals. The collocation rules replace them. Each $\Omega_{\rm GL}^{(p)}$ is a quadrature approximation to a \emph{truncation} of the series in \equ{magnus}, assembled from a few samples of $\mathbb{A}$ at Gauss-Legendre nodes together with a fixed set of commutators among those samples. Its label is the order $p$ that it attains, not the number of terms that it keeps,
+\begin{equation}
+ \label{equ:gl_definition}
+ \Omega_{\rm GL}^{(p)}
+ =
+ \sum_{k=1}^{m_p} \Omega_k + \mathcal{O}\!\left(h^{p+1}\right) \;.
+\end{equation}
+Here $m_p = 1,\, 2,\, 4,\, 6$ for $p = 2,\, 4,\, 6,\, 8$. The remainder is the next pair of terms of \equ{magnus}, which is what fixes the order at $p$.
+
+About the slab midpoint each $\Omega_k$ carries only odd powers of $h$, since reversing the traversal inverts $\mathbb{U}$ and so changes the sign of $\Omega$ term by term. A one-step method with that symmetry converges at an even order\ \cite{Hairer:2006gni}, so no odd-order scheme of this family exists; the superscripts of \equ{gl} run 2, 4, 6, 8 with nothing available between them. What the collocation nodes buy is the economy: three samples of $\mathbb{A}$ reproduce a four-term truncation, four samples a six-term one. \ref{app:terms} derives both the retained sets and the evenness from the sizes of the $\Omega_k$.
+
+We use $\Omega_{\rm GL}^{(p)}$ exactly as \equ{magnus} uses $\Omega$. On the $j$-th slab, spanning $l_{j-1}$ to $l_j$ with width $h = l_j - l_{j-1}$,
+\begin{equation}
+ \label{equ:slab_exponential}
+ \mathbb{U}_j = \exp\left[\Omega_{\rm GL}^{(p)}(l_j, l_{j-1})\right] \;,
+\end{equation}
+one matrix exponential per slab, with the $\mathbb{U}_j$ time-ordered. Truncating the series inside the exponential leaves $\mathbb{U}_j$ exactly unitary, for the reason of Sec.~\ref{sec:unitarity}.
+
+Following \Ref\ \cite{Blanes:2000bit}, Magnus orders 2, 4, 6, and 8 are reached from only one, two, three, or four evaluations of $\mathbb{A}$ per slab, taken at the Gauss-Legendre nodes, with the quadrature order matched exactly to the truncation order. \magnus\ implements all four. (They are \textit{not} the commutator-free family of \Refs\ \cite{Blanes:2006cf, Alvermann:2011cf}, which replaces every commutator by a product of exponentials of linear combinations of the $\mathbb{A}_i$.) With $h$ the slab width and $\mathbb{A}_j \equiv -i \mathbb{H}_j$ the Hamiltonian at node $j$, 
 \begin{align}
  \label{equ:gl}
- \Omega^{(2)} &= h\, \mathbb{A}_1 \;, \nonumber \\
- \Omega^{(4)} &= \frac{h}{2}\left(\mathbb{A}_1 + \mathbb{A}_2\right)
- + \frac{\sqrt{3}}{12}\, h^2 \left[\mathbb{A}_2, \mathbb{A}_1\right] \;, \\
- \Omega^{(6)} &= \alpha_1 + \frac{\alpha_3}{12}
+ \Omega_{\rm GL}^{(2)} &= h\, \mathbb{A}_1 \;, \nonumber \\
+ \Omega_{\rm GL}^{(4)} &= \frac{h}{2}\left(\mathbb{A}_1 + \mathbb{A}_2\right)
+ + \frac{\sqrt{3}}{12}\, h^2 \left[\mathbb{A}_2, \mathbb{A}_1\right] \;, \nonumber \\
+ \Omega_{\rm GL}^{(6)} &= \alpha_1 + \frac{\alpha_3}{12}
  + \frac{1}{240} \left[-20\,\alpha_1 - \alpha_3 + \mathbb{C}_1,\,
  \alpha_2 + \mathbb{C}_2\right] \;, \nonumber \\
- \Omega^{(8)} &= \alpha_1 + \frac{\alpha_3}{12}
+ \Omega_{\rm GL}^{(8)} &= \alpha_1 + \frac{\alpha_3}{12}
  - \frac{7}{120}\,\mathbb{C}_3 + \frac{1}{360}\,\mathbb{C}_6 \;.
 \end{align}
 Orders 2 and 4 follow \Ref\ \cite{Blanes:2000bit}; orders 6 and 8 are the commutator-optimized forms of \Ref\ \cite{Blanes:2002opt}, the order-6 one also reproduced in the review of \Ref\ \cite{Blanes:2008xlr}. Orders 4, 6, and 8 need 1, 3, and 6 commutators, the fewest possible at each order\ \cite{Blanes:2002opt}. \tabl{collocation} collects the $\alpha_i$ and the $\mathbb{C}_i$ that build the last two of \equ{gl}; the two columns are different objects on different nodes, and cannot be mixed.
 
-We have found no collocation scheme of this form at order 10. Reference\ \cite{Blanes:2000bit} tabulates the size of the problem there---80 determining equations after time-symmetry, against 27 at order 8---but leaves its commutator count blank; \Ref\ \cite{Blanes:2002opt} stops at order 8, as does the review of \Ref\ \cite{Blanes:2008xlr}. The commutator-free family does not reach higher either, \Refs\ \cite{Blanes:2006cf, Alvermann:2011cf} optimizing up to order 8 as well. Order 8 appears to be where the optimized literature ends.
+We have found no collocation scheme of this form at order 10. Reference\ \cite{Blanes:2000bit} only tabulates the size of the problem there---80 determining equations after time-symmetry, against 27 at order 8; \Ref\ \cite{Blanes:2002opt} stops at order 8, as does the review of \Ref\ \cite{Blanes:2008xlr}. The commutator-free family does not reach higher either, \Refs\ \cite{Blanes:2006cf, Alvermann:2011cf} optimizing up to order 8 as well. Order 8 appears to be where the optimized literature ends. However, given the decreasing decrease in speed and accuracy when moving from order 6 to 8 (see \figu{smooth_reach}), reaching for order 10 might be overkill in most settings.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \begin{table*}[t!]
  {\small
  \begin{tabular}{@{}l l l@{}}
-  & Order 6, 3 nodes & Order 8, 4 nodes \\
+  & Order 6, 3 GL nodes & Order 8, 4 GL nodes \\
  \hline
  $\alpha_1$ & $h\, \mathbb{A}_2$
             & $\frac{h}{2}\left[\left(\frac{1}{2} - \frac{\sqrt{30}}{8}\right)\mathbb{S}_1
@@ -517,7 +536,7 @@ We have found no collocation scheme of this form at order 10. Reference\ \cite{B
    & $\left[\alpha_1 + \frac{1}{12}\alpha_3 - \frac{7}{3}\mathbb{C}_1 - \frac{1}{6}\mathbb{C}_3 ,\;
       -9\alpha_2 - \frac{9}{4}\alpha_4 + 63\,\mathbb{C}_2 + \mathbb{C}_5\right]$ \\
  \end{tabular}}
- \caption{\label{tab:collocation}The quantities entering the collocation integrators of \equ{gl}. The two columns are different objects on different nodes and cannot be mixed: order 6 samples $\mathbb{A}$ at the slab midpoint and at $(\frac{1}{2} \pm \frac{\sqrt{15}}{10})h$; order 8 at $(\frac{1}{2} \pm v_1)h$ and $(\frac{1}{2} \pm v_2)h$, with $v_1 = \frac{1}{2}\sqrt{(3 + 2\sqrt{6/5})/7}$ and $v_2 = \frac{1}{2}\sqrt{(3 - 2\sqrt{6/5})/7}$. At order 8 the corresponding weights are $w_1 = \frac{1}{2} - \frac{1}{6}\sqrt{5/6}$ and $w_2 = \frac{1}{2} + \frac{1}{6}\sqrt{5/6}$, and we write $d_i \equiv w_i v_i$, $\mathbb{S}_1 = \mathbb{A}_1 + \mathbb{A}_4$, $\mathbb{S}_2 = \mathbb{A}_2 + \mathbb{A}_3$, $\mathbb{R}_1 = \mathbb{A}_4 - \mathbb{A}_1$, $\mathbb{R}_2 = \mathbb{A}_3 - \mathbb{A}_2$}
+ \caption{\label{tab:collocation}The quantities entering the collocation integrators of \equ{gl}. The two columns are different objects on different Gauss-Legendre (GL) nodes and cannot be mixed: order 6 samples $\mathbb{A}$ at the slab midpoint and at $(\frac{1}{2} \pm \frac{\sqrt{15}}{10})h$; order 8 at $(\frac{1}{2} \pm v_1)h$ and $(\frac{1}{2} \pm v_2)h$, with $v_1 = \frac{1}{2}\sqrt{(3 + 2\sqrt{6/5})/7}$ and $v_2 = \frac{1}{2}\sqrt{(3 - 2\sqrt{6/5})/7}$. At order 8 the corresponding weights are $w_1 = \frac{1}{2} - \frac{1}{6}\sqrt{5/6}$ and $w_2 = \frac{1}{2} + \frac{1}{6}\sqrt{5/6}$, and we write $d_i \equiv w_i v_i$, $\mathbb{S}_1 = \mathbb{A}_1 + \mathbb{A}_4$, $\mathbb{S}_2 = \mathbb{A}_2 + \mathbb{A}_3$, $\mathbb{R}_1 = \mathbb{A}_4 - \mathbb{A}_1$, $\mathbb{R}_2 = \mathbb{A}_3 - \mathbb{A}_2$}
 \end{table*}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -525,11 +544,44 @@ Because the quadrature is matched to the truncation, collocation integration nee
 
 \smallskip
 
-\textit{Cumulative quadrature.---}The alternative rule is cumulative quadrature: \magnus\ samples $\mathbb{A}$ on a uniform grid inside each slab and integrates with the trapezoid or Simpson rule, selectable. It is slower than the collocation integrators for the same accuracy on a smooth profile, but fully general. Therefore, it is the safer choice if $\mathbb{A}$ has a kink or a jump \emph{inside} a slab, where Gauss-Legendre loses its order advantage. It is also the only route above order 8, where the collocation path stops. Requesting more from that path raises an error rather than quietly returning an order-8 result, which would make a requested order-10 run silently wrong.
+\textit{Cumulative quadrature.---}The alternative rule is cumulative quadrature: \magnus\ samples $\mathbb{A}$ on a uniform grid of $m$ points inside each slab ($m = 50$ by default) and integrates with the trapezoid or Simpson rule, selectable. The points are $s_i = l_{j-1} + i\,\Delta s$, spaced by $\Delta s = h/(m-1)$. The label of this family counts the terms kept outright, where that of \equ{gl_definition} counts the order attained,
+\begin{equation}
+ \label{equ:cum_definition}
+ \Omega_{\rm cum}^{(k)}
+ =
+ \sum_{j=1}^{k} \widehat{\Omega}_j \;,
+\end{equation}
+with each $\widehat{\Omega}_j$ the corresponding term of \equ{recursion} carrying sums over that grid in place of its integrals,
+\begin{align}
+ \label{equ:cum_weights}
+ \widehat{\Omega}_1 &= \Delta s \sum_{i=0}^{m-1} w_i\, \mathbb{A}(s_i) \;, \nonumber \\
+ \widehat{\Omega}_k &= \sum_{j=1}^{k-1} \frac{B_j}{j!}\, \Delta s \sum_{i=0}^{m-1} w_i\, S_k^{(j)}(s_i) \;,
+\end{align}
+where the $B_j$ are the Bernoulli numbers of \equ{recursion}, in the same $B_1 = -1/2$ convention, with the $S_k^{(j)}$ the nested-commutator combinations defined immediately below it. The $w_i$ are the composite trapezoid or Simpson weights (for Simpson, an even $m$ carries a corrected final interval rather than the textbook one). Every term up to the $k$-th is kept. The slab operator then follows as in \equ{slab_exponential},
+\begin{equation}
+ \label{equ:slab_exponential_cum}
+ \mathbb{U}_j = \exp\left[\Omega_{\rm cum}^{(k)}(l_j, l_{j-1})\right] \;,
+\end{equation}
+so the two families differ only in how that exponent is built. It is slower than the collocation integrators for the same accuracy on a smooth profile, but fully general. Therefore, it is the safer choice if $\mathbb{A}$ has a kink or a jump \emph{inside} a slab, where Gauss-Legendre loses its order advantage. It is also the only route above order 8, where the collocation path stops. 
+% Requesting more from that path raises an error rather than quietly returning an order-8 result.
 
 \smallskip
 
-The two dials of this section are the keywords {\tt magnus\_exp\_order} and {\tt integration\_method}, whose values are {\tt 'gl'} for the collocation rules above and {\tt 'simpson'} for the cumulative ones; Section \ref{sec:order_is_the_slab_product} tabulates what each delivers. \magnus\ defaults to {\tt 'gl'} and order 4. The adaptive refinement  converts a higher order into fewer slabs on its own, so order and tolerance interact: raising the order pays only once the tolerance is tight enough to make the extra work per slab worthwhile. Measured across Earth, solar, and exponential-profile cases, order 6 runs $0.89$ to $1.04$ times the wall time of order 4 at a requested tolerance of $10^{-4}$, and $1.08$ to $1.93$ times \emph{faster} at $10^{-8}$. Dropping to order 2 is almost never worthwhile: at a tolerance of $10^{-8}$ on an Earth chord, it needs thousands of slabs, whereas order 6 needs about a hundred.
+The two dials that select which quadrature rule to use are {\tt magnus\_exp\_order} and {\tt integration\_method}, the latter taking {\tt 'gl'} for the collocation rules above and {\tt 'simpson'} or {\tt 'trapezoid'} for the cumulative ones; \tabl{orders} lists what each delivers. \magnus\ defaults to {\tt 'gl'} and {\tt magnus\_exp\_order} = 4. The adaptive refinement of \magnus\ converts a higher order into fewer slabs on its own, so order and tolerance interact: raising the order pays only once the tolerance is tight enough to make the extra work per slab worthwhile. Measured across Earth, solar, and exponential-profile cases, order 6 runs $0.89$ to $1.04$ times the wall time of order 4 at a requested tolerance of $10^{-4}$, and $1.08$ to $1.93$ times \emph{faster} at $10^{-8}$. Dropping to order 2 is almost never worthwhile: at a tolerance of $10^{-8}$ on an Earth chord, it needs thousands of slabs, whereas order 6 needs about a hundred.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+{\def\arraystretch{1.2}
+\begin{table}[t!]
+ {\small
+ \begin{tabular}{@{}l|cccccccc@{}}
+ {\tt magnus\_exp\_order} & $1$ & $2$ & $3$ & $4$ & $5$ & $6$ & $8$ & $10$ \\
+ \hline
+ {\tt 'gl'} & $2$ & $2$ & $4$ & $4$ & $6$ & $6$ & $8$ & --- \\
+ {\tt 'simpson'} & $2$ & $4$ & $4$ & $6$ & $6$ & $8$ & $10$ & $12$ \\
+ \end{tabular}}
+ \caption{\label{tab:orders}Order of convergence delivered against the order requested, on each of the two quadrature paths. We obtain the entries by fitting the global rate $p$ in $\lVert \Delta \mathbb{U} \rVert \sim N^{-p}$ against a tight {\tt DOP853} reference on a smooth non-commuting problem, so they are measured rather than nominal. The two paths do not mean the same thing by the argument. On the Gauss--Legendre path it is the classical order of the method, reached by the smallest collocation scheme that attains it, so one, two, three, and four nodes give orders 2, 4, 6, and 8. On the Simpson path it is instead the index of the last term $\Omega_k$ retained; the delivered order is $2\lfloor \mathrm{order}/2 \rfloor + 2$, running ahead of that index for the reason given in \ref{app:terms}. The dash is the one request the Gauss--Legendre path declines rather than answering silently at order 8}
+\end{table}}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -545,23 +597,11 @@ We cut a trajectory into $N$ slabs, evaluate the expansion independently in each
 \end{equation}
 with the slab crossed \emph{first} standing \emph{rightmost}, since the operators act on the state to their right. Because each factor is unitary by construction, so is the product, however many factors there are and whatever the accuracy of each. The ordering matters physically whenever the slab Hamiltonians do not commute---an asymmetric profile together with a non-zero CP phase---and we check it in the test suite against a two-slab case done in matrix arithmetic alone, with no quadrature involved.
 
-Equation (\ref{equ:composition}) is also where this method and a closed-form slab code meet. They meet more closely than either literature suggests. Take \equ{gl} at order 2: $\Omega^{(2)} = h\,\mathbb{A}_1$, and the single Gauss--Legendre node of a one-point rule is the slab \emph{midpoint}, so $\mathbb{U}_j = \exp[-i\,\mathbb{H}(l_j^{\rm mid})\,h]$. That is precisely a piecewise-constant composition with the density read at each slab's midpoint---the algorithm a closed-form slab code runs. The two are the same expression, as the lower right panel of \figu{phase_vs_profile} confirms numerically. Over twenty-seven slab counts spanning four decades, the order-2 Magnus method and an independently written midpoint slab product return probability matrices agreeing to between $10^{-15}$ and $10^{-13}$. That is round-off, as the agreement of two evaluations of one formula should be, rather than the agreement of two methods.
+Equation (\ref{equ:composition}) is also where this method and a closed-form slab code meet. They meet more closely than either literature suggests. Take \equ{gl} at order 2: $\Omega_{\rm GL}^{(2)} = h\,\mathbb{A}_1$, and the single Gauss--Legendre node of a one-point rule is the slab \emph{midpoint}, so $\mathbb{U}_j = \exp[-i\,\mathbb{H}(l_j^{\rm mid})\,h]$. That is precisely a piecewise-constant composition with the density read at each slab's midpoint---the algorithm a closed-form slab code runs. The two are the same expression, as the lower right panel of \figu{phase_vs_profile} confirms numerically. Over twenty-seven slab counts spanning four decades, the order-2 Magnus method and an independently written midpoint slab product return probability matrices agreeing to between $10^{-15}$ and $10^{-13}$. That is round-off, as the agreement of two evaluations of one formula should be, rather than the agreement of two methods.
 
-A closed-form slab code applied to a continuously varying profile is already doing Magnus at order 2 without calling it that.: the unfamiliar object reduces, at its lowest order, to the staircase of constant-density slabs that every closed-form code already runs, and what \magnus\ adds on that same staircase is orders 4 and 6. Its second-order convergence in the slab width (halving the width buys a factor of four) is the order-2 truncation error, not an artifact of freezing the density. What \magnus\ contributes on the identical slab chain is the higher orders, whose errors fall by sixteen, sixty-four, and more per halving. At $1\,024$ slabs of the lower right panel of \figu{phase_vs_profile}, order 2 stands at $4 \cdot 10^{-6}$ and order 4 at $10^{-10}$, while order 6 has already reached $4 \cdot 10^{-15}$. Order 2 does not reach $10^{-8}$ anywhere on the panel; order 6 is below it by $128$ slabs. It contributes, separately, the flavor counts and Hamiltonians no closed form can freeze, which is most of Section \ref{sec:examples}.
+A closed-form slab code applied to a continuously varying profile is already doing Magnus at order 2 without calling it that: the unfamiliar object reduces, at its lowest order, to the staircase of constant-density slabs that every closed-form code already runs, and what \magnus\ adds on that same staircase is orders 4, 6, and 8. Its second-order convergence in the slab width (halving the width buys a factor of four) is the order-2 truncation error, not an artifact of freezing the density. What \magnus\ contributes on the identical slab chain is the higher orders, whose errors fall by sixteen, sixty-four, and more per halving. At $1\,024$ slabs of the lower right panel of \figu{phase_vs_profile}, order 2 stands at $4 \cdot 10^{-6}$ and order 4 at $10^{-10}$, while order 6 has already reached $4 \cdot 10^{-15}$. Order 2 does not reach $10^{-8}$ anywhere on the panel; order 6 is below it by $128$ slabs. It contributes, separately, the flavor counts and Hamiltonians no closed form can freeze, which is most of Section \ref{sec:examples}.
 
-Above order 8 the collocation schemes run out, so we evaluate order 10 on Simpson quadrature instead. The two paths do not mean the same thing by {\tt order}, and since it is the argument the caller sets, the mapping is worth stating outright. On the Gauss--Legendre path {\tt order} is the classical order of the method, reached by the smallest collocation scheme that attains it: one, two, three and four nodes give orders 2, 4, 6 and 8. On the quadrature path it is instead the index of the last term $\Omega_k$ retained, and the delivered order is $2\lfloor \mathrm{order}/2 \rfloor + 2$, the extra two coming from the truncation being symmetric about the slab midpoint. Fitted against a tight {\tt DOP853} reference on a smooth non-commuting problem, the global rate $p$ in $\lVert \Delta \mathbb{U} \rVert \sim N^{-p}$ is
-
-\begin{center}
-{\small
-\begin{tabular}{@{}l|cccccccc@{}}
- {\tt order} & $1$ & $2$ & $3$ & $4$ & $5$ & $6$ & $8$ & $10$ \\
- \hline
- {\tt 'gl'} & $2$ & $2$ & $4$ & $4$ & $6$ & $6$ & $8$ & --- \\
- {\tt 'simpson'} & $2$ & $4$ & $4$ & $6$ & $6$ & $8$ & $10$ & $12$ \\
-\end{tabular}}
-\end{center}
-
-where the dash is the request the Gauss--Legendre path declines rather than silently answering at order 8. A request for order 6 therefore returns a sixth-order method on the default path and an eighth-order one on Simpson. The two extra orders are not a property of Simpson's rule: they come from the three further $\Omega$ terms the quadrature path retains under the same label. Holding the terms fixed shows it---order 3 on Simpson keeps exactly the $\Omega_1 + \Omega_2 + \Omega_3$ that order 6 on Gauss--Legendre does, and converges as $N^{-4}$ against $N^{-6}$, two orders \emph{worse}. What the collocation nodes buy is precisely that: they place three samples so that a three-term truncation attains order 6, which a uniform grid does not.
+The two paths do not mean the same thing by {\tt magnus\_exp\_order}. Since it is the argument the caller sets, the mapping is worth stating outright. On the Gauss--Legendre path it is the classical order of the method, reached by the smallest collocation scheme that attains it. On the quadrature path it is instead the index of the last term $\Omega_k$ retained; the delivered order is $2\lfloor \mathrm{order}/2 \rfloor + 2$, which runs ahead of that index because the first omitted term is smaller than its position alone would suggest (\ref{app:terms}). Above order 8 the collocation schemes run out, so we evaluate order 10 on Simpson quadrature instead; the dash is the request the Gauss--Legendre path declines rather than silently answering at order 8. A request for order 6 therefore returns a sixth-order method on the default path and an eighth-order one on Simpson. Measured against the default path at that same label, the two extra orders are not a property of Simpson's rule: they come from $\Omega_5$ and $\Omega_6$, which the quadrature path retains and the collocation path does not. Order 3 on Simpson retains $\Omega_1 + \Omega_2 + \Omega_3$ and converges as $N^{-4}$. Order 6 on Gauss--Legendre retains $\Omega_4$ as well, which is what carries it to $N^{-6}$; it reaches that from three samples of $\mathbb{A}$ rather than from a grid.
 
 Two errors compete along each curve in that panel. The truncation error falls as $N^{-p}$ at order $p$, while the round-off of the composition grows with $N$, so their sum passes through a minimum and then flattens onto a floor the panel shows as a plateau. Order 2 is the exception: its truncation error is still the larger of the two at $16\,384$ slabs, so it falls as $N^{-2}$ across the whole panel and reaches $1.7 \cdot 10^{-8}$ without ever turning. The others meet their minimum sooner the higher the order (at $8\,192$ slabs for order 4, $1\,448$ for order 6 on Gauss--Legendre, $724$ for order 6 on Simpson, and $362$ for orders 8 and 10) and settle onto a common floor near $7 \cdot 10^{-14}$.
 
@@ -1417,18 +1457,24 @@ The two findings sit together uncomfortably. \magnus\ warns on every $3+1$ row (
 \label{sec:smooth_comparison}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\begin{figure}[t!]
+\begin{figure*}[t!]
  \centering
- \includegraphics[width=\columnwidth]{smooth_reach.pdf}
- \caption{\label{fig:smooth_reach}Deviation from a converged reference against time per probability, on a smooth exponential density profile, at two, three, four, and five flavors. We label the points with the setting that produced them, a requested tolerance for \magnus\ and a slab count for {\tt NuOscProbExact}\ \cite{NuOscProbExact}. We timed both codes in one process on one machine, interleaved with a control workload neither touches, which returned $0.99$. The four panels share one time axis, spanning three decades, so that the cost of a flavor count can be read against the others. At three flavors the closed form bottoms out near $2.5 \cdot 10^{-11}$ and then rises, the round-off of composing that many matrix products having outgrown what a finer cut buys; \magnus\ meets the same wall two decades lower. The bottom panel carries one curve because the SU($n$) closed forms stop at four flavors}
-\end{figure}
+ \includegraphics[width=\textwidth]{smooth_reach.pdf}
+ \caption{\label{fig:smooth_reach}Deviation from a converged reference against time per probability, at two, three, four, and five flavors, on two density profiles. {\it Left}: a smooth exponential profile. {\it Right}: an Earth chord at $\cos\theta_z = -0.9$, along which the PREM profile crosses sixteen layer boundaries; we declare these to \magnus\ as slab boundaries; the top row shows the two profiles themselves. We dial every curve by a requested tolerance---\magnus\ at orders 4, 6, and 8; {\tt NuOscProbExact}\ \cite{NuOscProbExact} through its own adaptive refinement---so that every point answers the same request. We label the order-4 \magnus\ points with the tolerance that produced them. We timed both codes in one process on one machine, interleaved with a control workload neither touches, which returned $0.99$ and $1.01$ for the two profiles. On the exponential profile at three flavors the closed form reaches $6.0 \cdot 10^{-11}$ and can go no further, the round-off of composing that many matrix products having overtaken what a finer cut buys; \magnus\ meets the same wall two decades lower at order 4, nearly three at order 8. The bottom row carries no closed form, the SU($n$) expressions stopping at four flavors}
+\end{figure*}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-Figure~\ref{fig:smooth_reach} shows what each method costs and how far each can be pushed on a smooth exponential profile, at two through five flavors. Here the comparison stops being about cost and becomes about reach: there is a floor and there is a ceiling.
+Figure~\ref{fig:smooth_reach} shows what each method costs and how far each can be pushed, on a smooth exponential profile and on an Earth chord, at two through five flavors. Here the comparison stops being about cost and becomes about reach: there is a floor and there is a ceiling.
 
-The floor is the slab product's. Composing $N$ constant-density operators accumulates round-off in the product itself; past about $16\,000$ slabs that accumulation costs more than another halving of the width buys. The three-flavor error therefore bottoms out and turns around. This is not a defect in {\tt NuOscProbExact}, but a property of any long ordered product evaluated in floating point, and \magnus\ meets the same wall. It meets it two decades further down, because order 4 reaches a given accuracy in far fewer factors than order 2 does.
+The floor is the slab product's. Composing $N_{\rm slabs}$ constant-density operators accumulates round-off in the product itself; past about $16\,000$ slabs that accumulation costs more than another halving of the width buys. At three flavors a request for $10^{-10}$ therefore cannot be met at any slab count: the refinement stalls near $2.7 \cdot 10^{-11}$; the curve ends there rather than reaching the last tolerance. This is not a defect in {\tt NuOscProbExact}, but a property of any long ordered product evaluated in floating point; \magnus\ meets the same wall. It meets it two decades further down at order 4, nearly three at order 8, because a higher-order rule reaches a given accuracy in far fewer factors than a second-order one does.
 
-The ceiling is the flavor count, which is why the bottom panel carries one curve rather than two: there is no five-flavor closed form to draw.
+The ceiling is the flavor count, which is why the bottom row carries no closed form at all: there is no five-flavor SU($n$) expression to draw.
+
+The closed form is the faster code up to about $10^{-8}$, though not because it cuts the trajectory more coarsely: it cuts it far more finely. On the Earth chord at two flavors we measure $380$ slabs for \magnus\ at a requested $10^{-8}$, against $139\,264$ for {\tt NuOscProbExact}, a factor of $366$. The slab is not the unit of cost. We fit time against slab count over the two tightest dials and find $5.9~\mu$s per \magnus\ slab at order 4, against $0.045~\mu$s for a closed-form slab (the tightest dials separate the fixed cost best, since it is amortized over the most slabs there). Order 4 samples $\mathbb{A}$ at two Gauss-Legendre nodes, forms a commutator, then exponentiates a general matrix; the closed form evaluates one SU(2) expression at one density. \magnus\ also carries about $600~\mu$s that the closed form does not, its refinement paying for the chains it evaluates and discards. The crossover falls where the factor of $366$ overtakes the factor of $130$, which is near $10^{-8}$; past that point \magnus\ pulls further ahead at every dial.
+
+That crossover moves with the cost of the Hamiltonian. \figu{smooth_reach} measures the case least favorable to \magnus: a PREM density read, about as cheap as a Hamiltonian can be. \magnus\ asks for $\mathbb{A}$ at two Gauss-Legendre nodes per slab, the closed form at one density per slab, so the sample counts follow the slab counts rather than the times. Counting every sample each code requests for one twelve-energy batch, with the refinement ladders both of them climb included, we find $972$ against $34\,782$ at a requested $10^{-6}$; at $10^{-8}$, $2\,606$ against $278\,494$ (we count order 4 here, the higher orders sampling more nodes per slab while needing fewer slabs still). At $10^{-6}$ that gap is repaid once a single evaluation of $\mathbb{A}$ costs more than $144$~ns, about the cost of one Python call; at $10^{-8}$ \magnus\ is ahead whatever a sample costs. A Hamiltonian read from an interpolation table, or assembled matrix by matrix at each position, clears that threshold easily, so for such a problem we would expect the crossover to leave \figu{smooth_reach} altogether.
+
+Reading across the flavor panels, the closed form is faster at three flavors than at two, at two of the five tolerances. The cost per slab runs the other way---at equal slab counts the $3 \times 3$ exponential costs about $1.4$ times the $2 \times 2$ one---so what crosses the curves is how many slabs each case needs. Our two-flavor case is a stand-in rather than a reduction of the three-flavor one, with near-maximal mixing on $\Delta m_{31}^2$ alone; its commutator with the matter potential is $3.2$ times larger. Since that commutator is precisely what a constant-density slab discards, two flavors carries $7.6$ times the error at a fixed slab count and needs $2.8$ times more slabs to match. The refinement doubles the count, so that difference costs a full factor of two---more than the $1.4$ saved on the smaller matrix.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -1465,7 +1511,7 @@ Driven on the same model file---{\tt SunASnu} on that file, the production radiu
 
 \tabl{which} says what to run on eleven problems. We include {\tt NuOscProbExact} rather than only \magnus\ because the two are close relatives. They take the same arbitrary Hermitian Hamiltonian, compose the same ordered product of slab operators, and share units, conventions, and parameter defaults deliberately. The choice between them therefore turns on the shape of the profile rather than on the physics in the Hamiltonian.
 
-\textbf{If the Hamiltonian is constant over each stretch you hand it, use the closed form; if it varies across that stretch, use the expansion.} An exact algebraic solution beats a truncated series wherever an exact algebraic solution exists. Section \ref{sec:order_is_the_slab_product} shows why the two meet: a piecewise-constant composition \emph{is} the Magnus method at second order, so on a staircase the closed form is doing the same arithmetic in fewer operations. What \magnus\ adds is orders 4 and 6 on the same chain, which pays only when there is curvature within a slab for them to resolve.
+\textbf{If the Hamiltonian is constant over each stretch you hand it, use the closed form; if it varies across that stretch, use the expansion.} An exact algebraic solution beats a truncated series wherever an exact algebraic solution exists. Section \ref{sec:order_is_the_slab_product} shows why the two meet: a piecewise-constant composition \emph{is} the Magnus method at second order, so on a staircase the closed form is doing the same arithmetic in fewer operations. What \magnus\ adds is orders 4, 6, and 8 on the same chain, which pays only when there is curvature within a slab for them to resolve.
 
 Two entries in \tabl{which} resist the sorting the rest obey. A supernova shock appears twice with opposite answers; the parameter that separates them is not the physics but the width of the front measured against the oscillation length (Section \ref{sec:shock_comparison}). A tabulated profile belongs to \magnus\ not because tables are special but because the interpolant between samples is smooth, so a method that integrates across a slab has something to integrate.
 
@@ -1625,6 +1671,16 @@ The surviving coefficients are
 and $B_8/8! = -1/1\,209\,600$. Equation (\ref{equ:term_count}) gives $1, 1, 2, 3, 5, 9, 17, 33, 65, 129$ terms at orders 1 to 10, the count doubling from order 5 onward, which is why the implemented ceiling is a deliberate choice rather than an accident: the terms remain easy to \emph{generate} far beyond it, but the work per slab grows with their number.
 
 The module {\tt magnus.expansionterms} evaluates all of this in exact rational arithmetic at any order, with coefficients returned as fractions so that they can be compared without a tolerance. It shares no code with the numerical core: the test suite regenerates the hard-coded group factors and compares them against the derived ones, and separately evaluates the generated terms numerically on a sampled $\mathbb{A}(l)$ and compares them order by order against what the core produces internally. Agreement is at machine precision for every order from one to ten, covering the hand-written low orders and the generated high ones in one check.
+
+\textit{Why the collocation orders are even.---}Section \ref{sec:quadrature} states that the schemes of \equ{gl} exist only at even order, retaining $\Omega_1$ through $\Omega_{p-2}$ at order $p$. Both statements follow from the sizes of the $\Omega_k$ in the slab width $h$.
+
+Two facts fix those sizes. The first is a parity. Traversing a slab backwards returns the inverse of traversing it forwards, so $\Omega$ changes sign; it does so term by term, since reversal cannot change how many factors of $\mathbb{A}$ a term carries. Measured from the slab midpoint, traversing backwards is the same as replacing $h$ by $-h$, so each $\Omega_k$ contains only odd powers of $h$. The second is a cost. Above $\Omega_1$, every term is a nested commutator of $\mathbb{A}$ with itself at different positions, which vanishes when $\mathbb{A}$ is constant; each therefore carries at least one derivative of $\mathbb{A}$, at the price of one power of $h$ beyond its $k$ integrations. Counting powers alone would place $\Omega_k$ at $h^{k+1}$.
+
+The two meet at odd $k$, where $h^{k+1}$ is an even power that the parity forbids. Such a term scales as $h^{k+2}$ instead. $\Omega_1$ and $\Omega_2$ stand alone, at $h$ and $h^3$: the first is no commutator, the second already odd by the naive count. From $\Omega_3$ upward the terms scale in pairs, $\Omega_{2j-1}$ with $\Omega_{2j}$ at $h^{2j+1}$ for $j \geq 2$.
+
+Two consequences follow. A scheme of order $p$ carries a local error $\mathcal{O}(h^{p+1})$, so it must retain every term larger than that: $\Omega_1$ alone at $p = 2$, $\Omega_1$ through $\Omega_{p-2}$ for $p \geq 4$. The error a scheme makes on one slab is then the size of the largest term it leaves out, which is an odd power of $h$. The trajectory holds $N$ such slabs, whose errors accumulate, so an error $h^q$ on each leaves $h^{q-1}$ over the whole path. Odd $q$ gives even $q-1$, which is why no odd order is available.
+
+We confirm the scalings numerically. Fitting $\lVert \Omega_k \rVert$ against $h$ on single slabs of the exponential profile of \figu{phase_vs_profile}, over widths from $47$ to $750$~km of its $3\,000$-km baseline, returns exponents $1.00$, $3.05$, $5.04$, $5.03$, $7.03$ and $7.03$ for $\Omega_1$ through $\Omega_6$. A randomly drawn $3 \times 3$ Hamiltonian with no physics in it returns the same six, each within $0.01$ of the integer. Each scheme also differs from the truncation it stands for by the next pair of terms: at a slab width of $L/16$, $\Omega_{\rm GL}^{(6)}$ minus $\Omega_1 + \Omega_2 + \Omega_3$ agrees with $\Omega_4$ to four digits; $\Omega_{\rm GL}^{(8)}$ minus $\Omega_1 + \cdots + \Omega_4$ agrees with $\Omega_5 + \Omega_6$.
 
 Higher order buys a genuinely faster convergence rate in the slab width---measured against a tight reference on a smooth Hamiltonian with a single slab, so that these are \emph{local} rates on the quadrature path rather than the global ones of Section \ref{sec:quadrature}, orders 4, 6 and 8 converge as $h^{6.6}$, $h^{8.3}$ and $h^{10.2}$---but the cost per slab grows faster than the order does; narrowing the slabs at order 4 or 6 usually reaches a given accuracy for less total work. \magnus\ warns when an order above six is requested. More fundamentally, absolute convergence is guaranteed only while $\int\lVert\mathbb{A}\rVert\,dl < \pi$, and past that bound raising the order is no longer the reliable move. The answer is narrower slabs.
 

@@ -85,13 +85,27 @@ def main():
             pass
     exec(cell_source(), ns)
 
-    # The labelled panel is the first flavour row of the measured column.
-    ax = ns['cols'][0][0]
-    anns = [t for t in ax.texts if isinstance(t, Annotation) and t.get_text()]
-    keys = [p['label'] for p in
-            {s['name']: s for s in ns['BENCH']['cases'][0]['series']}['Magnus']['points']]
-    if len(keys) != len(anns):
-        print('mismatch: %d rtol values, %d annotations drawn' % (len(keys), len(anns)))
+    # Both columns carry labels, on their own first flavour row, with their own
+    # offsets.  Dragging one must not write the other's, so each panel is collected
+    # under its own key and printed as its own block.
+    panels = {}
+    for key, bench_name in (('exp', 'BENCH'), ('earth', 'PREM_BENCH')):
+        bench = ns.get(bench_name)
+        if bench is None:
+            continue
+        ax = ns['cols'][0 if key == 'exp' else 1][0]
+        anns = [t for t in ax.texts if isinstance(t, Annotation) and t.get_text()]
+        if not anns:
+            continue
+        keys = [p['label'] for p in
+                {s['name']: s for s in bench['cases'][0]['series']}['Magnus']['points']]
+        if len(keys) != len(anns):
+            print('%s: mismatch, %d rtol values against %d annotations drawn'
+                  % (key, len(keys), len(anns)))
+        panels[key] = (keys, anns)
+    anns = [a for _k, aa in panels.values() for a in aa]
+    if not anns:
+        raise SystemExit('no annotations drawn in either column')
     for a in anns:
         a.draggable(True)
 
@@ -145,14 +159,17 @@ def main():
         plt.show()
 
     lines = ['RTOL_LABEL_OFFSETS = {']
-    for key, a in zip(keys, anns):
-        dx, dy = a.xyann
-        # The alignment the annotation actually carries, not one inferred from the sign
-        # of the offset.  A drag moves xyann and leaves ha/va alone, so recomputing them
-        # shifts the text by its own width or height on top of the offset -- which is
-        # exactly how the first round of drags came back looking wrong.
-        lines.append("    %r: (%.1f, %.1f, %r, %r)," 
-                     % (key, dx, dy, a.get_ha(), a.get_va()))
+    for col_key, (keys, aa) in panels.items():
+        lines.append('    %r: {' % col_key)
+        for key, a in zip(keys, aa):
+            dx, dy = a.xyann
+            # The alignment the annotation actually carries, not one inferred from the
+            # sign of the offset.  A drag moves xyann and leaves ha/va alone, so
+            # recomputing them shifts the text by its own width or height on top of the
+            # offset -- which is exactly how the first round of drags came back wrong.
+            lines.append("        %r: (%.1f, %.1f, %r, %r),"
+                         % (key, dx, dy, a.get_ha(), a.get_va()))
+        lines.append('    },')
     lines.append('}')
     if OUT.exists():                       # never clobber the previous round of drags
         OUT.with_suffix('.txt.bak').write_text(OUT.read_text())

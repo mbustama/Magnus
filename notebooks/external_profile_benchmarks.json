@@ -212,6 +212,47 @@
        "max_abs_error_ode": 1.1168288516216762e-12
       }
      ]
+    },
+    {
+     "name": "NuOscProbExact, rtol",
+     "dial": "rtol",
+     "points": [
+      {
+       "label": "1e-03",
+       "rtol": 0.001,
+       "n_slabs_used": 32,
+       "us_per_probability": 14.85265429816233,
+       "max_abs_error": 2.684566364594132e-05
+      },
+      {
+       "label": "1e-04",
+       "rtol": 0.0001,
+       "n_slabs_used": 64,
+       "us_per_probability": 20.87642316913237,
+       "max_abs_error": 6.720920678715547e-06
+      },
+      {
+       "label": "1e-06",
+       "rtol": 1e-06,
+       "n_slabs_used": 1024,
+       "us_per_probability": 92.09901694854732,
+       "max_abs_error": 2.6265925101576215e-08
+      },
+      {
+       "label": "1e-08",
+       "rtol": 1e-08,
+       "n_slabs_used": 8192,
+       "us_per_probability": 314.1339323822952,
+       "max_abs_error": 4.1040576492790137e-10
+      },
+      {
+       "label": "1e-10",
+       "rtol": 1e-10,
+       "n_slabs_used": 65536,
+       "us_per_probability": 3370.472083285373,
+       "max_abs_error": 6.410871833395504e-12
+      }
+     ]
     }
    ],
    "reference_ode": [
@@ -462,6 +503,47 @@
        "max_abs_error_ode": 1.2423395645555502e-13
       }
      ]
+    },
+    {
+     "name": "NuOscProbExact, rtol",
+     "dial": "rtol",
+     "points": [
+      {
+       "label": "1e-03",
+       "rtol": 0.001,
+       "n_slabs_used": 16,
+       "us_per_probability": 10.479957846124913,
+       "max_abs_error": 1.4076381997685239e-05
+      },
+      {
+       "label": "1e-04",
+       "rtol": 0.0001,
+       "n_slabs_used": 64,
+       "us_per_probability": 27.80902050858458,
+       "max_abs_error": 8.810630929279029e-07
+      },
+      {
+       "label": "1e-06",
+       "rtol": 1e-06,
+       "n_slabs_used": 512,
+       "us_per_probability": 88.84114841597086,
+       "max_abs_error": 1.3768297613125924e-08
+      },
+      {
+       "label": "1e-08",
+       "rtol": 1e-08,
+       "n_slabs_used": 8192,
+       "us_per_probability": 1044.0603333942515,
+       "max_abs_error": 6.000222541047151e-11
+      },
+      {
+       "label": "1e-10",
+       "rtol": 1e-10,
+       "unreachable": true,
+       "best_error_estimate": 2.654e-11,
+       "note": "probabilities_3nu_profile: could not meet rtol=1e-10, atol=1e-12 with at most 131072 slabs per segment; the largest error estimate at 131072 was 6.243e-11"
+      }
+     ]
     }
    ],
    "reference_ode": [
@@ -710,6 +792,47 @@
        "us_per_probability": 27675.145749526564,
        "max_abs_error": 4.1100456371623295e-13,
        "max_abs_error_ode": 2.551747702028706e-11
+      }
+     ]
+    },
+    {
+     "name": "NuOscProbExact, rtol",
+     "dial": "rtol",
+     "points": [
+      {
+       "label": "1e-03",
+       "rtol": 0.001,
+       "n_slabs_used": 16,
+       "us_per_probability": 53.98750261065288,
+       "max_abs_error": 4.597979965526022e-05
+      },
+      {
+       "label": "1e-04",
+       "rtol": 0.0001,
+       "n_slabs_used": 128,
+       "us_per_probability": 274.8395157444368,
+       "max_abs_error": 1.2059460030383606e-05
+      },
+      {
+       "label": "1e-06",
+       "rtol": 1e-06,
+       "n_slabs_used": 1024,
+       "us_per_probability": 1194.9852711647206,
+       "max_abs_error": 1.0721239229738444e-08
+      },
+      {
+       "label": "1e-08",
+       "rtol": 1e-08,
+       "n_slabs_used": 8192,
+       "us_per_probability": 10007.736083935015,
+       "max_abs_error": 1.2910261748544372e-10
+      },
+      {
+       "label": "1e-10",
+       "rtol": 1e-10,
+       "n_slabs_used": 65536,
+       "us_per_probability": 77953.16300083262,
+       "max_abs_error": 2.0108359422010835e-12
       }
      ]
     }
@@ -973,5 +1096,11 @@
   "control_ratio": 1.0191842609376227,
   "commensurability_probe": "control 0.986 -> 1.003; one stored order-4 point re-timed to -0.5% with its error reproducing exactly at 2.929e-13"
  },
- "referee": "mp_reference_profile.json -- triple-Richardson mpmath; the former DOP853 errors are kept as max_abs_error_ode"
+ "referee": "mp_reference_profile.json -- triple-Richardson mpmath; the former DOP853 errors are kept as max_abs_error_ode",
+ "npe_rtol_series": {
+  "added": "2026-09-04",
+  "why": "so both codes answer the same request; the n_slabs series is kept beside it, unplotted",
+  "nuoscprobexact": "1.14.0, batched hamiltonian_of, refinement all-energies-at-once",
+  "n_max": 131072
+ }
 }

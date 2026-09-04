@@ -15170,12 +15170,30 @@ GREY = '#8a8a8a'
 # decades in error and barely one in time -- so no rule places these well and they are
 # positioned by hand.  Drag them with docs/dev/nudge_fig11_labels.py, which prints this
 # dict back with whatever you leave them at.
+# One set of placements per column.  The two columns put their curves at different
+# slopes and different places on the shared time axis, so a single set of offsets
+# cannot serve both; the Earth set starts as a copy and is dragged separately with
+# docs/dev/nudge_fig11_labels.py.
 RTOL_LABEL_OFFSETS = {
-    '1e-03': (-19.4, -8.6, 'center', 'bottom'),
-    '1e-04': (18.7, -0.3, 'right', 'center'),
-    '1e-06': (18.7, 0.2, 'right', 'center'),
-    '1e-08': (6.0, 0.0, 'left', 'center'),
-    '1e-10': (6.0, 0.0, 'left', 'center'),
+    'exp': {
+        '1e-03': (-19.4, -8.6, 'center', 'bottom'),
+        '1e-04': (18.7, -0.3, 'right', 'center'),
+        '1e-06': (18.7, 0.2, 'right', 'center'),
+        '1e-08': (6.0, 0.0, 'left', 'center'),
+        '1e-10': (6.0, 0.0, 'left', 'center'),
+    },
+    # The Earth curve runs diagonally where the exponential one runs nearly vertical,
+    # so the exponential offsets put 10^-4 on the order-8 curve and 10^-8 on the slab
+    # code's.  The first label sits left of its marker, which is at the top of the data
+    # and would push the text outside the frame if placed above; 10^-8 goes below-right,
+    # threading between the slab code's curve above it and the order-6 curve below.
+    'earth': {
+        '1e-03': (-8.0, 0.0, 'right', 'center'),
+        '1e-04': (8.0, -2.0, 'left', 'top'),
+        '1e-06': (8.0, -1.0, 'left', 'center'),
+        '1e-08': (6.0, -7.0, 'left', 'top'),
+        '1e-10': (8.0, 0.0, 'left', 'center'),
+    },
 }
 # The Earth column.  Its reference is still being built, so the right-hand panels are
 # laid out and left empty rather than drawn from partial data -- a half-filled panel
@@ -15247,10 +15265,14 @@ SERIES_STYLE = [
     ('Magnus',          '-*', RED,   8.0, 'Mag$\\nu$s, order 4\n(default)'),
     ('Magnus, order 6', '-s', BLUE,  3.6, r'Mag$\nu$s, order 6'),
     ('Magnus, order 8', '-^', GREEN, 4.0, r'Mag$\nu$s, order 8'),
-    ('NuOscProbExact',  '-o', GREY,  4.0, 'NuOscProbExact'),
+    ('NuOscProbExact, rtol', '-o', GREY, 4.0, 'NuOscProbExact'),
 ]
+# The n_slabs series stays in the JSON beside this one, unplotted.  Both codes are now
+# dialled by the same requested tolerance, which is the comparison the panel claims to
+# make; the slab-count sweep was chosen by hand and quietly handed the closed form a
+# discretisation Magnus had to find for itself.
 
-for axes, bench in zip(cols, (BENCH, PREM_BENCH)):
+for col_key, axes, bench in zip(('exp', 'earth'), cols, (BENCH, PREM_BENCH)):
     if bench is None:
         # Frames, ticks and flavour labels, but no curves: the reference is still being
         # built, and a partially drawn panel would be read as a measurement.
@@ -15271,8 +15293,11 @@ for axes, bench in zip(cols, (BENCH, PREM_BENCH)):
             s = by_name.get(name)
             if s is None:
                 continue
-            t = [p['us_per_probability'] for p in s['points']]
-            e = [p['max_abs_error'] for p in s['points']]
+            drawn = [p for p in s['points'] if not p.get('unreachable')]
+            if not drawn:
+                continue
+            t = [p['us_per_probability'] for p in drawn]
+            e = [p['max_abs_error'] for p in drawn]
             ax.loglog(t, e, mk, color=colr, ms=ms, mfc='none' if mk != '-*' else colr,
                       mew=0.9, lw=1.1, zorder=5, label=lab)
         logx(ax); logy(ax)
@@ -15291,7 +15316,7 @@ for axes, bench in zip(cols, (BENCH, PREM_BENCH)):
                 txt = r'$10^{%d}$' % exp
                 if k == hi:
                     txt = r'rtol $=10^{%d}$' % exp
-                dx, dy, ha, va = RTOL_LABEL_OFFSETS[pt['label']]
+                dx, dy, ha, va = RTOL_LABEL_OFFSETS[col_key][pt['label']]
                 ax.annotate(txt, xy=(pt['us_per_probability'], pt['max_abs_error']),
                             xytext=(dx, dy), textcoords='offset points',
                             ha=ha, va=va,
@@ -15308,9 +15333,9 @@ for axes, bench in zip(cols, (BENCH, PREM_BENCH)):
                     color='#4a4a4a', style='italic')
 
 ALL_T = [p['us_per_probability'] for c in BENCH['cases'] for s_ in c['series']
-         for p in s_['points']]
+         for p in s_['points'] if not p.get('unreachable')]
 ALL_E = [p['max_abs_error'] for c in BENCH['cases'] for s_ in c['series']
-         for p in s_['points']]
+         for p in s_['points'] if not p.get('unreachable')]
 for axes in cols:
     for ax in axes:
         ax.set_xlim(0.7*min(ALL_T), 1.5*max(ALL_T))
@@ -15346,11 +15371,21 @@ fig.text(0.006, 0.5*(_top + _bot), r'Maximum probability deviation, max $|\Delta
 save(fig, 'smooth_reach.pdf')
 for case in BENCH['cases']:
     for s in case['series']:
-        best = min(p['max_abs_error'] for p in s['points'])
-        last = s['points'][-1]['max_abs_error']
-        print('  d=%d %-16s best %.2e, tightest %.2e%s'
-              % (case['flavours'], s['name'], best, last,
-                 '   <- rises' if last > best*1.01 else ''))'''),
+        # A point can be recorded without an error: past some tolerance the round-off of
+        # the slab product overtakes the discretisation error, no slab count meets the
+        # request, and the search reports the floor it reached instead.  That is the
+        # method's own limit, kept in the file and skipped here.
+        got = [p for p in s['points'] if not p.get('unreachable')]
+        missed = [p for p in s['points'] if p.get('unreachable')]
+        best = min(p['max_abs_error'] for p in got)
+        last = got[-1]['max_abs_error']
+        note = '   <- rises' if last > best*1.01 else ''
+        if missed:
+            note += '   (%s unreachable, floor ~%.1e)' % (
+                ', '.join(m['label'] for m in missed),
+                missed[0].get('best_error_estimate') or float('nan'))
+        print('  d=%d %-22s best %.2e, tightest %.2e%s'
+              % (case['flavours'], s['name'], best, last, note))'''),
     md(r'''## Figure 8 --- the same shock, as cost against accuracy'''),
     code(r'''# ------------------------------------------------------------------ the shock
 SHOCK = json.loads((HERE/'external_shock_benchmarks.json').read_text())

@@ -37,6 +37,7 @@ __email__ = "mbustamante@gmail.com"
 
 import datetime
 import json
+import os
 import pathlib
 import platform
 import sys
@@ -109,6 +110,12 @@ def main():
     if OUT.exists():
         out = json.loads(OUT.read_text())
 
+    if not os.environ.get('PREM_RUN_NPE'):
+        print('NuOscProbExact: SKIPPED.  Set PREM_RUN_NPE=1 to include it -- held back '
+              'so it can be run against v1.14.0, which batches on PREM with rtol and '
+              'would therefore be dialled by tolerance rather than by slab count.',
+              file=sys.stderr, flush=True)
+
     for rc in refs['cases']:
         d = rc['flavours']
         ref = np.array(rc['reference'])
@@ -134,7 +141,7 @@ def main():
                                    'magnus_exp_order': order, 'points': pts})
             OUT.write_text(json.dumps(out, indent=1))
 
-        if 'NuOscProbExact' not in have:
+        if 'NuOscProbExact' not in have and os.environ.get('PREM_RUN_NPE'):
             print('    NuOscProbExact', file=sys.stderr, flush=True)
             npe = gpb.npe_points(d, prof, gpb.NPE_DIALS, ref)
             if npe:
