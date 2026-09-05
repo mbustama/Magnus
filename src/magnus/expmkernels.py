@@ -41,7 +41,7 @@ matrix, and for a long time that sentence ended "so 4nu and 5nu keep the
 ``eigh`` path".  The conclusion did not follow: what made those dimensions slow
 was never the missing closed form but ``eigh``'s fixed per-matrix LAPACK
 overhead, about 2.3 us on a 4x4 -- two thirds of a whole d=4 Magnus pass.  So
-4x4 and 5x5 stacks go to :func:`_jacobi_expm_core` instead, a batched cyclic
+4x4 and 5x5 stacks go to ``_jacobi_expm_core`` instead, a batched cyclic
 Jacobi eigensolver that warm-starts each matrix from its predecessor's
 eigenvectors and re-orthonormalizes that basis at every step; see its docstring
 for the scheme and for which of its details are load-bearing.  Unlike the
@@ -779,8 +779,8 @@ def supports_dim(d: int) -> bool:
     r"""Returns whether dimension ``d`` has a compiled kernel.
 
     True for 2 through 5.  Dimensions 2 and 3 have Cayley-Hamilton closed
-    forms; 4 and 5 go to the batched Jacobi eigensolver of
-    :func:`_jacobi_expm_core` instead.  An earlier version of this docstring
+    forms; 4 and 5 go to the batched Jacobi eigensolver
+    ``_jacobi_expm_core`` instead.  An earlier version of this docstring
     reasoned that a 4x4 or 5x5 Hermitian eigenproblem has no practical closed
     form and concluded that 4nu and 5nu stay on ``eigh``.  The premise stands;
     the conclusion did not follow from it, because the missing closed form was
