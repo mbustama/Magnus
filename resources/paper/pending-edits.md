@@ -352,3 +352,64 @@ later levels have fewer active energies to spread.
 
 Sequencing: behind the commutator, and behind measuring the n_jobs-versus-batching
 trade, which may show the question is smaller than it looks.
+
+## POSSIBLE NEXT STEP: a batched Jacobi eigensolver for 4nu and 5nu -- OPTIONAL, NOT LAUNCHED
+
+Surveyed 2026-09-05 by Fable; **not started, and not to be started without the
+author's say-so**, because unlike every other optimisation of this session it
+changes numbers.
+
+**The premise that has expired.** `expmkernels.supports_dim` stops at d = 3, and
+its docstring gives the reason: "A 4x4 or 5x5 Hermitian eigenproblem has no
+practical closed form, so 4nu and 5nu stay on eigh." The first clause is a fair
+engineering judgement -- NuOscProbExact *does* solve the quartic in closed form,
+by Euler's resolvent cubic from the SU(4) invariants, but its own
+`psi_roots_4nu` docstring records that those roots "carry only the accuracy that
+I_2, I_3, I_4 carry", which is why that code also carries a double-double
+arithmetic suite and a Newton root-polishing pass. Exact at four flavours is not
+cheap: NuOscProbExact costs 1.70 us/slab/E at 3+1 against 0.130 at 3nu.
+
+What has expired is the *conclusion*. Magnus does not need a closed form to win
+at d = 4, because the closed form is not what it is losing to: `np.linalg.eigh`
+is 66% of the whole d = 4 call and 63% at d = 5, and the ~2.3 us per 4x4 is
+LAPACK `zheevd`'s fixed overhead rather than arithmetic.
+
+**The proposal.** A numba `_jacobi_expm_core(K, out, lam) -> sev` in
+`expmkernels.py`, same contract as `_ch2_core`/`_ch3_core`, dispatched from
+`expm_herm_stack` for d in (4, 5); cyclic complex-Hermitian Jacobi, warm-started
+from the previous matrix's eigenvectors (consecutive matrices are consecutive
+slabs of one energy, so they arrive nearly diagonal), with modified Gram-Schmidt
+on the warm-start basis at every step. The MGS is load-bearing, not tidiness:
+without it non-unitarity compounds along the chain, 2.3e-11 after 13k matrices
+against 3.9e-14 with it.
+
+**Claimed gain: 1.77x at 3+1, 1.38x at 3+2**; stacked with the fusions, 2.09x at
+3+1, which moves Magnus from 1.53x *slower* than NuOscProbExact to about 0.73x
+-- 1.247 against 1.70 us/slab/E. Those numbers are Fable's and have not been
+reproduced independently.
+
+**Why it is the author's call and not a routine optimisation.** It is not
+bit-identical. Worst full-matrix probability shift 2.8e-12, and the finest-grid
+floors move (expo d=4 7.40e-12 -> 7.71e-12, d=5 2.44e-11 -> 2.56e-11), while
+reference error is unchanged wherever discretization dominates. The argument for
+accepting it is that the shipped d <= 3 backend's own documented guarantee
+against `expm` is 5e-12 absolute, so the shift falls inside a tolerance the
+package already accepts for a backend swap rather than opening a new class; and
+that Jacobi is backward stable with no conditioning cliff, so unlike the
+closed-form kernels it needs no `SEV_TOL` gate (return sev = 0.0, with the
+30-sweep cap escalating to the existing eigh fallback in a corner never
+observed). The argument against is simply that the paper's claim to reach
+2.9e-13 rests on this layer, and a backend that is occasionally worse than eigh
+would cost more than the speed is worth.
+
+**Tests that would have to change:** `test_dim_four_and_five_delegate_to_eigh`
+and `test_public_kernel_entry_point_refuses_unsupported_dimensions` pin the
+current routing; the ValueError boundary moves from ">= 4" to ">= 6". The
+agreement, degeneracy, ascending-eigenvalue and no-worse-than-eigh tests should
+be *extended* to d = 4, 5 rather than edited.
+
+Full write-up: `docs/dev/overhead_survey/report-01-jacobi-expm-4nu-5nu.md`;
+final prototype kernel in `docs/dev/overhead_survey/prototypes/jacobi_proto5.py`,
+accuracy battery in `jacobi_acc.py`, end-to-end A/B in `jacobi_e2e.py`. Start
+from that directory's `README.md`, and from report 08 before quoting any stacked
+speedup.
