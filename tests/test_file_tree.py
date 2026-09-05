@@ -567,7 +567,12 @@ if __name__ == '__main__':
         else:
             pass
     else:
-        ok = (current_readme_tree() == render_tree()
+        # The README carries the *summary* tree and installation.rst the full
+        # one, which is what write() puts in each and what the two tests above
+        # assert.  Comparing the README against render_tree() here reported
+        # OUT OF DATE unconditionally, sending the reader to --write for a
+        # drift that was not there.
+        ok = (current_readme_tree() == render_summary_tree()
               and current_install_tree() == render_tree())
         print('file tree is %s' % ('up to date' if ok else 'OUT OF DATE'))
         sys.exit(0 if ok else 1)
