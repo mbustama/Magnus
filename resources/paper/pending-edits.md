@@ -307,3 +307,48 @@ inside a fan-out.
 **Do it after the kernels, not before.** Each kernel that lands raises the nogil
 fraction and gives threading more to work with -- the composition is one
 already, the commutator may become another.
+
+### What it would take, assessed 2026-09-05 -- OPTIONAL, not committed to
+
+Read-only analysis of the scan, the tiling and memory guards, the numba module,
+the warning machinery and the test suite. Nothing forbids threading the chunk
+loop; four things would have to change first, and the engine's own documentation
+argues the ceiling is bandwidth rather than cores.
+
+**Would have to change:**
+
+1. **Divide the tile budget by the worker count** -- pass
+   `max_entries = BATCH_WORKING_ENTRIES // n_threads` to `_tile_for_working_set`.
+   Provably cannot move a result: `test_tiling_the_working_set_changes_no_number`
+   establishes that tiling changes no number.
+2. **Make `magnus._working_set_chunk` concurrency-aware.** THE UNPLEASANT ONE. It
+   reads `_available_memory_bytes()` per call and claims `available/2`, so N
+   threads collectively claim N x half: the guard under-counts by exactly the
+   thread count. Bites on trapezoid/simpson at order >= 8 (~142 MB per thread at
+   order 8, ~530 MB at order 10) and at 5 flavours with large slab counts, where
+   the tile degenerates to one energy. That is the OOM class
+   `docs/dev/BUG_IP_EXP_MEMORY.md` exists to prevent. The default `'gl'` branch
+   has no working-set guard at all. The fix needs a signature change on
+   `evolution_operators_from_samples` or a new module global -- and a global is
+   the shared mutable state the rest of the design avoids.
+3. **Emit slab-norm warnings from the serial join**, collecting per chunk.
+   Otherwise "shown once per session" becomes a check-then-act race and
+   `stacklevel=4` resolves into the pool's frames rather than the scan's.
+4. Fix the stale tile comment -- DONE, `f664ef2`.
+
+**Needs no work:** correctness and bit-identity (chunks copy in, write disjoint
+slices of `P_new` out, no cross-chunk reduction, so scheduling cannot move a
+bit); `EXPM_BACKEND`, only read on this path, its mutation confined to loky
+worker processes; `VCC_func`, sampled serially before the loop, so user-supplied
+callables never run in a worker thread; numba, whose first-call compilation
+serialises behind its own lock.
+
+**The argument against.** The `BATCH_WORKING_ENTRIES` docstring records that
+these kernels are memory-bound and that the 1 MB tile was tuned for cache
+residency N threads would share -- so change (1), the safe one, works against
+the thing being optimised. And the available parallelism moves per refinement
+level: early levels fit all energies in one tile and offer none at all, while
+later levels have fewer active energies to spread.
+
+Sequencing: behind the commutator, and behind measuring the n_jobs-versus-batching
+trade, which may show the question is smaller than it looks.
