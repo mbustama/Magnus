@@ -449,3 +449,47 @@ final prototype kernel in `docs/dev/overhead_survey/prototypes/jacobi_proto5.py`
 accuracy battery in `jacobi_acc.py`, end-to-end A/B in `jacobi_e2e.py`. Start
 from that directory's `README.md`, and from report 08 before quoting any stacked
 speedup.
+
+## CONSEQUENCE OF THE JACOBI BACKEND: the 3+1 cost numbers in the paper are stale
+
+Measured 2026-09-05, after the Jacobi 4x4/5x5 backend landed in the working tree.
+**Nothing here is wrong yet -- it becomes wrong the moment that change is
+committed and the figures are not re-run.**
+
+**What moves.** Magnus at four flavours is 1.81-1.95x faster end to end
+(marginal us/slab, PREM and the smooth profile, eigh arm vs Jacobi arm
+interleaved in one process, control drift +3.6%); at five flavours 1.46-1.59x.
+Two and three flavours do not move at all -- `max|dP| = 0.000e+00` and 0.98-1.00x
+timing, which is the negative control on the whole change.
+
+**Numbers that therefore need re-running or re-stating:**
+
+1. `docs/source/comparison.rst`, "PREM, 3+1": "**Cost: NuOscProbExact, by about
+   400x.** 56 000 us per probability against 127." At 1.9x the 56 000 becomes
+   about 29 000 and the ratio about 230x. Both the sentence and the bolded
+   headline change.
+2. `resources/paper/main.tex` \tabl{summary}, the row "PREM $3+1$, cost &
+   {\tt NuOscProbExact} by $\sim\!440\times$". Same correction, roughly 230x.
+3. **Figure 11's $3+1$ Earth panel.** The Magnus cost curve shifts down by the
+   same factor; the crossover with NuOscProbExact moves with it. This one is a
+   re-run, not an edit, and re-running Fig. 11 is expensive.
+4. Any five-flavour cost statement, by 1.5x. There is no competitor at five
+   flavours, so this is self-referential rather than comparative, but the
+   absolute microsecond figures still move.
+
+**What does NOT move, and this is worth stating because it is the natural
+worry.** The reach claim -- "the slab product floors at 2.5e-11 and Magnus
+continues to 2.9e-13" -- is a *three-flavour* result (`comparison.rst` labels
+that table "Exponential profile, 3nu"), and three flavours keep the closed-form
+kernel untouched. The 3+1 *accuracy* claims also stand: the residual against the
+referee is 4.5e-08, four orders above the 1.557e-12 worst probability shift this
+change introduces.
+
+**Sequencing.** The paper's exponential-backend passage (`main.tex` around line
+648) describes a Cayley-Hamilton kernel "for $2\times2$ and $3\times3$" and stops
+there. That is not falsified by this change, but it is now an incomplete
+description of the code: four and five go to Jacobi. One or two sentences, in the
+same place.
+
+Decide whether to land the Jacobi backend *before* the next figure re-run, so
+that the two are paid for once rather than twice.

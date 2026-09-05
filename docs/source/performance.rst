@@ -206,9 +206,18 @@ difference is the anti-Hermiticity test and the temporaries around it, which do 
 with the stack.  That fixed cost, not the exponential, is what caps the single-point rows
 above.
 
-**Dimensions 4 and 5 keep ``eigh``, and always will.**  There is no practical closed form
-for a 4×4 or 5×5 Hermitian eigenproblem, so 4ν and 5ν are correct and simply not
-accelerated.  :func:`magnus.expmkernels.supports_dim` is the only place that decides this.
+**Dimensions 4 and 5 no longer keep ``eigh``, and an earlier version of this paragraph
+said they always would.**  The reasoning was that a 4×4 or 5×5 Hermitian eigenproblem has
+no practical closed form -- true, and beside the point, because the closed form was never
+what the speed-up came from: ``eigh``'s fixed per-matrix LAPACK overhead (~2.3 µs on a
+4×4, two thirds of a d = 4 call) was, and a batched Jacobi eigensolver that warm-starts
+each matrix from its predecessor's eigenvectors removes it with no closed form at all --
+2.6× on the exponential stage at 4ν and 1.7× at 5ν, measured against ``eigh`` plus
+reconstruction on a 13k-slab chain.  Unlike the d ≤ 3 kernels it is iterative, so the
+backend swap is not bit-identical; it is held instead to ``eigh``'s accuracy class, within
+6.4× of it at every norm, clustering and degeneracy measured, under the same 10× bar that
+admits the closed forms.  :func:`magnus.expmkernels.supports_dim` is still the only place
+that decides this.
 
 Neither backend is exactly unitary, and a previous version of ``_expm_stack``'s docstring
 claimed the ``eigh`` one was.  It is not: :math:`U^\dagger U - I` measures 4e-16 for a

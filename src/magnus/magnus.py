@@ -1941,19 +1941,19 @@ EXPM_BACKEND = 'auto'
 r"""str: Module-level switch selecting how :math:`\exp(\Omega)` is computed.
 
 Which routine exponentiates each slab.  This is not a correctness switch: the two
-backends agree to about 1e-15 wherever the kernel is used, which is the accuracy either one
-has -- and where it would not, it is not used: the kernel reports the conditioning of its own
-characteriztic cubic and ``eigh`` answers instead.  See :data:`magnus.expmkernels.SEV_TOL`.
+backends agree to about 1e-15 wherever a kernel is used, which is the accuracy either one
+has -- and where it would not, it is not used: the 3x3 kernel reports the conditioning of
+its own characteriztic cubic, the 4x4/5x5 Jacobi kernel reports non-convergence at its
+sweep cap, and ``eigh`` answers instead.  See :data:`magnus.expmkernels.SEV_TOL`.
 
-* ``'auto'`` (the default): the compiled Cayley-Hamilton kernel of
-  :mod:`magnus.expmkernels` for 2x2 and 3x3 matrices when numba is installed,
-  and ``numpy.linalg.eigh`` for everything else.  Never fails: without numba, or
-  at dimension 4 and above, it is silently ``'eigh'``.
+* ``'auto'`` (the default): the compiled kernels of :mod:`magnus.expmkernels`
+  (Cayley-Hamilton for 2x2 and 3x3, batched Jacobi for 4x4 and 5x5) when numba
+  is installed, and ``numpy.linalg.eigh`` for everything else.  Never fails:
+  without numba, or at dimension 6 and above, it is silently ``'eigh'``.
 * ``'numba'``: the same, except that a missing numba is an error rather than a
   fallback -- for a caller who means to be sure the fast path is the one
-  running.  Dimensions 4 and 5 still use ``eigh`` even here, because there is no
-  practical closed form for a 4x4 or 5x5 Hermitian eigenproblem; 4nu and 5nu
-  stay correct and are simply not accelerated.
+  running.  Dimensions 6 and above still use ``eigh`` even here;
+  :func:`magnus.expmkernels.supports_dim` is where that line is drawn.
 * ``'eigh'``: ``numpy.linalg.eigh`` always, ignoring numba.  The reference route,
   and what to set when comparing the two.
 
@@ -2020,7 +2020,7 @@ def _expm_stack(Om: np.ndarray, warn_wide: bool = False,
     :math:`A = -i H` with a Hermitian Hamiltonian :math:`H`), the
     exponential is computed from the spectrum of the Hermitian matrix
     :math:`K = i\Omega`, by one of two routes selected by
-    ``EXPM_BACKEND``/``expm_backend``: the compiled Cayley-Hamilton kernel of
+    ``EXPM_BACKEND``/``expm_backend``: a compiled kernel of
     :mod:`magnus.expmkernels`, or the eigendecomposition
     :math:`\exp(\Omega) = V\, \mathrm{diag}\!\left(e^{-i\lambda}\right)\, V^\dagger`.
     Either is faster than scipy's Pade-based expm for stacks of small matrices.
@@ -2036,7 +2036,11 @@ def _expm_stack(Om: np.ndarray, warn_wide: bool = False,
     ``SEV_TOL`` gate is what keeps that true for clustered ones -- ungated, the
     closed form reaches 2.7e-07 against ``eigh``'s 3.0e-11 where a clustered
     spectrum meets a large norm, which is a corner neither a norm sweep nor a
-    degeneracy sweep alone visits.  Probabilities sum to 1 to about
+    degeneracy sweep alone visits.  The 4x4/5x5 Jacobi kernel needs no such
+    gate: it is backward stable at every norm, clustering and degeneracy
+    measured (worst 5.5x of ``eigh``), and its only decline is the sweep-cap
+    backstop described in :func:`magnus.expmkernels._jacobi_expm_core`.
+    Probabilities sum to 1 to about
     1e-15, which is worth relying on; they do not sum to 1 by construction,
     which is not.
 
@@ -2078,11 +2082,14 @@ def _expm_stack(Om: np.ndarray, warn_wide: bool = False,
         if (backend != 'eigh' and expmkernels.HAVE_NUMBA
                 and expmkernels.supports_dim(Om.shape[-1])):
             U, lam, sev = expmkernels.expm_herm_stack(K)
-            # The kernel forecasts, from the conditioning of its own characteriztic cubic,
-            # whether it has lost more digits than eigh would; where it has, eigh answers
-            # instead.  It needs a clustered spectrum AND a large norm together -- measured
-            # up to 7440x worse than eigh in that corner, and no worse at all outside it --
-            # so this is a rare, exact repair rather than a routine second opinion.
+            # The kernel forecasts whether it has lost more digits than eigh would -- the
+            # 3x3 from the conditioning of its own characteriztic cubic, the 4x4/5x5
+            # Jacobi kernel by hitting its sweep cap without converging -- and where it
+            # has, eigh answers instead.  For the 3x3 that needs a clustered spectrum AND
+            # a large norm together (measured up to 7440x worse than eigh in that corner,
+            # and no worse at all outside it); for Jacobi the only observed trigger is a
+            # rotated exact multiple of the identity.  Either way this is a rare, exact
+            # repair rather than a routine second opinion.
             #
             # Comparing scalars in Python rather than reducing an array in numpy: a
             # np.any() here would cost more than the kernel saves on a single 3x3.

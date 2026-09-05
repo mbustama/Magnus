@@ -5,6 +5,44 @@ All notable changes to Magνs are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.0.9] - 2026-09-05
+
+### Changed
+
+- Four- and five-flavour exponentials go to a batched Jacobi eigensolver rather
+  than `numpy.linalg.eigh`.  `supports_dim` now answers yes for 2 through 5.
+  The reasoning it used to carry -- that a 4x4 or 5x5 Hermitian eigenproblem has
+  no practical closed form, so those dimensions keep `eigh` -- had a true premise
+  and a conclusion that did not follow: what made them slow was never the missing
+  closed form but `eigh`'s fixed per-matrix LAPACK overhead, about 2.3 us on a
+  4x4, two thirds of a whole d = 4 pass.  The kernel is a cyclic complex-Hermitian
+  Jacobi sweep that warm-starts each matrix from its predecessor's eigenvectors --
+  consecutive matrices are consecutive slabs of one energy, so they arrive nearly
+  diagonal -- and re-orthonormalizes that basis at every step, which is
+  load-bearing rather than tidy: without it non-unitarity compounds along the
+  chain, 2.3e-11 after 13 000 matrices against 3.9e-14 with it.
+
+  Marginal cost per slab falls **1.81-1.95x at four flavours and 1.46-1.59x at
+  five**, end to end on both profiles, arms interleaved in one process.
+
+  **Unlike every other kernel in this series, this one is not bit-identical**, and
+  it is not meant to be: it replaces an iterative eigensolver with a different
+  iterative eigensolver.  Worst full-matrix probability shift measured 1.557e-12.
+  It is held instead to `eigh`'s own accuracy class, and to the same 10x bar the
+  suite already applies to the closed-form kernels: across 364 cells spanning the
+  norm sweep from 1e-150 to 1e4, crossed with clustered spectra down to exactly
+  degenerate, its error stays within 6.4x of `eigh`'s, both scored against
+  `scipy.linalg.expm`.  Two and three flavours are untouched -- `max|dP|` is
+  exactly 0.0 there, and their timings do not move.
+
+  Being backward stable with no conditioning cliff, it needs no `SEV_TOL` gate of
+  the kind the closed forms require; it returns sev = 0.0, escalating to `eigh`
+  only if a matrix fails to converge in 30 sweeps, which no census has observed.
+  It terminates when a sweep performs no rotation, at a per-element threshold of
+  1e-30 relative.  That threshold is not the prototype's: the original squared
+  off-norm floor sat inside the rounding equilibrium, so long chains declined to
+  `eigh` almost always and the speed-up vanished silently.
+
 ## [1.0.8] - 2026-09-05
 
 ### Changed
