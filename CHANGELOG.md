@@ -5,6 +5,24 @@ All notable changes to Magνs are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.0.6] - 2026-09-05
+
+### Changed
+
+- The separable energy scan composes its slab operators in a compiled kernel
+  rather than a Python loop.  The association is unchanged -- the same left
+  fold, earliest slab rightmost -- so this is not a reassociation; the kernel
+  accumulates each matrix element as a compiled scalar sum where BLAS orders
+  the same arithmetic its own way.  Marginal cost per slab falls about 3.5x at
+  three flavours and 2.3x at two; the gain at four and five flavours is smaller
+  and was not resolved on the machine used.  Without numba, or on a dtype the
+  kernel was not built for, the original loop runs.
+
+  One consequence is worth knowing: a numba-less install was bit-identical to a
+  numba install on this path and may now differ at the 1e-14 level -- worst
+  observed 1.28e-14 across 16 scan configurations, with every refinement
+  decision, warning and slab count unchanged.  See `docs/source/performance.rst`.
+
 ## [Unreleased]
 
 ### Added
