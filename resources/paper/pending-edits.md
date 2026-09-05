@@ -255,3 +255,55 @@ Paper numbers updated in `\subsection{A smooth profile...}`:
 STILL OPEN: `gen_profile_benchmarks.npe_points` builds H outside its timed region. That
 series is stored but no longer plotted, so it does not affect the figure -- but anyone
 reusing that function inherits the bias, which is how it was found.
+
+---
+
+## POSSIBLE NEXT STEP after the commutator: thread the batched scan's chunk loop
+
+Measured 2026-09-05, `dev-overhead`. Not implemented; recorded so the reasoning
+is not lost.
+
+**What `n_jobs` does today, which is not what it looks like.** At
+`src/magnus/oscprob.py:4529` the batched dispatch returns `NotImplemented`
+whenever `n_jobs != 1`. So on the common scan -- many energies, one shared
+baseline -- setting `n_jobs > 1` does not add parallelism to the batched path,
+it *disables* it and falls through to the per-point engine fanned across joblib
+workers. Verified by instrumenting both the dispatch and `Parallel`:
+
+| case | n_jobs=1 | n_jobs=10 |
+|---|---|---|
+| 12 energies, one baseline | batched taken, no joblib | batched DECLINED, 1 joblib fan-out |
+| 12 energies, own baselines | declined, serial per-point | declined, 1 joblib fan-out |
+
+It is a trade, not an addition: array batching (all energies sharing one set of
+potential samples) is exchanged for process parallelism. The docstring at
+`oscprob.py:2777` already says the default "is usually fastest" and that
+`n_jobs` "is not a pure performance knob", but no measurement stands behind it.
+
+**Why the two could be combined.** The batched path already chunks over
+energies inside each refinement level (`for i0 in range(0, len(active), chunk)`,
+sized by `_tile_for_working_set`). Those chunks are independent within a level
+and only rejoin for the convergence test. So the place to parallelise is the
+INNER chunk loop, not the outer point loop where `n_jobs` is wired.
+
+Use **threads, not processes**: `expmkernels._jit` is
+`nb.njit(cache=True, fastmath=False, nogil=True)`, so the compiled kernels
+release the GIL. Threads share the arrays; processes would pay to pickle a large
+complex stack each way.
+
+**Semantics would be preserved** if the parallelism stays strictly inside a
+level and the convergence check stays serial across all chunks: the slab count
+is still set by the hardest energy in the whole stack, so refinement decisions,
+warnings and answers are unchanged. That is exactly what today's `n_jobs` does
+NOT preserve, since it changes which engine runs.
+
+**Caveats.** Memory binds -- `_tile_for_working_set` sizes a chunk to a working
+set and N threads need N of them, so thread count and chunk size trade off. The
+gain is bounded by the fraction of time in nogil kernels versus GIL-held numpy.
+And the comment above `_jit` chose `parallel=False` precisely to avoid
+oversubscription inside joblib workers, so any threading here must not nest
+inside a fan-out.
+
+**Do it after the kernels, not before.** Each kernel that lands raises the nogil
+fraction and gives threading more to work with -- the composition is one
+already, the commutator may become another.
