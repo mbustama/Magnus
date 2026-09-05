@@ -275,6 +275,9 @@ File Tree
    │   ├── gen_prem_reference.py       # GENERATES prem_chord_reference.json -- segment-aligned, layer edges respected
    │   ├── prem_chord_reference.json   # That reference; PARTIAL, 4nu stops at 6 of 12 energies and 5nu is unstarted
    │   ├── gen_prem_benchmarks.py      # GENERATES external_prem_chord_benchmarks.json -- the Earth analogue of Fig. 11
+   │   ├── external_prem_chord_benchmarks.json  # That file: both codes on one requested tolerance, Earth chord, 2-5 flavors
+   │   ├── append_npe_rtol_series.py   # ADDS a tolerance-dialled NuOscProbExact series to the smooth-profile file
+   │   ├── append_npe_rtol_prem.py     # The same for the Earth chord, via earth_slabs and the librarys own refinement
    │   ├── gen_shock_benchmarks.py     # GENERATES external_shock_benchmarks.json -- runs notebook 14s own cells
    │   ├── gen_shock_4nu.py            # GENERATES external_shock_4nu.json -- the shock at 3+1, own DOP853 referee
    │   ├── gen_shock_nsi.py            # GENERATES external_shock_nsi.json -- the shock with NSI, own DOP853 referee
@@ -293,6 +296,7 @@ File Tree
    │       ├── HANDOVER-pseudodirac.md  # Brief for adding pseudo-Dirac neutrinos to the library
    │       ├── API-pseudodirac.md      # The pseudo-Dirac API, summarized for the session writing the panel
    │       ├── audit-criteria.md       # What the manuscript audit checks
+   │       ├── pending-edits.md        # Edits and re-runs the manuscript still owes, with what each one moves
    │       ├── review-crossread.md     # A cross-read of the manuscript against the code
    │       ├── main.tex                # The paper -- ordinary LaTeX; a revision diff is mechanical
    │       ├── refs.bib                # NuOscProbExact's bibliography, with the Magnus entries appended below a separator
