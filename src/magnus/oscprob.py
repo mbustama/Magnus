@@ -4283,8 +4283,10 @@ def _osc_prob_scan_separable(
         V = np.asarray(VCC_func(tgrid.ravel())).reshape(tgrid.shape)
         Vmat = V[:, :, None, None]*mA                         # (n_slabs, m, d, d)
 
-        # Batched kernel over the active energies, chunked so that each
-        # sample array At holds at most ~4M complex entries (~64 MB)
+        # Batched kernel over the active energies, chunked so that each sample
+        # array At holds at most BATCH_WORKING_ENTRIES complex entries -- 65,536,
+        # about 1 MB.  That figure is a cache-residency target, not a memory cap;
+        # see its own definition for what it was tuned against.
         chunk, _ = _tile_for_working_set(len(active), 1, tgrid.size*dim*dim)
         P_new = np.empty((len(active), dim, dim))
         for i0 in range(0, len(active), chunk):
