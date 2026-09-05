@@ -15314,7 +15314,11 @@ for col_key, axes, bench in zip(('exp', 'earth'), cols, (BENCH, PREM_BENCH)):
             for k, pt in enumerate(pts):
                 exp = int(round(np.log10(pt['rtol'])))
                 txt = r'$10^{%d}$' % exp
-                if k == hi:
+                # Only the left column spells out what the dial is.  Saying it twice
+                # is redundant, and on the Earth panel the long form has nowhere to sit:
+                # its first marker is a few points below the frame and the slab code's
+                # curve occupies the space to its left.
+                if k == hi and col_key == 'exp':
                     txt = r'rtol $=10^{%d}$' % exp
                 dx, dy, ha, va = RTOL_LABEL_OFFSETS[col_key][pt['label']]
                 ax.annotate(txt, xy=(pt['us_per_probability'], pt['max_abs_error']),

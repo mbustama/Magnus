@@ -171,7 +171,7 @@ Two traps for any hand conversion between the two papers:
 
 ---
 
-## TO DO: re-run the Earth column of Fig. 11 (opened 2026-09-05)
+## DONE 2026-09-05: re-ran the Earth column of Fig. 11
 
 `notebooks/prem_chord_common.py`'s `vcc` evaluated the matter potential with a Python
 list comprehension over every position: 6.1 us a point, against 0.063 us for the
@@ -204,3 +204,54 @@ which are geometry rather than timing.
 Provisional arithmetic, not a re-run: corrected, Magnus at 1e-6 is about 515 us against
 NuOscProbExact's 603 us, so it is already ahead there and the crossover sits nearer 1e-6
 than 1e-8. Re-measure before printing any of it.
+
+### And the mirror defect, in the exponential column (found 2026-09-05, verified here)
+
+`gen_profile_benchmarks.npe_points` builds the Hamiltonian OUTSIDE the timed region:
+`v = prof['vcc'](mid)` and the `H` broadcast happen before `call` is defined, so
+`timed(call)` measures `probabilities_Nnu_slabs` alone. `magnus_points` times the whole
+`osc_prob_matter_std_potential` call, sampling and H construction included.
+
+Measured cost of the untimed part, as a percentage of what IS timed:
+
+| | n=2048 | n=32768 |
+|---|---|---|
+| 2nu | 227% | 379% |
+| 3nu | 68%  | 170% |
+
+So NuOscProbExact's exponential-column times are understated by roughly 1.7x to 4.8x.
+
+**Both columns of Fig. 11 therefore favour the closed form, for unrelated reasons:**
+the exponential column does not time NPE's H construction; the Earth column charged
+Magnus for a slow helper NPE never called. The Earth NPE route (`append_npe_rtol_prem`)
+IS fair -- its `evaluate` builds H inside the timed call.
+
+Fix before re-running: move the `v = ...` and `H = ...` lines inside `call` in
+`npe_points`, so both codes are timed from the profile function onward. Then the
+exponential column needs re-running too, not just the Earth one.
+
+
+---
+
+## Outcome of the Earth-column re-run (2026-09-05)
+
+Magnus 1.24x to 2.89x faster than the contaminated numbers, median 1.72x. Errors
+unchanged to round-off (max absolute shift 1.08e-14 in a probability, consistent with
+re-associating a product over ~1200 slabs). NuOscProbExact untouched.
+
+**The crossover moved about three decades on the Earth chord**, from ~1e-8 to between
+1e-4 and 1e-6. At 2 flavours, order 4: NPE faster by 5.3x at rtol 1e-3 and 2.8x at 1e-4;
+Magnus faster by 1.5x at 1e-6 and 7.8x at 1e-8.
+
+Paper numbers updated in `\subsection{A smooth profile...}`:
+* per-slab cost 5.9 -> **1.5 us** (Magnus), 0.045 us (closed form) unchanged;
+* cost ratio 130x -> **33x**;
+* fixed refinement cost 600 -> **220 us**;
+* break-even per sample: 144 ns at 1e-6 -> **0.5 us at 1e-4, and Magnus already ahead
+  from 1e-6 down**;
+* and the paragraph no longer claims one crossover for both profiles: it is near 1e-8 on
+  the exponential, near 1e-5 on the Earth chord.
+
+STILL OPEN: `gen_profile_benchmarks.npe_points` builds H outside its timed region. That
+series is stored but no longer plotted, so it does not affect the figure -- but anyone
+reusing that function inherits the bias, which is how it was found.
