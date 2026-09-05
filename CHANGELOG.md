@@ -5,6 +5,22 @@ All notable changes to Magνs are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.0.7] - 2026-09-05
+
+### Changed
+
+- The Magnus term recursion and the Gauss-Legendre schemes compute their
+  commutators in a compiled kernel that fuses both matrix products into one
+  accumulation.  `magnus.commutator` itself is unchanged and stays the general
+  pure-NumPy form; the kernel is a private path, and anything it cannot take
+  falls through to the same expression.  Marginal cost per slab falls 3.1-3.4x
+  at two flavours and 2.0-2.2x at three at order 4, less at higher flavour
+  counts, and not at all on the cumulative path.
+
+  As with 1.0.6, a numba-less install is no longer bit-identical to a numba one
+  on these paths: worst observed shift 6.7e-14 across 36 configurations, every
+  refinement decision unchanged.
+
 ## [1.0.6] - 2026-09-05
 
 ### Changed
