@@ -538,3 +538,62 @@ armchair is the failure this project has a name for.
 
 If it is ever re-run, note that the wall-time arm is what produced the table above
 it in that file, so the table moves with the argument.
+
+## ACHIEVING MATURITY -- the five things left, assessed 2026-09-05
+
+Written after a session that shipped v1.0.6 through v1.0.10. The engineering
+discipline around this code is mature; these are the substantive gaps.
+
+### 1. The Notebooks gate reports green on a broken notebook -- DIAGNOSED
+
+**Not flaky. Consistently broken, and cached over.** `25_magnus_against_other_codes`
+raises `KeyError: 'Magnus, order 6'` at `DIAL_STYLE[series['name']]`. The benchmark
+file `notebooks/external_profile_benchmarks.json` carries five series names --
+`Magnus`, `Magnus, order 6`, `Magnus, order 8`, `NuOscProbExact`,
+`NuOscProbExact, rtol` -- and the notebook's `DIAL_STYLE` defines three. Orders 6
+and 8 entered the data when they were added to Fig. 11; the notebook never learned
+about them.
+
+**Why it looks intermittent.** The workflow skips any notebook whose source
+fingerprint matches a marker in `.nbcache`, and that cache persists between runs
+through `actions/cache`. A run is green whenever notebook 25's *source* happened
+not to change since it last passed -- which was before the data grew. So the gate
+alternates with the contents of the cache rather than with the health of the code,
+and a green Notebooks run currently means "not re-run", not "works".
+
+**The fix is two dictionary entries** in the notebook's `DIAL_STYLE`, plus a
+decision about the cache: a marker keyed on notebook source alone cannot see a
+change in the *data* the notebook reads. Folding the benchmark JSON's hash into
+the fingerprint would close that hole.
+
+`29_magnus_pseudo_dirac` also fails on the same shard, from a different cause,
+not yet examined.
+
+### 2. The cumulative branch has never carried default traffic
+
+Reachable in released code via `cumulative=True`, and `oscprob.py` records that
+making it the default surfaced two latent defects within minutes -- a missing
+scalar squeeze returning `(1, d, d)`, and a `convergence_info` keyword forwarded
+to an engine that rejects it. Reports 05 and 06 propose speeding this path up;
+the audit should come first. A faster kernel on an unaudited branch is the wrong
+order of work.
+
+### 3. A documented silent-wrong mode remains
+
+`strategy='auto'` has a narrow-feature case that returns a confident wrong answer,
+recorded as unfixable on a fixed grid. Known and documented is far better than
+unknown, but a code that can be quietly wrong is not finished.
+
+### 4. The sterile projector takes one scalar
+
+`H_matt` factorises as `VCC(l) x P`, so the projector cannot follow the Earth's
+layered `Y_e` the way the density does. Shipped with a warning and a deferred
+per-layer fix.
+
+### 5. The paper
+
+Until it is out, the code's claims live in docstrings rather than anywhere
+citable.
+
+**Not on this list, having been checked:** v1.0.0 *is* released on GitHub
+(2026-08-13). An earlier note here saying otherwise was stale.
