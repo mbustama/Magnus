@@ -245,12 +245,22 @@ rather than twelve skips, because ``tests/test_engines.py`` asks for
 Python release it has no wheel for now makes the package uninstallable rather than merely
 slower.
 
-One path is now compiled beyond the exponential itself: the separable energy scan folds
+Two paths are now compiled beyond the exponential itself.  The separable energy scan folds
 its slab operators in a numba kernel that keeps the Python loop's association but
 accumulates each matrix element as a compiled scalar sum, where BLAS orders the same
 arithmetic its own way.  A numba-less install was bit-identical there and may now differ
 at the 1e-14 level -- worst observed 1.28e-14 across 16 scan configurations, with every
-refinement decision unchanged.
+refinement decision unchanged.  The commutators of the Magnus schemes run in a second
+such kernel, which fuses the two batched matmuls of ``X @ Y - Y @ X`` -- nearly all
+gufunc dispatch at these matrix sizes -- into one pass over the stack.  Measured on the
+two benchmark profiles, that cuts the marginal cost per slab of the order-4 scheme by
+2.0-2.2x at three flavors and 3.1-3.4x at two; orders 6 and 8, which build three and six
+commutators per slab, gain 2.5-3.0x and 1.9-2.8x.  At four and five flavors the matmuls
+carry enough arithmetic to amortize their dispatch, so the gain settles at 1.1x; on the
+cumulative-quadrature methods, whose time goes to the integrals rather than the
+commutators, it disappears into the noise.  Probabilities move by at most 6.7e-14 across
+36 configurations, every refinement decision and warning unchanged; without numba the
+kernel falls back to the expression it replaced, bit-identical.
 
 
 A constant Hamiltonian needs no ladder at all

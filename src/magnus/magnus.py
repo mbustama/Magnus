@@ -307,6 +307,81 @@ def commutator(X: np.ndarray, Y: np.ndarray) -> np.ndarray:
     return X @ Y - Y @ X
 
 
+def _commutator_batched_core(X, Y):  # pragma: no cover -- compiled below
+    r"""Commutator [X, Y] of two equal-shaped matrix stacks, one matrix at a time.
+
+    For ``X`` and ``Y`` of shape ``(nB, d, d)`` returns the ``(nB, d, d)`` stack
+    of ``X[b] @ Y[b] - Y[b] @ X[b]``, both products fused into a single loop
+    nest so each element is one accumulated scalar sum.  Written to be compiled
+    by numba; the pure-Python form exists only as compilation input.
+    """
+    nB, d, _ = X.shape
+    out = np.empty((nB, d, d), dtype=np.complex128)
+    for b in range(nB):
+        for i in range(d):
+            for j in range(d):
+                s = 0.0 + 0.0j
+                for m in range(d):
+                    s += X[b, i, m]*Y[b, m, j] - Y[b, i, m]*X[b, m, j]
+                out[b, i, j] = s
+    return out
+
+
+if expmkernels.HAVE_NUMBA:
+    _commutator_batched_kernel = expmkernels._jit(_commutator_batched_core)
+else:                                                   # pragma: no cover
+    _commutator_batched_kernel = None
+
+
+def _commutator_batched(X: np.ndarray, Y: np.ndarray) -> np.ndarray:
+    r"""The commutator [X, Y] for the Magnus hot paths, compiled when possible.
+
+    Same mathematics as :func:`commutator`, which stays the public, pure-NumPy
+    form.  On the stacks of small matrices the engine works with, the two
+    batched matmuls of ``X @ Y - Y @ X`` cost mostly gufunc dispatch -- about
+    185 ns per 3x3 matrix -- so the Magnus term recursion and the
+    Gauss-Legendre schemes route their commutators here instead: with numba
+    present and both operands complex128 stacks of one shape, a compiled
+    kernel fuses the two products into one pass.  Anything else -- no numba,
+    another dtype, operands that would need broadcasting -- falls through to
+    the same expression :func:`commutator` computes, so a numba-less install
+    is bit-identical to what these call sites always produced.
+
+    With numba the two installs are no longer bit-identical to each other on
+    these paths: the kernel accumulates each matrix element as one interleaved
+    scalar sum where NumPy rounds the two products separately, so probabilities
+    can move at the rounding level.  Worst observed shift 6.7e-14 across 36
+    scan configurations (both benchmark profiles, d = 2-5, gl orders 4-8,
+    simpson, ladders from rtol 1e-3 to 1e-11), every refinement decision and
+    warning unchanged.  At three flavors and below the shift measures exactly
+    zero at fixed slab counts: there the commutator enters :math:`\Omega`
+    suppressed by the squared slab width, and the rounding difference falls
+    below the ulp of :math:`\Omega`'s leading term.
+
+    .. versionadded:: 1.0.7
+
+    Parameters
+    ----------
+    X : np.ndarray
+        Left stack of matrices, shape (..., d, d).
+    Y : np.ndarray
+        Right stack of matrices, same shape as X (the hot call sites never
+        broadcast; a pair that would is handed to the NumPy expression).
+
+    Returns
+    -------
+    np.ndarray
+        The commutator X @ Y - Y @ X, shaped like X.
+    """
+    if ((_commutator_batched_kernel is not None) and (X.shape == Y.shape)
+            and (X.dtype == np.complex128) and (Y.dtype == np.complex128)):
+        d = X.shape[-1]
+        return _commutator_batched_kernel(
+            np.ascontiguousarray(X).reshape((-1, d, d)),
+            np.ascontiguousarray(Y).reshape((-1, d, d))).reshape(X.shape)
+    return X @ Y - Y @ X
+
+
 def _warn_scalar_hamiltonian() -> None:
     r"""Warn that the Hamiltonian is being evaluated one position at a time.
 
@@ -732,9 +807,9 @@ def _nested_chain(comp, om, Bt, cache):
     if hit is not None:
         return hit
     if len(comp) == 1:
-        value = commutator(om[comp[0]], Bt)
+        value = _commutator_batched(om[comp[0]], Bt)
     else:
-        value = commutator(om[comp[0]], _nested_chain(comp[1:], om, Bt, cache))
+        value = _commutator_batched(om[comp[0]], _nested_chain(comp[1:], om, Bt, cache))
     cache[comp] = value
     return value
 
@@ -1016,43 +1091,43 @@ def _magnus_terms_quadrature(
     terms.append(last(o1t, 1))
 
     if order >= 2:
-        C1 = commutator(o1t, Bt)                      # [Omega_1, A]
+        C1 = _commutator_batched(o1t, Bt)             # [Omega_1, A]
         o2t = integ(-0.5*C1, 2)
         terms.append(last(o2t, 2))
 
     if order >= 3:
-        C2 = commutator(o2t, Bt)                      # [Omega_2, A]
-        D11 = commutator(o1t, C1)                     # [Omega_1, [Omega_1, A]]
+        C2 = _commutator_batched(o2t, Bt)             # [Omega_2, A]
+        D11 = _commutator_batched(o1t, C1)            # [Omega_1, [Omega_1, A]]
         o3t = integ(-0.5*C2 + F1*D11, 3)
         terms.append(last(o3t, 3))
 
     if order >= 4:
-        C3 = commutator(o3t, Bt)                      # [Omega_3, A]
-        D12 = commutator(o1t, C2)                     # [Omega_1, [Omega_2, A]]
-        D21 = commutator(o2t, C1)                     # [Omega_2, [Omega_1, A]]
+        C3 = _commutator_batched(o3t, Bt)             # [Omega_3, A]
+        D12 = _commutator_batched(o1t, C2)            # [Omega_1, [Omega_2, A]]
+        D21 = _commutator_batched(o2t, C1)            # [Omega_2, [Omega_1, A]]
         o4t = integ(-0.5*C3 + F1*(D12 + D21), 4)
         terms.append(last(o4t, 4))
 
     if order >= 5:
-        C4 = commutator(o4t, Bt)                      # [Omega_4, A]
+        C4 = _commutator_batched(o4t, Bt)             # [Omega_4, A]
         o5t = integ(
             -0.5*C4
-            + F1*(commutator(o1t, C3) + commutator(o2t, C2)
-                  + commutator(o3t, C1))
-            + F2*commutator(o1t, commutator(o1t, D11)),
+            + F1*(_commutator_batched(o1t, C3) + _commutator_batched(o2t, C2)
+                  + _commutator_batched(o3t, C1))
+            + F2*_commutator_batched(o1t, _commutator_batched(o1t, D11)),
             5)
         terms.append(last(o5t, 5))
 
     if order >= 6:
-        C5 = commutator(o5t, Bt)                      # [Omega_5, A]
+        C5 = _commutator_batched(o5t, Bt)             # [Omega_5, A]
         o6t = integ(
             -0.5*C5
-            + F1*(commutator(o1t, C4) + commutator(o2t, C3)
-                  + commutator(o3t, C2) + commutator(o4t, C1))
-            + F2*(commutator(o1t, commutator(o1t, D12))
-                  + commutator(o1t, commutator(o1t, D21))
-                  + commutator(o1t, commutator(o2t, D11))
-                  + commutator(o2t, commutator(o1t, D11))),
+            + F1*(_commutator_batched(o1t, C4) + _commutator_batched(o2t, C3)
+                  + _commutator_batched(o3t, C2) + _commutator_batched(o4t, C1))
+            + F2*(_commutator_batched(o1t, _commutator_batched(o1t, D12))
+                  + _commutator_batched(o1t, _commutator_batched(o1t, D21))
+                  + _commutator_batched(o1t, _commutator_batched(o2t, D11))
+                  + _commutator_batched(o2t, _commutator_batched(o1t, D11))),
             6)
         terms.append(last(o6t, 6))
 
@@ -1137,7 +1212,7 @@ def _magnus_gl(
             # walls, a t_breakpoints-delimited region of uniform density -- and not on a smooth
             # one like PREM, where the two nodes genuinely differ.
             return h*A1
-        return 0.5*h*(A1 + A2) + (np.sqrt(3.0)/12.0)*h*h*commutator(A2, A1)
+        return 0.5*h*(A1 + A2) + (np.sqrt(3.0)/12.0)*h*h*_commutator_batched(A2, A1)
 
     if order <= 6:
         # Order 6 (Blanes, Casas & Ros 2002, Eqs. 3.5-3.7): three commutators, the fewest
@@ -1152,9 +1227,9 @@ def _magnus_gl(
         a1 = h*A2
         a2 = (np.sqrt(15.0)/3.0)*h*(A3 - A1)
         a3 = (10.0/3.0)*h*(A3 - 2.0*A2 + A1)
-        C1 = commutator(a1, a2)
-        C2 = (-1.0/60.0)*commutator(a1, 2.0*a3 + C1)
-        return a1 + a3/12.0 + (1.0/240.0)*commutator(-20.0*a1 - a3 + C1, a2 + C2)
+        C1 = _commutator_batched(a1, a2)
+        C2 = (-1.0/60.0)*_commutator_batched(a1, 2.0*a3 + C1)
+        return a1 + a3/12.0 + (1.0/240.0)*_commutator_batched(-20.0*a1 - a3 + C1, a2 + C2)
 
     # Order 8 (Blanes, Casas & Ros 2002, Eqs. 3.8-3.10): six commutators, again the
     # fewest possible.  The four alpha are that paper's b_1..b_4, obtained from the
@@ -1182,13 +1257,13 @@ def _magnus_gl(
     a2 = 15.0*(5.0*B1 - 28.0*B3)
     a3 = -15.0*(B0 - 12.0*B2)
     a4 = -140.0*(3.0*B1 - 20.0*B3)
-    C1 = (-1.0/28.0)*commutator(a1 + a3/28.0, a2 + (3.0/28.0)*a4)
-    C2 = (1.0/3.0)*commutator(a1, -a3/14.0 + C1)
-    C3 = commutator(a1 + a3/28.0 + C1, a2 + (3.0/28.0)*a4 + C2)
-    C4 = commutator(a2, C1)
-    C5 = commutator(a1 + 1.25*C1, 2.0*a3 + C3 + 0.5*C4)
-    C6 = commutator(a1 + a3/12.0 - (7.0/3.0)*C1 - C3/6.0,
-                    -9.0*a2 - 2.25*a4 + 63.0*C2 + C5)
+    C1 = (-1.0/28.0)*_commutator_batched(a1 + a3/28.0, a2 + (3.0/28.0)*a4)
+    C2 = (1.0/3.0)*_commutator_batched(a1, -a3/14.0 + C1)
+    C3 = _commutator_batched(a1 + a3/28.0 + C1, a2 + (3.0/28.0)*a4 + C2)
+    C4 = _commutator_batched(a2, C1)
+    C5 = _commutator_batched(a1 + 1.25*C1, 2.0*a3 + C3 + 0.5*C4)
+    C6 = _commutator_batched(a1 + a3/12.0 - (7.0/3.0)*C1 - C3/6.0,
+                             -9.0*a2 - 2.25*a4 + 63.0*C2 + C5)
     return a1 + a3/12.0 - (7.0/120.0)*C3 + (1.0/360.0)*C6
 
 
