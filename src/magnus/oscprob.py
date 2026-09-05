@@ -287,6 +287,7 @@ are layered internally (primordial/middle/wrapper) and how to add a new one.
 __author__ = 'Mauricio Bustamante'
 
 
+import functools
 import numpy as np
 import sys
 import warnings
@@ -3748,6 +3749,7 @@ keeps the two from drifting apart.
 """
 
 
+@functools.lru_cache(maxsize=1)
 def _passthrough_kwarg_names() -> frozenset:
     r"""Every keyword the ``**kwargs`` chain can absorb, read off the signatures.
 
@@ -3760,6 +3762,14 @@ def _passthrough_kwarg_names() -> frozenset:
     Verified against the call: every keyword this returns is accepted by
     :func:`osc_prob_matter_std_potential`, and the ones a caller is likely to misspell --
     ``t_breakpoint`` for ``t_breakpoints``, ``nslabs`` for ``n_slabs`` -- are not in it.
+
+    Cached, because this ran on every call that validates keywords and cost about
+    113 us each time -- a tenth of the fixed overhead of a single-point call, spent
+    re-reading three signatures that cannot change: they are module-level
+    definitions, and nothing in the package rebinds or wraps them.  What is cached
+    is the reading, not a second copy of the names, so the derived-not-listed
+    property above is untouched.  ``.cache_clear()`` is available for a caller that
+    patches one of those signatures and wants the union recomputed.
 
     .. versionadded:: 1.0.0
     """

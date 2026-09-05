@@ -382,6 +382,62 @@ def _commutator_batched(X: np.ndarray, Y: np.ndarray) -> np.ndarray:
     return X @ Y - Y @ X
 
 
+def _gl4_omega_core(At, h, out):  # pragma: no cover -- compiled below
+    r"""Order-4 Gauss-Legendre :math:`\Omega` for a stack of slabs, in one pass.
+
+    ``At`` is ``(nB, 2, d, d)``, the two node samples per slab; ``h`` is ``(nB,)``;
+    ``out`` is ``(nB, d, d)``.  Returns 1 when every slab's two samples were
+    bit-identical -- the constant-:math:`\mathbb{A}` case, where the commutator
+    vanishes and :math:`\Omega = h\,\mathbb{A}_1` -- and 0 otherwise, having
+    written the full expression.
+
+    Fuses three steps the NumPy form pays separately: the equality test, the
+    commutator, and the linear combination.  The equality scan exits on the first
+    differing element, which ``numpy.array_equal`` does not do; the commutator
+    accumulates in the same interleaved order as :func:`_commutator_batched_core`;
+    and the scalar factors are formed in the same association as the expression
+    they replace, so the result is bit-identical to it.  Written to be compiled by
+    numba; the pure-Python form exists only as compilation input.
+    """
+    nB, _m, d, _ = At.shape
+    c1 = np.sqrt(3.0)/12.0
+    identical = True
+    for b in range(nB):
+        for i in range(d):
+            for j in range(d):
+                if At[b, 0, i, j] != At[b, 1, i, j]:
+                    identical = False
+                    break
+            if not identical:
+                break
+        if not identical:
+            break
+    if identical:
+        for b in range(nB):
+            hb = h[b]
+            for i in range(d):
+                for j in range(d):
+                    out[b, i, j] = hb*At[b, 0, i, j]
+        return 1
+    for b in range(nB):
+        hb = h[b]
+        f1 = 0.5*hb
+        f2 = c1*hb*hb
+        for i in range(d):
+            for j in range(d):
+                s = 0.0 + 0.0j
+                for k in range(d):
+                    s += At[b, 1, i, k]*At[b, 0, k, j] - At[b, 0, i, k]*At[b, 1, k, j]
+                out[b, i, j] = f1*(At[b, 0, i, j] + At[b, 1, i, j]) + f2*s
+    return 0
+
+
+if expmkernels.HAVE_NUMBA:
+    _gl4_omega_kernel = expmkernels._jit(_gl4_omega_core)
+else:                                                   # pragma: no cover
+    _gl4_omega_kernel = None
+
+
 def _warn_scalar_hamiltonian() -> None:
     r"""Warn that the Hamiltonian is being evaluated one position at a time.
 
@@ -1158,7 +1214,8 @@ def _samples_identical(X: np.ndarray, Y: np.ndarray) -> bool:
     produces -- the same lookup returning the same float -- so nothing is lost
     by refusing to guess.
 
-    ``array_equal`` short-circuits on the first differing element, so on a
+    ``array_equal`` does *not* short-circuit -- it builds the full
+    comparison and reduces it -- so on a
     smooth profile this costs one comparison and returns.
     """
     return X.shape == Y.shape and np.array_equal(X, Y)
@@ -1201,6 +1258,22 @@ def _magnus_gl(
 
     if order <= 4:
         # Omega = (h/2)(A1 + A2) + (sqrt(3)/12) h^2 [A2, A1]
+        if ((_gl4_omega_kernel is not None) and (An.dtype == np.complex128)
+                and (An.shape[-3] == 2)):
+            # One pass for the equality test, the commutator and the linear
+            # combination, bit-identical to the expression below.  A1 and A2 are
+            # strided views of An, so the NumPy route copies both before the
+            # commutator can use them; the kernel reads An where it lies.
+            d = An.shape[-1]
+            flat = np.ascontiguousarray(An).reshape((-1, 2, d, d))
+            out = np.empty((flat.shape[0], d, d), dtype=np.complex128)
+            # widths, not h: h already carries the two trailing singleton axes
+            # that let it multiply a (..., d, d) stack, and the kernel wants one
+            # scalar per slab.
+            hb = np.ascontiguousarray(np.broadcast_to(
+                np.asarray(widths, dtype=float), An.shape[:-3])).reshape(-1)
+            _gl4_omega_kernel(flat, hb, out)
+            return out.reshape(An.shape[:-3] + (d, d))
         A1 = An[..., 0, :, :]
         A2 = An[..., 1, :, :]
         if _samples_identical(A1, A2):

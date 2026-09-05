@@ -5,6 +5,36 @@ All notable changes to Magνs are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.0.8] - 2026-09-05
+
+### Changed
+
+- The order-4 Gauss-Legendre `Omega` is built by a compiled kernel that makes one
+  pass over each slab's two node samples, fusing three steps the NumPy form pays
+  separately: the constant-sample equality test, the commutator, and the linear
+  combination.  The two samples are strided views, so the NumPy route copies both
+  before the commutator can read them; the kernel reads them where they lie, and
+  the equality scan stops at the first differing element rather than comparing
+  every one.  Marginal cost per slab falls 1.52x at two flavours and 1.23-1.36x at
+  three, less at higher flavour counts where the eigendecomposition dominates.
+  Orders 2, 6 and 8 are untouched and keep the commutator kernel of 1.0.7.
+
+  Unlike 1.0.6 and 1.0.7, this one introduces **no** new divergence between a
+  numba-less install and a numba one: the kernel reproduces the compiled
+  commutator's accumulation order and the same association of the scalar factors,
+  so its output is bit-identical to the expression it replaces -- exactly 0.0
+  difference across every shape, flavour, width form and edge case tested.
+  Anything the kernel cannot take -- another dtype, another node count -- falls
+  through to that expression unchanged.
+
+- The set of accepted pass-through keyword names is computed once and cached
+  rather than rebuilt by `inspect.signature` on every public call.  It was being
+  rebuilt twice per call, once by the entry point and once by the `osc_prob` it
+  delegates to, at about 221 us each; a single-point call is that much cheaper.
+  This is fixed overhead, so it is invisible on large grids and worth most to
+  callers making many small calls.  `cache_clear` remains available for tests
+  that add or remove parameters at runtime.
+
 ## [1.0.7] - 2026-09-05
 
 ### Changed
