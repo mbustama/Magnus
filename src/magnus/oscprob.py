@@ -665,7 +665,15 @@ they matter:
    explicit ``cumulative=True`` and both fixed here: a missing scalar squeeze that returned
    ``(1, d, d)`` instead of ``(d, d)``, and a ``convergence_info`` keyword forwarded to an engine
    that rejects it, raising ``TypeError`` instead of returning a probability.  Two found in
-   minutes says the branch needs its own audit before it carries the default traffic.
+   minutes said the branch needed its own audit before it carried default traffic; that audit
+   was run on 2026-09-05 and found nothing further.  Both defect classes are clean -- scalar
+   input returns ``(d, d)`` at every flavour count on both settings, and nine forwarded
+   keywords all reach the branch -- and the branch is no longer thinly covered: 24
+   ``cumulative=True`` call sites across five test files, twenty tests named for it, fourteen
+   exercising ``convergence_info``, all passing.  What the audit did find is that this
+   sentence had gone stale, and that the branch's three refusals -- differing energies, a
+   supplied ``t_slab_edges``, and a request it cannot serve -- are deliberate and each says
+   plainly why.  See ``docs/dev/AUDIT_CUMULATIVE_BRANCH.md``.
 3. **It is a change of default, not a dominant engine.**  The cumulative scan's worst error over
    the 76 physical workloads it serves is 5.10e-03, and on one the hybrid path was 15x better.
 
