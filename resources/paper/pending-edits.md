@@ -646,3 +646,78 @@ because it is not exp-tagged.
 
 Sequencing: this is a research question with an unmeasured answer, not a defect.
 It belongs behind the maturity list above.
+
+## BLOCKED 2026-09-05: Figure 11 cannot be re-timed for one code alone
+
+**Attempted and reverted.** The benchmark files are back to their 2026-08-10
+state; nothing was left changed. Read this before trying again.
+
+### What was asked, and why it looked easy
+
+Re-time Mag(nu)s in Figure 11 after the v1.0.6-v1.0.12 kernels, leaving
+NuOscProbExact and the references alone. `append_order_series.py` had done
+something similar in August and documented the condition: appending timings from
+a later session is honest only if the machine still times the same way.
+`probe_commensurability.py` exists to check exactly that, and it passed --
+control ratio 0.986 -> 1.011, +2.5%.
+
+### Why that check is not sufficient
+
+**The control workload is a 180x180 matmul. It is BLAS-bound. The points that
+matter here are Python-overhead-bound, and the two drift independently.**
+
+Measured directly, which is the part worth keeping: the pre-kernel code at
+`a55b8a4`, checked out into a worktree and run today on the exact stored
+configuration, is **12-20% slower than its own stored numbers** --
+
+    d=2 rtol 1e-03   stored  113.55   old code today  134.89   (+19%)
+    d=3 rtol 1e-03   stored  116.52   old code today  139.36   (+20%)
+    d=3 rtol 1e-06   stored  233.92   old code today  269.62   (+15%)
+    d=3 rtol 1e-10   stored 1095.50   old code today 1222.96   (+12%)
+
+against a control that moved 2.5%. So the stored NuOscProbExact points cannot
+share a time axis with anything measured now. Re-timing Mag(nu)s alone would have
+handed the closed form a 12-20% advantage it did not earn -- negligible against a
+2-5x gain at tight tolerance, but the same size as the effect at the loose end,
+where Mag(nu)s gains only about 1.2x.
+
+### Why re-timing both did not work either
+
+Re-timing NuOscProbExact costs about a minute, so the obvious fix was to re-time
+both in one session. That produced numbers that cannot be right: on the smooth
+profile NuOscProbExact came out **1.2-2.7x slower**, on the PREM chord **0.42-1.05x,
+i.e. faster**. Drift of 12-20% explains neither, and certainly not in opposite
+directions.
+
+The cause is in the files' own metadata. The PREM NuOscProbExact series was built
+through a particular route -- `npe_rtol_series.route` records "earth.earth_slabs
+for the shell-aligned geometry, slabs.probabilities_Nnu_slabs to compose,
+slabs._n_for_tolerance to refine" -- while the re-timing pushed the `n_slabs`
+series through `gen_profile_benchmarks.npe_points`, which uses uniform slabs and
+no shell alignment. That is a different measurement, not a re-measurement.
+
+### What would actually be needed
+
+1. A re-timing path for **each** NuOscProbExact series that reproduces the route
+   its metadata records, not a single shared helper. Four series, three routes.
+2. `probe_commensurability.py` extended with an **overhead-bound** control
+   alongside its BLAS-bound one, since the existing one certified a machine that
+   had drifted six times further than it reported.
+3. Then both codes re-timed in one session, which is what the caption has always
+   claimed and what neither the stored data nor the attempt above delivers.
+
+`notebooks/retime_magnus_series.py` carries the Mag(nu)s half, which is correct
+and was verified: every point re-run at its own stored dial against its own stored
+reference, NuOscProbExact untouched, references bit-identical. Its NuOscProbExact
+half is the part that is wrong, and is documented as such in the file.
+
+### One result worth keeping from the attempt
+
+Mag(nu)s is **2.2-5.4x faster on the PREM chord** and 1.8-2.6x on the smooth
+profile at four and five flavours, at matched tolerance against matched
+references. And the accuracy floor moved at four and five flavours, further than
+report 01 predicted: at rtol = 1e-10 the smooth-profile d=5 error goes 1.022e-12
+-> 3.289e-12, d=4 1.884e-12 -> 2.729e-12. Every looser point is unchanged, since
+discretization dominates there. Report 01 predicted about 4%; this is up to 3.2x.
+Its 10x-of-eigh gate still holds, but Figure 11's d=4 and d=5 panels are log-log
+and this is their lowest point, so it will be visible.
