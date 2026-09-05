@@ -101,7 +101,14 @@ target-version = "py310"
 # `ruff check` reports a couple of hundred errors in code nobody wrote.  Passing a
 # path explicitly overrides gitignore discovery, so ignoring it in .gitignore is
 # not enough on its own.
-extend-exclude = ["docs/jupyter_execute"]
+# docs/dev/overhead_survey/prototypes/ holds the throwaway benchmark scripts behind the
+# 1.0.6-1.0.9 kernels, archived so the measurements can be re-run rather than re-derived.
+# They are a record of what was measured, not maintained code: semicolon-joined setup
+# lines and unused bindings are how a benchmark gets written, and cleaning them would
+# edit evidence.  docs/dev/ is exempt from the file-tree test for the same reason; this
+# makes it exempt from the linter too.  The other .py files under docs/dev/ are tools
+# that are run and maintained, and stay linted.
+extend-exclude = ["docs/jupyter_execute", "docs/dev/overhead_survey/prototypes"]
 
 [tool.ruff.lint]
 # Pinned explicitly rather than left to ruff's default.  The default selection is not
