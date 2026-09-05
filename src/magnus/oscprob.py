@@ -4292,9 +4292,7 @@ def _osc_prob_scan_separable(
             At = HE_c[sel][:, None, None, :, :] + Vmat[None, :, :, :, :]
             U = magnus.evolution_operators_from_samples(At, widths,
                 magnus_exp_order, integration_method, validate_input=False)
-            Utot = U[:, -1]
-            for k in range(U.shape[1] - 2, -1, -1):
-                Utot = Utot @ U[:, k]
+            Utot = magnus._ordered_product_batched(U)
             P_new[i0:i0+chunk] = np.swapaxes(
                 Utot.real**2 + Utot.imag**2, -1, -2)
 

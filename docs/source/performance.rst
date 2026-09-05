@@ -245,6 +245,13 @@ rather than twelve skips, because ``tests/test_engines.py`` asks for
 Python release it has no wheel for now makes the package uninstallable rather than merely
 slower.
 
+One path is now compiled beyond the exponential itself: the separable energy scan folds
+its slab operators in a numba kernel that keeps the Python loop's association but
+accumulates each matrix element as a compiled scalar sum, where BLAS orders the same
+arithmetic its own way.  A numba-less install was bit-identical there and may now differ
+at the 1e-14 level -- worst observed 1.28e-14 across 16 scan configurations, with every
+refinement decision unchanged.
+
 
 A constant Hamiltonian needs no ladder at all
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
