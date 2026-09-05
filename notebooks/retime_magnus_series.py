@@ -136,17 +136,23 @@ def main():
     prem_energies = np.asarray(json.loads(
         (HERE/'prem_chord_reference.json').read_text())['energy_ev'], dtype=float)
 
+    # Only the tolerance-dialled NuOscProbExact series is re-timed.  The n_slabs one
+    # sits in these files unplotted -- notebook 28's SERIES_STYLE names four series and
+    # that is not among them, because both codes are now dialled by the same requested
+    # tolerance while the slab-count sweep was chosen by hand.  Leaving it alone also
+    # leaves alone the only series whose generation route these helpers do not
+    # reproduce: PREM's was built through earth.earth_slabs for shell-aligned geometry.
     def prem_npe(d, prof, series, ref):
-        dials = [p['n_slabs'] for p in series['points']] if series['dial'] == 'n_slabs' \
-            else [p['rtol'] for p in series['points']]
         if series['dial'] == 'n_slabs':
-            return gpb.npe_points(d, prof, dials, ref)
-        return anrp.npe_rtol_points(d, prem_energies, dials, ref)
+            return None
+        return anrp.npe_rtol_points(d, prem_energies,
+                                    [p['rtol'] for p in series['points']], ref)
 
     def profile_npe(d, prof, series, ref):
         if series['dial'] == 'n_slabs':
-            return gpb.npe_points(d, prof, [p['n_slabs'] for p in series['points']], ref)
-        return anrs.npe_rtol_points(d, prof, [p['rtol'] for p in series['points']], ref)
+            return None
+        return anrs.npe_rtol_points(d, prof,
+                                    [p['rtol'] for p in series['points']], ref)
 
     prem_store, _ = retime(
         PREM_STORE,

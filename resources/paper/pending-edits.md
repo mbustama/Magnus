@@ -647,12 +647,59 @@ because it is not exp-tagged.
 Sequencing: this is a research question with an unmeasured answer, not a defect.
 It belongs behind the maturity list above.
 
-## BLOCKED 2026-09-05: Figure 11 cannot be re-timed for one code alone
+## DONE 2026-09-05: Figure 11 re-timed after the v1.0.6-v1.0.12 kernels
 
-**Attempted and reverted.** The benchmark files are back to their 2026-08-10
-state; nothing was left changed. Read this before trying again.
+Both codes re-timed in one session, the figure regenerated, and the note that
+previously stood here -- claiming this was blocked -- was wrong. What follows is
+what actually mattered, since two false starts preceded it.
 
-### What was asked, and why it looked easy
+**The four series Figure 11 plots were re-timed**: Mag(nu)s at orders 4, 6 and 8
+and NuOscProbExact dialled by tolerance, each through the helper that generated
+it, at its own stored dial, against its own stored reference. The DOP853 and
+mpmath references were never recomputed. `notebooks/retime_magnus_series.py`.
+
+**The NuOscProbExact `n_slabs` series was left alone, because Figure 11 does not
+plot it.** Notebook 28's `SERIES_STYLE` names four series and that is not among
+them: "the n_slabs series stays in the JSON beside this one, unplotted", both
+codes now being dialled by the same requested tolerance. A first attempt tried to
+re-time it, through the profile helper's uniform slabs rather than the shell-
+aligned `earth.earth_slabs` route its own metadata records, and produced numbers
+that were a different measurement rather than a re-measurement. That is what the
+retracted note called a blocker; it was a series that never needed touching.
+
+**Why NuOscProbExact had to be re-timed at all**, having first been left out. The
+machine has drifted. Checked out at `a55b8a4` into a worktree and run today, the
+pre-kernel code is **12-20% slower than its own stored numbers**:
+
+    d=2 rtol 1e-03   stored  113.55   old code today  134.89   (+19%)
+    d=3 rtol 1e-03   stored  116.52   old code today  139.36   (+20%)
+    d=3 rtol 1e-10   stored 1095.50   old code today 1222.96   (+12%)
+
+`probe_commensurability.py` reported +2.5% and passed. **Its control is a 180x180
+matmul and is BLAS-bound, while these points are Python-overhead-bound, and the
+two drift independently.** Re-timing Mag(nu)s alone would have handed the closed
+form a 12-20% advantage it did not earn -- negligible against a 2-5x gain at tight
+tolerance, but the same size as the effect at the loose end. Extending that probe
+with an overhead-bound control is worth doing before the next re-timing.
+
+**Result.** Mag(nu)s at 0.18-0.93 of its stored time, so 1.1x to 5.6x faster;
+NuOscProbExact by tolerance at 0.88-1.47, scattered about one and mostly slightly
+slower, which is the drift now carried by both codes rather than one.
+
+**Still outstanding: the rtol labels.** They are hand-positioned, with separate
+offset sets per column because "a single set of offsets cannot serve both". The
+curves have moved up to 5.6x along the time axis, so the placements no longer fit
+-- in the Earth 2nu panel the topmost label is clipped against the frame. Drag
+them with `docs/dev/nudge_fig11_labels.py`.
+
+**And the accuracy floor moved at four and five flavours**, further than survey
+report 01 predicted. At rtol = 1e-10 the smooth-profile d=5 error goes 1.022e-12
+-> 3.289e-12 and d=4 1.884e-12 -> 2.729e-12; report 01 predicted about 4%, this is
+up to 3.2x. Every looser point is unchanged, discretization dominating there. The
+10x-of-eigh gate that admitted the Jacobi backend still holds, but these panels are
+log-log and this is their lowest point.
+
+## What was asked, and why it looked easy
 
 Re-time Mag(nu)s in Figure 11 after the v1.0.6-v1.0.12 kernels, leaving
 NuOscProbExact and the references alone. `append_order_series.py` had done
