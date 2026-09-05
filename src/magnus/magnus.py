@@ -2030,6 +2030,131 @@ def _ordered_product_into(acc: np.ndarray, U: np.ndarray) -> None:
     acc[...] = out
 
 
+def _running_product_snapshots_core(acc, U, snap_k, snap_rows, P):  # pragma: no cover -- compiled below
+    r"""Right-fold slab product with probability snapshots, in one pass.
+
+    ``acc`` is ``(d, d)``, updated in place to ``U[nb-1] @ ... @ U[0] @ acc``
+    -- each new slab on the LEFT and ``k`` ascending, exactly the association of
+    the Python loop it replaces (``running = U[k] @ running``, k ascending) and
+    the *mirror* of :func:`_ordered_product_into_core`, whose accumulator sits on
+    the left.  ``U`` is ``(nb, d, d)``; ``snap_k`` is a sorted array of local
+    slab indices, and immediately after slab ``snap_k[s]`` is applied the row
+    ``P[snap_rows[s]]`` receives the transposed elementwise ``|acc|^2`` -- the
+    probability matrix at that point of the traversal, formed as
+    ``re*re + im*im`` exactly as ``acc.real**2 + acc.imag**2`` computes it.
+    Repeated ``snap_k`` entries write consecutive rows from the same product,
+    which is how a duplicated requested baseline behaves in the loop replaced.
+    Written to be compiled by numba; the pure-Python form exists only as
+    compilation input.
+    """
+    nb, d, _ = U.shape
+    a = np.empty((d, d), dtype=np.complex128)
+    tmp = np.empty((d, d), dtype=np.complex128)
+    for i in range(d):
+        for j in range(d):
+            a[i, j] = acc[i, j]
+    pos = 0
+    n_snap = snap_k.shape[0]
+    for k in range(nb):
+        for i in range(d):
+            for j in range(d):
+                s = 0.0 + 0.0j
+                for m in range(d):
+                    s += U[k, i, m]*a[m, j]
+                tmp[i, j] = s
+        a, tmp = tmp, a
+        while (pos < n_snap) and (snap_k[pos] == k):
+            r = snap_rows[pos]
+            for i in range(d):
+                for j in range(d):
+                    v = a[j, i]
+                    P[r, i, j] = v.real*v.real + v.imag*v.imag
+            pos += 1
+    for i in range(d):
+        for j in range(d):
+            acc[i, j] = a[i, j]
+
+
+if expmkernels.HAVE_NUMBA:
+    _running_product_snapshots_kernel = expmkernels._jit(_running_product_snapshots_core)
+else:                                                   # pragma: no cover
+    _running_product_snapshots_kernel = None
+
+
+def _running_product_snapshots(acc: np.ndarray, U: np.ndarray, snap_k: np.ndarray,
+                               snap_rows: np.ndarray, P: np.ndarray) -> None:
+    r"""Fold a slab-operator stack into a running product, snapshotting probabilities.
+
+    The scan sibling of :func:`_ordered_product_into`, for the one caller whose
+    product must be *observed along the way* rather than only at the end: the
+    cumulative baseline scan (``oscprob._osc_prob_cumulative_scan``), where every
+    requested baseline is a prefix of the next.  ``acc`` (shape ``(d, d)``,
+    updated in place) is multiplied from the left by the slabs of ``U`` (shape
+    ``(nb, d, d)``) in ascending ``k`` order -- the association is
+    ``acc <- U[k] @ acc``, the mirror of :func:`_ordered_product_into`, because
+    this traversal walks forward in time holding the *earlier* part of the
+    product -- and immediately after slab ``snap_k[s]`` the probability matrix
+    ``transpose(|acc|^2)`` is written to ``P[snap_rows[s]]``.  ``snap_k`` must be
+    sorted ascending; entries of ``P`` not named in ``snap_rows`` are left
+    untouched.
+
+    With numba present, ``acc`` and ``U`` complex128 and ``P`` float64, the fold
+    runs in a compiled kernel that keeps the same association as the Python loop
+    it replaces; anything else falls through to that loop itself, so a numba-less
+    install is bit-identical to what it always computed.
+
+    The two installs are not bit-identical to *each other* on this path, for the
+    same reason as :func:`_ordered_product_into`: the association is the same,
+    but the compiled kernel accumulates each matrix element as a plain scalar
+    sum where BLAS applies its own FMA ordering.  Worst observed probability
+    shift 2.0e-14, at 8231 slabs, across solar scans at two and three flavours
+    (551 and 8231 slabs, 40 baselines each); against 40-digit mpmath folds of
+    the same operators neither side is systematically closer (compiled fold
+    1.2e-14 where the BLAS chain has 1.8e-14 at two flavours, 2.6e-14 against
+    1.5e-14 at three), so the shift is rounding exchanged, not accuracy lost.
+    Snapshot placement is integer bookkeeping and does not move at all.
+
+    .. versionadded:: 1.0.12
+
+    Parameters
+    ----------
+    acc : np.ndarray
+        Running product, shape ``(d, d)``, complex128 and writeable;
+        overwritten with ``U[nb-1] @ ... @ U[0] @ acc``.
+    U : np.ndarray
+        Stack of operators, shape ``(nb, d, d)``, slabs ordered earliest first.
+    snap_k : np.ndarray
+        Sorted local slab indices at which to snapshot, each in
+        ``[0, nb)``; a snapshot happens *after* its slab is applied.  Repeats
+        are honored in order (a duplicated requested baseline).
+    snap_rows : np.ndarray
+        Row of ``P`` each snapshot writes, aligned with ``snap_k``.
+    P : np.ndarray
+        Probability output, shape ``(n_out, d, d)`` float64; written at the
+        ``snap_rows`` rows only.
+
+    Returns
+    -------
+    None
+        The results are written into ``acc`` and ``P``.
+    """
+    if ((_running_product_snapshots_kernel is not None)
+            and (acc.dtype == np.complex128) and (U.dtype == np.complex128)
+            and (P.dtype == np.float64)):
+        _running_product_snapshots_kernel(
+            acc, U, np.ascontiguousarray(snap_k, dtype=np.int64),
+            np.ascontiguousarray(snap_rows, dtype=np.int64), P)
+        return
+    out = acc
+    pos = 0
+    for k in range(U.shape[0]):
+        out = U[k] @ out
+        while (pos < len(snap_k)) and (snap_k[pos] == k):
+            P[snap_rows[pos]] = np.transpose(out.real**2 + out.imag**2)
+            pos += 1
+    acc[...] = out
+
+
 valid_expm_backends = ['auto', 'numba', 'eigh']
 r"""list of str: The accepted values of ``EXPM_BACKEND`` and of every
 ``expm_backend`` parameter.

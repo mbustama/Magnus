@@ -5664,16 +5664,15 @@ def _osc_prob_cumulative_scan(H_func, L_out, L0, n_acc, magnus_exp_order,
             n_tpts_per_slab, magnus_exp_order, integration_method=integration_method,
             A_eval_mode=A_eval_mode, **kwargs)
         # Outputs landing inside this block, in edge order, so the running product is
-        # snapshotted at the right moment without a second pass.
+        # snapshotted at the right moment without a second pass.  The fold itself runs
+        # compiled (numba permitting): its Python form cost ~1.2 us/slab in numpy dispatch,
+        # which by v1.0.11 was several times the marginal cost of everything else in the
+        # traversal put together.  `out_idx[order] - start - 1` is each snapshot's local
+        # slab index -- taken after that slab is applied, which is the
+        # `out_idx == start + k + 1` moment the loop this replaced used.
         here = np.flatnonzero((out_idx > start) & (out_idx <= stop))
         order = here[np.argsort(out_idx[here], kind='stable')]
-        pos = 0
-        for k in range(stop - start):
-            running = U[k] @ running
-            while (pos < len(order)) and (out_idx[order[pos]] == start + k + 1):
-                j = order[pos]
-                P[j] = np.transpose(running.real**2 + running.imag**2)
-                pos += 1
+        magnus._running_product_snapshots(running, U, out_idx[order] - start - 1, order, P)
         del U
     return P
 

@@ -5,6 +5,41 @@ All notable changes to Magνs are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.0.12] - 2026-09-05
+
+### Changed
+
+- The baseline scan folds its running product in a compiled kernel rather than a
+  Python loop.  :func:`osc_prob_energy_baseline` answers every requested baseline
+  from one traversal of the profile, because each answer is a prefix of the next;
+  the loop that walked it snapshotted the running product at each requested
+  distance, one Python iteration per slab.  Marginal cost per slab falls from
+  about 1.2 us to 0.011 us at two flavours.
+
+  End to end the gain grows with the grid, since the fold's share of the scan
+  does: about **2.7x at 512 accumulation steps and 7.5x at 32 768** at two
+  flavours, 1.5x and 3.9x at three.  It exceeds the survey's own 2-4x estimate
+  for a reason worth recording -- the kernels of 1.0.6 through 1.0.11 had made
+  building the operators so cheap that the Python fold had become the dominant
+  cost of this scan.
+
+  This needed its own kernel rather than reusing 1.0.11's.  That one folds
+  ``acc <- acc @ U[k]`` with k descending; this one needs ``U[k] @ acc`` with k
+  ascending, which is the mirror image -- a different product, not a different
+  parenthesization -- and it must snapshot mid-fold at requested baselines, which
+  a final-answer kernel cannot do.
+
+  **Not bit-identical**, for the same reason as 1.0.11: NumPy routes these
+  products through MKL's `zgemm`, which uses fused multiply-add, and a kernel
+  compiled with `fastmath` off cannot reproduce that ordering.  Worst shift
+  1.4e-14, which is twenty times smaller than 1.0.11's.  Unlike that release,
+  neither side is systematically closer to exact -- against 40-digit mpmath the
+  new fold wins at two flavours and the old at three -- so this is rounding
+  exchanged rather than accuracy gained.  A numba-less install is exactly
+  bit-identical to the old loop.  The scan-against-per-point invariant was
+  checked on identical slab edges at all four flavour counts, 4.9e-15 to
+  2.2e-14, against the suite's 1e-12 bar.
+
 ## [1.0.11] - 2026-09-05
 
 ### Changed
