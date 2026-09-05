@@ -5,6 +5,34 @@ All notable changes to Magνs are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.0.13] - 2026-09-06
+
+### Fixed
+
+- The `HiddenFeatureWarning` told callers to pass `t_breakpoints` and then
+  printed ones that did not work.  The suggestion was a pair-scale bracket, ten
+  to a hundred times wider than the feature it was meant to straddle: a single
+  point stayed at 3.0e-02, and a 60-point scan moved to 5.8e-02 **with no
+  warning at all**, because passing `t_breakpoints` switches the scan the
+  detector runs in off.  A caller who did what the message said therefore landed
+  back where the warning exists to rescue them from, with a worse error and
+  nothing on screen.
+
+  The suggested edges are now localized: the flagged interval is re-sampled and
+  the sub-interval carrying most of the variation is bracketed instead.
+  Following the message takes the same cases from 3.0e-02 to 1.0e-04 and
+  1.0e-02 to 9.9e-05, at a point and over a 60-point scan alike.  The
+  localization runs only where the warning fires, so the detector's
+  false-positive record is untouched by construction.
+
+  The message also now says what to expect afterwards: breakpoints route the
+  call to the general slab ladder, so accuracy lands near the requested
+  tolerance rather than below it.
+
+  Detection itself is unchanged.  The undetectable remainder is structural --
+  a feature narrower than the reference grid cannot be found by refining a grid
+  -- and no attempt was made to change that.
+
 ## [1.0.12] - 2026-09-05
 
 ### Changed

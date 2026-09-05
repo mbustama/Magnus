@@ -1162,12 +1162,19 @@ class HiddenFeatureWarning(ToleranceNotAchievedWarning):
     :math:`3\times10^{-5}` of the trajectory: **wrong by 2.9e-02 against a requested 1e-3, with
     no warning at all** before this existed.
 
-    **What to change.**  Pass ``t_breakpoints`` bracketing the position in the message, padded by
-    a few reference intervals.  Measured on the two constructions above, going from nothing to a
-    padded breakpoint set: 3.9e-03 → 8.5e-05 and 1.3e-03 → 4.4e-04, and the answer stops being
-    silent.  The cure is real but **partial** -- putting edges on a feature helps the quadrature,
-    it does not conjure resolution that the sampling never had.  For a feature you know the width
-    of, a denser grid there is better still.
+    **What to change.**  Pass the exact ``t_breakpoints`` printed in the message.  They are
+    built by re-sampling the flagged interval and laying seven edges across the sub-interval
+    that actually carries the variation (see :func:`_suggest_breakpoints`), so the inner slabs
+    come out near two feature widths -- a pair-scale padded bracket, which an earlier version
+    of this message suggested, was measured *not* to cure the band this class is calibrated
+    on: a single point stayed at 3.0e-02, a 60-point scan moved from 3.0e-02 to 5.8e-02, and
+    both were silent about it, since supplying breakpoints also switches the scan off.  The
+    printed set is verified end to end through the public path -- warn, pass the printed edges
+    back, re-run: 3.0e-02 → 1.0e-04 on the width-3e-5 calibration case at a point and over a
+    60-point scan alike, and 1.5e-04 or better at every other detected centre tried.  Edges of
+    your own at :math:`\pm 2` and :math:`\pm 8` widths do as well (measured 8.4e-04) when you
+    know the width.  Either way the breakpoints route the call to the general slab ladder, so
+    expect accuracy near the requested tolerance, not the hybrid path's excess below it.
 
     **When it is safe to ignore.**  When the narrow structure is an artifact of how the profile
     function was written rather than physics -- an interpolation kink, a rounding step in a
@@ -1179,6 +1186,11 @@ class HiddenFeatureWarning(ToleranceNotAchievedWarning):
     so it runs **once per call**, not once per (energy, L) point.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.0.12
+       The message's suggested ``t_breakpoints`` now localize the feature by a local
+       re-sample and are verified to cure the calibration band; the pair-scale bracket they
+       replace was measured not to.
     """
 
 
@@ -3980,6 +3992,73 @@ interaction-picture path applies, and a cross-check that silently compared the s
 itself would be exactly the failure it exists to detect."""
 
 
+def _suggest_breakpoints(profile, scan, n_local=2048, hold=0.90, n_edges=7) -> list:
+    r"""Build the ``t_breakpoints`` that :class:`HiddenFeatureWarning` tells the caller to pass.
+
+    The scan localizes a hidden feature only to a reference-interval pair, about
+    :math:`3\times10^{-4}` of the trajectory -- 10 to 100 widths of the features in the band
+    the detector is calibrated on.  Edges that far apart do not cure: measured through the
+    public path on the ``FINDINGS_ADVERSARIAL_VALIDATION.md`` §3.3 cases, a pair-scale
+    padded bracket (which an earlier version of the warning suggested) left a single point at
+    3.0e-02 and moved a 60-point scan from 3.0e-02 to 5.8e-02 -- silently, because supplying
+    ``t_breakpoints`` also switches the scan off.  So the flagged pair is re-sampled here at
+    ``n_local`` points, the smallest sub-interval holding ``hold`` of the pair's variation is
+    padded by its own width on each side, and ``n_edges`` uniform edges are laid across it.
+    The inner slabs come out near two feature widths, which is also what the verified manual
+    cure (edges at :math:`\pm 2` and :math:`\pm 8` widths) produces.
+
+    Verified through the public path at every detected centre tried, five per width: at a
+    width of 3e-5 of the trajectory, bare errors of 3.2e-03 to 3.0e-02 go to 2.9e-07 to
+    1.5e-04; at 1e-5, 4.1e-03 to 1.0e-02 go to 3.9e-05 to 9.4e-05; the flagship case's
+    60-point scan lands at 1.0e-04.  On a feature so narrow it was harmless (width 1e-6 with a
+    bare error of 2.8e-11), the breakpoints route the call to the general slab ladder and the
+    answer lands near the requested tolerance instead -- the warning says so, making that
+    trade the caller's.
+
+    Cost is ``n_local`` scalar evaluations of ``profile``, paid only on the warn path, which
+    fires on none of the 67 smooth calibration profiles.
+
+    .. versionadded:: 1.0.12
+
+    Parameters
+    ----------
+    profile : Callable
+        The scalar profile the scan ran on; must accept an array of positions.
+    scan : dict
+        A result of :func:`magnus.adiabatic.find_hidden_features` whose ``'hidden'`` is True.
+    n_local : int
+        Points of the local re-sample across the flagged pair.
+    hold : float
+        Fraction of the pair's variation the tight sub-interval must contain.
+    n_edges : int
+        Edges laid uniformly across the padded sub-interval.
+
+    Returns
+    -------
+    list
+        Positions to pass as ``t_breakpoints``.  Falls back to the pair-scale 3-point bracket
+        if the profile cannot be re-sampled or shows no variation here -- nearly unreachable,
+        since the scan just sampled it and found plenty.
+    """
+    lo0, hi0 = float(scan['l_lo']), float(scan['l_hi'])
+    fallback = [lo0 - 3.0*(hi0 - lo0), float(scan['l_centre']), hi0 + 3.0*(hi0 - lo0)]
+    try:
+        xs = np.linspace(lo0, hi0, n_local + 1)
+        steps = np.abs(np.diff(np.asarray(profile(xs), dtype=float)))
+    except Exception:            # noqa: BLE001 -- same rule as the scan: never break the call
+        return fallback
+    if (steps.ndim != 1) or (steps.shape[0] != n_local) or (not np.all(np.isfinite(steps))):
+        return fallback
+    total = float(steps.sum())
+    if total <= 0.0:
+        return fallback
+    order = np.argsort(steps)[::-1]
+    kept = np.sort(order[:int(np.searchsorted(np.cumsum(steps[order]), hold*total)) + 1])
+    lo, hi = xs[kept[0]], xs[kept[-1] + 1]
+    width = hi - lo
+    return list(np.linspace(lo - width, hi + width, n_edges))
+
+
 def _scan_for_hidden_features(profile, l0, L, t_breakpoints=None) -> Optional[Dict]:
     r"""Run the sub-probe feature scan once for a whole call, and warn if it finds something.
 
@@ -3991,6 +4070,11 @@ def _scan_for_hidden_features(profile, l0, L, t_breakpoints=None) -> Optional[Di
     structure is) and when the profile is not a function of position (nothing to hide in).
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.0.12
+       The warning's suggested ``t_breakpoints`` now come from :func:`_suggest_breakpoints`,
+       which localizes the feature by re-sampling the flagged interval; the pair-scale bracket
+       it replaces was measured not to cure the band the detector exists for.
 
     Returns
     -------
@@ -4025,10 +4109,10 @@ def _scan_for_hidden_features(profile, l0, L, t_breakpoints=None) -> Optional[Di
         return scan
 
     # The position IS the actionable content here, so it goes in the message even though that
-    # costs the static-message dedup other warnings keep.  It does not cost much: the scan
-    # depends on the profile and the interval only, so every call over the same profile
-    # produces the same string and Python's default filter still collapses them.
-    pad = 3.0*(scan['l_hi'] - scan['l_lo'])
+    # costs the static-message dedup other warnings keep.  It does not cost much: the scan and
+    # the suggested edges depend on the profile and the interval only, so every call over the
+    # same profile produces the same string and Python's default filter still collapses them.
+    edges = _suggest_breakpoints(profile, scan)
     warnings.warn(
         "osc_prob: the density profile has structure too narrow for any grid this package "
         "samples on, near l = " + format(scan['l_centre'], '.6e') + ". Every engine misses it "
@@ -4036,11 +4120,12 @@ def _scan_for_hidden_features(profile, l0, L, t_breakpoints=None) -> Optional[Di
         "so they agree with each other and may be wrong together, and no choice of strategy or "
         "tolerance helps. Measured on such a profile: wrong by 2.9e-02 against a requested "
         "1e-3. Pass t_breakpoints=["
-        + format(scan['l_lo'] - pad, '.6e') + ", " + format(scan['l_centre'], '.6e') + ", "
-        + format(scan['l_hi'] + pad, '.6e') + "] to put slab edges on it; that is a partial "
-        "cure (measured 3.9e-03 -> 8.5e-05), not a complete one. If the narrow structure is an "
-        "artifact of how the profile function was written rather than physics, this is safe to "
-        "ignore. Shown once per profile per session.",
+        + ", ".join(format(e, '.6e') for e in edges) + "] to put slab edges across it "
+        "(verified on the case above: 3.0e-02 -> 1.0e-04, at a point and over a 60-point "
+        "scan). Passing t_breakpoints routes the call to the general slab ladder and switches "
+        "this scan off, so expect accuracy near the requested tolerance rather than below it. "
+        "If the narrow structure is an artifact of how the profile function was written rather "
+        "than physics, this is safe to ignore. Shown once per profile per session.",
         HiddenFeatureWarning, stacklevel=3)
     return scan
 
@@ -6930,10 +7015,12 @@ def osc_prob_matter_std_potential(
            the unresolvable band with 0 false positives on 67 smooth profiles, so it is a
            report -- not a guarantee, and not a cure.
 
-           Passing ``t_breakpoints`` at the feature fixes it, and is tested: the same case goes
-           to 8.8e-04 at a single point and 8.9e-04 over a 60-point scan. It is the right tool
-           twice over, since an edge placed *on* a sharp feature also stops a slab straddling it
-           from degrading the quadrature. This is the one exposure the adversarial validation
+           Passing ``t_breakpoints`` at the feature fixes it, and is tested: with edges placed
+           by hand at the feature's own width the same case goes to 8.8e-04 at a single point
+           and 8.9e-04 over a 60-point scan, and with the set the warning itself prints it goes
+           to 1.0e-04 (verified end to end: warn, pass the printed edges back, re-run). It is
+           the right tool twice over, since an edge placed *on* a sharp feature also stops a
+           slab straddling it from degrading the quadrature. This is the one exposure the adversarial validation
            (``docs/dev/FINDINGS_ADVERSARIAL_VALIDATION.md``) could not close in the library
            itself: what a fixed grid never samples, it cannot report.
 

@@ -156,8 +156,8 @@ hides variation in every interval, a narrow bump hides all of it in one. Measure
 positives over 67 smooth and resolvable profiles**, detecting 68-90 % of features in the
 unresolvable band, for 0.37 ms once per call. *What it cannot do:* detection falls to ~0.73 for
 features far below the dense sampling, and it **reports rather than cures** -- it names the
-position and the ``t_breakpoints`` to pass, which is a partial fix (measured 3.9e-03 to
-8.5e-05), not a complete one.
+position and the exact ``t_breakpoints`` to pass, verified end to end -- warn, pass the
+printed edges back, re-run: 3.0e-02 to 1.0e-04 on the width-3e-5 calibration case.
 
 **The second irreducible limit: broadband roughness.** The sub-probe scan is a
 *concentration* statistic, and that is exactly what makes it blind to structure spread over
@@ -190,8 +190,10 @@ and all of them are wrong together by **2.9e-02 against a requested 1e-3**. Beca
 wrong *together*, the cross-check sees nothing either: it detects disagreement, so it finds a
 wrong engine exactly when some other engine got it right.
 
-The cure is caller-supplied ``t_breakpoints`` at the feature, and it is verified: the same
-case goes to 8.8e-04 at a single point and 8.9e-04 over a 60-point scan. This is a property
+The cure is caller-supplied ``t_breakpoints`` at the feature, and it is verified: with
+edges placed by hand at the feature's own width the same case goes to 8.8e-04 at a single
+point and 8.9e-04 over a 60-point scan, and with the set the warning itself prints (it
+localizes the feature by re-sampling the flagged interval) to 1.0e-04. This is a property
 of any fixed grid, not of any particular test, and no detector that pretends otherwise would
 be honest. What *has* changed is that the condition is now usually **detected and reported**
 rather than silent -- see the feature scan above.

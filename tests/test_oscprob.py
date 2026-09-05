@@ -2,6 +2,7 @@
 """Tests of the oscillation-probability engine (magnus.oscprob)."""
 
 import io
+import re
 import tracemalloc
 import warnings
 
@@ -2899,6 +2900,27 @@ def test_breakpoints_cure_a_feature_narrower_than_the_probe_grid():
     # And the cure works, which is what the documentation promises.  (Measured: 1.31e-04.)
     assert err_bp < 1e-3, f"t_breakpoints no longer cures the narrow feature (err {err_bp:.2e})"
     assert err_bp < err_bare/10.0
+
+    # The warning's OWN suggested breakpoints must cure too -- warn, parse the printed edges,
+    # pass them back.  This is the workflow the message actually offers a user who knows
+    # neither the width nor the true centre, and it went unpinned once before: the pair-scale
+    # suggestion this replaces was measured on the FINDINGS §3.3 flagship to leave a single
+    # point at its bare 3.0e-02 while switching the scan (and so the warning) off.  (Measured
+    # here with the localized suggestion: 4.06e-05, from a bare 4.60e-03.)
+    msgs = [str(w.message) for w in rec if w.category.__name__ == 'HiddenFeatureWarning']
+    printed = re.search(r't_breakpoints=\[([^\]]+)\]', msgs[0])
+    assert printed is not None, 'the warning no longer prints a t_breakpoints suggestion'
+    edges_printed = [float(v) for v in printed.group(1).split(',')]
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        P_printed = np.asarray(op.osc_prob_matter_std_potential(
+            2, ne, energy, l1, params, L0=0.0, density_is_of_number_of_electrons=True,
+            t_breakpoints=edges_printed))
+    err_printed = np.max(np.abs(P_printed - P_exact))
+    assert err_printed < 1e-3, (
+        f"the warning's suggested t_breakpoints no longer cure (err {err_printed:.2e}); "
+        "a suggestion that re-silences without curing is worse than none")
+    assert err_printed < err_bare/10.0
 
 
 def test_cumulative_scan_returns_an_unwrapped_matrix_for_a_scalar_request():
