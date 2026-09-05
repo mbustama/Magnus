@@ -768,3 +768,28 @@ report 01 predicted: at rtol = 1e-10 the smooth-profile d=5 error goes 1.022e-12
 discretization dominates there. Report 01 predicted about 4%; this is up to 3.2x.
 Its 10x-of-eigh gate still holds, but Figure 11's d=4 and d=5 panels are log-log
 and this is their lowest point, so it will be visible.
+
+## PARKED 2026-09-05: the three-flavour rows of \tabl{prem} are noisy
+
+**Not updated, deliberately.** The $3+1$ rows of that table and the $440\times$ claim
+built on them were re-measured and corrected; the three-flavour rows were not.
+
+Notebook 25 measures both codes live, so a re-run gives a valid same-session
+comparison -- and two consecutive full runs of it disagree by 37% on one row:
+
+    Magnus, rtol 1e-4, 3nu    paper 153 us    run 1  150    run 2  207
+
+The $3+1$ rows are stable to 6-9% across the same two runs, which is why they were
+updated and these were not. The loose-tolerance rows are dominated by fixed
+overhead rather than per-slab work, which is exactly where this machine has been
+measured to drift, so they need more repetitions than one notebook pass gives them
+before anything is frozen into a table.
+
+**A second thing to know before re-running them.** NuOscProbExact has changed too.
+Its repository carries commits since 2026-08-01 touching `src/`, including
+"Let a profile be refined to a tolerance for a whole stack at once". That is why
+its numbers moved in *opposite directions* -- about 2.3x faster at three flavours,
+about 2x slower at $3+1$ -- which no machine drift explains. The comparison remains
+fair, both codes being timed in one process at their current versions, but the
+table now compares two codes that have each moved since it was written, and the
+prose around it should say so if the three-flavour rows are ever refreshed.
