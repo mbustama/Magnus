@@ -5,6 +5,34 @@ All notable changes to Magνs are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.0.10] - 2026-09-05
+
+### Changed
+
+- `_expm_stack` asks whether a stack is anti-Hermitian in one compiled pass
+  rather than five full-stack temporaries and about seven traversals, and builds
+  `K = 1j*Om` only after the branch is taken.  The framing stage falls 4.3-5.3x;
+  a whole call falls about 1.1x, the difference being that the framing is only
+  6-17% of a call.  Probabilities are unchanged: exactly 0.0 difference across
+  128 configurations spanning both profiles, two to five flavours, four slab
+  counts and all four Magnus orders.
+
+  The kernel compares *squared* magnitudes and takes one `sqrt` at the end, so
+  `scale` and `dev` can differ from NumPy's by up to 2 ulp.  Computing `abs()`
+  per element instead is exact in intent but measured 0.47-0.78x -- slower than
+  the NumPy expression it would replace -- and is not value-identical either, so
+  there is no exact compiled alternative to prefer.  Those two scalars are used
+  only to choose between the identity branch, the anti-Hermitian branch and the
+  scipy fallback; the branch could change only for an input whose deviation-to-
+  scale ratio sits within 2 ulp of 1e-12, four decades from where real input
+  lands.  Neither value reaches a warning or a returned quantity.
+
+  NaN and inf route exactly as before.  A plain maximum loop would not have done
+  that -- it skips NaN where `numpy.max` propagates it, which would have sent a
+  NaN stack to the eigensolver instead of the scipy fallback -- so the kernel
+  carries a running sum of squared magnitudes, which vectorizes and cannot
+  cancel, and checks it once at the end.
+
 ## [1.0.9] - 2026-09-05
 
 ### Changed

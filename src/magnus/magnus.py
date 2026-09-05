@@ -2013,6 +2013,69 @@ def _resolve_expm_backend(expm_backend: Optional[str]) -> str:
     return backend
 
 
+def _antiherm_scale_dev_core(Om):  # pragma: no cover -- compiled below
+    r"""Largest magnitude and anti-Hermiticity deviation of a stack, one pass.
+
+    ``Om`` is ``(nB, d, d)``.  Returns ``(scale, dev)`` with ``scale`` the
+    maximum of :math:`|\Omega_{ij}|` over the stack and ``dev`` the maximum of
+    :math:`|\Omega + \Omega^\dagger|_{ij}` -- since :math:`|iz| = |z|` exactly,
+    these equal :math:`\max|K|` and :math:`\max|K - K^\dagger|` for
+    :math:`K = i\Omega`, the two numbers :func:`_expm_stack`'s anti-Hermiticity
+    framing asks for, without ever forming :math:`K`.
+
+    Fuses what the NumPy form pays in five full-stack temporaries and about
+    seven memory passes (``1j*Om``, its conjugate transpose, two ``abs``
+    stacks, their difference and the two maxima) into a single read of the
+    stack with two scalar accumulators.  The maxima are taken over *squared*
+    magnitudes, one ``sqrt`` at the end, because a per-element ``abs`` in
+    numba measured slower than NumPy's vectorized passes (0.4-0.7x) where the
+    squared form measured several times faster; squaring is monotone, so the
+    argmax element -- and with it the framing's branch decision -- is the
+    same.  What that costs: NumPy's complex ``abs`` is ``hypot``, and
+    ``sqrt(re^2 + im^2)`` rounds three times where ``hypot`` rounds once, so
+    each returned value can sit a bit or two from the NumPy expression's --
+    up to 2 ulp measured over 500 random stacks, on about a third of them
+    (``sqrt(0) == 0`` exactly, so the identity branch is safe).
+    Squaring also narrows the exponent range: above ``~1.3e154`` the squares
+    overflow and below ``~1.5e-154`` they underflow, where the returned
+    values can be off by more than that ulp -- some hundred and fifty decades
+    beyond any physical :math:`\Omega` on either side.  A NaN anywhere in the
+    stack propagates into both results, as ``np.max`` propagates it, via the
+    running sum ``t``: a max whose comparison a NaN always loses would skip
+    it, but a sum carries it (the squared magnitudes are nonnegative, so no
+    ``inf - inf`` can manufacture one), and an ``or a != a`` clause on the max
+    itself measured twice the runtime -- it blocks vectorization where the
+    add does not.  So NaN input still reaches the scipy fallback.  Written to
+    be compiled by numba; the pure-Python form exists only as compilation
+    input.
+    """
+    nB, d, _ = Om.shape
+    s2 = 0.0
+    d2 = 0.0
+    t = 0.0
+    for b in range(nB):
+        for i in range(d):
+            for j in range(d):
+                z = Om[b, i, j]
+                a = z.real*z.real + z.imag*z.imag
+                t += a
+                if a > s2:
+                    s2 = a
+                w = z + np.conj(Om[b, j, i])
+                a = w.real*w.real + w.imag*w.imag
+                if a > d2:
+                    d2 = a
+    if t != t:
+        return np.nan, np.nan
+    return np.sqrt(s2), np.sqrt(d2)
+
+
+if expmkernels.HAVE_NUMBA:
+    _antiherm_scale_dev_kernel = expmkernels._jit(_antiherm_scale_dev_core)
+else:                                                   # pragma: no cover
+    _antiherm_scale_dev_kernel = None
+
+
 def _expm_stack(Om: np.ndarray, warn_wide: bool = False,
                 A_is_const: bool = False,
                 expm_backend: Optional[str] = None) -> np.ndarray:
@@ -2026,7 +2089,11 @@ def _expm_stack(Om: np.ndarray, warn_wide: bool = False,
     :mod:`magnus.expmkernels`, or the eigendecomposition
     :math:`\exp(\Omega) = V\, \mathrm{diag}\!\left(e^{-i\lambda}\right)\, V^\dagger`.
     Either is faster than scipy's Pade-based expm for stacks of small matrices.
-    Otherwise it falls back to scipy.linalg.expm.
+    Otherwise it falls back to scipy.linalg.expm.  The anti-Hermiticity test
+    itself runs as one compiled pass over the stack when numba is present
+    (:func:`_antiherm_scale_dev_core`, whose docstring carries the ulp-level
+    caveat); for non-complex128, non-contiguous or numba-less input it is the
+    original NumPy reduction.
 
     Neither route is *exactly* unitary, and an earlier version of this docstring
     claimed the ``eigh`` one was.  It is not: :math:`U^\dagger U - I` measures
@@ -2074,13 +2141,28 @@ def _expm_stack(Om: np.ndarray, warn_wide: bool = False,
     """
     backend = _resolve_expm_backend(expm_backend)
     Om = np.asarray(Om)
-    K = 1j*Om
-    Kh = np.conj(np.swapaxes(K, -1, -2))
-    scale = np.max(np.abs(K))
+    if (_antiherm_scale_dev_kernel is not None and Om.dtype == np.complex128
+            and Om.size and Om.flags.c_contiguous):
+        # One compiled read of the stack answers "is this anti-Hermitian",
+        # so K = 1j*Om (a full-stack pass of its own) is built only after a
+        # branch that actually uses K is taken.  The reshape is a view.
+        scale, dev = _antiherm_scale_dev_kernel(
+            Om.reshape((-1,) + Om.shape[-2:]))
+        K = None
+    else:
+        # Non-complex128, non-contiguous, empty or numba-less input: the
+        # original NumPy expression, untouched.  (dev of an all-zero stack is
+        # computed here and not below, but it is 0.0 and unused either way.)
+        K = 1j*Om
+        Kh = np.conj(np.swapaxes(K, -1, -2))
+        scale = np.max(np.abs(K))
+        dev = np.max(np.abs(K - Kh))
     if scale == 0.0:
         return np.broadcast_to(np.eye(Om.shape[-1], dtype=complex),
                                Om.shape).copy()
-    if np.max(np.abs(K - Kh)) <= 1.e-12*scale:
+    if dev <= 1.e-12*scale:
+        if K is None:
+            K = 1j*Om
         if (backend != 'eigh' and expmkernels.HAVE_NUMBA
                 and expmkernels.supports_dim(Om.shape[-1])):
             U, lam, sev = expmkernels.expm_herm_stack(K)
