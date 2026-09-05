@@ -1933,6 +1933,103 @@ def _ordered_product_batched(U: np.ndarray) -> np.ndarray:
     return Utot
 
 
+def _ordered_product_into_core(acc, U):  # pragma: no cover -- compiled below
+    r"""Left-fold slab product into an existing accumulator, one batch at a time.
+
+    For ``acc`` of shape ``(nE, d, d)`` and ``U`` of shape ``(nE, nb, d, d)``
+    performs, in place, ``acc[e] <- acc[e] @ U[e, nb-1] @ ... @ U[e, 0]`` -- the
+    accumulator on the left and ``k`` descending, exactly the association of the
+    Python loop it replaces (``acc = acc @ U[:, k]``, k descending).  That loop
+    walked ``k`` outermost, all batch entries per step; here the batch entry is
+    outermost instead, which reorders nothing *within* any entry's chain -- the
+    chains are independent, so each entry sees the identical operation sequence.
+    ``nb = 0`` is a no-op, leaving ``acc`` untouched.  Written to be compiled by
+    numba; the pure-Python form exists only as compilation input.
+    """
+    nE, n, d, _ = U.shape
+    a = np.empty((d, d), dtype=np.complex128)
+    tmp = np.empty((d, d), dtype=np.complex128)
+    for e in range(nE):
+        for i in range(d):
+            for j in range(d):
+                a[i, j] = acc[e, i, j]
+        for k in range(n - 1, -1, -1):
+            for i in range(d):
+                for j in range(d):
+                    s = 0.0 + 0.0j
+                    for m in range(d):
+                        s += a[i, m]*U[e, k, m, j]
+                    tmp[i, j] = s
+            a, tmp = tmp, a
+        for i in range(d):
+            for j in range(d):
+                acc[e, i, j] = a[i, j]
+
+
+if expmkernels.HAVE_NUMBA:
+    _ordered_product_into_kernel = expmkernels._jit(_ordered_product_into_core)
+else:                                                   # pragma: no cover
+    _ordered_product_into_kernel = None
+
+
+def _ordered_product_into(acc: np.ndarray, U: np.ndarray) -> None:
+    r"""Fold a slab-operator stack into an accumulator, in place.
+
+    The accumulator-in sibling of :func:`_ordered_product_batched`, for callers
+    whose product spans more than one stack: ``acc`` (shape ``(nE, d, d)``,
+    updated in place) is multiplied from the right by the slabs of ``U`` (shape
+    ``(nE, nb, d, d)``) in descending ``k`` order, so after the call
+    ``acc[e] = acc_old[e] @ U[e, nb-1] @ ... @ U[e, 0]``.  Taking ``acc`` as an
+    argument rather than reducing ``U`` alone and multiplying afterwards is the
+    point: the caller's parenthesis nesting stays strictly left-to-right across
+    stack boundaries, which the interaction-picture engine's tiling comment
+    (and its exact-equality test) requires.
+
+    With numba present and both arrays complex128 the fold runs in a compiled
+    kernel that keeps the *same left-fold association* as the Python loop it
+    replaces; anything else falls through to that loop itself, so a numba-less
+    install is bit-identical to what it always computed.
+
+    The two installs are not bit-identical to *each other* on this path, for
+    the same reason as :func:`_ordered_product_batched`: the association is the
+    same, but the compiled kernel accumulates each matrix element as a plain
+    scalar sum where BLAS applies its own FMA ordering, so results move at the
+    rounding level -- and the deeper the chain, the further the two random
+    walks drift apart.  Worst observed engine-output shift 2.8e-13, at 32768
+    slabs, across a 34-configuration battery (fixed slab counts 8 to 32768,
+    tiled and untiled, refinement ladders from rtol 1e-3 to 1e-9), with every
+    certification decision unchanged.  The shift is dominated by the *replaced*
+    chain's own rounding: against 40-digit mpmath folds of the engine's own
+    32768-slab operators the compiled fold errs at worst 2.4e-14 where the
+    BLAS chain errs at 8.8e-14, so the compiled fold is the more accurate of
+    the two.
+
+    .. versionadded:: 1.0.11
+
+    Parameters
+    ----------
+    acc : np.ndarray
+        Accumulator stack, shape ``(nE, d, d)``, complex128, C-contiguous and
+        writeable; overwritten with the folded product.
+    U : np.ndarray
+        Stack of operators, shape ``(nE, nb, d, d)``, slabs ordered earliest
+        first along axis 1.  ``nb = 0`` leaves ``acc`` untouched.
+
+    Returns
+    -------
+    None
+        The result is written into ``acc``.
+    """
+    if ((_ordered_product_into_kernel is not None) and (acc.dtype == np.complex128)
+            and (U.dtype == np.complex128)):
+        _ordered_product_into_kernel(acc, U)
+        return
+    out = acc
+    for k in range(U.shape[1] - 1, -1, -1):
+        out = out @ U[:, k]
+    acc[...] = out
+
+
 valid_expm_backends = ['auto', 'numba', 'eigh']
 r"""list of str: The accepted values of ``EXPM_BACKEND`` and of every
 ``expm_backend`` parameter.

@@ -8,7 +8,7 @@ build-backend = "setuptools.build_meta"
 # [tool.setuptools.packages.find] below); the two are independent, and plain
 # `magnus` was already taken on PyPI by an unrelated project.
 name = "magnuspy"
-version = "1.0.10"
+version = "1.0.11"
 description = "Neutrino oscillation probabilities via the Magnus expansion, for an arbitrary number of flavors and any Hamiltonian, time-dependent or not."
 readme = "README.md"
 requires-python = ">=3.10"

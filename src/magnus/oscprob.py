@@ -4863,8 +4863,19 @@ def _osc_prob_ip_exp_core(
                 U_slab = U_free_diag[..., :, None]*magnus._expm_stack(
                     Omega_t, warn_wide=False)
 
-                for k in range(U_slab.shape[1] - 1, -1, -1):
-                    acc = U_slab[:, k] if acc is None else acc @ U_slab[:, k]
+                # The fold runs compiled (magnus._ordered_product_into), accumulator on
+                # the left and k descending -- the association of the Python loop this
+                # replaces (`acc = acc @ U_slab[:, k]`).  The accumulator is passed *in*
+                # rather than each block being reduced alone and multiplied afterwards,
+                # precisely so the cross-block parenthesis nesting stays the one the
+                # tiling comment above requires.  The first block seeds the accumulator
+                # with its last slab (a copy: the kernel writes in place, and U_slab is
+                # about to be freed) and folds the rest.
+                if acc is None:
+                    acc = np.ascontiguousarray(U_slab[:, -1])
+                    magnus._ordered_product_into(acc, U_slab[:, :-1])
+                else:
+                    magnus._ordered_product_into(acc, U_slab)
                 del arg, I, Omega_t, U_free_diag, U_slab
             Utot[esel] = acc
 

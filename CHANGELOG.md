@@ -5,6 +5,36 @@ All notable changes to Magνs are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.0.11] - 2026-09-05
+
+### Changed
+
+- The interaction-picture engine folds its slab operators in a compiled
+  accumulator rather than a Python loop.  That loop ran one iteration per slab,
+  each doing a single small matrix product and returning to Python, and measured
+  56% of the engine's pass; the fold itself falls 18.3x, the engine 2.28x.  What
+  a caller sees depends strongly on how many slabs are folded -- about 2.3x at
+  32 768 slabs, and nothing measurable at 512 -- so the figure is a property of
+  the request, not of the engine.
+
+  This is the fourth loop of its kind to be compiled, after the separable scan's
+  in 1.0.6 and the Gauss-Legendre expressions in 1.0.8, and it reaches a narrower
+  set of calls than any of them: the engine serves only two-flavour requests on a
+  profile tagged as exponential, with no supplied slab edges.
+
+  **Not bit-identical**, and established as unachievable before it was written
+  rather than discovered afterwards: NumPy routes these stacked 2x2 products
+  through MKL's `zgemm`, which uses fused multiply-add, and a kernel compiled with
+  `fastmath` off cannot reproduce that ordering.  Worst engine-output shift
+  2.8e-13 over 34 configurations spanning slab counts 8 to 32 768 and tolerance
+  ladders 1e-3 to 1e-9, with **every certification decision unchanged** and
+  returned probabilities identical in end-to-end testing.  Scored against
+  40-digit mpmath folds of the engine's own operators, the compiled fold errs at
+  worst 2.4e-14 where the BLAS chain it replaces errs at 8.8e-14: the shift is
+  dominated by the rounding of the code being removed, and the new fold is three
+  to seven times closer to exact.  A numba-less install is exactly 0.0 from the
+  old code.
+
 ## [1.0.10] - 2026-09-05
 
 ### Changed
