@@ -1513,9 +1513,11 @@ def _samples_identical(X: np.ndarray, Y: np.ndarray) -> bool:
     produces -- the same lookup returning the same float -- so nothing is lost
     by refusing to guess.
 
-    ``array_equal`` does *not* short-circuit -- it builds the full
-    comparison and reduces it -- so on a
-    smooth profile this costs one comparison and returns.
+    ``array_equal`` does *not* short-circuit: it builds the full comparison
+    array and reduces it, so a profile whose very first element already differs
+    costs the same as an identical one.  The fused order-4, order-6 and order-8
+    kernels scan for equality themselves and *do* exit at the first difference;
+    this helper serves their NumPy fallbacks.
     """
     return X.shape == Y.shape and np.array_equal(X, Y)
 

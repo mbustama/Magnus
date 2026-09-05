@@ -353,7 +353,18 @@ later levels have fewer active energies to spread.
 Sequencing: behind the commutator, and behind measuring the n_jobs-versus-batching
 trade, which may show the question is smaller than it looks.
 
-## POSSIBLE NEXT STEP: a batched Jacobi eigensolver for 4nu and 5nu -- OPTIONAL, NOT LAUNCHED
+## DONE 2026-09-05: the batched Jacobi eigensolver for 4nu and 5nu
+
+**Landed in commit 334ab33, v1.0.9.** The gate this section called for was run
+before implementing: `err_k <= 10*err_e` held in all 364 cells, worst ratio 5.49x
+on the prototype and 6.39x on the kernel as shipped. Measured end to end
+afterwards at 1.81-1.95x (4nu) and 1.46-1.59x (5nu), with two and three flavours
+unmoved at exactly 0.0 -- the negative control the whole change rests on. Worst
+probability shift 1.557e-12, below the 2.8e-12 the survey predicted. Full suite
+1285 passed.
+
+The record below is kept as written, because the reasoning it corrects is the
+part worth preserving.
 
 Surveyed 2026-09-05 by Fable; **not started, and not to be started without the
 author's say-so**, because unlike every other optimisation of this session it
@@ -450,7 +461,11 @@ accuracy battery in `jacobi_acc.py`, end-to-end A/B in `jacobi_e2e.py`. Start
 from that directory's `README.md`, and from report 08 before quoting any stacked
 speedup.
 
-## CONSEQUENCE OF THE JACOBI BACKEND: the 3+1 cost numbers in the paper are stale
+## PARKED 2026-09-05: the 3+1 cost numbers in the paper are stale after Jacobi
+
+**Parked at the author's instruction -- do not act on this without being asked.**
+Recorded here so it is not rediscovered, and so that whoever next regenerates a
+figure knows to fold it in.
 
 Measured 2026-09-05, after the Jacobi 4x4/5x5 backend landed in the working tree.
 **Nothing here is wrong yet -- it becomes wrong the moment that change is

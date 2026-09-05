@@ -121,8 +121,10 @@ The matrix exponential, and which backend computes it
 Every slab ends in a matrix exponential, and ``np.linalg.eigh`` costs **about 1.27 µs per
 3×3 whatever the stack size** -- measured 1.268 µs at N = 108 and 1.279 µs at N = 4096,
 flat, because it loops over LAPACK internally instead of vectorizing over the stack.
-:data:`magnus.magnus.EXPM_BACKEND` selects between that and the compiled Cayley-Hamilton
-kernel in :mod:`magnus.expmkernels`, which applies to :math:`K` the polynomial interpolating
+:data:`magnus.magnus.EXPM_BACKEND` selects between that and the compiled kernels in
+:mod:`magnus.expmkernels` -- ``'numba'`` means the Cayley-Hamilton kernel at dimensions 2
+and 3 and the Jacobi eigensolver at 4 and 5, a distinction that did not exist when this
+paragraph was written.  The Cayley-Hamilton kernel which applies to :math:`K` the polynomial interpolating
 :math:`\exp(-i\lambda)` on its spectrum -- no eigenvectors, and the eigenvalues in closed
 form.
 
@@ -185,7 +187,8 @@ touch:
      -
    * - CONTROL: 4ν vacuum
      - 1.00×
-     - dimension 4 uses ``eigh`` on both settings
+     - dimension 4 used ``eigh`` on both settings *at the time of this measurement*,
+       which is what made it a control; it now uses the Jacobi kernel
 
 **A 6.8× exponential is a 2.1× call, and the gap is Amdahl's law rather than a
 disappointment.** The exponential is roughly a third of a slab pass, so removing six
@@ -311,11 +314,17 @@ made 18,000 ``osc_prob`` calls per 300 repetitions, each one rediscovering the s
      - 6.2×
      - 1.4×
 
-4ν and 5ν gain less because they exponentiate through ``eigh``: the Cayley-Hamilton kernel
-covers dimensions 2 and 3 only.  In absolute terms a 3ν constant-density scan costs 1.10 µs per
+4ν and 5ν gained less here because they exponentiated through ``eigh``: the
+Cayley-Hamilton kernel covers dimensions 2 and 3 only, and it still does.  That is no
+longer the whole story -- those dimensions now go to the Jacobi eigensolver instead of
+``eigh``, worth a further 1.8-1.9× at 4ν and 1.5-1.6× at 5ν end to end.  The table above
+predates it.  In absolute terms a 3ν constant-density scan costs 1.10 µs per
 energy, against NuOscProbExact's 1.44 µs batched and 13.25 µs looped; a single point is 33.8 µs
 against its 19.9 µs, and **what remains is wrapper parameter resolution rather than
-arithmetic** -- the exponential itself is under a tenth of it.
+arithmetic** -- the exponential itself is under a tenth of it.  Part of that resolution
+cost has since been removed: the accepted pass-through keyword names were rebuilt by
+``inspect.signature`` on every public call, twice per call, and are now cached.  The
+figures in this paragraph predate that change and were not re-measured for it.
 
 Results are bit-identical to the per-point route on every flavor count and both neutrino signs.
 ``n_slabs``, ``n_tpts_per_slab``, ``t_breakpoints`` and ``rtol``/``atol`` are accepted and
