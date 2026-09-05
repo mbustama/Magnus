@@ -114,7 +114,21 @@ def main():
         # curve without stretching the labels, so offsets set here would not be the ones
         # that print; raising the dpi changes only how many screen pixels a point is
         # drawn across, which is exactly the precision that was missing.
-        ns['fig'].set_dpi(3.0*ns['fig'].get_dpi())
+        #
+        # The default was 3x, which is a 2170x2100 window for this 7.2x7.0 inch figure --
+        # taller than many screens, and a window that does not fit is worse than one whose
+        # labels are small, because a label dragged half off-screen cannot be judged at
+        # all.  Set MAGNUS_NUDGE_ZOOM to choose: 1 shows the figure at its native size,
+        # which is what the paper prints, and the arrow keys below give the precision the
+        # zoom was there for.
+        zoom = float(os.environ.get('MAGNUS_NUDGE_ZOOM', '1.0'))
+        if zoom != 1.0:
+            ns['fig'].set_dpi(zoom*ns['fig'].get_dpi())
+        print('window: %.0f x %.0f px  (figure %.2f x %.2f in, zoom %.3g -- '
+              'set MAGNUS_NUDGE_ZOOM to change)'
+              % (ns['fig'].get_figwidth()*ns['fig'].get_dpi(),
+                 ns['fig'].get_figheight()*ns['fig'].get_dpi(),
+                 ns['fig'].get_figwidth(), ns['fig'].get_figheight(), zoom))
 
         # Dragging still quantises to whole screen pixels.  Arrow keys do not: click a
         # label to select it, then nudge in fifths of a point, or whole points with shift.

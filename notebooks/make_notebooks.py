@@ -15179,16 +15179,11 @@ RTOL_LABEL_OFFSETS = {
         '1e-03': (-19.4, -8.6, 'center', 'bottom'),
         '1e-04': (18.7, -0.3, 'right', 'center'),
         '1e-06': (18.7, 0.2, 'right', 'center'),
-        '1e-08': (6.0, 0.0, 'left', 'center'),
-        '1e-10': (6.0, 0.0, 'left', 'center'),
+        '1e-08': (3.8, 1.4, 'left', 'center'),
+        '1e-10': (3.8, 0.0, 'left', 'center'),
     },
-    # The Earth curve runs diagonally where the exponential one runs nearly vertical,
-    # so the exponential offsets put 10^-4 on the order-8 curve and 10^-8 on the slab
-    # code's.  The first label sits left of its marker, which is at the top of the data
-    # and would push the text outside the frame if placed above; 10^-8 goes below-right,
-    # threading between the slab code's curve above it and the order-6 curve below.
     'earth': {
-        '1e-03': (-8.0, 0.0, 'right', 'center'),
+        '1e-03': (26.6, -2.9, 'right', 'center'),
         '1e-04': (8.0, -2.0, 'left', 'top'),
         '1e-06': (8.0, -1.0, 'left', 'center'),
         '1e-08': (6.0, -7.0, 'left', 'top'),
@@ -15305,7 +15300,12 @@ for col_key, axes, bench in zip(('exp', 'earth'), cols, (BENCH, PREM_BENCH)):
         # 10^x on the shared time axis, in place of the plain integers used elsewhere.
         ax.xaxis.set_major_formatter(FuncFormatter(
             lambda v, _p: r'$10^{%d}$' % int(round(np.log10(v)))))
-        if case is bench['cases'][0]:
+        # Left column only.  The Earth curves run diagonally and much closer together
+        # than the exponential ones, so five dial labels there sat on the curves they
+        # annotate; the dial is the same in both columns and saying it once is enough.
+        # RTOL_LABEL_OFFSETS keeps its 'earth' entries, unused, so the labels can be
+        # put back by relaxing this condition alone.
+        if case is bench['cases'][0] and col_key == 'exp':
             # The dial that produced each point, written beside the default-order curve
             # only.  On four curves the labels collided; on one they still say what the
             # sweep was, which is the thing a reader cannot infer from the axes.
@@ -15332,7 +15332,7 @@ for col_key, axes, bench in zip(('exp', 'earth'), cols, (BENCH, PREM_BENCH)):
         ax.set_axisbelow(True)
         corner(ax, FLAVOR_LABEL[case['flavours']], loc='upper left', fontsize=8.0)
         if case['flavours'] == 5:
-            ax.text(0.06, 0.20, 'NuOscProbExact: no route past SU(4)',
+            ax.text(0.06, 0.20, 'NuOscProbExact: no route past 3+1',
                     transform=ax.transAxes, ha='left', va='center', fontsize=7.0,
                     color='#4a4a4a', style='italic')
 
@@ -15344,6 +15344,11 @@ for axes in cols:
     for ax in axes:
         ax.set_xlim(0.7*min(ALL_T), 1.5*max(ALL_T))
         ax.set_ylim(min(ALL_E)/2.5, max(ALL_E)*2.5)
+    # The 3+1 and 3+2 rows carry nothing below a millisecond, so the limit that suits
+    # the two-flavor panels leaves a third of each of these empty.  They start a decade
+    # in instead; the upper limit stays shared, so times remain readable across rows.
+    for ax in axes[-2:]:
+        ax.set_xlim(1.0e1, 1.5*max(ALL_T))
 for ax in cols[0][:-1]:
     ax.tick_params(labelbottom=False)
 for ax in cols[1]:
