@@ -597,3 +597,52 @@ citable.
 
 **Not on this list, having been checked:** v1.0.0 *is* released on GitHub
 (2026-08-13). An earlier note here saying otherwise was stale.
+
+## PARKED 2026-09-05: could the interaction-picture engine reach more than two flavors?
+
+**Not investigated. A question worth measuring before anyone commits to writing
+code for it.** Raised after report 04 compiled that engine's slab fold and the
+narrowness of its scope became visible: the 2.3x it buys reaches only two-flavour,
+exp-density-tagged, large-slab-count calls.
+
+**The paper is not wrong about this**, which is worth recording because it was
+queried. `main.tex` line 826 says the engine "declines for more than two flavors,
+for a profile not tagged as exponential, for supplied slab edges, and when its own
+iteration fails to converge", and the engine table at line 861 says "a tagged
+exponential profile at exactly two flavors". Both accurate.
+
+**What is actually two-flavour-specific is the truncation, not the method.** The
+interaction picture is dimension-agnostic: diagonalize the position-independent
+`H_E` once, factor out `exp(-i H_E s)` analytically, integrate only the matter
+envelope. That holds at any `d`. What breaks is truncating the series at *first
+order*. From the guard's own comment in `oscprob.py`: the neglected `Omega_2`
+"involves a sum over every off-diagonal pair in the `H_E` eigenbasis", and its
+coefficient "grows by three orders of magnitude already from 2 to 3 flavors (one
+pair vs three, with sizable diagonal mixing-angle contributions in each), which
+pushes the slab count needed for a certified answer far past what stays fast".
+
+So at three flavours the engine is not *wrong*, it is not *fast* -- which removes
+its reason to exist, since the general method is already correct.
+
+**The question to measure, before writing anything.** Carrying `Omega_2` in the
+interaction picture would restore accuracy at three flavours. Each slab then costs
+a sum over three off-diagonal pairs instead of one, plus the diagonal terms. Does
+the slab count that a second-order truncation certifies, times that per-slab cost,
+still beat the general method? That is a measurement on the existing code: take
+the certified slab count at 2nu first order, estimate the 3nu second-order
+requirement from the same convergence study the guard's comment refers to, and
+compare against what `strategy='magnus'` costs on the same request. If the answer
+is no, the restriction is permanent and should be documented as such rather than
+as "for now".
+
+**The exponential-profile restriction is a softer thing** and probably the easier
+win. The envelope integral has a closed form *because* the profile is exponential
+-- that is what "the closed form is exact in the envelope" means. Another profile
+needs its own closed form, or numerical quadrature of the envelope, and the latter
+is ordinary work that would still avoid resolving the vacuum phase, which is where
+the speed comes from. A tabulated solar profile is the obvious target: notebook 25
+records that the tabulated BS2005 model never reaches this engine today precisely
+because it is not exp-tagged.
+
+Sequencing: this is a research question with an unmeasured answer, not a defect.
+It belongs behind the maturity list above.
