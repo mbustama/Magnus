@@ -265,6 +265,19 @@ _GL4_W1 = 0.5 - np.sqrt(5.0/6.0)/6.0
 _GL4_W2 = 0.5 + np.sqrt(5.0/6.0)/6.0
 _GL4_NODES = np.array([0.5 - _GL4_V1, 0.5 - _GL4_V2,
                        0.5 + _GL4_V2, 0.5 + _GL4_V1])
+# The six weight-times-power scalars of the order-8 B^(i) builds, formed here by
+# the same expressions the NumPy branch of _magnus_gl evaluates inline, so the
+# fused order-8 kernel can reuse the identical doubles.  The kernel must not
+# re-derive them: numba does not lower ``**`` the way ``np.float64.__pow__``
+# rounds it (measured: 26% of random doubles differ in the last bit at ``**3``),
+# and bit-identity between the kernel and the NumPy branch rests on these being
+# the same objects in all but name.
+_GL4_W1V1 = _GL4_W1*_GL4_V1
+_GL4_W2V2 = _GL4_W2*_GL4_V2
+_GL4_W1V1SQ = _GL4_W1*_GL4_V1**2
+_GL4_W2V2SQ = _GL4_W2*_GL4_V2**2
+_GL4_W1V1CU = _GL4_W1*_GL4_V1**3
+_GL4_W2V2CU = _GL4_W2*_GL4_V2**3
 
 _HAS_CUMULATIVE_SIMPSON = hasattr(sp.integrate, 'cumulative_simpson')
 
@@ -340,9 +353,11 @@ def _commutator_batched(X: np.ndarray, Y: np.ndarray) -> np.ndarray:
     form.  On the stacks of small matrices the engine works with, the two
     batched matmuls of ``X @ Y - Y @ X`` cost mostly gufunc dispatch -- about
     185 ns per 3x3 matrix -- so the Magnus term recursion and the
-    Gauss-Legendre schemes route their commutators here instead: with numba
-    present and both operands complex128 stacks of one shape, a compiled
-    kernel fuses the two products into one pass.  Anything else -- no numba,
+    Gauss-Legendre schemes' NumPy branches route their commutators here
+    instead (the GL branches reach this only as a fallback now that each has
+    a fused :math:`\Omega` kernel of its own): with numba present and both
+    operands complex128 stacks of one shape, a compiled kernel fuses the two
+    products into one pass.  Anything else -- no numba,
     another dtype, operands that would need broadcasting -- falls through to
     the same expression :func:`commutator` computes, so a numba-less install
     is bit-identical to what these call sites always produced.
@@ -436,6 +451,290 @@ if expmkernels.HAVE_NUMBA:
     _gl4_omega_kernel = expmkernels._jit(_gl4_omega_core)
 else:                                                   # pragma: no cover
     _gl4_omega_kernel = None
+
+
+def _gl6_omega_core(At, h, out):  # pragma: no cover -- compiled below
+    r"""Order-6 Gauss-Legendre :math:`\Omega` for a stack of slabs, in one pass.
+
+    ``At`` is ``(nB, 3, d, d)``, the three node samples per slab; ``h`` is
+    ``(nB,)``; ``out`` is ``(nB, d, d)``.  Returns 1 when every slab's three
+    samples were bit-identical -- the constant-:math:`\mathbb{A}` case, where
+    all three commutators vanish and :math:`\Omega = h\,\mathbb{A}_1` -- and 0
+    otherwise, having written the full expression.
+
+    Fuses what the NumPy form pays separately: the two equality tests, the
+    ``a1``/``a2``/``a3`` builds, the three commutators and the closing linear
+    combination -- about 19 full-stack temporaries collapsing to eight
+    ``d x d`` scratch buffers reused across the slab loop.  The equality scan
+    exits on the first differing element, which ``numpy.array_equal`` does not
+    do; each commutator accumulates in the same interleaved order as
+    :func:`_commutator_batched_core`; the scalar factors are formed in the same
+    association as the expression they replace; and the one array division,
+    ``a3/12.0``, is reproduced as ``a3*(1.0/12.0)``, which is bit-for-bit what
+    NumPy's complex-divide loop computes for a real divisor (Smith's algorithm
+    with a zero imaginary part multiplies by the reciprocal; numba's own
+    complex division rounds differently).  The result is therefore
+    bit-identical to the NumPy branch as it runs with numba present.  Against a
+    numba-less install the branch already differs at the 1e-14 level through
+    :func:`_commutator_batched` (since 1.0.7); this kernel reproduces the
+    compiled side exactly and adds no further divergence.  Written to be
+    compiled by numba; the pure-Python form exists only as compilation input.
+    """
+    nB, _m, d, _ = At.shape
+    c2 = np.sqrt(15.0)/3.0
+    c3 = 10.0/3.0
+    r12 = 1.0/12.0
+    cm60 = -1.0/60.0
+    c240 = 1.0/240.0
+    identical = True
+    for b in range(nB):
+        for i in range(d):
+            for j in range(d):
+                if (At[b, 0, i, j] != At[b, 1, i, j]
+                        or At[b, 1, i, j] != At[b, 2, i, j]):
+                    identical = False
+                    break
+            if not identical:
+                break
+        if not identical:
+            break
+    if identical:
+        for b in range(nB):
+            hb = h[b]
+            for i in range(d):
+                for j in range(d):
+                    out[b, i, j] = hb*At[b, 0, i, j]
+        return 1
+    # d x d scratch, hoisted out of the slab loop: allocating inside it would
+    # be a per-slab malloc and would eat the gain.
+    a1 = np.empty((d, d), dtype=np.complex128)
+    a2 = np.empty((d, d), dtype=np.complex128)
+    a3 = np.empty((d, d), dtype=np.complex128)
+    C1 = np.empty((d, d), dtype=np.complex128)
+    Y2 = np.empty((d, d), dtype=np.complex128)
+    C2 = np.empty((d, d), dtype=np.complex128)
+    X3 = np.empty((d, d), dtype=np.complex128)
+    Y3 = np.empty((d, d), dtype=np.complex128)
+    for b in range(nB):
+        hb = h[b]
+        f2 = c2*hb
+        f3 = c3*hb
+        for i in range(d):
+            for j in range(d):
+                a1[i, j] = hb*At[b, 1, i, j]
+                a2[i, j] = f2*(At[b, 2, i, j] - At[b, 0, i, j])
+                a3[i, j] = f3*(At[b, 2, i, j] - 2.0*At[b, 1, i, j]
+                               + At[b, 0, i, j])
+        # C1 = [a1, a2]
+        for i in range(d):
+            for j in range(d):
+                s = 0.0 + 0.0j
+                for k in range(d):
+                    s += a1[i, k]*a2[k, j] - a2[i, k]*a1[k, j]
+                C1[i, j] = s
+        # C2 = (-1/60) [a1, 2 a3 + C1]
+        for i in range(d):
+            for j in range(d):
+                Y2[i, j] = 2.0*a3[i, j] + C1[i, j]
+        for i in range(d):
+            for j in range(d):
+                s = 0.0 + 0.0j
+                for k in range(d):
+                    s += a1[i, k]*Y2[k, j] - Y2[i, k]*a1[k, j]
+                C2[i, j] = cm60*s
+        for i in range(d):
+            for j in range(d):
+                X3[i, j] = -20.0*a1[i, j] - a3[i, j] + C1[i, j]
+                Y3[i, j] = a2[i, j] + C2[i, j]
+        # Omega = a1 + a3/12 + (1/240) [X3, Y3]
+        for i in range(d):
+            for j in range(d):
+                s = 0.0 + 0.0j
+                for k in range(d):
+                    s += X3[i, k]*Y3[k, j] - Y3[i, k]*X3[k, j]
+                out[b, i, j] = a1[i, j] + a3[i, j]*r12 + c240*s
+    return 0
+
+
+if expmkernels.HAVE_NUMBA:
+    _gl6_omega_kernel = expmkernels._jit(_gl6_omega_core)
+else:                                                   # pragma: no cover
+    _gl6_omega_kernel = None
+
+
+def _gl8_omega_core(At, h, out):  # pragma: no cover -- compiled below
+    r"""Order-8 Gauss-Legendre :math:`\Omega` for a stack of slabs, in one pass.
+
+    ``At`` is ``(nB, 4, d, d)``, the four node samples per slab; ``h`` is
+    ``(nB,)``; ``out`` is ``(nB, d, d)``.  Returns 1 when every slab's four
+    samples were bit-identical -- the constant-:math:`\mathbb{A}` case, where
+    all six commutators vanish and :math:`\Omega = h\,\mathbb{A}_1` -- and 0
+    otherwise, having written the full expression.
+
+    Fuses what the NumPy form pays separately: the three equality tests, the
+    ``S``/``R``/``B``/``a`` builds, the six chained commutators and the closing
+    linear combination -- roughly 65 full-stack temporaries collapsing to 19
+    ``d x d`` scratch buffers reused across the slab loop.  The equality scan
+    exits on the first differing element, which ``numpy.array_equal`` does not
+    do; each commutator accumulates in the same interleaved order as
+    :func:`_commutator_batched_core`; each ``C_i`` is stored where NumPy stores
+    one, with the chain never re-folded; the scalar factors are formed in the
+    same association as the expression they replace, the weight-times-power
+    coefficients taken verbatim from ``_GL4_W1V1`` and friends because numba's
+    ``**`` does not round like ``np.float64.__pow__``; and every array division
+    ``X/c`` is reproduced as ``X*(1.0/c)``, which is bit-for-bit what NumPy's
+    complex-divide loop computes for a real divisor (Smith's algorithm with a
+    zero imaginary part multiplies by the reciprocal; numba's own complex
+    division rounds differently).  Subexpressions NumPy evaluates twice --
+    ``a1 + a3/28.0`` and friends -- are computed once and reused, which is the
+    identical doubles by determinism, not a re-association.  The result is
+    therefore bit-identical to the NumPy branch as it runs with numba present.
+    Against a numba-less install the branch already differs at the 1e-14 level
+    through :func:`_commutator_batched` (since 1.0.7); this kernel reproduces
+    the compiled side exactly and adds no further divergence.  Written to be
+    compiled by numba; the pure-Python form exists only as compilation input.
+    """
+    nB, _m, d, _ = At.shape
+    r28 = 1.0/28.0
+    c328 = 3.0/28.0
+    cm28 = -1.0/28.0
+    r14 = 1.0/14.0
+    c13 = 1.0/3.0
+    r12 = 1.0/12.0
+    c73 = 7.0/3.0
+    r6 = 1.0/6.0
+    c7120 = 7.0/120.0
+    c1360 = 1.0/360.0
+    identical = True
+    for b in range(nB):
+        for i in range(d):
+            for j in range(d):
+                if (At[b, 0, i, j] != At[b, 1, i, j]
+                        or At[b, 1, i, j] != At[b, 2, i, j]
+                        or At[b, 2, i, j] != At[b, 3, i, j]):
+                    identical = False
+                    break
+            if not identical:
+                break
+        if not identical:
+            break
+    if identical:
+        for b in range(nB):
+            hb = h[b]
+            for i in range(d):
+                for j in range(d):
+                    out[b, i, j] = hb*At[b, 0, i, j]
+        return 1
+    # d x d scratch, hoisted out of the slab loop: allocating inside it would
+    # be a per-slab malloc and would eat the gain.  X1/Y1 hold the commutator
+    # operands a1 + a3/28 and a2 + (3/28) a4, reused for X3/Y3; T12 holds
+    # a1 + a3/12, reused between X6 and the closing combination.
+    a1 = np.empty((d, d), dtype=np.complex128)
+    a2 = np.empty((d, d), dtype=np.complex128)
+    a3 = np.empty((d, d), dtype=np.complex128)
+    a4 = np.empty((d, d), dtype=np.complex128)
+    X1 = np.empty((d, d), dtype=np.complex128)
+    Y1 = np.empty((d, d), dtype=np.complex128)
+    C1 = np.empty((d, d), dtype=np.complex128)
+    Y2 = np.empty((d, d), dtype=np.complex128)
+    C2 = np.empty((d, d), dtype=np.complex128)
+    X3 = np.empty((d, d), dtype=np.complex128)
+    Y3 = np.empty((d, d), dtype=np.complex128)
+    C3 = np.empty((d, d), dtype=np.complex128)
+    C4 = np.empty((d, d), dtype=np.complex128)
+    X5 = np.empty((d, d), dtype=np.complex128)
+    Y5 = np.empty((d, d), dtype=np.complex128)
+    C5 = np.empty((d, d), dtype=np.complex128)
+    T12 = np.empty((d, d), dtype=np.complex128)
+    X6 = np.empty((d, d), dtype=np.complex128)
+    Y6 = np.empty((d, d), dtype=np.complex128)
+    for b in range(nB):
+        hh = 0.5*h[b]
+        for i in range(d):
+            for j in range(d):
+                s1v = At[b, 0, i, j] + At[b, 3, i, j]
+                s2v = At[b, 1, i, j] + At[b, 2, i, j]
+                r1v = At[b, 3, i, j] - At[b, 0, i, j]
+                r2v = At[b, 2, i, j] - At[b, 1, i, j]
+                b0 = hh*(_GL4_W1*s1v + _GL4_W2*s2v)
+                b1 = hh*(_GL4_W1V1*r1v + _GL4_W2V2*r2v)
+                b2 = hh*(_GL4_W1V1SQ*s1v + _GL4_W2V2SQ*s2v)
+                b3 = hh*(_GL4_W1V1CU*r1v + _GL4_W2V2CU*r2v)
+                a1[i, j] = 0.75*(3.0*b0 - 20.0*b2)
+                a2[i, j] = 15.0*(5.0*b1 - 28.0*b3)
+                a3[i, j] = -15.0*(b0 - 12.0*b2)
+                a4[i, j] = -140.0*(3.0*b1 - 20.0*b3)
+        # C1 = (-1/28) [a1 + a3/28, a2 + (3/28) a4]
+        for i in range(d):
+            for j in range(d):
+                X1[i, j] = a1[i, j] + a3[i, j]*r28
+                Y1[i, j] = a2[i, j] + c328*a4[i, j]
+        for i in range(d):
+            for j in range(d):
+                s = 0.0 + 0.0j
+                for k in range(d):
+                    s += X1[i, k]*Y1[k, j] - Y1[i, k]*X1[k, j]
+                C1[i, j] = cm28*s
+        # C2 = (1/3) [a1, -a3/14 + C1]
+        for i in range(d):
+            for j in range(d):
+                Y2[i, j] = -a3[i, j]*r14 + C1[i, j]
+        for i in range(d):
+            for j in range(d):
+                s = 0.0 + 0.0j
+                for k in range(d):
+                    s += a1[i, k]*Y2[k, j] - Y2[i, k]*a1[k, j]
+                C2[i, j] = c13*s
+        # C3 = [a1 + a3/28 + C1, a2 + (3/28) a4 + C2]
+        for i in range(d):
+            for j in range(d):
+                X3[i, j] = X1[i, j] + C1[i, j]
+                Y3[i, j] = Y1[i, j] + C2[i, j]
+        for i in range(d):
+            for j in range(d):
+                s = 0.0 + 0.0j
+                for k in range(d):
+                    s += X3[i, k]*Y3[k, j] - Y3[i, k]*X3[k, j]
+                C3[i, j] = s
+        # C4 = [a2, C1]
+        for i in range(d):
+            for j in range(d):
+                s = 0.0 + 0.0j
+                for k in range(d):
+                    s += a2[i, k]*C1[k, j] - C1[i, k]*a2[k, j]
+                C4[i, j] = s
+        # C5 = [a1 + 5/4 C1, 2 a3 + C3 + 1/2 C4]
+        for i in range(d):
+            for j in range(d):
+                X5[i, j] = a1[i, j] + 1.25*C1[i, j]
+                Y5[i, j] = 2.0*a3[i, j] + C3[i, j] + 0.5*C4[i, j]
+        for i in range(d):
+            for j in range(d):
+                s = 0.0 + 0.0j
+                for k in range(d):
+                    s += X5[i, k]*Y5[k, j] - Y5[i, k]*X5[k, j]
+                C5[i, j] = s
+        # C6 = [a1 + a3/12 - (7/3) C1 - C3/6, -9 a2 - 9/4 a4 + 63 C2 + C5]
+        for i in range(d):
+            for j in range(d):
+                T12[i, j] = a1[i, j] + a3[i, j]*r12
+                X6[i, j] = T12[i, j] - c73*C1[i, j] - C3[i, j]*r6
+                Y6[i, j] = (-9.0*a2[i, j] - 2.25*a4[i, j] + 63.0*C2[i, j]
+                            + C5[i, j])
+        # Omega = a1 + a3/12 - (7/120) C3 + (1/360) C6
+        for i in range(d):
+            for j in range(d):
+                s = 0.0 + 0.0j
+                for k in range(d):
+                    s += X6[i, k]*Y6[k, j] - Y6[i, k]*X6[k, j]
+                out[b, i, j] = T12[i, j] - c7120*C3[i, j] + c1360*s
+    return 0
+
+
+if expmkernels.HAVE_NUMBA:
+    _gl8_omega_kernel = expmkernels._jit(_gl8_omega_core)
+else:                                                   # pragma: no cover
+    _gl8_omega_kernel = None
 
 
 def _warn_scalar_hamiltonian() -> None:
@@ -1290,6 +1589,23 @@ def _magnus_gl(
     if order <= 6:
         # Order 6 (Blanes, Casas & Ros 2002, Eqs. 3.5-3.7): three commutators, the fewest
         # with which sixth order can be reached.
+        if ((_gl6_omega_kernel is not None) and (An.dtype == np.complex128)
+                and (An.shape[-3] == 3)):
+            # One pass for the equality tests, the three commutators and the
+            # linear combinations, bit-identical to the expression below.  The
+            # kernel reads An where it lies and keeps every intermediate in
+            # d x d scratch, where the NumPy route streams ~19 full-stack
+            # temporaries through memory.
+            d = An.shape[-1]
+            flat = np.ascontiguousarray(An).reshape((-1, 3, d, d))
+            out = np.empty((flat.shape[0], d, d), dtype=np.complex128)
+            # widths, not h: h already carries the two trailing singleton axes
+            # that let it multiply a (..., d, d) stack, and the kernel wants one
+            # scalar per slab.
+            hb = np.ascontiguousarray(np.broadcast_to(
+                np.asarray(widths, dtype=float), An.shape[:-3])).reshape(-1)
+            _gl6_omega_kernel(flat, hb, out)
+            return out.reshape(An.shape[:-3] + (d, d))
         A1 = An[..., 0, :, :]
         A2 = An[..., 1, :, :]
         A3 = An[..., 2, :, :]
@@ -1309,6 +1625,23 @@ def _magnus_gl(
     # univariate integrals B^(i) of its Eq. (3.2) -- note those carry a 1/h^i prefactor,
     # one power of h more than the 1/h^(i+1) of the 2000 paper, so the B^(i) below are
     # h times a quadrature average rather than the average itself.
+    if ((_gl8_omega_kernel is not None) and (An.dtype == np.complex128)
+            and (An.shape[-3] == 4)):
+        # One pass for the equality tests, the six commutators and the linear
+        # combinations, bit-identical to the expression below.  The kernel
+        # reads An where it lies and keeps every intermediate in d x d
+        # scratch, where the NumPy route streams ~65 full-stack temporaries
+        # through memory.
+        d = An.shape[-1]
+        flat = np.ascontiguousarray(An).reshape((-1, 4, d, d))
+        out = np.empty((flat.shape[0], d, d), dtype=np.complex128)
+        # widths, not h: h already carries the two trailing singleton axes
+        # that let it multiply a (..., d, d) stack, and the kernel wants one
+        # scalar per slab.
+        hb = np.ascontiguousarray(np.broadcast_to(
+            np.asarray(widths, dtype=float), An.shape[:-3])).reshape(-1)
+        _gl8_omega_kernel(flat, hb, out)
+        return out.reshape(An.shape[:-3] + (d, d))
     A1 = An[..., 0, :, :]
     A2 = An[..., 1, :, :]
     A3 = An[..., 2, :, :]

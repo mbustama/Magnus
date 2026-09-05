@@ -27,6 +27,32 @@ and the project uses [Semantic Versioning](https://semver.org/).
   Anything the kernel cannot take -- another dtype, another node count -- falls
   through to that expression unchanged.
 
+- Orders 6 and 8 get the same treatment.  Order 6 collapses about nineteen
+  full-stack temporaries into eight `d x d` scratch buffers hoisted out of the
+  slab loop; order 8, about sixty-five into nineteen.  NumPy evaluates each
+  operation across every slab before starting the next, so each intermediate is
+  a full array written to memory and read back, while the kernel finishes one
+  slab before moving on.  Marginal cost per slab falls 1.29x at order 6 and
+  1.75x at order 8 end to end, median over eight profile/flavour cells.  Both
+  are bit-identical to the expressions they replace, and the six chained
+  commutators of order 8 are each stored where NumPy stores one rather than
+  algebraically re-folded.
+
+  Two rounding differences had to be worked around to reach that, both worth
+  knowing if these kernels are ever extended.  NumPy divides a complex array by
+  a real scalar through Smith's algorithm, which *multiplies by the reciprocal*;
+  numba divides componentwise, and about two thirds of two million random values
+  differ in the last bit.  Every `X/c` in these kernels is therefore written
+  `X*(1.0/c)`.  Separately, numba's `**` does not round as
+  `numpy.float64.__pow__` does -- 26% of random doubles differ in the last bit
+  at `**3` -- so the order-8 weight-times-power scalars are precomputed as module
+  constants in Python rather than raised inside the kernel.
+
+  Order 2 was prototyped, measured and deliberately left alone: its branch is a
+  single ufunc call with no boundaries to fuse, and at two flavours a kernel
+  loses outright (0.82-1.04x per call), the dispatch's own fixed cost exceeding
+  what streaming saves on a branch costing 0.01-0.05 us/slab.
+
 - The set of accepted pass-through keyword names is computed once and cached
   rather than rebuilt by `inspect.signature` on every public call.  It was being
   rebuilt twice per call, once by the entry point and once by the `osc_prob` it
