@@ -598,7 +598,13 @@ citable.
 **Not on this list, having been checked:** v1.0.0 *is* released on GitHub
 (2026-08-13). An earlier note here saying otherwise was stale.
 
-## PARKED 2026-09-05: could the interaction-picture engine reach more than two flavors?
+## MOVED TO GITHUB 2026-09-06: could the interaction-picture engine reach more than two flavors?
+
+**Tracked as issue #53, and on hold.** The author's instruction on 2026-09-06 was
+that it stays a future enhancement in the issue tracker and nothing happens until
+he asks. The reasoning is kept below because it is what the issue was written
+from, and because the part worth preserving is *why* the restriction exists rather
+than that it does.
 
 **Not investigated. A question worth measuring before anyone commits to writing
 code for it.** Raised after report 04 compiled that engine's slab fold and the
