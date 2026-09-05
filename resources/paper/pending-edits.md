@@ -398,9 +398,45 @@ package already accepts for a backend swap rather than opening a new class; and
 that Jacobi is backward stable with no conditioning cliff, so unlike the
 closed-form kernels it needs no `SEV_TOL` gate (return sev = 0.0, with the
 30-sweep cap escalating to the existing eigh fallback in a corner never
-observed). The argument against is simply that the paper's claim to reach
-2.9e-13 rests on this layer, and a backend that is occasionally worse than eigh
-would cost more than the speed is worth.
+observed).
+
+**What the change can and cannot touch, checked 2026-09-05.** The often-quoted
+worry -- that this would undermine the paper's claim to reach 2.9e-13 -- does not
+apply, and an earlier draft of this note had it wrong. `docs/source/comparison.rst`
+labels that table "Exponential profile, 3nu"; the reach claim is a *three-flavour*
+result, and it rests on the closed-form d = 3 kernel, which this change does not
+touch. `supports_dim` would go from {2, 3} to {2, 3, 4, 5}: two and three flavours
+keep exactly the backend they have now.
+
+The claims that *are* exposed are the four- and five-flavour ones, and they sit
+far above the shift: "PREM 3+1, self-convergence depth" quotes the referee's own
+floor at 4e-7, and "PREM 3+1, cost" is a cost claim this change would improve
+rather than threaten. The paper's accuracy oracle is a DOP853 integration at
+rtol = 1e-12, atol = 1e-14, so a 2.8e-12 probability shift sits *at* the
+resolution of the instrument the paper validates with -- it could not be
+distinguished by the figure that would have to show it.
+
+**The real exposure is `tests/test_expm_backend.py`, and it is not readable off
+the page.** That file holds 32 tight-tolerance assertions, several at 1e-14
+against `scipy.linalg.expm` and at 1e-13 against the eigh backend, currently
+exercised only at d <= 3. Report 01 recommends extending them to d = 4, 5, which
+is right -- but it also measures Jacobi's operator-level dU against eigh at
+1.7e-11 at norm 1e4, which is above both those tolerances. Whether that is a
+problem depends entirely on the norms the existing tests use, since the report
+also states that eigh has the *same* eps*||K|| scaling and that the two agree
+cell by cell. Somebody has to measure it at the tolerances actually asserted
+rather than reason about it. **That measurement is the gate on this decision**,
+and it has not been done.
+
+The battery to run is specified in
+`docs/dev/overhead_survey/BRIEF_jacobi_tolerance_gate.md`, including the control
+that makes it meaningful: eigh must be scored on the identical battery, or a
+failure of an assertion that simply does not transfer to higher dimensions will
+be misread as a failure of Jacobi.
+
+The remaining argument against is the general one: a backend that is occasionally
+worse than eigh would cost more than the speed is worth, and the only way to know
+is the battery above.
 
 **Tests that would have to change:** `test_dim_four_and_five_delegate_to_eigh`
 and `test_public_kernel_entry_point_refuses_unsupported_dimensions` pin the
