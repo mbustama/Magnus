@@ -508,3 +508,33 @@ same place.
 
 Decide whether to land the Jacobi backend *before* the next figure re-run, so
 that the two are paid for once rather than twice.
+
+## PARKED 2026-09-05: does methodology.rst's order-selection argument still hold?
+
+**Parked -- not investigated, and not to be without being asked.** Noticed during
+the docs audit that followed the Jacobi backend.
+
+`docs/source/methodology.rst`, in the order-selection study, argues:
+
+> Evaluation count turned out to be a poor proxy: the fixed per-slab overhead
+> (array setup, the eigendecomposition for the matrix exponential, the slab
+> product) outweighs the node count, so fewer slabs matters more than fewer
+> evaluations.
+
+**All three of the costs it names got cheaper on 2026-09-05**, and by different
+factors: array setup and the slab product through the composition, commutator and
+fused-Omega kernels; the eigendecomposition through the Jacobi backend at four and
+five flavours only. The compound is 8.6-12x at two and three flavours against
+1.9-2.9x at four and five, so the balance the argument rests on has not merely
+shrunk, it has shifted *unevenly across flavour count* -- and the study's own
+conclusion is a crossover ("order 2 wins on evaluations at 1e-4 but loses on wall
+time"), which is exactly the kind of claim a shifted balance can move.
+
+**Why it was left alone rather than edited.** The conclusion probably still holds:
+node count did not get cheaper either, so the ratio may be roughly preserved. But
+"probably" is not what that paragraph asserts, and settling it means re-running the
+order-selection study rather than reasoning about it. Asserting either way from the
+armchair is the failure this project has a name for.
+
+If it is ever re-run, note that the wall-time arm is what produced the table above
+it in that file, so the table moves with the argument.
