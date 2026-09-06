@@ -1164,7 +1164,7 @@ class HiddenFeatureWarning(ToleranceNotAchievedWarning):
 
     **What to change.**  Pass the exact ``t_breakpoints`` printed in the message.  They are
     built by re-sampling the flagged interval and laying seven edges across the sub-interval
-    that actually carries the variation (see :func:`_suggest_breakpoints`), so the inner slabs
+    that actually carries the variation (see ``_suggest_breakpoints``), so the inner slabs
     come out near two feature widths -- a pair-scale padded bracket, which an earlier version
     of this message suggested, was measured *not* to cure the band this class is calibrated
     on: a single point stayed at 3.0e-02, a 60-point scan moved from 3.0e-02 to 5.8e-02, and
@@ -4127,7 +4127,7 @@ def _scan_for_hidden_features(profile, l0, L, t_breakpoints=None) -> Optional[Di
     .. versionadded:: 1.0.0
 
     .. versionchanged:: 1.0.12
-       The warning's suggested ``t_breakpoints`` now come from :func:`_suggest_breakpoints`,
+       The warning's suggested ``t_breakpoints`` now come from ``_suggest_breakpoints``,
        which localizes the feature by re-sampling the flagged interval; the pair-scale bracket
        it replaces was measured not to cure the band the detector exists for.
 
