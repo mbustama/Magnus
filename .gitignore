@@ -45,3 +45,9 @@ resources/paper/*.spl
 resources/paper/*.png
 resources/paper/figs/*.png
 notebooks/external_solar_average_cost.partial.json
+
+# Local safety copies of regenerated benchmark data, kept beside the file they
+# preceded.  They are snapshots of a measurement session, not inputs to one: the
+# committed JSON supersedes each of them, and nothing reads them.
+*.bak
+*.json.pre_*
