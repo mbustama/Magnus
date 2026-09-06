@@ -15801,8 +15801,24 @@ is nothing to converge, so there is nothing to put on an error axis.
 What is left worth showing is the price, across the scenarios the package covers. Read
 the figure down the column: the cost is set by the **number of states**, not by what the
 Hamiltonian contains. Each NSI row sits on top of its standard counterpart, and Lorentz
-violation adds about a sixth. That is the claim the synopsis makes about the method, and
-this is the only figure that shows it.'''),
+violation adds roughly a tenth. That is the claim the synopsis makes about the method,
+and this is the only figure that shows it.
+
+The open squares are what the same number costs *without* the closed form: one `DOP853`
+solve of the coherent evolution, then the phase average taken from it over a tapered
+window at the far end of the ray. Both parts are inside the quoted time, and the two
+routes agree on the probability to between 5 and 8e-5 -- without that agreement the
+comparison would be between two different quantities. The tolerance, `rtol = 1e-8`, is
+the loosest that still returns the answer: 1e-4 gives 0.004 where the answer is 0.546,
+and 1e-6 is still 1.3e-2 away.
+
+The four sterile rows carry an arrow instead. A step solver has to resolve the fastest
+phase in the Hamiltonian, and an eV-scale `D41` puts about 5.5e7 cycles along the ray
+against 1.4e5 at three flavours -- on an identical segment, 3+1 takes 305,162 right-hand
+sides where 3nu takes 926. Those solves run for tens of hours, so they are projected from
+a measured segment rather than run, and nothing projected is drawn at a coordinate. The
+projection is checked where it can be: it reproduces the three-flavour cost to 354 s
+against 354 s measured.'''),
     code(r'''# ------------------------------------------- averaged probability, by configuration
 COST = json.loads((HERE/'external_solar_average_cost.json').read_text())
 print('machine: %s | interleaved control: %.3f'
@@ -15816,31 +15832,64 @@ ORDER = ['2nu', '3nu', '3+1', '3+2',
          '3nu + NSI', '3nu + LIV', '3+1 + NSI', '3+2 + NSI']
 rows = sorted(COST['cases'], key=lambda r: ORDER.index(r['label']))
 yy = np.arange(len(rows))[::-1]
+# Both series share one axis, so the range is taken from both rather than typed in.
+# Only MEASURED references set the upper end: the projected ones run to tens of hours
+# and would push the axis out four further decades to hold arrows that mean "off this
+# scale" anyway.
+meas = [r for r in rows if r.get('reference_measured')]
+XLO = 10.0**np.floor(np.log10(min(r['ms'] for r in rows)) - 0.35)
+XHI = 10.0**np.ceil(np.log10(1.0e3*max(r['reference_seconds'] for r in meas)) + 0.55)
+print('x-axis spans %.3g to %.3g ms (%.1f decades); %d measured, %d projected'
+      % (XLO, XHI, np.log10(XHI/XLO), len(meas), len(rows) - len(meas)))
 
-fig, ax = plt.subplots(figsize=(COL*2.0, 3.4))
+# Drawn at COL, the width it is included at.  An earlier version drew this at COL*2
+# for a \columnwidth slot, so LaTeX shrank it by half and every label reached the page
+# at half the size the rc asks for.  Sizes come from the notebook rc block above; none
+# are set here, so this figure matches the rest.
+fig, ax = plt.subplots(figsize=(COL, 3.55))
 for yi, r in zip(yy, rows):
-    # A leader line from the axis, not a bar from zero: the quantity is a position on a
-    # log axis and a bar would imply an origin the scale does not have.
-    ax.plot([0.6, r['ms']], [yi, yi], lw=1.0, color=GRID, zorder=1)
-    ax.plot(r['ms'], yi, 'o', ms=7.5, color=FLAV_COLOR[r['flavors']],
-            mec='white', mew=0.9, zorder=4)
-    ax.text(r['ms']*1.14, yi, '%.0f ms' % r['ms'], va='center', ha='left',
-            fontsize=8.0, color=INK)
+    c = FLAV_COLOR[r['flavors']]
+    ax.plot([XLO, r['ms']], [yi, yi], lw=0.7, color=GRID, zorder=1)
+    ax.plot(r['ms'], yi, 'o', ms=5.0, color=c, mec='white', mew=0.7, zorder=4)
+    if r.get('reference_measured'):
+        # The span between the two routes IS the figure's claim, so it is drawn as a
+        # span: from the closed form across to the price of the same number without it.
+        ax.plot([r['ms'], 1.0e3*r['reference_seconds']], [yi, yi],
+                lw=0.8, color=c, alpha=0.35, zorder=2)
+        ax.plot(1.0e3*r['reference_seconds'], yi, 's', ms=4.6, mfc='white',
+                mec=c, mew=1.1, zorder=4)
+    else:
+        # Not measured and so not drawn at a coordinate.  The sterile splitting puts
+        # this solve at tens of hours, and an arrow leaving the axis says "past here"
+        # without planting an unmeasured number somewhere a reader can read off.
+        ax.annotate('', xy=(XHI*0.92, yi), xytext=(r['ms']*2.2, yi),
+                    arrowprops=dict(arrowstyle='-|>', color=c, alpha=0.5, lw=0.8,
+                                    shrinkA=0, shrinkB=0))
+        ax.text(XHI*0.80, yi + 0.30, r'$\sim%.0f$ h' % (r['reference_seconds']/3600.0),
+                ha='right', va='bottom', color=c, fontsize=7.0)
 
 ax.set_yticks(yy)
-ax.set_yticklabels([r['label'].replace('nu', r'$\nu$') for r in rows], fontsize=9.5)
+ax.set_yticklabels([r['label'].replace('nu', r'$\nu$') for r in rows])
 ax.set_xscale('log')
-ax.set_xlim(0.6, 200.0)
+ax.set_xlim(XLO, XHI)
 ax.set_ylim(-0.7, len(rows) - 0.3)
-ax.set_xlabel(r'Time for one averaged probability [ms]', fontsize=10.5)
+ax.set_xlabel(r'Time for one averaged probability [ms]')
 ax.grid(True, axis='x', which='major', color=GRID, lw=0.5)
 ax.set_axisbelow(True)
 ax.axhline(3.5, color=INK, lw=0.7, ls=':')
-ax.text(0.68, 3.60, 'standard', fontsize=8.0, color='0.35', va='bottom')
-ax.text(0.68, 3.40, 'with new physics', fontsize=8.0, color='0.35', va='top')
-for side in ('top', 'right'):
-    ax.spines[side].set_visible(False)
-fig.tight_layout(pad=0.8)
+ax.tick_params(axis='y', length=0)
+h = [plt.Line2D([], [], ls='none', marker='o', ms=5.0, color=INK, mec='white', mew=0.7),
+     plt.Line2D([], [], ls='none', marker='s', ms=4.6, mfc='white', mec=INK, mew=1.1),
+     plt.Line2D([], [], ls='-', marker='', color=INK, alpha=0.5, lw=0.8)]
+# Below the axes, not inside them.  Every row spans the full width -- dot on the left,
+# square or arrow on the right -- so an inset legend has nowhere to sit that does not
+# cover a row; in the first draft it hid 3+2 + NSI completely.
+ax.legend(h, [r'\magnus, closed form', r'{\tt DOP853}, then averaged',
+              r'projected, not run'],
+          loc='upper center', bbox_to_anchor=(0.5, -0.155), ncol=2,
+          handlelength=1.3, columnspacing=1.1, borderaxespad=0.0,
+          frameon=False)
+fig.tight_layout(pad=0.6)
 save(fig, 'solar_average_cost.pdf')'''),
     md(r'''## What was written
 
