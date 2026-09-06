@@ -15854,7 +15854,7 @@ for yi, r in zip(yy, rows):
     # so the eye reads position along a common baseline rather than three line segments
     # of different hue and length per row.
     ax.plot([XLO, XHI], [yi, yi], lw=0.7, color=GRID, zorder=1)
-    ax.plot(r['ms'], yi, 'o', ms=5.0, color=c, mec='white', mew=0.7, zorder=4)
+    ax.plot(r['ms'], yi, 'o', ms=6.0, color=c, mec='white', mew=0.7, zorder=4)
     if r.get('reference_measured'):
         ax.plot(1.0e3*r['reference_seconds'], yi, 's', ms=4.6, mfc='white',
                 mec=c, mew=1.1, zorder=4)
@@ -15872,7 +15872,7 @@ for yi, r in zip(yy, rows):
         hrs = r['reference_seconds']/3600.0
         lab = (r'Projected: $\sim%.0f$ h' % hrs) if first_proj else (r'$\sim%.0f$ h' % hrs)
         first_proj = False
-        ax.text(0.958, yi + 0.30, lab, transform=ax.get_yaxis_transform(),
+        ax.text(0.982, yi + 0.30, lab, transform=ax.get_yaxis_transform(),
                 ha='right', va='bottom', color=c, fontsize=7.0)
 
 ax.set_yticks(yy)
@@ -15889,7 +15889,7 @@ ax.xaxis.set_major_locator(mpl.ticker.LogLocator(base=10.0, numticks=20))
 ax.xaxis.set_minor_locator(mpl.ticker.LogLocator(base=10.0, subs=tuple(np.arange(2, 10)*0.1),
                                                  numticks=20))
 ax.xaxis.set_minor_formatter(mpl.ticker.NullFormatter())
-h_dot = plt.Line2D([], [], ls='none', marker='o', ms=5.0, color=INK,
+h_dot = plt.Line2D([], [], ls='none', marker='o', ms=6.0, color=INK,
                    mec='white', mew=0.7)
 h_sq = plt.Line2D([], [], ls='none', marker='s', ms=4.6, mfc='white', mec=INK, mew=1.1)
 h_tr = plt.Line2D([], [], ls='none', marker='>', ms=5.2, mfc='white', mec=INK, mew=1.1)
