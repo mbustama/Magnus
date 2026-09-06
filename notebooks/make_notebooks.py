@@ -15872,7 +15872,7 @@ for yi, r in zip(yy, rows):
         hrs = r['reference_seconds']/3600.0
         lab = (r'Projected: $\sim%.0f$ h' % hrs) if first_proj else (r'$\sim%.0f$ h' % hrs)
         first_proj = False
-        ax.text(0.945, yi + 0.30, lab, transform=ax.get_yaxis_transform(),
+        ax.text(0.958, yi + 0.30, lab, transform=ax.get_yaxis_transform(),
                 ha='right', va='bottom', color=c, fontsize=7.0)
 
 ax.set_yticks(yy)
@@ -15880,11 +15880,11 @@ ax.set_yticklabels([r['label'].replace('nu', r'$\nu$') for r in rows])
 ax.set_xscale('log')
 ax.set_xlim(XLO, XHI)
 ax.set_ylim(-0.7, len(rows) + 0.35)
-ax.set_xlabel(r'Mean time for one averaged probability [ms]')
+ax.set_xlabel(r'Mean time for one averaged probability [ms]', labelpad=2.0)
 ax.grid(True, axis='x', which='major', color=GRID, lw=0.5)
 ax.set_axisbelow(True)
 ax.tick_params(axis='y', which='both', length=0, left=False, right=False)
-ax.tick_params(axis='x', which='major', pad=4.5)
+ax.tick_params(axis='x', which='major', pad=3.6)
 ax.xaxis.set_major_locator(mpl.ticker.LogLocator(base=10.0, numticks=20))
 ax.xaxis.set_minor_locator(mpl.ticker.LogLocator(base=10.0, subs=tuple(np.arange(2, 10)*0.1),
                                                  numticks=20))
