@@ -156,14 +156,51 @@ class MixingAngleConventionWarning(UserWarning):
     """
 
 
-class SterileMatterCompositionWarning(UserWarning):
-    r"""The sterile matter entry is built from a different medium than the density.
+class BaselineUnitWarning(UserWarning):
+    r"""A baseline was passed that looks like kilometers rather than eV\ :sup:`-1`.
 
-    An Earth chord takes its neutron-to-proton ratio from :math:`Y_e` layer by layer for the
-    density, but the sterile states' entry in the matter projector is one matrix for the
-    whole chord and takes the caller's scalar instead.  They disagree by construction unless
-    the caller matches them, and the disagreement is worth about 2e-02 in probability at 3+1
-    on a core-crossing chord -- silently, since nothing else about the call looks wrong.
+    Every length crossing this API is in natural units, so a baseline is
+    :math:`L_{\rm km} \times` :data:`CONV_KM_TO_INV_EV`, some 5.07e9 per kilometer.
+    Passing the raw kilometer value does not fail: the call returns a converged, exactly
+    unitary probability for a baseline a few meters long, which looks like an ordinary
+    answer rather than a wrong one.  Measured on the Sun, 694700 passed raw returns 0.910
+    at 20 MeV where the correct value is 0.290, and the survival probability comes out
+    *rising* with energy, which is backwards for an MSW resonance.
+
+    The threshold is :data:`IMPLAUSIBLE_BASELINE_NATURAL_UNITS`, about two meters in
+    natural units, so a genuinely short baseline is still reachable without tripping it.
+
+    Its own class so it can be silenced deliberately::
+
+        import warnings
+        import magnus.globaldefs as gd
+
+        warnings.filterwarnings('ignore', category=gd.BaselineUnitWarning)
+
+    .. versionadded:: 1.0.5
+    """
+
+
+#: Below this, a baseline in natural units is almost certainly kilometers left
+#: unconverted: 1e7 eV^-1 is about two meters, and the shortest oscillation baselines
+#: anyone runs are meters, which land above it once converted.
+IMPLAUSIBLE_BASELINE_NATURAL_UNITS = 1.0e7
+
+
+class SterileMatterCompositionWarning(UserWarning):
+    r"""A caller's scalar builds the sterile matter entry from a different medium than the
+    density.
+
+    An Earth chord takes its neutron-to-proton ratio from :math:`Y_e` layer by layer for
+    the density, and -- by default -- for the sterile states' entry in the matter
+    projector too, so out of the box the two describe the same medium and this warning
+    has nothing to say.  It fires when a caller passes a *scalar*
+    ``ratio_number_neutrons_to_protons`` over layered composition: no scalar describes a
+    chord that crosses iron and rock -- near the sterile matter resonance the mismatch
+    reaches ~0.4 in probability at 3+1 on a core-crossing chord, and the best possible
+    scalar still leaves ~7e-3 -- and it does so silently in the physics, since nothing
+    else about the call looks wrong.  With a uniform ``electron_fraction`` override it
+    fires only when the scalar contradicts the ratio that override implies.
 
     Its own class so it can be silenced once the choice has been made deliberately::
 
@@ -175,6 +212,12 @@ class SterileMatterCompositionWarning(UserWarning):
     Three flavors never raise it: the projector's sterile block is empty.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.0
+       The default no longer warns -- the projector follows the composition, which is the
+       fix for the mismatch this class used to report.  A scalar over layered
+       :math:`Y_e` now warns unconditionally: the old 2% threshold on :math:`r` was
+       measured to pass chords whose error matched the very figure the warning quoted.
     """
 
 

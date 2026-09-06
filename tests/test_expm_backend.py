@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 r"""Tests for the matrix-exponential backends and the switch that selects them.
 
-``EXPM_BACKEND`` chooses between the compiled Cayley-Hamilton kernel of
-:mod:`magnus.expmkernels` and ``numpy.linalg.eigh``.  Four things are worth
+``EXPM_BACKEND`` chooses between the compiled kernels of
+:mod:`magnus.expmkernels` (Cayley-Hamilton at d = 2, 3; batched Jacobi at
+d = 4, 5) and ``numpy.linalg.eigh``.  Four things are worth
 stating about what is tested here, because each is a way this could have shipped
 broken:
 
@@ -162,15 +163,31 @@ def test_eigh_backend_does_not_call_the_kernel():
 
 @requires_numba
 @pytest.mark.parametrize('d', [4, 5])
-def test_dim_four_and_five_delegate_to_eigh(d):
-    r"""No closed form for a 4x4/5x5 Hermitian eigenproblem, so 4nu/5nu use eigh.
+def test_dim_four_and_five_use_the_jacobi_kernel(d):
+    r"""4nu and 5nu route to the compiled Jacobi kernel, and the answer is right.
 
-    They stay correct; they are simply not accelerated.  Asserted rather than
-    assumed, because the alternative -- a kernel that quietly handled dimension 4
-    with the 3x3 formulas -- would be wrong by O(1).
+    This test used to assert the opposite -- that ``supports_dim`` stops at 3
+    and dimensions 4 and 5 delegate to ``eigh`` -- reasoning from the missing
+    closed form.  The premise was true and the conclusion did not follow: what
+    made those dimensions slow was ``eigh``'s per-matrix LAPACK overhead, which
+    an iterative eigensolver removes without any closed form.  The accuracy
+    assertion is against scipy rather than eigh, so a kernel that quietly
+    handled these dimensions with the 3x3 formulas would still fail here by
+    O(1).
     """
-    assert not ek.supports_dim(d)
+    assert ek.supports_dim(d)
     K = _herm((8, d, d), np.random.default_rng(d))
+    with _kernel_calls() as n:
+        U = mg._expm_stack(-1j*K, expm_backend='numba')
+    assert n.count == 1
+    assert np.max(np.abs(U - _scipy_expm(K))) < 1e-13
+
+
+@requires_numba
+def test_dim_six_and_above_delegate_to_eigh():
+    r"""The first dimension without a kernel: correct, and simply not accelerated."""
+    assert not ek.supports_dim(6)
+    K = _herm((4, 6, 6), np.random.default_rng(6))
     with _kernel_calls() as n:
         U = mg._expm_stack(-1j*K, expm_backend='numba')
     assert n.count == 0
@@ -241,6 +258,13 @@ def test_expm_backend_threads_through_the_public_entry_points():
     ('diag(0, 0, 1)', np.diag([0.0, 0.0, 1.0])),
     ('H = I, d=2', 0.9*np.eye(2)),
     ('diag(1, 1), d=2', np.diag([1.0, 1.0])),
+    ('zero matrix, d=4', np.zeros((4, 4))),
+    ('zero matrix, d=5', np.zeros((5, 5))),
+    ('H = I, d=4, four-fold', 1.3*np.eye(4)),
+    ('H = I, d=5, five-fold', 1.3*np.eye(5)),
+    ('diag(1, 1, 2, 2), two pairs', np.diag([1.0, 1.0, 2.0, 2.0])),
+    ('diag(0, 0, 0, 1), three-fold', np.diag([0.0, 0.0, 0.0, 1.0])),
+    ('diag(0, 0, 1, 2, 2), d=5', np.diag([0.0, 0.0, 1.0, 2.0, 2.0])),
 ])
 def test_exact_degeneracies(name, K):
     r"""The cases an eigenvector route died on, and this one must not.
@@ -251,6 +275,12 @@ def test_exact_degeneracies(name, K):
     no eigenvectors to extract, and needs no confluent (Hermite) form either: a
     Hermitian matrix is never defective, so matching :math:`\exp` on the
     *distinct* eigenvalues is already exact.
+
+    The d = 4 and 5 rows exercise the Jacobi kernel instead, whose degenerate
+    risk has a different shape -- a coincident diagonal pair makes its rotation
+    angle 45 degrees rather than small, so rounding noise gets reshuffled
+    wholesale instead of shrunk -- and whose rotated-basis degeneracies the
+    separation-and-scale grid at the bottom of this file covers.
     """
     K = np.asarray(K, dtype=complex)
     U, lam, _sev = ek.expm_herm_stack(K[None])
@@ -390,6 +420,11 @@ def test_eigenvalues_are_returned_ascending():
     Asserted, not enforced, so a slip in the trigonometric formula surfaces as a
     failure rather than being tidied away by a sort.  Includes exact ties and
     trace offsets, where the ordering argument is tightest.
+
+    That rationale is the d <= 3 half.  The Jacobi kernel of the d = 4 and 5
+    stacks has no formula-fixed order to assert -- its eigenvalues land in
+    rotation order and *are* sorted, by design -- so for those stacks this
+    simply pins the documented ascending contract of ``expm_herm_stack``.
     """
     rng = np.random.default_rng(35)
     stacks = [_herm((2000, 3, 3), rng),
@@ -398,7 +433,14 @@ def test_eigenvalues_are_returned_ascending():
               np.broadcast_to(np.diag([1.0, 1.0, 2.0]).astype(complex),
                               (4, 3, 3)),
               np.zeros((4, 3, 3), dtype=complex),
-              _herm((2000, 2, 2), rng)]
+              _herm((2000, 2, 2), rng),
+              _herm((2000, 4, 4), rng),
+              _herm((2000, 5, 5), rng),
+              _herm((2000, 4, 4), rng, scale=1e-8),
+              _herm((200, 5, 5), rng) + 1e6*np.eye(5),
+              np.broadcast_to(np.diag([1.0, 1.0, 2.0, 2.0]).astype(complex),
+                              (4, 4, 4)),
+              np.zeros((4, 5, 5), dtype=complex)]
     for K in stacks:
         K = np.ascontiguousarray(K, dtype=complex)
         _, lam, _sev = ek.expm_herm_stack(K)
@@ -427,7 +469,7 @@ def test_backends_agree_on_random_hermitian_stacks(d, n):
 
 
 @requires_numba
-@pytest.mark.parametrize('d', [2, 3])
+@pytest.mark.parametrize('d', [2, 3, 4, 5])
 def test_backends_agree_on_near_hermitian_input(d):
     r"""Both routes must read the *same* triangle of a not-quite-Hermitian input.
 
@@ -465,17 +507,23 @@ def test_backends_agree_on_near_hermitian_input(d):
 
 
 @requires_numba
+@pytest.mark.parametrize('d', [3, 4, 5])
 @pytest.mark.parametrize('scale', [1e-150, 1e-8, 1.0, 10.0, 100.0, 1e3, 1e4])
-def test_kernel_is_no_worse_than_eigh_at_any_norm(scale):
+def test_kernel_is_no_worse_than_eigh_at_any_norm(scale, d):
     r"""Both routes lose digits linearly in :math:`\lVert K \rVert`; neither cliffs.
 
     Magnus slabs normally satisfy :math:`\lVert\Omega\rVert \lesssim 1`, but a
     constant Hamiltonian over a long baseline is exponentiated in one slab, and
     then the norm is the whole accumulated phase and reaches thousands.  The
     kernel must not be *worse* than the backend it replaces there.
+
+    d = 4 and 5 run the Jacobi kernel and are held to the very same bar; its
+    adoption was decided on this assertion's ratio, measured across this sweep
+    crossed with clustered and degenerate spectra (worst 6.4x of ``eigh``, at
+    the same 10x everywhere that admits the closed forms).
     """
     rng = np.random.default_rng(int(-np.log10(scale)) + 50)
-    K = _herm((32, 3, 3), rng)
+    K = _herm((32, d, d), rng)
     K *= scale/np.max(np.abs(K))
     ref = _scipy_expm(K)
     err_k = np.max(np.abs(ek.expm_herm_stack(np.ascontiguousarray(K))[0] - ref))
@@ -493,10 +541,18 @@ def test_compiled_kernel_matches_the_same_source_uncompiled():
     The two are expected to agree *bitwise*: ``fastmath`` is off precisely so
     that the compiler may not reassociate the cancellations the stability
     argument depends on, and a difference here would mean it did.
+
+    For the Jacobi kernel the bitwise bar also pins its straight-line phase
+    computation: numba's LLVM vectorizes a trig *loop* into SVML's 1-ulp
+    vector routines while straight-line calls go to libm, and this test is
+    what caught that -- the compiled and uncompiled forms differed in the last
+    bit on about 0.1% of operands until the loop was unrolled.
     """
     rng = np.random.default_rng(36)
     for d, core, kern in ((2, ek._ch2_core, ek._ch2_kernel),
-                          (3, ek._ch3_core, ek._ch3_kernel)):
+                          (3, ek._ch3_core, ek._ch3_kernel),
+                          (4, ek._jacobi_expm_core, ek._jacobi_kernel),
+                          (5, ek._jacobi_expm_core, ek._jacobi_kernel)):
         K = np.ascontiguousarray(_herm((128, d, d), rng), dtype=complex)
         o_py, l_py = np.empty_like(K), np.empty((128, d))
         o_jit, l_jit = np.empty_like(K), np.empty((128, d))
@@ -665,8 +721,9 @@ def test_probabilities_agree_between_backends(name, restore_backend):
         mg.EXPM_BACKEND = 'auto'
         with _kernel_calls() as spy:
             Pk = np.asarray(fn(), dtype=float)
-    if name != '4nu vacuum':
-        assert spy.count > 0, "kernel declined; this comparison is void"
+    # '4nu vacuum' used to be exempt here, back when dimension 4 had no kernel;
+    # the Jacobi kernel answers it now, so the assertion applies to every case.
+    assert spy.count > 0, "kernel declined; this comparison is void"
     assert np.max(np.abs(Pk - Pe)) < tol, name
     assert np.max(np.abs(np.sum(Pk, axis=-1) - 1.0)) < tol, name
 
@@ -734,8 +791,13 @@ _GRID_SEPS = [0.0, 1e-16, 1e-12, 1e-9, 1.49e-8, 1e-6, 1e-4, 1e-3, 1e-2, 1e-1, 1.
 
 
 def _grid_matrix(spec, rng):
-    r"""A Hermitian 3x3 with exactly the requested spectrum, in a generic basis."""
-    Q = np.linalg.qr(rng.normal(size=(3, 3)) + 1j*rng.normal(size=(3, 3)))[0]
+    r"""A Hermitian matrix with exactly the requested spectrum, in a generic basis.
+
+    The dimension is the length of ``spec``; a length of 3 draws the same
+    matrices it always did.
+    """
+    d = len(spec)
+    Q = np.linalg.qr(rng.normal(size=(d, d)) + 1j*rng.normal(size=(d, d)))[0]
     K = Q @ np.diag(np.asarray(spec, dtype=complex)) @ Q.conj().T
     return np.ascontiguousarray((K + K.conj().T)/2.0)
 
@@ -862,17 +924,81 @@ def test_sev_tol_sits_inside_its_calibrated_window():
     assert sev_safe < ek.SEV_TOL < sev_unsafe, (sev_safe, ek.SEV_TOL, sev_unsafe)
 
 
+# The same two-condition grid for the Jacobi kernel of d = 4 and 5: pair
+# clusters at either end of the spectrum, a two-pair collision, and a leading
+# triple, crossed with the same scales and a separation ladder down to exact
+# degeneracy.  The yardstick differs from the d=3 grid's, deliberately.  The
+# 3x3 tests assert kernel-equals-eigh to 1e-12 flat, which works because
+# SEV_TOL hands every large-norm 3x3 to eigh and the difference collapses to
+# zero there.  The Jacobi kernel has no gate to collapse into -- it is
+# backward stable everywhere, with no conditioning cliff -- so at large norm a
+# flat tolerance would assert better-than-any-method, and the right bar is the
+# relative one its adoption was decided on:
+# err_k <= 10*max(err_e, 1e-17), per cell, both errors against scipy on a
+# stack of eight random bases (a single matrix makes the denominator a
+# lottery ticket -- eigh's error on one draw fluctuates by 20x, and a 17x
+# ratio at an absolute error of 1e-13 says nothing).  Worst at adoption:
+# 5.5x at d=4, 6.4x at d=5.  The severity must stay 0.0 in every cell, both
+# because a declined cell would be answered by eigh and assert nothing, and
+# because a kernel that quietly declined routine work would silently cost the
+# speed-up it exists for.
+_GRID_SHAPES_45 = {
+    4: {
+        'double-low':  lambda S, f: [0.0, f, 0.4*S, S],
+        'double-high': lambda S, f: [0.0, 0.4*S, S - f, S],
+        'two-pairs':   lambda S, f: [0.0, f, S - f, S],
+        'triple-low':  lambda S, f: [0.0, f, 2.0*f, S],
+    },
+    5: {
+        'double-low':  lambda S, f: [0.0, f, 0.3*S, 0.7*S, S],
+        'double-high': lambda S, f: [0.0, 0.3*S, 0.7*S, S - f, S],
+        'two-pairs':   lambda S, f: [0.0, f, 0.5*S, S - f, S],
+        'triple-low':  lambda S, f: [0.0, f, 2.0*f, 0.6*S, S],
+    },
+}
+_GRID_SEPS_45 = [0.0, 1e-16, 1e-14, 1e-12, 1e-9, 1.49e-8, 1e-6, 1e-4, 1e-3,
+                 1e-2, 1e-1, 1.0]
+
+
 @requires_numba
-@pytest.mark.parametrize('d', [1, 4, 5, 6])
+@pytest.mark.parametrize('d', [4, 5])
+def test_jacobi_tracks_eigh_across_separation_and_scale(d):
+    r"""The two-condition grid for the Jacobi kernel; see the comment above."""
+    worst = 0.0
+    where = None
+    for shape, mk in _GRID_SHAPES_45[d].items():
+        for S in _GRID_SCALES:
+            for f in _GRID_SEPS_45:
+                rng = np.random.default_rng(20260905)
+                K = np.ascontiguousarray(
+                    [_grid_matrix(mk(S, f*S), rng) for _ in range(8)])
+                U, _, sev = ek.expm_herm_stack(K)
+                assert sev == 0.0, (shape, S, f, sev)
+                ref = _scipy_expm(K)
+                err_k = np.max(np.abs(U - ref))
+                err_e = np.max(np.abs(
+                    mg._expm_stack(-1j*K, expm_backend='eigh') - ref))
+                ratio = err_k/max(err_e, 1e-17)
+                if ratio > worst:
+                    worst, where = ratio, (shape, S, f, err_k, err_e)
+    assert worst <= 10.0, (
+        "%s: kernel error %.2e against eigh's %.2e (%.1fx) at scale %.0e, "
+        "separation %.0e*scale" % (where[0], where[3], where[4], worst,
+                                   where[1], where[2]))
+
+
+@requires_numba
+@pytest.mark.parametrize('d', [1, 6, 7])
 def test_public_kernel_entry_point_refuses_unsupported_dimensions(d):
     r"""``expm_herm_stack`` must consult ``supports_dim``, not fall through to 3x3.
 
     It did not, and every dimension other than 2 went to the 3x3 kernel: at d=4
-    that returned no exception, an error of 2.4 against ``scipy.linalg.expm``, a
-    unitarity violation of 11.3, and uninitialised memory in the fourth
-    eigenvalue; at d=1 it indexed ``K[i,2,1]`` with numba's bounds checking off
-    and segfaulted the interpreter.  Only ``_expm_stack``'s own guard kept the
-    library safe, and this function is public.
+    (unsupported at the time; the Jacobi kernel answers it now) that returned no
+    exception, an error of 2.4 against ``scipy.linalg.expm``, a unitarity
+    violation of 11.3, and uninitialised memory in the fourth eigenvalue; at d=1
+    it indexed ``K[i,2,1]`` with numba's bounds checking off and segfaulted the
+    interpreter.  Only ``_expm_stack``'s own guard kept the library safe, and
+    this function is public.
     """
     K = np.ascontiguousarray(_herm((2, d, d), np.random.default_rng(d)),
                              dtype=complex)

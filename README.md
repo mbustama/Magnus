@@ -6,13 +6,8 @@
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![codecov](https://codecov.io/gh/mbustama/Magnus/branch/main/graph/badge.svg)](https://codecov.io/gh/mbustama/Magnus)
-<!-- The PyPI and Downloads badges are restored by the first release.  `magnuspy` is not
-     on PyPI yet (the name is free -- checked), so both currently render as errors on the
-     public README: shields.io shows "package not found" and pepy.tech a broken image.  A
-     badge that is broken says less than no badge at all, and this is the top of the page.
 [![PyPI](https://img.shields.io/pypi/v/magnuspy.svg)](https://pypi.org/project/magnuspy/)
 [![Downloads](https://pepy.tech/badge/magnuspy)](https://pepy.tech/project/magnuspy)
--->
 [![Code style: ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
 Code to compute neutrino oscillation probabilities between an arbitrary number
@@ -499,11 +494,11 @@ same table via `--environment`/`--scenario`/`--flavors`.
 
 ## Numerical engine
 
-- Magnus expansion to **order 6**, with the term recursion verified
+- Magnus expansion to **order 8**, with the term recursion verified
   term-by-term against Blanes, Casas, Oteo & Ros,
   [Phys. Rep. 470, 151 (2009)](https://doi.org/10.1016/j.physrep.2008.11.001).
 - Three integration methods.  The default, `'gl'` — **Gauss–Legendre
-  commutator-free integrators** of orders 2/4/6 that need only 1/2/3
+  collocation integrators** of orders 2/4/6/8 that need only 1/2/3/4
   Hamiltonian evaluations per slab (Blanes, Casas & Ros, BIT 40, 434
   (2000)) — is both the fastest and the most accurate for a
   smooth-per-slab profile, which layer-aligned slabs make the common case.
@@ -668,7 +663,7 @@ page deliberately leaves to it:
 | [Accuracy and diagnostics](https://mbustama.github.io/Magnus/diagnostics.html) | What `rtol` really controls, what each safeguard cannot catch, and every warning explained |
 | [Against other codes](https://mbustama.github.io/Magnus/comparison.html) | The full cross-code comparison against NuOscProbExact and nuSQuIDS: which to reach for, case by case, and the measurements behind it |
 | [Numerical recipes](https://mbustama.github.io/Magnus/recipes.html) | Runnable snippets for the common tasks |
-| [Tutorials](https://mbustama.github.io/Magnus/tutorials.html) | All 27 notebooks, with what each one is for |
+| [Tutorials](https://mbustama.github.io/Magnus/tutorials.html) | All 29 notebooks, with what each one is for |
 | [API reference](https://mbustama.github.io/Magnus/api_reference.html) | Every public function, generated from the source |
 
 ## File Tree
@@ -691,6 +686,7 @@ Magnus/
 ├── img/                            # Figures used by the documentation
 ├── notebooks/                      # Numbered Jupyter notebooks -- see docs/source/tutorials.rst
 ├── pyproject.toml                  # Build system, dependencies, and the `magnus` console-script entry point
+├── resources/                      # Travels with the code; reaches neither the wheel nor the sdist
 ├── tools/                          # Standalone utilities that are not part of the package
 ├── src/                            # The package itself -- the only thing a `pip install` delivers
 └── tests/                          # Test suite (pytest; runs in CI)
@@ -700,7 +696,7 @@ Magnus/
 
 ## Continuous Integration
 
-Every push runs the full suite on Python 3.10-3.13, executes all 27
+Every push runs the full suite on Python 3.10-3.13, executes all 28
 notebooks, builds the documentation with warnings-as-errors, and lints with
 Ruff — the badges at the top of this page report those runs.  The workflows
 live in `.github/workflows/`.

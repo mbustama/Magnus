@@ -121,8 +121,10 @@ The matrix exponential, and which backend computes it
 Every slab ends in a matrix exponential, and ``np.linalg.eigh`` costs **about 1.27 µs per
 3×3 whatever the stack size** -- measured 1.268 µs at N = 108 and 1.279 µs at N = 4096,
 flat, because it loops over LAPACK internally instead of vectorizing over the stack.
-:data:`magnus.magnus.EXPM_BACKEND` selects between that and the compiled Cayley-Hamilton
-kernel in :mod:`magnus.expmkernels`, which applies to :math:`K` the polynomial interpolating
+:data:`magnus.magnus.EXPM_BACKEND` selects between that and the compiled kernels in
+:mod:`magnus.expmkernels` -- ``'numba'`` means the Cayley-Hamilton kernel at dimensions 2
+and 3 and the Jacobi eigensolver at 4 and 5, a distinction that did not exist when this
+paragraph was written.  The Cayley-Hamilton kernel which applies to :math:`K` the polynomial interpolating
 :math:`\exp(-i\lambda)` on its spectrum -- no eigenvectors, and the eigenvalues in closed
 form.
 
@@ -185,7 +187,8 @@ touch:
      -
    * - CONTROL: 4ν vacuum
      - 1.00×
-     - dimension 4 uses ``eigh`` on both settings
+     - dimension 4 used ``eigh`` on both settings *at the time of this measurement*,
+       which is what made it a control; it now uses the Jacobi kernel
 
 **A 6.8× exponential is a 2.1× call, and the gap is Amdahl's law rather than a
 disappointment.** The exponential is roughly a third of a slab pass, so removing six
@@ -206,9 +209,18 @@ difference is the anti-Hermiticity test and the temporaries around it, which do 
 with the stack.  That fixed cost, not the exponential, is what caps the single-point rows
 above.
 
-**Dimensions 4 and 5 keep ``eigh``, and always will.**  There is no practical closed form
-for a 4×4 or 5×5 Hermitian eigenproblem, so 4ν and 5ν are correct and simply not
-accelerated.  :func:`magnus.expmkernels.supports_dim` is the only place that decides this.
+**Dimensions 4 and 5 no longer keep ``eigh``, and an earlier version of this paragraph
+said they always would.**  The reasoning was that a 4×4 or 5×5 Hermitian eigenproblem has
+no practical closed form -- true, and beside the point, because the closed form was never
+what the speed-up came from: ``eigh``'s fixed per-matrix LAPACK overhead (~2.3 µs on a
+4×4, two thirds of a d = 4 call) was, and a batched Jacobi eigensolver that warm-starts
+each matrix from its predecessor's eigenvectors removes it with no closed form at all --
+2.6× on the exponential stage at 4ν and 1.7× at 5ν, measured against ``eigh`` plus
+reconstruction on a 13k-slab chain.  Unlike the d ≤ 3 kernels it is iterative, so the
+backend swap is not bit-identical; it is held instead to ``eigh``'s accuracy class, within
+6.4× of it at every norm, clustering and degeneracy measured, under the same 10× bar that
+admits the closed forms.  :func:`magnus.expmkernels.supports_dim` is still the only place
+that decides this.
 
 Neither backend is exactly unitary, and a previous version of ``_expm_stack``'s docstring
 claimed the ``eigh`` one was.  It is not: :math:`U^\dagger U - I` measures 4e-16 for a
@@ -244,6 +256,23 @@ rather than twelve skips, because ``tests/test_engines.py`` asks for
 ``expm_backend='numba'`` by name.  The trade is that numba lags new interpreters, so a
 Python release it has no wheel for now makes the package uninstallable rather than merely
 slower.
+
+Two paths are now compiled beyond the exponential itself.  The separable energy scan folds
+its slab operators in a numba kernel that keeps the Python loop's association but
+accumulates each matrix element as a compiled scalar sum, where BLAS orders the same
+arithmetic its own way.  A numba-less install was bit-identical there and may now differ
+at the 1e-14 level -- worst observed 1.28e-14 across 16 scan configurations, with every
+refinement decision unchanged.  The commutators of the Magnus schemes run in a second
+such kernel, which fuses the two batched matmuls of ``X @ Y - Y @ X`` -- nearly all
+gufunc dispatch at these matrix sizes -- into one pass over the stack.  Measured on the
+two benchmark profiles, that cuts the marginal cost per slab of the order-4 scheme by
+2.0-2.2x at three flavors and 3.1-3.4x at two; orders 6 and 8, which build three and six
+commutators per slab, gain 2.5-3.0x and 1.9-2.8x.  At four and five flavors the matmuls
+carry enough arithmetic to amortize their dispatch, so the gain settles at 1.1x; on the
+cumulative-quadrature methods, whose time goes to the integrals rather than the
+commutators, it disappears into the noise.  Probabilities move by at most 6.7e-14 across
+36 configurations, every refinement decision and warning unchanged; without numba the
+kernel falls back to the expression it replaced, bit-identical.
 
 
 A constant Hamiltonian needs no ladder at all
@@ -285,11 +314,17 @@ made 18,000 ``osc_prob`` calls per 300 repetitions, each one rediscovering the s
      - 6.2×
      - 1.4×
 
-4ν and 5ν gain less because they exponentiate through ``eigh``: the Cayley-Hamilton kernel
-covers dimensions 2 and 3 only.  In absolute terms a 3ν constant-density scan costs 1.10 µs per
+4ν and 5ν gained less here because they exponentiated through ``eigh``: the
+Cayley-Hamilton kernel covers dimensions 2 and 3 only, and it still does.  That is no
+longer the whole story -- those dimensions now go to the Jacobi eigensolver instead of
+``eigh``, worth a further 1.8-1.9× at 4ν and 1.5-1.6× at 5ν end to end.  The table above
+predates it.  In absolute terms a 3ν constant-density scan costs 1.10 µs per
 energy, against NuOscProbExact's 1.44 µs batched and 13.25 µs looped; a single point is 33.8 µs
 against its 19.9 µs, and **what remains is wrapper parameter resolution rather than
-arithmetic** -- the exponential itself is under a tenth of it.
+arithmetic** -- the exponential itself is under a tenth of it.  Part of that resolution
+cost has since been removed: the accepted pass-through keyword names were rebuilt by
+``inspect.signature`` on every public call, twice per call, and are now cached.  The
+figures in this paragraph predate that change and were not re-measured for it.
 
 Results are bit-identical to the per-point route on every flavor count and both neutrino signs.
 ``n_slabs``, ``n_tpts_per_slab``, ``t_breakpoints`` and ``rtol``/``atol`` are accepted and

@@ -129,9 +129,17 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .nbcache
-          key: nbcache-${{ hashFiles('src/magnus/**', 'pyproject.toml') }}-${{ matrix.shard }}-${{ github.run_id }}
+          # The data and helper modules the notebooks read are part of the key, not just
+          # the library.  A marker records that a notebook passed, and the per-notebook
+          # fingerprint below covers only its own source -- so a notebook that reads a
+          # JSON file stayed "passed" when that file changed underneath it.  That is not
+          # hypothetical: orders 6 and 8 were added to external_profile_benchmarks.json,
+          # 25_magnus_against_other_codes started raising KeyError on the new series
+          # names, and the gate went green on every commit that did not also touch
+          # src/magnus -- reporting "skipped" as "works".
+          key: nbcache-${{ hashFiles('src/magnus/**', 'pyproject.toml', 'notebooks/*.json', 'notebooks/*.py') }}-${{ matrix.shard }}-${{ github.run_id }}
           restore-keys: |
-            nbcache-${{ hashFiles('src/magnus/**', 'pyproject.toml') }}-${{ matrix.shard }}-
+            nbcache-${{ hashFiles('src/magnus/**', 'pyproject.toml', 'notebooks/*.json', 'notebooks/*.py') }}-${{ matrix.shard }}-
 
       - name: Execute every notebook
         if: needs.changes.outputs.notebooks != 'false'

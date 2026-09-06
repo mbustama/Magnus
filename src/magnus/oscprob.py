@@ -287,8 +287,8 @@ are layered internally (primordial/middle/wrapper) and how to add a new one.
 __author__ = 'Mauricio Bustamante'
 
 
+import functools
 import numpy as np
-import os
 import sys
 import warnings
 import weakref
@@ -324,7 +324,7 @@ Default cap on the number of slabs, per ``integration_method``, used when
 
 The cap exists to bound cost, and cost per slab differs by more than an order of
 magnitude between the two families of integrators.  ``'gl'`` evaluates the Hamiltonian
-1, 2, or 3 times per slab (set by the expansion order), while ``'trapezoid'`` and
+1, 2, 3, or 4 times per slab (set by the expansion order), while ``'trapezoid'`` and
 ``'simpson'`` evaluate it ``n_tpts_per_slab`` times (100 by default, up to 500).  A
 single cap tuned for one family therefore starves the other: at 2000 slabs -- the
 quadrature cap, unchanged here -- ``'gl'`` was hitting the ceiling on cases it could
@@ -335,7 +335,7 @@ own cap.
 The ``'gl'`` value is set from both directions.  The hardest case in the validation
 suite (5 flavors, eV-scale sterile splittings, Earth-crossing baseline) converges at
 about 8,600 slabs, so 20000 leaves better than a factor of two of headroom.  At the
-same time, 20000 slabs at 2-3 nodes is roughly 40,000-60,000 Hamiltonian evaluations,
+same time, 20000 slabs at 2-4 nodes is roughly 40,000-80,000 Hamiltonian evaluations,
 still well under the ~200,000 that 2000 quadrature slabs at 100 points per slab
 already permit -- so the more generous cap is also the cheaper worst case.
 
@@ -665,7 +665,15 @@ they matter:
    explicit ``cumulative=True`` and both fixed here: a missing scalar squeeze that returned
    ``(1, d, d)`` instead of ``(d, d)``, and a ``convergence_info`` keyword forwarded to an engine
    that rejects it, raising ``TypeError`` instead of returning a probability.  Two found in
-   minutes says the branch needs its own audit before it carries the default traffic.
+   minutes said the branch needed its own audit before it carried default traffic; that audit
+   was run on 2026-09-05 and found nothing further.  Both defect classes are clean -- scalar
+   input returns ``(d, d)`` at every flavour count on both settings, and nine forwarded
+   keywords all reach the branch -- and the branch is no longer thinly covered: 24
+   ``cumulative=True`` call sites across five test files, twenty tests named for it, fourteen
+   exercising ``convergence_info``, all passing.  What the audit did find is that this
+   sentence had gone stale, and that the branch's three refusals -- differing energies, a
+   supplied ``t_slab_edges``, and a request it cannot serve -- are deliberate and each says
+   plainly why.  See ``docs/dev/AUDIT_CUMULATIVE_BRANCH.md``.
 3. **It is a change of default, not a dominant engine.**  The cumulative scan's worst error over
    the 76 physical workloads it serves is 5.10e-03, and on one the hybrid path was 15x better.
 
@@ -945,118 +953,6 @@ def _tile_for_working_set(n_energies, n_inner, cell_entries, live_arrays=1,
     return energy_chunk, inner_block
 
 
-def _cgroup_headroom_bytes():
-    """Headroom left by a cgroup memory limit, or None if there is no limit to find.
-
-    **This is the figure that matters wherever the library actually runs at scale.**
-    ``/proc/meminfo`` is not namespaced: inside a container or a batch-scheduler cgroup
-    it reports the *host's* memory, so a guard built on it alone sees far more headroom
-    than the process can use.  Measured inside a 3 GiB scope on an 8 GiB machine, the
-    host figure read 8.27 GiB and a 2.2 GiB allocation was waved through and then killed
-    by the cgroup -- which is the exact outcome :func:`_check_output_fits` exists to
-    prevent.  Docker, Kubernetes, SLURM and HPC schedulers all impose limits this way.
-
-    Both cgroup versions are read, and in both the effective limit is the **minimum over
-    the whole ancestor chain**: a limit may be set on any ancestor rather than on the
-    leaf, and the tightest one binds.  Headroom is ``limit - current`` rather than the
-    limit itself, because the process is already using some of it.
-
-    Returns None when unlimited, unreadable, or absent, so that a caller can fall back to
-    the host figure.  A guard that cannot measure must not block.
-
-    .. versionadded:: 1.0.0
-    """
-    # cgroup v2: one unified hierarchy on the "0::" line of /proc/self/cgroup.
-    # cgroup v1: a "N:memory:/path" line, mounted under /sys/fs/cgroup/memory.
-    v2_path, v1_path = None, None
-    try:
-        with open('/proc/self/cgroup') as f:
-            for line in f:
-                parts = line.strip().split(':', 2)
-                if len(parts) != 3:
-                    continue
-                if parts[0] == '0' and not parts[1]:
-                    v2_path = parts[2]
-                elif 'memory' in parts[1].split(','):
-                    v1_path = parts[2]
-    except OSError:
-        return None
-
-    def read_int(path):
-        """The file's contents as an int; None for absent, unreadable or 'max'."""
-        try:
-            with open(path) as f:
-                text = f.read().strip()
-        except (OSError, ValueError):
-            return None
-        if text == 'max':
-            return None
-        try:
-            value = int(text)
-        except ValueError:
-            return None
-        # cgroup v1 spells "unlimited" as a sentinel near 2**63 rather than as a word.
-        return None if value >= 2**62 else value
-
-    best = None
-    for root, rel, limit_name, usage_name in (
-            ('/sys/fs/cgroup', v2_path, 'memory.max', 'memory.current'),
-            ('/sys/fs/cgroup/memory', v1_path,
-             'memory.limit_in_bytes', 'memory.usage_in_bytes')):
-        if rel is None:
-            continue
-        # Walk from the process's own cgroup up to the mount root; the tightest limit
-        # anywhere on the chain is the one that will kill us.
-        parts = [p for p in rel.split('/') if p]
-        for depth in range(len(parts), -1, -1):
-            base = os.path.join(root, *parts[:depth])
-            limit = read_int(os.path.join(base, limit_name))
-            if limit is None:
-                continue
-            used = read_int(os.path.join(base, usage_name)) or 0
-            headroom = max(limit - used, 0)
-            best = headroom if best is None else min(best, headroom)
-    return best
-
-
-def _available_memory_bytes():
-    """Best-effort free memory for *this* process, or None if it cannot be had cheaply.
-
-    ``MemAvailable`` is preferred over the raw free-page count because it accounts for
-    reclaimable page cache: on a machine with a warm cache the latter understates what a
-    large allocation can actually get, and a guard built on it would refuse work that
-    would have succeeded.
-
-    Whatever the host reports is then **capped by any cgroup limit** applying to this
-    process -- see :func:`_cgroup_headroom_bytes` for why that is not optional.  The
-    minimum of the two is what an allocation can actually claim.
-
-    Returns None rather than guessing on platforms that expose none of these.  A guard
-    that cannot measure must not block.
-
-    .. versionadded:: 1.0.0
-    """
-    host = None
-    try:
-        with open('/proc/meminfo') as f:
-            for line in f:
-                if line.startswith('MemAvailable:'):
-                    host = int(line.split()[1])*1024
-                    break
-    except (OSError, ValueError, IndexError):
-        pass
-    if host is None:
-        try:
-            host = os.sysconf('SC_AVPHYS_PAGES')*os.sysconf('SC_PAGE_SIZE')
-        except (AttributeError, ValueError, OSError):
-            host = None
-
-    cgroup = _cgroup_headroom_bytes()
-    if cgroup is None:
-        return host
-    return cgroup if host is None else min(host, cgroup)
-
-
 def _check_output_fits(n_points, dim, source_func_name):
     """Refuse a scan whose *result* cannot fit in memory, before allocating anything.
 
@@ -1081,7 +977,7 @@ def _check_output_fits(n_points, dim, source_func_name):
     needed = int(n_points)*int(dim)*int(dim)*8          # float64 probability matrices
     if needed < OUTPUT_GUARD_MIN_BYTES:
         return
-    available = _available_memory_bytes()
+    available = magnus._available_memory_bytes()
     if available is None:
         return
     if needed*OUTPUT_GUARD_SAFETY > available:
@@ -1266,12 +1162,19 @@ class HiddenFeatureWarning(ToleranceNotAchievedWarning):
     :math:`3\times10^{-5}` of the trajectory: **wrong by 2.9e-02 against a requested 1e-3, with
     no warning at all** before this existed.
 
-    **What to change.**  Pass ``t_breakpoints`` bracketing the position in the message, padded by
-    a few reference intervals.  Measured on the two constructions above, going from nothing to a
-    padded breakpoint set: 3.9e-03 → 8.5e-05 and 1.3e-03 → 4.4e-04, and the answer stops being
-    silent.  The cure is real but **partial** -- putting edges on a feature helps the quadrature,
-    it does not conjure resolution that the sampling never had.  For a feature you know the width
-    of, a denser grid there is better still.
+    **What to change.**  Pass the exact ``t_breakpoints`` printed in the message.  They are
+    built by re-sampling the flagged interval and laying seven edges across the sub-interval
+    that actually carries the variation (see ``_suggest_breakpoints``), so the inner slabs
+    come out near two feature widths -- a pair-scale padded bracket, which an earlier version
+    of this message suggested, was measured *not* to cure the band this class is calibrated
+    on: a single point stayed at 3.0e-02, a 60-point scan moved from 3.0e-02 to 5.8e-02, and
+    both were silent about it, since supplying breakpoints also switches the scan off.  The
+    printed set is verified end to end through the public path -- warn, pass the printed edges
+    back, re-run: 3.0e-02 → 1.0e-04 on the width-3e-5 calibration case at a point and over a
+    60-point scan alike, and 1.5e-04 or better at every other detected centre tried.  Edges of
+    your own at :math:`\pm 2` and :math:`\pm 8` widths do as well (measured 8.4e-04) when you
+    know the width.  Either way the breakpoints route the call to the general slab ladder, so
+    expect accuracy near the requested tolerance, not the hybrid path's excess below it.
 
     **When it is safe to ignore.**  When the narrow structure is an artifact of how the profile
     function was written rather than physics -- an interpolation kink, a rounding step in a
@@ -1283,6 +1186,11 @@ class HiddenFeatureWarning(ToleranceNotAchievedWarning):
     so it runs **once per call**, not once per (energy, L) point.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.0.12
+       The message's suggested ``t_breakpoints`` now localize the feature by a local
+       re-sample and are verified to cure the calibration band; the pair-scale bracket they
+       replace was measured not to.
     """
 
 
@@ -1531,8 +1439,8 @@ def validate_input_battery(
     nu_f: Optional[int]=None,
     osc_params: Optional[Union[list, np.ndarray]]=None,
     rho_func: Optional[Union[Callable, int, float]]=None,
-    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0, 
-    electron_fraction: Optional[Union[int, float]]=0.5, 
+    ratio_number_neutrons_to_protons: Optional[Union[int, float, Callable]]=1.0,
+    electron_fraction: Optional[Union[int, float]]=0.5,
     validate_energy_and_L: Optional[bool]=True,
     validate_flavor_indices: Optional[bool]=True,
     validate_osc_params: Optional[bool]=True,
@@ -1570,8 +1478,10 @@ def validate_input_battery(
     rho_func : Callable, int, or float, optional
         Matter density (function or constant) to validate (checked if ``validate_density`` is
         True).
-    ratio_number_neutrons_to_protons : int or float, optional
+    ratio_number_neutrons_to_protons : int, float, or Callable, optional
         Ratio of the number of neutrons to protons in matter, validated alongside the density.
+        A callable (a position-resolved ratio, :math:`r(l)`) passes through unvalidated: one
+        probe evaluation could not establish nonnegativity along the whole trajectory anyway.
         Default: 1.0.
     electron_fraction : int or float, optional
         Electron fraction, validated alongside the density. Default: 0.5.
@@ -1655,6 +1565,23 @@ def validate_input_battery(
                 ": since the input energy and L are both lists or NumPy arrays, they must have " + \
                 "the same length.")
 
+        # A baseline that looks like kilometers.  This does not fail on its own: the call
+        # returns a converged, unitary probability for a baseline a few meters long, which
+        # is why it is worth a warning.  See globaldefs.BaselineUnitWarning.
+        if L is not None:
+            _largest_L = float(np.max(np.abs(np.asarray(L, dtype=float))))
+            if 0.0 < _largest_L < gd.IMPLAUSIBLE_BASELINE_NATURAL_UNITS:
+                warnings.warn(gd.WARNING_MSG_NO_COLOR + " oscprob." + source_func_name +
+                    ": a baseline of " + format(_largest_L, '.4g') + " was given. Every length "
+                    "crossing this API is in natural units, and " + format(_largest_L, '.4g') +
+                    " eV^-1 is about " + format(_largest_L/gd.CONV_KM_TO_INV_EV*1.0e3, '.2g') +
+                    " m, so this was most likely read in kilometers and left unconverted. The "
+                    "call will not fail: it will return a converged, unitary probability for a "
+                    "baseline a few meters long, which looks like an ordinary answer rather "
+                    "than a wrong one. Multiply by gd.UNIT_KM (or gd.CONV_KM_TO_INV_EV) to "
+                    "convert. Silence with warnings.filterwarnings('ignore', "
+                    "category=gd.BaselineUnitWarning).", gd.BaselineUnitWarning, stacklevel=3)
+
         if (((nu_i is not None) and (nu_f is None)) or ((nu_i is None) and (nu_f is not None))):
             raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + \
                 ": if either nu_i or nu_f is not None, the other flavor must also be not None.")
@@ -1709,7 +1636,12 @@ def validate_input_battery(
 
     if validate_density:
 
-        if (ratio_number_neutrons_to_protons < 0.0):
+        # A callable ratio (r resolved per position, matter_potential_projector's widened
+        # form) is not range-checked: a single probe evaluation would prove nothing about
+        # the rest of the trajectory, and rho_func already sets the precedent that functions
+        # are trusted on their values.
+        if (not callable(ratio_number_neutrons_to_protons)) and \
+                (ratio_number_neutrons_to_protons < 0.0):
             raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ":"+\
                 " the ratio of neutrons to protons (ratio_number_neutrons_to_protons) must" + \
                 " be non-negative.")
@@ -1747,85 +1679,97 @@ def _warn_if_sterile_projector_disagrees_with_composition(
         source_func_name, num_flavors, costhz, electron_fraction,
         ratio_number_neutrons_to_protons,
         core, mantle, crust, ocean):
-    r"""Warns when the sterile matter entry is built from a different medium than the density.
+    r"""Warns when a caller's scalar builds the sterile matter entry from a different medium
+    than the density.
 
-    Two numbers describe the same matter and are supplied separately.  The **density** along
-    an Earth chord takes its neutron-to-proton ratio from :math:`Y_e`, layer by layer, because
-    :math:`r = (1 - Y_e)/Y_e` is the same statement about composition.  The **sterile states'
-    entry in the matter projector**, :math:`r/2`, cannot: it is one matrix for the whole chord,
-    so it takes the caller's scalar, which defaults to 1.0 -- isoscalar matter, i.e.
-    :math:`Y_e = 0.5`, the uniform composition the layered defaults replaced.
+    Two numbers describe the same matter.  The **density** along an Earth chord takes its
+    neutron-to-proton ratio from :math:`Y_e`, layer by layer, because
+    :math:`r = (1 - Y_e)/Y_e` is the same statement about composition.  Since the projector
+    became position-resolved, the **sterile states' entry**, :math:`r/2`, follows the same
+    :math:`Y_e` by default (``ratio_number_neutrons_to_protons=None``), so the default no
+    longer has anything to warn about.  What remains is the caller who *passes a scalar*
+    over a layered :math:`Y_e`: that forces one medium onto a chord that crosses iron and
+    rock, and no scalar describes it -- near the sterile matter resonance the mismatch
+    reaches ~0.4 in probability at 3+1 on a core-crossing chord, and the best possible
+    scalar, found only by scanning against the layered answer, still leaves ~7e-3.  So a
+    scalar over layered composition warns *unconditionally*: the earlier 2% threshold on
+    :math:`r` was measured to pass chords whose error matched the very figure it warned
+    about (2e-2 at :math:`\cos\theta_z = -0.80`), because near a resonance the map from
+    composition mismatch to probability error is not linear.
 
-    The two therefore disagree by construction on every Earth chord once a sterile state is
-    present.  Measured at :math:`\cos\theta_z = -0.95` with
-    :math:`\sin\theta_{14} = 0.15`, :math:`\sin\theta_{24} = 0.10` and
-    :math:`\Delta m^2_{41} = 1\,{\rm eV}^2`, the isoscalar projector differs from one built
-    with the core's own :math:`r = 1.1478` by **2.1e-02** in
-    :math:`P(\nu_\mu \to \nu_\mu)`, twenty times the default tolerance -- and silently,
-    since nothing else about the call looks wrong.
+    With a uniform ``electron_fraction`` override there *is* a single right scalar, so the
+    exact-match escape stays (with 2% slack for hand-rounded values).  A callable ratio is
+    the caller taking position-resolved control, and is trusted the way ``rho_func`` is.
 
-    Three flavors are unaffected: the projector's sterile block is empty, so the scalar has
-    nowhere to act.  This is the same shape as the four-flavor NSI matter term that shipped
-    wrong, and it is reported rather than resolved because no single :math:`r` is right for a
-    chord that crosses iron and rock.  Pass the one you want.
+    Three flavors are unaffected: the projector's sterile block is empty, so the ratio has
+    nowhere to act.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.0
+       ``None`` (follow the composition) and callables are silent; a scalar over layered
+       :math:`Y_e` always warns, where it used to be silent within 2% of the path average.
     """
     if not num_flavors or num_flavors <= 3:
         return
 
-    import magnus.earth as _earth
+    # None is the default and the fix: the projector follows the same layered Y_e the
+    # density uses, so there is no second medium to warn about.
+    if ratio_number_neutrons_to_protons is None:
+        return
 
-    # The composition actually in force: a uniform override if given, else the layer values.
-    if electron_fraction is not None:
-        ye_used = [float(electron_fraction)]
-    else:
-        ye_used = [float(v) if v is not None else d for v, d in (
-            (core, _earth.Y_E_CORE_PREM), (mantle, _earth.Y_E_MANTLE_PREM),
-            (crust, _earth.Y_E_CRUST_PREM), (ocean, _earth.Y_E_OCEAN_PREM))]
+    # A callable is the position-resolved form the default builds internally.  A caller
+    # passing their own has taken explicit control, and agreement with ye_of_r cannot be
+    # established from a probe evaluation; the contract is documented instead of guessed.
+    if callable(ratio_number_neutrons_to_protons):
+        return
+
+    import magnus.earth as _earth
 
     given = float(ratio_number_neutrons_to_protons)
 
     if electron_fraction is not None:
-        # One medium, so there is a single right answer and the test is exact.
-        target = float(_earth.neutron_to_proton_ratio_from_electron_fraction(ye_used[0]))
-        implied = [target]
-    else:
-        # Path-averaged along THIS chord, not a range over the four layers.  A range is
-        # useless here: the ocean's r = 0.80 drags it below the isoscalar 1.0, so the
-        # default would sit inside it and never be questioned -- while on a core-crossing
-        # chord the ocean is three kilometers of twelve thousand.  Averaging over the path
-        # weights each layer by how much of the trajectory is actually in it, and gives the
-        # caller one number to pass rather than an interval to choose from.
-        chord = float(_earth.distance_traveled_inside_earth(costhz))
-        l_km = np.linspace(0.0, chord, 2001)
-        radii = _earth.earth_radial_distance_from_depth(costhz, l_km)
-        ye_path = _earth.electron_fraction_func_prem(
-            radii, electron_fraction_core=core, electron_fraction_mantle=mantle,
-            electron_fraction_crust=crust, electron_fraction_ocean=ocean)
-        target = float(np.mean(
-            _earth.neutron_to_proton_ratio_from_electron_fraction(ye_path)))
-        implied = sorted({round(float(_earth.neutron_to_proton_ratio_from_electron_fraction(y)), 4)
-                          for y in np.unique(ye_path)})
-
-    # Silent once the caller has matched the medium to within 2%, which is well inside the
-    # spread PREM's own density carries.
-    if abs(given - target) <= 2.0e-2*max(1.0, abs(target)):
+        # One uniform medium, so there is a single right answer and the test is exact,
+        # with 2% slack so a hand-rounded match is not nagged about.
+        target = float(_earth.neutron_to_proton_ratio_from_electron_fraction(
+            float(electron_fraction)))
+        if abs(given - target) <= 2.0e-2*max(1.0, abs(target)):
+            return
+        warnings.warn(
+            gd.WARNING_MSG_NO_COLOR + " oscprob." + source_func_name + ": electron_fraction"
+            " = " + format(float(electron_fraction), '.4f') + " sets one medium for the whole"
+            " Earth, which implies r = (1 - Y_e)/Y_e = " + format(target, '.4f') + " for the"
+            " sterile states' entry in the matter projector -- but ratio_number_neutrons_to_"
+            "protons = " + format(given, '.4f') + " builds it from a different one.  Omit the"
+            " ratio (default None) to have it derived from Y_e for you.  Three flavors are"
+            " unaffected.", gd.SterileMatterCompositionWarning, stacklevel=3)
         return
+
+    # Layered composition plus one scalar: different media by construction, so this warns
+    # regardless of the scalar's value.  The layer values are listed so the caller can see
+    # what the chord actually crosses.
+    chord = float(_earth.distance_traveled_inside_earth(costhz))
+    l_km = np.linspace(0.0, chord, 2001)
+    radii = _earth.earth_radial_distance_from_depth(costhz, l_km)
+    ye_path = _earth.electron_fraction_func_prem(
+        radii, electron_fraction_core=core, electron_fraction_mantle=mantle,
+        electron_fraction_crust=crust, electron_fraction_ocean=ocean)
+    implied = sorted({round(float(_earth.neutron_to_proton_ratio_from_electron_fraction(y)), 4)
+                      for y in np.unique(ye_path)})
 
     warnings.warn(
         gd.WARNING_MSG_NO_COLOR + " oscprob." + source_func_name + ": the density along this"
         " chord takes its neutron-to-proton ratio from Y_e layer by layer (r = " +
-        ", ".join(format(r, '.4f') for r in implied) + "), but the sterile states' entry in"
-        " the matter projector is one matrix for the whole chord and is being built from"
-        " ratio_number_neutrons_to_protons = " + format(given, '.4f') + ".  The two describe"
-        " different media.  On a core-crossing chord that is worth about 2e-02 in probability"
-        " at 3+1, twenty times the default tolerance, and nothing else about the call looks"
-        " wrong.  For this chord the path-averaged ratio is " + format(target, '.4f') + ";"
-        " passing that as ratio_number_neutrons_to_protons silences this and makes the two"
-        " agree on average.  electron_fraction=0.5 with the default 1.0 instead reproduces"
-        " the uniform composition earlier versions assumed.  Three flavors are unaffected.",
-        gd.SterileMatterCompositionWarning, stacklevel=3)
+        ", ".join(format(r, '.4f') for r in implied) + "), but ratio_number_neutrons_to_"
+        "protons = " + format(given, '.4f') + " builds the sterile states' entry in the"
+        " matter projector from that one scalar for the whole chord.  The two describe"
+        " different media, and no scalar fixes that: near the sterile matter resonance on a"
+        " core-crossing chord the mismatch is worth up to ~0.4 in probability at 3+1, and"
+        " the best possible scalar still leaves ~7e-3.  Omit the argument (default None) to"
+        " have the projector follow the same Y_e the density uses, exactly and at no extra"
+        " cost.  electron_fraction=0.5 instead makes the medium genuinely uniform, which"
+        " reproduces results from before composition was layered.  Three flavors are"
+        " unaffected.", gd.SterileMatterCompositionWarning, stacklevel=3)
 
 
 def _earth_composition(costhz, electron_fraction, ratio_number_neutrons_to_protons,
@@ -1834,8 +1778,11 @@ def _earth_composition(costhz, electron_fraction, ratio_number_neutrons_to_proto
                        source_func_name, num_flavors=None):
     r"""The electron density along a chord, with :math:`Y_e` resolved per PREM layer.
 
-    Returns the ``rho_func`` every Earth entry point hands to
-    :func:`magnus.matter.vcc_func_from_rho_func`.
+    Returns the pair ``(rho_func, ratio_resolved)`` every Earth entry point hands to
+    :func:`magnus.matter.vcc_func_from_rho_func` and (as
+    ``ratio_number_neutrons_to_protons``) to its middle layer -- the density and the
+    sterile projector's ratio, resolved side by side from the same :math:`Y_e` so the two
+    cannot drift.
 
     Two things happen here that used to be the caller's problem.  :math:`Y_e` becomes a
     function of radius rather than one number for the whole Earth -- the core is iron and
@@ -1847,11 +1794,25 @@ def _earth_composition(costhz, electron_fraction, ratio_number_neutrons_to_proto
     :math:`r` described matter that cannot exist -- silently, since :math:`r` only shows
     up in the sterile sector.
 
+    The derivation used to stop at the density: the projector's sterile entry stayed one
+    scalar for the whole chord, and the mismatch was warned about rather than fixed --
+    measured at up to ~0.4 in probability at 3+1 near the sterile matter resonance on a
+    core-crossing chord, and unfixable by any scalar.  Now the default
+    (``ratio_number_neutrons_to_protons=None``) resolves the projector's ratio here too,
+    as :math:`r(l)` from the same layered :math:`Y_e`; the warning survives only for a
+    caller who forces a scalar over layered composition.  See
+    :func:`_warn_if_sterile_projector_disagrees_with_composition`.
+
     The uniform ``electron_fraction`` override is kept, because it is how an earlier
     result is reproduced: ``electron_fraction=0.5`` is what every Earth number in this
     library used to assume.  Combining it with a per-layer value is refused rather than
     silently resolved -- any precedence rule here is a rule the caller has to know, and
     this is the shape of two bugs already found in this package.
+
+    .. versionchanged:: 1.1.0
+       Returns ``(rho_func, ratio_resolved)`` instead of ``rho_func`` alone, and accepts
+       ``ratio_number_neutrons_to_protons=None`` (the new wrapper default) meaning
+       "follow the composition".
     """
     _warn_if_sterile_projector_disagrees_with_composition(
         source_func_name, num_flavors, costhz, electron_fraction,
@@ -1894,9 +1855,8 @@ def _earth_composition(costhz, electron_fraction, ratio_number_neutrons_to_proto
         # ALWAYS derived from Y_e here, never taken from the caller's
         # `ratio_number_neutrons_to_protons`.  In this conversion the ratio only sets the
         # average nucleon mass, which is a property of the local composition and so has to
-        # follow Y_e layer by layer.  The caller's scalar keeps its other role -- the
-        # sterile states' entry in the matter projector, which is one matrix for the whole
-        # chord and cannot vary with position.  See the note in the wrappers' docstrings.
+        # follow Y_e layer by layer.  The ratio's other role -- the sterile states' entry
+        # in the matter projector -- is resolved below, from this same Y_e by default.
         return matter.num_density_e_func(
             r, earth.density_matter_func_prem,
             ratio_number_neutrons_to_protons=
@@ -1904,7 +1864,27 @@ def _earth_composition(costhz, electron_fraction, ratio_number_neutrons_to_proto
             electron_fraction=ye,
             density_matter_is_in_g_per_cm3=True)      # [eV^3] (l in eV^{-1})
 
-    return rho_func
+    # The projector's ratio, resolved next to the density's own Y_e so the two cannot
+    # drift.  None (the wrapper default) follows the composition -- and on the Earth this
+    # is *exact*, not approximate: Y_e is piecewise constant on a subset of the PREM
+    # crossings every Earth entry point already passes as t_breakpoints, so each slab is
+    # homogeneous and a per-position projector costs no extra Hamiltonian structure.  A
+    # uniform electron_fraction collapses to the one scalar it implies, keeping the
+    # constant-projector fast paths; three flavors or fewer take a scalar too, the
+    # sterile block being empty (this also keeps their call path bit-identical to before
+    # the projector learned to move).  An explicit caller value, scalar or callable, is
+    # forwarded untouched -- scalars over layered Y_e having been warned about above.
+    if ratio_number_neutrons_to_protons is not None:
+        ratio_resolved = ratio_number_neutrons_to_protons
+    elif (electron_fraction is not None) or (not num_flavors) or (num_flavors <= 3):
+        ratio_resolved = float(earth.neutron_to_proton_ratio_from_electron_fraction(
+            float(electron_fraction) if electron_fraction is not None else 0.5))
+    else:
+        def ratio_resolved(l):
+            r = earth.earth_radial_distance_from_depth(costhz, l/gd.UNIT_KM)
+            return earth.neutron_to_proton_ratio_from_electron_fraction(ye_of_r(r))
+
+    return rho_func, ratio_resolved
 
 
 def validate_input_osc_prob_earth(
@@ -2884,8 +2864,8 @@ def osc_prob(
         be comparable bit for bit, hold ``n_jobs`` fixed, or tighten the
         tolerance until the difference is below what you care about.
     integration_method : str, optional
-        'gl' for Gauss-Legendre collocation, which needs only 1, 2, or 3
-        Hamiltonian evaluations per slab for orders <= 2, <= 4, <= 6, and
+        'gl' for Gauss-Legendre collocation, which needs only 1, 2, 3, or 4
+        Hamiltonian evaluations per slab for orders <= 2, <= 4, <= 6, <= 8, and
         ignores ``n_tpts_per_slab``; or 'trapezoid'/'simpson' for cumulative
         quadrature over ``n_tpts_per_slab`` points per slab. Default: 'gl'.
     rtol : int or float, optional
@@ -2929,7 +2909,7 @@ def osc_prob(
     max_n_slabs : int, optional
         Maximum allowed number of slabs.  If None (default), a cap appropriate to
         ``integration_method`` is used: 20000 for 'gl', 2000 for the cumulative-quadrature
-        methods (see :data:`MAX_N_SLABS_DEFAULT`).  'gl' costs 1-3 Hamiltonian evaluations
+        methods (see :data:`MAX_N_SLABS_DEFAULT`).  'gl' costs 1-4 Hamiltonian evaluations
         per slab against the quadrature methods' ``n_tpts_per_slab``, so the same cost
         budget buys it far more slabs.  An explicit value is always used as given.
     min_n_tpts_per_slab : int, optional
@@ -3226,7 +3206,7 @@ def osc_prob(
         atol = 0.0 if atol is None else atol
 
     # The Gauss-Legendre integration method ('gl') uses a fixed, small number of Hamiltonian
-    # evaluations per slab (1, 2, or 3, depending on magnus_exp_order), so n_tpts_per_slab plays no
+    # evaluations per slab (1, 2, 3, or 4, depending on magnus_exp_order), so n_tpts_per_slab plays no
     # role: the accuracy is controlled by the number of slabs only.  Neutralize the growth of
     # n_tpts_per_slab so that the adaptive loop below grows only n_slabs.
     if integration_method == 'gl':
@@ -3422,7 +3402,7 @@ def osc_prob(
             # Reached maximum allowed number of slabs and maximum allowed number of time-points per
             # slab: exit loop, return the probability matrix
             if (loop_count > 1) and ran_with_max_n_slabs and ran_with_max_n_tpts_per_slab:
-                # 'gl' pins n_tpts_per_slab (it uses a fixed 1-3 nodes per slab), so only
+                # 'gl' pins n_tpts_per_slab (it uses a fixed 1-4 nodes per slab), so only
                 # max_n_slabs is a meaningful knob for it; naming max_n_tpts_per_slab in the
                 # message would send the reader after a setting that cannot help them.
                 knobs = ("max_n_slabs" if integration_method == 'gl'
@@ -3844,6 +3824,7 @@ keeps the two from drifting apart.
 """
 
 
+@functools.lru_cache(maxsize=1)
 def _passthrough_kwarg_names() -> frozenset:
     r"""Every keyword the ``**kwargs`` chain can absorb, read off the signatures.
 
@@ -3856,6 +3837,14 @@ def _passthrough_kwarg_names() -> frozenset:
     Verified against the call: every keyword this returns is accepted by
     :func:`osc_prob_matter_std_potential`, and the ones a caller is likely to misspell --
     ``t_breakpoint`` for ``t_breakpoints``, ``nslabs`` for ``n_slabs`` -- are not in it.
+
+    Cached, because this ran on every call that validates keywords and cost about
+    113 us each time -- a tenth of the fixed overhead of a single-point call, spent
+    re-reading three signatures that cannot change: they are module-level
+    definitions, and nothing in the package rebinds or wraps them.  What is cached
+    is the reading, not a second copy of the names, so the derived-not-listed
+    property above is untouched.  ``.cache_clear()`` is available for a caller that
+    patches one of those signatures and wants the union recomputed.
 
     .. versionadded:: 1.0.0
     """
@@ -4058,6 +4047,73 @@ interaction-picture path applies, and a cross-check that silently compared the s
 itself would be exactly the failure it exists to detect."""
 
 
+def _suggest_breakpoints(profile, scan, n_local=2048, hold=0.90, n_edges=7) -> list:
+    r"""Build the ``t_breakpoints`` that :class:`HiddenFeatureWarning` tells the caller to pass.
+
+    The scan localizes a hidden feature only to a reference-interval pair, about
+    :math:`3\times10^{-4}` of the trajectory -- 10 to 100 widths of the features in the band
+    the detector is calibrated on.  Edges that far apart do not cure: measured through the
+    public path on the ``FINDINGS_ADVERSARIAL_VALIDATION.md`` §3.3 cases, a pair-scale
+    padded bracket (which an earlier version of the warning suggested) left a single point at
+    3.0e-02 and moved a 60-point scan from 3.0e-02 to 5.8e-02 -- silently, because supplying
+    ``t_breakpoints`` also switches the scan off.  So the flagged pair is re-sampled here at
+    ``n_local`` points, the smallest sub-interval holding ``hold`` of the pair's variation is
+    padded by its own width on each side, and ``n_edges`` uniform edges are laid across it.
+    The inner slabs come out near two feature widths, which is also what the verified manual
+    cure (edges at :math:`\pm 2` and :math:`\pm 8` widths) produces.
+
+    Verified through the public path at every detected centre tried, five per width: at a
+    width of 3e-5 of the trajectory, bare errors of 3.2e-03 to 3.0e-02 go to 2.9e-07 to
+    1.5e-04; at 1e-5, 4.1e-03 to 1.0e-02 go to 3.9e-05 to 9.4e-05; the flagship case's
+    60-point scan lands at 1.0e-04.  On a feature so narrow it was harmless (width 1e-6 with a
+    bare error of 2.8e-11), the breakpoints route the call to the general slab ladder and the
+    answer lands near the requested tolerance instead -- the warning says so, making that
+    trade the caller's.
+
+    Cost is ``n_local`` scalar evaluations of ``profile``, paid only on the warn path, which
+    fires on none of the 67 smooth calibration profiles.
+
+    .. versionadded:: 1.0.12
+
+    Parameters
+    ----------
+    profile : Callable
+        The scalar profile the scan ran on; must accept an array of positions.
+    scan : dict
+        A result of :func:`magnus.adiabatic.find_hidden_features` whose ``'hidden'`` is True.
+    n_local : int
+        Points of the local re-sample across the flagged pair.
+    hold : float
+        Fraction of the pair's variation the tight sub-interval must contain.
+    n_edges : int
+        Edges laid uniformly across the padded sub-interval.
+
+    Returns
+    -------
+    list
+        Positions to pass as ``t_breakpoints``.  Falls back to the pair-scale 3-point bracket
+        if the profile cannot be re-sampled or shows no variation here -- nearly unreachable,
+        since the scan just sampled it and found plenty.
+    """
+    lo0, hi0 = float(scan['l_lo']), float(scan['l_hi'])
+    fallback = [lo0 - 3.0*(hi0 - lo0), float(scan['l_centre']), hi0 + 3.0*(hi0 - lo0)]
+    try:
+        xs = np.linspace(lo0, hi0, n_local + 1)
+        steps = np.abs(np.diff(np.asarray(profile(xs), dtype=float)))
+    except Exception:            # noqa: BLE001 -- same rule as the scan: never break the call
+        return fallback
+    if (steps.ndim != 1) or (steps.shape[0] != n_local) or (not np.all(np.isfinite(steps))):
+        return fallback
+    total = float(steps.sum())
+    if total <= 0.0:
+        return fallback
+    order = np.argsort(steps)[::-1]
+    kept = np.sort(order[:int(np.searchsorted(np.cumsum(steps[order]), hold*total)) + 1])
+    lo, hi = xs[kept[0]], xs[kept[-1] + 1]
+    width = hi - lo
+    return list(np.linspace(lo - width, hi + width, n_edges))
+
+
 def _scan_for_hidden_features(profile, l0, L, t_breakpoints=None) -> Optional[Dict]:
     r"""Run the sub-probe feature scan once for a whole call, and warn if it finds something.
 
@@ -4069,6 +4125,11 @@ def _scan_for_hidden_features(profile, l0, L, t_breakpoints=None) -> Optional[Di
     structure is) and when the profile is not a function of position (nothing to hide in).
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.0.12
+       The warning's suggested ``t_breakpoints`` now come from ``_suggest_breakpoints``,
+       which localizes the feature by re-sampling the flagged interval; the pair-scale bracket
+       it replaces was measured not to cure the band the detector exists for.
 
     Returns
     -------
@@ -4103,10 +4164,10 @@ def _scan_for_hidden_features(profile, l0, L, t_breakpoints=None) -> Optional[Di
         return scan
 
     # The position IS the actionable content here, so it goes in the message even though that
-    # costs the static-message dedup other warnings keep.  It does not cost much: the scan
-    # depends on the profile and the interval only, so every call over the same profile
-    # produces the same string and Python's default filter still collapses them.
-    pad = 3.0*(scan['l_hi'] - scan['l_lo'])
+    # costs the static-message dedup other warnings keep.  It does not cost much: the scan and
+    # the suggested edges depend on the profile and the interval only, so every call over the
+    # same profile produces the same string and Python's default filter still collapses them.
+    edges = _suggest_breakpoints(profile, scan)
     warnings.warn(
         "osc_prob: the density profile has structure too narrow for any grid this package "
         "samples on, near l = " + format(scan['l_centre'], '.6e') + ". Every engine misses it "
@@ -4114,11 +4175,12 @@ def _scan_for_hidden_features(profile, l0, L, t_breakpoints=None) -> Optional[Di
         "so they agree with each other and may be wrong together, and no choice of strategy or "
         "tolerance helps. Measured on such a profile: wrong by 2.9e-02 against a requested "
         "1e-3. Pass t_breakpoints=["
-        + format(scan['l_lo'] - pad, '.6e') + ", " + format(scan['l_centre'], '.6e') + ", "
-        + format(scan['l_hi'] + pad, '.6e') + "] to put slab edges on it; that is a partial "
-        "cure (measured 3.9e-03 -> 8.5e-05), not a complete one. If the narrow structure is an "
-        "artifact of how the profile function was written rather than physics, this is safe to "
-        "ignore. Shown once per profile per session.",
+        + ", ".join(format(e, '.6e') for e in edges) + "] to put slab edges across it "
+        "(verified on the case above: 3.0e-02 -> 1.0e-04, at a point and over a 60-point "
+        "scan). Passing t_breakpoints routes the call to the general slab ladder and switches "
+        "this scan off, so expect accuracy near the requested tolerance rather than below it. "
+        "If the narrow structure is an artifact of how the profile function was written rather "
+        "than physics, this is safe to ignore. Shown once per profile per session.",
         HiddenFeatureWarning, stacklevel=3)
     return scan
 
@@ -4259,16 +4321,19 @@ def _osc_prob_scan_separable(
     baseline [``L0``, ``L_val``] in one batched pipeline, for Hamiltonians of
     the separable form
 
-        H(E, l) = H_E(E) + VCC(l) * h_matt ,
+        H(E, l) = H_E(E) + M(l) ,    M(l) = VCC(l) * h_matt(l) ,
 
     where ``H_E`` (shape (nE, d, d)) collects all the position-independent,
     energy-dependent terms (vacuum, LIV, ...), ``VCC_func`` is the scalar
-    matter potential along the trajectory, and ``h_matt`` (shape (d, d)) is
-    the constant matter matrix it multiplies.  The position samples of the
-    potential are computed once per refinement level and shared by all
-    energies, and the Magnus kernel (quadrature, commutators, exponentials,
-    slab products) runs with the energy axis batched in front of the slab
-    axis.
+    matter potential along the trajectory, and ``h_matt`` is the matter
+    matrix it multiplies -- constant (shape (d, d)) in the ordinary case, or
+    a callable of position when the sterile projector follows the
+    composition.  What this engine's batching actually requires of the
+    matter term is that ``M(l)`` be *energy*-independent, not that it be
+    constant in ``l``: the position samples of ``M`` are computed once per
+    refinement level and shared by all energies either way, and the Magnus
+    kernel (quadrature, commutators, exponentials, slab products) runs with
+    the energy axis batched in front of the slab axis.
 
     The adaptive refinement mirrors :func:`osc_prob`: the slab count (and,
     for the quadrature methods, the points per slab) grows geometrically
@@ -4285,8 +4350,10 @@ def _osc_prob_scan_separable(
         (nE, d, d) (vacuum, LIV, ...).
     VCC_func : Callable
         Scalar matter potential along the trajectory, as a function of position (accepts an array).
-    h_matt : np.ndarray
-        Constant matrix multiplying ``VCC_func(l)``, shape (d, d).
+    h_matt : np.ndarray or Callable
+        Matrix multiplying ``VCC_func(l)``: a constant of shape (d, d), or a callable of
+        position returning one -- shape (n, d, d) for an array of n positions, position
+        axis leading (see :func:`magnus.matter.matter_potential_projector`).
     L0 : float
         Initial position.
     L_val : float
@@ -4342,8 +4409,17 @@ def _osc_prob_scan_separable(
         if integration_method == 'gl':
             ts = np.linspace(L0, L_val, 17)
             V17 = np.asarray(VCC_func(ts))
-            I_V = (np.sum(V17) - 0.5*(V17[0] + V17[-1]))*(L_val - L0)/16.0
-            M = (L_val - L0)*H_E + I_V*h_matt
+            if callable(h_matt):
+                # Same trapezoid, on samples of the full matter matrix M(l) = VCC(l)*P(l):
+                # with a position-resolved projector the integral no longer factorizes into
+                # I_V times one constant matrix, but M(l) is still energy-independent, so
+                # the seed still costs one 17-point sweep shared by every energy.
+                M17 = V17[:, None, None]*np.asarray(h_matt(ts))
+                I_M = (np.sum(M17, axis=0) - 0.5*(M17[0] + M17[-1]))*(L_val - L0)/16.0
+                M = (L_val - L0)*H_E + I_M
+            else:
+                I_V = (np.sum(V17) - 0.5*(V17[0] + V17[-1]))*(L_val - L0)/16.0
+                M = (L_val - L0)*H_E + I_V*h_matt
             M = M - (np.trace(M, axis1=-2, axis2=-1)/dim)[:, None, None]*np.eye(dim)
             try:
                 phase = np.max(np.linalg.svd(M, compute_uv=False))
@@ -4357,7 +4433,9 @@ def _osc_prob_scan_separable(
     P_prev = np.full((nE, dim, dim), np.nan)
     P_out = np.empty((nE, dim, dim))
     active = np.arange(nE)
-    mA = -1j*h_matt.astype(complex)
+    # For a constant projector the -i factor is folded once, here; a position-resolved one
+    # is sampled per refinement level below, on the same grid as the potential.
+    mA = None if callable(h_matt) else -1j*h_matt.astype(complex)
     HE_c = -1j*H_E.astype(complex)
 
     loop_count = 1
@@ -4377,10 +4455,21 @@ def _osc_prob_scan_separable(
             s = np.linspace(0.0, 1.0, n_tpts_per_slab)
         tgrid = edges[:, :1] + widths[:, None]*s              # (n_slabs, m)
         V = np.asarray(VCC_func(tgrid.ravel())).reshape(tgrid.shape)
-        Vmat = V[:, :, None, None]*mA                         # (n_slabs, m, d, d)
+        if callable(h_matt):
+            # Samples of M(l) = VCC(l)*P(l) on the same grid, shared across energies: the
+            # cross-energy reuse this engine exists for only ever needed M(l) to be
+            # energy-independent, never constant in l.  On the Earth P is one matrix per
+            # slab (Y_e changes only at breakpoints, which are always slab edges), but
+            # nothing here assumes that.
+            Pm = np.asarray(h_matt(tgrid.ravel())).reshape(tgrid.shape + (dim, dim))
+            Vmat = (-1j)*V[:, :, None, None]*Pm               # (n_slabs, m, d, d)
+        else:
+            Vmat = V[:, :, None, None]*mA                     # (n_slabs, m, d, d)
 
-        # Batched kernel over the active energies, chunked so that each
-        # sample array At holds at most ~4M complex entries (~64 MB)
+        # Batched kernel over the active energies, chunked so that each sample
+        # array At holds at most BATCH_WORKING_ENTRIES complex entries -- 65,536,
+        # about 1 MB.  That figure is a cache-residency target, not a memory cap;
+        # see its own definition for what it was tuned against.
         chunk, _ = _tile_for_working_set(len(active), 1, tgrid.size*dim*dim)
         P_new = np.empty((len(active), dim, dim))
         for i0 in range(0, len(active), chunk):
@@ -4388,9 +4477,7 @@ def _osc_prob_scan_separable(
             At = HE_c[sel][:, None, None, :, :] + Vmat[None, :, :, :, :]
             U = magnus.evolution_operators_from_samples(At, widths,
                 magnus_exp_order, integration_method, validate_input=False)
-            Utot = U[:, -1]
-            for k in range(U.shape[1] - 2, -1, -1):
-                Utot = Utot @ U[:, k]
+            Utot = magnus._ordered_product_batched(U)
             P_new[i0:i0+chunk] = np.swapaxes(
                 Utot.real**2 + Utot.imag**2, -1, -2)
 
@@ -4578,8 +4665,12 @@ def _osc_prob_scan_separable_dispatch(
     VCC_func : Callable or float
         Matter potential, as a function of position (required for the batched engine to apply;
         a constant potential falls back to the generic path).
-    h_matt : np.ndarray
-        Constant matrix multiplying ``VCC_func(l)``.
+    h_matt : np.ndarray or Callable
+        Constant matrix multiplying ``VCC_func(l)``, or a callable of position returning that
+        matrix (the position-resolved sterile projector).  The callable form is served by the
+        separable engine, which samples it on the potential's own grids; over a *constant*
+        potential it declines instead, the constant engine's one exact exponential having no
+        position axis to put it on.
     h_liv_energy_indep : np.ndarray, optional
         Energy-independent part of the LIV Hamiltonian, if any.
     n_liv : int or float, optional
@@ -4613,6 +4704,14 @@ def _osc_prob_scan_separable_dispatch(
     # be turned away here outright, which sent the easiest Hamiltonian there is down the
     # slowest route available; see _osc_prob_scan_constant_h.
     vcc_is_constant = not callable(VCC_func)
+    # A callable h_matt (the position-resolved sterile projector) over a constant potential
+    # still makes the Hamiltonian position-dependent -- exactly what the constant engine's
+    # single exact exponential cannot represent -- so that combination declines to the
+    # general ladder, whose closure evaluates both factors.  The Earth path never builds
+    # it (its density is always a function); it takes a direct call with constant density
+    # plus a callable ratio.
+    if vcc_is_constant and callable(h_matt):
+        return NotImplemented
     engine = 'constant' if vcc_is_constant else 'separable'
     if engine in _ENGINES_DISABLED:
         return NotImplemented
@@ -4706,7 +4805,10 @@ def _osc_prob_scan_separable_dispatch(
             H_tot = H_tot + float(VCC_func)*np.asarray(h_matt)
         P = _osc_prob_scan_constant_h(H_tot, L_arr - float(L0))
     else:
-        P = _osc_prob_scan_separable(H_E, VCC_func, np.asarray(h_matt), float(L0),
+        # A callable h_matt goes through as the function it is; only the constant form is
+        # coerced to an array.
+        P = _osc_prob_scan_separable(H_E, VCC_func,
+            h_matt if callable(h_matt) else np.asarray(h_matt), float(L0),
             float(L_arr[0]), t_breakpoints, scan_kwargs['magnus_exp_order'],
             scan_kwargs['integration_method'], rtol, atol,
             scan_kwargs['growth_factor_n_slabs'],
@@ -4949,8 +5051,19 @@ def _osc_prob_ip_exp_core(
                 U_slab = U_free_diag[..., :, None]*magnus._expm_stack(
                     Omega_t, warn_wide=False)
 
-                for k in range(U_slab.shape[1] - 1, -1, -1):
-                    acc = U_slab[:, k] if acc is None else acc @ U_slab[:, k]
+                # The fold runs compiled (magnus._ordered_product_into), accumulator on
+                # the left and k descending -- the association of the Python loop this
+                # replaces (`acc = acc @ U_slab[:, k]`).  The accumulator is passed *in*
+                # rather than each block being reduced alone and multiplied afterwards,
+                # precisely so the cross-block parenthesis nesting stays the one the
+                # tiling comment above requires.  The first block seeds the accumulator
+                # with its last slab (a copy: the kernel writes in place, and U_slab is
+                # about to be freed) and folds the rest.
+                if acc is None:
+                    acc = np.ascontiguousarray(U_slab[:, -1])
+                    magnus._ordered_product_into(acc, U_slab[:, :-1])
+                else:
+                    magnus._ordered_product_into(acc, U_slab)
                 del arg, I, Omega_t, U_free_diag, U_slab
             Utot[esel] = acc
 
@@ -5264,8 +5377,10 @@ def _osc_prob_hybrid_dispatch(
         Matter potential, as a function of position (required for this method to apply; a
         constant potential falls back to the generic path, since there is then no position
         dependence for a resonance to hide in).
-    h_matt : np.ndarray
-        Constant matrix multiplying ``VCC_func(l)``.
+    h_matt : np.ndarray or Callable
+        Constant matrix multiplying ``VCC_func(l)``, or a callable of position returning it
+        (the position-resolved sterile projector); the callable is sampled at the same
+        positions as the potential.
     h_liv_energy_indep : np.ndarray, optional
         Energy-independent part of the LIV Hamiltonian, if any.
     n_liv : int or float, optional
@@ -5369,19 +5484,36 @@ def _osc_prob_hybrid_dispatch(
     magnus_exp_order = scan_kwargs['magnus_exp_order']
     integration_method = scan_kwargs['integration_method']
     h_vac_energy_indep = np.asarray(h_vac_energy_indep, dtype=complex)
-    h_matt = np.asarray(h_matt, dtype=complex)
+    # A position-resolved projector stays the function it is; the closure below samples it
+    # at the same l as the potential.  (Earth chords decline above on t_breakpoints, so
+    # this arm is exercised by smooth profiles -- e.g. a solar caller passing a callable
+    # ratio.)  Only the constant form is coerced to a complex array.
+    h_matt_is_of_l = callable(h_matt)
+    if not h_matt_is_of_l:
+        h_matt = np.asarray(h_matt, dtype=complex)
     if h_liv_energy_indep is not None:
         h_liv_energy_indep = np.asarray(h_liv_energy_indep, dtype=complex)
     d = h_vac_energy_indep.shape[-1]
 
-    def H_at_energy(enu):
-        def H_of_l(l, enu=enu):
-            vcc = np.asarray(VCC_func(l))
-            H = (1.0/enu)*h_vac_energy_indep + vcc[..., None, None]*h_matt
-            if h_liv_energy_indep is not None:
-                H = H + (enu**n_liv)*h_liv_energy_indep
-            return H
-        return H_of_l
+    if h_matt_is_of_l:
+        def H_at_energy(enu):
+            def H_of_l(l, enu=enu):
+                vcc = np.asarray(VCC_func(l))
+                H = (1.0/enu)*h_vac_energy_indep + \
+                    vcc[..., None, None]*np.asarray(h_matt(l), dtype=complex)
+                if h_liv_energy_indep is not None:
+                    H = H + (enu**n_liv)*h_liv_energy_indep
+                return H
+            return H_of_l
+    else:
+        def H_at_energy(enu):
+            def H_of_l(l, enu=enu):
+                vcc = np.asarray(VCC_func(l))
+                H = (1.0/enu)*h_vac_energy_indep + vcc[..., None, None]*h_matt
+                if h_liv_energy_indep is not None:
+                    H = H + (enu**n_liv)*h_liv_energy_indep
+                return H
+            return H_of_l
 
     P_out = _hybrid_propagator_scan(H_at_energy, energy_arr, L_arr, L0, rtol, atol,
         magnus_exp_order, integration_method, strategy, d)
@@ -5739,16 +5871,15 @@ def _osc_prob_cumulative_scan(H_func, L_out, L0, n_acc, magnus_exp_order,
             n_tpts_per_slab, magnus_exp_order, integration_method=integration_method,
             A_eval_mode=A_eval_mode, **kwargs)
         # Outputs landing inside this block, in edge order, so the running product is
-        # snapshotted at the right moment without a second pass.
+        # snapshotted at the right moment without a second pass.  The fold itself runs
+        # compiled (numba permitting): its Python form cost ~1.2 us/slab in numpy dispatch,
+        # which by v1.0.11 was several times the marginal cost of everything else in the
+        # traversal put together.  `out_idx[order] - start - 1` is each snapshot's local
+        # slab index -- taken after that slab is applied, which is the
+        # `out_idx == start + k + 1` moment the loop this replaced used.
         here = np.flatnonzero((out_idx > start) & (out_idx <= stop))
         order = here[np.argsort(out_idx[here], kind='stable')]
-        pos = 0
-        for k in range(stop - start):
-            running = U[k] @ running
-            while (pos < len(order)) and (out_idx[order[pos]] == start + k + 1):
-                j = order[pos]
-                P[j] = np.transpose(running.real**2 + running.imag**2)
-                pos += 1
+        magnus._running_product_snapshots(running, U, out_idx[order] - start - 1, order, P)
         del U
     return P
 
@@ -6860,7 +6991,7 @@ def osc_prob_matter_std_potential(
     osc_params: Dict,
     L0: Optional[Union[int, float]]=0.0,
     h_vac_energy_indep: Union[list, np.ndarray]=None,
-    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0, 
+    ratio_number_neutrons_to_protons: Optional[Union[int, float, Callable]]=1.0,
     electron_fraction: Optional[Union[int, float]]=0.5, 
     nubar: Optional[bool]=False, 
     nu_i: Optional[int]=None, 
@@ -6927,8 +7058,19 @@ def osc_prob_matter_std_potential(
     h_vac_energy_indep : list or np.ndarray, optional
         Precomputed energy-independent vacuum Hamiltonian, used instead of ``osc_params`` when
         ``num_flavors`` exceeds ``globaldefs.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS``.
-    ratio_number_neutrons_to_protons : int or float, optional
-        Ratio of the number of neutrons to protons in matter. Default: 1.0.
+    ratio_number_neutrons_to_protons : int, float, or Callable, optional
+        Ratio of the number of neutrons to protons in matter.  Scales the sterile
+        states' entry in the matter term (see
+        :func:`magnus.matter.matter_potential_projector`); a callable is read as
+        :math:`r(l)`, a function of the same position ``rho_func`` takes, and makes
+        that entry -- and, when a matter density is being converted, the average
+        nucleon mass -- follow the local composition.  This is how the Earth wrappers
+        feed their layered :math:`Y_e` through.  A callable with structure away from
+        ``t_breakpoints`` is subject to the same sampling limits as ``rho_func``.
+        Default: 1.0.
+
+        .. versionchanged:: 1.1.0
+           A callable is accepted; it used to have to be a scalar.
     electron_fraction : int or float, optional
         Electron fraction. Default: 0.5.
     nubar : bool, optional
@@ -6998,10 +7140,12 @@ def osc_prob_matter_std_potential(
            the unresolvable band with 0 false positives on 67 smooth profiles, so it is a
            report -- not a guarantee, and not a cure.
 
-           Passing ``t_breakpoints`` at the feature fixes it, and is tested: the same case goes
-           to 8.8e-04 at a single point and 8.9e-04 over a 60-point scan. It is the right tool
-           twice over, since an edge placed *on* a sharp feature also stops a slab straddling it
-           from degrading the quadrature. This is the one exposure the adversarial validation
+           Passing ``t_breakpoints`` at the feature fixes it, and is tested: with edges placed
+           by hand at the feature's own width the same case goes to 8.8e-04 at a single point
+           and 8.9e-04 over a 60-point scan, and with the set the warning itself prints it goes
+           to 1.0e-04 (verified end to end: warn, pass the printed edges back, re-run). It is
+           the right tool twice over, since an edge placed *on* a sharp feature also stops a
+           slab straddling it from degrading the quadrature. This is the one exposure the adversarial validation
            (``docs/dev/FINDINGS_ADVERSARIAL_VALIDATION.md``) could not close in the library
            itself: what a fixed grid never samples, it cannot report.
 
@@ -7179,7 +7323,9 @@ def osc_prob_matter_std_potential(
     # applied twice, which gave the antineutrino matter potential the wrong (positive) sign.]
     # Sterile states do not share the actives' neutral-current potential, so beyond three
     # flavors this is not e_ee; see matter.matter_potential_projector for the physics and
-    # for what omitting it cost.
+    # for what omitting it cost.  With a callable ratio (the Earth wrappers' default beyond
+    # three flavors) the projector comes back as a function of position, so the sterile
+    # entries follow the composition the way the density already does.
     h_matt_proj = matter.matter_potential_projector(
         num_flavors, ratio_number_neutrons_to_protons)
 
@@ -7187,9 +7333,23 @@ def osc_prob_matter_std_potential(
     # _PositionProfileCache)
     if callable(VCC_func):
         VCC_func = _PositionProfileCache(VCC_func)
+    # A position-resolved projector is sampled on exactly the grids the potential is, so it
+    # gets the identical treatment.
+    if callable(h_matt_proj):
+        h_matt_proj = _PositionProfileCache(h_matt_proj)
 
     # Matter Hamiltonian function: diagonal matrix with VCC in the top-left (ee) entry
-    if callable(VCC_func):
+    if callable(h_matt_proj):
+        # The projector follows the composition, so the Hamiltonian depends on position
+        # regardless of whether the potential does (a constant VCC with a callable ratio is
+        # a legal, if unusual, direct call).  Both factors are evaluated on the same l; for
+        # an array l the result is a stack with the position axis leading, as below.
+        def htot(enu: Union[int, float], l: Union[int, float, np.ndarray]) -> np.ndarray:
+            vcc = np.asarray(VCC_func(l) if callable(VCC_func) else VCC_func)
+            return (1/enu)*h_vac_energy_indep + \
+                vcc[..., None, None]*np.asarray(h_matt_proj(l))
+        htot_is_function_only_of_energy = False
+    elif callable(VCC_func):
         # VCC_func is a function of position, so the Hamiltonian is, too.  If l is an array, the
         # result is a stack of Hamiltonians with the position axis leading; this lets the Magnus
         # routines evaluate the Hamiltonian at all time points in a single vectorized call.
@@ -7320,6 +7480,39 @@ def osc_prob_matter_std_potential(
             cumulative=cumulative_resolved, symmetric_over=symmetric_over, **kwargs)
 
 
+def _standard_plus_constant(proj: Union[np.ndarray, Callable],
+                            h_extra: np.ndarray) -> Union[np.ndarray, Callable]:
+    r"""The (standard + extra) matter matrix, as a constant or as a function of position.
+
+    ``proj`` is :func:`magnus.matter.matter_potential_projector`'s output: a constant
+    matrix or, for a callable neutron-to-proton ratio, a callable of position.  The extra
+    couplings (the NSI eps matrix) are constant either way, so the sum is a plain matrix
+    sum in the first case and a closure evaluating the projector per position in the
+    second -- which keeps the constant case's arithmetic, and therefore its results,
+    exactly what they were.
+
+    .. versionadded:: 1.1.0
+
+    Parameters
+    ----------
+    proj : np.ndarray or Callable
+        The standard matter projector, constant or position-resolved.
+    h_extra : np.ndarray
+        Constant matrix added to it (e.g., the NSI couplings at VCC = 1).
+
+    Returns
+    -------
+    np.ndarray or Callable
+        ``proj + h_extra``, in whichever of the two forms ``proj`` has.
+    """
+    if not callable(proj):
+        return proj + h_extra
+
+    def h_matt_of_l(l: Union[int, float, np.ndarray]) -> np.ndarray:
+        return proj(l) + h_extra
+    return h_matt_of_l
+
+
 def osc_prob_matter_nsi(
     num_flavors: int,
     rho_func: Union[Callable, int, float],
@@ -7330,7 +7523,7 @@ def osc_prob_matter_nsi(
     L0: Optional[Union[int, float]]=0.0,
     h_vac_energy_indep: Union[list, np.ndarray]=None,
     h_nsi: Union[list, np.ndarray]=None,
-    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0, 
+    ratio_number_neutrons_to_protons: Optional[Union[int, float, Callable]]=1.0,
     electron_fraction: Optional[Union[int, float]]=0.5, 
     nubar: Optional[bool]=False, 
     nu_i: Optional[int]=None, 
@@ -7403,8 +7596,19 @@ def osc_prob_matter_nsi(
     h_nsi : list or np.ndarray, optional
         Precomputed NSI Hamiltonian, used instead of ``nsi_params`` when ``num_flavors`` exceeds
         ``globaldefs.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS``.
-    ratio_number_neutrons_to_protons : int or float, optional
-        Ratio of the number of neutrons to protons in matter. Default: 1.0.
+    ratio_number_neutrons_to_protons : int, float, or Callable, optional
+        Ratio of the number of neutrons to protons in matter.  Scales the sterile
+        states' entry in the matter term (see
+        :func:`magnus.matter.matter_potential_projector`); a callable is read as
+        :math:`r(l)`, a function of the same position ``rho_func`` takes, and makes
+        that entry -- and, when a matter density is being converted, the average
+        nucleon mass -- follow the local composition.  This is how the Earth wrappers
+        feed their layered :math:`Y_e` through.  A callable with structure away from
+        ``t_breakpoints`` is subject to the same sampling limits as ``rho_func``.
+        Default: 1.0.
+
+        .. versionchanged:: 1.1.0
+           A callable is accepted; it used to have to be a scalar.
     electron_fraction : int or float, optional
         Electron fraction. Default: 0.5.
     nubar : bool, optional
@@ -7618,17 +7822,30 @@ def osc_prob_matter_nsi(
         h_matt = matter.matter_potential_projector(3) + \
             hamiltonians.hamiltonian_3nu_nsi(1.0, eps_ee, eps_em, eps_et, eps_mm, eps_mt, eps_tt)
     elif num_flavors == 4:
-        h_matt = matter.matter_potential_projector(4, ratio_number_neutrons_to_protons) + \
+        # Combined via _standard_plus_constant rather than "+": with a callable ratio the
+        # standard projector is position-resolved while the eps couplings stay constant,
+        # so the sum becomes a closure over position.
+        h_matt = _standard_plus_constant(
+            matter.matter_potential_projector(4, ratio_number_neutrons_to_protons),
             hamiltonians.hamiltonian_4nu_nsi(1.0, eps_ee, eps_em, eps_et, eps_es, eps_mm, eps_mt,
-                eps_ms, eps_tt, eps_ts, eps_ss)
+                eps_ms, eps_tt, eps_ts, eps_ss))
     elif num_flavors == 5:
-        h_matt = matter.matter_potential_projector(5, ratio_number_neutrons_to_protons) + \
+        h_matt = _standard_plus_constant(
+            matter.matter_potential_projector(5, ratio_number_neutrons_to_protons),
             hamiltonians.hamiltonian_5nu_nsi(1.0, eps_ee, eps_em, eps_et, eps_es1, eps_es2,
                 eps_mm, eps_mt, eps_ms1, eps_ms2, eps_tt, eps_ts1, eps_ts2, eps_s1s1, eps_s1s2,
-                eps_s2s2)
+                eps_s2s2))
 
     if nubar:
-        h_matt = np.conj(h_matt)
+        if callable(h_matt):
+            # Conjugation distributes over the sum and the projector part is real, so
+            # conjugating the evaluated matrix per position states exactly what the
+            # constant branch states.
+            _h_matt_nu = h_matt
+            def h_matt(l):
+                return np.conj(_h_matt_nu(l))
+        else:
+            h_matt = np.conj(h_matt)
 
     # Build the coherent forward potential function, VCC_func, from the density function, rho_func.
     # If the provided rho_func is the matter density (e.g., g cm^{-3}), convert rho_func to a 
@@ -7641,9 +7858,23 @@ def osc_prob_matter_nsi(
     # _PositionProfileCache)
     if callable(VCC_func):
         VCC_func = _PositionProfileCache(VCC_func)
+    # A position-resolved matter matrix is sampled on exactly the grids the potential is,
+    # so it gets the identical treatment.
+    if callable(h_matt):
+        h_matt = _PositionProfileCache(h_matt)
 
     # Matter Hamiltonian function: (standard + NSI) matter matrix scaled by VCC
-    if callable(VCC_func):
+    if callable(h_matt):
+        # The standard projector inside h_matt follows the composition, so the Hamiltonian
+        # depends on position regardless of whether the potential does.  Both factors are
+        # evaluated on the same l; for an array l the result is a stack with the position
+        # axis leading, as below.
+        def htot(enu: Union[int, float], l: Union[int, float, np.ndarray]) -> np.ndarray:
+            vcc = np.asarray(VCC_func(l) if callable(VCC_func) else VCC_func)
+            return (1/enu)*h_vac_energy_indep + \
+                vcc[..., None, None]*np.asarray(h_matt(l))
+        htot_is_function_only_of_energy = False
+    elif callable(VCC_func):
         # VCC_func is a function of position, so the Hamiltonian is, too.  If l is an array, the
         # result is a stack of Hamiltonians with the position axis leading; this lets the Magnus
         # routines evaluate the Hamiltonian at all time points in a single vectorized call.
@@ -7772,7 +8003,7 @@ def osc_prob_liv(
     L0: Optional[Union[int, float]]=0.0,
     h_vac_energy_indep: Union[list, np.ndarray]=None,
     h_liv_energy_indep: Union[list, np.ndarray]=None,
-    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0, 
+    ratio_number_neutrons_to_protons: Optional[Union[int, float, Callable]]=1.0,
     electron_fraction: Optional[Union[int, float]]=0.5, 
     nubar: Optional[bool]=False, 
     nu_i: Optional[int]=None, 
@@ -7845,8 +8076,19 @@ def osc_prob_liv(
     h_liv_energy_indep : list or np.ndarray, optional
         Precomputed energy-independent LIV Hamiltonian, used instead of ``liv_params`` when
         ``num_flavors`` exceeds ``globaldefs.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS``.
-    ratio_number_neutrons_to_protons : int or float, optional
-        Ratio of the number of neutrons to protons in matter. Default: 1.0.
+    ratio_number_neutrons_to_protons : int, float, or Callable, optional
+        Ratio of the number of neutrons to protons in matter.  Scales the sterile
+        states' entry in the matter term (see
+        :func:`magnus.matter.matter_potential_projector`); a callable is read as
+        :math:`r(l)`, a function of the same position ``rho_func`` takes, and makes
+        that entry -- and, when a matter density is being converted, the average
+        nucleon mass -- follow the local composition.  This is how the Earth wrappers
+        feed their layered :math:`Y_e` through.  A callable with structure away from
+        ``t_breakpoints`` is subject to the same sampling limits as ``rho_func``.
+        Default: 1.0.
+
+        .. versionchanged:: 1.1.0
+           A callable is accepted; it used to have to be a scalar.
     electron_fraction : int or float, optional
         Electron fraction. Default: 0.5.
     nubar : bool, optional
@@ -8065,7 +8307,9 @@ def osc_prob_liv(
         # Projector onto the nu_e--nu_e entry, multiplied below by the potential VCC.  Note that
         # VCC_func already carries the antineutrino sign flip (applied inside
         # matter.vcc_func_from_rho_func), so no extra sign is applied here.
-        # See matter.matter_potential_projector: beyond three flavors this is not e_ee.
+        # See matter.matter_potential_projector: beyond three flavors this is not e_ee, and
+        # with a callable ratio (the Earth wrappers' default beyond three flavors) it comes
+        # back as a function of position, handled by the callable branch below.
         h_matt = matter.matter_potential_projector(
             num_flavors, ratio_number_neutrons_to_protons)
 
@@ -8080,9 +8324,23 @@ def osc_prob_liv(
         # _PositionProfileCache)
         if callable(VCC_func):
             VCC_func = _PositionProfileCache(VCC_func)
+        # A position-resolved projector is sampled on exactly the grids the potential is,
+        # so it gets the identical treatment.
+        if callable(h_matt):
+            h_matt = _PositionProfileCache(h_matt)
 
         # Matter Hamiltonian function: diagonal matrix with VCC in the top-left (ee) entry
-        if callable(VCC_func):
+        if callable(h_matt):
+            # The projector follows the composition, so the Hamiltonian depends on position
+            # regardless of whether the potential does.  Both factors are evaluated on the
+            # same l; an array l returns a stack with the position axis leading, as below.
+            def htot(enu: Union[int, float], l: Union[int, float, np.ndarray]) -> np.ndarray:
+                vcc = np.asarray(VCC_func(l) if callable(VCC_func) else VCC_func)
+                return (1/enu)*h_vac_energy_indep + \
+                    vcc[..., None, None]*np.asarray(h_matt(l)) + \
+                    pow(enu,n_liv)*h_liv_energy_indep
+            htot_is_function_only_of_energy = False
+        elif callable(VCC_func):
             # VCC_func is a function of position, so the Hamiltonian is, too.  If l is an array,
             # the result is a stack of Hamiltonians with the position axis leading; this lets the
             # Magnus routines evaluate the Hamiltonian at all time points in a single call.
@@ -9161,7 +9419,14 @@ def osc_prob_2nu_matter_constant_density(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     angles : str, optional
         How the mixing angle is stated: ``'sin'`` (default) its sine,
         ``'sin2'`` its sine *squared* -- which is what global fits report --
@@ -9277,7 +9542,14 @@ def osc_prob_3nu_matter_constant_density(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -9413,7 +9685,14 @@ def osc_prob_4nu_matter_constant_density(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -9568,7 +9847,14 @@ def osc_prob_5nu_matter_constant_density(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -9692,7 +9978,14 @@ def osc_prob_2nu_matter_exp_density(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     angles : str, optional
         How the mixing angle is stated: ``'sin'`` (default) its sine,
         ``'sin2'`` its sine *squared* -- which is what global fits report --
@@ -9824,7 +10117,14 @@ def osc_prob_3nu_matter_exp_density(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -9973,7 +10273,14 @@ def osc_prob_4nu_matter_exp_density(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -10141,7 +10448,14 @@ def osc_prob_5nu_matter_exp_density(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -10203,7 +10517,7 @@ def osc_prob_2nu_earth(
     nubar: Optional[bool]=False, 
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
-    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
+    ratio_number_neutrons_to_protons: Optional[Union[int, float, Callable]]=None,
     electron_fraction: Optional[Union[int, float]]=None,
     electron_fraction_core: Optional[Union[int, float]]=None,
     electron_fraction_mantle: Optional[Union[int, float]]=None,
@@ -10322,25 +10636,38 @@ def osc_prob_2nu_earth(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
 
     
-    ratio_number_neutrons_to_protons : int or float, optional
+    ratio_number_neutrons_to_protons : int, float, or Callable, optional
         :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
-        matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
-        (isoscalar matter, i.e. :math:`Y_e = 0.5`).
+        matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: None,
+        meaning the projector follows the same layer-by-layer :math:`Y_e` the density
+        uses, so the two always describe the same medium -- exactly, not approximately,
+        since :math:`Y_e` only changes at PREM boundaries, which are already slab edges.
 
-        **On an Earth chord this is not the ratio the density uses.**  The density takes
-        :math:`r = (1 - Y_e)/Y_e` layer by layer, because that is the same statement about
-        composition; the projector cannot, being one matrix for the whole chord.  So the
-        two disagree unless you match them, and at four flavors or more that is worth
-        about 2e-02 in probability on a core-crossing chord -- twenty times the default
-        tolerance, and silent.  Mag$\nu$s raises
-        :class:`magnus.globaldefs.SterileMatterCompositionWarning` when they disagree by
-        more than 2%, and names the path-averaged ratio for the chord you asked for.
-        ``electron_fraction=0.5`` with the default 1.0 makes them agree exactly, and
-        reproduces the uniform composition earlier versions assumed.  Three flavors are
-        unaffected: the projector's sterile block is empty.
+        Passing a *scalar* instead forces one medium onto the projector while the density
+        stays layered.  No scalar describes a chord that crosses iron and rock: near the
+        sterile matter resonance on a core-crossing chord the mismatch is worth up to
+        ~0.4 in probability at 3+1, and the best possible scalar still leaves ~7e-3, so a
+        scalar over layered composition raises
+        :class:`magnus.globaldefs.SterileMatterCompositionWarning`.  A callable of
+        position [:math:`\text{eV}^{-1}`] is forwarded untouched and trusted, the way
+        ``rho_func`` is.  ``electron_fraction=0.5`` describes genuinely uniform isoscalar
+        matter, and with it these wrappers reproduce the numbers from before composition
+        was layered.  Three flavors are unaffected: the projector's sterile block is
+        empty.
+
+        .. versionchanged:: 1.1.0
+           Default changed from 1.0 (isoscalar, one matrix for the whole chord) to None
+           (follow the composition); a callable is accepted.
     electron_fraction : int or float, optional
         One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
         ``0.5`` reproduces the uniform composition assumed before those existed, and is
@@ -10426,13 +10753,19 @@ def osc_prob_2nu_earth(
     # the center of the Earth, given a neutrino direction (cosine of zenith angle, costhz) and the 
     # distance of the neutrino, or depth (l), measured from the surface of the Earth.
 
+    # The density and the projector's ratio come from one resolution, against the same
+    # Y_e, so the sterile entries follow the composition by default (None); see
+    # _earth_composition.  The resolved ratio is rebound to the parameter's own name
+    # and forwarded below with everything else.
+    rho_func, ratio_number_neutrons_to_protons = _earth_composition(
+        costhz, electron_fraction, ratio_number_neutrons_to_protons,
+        electron_fraction_core, electron_fraction_mantle,
+        electron_fraction_crust, electron_fraction_ocean,
+        source_func_name, num_flavors=2)
+
     return osc_prob_matter_std_potential(
         num_flavors=2,
-        rho_func=_earth_composition(
-            costhz, electron_fraction, ratio_number_neutrons_to_protons,
-            electron_fraction_core, electron_fraction_mantle,
-            electron_fraction_crust, electron_fraction_ocean,
-            source_func_name, num_flavors=2),
+        rho_func=rho_func,
         energy=energy,
         L=L, # [eV^{-1}]
         t_breakpoints=t_breakpoints,
@@ -10447,9 +10780,10 @@ def osc_prob_2nu_earth(
         nu_i=nu_i,
         nu_f=nu_f,
         density_is_of_number_of_electrons=True,
-        # Forwarded as well as used above: beyond three flavors the matter
-        # projector needs it for the sterile entries, and a projector built from a
-        # different r than the density would be this same defect a second time.
+        # Forwarded as resolved above: beyond three flavors the matter projector
+        # needs it for the sterile entries, and the default resolution hands it the
+        # same Y_e-derived r(l) the density uses, so the two cannot describe
+        # different media.
         ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
         validate_input=validate_input,
         save_log=save_log,
@@ -10478,7 +10812,7 @@ def osc_prob_3nu_earth(
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
-    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
+    ratio_number_neutrons_to_protons: Optional[Union[int, float, Callable]]=None,
     electron_fraction: Optional[Union[int, float]]=None,
     electron_fraction_core: Optional[Union[int, float]]=None,
     electron_fraction_mantle: Optional[Union[int, float]]=None,
@@ -10605,25 +10939,38 @@ def osc_prob_3nu_earth(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
 
     
-    ratio_number_neutrons_to_protons : int or float, optional
+    ratio_number_neutrons_to_protons : int, float, or Callable, optional
         :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
-        matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
-        (isoscalar matter, i.e. :math:`Y_e = 0.5`).
+        matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: None,
+        meaning the projector follows the same layer-by-layer :math:`Y_e` the density
+        uses, so the two always describe the same medium -- exactly, not approximately,
+        since :math:`Y_e` only changes at PREM boundaries, which are already slab edges.
 
-        **On an Earth chord this is not the ratio the density uses.**  The density takes
-        :math:`r = (1 - Y_e)/Y_e` layer by layer, because that is the same statement about
-        composition; the projector cannot, being one matrix for the whole chord.  So the
-        two disagree unless you match them, and at four flavors or more that is worth
-        about 2e-02 in probability on a core-crossing chord -- twenty times the default
-        tolerance, and silent.  Mag$\nu$s raises
-        :class:`magnus.globaldefs.SterileMatterCompositionWarning` when they disagree by
-        more than 2%, and names the path-averaged ratio for the chord you asked for.
-        ``electron_fraction=0.5`` with the default 1.0 makes them agree exactly, and
-        reproduces the uniform composition earlier versions assumed.  Three flavors are
-        unaffected: the projector's sterile block is empty.
+        Passing a *scalar* instead forces one medium onto the projector while the density
+        stays layered.  No scalar describes a chord that crosses iron and rock: near the
+        sterile matter resonance on a core-crossing chord the mismatch is worth up to
+        ~0.4 in probability at 3+1, and the best possible scalar still leaves ~7e-3, so a
+        scalar over layered composition raises
+        :class:`magnus.globaldefs.SterileMatterCompositionWarning`.  A callable of
+        position [:math:`\text{eV}^{-1}`] is forwarded untouched and trusted, the way
+        ``rho_func`` is.  ``electron_fraction=0.5`` describes genuinely uniform isoscalar
+        matter, and with it these wrappers reproduce the numbers from before composition
+        was layered.  Three flavors are unaffected: the projector's sterile block is
+        empty.
+
+        .. versionchanged:: 1.1.0
+           Default changed from 1.0 (isoscalar, one matrix for the whole chord) to None
+           (follow the composition); a callable is accepted.
     electron_fraction : int or float, optional
         One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
         ``0.5`` reproduces the uniform composition assumed before those existed, and is
@@ -10706,13 +11053,19 @@ def osc_prob_3nu_earth(
     # the center of the Earth, given a neutrino direction (cosine of zenith angle, costhz) and the 
     # distance of the neutrino, or depth (l), measured from the surface of the Earth.
 
+    # The density and the projector's ratio come from one resolution, against the same
+    # Y_e, so the sterile entries follow the composition by default (None); see
+    # _earth_composition.  The resolved ratio is rebound to the parameter's own name
+    # and forwarded below with everything else.
+    rho_func, ratio_number_neutrons_to_protons = _earth_composition(
+        costhz, electron_fraction, ratio_number_neutrons_to_protons,
+        electron_fraction_core, electron_fraction_mantle,
+        electron_fraction_crust, electron_fraction_ocean,
+        source_func_name, num_flavors=3)
+
     return osc_prob_matter_std_potential(
         num_flavors=3,
-        rho_func=_earth_composition(
-            costhz, electron_fraction, ratio_number_neutrons_to_protons,
-            electron_fraction_core, electron_fraction_mantle,
-            electron_fraction_crust, electron_fraction_ocean,
-            source_func_name, num_flavors=3),
+        rho_func=rho_func,
         energy=energy,
         L=L,
         t_breakpoints=t_breakpoints,
@@ -10727,9 +11080,10 @@ def osc_prob_3nu_earth(
         nu_i=nu_i,
         nu_f=nu_f,
         density_is_of_number_of_electrons=True,
-        # Forwarded as well as used above: beyond three flavors the matter
-        # projector needs it for the sterile entries, and a projector built from a
-        # different r than the density would be this same defect a second time.
+        # Forwarded as resolved above: beyond three flavors the matter projector
+        # needs it for the sterile entries, and the default resolution hands it the
+        # same Y_e-derived r(l) the density uses, so the two cannot describe
+        # different media.
         ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
         default_osc_params_set_name=default_osc_params_set_name,
         validate_input=validate_input,
@@ -10765,7 +11119,7 @@ def osc_prob_4nu_earth(
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
-    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
+    ratio_number_neutrons_to_protons: Optional[Union[int, float, Callable]]=None,
     electron_fraction: Optional[Union[int, float]]=None,
     electron_fraction_core: Optional[Union[int, float]]=None,
     electron_fraction_mantle: Optional[Union[int, float]]=None,
@@ -10907,25 +11261,38 @@ def osc_prob_4nu_earth(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
 
     
-    ratio_number_neutrons_to_protons : int or float, optional
+    ratio_number_neutrons_to_protons : int, float, or Callable, optional
         :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
-        matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
-        (isoscalar matter, i.e. :math:`Y_e = 0.5`).
+        matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: None,
+        meaning the projector follows the same layer-by-layer :math:`Y_e` the density
+        uses, so the two always describe the same medium -- exactly, not approximately,
+        since :math:`Y_e` only changes at PREM boundaries, which are already slab edges.
 
-        **On an Earth chord this is not the ratio the density uses.**  The density takes
-        :math:`r = (1 - Y_e)/Y_e` layer by layer, because that is the same statement about
-        composition; the projector cannot, being one matrix for the whole chord.  So the
-        two disagree unless you match them, and at four flavors or more that is worth
-        about 2e-02 in probability on a core-crossing chord -- twenty times the default
-        tolerance, and silent.  Mag$\nu$s raises
-        :class:`magnus.globaldefs.SterileMatterCompositionWarning` when they disagree by
-        more than 2%, and names the path-averaged ratio for the chord you asked for.
-        ``electron_fraction=0.5`` with the default 1.0 makes them agree exactly, and
-        reproduces the uniform composition earlier versions assumed.  Three flavors are
-        unaffected: the projector's sterile block is empty.
+        Passing a *scalar* instead forces one medium onto the projector while the density
+        stays layered.  No scalar describes a chord that crosses iron and rock: near the
+        sterile matter resonance on a core-crossing chord the mismatch is worth up to
+        ~0.4 in probability at 3+1, and the best possible scalar still leaves ~7e-3, so a
+        scalar over layered composition raises
+        :class:`magnus.globaldefs.SterileMatterCompositionWarning`.  A callable of
+        position [:math:`\text{eV}^{-1}`] is forwarded untouched and trusted, the way
+        ``rho_func`` is.  ``electron_fraction=0.5`` describes genuinely uniform isoscalar
+        matter, and with it these wrappers reproduce the numbers from before composition
+        was layered.  Three flavors are unaffected: the projector's sterile block is
+        empty.
+
+        .. versionchanged:: 1.1.0
+           Default changed from 1.0 (isoscalar, one matrix for the whole chord) to None
+           (follow the composition); a callable is accepted.
     electron_fraction : int or float, optional
         One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
         ``0.5`` reproduces the uniform composition assumed before those existed, and is
@@ -11008,13 +11375,19 @@ def osc_prob_4nu_earth(
     # the center of the Earth, given a neutrino direction (cosine of zenith angle, costhz) and the 
     # distance of the neutrino, or depth (l), measured from the surface of the Earth.
 
+    # The density and the projector's ratio come from one resolution, against the same
+    # Y_e, so the sterile entries follow the composition by default (None); see
+    # _earth_composition.  The resolved ratio is rebound to the parameter's own name
+    # and forwarded below with everything else.
+    rho_func, ratio_number_neutrons_to_protons = _earth_composition(
+        costhz, electron_fraction, ratio_number_neutrons_to_protons,
+        electron_fraction_core, electron_fraction_mantle,
+        electron_fraction_crust, electron_fraction_ocean,
+        source_func_name, num_flavors=4)
+
     return osc_prob_matter_std_potential(
         num_flavors=4,
-        rho_func=_earth_composition(
-            costhz, electron_fraction, ratio_number_neutrons_to_protons,
-            electron_fraction_core, electron_fraction_mantle,
-            electron_fraction_crust, electron_fraction_ocean,
-            source_func_name, num_flavors=4),
+        rho_func=rho_func,
         energy=energy,
         L=L,
         t_breakpoints=t_breakpoints,
@@ -11030,9 +11403,10 @@ def osc_prob_4nu_earth(
         nu_i=nu_i,
         nu_f=nu_f,
         density_is_of_number_of_electrons=True,
-        # Forwarded as well as used above: beyond three flavors the matter
-        # projector needs it for the sterile entries, and a projector built from a
-        # different r than the density would be this same defect a second time.
+        # Forwarded as resolved above: beyond three flavors the matter projector
+        # needs it for the sterile entries, and the default resolution hands it the
+        # same Y_e-derived r(l) the density uses, so the two cannot describe
+        # different media.
         ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
         default_osc_params_set_name=default_osc_params_set_name,
         validate_input=validate_input,
@@ -11074,7 +11448,7 @@ def osc_prob_5nu_earth(
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
-    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
+    ratio_number_neutrons_to_protons: Optional[Union[int, float, Callable]]=None,
     electron_fraction: Optional[Union[int, float]]=None,
     electron_fraction_core: Optional[Union[int, float]]=None,
     electron_fraction_mantle: Optional[Union[int, float]]=None,
@@ -11230,25 +11604,38 @@ def osc_prob_5nu_earth(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
 
     
-    ratio_number_neutrons_to_protons : int or float, optional
+    ratio_number_neutrons_to_protons : int, float, or Callable, optional
         :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
-        matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
-        (isoscalar matter, i.e. :math:`Y_e = 0.5`).
+        matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: None,
+        meaning the projector follows the same layer-by-layer :math:`Y_e` the density
+        uses, so the two always describe the same medium -- exactly, not approximately,
+        since :math:`Y_e` only changes at PREM boundaries, which are already slab edges.
 
-        **On an Earth chord this is not the ratio the density uses.**  The density takes
-        :math:`r = (1 - Y_e)/Y_e` layer by layer, because that is the same statement about
-        composition; the projector cannot, being one matrix for the whole chord.  So the
-        two disagree unless you match them, and at four flavors or more that is worth
-        about 2e-02 in probability on a core-crossing chord -- twenty times the default
-        tolerance, and silent.  Mag$\nu$s raises
-        :class:`magnus.globaldefs.SterileMatterCompositionWarning` when they disagree by
-        more than 2%, and names the path-averaged ratio for the chord you asked for.
-        ``electron_fraction=0.5`` with the default 1.0 makes them agree exactly, and
-        reproduces the uniform composition earlier versions assumed.  Three flavors are
-        unaffected: the projector's sterile block is empty.
+        Passing a *scalar* instead forces one medium onto the projector while the density
+        stays layered.  No scalar describes a chord that crosses iron and rock: near the
+        sterile matter resonance on a core-crossing chord the mismatch is worth up to
+        ~0.4 in probability at 3+1, and the best possible scalar still leaves ~7e-3, so a
+        scalar over layered composition raises
+        :class:`magnus.globaldefs.SterileMatterCompositionWarning`.  A callable of
+        position [:math:`\text{eV}^{-1}`] is forwarded untouched and trusted, the way
+        ``rho_func`` is.  ``electron_fraction=0.5`` describes genuinely uniform isoscalar
+        matter, and with it these wrappers reproduce the numbers from before composition
+        was layered.  Three flavors are unaffected: the projector's sterile block is
+        empty.
+
+        .. versionchanged:: 1.1.0
+           Default changed from 1.0 (isoscalar, one matrix for the whole chord) to None
+           (follow the composition); a callable is accepted.
     electron_fraction : int or float, optional
         One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
         ``0.5`` reproduces the uniform composition assumed before those existed, and is
@@ -11331,13 +11718,19 @@ def osc_prob_5nu_earth(
     # the center of the Earth, given a neutrino direction (cosine of zenith angle, costhz) and the 
     # distance of the neutrino, or depth (l), measured from the surface of the Earth.
 
+    # The density and the projector's ratio come from one resolution, against the same
+    # Y_e, so the sterile entries follow the composition by default (None); see
+    # _earth_composition.  The resolved ratio is rebound to the parameter's own name
+    # and forwarded below with everything else.
+    rho_func, ratio_number_neutrons_to_protons = _earth_composition(
+        costhz, electron_fraction, ratio_number_neutrons_to_protons,
+        electron_fraction_core, electron_fraction_mantle,
+        electron_fraction_crust, electron_fraction_ocean,
+        source_func_name, num_flavors=5)
+
     return osc_prob_matter_std_potential(
         num_flavors=5,
-        rho_func=_earth_composition(
-            costhz, electron_fraction, ratio_number_neutrons_to_protons,
-            electron_fraction_core, electron_fraction_mantle,
-            electron_fraction_crust, electron_fraction_ocean,
-            source_func_name, num_flavors=5),
+        rho_func=rho_func,
         energy=energy,
         L=L,
         t_breakpoints=t_breakpoints,
@@ -11354,9 +11747,10 @@ def osc_prob_5nu_earth(
         nu_i=nu_i,
         nu_f=nu_f,
         density_is_of_number_of_electrons=True,
-        # Forwarded as well as used above: beyond three flavors the matter
-        # projector needs it for the sterile entries, and a projector built from a
-        # different r than the density would be this same defect a second time.
+        # Forwarded as resolved above: beyond three flavors the matter projector
+        # needs it for the sterile entries, and the default resolution hands it the
+        # same Y_e-derived r(l) the density uses, so the two cannot describe
+        # different media.
         ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
         default_osc_params_set_name=default_osc_params_set_name,
         validate_input=validate_input,
@@ -11574,12 +11968,16 @@ def osc_prob_earth(
     # Charged-current potential along the chord from the PREM electron density; the antineutrino
     # sign flip is applied inside matter.vcc_func_from_rho_func.  The profile evaluations are
     # cached on repeated position grids.
+    # _earth_composition resolves the density together with a projector ratio, but with a
+    # user-supplied H_func there is no package-built projector for the ratio to enter --
+    # sterile entries, if any, are H_func's own business -- so only the density is kept.
+    rho_func, _ = _earth_composition(
+        costhz, electron_fraction, ratio_number_neutrons_to_protons,
+        electron_fraction_core, electron_fraction_mantle,
+        electron_fraction_crust, electron_fraction_ocean,
+        source_func_name, num_flavors=None)
     VCC_func = matter.vcc_func_from_rho_func(
-        rho_func=_earth_composition(
-            costhz, electron_fraction, ratio_number_neutrons_to_protons,
-            electron_fraction_core, electron_fraction_mantle,
-            electron_fraction_crust, electron_fraction_ocean,
-            source_func_name, num_flavors=None),
+        rho_func=rho_func,
         nubar=nubar,
         density_is_of_number_of_electrons=True) # [eV]
     VCC_func = _PositionProfileCache(VCC_func)
@@ -11891,7 +12289,14 @@ def osc_prob_2nu_sun(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     angles : str, optional
         How the mixing angle is stated: ``'sin'`` (default) its sine,
         ``'sin2'`` its sine *squared* -- which is what global fits report --
@@ -12043,7 +12448,14 @@ def osc_prob_3nu_sun(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -12220,7 +12632,14 @@ def osc_prob_4nu_sun(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     ratio_number_neutrons_to_protons : int or float, optional
         :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
         matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
@@ -12440,7 +12859,14 @@ def osc_prob_5nu_sun(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     ratio_number_neutrons_to_protons : int or float, optional
         :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
         matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
@@ -12750,7 +13176,14 @@ def osc_prob_2nu_matter_nsi_constant_density(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     angles : str, optional
         How the mixing angle is stated: ``'sin'`` (default) its sine,
         ``'sin2'`` its sine *squared* -- which is what global fits report --
@@ -12886,7 +13319,14 @@ def osc_prob_3nu_matter_nsi_constant_density(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -13052,7 +13492,14 @@ def osc_prob_4nu_matter_nsi_constant_density(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -13253,7 +13700,14 @@ def osc_prob_5nu_matter_nsi_constant_density(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -13385,7 +13839,14 @@ def osc_prob_2nu_matter_nsi_exp_density(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     angles : str, optional
         How the mixing angle is stated: ``'sin'`` (default) its sine,
         ``'sin2'`` its sine *squared* -- which is what global fits report --
@@ -13537,7 +13998,14 @@ def osc_prob_3nu_matter_nsi_exp_density(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -13719,7 +14187,14 @@ def osc_prob_4nu_matter_nsi_exp_density(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -13936,7 +14411,14 @@ def osc_prob_5nu_matter_nsi_exp_density(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -14004,7 +14486,7 @@ def osc_prob_2nu_earth_nsi(
     nubar: Optional[bool]=False, 
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
-    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
+    ratio_number_neutrons_to_protons: Optional[Union[int, float, Callable]]=None,
     electron_fraction: Optional[Union[int, float]]=None,
     electron_fraction_core: Optional[Union[int, float]]=None,
     electron_fraction_mantle: Optional[Union[int, float]]=None,
@@ -14125,25 +14607,38 @@ def osc_prob_2nu_earth_nsi(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
 
     
-    ratio_number_neutrons_to_protons : int or float, optional
+    ratio_number_neutrons_to_protons : int, float, or Callable, optional
         :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
-        matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
-        (isoscalar matter, i.e. :math:`Y_e = 0.5`).
+        matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: None,
+        meaning the projector follows the same layer-by-layer :math:`Y_e` the density
+        uses, so the two always describe the same medium -- exactly, not approximately,
+        since :math:`Y_e` only changes at PREM boundaries, which are already slab edges.
 
-        **On an Earth chord this is not the ratio the density uses.**  The density takes
-        :math:`r = (1 - Y_e)/Y_e` layer by layer, because that is the same statement about
-        composition; the projector cannot, being one matrix for the whole chord.  So the
-        two disagree unless you match them, and at four flavors or more that is worth
-        about 2e-02 in probability on a core-crossing chord -- twenty times the default
-        tolerance, and silent.  Mag$\nu$s raises
-        :class:`magnus.globaldefs.SterileMatterCompositionWarning` when they disagree by
-        more than 2%, and names the path-averaged ratio for the chord you asked for.
-        ``electron_fraction=0.5`` with the default 1.0 makes them agree exactly, and
-        reproduces the uniform composition earlier versions assumed.  Three flavors are
-        unaffected: the projector's sterile block is empty.
+        Passing a *scalar* instead forces one medium onto the projector while the density
+        stays layered.  No scalar describes a chord that crosses iron and rock: near the
+        sterile matter resonance on a core-crossing chord the mismatch is worth up to
+        ~0.4 in probability at 3+1, and the best possible scalar still leaves ~7e-3, so a
+        scalar over layered composition raises
+        :class:`magnus.globaldefs.SterileMatterCompositionWarning`.  A callable of
+        position [:math:`\text{eV}^{-1}`] is forwarded untouched and trusted, the way
+        ``rho_func`` is.  ``electron_fraction=0.5`` describes genuinely uniform isoscalar
+        matter, and with it these wrappers reproduce the numbers from before composition
+        was layered.  Three flavors are unaffected: the projector's sterile block is
+        empty.
+
+        .. versionchanged:: 1.1.0
+           Default changed from 1.0 (isoscalar, one matrix for the whole chord) to None
+           (follow the composition); a callable is accepted.
     electron_fraction : int or float, optional
         One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
         ``0.5`` reproduces the uniform composition assumed before those existed, and is
@@ -14228,13 +14723,19 @@ def osc_prob_2nu_earth_nsi(
     # the center of the Earth, given a neutrino direction (cosine of zenith angle, costhz) and the 
     # distance of the neutrino, or depth (l), measured from the surface of the Earth.
 
+    # The density and the projector's ratio come from one resolution, against the same
+    # Y_e, so the sterile entries follow the composition by default (None); see
+    # _earth_composition.  The resolved ratio is rebound to the parameter's own name
+    # and forwarded below with everything else.
+    rho_func, ratio_number_neutrons_to_protons = _earth_composition(
+        costhz, electron_fraction, ratio_number_neutrons_to_protons,
+        electron_fraction_core, electron_fraction_mantle,
+        electron_fraction_crust, electron_fraction_ocean,
+        source_func_name, num_flavors=2)
+
     return osc_prob_matter_nsi(
         num_flavors=2,
-        rho_func=_earth_composition(
-            costhz, electron_fraction, ratio_number_neutrons_to_protons,
-            electron_fraction_core, electron_fraction_mantle,
-            electron_fraction_crust, electron_fraction_ocean,
-            source_func_name, num_flavors=2),
+        rho_func=rho_func,
         energy=energy,
         L=L,
         t_breakpoints=t_breakpoints,
@@ -14250,9 +14751,10 @@ def osc_prob_2nu_earth_nsi(
         nu_i=nu_i,
         nu_f=nu_f,
         density_is_of_number_of_electrons=True,
-        # Forwarded as well as used above: beyond three flavors the matter
-        # projector needs it for the sterile entries, and a projector built from a
-        # different r than the density would be this same defect a second time.
+        # Forwarded as resolved above: beyond three flavors the matter projector
+        # needs it for the sterile entries, and the default resolution hands it the
+        # same Y_e-derived r(l) the density uses, so the two cannot describe
+        # different media.
         ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
         validate_input=validate_input,
         save_log=save_log,
@@ -14287,7 +14789,7 @@ def osc_prob_3nu_earth_nsi(
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
-    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
+    ratio_number_neutrons_to_protons: Optional[Union[int, float, Callable]]=None,
     electron_fraction: Optional[Union[int, float]]=None,
     electron_fraction_core: Optional[Union[int, float]]=None,
     electron_fraction_mantle: Optional[Union[int, float]]=None,
@@ -14425,25 +14927,38 @@ def osc_prob_3nu_earth_nsi(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
 
     
-    ratio_number_neutrons_to_protons : int or float, optional
+    ratio_number_neutrons_to_protons : int, float, or Callable, optional
         :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
-        matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
-        (isoscalar matter, i.e. :math:`Y_e = 0.5`).
+        matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: None,
+        meaning the projector follows the same layer-by-layer :math:`Y_e` the density
+        uses, so the two always describe the same medium -- exactly, not approximately,
+        since :math:`Y_e` only changes at PREM boundaries, which are already slab edges.
 
-        **On an Earth chord this is not the ratio the density uses.**  The density takes
-        :math:`r = (1 - Y_e)/Y_e` layer by layer, because that is the same statement about
-        composition; the projector cannot, being one matrix for the whole chord.  So the
-        two disagree unless you match them, and at four flavors or more that is worth
-        about 2e-02 in probability on a core-crossing chord -- twenty times the default
-        tolerance, and silent.  Mag$\nu$s raises
-        :class:`magnus.globaldefs.SterileMatterCompositionWarning` when they disagree by
-        more than 2%, and names the path-averaged ratio for the chord you asked for.
-        ``electron_fraction=0.5`` with the default 1.0 makes them agree exactly, and
-        reproduces the uniform composition earlier versions assumed.  Three flavors are
-        unaffected: the projector's sterile block is empty.
+        Passing a *scalar* instead forces one medium onto the projector while the density
+        stays layered.  No scalar describes a chord that crosses iron and rock: near the
+        sterile matter resonance on a core-crossing chord the mismatch is worth up to
+        ~0.4 in probability at 3+1, and the best possible scalar still leaves ~7e-3, so a
+        scalar over layered composition raises
+        :class:`magnus.globaldefs.SterileMatterCompositionWarning`.  A callable of
+        position [:math:`\text{eV}^{-1}`] is forwarded untouched and trusted, the way
+        ``rho_func`` is.  ``electron_fraction=0.5`` describes genuinely uniform isoscalar
+        matter, and with it these wrappers reproduce the numbers from before composition
+        was layered.  Three flavors are unaffected: the projector's sterile block is
+        empty.
+
+        .. versionchanged:: 1.1.0
+           Default changed from 1.0 (isoscalar, one matrix for the whole chord) to None
+           (follow the composition); a callable is accepted.
     electron_fraction : int or float, optional
         One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
         ``0.5`` reproduces the uniform composition assumed before those existed, and is
@@ -14526,13 +15041,19 @@ def osc_prob_3nu_earth_nsi(
     # the center of the Earth, given a neutrino direction (cosine of zenith angle, costhz) and the 
     # distance of the neutrino, or depth (l), measured from the surface of the Earth.
 
+    # The density and the projector's ratio come from one resolution, against the same
+    # Y_e, so the sterile entries follow the composition by default (None); see
+    # _earth_composition.  The resolved ratio is rebound to the parameter's own name
+    # and forwarded below with everything else.
+    rho_func, ratio_number_neutrons_to_protons = _earth_composition(
+        costhz, electron_fraction, ratio_number_neutrons_to_protons,
+        electron_fraction_core, electron_fraction_mantle,
+        electron_fraction_crust, electron_fraction_ocean,
+        source_func_name, num_flavors=3)
+
     return osc_prob_matter_nsi(
         num_flavors=3,
-        rho_func=_earth_composition(
-            costhz, electron_fraction, ratio_number_neutrons_to_protons,
-            electron_fraction_core, electron_fraction_mantle,
-            electron_fraction_crust, electron_fraction_ocean,
-            source_func_name, num_flavors=3),
+        rho_func=rho_func,
         energy=energy,
         L=L,
         t_breakpoints=t_breakpoints,
@@ -14549,9 +15070,10 @@ def osc_prob_3nu_earth_nsi(
         nu_i=nu_i,
         nu_f=nu_f,
         density_is_of_number_of_electrons=True,
-        # Forwarded as well as used above: beyond three flavors the matter
-        # projector needs it for the sterile entries, and a projector built from a
-        # different r than the density would be this same defect a second time.
+        # Forwarded as resolved above: beyond three flavors the matter projector
+        # needs it for the sterile entries, and the default resolution hands it the
+        # same Y_e-derived r(l) the density uses, so the two cannot describe
+        # different media.
         ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
         default_osc_params_set_name=default_osc_params_set_name,
         validate_input=validate_input,
@@ -14597,7 +15119,7 @@ def osc_prob_4nu_earth_nsi(
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
-    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
+    ratio_number_neutrons_to_protons: Optional[Union[int, float, Callable]]=None,
     electron_fraction: Optional[Union[int, float]]=None,
     electron_fraction_core: Optional[Union[int, float]]=None,
     electron_fraction_mantle: Optional[Union[int, float]]=None,
@@ -14757,25 +15279,38 @@ def osc_prob_4nu_earth_nsi(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
 
     
-    ratio_number_neutrons_to_protons : int or float, optional
+    ratio_number_neutrons_to_protons : int, float, or Callable, optional
         :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
-        matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
-        (isoscalar matter, i.e. :math:`Y_e = 0.5`).
+        matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: None,
+        meaning the projector follows the same layer-by-layer :math:`Y_e` the density
+        uses, so the two always describe the same medium -- exactly, not approximately,
+        since :math:`Y_e` only changes at PREM boundaries, which are already slab edges.
 
-        **On an Earth chord this is not the ratio the density uses.**  The density takes
-        :math:`r = (1 - Y_e)/Y_e` layer by layer, because that is the same statement about
-        composition; the projector cannot, being one matrix for the whole chord.  So the
-        two disagree unless you match them, and at four flavors or more that is worth
-        about 2e-02 in probability on a core-crossing chord -- twenty times the default
-        tolerance, and silent.  Mag$\nu$s raises
-        :class:`magnus.globaldefs.SterileMatterCompositionWarning` when they disagree by
-        more than 2%, and names the path-averaged ratio for the chord you asked for.
-        ``electron_fraction=0.5`` with the default 1.0 makes them agree exactly, and
-        reproduces the uniform composition earlier versions assumed.  Three flavors are
-        unaffected: the projector's sterile block is empty.
+        Passing a *scalar* instead forces one medium onto the projector while the density
+        stays layered.  No scalar describes a chord that crosses iron and rock: near the
+        sterile matter resonance on a core-crossing chord the mismatch is worth up to
+        ~0.4 in probability at 3+1, and the best possible scalar still leaves ~7e-3, so a
+        scalar over layered composition raises
+        :class:`magnus.globaldefs.SterileMatterCompositionWarning`.  A callable of
+        position [:math:`\text{eV}^{-1}`] is forwarded untouched and trusted, the way
+        ``rho_func`` is.  ``electron_fraction=0.5`` describes genuinely uniform isoscalar
+        matter, and with it these wrappers reproduce the numbers from before composition
+        was layered.  Three flavors are unaffected: the projector's sterile block is
+        empty.
+
+        .. versionchanged:: 1.1.0
+           Default changed from 1.0 (isoscalar, one matrix for the whole chord) to None
+           (follow the composition); a callable is accepted.
     electron_fraction : int or float, optional
         One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
         ``0.5`` reproduces the uniform composition assumed before those existed, and is
@@ -14858,13 +15393,19 @@ def osc_prob_4nu_earth_nsi(
     # the center of the Earth, given a neutrino direction (cosine of zenith angle, costhz) and the 
     # distance of the neutrino, or depth (l), measured from the surface of the Earth.
 
+    # The density and the projector's ratio come from one resolution, against the same
+    # Y_e, so the sterile entries follow the composition by default (None); see
+    # _earth_composition.  The resolved ratio is rebound to the parameter's own name
+    # and forwarded below with everything else.
+    rho_func, ratio_number_neutrons_to_protons = _earth_composition(
+        costhz, electron_fraction, ratio_number_neutrons_to_protons,
+        electron_fraction_core, electron_fraction_mantle,
+        electron_fraction_crust, electron_fraction_ocean,
+        source_func_name, num_flavors=4)
+
     return osc_prob_matter_nsi(
         num_flavors=4,
-        rho_func=_earth_composition(
-            costhz, electron_fraction, ratio_number_neutrons_to_protons,
-            electron_fraction_core, electron_fraction_mantle,
-            electron_fraction_crust, electron_fraction_ocean,
-            source_func_name, num_flavors=4),
+        rho_func=rho_func,
         energy=energy,
         L=L,
         t_breakpoints=t_breakpoints,
@@ -14883,9 +15424,10 @@ def osc_prob_4nu_earth_nsi(
         nu_i=nu_i,
         nu_f=nu_f,
         density_is_of_number_of_electrons=True,
-        # Forwarded as well as used above: beyond three flavors the matter
-        # projector needs it for the sterile entries, and a projector built from a
-        # different r than the density would be this same defect a second time.
+        # Forwarded as resolved above: beyond three flavors the matter projector
+        # needs it for the sterile entries, and the default resolution hands it the
+        # same Y_e-derived r(l) the density uses, so the two cannot describe
+        # different media.
         ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
         default_osc_params_set_name=default_osc_params_set_name,
         validate_input=validate_input,
@@ -14942,7 +15484,7 @@ def osc_prob_5nu_earth_nsi(
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
-    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
+    ratio_number_neutrons_to_protons: Optional[Union[int, float, Callable]]=None,
     electron_fraction: Optional[Union[int, float]]=None,
     electron_fraction_core: Optional[Union[int, float]]=None,
     electron_fraction_mantle: Optional[Union[int, float]]=None,
@@ -15127,25 +15669,38 @@ def osc_prob_5nu_earth_nsi(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
 
     
-    ratio_number_neutrons_to_protons : int or float, optional
+    ratio_number_neutrons_to_protons : int, float, or Callable, optional
         :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
-        matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
-        (isoscalar matter, i.e. :math:`Y_e = 0.5`).
+        matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: None,
+        meaning the projector follows the same layer-by-layer :math:`Y_e` the density
+        uses, so the two always describe the same medium -- exactly, not approximately,
+        since :math:`Y_e` only changes at PREM boundaries, which are already slab edges.
 
-        **On an Earth chord this is not the ratio the density uses.**  The density takes
-        :math:`r = (1 - Y_e)/Y_e` layer by layer, because that is the same statement about
-        composition; the projector cannot, being one matrix for the whole chord.  So the
-        two disagree unless you match them, and at four flavors or more that is worth
-        about 2e-02 in probability on a core-crossing chord -- twenty times the default
-        tolerance, and silent.  Mag$\nu$s raises
-        :class:`magnus.globaldefs.SterileMatterCompositionWarning` when they disagree by
-        more than 2%, and names the path-averaged ratio for the chord you asked for.
-        ``electron_fraction=0.5`` with the default 1.0 makes them agree exactly, and
-        reproduces the uniform composition earlier versions assumed.  Three flavors are
-        unaffected: the projector's sterile block is empty.
+        Passing a *scalar* instead forces one medium onto the projector while the density
+        stays layered.  No scalar describes a chord that crosses iron and rock: near the
+        sterile matter resonance on a core-crossing chord the mismatch is worth up to
+        ~0.4 in probability at 3+1, and the best possible scalar still leaves ~7e-3, so a
+        scalar over layered composition raises
+        :class:`magnus.globaldefs.SterileMatterCompositionWarning`.  A callable of
+        position [:math:`\text{eV}^{-1}`] is forwarded untouched and trusted, the way
+        ``rho_func`` is.  ``electron_fraction=0.5`` describes genuinely uniform isoscalar
+        matter, and with it these wrappers reproduce the numbers from before composition
+        was layered.  Three flavors are unaffected: the projector's sterile block is
+        empty.
+
+        .. versionchanged:: 1.1.0
+           Default changed from 1.0 (isoscalar, one matrix for the whole chord) to None
+           (follow the composition); a callable is accepted.
     electron_fraction : int or float, optional
         One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
         ``0.5`` reproduces the uniform composition assumed before those existed, and is
@@ -15228,13 +15783,19 @@ def osc_prob_5nu_earth_nsi(
     # the center of the Earth, given a neutrino direction (cosine of zenith angle, costhz) and the 
     # distance of the neutrino, or depth (l), measured from the surface of the Earth.
 
+    # The density and the projector's ratio come from one resolution, against the same
+    # Y_e, so the sterile entries follow the composition by default (None); see
+    # _earth_composition.  The resolved ratio is rebound to the parameter's own name
+    # and forwarded below with everything else.
+    rho_func, ratio_number_neutrons_to_protons = _earth_composition(
+        costhz, electron_fraction, ratio_number_neutrons_to_protons,
+        electron_fraction_core, electron_fraction_mantle,
+        electron_fraction_crust, electron_fraction_ocean,
+        source_func_name, num_flavors=5)
+
     return osc_prob_matter_nsi(
         num_flavors=5,
-        rho_func=_earth_composition(
-            costhz, electron_fraction, ratio_number_neutrons_to_protons,
-            electron_fraction_core, electron_fraction_mantle,
-            electron_fraction_crust, electron_fraction_ocean,
-            source_func_name, num_flavors=5),
+        rho_func=rho_func,
         energy=energy,
         L=L,
         t_breakpoints=t_breakpoints,
@@ -15255,9 +15816,10 @@ def osc_prob_5nu_earth_nsi(
         nu_i=nu_i,
         nu_f=nu_f,
         density_is_of_number_of_electrons=True,
-        # Forwarded as well as used above: beyond three flavors the matter
-        # projector needs it for the sterile entries, and a projector built from a
-        # different r than the density would be this same defect a second time.
+        # Forwarded as resolved above: beyond three flavors the matter projector
+        # needs it for the sterile entries, and the default resolution hands it the
+        # same Y_e-derived r(l) the density uses, so the two cannot describe
+        # different media.
         ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
         default_osc_params_set_name=default_osc_params_set_name,
         validate_input=validate_input,
@@ -15387,7 +15949,14 @@ def osc_prob_2nu_sun_nsi(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     angles : str, optional
         How the mixing angle is stated: ``'sin'`` (default) its sine,
         ``'sin2'`` its sine *squared* -- which is what global fits report --
@@ -15554,7 +16123,14 @@ def osc_prob_3nu_sun_nsi(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -15765,7 +16341,14 @@ def osc_prob_4nu_sun_nsi(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     ratio_number_neutrons_to_protons : int or float, optional
         :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
         matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
@@ -16038,7 +16621,14 @@ def osc_prob_5nu_sun_nsi(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     ratio_number_neutrons_to_protons : int or float, optional
         :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
         matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
@@ -16190,7 +16780,14 @@ def osc_prob_2nu_vacuum_liv(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines,
         ``'sin2'`` their sines *squared* -- which is what global fits report --
@@ -16314,7 +16911,14 @@ def osc_prob_3nu_vacuum_liv(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -16475,7 +17079,14 @@ def osc_prob_4nu_vacuum_liv(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -16674,7 +17285,14 @@ def osc_prob_5nu_vacuum_liv(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -16799,7 +17417,14 @@ def osc_prob_2nu_matter_liv_constant_density(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines,
         ``'sin2'`` their sines *squared* -- which is what global fits report --
@@ -16947,7 +17572,14 @@ def osc_prob_3nu_matter_liv_constant_density(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -17132,7 +17764,14 @@ def osc_prob_4nu_matter_liv_constant_density(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -17355,7 +17994,14 @@ def osc_prob_5nu_matter_liv_constant_density(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -17491,7 +18137,14 @@ def osc_prob_2nu_matter_liv_exp_density(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines,
         ``'sin2'`` their sines *squared* -- which is what global fits report --
@@ -17649,7 +18302,14 @@ def osc_prob_3nu_matter_liv_exp_density(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -17842,7 +18502,14 @@ def osc_prob_4nu_matter_liv_exp_density(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -18073,7 +18740,14 @@ def osc_prob_5nu_matter_liv_exp_density(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -18143,7 +18817,7 @@ def osc_prob_2nu_earth_liv(
     nubar: Optional[bool]=False, 
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
-    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
+    ratio_number_neutrons_to_protons: Optional[Union[int, float, Callable]]=None,
     electron_fraction: Optional[Union[int, float]]=None,
     electron_fraction_core: Optional[Union[int, float]]=None,
     electron_fraction_mantle: Optional[Union[int, float]]=None,
@@ -18270,25 +18944,38 @@ def osc_prob_2nu_earth_liv(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
 
     
-    ratio_number_neutrons_to_protons : int or float, optional
+    ratio_number_neutrons_to_protons : int, float, or Callable, optional
         :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
-        matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
-        (isoscalar matter, i.e. :math:`Y_e = 0.5`).
+        matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: None,
+        meaning the projector follows the same layer-by-layer :math:`Y_e` the density
+        uses, so the two always describe the same medium -- exactly, not approximately,
+        since :math:`Y_e` only changes at PREM boundaries, which are already slab edges.
 
-        **On an Earth chord this is not the ratio the density uses.**  The density takes
-        :math:`r = (1 - Y_e)/Y_e` layer by layer, because that is the same statement about
-        composition; the projector cannot, being one matrix for the whole chord.  So the
-        two disagree unless you match them, and at four flavors or more that is worth
-        about 2e-02 in probability on a core-crossing chord -- twenty times the default
-        tolerance, and silent.  Mag$\nu$s raises
-        :class:`magnus.globaldefs.SterileMatterCompositionWarning` when they disagree by
-        more than 2%, and names the path-averaged ratio for the chord you asked for.
-        ``electron_fraction=0.5`` with the default 1.0 makes them agree exactly, and
-        reproduces the uniform composition earlier versions assumed.  Three flavors are
-        unaffected: the projector's sterile block is empty.
+        Passing a *scalar* instead forces one medium onto the projector while the density
+        stays layered.  No scalar describes a chord that crosses iron and rock: near the
+        sterile matter resonance on a core-crossing chord the mismatch is worth up to
+        ~0.4 in probability at 3+1, and the best possible scalar still leaves ~7e-3, so a
+        scalar over layered composition raises
+        :class:`magnus.globaldefs.SterileMatterCompositionWarning`.  A callable of
+        position [:math:`\text{eV}^{-1}`] is forwarded untouched and trusted, the way
+        ``rho_func`` is.  ``electron_fraction=0.5`` describes genuinely uniform isoscalar
+        matter, and with it these wrappers reproduce the numbers from before composition
+        was layered.  Three flavors are unaffected: the projector's sterile block is
+        empty.
+
+        .. versionchanged:: 1.1.0
+           Default changed from 1.0 (isoscalar, one matrix for the whole chord) to None
+           (follow the composition); a callable is accepted.
     electron_fraction : int or float, optional
         One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
         ``0.5`` reproduces the uniform composition assumed before those existed, and is
@@ -18373,13 +19060,19 @@ def osc_prob_2nu_earth_liv(
     # the center of the Earth, given a neutrino direction (cosine of zenith angle, costhz) and the 
     # distance of the neutrino, or depth (l), measured from the surface of the Earth.
 
+    # The density and the projector's ratio come from one resolution, against the same
+    # Y_e, so the sterile entries follow the composition by default (None); see
+    # _earth_composition.  The resolved ratio is rebound to the parameter's own name
+    # and forwarded below with everything else.
+    rho_func, ratio_number_neutrons_to_protons = _earth_composition(
+        costhz, electron_fraction, ratio_number_neutrons_to_protons,
+        electron_fraction_core, electron_fraction_mantle,
+        electron_fraction_crust, electron_fraction_ocean,
+        source_func_name, num_flavors=2)
+
     return osc_prob_liv(
         num_flavors=2,
-        rho_func=_earth_composition(
-            costhz, electron_fraction, ratio_number_neutrons_to_protons,
-            electron_fraction_core, electron_fraction_mantle,
-            electron_fraction_crust, electron_fraction_ocean,
-            source_func_name, num_flavors=2),
+        rho_func=rho_func,
         energy=energy,
         L=L,
         t_breakpoints=t_breakpoints,
@@ -18395,9 +19088,10 @@ def osc_prob_2nu_earth_liv(
         nu_i=nu_i,
         nu_f=nu_f,
         density_is_of_number_of_electrons=True,
-        # Forwarded as well as used above: beyond three flavors the matter
-        # projector needs it for the sterile entries, and a projector built from a
-        # different r than the density would be this same defect a second time.
+        # Forwarded as resolved above: beyond three flavors the matter projector
+        # needs it for the sterile entries, and the default resolution hands it the
+        # same Y_e-derived r(l) the density uses, so the two cannot describe
+        # different media.
         ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
         validate_input=validate_input,
         save_log=save_log,
@@ -18435,7 +19129,7 @@ def osc_prob_3nu_earth_liv(
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
-    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
+    ratio_number_neutrons_to_protons: Optional[Union[int, float, Callable]]=None,
     electron_fraction: Optional[Union[int, float]]=None,
     electron_fraction_core: Optional[Union[int, float]]=None,
     electron_fraction_mantle: Optional[Union[int, float]]=None,
@@ -18581,25 +19275,38 @@ def osc_prob_3nu_earth_liv(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
 
     
-    ratio_number_neutrons_to_protons : int or float, optional
+    ratio_number_neutrons_to_protons : int, float, or Callable, optional
         :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
-        matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
-        (isoscalar matter, i.e. :math:`Y_e = 0.5`).
+        matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: None,
+        meaning the projector follows the same layer-by-layer :math:`Y_e` the density
+        uses, so the two always describe the same medium -- exactly, not approximately,
+        since :math:`Y_e` only changes at PREM boundaries, which are already slab edges.
 
-        **On an Earth chord this is not the ratio the density uses.**  The density takes
-        :math:`r = (1 - Y_e)/Y_e` layer by layer, because that is the same statement about
-        composition; the projector cannot, being one matrix for the whole chord.  So the
-        two disagree unless you match them, and at four flavors or more that is worth
-        about 2e-02 in probability on a core-crossing chord -- twenty times the default
-        tolerance, and silent.  Mag$\nu$s raises
-        :class:`magnus.globaldefs.SterileMatterCompositionWarning` when they disagree by
-        more than 2%, and names the path-averaged ratio for the chord you asked for.
-        ``electron_fraction=0.5`` with the default 1.0 makes them agree exactly, and
-        reproduces the uniform composition earlier versions assumed.  Three flavors are
-        unaffected: the projector's sterile block is empty.
+        Passing a *scalar* instead forces one medium onto the projector while the density
+        stays layered.  No scalar describes a chord that crosses iron and rock: near the
+        sterile matter resonance on a core-crossing chord the mismatch is worth up to
+        ~0.4 in probability at 3+1, and the best possible scalar still leaves ~7e-3, so a
+        scalar over layered composition raises
+        :class:`magnus.globaldefs.SterileMatterCompositionWarning`.  A callable of
+        position [:math:`\text{eV}^{-1}`] is forwarded untouched and trusted, the way
+        ``rho_func`` is.  ``electron_fraction=0.5`` describes genuinely uniform isoscalar
+        matter, and with it these wrappers reproduce the numbers from before composition
+        was layered.  Three flavors are unaffected: the projector's sterile block is
+        empty.
+
+        .. versionchanged:: 1.1.0
+           Default changed from 1.0 (isoscalar, one matrix for the whole chord) to None
+           (follow the composition); a callable is accepted.
     electron_fraction : int or float, optional
         One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
         ``0.5`` reproduces the uniform composition assumed before those existed, and is
@@ -18682,13 +19389,19 @@ def osc_prob_3nu_earth_liv(
     # the center of the Earth, given a neutrino direction (cosine of zenith angle, costhz) and the 
     # distance of the neutrino, or depth (l), measured from the surface of the Earth.
 
+    # The density and the projector's ratio come from one resolution, against the same
+    # Y_e, so the sterile entries follow the composition by default (None); see
+    # _earth_composition.  The resolved ratio is rebound to the parameter's own name
+    # and forwarded below with everything else.
+    rho_func, ratio_number_neutrons_to_protons = _earth_composition(
+        costhz, electron_fraction, ratio_number_neutrons_to_protons,
+        electron_fraction_core, electron_fraction_mantle,
+        electron_fraction_crust, electron_fraction_ocean,
+        source_func_name, num_flavors=3)
+
     return osc_prob_liv(
         num_flavors=3,
-        rho_func=_earth_composition(
-            costhz, electron_fraction, ratio_number_neutrons_to_protons,
-            electron_fraction_core, electron_fraction_mantle,
-            electron_fraction_crust, electron_fraction_ocean,
-            source_func_name, num_flavors=3),
+        rho_func=rho_func,
         energy=energy,
         L=L,
         t_breakpoints=t_breakpoints,
@@ -18705,9 +19418,10 @@ def osc_prob_3nu_earth_liv(
         nu_i=nu_i,
         nu_f=nu_f,
         density_is_of_number_of_electrons=True,
-        # Forwarded as well as used above: beyond three flavors the matter
-        # projector needs it for the sterile entries, and a projector built from a
-        # different r than the density would be this same defect a second time.
+        # Forwarded as resolved above: beyond three flavors the matter projector
+        # needs it for the sterile entries, and the default resolution hands it the
+        # same Y_e-derived r(l) the density uses, so the two cannot describe
+        # different media.
         ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
         default_osc_params_set_name=default_osc_params_set_name,
         validate_input=validate_input,
@@ -18758,7 +19472,7 @@ def osc_prob_4nu_earth_liv(
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
-    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
+    ratio_number_neutrons_to_protons: Optional[Union[int, float, Callable]]=None,
     electron_fraction: Optional[Union[int, float]]=None,
     electron_fraction_core: Optional[Union[int, float]]=None,
     electron_fraction_mantle: Optional[Union[int, float]]=None,
@@ -18928,25 +19642,38 @@ def osc_prob_4nu_earth_liv(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
 
     
-    ratio_number_neutrons_to_protons : int or float, optional
+    ratio_number_neutrons_to_protons : int, float, or Callable, optional
         :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
-        matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
-        (isoscalar matter, i.e. :math:`Y_e = 0.5`).
+        matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: None,
+        meaning the projector follows the same layer-by-layer :math:`Y_e` the density
+        uses, so the two always describe the same medium -- exactly, not approximately,
+        since :math:`Y_e` only changes at PREM boundaries, which are already slab edges.
 
-        **On an Earth chord this is not the ratio the density uses.**  The density takes
-        :math:`r = (1 - Y_e)/Y_e` layer by layer, because that is the same statement about
-        composition; the projector cannot, being one matrix for the whole chord.  So the
-        two disagree unless you match them, and at four flavors or more that is worth
-        about 2e-02 in probability on a core-crossing chord -- twenty times the default
-        tolerance, and silent.  Mag$\nu$s raises
-        :class:`magnus.globaldefs.SterileMatterCompositionWarning` when they disagree by
-        more than 2%, and names the path-averaged ratio for the chord you asked for.
-        ``electron_fraction=0.5`` with the default 1.0 makes them agree exactly, and
-        reproduces the uniform composition earlier versions assumed.  Three flavors are
-        unaffected: the projector's sterile block is empty.
+        Passing a *scalar* instead forces one medium onto the projector while the density
+        stays layered.  No scalar describes a chord that crosses iron and rock: near the
+        sterile matter resonance on a core-crossing chord the mismatch is worth up to
+        ~0.4 in probability at 3+1, and the best possible scalar still leaves ~7e-3, so a
+        scalar over layered composition raises
+        :class:`magnus.globaldefs.SterileMatterCompositionWarning`.  A callable of
+        position [:math:`\text{eV}^{-1}`] is forwarded untouched and trusted, the way
+        ``rho_func`` is.  ``electron_fraction=0.5`` describes genuinely uniform isoscalar
+        matter, and with it these wrappers reproduce the numbers from before composition
+        was layered.  Three flavors are unaffected: the projector's sterile block is
+        empty.
+
+        .. versionchanged:: 1.1.0
+           Default changed from 1.0 (isoscalar, one matrix for the whole chord) to None
+           (follow the composition); a callable is accepted.
     electron_fraction : int or float, optional
         One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
         ``0.5`` reproduces the uniform composition assumed before those existed, and is
@@ -19029,13 +19756,19 @@ def osc_prob_4nu_earth_liv(
     # the center of the Earth, given a neutrino direction (cosine of zenith angle, costhz) and the 
     # distance of the neutrino, or depth (l), measured from the surface of the Earth.
 
+    # The density and the projector's ratio come from one resolution, against the same
+    # Y_e, so the sterile entries follow the composition by default (None); see
+    # _earth_composition.  The resolved ratio is rebound to the parameter's own name
+    # and forwarded below with everything else.
+    rho_func, ratio_number_neutrons_to_protons = _earth_composition(
+        costhz, electron_fraction, ratio_number_neutrons_to_protons,
+        electron_fraction_core, electron_fraction_mantle,
+        electron_fraction_crust, electron_fraction_ocean,
+        source_func_name, num_flavors=4)
+
     return osc_prob_liv(
         num_flavors=4,
-        rho_func=_earth_composition(
-            costhz, electron_fraction, ratio_number_neutrons_to_protons,
-            electron_fraction_core, electron_fraction_mantle,
-            electron_fraction_crust, electron_fraction_ocean,
-            source_func_name, num_flavors=4),
+        rho_func=rho_func,
         energy=energy,
         L=L,
         t_breakpoints=t_breakpoints,
@@ -19054,9 +19787,10 @@ def osc_prob_4nu_earth_liv(
         nu_i=nu_i,
         nu_f=nu_f,
         density_is_of_number_of_electrons=True,
-        # Forwarded as well as used above: beyond three flavors the matter
-        # projector needs it for the sterile entries, and a projector built from a
-        # different r than the density would be this same defect a second time.
+        # Forwarded as resolved above: beyond three flavors the matter projector
+        # needs it for the sterile entries, and the default resolution hands it the
+        # same Y_e-derived r(l) the density uses, so the two cannot describe
+        # different media.
         ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
         default_osc_params_set_name=default_osc_params_set_name,
         validate_input=validate_input,
@@ -19119,7 +19853,7 @@ def osc_prob_5nu_earth_liv(
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
-    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
+    ratio_number_neutrons_to_protons: Optional[Union[int, float, Callable]]=None,
     electron_fraction: Optional[Union[int, float]]=None,
     electron_fraction_core: Optional[Union[int, float]]=None,
     electron_fraction_mantle: Optional[Union[int, float]]=None,
@@ -19314,25 +20048,38 @@ def osc_prob_5nu_earth_liv(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
 
     
-    ratio_number_neutrons_to_protons : int or float, optional
+    ratio_number_neutrons_to_protons : int, float, or Callable, optional
         :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
-        matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
-        (isoscalar matter, i.e. :math:`Y_e = 0.5`).
+        matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: None,
+        meaning the projector follows the same layer-by-layer :math:`Y_e` the density
+        uses, so the two always describe the same medium -- exactly, not approximately,
+        since :math:`Y_e` only changes at PREM boundaries, which are already slab edges.
 
-        **On an Earth chord this is not the ratio the density uses.**  The density takes
-        :math:`r = (1 - Y_e)/Y_e` layer by layer, because that is the same statement about
-        composition; the projector cannot, being one matrix for the whole chord.  So the
-        two disagree unless you match them, and at four flavors or more that is worth
-        about 2e-02 in probability on a core-crossing chord -- twenty times the default
-        tolerance, and silent.  Mag$\nu$s raises
-        :class:`magnus.globaldefs.SterileMatterCompositionWarning` when they disagree by
-        more than 2%, and names the path-averaged ratio for the chord you asked for.
-        ``electron_fraction=0.5`` with the default 1.0 makes them agree exactly, and
-        reproduces the uniform composition earlier versions assumed.  Three flavors are
-        unaffected: the projector's sterile block is empty.
+        Passing a *scalar* instead forces one medium onto the projector while the density
+        stays layered.  No scalar describes a chord that crosses iron and rock: near the
+        sterile matter resonance on a core-crossing chord the mismatch is worth up to
+        ~0.4 in probability at 3+1, and the best possible scalar still leaves ~7e-3, so a
+        scalar over layered composition raises
+        :class:`magnus.globaldefs.SterileMatterCompositionWarning`.  A callable of
+        position [:math:`\text{eV}^{-1}`] is forwarded untouched and trusted, the way
+        ``rho_func`` is.  ``electron_fraction=0.5`` describes genuinely uniform isoscalar
+        matter, and with it these wrappers reproduce the numbers from before composition
+        was layered.  Three flavors are unaffected: the projector's sterile block is
+        empty.
+
+        .. versionchanged:: 1.1.0
+           Default changed from 1.0 (isoscalar, one matrix for the whole chord) to None
+           (follow the composition); a callable is accepted.
     electron_fraction : int or float, optional
         One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
         ``0.5`` reproduces the uniform composition assumed before those existed, and is
@@ -19415,13 +20162,19 @@ def osc_prob_5nu_earth_liv(
     # the center of the Earth, given a neutrino direction (cosine of zenith angle, costhz) and the 
     # distance of the neutrino, or depth (l), measured from the surface of the Earth.
 
+    # The density and the projector's ratio come from one resolution, against the same
+    # Y_e, so the sterile entries follow the composition by default (None); see
+    # _earth_composition.  The resolved ratio is rebound to the parameter's own name
+    # and forwarded below with everything else.
+    rho_func, ratio_number_neutrons_to_protons = _earth_composition(
+        costhz, electron_fraction, ratio_number_neutrons_to_protons,
+        electron_fraction_core, electron_fraction_mantle,
+        electron_fraction_crust, electron_fraction_ocean,
+        source_func_name, num_flavors=5)
+
     return osc_prob_liv(
         num_flavors=5,
-        rho_func=_earth_composition(
-            costhz, electron_fraction, ratio_number_neutrons_to_protons,
-            electron_fraction_core, electron_fraction_mantle,
-            electron_fraction_crust, electron_fraction_ocean,
-            source_func_name, num_flavors=5),
+        rho_func=rho_func,
         energy=energy,
         L=L,
         t_breakpoints=t_breakpoints,
@@ -19442,9 +20195,10 @@ def osc_prob_5nu_earth_liv(
         nu_i=nu_i,
         nu_f=nu_f,
         density_is_of_number_of_electrons=True,
-        # Forwarded as well as used above: beyond three flavors the matter
-        # projector needs it for the sterile entries, and a projector built from a
-        # different r than the density would be this same defect a second time.
+        # Forwarded as resolved above: beyond three flavors the matter projector
+        # needs it for the sterile entries, and the default resolution hands it the
+        # same Y_e-derived r(l) the density uses, so the two cannot describe
+        # different media.
         ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
         default_osc_params_set_name=default_osc_params_set_name,
         validate_input=validate_input,
@@ -19547,7 +20301,14 @@ def osc_prob_2nu_sun_liv(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines,
         ``'sin2'`` their sines *squared* -- which is what global fits report --
@@ -19707,7 +20468,14 @@ def osc_prob_3nu_sun_liv(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -19913,7 +20681,14 @@ def osc_prob_4nu_sun_liv(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     ratio_number_neutrons_to_protons : int or float, optional
         :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
         matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
@@ -20182,7 +20957,14 @@ def osc_prob_5nu_sun_liv(
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
     \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function (e.g., the standard refinement/logging kwargs; see :func:`osc_prob`).
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
+        They do not appear in this signature because they are not this function's to
+        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
     ratio_number_neutrons_to_protons : int or float, optional
         :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
         matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0

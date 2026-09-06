@@ -438,10 +438,10 @@ configures):
 
    Advanced numerics:
      --magnus-exp-order MAGNUS_EXP_ORDER
-                           Highest order of the Magnus expansion (1-6). Default: 4.
+                           Highest order of the Magnus expansion (1-8). Default: 4.
      --integration-method {gl,trapezoid,simpson}
                            Quadrature method. 'gl' (Gauss-Legendre collocation) needs only
-                           1-3 Hamiltonian evaluations per slab and matches its quadrature
+                           1-4 Hamiltonian evaluations per slab and matches its quadrature
                            order to the expansion order, so it is both the fastest and the
                            most accurate for a smooth Hamiltonian. 'trapezoid'/'simpson'
                            sample a uniform grid of --n-tpts-per-slab points instead, and

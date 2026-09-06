@@ -41,7 +41,8 @@ anything above it:
      - The Magnus expansion itself: Gauss--Legendre integrators, slab
        composition, the exactly-unitary matrix exponential
    * - ``expmkernels``
-     - Compiled Cayley--Hamilton kernels for the 2x2 and 3x3 exponential
+     - Compiled kernels for the matrix exponential: Cayley--Hamilton at 2x2 and
+       3x3, a batched Jacobi eigensolver at 4x4 and 5x5
    * - ``expansionterms``
      - The explicit :math:`\Omega_1`, :math:`\Omega_2`, :math:`\Omega_3`
        integrands

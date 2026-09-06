@@ -96,6 +96,17 @@ naive sum quietly wrong: with *all* eigenvalues equal the correct answer
 is the identity -- nothing oscillates at all -- while the naive sum
 returns a spurious mixture.
 
+Pseudo-Dirac neutrinos are the case the block form was written for.
+Each mass eigenstate that carries a sterile partner splits into two states
+separated by a :math:`\delta m^2` many orders below :math:`\Delta m^2_{21}`,
+so over an astrophysical baseline the standard phases have long since
+averaged away while every pair is still coherent -- one block per pair, and
+the naive sum is wrong by a factor of two.
+:mod:`magnus.hamiltonians.hamiltonians_pseudodirac` builds those
+Hamiltonians, with the pairing selectable per mass state; notebook 29 walks
+the splitting up through all three regimes, including the middle band where
+the warning fires.
+
 The same per-pair phase decides whether an averaged expression applies at
 all.  A pair is in one of three regimes:
 

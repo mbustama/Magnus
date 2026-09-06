@@ -51,7 +51,7 @@ refinement ladder actually did, including whether it converged or hit a cap.
 Citing the method
 ------------------
 
-The Magnus expansion itself, and the commutator-free Gauss–Legendre integrators
+The Magnus expansion itself, and the Gauss–Legendre collocation integrators
 Magνs uses by default, are due to others. The :doc:`references` page has the
 full bibliography; the two worth citing alongside the software are the review by
 Blanes, Casas, Oteo and Ros, and the high-order integrators of Blanes, Casas and

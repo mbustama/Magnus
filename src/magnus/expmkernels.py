@@ -3,12 +3,13 @@
 # Copyright (C) 2026 Mauricio Bustamante
 r"""expmkernels.py
 
-Compiled Cayley-Hamilton kernels for :math:`\exp(-iK)`, K Hermitian.
+Compiled kernels for :math:`\exp(-iK)`, K Hermitian.
 
-This module is the ``'numba'`` backend of ``magnus.magnus._expm_stack``.  It
-computes the matrix exponential of a stack of small Hermitian matrices without
-an eigenvector solver, by applying to :math:`K` the polynomial that interpolates
-:math:`\exp(-i\lambda)` on the spectrum of :math:`K`:
+This module is the ``'numba'`` backend of ``magnus.magnus._expm_stack``.  For
+2x2 and 3x3 matrices it computes the matrix exponential of a stack of small
+Hermitian matrices without an eigenvector solver, by applying to :math:`K` the
+polynomial that interpolates :math:`\exp(-i\lambda)` on the spectrum of
+:math:`K`:
 
 .. math::
 
@@ -32,12 +33,23 @@ only mildly at large ones.  Only a compiled kernel removes the dispatch, which
 is why numba is used here and why a numpy version of these formulas is not
 offered as a third backend.
 
-Dimensions 2 and 3 only
------------------------
+Dimensions 4 and 5: Jacobi, not a closed form
+---------------------------------------------
 
 There is no practical closed form for the eigenvalues of a 4x4 or 5x5 Hermitian
-matrix, so 4nu and 5nu keep the ``eigh`` path.  They stay correct; they do not
-get faster.  :func:`supports_dim` is the single place that decides this.
+matrix, and for a long time that sentence ended "so 4nu and 5nu keep the
+``eigh`` path".  The conclusion did not follow: what made those dimensions slow
+was never the missing closed form but ``eigh``'s fixed per-matrix LAPACK
+overhead, about 2.3 us on a 4x4 -- two thirds of a whole d=4 Magnus pass.  So
+4x4 and 5x5 stacks go to ``_jacobi_expm_core`` instead, a batched cyclic
+Jacobi eigensolver that warm-starts each matrix from its predecessor's
+eigenvectors and re-orthonormalizes that basis at every step; see its docstring
+for the scheme and for which of its details are load-bearing.  Unlike the
+closed forms it is iterative, so this backend replacement is *not* bit-identical
+to what it replaces -- it is held to the same accuracy class as ``eigh``
+instead (within 5.5x at every norm, clustering and degeneracy measured, against
+the same yardstick that admits the 3x3 closed form at up to 10x).
+:func:`supports_dim` is the single place that decides the routing.
 
 Why the interpolation form is safe at a degeneracy
 --------------------------------------------------
@@ -478,6 +490,251 @@ def _ch3_core(K, out, lam):
     return sev_max
 
 
+# The Jacobi sweep cap.  Cyclic Jacobi on a Hermitian matrix converges
+# unconditionally, so this is a backstop rather than a tuning knob: hitting it
+# makes _jacobi_expm_core report an infinite severity and the caller recomputes
+# with eigh.  With the floor below calibrated above the rounding equilibrium,
+# no input has been measured to reach it.
+_JACOBI_MAX_SWEEPS = 30
+
+# Rotation threshold for a single squared off-diagonal element, relative to
+# the squared Frobenius norm of the matrix: an element below it is left alone,
+# and a sweep that rotates nothing means every element is below it, which is
+# the termination criterion.  Converged therefore means each off-diagonal
+# element is at most 1e-15 of the matrix norm -- the same class as ``eigh``'s
+# own backward error -- and termination is *guaranteed* well before the sweep
+# cap, because every rotation removes at least twice this much from the
+# squared off-norm while re-injecting only ~eps^2 = 4.9e-32 of it as rounding
+# noise, a 40x margin.  Two prototype choices lost that guarantee, and both
+# turned convergence into a lottery whose losers would each have silently
+# sent their whole stack back to eigh through the severity flag: a threshold
+# of (1e-16)^2 = 1e-32 sits inside the noise equilibrium itself (measured at
+# up to 4.4e-32, so sub-threshold elements were unreachable), and checking
+# the *sum* of squared elements against the same constant that gates each
+# single one lets a sweep rotate nothing while the sum still fails -- a
+# thrash with no exit.
+_JACOBI_OFF2_REL = 1.0e-30
+
+
+def _jacobi_expm_core(K, out, lam):
+    r"""Fills ``out`` with :math:`\exp(-iK)` and ``lam`` with K's eigenvalues, d = 4 or 5.
+
+    One kernel for both dimensions -- every loop bound comes from the shape --
+    and nothing in it is specific to 4 or 5 beyond the guard in
+    :func:`expm_herm_stack`.  Unlike :func:`_ch2_core` and :func:`_ch3_core`
+    there is no closed form here: eigenvalues and eigenvectors come from a
+    cyclic complex-Hermitian Jacobi iteration, and the exponential is
+    reconstructed as :math:`U = \sum_j e^{-i\lambda_j} v_j v_j^\dagger`.  That
+    is the same spectral reconstruction the ``eigh`` route uses, with the
+    eigensolver swapped for one that has no LAPACK per-matrix overhead --
+    which, at ~2.3 us per 4x4 call, is what made ``eigh`` two thirds of a d=4
+    Magnus pass.
+
+    Three details are load-bearing:
+
+    * **Warm start.**  Each matrix's iteration starts from the previous
+      matrix's converged eigenvectors (``A = V0^H K V0``).  Consecutive
+      matrices are consecutive slabs of the same energy, so ``A`` arrives
+      nearly diagonal and the sweep count drops by roughly half; at an energy
+      boundary in the flattened stack the warm start is merely less effective
+      for one matrix, and correctness never depends on it.
+    * **Modified Gram-Schmidt on the saved basis, for every matrix.**  Without
+      it, warm-start non-unitarity compounds linearly along the chain:
+      measured 2.3e-11 against ``eigh`` after 13k chained matrices, against
+      3.9e-14 with it.  The reconstruction reads the re-orthonormalized basis
+      too, which is what keeps per-slab unitarity at ``eigh``'s level.
+    * **Rotations act on pre-rotation values.**  Each 2x2 rotation reads both
+      of the entries it updates before writing either, and the accumulating
+      sums are left exactly as written -- reassociating them is what
+      ``fastmath`` would license, and why it stays off.
+
+    The eigenvalues are insertion-sorted ascending to honor the
+    :func:`expm_herm_stack` contract; the basis needs no matching reorder,
+    because the reconstruction above sums over all of its columns and is
+    permutation-invariant.
+
+    Only the *lower* triangle of each input matrix is read, which is what
+    ``np.linalg.eigh`` reads too; see :func:`_ch2_core` for why the backends
+    must agree on that.
+
+    Parameters
+    ----------
+    K : np.ndarray
+        Hermitian matrices, shape (n, d, d) with d = 4 or 5, complex,
+        C-contiguous.
+    out : np.ndarray
+        Output buffer for :math:`\exp(-iK)`, shape (n, d, d), complex.
+    lam : np.ndarray
+        Output buffer for the eigenvalues, ascending, shape (n, d), float.
+
+    Returns
+    -------
+    float
+        0.0, or ``inf`` if any matrix hit :data:`_JACOBI_MAX_SWEEPS` without
+        converging, in which case the caller recomputes the stack with
+        ``eigh`` -- the same hook :data:`SEV_TOL` serves for the 3x3 kernel.
+        There is no conditioning gate here because there is no conditioning
+        cliff to gate: Jacobi is backward stable at every norm and clustering
+        measured (worst 5.5x of ``eigh``, against the closed form's 7440x),
+        so the only decline is the sweep cap -- a backstop no measured input
+        reaches, and see :data:`_JACOBI_OFF2_REL` for the calibration that
+        keeps it that way.
+    """
+    nB = K.shape[0]
+    d = K.shape[1]
+    A = np.empty((d, d), dtype=np.complex128)
+    V = np.empty((d, d), dtype=np.complex128)
+    V0 = np.empty((d, d), dtype=np.complex128)   # previous MGS'd eigenvectors
+    T = np.empty((d, d), dtype=np.complex128)
+    W = np.empty((d, d), dtype=np.complex128)
+    f = np.empty(d, dtype=np.complex128)
+    have_warm = False
+    sev = 0.0
+    for b in range(nB):
+        # Hermitize from the lower triangle into T, accumulating the squared
+        # Frobenius norm from the same reads.
+        fro2 = 0.0
+        for i in range(d):
+            x = K[b, i, i].real
+            T[i, i] = complex(x, 0.0)
+            fro2 += x*x
+            for j in range(i):
+                pij = K[b, i, j]
+                T[i, j] = pij
+                T[j, i] = pij.conjugate()
+                fro2 += 2.0*(pij.real*pij.real + pij.imag*pij.imag)
+        if fro2 == 0.0:                          # K = 0: exp(-iK) = I exactly
+            for i in range(d):
+                lam[b, i] = 0.0
+                for j in range(d):
+                    out[b, i, j] = complex(0.0, 0.0)
+                out[b, i, i] = complex(1.0, 0.0)
+            continue
+        if have_warm:
+            # A = V0^H T V0, V = V0
+            for i in range(d):
+                for j in range(d):
+                    acc = complex(0.0, 0.0)
+                    for m in range(d):
+                        acc += T[i, m]*V0[m, j]
+                    W[i, j] = acc
+            for i in range(d):
+                for j in range(d):
+                    acc = complex(0.0, 0.0)
+                    for m in range(d):
+                        acc += V0[m, i].conjugate()*W[m, j]
+                    A[i, j] = acc
+                    V[i, j] = V0[i, j]
+            # re-hermitize the diagonal (rounding)
+            for i in range(d):
+                A[i, i] = complex(A[i, i].real, 0.0)
+        else:
+            for i in range(d):
+                for j in range(d):
+                    A[i, j] = T[i, j]
+                    V[i, j] = complex(0.0, 0.0)
+                V[i, i] = complex(1.0, 0.0)
+        thr2 = _JACOBI_OFF2_REL*fro2
+        converged = False
+        for _sweep in range(_JACOBI_MAX_SWEEPS):
+            rotated = False
+            for p in range(d - 1):
+                for q in range(p + 1, d):
+                    apq = A[p, q]
+                    g2 = apq.real*apq.real + apq.imag*apq.imag
+                    if g2 <= thr2:
+                        continue
+                    rotated = True
+                    g = math.sqrt(g2)
+                    # X*(1.0/c), not X/c: numba divides a complex by a real
+                    # componentwise where numpy multiplies by the reciprocal,
+                    # and the uncompiled form of this source must agree with
+                    # the compiled one bitwise.
+                    eph = apq*(1.0/g)
+                    tau = (A[q, q].real - A[p, p].real)/(2.0*g)
+                    if tau >= 0.0:
+                        t = 1.0/(tau + math.sqrt(1.0 + tau*tau))
+                    else:
+                        t = -1.0/(-tau + math.sqrt(1.0 + tau*tau))
+                    c = 1.0/math.sqrt(1.0 + t*t)
+                    s = t*c
+                    se = s*eph
+                    sec = se.conjugate()
+                    for k in range(d):
+                        akp = A[k, p]
+                        akq = A[k, q]
+                        A[k, p] = c*akp - sec*akq
+                        A[k, q] = se*akp + c*akq
+                    for k in range(d):
+                        apk = A[p, k]
+                        aqk = A[q, k]
+                        A[p, k] = c*apk - se*aqk
+                        A[q, k] = sec*apk + c*aqk
+                    A[p, q] = complex(0.0, 0.0)
+                    A[q, p] = complex(0.0, 0.0)
+                    A[p, p] = complex(A[p, p].real, 0.0)
+                    A[q, q] = complex(A[q, q].real, 0.0)
+                    for k in range(d):
+                        vkp = V[k, p]
+                        vkq = V[k, q]
+                        V[k, p] = c*vkp - sec*vkq
+                        V[k, q] = se*vkp + c*vkq
+            if not rotated:
+                converged = True
+                break
+        if not converged:
+            sev = np.inf
+        # Save V as the next warm start, re-orthonormalized by modified
+        # Gram-Schmidt so non-unitarity cannot compound along the chain.
+        for i in range(d):
+            for j in range(d):
+                V0[i, j] = V[i, j]
+        for j in range(d):
+            for m in range(j):
+                acc = complex(0.0, 0.0)
+                for k in range(d):
+                    acc += V0[k, m].conjugate()*V0[k, j]
+                for k in range(d):
+                    V0[k, j] -= acc*V0[k, m]
+            nrm = 0.0
+            for k in range(d):
+                vkj = V0[k, j]
+                nrm += vkj.real*vkj.real + vkj.imag*vkj.imag
+            nrm = 1.0/math.sqrt(nrm)
+            for k in range(d):
+                V0[k, j] *= nrm
+        have_warm = True
+        # U = sum_m e^{-i lam_m} v_m v_m^H, from the MGS'd basis.  The phases
+        # are computed straight-line rather than in a loop over m, and that is
+        # load-bearing: LLVM vectorizes a trig loop into SVML's 1-ulp vector
+        # routines where straight-line calls go to libm, and the uncompiled
+        # form of this source must agree with the compiled one bitwise.  (The
+        # arithmetic loops are safe either way: with fastmath off the compiler
+        # may not reassociate their reductions, so it cannot vectorize them.)
+        f[0] = complex(math.cos(A[0, 0].real), -math.sin(A[0, 0].real))
+        f[1] = complex(math.cos(A[1, 1].real), -math.sin(A[1, 1].real))
+        f[2] = complex(math.cos(A[2, 2].real), -math.sin(A[2, 2].real))
+        f[3] = complex(math.cos(A[3, 3].real), -math.sin(A[3, 3].real))
+        if d == 5:
+            f[4] = complex(math.cos(A[4, 4].real), -math.sin(A[4, 4].real))
+        for i in range(d):
+            for j in range(d):
+                acc = complex(0.0, 0.0)
+                for m in range(d):
+                    acc += V0[i, m]*f[m]*V0[j, m].conjugate()
+                out[b, i, j] = acc
+        for i in range(d):
+            lam[b, i] = A[i, i].real
+        for i in range(1, d):
+            key = lam[b, i]
+            j = i - 1
+            while j >= 0 and lam[b, j] > key:
+                lam[b, j + 1] = lam[b, j]
+                j -= 1
+            lam[b, j + 1] = key
+    return sev
+
+
 _sinc_py = _sinc
 r"""callable: The uncompiled :func:`_sinc`, kept reachable for the tests.
 
@@ -491,8 +748,10 @@ if HAVE_NUMBA:
     # fastmath is deliberately off.  The stability argument in the module
     # docstring rests on cancellations happening exactly as written -- the
     # sinc form of the divided differences, the vanishing of the second
-    # divided difference's error with the gap -- and fastmath licenses the
-    # compiler to reassociate precisely those expressions.
+    # divided difference's error with the gap, and for the Jacobi kernel the
+    # rotation updates and Gram-Schmidt subtractions that keep the basis
+    # unitary -- and fastmath licenses the compiler to reassociate precisely
+    # those expressions.
     #
     # parallel is off too: magnus is routinely called from inside joblib
     # workers, and a kernel that opens its own thread pool inside each of them
@@ -509,17 +768,26 @@ if HAVE_NUMBA:
     _sinc = _jit(_sinc)
     _ch2_kernel = _jit(_ch2_core)
     _ch3_kernel = _jit(_ch3_core)
+    _jacobi_kernel = _jit(_jacobi_expm_core)
 else:                                                   # pragma: no cover
     _ch2_kernel = _ch2_core
     _ch3_kernel = _ch3_core
+    _jacobi_kernel = _jacobi_expm_core
 
 
 def supports_dim(d: int) -> bool:
-    r"""Returns whether dimension ``d`` has a Cayley-Hamilton kernel.
+    r"""Returns whether dimension ``d`` has a compiled kernel.
 
-    True for 2 and 3.  A 4x4 or 5x5 Hermitian eigenproblem has no practical
-    closed form, so 4nu and 5nu stay on ``eigh``: correct, and no faster than
-    before.  This is the one place that decision is made.
+    True for 2 through 5.  Dimensions 2 and 3 have Cayley-Hamilton closed
+    forms; 4 and 5 go to the batched Jacobi eigensolver
+    ``_jacobi_expm_core`` instead.  An earlier version of this docstring
+    reasoned that a 4x4 or 5x5 Hermitian eigenproblem has no practical closed
+    form and concluded that 4nu and 5nu stay on ``eigh``.  The premise stands;
+    the conclusion did not follow from it, because the missing closed form was
+    never what made those dimensions slow -- ``eigh``'s fixed per-matrix LAPACK
+    overhead (~2.3 us on a 4x4, two thirds of a d=4 Magnus pass) was, and an
+    iterative solver with no such overhead removes it without any closed form.
+    This is the one place that decision is made.
 
     Parameters
     ----------
@@ -531,7 +799,7 @@ def supports_dim(d: int) -> bool:
     bool
         Whether a kernel exists for that dimension.
     """
-    return d == 2 or d == 3
+    return 2 <= d <= 5
 
 
 def expm_herm_stack(K: np.ndarray) -> tuple:
@@ -545,22 +813,24 @@ def expm_herm_stack(K: np.ndarray) -> tuple:
     Parameters
     ----------
     K : np.ndarray
-        Hermitian matrix or stack of them, shape (..., d, d), with d 2 or 3
-        (see :func:`supports_dim`).
+        Hermitian matrix or stack of them, shape (..., d, d), with d 2 through
+        5 (see :func:`supports_dim`).
 
     Returns
     -------
     tuple
         :math:`\exp(-iK)`, shape (..., d, d); the eigenvalues in ascending order, shape
         (..., d); and a float conditioning severity for the whole stack.  A severity above
-        :data:`SEV_TOL` means at least one matrix was too ill-conditioned for the closed-form
-        solve and the caller should recompute with ``eigh``; see ``_ch3_core``.
+        :data:`SEV_TOL` means at least one matrix could not be answered at full accuracy --
+        too ill-conditioned for the 3x3 closed form (see ``_ch3_core``), or at the Jacobi
+        sweep cap for a 4x4/5x5 (see ``_jacobi_expm_core``) -- and the caller should
+        recompute with ``eigh``.
 
     Raises
     ------
     ValueError
-        If ``d`` is not 2 or 3.  Without this the ``else`` below handed 4x4 and 5x5 input to
-        the 3x3 kernel, which returned no exception, an error of 2.4 against
+        If ``d`` is not 2 through 5.  Without this the ``else`` below handed unsupported
+        input to the 3x3 kernel, which returned no exception, an error of 2.4 against
         ``scipy.linalg.expm``, a unitarity violation of 11.3, and uninitialized memory in the
         fourth eigenvalue -- and segfaulted at d=1 by indexing ``K[i,2,1]`` with numba's
         bounds checking off.  :func:`supports_dim` is documented as the single place that
@@ -569,10 +839,10 @@ def expm_herm_stack(K: np.ndarray) -> tuple:
     d = K.shape[-1]
     if not supports_dim(d):
         raise ValueError(
-            "Error in magnus: magnus.expmkernels.expm_herm_stack: no Cayley-Hamilton kernel for dimension "
-            + str(d) + "; only 2 and 3 are supported (see supports_dim). There is no "
-            "practical closed form for a 4x4 or larger Hermitian eigenproblem, so callers "
-            "should use numpy.linalg.eigh for those, as magnus.magnus._expm_stack does.")
+            "Error in magnus: magnus.expmkernels.expm_herm_stack: no compiled kernel for dimension "
+            + str(d) + "; only 2 through 5 are supported (see supports_dim). Callers "
+            "should use numpy.linalg.eigh for larger dimensions, as "
+            "magnus.magnus._expm_stack does.")
     # dtype=complex, not just ascontiguousarray: a real-valued Hermitian K is a
     # perfectly good input, and without the cast np.empty_like below would make a
     # real output buffer that the kernel then cannot store a complex result into.
@@ -581,8 +851,10 @@ def expm_herm_stack(K: np.ndarray) -> tuple:
     lam = np.empty((flat.shape[0], d), dtype=float)
     if d == 2:
         sev = _ch2_kernel(flat, out, lam)
-    else:
+    elif d == 3:
         sev = _ch3_kernel(flat, out, lam)
+    else:
+        sev = _jacobi_kernel(flat, out, lam)
     return out.reshape(K.shape), lam.reshape(K.shape[:-1]), float(sev)
 
 

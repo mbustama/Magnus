@@ -193,7 +193,7 @@ The same pattern applies to :func:`~magnus.oscprob.osc_prob_2nu_vacuum`,
                                  L0=0.0, sth=np.sqrt(0.308), Dm2=7.5e-5)
 
 None of these pass ``integration_method``, so they use the default,
-``'gl'`` -- the Gauss-Legendre commutator-free integrators (see
+``'gl'`` -- the Gauss-Legendre collocation integrators (see
 :doc:`methodology`), which are both the fastest and the most accurate choice
 whenever the Hamiltonian is smooth within each slab, the common case.  Pass
 ``integration_method='trapezoid'`` (or ``'simpson'``) for a Hamiltonian with

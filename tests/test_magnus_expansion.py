@@ -218,7 +218,7 @@ def test_non_antihermitian_A_falls_back_to_expm():
     assert maxabs(U - Uex) < 5e-3
 
 
-@pytest.mark.parametrize("bad_kwargs", [dict(order=0), dict(order=7),
+@pytest.mark.parametrize("bad_kwargs", [dict(order=0), dict(order=9),
                                         dict(integration_method='nope')])
 def test_invalid_input_raises_value_error(bad_kwargs):
     with pytest.raises(ValueError):
@@ -616,3 +616,90 @@ def test_cached_eval_mode_bounds_its_per_interval_dictionary():
         % (worst, mg._EVAL_MODE_CACHE_MAX))
     # Bounding it must not have broken it: the verdict is still the probe's.
     assert mg.cached_eval_mode(A, 0.0, 2.0e13) == mg.probe_eval_mode(A, 0.0, 2.0e13)
+
+
+# ----------------------------------------------------------------------------------
+# The working-set guard.
+#
+# The output guard in magnus.oscprob bounds the *result*, and the batch tiling there
+# bounds the *energy* axis. Neither sees the intermediates of the expansion itself,
+# whose size is n_slabs * n_tpts * d^2 * (terms at this order) -- three factors that
+# separate refinement ladders raise independently and that no single cap bounds. Above
+# order six, cumulative quadrature is the only route there is, so this is the one path
+# to the higher orders and it was the one path with nothing watching it.
+# ----------------------------------------------------------------------------------
+
+def test_working_set_estimate_is_linear_in_cells_and_rises_with_order():
+    """The estimate must scale the way the recursion actually allocates.
+
+    Measured peak resident set, in units of one (n_slabs, n_tpts, d, d) array: 35 at
+    order six, 118 at order eight, 408 at order ten, each stable to better than a per
+    cent across both n_slabs and n_tpts. The estimate is deliberately about a quarter
+    high -- a guard that under-estimates does not guard."""
+    a = mg._quadrature_working_set_bytes(64, 65, 3, 10)
+    assert mg._quadrature_working_set_bytes(128, 65, 3, 10) == 2*a
+    assert mg._quadrature_working_set_bytes(64, 130, 3, 10) == 2*a
+    for lo, hi in ((6, 8), (8, 10)):
+        assert (mg._quadrature_working_set_bytes(64, 65, 3, hi)
+                > mg._quadrature_working_set_bytes(64, 65, 3, lo))
+    per_array = 64*65*9*16
+    assert 1.0 < mg._quadrature_working_set_bytes(64, 65, 3, 10)/per_array/408 < 1.6
+
+
+def test_working_set_is_tempered_rather_than_refused(monkeypatch):
+    """The guard must shrink the run to fit, not kill it.
+
+    At the package's own ceilings the order-ten recursion wants tens of gigabytes, and
+    left unchecked that arrives as an out-of-memory kill from inside a commutator. The
+    answer is not to refuse the call: each slab's Omega depends only on its own samples,
+    so the chain can be evaluated a chunk at a time for the same result."""
+    monkeypatch.setattr(mg, '_available_memory_bytes', lambda: 8*1024**3)
+    chunk = mg._working_set_chunk(2000, 500, 3, 10, 'simpson')
+    assert 1 <= chunk < 2000
+    assert (mg._quadrature_working_set_bytes(chunk, 500, 3, 10)
+            <= 8*1024**3/mg.WORKING_SET_SAFETY)
+
+
+def test_tiling_the_chain_changes_no_number(monkeypatch):
+    """Tempering must be exact, or it is not tempering."""
+    rng = np.random.default_rng(0)
+    n, m, d = 40, 17, 3
+    H = rng.normal(size=(n, m, d, d)) + 1j*rng.normal(size=(n, m, d, d))
+    H = 0.5*(H + np.conj(np.swapaxes(H, -1, -2)))
+    At, widths = -1j*H*1.0e-3, np.full(n, 0.01)
+    whole = mg.evolution_operators_from_samples(
+        At, widths, order=8, integration_method='simpson', validate_input=False)
+    monkeypatch.setattr(mg, '_working_set_chunk', lambda *a, **k: 7)
+    tiled = mg.evolution_operators_from_samples(
+        At, widths, order=8, integration_method='simpson', validate_input=False)
+    assert np.array_equal(whole, tiled)
+
+
+def test_working_set_refuses_only_when_one_slab_cannot_fit(monkeypatch):
+    """Chunking cannot help below one slab, and the message has to say which lever moves."""
+    monkeypatch.setattr(mg, '_available_memory_bytes', lambda: 64*1024**2)
+    with pytest.raises(MemoryError, match='single'):
+        mg._working_set_chunk(2000, 500, 5, 10, 'simpson')
+    with pytest.raises(MemoryError) as excinfo:
+        mg._working_set_chunk(2000, 500, 5, 10, 'simpson')
+    message = str(excinfo.value)
+    for lever in ('magnus_exp_order', 'max_n_tpts_per_slab'):
+        assert lever in message
+    assert 'refined upward' in message
+
+
+def test_working_set_guard_is_silent_on_the_calls_people_run(monkeypatch):
+    """It must cost nothing on ordinary work: below the floor the probe is not called."""
+    def exploding_probe():
+        raise AssertionError('free memory probed for a small request')
+
+    monkeypatch.setattr(mg, '_available_memory_bytes', exploding_probe)
+    assert mg._working_set_chunk(100, 100, 3, 4, 'simpson') == 100
+    assert mg._working_set_chunk(500, 3, 3, 6, 'gl') == 500
+    assert mg._working_set_chunk(1, 100, 3, 10, 'simpson') == 1
+
+
+def test_working_set_guard_does_not_block_when_memory_cannot_be_measured(monkeypatch):
+    """A guard that cannot measure must not refuse, nor silently shrink the run."""
+    monkeypatch.setattr(mg, '_available_memory_bytes', lambda: None)
+    assert mg._working_set_chunk(2000, 500, 5, 10, 'simpson') == 2000

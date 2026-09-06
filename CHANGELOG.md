@@ -5,7 +5,317 @@ All notable changes to Magνs are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project uses [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.1.0] - 2026-09-06
+
+### Changed
+
+- **The sterile block of the matter projector now follows the Earth's layered
+  composition.**  The matter Hamiltonian factorizes as `V_CC(l)` times a
+  projector, and the density has always resolved the electron fraction per PREM
+  layer -- but the projector was one constant matrix taking a single scalar
+  `r = n_n/n_p` for the whole trajectory.  The two therefore described different
+  media on any chord whose composition varies, which is every chord that reaches
+  the core.
+
+  Only the sterile states are affected: the active flavours all feel the same
+  neutral-current potential, so it drops out as a phase, while a sterile state
+  feels neither current and is left carrying `-V_NC = (r/2) V_CC`.  Three flavors
+  are therefore untouched, exactly -- the projector's sterile block is empty
+  there and the constant matrix is still returned.
+
+  The cost of getting this wrong was larger than the shipped warning said.  Off
+  resonance it is the ~2e-02 the warning quotes, but near the sterile matter
+  resonance on a core-crossing chord it reaches **0.4 in probability**, flat
+  under refinement, invariant in the mass splitting, surviving small mixing
+  angles, and present at 3+2 as well.  No choice of scalar fixes it: the best
+  value obtainable by scanning still leaves 7e-03 in that band.
+
+  It costs nothing to fix.  Every Earth entry point already declares the PREM
+  layer boundaries as slab edges, automatically, so each segment is homogeneous
+  in composition and a per-segment projector is exact on the grid that exists --
+  no regridding and no extra Hamiltonian evaluations.  Measured at parity with
+  the constant-projector path.
+
+  **This changes what an Earth call returns by default at four and five
+  flavors.**  `ratio_number_neutrons_to_protons` defaults to `None` on the twelve
+  Earth wrappers, resolving to the layered composition; passing a scalar
+  explicitly reproduces the old behaviour exactly.  No signature changed: the
+  parameter accepts a callable as well, and the general (non-Earth) entry points
+  keep their scalar default, having no layered composition to resolve.
+
+  `SterileMatterCompositionWarning` is retargeted rather than removed.  The
+  default and a caller-supplied callable are silent; a scalar over a layered
+  profile warns unconditionally, the previous 2% threshold having been measured
+  passing chords whose error equalled the figure the warning quoted.
+
+  `notebooks/sterile_projector_check.py` reproduces the defect and the fix in one
+  command, three arms differing only in the projector.
+
+## [1.0.13] - 2026-09-06
+
+### Fixed
+
+- The `HiddenFeatureWarning` told callers to pass `t_breakpoints` and then
+  printed ones that did not work.  The suggestion was a pair-scale bracket, ten
+  to a hundred times wider than the feature it was meant to straddle: a single
+  point stayed at 3.0e-02, and a 60-point scan moved to 5.8e-02 **with no
+  warning at all**, because passing `t_breakpoints` switches the scan the
+  detector runs in off.  A caller who did what the message said therefore landed
+  back where the warning exists to rescue them from, with a worse error and
+  nothing on screen.
+
+  The suggested edges are now localized: the flagged interval is re-sampled and
+  the sub-interval carrying most of the variation is bracketed instead.
+  Following the message takes the same cases from 3.0e-02 to 1.0e-04 and
+  1.0e-02 to 9.9e-05, at a point and over a 60-point scan alike.  The
+  localization runs only where the warning fires, so the detector's
+  false-positive record is untouched by construction.
+
+  The message also now says what to expect afterwards: breakpoints route the
+  call to the general slab ladder, so accuracy lands near the requested
+  tolerance rather than below it.
+
+  Detection itself is unchanged.  The undetectable remainder is structural --
+  a feature narrower than the reference grid cannot be found by refining a grid
+  -- and no attempt was made to change that.
+
+## [1.0.12] - 2026-09-05
+
+### Changed
+
+- The baseline scan folds its running product in a compiled kernel rather than a
+  Python loop.  :func:`osc_prob_energy_baseline` answers every requested baseline
+  from one traversal of the profile, because each answer is a prefix of the next;
+  the loop that walked it snapshotted the running product at each requested
+  distance, one Python iteration per slab.  Marginal cost per slab falls from
+  about 1.2 us to 0.011 us at two flavours.
+
+  End to end the gain grows with the grid, since the fold's share of the scan
+  does: about **2.7x at 512 accumulation steps and 7.5x at 32 768** at two
+  flavours, 1.5x and 3.9x at three.  It exceeds the survey's own 2-4x estimate
+  for a reason worth recording -- the kernels of 1.0.6 through 1.0.11 had made
+  building the operators so cheap that the Python fold had become the dominant
+  cost of this scan.
+
+  This needed its own kernel rather than reusing 1.0.11's.  That one folds
+  ``acc <- acc @ U[k]`` with k descending; this one needs ``U[k] @ acc`` with k
+  ascending, which is the mirror image -- a different product, not a different
+  parenthesization -- and it must snapshot mid-fold at requested baselines, which
+  a final-answer kernel cannot do.
+
+  **Not bit-identical**, for the same reason as 1.0.11: NumPy routes these
+  products through MKL's `zgemm`, which uses fused multiply-add, and a kernel
+  compiled with `fastmath` off cannot reproduce that ordering.  Worst shift
+  1.4e-14, which is twenty times smaller than 1.0.11's.  Unlike that release,
+  neither side is systematically closer to exact -- against 40-digit mpmath the
+  new fold wins at two flavours and the old at three -- so this is rounding
+  exchanged rather than accuracy gained.  A numba-less install is exactly
+  bit-identical to the old loop.  The scan-against-per-point invariant was
+  checked on identical slab edges at all four flavour counts, 4.9e-15 to
+  2.2e-14, against the suite's 1e-12 bar.
+
+## [1.0.11] - 2026-09-05
+
+### Changed
+
+- The interaction-picture engine folds its slab operators in a compiled
+  accumulator rather than a Python loop.  That loop ran one iteration per slab,
+  each doing a single small matrix product and returning to Python, and measured
+  56% of the engine's pass; the fold itself falls 18.3x, the engine 2.28x.  What
+  a caller sees depends strongly on how many slabs are folded -- about 2.3x at
+  32 768 slabs, and nothing measurable at 512 -- so the figure is a property of
+  the request, not of the engine.
+
+  This is the fourth loop of its kind to be compiled, after the separable scan's
+  in 1.0.6 and the Gauss-Legendre expressions in 1.0.8, and it reaches a narrower
+  set of calls than any of them: the engine serves only two-flavour requests on a
+  profile tagged as exponential, with no supplied slab edges.
+
+  **Not bit-identical**, and established as unachievable before it was written
+  rather than discovered afterwards: NumPy routes these stacked 2x2 products
+  through MKL's `zgemm`, which uses fused multiply-add, and a kernel compiled with
+  `fastmath` off cannot reproduce that ordering.  Worst engine-output shift
+  2.8e-13 over 34 configurations spanning slab counts 8 to 32 768 and tolerance
+  ladders 1e-3 to 1e-9, with **every certification decision unchanged** and
+  returned probabilities identical in end-to-end testing.  Scored against
+  40-digit mpmath folds of the engine's own operators, the compiled fold errs at
+  worst 2.4e-14 where the BLAS chain it replaces errs at 8.8e-14: the shift is
+  dominated by the rounding of the code being removed, and the new fold is three
+  to seven times closer to exact.  A numba-less install is exactly 0.0 from the
+  old code.
+
+## [1.0.10] - 2026-09-05
+
+### Changed
+
+- `_expm_stack` asks whether a stack is anti-Hermitian in one compiled pass
+  rather than five full-stack temporaries and about seven traversals, and builds
+  `K = 1j*Om` only after the branch is taken.  The framing stage falls 4.3-5.3x;
+  a whole call falls about 1.1x, the difference being that the framing is only
+  6-17% of a call.  Probabilities are unchanged: exactly 0.0 difference across
+  128 configurations spanning both profiles, two to five flavours, four slab
+  counts and all four Magnus orders.
+
+  The kernel compares *squared* magnitudes and takes one `sqrt` at the end, so
+  `scale` and `dev` can differ from NumPy's by up to 2 ulp.  Computing `abs()`
+  per element instead is exact in intent but measured 0.47-0.78x -- slower than
+  the NumPy expression it would replace -- and is not value-identical either, so
+  there is no exact compiled alternative to prefer.  Those two scalars are used
+  only to choose between the identity branch, the anti-Hermitian branch and the
+  scipy fallback; the branch could change only for an input whose deviation-to-
+  scale ratio sits within 2 ulp of 1e-12, four decades from where real input
+  lands.  Neither value reaches a warning or a returned quantity.
+
+  NaN and inf route exactly as before.  A plain maximum loop would not have done
+  that -- it skips NaN where `numpy.max` propagates it, which would have sent a
+  NaN stack to the eigensolver instead of the scipy fallback -- so the kernel
+  carries a running sum of squared magnitudes, which vectorizes and cannot
+  cancel, and checks it once at the end.
+
+## [1.0.9] - 2026-09-05
+
+### Changed
+
+- Four- and five-flavour exponentials go to a batched Jacobi eigensolver rather
+  than `numpy.linalg.eigh`.  `supports_dim` now answers yes for 2 through 5.
+  The reasoning it used to carry -- that a 4x4 or 5x5 Hermitian eigenproblem has
+  no practical closed form, so those dimensions keep `eigh` -- had a true premise
+  and a conclusion that did not follow: what made them slow was never the missing
+  closed form but `eigh`'s fixed per-matrix LAPACK overhead, about 2.3 us on a
+  4x4, two thirds of a whole d = 4 pass.  The kernel is a cyclic complex-Hermitian
+  Jacobi sweep that warm-starts each matrix from its predecessor's eigenvectors --
+  consecutive matrices are consecutive slabs of one energy, so they arrive nearly
+  diagonal -- and re-orthonormalizes that basis at every step, which is
+  load-bearing rather than tidy: without it non-unitarity compounds along the
+  chain, 2.3e-11 after 13 000 matrices against 3.9e-14 with it.
+
+  Marginal cost per slab falls **1.81-1.95x at four flavours and 1.46-1.59x at
+  five**, end to end on both profiles, arms interleaved in one process.
+
+  **Unlike every other kernel in this series, this one is not bit-identical**, and
+  it is not meant to be: it replaces an iterative eigensolver with a different
+  iterative eigensolver.  Worst full-matrix probability shift measured 1.557e-12.
+  It is held instead to `eigh`'s own accuracy class, and to the same 10x bar the
+  suite already applies to the closed-form kernels: across 364 cells spanning the
+  norm sweep from 1e-150 to 1e4, crossed with clustered spectra down to exactly
+  degenerate, its error stays within 6.4x of `eigh`'s, both scored against
+  `scipy.linalg.expm`.  Two and three flavours are untouched -- `max|dP|` is
+  exactly 0.0 there, and their timings do not move.
+
+  Being backward stable with no conditioning cliff, it needs no `SEV_TOL` gate of
+  the kind the closed forms require; it returns sev = 0.0, escalating to `eigh`
+  only if a matrix fails to converge in 30 sweeps, which no census has observed.
+  It terminates when a sweep performs no rotation, at a per-element threshold of
+  1e-30 relative.  That threshold is not the prototype's: the original squared
+  off-norm floor sat inside the rounding equilibrium, so long chains declined to
+  `eigh` almost always and the speed-up vanished silently.
+
+## [1.0.8] - 2026-09-05
+
+### Changed
+
+- The order-4 Gauss-Legendre `Omega` is built by a compiled kernel that makes one
+  pass over each slab's two node samples, fusing three steps the NumPy form pays
+  separately: the constant-sample equality test, the commutator, and the linear
+  combination.  The two samples are strided views, so the NumPy route copies both
+  before the commutator can read them; the kernel reads them where they lie, and
+  the equality scan stops at the first differing element rather than comparing
+  every one.  Marginal cost per slab falls 1.52x at two flavours and 1.23-1.36x at
+  three, less at higher flavour counts where the eigendecomposition dominates.
+  Orders 2, 6 and 8 are untouched and keep the commutator kernel of 1.0.7.
+
+  Unlike 1.0.6 and 1.0.7, this one introduces **no** new divergence between a
+  numba-less install and a numba one: the kernel reproduces the compiled
+  commutator's accumulation order and the same association of the scalar factors,
+  so its output is bit-identical to the expression it replaces -- exactly 0.0
+  difference across every shape, flavour, width form and edge case tested.
+  Anything the kernel cannot take -- another dtype, another node count -- falls
+  through to that expression unchanged.
+
+- Orders 6 and 8 get the same treatment.  Order 6 collapses about nineteen
+  full-stack temporaries into eight `d x d` scratch buffers hoisted out of the
+  slab loop; order 8, about sixty-five into nineteen.  NumPy evaluates each
+  operation across every slab before starting the next, so each intermediate is
+  a full array written to memory and read back, while the kernel finishes one
+  slab before moving on.  Marginal cost per slab falls 1.29x at order 6 and
+  1.75x at order 8 end to end, median over eight profile/flavour cells.  Both
+  are bit-identical to the expressions they replace, and the six chained
+  commutators of order 8 are each stored where NumPy stores one rather than
+  algebraically re-folded.
+
+  Two rounding differences had to be worked around to reach that, both worth
+  knowing if these kernels are ever extended.  NumPy divides a complex array by
+  a real scalar through Smith's algorithm, which *multiplies by the reciprocal*;
+  numba divides componentwise, and about two thirds of two million random values
+  differ in the last bit.  Every `X/c` in these kernels is therefore written
+  `X*(1.0/c)`.  Separately, numba's `**` does not round as
+  `numpy.float64.__pow__` does -- 26% of random doubles differ in the last bit
+  at `**3` -- so the order-8 weight-times-power scalars are precomputed as module
+  constants in Python rather than raised inside the kernel.
+
+  Order 2 was prototyped, measured and deliberately left alone: its branch is a
+  single ufunc call with no boundaries to fuse, and at two flavours a kernel
+  loses outright (0.82-1.04x per call), the dispatch's own fixed cost exceeding
+  what streaming saves on a branch costing 0.01-0.05 us/slab.
+
+- The set of accepted pass-through keyword names is computed once and cached
+  rather than rebuilt by `inspect.signature` on every public call.  It was being
+  rebuilt twice per call, once by the entry point and once by the `osc_prob` it
+  delegates to, at about 221 us each; a single-point call is that much cheaper.
+  This is fixed overhead, so it is invisible on large grids and worth most to
+  callers making many small calls.  `cache_clear` remains available for tests
+  that add or remove parameters at runtime.
+
+## [1.0.7] - 2026-09-05
+
+### Changed
+
+- The Magnus term recursion and the Gauss-Legendre schemes compute their
+  commutators in a compiled kernel that fuses both matrix products into one
+  accumulation.  `magnus.commutator` itself is unchanged and stays the general
+  pure-NumPy form; the kernel is a private path, and anything it cannot take
+  falls through to the same expression.  Marginal cost per slab falls 3.1-3.4x
+  at two flavours and 2.0-2.2x at three at order 4, less at higher flavour
+  counts, and not at all on the cumulative path.
+
+  As with 1.0.6, a numba-less install is no longer bit-identical to a numba one
+  on these paths: worst observed shift 6.7e-14 across 36 configurations, every
+  refinement decision unchanged.
+
+## [1.0.6] - 2026-09-05
+
+### Added
+
+- Order-8 Gauss-Legendre collocation integrator, on four nodes.  `'gl'` now
+  reaches orders 2, 4, 6 and 8 from 1, 2, 3 and 4 Hamiltonian evaluations per
+  slab; `MAGNUS_EXP_ORDER_MAX_GL` rises from 6 to 8, and a request above 8
+  raises as before.  Orders 6 and 8 use the commutator-optimal forms of Blanes,
+  Casas & Ros, *BIT* **42**, 262 (2002), needing three and six commutators --
+  the fewest possible at each order.  Verified against a `DOP853` reference:
+  local error converges as `h^9` (measured slopes 8.3-9.7 over three
+  Hamiltonians), and on a PREM chord the row sums hold to 1.8e-15.
+
+### Changed
+
+- The Gauss-Legendre schemes are described as *collocation* integrators
+  throughout.  Several places had called them "commutator-free", which is the
+  distinct family of Blanes & Moan (2006) and Alvermann & Fehske (2011) that
+  replaces commutators with products of exponentials; these schemes are built
+  from commutators, three at order 6 and six at order 8.
+
+- The separable energy scan composes its slab operators in a compiled kernel
+  rather than a Python loop.  The association is unchanged -- the same left
+  fold, earliest slab rightmost -- so this is not a reassociation; the kernel
+  accumulates each matrix element as a compiled scalar sum where BLAS orders
+  the same arithmetic its own way.  Marginal cost per slab falls about 3.5x at
+  three flavours and 2.3x at two; the gain at four and five flavours is smaller
+  and was not resolved on the machine used.  Without numba, or on a dtype the
+  kernel was not built for, the original loop runs.
+
+  One consequence is worth knowing: a numba-less install was bit-identical to a
+  numba install on this path and may now differ at the 1e-14 level -- worst
+  observed 1.28e-14 across 16 scan configurations, with every refinement
+  decision, warning and slab count unchanged.  See `docs/source/performance.rst`.
 
 ## [1.0.0] - 2026-08-11
 

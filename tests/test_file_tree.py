@@ -46,7 +46,8 @@ COMMENT_COLUMN = 36
 # reader needs named: developer findings and adversarial batteries, figures
 # lifted out of the executed notebooks, and notebook output.  Listing them
 # would triple the tree without telling anyone anything.
-COLLAPSED = ('docs/dev/', 'img/gallery/', 'fig/')
+COLLAPSED = ('docs/dev/', 'img/gallery/', 'fig/', 'resources/paper/figs/',
+             'resources/benchmarks/')
 
 TREE = [
     ('.github/', 'GitHub Actions workflows: tests, lint, notebooks, docs, publishing'),
@@ -185,12 +186,24 @@ TREE = [
      'How the NuFIT likelihood, not just the best fit, moves the probability'),
     ('notebooks/27_magnus_animations.ipynb',
      'Ten sweeps as filmstrips; RENDER = True writes them as GIFs'),
+    ('notebooks/28_magnus_paper_figures.ipynb',
+     "Every figure in the CPC article, in one run"),
+    ('notebooks/29_magnus_pseudo_dirac.ipynb',
+     'Tiny splittings, coherent blocks, and where the effect is invisible'),
     ('notebooks/README.md', 'This file'),
     ('notebooks/make_notebooks.py', 'BUILDS the notebooks above -- edit this, not the .ipynb'),
     ('notebooks/external_speed_accuracy.json',
      "Five external codes' speed and accuracy (NuOscProbExact project)"),
     ('notebooks/external_prem_speed_accuracy.json',
      "Notebook 25 section 5: the same, on a PREM chord, both codes batched"),
+    ('notebooks/external_speed_accuracy_const.json',
+     'Figure 12, top panel: constant density, seven codes plus Magnus'),
+    ('notebooks/external_earth_plane.json',
+     'Figure 12, middle panel: a PREM chord at three flavors'),
+    ('notebooks/external_prem_speed_accuracy_new.json',
+     'Figure 12, bottom panel: the same chord at 3+1'),
+    ('notebooks/magnus_own_reference.json',
+     "Magnus's own 50-digit references, in its own conventions, on those three grids"),
     ('notebooks/external_profile_benchmarks.json',
      "Notebook 25 section 9: smooth-profile speed/accuracy, all codes on one machine"),
     ('notebooks/external_shock_benchmarks.json',
@@ -203,6 +216,38 @@ TREE = [
      "Notebook 25 section 10: nuSQuIDS's energy-averaged solar survival probability"),
     ('notebooks/gen_profile_benchmarks.py',
      'GENERATES external_profile_benchmarks.json -- needs the external codes'),
+    ('notebooks/gen_mp_reference.py',
+     'GENERATES mp_reference_profile.json -- the mpmath referee for Figure 11'),
+    ('notebooks/mp_reference_profile.json',
+     'Triple-Richardson mpmath reference, exponential profile, 2-5 flavors'),
+    ('notebooks/rescore_against_mp_reference.py',
+     'RE-SCORES external_profile_benchmarks.json against it; timings untouched'),
+    ('notebooks/append_order_series.py',
+     'ADDS the order-6 and order-8 Magnus series to that file'),
+    ('notebooks/probe_commensurability.py',
+     'Asks whether a timing taken today is comparable with the stored ones'),
+    ('notebooks/gen_solar_average_cost.py',
+     'GENERATES external_solar_average_cost.json -- cost per configuration'),
+    ('notebooks/external_solar_average_cost.json',
+     'Averaged-probability cost on BS2005-AGS,OP, eight configurations'),
+    ('notebooks/sterile_projector_check.py',
+     'Reproduces the sterile projector defect and its fix, three arms, one command'),
+    ('notebooks/retime_magnus_series.py',
+     'RE-TIMES both codes in Figure 11; references and grids untouched'),
+    ('notebooks/prem_chord_common.py',
+     'The PREM chord at cos(theta_z) = -0.9, shared by the two scripts below'),
+    ('notebooks/gen_prem_reference.py',
+     'GENERATES prem_chord_reference.json -- segment-aligned, layer edges respected'),
+    ('notebooks/prem_chord_reference.json',
+     'That reference; PARTIAL, 4nu stops at 6 of 12 energies and 5nu is unstarted'),
+    ('notebooks/gen_prem_benchmarks.py',
+     'GENERATES external_prem_chord_benchmarks.json -- the Earth analogue of Fig. 11'),
+    ('notebooks/external_prem_chord_benchmarks.json',
+     'That file: both codes on one requested tolerance, Earth chord, 2-5 flavors'),
+    ('notebooks/append_npe_rtol_series.py',
+     'ADDS a tolerance-dialled NuOscProbExact series to the smooth-profile file'),
+    ('notebooks/append_npe_rtol_prem.py',
+     'The same for the Earth chord, via earth_slabs and the librarys own refinement'),
     ('notebooks/gen_shock_benchmarks.py',
      'GENERATES external_shock_benchmarks.json -- runs notebook 14s own cells'),
     ('notebooks/gen_shock_4nu.py',
@@ -214,9 +259,42 @@ TREE = [
     ('notebooks/make_nufit_chi2.py', "Extracts notebook 26's NuFIT chi^2 profiles"),
     ('notebooks/make_shock_reference.py', "Freezes notebook 14's solve_ivp oracle"),
     ('notebooks/matplotlibrc', 'Shared plot styling for the notebooks'),
+    ('notebooks/paper_figure_cache.json',
+     'Every paper-figure input that depends on the configuration and not on the run:'
+     ' reference probabilities, order curves, and timings'),
     ('notebooks/nufit_chi2.json', 'Those profiles, v2.0-v6.1 (NuFIT collaboration)'),
     ('notebooks/shock_reference.json', 'That oracle, as exact hex floats'),
     ('pyproject.toml', 'Build system, dependencies, and the `magnus` console-script entry point'),
+    ('resources/', 'Travels with the code; reaches neither the wheel nor the sdist'),
+    ('resources/benchmarks/',
+     'The cross-code benchmark harness and its frozen artifacts, copied from '
+     'NuOscProbExact so its measurements can be reproduced here'),
+    ('resources/paper/', 'The Computer Physics Communications article documenting this package'),
+    ('resources/paper/README.md', 'How to build the paper, and where each of its numbers comes from'),
+    # Working notes for the paper, tracked so a session can pick the work up.
+    ('resources/paper/HANDOVER-pseudodirac.md',
+     'Brief for adding pseudo-Dirac neutrinos to the library'),
+    ('resources/paper/API-pseudodirac.md',
+     'The pseudo-Dirac API, summarized for the session writing the panel'),
+    ('resources/paper/audit-criteria.md', 'What the manuscript audit checks'),
+    ('resources/paper/pending-edits.md',
+     'Edits and re-runs the manuscript still owes, with what each one moves'),
+    ('resources/paper/review-crossread.md', 'A cross-read of the manuscript against the code'),
+    ('resources/paper/HANDOVER-audit.md',
+     'Handover for the manuscript audit'),
+    ('resources/paper/HANDOVER-nuoscprobexact-batched-tolerance.md',
+     'Handover: giving NuOscProbExact a tolerance dial, so both codes answer one request'),
+    ('resources/paper/audit-report.md', 'What the manuscript audit found'),
+    ('resources/paper/PLAN_fig12_revamp.md',
+     'Scoping for rebuilding Fig. 12 in Fig. 11 shape -- not started'),
+    ('resources/paper/PLAN_fig13_solar_average.md',
+     'Scoping for Fig. 13, the cost of one averaged solar probability'),
+    ('resources/paper/main.tex', 'The paper -- ordinary LaTeX; a revision diff is mechanical'),
+    ('resources/paper/refs.bib',
+     "NuOscProbExact's bibliography, with the Magnus entries appended below a separator"),
+    ('resources/paper/elsarticle.cls', 'Bundled, so the folder compiles without the Elsevier bundle'),
+    ('resources/paper/elsarticle-num.bst', None),
+    ('resources/paper/figs/', 'Its eight figures, written by notebook 28'),
     ('tools/', 'Standalone utilities that are not part of the package'),
     ('tools/make_demo_video.py',
      "Joins and shrinks notebook 27's clips; shared with NuOscProbExact"),
@@ -240,6 +318,8 @@ TREE = [
     ('src/magnus/hamiltonians/hamiltonians3nu.py', None),
     ('src/magnus/hamiltonians/hamiltonians4nu.py', None),
     ('src/magnus/hamiltonians/hamiltonians5nu.py', None),
+    ('src/magnus/hamiltonians/hamiltonians_pseudodirac.py',
+     'Pseudo-Dirac spectra: per-mass-state pairing, and the sterile partners'),
     ('src/magnus/magnus.py', 'Magnus-expansion numerical core: term recursion, GL integrators, batched kernel'),
     ('src/magnus/matter.py', 'Density profiles, electron number density, CC potential'),
     ('src/magnus/oscprob.py', 'osc_prob and every physics-scenario wrapper (main API)'),
@@ -254,6 +334,8 @@ TREE = [
     ('tests/test_angles.py', "The four `angles` conventions and the guards between them"),
     ('tests/test_avgprob.py', 'Phase-averaged probabilities'),
     ('tests/test_cli.py', 'magnus command-line calculator'),
+    ('tests/test_pseudodirac.py',
+     'Pseudo-Dirac Hamiltonians: the Dirac limit, blocks, and the factor of two'),
     ('tests/test_documented_examples.py',
      'Runs the code blocks in README.md and quickstart.rst'),
     ('tests/test_earth_matter.py', 'PREM profile, chord geometry, electron density'),
@@ -502,7 +584,12 @@ if __name__ == '__main__':
         else:
             pass
     else:
-        ok = (current_readme_tree() == render_tree()
+        # The README carries the *summary* tree and installation.rst the full
+        # one, which is what write() puts in each and what the two tests above
+        # assert.  Comparing the README against render_tree() here reported
+        # OUT OF DATE unconditionally, sending the reader to --write for a
+        # drift that was not there.
+        ok = (current_readme_tree() == render_summary_tree()
               and current_install_tree() == render_tree())
         print('file tree is %s' % ('up to date' if ok else 'OUT OF DATE'))
         sys.exit(0 if ok else 1)

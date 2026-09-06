@@ -27,15 +27,16 @@ numbers [1]_ (in the :math:`B_1 = -1/2` convention):
    \Omega_n(t) &= \sum_{j=1}^{n-1} \frac{B_j}{j!} \int_0^t S_n^{(j)}(s)\, ds ,
 
 with :math:`S_n^{(j)}` the sums of nested commutators of the lower-order
-terms with :math:`A`.  Orders 1--6 are implemented (:math:`B_3 = B_5 =
-0`, so those groups vanish identically).
+terms with :math:`A` (:math:`B_3 = B_5 = 0`, so those groups vanish
+identically).  Orders 1--6 are written out inline; above that the terms
+are generated from the same recursion, at any order.
 
 Two families of methods are available, selected via
 ``integration_method``:
 
-* ``'gl'`` (the default): Gauss-Legendre commutator-free collocation
-  [1]_ [2]_.  For a slab of width :math:`h` it needs only 1, 2, or 3
-  evaluations of :math:`A` to reach order 2, 4, or 6, respectively, with
+* ``'gl'`` (the default): Gauss-Legendre collocation
+  [1]_ [2]_.  For a slab of width :math:`h` it needs only 1, 2, 3, or 4
+  evaluations of :math:`A` to reach order 2, 4, 6, or 8, respectively, with
   quadrature error matched to the truncation order.  ``n_tpts`` is
   ignored.  Both faster and more accurate than the alternatives whenever
   :math:`A(t)` is smooth within each slab, which is the common case --
@@ -84,6 +85,7 @@ __author__ = "Mauricio Bustamante"
 __email__ = "mbustamante@gmail.com"
 
 
+import os
 import warnings
 import weakref
 from contextlib import contextmanager
@@ -238,10 +240,13 @@ _GROUP_FACTORS = {1: -0.5, 2: F1, 4: F2, 6: F3, 8: F4}
 # there is one definition rather than two that have to be kept in step by hand.
 MAGNUS_EXP_ORDER_MAX = 10
 
-# Highest order for which the Gauss-Legendre commutator-free schemes exist.  These are
-# separately derived integrators (Blanes, Casas & Ros 2000), not products of the Magnus
-# recursion, so they do not extend along with it: there is no 3-node scheme of order 8.
-MAGNUS_EXP_ORDER_MAX_GL = 6
+# Highest order we implement on Gauss-Legendre nodes: one, two, three and four nodes
+# give orders two, four, six and eight.  These are separately derived integrators, not
+# products of the Magnus recursion, so they do not extend along with it -- each order is
+# its own construction.  Orders two to six follow Blanes, Casas & Ros, BIT 40 (2000) 434;
+# orders six and eight use the commutator-optimal forms of Blanes, Casas & Ros, BIT 42
+# (2002) 262, which need three and six commutators, the fewest possible at each order.
+MAGNUS_EXP_ORDER_MAX_GL = 8
 
 # Valid values of integration_method
 valid_integration_methods = ['gl', 'trapezoid', 'simpson']
@@ -251,6 +256,28 @@ _GL1_NODES = np.array([0.5])
 _GL2_NODES = np.array([0.5 - np.sqrt(3.0)/6.0, 0.5 + np.sqrt(3.0)/6.0])
 _GL3_NODES = np.array([0.5 - np.sqrt(15.0)/10.0, 0.5,
                        0.5 + np.sqrt(15.0)/10.0])
+# Four-node Gauss-Legendre, for the order-8 scheme.  The offsets from the slab midpoint
+# and the matching weights are kept as named constants because the order-8 expression
+# needs the weights themselves, not only the node positions.
+_GL4_V1 = 0.5*np.sqrt((3.0 + 2.0*np.sqrt(6.0/5.0))/7.0)
+_GL4_V2 = 0.5*np.sqrt((3.0 - 2.0*np.sqrt(6.0/5.0))/7.0)
+_GL4_W1 = 0.5 - np.sqrt(5.0/6.0)/6.0
+_GL4_W2 = 0.5 + np.sqrt(5.0/6.0)/6.0
+_GL4_NODES = np.array([0.5 - _GL4_V1, 0.5 - _GL4_V2,
+                       0.5 + _GL4_V2, 0.5 + _GL4_V1])
+# The six weight-times-power scalars of the order-8 B^(i) builds, formed here by
+# the same expressions the NumPy branch of _magnus_gl evaluates inline, so the
+# fused order-8 kernel can reuse the identical doubles.  The kernel must not
+# re-derive them: numba does not lower ``**`` the way ``np.float64.__pow__``
+# rounds it (measured: 26% of random doubles differ in the last bit at ``**3``),
+# and bit-identity between the kernel and the NumPy branch rests on these being
+# the same objects in all but name.
+_GL4_W1V1 = _GL4_W1*_GL4_V1
+_GL4_W2V2 = _GL4_W2*_GL4_V2
+_GL4_W1V1SQ = _GL4_W1*_GL4_V1**2
+_GL4_W2V2SQ = _GL4_W2*_GL4_V2**2
+_GL4_W1V1CU = _GL4_W1*_GL4_V1**3
+_GL4_W2V2CU = _GL4_W2*_GL4_V2**3
 
 _HAS_CUMULATIVE_SIMPSON = hasattr(sp.integrate, 'cumulative_simpson')
 
@@ -291,6 +318,423 @@ def commutator(X: np.ndarray, Y: np.ndarray) -> np.ndarray:
               np.array_equal(magnus.commutator(X, Y), -magnus.commutator(Y, X)))
 """
     return X @ Y - Y @ X
+
+
+def _commutator_batched_core(X, Y):  # pragma: no cover -- compiled below
+    r"""Commutator [X, Y] of two equal-shaped matrix stacks, one matrix at a time.
+
+    For ``X`` and ``Y`` of shape ``(nB, d, d)`` returns the ``(nB, d, d)`` stack
+    of ``X[b] @ Y[b] - Y[b] @ X[b]``, both products fused into a single loop
+    nest so each element is one accumulated scalar sum.  Written to be compiled
+    by numba; the pure-Python form exists only as compilation input.
+    """
+    nB, d, _ = X.shape
+    out = np.empty((nB, d, d), dtype=np.complex128)
+    for b in range(nB):
+        for i in range(d):
+            for j in range(d):
+                s = 0.0 + 0.0j
+                for m in range(d):
+                    s += X[b, i, m]*Y[b, m, j] - Y[b, i, m]*X[b, m, j]
+                out[b, i, j] = s
+    return out
+
+
+if expmkernels.HAVE_NUMBA:
+    _commutator_batched_kernel = expmkernels._jit(_commutator_batched_core)
+else:                                                   # pragma: no cover
+    _commutator_batched_kernel = None
+
+
+def _commutator_batched(X: np.ndarray, Y: np.ndarray) -> np.ndarray:
+    r"""The commutator [X, Y] for the Magnus hot paths, compiled when possible.
+
+    Same mathematics as :func:`commutator`, which stays the public, pure-NumPy
+    form.  On the stacks of small matrices the engine works with, the two
+    batched matmuls of ``X @ Y - Y @ X`` cost mostly gufunc dispatch -- about
+    185 ns per 3x3 matrix -- so the Magnus term recursion and the
+    Gauss-Legendre schemes' NumPy branches route their commutators here
+    instead (the GL branches reach this only as a fallback now that each has
+    a fused :math:`\Omega` kernel of its own): with numba present and both
+    operands complex128 stacks of one shape, a compiled kernel fuses the two
+    products into one pass.  Anything else -- no numba,
+    another dtype, operands that would need broadcasting -- falls through to
+    the same expression :func:`commutator` computes, so a numba-less install
+    is bit-identical to what these call sites always produced.
+
+    With numba the two installs are no longer bit-identical to each other on
+    these paths: the kernel accumulates each matrix element as one interleaved
+    scalar sum where NumPy rounds the two products separately, so probabilities
+    can move at the rounding level.  Worst observed shift 6.7e-14 across 36
+    scan configurations (both benchmark profiles, d = 2-5, gl orders 4-8,
+    simpson, ladders from rtol 1e-3 to 1e-11), every refinement decision and
+    warning unchanged.  At three flavors and below the shift measures exactly
+    zero at fixed slab counts: there the commutator enters :math:`\Omega`
+    suppressed by the squared slab width, and the rounding difference falls
+    below the ulp of :math:`\Omega`'s leading term.
+
+    .. versionadded:: 1.0.7
+
+    Parameters
+    ----------
+    X : np.ndarray
+        Left stack of matrices, shape (..., d, d).
+    Y : np.ndarray
+        Right stack of matrices, same shape as X (the hot call sites never
+        broadcast; a pair that would is handed to the NumPy expression).
+
+    Returns
+    -------
+    np.ndarray
+        The commutator X @ Y - Y @ X, shaped like X.
+    """
+    if ((_commutator_batched_kernel is not None) and (X.shape == Y.shape)
+            and (X.dtype == np.complex128) and (Y.dtype == np.complex128)):
+        d = X.shape[-1]
+        return _commutator_batched_kernel(
+            np.ascontiguousarray(X).reshape((-1, d, d)),
+            np.ascontiguousarray(Y).reshape((-1, d, d))).reshape(X.shape)
+    return X @ Y - Y @ X
+
+
+def _gl4_omega_core(At, h, out):  # pragma: no cover -- compiled below
+    r"""Order-4 Gauss-Legendre :math:`\Omega` for a stack of slabs, in one pass.
+
+    ``At`` is ``(nB, 2, d, d)``, the two node samples per slab; ``h`` is ``(nB,)``;
+    ``out`` is ``(nB, d, d)``.  Returns 1 when every slab's two samples were
+    bit-identical -- the constant-:math:`\mathbb{A}` case, where the commutator
+    vanishes and :math:`\Omega = h\,\mathbb{A}_1` -- and 0 otherwise, having
+    written the full expression.
+
+    Fuses three steps the NumPy form pays separately: the equality test, the
+    commutator, and the linear combination.  The equality scan exits on the first
+    differing element, which ``numpy.array_equal`` does not do; the commutator
+    accumulates in the same interleaved order as :func:`_commutator_batched_core`;
+    and the scalar factors are formed in the same association as the expression
+    they replace, so the result is bit-identical to it.  Written to be compiled by
+    numba; the pure-Python form exists only as compilation input.
+    """
+    nB, _m, d, _ = At.shape
+    c1 = np.sqrt(3.0)/12.0
+    identical = True
+    for b in range(nB):
+        for i in range(d):
+            for j in range(d):
+                if At[b, 0, i, j] != At[b, 1, i, j]:
+                    identical = False
+                    break
+            if not identical:
+                break
+        if not identical:
+            break
+    if identical:
+        for b in range(nB):
+            hb = h[b]
+            for i in range(d):
+                for j in range(d):
+                    out[b, i, j] = hb*At[b, 0, i, j]
+        return 1
+    for b in range(nB):
+        hb = h[b]
+        f1 = 0.5*hb
+        f2 = c1*hb*hb
+        for i in range(d):
+            for j in range(d):
+                s = 0.0 + 0.0j
+                for k in range(d):
+                    s += At[b, 1, i, k]*At[b, 0, k, j] - At[b, 0, i, k]*At[b, 1, k, j]
+                out[b, i, j] = f1*(At[b, 0, i, j] + At[b, 1, i, j]) + f2*s
+    return 0
+
+
+if expmkernels.HAVE_NUMBA:
+    _gl4_omega_kernel = expmkernels._jit(_gl4_omega_core)
+else:                                                   # pragma: no cover
+    _gl4_omega_kernel = None
+
+
+def _gl6_omega_core(At, h, out):  # pragma: no cover -- compiled below
+    r"""Order-6 Gauss-Legendre :math:`\Omega` for a stack of slabs, in one pass.
+
+    ``At`` is ``(nB, 3, d, d)``, the three node samples per slab; ``h`` is
+    ``(nB,)``; ``out`` is ``(nB, d, d)``.  Returns 1 when every slab's three
+    samples were bit-identical -- the constant-:math:`\mathbb{A}` case, where
+    all three commutators vanish and :math:`\Omega = h\,\mathbb{A}_1` -- and 0
+    otherwise, having written the full expression.
+
+    Fuses what the NumPy form pays separately: the two equality tests, the
+    ``a1``/``a2``/``a3`` builds, the three commutators and the closing linear
+    combination -- about 19 full-stack temporaries collapsing to eight
+    ``d x d`` scratch buffers reused across the slab loop.  The equality scan
+    exits on the first differing element, which ``numpy.array_equal`` does not
+    do; each commutator accumulates in the same interleaved order as
+    :func:`_commutator_batched_core`; the scalar factors are formed in the same
+    association as the expression they replace; and the one array division,
+    ``a3/12.0``, is reproduced as ``a3*(1.0/12.0)``, which is bit-for-bit what
+    NumPy's complex-divide loop computes for a real divisor (Smith's algorithm
+    with a zero imaginary part multiplies by the reciprocal; numba's own
+    complex division rounds differently).  The result is therefore
+    bit-identical to the NumPy branch as it runs with numba present.  Against a
+    numba-less install the branch already differs at the 1e-14 level through
+    :func:`_commutator_batched` (since 1.0.7); this kernel reproduces the
+    compiled side exactly and adds no further divergence.  Written to be
+    compiled by numba; the pure-Python form exists only as compilation input.
+    """
+    nB, _m, d, _ = At.shape
+    c2 = np.sqrt(15.0)/3.0
+    c3 = 10.0/3.0
+    r12 = 1.0/12.0
+    cm60 = -1.0/60.0
+    c240 = 1.0/240.0
+    identical = True
+    for b in range(nB):
+        for i in range(d):
+            for j in range(d):
+                if (At[b, 0, i, j] != At[b, 1, i, j]
+                        or At[b, 1, i, j] != At[b, 2, i, j]):
+                    identical = False
+                    break
+            if not identical:
+                break
+        if not identical:
+            break
+    if identical:
+        for b in range(nB):
+            hb = h[b]
+            for i in range(d):
+                for j in range(d):
+                    out[b, i, j] = hb*At[b, 0, i, j]
+        return 1
+    # d x d scratch, hoisted out of the slab loop: allocating inside it would
+    # be a per-slab malloc and would eat the gain.
+    a1 = np.empty((d, d), dtype=np.complex128)
+    a2 = np.empty((d, d), dtype=np.complex128)
+    a3 = np.empty((d, d), dtype=np.complex128)
+    C1 = np.empty((d, d), dtype=np.complex128)
+    Y2 = np.empty((d, d), dtype=np.complex128)
+    C2 = np.empty((d, d), dtype=np.complex128)
+    X3 = np.empty((d, d), dtype=np.complex128)
+    Y3 = np.empty((d, d), dtype=np.complex128)
+    for b in range(nB):
+        hb = h[b]
+        f2 = c2*hb
+        f3 = c3*hb
+        for i in range(d):
+            for j in range(d):
+                a1[i, j] = hb*At[b, 1, i, j]
+                a2[i, j] = f2*(At[b, 2, i, j] - At[b, 0, i, j])
+                a3[i, j] = f3*(At[b, 2, i, j] - 2.0*At[b, 1, i, j]
+                               + At[b, 0, i, j])
+        # C1 = [a1, a2]
+        for i in range(d):
+            for j in range(d):
+                s = 0.0 + 0.0j
+                for k in range(d):
+                    s += a1[i, k]*a2[k, j] - a2[i, k]*a1[k, j]
+                C1[i, j] = s
+        # C2 = (-1/60) [a1, 2 a3 + C1]
+        for i in range(d):
+            for j in range(d):
+                Y2[i, j] = 2.0*a3[i, j] + C1[i, j]
+        for i in range(d):
+            for j in range(d):
+                s = 0.0 + 0.0j
+                for k in range(d):
+                    s += a1[i, k]*Y2[k, j] - Y2[i, k]*a1[k, j]
+                C2[i, j] = cm60*s
+        for i in range(d):
+            for j in range(d):
+                X3[i, j] = -20.0*a1[i, j] - a3[i, j] + C1[i, j]
+                Y3[i, j] = a2[i, j] + C2[i, j]
+        # Omega = a1 + a3/12 + (1/240) [X3, Y3]
+        for i in range(d):
+            for j in range(d):
+                s = 0.0 + 0.0j
+                for k in range(d):
+                    s += X3[i, k]*Y3[k, j] - Y3[i, k]*X3[k, j]
+                out[b, i, j] = a1[i, j] + a3[i, j]*r12 + c240*s
+    return 0
+
+
+if expmkernels.HAVE_NUMBA:
+    _gl6_omega_kernel = expmkernels._jit(_gl6_omega_core)
+else:                                                   # pragma: no cover
+    _gl6_omega_kernel = None
+
+
+def _gl8_omega_core(At, h, out):  # pragma: no cover -- compiled below
+    r"""Order-8 Gauss-Legendre :math:`\Omega` for a stack of slabs, in one pass.
+
+    ``At`` is ``(nB, 4, d, d)``, the four node samples per slab; ``h`` is
+    ``(nB,)``; ``out`` is ``(nB, d, d)``.  Returns 1 when every slab's four
+    samples were bit-identical -- the constant-:math:`\mathbb{A}` case, where
+    all six commutators vanish and :math:`\Omega = h\,\mathbb{A}_1` -- and 0
+    otherwise, having written the full expression.
+
+    Fuses what the NumPy form pays separately: the three equality tests, the
+    ``S``/``R``/``B``/``a`` builds, the six chained commutators and the closing
+    linear combination -- roughly 65 full-stack temporaries collapsing to 19
+    ``d x d`` scratch buffers reused across the slab loop.  The equality scan
+    exits on the first differing element, which ``numpy.array_equal`` does not
+    do; each commutator accumulates in the same interleaved order as
+    :func:`_commutator_batched_core`; each ``C_i`` is stored where NumPy stores
+    one, with the chain never re-folded; the scalar factors are formed in the
+    same association as the expression they replace, the weight-times-power
+    coefficients taken verbatim from ``_GL4_W1V1`` and friends because numba's
+    ``**`` does not round like ``np.float64.__pow__``; and every array division
+    ``X/c`` is reproduced as ``X*(1.0/c)``, which is bit-for-bit what NumPy's
+    complex-divide loop computes for a real divisor (Smith's algorithm with a
+    zero imaginary part multiplies by the reciprocal; numba's own complex
+    division rounds differently).  Subexpressions NumPy evaluates twice --
+    ``a1 + a3/28.0`` and friends -- are computed once and reused, which is the
+    identical doubles by determinism, not a re-association.  The result is
+    therefore bit-identical to the NumPy branch as it runs with numba present.
+    Against a numba-less install the branch already differs at the 1e-14 level
+    through :func:`_commutator_batched` (since 1.0.7); this kernel reproduces
+    the compiled side exactly and adds no further divergence.  Written to be
+    compiled by numba; the pure-Python form exists only as compilation input.
+    """
+    nB, _m, d, _ = At.shape
+    r28 = 1.0/28.0
+    c328 = 3.0/28.0
+    cm28 = -1.0/28.0
+    r14 = 1.0/14.0
+    c13 = 1.0/3.0
+    r12 = 1.0/12.0
+    c73 = 7.0/3.0
+    r6 = 1.0/6.0
+    c7120 = 7.0/120.0
+    c1360 = 1.0/360.0
+    identical = True
+    for b in range(nB):
+        for i in range(d):
+            for j in range(d):
+                if (At[b, 0, i, j] != At[b, 1, i, j]
+                        or At[b, 1, i, j] != At[b, 2, i, j]
+                        or At[b, 2, i, j] != At[b, 3, i, j]):
+                    identical = False
+                    break
+            if not identical:
+                break
+        if not identical:
+            break
+    if identical:
+        for b in range(nB):
+            hb = h[b]
+            for i in range(d):
+                for j in range(d):
+                    out[b, i, j] = hb*At[b, 0, i, j]
+        return 1
+    # d x d scratch, hoisted out of the slab loop: allocating inside it would
+    # be a per-slab malloc and would eat the gain.  X1/Y1 hold the commutator
+    # operands a1 + a3/28 and a2 + (3/28) a4, reused for X3/Y3; T12 holds
+    # a1 + a3/12, reused between X6 and the closing combination.
+    a1 = np.empty((d, d), dtype=np.complex128)
+    a2 = np.empty((d, d), dtype=np.complex128)
+    a3 = np.empty((d, d), dtype=np.complex128)
+    a4 = np.empty((d, d), dtype=np.complex128)
+    X1 = np.empty((d, d), dtype=np.complex128)
+    Y1 = np.empty((d, d), dtype=np.complex128)
+    C1 = np.empty((d, d), dtype=np.complex128)
+    Y2 = np.empty((d, d), dtype=np.complex128)
+    C2 = np.empty((d, d), dtype=np.complex128)
+    X3 = np.empty((d, d), dtype=np.complex128)
+    Y3 = np.empty((d, d), dtype=np.complex128)
+    C3 = np.empty((d, d), dtype=np.complex128)
+    C4 = np.empty((d, d), dtype=np.complex128)
+    X5 = np.empty((d, d), dtype=np.complex128)
+    Y5 = np.empty((d, d), dtype=np.complex128)
+    C5 = np.empty((d, d), dtype=np.complex128)
+    T12 = np.empty((d, d), dtype=np.complex128)
+    X6 = np.empty((d, d), dtype=np.complex128)
+    Y6 = np.empty((d, d), dtype=np.complex128)
+    for b in range(nB):
+        hh = 0.5*h[b]
+        for i in range(d):
+            for j in range(d):
+                s1v = At[b, 0, i, j] + At[b, 3, i, j]
+                s2v = At[b, 1, i, j] + At[b, 2, i, j]
+                r1v = At[b, 3, i, j] - At[b, 0, i, j]
+                r2v = At[b, 2, i, j] - At[b, 1, i, j]
+                b0 = hh*(_GL4_W1*s1v + _GL4_W2*s2v)
+                b1 = hh*(_GL4_W1V1*r1v + _GL4_W2V2*r2v)
+                b2 = hh*(_GL4_W1V1SQ*s1v + _GL4_W2V2SQ*s2v)
+                b3 = hh*(_GL4_W1V1CU*r1v + _GL4_W2V2CU*r2v)
+                a1[i, j] = 0.75*(3.0*b0 - 20.0*b2)
+                a2[i, j] = 15.0*(5.0*b1 - 28.0*b3)
+                a3[i, j] = -15.0*(b0 - 12.0*b2)
+                a4[i, j] = -140.0*(3.0*b1 - 20.0*b3)
+        # C1 = (-1/28) [a1 + a3/28, a2 + (3/28) a4]
+        for i in range(d):
+            for j in range(d):
+                X1[i, j] = a1[i, j] + a3[i, j]*r28
+                Y1[i, j] = a2[i, j] + c328*a4[i, j]
+        for i in range(d):
+            for j in range(d):
+                s = 0.0 + 0.0j
+                for k in range(d):
+                    s += X1[i, k]*Y1[k, j] - Y1[i, k]*X1[k, j]
+                C1[i, j] = cm28*s
+        # C2 = (1/3) [a1, -a3/14 + C1]
+        for i in range(d):
+            for j in range(d):
+                Y2[i, j] = -a3[i, j]*r14 + C1[i, j]
+        for i in range(d):
+            for j in range(d):
+                s = 0.0 + 0.0j
+                for k in range(d):
+                    s += a1[i, k]*Y2[k, j] - Y2[i, k]*a1[k, j]
+                C2[i, j] = c13*s
+        # C3 = [a1 + a3/28 + C1, a2 + (3/28) a4 + C2]
+        for i in range(d):
+            for j in range(d):
+                X3[i, j] = X1[i, j] + C1[i, j]
+                Y3[i, j] = Y1[i, j] + C2[i, j]
+        for i in range(d):
+            for j in range(d):
+                s = 0.0 + 0.0j
+                for k in range(d):
+                    s += X3[i, k]*Y3[k, j] - Y3[i, k]*X3[k, j]
+                C3[i, j] = s
+        # C4 = [a2, C1]
+        for i in range(d):
+            for j in range(d):
+                s = 0.0 + 0.0j
+                for k in range(d):
+                    s += a2[i, k]*C1[k, j] - C1[i, k]*a2[k, j]
+                C4[i, j] = s
+        # C5 = [a1 + 5/4 C1, 2 a3 + C3 + 1/2 C4]
+        for i in range(d):
+            for j in range(d):
+                X5[i, j] = a1[i, j] + 1.25*C1[i, j]
+                Y5[i, j] = 2.0*a3[i, j] + C3[i, j] + 0.5*C4[i, j]
+        for i in range(d):
+            for j in range(d):
+                s = 0.0 + 0.0j
+                for k in range(d):
+                    s += X5[i, k]*Y5[k, j] - Y5[i, k]*X5[k, j]
+                C5[i, j] = s
+        # C6 = [a1 + a3/12 - (7/3) C1 - C3/6, -9 a2 - 9/4 a4 + 63 C2 + C5]
+        for i in range(d):
+            for j in range(d):
+                T12[i, j] = a1[i, j] + a3[i, j]*r12
+                X6[i, j] = T12[i, j] - c73*C1[i, j] - C3[i, j]*r6
+                Y6[i, j] = (-9.0*a2[i, j] - 2.25*a4[i, j] + 63.0*C2[i, j]
+                            + C5[i, j])
+        # Omega = a1 + a3/12 - (7/120) C3 + (1/360) C6
+        for i in range(d):
+            for j in range(d):
+                s = 0.0 + 0.0j
+                for k in range(d):
+                    s += X6[i, k]*Y6[k, j] - Y6[i, k]*X6[k, j]
+                out[b, i, j] = T12[i, j] - c7120*C3[i, j] + c1360*s
+    return 0
+
+
+if expmkernels.HAVE_NUMBA:
+    _gl8_omega_kernel = expmkernels._jit(_gl8_omega_core)
+else:                                                   # pragma: no cover
+    _gl8_omega_kernel = None
 
 
 def _warn_scalar_hamiltonian() -> None:
@@ -718,9 +1162,9 @@ def _nested_chain(comp, om, Bt, cache):
     if hit is not None:
         return hit
     if len(comp) == 1:
-        value = commutator(om[comp[0]], Bt)
+        value = _commutator_batched(om[comp[0]], Bt)
     else:
-        value = commutator(om[comp[0]], _nested_chain(comp[1:], om, Bt, cache))
+        value = _commutator_batched(om[comp[0]], _nested_chain(comp[1:], om, Bt, cache))
     cache[comp] = value
     return value
 
@@ -749,6 +1193,206 @@ def _omega_integrand(n: int, om: dict, Bt: np.ndarray, cache: dict) -> np.ndarra
     return total
 
 
+def _cgroup_headroom_bytes():
+    """Headroom left by a cgroup memory limit, or None if there is no limit to find.
+
+    **This is the figure that matters wherever the library actually runs at scale.**
+    ``/proc/meminfo`` is not namespaced: inside a container or a batch-scheduler cgroup
+    it reports the *host's* memory, so a guard built on it alone sees far more headroom
+    than the process can use.  Measured inside a 3 GiB scope on an 8 GiB machine, the
+    host figure read 8.27 GiB and a 2.2 GiB allocation was waved through and then killed
+    by the cgroup -- which is the exact outcome :func:`_check_output_fits` exists to
+    prevent.  Docker, Kubernetes, SLURM and HPC schedulers all impose limits this way.
+
+    Both cgroup versions are read, and in both the effective limit is the **minimum over
+    the whole ancestor chain**: a limit may be set on any ancestor rather than on the
+    leaf, and the tightest one binds.  Headroom is ``limit - current`` rather than the
+    limit itself, because the process is already using some of it.
+
+    Returns None when unlimited, unreadable, or absent, so that a caller can fall back to
+    the host figure.  A guard that cannot measure must not block.
+
+    .. versionadded:: 1.0.0
+    """
+    # cgroup v2: one unified hierarchy on the "0::" line of /proc/self/cgroup.
+    # cgroup v1: a "N:memory:/path" line, mounted under /sys/fs/cgroup/memory.
+    v2_path, v1_path = None, None
+    try:
+        with open('/proc/self/cgroup') as f:
+            for line in f:
+                parts = line.strip().split(':', 2)
+                if len(parts) != 3:
+                    continue
+                if parts[0] == '0' and not parts[1]:
+                    v2_path = parts[2]
+                elif 'memory' in parts[1].split(','):
+                    v1_path = parts[2]
+    except OSError:
+        return None
+
+    def read_int(path):
+        """The file's contents as an int; None for absent, unreadable or 'max'."""
+        try:
+            with open(path) as f:
+                text = f.read().strip()
+        except (OSError, ValueError):
+            return None
+        if text == 'max':
+            return None
+        try:
+            value = int(text)
+        except ValueError:
+            return None
+        # cgroup v1 spells "unlimited" as a sentinel near 2**63 rather than as a word.
+        return None if value >= 2**62 else value
+
+    best = None
+    for root, rel, limit_name, usage_name in (
+            ('/sys/fs/cgroup', v2_path, 'memory.max', 'memory.current'),
+            ('/sys/fs/cgroup/memory', v1_path,
+             'memory.limit_in_bytes', 'memory.usage_in_bytes')):
+        if rel is None:
+            continue
+        # Walk from the process's own cgroup up to the mount root; the tightest limit
+        # anywhere on the chain is the one that will kill us.
+        parts = [p for p in rel.split('/') if p]
+        for depth in range(len(parts), -1, -1):
+            base = os.path.join(root, *parts[:depth])
+            limit = read_int(os.path.join(base, limit_name))
+            if limit is None:
+                continue
+            used = read_int(os.path.join(base, usage_name)) or 0
+            headroom = max(limit - used, 0)
+            best = headroom if best is None else min(best, headroom)
+    return best
+
+
+def _available_memory_bytes():
+    """Best-effort free memory for *this* process, or None if it cannot be had cheaply.
+
+    ``MemAvailable`` is preferred over the raw free-page count because it accounts for
+    reclaimable page cache: on a machine with a warm cache the latter understates what a
+    large allocation can actually get, and a guard built on it would refuse work that
+    would have succeeded.
+
+    Whatever the host reports is then **capped by any cgroup limit** applying to this
+    process -- see :func:`_cgroup_headroom_bytes` for why that is not optional.  The
+    minimum of the two is what an allocation can actually claim.
+
+    Returns None rather than guessing on platforms that expose none of these.  A guard
+    that cannot measure must not block.
+
+    .. versionadded:: 1.0.0
+    """
+    host = None
+    try:
+        with open('/proc/meminfo') as f:
+            for line in f:
+                if line.startswith('MemAvailable:'):
+                    host = int(line.split()[1])*1024
+                    break
+    except (OSError, ValueError, IndexError):
+        pass
+    if host is None:
+        try:
+            host = os.sysconf('SC_AVPHYS_PAGES')*os.sysconf('SC_PAGE_SIZE')
+        except (AttributeError, ValueError, OSError):
+            host = None
+
+    cgroup = _cgroup_headroom_bytes()
+    if cgroup is None:
+        return host
+    return cgroup if host is None else min(host, cgroup)
+
+# Cumulative number of commutator terms the recursion evaluates through each order, from
+# the term counts 1, 1, 2, 3, 5, 9, 17, 33, 65, 129 at orders one to ten.  Doubled below,
+# because every commutator forms X @ Y and Y @ X before subtracting them.
+_CUMULATIVE_TERMS = (0, 1, 2, 4, 7, 12, 21, 38, 71, 136, 265)
+
+WORKING_SET_SAFETY = 2.0
+"""float: fraction of available memory the quadrature working set may claim.
+
+Matches :data:`magnus.oscprob.OUTPUT_GUARD_SAFETY`; the two guards cover different
+allocations and should refuse at the same point.
+"""
+
+
+
+def _probe_dim(A, t0):
+    """Matrix dimension of A, for the guard, without committing to a full evaluation."""
+    try:
+        return int(np.asarray(A(t0)).shape[-1])
+    except Exception:
+        return 0
+
+
+def _quadrature_working_set_bytes(n_slabs, n_tpts, dim, order):
+    r"""Bytes the cumulative-quadrature recursion will hold at once.
+
+    The recursion works on arrays of shape ``(n_slabs, n_tpts, dim, dim)`` and keeps one
+    per commutator it has evaluated, so the working set is the cell count times twice the
+    cumulative term count.  Measured peak resident set, in units of one such array: 35 at
+    order six, 118 at order eight, 408 at order ten, each stable to better than a per cent
+    across ``n_slabs`` and ``n_tpts``.  The estimate above gives 42, 142 and 530, so it
+    runs about a quarter high -- deliberately, since a guard that under-estimates does not
+    guard.
+
+    .. versionadded:: 1.0.0
+    """
+    order = max(1, min(int(order), len(_CUMULATIVE_TERMS) - 1))
+    cells = int(n_slabs)*int(n_tpts)*int(dim)*int(dim)
+    return cells*16*2*_CUMULATIVE_TERMS[order]
+
+
+def _working_set_chunk(n_lead, n_tpts, dim, order, integration_method):
+    r"""How many slabs the quadrature may hold at once, so the intermediates fit.
+
+    The guard tempers the run rather than refusing it.  Each slab's :math:`\Omega` depends
+    only on its own samples, so evaluating the chain a chunk at a time is exact -- the same
+    reasoning that lets :data:`magnus.oscprob.BATCH_WORKING_ENTRIES` tile the energy axis,
+    applied to the axis that actually overflows here.
+
+    Returns ``n_lead`` unchanged whenever the whole chain fits, which is the ordinary case
+    and costs one multiply.  Returns a smaller chunk when it does not.
+
+    Raises
+    ------
+    MemoryError
+        Only when a *single* slab will not fit, where no chunking helps and the caller has
+        to change the request.
+
+    .. versionadded:: 1.0.0
+    """
+    needed = _quadrature_working_set_bytes(n_lead, n_tpts, dim, order)
+    if needed < WORKING_SET_MIN_BYTES:
+        return n_lead
+    available = _available_memory_bytes()
+    if available is None:
+        return n_lead
+    budget = available/WORKING_SET_SAFETY
+    if needed <= budget:
+        return n_lead
+    per_slab = _quadrature_working_set_bytes(1, n_tpts, dim, order)
+    chunk = int(budget//per_slab) if per_slab else n_lead
+    if chunk < 1:
+        raise MemoryError(
+            "Error in magnus: magnus._working_set_chunk: order " + str(order) + " on '"
+            + str(integration_method) + "' quadrature needs "
+            + f"{per_slab/2**30:.2f}" + " GiB of intermediates for a *single* slab at "
+            + f"{int(n_tpts):,}" + " points, against " + f"{available/2**30:.2f}"
+            + " GiB available. Chunking the chain cannot help, because one slab is already "
+            "too large. Lower magnus_exp_order, or cap max_n_tpts_per_slab: the cost is the "
+            "product of the points per slab and the number of commutator terms at this "
+            "order. Note that n_tpts_per_slab is refined upward unless min_n_tpts_per_slab "
+            "and max_n_tpts_per_slab pin it.")
+    return chunk
+
+
+WORKING_SET_MIN_BYTES = 64*1024*1024
+"""int: below this the working set is not worth a free-memory read.  Matches
+:data:`magnus.oscprob.OUTPUT_GUARD_MIN_BYTES`."""
+
+
 def _magnus_terms_quadrature(
     Bt: np.ndarray,
     order: int,
@@ -765,7 +1409,9 @@ def _magnus_terms_quadrature(
         with m points, so that all integrals run over :math:`[0, 1]`.  Any
         leading axes (e.g., a slab axis) broadcast through.
     order : int
-        Highest Magnus order to compute (1 <= order <= 6).
+        Index of the last term computed: returns Omega_1 ... Omega_order.
+        This is the cumulative path's meaning of ``order``; see
+        ``magnus_expansion`` for how it maps onto a delivered order.
     integration_method : str
         'trapezoid' or 'simpson'.
 
@@ -800,43 +1446,43 @@ def _magnus_terms_quadrature(
     terms.append(last(o1t, 1))
 
     if order >= 2:
-        C1 = commutator(o1t, Bt)                      # [Omega_1, A]
+        C1 = _commutator_batched(o1t, Bt)             # [Omega_1, A]
         o2t = integ(-0.5*C1, 2)
         terms.append(last(o2t, 2))
 
     if order >= 3:
-        C2 = commutator(o2t, Bt)                      # [Omega_2, A]
-        D11 = commutator(o1t, C1)                     # [Omega_1, [Omega_1, A]]
+        C2 = _commutator_batched(o2t, Bt)             # [Omega_2, A]
+        D11 = _commutator_batched(o1t, C1)            # [Omega_1, [Omega_1, A]]
         o3t = integ(-0.5*C2 + F1*D11, 3)
         terms.append(last(o3t, 3))
 
     if order >= 4:
-        C3 = commutator(o3t, Bt)                      # [Omega_3, A]
-        D12 = commutator(o1t, C2)                     # [Omega_1, [Omega_2, A]]
-        D21 = commutator(o2t, C1)                     # [Omega_2, [Omega_1, A]]
+        C3 = _commutator_batched(o3t, Bt)             # [Omega_3, A]
+        D12 = _commutator_batched(o1t, C2)            # [Omega_1, [Omega_2, A]]
+        D21 = _commutator_batched(o2t, C1)            # [Omega_2, [Omega_1, A]]
         o4t = integ(-0.5*C3 + F1*(D12 + D21), 4)
         terms.append(last(o4t, 4))
 
     if order >= 5:
-        C4 = commutator(o4t, Bt)                      # [Omega_4, A]
+        C4 = _commutator_batched(o4t, Bt)             # [Omega_4, A]
         o5t = integ(
             -0.5*C4
-            + F1*(commutator(o1t, C3) + commutator(o2t, C2)
-                  + commutator(o3t, C1))
-            + F2*commutator(o1t, commutator(o1t, D11)),
+            + F1*(_commutator_batched(o1t, C3) + _commutator_batched(o2t, C2)
+                  + _commutator_batched(o3t, C1))
+            + F2*_commutator_batched(o1t, _commutator_batched(o1t, D11)),
             5)
         terms.append(last(o5t, 5))
 
     if order >= 6:
-        C5 = commutator(o5t, Bt)                      # [Omega_5, A]
+        C5 = _commutator_batched(o5t, Bt)             # [Omega_5, A]
         o6t = integ(
             -0.5*C5
-            + F1*(commutator(o1t, C4) + commutator(o2t, C3)
-                  + commutator(o3t, C2) + commutator(o4t, C1))
-            + F2*(commutator(o1t, commutator(o1t, D12))
-                  + commutator(o1t, commutator(o1t, D21))
-                  + commutator(o1t, commutator(o2t, D11))
-                  + commutator(o2t, commutator(o1t, D11))),
+            + F1*(_commutator_batched(o1t, C4) + _commutator_batched(o2t, C3)
+                  + _commutator_batched(o3t, C2) + _commutator_batched(o4t, C1))
+            + F2*(_commutator_batched(o1t, _commutator_batched(o1t, D12))
+                  + _commutator_batched(o1t, _commutator_batched(o1t, D21))
+                  + _commutator_batched(o1t, _commutator_batched(o2t, D11))
+                  + _commutator_batched(o2t, _commutator_batched(o1t, D11))),
             6)
         terms.append(last(o6t, 6))
 
@@ -867,8 +1513,11 @@ def _samples_identical(X: np.ndarray, Y: np.ndarray) -> bool:
     produces -- the same lookup returning the same float -- so nothing is lost
     by refusing to guess.
 
-    ``array_equal`` short-circuits on the first differing element, so on a
-    smooth profile this costs one comparison and returns.
+    ``array_equal`` does *not* short-circuit: it builds the full comparison
+    array and reduces it, so a profile whose very first element already differs
+    costs the same as an identical one.  The fused order-4, order-6 and order-8
+    kernels scan for equality themselves and *do* exit at the first difference;
+    this helper serves their NumPy fallbacks.
     """
     return X.shape == Y.shape and np.array_equal(X, Y)
 
@@ -880,10 +1529,12 @@ def _magnus_gl(
 ) -> np.ndarray:
     r"""Magnus operator :math:`\Omega` from Gauss-Legendre collocation.
 
-    Commutator-free Magnus integrators of order 2, 4, and 6 based on
-    Gauss-Legendre nodes (Blanes, Casas & Ros 2000; Blanes et al. 2009,
-    Sec. 5.4).  Exact quadrature order matched to the truncation order,
-    using only 1, 2, or 3 evaluations of A per slab.
+    Gauss-Legendre collocation Magnus integrators of order 2, 4, 6 and 8 based on
+    Gauss-Legendre nodes (Blanes, Casas & Ros 2000; Blanes, Casas & Ros 2002;
+    Blanes et al. 2009, Sec. 5.4).  Exact quadrature order matched to the
+    truncation order, using only 1, 2, 3, or 4 evaluations of A per slab.
+    Orders 6 and 8 use the commutator-optimal forms of the 2002 paper, which
+    need three and six commutators, the fewest possible at each order.
 
     Parameters
     ----------
@@ -908,6 +1559,22 @@ def _magnus_gl(
 
     if order <= 4:
         # Omega = (h/2)(A1 + A2) + (sqrt(3)/12) h^2 [A2, A1]
+        if ((_gl4_omega_kernel is not None) and (An.dtype == np.complex128)
+                and (An.shape[-3] == 2)):
+            # One pass for the equality test, the commutator and the linear
+            # combination, bit-identical to the expression below.  A1 and A2 are
+            # strided views of An, so the NumPy route copies both before the
+            # commutator can use them; the kernel reads An where it lies.
+            d = An.shape[-1]
+            flat = np.ascontiguousarray(An).reshape((-1, 2, d, d))
+            out = np.empty((flat.shape[0], d, d), dtype=np.complex128)
+            # widths, not h: h already carries the two trailing singleton axes
+            # that let it multiply a (..., d, d) stack, and the kernel wants one
+            # scalar per slab.
+            hb = np.ascontiguousarray(np.broadcast_to(
+                np.asarray(widths, dtype=float), An.shape[:-3])).reshape(-1)
+            _gl4_omega_kernel(flat, hb, out)
+            return out.reshape(An.shape[:-3] + (d, d))
         A1 = An[..., 0, :, :]
         A2 = An[..., 1, :, :]
         if _samples_identical(A1, A2):
@@ -919,22 +1586,93 @@ def _magnus_gl(
             # walls, a t_breakpoints-delimited region of uniform density -- and not on a smooth
             # one like PREM, where the two nodes genuinely differ.
             return h*A1
-        return 0.5*h*(A1 + A2) + (np.sqrt(3.0)/12.0)*h*h*commutator(A2, A1)
+        return 0.5*h*(A1 + A2) + (np.sqrt(3.0)/12.0)*h*h*_commutator_batched(A2, A1)
 
-    # Order 6 (Blanes, Casas & Ros 2000):
+    if order <= 6:
+        # Order 6 (Blanes, Casas & Ros 2002, Eqs. 3.5-3.7): three commutators, the fewest
+        # with which sixth order can be reached.
+        if ((_gl6_omega_kernel is not None) and (An.dtype == np.complex128)
+                and (An.shape[-3] == 3)):
+            # One pass for the equality tests, the three commutators and the
+            # linear combinations, bit-identical to the expression below.  The
+            # kernel reads An where it lies and keeps every intermediate in
+            # d x d scratch, where the NumPy route streams ~19 full-stack
+            # temporaries through memory.
+            d = An.shape[-1]
+            flat = np.ascontiguousarray(An).reshape((-1, 3, d, d))
+            out = np.empty((flat.shape[0], d, d), dtype=np.complex128)
+            # widths, not h: h already carries the two trailing singleton axes
+            # that let it multiply a (..., d, d) stack, and the kernel wants one
+            # scalar per slab.
+            hb = np.ascontiguousarray(np.broadcast_to(
+                np.asarray(widths, dtype=float), An.shape[:-3])).reshape(-1)
+            _gl6_omega_kernel(flat, hb, out)
+            return out.reshape(An.shape[:-3] + (d, d))
+        A1 = An[..., 0, :, :]
+        A2 = An[..., 1, :, :]
+        A3 = An[..., 2, :, :]
+        if _samples_identical(A1, A2) and _samples_identical(A2, A3):
+            # Same argument as at order 4, and worth more here: the order-6 expression
+            # builds three nested commutators, all of which vanish for constant A.
+            return h*A1
+        a1 = h*A2
+        a2 = (np.sqrt(15.0)/3.0)*h*(A3 - A1)
+        a3 = (10.0/3.0)*h*(A3 - 2.0*A2 + A1)
+        C1 = _commutator_batched(a1, a2)
+        C2 = (-1.0/60.0)*_commutator_batched(a1, 2.0*a3 + C1)
+        return a1 + a3/12.0 + (1.0/240.0)*_commutator_batched(-20.0*a1 - a3 + C1, a2 + C2)
+
+    # Order 8 (Blanes, Casas & Ros 2002, Eqs. 3.8-3.10): six commutators, again the
+    # fewest possible.  The four alpha are that paper's b_1..b_4, obtained from the
+    # univariate integrals B^(i) of its Eq. (3.2) -- note those carry a 1/h^i prefactor,
+    # one power of h more than the 1/h^(i+1) of the 2000 paper, so the B^(i) below are
+    # h times a quadrature average rather than the average itself.
+    if ((_gl8_omega_kernel is not None) and (An.dtype == np.complex128)
+            and (An.shape[-3] == 4)):
+        # One pass for the equality tests, the six commutators and the linear
+        # combinations, bit-identical to the expression below.  The kernel
+        # reads An where it lies and keeps every intermediate in d x d
+        # scratch, where the NumPy route streams ~65 full-stack temporaries
+        # through memory.
+        d = An.shape[-1]
+        flat = np.ascontiguousarray(An).reshape((-1, 4, d, d))
+        out = np.empty((flat.shape[0], d, d), dtype=np.complex128)
+        # widths, not h: h already carries the two trailing singleton axes
+        # that let it multiply a (..., d, d) stack, and the kernel wants one
+        # scalar per slab.
+        hb = np.ascontiguousarray(np.broadcast_to(
+            np.asarray(widths, dtype=float), An.shape[:-3])).reshape(-1)
+        _gl8_omega_kernel(flat, hb, out)
+        return out.reshape(An.shape[:-3] + (d, d))
     A1 = An[..., 0, :, :]
     A2 = An[..., 1, :, :]
     A3 = An[..., 2, :, :]
-    if _samples_identical(A1, A2) and _samples_identical(A2, A3):
-        # Same argument as at order 4, and worth more here: the order-6 expression builds
-        # three nested commutators, all of which vanish for constant A.
+    A4 = An[..., 3, :, :]
+    if (_samples_identical(A1, A2) and _samples_identical(A2, A3)
+            and _samples_identical(A3, A4)):
+        # As at orders 4 and 6, and worth most here: six commutators all vanish.
         return h*A1
-    a1 = h*A2
-    a2 = (np.sqrt(15.0)/3.0)*h*(A3 - A1)
-    a3 = (10.0/3.0)*h*(A3 - 2.0*A2 + A1)
-    C1 = commutator(a1, a2)
-    C2 = (-1.0/60.0)*commutator(a1, 2.0*a3 + C1)
-    return a1 + a3/12.0 + (1.0/240.0)*commutator(-20.0*a1 - a3 + C1, a2 + C2)
+    S1 = A1 + A4
+    S2 = A2 + A3
+    R1 = A4 - A1
+    R2 = A3 - A2
+    hh = 0.5*h
+    B0 = hh*(_GL4_W1*S1 + _GL4_W2*S2)
+    B1 = hh*(_GL4_W1*_GL4_V1*R1 + _GL4_W2*_GL4_V2*R2)
+    B2 = hh*(_GL4_W1*_GL4_V1**2*S1 + _GL4_W2*_GL4_V2**2*S2)
+    B3 = hh*(_GL4_W1*_GL4_V1**3*R1 + _GL4_W2*_GL4_V2**3*R2)
+    a1 = 0.75*(3.0*B0 - 20.0*B2)
+    a2 = 15.0*(5.0*B1 - 28.0*B3)
+    a3 = -15.0*(B0 - 12.0*B2)
+    a4 = -140.0*(3.0*B1 - 20.0*B3)
+    C1 = (-1.0/28.0)*_commutator_batched(a1 + a3/28.0, a2 + (3.0/28.0)*a4)
+    C2 = (1.0/3.0)*_commutator_batched(a1, -a3/14.0 + C1)
+    C3 = _commutator_batched(a1 + a3/28.0 + C1, a2 + (3.0/28.0)*a4 + C2)
+    C4 = _commutator_batched(a2, C1)
+    C5 = _commutator_batched(a1 + 1.25*C1, 2.0*a3 + C3 + 0.5*C4)
+    C6 = _commutator_batched(a1 + a3/12.0 - (7.0/3.0)*C1 - C3/6.0,
+                             -9.0*a2 - 2.25*a4 + 63.0*C2 + C5)
+    return a1 + a3/12.0 - (7.0/120.0)*C3 + (1.0/360.0)*C6
 
 
 def _gl_nodes(order: int) -> np.ndarray:
@@ -944,12 +1682,12 @@ def _gl_nodes(order: int) -> np.ndarray:
     ----------
     order : int
         Requested Magnus order; mapped to the smallest GL scheme with at least that order
-        (1-2 -> 1 node, 3-4 -> 2 nodes, 5-6 -> 3 nodes).
+        (1-2 -> 1 node, 3-4 -> 2 nodes, 5-6 -> 3 nodes, 7-8 -> 4 nodes).
 
     Returns
     -------
     np.ndarray
-        GL nodes on [0, 1] (1, 2, or 3 of them).
+        GL nodes on [0, 1] (1, 2, 3, or 4 of them).
     """
     if order > MAGNUS_EXP_ORDER_MAX_GL:
         # Backstop.  _validate() reports this with a fuller message, but it is skipped when
@@ -964,7 +1702,9 @@ def _gl_nodes(order: int) -> np.ndarray:
         return _GL1_NODES
     if order <= 4:
         return _GL2_NODES
-    return _GL3_NODES
+    if order <= 6:
+        return _GL3_NODES
+    return _GL4_NODES
 
 
 _SLAB_NORM_SINK = None
@@ -1115,6 +1855,306 @@ def ordered_product(U: np.ndarray) -> np.ndarray:
     return M[0]
 
 
+def _ordered_product_batched_core(U):  # pragma: no cover -- compiled below
+    r"""Left-fold slab product of a batched operator stack, one batch at a time.
+
+    For ``U`` of shape ``(nB, n, d, d)`` returns the ``(nB, d, d)`` stack whose
+    element ``b`` is ``U[b, n-1] @ ... @ U[b, 1] @ U[b, 0]`` -- the slab crossed
+    first standing rightmost, exactly the association the Python loop it
+    replaces used (``Utot = Utot @ U[:, k]``, k descending).  Written to be
+    compiled by numba; the pure-Python form exists only as compilation input.
+    """
+    nB, n, d, _ = U.shape
+    out = np.empty((nB, d, d), dtype=np.complex128)
+    acc = np.empty((d, d), dtype=np.complex128)
+    tmp = np.empty((d, d), dtype=np.complex128)
+    for b in range(nB):
+        for i in range(d):
+            for j in range(d):
+                acc[i, j] = U[b, n - 1, i, j]
+        for k in range(n - 2, -1, -1):
+            for i in range(d):
+                for j in range(d):
+                    s = 0.0 + 0.0j
+                    for m in range(d):
+                        s += acc[i, m]*U[b, k, m, j]
+                    tmp[i, j] = s
+            acc, tmp = tmp, acc
+        for i in range(d):
+            for j in range(d):
+                out[b, i, j] = acc[i, j]
+    return out
+
+
+if expmkernels.HAVE_NUMBA:
+    _ordered_product_batched_kernel = expmkernels._jit(_ordered_product_batched_core)
+else:                                                   # pragma: no cover
+    _ordered_product_batched_kernel = None
+
+
+def _ordered_product_batched(U: np.ndarray) -> np.ndarray:
+    r"""Time-ordered slab product for a stack with a leading batch axis.
+
+    The batched sibling of :func:`ordered_product`: ``U`` has shape
+    ``(nB, n, d, d)`` with the slab axis second, and the return is the
+    ``(nB, d, d)`` product ``U[:, n-1] @ ... @ U[:, 0]`` -- earliest slab
+    rightmost, because the operators act on the state to their right.
+
+    With numba present the product runs in a compiled kernel that keeps the
+    *same left-fold association* as the Python loop it replaces; without numba
+    (or on a dtype the kernel was not built for) that loop itself runs, so a
+    numba-less install is bit-identical to what it always computed.
+
+    The two installs are no longer bit-identical to *each other* on this path,
+    where before this kernel they were: the association is the same, but the
+    compiled kernel accumulates each matrix element as a scalar sum where BLAS
+    orders the same arithmetic its own way, so probabilities can move at the
+    rounding level.  Worst observed shift 1.28e-14 across 16 scan
+    configurations, with every refinement decision unchanged.
+
+    .. versionadded:: 1.0.6
+
+    Parameters
+    ----------
+    U : np.ndarray
+        Stack of operators, shape ``(nB, n, d, d)``, slabs ordered earliest
+        first along axis 1.
+
+    Returns
+    -------
+    np.ndarray
+        The ordered products, shape ``(nB, d, d)``.
+    """
+    if (_ordered_product_batched_kernel is not None) and (U.dtype == np.complex128):
+        return _ordered_product_batched_kernel(U)
+    Utot = U[:, -1]
+    for k in range(U.shape[1] - 2, -1, -1):
+        Utot = Utot @ U[:, k]
+    return Utot
+
+
+def _ordered_product_into_core(acc, U):  # pragma: no cover -- compiled below
+    r"""Left-fold slab product into an existing accumulator, one batch at a time.
+
+    For ``acc`` of shape ``(nE, d, d)`` and ``U`` of shape ``(nE, nb, d, d)``
+    performs, in place, ``acc[e] <- acc[e] @ U[e, nb-1] @ ... @ U[e, 0]`` -- the
+    accumulator on the left and ``k`` descending, exactly the association of the
+    Python loop it replaces (``acc = acc @ U[:, k]``, k descending).  That loop
+    walked ``k`` outermost, all batch entries per step; here the batch entry is
+    outermost instead, which reorders nothing *within* any entry's chain -- the
+    chains are independent, so each entry sees the identical operation sequence.
+    ``nb = 0`` is a no-op, leaving ``acc`` untouched.  Written to be compiled by
+    numba; the pure-Python form exists only as compilation input.
+    """
+    nE, n, d, _ = U.shape
+    a = np.empty((d, d), dtype=np.complex128)
+    tmp = np.empty((d, d), dtype=np.complex128)
+    for e in range(nE):
+        for i in range(d):
+            for j in range(d):
+                a[i, j] = acc[e, i, j]
+        for k in range(n - 1, -1, -1):
+            for i in range(d):
+                for j in range(d):
+                    s = 0.0 + 0.0j
+                    for m in range(d):
+                        s += a[i, m]*U[e, k, m, j]
+                    tmp[i, j] = s
+            a, tmp = tmp, a
+        for i in range(d):
+            for j in range(d):
+                acc[e, i, j] = a[i, j]
+
+
+if expmkernels.HAVE_NUMBA:
+    _ordered_product_into_kernel = expmkernels._jit(_ordered_product_into_core)
+else:                                                   # pragma: no cover
+    _ordered_product_into_kernel = None
+
+
+def _ordered_product_into(acc: np.ndarray, U: np.ndarray) -> None:
+    r"""Fold a slab-operator stack into an accumulator, in place.
+
+    The accumulator-in sibling of :func:`_ordered_product_batched`, for callers
+    whose product spans more than one stack: ``acc`` (shape ``(nE, d, d)``,
+    updated in place) is multiplied from the right by the slabs of ``U`` (shape
+    ``(nE, nb, d, d)``) in descending ``k`` order, so after the call
+    ``acc[e] = acc_old[e] @ U[e, nb-1] @ ... @ U[e, 0]``.  Taking ``acc`` as an
+    argument rather than reducing ``U`` alone and multiplying afterwards is the
+    point: the caller's parenthesis nesting stays strictly left-to-right across
+    stack boundaries, which the interaction-picture engine's tiling comment
+    (and its exact-equality test) requires.
+
+    With numba present and both arrays complex128 the fold runs in a compiled
+    kernel that keeps the *same left-fold association* as the Python loop it
+    replaces; anything else falls through to that loop itself, so a numba-less
+    install is bit-identical to what it always computed.
+
+    The two installs are not bit-identical to *each other* on this path, for
+    the same reason as :func:`_ordered_product_batched`: the association is the
+    same, but the compiled kernel accumulates each matrix element as a plain
+    scalar sum where BLAS applies its own FMA ordering, so results move at the
+    rounding level -- and the deeper the chain, the further the two random
+    walks drift apart.  Worst observed engine-output shift 2.8e-13, at 32768
+    slabs, across a 34-configuration battery (fixed slab counts 8 to 32768,
+    tiled and untiled, refinement ladders from rtol 1e-3 to 1e-9), with every
+    certification decision unchanged.  The shift is dominated by the *replaced*
+    chain's own rounding: against 40-digit mpmath folds of the engine's own
+    32768-slab operators the compiled fold errs at worst 2.4e-14 where the
+    BLAS chain errs at 8.8e-14, so the compiled fold is the more accurate of
+    the two.
+
+    .. versionadded:: 1.0.11
+
+    Parameters
+    ----------
+    acc : np.ndarray
+        Accumulator stack, shape ``(nE, d, d)``, complex128, C-contiguous and
+        writeable; overwritten with the folded product.
+    U : np.ndarray
+        Stack of operators, shape ``(nE, nb, d, d)``, slabs ordered earliest
+        first along axis 1.  ``nb = 0`` leaves ``acc`` untouched.
+
+    Returns
+    -------
+    None
+        The result is written into ``acc``.
+    """
+    if ((_ordered_product_into_kernel is not None) and (acc.dtype == np.complex128)
+            and (U.dtype == np.complex128)):
+        _ordered_product_into_kernel(acc, U)
+        return
+    out = acc
+    for k in range(U.shape[1] - 1, -1, -1):
+        out = out @ U[:, k]
+    acc[...] = out
+
+
+def _running_product_snapshots_core(acc, U, snap_k, snap_rows, P):  # pragma: no cover -- compiled below
+    r"""Right-fold slab product with probability snapshots, in one pass.
+
+    ``acc`` is ``(d, d)``, updated in place to ``U[nb-1] @ ... @ U[0] @ acc``
+    -- each new slab on the LEFT and ``k`` ascending, exactly the association of
+    the Python loop it replaces (``running = U[k] @ running``, k ascending) and
+    the *mirror* of :func:`_ordered_product_into_core`, whose accumulator sits on
+    the left.  ``U`` is ``(nb, d, d)``; ``snap_k`` is a sorted array of local
+    slab indices, and immediately after slab ``snap_k[s]`` is applied the row
+    ``P[snap_rows[s]]`` receives the transposed elementwise ``|acc|^2`` -- the
+    probability matrix at that point of the traversal, formed as
+    ``re*re + im*im`` exactly as ``acc.real**2 + acc.imag**2`` computes it.
+    Repeated ``snap_k`` entries write consecutive rows from the same product,
+    which is how a duplicated requested baseline behaves in the loop replaced.
+    Written to be compiled by numba; the pure-Python form exists only as
+    compilation input.
+    """
+    nb, d, _ = U.shape
+    a = np.empty((d, d), dtype=np.complex128)
+    tmp = np.empty((d, d), dtype=np.complex128)
+    for i in range(d):
+        for j in range(d):
+            a[i, j] = acc[i, j]
+    pos = 0
+    n_snap = snap_k.shape[0]
+    for k in range(nb):
+        for i in range(d):
+            for j in range(d):
+                s = 0.0 + 0.0j
+                for m in range(d):
+                    s += U[k, i, m]*a[m, j]
+                tmp[i, j] = s
+        a, tmp = tmp, a
+        while (pos < n_snap) and (snap_k[pos] == k):
+            r = snap_rows[pos]
+            for i in range(d):
+                for j in range(d):
+                    v = a[j, i]
+                    P[r, i, j] = v.real*v.real + v.imag*v.imag
+            pos += 1
+    for i in range(d):
+        for j in range(d):
+            acc[i, j] = a[i, j]
+
+
+if expmkernels.HAVE_NUMBA:
+    _running_product_snapshots_kernel = expmkernels._jit(_running_product_snapshots_core)
+else:                                                   # pragma: no cover
+    _running_product_snapshots_kernel = None
+
+
+def _running_product_snapshots(acc: np.ndarray, U: np.ndarray, snap_k: np.ndarray,
+                               snap_rows: np.ndarray, P: np.ndarray) -> None:
+    r"""Fold a slab-operator stack into a running product, snapshotting probabilities.
+
+    The scan sibling of :func:`_ordered_product_into`, for the one caller whose
+    product must be *observed along the way* rather than only at the end: the
+    cumulative baseline scan (``oscprob._osc_prob_cumulative_scan``), where every
+    requested baseline is a prefix of the next.  ``acc`` (shape ``(d, d)``,
+    updated in place) is multiplied from the left by the slabs of ``U`` (shape
+    ``(nb, d, d)``) in ascending ``k`` order -- the association is
+    ``acc <- U[k] @ acc``, the mirror of :func:`_ordered_product_into`, because
+    this traversal walks forward in time holding the *earlier* part of the
+    product -- and immediately after slab ``snap_k[s]`` the probability matrix
+    ``transpose(|acc|^2)`` is written to ``P[snap_rows[s]]``.  ``snap_k`` must be
+    sorted ascending; entries of ``P`` not named in ``snap_rows`` are left
+    untouched.
+
+    With numba present, ``acc`` and ``U`` complex128 and ``P`` float64, the fold
+    runs in a compiled kernel that keeps the same association as the Python loop
+    it replaces; anything else falls through to that loop itself, so a numba-less
+    install is bit-identical to what it always computed.
+
+    The two installs are not bit-identical to *each other* on this path, for the
+    same reason as :func:`_ordered_product_into`: the association is the same,
+    but the compiled kernel accumulates each matrix element as a plain scalar
+    sum where BLAS applies its own FMA ordering.  Worst observed probability
+    shift 2.0e-14, at 8231 slabs, across solar scans at two and three flavours
+    (551 and 8231 slabs, 40 baselines each); against 40-digit mpmath folds of
+    the same operators neither side is systematically closer (compiled fold
+    1.2e-14 where the BLAS chain has 1.8e-14 at two flavours, 2.6e-14 against
+    1.5e-14 at three), so the shift is rounding exchanged, not accuracy lost.
+    Snapshot placement is integer bookkeeping and does not move at all.
+
+    .. versionadded:: 1.0.12
+
+    Parameters
+    ----------
+    acc : np.ndarray
+        Running product, shape ``(d, d)``, complex128 and writeable;
+        overwritten with ``U[nb-1] @ ... @ U[0] @ acc``.
+    U : np.ndarray
+        Stack of operators, shape ``(nb, d, d)``, slabs ordered earliest first.
+    snap_k : np.ndarray
+        Sorted local slab indices at which to snapshot, each in
+        ``[0, nb)``; a snapshot happens *after* its slab is applied.  Repeats
+        are honored in order (a duplicated requested baseline).
+    snap_rows : np.ndarray
+        Row of ``P`` each snapshot writes, aligned with ``snap_k``.
+    P : np.ndarray
+        Probability output, shape ``(n_out, d, d)`` float64; written at the
+        ``snap_rows`` rows only.
+
+    Returns
+    -------
+    None
+        The results are written into ``acc`` and ``P``.
+    """
+    if ((_running_product_snapshots_kernel is not None)
+            and (acc.dtype == np.complex128) and (U.dtype == np.complex128)
+            and (P.dtype == np.float64)):
+        _running_product_snapshots_kernel(
+            acc, U, np.ascontiguousarray(snap_k, dtype=np.int64),
+            np.ascontiguousarray(snap_rows, dtype=np.int64), P)
+        return
+    out = acc
+    pos = 0
+    for k in range(U.shape[0]):
+        out = U[k] @ out
+        while (pos < len(snap_k)) and (snap_k[pos] == k):
+            P[snap_rows[pos]] = np.transpose(out.real**2 + out.imag**2)
+            pos += 1
+    acc[...] = out
+
+
 valid_expm_backends = ['auto', 'numba', 'eigh']
 r"""list of str: The accepted values of ``EXPM_BACKEND`` and of every
 ``expm_backend`` parameter.
@@ -1125,19 +2165,19 @@ EXPM_BACKEND = 'auto'
 r"""str: Module-level switch selecting how :math:`\exp(\Omega)` is computed.
 
 Which routine exponentiates each slab.  This is not a correctness switch: the two
-backends agree to about 1e-15 wherever the kernel is used, which is the accuracy either one
-has -- and where it would not, it is not used: the kernel reports the conditioning of its own
-characteriztic cubic and ``eigh`` answers instead.  See :data:`magnus.expmkernels.SEV_TOL`.
+backends agree to about 1e-15 wherever a kernel is used, which is the accuracy either one
+has -- and where it would not, it is not used: the 3x3 kernel reports the conditioning of
+its own characteriztic cubic, the 4x4/5x5 Jacobi kernel reports non-convergence at its
+sweep cap, and ``eigh`` answers instead.  See :data:`magnus.expmkernels.SEV_TOL`.
 
-* ``'auto'`` (the default): the compiled Cayley-Hamilton kernel of
-  :mod:`magnus.expmkernels` for 2x2 and 3x3 matrices when numba is installed,
-  and ``numpy.linalg.eigh`` for everything else.  Never fails: without numba, or
-  at dimension 4 and above, it is silently ``'eigh'``.
+* ``'auto'`` (the default): the compiled kernels of :mod:`magnus.expmkernels`
+  (Cayley-Hamilton for 2x2 and 3x3, batched Jacobi for 4x4 and 5x5) when numba
+  is installed, and ``numpy.linalg.eigh`` for everything else.  Never fails:
+  without numba, or at dimension 6 and above, it is silently ``'eigh'``.
 * ``'numba'``: the same, except that a missing numba is an error rather than a
   fallback -- for a caller who means to be sure the fast path is the one
-  running.  Dimensions 4 and 5 still use ``eigh`` even here, because there is no
-  practical closed form for a 4x4 or 5x5 Hermitian eigenproblem; 4nu and 5nu
-  stay correct and are simply not accelerated.
+  running.  Dimensions 6 and above still use ``eigh`` even here;
+  :func:`magnus.expmkernels.supports_dim` is where that line is drawn.
 * ``'eigh'``: ``numpy.linalg.eigh`` always, ignoring numba.  The reference route,
   and what to set when comparing the two.
 
@@ -1195,6 +2235,69 @@ def _resolve_expm_backend(expm_backend: Optional[str]) -> str:
     return backend
 
 
+def _antiherm_scale_dev_core(Om):  # pragma: no cover -- compiled below
+    r"""Largest magnitude and anti-Hermiticity deviation of a stack, one pass.
+
+    ``Om`` is ``(nB, d, d)``.  Returns ``(scale, dev)`` with ``scale`` the
+    maximum of :math:`|\Omega_{ij}|` over the stack and ``dev`` the maximum of
+    :math:`|\Omega + \Omega^\dagger|_{ij}` -- since :math:`|iz| = |z|` exactly,
+    these equal :math:`\max|K|` and :math:`\max|K - K^\dagger|` for
+    :math:`K = i\Omega`, the two numbers :func:`_expm_stack`'s anti-Hermiticity
+    framing asks for, without ever forming :math:`K`.
+
+    Fuses what the NumPy form pays in five full-stack temporaries and about
+    seven memory passes (``1j*Om``, its conjugate transpose, two ``abs``
+    stacks, their difference and the two maxima) into a single read of the
+    stack with two scalar accumulators.  The maxima are taken over *squared*
+    magnitudes, one ``sqrt`` at the end, because a per-element ``abs`` in
+    numba measured slower than NumPy's vectorized passes (0.4-0.7x) where the
+    squared form measured several times faster; squaring is monotone, so the
+    argmax element -- and with it the framing's branch decision -- is the
+    same.  What that costs: NumPy's complex ``abs`` is ``hypot``, and
+    ``sqrt(re^2 + im^2)`` rounds three times where ``hypot`` rounds once, so
+    each returned value can sit a bit or two from the NumPy expression's --
+    up to 2 ulp measured over 500 random stacks, on about a third of them
+    (``sqrt(0) == 0`` exactly, so the identity branch is safe).
+    Squaring also narrows the exponent range: above ``~1.3e154`` the squares
+    overflow and below ``~1.5e-154`` they underflow, where the returned
+    values can be off by more than that ulp -- some hundred and fifty decades
+    beyond any physical :math:`\Omega` on either side.  A NaN anywhere in the
+    stack propagates into both results, as ``np.max`` propagates it, via the
+    running sum ``t``: a max whose comparison a NaN always loses would skip
+    it, but a sum carries it (the squared magnitudes are nonnegative, so no
+    ``inf - inf`` can manufacture one), and an ``or a != a`` clause on the max
+    itself measured twice the runtime -- it blocks vectorization where the
+    add does not.  So NaN input still reaches the scipy fallback.  Written to
+    be compiled by numba; the pure-Python form exists only as compilation
+    input.
+    """
+    nB, d, _ = Om.shape
+    s2 = 0.0
+    d2 = 0.0
+    t = 0.0
+    for b in range(nB):
+        for i in range(d):
+            for j in range(d):
+                z = Om[b, i, j]
+                a = z.real*z.real + z.imag*z.imag
+                t += a
+                if a > s2:
+                    s2 = a
+                w = z + np.conj(Om[b, j, i])
+                a = w.real*w.real + w.imag*w.imag
+                if a > d2:
+                    d2 = a
+    if t != t:
+        return np.nan, np.nan
+    return np.sqrt(s2), np.sqrt(d2)
+
+
+if expmkernels.HAVE_NUMBA:
+    _antiherm_scale_dev_kernel = expmkernels._jit(_antiherm_scale_dev_core)
+else:                                                   # pragma: no cover
+    _antiherm_scale_dev_kernel = None
+
+
 def _expm_stack(Om: np.ndarray, warn_wide: bool = False,
                 A_is_const: bool = False,
                 expm_backend: Optional[str] = None) -> np.ndarray:
@@ -1204,11 +2307,15 @@ def _expm_stack(Om: np.ndarray, warn_wide: bool = False,
     :math:`A = -i H` with a Hermitian Hamiltonian :math:`H`), the
     exponential is computed from the spectrum of the Hermitian matrix
     :math:`K = i\Omega`, by one of two routes selected by
-    ``EXPM_BACKEND``/``expm_backend``: the compiled Cayley-Hamilton kernel of
+    ``EXPM_BACKEND``/``expm_backend``: a compiled kernel of
     :mod:`magnus.expmkernels`, or the eigendecomposition
     :math:`\exp(\Omega) = V\, \mathrm{diag}\!\left(e^{-i\lambda}\right)\, V^\dagger`.
     Either is faster than scipy's Pade-based expm for stacks of small matrices.
-    Otherwise it falls back to scipy.linalg.expm.
+    Otherwise it falls back to scipy.linalg.expm.  The anti-Hermiticity test
+    itself runs as one compiled pass over the stack when numba is present
+    (:func:`_antiherm_scale_dev_core`, whose docstring carries the ulp-level
+    caveat); for non-complex128, non-contiguous or numba-less input it is the
+    original NumPy reduction.
 
     Neither route is *exactly* unitary, and an earlier version of this docstring
     claimed the ``eigh`` one was.  It is not: :math:`U^\dagger U - I` measures
@@ -1220,7 +2327,11 @@ def _expm_stack(Om: np.ndarray, warn_wide: bool = False,
     ``SEV_TOL`` gate is what keeps that true for clustered ones -- ungated, the
     closed form reaches 2.7e-07 against ``eigh``'s 3.0e-11 where a clustered
     spectrum meets a large norm, which is a corner neither a norm sweep nor a
-    degeneracy sweep alone visits.  Probabilities sum to 1 to about
+    degeneracy sweep alone visits.  The 4x4/5x5 Jacobi kernel needs no such
+    gate: it is backward stable at every norm, clustering and degeneracy
+    measured (worst 5.5x of ``eigh``), and its only decline is the sweep-cap
+    backstop described in :func:`magnus.expmkernels._jacobi_expm_core`.
+    Probabilities sum to 1 to about
     1e-15, which is worth relying on; they do not sum to 1 by construction,
     which is not.
 
@@ -1252,21 +2363,39 @@ def _expm_stack(Om: np.ndarray, warn_wide: bool = False,
     """
     backend = _resolve_expm_backend(expm_backend)
     Om = np.asarray(Om)
-    K = 1j*Om
-    Kh = np.conj(np.swapaxes(K, -1, -2))
-    scale = np.max(np.abs(K))
+    if (_antiherm_scale_dev_kernel is not None and Om.dtype == np.complex128
+            and Om.size and Om.flags.c_contiguous):
+        # One compiled read of the stack answers "is this anti-Hermitian",
+        # so K = 1j*Om (a full-stack pass of its own) is built only after a
+        # branch that actually uses K is taken.  The reshape is a view.
+        scale, dev = _antiherm_scale_dev_kernel(
+            Om.reshape((-1,) + Om.shape[-2:]))
+        K = None
+    else:
+        # Non-complex128, non-contiguous, empty or numba-less input: the
+        # original NumPy expression, untouched.  (dev of an all-zero stack is
+        # computed here and not below, but it is 0.0 and unused either way.)
+        K = 1j*Om
+        Kh = np.conj(np.swapaxes(K, -1, -2))
+        scale = np.max(np.abs(K))
+        dev = np.max(np.abs(K - Kh))
     if scale == 0.0:
         return np.broadcast_to(np.eye(Om.shape[-1], dtype=complex),
                                Om.shape).copy()
-    if np.max(np.abs(K - Kh)) <= 1.e-12*scale:
+    if dev <= 1.e-12*scale:
+        if K is None:
+            K = 1j*Om
         if (backend != 'eigh' and expmkernels.HAVE_NUMBA
                 and expmkernels.supports_dim(Om.shape[-1])):
             U, lam, sev = expmkernels.expm_herm_stack(K)
-            # The kernel forecasts, from the conditioning of its own characteriztic cubic,
-            # whether it has lost more digits than eigh would; where it has, eigh answers
-            # instead.  It needs a clustered spectrum AND a large norm together -- measured
-            # up to 7440x worse than eigh in that corner, and no worse at all outside it --
-            # so this is a rare, exact repair rather than a routine second opinion.
+            # The kernel forecasts whether it has lost more digits than eigh would -- the
+            # 3x3 from the conditioning of its own characteriztic cubic, the 4x4/5x5
+            # Jacobi kernel by hitting its sweep cap without converging -- and where it
+            # has, eigh answers instead.  For the 3x3 that needs a clustered spectrum AND
+            # a large norm together (measured up to 7440x worse than eigh in that corner,
+            # and no worse at all outside it); for Jacobi the only observed trigger is a
+            # rotated exact multiple of the identity.  Either way this is a rare, exact
+            # repair rather than a routine second opinion.
             #
             # Comparing scalars in Python rather than reducing an array in numpy: a
             # np.any() here would cost more than the kernel saves on a single 3x3.
@@ -1336,7 +2465,7 @@ def _validate(order: int, integration_method: str):
         raise ValueError(
             "Error in magnus: magnus._validate: integration_method 'gl' supports orders up to "
             + str(MAGNUS_EXP_ORDER_MAX_GL) + ", not " + str(order) + ". The "
-            "Gauss-Legendre commutator-free schemes are separately derived integrators, "
+            "Gauss-Legendre collocation schemes are separately derived integrators, "
             "not products of the Magnus recursion, so they do not extend with it. Use "
             "integration_method='trapezoid' or 'simpson' for orders above "
             + str(MAGNUS_EXP_ORDER_MAX_GL) + ", or lower the order.")
@@ -1383,10 +2512,32 @@ def magnus_expansion(
         Number of uniformly spaced time points used to evaluate the
         integrals ('trapezoid'/'simpson' methods only; >= 2).
     order : int, optional
-        Highest Magnus order (1 to 6).
+        Requested Magnus order.  Its meaning depends on
+        ``integration_method``, and so does the order actually delivered.
+        On ``'gl'`` (the default) it is the classical order of the method,
+        reached by the smallest collocation scheme that attains it: 1-2 use
+        one node, 3-4 two, 5-6 three, 7-8 four, and a request above 8 raises
+        rather than quietly returning order 8.  On ``'simpson'`` and ``'trapz'``
+        it is instead the index of the last term ``Omega_k`` retained, and
+        the delivered order is ``2*(order//2) + 2`` because the truncation
+        is symmetric about the slab midpoint.  Measured global rates:
+
+        ==========  ==  ==  ==  ==  ==  ==  ==  ==
+        ``order``    1   2   3   4   5   6   8  10
+        ==========  ==  ==  ==  ==  ==  ==  ==  ==
+        ``'gl'``     2   2   4   4   6   6   8   -
+        cumulative   2   4   4   6   6   8  10  12
+        ==========  ==  ==  ==  ==  ==  ==  ==  ==
+
+        So ``order=6`` is a sixth-order method on ``'gl'`` and an
+        eighth-order one on ``'simpson'``.  The two extra orders come from
+        the three further ``Omega`` terms the cumulative path keeps under
+        the same label, not from the quadrature rule: ``order=3`` on
+        ``'simpson'`` retains the same ``Omega_1 + Omega_2 + Omega_3`` as
+        ``order=6`` on ``'gl'`` and converges two orders more slowly.
     integration_method : str, optional
         'gl' (Gauss-Legendre collocation; ignores ``n_tpts`` and uses 1, 2,
-        or 3 nodes for orders <= 2, <= 4, <= 6, respectively), 'trapezoid',
+        3, or 4 nodes for orders <= 2, <= 4, <= 6, <= 8, respectively), 'trapezoid',
         or 'simpson'. Default: 'gl'.
     return_magnus_terms : bool, optional
         If True, also return the individual Magnus terms.  For the
@@ -1432,6 +2583,7 @@ def magnus_expansion(
 
     if integration_method == 'gl':
         nodes = _gl_nodes(order)
+        _working_set_chunk(1, len(nodes), _probe_dim(A, t0), order, integration_method)
         width = float(t1) - float(t0)
         tnodes = t0 + width*nodes
         An, used_mode = _evaluate_A(A, tnodes, A_eval_mode)
@@ -1442,6 +2594,7 @@ def magnus_expansion(
             return U
         return U, np.stack([Om], axis=0)
 
+    _working_set_chunk(1, n_tpts, _probe_dim(A, t0), order, integration_method)
     times = np.linspace(t0, t1, n_tpts)
     At, used_mode = _evaluate_A(A, times, A_eval_mode)
     Bt = (float(t1) - float(t0))*At  # rescale to the unit interval
@@ -1480,13 +2633,35 @@ def evolution_operators_from_samples(
         quadrature methods ('trapezoid'/'simpson'), the m samples of
         each slab lie on the uniform grid spanning the slab (endpoints
         included).  For 'gl', they lie on the Gauss-Legendre nodes
-        (m = 1, 2, or 3 for orders <= 2, <= 4, <= 6; see
+        (m = 1, 2, 3, or 4 for orders <= 2, <= 4, <= 6, <= 8; see
         :func:`gl_nodes`).
     widths : list or np.ndarray
         Slab widths, shape (n_slabs,) (or broadcastable to the leading
         axes of ``At`` without the last three).
     order : int, optional
-        Highest Magnus order (1 to 6).
+        Requested Magnus order.  Its meaning depends on
+        ``integration_method``, and so does the order actually delivered.
+        On ``'gl'`` (the default) it is the classical order of the method,
+        reached by the smallest collocation scheme that attains it: 1-2 use
+        one node, 3-4 two, 5-6 three, 7-8 four, and a request above 8 raises
+        rather than quietly returning order 8.  On ``'simpson'`` and ``'trapz'``
+        it is instead the index of the last term ``Omega_k`` retained, and
+        the delivered order is ``2*(order//2) + 2`` because the truncation
+        is symmetric about the slab midpoint.  Measured global rates:
+
+        ==========  ==  ==  ==  ==  ==  ==  ==  ==
+        ``order``    1   2   3   4   5   6   8  10
+        ==========  ==  ==  ==  ==  ==  ==  ==  ==
+        ``'gl'``     2   2   4   4   6   6   8   -
+        cumulative   2   4   4   6   6   8  10  12
+        ==========  ==  ==  ==  ==  ==  ==  ==  ==
+
+        So ``order=6`` is a sixth-order method on ``'gl'`` and an
+        eighth-order one on ``'simpson'``.  The two extra orders come from
+        the three further ``Omega`` terms the cumulative path keeps under
+        the same label, not from the quadrature rule: ``order=3`` on
+        ``'simpson'`` retains the same ``Omega_1 + Omega_2 + Omega_3`` as
+        ``order=6`` on ``'gl'`` and converges two orders more slowly.
     integration_method : str, optional
         'gl', 'trapezoid', or 'simpson'. Default: 'gl'.
     A_is_const : bool, optional
@@ -1512,9 +2687,22 @@ def evolution_operators_from_samples(
         return _expm_stack(Om, warn_wide=True, A_is_const=A_is_const,
                            expm_backend=expm_backend)
     Bt = w[..., None, None, None]*At        # rescale to the unit interval
-    magnus_terms = _magnus_terms_quadrature(Bt, order, integration_method)
-    return _expm_stack(np.sum(magnus_terms, axis=0), warn_wide=True,
-                       A_is_const=A_is_const, expm_backend=expm_backend)
+    lead = Bt.shape[:-3]
+    n_lead = int(np.prod(lead)) if lead else 1
+    chunk = _working_set_chunk(n_lead, Bt.shape[-3], Bt.shape[-1], order, integration_method)
+    if chunk >= n_lead:
+        magnus_terms = _magnus_terms_quadrature(Bt, order, integration_method)
+        return _expm_stack(np.sum(magnus_terms, axis=0), warn_wide=True,
+                           A_is_const=A_is_const, expm_backend=expm_backend)
+    # Too large to hold at once.  Each slab's Omega depends only on its own samples, so
+    # evaluating the chain a chunk at a time gives the same operators for less memory.
+    flat = Bt.reshape((n_lead,) + Bt.shape[-3:])
+    out = np.empty((n_lead,) + Bt.shape[-2:], dtype=complex)
+    for a in range(0, n_lead, chunk):
+        piece = _magnus_terms_quadrature(flat[a:a + chunk], order, integration_method)
+        out[a:a + chunk] = _expm_stack(np.sum(piece, axis=0), warn_wide=True,
+                                       A_is_const=A_is_const, expm_backend=expm_backend)
+    return out.reshape(lead + Bt.shape[-2:])
 
 
 def gl_nodes(order: int) -> np.ndarray:
@@ -1526,12 +2714,12 @@ def gl_nodes(order: int) -> np.ndarray:
     ----------
     order : int
         Requested Magnus order; mapped to the smallest GL scheme with at least that order
-        (1-2 -> 1 node, 3-4 -> 2 nodes, 5-6 -> 3 nodes).
+        (1-2 -> 1 node, 3-4 -> 2 nodes, 5-6 -> 3 nodes, 7-8 -> 4 nodes).
 
     Returns
     -------
     np.ndarray
-        GL nodes on [0, 1] (1, 2, or 3 of them).
+        GL nodes on [0, 1] (1, 2, 3, or 4 of them).
     
     Examples
     --------
@@ -1541,10 +2729,10 @@ def gl_nodes(order: int) -> np.ndarray:
 
         from magnus import magnus
 
-        for order in (2, 4, 6):
+        for order in (2, 4, 6, 8):
             print('order %d -> %s' % (order, np.round(magnus.gl_nodes(order), 6)))
 
-    One, two or three nodes: the scheme uses the fewest that reach the order.
+    One to four nodes: the scheme uses the fewest that reach the order.
 """
     return _gl_nodes(order)
 
@@ -1706,7 +2894,29 @@ def magnus_expansion_multislab(
     n_tpts_per_slab : int, optional
         Number of time points per slab ('trapezoid'/'simpson' only).
     order : int, optional
-        Highest Magnus order (1 to 6).
+        Requested Magnus order.  Its meaning depends on
+        ``integration_method``, and so does the order actually delivered.
+        On ``'gl'`` (the default) it is the classical order of the method,
+        reached by the smallest collocation scheme that attains it: 1-2 use
+        one node, 3-4 two, 5-6 three, 7-8 four, and a request above 8 raises
+        rather than quietly returning order 8.  On ``'simpson'`` and ``'trapz'``
+        it is instead the index of the last term ``Omega_k`` retained, and
+        the delivered order is ``2*(order//2) + 2`` because the truncation
+        is symmetric about the slab midpoint.  Measured global rates:
+
+        ==========  ==  ==  ==  ==  ==  ==  ==  ==
+        ``order``    1   2   3   4   5   6   8  10
+        ==========  ==  ==  ==  ==  ==  ==  ==  ==
+        ``'gl'``     2   2   4   4   6   6   8   -
+        cumulative   2   4   4   6   6   8  10  12
+        ==========  ==  ==  ==  ==  ==  ==  ==  ==
+
+        So ``order=6`` is a sixth-order method on ``'gl'`` and an
+        eighth-order one on ``'simpson'``.  The two extra orders come from
+        the three further ``Omega`` terms the cumulative path keeps under
+        the same label, not from the quadrature rule: ``order=3`` on
+        ``'simpson'`` retains the same ``Omega_1 + Omega_2 + Omega_3`` as
+        ``order=6`` on ``'gl'`` and converges two orders more slowly.
     integration_method : str, optional
         'gl', 'trapezoid', or 'simpson'. Default: 'gl'.
     validate_input : bool, optional

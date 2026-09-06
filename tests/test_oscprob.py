@@ -2,6 +2,7 @@
 """Tests of the oscillation-probability engine (magnus.oscprob)."""
 
 import io
+import re
 import tracemalloc
 import warnings
 
@@ -1497,7 +1498,7 @@ def test_validate_input_battery_returns_none_on_valid_input():
 # ----------------------------------------------------------------------
 
 def test_max_n_slabs_default_is_method_aware():
-    """'gl' costs 1-3 Hamiltonian evaluations per slab against the quadrature methods'
+    """'gl' costs 1-4 Hamiltonian evaluations per slab against the quadrature methods'
     n_tpts_per_slab, so a cap that bounds cost has to differ between them."""
     assert op.MAX_N_SLABS_DEFAULT['gl'] > op.MAX_N_SLABS_DEFAULT['trapezoid']
     assert op.MAX_N_SLABS_DEFAULT['trapezoid'] == op.MAX_N_SLABS_DEFAULT['simpson']
@@ -2050,7 +2051,7 @@ def test_output_guard_refuses_a_result_that_cannot_fit(monkeypatch):
     d flavors is N*d*d floats either way. Left unchecked that surfaces as an out-of-memory
     kill from deep inside an engine -- or, on an overcommitting kernel, as the machine
     going down rather than the process, which is how this whole investigation started."""
-    monkeypatch.setattr(op, '_available_memory_bytes', lambda: 256*1024*1024)
+    monkeypatch.setattr(mg, '_available_memory_bytes', lambda: 256*1024*1024)
 
     with pytest.raises(MemoryError, match="would return"):
         op._check_output_fits(50_000_000, 3, 'osc_prob_energy_baseline')
@@ -2064,20 +2065,20 @@ def test_output_guard_is_silent_for_ordinary_requests(monkeypatch):
     def exploding_probe():
         raise AssertionError('free memory probed for a small request')
 
-    monkeypatch.setattr(op, '_available_memory_bytes', exploding_probe)
+    monkeypatch.setattr(mg, '_available_memory_bytes', exploding_probe)
     op._check_output_fits(10_000, 3, 'osc_prob_energy_baseline')      # ~0.7 MiB
 
 
 def test_output_guard_does_not_block_when_memory_cannot_be_measured(monkeypatch):
     """A guard that cannot measure must not refuse: on a platform exposing neither
     MemAvailable nor sysconf, the library keeps working exactly as before."""
-    monkeypatch.setattr(op, '_available_memory_bytes', lambda: None)
+    monkeypatch.setattr(mg, '_available_memory_bytes', lambda: None)
     op._check_output_fits(10**9, 5, 'osc_prob_energy_baseline')
 
 
 def test_available_memory_is_a_plausible_positive_number_or_none():
     """Whatever it reports on this machine, it must be usable as a bound."""
-    value = op._available_memory_bytes()
+    value = mg._available_memory_bytes()
     assert value is None or (isinstance(value, int) and value > 0)
 
 
@@ -2121,11 +2122,11 @@ def test_cgroup_limit_caps_the_host_figure(tmp_path, monkeypatch):
                  {'v2/leaf/memory.max': '3221225472\n',       # 3 GiB
                   'v2/leaf/memory.current': '221225472\n',
                   'v2/memory.max': 'max\n'})
-    headroom = op._cgroup_headroom_bytes()
+    headroom = mg._cgroup_headroom_bytes()
     assert headroom == 3221225472 - 221225472
-    monkeypatch.setattr(op, '_cgroup_headroom_bytes', lambda: headroom)
+    monkeypatch.setattr(mg, '_cgroup_headroom_bytes', lambda: headroom)
     # A host figure far larger than the cgroup allows must not win.
-    assert op._available_memory_bytes() <= headroom
+    assert mg._available_memory_bytes() <= headroom
 
 
 def test_cgroup_limit_is_the_tightest_ancestor_not_the_leaf(tmp_path, monkeypatch):
@@ -2140,7 +2141,7 @@ def test_cgroup_limit_is_the_tightest_ancestor_not_the_leaf(tmp_path, monkeypatc
                   'v2/job/memory.max': '1073741824\n',        # 1 GiB, on the ANCESTOR
                   'v2/job/memory.current': '73741824\n',
                   'v2/memory.max': 'max\n'})
-    assert op._cgroup_headroom_bytes() == 1073741824 - 73741824
+    assert mg._cgroup_headroom_bytes() == 1073741824 - 73741824
 
 
 def test_cgroup_v1_sentinel_reads_as_unlimited(tmp_path, monkeypatch):
@@ -2154,7 +2155,7 @@ def test_cgroup_v1_sentinel_reads_as_unlimited(tmp_path, monkeypatch):
                   'v1/leaf/memory.usage_in_bytes': '1000\n',
                   'v1/memory.limit_in_bytes': '9223372036854771712\n',
                   'v1/memory.usage_in_bytes': '1000\n'})
-    assert op._cgroup_headroom_bytes() is None
+    assert mg._cgroup_headroom_bytes() is None
 
 
 def test_no_cgroup_limit_leaves_the_host_figure_alone(tmp_path, monkeypatch):
@@ -2164,7 +2165,7 @@ def test_no_cgroup_limit_leaves_the_host_figure_alone(tmp_path, monkeypatch):
     change everywhere rather than a visible failure."""
     _fake_cgroup(tmp_path, monkeypatch, '0::/leaf\n',
                  {'v2/leaf/memory.max': 'max\n', 'v2/memory.max': 'max\n'})
-    assert op._cgroup_headroom_bytes() is None
+    assert mg._cgroup_headroom_bytes() is None
 
 
 def test_a_misspelled_passthrough_names_the_caller_and_the_near_match():
@@ -2233,7 +2234,7 @@ def test_cgroup_probe_survives_a_hostile_filesystem(monkeypatch):
         raise OSError('no /proc here')
 
     monkeypatch.setattr('builtins.open', exploding_open)
-    assert op._cgroup_headroom_bytes() is None
+    assert mg._cgroup_headroom_bytes() is None
 
 
 def test_ip_exp_core_without_a_tolerance_returns_after_one_pass():
@@ -2899,6 +2900,27 @@ def test_breakpoints_cure_a_feature_narrower_than_the_probe_grid():
     # And the cure works, which is what the documentation promises.  (Measured: 1.31e-04.)
     assert err_bp < 1e-3, f"t_breakpoints no longer cures the narrow feature (err {err_bp:.2e})"
     assert err_bp < err_bare/10.0
+
+    # The warning's OWN suggested breakpoints must cure too -- warn, parse the printed edges,
+    # pass them back.  This is the workflow the message actually offers a user who knows
+    # neither the width nor the true centre, and it went unpinned once before: the pair-scale
+    # suggestion this replaces was measured on the FINDINGS §3.3 flagship to leave a single
+    # point at its bare 3.0e-02 while switching the scan (and so the warning) off.  (Measured
+    # here with the localized suggestion: 4.06e-05, from a bare 4.60e-03.)
+    msgs = [str(w.message) for w in rec if w.category.__name__ == 'HiddenFeatureWarning']
+    printed = re.search(r't_breakpoints=\[([^\]]+)\]', msgs[0])
+    assert printed is not None, 'the warning no longer prints a t_breakpoints suggestion'
+    edges_printed = [float(v) for v in printed.group(1).split(',')]
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        P_printed = np.asarray(op.osc_prob_matter_std_potential(
+            2, ne, energy, l1, params, L0=0.0, density_is_of_number_of_electrons=True,
+            t_breakpoints=edges_printed))
+    err_printed = np.max(np.abs(P_printed - P_exact))
+    assert err_printed < 1e-3, (
+        f"the warning's suggested t_breakpoints no longer cure (err {err_printed:.2e}); "
+        "a suggestion that re-silences without curing is worse than none")
+    assert err_printed < err_bare/10.0
 
 
 def test_cumulative_scan_returns_an_unwrapped_matrix_for_a_scalar_request():

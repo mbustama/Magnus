@@ -78,6 +78,14 @@ from .hamiltonians5nu import (
     hamiltonian_5nu_liv,
     hamiltonian_5nu_liv_energy_independent,
 )
+from .hamiltonians_pseudodirac import (
+    PseudoDiracSplittingWarning,
+    pseudo_dirac_mixing_matrix,
+    pseudo_dirac_mass_squared,
+    hamiltonian_pseudo_dirac_vacuum_energy_independent,
+    hamiltonian_pseudo_dirac_vacuum,
+    hamiltonian_pseudo_dirac_matter,
+)
 # The `angles` convention is interpreted in the private _angles module, so the two names
 # callers need -- the accepted values, and the warning class they may want to filter --
 # are DEFINED in magnus.globaldefs, which autoapi documents, and merely re-exported here.
@@ -140,4 +148,10 @@ __all__ = [
     'hamiltonian_5nu_nsi',
     'hamiltonian_5nu_liv',
     'hamiltonian_5nu_liv_energy_independent',
+    'PseudoDiracSplittingWarning',
+    'pseudo_dirac_mixing_matrix',
+    'pseudo_dirac_mass_squared',
+    'hamiltonian_pseudo_dirac_vacuum_energy_independent',
+    'hamiltonian_pseudo_dirac_vacuum',
+    'hamiltonian_pseudo_dirac_matter',
 ]
