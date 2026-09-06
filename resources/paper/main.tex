@@ -1676,40 +1676,40 @@ They are \emph{generated}: one script builds all of them, executes them, and ref
 {\def\arraystretch{1.15}
 \begin{table*}[t!]
 {\small
-\begin{tabular}{@{}p{0.7cm}p{5.0cm}p{11.6cm}@{}}
- \# & Notebook & What it covers \\
+\begin{tabular}{@{}p{0.6cm}p{4.3cm}p{9.2cm}p{2.9cm}@{}}
+ \# & Notebook & What it covers & Sections \\
  \hline
- 01 & {\tt introduction} & What the package computes, and a first probability. \\
- 02 & {\tt 2nu\_vacuum\_matter} & Two-neutrino probabilities, in vacuum and in matter. \\
- 03 & {\tt 3nu\_vacuum\_matter} & Three-neutrino probabilities, in vacuum and in matter. \\
- 04 & {\tt long\_baseline} & Long-baseline accelerator configurations. \\
- 05 & {\tt biprobability} & Biprobability plots. \\
- 06 & {\tt oscillograms} & Oscillograms in energy and arrival direction. \\
- 07 & {\tt bsm\_sterile\_nu} & Sterile neutrinos, at four and five flavors. \\
- 08 & {\tt bsm\_nsi} & Non-standard interactions. \\
- 09 & {\tt bsm\_liv} & Lorentz-invariance violation. \\
- 10 & {\tt averaged\_probability} & Phase-averaged probabilities, and what {\tt average=True} returns. \\
- 11 & {\tt matrix\_exponential} & The matrix exponential, and the two backends behind it. \\
- 12 & {\tt adiabatic\_hybrid\_strategy} & The {\tt strategy} keyword: {\tt 'auto'}, {\tt 'hybrid'} and {\tt 'magnus'}. \\
- 13 & {\tt tabulated\_solar\_model} & A tabulated solar model, and whether the quantity computed is the one measured. Section \ref{sec:solar}. \\
- 14 & {\tt supernova\_shock} & A supernova shock front, and when the error is real. \\
- 15 & {\tt antineutrinos} & Antineutrinos, and the conventions they require. \\
- 16 & {\tt exact\_vs\_approximations} & Exact probabilities against the textbook approximations. \\
- 17 & {\tt ordering\_and\_octant} & Mass ordering and the $\theta_{23}$ octant. \\
- 18 & {\tt unusual\_density\_profiles} & Unusual density profiles: the arrangement matters, not only the mean. \\
- 19 & {\tt custom\_hamiltonian} & Supplying a Hamiltonian of your own. \\
- 20 & {\tt numerical\_edge\_cases} & Numerical edge cases, and what each warning means. \\
- 21 & {\tt what\_tolerance\_means} & What {\tt rtol} and {\tt atol} promise, and what they do not. \\
- 22 & {\tt which\_engine\_answered} & Which of the six engines answered a call, and why. \\
- 23 & {\tt when\_averaging\_helps} & When averaging rescues a calculation, and when it does not. \\
- 24 & {\tt performance} & Which optimizations are worth applying. Section \ref{sec:cost}. \\
- 25 & {\tt against\_other\_codes} & The comparisons of Sections \ref{sec:performance} and \ref{sec:comparison}, in full. \\
- 26 & {\tt nufit\_evolution} & Fourteen years of NuFIT, and its effect on the probabilities. \\
- 27 & {\tt animations} & Animated scenes. \\
- 28 & {\tt paper\_figures} & Every figure in this paper. \\
- 29 & {\tt pseudo\_dirac} & Pseudo-Dirac neutrinos. \\
+ 01 & {\tt introduction} & What the package computes, and a first probability. & \ref{sec:synopsis} \\
+ 02 & {\tt 2nu\_vacuum\_matter} & Two-neutrino probabilities, in vacuum and in matter. & \ref{sec:vacuum_const} \\
+ 03 & {\tt 3nu\_vacuum\_matter} & Three-neutrino probabilities, in vacuum and in matter. & \ref{sec:vacuum_const} \\
+ 04 & {\tt long\_baseline} & Long-baseline accelerator configurations. & \ref{sec:earth} \\
+ 05 & {\tt biprobability} & Biprobability plots. & \ref{sec:earth} \\
+ 06 & {\tt oscillograms} & Oscillograms in energy and arrival direction. & \ref{sec:earth} \\
+ 07 & {\tt bsm\_sterile\_nu} & Sterile neutrinos, at four and five flavors. & \ref{sec:bsm} \\
+ 08 & {\tt bsm\_nsi} & Non-standard interactions. & \ref{sec:bsm} \\
+ 09 & {\tt bsm\_liv} & Lorentz-invariance violation. & \ref{sec:bsm} \\
+ 10 & {\tt averaged\_probability} & Phase-averaged probabilities, and what {\tt average=True} returns. & \ref{sec:averaged}, \ref{sec:sun} \\
+ 11 & {\tt matrix\_exponential} & The matrix exponential, and the two backends behind it. & \ref{sec:exponential} \\
+ 12 & {\tt adiabatic\_hybrid\_strategy} & The {\tt strategy} keyword: {\tt 'auto'}, {\tt 'hybrid'} and {\tt 'magnus'}. & \ref{sec:hybrid}, \ref{sec:engines} \\
+ 13 & {\tt tabulated\_solar\_model} & A tabulated solar model, and whether the quantity computed is the one measured. & \ref{sec:sun}, \ref{sec:solar_comparison} \\
+ 14 & {\tt supernova\_shock} & A supernova shock front, and when the error is real. & \ref{sec:shock}, \ref{sec:shock_comparison} \\
+ 15 & {\tt antineutrinos} & Antineutrinos, and the conventions they require. & \ref{sec:recap} \\
+ 16 & {\tt exact\_vs\_approximations} & Exact probabilities against the textbook approximations. & \ref{sec:recap} \\
+ 17 & {\tt ordering\_and\_octant} & Mass ordering and the $\theta_{23}$ octant. & \ref{sec:earth} \\
+ 18 & {\tt unusual\_density\_profiles} & Unusual density profiles: the arrangement matters, not only the mean. & \ref{sec:phase_vs_profile}, \ref{sec:shock} \\
+ 19 & {\tt custom\_hamiltonian} & Supplying a Hamiltonian of your own. & \ref{sec:arbitrary} \\
+ 20 & {\tt numerical\_edge\_cases} & Numerical edge cases, and what each warning means. & \ref{sec:limitations}, \ref{sec:implementation_limits} \\
+ 21 & {\tt what\_tolerance\_means} & What {\tt rtol} and {\tt atol} promise, and what they do not. & \ref{sec:refinement}, \ref{sec:diagnostics} \\
+ 22 & {\tt which\_engine\_answered} & Which of the six engines answered a call, and why. & \ref{sec:engines} \\
+ 23 & {\tt when\_averaging\_helps} & When averaging rescues a calculation, and when it does not. & \ref{sec:averaging_is_not_estimating}, \ref{sec:astro} \\
+ 24 & {\tt performance} & Which optimizations are worth applying. & \ref{sec:cost}, \ref{sec:timing_protocol} \\
+ 25 & {\tt against\_other\_codes} & Every comparison against another code, in full. & \ref{sec:performance}, \ref{sec:comparison} \\
+ 26 & {\tt nufit\_evolution} & Fourteen years of NuFIT, and its effect on the probabilities. & \ref{sec:recap} \\
+ 27 & {\tt animations} & Animated scenes. & \ref{sec:documentation} \\
+ 28 & {\tt paper\_figures} & Every figure in this paper. & All figures \\
+ 29 & {\tt pseudo\_dirac} & Pseudo-Dirac neutrinos. & \ref{sec:bsm} \\
 \end{tabular}}
-\caption{\label{tab:notebooks}The twenty-nine tutorial notebooks shipped with \magnus, in reading order. Each file is {\tt notebooks/NN\_magnus\_$\langle$name$\rangle$.ipynb}, with {\tt NN} and $\langle$name$\rangle$ as given in the first two columns. Each notebook is stored with its outputs, so it can be read without being run, and each ends with a pointer to its neighbors. The suite re-executes all of them on every push, so a notebook that stopped working would fail the build rather than sit stale in the repository.}
+\caption{\label{tab:notebooks}The twenty-nine tutorial notebooks shipped with \magnus, in reading order. Each file is {\tt notebooks/NN\_magnus\_$\langle$name$\rangle$.ipynb}, with {\tt NN} and $\langle$name$\rangle$ as given in the first two columns. Each notebook is stored with its outputs, so it can be read without being run, and each ends with a pointer to its neighbors. The suite re-executes all of them on every push, so a notebook that stopped working would fail the build rather than sit stale in the repository. The last column gives the sections of this paper that each notebook carries in long form. Ten of those sections cite their notebook directly; the rest are a correspondence of subject. Notebook \#28 is listed against every figure because it produces all of them.}
 \end{table*}}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
