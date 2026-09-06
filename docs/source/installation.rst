@@ -302,6 +302,11 @@ File Tree
    │       ├── audit-criteria.md       # What the manuscript audit checks
    │       ├── pending-edits.md        # Edits and re-runs the manuscript still owes, with what each one moves
    │       ├── review-crossread.md     # A cross-read of the manuscript against the code
+   │       ├── HANDOVER-audit.md       # Handover for the manuscript audit
+   │       ├── HANDOVER-nuoscprobexact-batched-tolerance.md  # Handover: giving NuOscProbExact a tolerance dial, so both codes answer one request
+   │       ├── audit-report.md         # What the manuscript audit found
+   │       ├── PLAN_fig12_revamp.md    # Scoping for rebuilding Fig. 12 in Fig. 11 shape -- not started
+   │       ├── PLAN_fig13_solar_average.md  # Scoping for Fig. 13, the cost of one averaged solar probability
    │       ├── main.tex                # The paper -- ordinary LaTeX; a revision diff is mechanical
    │       ├── refs.bib                # NuOscProbExact's bibliography, with the Magnus entries appended below a separator
    │       ├── elsarticle.cls          # Bundled, so the folder compiles without the Elsevier bundle
