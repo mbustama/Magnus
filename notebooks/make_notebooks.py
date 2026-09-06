@@ -15847,6 +15847,7 @@ print('x-axis spans %.3g to %.3g ms (%.1f decades); %d measured, %d projected'
 # at half the size the rc asks for.  Sizes come from the notebook rc block above; none
 # are set here, so this figure matches the rest.
 fig, ax = plt.subplots(figsize=(COL, 3.55))
+first_proj = True
 for yi, r in zip(yy, rows):
     c = FLAV_COLOR[r['flavors']]
     ax.plot([XLO, r['ms']], [yi, yi], lw=0.7, color=GRID, zorder=1)
@@ -15865,7 +15866,12 @@ for yi, r in zip(yy, rows):
         ax.annotate('', xy=(XHI*0.92, yi), xytext=(r['ms']*2.2, yi),
                     arrowprops=dict(arrowstyle='-|>', color=c, alpha=0.5, lw=0.8,
                                     shrinkA=0, shrinkB=0))
-        ax.text(XHI*0.80, yi + 0.30, r'$\sim%.0f$ h' % (r['reference_seconds']/3600.0),
+        # Only the first of these says what the number means; the ones below inherit
+        # the reading, and repeating the word on every arrow crowds the panel.
+        hrs = r['reference_seconds']/3600.0
+        lab = (r'Projected: $\sim%.0f$ h' % hrs) if first_proj else (r'$\sim%.0f$ h' % hrs)
+        first_proj = False
+        ax.text(XHI*0.80, yi + 0.30, lab,
                 ha='right', va='bottom', color=c, fontsize=7.0)
 
 ax.set_yticks(yy)
@@ -15873,22 +15879,25 @@ ax.set_yticklabels([r['label'].replace('nu', r'$\nu$') for r in rows])
 ax.set_xscale('log')
 ax.set_xlim(XLO, XHI)
 ax.set_ylim(-0.7, len(rows) - 0.3)
-ax.set_xlabel(r'Time for one averaged probability [ms]')
+ax.set_xlabel(r'Mean time for one averaged probability [ms]')
 ax.grid(True, axis='x', which='major', color=GRID, lw=0.5)
 ax.set_axisbelow(True)
 ax.axhline(3.5, color=INK, lw=0.7, ls=':')
-ax.tick_params(axis='y', length=0)
+ax.tick_params(axis='y', which='both', length=0, left=False, right=False)
+ax.xaxis.set_major_locator(mpl.ticker.LogLocator(base=10.0, numticks=20))
+ax.xaxis.set_minor_locator(mpl.ticker.LogLocator(base=10.0, subs=tuple(np.arange(2, 10)*0.1),
+                                                 numticks=20))
+ax.xaxis.set_minor_formatter(mpl.ticker.NullFormatter())
 h = [plt.Line2D([], [], ls='none', marker='o', ms=5.0, color=INK, mec='white', mew=0.7),
      plt.Line2D([], [], ls='none', marker='s', ms=4.6, mfc='white', mec=INK, mew=1.1),
      plt.Line2D([], [], ls='-', marker='', color=INK, alpha=0.5, lw=0.8)]
-# Below the axes, not inside them.  Every row spans the full width -- dot on the left,
+# Above the panel, not inside it.  Every row spans the full width -- dot on the left,
 # square or arrow on the right -- so an inset legend has nowhere to sit that does not
-# cover a row; in the first draft it hid 3+2 + NSI completely.
-ax.legend(h, [r'\magnus, closed form', r'{\tt DOP853}, then averaged',
-              r'projected, not run'],
-          loc='upper center', bbox_to_anchor=(0.5, -0.155), ncol=2,
-          handlelength=1.3, columnspacing=1.1, borderaxespad=0.0,
-          frameon=False)
+# cover a row; in the first draft it hid 3+2 + NSI completely.  The arrows are labelled
+# where they are drawn, so they need no entry here.
+ax.legend(h[:2], [r'\magnus, closed form', r'{\tt DOP853}, then averaged'],
+          loc='lower left', bbox_to_anchor=(0.0, 1.02, 1.0, 0.102), mode='expand',
+          ncol=2, handlelength=1.3, columnspacing=1.1, borderaxespad=0.0)
 fig.tight_layout(pad=0.6)
 save(fig, 'solar_average_cost.pdf')'''),
     md(r'''## What was written
