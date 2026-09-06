@@ -1431,11 +1431,11 @@ Almost none of that time is the answer. The eigendecompositions are a fraction o
 \section{Comparison to other codes}
 \label{sec:comparison}
 
-Comparisons against {\tt NuOscProbExact}\ \cite{NuOscProbExact, Bustamante:2019ggq} run through this section and through the three speed--accuracy planes of Section \ref{sec:performance}; {\tt nuSQuIDS}\ \cite{Delgado:2014kpa, Arguelles:2021twb, NuSQuIDS} enters in Section \ref{sec:solar_comparison} alone, where the observable is the phase-averaged solar probability. We referee every case by a method that is neither code's, and time every code in one process on one machine---the exception being the cross-code planes of Section \ref{sec:prem_planes}, which carry external timings measured by the companion project on the same machine model in a separate session, as their caption records. The frozen datasets behind the figures are in the repository so that none of the external codes need be installed to redraw them.
+We compare \magnus\ against two codes. {\tt NuOscProbExact}\ \cite{NuOscProbExact, Bustamante:2019ggq} appears throughout this section, and in the speed--accuracy planes of Section \ref{sec:performance}. {\tt nuSQuIDS}\ \cite{Delgado:2014kpa, Arguelles:2021twb, NuSQuIDS} appears in Section \ref{sec:solar_comparison} alone, where the observable is the phase-averaged solar probability. We referee every case by a third method that belongs to neither code, and we time every code in one process on one machine. The exception is Section \ref{sec:prem_planes}, whose external timings the companion project measured on the same machine model in a separate session. We keep the datasets behind every figure in the repository, so that none of the external codes need be installed to redraw them.
 
 \textbf{Where a closed form exists and the accumulated phase is large, use the closed form.} Constant density, piecewise-constant PREM, and standard three-flavor propagation are exactly what closed forms are built for, and on those \magnus\ does not win on cost. What it buys is everything that is not that: accuracy past the point where a piecewise-constant discretization stalls, an arbitrary varying profile, a Hamiltonian nobody has diagonalized, five flavors, and observables we return rather than reconstruct from a scan of instantaneous probabilities.
 
-% Where a closed form exists and the accumulated phase is large, the closed form wins. We measure it in Section~\ref{sec:comparison}: on a piecewise-constant PREM chord {\tt NuOscProbExact} is about $20$ times cheaper than \magnus\ at three flavors, and about $400$ times at $3+1$. What \magnus\ buys is what lies outside it: accuracy past the point where a piecewise-constant discretization stalls, an arbitrary varying profile, a Hamiltonian nobody has diagonalized, five flavors, and observables we return rather than reconstruct from a scan of instantaneous probabilities.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \subsection{Relation to other oscillation codes}
 \label{sec:relation}
@@ -1446,84 +1446,62 @@ Several others serve particular sectors: {\tt OscProb}\ \cite{OscProb} and {\tt 
 
 \magnus\ sits between the last two. The difference from each is structural rather than a matter of degree. Against a closed-form slab code, the difference is what happens \emph{inside} a slab: {\tt NuOscProbExact} freezes the Hamiltonian there and is exact for the frozen one, while \magnus\ integrates the Hamiltonian across the slab and is exact to the order of its truncation for the real one. Section \ref{sec:order_is_the_slab_product} shows that the two coincide exactly at second order---a piecewise-constant composition with the density read at each slab's midpoint \emph{is} the order-2 Magnus method---so what we add on the same slab chain is the higher orders, and the flavor counts and Hamiltonians that a closed form cannot express. Against {\tt nuSQuIDS}, the difference is that a unitary state-vector method cannot represent an open system at all, and pays nothing for the generality it does not have.
 
-% Section \ref{sec:comparison} measures \magnus\ against {\tt NuOscProbExact} and {\tt nuSQuIDS} directly, with every case refereed by a method that is neither code's, and states where each of the three wins.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\tabl{summary} collects the outcome of every comparison in this section, one row each.
+\subsection{Where the closed form wins}
+\label{sec:closed_form_wins}
 
-{\def\arraystretch{1.2}
-\begin{table}[t!]
- {\small
- \begin{tabular}{@{}p{3.6cm}p{4.4cm}@{}}
- Case & Outcome \\
- \hline
- Constant density, exactness & Both $\sim\!10^{-16}$ \\
- Constant density, speed & {\tt NuOscProbExact}, by $\sim\!7\times$; both $\sim\!10\times$ slower one energy at a time \\
- PREM $3\nu$, cost & {\tt NuOscProbExact}, by $2.6\times$ at matched accuracy \\
- PREM $3\nu$, self-convergence depth & \magnus\ to $3 \cdot 10^{-10}$; the closed form stalls near $6 \cdot 10^{-5}$ \\
- PREM $3+1$, cost & {\tt NuOscProbExact} by $\sim\!440\times$, and \magnus\ \emph{warns} \\
- PREM $3+1$, self-convergence depth & \magnus, to the referee's own floor ($4 \cdot 10^{-7}$); the closed form stalls near $3 \cdot 10^{-4}$, non-monotonically \\
- Smooth profile, reach & The slab product floors at $2.5 \cdot 10^{-11}$ and then rises; \magnus\ continues to $2.9 \cdot 10^{-13}$ \\
- Five flavors & \magnus\ only \\
- Solar averaged observable & \magnus\ returns it directly; nothing else here offers it \\
- Supernova shock & The width of the front decides, not the flavor content \\
-\end{tabular}}
-\caption{\label{tab:summary}What each comparison in Sections \ref{sec:performance} and \ref{sec:comparison} found. The boundary falls on the shape of the profile rather than on the physics: a jump belongs to the closed form, a continuous variation to \magnus. Every row is measured in notebook \#25 of the repository, with all codes timed in one process on one machine and each case refereed by a third method.}
-\end{table}}
+At constant density both codes are exact, to round-off. Over $60$ energies from $0.6$ to $20$~GeV at $1300$~km through $2.848$~g~cm$^{-3}$, \magnus\ reaches $9.0 \cdot 10^{-17}$ and {\tt NuOscProbExact} $4.9 \cdot 10^{-16}$. Called with the whole energy array at once, \magnus\ costs about seven times more per point. Called one energy at a time, \emph{either} code costs about an order of magnitude more per probability than it does batched. On this problem the dominant effect is how the code is called, not which code it is.
+
+Through the Earth the two codes point in opposite directions. The closed form is far cheaper, and \magnus\ reaches far deeper. A single figure of merit would hide one of them, so we report the two separately. \figu{smooth_reach} of Section \ref{sec:smooth_comparison} measures both along a core-crossing chord.
+
+\textit{Cost: the closed form, decisively.}---At three flavors {\tt NuOscProbExact} is cheaper at every setting we can compare. How much cheaper depends on what we ask of each code. Matched at the accuracy the closed form reaches with its densest slabbing, \magnus\ costs a few times more and returns about ten times the accuracy. Compared instead at each code's tightest setting, the ratio grows by about an order of magnitude. Those two settings differ by five orders of magnitude in error, so the second ratio prices reach rather than speed. At $3+1$ the gap is larger and of a different kind. It reaches two orders of magnitude, and the cost does not fall when we loosen the tolerance. That flatness is itself the diagnosis: the refinement ladder is not converging and stopping, but running to its slab ceiling, because an eV-scale $\Delta m^2_{41}$ over an $11\,000$~km chord demands a slab width the ladder never reaches. \magnus\ warns on every such row.
+
+\textit{Reach: the expansion, decisively.}---Refined against its own tightest setting, \magnus\ reaches $3.3 \cdot 10^{-10}$ at three flavors on that chord. {\tt NuOscProbExact} stalls near $5.6 \cdot 10^{-5}$ at its densest slabbing. The residual between the two codes is $4.1 \cdot 10^{-4}$, the same order as the looser of the two curves, so most of it is the closed form's discretization rather than a disagreement about physics. A residual far above \emph{both} curves would have meant a convention mismatch instead. That is the check we make before we conclude anything from a cross-code difference.
+
+At $3+1$ the accuracy runs the same way, with a sharper diagnosis. \magnus's residual against the referee is $4.5 \cdot 10^{-8}$, \emph{below} the referee's own discretization error of $4.1 \cdot 10^{-7}$. The honest statement is that the two agree to within the referee's uncertainty, and that this comparison cannot resolve them further. {\tt NuOscProbExact} sits some six hundred times above that floor, and its convergence is \emph{not monotonic}: thirty-two slabs per segment is worse than eight. Non-monotonic convergence is the signature of a discretization whose edges straddle structure they do not resolve. No setting of that dial can be read off as converged, because the error does not fall as we turn it.
+
+The two findings sit together uncomfortably. \magnus\ warns on every $3+1$ row, correctly, since the answer is not backed by a convergence argument---and it is also the most accurate answer we obtain there. \textbf{A convergence warning is a statement about evidence, not about error}. This is exactly where the two come apart: the warning is correct and the number is accurate at the same time, which no single figure of merit expresses.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\subsection{Constant density}
-\label{sec:const_density}
+\subsection{\magnus\ on three speed--accuracy planes}
+\label{sec:prem_planes}
 
-Both codes are exact here, to round-off. Over $60$ energies from $0.6$ to $20$~GeV at $1300$~km through $2.848$~g~cm$^{-3}$, \magnus\ reaches $9.0 \cdot 10^{-17}$ and {\tt NuOscProbExact} $4.9 \cdot 10^{-16}$, both at round-off; batched, \magnus\ costs $9.7~\mu$s per point and {\tt NuOscProbExact} $1.3~\mu$s. Called one energy at a time, \emph{either} code costs about an order of magnitude more per probability---$95~\mu$s and $14~\mu$s respectively. The dominant effect on this problem is how the code is called, not which code it is.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{figure*}[t!]
+ \centering
+ \includegraphics[width=\textwidth]{speed_accuracy_combined.pdf}
+ \caption{\label{fig:prem_plane}Error against the reference of each panel, against time per probability, for eight codes on three setups: constant density ({\it top}); a PREM chord at $\cos\theta_z = -0.9$, baseline $11\,468$~km, at three flavors ({\it middle}); and the same chord with a sterile state ({\it bottom}). One time axis serves all three, so a cost carries by eye from one setup to the next. We dial each code over the range its own interface offers and name the dial in the legend; \magnus\ appears twice for the same reason {\tt NuFast-Earth} does, its slab count and its tolerance being dials that do not dominate one another. Every point pairs a timing with the accuracy that same setting reached against a reference built \emph{in its own code's conventions}---no two codes here share one, and Section \ref{sec:the_floor} is why.}
+\end{figure*}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+Figure~\ref{fig:prem_plane} shows, for eight codes, the error each reaches against the time it takes per probability. The three panels are three setups: constant density (\emph{top}), a PREM chord at three flavors (\emph{middle}), and the same chord with a sterile state (\emph{bottom}). One time axis serves all three, so that a cost carries by eye from one setup to the next. We dial each code over the range its own interface offers, and we name that dial in the legend. Every point pairs a timing with the accuracy the same setting reached, scored against a reference built in that code's own conventions rather than in a shared one.
+
+The external timings are the companion project's, frozen in this repository, so that none of those codes need be installed to redraw the figure. They were measured on an Intel Core i5-1334U, and we timed \magnus\ on the same machine model in a separate session. A cross-code cost therefore carries that caveat; an accuracy, being untimed, does not. We keep the companion figure's axes unchanged so that the two may be laid side by side. That is also why \magnus's tolerance sweep stops at ${\tt rtol} = 10^{-8}$: measured to $10^{-12}$ it reaches $3.9 \cdot 10^{-14}$ at three flavors and $7.9 \cdot 10^{-12}$ at $3+1$, beneath the lower edge of either Earth panel. Nothing in the figure is clipped.
+
+The top panel and the lower two ask different questions. At constant density every code can be handed the same Hamiltonian, so the comparison measures how exactly each evaluates the probability from it, and an exact answer exists to measure against---one matrix exponential, carrying no discretization at all. Through the Earth there is no single Hamiltonian to hand over: the density changes continuously along the chord and the Hamiltonian with it, and every code---\magnus\ included---must first build its own approximation of the profile. The lower two panels therefore measure how finely a code resolves that profile rather than the exactness of its probability formula.
+
+Each Earth reference is consequently a \emph{converged} PREM solution rather than an exact one. We build it by Richardson extrapolation of a high-precision slab product, which cancels the leading discretization error rather than shrinking it: a full $50$-digit Romberg ladder at three flavors, and a single $30$-digit pair at $3+1$, where each rung costs far more. That construction cuts the chord the way a slab code cuts it, so an error in the cutting would sit in both and cancel from the comparison instead of showing up in it. We therefore check it against a calculation sharing none of that machinery: an adaptive integration of the flavor state through the \emph{continuous} profile, restarted at every density jump so that no step straddles one. Run to the double-precision limit, that check follows the reference to $9 \cdot 10^{-12}$ and no further. The limit there is the check's rather than the reference's, and reading it as a floor would throw away four orders of real accuracy. What settles the question is a second extrapolation at full precision, sharing no slab count with the first: at three flavors two disjoint $50$-digit ladders agree to $1.1 \cdot 10^{-16}$. The $3+1$ referee is the coarser of the two constructions, and a disjoint pair confirms it to $1.2 \cdot 10^{-12}$; \magnus's tightest point there sits a factor of six above that, so it is resolved, but not by much.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\subsection{The Earth: cost against reach}
-\label{sec:prem_comparison}
+\subsection{Making a cross-code number mean anything}
+\label{sec:the_floor}
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\tabl{prem} separates cost from reach along a single Earth chord, one row per setting of each code. Through the Earth the two point in opposite directions---the closed form is far cheaper, \magnus\ reaches far deeper---so a single figure of merit would hide one of them.
+\textbf{Check that the two codes agree in vacuum first.} If they do not, the disagreement is in the solvers. If they agree in vacuum and disagree in matter, it is in the conventions---a matter-potential factor, an electron fraction, a channel index---and no amount of tolerance will close it. A trade-off curve that does not respond to its own dial is reporting a convention difference rather than a solver. That is what \magnus\ and {\tt NuOscProbExact} produce against each other's references through the Earth, and the rest of this section measures the case.
 
-{\def\arraystretch{1.2}
-\begin{table}[t!]
- {\small
- \begin{tabular}{@{}lrr@{}}
- Setting & Time [$\mu$s/prob.] & Error \\
- \hline
- \multicolumn{3}{@{}l}{\emph{Three flavors}} \\
- \magnus, {\tt rtol} $=10^{-4}$ & $153$ & $5.4 \cdot 10^{-6}$ \\
- \magnus, {\tt rtol} $=10^{-6}$ & $493$ & $5.9 \cdot 10^{-8}$ \\
- \magnus, {\tt rtol} $=10^{-8}$ & $1254$ & $3.3 \cdot 10^{-10}$ \\
- {\tt NuOscProbExact}, $8$ slabs & $39$ & $2.4 \cdot 10^{-4}$ \\
- {\tt NuOscProbExact}, $16$ slabs & $59$ & $5.6 \cdot 10^{-5}$ \\
- \hline
- \multicolumn{3}{@{}l}{\emph{$3+1$ sterile}} \\
- \multicolumn{3}{@{}l}{\emph{(scored against the referee, floor $4.1 \cdot 10^{-7}$)}} \\
- \magnus, {\tt rtol} $=10^{-3}$ & $34\,034$ & $4.5 \cdot 10^{-8}$ \\
- \magnus, {\tt rtol} $=10^{-5}$ & $36\,667$ & $4.5 \cdot 10^{-8}$ \\
- {\tt NuOscProbExact}, $8$ slabs & $65$ & $2.6 \cdot 10^{-4}$ \\
- {\tt NuOscProbExact}, $32$ slabs & $280$ & $3.7 \cdot 10^{-4}$ \\
- \end{tabular}}
- \caption{\label{tab:prem}Cost against reach along a PREM chord at $\cos\theta_z = -0.85$, a baseline of $10\,831$~km, over $24$ energies from $0.6$ to $20$~GeV in the appearance channel $P_{\nu_\mu \to \nu_e}$. We pin the electron fraction to $0.5$ on both sides and on the referee, since \magnus's own layered default differs from a uniform value by up to $7 \cdot 10^{-2}$ on this chord and would turn a comparison of two solvers into a comparison of two Earths. The two blocks measure error differently. At three flavors each code is refined against its own tightest setting (its own discretization error borrowing nobody else's conventions). At $3+1$ that would be meaningless for \magnus: it does not converge there but runs to its slab ceiling, so its answers at $10^{-3}$ and $10^{-5}$ are identical and a self-convergence figure would report near-zero for a result that carries a convergence warning. Those rows are therefore scored against an independent slab-product referee whose own discretization error is $4.1 \cdot 10^{-7}$, and \magnus's $4.5 \cdot 10^{-8}$ is \emph{below} it. In the last row, {\tt NuOscProbExact} at $32$ slabs per segment is \emph{worse} than at $8$. Measured in notebook \#25 of the repository, which needs both codes installed; Section \ref{sec:prem_planes} carries three planes of eight codes that need neither, on a different chord and channel. At $3+1$ over these energies a $1$~eV$^2$ splitting oscillates fast enough that \magnus\ runs to its slab ceiling instead of converging, which no panel of \figu{prem_plane} reaches.}
-\end{table}}
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+The conventions we matched before drawing any curve are not optional. We give every code the same oscillation parameters, expressed in the convention that code expects, and the same PREM implementation, chord, and baseline in eV$^{-1}$. The matter potential is the one convention we could not match, for the reason that follows.
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\magnus's charged-current potential sits $1.9 \cdot 10^{-4}$ below {\tt NuOscProbExact}'s at the same density, the two codes rounding the nucleon mass differently. Left unmatched, that difference pins \magnus's error against the other code's reference at $2.4 \cdot 10^{-4}$ however tight the tolerance. The curve then comes out flat---points stacked at one height, above every other code, saying nothing about either.
 
-\smallskip
+The obvious repair is to match the two potentials, which is what the frozen dataset does for {\tt nuSQuIDS} and {\tt nuCraft} by scaling the density each is handed. Through \magnus's Earth entry points the only handle is the {\tt electron\_fraction} keyword, and passing $0.5000948$ rather than $0.5$ does produce a falling curve. It stops falling three orders above where \magnus\ can reach, and we first read that floor as the potential match running out in some general way. It is not general. It has one cause, and the cause is worth stating because it is invisible from outside the code.
 
-\textit{Cost: the closed form, decisively.}---On a chord at $\cos\theta_z = -0.85$ at three flavors, {\tt NuOscProbExact} is cheaper throughout, but by how much depends on what is asked of each code. Against its tightest row in \tabl{prem}, $59~\mu$s for an error of $5.6 \cdot 10^{-5}$, \magnus\ costs $153~\mu$s and delivers $5.4 \cdot 10^{-6}$: a factor of $2.6$ in cost for ten times the accuracy. Comparing the two codes' tightest rows instead gives $59~\mu$s against $1\,254$, a factor of $21$---but those settings differ by five orders of magnitude in error, and no slabbing of the closed form reaches \magnus's accuracy on this chord, so that ratio prices reach rather than speed. At $3+1$ the gap is larger and of a different kind: $280~\mu$s against $34\,000$, a factor of about $120$, and the cost does not fall when the tolerance is loosened. That flatness is itself the diagnosis: the refinement ladder is not converging and stopping, it is running to its slab ceiling, because an eV-scale $\Delta m^2_{41}$ over an $11\,000$~km chord demands a slab width below what the ladder reaches. \magnus\ warns on every row.
+On a chord \magnus\ derives the average nucleon mass from the composition, layer by layer, through $r = n_n/n_p = (1 - Y_e)/Y_e$. A medium carrying an iron core's $Y_e$ alongside an isoscalar $r$ is matter that cannot exist. The consequence is that $V_{\rm CC}$ is \emph{not} linear in $Y_e$: raising $Y_e$ by $1.9$ parts in $10^{4}$ moves the nucleon mass as well, so the potential picks up a further $1.3 \cdot 10^{-7}$ that we never asked for. That number is the floor. Matching a potential through a composition parameter is therefore only ever good to the order at which composition enters the nucleon mass, and no solver setting on either side reaches beneath it.
 
-\smallskip
+The repair is not a better scale factor but a different measurement. We give each code its own high-precision reference, built with that code's own constants, and we score it at $Y_e = 1/2$, where its conventions are self-consistent. Measured that way on the same chord, \magnus\ reaches $3.9 \cdot 10^{-14}$, four orders below where the matched curve stalled. The floor was never \magnus's. What that number is, and is not, follows from how we obtained it: a code scored against a reference in its own conventions is being asked how far its own discretization has converged, not how close it sits to another code's answer. Two codes can both reach $10^{-14}$ in \figu{prem_plane} and still differ from one another at $10^{-4}$, which is exactly what the potential mismatch above produces. The ordinate is therefore a self-convergence depth, comparable down a series and not across them.
 
-\textit{Reach: the expansion, decisively.}---Refined against its own tightest setting, \magnus\ reaches $3.3 \cdot 10^{-10}$ at three flavors where {\tt NuOscProbExact} stalls near $5.6 \cdot 10^{-5}$ at its densest slabbing. The residual between the two codes is $4.1 \cdot 10^{-4}$, the same order as the \emph{looser} of the two curves, so most of it is the closed form's discretization rather than a disagreement about physics. A residual far above \emph{both} curves would have meant a convention mismatch instead, which is the check we make before concluding anything from a cross-code difference.
-
-At $3+1$ the accuracy runs the same way, with a sharper diagnosis. \magnus's residual against the referee is $4.5 \cdot 10^{-8}$, \emph{below} the referee's own discretization error of $4.1 \cdot 10^{-7}$, so the honest statement is that it agrees with the referee to within the referee's uncertainty and this comparison cannot resolve it further. {\tt NuOscProbExact} sits at $2.6 \cdot 10^{-4}$, some six hundred times above that floor. Its convergence is \emph{not monotonic}: $32$ slabs per segment is worse than $8$. Non-monotonic convergence is the signature of a discretization whose edges straddle structure they do not resolve. There is no setting of that dial to read off as converged, because the error does not fall as it is turned.
-
-\smallskip
-
-The two findings sit together uncomfortably. \magnus\ warns on every $3+1$ row (correctly, since the answer is not backed by a convergence argument) and is also the most accurate answer on the plot. \textbf{A convergence warning is a statement about evidence, not about error}. This is exactly where the two come apart: the warning is correct and the number is accurate at the same time, which no single figure of merit expresses.
+The transferable version: \textbf{a cross-code comparison through the Earth is limited by the agreement of the two Earth models long before it is limited by either solver}, and any such comparison reaching past $10^{-7}$ without saying how its potentials were matched is reporting a convention. Matching them is harder than it looks, because the parameter that carries the potential usually carries something else as well. Giving each code its own reference sidesteps the question rather than answering it, which is why we do that instead.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -1532,9 +1510,9 @@ The two findings sit together uncomfortably. \magnus\ warns on every $3+1$ row (
 
 \tabl{which} says what to run on eleven problems. We include {\tt NuOscProbExact} rather than only \magnus\ because the two are close relatives. They take the same arbitrary Hermitian Hamiltonian, compose the same ordered product of slab operators, and share units, conventions, and parameter defaults deliberately. The choice between them therefore turns on the shape of the profile rather than on the physics in the Hamiltonian.
 
-\textbf{Reach for the closed form unless the problem takes it outside its range.} Smooth variation is not enough to justify the expansion: the exponential profile of \figu{smooth_reach} varies across every stretch, and the closed form is the cheaper code there wherever an error near $10^{-8}$ will do. Past that the ordering reverses---the two cross at about $7.5 \cdot 10^{-9}$ at three flavors---and the closed form then floors at $6 \cdot 10^{-11}$, two decades above where \magnus\ at order 4 is still descending. What does justify it is structure the staircase has to chase---a layered Earth, a shock front---or an accuracy past about $10^{-10}$, where composing that many factors floors the closed form and \magnus\ continues; or more than four flavors, where no SU($n$) expression exists; or a Hamiltonian that does not factorize as a scalar potential times a fixed projector. An exact algebraic solution beats a truncated series wherever an exact algebraic solution exists. Section \ref{sec:order_is_the_slab_product} shows why the two meet: a piecewise-constant composition \emph{is} the Magnus method at second order, so on a staircase the closed form is doing the same arithmetic in fewer operations. What \magnus\ adds is orders 4, 6, and 8 on the same chain, which pays only when there is curvature within a slab for them to resolve.
+\textbf{Reach for the closed form unless the problem takes it outside its range.} Smooth variation is not enough to justify the expansion. The exponential profile of \figu{smooth_reach} varies across every stretch, and the closed form is the cheaper code there wherever an error near $10^{-8}$ will do. Past that the ordering reverses, and the closed form then floors about two decades above where \magnus\ at order 4 is still descending. What does justify the expansion is structure the staircase has to chase---a layered Earth, a shock front---or an accuracy past about $10^{-10}$, where composing that many factors floors the closed form; or more than four flavors, where no SU($n$) expression exists; or a Hamiltonian that does not factorize as a scalar potential times a fixed projector. An exact algebraic solution beats a truncated series wherever an exact algebraic solution exists. Section \ref{sec:order_is_the_slab_product} shows why the two meet: a piecewise-constant composition \emph{is} the Magnus method at second order, so on a staircase the closed form is doing the same arithmetic in fewer operations. What \magnus\ adds is orders 4, 6, and 8 on the same chain, which pays only when there is curvature within a slab for them to resolve.
 
-Two entries in \tabl{which} resist the sorting the rest obey. A supernova shock appears twice with opposite answers; the parameter that separates them is not the physics but the width of the front measured against the oscillation length (Section \ref{sec:shock_comparison}). A tabulated profile belongs to \magnus\ not because tables are special but because the interpolant between samples is smooth, so a method that integrates across a slab has something to integrate.
+Two entries in \tabl{which} resist the sorting the rest obey. A supernova shock appears twice with opposite answers; the parameter that separates them is not the physics but the width of the front measured against the oscillation length (Section \ref{sec:shock_comparison}). A tabulated profile belongs to \magnus\ not because tables are special, but because the interpolant between samples is smooth, so a method that integrates across a slab has something to integrate.
 
 Because the two packages share conventions, a calculation can be moved from one to the other and run both ways. It is the check to run on any result that matters: agreement between two methods whose failure modes differ is stronger evidence than either one's internal convergence check, which Section \ref{sec:refinement} is careful to describe as evidence rather than proof.
 
@@ -1560,59 +1538,6 @@ Because the two packages share conventions, a calculation can be moved from one 
 \caption{\label{tab:which}Choosing between \magnus\ and {\tt NuOscProbExact}\ \cite{NuOscProbExact, Bustamante:2019ggq} on eleven problems. ``Closed form'' means the latter throughout. The rows are ordered by the shape of the profile rather than by the physics in the Hamiltonian, which is what the two methods differ over: both take an arbitrary Hermitian matrix, so the last row is the only one where the answer turns on physics. The comparisons of Sections \ref{sec:performance} and \ref{sec:comparison} measure the rows that are measurable; the last three say what each code can express.}
 \end{table*}}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-\subsection{Before comparing any two codes' numbers}
-\label{sec:conventions_first}
-
-\textbf{Check that the two codes agree in vacuum first.} If they do not, the disagreement is in the solvers. If they agree in vacuum and disagree in matter, it is in the conventions---a matter-potential factor, an electron fraction, a channel index---and no amount of tolerance will close it. A trade-off curve that does not respond to its own dial is reporting a convention difference rather than a solver, which is what \magnus\ and {\tt NuOscProbExact} produce against each other's references through the Earth. Section \ref{sec:the_floor} measures that case, and says what to give each code instead.
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-\subsection{\magnus\ on three speed--accuracy planes}
-\label{sec:prem_planes}
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\begin{figure*}[t!]
- \centering
- \includegraphics[width=\textwidth]{speed_accuracy_combined.pdf}
- \caption{\label{fig:prem_plane}Error against the reference of each panel, against time per probability, for eight codes on three setups: constant density ({\it top}); a PREM chord at $\cos\theta_z = -0.9$, baseline $11\,468$~km, at three flavors ({\it middle}); and the same chord with a sterile state ({\it bottom}). One time axis serves all three, so a cost carries by eye from one setup to the next. We dial each code over the range its own interface offers and name the dial in the legend; \magnus\ appears twice for the same reason {\tt NuFast-Earth} does, its slab count and its tolerance being dials that do not dominate one another. Every point pairs a timing with the accuracy that same setting reached against a reference built \emph{in its own code's conventions}---no two codes here share one, and Section \ref{sec:the_floor} is why.}
-\end{figure*}
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-\figu{prem_plane} places \magnus\ on three planes of external codes measured by the companion project, whose numbers are frozen in this repository. None of those codes need be installed to redraw the figure. They were timed by the companion project on an Intel Core i5-1334U; we timed \magnus\ on the same machine model in a separate session, so a cross-code cost carries that caveat, while an accuracy, being untimed, does not. The axes are the companion figure's, unchanged, so that the two may be laid side by side, and \magnus's tolerance sweep is drawn only to ${\tt rtol} = 10^{-8}$ for that reason: measured to $10^{-12}$ it reaches $3.9 \cdot 10^{-14}$ at three flavors and $7.9 \cdot 10^{-12}$ at $3+1$, beneath the lower edge of either Earth panel, as its $2\,048$-slab point at $3+1$ also is. Section \ref{sec:prem_comparison} instead compares it against {\tt NuOscProbExact} directly, with both codes installed and each refined against its own tightest setting. The planes carry a caution that transfers to any comparison of this kind.
-
-The top panel and the lower two ask different questions. At constant density every code can be handed the same Hamiltonian, so the comparison measures how exactly each evaluates the probability from it, and an exact answer exists to measure against---one matrix exponential, carrying no discretization at all. Through the Earth there is no single Hamiltonian to hand over: the density changes continuously along the chord and the Hamiltonian with it, and every code---\magnus\ included---must first build its own approximation of the profile. The lower two panels therefore measure how finely a code resolves that profile rather than the exactness of its probability formula.
-
-Each Earth reference is consequently a \emph{converged} PREM solution rather than an exact one: a Richardson extrapolation of a high-precision slab product, which cancels the leading discretization error rather than shrinking it---a full $50$-digit Romberg ladder at three flavors (Richardson applied repeatedly, each rung canceling the next error term), a single $30$-digit pair at $3+1$, where each rung costs far more. Because that combination is built by cutting the chord the way a slab code cuts it, an error in the cutting would sit in both and cancel from the comparison instead of showing up in it. We therefore check it against a calculation sharing none of that machinery: an adaptive integration of the flavor state through the \emph{continuous} profile, restarted at every density jump so that no step straddles one. Run to the double-precision limit that check follows the reference to $9 \cdot 10^{-12}$ and no further---but the limit is the check's, not the reference's, and reading it as a floor would throw away four orders of real accuracy. What settles the question is a second extrapolation at full precision sharing no slab count with the first: at three flavors two disjoint $50$-digit ladders agree to $1.1 \cdot 10^{-16}$. The $3+1$ referee is the coarser construction of the two, a single Richardson pair rather than a ladder, and a disjoint pair confirms it to $1.2 \cdot 10^{-12}$; \magnus's tightest point there sits a factor of six above that, so it is resolved, but not by much. Nothing in \figu{prem_plane} is clipped.
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-\subsubsection{What limits a cross-code comparison through the Earth}
-\label{sec:the_floor}
-
-The conventions matched before any curve was drawn are not optional. Every code is given the same oscillation parameters, expressed in the convention that code expects, and the same PREM implementation, chord, and baseline in eV$^{-1}$. The matter potential is the one convention we could not match, for the reason this section gives.
-
-\magnus's charged-current potential sits $1.9 \cdot 10^{-4}$ below {\tt NuOscProbExact}'s at the same density, the two codes rounding the nucleon mass differently. Left unmatched, that difference pins \magnus's error against the other code's reference at $2.38 \cdot 10^{-4}$ however tight the tolerance, so the curve comes out flat---points stacked at one height, above every other code, saying nothing about either.
-
-The obvious repair is to match the two potentials, which is what the frozen dataset does for {\tt nuSQuIDS} and {\tt nuCraft} by scaling the density each is handed. Through \magnus's Earth entry points the only handle is the {\tt electron\_fraction} keyword, and passing $0.5000948$ rather than $0.5$ does produce a falling curve. It stops falling at $1.6 \cdot 10^{-7}$, and we first read that floor as the potential match running out in some general way. It is not general. It has one cause, and the cause is worth stating because it is invisible from outside the code.
-
-On a chord \magnus\ derives the average nucleon mass from the composition---$r = n_n/n_p = (1 - Y_e)/Y_e$, layer by layer---because a medium carrying an iron core's $Y_e$ alongside an isoscalar $r$ is matter that cannot exist. The consequence is that $V_{\rm CC}$ is \emph{not} linear in $Y_e$: raising $Y_e$ by $1.9$ parts in $10^{4}$ moves the nucleon mass too, so the potential picks up a further $1.31 \cdot 10^{-7}$ that was never asked for. That number is the floor. Matching a potential through a composition parameter is therefore only ever good to the order at which composition enters the nucleon mass, and no solver setting on either side reaches beneath it.
-
-The repair is not a better scale factor but a different measurement. We give each code its own high-precision reference, built with that code's own constants, and score it at $Y_e = 1/2$ where its conventions are self-consistent---which is what the benchmark manifest asks for in any case. Measured that way on the same chord, \magnus\ reaches $3.9 \cdot 10^{-14}$, four orders below where the matched curve stalled. That is beneath the lower edge of \figu{prem_plane}'s middle panel, which keeps the companion figure's range, so the curve there is drawn only to ${\tt rtol} = 10^{-8}$. The floor was never \magnus's. What that number is, and is not, follows from how it was obtained: a code scored against a reference in its own conventions is being asked how far its own discretization has converged, not how close it sits to another code's answer. Two codes can both reach $10^{-14}$ on \figu{prem_plane} and still differ from one another at $10^{-4}$, which is exactly what the potential mismatch above produces. The ordinate is therefore a self-convergence depth, comparable down a series and not across them, and \magnus\ reaching further down it than the others means that its dial converges further, not that its probabilities are nearer theirs.
-
-The transferable version: \textbf{a cross-code comparison through the Earth is limited by the agreement of the two Earth models long before it is limited by either solver}, and any such comparison reaching past $10^{-7}$ without saying how its potentials were matched is reporting a convention. Matching them is harder than it looks, because the parameter that carries the potential usually carries something else as well; giving each code its own reference sidesteps the question rather than answering it, which is why we do that instead.
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-\subsubsection{Timing conventions}
-
-Every code in \figu{prem_plane}, \magnus\ included, is timed by one rule, and it is the companion project's rather than ours: the timed region is a scan of twenty-five steps in $\delta_{\rm CP}$, each step configuring the one parameter that moves and then asking for the whole energy grid, with everything invariant under the scan hoisted outside. What that reports is the cost inside a fit, with each code's caching working as designed, normalized to microseconds per grid point. Each code is dialed over the range its own interface offers, through whatever batched interface it has.
-
-Two conventions in that rule are not fussiness. Ignoring either made \magnus\ look like one of the slowest codes on the plane for reasons having nothing to do with its arithmetic. The first call on a machine pays a one-off compilation of the {\tt Numba} kernels, about $1.5$~s now that there are eight of them; charged to twelve energies that alone is $124\,000~\mu$s per probability. The compiled code is cached on disk, so a later session pays about $10$~ms rather than the full second and a half, but either figure swamps the measurement, so a warm-up pass is run and discarded. A fixed repetition count is the second: it gave the cheapest settings a timed block well under a millisecond, which returns the clock's spread rather than the code's, so the block autoranges until it is long enough to measure. We record the coefficient of variation across blocks for every point and admit none above $0.10$; the worst of \magnus's is $0.076$.
-
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
