@@ -15862,14 +15862,17 @@ for yi, r in zip(yy, rows):
         # Not measured, so not drawn at a coordinate.  A hollow triangle at the edge
         # says "past here" without planting an unmeasured number anywhere a reader
         # could take one off the axis.
-        ax.plot(XHI*0.90, yi, '>', ms=5.2, mfc='white', mec=c, mew=1.1, zorder=4,
-                clip_on=False)
+        # Positioned as a fraction of the axes, not as a multiple of XHI: on a
+        # seven-decade log axis a factor like 0.9 is a hair from the spine, and the
+        # marker was overhanging it.
+        ax.plot(0.972, yi, '>', ms=5.2, mfc='white', mec=c, mew=1.1, zorder=4,
+                transform=ax.get_yaxis_transform(), clip_on=False)
         # Only the first of these says what the number means; the ones below inherit
         # the reading, and repeating the word on every row crowds the panel.
         hrs = r['reference_seconds']/3600.0
         lab = (r'Projected: $\sim%.0f$ h' % hrs) if first_proj else (r'$\sim%.0f$ h' % hrs)
         first_proj = False
-        ax.text(XHI*0.72, yi + 0.30, lab,
+        ax.text(0.945, yi + 0.30, lab, transform=ax.get_yaxis_transform(),
                 ha='right', va='bottom', color=c, fontsize=7.0)
 
 ax.set_yticks(yy)
@@ -15880,8 +15883,8 @@ ax.set_ylim(-0.7, len(rows) + 0.35)
 ax.set_xlabel(r'Mean time for one averaged probability [ms]')
 ax.grid(True, axis='x', which='major', color=GRID, lw=0.5)
 ax.set_axisbelow(True)
-ax.axhline(3.5, color=INK, lw=0.7, ls=':')
 ax.tick_params(axis='y', which='both', length=0, left=False, right=False)
+ax.tick_params(axis='x', which='major', pad=4.5)
 ax.xaxis.set_major_locator(mpl.ticker.LogLocator(base=10.0, numticks=20))
 ax.xaxis.set_minor_locator(mpl.ticker.LogLocator(base=10.0, subs=tuple(np.arange(2, 10)*0.1),
                                                  numticks=20))
