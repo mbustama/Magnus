@@ -1671,7 +1671,49 @@ Twenty-nine notebooks sit in {\tt notebooks/}, numbered in reading order. They a
 
 They are \emph{generated}: one script builds all of them, executes them, and refuses to finish if any came back without stored outputs. Continuous integration re-executes them on every change to the notebooks or to the package. A notebook is documentation that claims to work; running it is what makes the claim checkable, so the suite runs all twenty-nine of them on every push, across the four supported versions of Python.
 
-Three of the notebooks carry more of the paper's content than the rest. Notebook \#28 produces every figure in it: the probabilities are computed as the notebook runs, except in the figures comparing this code against another, where every code's numbers---including this one's, where the timing has to be comparable---are read from data frozen in the repository. Notebook \#25 is the whole of Section \ref{sec:comparison}, including the sections not summarized there. Notebook \#13 is the tabulated solar model of Section \ref{sec:solar}, including the window-mean sweep that does not converge.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+{\def\arraystretch{1.15}
+\begin{table*}[t!]
+{\small
+\begin{tabular}{@{}p{0.7cm}p{5.0cm}p{11.6cm}@{}}
+ \# & Notebook & What it covers \\
+ \hline
+ 01 & {\tt introduction} & What the package computes, and a first probability. \\
+ 02 & {\tt 2nu\_vacuum\_matter} & Two-neutrino probabilities, in vacuum and in matter. \\
+ 03 & {\tt 3nu\_vacuum\_matter} & Three-neutrino probabilities, in vacuum and in matter. \\
+ 04 & {\tt long\_baseline} & Long-baseline accelerator configurations. \\
+ 05 & {\tt biprobability} & Biprobability plots. \\
+ 06 & {\tt oscillograms} & Oscillograms in energy and arrival direction. \\
+ 07 & {\tt bsm\_sterile\_nu} & Sterile neutrinos, at four and five flavors. \\
+ 08 & {\tt bsm\_nsi} & Non-standard interactions. \\
+ 09 & {\tt bsm\_liv} & Lorentz-invariance violation. \\
+ 10 & {\tt averaged\_probability} & Phase-averaged probabilities, and what {\tt average=True} returns. \\
+ 11 & {\tt matrix\_exponential} & The matrix exponential, and the two backends behind it. \\
+ 12 & {\tt adiabatic\_hybrid\_strategy} & The {\tt strategy} keyword: {\tt 'auto'}, {\tt 'hybrid'} and {\tt 'magnus'}. \\
+ 13 & {\tt tabulated\_solar\_model} & A tabulated solar model, and whether the quantity computed is the one measured. Section \ref{sec:solar}. \\
+ 14 & {\tt supernova\_shock} & A supernova shock front, and when the error is real. \\
+ 15 & {\tt antineutrinos} & Antineutrinos, and the conventions they require. \\
+ 16 & {\tt exact\_vs\_approximations} & Exact probabilities against the textbook approximations. \\
+ 17 & {\tt ordering\_and\_octant} & Mass ordering and the $\theta_{23}$ octant. \\
+ 18 & {\tt unusual\_density\_profiles} & Unusual density profiles: the arrangement matters, not only the mean. \\
+ 19 & {\tt custom\_hamiltonian} & Supplying a Hamiltonian of your own. \\
+ 20 & {\tt numerical\_edge\_cases} & Numerical edge cases, and what each warning means. \\
+ 21 & {\tt what\_tolerance\_means} & What {\tt rtol} and {\tt atol} promise, and what they do not. \\
+ 22 & {\tt which\_engine\_answered} & Which of the six engines answered a call, and why. \\
+ 23 & {\tt when\_averaging\_helps} & When averaging rescues a calculation, and when it does not. \\
+ 24 & {\tt performance} & Which optimizations are worth applying. Section \ref{sec:cost}. \\
+ 25 & {\tt against\_other\_codes} & The comparisons of Sections \ref{sec:performance} and \ref{sec:comparison}, in full. \\
+ 26 & {\tt nufit\_evolution} & Fourteen years of NuFIT, and its effect on the probabilities. \\
+ 27 & {\tt animations} & Animated scenes. \\
+ 28 & {\tt paper\_figures} & Every figure in this paper. \\
+ 29 & {\tt pseudo\_dirac} & Pseudo-Dirac neutrinos. \\
+\end{tabular}}
+\caption{\label{tab:notebooks}The twenty-nine tutorial notebooks shipped with \magnus, in reading order. Each file is {\tt notebooks/NN\_magnus\_$\langle$name$\rangle$.ipynb}, with {\tt NN} and $\langle$name$\rangle$ as given in the first two columns. Each notebook is stored with its outputs, so it can be read without being run, and each ends with a pointer to its neighbors. The suite re-executes all of them on every push, so a notebook that stopped working would fail the build rather than sit stale in the repository.}
+\end{table*}}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\tabl{notebooks} lists them. Three carry more of this paper's content than the rest. Notebook \#28 produces every figure in it: the probabilities are computed as the notebook runs, except in the figures comparing this code against another, where every code's numbers---including this one's, where the timing has to be comparable---are read from data frozen in the repository. Notebook \#25 is the whole of Sections \ref{sec:performance} and \ref{sec:comparison}, including the parts not summarized there. Notebook \#13 is the tabulated solar model of Section \ref{sec:solar}, including the window-mean sweep that does not converge.
 
 
 \end{document}
