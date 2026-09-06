@@ -6,13 +6,8 @@
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![codecov](https://codecov.io/gh/mbustama/Magnus/branch/main/graph/badge.svg)](https://codecov.io/gh/mbustama/Magnus)
-<!-- The PyPI and Downloads badges are restored by the first release.  `magnuspy` is not
-     on PyPI yet (the name is free -- checked), so both currently render as errors on the
-     public README: shields.io shows "package not found" and pepy.tech a broken image.  A
-     badge that is broken says less than no badge at all, and this is the top of the page.
 [![PyPI](https://img.shields.io/pypi/v/magnuspy.svg)](https://pypi.org/project/magnuspy/)
 [![Downloads](https://pepy.tech/badge/magnuspy)](https://pepy.tech/project/magnuspy)
--->
 [![Code style: ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
 Code to compute neutrino oscillation probabilities between an arbitrary number
