@@ -271,6 +271,8 @@ File Tree
    │   ├── rescore_against_mp_reference.py  # RE-SCORES external_profile_benchmarks.json against it; timings untouched
    │   ├── append_order_series.py      # ADDS the order-6 and order-8 Magnus series to that file
    │   ├── probe_commensurability.py   # Asks whether a timing taken today is comparable with the stored ones
+   │   ├── gen_solar_average_cost.py   # GENERATES external_solar_average_cost.json -- cost per configuration
+   │   ├── external_solar_average_cost.json  # Averaged-probability cost on BS2005-AGS,OP, eight configurations
    │   ├── sterile_projector_check.py  # Reproduces the sterile projector defect and its fix, three arms, one command
    │   ├── retime_magnus_series.py     # RE-TIMES both codes in Figure 11; references and grids untouched
    │   ├── prem_chord_common.py        # The PREM chord at cos(theta_z) = -0.9, shared by the two scripts below

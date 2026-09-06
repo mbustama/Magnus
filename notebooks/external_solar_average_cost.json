@@ -1,0 +1,79 @@
+{
+ "note": "Cost of the averaged probability, BS2005-AGS,OP, per configuration",
+ "profile": "BS2005-AGS,OP, log-interpolated (NOT the exponential fit)",
+ "energy_ev": 5000000.0,
+ "baseline_inv_ev": 3460984290635480.0,
+ "why_no_accuracy_axis": "adiabatic throughout and fully decohered, so the crossing matrix is the identity and no knob moves the value; see docs/dev/SCOPE_FIG13.md",
+ "machine": "Linux-7.0.0-30-generic-x86_64-with-glibc2.39",
+ "python": "3.12.7",
+ "numpy": "1.26.4",
+ "magnus": "1.1.0",
+ "control_ratio": 1.005195951261057,
+ "repeat": 7,
+ "cases": [
+  {
+   "label": "2nu",
+   "flavors": 2,
+   "seconds": 0.00790075899567455,
+   "ms": 7.9007589956745505,
+   "p_ee": 0.5463507218677512,
+   "unitarity": 0.0
+  },
+  {
+   "label": "3nu",
+   "flavors": 3,
+   "seconds": 0.01446729403687641,
+   "ms": 14.46729403687641,
+   "p_ee": 0.37369262464879505,
+   "unitarity": 1.3322676295501878e-15
+  },
+  {
+   "label": "3+1",
+   "flavors": 4,
+   "seconds": 0.025234896049369127,
+   "ms": 25.234896049369127,
+   "p_ee": 0.323150789789799,
+   "unitarity": 8.881784197001252e-16
+  },
+  {
+   "label": "3+2",
+   "flavors": 5,
+   "seconds": 0.03850651701213792,
+   "ms": 38.50651701213792,
+   "p_ee": 0.2986279602679045,
+   "unitarity": 1.2212453270876722e-15
+  },
+  {
+   "label": "3nu + NSI",
+   "flavors": 3,
+   "seconds": 0.014257623988669366,
+   "ms": 14.257623988669366,
+   "p_ee": 0.3629291617982986,
+   "unitarity": 1.1102230246251565e-15
+  },
+  {
+   "label": "3nu + LIV",
+   "flavors": 3,
+   "seconds": 0.016599323018454015,
+   "ms": 16.599323018454015,
+   "p_ee": 0.3736383694870337,
+   "unitarity": 2.220446049250313e-16
+  },
+  {
+   "label": "3+1 + NSI",
+   "flavors": 4,
+   "seconds": 0.0247300990158692,
+   "ms": 24.7300990158692,
+   "p_ee": 0.3145440817846572,
+   "unitarity": 4.440892098500626e-16
+  },
+  {
+   "label": "3+2 + NSI",
+   "flavors": 5,
+   "seconds": 0.037839272001292557,
+   "ms": 37.83927200129256,
+   "p_ee": 0.2910178072000201,
+   "unitarity": 7.771561172376096e-16
+  }
+ ]
+}
