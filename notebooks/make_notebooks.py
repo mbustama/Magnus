@@ -15783,9 +15783,68 @@ print('that order.  The measurement this paper reports avoids the question entir
 print('the benchmark manifest asks for a per-code reference in each code\'s own')
 print('conventions, so Magnus is scored at Y_e = 1/2 against a reference built with')
 print('Magnus\' own constants, and the residual is the solver\'s alone.')'''),
+    md(r'''## Figure 10 --- what an averaged probability costs, by configuration
+
+The other cost figures trade time against accuracy. This one cannot, and the reason is
+worth stating rather than working around.
+
+On the BS2005-AGS,OP model the averaged probability has **no accuracy dial**. The
+evolution is adiabatic the whole way out -- the adiabaticity parameter stays a factor of
+eleven or more below the threshold that would open a non-adiabatic window, at every
+flavor count from $0.1$ to $20$~MeV -- and every eigenvalue pair is fully decohered by
+the time the neutrino arrives. So the level-crossing matrix is the identity, the
+expression collapses to an eigendecomposition at production and another at detection, and
+the answer is exact to about $10^{-15}$. Sweeping any of `n_points`, `threshold`,
+`n_probe`, `magnus_exp_order` or `integration_method` returns bit-identical output. There
+is nothing to converge, so there is nothing to put on an error axis.
+
+What is left worth showing is the price, across the scenarios the package covers. Read
+the figure down the column: the cost is set by the **number of states**, not by what the
+Hamiltonian contains. Each NSI row sits on top of its standard counterpart, and Lorentz
+violation adds about a sixth. That is the claim the synopsis makes about the method, and
+this is the only figure that shows it.'''),
+    code(r'''# ------------------------------------------- averaged probability, by configuration
+COST = json.loads((HERE/'external_solar_average_cost.json').read_text())
+print('machine: %s | interleaved control: %.3f'
+      % (COST['machine'], COST['control_ratio']))
+
+# Color carries the flavor count, which is the variable the figure is about; the
+# standard and new-physics blocks are separated by a rule rather than by hue, so a
+# reader compares 3nu + NSI against 3nu by looking straight up the column.
+FLAV_COLOR = {2: GREEN, 3: BLUE, 4: ORANGE, 5: RED}
+ORDER = ['2nu', '3nu', '3+1', '3+2',
+         '3nu + NSI', '3nu + LIV', '3+1 + NSI', '3+2 + NSI']
+rows = sorted(COST['cases'], key=lambda r: ORDER.index(r['label']))
+yy = np.arange(len(rows))[::-1]
+
+fig, ax = plt.subplots(figsize=(COL*2.0, 3.4))
+for yi, r in zip(yy, rows):
+    # A leader line from the axis, not a bar from zero: the quantity is a position on a
+    # log axis and a bar would imply an origin the scale does not have.
+    ax.plot([0.6, r['ms']], [yi, yi], lw=1.0, color=GRID, zorder=1)
+    ax.plot(r['ms'], yi, 'o', ms=7.5, color=FLAV_COLOR[r['flavors']],
+            mec='white', mew=0.9, zorder=4)
+    ax.text(r['ms']*1.14, yi, '%.0f ms' % r['ms'], va='center', ha='left',
+            fontsize=8.0, color=INK)
+
+ax.set_yticks(yy)
+ax.set_yticklabels([r['label'].replace('nu', r'$\nu$') for r in rows], fontsize=9.5)
+ax.set_xscale('log')
+ax.set_xlim(0.6, 200.0)
+ax.set_ylim(-0.7, len(rows) - 0.3)
+ax.set_xlabel(r'Time for one averaged probability [ms]', fontsize=10.5)
+ax.grid(True, axis='x', which='major', color=GRID, lw=0.5)
+ax.set_axisbelow(True)
+ax.axhline(3.5, color=INK, lw=0.7, ls=':')
+ax.text(0.68, 3.60, 'standard', fontsize=8.0, color='0.35', va='bottom')
+ax.text(0.68, 3.40, 'with new physics', fontsize=8.0, color='0.35', va='top')
+for side in ('top', 'right'):
+    ax.spines[side].set_visible(False)
+fig.tight_layout(pad=0.8)
+save(fig, 'solar_average_cost.pdf')'''),
     md(r'''## What was written
 
-Thirteen PDFs, which is every figure in `resources/paper/main.tex`.
+Fourteen PDFs, which is every figure in `resources/paper/main.tex`.
 
 ```bash
 python notebooks/make_notebooks.py --only 28

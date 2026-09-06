@@ -233,6 +233,7 @@ The difficulty this paper addresses is where the Hamiltonian varies \emph{contin
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \section{Synopsis}
+\label{sec:synopsis}
 
 To address this, we introduce \magnus\ \cite{Magnus}, a code that returns oscillation probabilities by computing the evolution operator using the \textit{Magnus expansion}\ \cite{Magnus:1954zz, Blanes:2008xlr}. Over a segment of the trajectory of the neutrino---within which the Hamiltonian may be varying---the expansion allows the evolution operator to be written as a single exponential, $\mathbb{U} = \exp(\Omega)$, where $\Omega$ is a series of 
 % time-ordered 
@@ -1502,6 +1503,19 @@ At a front width of $0.07$~km both codes reach about $1.5 \cdot 10^{-9}$, and {\
 \label{sec:solar_comparison}
 
 Section \ref{sec:solar} showed what \magnus\ returns on a tabulated solar model: forty averaged energies in about $0.7$~s, matching the analytic adiabatic limit to $1.3 \cdot 10^{-5}$. Neither of the other codes has an averaging flag, so the comparison here is between an algorithm designed for the question and an algorithm run harder.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{figure}[t!]
+ \includegraphics[width=\columnwidth]{solar_average_cost.pdf}
+ \caption{\label{fig:solar_average_cost}What one averaged probability costs on the BS2005-AGS,OP solar model, at $5$~MeV, for eight configurations. The model is the tabulated one, log-interpolated, and not the exponential fit that {\tt osc\_prob\_*\_sun} uses---the fit is high by a factor $2.4$ inside $0.05\,R_\odot$, so the two are different problems and they cost differently. There is no accuracy axis because there is nothing to converge: the evolution is adiabatic the whole way out and every eigenvalue pair has decohered by the time the neutrino arrives, so the level-crossing matrix is the identity, the expression collapses to an eigendecomposition at production and another at detection, and the answer is exact to about $10^{-15}$. Sweeping any of the routine's parameters returns bit-identical output. Color carries the flavor count. Read the figure down the column: each row with new physics sits on top of the standard row above it}
+\end{figure}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\textit{What the average costs, and what most of that cost is.}---\figu{solar_average_cost} prices that answer across the scenarios the package covers, at $5$~MeV on the tabulated model. The bill is set by the number of states and not by what the Hamiltonian contains: three flavors cost $14$~ms, three flavors with non-standard interactions cost the same $14$, $3+1$ costs $25$ with or without them, and Lorentz violation adds about a sixth. This is the one place in the paper where the claim of Section \ref{sec:synopsis} that the method does not care what is in the Hamiltonian is shown rather than asserted.
+
+Almost none of that time is the answer. The two eigendecompositions the expression needs take $0.03$~ms; the search for non-adiabatic crossings, which finds none, takes roughly four fifths of the call. \magnus\ spends its time establishing that it is entitled to the shortcut, and almost none taking it. We regard that as the right allocation---the shortcut is exact only where the levels do not cross, and a code that assumed rather than checked would be fast and occasionally wrong---but it is worth saying plainly, because the figure is otherwise a measurement of a validity check.
+
+\textit{The same number without the shortcut.}---Integrating the coherent evolution and averaging afterwards is the alternative, and on this ray it is not close. The oscillation phase over one solar radius at $5$~MeV is about $1.3 \cdot 10^{4}$~radians, some two thousand cycles, every one of which an integrator must resolve and the average then discards. A {\tt DOP853} solution takes $230$~s at ${\tt rtol} = 10^{-6}$ and $562$~s at $10^{-9}$, against $14$~ms for the closed form: four orders of magnitude, for the same physical quantity on the same profile.
 
 Driven on the same model file---{\tt SunASnu} on that file, the production radius set through the two-argument {\tt Track}, both {\tt Set\_rel\_error} and {\tt Set\_abs\_error} moved together, and every other setting left at its default, including the evolution basis and the maximum step---{\tt nuSQuIDS} needs about ten minutes merely to reach a solver tolerance at which its output is a probability at all, and then a further factor of $N$ to average the phase away. We report this as a cost of asking a general-purpose solver a question it was not built for, not as a defect: the driver is in the repository so that the configuration can be checked and improved on. At {\tt rel\_error} $=10^{-4}$ it takes $161$~s and returns values from $-1.19$ to $3.09$; at $10^{-5}$, $251$~s and $-0.011$ to $1.007$; only at $10^{-6}$, after $568$~s, does every value lie in $[0,1]$.
 
