@@ -226,6 +226,8 @@ TREE = [
      'ADDS the order-6 and order-8 Magnus series to that file'),
     ('notebooks/probe_commensurability.py',
      'Asks whether a timing taken today is comparable with the stored ones'),
+    ('notebooks/sterile_projector_check.py',
+     'Reproduces the sterile projector defect and its fix, three arms, one command'),
     ('notebooks/retime_magnus_series.py',
      'RE-TIMES both codes in Figure 11; references and grids untouched'),
     ('notebooks/prem_chord_common.py',

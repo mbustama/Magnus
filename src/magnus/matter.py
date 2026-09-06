@@ -262,13 +262,14 @@ def _warn_if_density_is_probably_in_g_per_cm3(
 
 def matter_potential_projector(
     num_flavors: int,
-    ratio_number_neutrons_to_protons: Optional[Union[int, float]] = 1.0
-) -> np.ndarray:
+    ratio_number_neutrons_to_protons: Optional[Union[int, float, Callable]] = 1.0
+) -> Union[np.ndarray, Callable]:
     r"""Returns the matrix that multiplies :math:`V_{\rm CC}` in the matter Hamiltonian.
 
     :math:`\mathrm{diag}(1, 0, \ldots, 0, r/2, \ldots, r/2)`: one on :math:`\nu_e`, zero on
     the other active flavors, and :math:`r/2` on every sterile state, with
-    :math:`r = n_n/n_p`.
+    :math:`r = n_n/n_p`.  When :math:`r` is a function of position, so is the returned
+    projector.
 
     **The sterile entries are the whole reason this function exists.**  In matter the active
     flavors all feel the same neutral-current potential :math:`V_{\rm NC}`, so it is
@@ -294,30 +295,60 @@ def matter_potential_projector(
 
     .. versionadded:: 1.0.0
 
+    .. versionchanged:: 1.1.0
+       ``ratio_number_neutrons_to_protons`` may be a callable of position, in which case
+       the projector is returned as a callable of the same position.  This is how the
+       Earth entry points now build it by default, so that the sterile entries follow the
+       same layer-by-layer :math:`Y_e` the density uses.
+
     Parameters
     ----------
     num_flavors : int
         Number of neutrino flavors; the first three are active, the rest sterile.
-    ratio_number_neutrons_to_protons : int or float, optional
+    ratio_number_neutrons_to_protons : int, float, or Callable, optional
         :math:`r = n_n/n_p`.  1.0 (isoscalar matter) by default, matching the default of
         :func:`vcc_func_from_rho_func`, which should be given the same value.
 
-        The Earth entry points are the exception, and deliberately: they take :math:`r`
-        from :math:`Y_e` layer by layer for the *density*, which this one matrix cannot
-        follow.  They warn when the two disagree; see
-        :class:`magnus.globaldefs.SterileMatterCompositionWarning`.
+        A callable is read as :math:`r(l)`, a function of the position the density
+        profile takes -- pass the same composition to both, since :math:`r` and
+        :math:`Y_e` are the same statement about the medium,
+        :math:`r = (1 - Y_e)/Y_e`.  It must accept an array of positions and return an
+        array of the same shape.  The Earth entry points build exactly this by default,
+        with :math:`Y_e` resolved per PREM layer; a *scalar* passed there instead
+        describes a single medium the layered density does not, which is worth up to
+        ~0.4 in probability at 3+1 near the sterile matter resonance on a core-crossing
+        chord -- see :class:`magnus.globaldefs.SterileMatterCompositionWarning`.
 
     Returns
     -------
-    np.ndarray
-        Real ``(num_flavors, num_flavors)`` matrix.
+    np.ndarray or Callable
+        Real ``(num_flavors, num_flavors)`` matrix; or, for a callable :math:`r`, a
+        function of position returning that matrix -- shape
+        ``(num_flavors, num_flavors)`` at a scalar position, and a stack with the
+        position axis leading at an array of positions.  At three flavors or fewer the
+        constant matrix is returned even for a callable :math:`r`, since the sterile
+        block it would act on is empty.
     """
     proj = np.zeros((num_flavors, num_flavors))
     proj[0][0] = 1.0
-    # Active flavors share V_NC and it cancels; sterile states do not, and keep -V_NC.
+    if (num_flavors <= 3) or (not callable(ratio_number_neutrons_to_protons)):
+        # Active flavors share V_NC and it cancels; sterile states do not, and keep -V_NC.
+        for k in range(3, num_flavors):
+            proj[k][k] = 0.5*float(ratio_number_neutrons_to_protons)
+        return proj
+
+    # A position-resolved ratio: the active entries stay constant, so only the sterile
+    # mask is scaled per position.  Vectorized over a position array, with the position
+    # axis leading, matching the convention of every Hamiltonian closure in oscprob.
+    ratio_func = ratio_number_neutrons_to_protons
+    sterile_mask = np.zeros((num_flavors, num_flavors))
     for k in range(3, num_flavors):
-        proj[k][k] = 0.5*float(ratio_number_neutrons_to_protons)
-    return proj
+        sterile_mask[k][k] = 0.5
+
+    def proj_of_l(l: Union[int, float, np.ndarray]) -> np.ndarray:
+        r = np.asarray(ratio_func(l), dtype=float)
+        return proj + r[..., None, None]*sterile_mask
+    return proj_of_l
 
 
 def _density_would_trip_a_unit_guard(
@@ -571,8 +602,17 @@ def vcc_func_from_rho_func(
         Reference position at which to evaluate a constant ``rho_func`` (irrelevant when
         ``rho_func`` is a genuine constant, since the returned V_CC is then position-independent
         by construction). Default: 0.0.
-    ratio_number_neutrons_to_protons : int or float, optional
-        Ratio of the number of neutrons to protons in matter. Default: 1.0.
+    ratio_number_neutrons_to_protons : int, float, or Callable, optional
+        Ratio of the number of neutrons to protons in matter. Default: 1.0.  A callable is
+        read as :math:`r(l)` and evaluated at each position when converting a matter
+        density -- it sets the average nucleon mass, a property of the local composition --
+        so a position-resolved composition feeds the potential and the sterile projector
+        consistently (see :func:`matter_potential_projector`).  A constant ``rho_func``
+        with a callable ratio therefore still yields a position-*dependent* V_CC.  Ignored
+        when ``density_is_of_number_of_electrons`` is True, where no conversion happens.
+
+        .. versionchanged:: 1.1.0
+           A callable is accepted; it used to have to be a scalar.
     electron_fraction : int or float, optional
         Electron fraction. Default: 0.5.
     nubar : bool, optional
@@ -589,8 +629,9 @@ def vcc_func_from_rho_func(
     Returns
     -------
     int, float, or Callable
-        V_CC [eV], as a function of position if ``rho_func`` is a function, or as a constant
-        (evaluated once, at ``L0``) if ``rho_func`` is a constant.
+        V_CC [eV], as a function of position if ``rho_func`` is a function (or if a callable
+        ``ratio_number_neutrons_to_protons`` makes the conversion position-dependent), or as
+        a constant (evaluated once, at ``L0``) if both are constants.
     """
     s = 1.0 if not nubar else -1.0
 
@@ -650,15 +691,23 @@ def vcc_func_from_rho_func(
             def density_matter_func(r):
                 return rho_func
 
-        # Number density of electrons [eV^3]
+        # Number density of electrons [eV^3].  A callable ratio is resolved here, at each
+        # position, rather than inside num_density_e_func: that function's arithmetic is a
+        # plain elementwise formula, so handing it the local value (scalar or array, matching
+        # l) keeps it untouched.
+        ratio_is_of_l = callable(ratio_number_neutrons_to_protons)
         def num_density_e(l):
             return num_density_e_func(l,
                 density_matter_func=density_matter_func,
-                ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
+                ratio_number_neutrons_to_protons=(
+                    ratio_number_neutrons_to_protons(l) if ratio_is_of_l
+                    else ratio_number_neutrons_to_protons),
                 electron_fraction=electron_fraction,
                 density_matter_is_in_g_per_cm3=density_matter_is_in_g_per_cm3)
-        # Coherent forward potential, VCC [eV]
-        if callable(rho_func):
+        # Coherent forward potential, VCC [eV].  A callable ratio makes the average nucleon
+        # mass -- and so the conversion -- position-dependent even over a constant matter
+        # density, which is why it takes the function branch alongside a callable rho_func.
+        if callable(rho_func) or ratio_is_of_l:
             # Return VCC as a function, since the density is a function
             def vcc(l):
                 return s*VCC_func(l, num_density_e_func=num_density_e)

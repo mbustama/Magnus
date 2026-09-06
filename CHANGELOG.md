@@ -5,6 +5,52 @@ All notable changes to Magνs are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.1.0] - 2026-09-06
+
+### Changed
+
+- **The sterile block of the matter projector now follows the Earth's layered
+  composition.**  The matter Hamiltonian factorizes as `V_CC(l)` times a
+  projector, and the density has always resolved the electron fraction per PREM
+  layer -- but the projector was one constant matrix taking a single scalar
+  `r = n_n/n_p` for the whole trajectory.  The two therefore described different
+  media on any chord whose composition varies, which is every chord that reaches
+  the core.
+
+  Only the sterile states are affected: the active flavours all feel the same
+  neutral-current potential, so it drops out as a phase, while a sterile state
+  feels neither current and is left carrying `-V_NC = (r/2) V_CC`.  Three flavors
+  are therefore untouched, exactly -- the projector's sterile block is empty
+  there and the constant matrix is still returned.
+
+  The cost of getting this wrong was larger than the shipped warning said.  Off
+  resonance it is the ~2e-02 the warning quotes, but near the sterile matter
+  resonance on a core-crossing chord it reaches **0.4 in probability**, flat
+  under refinement, invariant in the mass splitting, surviving small mixing
+  angles, and present at 3+2 as well.  No choice of scalar fixes it: the best
+  value obtainable by scanning still leaves 7e-03 in that band.
+
+  It costs nothing to fix.  Every Earth entry point already declares the PREM
+  layer boundaries as slab edges, automatically, so each segment is homogeneous
+  in composition and a per-segment projector is exact on the grid that exists --
+  no regridding and no extra Hamiltonian evaluations.  Measured at parity with
+  the constant-projector path.
+
+  **This changes what an Earth call returns by default at four and five
+  flavors.**  `ratio_number_neutrons_to_protons` defaults to `None` on the twelve
+  Earth wrappers, resolving to the layered composition; passing a scalar
+  explicitly reproduces the old behaviour exactly.  No signature changed: the
+  parameter accepts a callable as well, and the general (non-Earth) entry points
+  keep their scalar default, having no layered composition to resolve.
+
+  `SterileMatterCompositionWarning` is retargeted rather than removed.  The
+  default and a caller-supplied callable are silent; a scalar over a layered
+  profile warns unconditionally, the previous 2% threshold having been measured
+  passing chords whose error equalled the figure the warning quoted.
+
+  `notebooks/sterile_projector_check.py` reproduces the defect and the fix in one
+  command, three arms differing only in the projector.
+
 ## [1.0.13] - 2026-09-06
 
 ### Fixed
