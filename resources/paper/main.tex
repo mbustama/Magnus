@@ -804,6 +804,10 @@ $3\times3$, a batched Jacobi eigensolver at $4\times4$ and $5\times5$ \\
 
 A user asks for a probability, not for a method. Behind the interface of Section \ref{sec:scope_interface}, six engines can answer a request. Every entry point tries them in one fixed order, taking the first whose assumptions the request actually satisfies. That order runs from the most specialized engine to the most general. An engine that cannot honestly serve a request declines it; the request then falls through to the next one down, until it reaches the general Magnus ladder at the bottom of the list, which accepts whatever arrives and never declines.
 
+\textit{How a caller reaches one.}---No argument names an engine. The shape of the request selects it. An averaged probability on a position-independent Hamiltonian reaches the closed-form average. An array of energies at a single baseline reaches the energy-batched scan; a single energy at an array of baselines reaches the cumulative scan. A profile tagged as exponential, at two flavors, reaches the interaction picture. Slab edges supplied through {\tt t\_slab\_edges}, or a call that requests no tolerance, disqualify the adiabatic engine. Everything else arrives at the general Magnus ladder. Passing an array rather than looping over its entries is therefore not a matter of style: it changes which engine answers, and Section \ref{sec:cost} measures what that is worth.
+
+One keyword overrides the ordering. {\tt strategy} defaults to {\tt 'auto'}, which lets the adiabatic engine try and step aside when it cannot certify its answer; {\tt 'hybrid'} forces that engine, {\tt 'magnus'} refuses it. Section \ref{sec:limitations} reports how often a certified answer is nonetheless outside the requested tolerance, which is what bounds the default.
+
 Figure~\ref{fig:strategies} sets the six side by side in that order, so that what separates them---how much of the trajectory each one walks, and whether it walks any---can be seen at once rather than reconstructed from the list below.
 
 \begin{enumerate}
@@ -837,7 +841,7 @@ The closed form is exact in the envelope: we make no piecewise-constant or piece
 
 \end{enumerate}
 
-\textit{Seeing which engine answered.}---The fallbacks are silent by design. They happen on ordinary calls, where a warning on each would be noise. Any call can nevertheless be asked which engine answered it, whether the adiabatic strategy certified its result, and which engines stood aside and why. That is what makes an answer traceable: a result that moves when a point is added to a scan, or a call that suddenly costs more, is a change of engine, and the call reports which one. \tabl{engines} collects the condition under which each engine is taken.
+\textit{Seeing which engine answered.}---The fallbacks are silent by design. They happen on ordinary calls, where a warning on each would be noise. Any call can nevertheless be asked which engine answered it: a dictionary passed as {\tt strategy\_info} comes back carrying the engine that served the request, whether the adiabatic strategy certified its result, and which engines stood aside and why. That is what makes an answer traceable: a result that moves when a point is added to a scan, or a call that suddenly costs more, is a change of engine, and the call reports which one. \tabl{engines} collects the condition under which each engine is taken.
 
 \textit{Why the grouping matters more than the list.}---A cross-check between two engines is worth something only if the two can fail differently, so it matters that these six are not six independent methods. The general ladder, the cumulative scan and the energy-batched scan all walk slabs with the same kernel. They differ in how the work is batched rather than in what is computed, which makes them one family. The interaction-picture path shares that kernel but factors the fast vacuum phase out first, so the function it must resolve is a different one.
 
