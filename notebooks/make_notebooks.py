@@ -15850,35 +15850,33 @@ fig, ax = plt.subplots(figsize=(COL, 3.55))
 first_proj = True
 for yi, r in zip(yy, rows):
     c = FLAV_COLOR[r['flavors']]
-    ax.plot([XLO, r['ms']], [yi, yi], lw=0.7, color=GRID, zorder=1)
+    # One rule per row, gray and full width.  Colour is carried by the markers alone,
+    # so the eye reads position along a common baseline rather than three line segments
+    # of different hue and length per row.
+    ax.plot([XLO, XHI], [yi, yi], lw=0.7, color=GRID, zorder=1)
     ax.plot(r['ms'], yi, 'o', ms=5.0, color=c, mec='white', mew=0.7, zorder=4)
     if r.get('reference_measured'):
-        # The span between the two routes IS the figure's claim, so it is drawn as a
-        # span: from the closed form across to the price of the same number without it.
-        ax.plot([r['ms'], 1.0e3*r['reference_seconds']], [yi, yi],
-                lw=0.8, color=c, alpha=0.35, zorder=2)
         ax.plot(1.0e3*r['reference_seconds'], yi, 's', ms=4.6, mfc='white',
                 mec=c, mew=1.1, zorder=4)
     else:
-        # Not measured and so not drawn at a coordinate.  The sterile splitting puts
-        # this solve at tens of hours, and an arrow leaving the axis says "past here"
-        # without planting an unmeasured number somewhere a reader can read off.
-        ax.annotate('', xy=(XHI*0.92, yi), xytext=(r['ms']*2.2, yi),
-                    arrowprops=dict(arrowstyle='-|>', color=c, alpha=0.5, lw=0.8,
-                                    shrinkA=0, shrinkB=0))
+        # Not measured, so not drawn at a coordinate.  A hollow triangle at the edge
+        # says "past here" without planting an unmeasured number anywhere a reader
+        # could take one off the axis.
+        ax.plot(XHI*0.90, yi, '>', ms=5.2, mfc='white', mec=c, mew=1.1, zorder=4,
+                clip_on=False)
         # Only the first of these says what the number means; the ones below inherit
-        # the reading, and repeating the word on every arrow crowds the panel.
+        # the reading, and repeating the word on every row crowds the panel.
         hrs = r['reference_seconds']/3600.0
         lab = (r'Projected: $\sim%.0f$ h' % hrs) if first_proj else (r'$\sim%.0f$ h' % hrs)
         first_proj = False
-        ax.text(XHI*0.80, yi + 0.30, lab,
+        ax.text(XHI*0.72, yi + 0.30, lab,
                 ha='right', va='bottom', color=c, fontsize=7.0)
 
 ax.set_yticks(yy)
 ax.set_yticklabels([r['label'].replace('nu', r'$\nu$') for r in rows])
 ax.set_xscale('log')
 ax.set_xlim(XLO, XHI)
-ax.set_ylim(-0.7, len(rows) - 0.3)
+ax.set_ylim(-0.7, len(rows) + 0.35)
 ax.set_xlabel(r'Mean time for one averaged probability [ms]')
 ax.grid(True, axis='x', which='major', color=GRID, lw=0.5)
 ax.set_axisbelow(True)
@@ -15888,16 +15886,27 @@ ax.xaxis.set_major_locator(mpl.ticker.LogLocator(base=10.0, numticks=20))
 ax.xaxis.set_minor_locator(mpl.ticker.LogLocator(base=10.0, subs=tuple(np.arange(2, 10)*0.1),
                                                  numticks=20))
 ax.xaxis.set_minor_formatter(mpl.ticker.NullFormatter())
-h = [plt.Line2D([], [], ls='none', marker='o', ms=5.0, color=INK, mec='white', mew=0.7),
-     plt.Line2D([], [], ls='none', marker='s', ms=4.6, mfc='white', mec=INK, mew=1.1),
-     plt.Line2D([], [], ls='-', marker='', color=INK, alpha=0.5, lw=0.8)]
-# Above the panel, not inside it.  Every row spans the full width -- dot on the left,
-# square or arrow on the right -- so an inset legend has nowhere to sit that does not
-# cover a row; in the first draft it hid 3+2 + NSI completely.  The arrows are labelled
-# where they are drawn, so they need no entry here.
-ax.legend(h[:2], [r'\magnus, closed form', r'{\tt DOP853}, then averaged'],
+h_dot = plt.Line2D([], [], ls='none', marker='o', ms=5.0, color=INK,
+                   mec='white', mew=0.7)
+h_sq = plt.Line2D([], [], ls='none', marker='s', ms=4.6, mfc='white', mec=INK, mew=1.1)
+h_tr = plt.Line2D([], [], ls='none', marker='>', ms=5.2, mfc='white', mec=INK, mew=1.1)
+# Above the panel, not inside it.  Every row spans the full width, so an inset legend
+# has nowhere to sit that does not cover a row; in the first draft it hid 3+2 + NSI
+# completely.  The square and the triangle share one entry because they are one series
+# -- the same integration, measured where that was possible and projected where it was
+# not -- and the triangles are labelled with their times where they are drawn.
+ax.legend([h_dot, (h_sq, h_tr)],
+          [r'\magnus, closed form', r'{\tt DOP853}, then averaged'],
+          handler_map={tuple: mpl.legend_handler.HandlerTuple(ndivide=None, pad=0.7)},
           loc='lower left', bbox_to_anchor=(0.0, 1.02, 1.0, 0.102), mode='expand',
-          ncol=2, handlelength=1.3, columnspacing=1.1, borderaxespad=0.0)
+          ncol=2, handlelength=1.8, columnspacing=1.0, handletextpad=0.5,
+          borderaxespad=0.0, fontsize=7.6)
+
+# Which profile these eight rows were priced on, said inside the panel so the figure
+# carries it without the caption.
+ax.text(0.030, 0.975, r'Sun (BS2005-AGS,OP)', transform=ax.transAxes,
+        ha='left', va='top', fontsize=7.5, color=INK, zorder=6,
+        bbox=dict(boxstyle='round,pad=0.35', fc='white', ec=INK, lw=0.6))
 fig.tight_layout(pad=0.6)
 save(fig, 'solar_average_cost.pdf')'''),
     md(r'''## What was written
