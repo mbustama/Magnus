@@ -188,13 +188,19 @@ IMPLAUSIBLE_BASELINE_NATURAL_UNITS = 1.0e7
 
 
 class SterileMatterCompositionWarning(UserWarning):
-    r"""The sterile matter entry is built from a different medium than the density.
+    r"""A caller's scalar builds the sterile matter entry from a different medium than the
+    density.
 
-    An Earth chord takes its neutron-to-proton ratio from :math:`Y_e` layer by layer for the
-    density, but the sterile states' entry in the matter projector is one matrix for the
-    whole chord and takes the caller's scalar instead.  They disagree by construction unless
-    the caller matches them, and the disagreement is worth about 2e-02 in probability at 3+1
-    on a core-crossing chord -- silently, since nothing else about the call looks wrong.
+    An Earth chord takes its neutron-to-proton ratio from :math:`Y_e` layer by layer for
+    the density, and -- by default -- for the sterile states' entry in the matter
+    projector too, so out of the box the two describe the same medium and this warning
+    has nothing to say.  It fires when a caller passes a *scalar*
+    ``ratio_number_neutrons_to_protons`` over layered composition: no scalar describes a
+    chord that crosses iron and rock -- near the sterile matter resonance the mismatch
+    reaches ~0.4 in probability at 3+1 on a core-crossing chord, and the best possible
+    scalar still leaves ~7e-3 -- and it does so silently in the physics, since nothing
+    else about the call looks wrong.  With a uniform ``electron_fraction`` override it
+    fires only when the scalar contradicts the ratio that override implies.
 
     Its own class so it can be silenced once the choice has been made deliberately::
 
@@ -206,6 +212,12 @@ class SterileMatterCompositionWarning(UserWarning):
     Three flavors never raise it: the projector's sterile block is empty.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.0
+       The default no longer warns -- the projector follows the composition, which is the
+       fix for the mismatch this class used to report.  A scalar over layered
+       :math:`Y_e` now warns unconditionally: the old 2% threshold on :math:`r` was
+       measured to pass chords whose error matched the very figure the warning quoted.
     """
 
 
