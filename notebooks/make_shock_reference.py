@@ -22,11 +22,13 @@ is one definition of the physics and this reads it.
 **What is frozen is the oracle, never the thing under test.**  Every Mag(nu)s number in
 that notebook is still computed live; only its reference is stored.  The one risk that
 introduces is a stale oracle outliving a change to the profile, so the file also carries a
-fingerprint -- the electron density sampled along the ray -- and the notebook refuses a
-reference whose fingerprint does not match what it just built.
+fingerprint -- the electron density AND the Hamiltonian built from it, both sampled along
+the ray -- and the notebook refuses a reference whose fingerprint does not match what it
+just built.  The density alone is not enough: it does not see a change in the oscillation
+parameters, which is exactly how this reference went stale once already.
 
 Run ``python notebooks/make_shock_reference.py`` after any change to the shock profile, the
-energy, the ray, or the sampled baselines.
+energy, the ray, the sampled baselines, or the oscillation parameters.
 """
 
 import json
@@ -108,9 +110,18 @@ def main():
         U = np.array([sol.y[:, i].reshape(3, 3) for i in range(len(Ls))])
         P = np.swapaxes(U.real**2 + U.imag**2, -1, -2)
         flat, shape = hexed(P)
+        # Two fingerprints, not one.  The density alone was the original guard, and it
+        # does not cover the Hamiltonian built on top of it: when notebook 14 moved from
+        # the NuFIT 6.0 constants to the 6.1 loader, every oscillation parameter changed
+        # -- Delta m^2_21 by 0.6 percent -- while `ne` was untouched, so the guard stayed
+        # green and the frozen answers silently described different physics.  Over a ray
+        # of 4700 oscillation lengths that shifted the probabilities by 0.1, which is the
+        # size of the whole comparison this reference exists to make.
+        Hf = np.asarray(H(fingerprint_l), dtype=complex)
         store['cases']['%.0e' % width] = {
             'P': flat, 'shape': shape,
             'fingerprint_ne': hexed(np.asarray(ne(fingerprint_l), dtype=float))[0],
+            'fingerprint_h': hexed(np.concatenate([Hf.real.ravel(), Hf.imag.ravel()]))[0],
         }
         print('  frozen w=%.0e  %s' % (width, tuple(shape)), flush=True)
 

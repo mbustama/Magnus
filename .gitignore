@@ -51,3 +51,6 @@ notebooks/external_solar_average_cost.partial.json
 # committed JSON supersedes each of them, and nothing reads them.
 *.bak
 *.json.pre_*
+
+# Per-case checkpoint written by gen_shock_benchmarks.py while it runs.
+notebooks/external_shock_benchmarks.partial.json

@@ -6738,16 +6738,28 @@ def frozen_reference(width_frac):
     unhex = lambda xs: np.array([float.fromhex(x) for x in xs])
     case = _REF_CACHE['cases']['%.0e' % width_frac]
 
-    # Guard: rebuild the profile and check it is the one the reference came from.  A
-    # frozen oracle that silently outlives a change to the physics is worse than no
-    # oracle at all, because every comparison against it still looks fine.
+    # Guard: rebuild the physics and check it is what the reference came from.  A frozen
+    # oracle that silently outlives a change to the physics is worse than no oracle at
+    # all, because every comparison against it still looks fine.
+    #
+    # Both the density and the Hamiltonian are checked.  Checking the density alone was
+    # the original guard and it missed the case that happened: moving this notebook from
+    # the NuFIT 6.0 constants to the 6.1 loader left `sn_shock_ne` identical while every
+    # oscillation parameter moved, so the guard passed and the stored probabilities were
+    # wrong by 0.1 -- larger than anything the figure they feed is trying to resolve.
+    ls = unhex(_REF_CACHE['fingerprint_l'])
+    stale = ('the shock physics no longer matches shock_reference.json; '
+             're-run `python notebooks/make_shock_reference.py`')
     want = unhex(case['fingerprint_ne'])
-    got = np.asarray(sn_shock_ne(width_frac)(unhex(_REF_CACHE['fingerprint_l'])),
-                     dtype=float)
+    got = np.asarray(sn_shock_ne(width_frac)(ls), dtype=float)
     if not np.allclose(got, want, rtol=1e-12, atol=0.0):
-        raise RuntimeError(
-            'the shock profile no longer matches shock_reference.json; '
-            're-run `python notebooks/make_shock_reference.py`')
+        raise RuntimeError(stale)
+    if 'fingerprint_h' not in case:
+        raise RuntimeError(stale + ' (it predates the Hamiltonian fingerprint)')
+    Hf = np.asarray(make_H(sn_shock_ne(width_frac))(ls), dtype=complex)
+    if not np.allclose(np.concatenate([Hf.real.ravel(), Hf.imag.ravel()]),
+                       unhex(case['fingerprint_h']), rtol=1e-12, atol=0.0):
+        raise RuntimeError(stale)
 
     return unhex(case['P']).reshape(case['shape'])
 
