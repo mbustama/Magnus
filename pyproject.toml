@@ -64,9 +64,13 @@ dependencies = [
 plot = []          # matplotlib is a base dependency; kept so `magnuspy[plot]` still resolves
 
 fast = []          # numba is a base dependency; kept so `magnuspy[fast]` still resolves
-test = ["pytest", "pytest-cov", "pytest-xdist", "matplotlib>=3.5"]
+# nbformat: tests/test_notebooks_match_their_generator.py reads the committed
+# notebooks and imports make_notebooks, which needs it.  Not deferred to the
+# notebooks extra, because a guard that is skipped where the suite runs is the
+# failure it exists to prevent.
+test = ["pytest", "pytest-cov", "pytest-xdist", "matplotlib>=3.5", "nbformat"]
 dev = ["pytest", "pytest-cov", "pytest-xdist", "twine", "build", "ruff",
-       "matplotlib>=3.5"]
+       "matplotlib>=3.5", "nbformat"]
 notebooks = ["nbformat", "nbclient", "ipykernel", "matplotlib>=3.5", "scipy", "mpmath"]
 docs = ["sphinx", "sphinx-autoapi", "sphinx-rtd-theme", "sphinx-copybutton", "sphinxcontrib-bibtex", "sphinxcontrib-mermaid", "myst-parser", "jupyter-sphinx", "ipykernel", "matplotlib>=3.5"]
 
