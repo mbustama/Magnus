@@ -16145,7 +16145,7 @@ sampled = np.array([np.asarray(oscprob.osc_prob(H_astro/e, 0.0, L_100MPC))[0, 0]
                     for e in nearby])
 
 print('40 energies spanning a relative range of 1e-12:')
-print('  P_ee from %.4f to %.4f, spread %.4f' % (sampled.min(), sampled.max(), sampled.ptp()))
+print('  P_ee from %.4f to %.4f, spread %.4f' % (sampled.min(), sampled.max(), np.ptp(sampled)))
 print()
 print('The energies differ by one part in 1e12.  Nothing measures that, so the')
 print('instantaneous probability is not the quantity an experiment reports.')'''),
