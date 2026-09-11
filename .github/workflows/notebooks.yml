@@ -91,6 +91,18 @@ jobs:
     env:
       SHARD: ${{ matrix.shard }}
       SHARDS: 4
+      # The paper's figures render from pre-generated data here and are never recomputed.
+      # Their inputs are either machine-specific, which a shared runner cannot measure
+      # meaningfully, or settled functions of the configuration, which nothing is learned
+      # by re-deriving.  `notebooks/paper_figure_cache.json` holds both.
+      #
+      # Without this the cache is still read; only a MISS differs, and it differs badly --
+      # the notebook quietly recomputes, which costs the better part of an hour and,
+      # worse, reports a figure whose stored inputs had drifted as though nothing had.
+      # With it, a miss stops the build and names the section that moved.
+      # `resources/paper/README.md` has asked for this since the cache was written; the
+      # workflow had never been told.
+      MAGNUS_PAPER_CACHE_ONLY: 1
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
