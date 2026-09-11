@@ -22,11 +22,13 @@ is one definition of the physics and this reads it.
 **What is frozen is the oracle, never the thing under test.**  Every Mag(nu)s number in
 that notebook is still computed live; only its reference is stored.  The one risk that
 introduces is a stale oracle outliving a change to the profile, so the file also carries a
-fingerprint -- the electron density sampled along the ray -- and the notebook refuses a
-reference whose fingerprint does not match what it just built.
+fingerprint -- the electron density AND the Hamiltonian built from it, both sampled along
+the ray -- and the notebook refuses a reference whose fingerprint does not match what it
+just built.  The density alone is not enough: it does not see a change in the oscillation
+parameters, which is exactly how this reference went stale once already.
 
 Run ``python notebooks/make_shock_reference.py`` after any change to the shock profile, the
-energy, the ray, or the sampled baselines.
+energy, the ray, the sampled baselines, or the oscillation parameters.
 """
 
 import json
@@ -86,7 +88,9 @@ def main():
     fingerprint_l = np.linspace(float(L0), float(Ls[-1]), N_FINGERPRINT)
 
     store = {
-        'note': ('solve_ivp DOP853 rtol=1e-12 atol=1e-14; produced by '
+        'note': ('solve_ivp DOP853 rtol=1e-14 atol=1e-16 -- SciPy clamps rtol at '
+                 '2.22e-14, so that is the floor of the method; the movement to '
+                 'rtol=1e-13 is stored per case as self_convergence; produced by '
                  'notebooks/make_shock_reference.py, do not edit by hand'),
         'Ls': hexed(Ls)[0],
         'fingerprint_l': hexed(fingerprint_l)[0],
@@ -100,17 +104,47 @@ def main():
         def rhs(l, y, H=H):
             return (-1j*np.asarray(H(l)) @ y.reshape(3, 3)).ravel()
 
-        sol = solve_ivp(rhs, (float(L0), float(Ls[-1])),
-                        np.eye(3, dtype=complex).ravel(),
-                        rtol=1e-12, atol=1e-14, method='DOP853', t_eval=Ls)
-        if not sol.success:
-            raise SystemExit('solve_ivp failed at w=%.0e: %s' % (width, sol.message))
-        U = np.array([sol.y[:, i].reshape(3, 3) for i in range(len(Ls))])
-        P = np.swapaxes(U.real**2 + U.imag**2, -1, -2)
+        def probabilities(rtol, atol, rhs=rhs, width=width):
+            sol = solve_ivp(rhs, (float(L0), float(Ls[-1])),
+                            np.eye(3, dtype=complex).ravel(),
+                            rtol=rtol, atol=atol, method='DOP853', t_eval=Ls)
+            if not sol.success:
+                raise SystemExit('solve_ivp failed at w=%.0e, rtol=%.0e: %s'
+                                 % (width, rtol, sol.message))
+            U = np.array([sol.y[:, i].reshape(3, 3) for i in range(len(Ls))])
+            return np.swapaxes(U.real**2 + U.imag**2, -1, -2)
+
+        # rtol 1e-14, not the 1e-12 this used to run at, and the difference is not
+        # academic.  Measured on the 1e-6 front: 1e-12 sits 1.2e-9 away from the
+        # converged answer and 1e-13 sits 1.2e-10 away, while 1e-14 and 1e-15 agree with
+        # each other.  At 1e-12 the reference's own error was 1.2e-9, which is where
+        # Mag(nu)s appeared to bottom out -- the figure was showing the ruler, not the
+        # method.  The extra decade costs about 65 percent more wall clock.
+        P = probabilities(1e-14, 1e-16)
+        # The reference now carries its own error, the way Figure 11's does.  Without
+        # this nobody could tell a floor in the figure from a limit of the method, which
+        # is exactly the confusion the 1e-12 setting caused.
+        #
+        # The comparison is against 1e-13 and NOT against something tighter than 1e-14,
+        # because SciPy clamps rtol at 16*eps = 2.22e-14: a request below that is raised
+        # to it, so two such solves differ only in atol and their agreement measures
+        # nothing.  1e-13 is the closest genuinely different setting, which makes this a
+        # conservative bound on the reference's error rather than an optimistic one.
+        self_conv = float(np.max(np.abs(probabilities(1e-13, 1e-15) - P)))
+        print('  w=%.0e  self-convergence %.2e' % (width, self_conv), flush=True)
         flat, shape = hexed(P)
+        # Two fingerprints, not one.  The density alone was the original guard, and it
+        # does not cover the Hamiltonian built on top of it: when notebook 14 moved from
+        # the NuFIT 6.0 constants to the 6.1 loader, every oscillation parameter changed
+        # -- Delta m^2_21 by 0.6 percent -- while `ne` was untouched, so the guard stayed
+        # green and the frozen answers silently described different physics.  Over a ray
+        # of 4700 oscillation lengths that shifted the probabilities by 0.1, which is the
+        # size of the whole comparison this reference exists to make.
+        Hf = np.asarray(H(fingerprint_l), dtype=complex)
         store['cases']['%.0e' % width] = {
-            'P': flat, 'shape': shape,
+            'P': flat, 'shape': shape, 'self_convergence': self_conv,
             'fingerprint_ne': hexed(np.asarray(ne(fingerprint_l), dtype=float))[0],
+            'fingerprint_h': hexed(np.concatenate([Hf.real.ravel(), Hf.imag.ravel()]))[0],
         }
         print('  frozen w=%.0e  %s' % (width, tuple(shape)), flush=True)
 

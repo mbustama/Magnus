@@ -273,6 +273,12 @@ File Tree
    │   ├── probe_commensurability.py   # Asks whether a timing taken today is comparable with the stored ones
    │   ├── gen_solar_average_cost.py   # GENERATES external_solar_average_cost.json -- cost per configuration
    │   ├── external_solar_average_cost.json  # Averaged-probability cost on BS2005-AGS,OP, eight configurations
+   │   ├── gen_shock_cost.py           # GENERATES external_shock_cost.json -- Figure 12, in two phases
+   │   ├── external_shock_cost.json    # Cost of a fixed accuracy on the shock, 23 front widths, five arms
+   │   ├── make_shock_scan_references.py  # FREEZES shock_reference_scan.json -- one DOP853 oracle per front width
+   │   ├── shock_reference_scan.json   # Figure 12's frozen references, keyed at full precision, with both fingerprints
+   │   ├── check_shock_adiabaticity.py  # Tests whether Figure 12's cost peak sits at the adiabatic crossover
+   │   ├── check_shock_commutator.py   # Tests whether that peak is the commutator term, using order 2 as the control
    │   ├── sterile_projector_check.py  # Reproduces the sterile projector defect and its fix, three arms, one command
    │   ├── retime_magnus_series.py     # RE-TIMES both codes in Figure 11; references and grids untouched
    │   ├── prem_chord_common.py        # The PREM chord at cos(theta_z) = -0.9, shared by the two scripts below
@@ -311,7 +317,7 @@ File Tree
    │       ├── refs.bib                # NuOscProbExact's bibliography, with the Magnus entries appended below a separator
    │       ├── elsarticle.cls          # Bundled, so the folder compiles without the Elsevier bundle
    │       ├── elsarticle-num.bst
-   │       └── figs/                   # Its eight figures, written by notebook 28
+   │       └── figs/                   # Its fourteen figures, written by notebook 28
    ├── tools/                          # Standalone utilities that are not part of the package
    │   └── make_demo_video.py          # Joins and shrinks notebook 27's clips; shared with NuOscProbExact
    ├── src/                            # The package itself -- the only thing a `pip install` delivers
@@ -343,6 +349,9 @@ File Tree
    │   │   └── version.py              # Resolves the version from pyproject.toml (internal)
    │   └── requirements.txt            # Sphinx + theme + extensions needed to build the docs
    └── tests/                          # Test suite (pytest; runs in CI)
+       ├── test_ci_honours_the_docs.py  # Every MAGNUS_* variable the docs tell CI to set, a workflow actually sets
+       ├── test_notebooks_match_their_generator.py  # The committed .ipynb files are the ones make_notebooks.py builds
+       ├── test_paper_assets_are_tracked.py  # Every figure main.tex includes is tracked, which .gitignore's *.pdf defeats
        ├── conftest.py                 # Path setup so magnus is importable without installation
        ├── test_adiabatic.py           # Adiabatic + Magnus hybrid strategy: detection, merging, ODE cross-checks
        ├── test_angles.py              # The four `angles` conventions and the guards between them
