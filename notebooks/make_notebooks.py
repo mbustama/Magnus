@@ -12968,6 +12968,8 @@ import warnings
 
 import numpy as np
 import mpmath as mp
+import shutil
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 import matplotlib.patheffects as pe
 from matplotlib.ticker import FuncFormatter, LogLocator, AutoMinorLocator, NullLocator
@@ -13012,6 +13014,15 @@ plt.rcParams.update({
     'legend.fancybox': False, 'legend.borderpad': 0.3,
     'figure.dpi': 130, 'savefig.bbox': 'tight', 'savefig.pad_inches': 0.02,
 })
+
+# LaTeX where there is a LaTeX, mathtext where there is not.  `notebooks/matplotlibrc`
+# asks for it unconditionally, which is right on a machine that typesets the paper and
+# wrong on a runner with no TeX installation, where every `savefig` then raises.  Deciding
+# here means these figures are drawn locally exactly as they reach the page, and that the
+# notebook still executes where it cannot be.  It also means a macro the paper defines,
+# such as \magnus, is not available to a label: labels spell the name out.
+plt.rcParams['text.usetex'] = shutil.which('latex') is not None
+print('text.usetex = %s' % plt.rcParams['text.usetex'])
 
 # The real \columnwidth and \textwidth of the paper, so that a size set here is the
 # size that reaches the page: drawing narrower and letting \includegraphics stretch
@@ -15949,7 +15960,7 @@ h_tr = plt.Line2D([], [], ls='none', marker='>', ms=5.2, mfc='white', mec=INK, m
 # -- the same integration, measured where that was possible and projected where it was
 # not -- and the triangles are labelled with their times where they are drawn.
 ax.legend([h_dot, (h_sq, h_tr)],
-          [r'\magnus, closed form', r'{\tt DOP853}, then averaged'],
+          [r'Mag$\nu$s, closed form', r'{\tt DOP853}, then averaged'],
           handler_map={tuple: mpl.legend_handler.HandlerTuple(ndivide=None, pad=0.7)},
           loc='lower left', bbox_to_anchor=(0.0, 1.02, 1.0, 0.102), mode='expand',
           ncol=2, handlelength=1.8, columnspacing=1.0, handletextpad=0.5,
