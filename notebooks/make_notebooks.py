@@ -10798,8 +10798,22 @@ PANEL_FONT = {'title': 18, 'label': 17, 'tick': 14, 'legend': 11, 'dial': 10,
 
 def plot_case(ax, case, title):
     for series in case['series']:
-        marker, color, size = DIAL_STYLE[series['name']]
+        style = DIAL_STYLE.get(series['name'])
+        if style is None:
+            # The benchmark file is shared with Fig. 11 (notebook 28) and also
+            # carries that figure's order-6, order-8 and tolerance-dialled
+            # series.  This panel is the order-4-against-the-closed-form
+            # comparison and plots only the two it has styles for.  Skipping
+            # rather than indexing means the file can grow to serve another
+            # figure without breaking this one, which is exactly what happened
+            # when orders 6 and 8 were added to it.
+            continue
+        marker, color, size = style
         pts = series['points']
+        # A tolerance the code could not reach is recorded as a point with a
+        # note and no timing, so filter on the timed key rather than assuming
+        # every point carries one.
+        pts = [p for p in pts if 'us_per_probability' in p]
         t = [p['us_per_probability'] for p in pts]
         e = [p['max_abs_error'] for p in pts]
         kw = dict(ms=size, color=color, lw=1.1, zorder=4,
@@ -10847,8 +10861,14 @@ def plot_case(ax, case, title):
     leg.get_frame().set_linewidth(0.7)
     # No dead margin left or right of the curves: on a log-log plot matplotlib's default
     # padding is a whole decade, which makes two curves look further apart than they are.
-    allt = [p['us_per_probability'] for s in case['series'] for p in s['points']]
-    alle = [p['max_abs_error'] for s in case['series'] for p in s['points']]
+    # Over the series this panel draws, not every series in the file: the
+    # shared benchmark also holds Fig. 11's, and one of those records an
+    # unreachable tolerance with no timing at all.
+    drawn = [s for s in case['series'] if s['name'] in DIAL_STYLE]
+    allt = [p['us_per_probability'] for s in drawn for p in s['points']
+            if 'us_per_probability' in p]
+    alle = [p['max_abs_error'] for s in drawn for p in s['points']
+            if 'us_per_probability' in p]
     ax.set_xlim(min(allt)/1.6, max(allt)*1.6)
     ax.set_ylim(min(alle)/3.0, max(alle)*3.0)
 
