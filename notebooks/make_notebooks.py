@@ -15407,70 +15407,108 @@ for case in BENCH['cases']:
                 missed[0].get('best_error_estimate') or float('nan'))
         print('  d=%d %-22s best %.2e, tightest %.2e%s'
               % (case['flavours'], s['name'], best, last, note))'''),
-    md(r'''## Figure 8 --- the same shock, as cost against accuracy'''),
-    code(r'''# ------------------------------------------------------------------ the shock
-SHOCK = json.loads((HERE/'external_shock_benchmarks.json').read_text())
-SPAN_KM = SHOCK['L1_km'] - SHOCK['L0_km']
-fig, axes = plt.subplots(2, 1, figsize=(COL, 3.4), sharex=True,
-                         gridspec_kw=dict(hspace=0.10))
-for ax, case in zip(axes, SHOCK['cases']):
-    width_km = case['width']*SPAN_KM
-    allt = []
-    for series in case['series']:
-        t = [p['us_per_probability'] for p in series['points']]
-        e = [p['max_abs_error'] for p in series['points']]
-        allt += t
-        if series['name'] == 'Magnus':
-            ax.loglog(t, e, '-*', color=INK, ms=8, lw=1.2, zorder=5, label=r'Mag$\nu$s')
-        else:
-            ax.loglog(t, e, '-o', color=RED, ms=4.0, mfc='none', mew=0.9, lw=1.0,
-                      zorder=4, label='NuOscProbExact')
-    if case is SHOCK['cases'][0]:
-        # Same convention as Fig. 7: the dial's value beside every marker, its name
-        # written once per curve on the topmost point.
-        for series in case['series']:
-            pts = series['points']
-            dial = next((k for k in ('rtol', 'n_slabs', 'tolerance', 'num_prec')
-                         if k in pts[0]), None)
-            col = INK if series['name'] == 'Magnus' else RED
-            top = max(range(len(pts)), key=lambda k: pts[k]['max_abs_error'])
-            for k, pt in enumerate(pts):
-                txt = ('%s = %s' % (dial, pt['label'])) if k == top and dial else pt['label']
-                # Down and to the right of the marker.  Up and to the right put the
-                # topmost label of each curve outside the axes, where it was clipped.
-                # The last point of a series is its rightmost, so that one is set to
-                # the left instead: to the right it ran past the axis.
-                # The last point is a series' rightmost and usually its lowest, so its
-                # label goes up and to the left: to the right it ran past the axis, and
-                # below it landed on the reference floor.
-                last = (k == len(pts) - 1)
-                ax.annotate(txt, xy=(pt['us_per_probability'], pt['max_abs_error']),
-                            xytext=(-4.0, 10.0) if last else (4.0, -6.5),
-                            textcoords='offset points',
-                            ha='right' if last else 'left',
-                            va='bottom' if last else 'baseline',
-                            fontsize=5.6, color=col, zorder=6,
-                            annotation_clip=True)
-    ax.axhline(case['reference_unitarity'], color='0.5', ls=':', lw=0.8)
-    logx(ax); logy(ax)
-    corner(ax, 'SN: front width %s km'
-           % ('%.2f' % width_km).rstrip('0').rstrip('.'), fontsize=8.0)
-    ax.set_ylabel(r'Max $|\Delta P|$', fontsize=8.0)
-    print('  width %6.2f km: Magnus %.2e   NuOscProbExact %.2e'
-          % (width_km,
-             min(p['max_abs_error'] for p in case['series'][0]['points']),
-             min(p['max_abs_error'] for p in case['series'][1]['points'])))
-ALL_TS = [p['us_per_probability'] for c in SHOCK['cases'] for s_ in c['series']
-          for p in s_['points']]
-for ax in axes:
-    # A little room past the extreme markers, which otherwise sit on the spines and
-    # leave their labels nowhere to go.
-    ax.set_xlim(0.7*min(ALL_TS), 1.5*max(ALL_TS))
-axes[0].legend(loc='lower left', handlelength=1.4)
-stamp(axes[1], 'Referee floor', x=0.04, y=0.04, fontsize=8.0)
-axes[-1].set_xlabel(r'Time per probability [$\mu$s]')
-fig.tight_layout(pad=0.3, h_pad=0.4)
-save(fig, 'shock_speed_accuracy.pdf')'''),
+    md(r'''## Figure 8 --- what a shock front costs, and what declaring it is worth'''),
+    code(r'''# ------------------------------------------------ the shock, priced at a fixed accuracy
+# What a front costs, and what declaring it is worth.  Phase 1 of gen_shock_cost.py found
+# the smallest slab count that reaches the target for each arm; Phase 2 timed exactly
+# those settings, re-timing one cheap control every eight cases so the single-shot
+# timings at the expensive end carry a measured bound on how much the machine moved.
+COST = json.loads((HERE/'external_shock_cost.json').read_text())
+# 1e-7, not 1e-8: it is the tightest target the closed form reaches at every width.
+# At 1e-8 its error bottoms at 1.1e-08 and 1.5e-08 at the two middle widths and rises
+# after, so two of its five points would not exist -- and those two are the ones the
+# figure most needs, being where its cost peaks.
+TARGET, LOSC = 1.0e-7, COST['l_osc_local_km']
+# One timed call returns the whole cumulative scan, so its time is divided by the number
+# of baselines in it.  This is the same per-probability normalisation Fig. 11 uses; the
+# first draft of this figure plotted the call time under a per-probability label, which
+# is the right shape and the wrong scale by a factor of 61.
+NBASE = COST['n_baselines']
+print('machine: %s | control spread %.2fx over %d samples'
+      % (COST['machine'], COST['control']['spread'], len(COST['control']['seconds'])))
+
+
+def priced(code):
+    r"""(widths, seconds) for one arm at the figure's target, and the widths it missed.
+
+    A width the arm never reached inside the memory budget has no time to plot, so it is
+    returned separately rather than dropped: a gap in a curve and a curve that stops are
+    different statements, and only one of them is true here.
+    """
+    rows = sorted((c for c in COST['cases']
+                   if c['code'] == code and c['target'] == TARGET),
+                  key=lambda c: c['width'])
+    # NaN, not a dropped row.  Dropping the unreachable widths still leaves their
+    # neighbours adjacent in the array, so the line is drawn straight across the gap and
+    # asserts a time at widths where none exists; a NaN breaks the line there instead.
+    w = np.array([c['width_km'] for c in rows])
+    t = np.array([1.0e3*c['seconds']/NBASE if c.get('seconds') else np.nan for c in rows])
+    return (w, t), [c['width_km'] for c in rows if not c.get('n_slabs')]
+
+
+(QW, QT), _ = priced('order 2, resolved')
+(DW, DT), _ = priced('order 4, declared')
+(RW, RT), _ = priced('order 4, resolved')
+(EW, ET), _ = priced('order 8, resolved')
+(NW, NT), NMISS = priced('NuOscProbExact')
+
+fig, ax = plt.subplots(figsize=(COL, 3.55))
+
+# Order 2 is the midpoint slab product -- one sample per slab, no commutator, which is
+# exactly what a constant-density slab has.  It is in the figure beside the closed form
+# because the two share that limitation and share the peak, while orders 4 and 8 do not.
+ax.loglog(QW, QT, '-^', color=PURPLE, ms=3.4, lw=1.1, zorder=4,
+          label=r'Order 2, front resolved')
+ax.loglog(DW, DT, '-o', color=INK, ms=3.2, lw=1.3, zorder=5,
+          label=r'Order 4, front declared')
+ax.loglog(RW, RT, '-o', color=BLUE, ms=3.2, lw=1.3, zorder=5,
+          label=r'Order 4, front resolved')
+ax.loglog(EW, ET, '--s', color=ORANGE, ms=2.9, lw=1.1, zorder=4,
+          label=r'Order 8, front resolved')
+ax.loglog(NW, NT, ':o', color=RED, ms=3.2, mfc='none', mew=0.9, lw=1.0, zorder=3,
+          label=r'{\tt NuOscProbExact}')
+
+# Nothing is unreachable at this target; the marker is kept for the tighter ones, where
+# the closed form's error turns around before arriving and a point would be a fiction.
+for w in NMISS:
+    ax.plot(w, 0.845, 'x', ms=5.4, color=RED, mew=1.3, zorder=6,
+            transform=ax.get_xaxis_transform(), clip_on=False)
+if NMISS:
+    # Below the crosses and below the corner label, which sits over the right-hand one.
+    ax.text(np.sqrt(NMISS[0]*NMISS[-1]), 0.800, r'floors above $10^{-8}$', color=RED,
+            transform=ax.get_xaxis_transform(), ha='center', va='top', fontsize=7.0)
+
+logx(ax); logy(ax)
+ax.set_xlabel(r'Supernova shock front width [km]', labelpad=2.0)
+ax.set_ylabel(r'Time per probability at $|\Delta P| \leq 10^{-7}$ [ms]', labelpad=2.0)
+ax.set_xlim(0.045, 1.35e3)
+ax.set_ylim(0.28, 108.0)
+ax.grid(True, which='major', color=GRID, lw=0.5)
+ax.set_axisbelow(True)
+
+# The same widths in local oscillation lengths, which is the number that says whether a
+# front is thin: 16 km at the contact density.  rc puts ticks on all four spines, so the
+# top ones are turned off here to leave the second axis alone.
+ax.tick_params(axis='x', top=False, which='both')
+sec = ax.secondary_xaxis('top', functions=(lambda w: w/LOSC, lambda u: u*LOSC))
+sec.set_xlabel(r'Front width [local oscillation lengths]', labelpad=3.0)
+sec.set_xscale('log')
+sec.xaxis.set_major_formatter(FuncFormatter(_plain))
+sec.xaxis.set_minor_formatter(FuncFormatter(lambda *_: ''))
+
+# Above the panel, not inside it.  The four curves between them cross the full width at
+# both the top and the bottom of the axes, so an inset legend has nowhere to sit: the
+# first draft put it lower left, where it hid the thin-front end of the very curve the
+# figure is about.  The second axis takes the top, so the legend sits above that.
+ax.legend(loc='lower left', bbox_to_anchor=(0.0, 1.135, 1.0, 0.10), mode='expand',
+          ncol=2, handlelength=1.7, columnspacing=0.9, handletextpad=0.5,
+          labelspacing=0.3, borderaxespad=0.0, fontsize=7.2)
+# Which profile the four curves were priced on, in the top right corner.
+ax.text(0.972, 0.962, r'SN shock, $15$~MeV', transform=ax.transAxes,
+        ha='right', va='top', fontsize=7.8, color=INK, zorder=7,
+        bbox=dict(boxstyle='round,pad=0.35', fc='white', ec=INK, lw=0.6))
+fig.tight_layout(pad=0.4)
+save(fig, 'shock_cost.pdf')'''),
     md(r'''## Figure 9 --- six codes through the Earth
 
 **The matter potential is matched first**, and matching it does not buy a curve that falls

@@ -273,6 +273,12 @@ File Tree
    │   ├── probe_commensurability.py   # Asks whether a timing taken today is comparable with the stored ones
    │   ├── gen_solar_average_cost.py   # GENERATES external_solar_average_cost.json -- cost per configuration
    │   ├── external_solar_average_cost.json  # Averaged-probability cost on BS2005-AGS,OP, eight configurations
+   │   ├── gen_shock_cost.py           # GENERATES external_shock_cost.json -- Figure 12, in two phases
+   │   ├── external_shock_cost.json    # Cost of a fixed accuracy on the shock, 23 front widths, five arms
+   │   ├── make_shock_scan_references.py  # FREEZES shock_reference_scan.json -- one DOP853 oracle per front width
+   │   ├── shock_reference_scan.json   # Figure 12's frozen references, keyed at full precision, with both fingerprints
+   │   ├── check_shock_adiabaticity.py  # Tests whether Figure 12's cost peak sits at the adiabatic crossover
+   │   ├── check_shock_commutator.py   # Tests whether that peak is the commutator term, using order 2 as the control
    │   ├── sterile_projector_check.py  # Reproduces the sterile projector defect and its fix, three arms, one command
    │   ├── retime_magnus_series.py     # RE-TIMES both codes in Figure 11; references and grids untouched
    │   ├── prem_chord_common.py        # The PREM chord at cos(theta_z) = -0.9, shared by the two scripts below
