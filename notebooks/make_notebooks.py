@@ -12992,7 +12992,8 @@ import shutil
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import matplotlib.patheffects as pe
-from matplotlib.ticker import FuncFormatter, LogLocator, AutoMinorLocator, NullLocator
+from matplotlib.ticker import (FuncFormatter, LogLocator, AutoMinorLocator,
+                               MaxNLocator, NullLocator)
 from scipy.integrate import solve_ivp
 from scipy.linalg import expm
 
@@ -16083,9 +16084,185 @@ ax.text(0.030, 0.975, r'Sun (BS2005-AGS,OP)', transform=ax.transAxes,
         bbox=dict(boxstyle='round,pad=0.35', fc='white', ec=INK, lw=0.6))
 fig.tight_layout(pad=0.6)
 save(fig, 'solar_average_cost.pdf')'''),
+    md(r'''## Figure 11 --- what asking for more workers buys
+
+`n_jobs` reads like a performance knob. On the request it most often meets --- many energies
+sharing one baseline --- raising it **turns the batched engine off**, and the cell prints what
+that trade costs. The curves are the other case, where nothing is traded away.'''),
+    code(r'''# ------------------------------------------------ what asking for more workers buys
+# Wall clock against n_jobs on an Earth chord, produced by gen_njobs_scaling.py with one
+# thread per process and the worker counts interleaved round-robin, so a drift in the
+# machine lands on every count rather than on one.  Nothing is recomputed here: a figure
+# that timed itself would report whichever machine executed the notebook.
+JOBS = json.loads((HERE/'external_njobs_scaling.json').read_text())
+NCORE, NLOG = JOBS['n_physical_cores'], 12
+# Every energy carries its own baseline, which the batched engine never accepts, so both
+# ends of each ratio run the same per-point path: the ratio is what the workers did and
+# nothing else.  The default case, one baseline shared by the whole scan, is the
+# cautionary one, and it is a number rather than a curve -- printed below.
+SIZES = ((1000, '-^', PURPLE), (5000, '-s', GREEN), (20000, '-D', ORANGE))
+
+
+def jobs_rows(arm):
+    r"""One arm's rows, in worker-count order."""
+    return sorted(JOBS['arms'][arm]['rows'], key=lambda r: r['n_jobs'])
+
+
+def border_of(ax, label):
+    r"""The drawn left and bottom borders of a boxed label, in axes coordinates.
+
+    A text's position is the text itself; the box around it reaches further out by the
+    box padding.  Anything that must line up with the drawn border has to measure it.
+    """
+    ax.figure.canvas.draw()
+    box = label.get_bbox_patch().get_window_extent(ax.figure.canvas.get_renderer())
+    return tuple(ax.transAxes.inverted().transform((box.x0, box.y0)))
+
+
+def legend_at(ax, legend, left, top):
+    r"""Move the legend's drawn frame to (left, top) in axes coordinates.
+
+    `bbox_to_anchor` is not the frame: matplotlib insets the legend from the anchor by
+    `borderaxespad` times the font size, so anchoring a legend and a label at the same x
+    leaves their borders a font-size apart.  Measure the frame and correct the anchor;
+    the transform is affine, so the first correction is already exact.
+    """
+    inv = ax.transAxes.inverted()
+    for _ in range(6):
+        ax.figure.canvas.draw()
+        frame = legend.get_frame().get_window_extent(ax.figure.canvas.get_renderer())
+        x0, _ = inv.transform((frame.x0, frame.y0))
+        _, y1 = inv.transform((frame.x1, frame.y1))
+        if abs(left - x0) < 1e-9 and abs(top - y1) < 1e-9:
+            return legend
+        anchor = legend.get_bbox_to_anchor()
+        ax_x, ax_y = inv.transform((anchor.x0, anchor.y0))
+        legend.set_bbox_to_anchor((ax_x + (left - x0), ax_y + (top - y1)),
+                                  transform=ax.transAxes)
+    raise RuntimeError('legend placement did not converge')
+
+
+def workers_panel(ax):
+    r"""The frame every worker-count panel shares: the region past the cores, and unity."""
+    ax.axvspan(NCORE, NLOG, color='0.88', lw=0, zorder=0)
+    ax.text(0.5*(NCORE + NLOG), 0.5, 'More workers than cores', rotation=90,
+            ha='center', va='center', color='black', zorder=3, fontsize=7.2,
+            transform=ax.get_xaxis_transform())
+    ax.axhline(1.0, color=INK, lw=0.8, ls=':', zorder=1)
+    ax.set_xlabel(r'Workers requested, \texttt{n\_jobs}', labelpad=2.0)
+    ax.set_xlim(1, NLOG)
+    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+    ax.xaxis.set_minor_locator(NullLocator())     # a worker count has nothing between
+    ax.grid(True, which='major', color=GRID, lw=0.5)
+    ax.set_axisbelow(True)
+
+
+def corner_label(ax, text):
+    r"""The rounded label naming the chord, in the top left corner of a panel."""
+    return ax.text(0.030, 0.962, text, transform=ax.transAxes, ha='left', va='top',
+                   fontsize=7.8, color=INK, zorder=6,
+                   bbox=dict(boxstyle='round,pad=0.35', fc='white', ec=INK, lw=0.6))
+
+
+# What the knob costs where a caller most often reaches for it: one baseline shared by
+# the whole scan, which is the case the batched engine exists for and gives up above one
+# worker.  This is the sentence the paper quotes, so the notebook prints it.
+SHARED = jobs_rows('5000 points, one baseline')
+print('machine: %s' % JOBS['machine'])
+print('topology: %s' % JOBS['topology'])
+print('shared baseline, 5000 energies: %s at 1 worker %.3f s, %s at %d workers %.3f s'
+      ' -> %.1fx SLOWER'
+      % (SHARED[0]['engine'], SHARED[0]['mean_seconds'],
+         SHARED[NCORE-1]['engine'], NCORE, SHARED[NCORE-1]['mean_seconds'],
+         SHARED[NCORE-1]['mean_seconds']/SHARED[0]['mean_seconds']))
+
+fig, ax = plt.subplots(figsize=(COL, 3.35))
+workers_panel(ax)
+ax.text(3.5, 1.015, 'No gain', ha='left', va='bottom', color=INK, fontsize=7.2)
+for n_points, marker, color in SIZES:
+    rows = jobs_rows('%d points' % n_points)
+    ax.plot([r['n_jobs'] for r in rows], [r['speedup'] for r in rows], marker,
+            color=color, ms=3.4, lw=1.2, zorder=4, label=r'$%d$' % n_points)
+ax.set_ylabel(r'Mean speed-up over a single worker', labelpad=2.0)
+ax.set_ylim(0.95, 3.0)
+ax.set_box_aspect(1.0)
+CORNER = corner_label(ax, r'Earth, $\cos\theta_z = %.1f$' % JOBS['costhz'])
+LEFT, BELOW = border_of(ax, CORNER)
+# Three across, under the corner label: the entries are bare sizes, so one row of them
+# reads as a sequence rather than as three separate statements.
+leg = ax.legend(loc='upper left', bbox_to_anchor=(LEFT, BELOW), ncol=3, borderaxespad=0.0,
+                title=r'Number of energies tested', fontsize=7.8,
+                handlelength=1.3, columnspacing=0.8, handletextpad=0.4)
+leg.get_title().set_fontsize(7.8)
+# Last: the title's size is what fixes the frame's height.
+legend_at(ax, leg, LEFT, BELOW - 0.012)
+fig.tight_layout(pad=0.4)
+save(fig, 'njobs_scaling.pdf')'''),
+    md(r'''## Figure B.1 --- what a parallel speed-up depends on
+
+The two scans too short to time on this machine, kept because what they show is the protocol
+rather than the package: three ways of measuring the same thing, disagreeing by as much as the
+worker count moves the answer.'''),
+    code(r'''# ------------------------------------------------ what a parallel speed-up depends on
+# The same knob on the two scans too short to time on this machine, measured three ways.
+# The point of the panel is the spread between the three, not any one curve: at these
+# sizes a round lasts a few tenths of a second, and the protocol moves the answer by as
+# much as the worker count does.
+PROTOCOLS = (('fixed order', '-o', '0.55', 'Fixed worker order'),
+             ('randomised', '-s', BLUE, 'Randomized worker order'),
+             ('pinned', '-D', PURPLE, 'Randomized, 8 identical cores'))
+# The arm names are the keys the generator wrote, British spelling and all; the labels
+# above are what the figure says.
+PANELS = ((500, {'fixed order': '500 points, fixed order',
+                 'randomised': '500 points, randomised',
+                 'pinned': '500 points, pinned'}),
+          (1000, {'fixed order': '1000 points, fixed order',
+                  'randomised': '1000 points',
+                  'pinned': '1000 points, pinned'}))
+
+for n_points, names in PANELS:
+    worst = max(max(r['cv'] for r in jobs_rows(a)) for a in names.values())
+    print('%5d energies: %.3f s serial, worst cv over the three protocols %.2f'
+          % (n_points, jobs_rows(names['randomised'])[0]['mean_seconds'], worst))
+
+fig, axes = plt.subplots(1, 2, figsize=(WIDE, 3.0), sharey=True)
+for ax, (n_points, names) in zip(axes, PANELS):
+    workers_panel(ax)
+    for key, marker, color, label in PROTOCOLS:
+        rows = jobs_rows(names[key])
+        ax.plot([r['n_jobs'] for r in rows], [r['speedup'] for r in rows], marker,
+                color=color, ms=3.2, lw=1.1, zorder=4, label=label)
+    # Starts at 0.9, so the fixed-order curve leaves the panel where it drops below one.
+    # That is where it is worst, and the point of the panel; the caption says so.
+    ax.set_ylim(0.9, 2.3)
+    corner = corner_label(ax, r'Earth, $\cos\theta_z = %.1f$, $%d$ energies'
+                              % (JOBS['costhz'], n_points))
+    if ax is axes[0]:
+        left_corner = corner
+    ax.set_xlabel('')
+axes[0].set_ylabel(r'Mean speed-up over a single worker', labelpad=2.0)
+fig.tight_layout(pad=0.4)
+# One label for two panels that share an axis, centred on the pair rather than on the
+# figure: the y label widens the figure on the left, so figure centre reads as off-centre
+# under the data.  Both the gap to the tick labels and the centre are measured, because
+# closing the gap between the panels moves them.
+fig.subplots_adjust(wspace=0.05)
+fig.canvas.draw()
+_bottom = min(t.get_window_extent(fig.canvas.get_renderer()).y0
+              for ax in axes for t in ax.get_xticklabels() if t.get_text())
+fig.supxlabel(r'Workers requested, \texttt{n\_jobs}', va='top',
+              fontsize=plt.rcParams['axes.labelsize'],
+              x=0.5*(axes[0].get_position().x0 + axes[1].get_position().x1),
+              y=_bottom/fig.bbox.height - 0.04/fig.get_size_inches()[1])
+LEFT2, BELOW2 = border_of(axes[0], left_corner)
+leg2 = axes[0].legend(loc='upper left', bbox_to_anchor=(LEFT2, BELOW2), fontsize=7.8,
+                      handlelength=1.3, handletextpad=0.4, labelspacing=0.3,
+                      borderaxespad=0.0)
+legend_at(axes[0], leg2, LEFT2, BELOW2 - 0.012)
+save(fig, 'njobs_protocol.pdf')'''),
     md(r'''## What was written
 
-Fourteen PDFs, which is every figure in `resources/paper/main.tex`.
+Sixteen PDFs, which is every figure in `resources/paper/main.tex`.
 
 ```bash
 python notebooks/make_notebooks.py --only 28
