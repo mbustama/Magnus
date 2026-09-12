@@ -1333,7 +1333,15 @@ Two conventions in these rules are not fussiness. Ignoring either made \magnus\ 
 \subsection{What a probability costs}
 \label{sec:cost}
 
-A single three-flavor Earth probability takes about $2$~ms at the default tolerance. Across $164$ Earth and solar configurations spanning two to five flavors, standard and non-standard Hamiltonians, neutrinos and antineutrinos, the median call is $2$~ms and the slowest is $0.90$~s. Three things make a scan much faster than its parts, none of them changing any answer.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{figure}[t!]
+ \centering
+ \includegraphics[width=\columnwidth]{njobs_scaling.pdf}
+ \caption{\label{fig:njobs_scaling}Speed-up of an energy scan against the number of worker processes requested, at three scan sizes, on an Earth chord at $\cos\theta_z = -0.9$ carrying energies from $0.5$ to $20$~GeV. Every energy carries its own baseline, which no batched engine accepts, so both ends of each ratio run the same per-point path: the ratio is what the workers did and nothing else. Each point is the mean wall clock over interleaved rounds---$30$ at $1000$ energies, $5$ at the two larger sizes---taken with one thread per process and with the worker pool warmed inside each round, so that the first call at a worker count is not charged with the pool's start-up. The machine carries ten physical cores, two of them performance cores and eight efficiency ones, and the shaded region is where the request exceeds them. Ten workers return $1.9\times$, $2.5\times$ and $2.8\times$ as the scan grows, never ten. The two larger sizes were measured before the worker order was randomized, a protocol that at $1000$ energies raised the ten-worker figure from $1.87\times$ to $2.23\times$; \ref{app:workers} gives that comparison, and the alternation visible along the $1000$-energy curve}
+\end{figure}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+A single three-flavor Earth probability takes about $2$~ms at the default tolerance. Across $164$ Earth and solar configurations spanning two to five flavors, standard and non-standard Hamiltonians, neutrinos and antineutrinos, the median call is $2$~ms and the slowest is $0.90$~s. Four things make a scan much faster than its parts, none of them changing any answer.
 
 \smallskip
 
@@ -1350,6 +1358,10 @@ A single three-flavor Earth probability takes about $2$~ms at the default tolera
 The Earth entry points are where that declaration belongs: there, a chord meeting every radius twice is a fact of geometry rather than an assumption about the profile. The symmetry is carried by the interval it applies to rather than set as a global flag. A standard PREM energy scan gains nothing from it, because the separable engine already evaluates the profile once and shares it across every energy---the same saving taken earlier and more completely.
 
 \smallskip
+
+\textit{Ask for workers, on a scan that has no batched path.}---\figu{njobs_scaling} prices the {\tt n\_jobs} argument on an Earth chord where every energy carries its own baseline, which is the case no batched engine accepts and therefore the case where process parallelism adds to a path that was serial anyway. Ten workers on ten cores return $1.9\times$ at $1000$ energies, $2.5\times$ at $5000$ and $2.8\times$ at $20\,000$: the gain grows with the scan and saturates far below the worker count. Asking for more workers than the machine has cores bought nothing at any size. Ten workers never returned ten times, and the ten cores here are not ten of the same thing---two are performance cores and eight are efficiency ones---though that is not the whole of it, since eight identical cores return well under eight as well (\ref{app:workers}).
+
+That is the advanced case. On the request the argument most often meets---one baseline shared by the whole scan---the batched engine answers at {\tt n\_jobs} $= 1$ and declines at anything else, so raising the worker count does not add parallelism to the batched path: it trades that path away for process parallelism over single points. A $5000$-energy scan that takes $0.11$~s in one process takes $1.07$~s across ten, ten times \emph{slower}. One worker is the right default, and the place to reach for the argument is a scan the batched engine cannot take.
 
 One cost runs the other way. The adaptive ladder computes the probability at several slab counts and stops when two agree, so a call at a tight tolerance pays for the levels below it as well as for the confidence it buys. Passing a slab count directly skips that, at the cost of the evidence it buys.
 
@@ -1662,6 +1674,30 @@ Two consequences follow. A scheme of order $p$ carries a local error $\mathcal{O
 We confirm the scalings numerically. Fitting $\lVert \Omega_k \rVert$ against $h$ on single slabs of the exponential profile of \figu{phase_vs_profile}, over widths from $47$ to $750$~km of its $3\,000$-km baseline, returns exponents $1.00$, $3.05$, $5.04$, $5.03$, $7.03$ and $7.03$ for $\Omega_1$ through $\Omega_6$. A randomly drawn $3 \times 3$ Hamiltonian with no physics in it returns the same six, each within $0.01$ of the integer. Each scheme also differs from the truncation it stands for by the next pair of terms: at a slab width of $L/16$, $\Omega_{\rm GL}^{(6)}$ minus $\Omega_1 + \Omega_2 + \Omega_3$ agrees with $\Omega_4$ to four digits; $\Omega_{\rm GL}^{(8)}$ minus $\Omega_1 + \cdots + \Omega_4$ agrees with $\Omega_5 + \Omega_6$.
 
 Higher order buys a genuinely faster convergence rate in the slab width---measured against a tight reference on a smooth Hamiltonian with a single slab, so that these are \emph{local} rates on the quadrature path rather than the global ones of Section \ref{sec:quadrature}, orders 4, 6 and 8 converge as $h^{6.6}$, $h^{8.3}$ and $h^{10.2}$---but the cost per slab grows faster than the order does; narrowing the slabs at order 4 or 6 usually reaches a given accuracy for less total work. \magnus\ warns when an order above six is requested. More fundamentally, absolute convergence is guaranteed only while $\int\lVert\mathbb{A}\rVert\,dl < \pi$, and past that bound raising the order is no longer the reliable move. The answer is narrower slabs.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\section{What a parallel speed-up depends on}
+\label{app:workers}
+\appresetfloats
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{figure*}[t!]
+ \centering
+ \includegraphics[width=\textwidth]{njobs_protocol.pdf}
+ \caption{\label{fig:njobs_protocol}The speed-up of \figu{njobs_scaling}, on the two scans too short to time reliably on this machine, each measured three ways. {\it Left}: $500$ energies, a scan that runs in $0.4$~s in one process. {\it Right}: $1000$ energies, $0.7$~s. {\it Grey}: the worker counts swept in a fixed order, which is how the two larger scans of \figu{njobs_scaling} were taken. {\it Blue}: the order redrawn at random in every round. {\it Purple}: the order redrawn at random and every worker pinned to the eight efficiency cores, so that all of them run on identical hardware; that arm therefore stops at eight. Every point is the mean over $30$ interleaved rounds. The grey curve leaves the left-hand panel below $1$, which is where it is worst and is the point of the figure}
+\end{figure*}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+Figure \ref{fig:njobs_protocol} is here because the two scan sizes it carries are the ones where how we measured moves the answer as far as what we measured. A $500$-energy scan runs in $0.4$~s and a $1000$-energy one in $0.7$~s, short enough that the harness is part of what the clock sees.
+
+\textit{The order matters.}---Sweeping the worker counts in a fixed order biases them, because the first count in a round meets a machine in a different state from the last. At $1000$ energies that protocol returned $2.23\times$ at ten workers against $1.87\times$ once the order was redrawn at random in every round, $19\%$ high. Randomizing removes the bias; it does not remove the roughness.
+
+\textit{Which cores matters.}---Pinning every worker to the eight efficiency cores gives all of them identical hardware. The curve that results is smoother and lower: part of the scatter in the unpinned arms is which cores the scheduler happened to pick, and part of the gain in them is the two performance cores. Eight identical cores reach $1.7\times$ at $1000$ energies, which is why the shortfall in \figu{njobs_scaling} cannot be laid on the mixture of core types alone.
+
+\textit{What is left is not identified.}---A $20\%$ alternation between even and odd worker counts reproduced three times at $1000$ energies and is visible along that curve in \figu{njobs_scaling}. It is not how the points divide among the tasks, not how many points each worker receives, and not the worker count itself; we checked each and none of them tracks it.
+
+The spread quoted here is a stricter statistic than the one Section \ref{sec:timing_protocol} admits on. There the coefficient of variation is taken across blocks run back to back; here it is taken across rounds separated in time, which is the larger of the two. On the arm \figu{njobs_scaling} plots it is $0.13$ at $1000$ energies, against $0.023$ and $0.017$ at $5000$ and $20\,000$; across the three protocols drawn here it reaches $0.20$ at $1000$ energies and $0.38$ at $500$. That is why that figure carries $1000$ energies as its smallest size and nothing below it, and why nothing in this appendix is quoted as a number the next machine will reproduce.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 

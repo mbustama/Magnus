@@ -256,9 +256,9 @@ File Tree
    │   ├── make_notebooks.py           # BUILDS the notebooks above -- edit this, not the .ipynb
    │   ├── external_speed_accuracy.json  # Five external codes' speed and accuracy (NuOscProbExact project)
    │   ├── external_prem_speed_accuracy.json  # Notebook 25 section 5: the same, on a PREM chord, both codes batched
-   │   ├── external_speed_accuracy_const.json  # Figure 12, top panel: constant density, seven codes plus Magnus
-   │   ├── external_earth_plane.json   # Figure 12, middle panel: a PREM chord at three flavors
-   │   ├── external_prem_speed_accuracy_new.json  # Figure 12, bottom panel: the same chord at 3+1
+   │   ├── external_speed_accuracy_const.json  # Figure 15, top panel: constant density, seven codes plus Magnus
+   │   ├── external_earth_plane.json   # Figure 15, middle panel: a PREM chord at three flavors
+   │   ├── external_prem_speed_accuracy_new.json  # Figure 15, bottom panel: the same chord at 3+1
    │   ├── magnus_own_reference.json   # Magnus's own 50-digit references, in its own conventions, on those three grids
    │   ├── external_profile_benchmarks.json  # Notebook 25 section 9: smooth-profile speed/accuracy, all codes on one machine
    │   ├── external_shock_benchmarks.json  # Notebook 25 section 11: the supernova shock, both front widths
@@ -266,21 +266,23 @@ File Tree
    │   ├── external_shock_nsi.json     # Notebook 25 section 13: the same shock with NSI
    │   ├── external_solar_nusquids.json  # Notebook 25 section 10: nuSQuIDS's energy-averaged solar survival probability
    │   ├── gen_profile_benchmarks.py   # GENERATES external_profile_benchmarks.json -- needs the external codes
-   │   ├── gen_mp_reference.py         # GENERATES mp_reference_profile.json -- the mpmath referee for Figure 11
+   │   ├── gen_mp_reference.py         # GENERATES mp_reference_profile.json -- the mpmath referee for Figure 12
    │   ├── mp_reference_profile.json   # Triple-Richardson mpmath reference, exponential profile, 2-5 flavors
    │   ├── rescore_against_mp_reference.py  # RE-SCORES external_profile_benchmarks.json against it; timings untouched
    │   ├── append_order_series.py      # ADDS the order-6 and order-8 Magnus series to that file
    │   ├── probe_commensurability.py   # Asks whether a timing taken today is comparable with the stored ones
    │   ├── gen_solar_average_cost.py   # GENERATES external_solar_average_cost.json -- cost per configuration
    │   ├── external_solar_average_cost.json  # Averaged-probability cost on BS2005-AGS,OP, eight configurations
-   │   ├── gen_shock_cost.py           # GENERATES external_shock_cost.json -- Figure 12, in two phases
+   │   ├── gen_shock_cost.py           # GENERATES external_shock_cost.json -- Figure 13, in two phases
    │   ├── external_shock_cost.json    # Cost of a fixed accuracy on the shock, 23 front widths, five arms
    │   ├── make_shock_scan_references.py  # FREEZES shock_reference_scan.json -- one DOP853 oracle per front width
-   │   ├── shock_reference_scan.json   # Figure 12's frozen references, keyed at full precision, with both fingerprints
-   │   ├── check_shock_adiabaticity.py  # Tests whether Figure 12's cost peak sits at the adiabatic crossover
+   │   ├── shock_reference_scan.json   # Figure 13's frozen references, keyed at full precision, with both fingerprints
+   │   ├── check_shock_adiabaticity.py  # Tests whether Figure 13's cost peak sits at the adiabatic crossover
    │   ├── check_shock_commutator.py   # Tests whether that peak is the commutator term, using order 2 as the control
+   │   ├── gen_njobs_scaling.py        # GENERATES external_njobs_scaling.json -- Figure 11, one thread per process
+   │   ├── external_njobs_scaling.json  # Wall clock against n_jobs on an Earth chord, nine arms at four scan sizes
    │   ├── sterile_projector_check.py  # Reproduces the sterile projector defect and its fix, three arms, one command
-   │   ├── retime_magnus_series.py     # RE-TIMES both codes in Figure 11; references and grids untouched
+   │   ├── retime_magnus_series.py     # RE-TIMES both codes in Figure 12; references and grids untouched
    │   ├── prem_chord_common.py        # The PREM chord at cos(theta_z) = -0.9, shared by the two scripts below
    │   ├── gen_prem_reference.py       # GENERATES prem_chord_reference.json -- segment-aligned, layer edges respected
    │   ├── prem_chord_reference.json   # That reference; PARTIAL, 4nu stops at 6 of 12 energies and 5nu is unstarted
