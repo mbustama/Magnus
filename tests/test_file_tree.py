@@ -341,6 +341,8 @@ TREE = [
     ('src/magnus/version.py', 'Resolves the version from pyproject.toml (internal)'),
     ('src/requirements.txt', 'Sphinx + theme + extensions needed to build the docs'),
     ('tests/', 'Test suite (pytest; runs in CI)'),
+    ('tests/test_paper_cache_key_is_portable.py',
+     "The figure cache's key survives a change of machine: a ULP must not move it"),
     ('tests/test_ci_honours_the_docs.py',
      'Every MAGNUS_* variable the docs tell CI to set, a workflow actually sets'),
     ('tests/test_notebooks_match_their_generator.py',

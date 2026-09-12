@@ -13222,12 +13222,56 @@ def profile_samples(func, L):
     return np.asarray(func(np.linspace(0.0, L, 9)), dtype=float)
 
 
+# Floats enter the hash at this many significant digits, not at their exact bits.  A
+# float64 carries 15 to 17, so twelve is far below anything a configuration change could
+# hide in and far above the last-place noise that is NOT reproducible between machines:
+# NumPy dispatches exp and the power used by logspace through SIMD paths chosen by CPU
+# feature, so `np.exp` can differ in its final unit in the last place between one runner
+# and the next.  Hashing raw bytes made the key machine-dependent, and the same commit
+# then hit the cache on one GitHub runner and missed on another -- which with
+# MAGNUS_PAPER_CACHE_ONLY set is a failed build rather than a slow one.
+FINGERPRINT_DIGITS = 12
+
+
+def _hashable(value):
+    """A float rendered at FINGERPRINT_DIGITS, so a last-place difference does not show."""
+    return '%.*e' % (FINGERPRINT_DIGITS - 1, value)
+
+
 def fingerprint(*parts):
     """Everything a stored result depends on, in one hash.
 
     Profiles enter as samples of the array they produce rather than as the parameters that
     built them, so a change anywhere upstream -- a mixing angle, an energy, a potential, a
     baseline -- invalidates the entry without having to be enumerated.
+
+    Floats are quantized first; see FINGERPRINT_DIGITS for why.  The cost is that a change
+    below the twelfth significant digit no longer invalidates an entry, which is the point:
+    a difference that small is the machine talking, not the physics.
+    """
+    h = hashlib.sha256()
+    for part in parts:
+        if isinstance(part, np.ndarray):
+            a = np.ascontiguousarray(part)
+            if a.dtype.kind == 'f':
+                h.update('|'.join(_hashable(x) for x in a.ravel().tolist()).encode())
+            else:
+                h.update(a.tobytes())
+        elif isinstance(part, float):
+            h.update(_hashable(part).encode())
+        elif isinstance(part, (list, tuple)) and part and all(
+                isinstance(x, float) for x in part):
+            h.update('|'.join(_hashable(x) for x in part).encode())
+        else:
+            h.update(repr(part).encode())
+    return h.hexdigest()
+
+
+def legacy_fingerprint(*parts):
+    """The exact-bits hash this file used before quantization, for reading old entries.
+
+    Kept only so that a cache written under the old scheme is recognised and restamped
+    rather than recomputed.  It is not written any more.
     """
     h = hashlib.sha256()
     for part in parts:
@@ -13236,6 +13280,23 @@ def fingerprint(*parts):
         else:
             h.update(repr(part).encode())
     return h.hexdigest()
+
+
+def restamp(blob, section, key, *key_parts):
+    """Relabel an entry written under the exact-bits hash, without recomputing it.
+
+    Called where a section keys itself rather than going through `cached`.  The legacy
+    hash matching is the proof that the stored value was computed for exactly this
+    configuration, so only the label changes; a section that really has moved matches
+    neither hash and is recomputed as it always was.  Does nothing once migrated.
+    """
+    entry = blob.get(section) or {}
+    stored = entry.get('fingerprint')
+    if stored is not None and stored != key and stored == legacy_fingerprint(*key_parts):
+        print('  %s restamped %s -> %s, same configuration under the quantized hash'
+              % (section, stored[:12], key[:12]))
+        blob[section] = dict(entry, fingerprint=key)
+        write_cache(blob)
 
 
 def cached(section, key_parts, compute, what=''):
@@ -13250,7 +13311,19 @@ def cached(section, key_parts, compute, what=''):
     blob = json.loads(MP_CACHE.read_text()) if MP_CACHE.exists() else {}
     key = fingerprint(*key_parts)
     got = blob.get(section)
-    if got and got.get('fingerprint') == key and not os.environ.get('MAGNUS_PAPER_REDO'):
+    stored = got.get('fingerprint') if got else None
+    # An entry written before the hash was quantized is recognised by the old scheme and
+    # restamped with the new key.  The configuration is proven unchanged by the legacy
+    # hash matching, so nothing is recomputed and nothing is taken on trust: a section
+    # that really has moved matches neither key and is recomputed as before.
+    if (got and stored != key and stored == legacy_fingerprint(*key_parts)
+            and not os.environ.get('MAGNUS_PAPER_REDO')):
+        print('  %s restamped %s -> %s, same configuration under the quantized hash'
+              % (section, stored[:12], key[:12]))
+        blob[section] = dict(got, fingerprint=key)
+        write_cache(blob)
+        stored = key
+    if got and stored == key and not os.environ.get('MAGNUS_PAPER_REDO'):
         print('  %s read from %s, unchanged configuration %s (measured %s on %s)'
               % (section, MP_CACHE.name, key[:12], got.get('measured', '?'),
                  got.get('machine', 'an unrecorded machine')))
@@ -13911,6 +13984,20 @@ def scan_setup():
                       [float(e) for e in ENERGIES2], RTOL_FIXED, 'fixed-tolerance')
     blob = json.loads(MP_CACHE.read_text()) if MP_CACHE.exists() else {}
     cached = blob.get('scan', {})
+    # This section keys itself rather than going through `cached()`, so it needs the same
+    # restamp: an entry written under the exact-bits hash is recognised by that hash and
+    # relabelled with the quantized one.  Matching the legacy hash proves the
+    # configuration is the one the entry was computed for, so nothing is recomputed.
+    if (cached and cached.get('fingerprint') != key
+            and cached.get('fingerprint') == legacy_fingerprint(
+                profile_samples(VCC2, L2), float(L2), D2, MP_DPS_SCAN, MP_SCAN_TARGET,
+                [c[0] for c in CODES],
+                [float(e) for e in ENERGIES2], RTOL_FIXED, 'fixed-tolerance')):
+        print('  scan restamped %s -> %s, same configuration under the quantized hash'
+              % (cached['fingerprint'][:12], key[:12]))
+        cached = dict(cached, fingerprint=key)
+        blob['scan'] = cached
+        write_cache(blob)
     entries = cached.get('entries') if cached.get('fingerprint') == key else None
     if entries is not None:
         mp.mp.dps = MP_DPS_SCAN
@@ -14044,6 +14131,7 @@ def measure_timings():
                       [float(e['E']) for e in REF_INFO2],
                       [repr(e['setting']) for e in REF_INFO2])
     blob = json.loads(MP_CACHE.read_text()) if MP_CACHE.exists() else {}
+    restamp(blob, 'timings', key, profile_samples(VCC2, L2), float(L2), D2, RTOL_FIXED, [c[0] for c in CODES], [float(e['E']) for e in REF_INFO2], [repr(e['setting']) for e in REF_INFO2])
     stored = blob.get('timings', {})
     if stored.get('fingerprint') == key and not os.environ.get('MAGNUS_PAPER_RETIME'):
         print('  timings read from %s, unchanged configuration %s, measured on %s'
@@ -14094,6 +14182,7 @@ def fixed_reference():
     """
     key = fingerprint(np.asarray(Hf2(np.linspace(0.0, L2, 9))).view(float), float(L2), MP_DPS_FIX, MP_NS_FIX)
     blob = json.loads(MP_CACHE.read_text()) if MP_CACHE.exists() else {}
+    restamp(blob, 'fixed', key, np.asarray(Hf2(np.linspace(0.0, L2, 9))).view(float), float(L2), MP_DPS_FIX, MP_NS_FIX)
     if blob.get('fixed', {}).get('fingerprint') == key:
         mp.mp.dps = MP_DPS_FIX
         print('  fixed-phase reference read from %s, unchanged configuration %s'
@@ -14142,6 +14231,7 @@ def order_curves():
     key = fingerprint(np.asarray(Hf2(np.linspace(0.0, L2, 9))).view(float), float(L2), MP_DPS_FIX, MP_NS_FIX, [int(n) for n in NS], M_HI,
                       [list(x) for x in SERIES])
     blob = json.loads(MP_CACHE.read_text()) if MP_CACHE.exists() else {}
+    restamp(blob, 'orders', key, np.asarray(Hf2(np.linspace(0.0, L2, 9))).view(float), float(L2), MP_DPS_FIX, MP_NS_FIX, [int(n) for n in NS], M_HI, [list(x) for x in SERIES])
     if blob.get('orders', {}).get('fingerprint') == key:
         print('  order curves read from %s, unchanged configuration %s'
               % (MP_CACHE.name, key[:12]))
