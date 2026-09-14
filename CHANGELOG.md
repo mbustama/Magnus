@@ -5,6 +5,22 @@ All notable changes to Magνs are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project uses [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- `earth.dms_to_decimal` added the minutes and seconds to a negative degree
+  value instead of counting them in its direction, so every West or South
+  coordinate with non-zero minutes landed up to a degree too close to the
+  meridian or the equator.  The function sits under
+  `chord_length_inside_earth`, `costhz_between_points_on_surface`, every
+  `osc_prob_*_earth` call made with `loc_ini`/`loc_fin`, and the CLI's
+  `--loc-ini`/`--loc-fin`: the chord from Fermilab to Homestake came out
+  1207 km where the true chord, and DUNE's baseline, is 1285 km, with the
+  trajectory's direction wrong by the same amount.  Sites east of Greenwich
+  and north of the equator, and the poles, were unaffected.  Regression tests
+  added.
+
 ## [1.1.0] - 2026-09-06
 
 ### Changed

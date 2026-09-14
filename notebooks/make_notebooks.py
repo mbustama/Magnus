@@ -13145,11 +13145,17 @@ def minor_y(ax, n=5):
 
 
 def corner(ax, text, loc='upper right', fontsize=8.5, x=None, y=0.94):
-    r"""A rounded-box label in a corner, in place of a panel title."""
+    r"""A rounded-box label in a corner, in place of a panel title.
+
+    loc names the corner.  In the lower two the box hangs from its bottom edge, so
+    y is then where its bottom sits rather than its top.
+    """
     ha, va = 'right', 'top'
     xx = 0.965 if x is None else x
-    if loc == 'upper left':
+    if loc in ('upper left', 'lower left'):
         xx, ha = (0.035 if x is None else x), 'left'
+    if loc in ('lower left', 'lower right'):
+        va = 'bottom'
     # Black, not the INK grey the curves use: a boxed label is a caption on the panel and
     # should read as text rather than as another datum.
     ax.text(xx, y, text, transform=ax.transAxes, ha=ha, va=va, fontsize=fontsize,
@@ -13698,8 +13704,8 @@ _abox(17.7, 6.00, 6.4, 3.50, C_CORE, E_CORE, 'magnus',
       'The expansion to order ten,\nthe quadrature, the slab\ncomposition. No physics in it.')
 _abox(17.7, 0.50, 6.4, 3.50, C_COMP, E_COMP, 'avgprob, adiabatic',
       'The routes that walk no\nslabs: the phase average, and\ntransport along the eigenbasis.')
-_abox(25.6, 3.30, 4.1, 3.40, C_ACC, E_ACC, 'expmkernels',
-      'Compiled kernels:\nthe same numbers,\n$6.8{\\times}$ faster.')
+_abox(25.6, 2.98, 4.1, 4.05, C_ACC, E_ACC, 'expmkernels',
+      'Compiled kernels:\nthe same numbers,\n$6.8{\\times}$ on the\nexponential.')
 
 _aarr(7.5, 7.4, 8.8, 6.6)
 _aarr(7.5, 2.6, 8.8, 3.6)
@@ -13709,6 +13715,107 @@ _aarr(20.9, 4.15, 20.9, 5.85, color=E_COMP)
 _aarr(24.2, 6.6, 25.5, 5.9, color=E_ACC, ls='--')
 axd.text(21.2, 5.00, 'Magnus patches', ha='left', va='center', fontsize=5.6, color=E_COMP)
 save(fig, 'architecture.pdf')'''),
+    md(r'''## Figure 1d --- the four layers of oscprob
+
+A request enters at a named wrapper and descends, left to right, to the engine that answers
+it: the wrapper packs its named parameters into a dictionary, a scenario function builds the
+Hamiltonian, `osc_prob_energy_baseline` runs the scan over energies and baselines, and
+`osc_prob` computes each point. The wrappers are a product set --- the same fourteen
+environment-and-scenario names at each of four flavor counts --- so the box lists the fourteen
+once under the name pattern, and $4 \times 14 = 56$ is every wrapper there is.'''),
+    code(r'''from matplotlib.patches import FancyBboxPatch
+# ------------------------------------------------ the four layers of oscprob
+# A request enters at a named wrapper and descends, left to right, to the engine that
+# answers it.  The wrappers are a product set: the same fourteen environment-and-scenario
+# names at each of four flavor counts, so the box lists the fourteen once under the name
+# pattern, and 4 x 14 = 56 is every wrapper there is.
+C_TOP, E_TOP = '#eaf2fb', '#1c71d8'
+C_2ND, E_2ND = '#eef7f0', '#26a269'
+C_3RD, E_3RD = '#fdf3e7', '#b5651d'
+C_BASE, E_BASE = '#f4eef7', '#813d9c'
+C_ENG, E_ENG = '#fff4e6', '#c64600'
+
+fig, axd = plt.subplots(figsize=(WIDE, 3.15))
+axd.set_xlim(-0.2, 32.5); axd.set_ylim(0, 11.5); axd.axis('off')
+YMID = 5.75                                             # the arrows' line
+# One set of vertical margins for every box, so the white space above the title and below
+# the last line is the same everywhere whatever the box holds.
+PAD, TITLE_DROP, LINE, LINE_H = 0.42, 0.66, 0.50, 0.30   # data units
+
+
+def tt(s):
+    return r'\texttt{%s}' % s.replace('_', r'\_')
+
+
+def box(x, w, face, edge, title, items, size=6.0):
+    """A box sized to its content.  `items` are (text, style, extra_gap_after) with style
+    one of 'centre', 'head', 'name'; the box height follows from them."""
+    body = TITLE_DROP + sum(LINE + gap for _, _, gap in items) - LINE + LINE_H
+    h = PAD + body + PAD
+    y0 = YMID - h/2.0
+    axd.add_patch(FancyBboxPatch((x, y0), w, h, boxstyle='round,pad=0.12,rounding_size=0.25',
+                                 facecolor=face, edgecolor=edge, lw=0.9, zorder=2))
+    top = y0 + h - PAD
+    axd.text(x + w/2.0, top, title, ha='center', va='top', fontsize=7.4, color=edge,
+             zorder=3)
+    y = top - TITLE_DROP
+    for text, style, gap in items:
+        if style == 'centre':
+            axd.text(x + w/2.0, y, text, ha='center', va='top', fontsize=size, color='0.25',
+                     zorder=3)
+        elif style == 'head':
+            axd.text(x + 0.55, y, r'\emph{%s}' % text, ha='left', va='top', fontsize=5.6,
+                     color=edge, zorder=3)
+        else:
+            axd.text(x + 1.05, y, r'$\ldots$' + tt(text), ha='left', va='top', fontsize=5.6,
+                     color='0.25', zorder=3)
+        y -= LINE + gap
+
+
+def arrow(x0, x1, label):
+    axd.annotate('', xy=(x1, YMID), xytext=(x0, YMID), zorder=1,
+                 arrowprops=dict(arrowstyle='-|>', mutation_scale=8, lw=0.9, color='0.35',
+                                 shrinkA=1, shrinkB=1))
+    axd.text(0.5*(x0 + x1), YMID + 0.22, label, ha='center', va='bottom', fontsize=5.4,
+             color='0.35', zorder=3, linespacing=1.25)
+
+
+pattern = (tt('osc_prob_') + r'$\{$' + tt('2nu') + ', ' + tt('3nu') + ', ' + tt('4nu') + ', '
+           + tt('5nu') + r'$\}$' + tt('_') + r'$\ldots$')
+STD = ['vacuum', 'matter_constant_density', 'matter_exp_density', 'earth', 'sun']
+NSI = ['matter_nsi_constant_density', 'matter_nsi_exp_density', 'earth_nsi', 'sun_nsi']
+LIV = ['vacuum_liv', 'matter_liv_constant_density', 'matter_liv_exp_density', 'earth_liv',
+       'sun_liv']
+top_items = [(pattern, 'centre', 0.20), ('Standard', 'head', 0.0)]
+top_items += [(n, 'name', 0.0) for n in STD[:-1]] + [(STD[-1], 'name', 0.16)]
+top_items += [('Non-standard interactions', 'head', 0.0)]
+top_items += [(n, 'name', 0.0) for n in NSI[:-1]] + [(NSI[-1], 'name', 0.16)]
+top_items += [('Lorentz-invariance violation', 'head', 0.0)]
+top_items += [(n, 'name', 0.0) for n in LIV]
+box(0.3, 7.6, C_TOP, E_TOP, 'Top layer: 56 named wrappers', top_items)
+
+arrow(8.15, 9.75, 'Parameter\ndictionary')
+box(9.9, 6.3, C_2ND, E_2ND, 'Second layer: scenarios',
+    [(tt('osc_prob_vacuum'), 'centre', 0.0),
+     (tt('osc_prob_matter_std_potential'), 'centre', 0.0),
+     (tt('osc_prob_matter_nsi'), 'centre', 0.0),
+     (tt('osc_prob_liv'), 'centre', 0.0)], size=5.6)
+arrow(16.45, 18.05, '$\\mathbb{H}(l)$')
+box(18.2, 4.6, C_3RD, E_3RD, 'Third layer: scan',
+    [(tt('osc_prob_energy_baseline'), 'centre', 0.0),
+     ('One call per energy', 'centre', 0.0),
+     ('and baseline; warm starts.', 'centre', 0.0)], size=5.6)
+arrow(23.05, 24.65, 'One point\nat a time')
+box(24.8, 3.4, C_BASE, E_BASE, 'Base layer',
+    [(tt('osc_prob'), 'centre', 0.0),
+     ('Refinement ladder,', 'centre', 0.0),
+     ('validation, logging.', 'centre', 0.0)], size=5.6)
+arrow(28.45, 30.05, 'From the\nrequest')
+box(30.2, 2.0, C_ENG, E_ENG, 'Engines', [('Six', 'centre', 0.0), ('routes', 'centre', 0.0)],
+    size=5.6)
+
+fig.tight_layout(pad=0.3)
+save(fig, 'layers.pdf')'''),
     md(r'''## Figure 2 --- slab width follows the profile, not the phase
 
 Three measurements: one slab against a constant Hamiltonian over six decades of $\Phi$;
@@ -14515,6 +14622,257 @@ for ax in axes[:, 0]:
     ax.set_ylabel(r'Survival probability, $P_{\nu_\mu \to \nu_\mu}$', fontsize=8.0)
 fig.tight_layout(pad=0.3, w_pad=0.8, h_pad=0.9)
 save(fig, 'bsm.pdf')'''),
+    md(r'''## Figure 3b --- the bi-probability plane at DUNE
+
+Notebook 5's DUNE setting, $1300$~km through the crust at $2$~GeV, with $\delta_{\rm CP}$
+run once around the circle for a neutrino and for an antineutrino. The standard locus and,
+on the same panel, the one non-standard interactions draw at the couplings of Fig. 3, taken
+from notebook 8. Both come from the constant-density wrappers, which carry the antineutrino
+sign and the conjugation of the couplings themselves; nothing here is built by hand.'''),
+    code(r'''# ------------------------------------------------ the bi-probability plane at DUNE
+# Notebook 5's DUNE setup -- 1300 km, 2 GeV, crust density -- with the standard locus and,
+# on the same panel, the one non-standard interactions draw at the couplings of Fig. 3,
+# from notebook 8.  The wrappers carry the antineutrino sign and the conjugation of the
+# couplings themselves.
+DUNE_L_KM, DUNE_E_GEV, DUNE_RHO = 1300.0, 2.0, 3.0
+dcp_grid = np.linspace(-np.pi, np.pi, 181)
+DCP_SEL = [-np.pi, -0.75*np.pi, -0.5*np.pi, -0.25*np.pi, 0.0, 0.25*np.pi, 0.5*np.pi,
+           0.75*np.pi]
+DCP_LABEL = [r'$-\pi,\,\pi$', r'$-3\pi/4$', r'$-\pi/2$', r'$-\pi/4$', r'$0$', r'$\pi/4$',
+             r'$\pi/2$', r'$3\pi/4$']
+DCP_MARK = ['o', 'v', 's', 'p', '*', 'p', 's', 'v']
+DCP_FILL = [True, True, True, True, True, False, False, False]
+
+
+def appearance(dcp, nubar, nsi):
+    """P(nu_mu -> nu_e) at DUNE for one delta_CP; the antineutrino's with nubar=True."""
+    params = dict(OSC, dCP=dcp)
+    common = dict(density_matter_is_in_g_per_cm3=True, nubar=nubar, nu_i=gd.NUMU,
+                  nu_f=gd.NUE)
+    if nsi:
+        return float(oscprob.osc_prob_3nu_matter_nsi_constant_density(
+            DUNE_E_GEV*gd.UNIT_GEV, DUNE_L_KM*gd.UNIT_KM, DUNE_RHO, **params, **EPS,
+            **common))
+    return float(oscprob.osc_prob_3nu_matter_constant_density(
+        DUNE_E_GEV*gd.UNIT_GEV, DUNE_L_KM*gd.UNIT_KM, DUNE_RHO, **params, **common))
+
+
+loci = {}
+for name, nsi in (('std', False), ('nsi', True)):
+    loci[name] = (np.array([appearance(d, False, nsi) for d in dcp_grid]),
+                  np.array([appearance(d, True, nsi) for d in dcp_grid]),
+                  [(appearance(d, False, nsi), appearance(d, True, nsi)) for d in DCP_SEL],
+                  (appearance(OSC['dCP'], False, nsi), appearance(OSC['dCP'], True, nsi)))
+
+fig, ax = plt.subplots(figsize=(COL, 3.55))
+curve_handles = []
+for name, color, label in (('std', INK, 'Standard'), ('nsi', ORANGE, 'NSI')):
+    pnu, pnubar, sel, fit = loci[name]
+    h, = ax.plot(pnu, pnubar, color=color, lw=1.1, zorder=3, label=label)
+    curve_handles.append(h)
+    for (x, y), m, f in zip(sel, DCP_MARK, DCP_FILL):
+        ax.plot(x, y, marker=m, ms=4.0, color=color, mfc=color if f else 'white', mew=0.8,
+                ls='none', zorder=4)
+    ax.plot(fit[0], fit[1], marker='^', ms=4.5, color=color, ls='none', zorder=5)
+# The delta_CP markers, drawn once in ink for their own legend.
+marker_handles = [ax.plot([], [], marker=m, ms=4.0, color=INK, mfc=INK if f else 'white',
+                          mew=0.8, ls='none', label=lab)[0]
+                  for m, f, lab in zip(DCP_MARK, DCP_FILL, DCP_LABEL)]
+marker_handles.append(ax.plot([], [], marker='^', ms=4.5, color=INK, ls='none',
+                              label='NuFIT 6.1')[0])
+ax.set_xlabel(r'$P_{\nu_\mu \to \nu_e}$')
+ax.set_ylabel(r'$P_{\bar{\nu}_\mu \to \bar{\nu}_e}$')
+ax.set_box_aspect(1.0)
+ax.set_xlim(0.034, 0.094)
+ax.set_ylim(0.005, 0.025)
+ax.grid(True, which='major', color=GRID, lw=0.5); ax.set_axisbelow(True)
+tag = ax.text(0.97, 0.97, 'DUNE\n$L = 1300$~km, $E = 2$~GeV\nNormal ordering',
+              transform=ax.transAxes, ha='right', va='top', fontsize=7.4, color=INK,
+              zorder=6, linespacing=1.4,
+              bbox=dict(boxstyle='round,pad=0.35', fc='white', ec=INK, lw=0.6))
+# The delta_CP legend hangs below the label, flush with its right border; both are measured
+# from the drawn box, since a text's anchor is the text and not its frame.
+fig.canvas.draw()
+frame = tag.get_bbox_patch().get_window_extent(fig.canvas.get_renderer())
+right, bottom = ax.transAxes.inverted().transform((frame.x1, frame.y0))
+leg1 = ax.legend(handles=marker_handles, loc='upper right',
+                 bbox_to_anchor=(right, bottom - 0.012), ncol=2, fontsize=5.8,
+                 handlelength=0.7, handletextpad=0.35, columnspacing=0.4, labelspacing=0.18,
+                 borderpad=0.35, borderaxespad=0.0, title=r'$\delta_{\rm CP}$',
+                 title_fontsize=6.8)
+ax.add_artist(leg1)
+ax.legend(handles=curve_handles, loc='lower left', bbox_to_anchor=(0.015, 0.015),
+          fontsize=7.0, handlelength=1.3, borderpad=0.4)
+fig.tight_layout(pad=0.4)
+save(fig, 'biprobability.pdf')'''),
+    md(r'''## Figure 3c --- a neutrino and an antineutrino through the Earth
+
+The chord, tolerance, energies and sterile parameters of Fig. 3, with every wrapper called
+twice: once as it is and once with `nubar=True`, which is the whole of the antineutrino
+case. The two-flavor system is the $(\nu_e, \nu_\mu)$ reduction of the 1--3 sector,
+$\theta_{13}$ and $\Delta m^2_{31}$, where the Earth's matter resonance lives. The cell
+prints where each pair separates most: in the GeV row it is the neutrino that meets the
+resonance, in the TeV row the antineutrino.'''),
+    code(r'''# ------------------------------------------------ a neutrino and an antineutrino, through the Earth
+# COSTHZ, L, KW, E_GEV, E_TEV and TICKS are Fig. 3's, defined two cells up.  The two-flavor
+# case is the (nu_e, nu_mu) reduction of the 1-3 sector, theta_13 and Delta m^2_31, which
+# is the sector the Earth's matter resonance lives in.
+from matplotlib.lines import Line2D
+
+
+def both_signs(wrapper, E, **params):
+    """The survival probability for a neutrino, then for an antineutrino."""
+    return [np.asarray(quiet(wrapper, E, costhz=COSTHZ, L=L, nubar=nubar, **params, **KW))
+            for nubar in (False, True)]
+
+
+t0 = time.perf_counter()
+nu2 = both_signs(oscprob.osc_prob_2nu_earth, E_GEV, sth=OSC['s13'], Dm2=OSC['D31'])
+nu3 = both_signs(oscprob.osc_prob_3nu_earth, E_GEV, **OSC)
+nu4 = both_signs(oscprob.osc_prob_4nu_earth, E_TEV, **OSC, **STERILE4)
+nu5 = both_signs(oscprob.osc_prob_5nu_earth, E_TEV, **OSC, **STERILE5)
+print('four flavor counts, both signs, in %.1f s' % (time.perf_counter() - t0))
+for name, (p, pbar), E, unit in (('2nu', nu2, E_GEV, 'GeV'), ('3nu', nu3, E_GEV, 'GeV'),
+                                 ('3+1', nu4, E_TEV, 'TeV'), ('3+2', nu5, E_TEV, 'TeV')):
+    scale = gd.UNIT_GEV if unit == 'GeV' else gd.UNIT_TEV
+    k = np.argmax(np.abs(p - pbar))
+    print('  %-4s |P - Pbar| largest at %6.2f %s: %.3f (P = %.3f, Pbar = %.3f);'
+          ' min P %.3f at %6.2f %s, min Pbar %.3f at %6.2f %s'
+          % (name, E[k]/scale, unit, abs(p[k] - pbar[k]), p[k], pbar[k],
+             p.min(), E[np.argmin(p)]/scale, unit, pbar.min(), E[np.argmin(pbar)]/scale, unit))
+
+PANELS = [(E_GEV/gd.UNIT_GEV, nu2, BLUE, r'$2\nu$', r'$E$ [GeV]'),
+          (E_GEV/gd.UNIT_GEV, nu3, ORANGE, r'$3\nu$', r'$E$ [GeV]'),
+          (E_TEV/gd.UNIT_TEV, nu4, GREEN, r'$3+1$', r'$E$ [TeV]'),
+          (E_TEV/gd.UNIT_TEV, nu5, PURPLE, r'$3+2$', r'$E$ [TeV]')]
+fig, axes = plt.subplots(2, 2, figsize=(COL, 3.45))
+for k, (ax, (x, (p, pbar), color, label, xl)) in enumerate(zip(axes.ravel(), PANELS)):
+    ax.plot(x, p, color=color, lw=1.1, zorder=3)
+    ax.plot(x, pbar, color=color, lw=1.0, ls='--', zorder=4)
+    logx(ax); snug(ax, x); xticks_at(ax, TICKS[xl])
+    ax.set_ylim(0.0, 1.02); minor_y(ax, 5)
+    ax.set_xlabel(xl, labelpad=1.5)
+    corner(ax, label, loc='lower left', fontsize=8.0, x=0.07, y=0.06)
+# One legend for the four panels, in black: the line style is what it names, and the
+# color belongs to the flavor count, which the corner labels give.
+handles = [Line2D([], [], color='black', lw=1.1, label=r'$\nu_\mu$'),
+           Line2D([], [], color='black', lw=1.0, ls='--', label=r'$\bar{\nu}_\mu$')]
+axes[0, 0].legend(handles=handles, loc='lower right', handlelength=1.5, labelspacing=0.2,
+                  fontsize=8.0)
+fig.tight_layout(pad=0.3, w_pad=0.8, h_pad=0.9)
+# One y label for the four panels, on the figure's left edge and centered on the two
+# rows.  The panels are shifted right by the label's width, measured, so that the
+# saved figure stays at the column width instead of growing past it.
+Y_LABEL = r'Survival probability through the Earth, $\cos\theta_z = -0.9$'
+ylab = fig.supylabel(Y_LABEL, fontsize=8.0, x=0.005, ha='left', va='center')
+fig.canvas.draw()
+_r = fig.canvas.get_renderer()
+_label_w = ylab.get_window_extent(_r).width/fig.bbox.width
+_ticks_x0 = min(t.get_window_extent(_r).x0 for ax in axes[:, 0]
+                for t in ax.get_yticklabels() if t.get_text())/fig.bbox.width
+_tick_w = axes[0, 0].get_position().x0 - _ticks_x0
+_gap = 0.05/fig.get_size_inches()[0]
+fig.subplots_adjust(left=0.005 + _label_w + _gap + _tick_w)
+ylab.set_y(0.5*(axes[1, 0].get_position().y0 + axes[0, 0].get_position().y1))
+save(fig, 'nu_nubar_earth.pdf')'''),
+    md(r'''## Figure 3d --- the arrangement of matter, not only its mean
+
+NuOscProbExact's test of its slab composition (its notebook 10), run through Magnus: four
+profiles built from twenty-four slabs of $250$~km, all with a mean density of
+$5$~g~cm$^{-3}$, in four arrangements. The slab edges go to `t_breakpoints`, so each curve is
+the exact product of twenty-four exponentials, and the antineutrino is added below. The cell
+prints how far each profile departs from the uniform one.'''),
+    code(r'''# ------------------------------------------------ the arrangement of matter, not only its mean
+# NuOscProbExact's notebook 10, Fig. "density_arrangement": four profiles built from 24
+# slabs of 250 km, with the same mean density of 5 g/cm^3 in four arrangements.  Here
+# every probability comes from Magnus, with the slab edges declared as breakpoints, and
+# the antineutrino is added below.
+TOTAL_KM, N_SLAB = 6000.0, 24
+RHO_LO, RHO_HI = 2.0, 8.0
+widths_km = np.full(N_SLAB, TOTAL_KM/N_SLAB)
+edges_km = np.concatenate(([0.0], np.cumsum(widths_km)))
+castle = np.where(np.arange(N_SLAB) % 2 == 0, RHO_LO, RHO_HI)
+serrated = np.tile(np.linspace(RHO_LO, RHO_HI, 6), 4)
+# A permutation of the castle wall, not a fresh draw, so that its mean is exactly the
+# castle wall's; the same mean density for all four is the premise of the comparison.
+random_wall = np.random.default_rng(20260801).permutation(castle)
+uniform = np.full(N_SLAB, 0.5*(RHO_LO + RHO_HI))
+PROFILES = [('Castle wall', castle, BLUE, '-'), ('Serrated', serrated, ORANGE, '--'),
+            ('Random wall', random_wall, GREEN, ':'), ('Uniform', uniform, RED, '-.')]
+for name, rho, _, _ in PROFILES:
+    assert abs(rho.mean() - 5.0) < 1e-12, name
+
+
+def step_profile(rho):
+    """The piecewise-constant density, in g/cm^3, as a function of position in eV^-1."""
+    edges = edges_km*gd.UNIT_KM
+    def rho_func(l):
+        k = np.clip(np.searchsorted(edges, np.asarray(l, dtype=float), side='right') - 1,
+                    0, N_SLAB - 1)
+        return rho[k]
+    return rho_func
+
+
+E_GEV = np.logspace(-0.7, 1.7, 400)
+BREAKPOINTS = edges_km[1:-1]*gd.UNIT_KM
+t0 = time.perf_counter()
+curves = {}
+for name, rho, _, _ in PROFILES:
+    for nubar in (False, True):
+        curves[name, nubar] = np.asarray(quiet(
+            oscprob.osc_prob_matter_std_potential, 3, step_profile(rho), E_GEV*gd.UNIT_GEV,
+            TOTAL_KM*gd.UNIT_KM, OSC, t_breakpoints=BREAKPOINTS, nubar=nubar,
+            nu_i=gd.NUMU, nu_f=gd.NUE, density_matter_is_in_g_per_cm3=True,
+            rtol=RTOL_FIG, atol=ATOL_FIG))
+print('four profiles, both signs, in %.1f s' % (time.perf_counter() - t0))
+for nubar, tag in ((False, 'nu'), (True, 'nubar')):
+    ref = curves['Uniform', nubar]
+    for name, _, _, _ in PROFILES:
+        p = curves[name, nubar]
+        k = np.argmax(p)
+        print('  %-5s %-12s peak %.3f at %5.2f GeV; largest |P - P_uniform| %.3f at %5.2f GeV'
+              % (tag, name, p[k], E_GEV[k], np.abs(p - ref).max(), E_GEV[np.argmax(np.abs(p - ref))]))
+
+fig = plt.figure(figsize=(COL, 6.2))
+# Row 4 is a gap between the profiles and the probabilities.
+gs = fig.add_gridspec(7, 1, height_ratios=[1.0, 1.0, 1.0, 1.0, 0.5, 3.6, 3.6], hspace=0.16)
+axes_p = [fig.add_subplot(gs[i]) for i in range(4)]
+ax_nu = fig.add_subplot(gs[5])
+ax_nubar = fig.add_subplot(gs[6], sharex=ax_nu)
+for axp, (name, rho, color, ls) in zip(axes_p, PROFILES):
+    axp.step(edges_km, np.concatenate((rho[:1], rho)), ls=ls, where='pre', lw=1.0,
+             color=color)
+    axp.set_xlim(0.0, edges_km[-1]); axp.set_ylim(0.0, RHO_HI*1.35)
+    axp.set_yticks([0.0, 4.0, 8.0])
+    axp.yaxis.set_minor_locator(AutoMinorLocator(2))
+    axp.tick_params(labelsize=7.0)
+    if axp is not axes_p[-1]:
+        axp.tick_params(labelbottom=False)
+axes_p[-1].set_xlabel('Distance traveled [km]', labelpad=2.0, fontsize=8.5)
+for ax, nubar, label in ((ax_nu, False, r'$\nu_\mu \to \nu_e$'),
+                         (ax_nubar, True, r'$\bar{\nu}_\mu \to \bar{\nu}_e$')):
+    for name, rho, color, ls in PROFILES:
+        ax.plot(E_GEV, curves[name, nubar], ls=ls, color=color, lw=1.0, label=name)
+    logx(ax); ax.set_xlim(E_GEV[0], E_GEV[-1])
+    # One range for both channels, so the antineutrino reads against the neutrino.
+    ax.set_ylim(0.0, 0.35); ax.set_yticks([0.0, 0.1, 0.2, 0.3]); minor_y(ax, 5)
+    ax.grid(True, which='major', color=GRID, lw=0.5); ax.set_axisbelow(True)
+    corner(ax, label, loc='upper right', fontsize=8.0, y=0.94)
+ax_nu.tick_params(labelbottom=False)
+ax_nu.set_ylabel(r'$P_{\nu_\mu \to \nu_e}$', labelpad=2.0)
+ax_nubar.set_ylabel(r'$P_{\bar{\nu}_\mu \to \bar{\nu}_e}$', labelpad=2.0)
+ax_nubar.set_xlabel(r'Neutrino energy, $E$ [GeV]', labelpad=2.0)
+ax_nu.legend(loc='upper left', ncol=1, fontsize=7.0, handlelength=1.6, labelspacing=0.25)
+fig.canvas.draw()
+# One density label for the four strips, centered on them and set just left of their tick
+# labels, which are narrower than the probability panels' and so end short of the margin.
+_r = fig.canvas.get_renderer()
+_ticks_x0 = min(t.get_window_extent(_r).x0 for axp in axes_p
+                for t in axp.get_yticklabels() if t.get_text())/fig.bbox.width
+top, bottom = axes_p[0].get_position(), axes_p[-1].get_position()
+fig.text(_ticks_x0 - 0.03/fig.get_size_inches()[0], 0.5*(top.y1 + bottom.y0),
+         r'Density [g cm$^{-3}$]', rotation='vertical', va='center', ha='right', fontsize=8.5)
+save(fig, 'density_arrangement.pdf')'''),
     md(r'''## Figure 4 --- three oscillograms
 
 **The middle row carries its own energy axis and cannot share the others'.** An eV-scale
@@ -14600,6 +14958,40 @@ cb = fig.colorbar(im, ax=list(axes), pad=0.07, fraction=0.045, aspect=56)
 cb.set_label(r'Survival probability, $P_{\nu_\mu \to \nu_\mu}$', fontsize=8.0)
 cb.ax.tick_params(labelsize=8.0)
 save(fig, 'earth_oscillogram.pdf')'''),
+    md(r'''## Figure 4b --- four chords from Fermilab
+
+Notebook 4's beam, sent from Fermilab to four named sites. The Earth wrapper takes the two
+names, derives the chord and its direction from them, and places slab edges wherever the
+chord crosses a PREM shell boundary, with the layered composition of Fig. 4. The energies
+are those of a long-baseline beam.'''),
+    code(r'''# ------------------------------------------------ four chords from Fermilab
+# Notebook 4's beam, sent from Fermilab to four named sites.  The Earth wrapper takes the
+# two names, derives the chord and its direction from them, and places slab edges wherever
+# the chord crosses a PREM shell boundary; the composition is the layered default of Fig. 4.
+SITES = (('SNOLAB', 'snolab', BLUE), ('Homestake', 'homestake', GREEN),
+         ('CERN', 'cern', RED), ('South Pole', 'south_pole', PURPLE))
+E_BEAM_GEV = np.logspace(np.log10(0.3), np.log10(10.0), 400)
+
+fig, ax = plt.subplots(figsize=(WIDE, 3.0))
+for site_label, site, color in SITES:
+    here, there = earth.loc_coords_dms['fermilab'], earth.loc_coords_dms[site]
+    chord_km = earth.chord_length_inside_earth(here['lat'], here['lon'], there['lat'],
+                                               there['lon'])
+    P = np.asarray(quiet(oscprob.osc_prob_3nu_earth, E_BEAM_GEV*gd.UNIT_GEV,
+                         loc_ini='fermilab', loc_fin=site, nu_i=gd.NUMU, nu_f=gd.NUE,
+                         rtol=RTOL_FIG, atol=ATOL_FIG, **OSC))
+    ax.plot(E_BEAM_GEV, P, color=color, lw=0.8, zorder=3,
+            label=r'%s, $%d$~km' % (site_label, round(chord_km)))
+logx(ax)
+ax.set_xlim(E_BEAM_GEV[0], E_BEAM_GEV[-1]); ax.set_ylim(0.0, 0.40)
+ax.set_xlabel(r'Neutrino energy, $E$ [GeV]', labelpad=2.0)
+ax.set_ylabel(r'$P_{\nu_\mu \to \nu_e}$', labelpad=2.0)
+ax.grid(True, which='major', color=GRID, lw=0.5); ax.set_axisbelow(True)
+ax.legend(loc='upper left', bbox_to_anchor=(0.20, 0.97), ncol=2, fontsize=7.0,
+          handlelength=1.4, columnspacing=1.2, borderpad=0.4, title='From Fermilab to...',
+          title_fontsize=7.0)
+fig.tight_layout(pad=0.4)
+save(fig, 'named_baselines.pdf')'''),
     md(r'''## Figure 5 --- the Sun: model, observable, and residual
 
 The reference in the bottom panel is the adiabatic limit built from the instantaneous
@@ -16262,7 +16654,7 @@ legend_at(axes[0], leg2, LEFT2, BELOW2 - 0.012)
 save(fig, 'njobs_protocol.pdf')'''),
     md(r'''## What was written
 
-Sixteen PDFs, which is every figure in `resources/paper/main.tex`.
+Twenty-one PDFs, which is every figure in `resources/paper/main.tex`.
 
 ```bash
 python notebooks/make_notebooks.py --only 28

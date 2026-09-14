@@ -139,6 +139,40 @@ def test_chord_length_haversine():
     assert 850.0 < got < 900.0
 
 
+def test_dms_to_decimal_follows_the_sign_of_the_degrees():
+    # 88 deg 15' 26" W is -88.257, not -87.743: the minutes and seconds count
+    # westward.  The old sum added them to the negative degrees and so moved
+    # every West or South coordinate with non-zero minutes toward zero.
+    east = earth.dms_to_decimal(88, 15, 26)
+    west = earth.dms_to_decimal(-88, 15, 26)
+    assert east == pytest.approx(88.0 + 15/60.0 + 26/3600.0, rel=1e-15)
+    assert west == -east
+    # Below one degree West or South the sign has nowhere to live but the zero.
+    assert earth.dms_to_decimal(-0.0, 30, 0) == -0.5
+    assert earth.dms_to_decimal(0.0, 30, 0) == 0.5
+
+
+def test_chord_length_is_right_west_of_greenwich():
+    # Fermilab -> Homestake, the DUNE baseline, against a signed haversine.
+    # Both sites lie West, which is the case test_chord_length_haversine
+    # (Berlin -> Paris, both East) cannot see: the old conversion gave 1207 km.
+    def dec(d, m, s):
+        return np.copysign(abs(d) + m/60.0 + s/3600.0, d)
+    a, b = earth.loc_coords_dms['fermilab'], earth.loc_coords_dms['homestake']
+    p1 = np.radians([dec(*a['lat']), dec(*a['lon'])])
+    p2 = np.radians([dec(*b['lat']), dec(*b['lon'])])
+    h = np.sin((p2[0]-p1[0])/2)**2 \
+        + np.cos(p1[0])*np.cos(p2[0])*np.sin((p2[1]-p1[1])/2)**2
+    expected = 2*gd.EARTH_RADIUS*np.sqrt(h)
+    got = earth.chord_length_inside_earth(a['lat'], a['lon'], b['lat'], b['lon'])
+    assert got == pytest.approx(expected, rel=1e-12)
+    # DUNE quotes 1285 km.
+    assert got == pytest.approx(1285.0, abs=1.0)
+    # The direction the Earth wrappers derive from two sites moves with it.
+    costhz = earth.costhz_between_points_on_surface(a['lat'], a['lon'], b['lat'], b['lon'])
+    assert costhz == pytest.approx(-0.5*expected/gd.EARTH_RADIUS, rel=1e-12)
+
+
 def test_num_density_e_vectorizes():
     rho_func = lambda l: np.full_like(np.asarray(l, dtype=float), 3.0)
     ls = np.linspace(0.0, 10.0, 11)

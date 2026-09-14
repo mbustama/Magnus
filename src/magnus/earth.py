@@ -327,23 +327,37 @@ def prem_layer_edges_along_chord(costhz: float) -> np.ndarray:
 def dms_to_decimal(degrees: float, minutes: float, seconds: float) -> float:
     r"""Converts (degree, minute, second) coordinates to decimal degrees.
 
+    The sign of ``degrees`` is the sign of the coordinate: a West longitude or
+    a South latitude is given with negative degrees, and its minutes and
+    seconds then count away from zero in that same direction, so
+    ``(-88, 15, 26)`` is :math:`-88.257^\circ` and not :math:`-87.743^\circ`.
+    A coordinate between zero and one degree West or South is given with
+    ``-0.0`` as its degrees.
+
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.1
+       Minutes and seconds now follow the sign of the degrees.  They used to be
+       added regardless of it, which moved every West or South coordinate
+       toward zero by up to one degree: the chord from Fermilab to Homestake
+       came out 1207 km instead of 1285 km.
 
     Parameters
     ----------
     degrees : float
-        Degree part of the coordinate.
+        Degree part of the coordinate, carrying its sign.
     minutes : float
-        Minute part of the coordinate.
+        Minute part of the coordinate, non-negative.
     seconds : float
-        Second part of the coordinate.
+        Second part of the coordinate, non-negative.
 
     Returns
     -------
     float
         Coordinate in decimal degrees.
     """
-    return degrees + minutes / 60 + seconds / 3600
+    sign = np.copysign(1.0, degrees)
+    return sign*(abs(degrees) + minutes / 60 + seconds / 3600)
 
 
 def chord_length_inside_earth(lat1_dms: tuple[float, float, float],
