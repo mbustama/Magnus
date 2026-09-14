@@ -11914,10 +11914,13 @@ def osc_prob_earth(
 
     .. jupyter-execute::
 
+        import warnings
+
         import numpy as np
         import magnus.oscprob as oscprob
         import magnus.hamiltonians as hamiltonians
         import magnus.globaldefs as gd
+        from magnus.magnus import MagnusConvergenceWarning
 
         p = gd.OSC_PARAMS_PREDEFINED['OSC_PARAMS_DEFAULT']
         s12, s23, s13, dCP, D21, D31 = p['s12'], p['s23'], p['s13'], p['dCP'], p['D21'], p['D31']
@@ -11932,8 +11935,14 @@ def osc_prob_earth(
         def H(energy, l, VCC):
             return (1 / energy) * h_vac + np.asarray(VCC)[..., None, None] * e00
 
-        oscprob.osc_prob_earth(H, energy=1.0 * gd.UNIT_GEV, loc_ini='fermilab',
-                                loc_fin='homestake')
+        # At the default tolerance the first, coarsest level of the refinement
+        # trips the informational MagnusConvergenceWarning discussed in the
+        # package README; the ladder then refines past it.
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore', MagnusConvergenceWarning)
+            P = oscprob.osc_prob_earth(H, energy=1.0 * gd.UNIT_GEV,
+                                       loc_ini='fermilab', loc_fin='homestake')
+        P
     """
     source_func_name = sys._getframe().f_code.co_name
 

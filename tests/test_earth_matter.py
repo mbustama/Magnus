@@ -147,7 +147,10 @@ def test_dms_to_decimal_follows_the_sign_of_the_degrees():
     west = earth.dms_to_decimal(-88, 15, 26)
     assert east == pytest.approx(88.0 + 15/60.0 + 26/3600.0, rel=1e-15)
     assert west == -east
-    # Below one degree West or South the sign has nowhere to live but the zero.
+    # The all-negative form, which the old sum happened to get right, still reads the same.
+    assert earth.dms_to_decimal(-88, -15, -26) == west
+    # Below one degree West or South the sign lives on the minutes, or on a signed zero.
+    assert earth.dms_to_decimal(0, -30, 0) == -0.5
     assert earth.dms_to_decimal(-0.0, 30, 0) == -0.5
     assert earth.dms_to_decimal(0.0, 30, 0) == 0.5
 

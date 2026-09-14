@@ -327,37 +327,42 @@ def prem_layer_edges_along_chord(costhz: float) -> np.ndarray:
 def dms_to_decimal(degrees: float, minutes: float, seconds: float) -> float:
     r"""Converts (degree, minute, second) coordinates to decimal degrees.
 
-    The sign of ``degrees`` is the sign of the coordinate: a West longitude or
-    a South latitude is given with negative degrees, and its minutes and
-    seconds then count away from zero in that same direction, so
-    ``(-88, 15, 26)`` is :math:`-88.257^\circ` and not :math:`-87.743^\circ`.
-    A coordinate between zero and one degree West or South is given with
-    ``-0.0`` as its degrees.
+    A West longitude or a South latitude is negative.  The sign is read from
+    the first non-zero part, and the minutes and seconds are magnitudes that
+    count away from zero in that direction, so ``(-88, 15, 26)`` and
+    ``(-88, -15, -26)`` both give :math:`-88.257^\circ`.  A coordinate within
+    a degree of the meridian or the equator carries its sign on the minutes,
+    ``(0, -30, 0)``, or on the degrees as ``-0.0``.
 
     .. versionadded:: 1.0.0
 
     .. versionchanged:: 1.1.1
-       Minutes and seconds now follow the sign of the degrees.  They used to be
-       added regardless of it, which moved every West or South coordinate
-       toward zero by up to one degree: the chord from Fermilab to Homestake
-       came out 1207 km instead of 1285 km.
+       The minutes and seconds now follow the sign of the coordinate.  They
+       used to be added as given, so ``(-88, 15, 26)``, the form the built-in
+       location table uses, came out :math:`-87.743^\circ` and moved every
+       West or South site toward zero by up to one degree: the chord from
+       Fermilab to Homestake was 1207 km instead of 1285 km.
 
     Parameters
     ----------
     degrees : float
-        Degree part of the coordinate, carrying its sign.
+        Degree part of the coordinate.
     minutes : float
-        Minute part of the coordinate, non-negative.
+        Minute part of the coordinate.
     seconds : float
-        Second part of the coordinate, non-negative.
+        Second part of the coordinate.
 
     Returns
     -------
     float
         Coordinate in decimal degrees.
     """
-    sign = np.copysign(1.0, degrees)
-    return sign*(abs(degrees) + minutes / 60 + seconds / 3600)
+    sign = 1.0
+    for part in (degrees, minutes, seconds):
+        if part != 0 or np.copysign(1.0, part) < 0:
+            sign = np.copysign(1.0, part)
+            break
+    return sign*(abs(degrees) + abs(minutes) / 60 + abs(seconds) / 3600)
 
 
 def chord_length_inside_earth(lat1_dms: tuple[float, float, float],
