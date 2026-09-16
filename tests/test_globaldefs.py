@@ -216,3 +216,79 @@ def test_the_superseded_release_is_still_reachable_by_name():
         assert name in gd.OSC_PARAMS_PREDEFINED
     old = gd.OSC_PARAMS_PREDEFINED['OSC_PARAMS_NU_FIT_6_0_SK_NO']
     assert old['D31'] == pytest.approx(2.513e-3)
+
+
+def test_every_release_has_a_named_parameter_set():
+    """`default_osc_params_set_name` reaches every NuFit release, not only the
+    newest two.  The names follow the releases: a release carrying a 'with_SK'
+    category is named ..._SK_NO / ..._SK_IO, matching the spelling the 6.0 and
+    6.1 entries already used; an older release, which has no such split, is
+    named ..._NO / ..._IO."""
+    for version in EXPECTED_VERSIONS:
+        tag = version.replace('NuFIT ', '').replace('.', '_')
+        sk = 'with_SK' in gd.NUFIT_GLOBAL_FITS[version].get('categories', {})
+        for ordering in ('NO', 'IO'):
+            name = 'OSC_PARAMS_NU_FIT_%s_%s%s' % (tag, 'SK_' if sk else '',
+                                                  ordering)
+            assert name in gd.OSC_PARAMS_PREDEFINED, name
+            entry = gd.OSC_PARAMS_PREDEFINED[name]
+            assert PARAM_KEYS.issubset(entry)
+    # One name per release, category and ordering, plus OSC_PARAMS_DEFAULT.
+    expected = 1
+    for version in EXPECTED_VERSIONS:
+        categories = gd.NUFIT_GLOBAL_FITS[version].get('categories', {})
+        expected += 2*(2 if 'with_SK' in categories else 1)
+    assert len(gd.OSC_PARAMS_PREDEFINED) == expected
+
+
+def test_the_without_sk_fits_are_named_too():
+    """From 4.0 onward a release splits its fits by whether SK atmospheric
+    data is included, and both halves are reachable by name.  Only the loader
+    reaches the secondary categories of the older releases, whose names would
+    collide with the ordering suffix."""
+    for version in EXPECTED_VERSIONS:
+        categories = gd.NUFIT_GLOBAL_FITS[version].get('categories', {})
+        if 'with_SK' not in categories:
+            continue
+        tag = version.replace('NuFIT ', '').replace('.', '_')
+        for ordering in ('NO', 'IO'):
+            name = 'OSC_PARAMS_NU_FIT_%s_NOSK_%s' % (tag, ordering)
+            assert name in gd.OSC_PARAMS_PREDEFINED, name
+            named = gd.OSC_PARAMS_PREDEFINED[name]
+            loaded = gd.load_nufit_params(version, ordering,
+                                          category='without_SK')
+            for key in PARAM_KEYS:
+                assert named[key] == loaded[key]
+
+
+def test_the_two_sk_variants_are_different_fits():
+    """A name that returned the same numbers as its neighbour would be worse
+    than no name, since a caller would believe they had changed something."""
+    with_sk = gd.OSC_PARAMS_PREDEFINED['OSC_PARAMS_NU_FIT_6_1_SK_NO']
+    without = gd.OSC_PARAMS_PREDEFINED['OSC_PARAMS_NU_FIT_6_1_NOSK_NO']
+    assert any(with_sk[key] != without[key] for key in PARAM_KEYS)
+
+
+def test_the_generated_names_do_not_disturb_the_hand_written_ones():
+    """The 6.0 dictionaries are built from module constants whose values differ
+    from the loader's in the last bit, so generating names must not rebuild
+    them: a caller pinned to 6.0 has to keep getting the same bits."""
+    assert (gd.OSC_PARAMS_PREDEFINED['OSC_PARAMS_NU_FIT_6_0_SK_NO']
+            is gd.OSC_PARAMS_NU_FIT_6_0_SK_NO)
+    assert (gd.OSC_PARAMS_PREDEFINED['OSC_PARAMS_NU_FIT_6_1_SK_NO']
+            is gd.OSC_PARAMS_NU_FIT_6_1_SK_NO)
+    assert (gd.OSC_PARAMS_PREDEFINED['OSC_PARAMS_DEFAULT']
+            is gd.OSC_PARAMS_NU_FIT_6_1_SK_NO)
+
+
+def test_a_generated_name_and_the_loader_give_the_same_probability():
+    """A named set is only useful if it reaches the probability, and it has to
+    agree bit for bit with loading the same release by hand."""
+    energy, baseline = 1.0*gd.UNIT_GEV, 1300.0*gd.UNIT_KM
+    by_name = np.asarray(oscprob.osc_prob_3nu_vacuum(
+        energy, baseline,
+        default_osc_params_set_name='OSC_PARAMS_NU_FIT_5_2_SK_IO'))
+    by_hand = np.asarray(oscprob.osc_prob_3nu_vacuum(
+        energy, baseline,
+        **gd.load_nufit_params('NuFIT 5.2', 'IO', category='with_SK')))
+    np.testing.assert_allclose(by_name, by_hand, rtol=0.0, atol=0.0)

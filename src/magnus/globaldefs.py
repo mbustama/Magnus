@@ -1248,6 +1248,49 @@ OSC_PARAMS_PREDEFINED['OSC_PARAMS_NU_FIT_6_1_SK_IO'] = OSC_PARAMS_NU_FIT_6_1_SK_
 OSC_PARAMS_PREDEFINED['OSC_PARAMS_DEFAULT'] = OSC_PARAMS_NU_FIT_6_1_SK_NO
 
 
+# Every remaining NuFit release gets a name too, so that `default_osc_params_set_name`
+# reaches all of them and not only the two newest.  The names are generated rather than
+# written out, for the reason the 6.1 block gives: one set of numbers, and a new release
+# is a new entry in NUFIT_GLOBAL_FITS rather than a second table to keep in step.
+#
+# Two naming rules, because the releases are not uniform.  From 4.0 onward each splits its
+# fits by whether SK atmospheric data is included, and both halves get a name: ..._SK_NO /
+# ..._SK_IO for 'with_SK', which is exactly the spelling the hand-written 6.0 and 6.1
+# entries above already use, and ..._NOSK_NO / ..._NOSK_IO for 'without_SK'.  Before 4.0
+# there is no such split -- 1.0 to 1.3 divide by reactor-flux treatment, 2.1 into its LEM
+# and LID analyses, the rest carry a single category -- so those sets are named ..._NO / ..._IO
+# and take the release's primary category, the same one `load_nufit_params` uses when asked
+# for none.  Their secondary categories are deliberately left nameless: 'NO' already means
+# normal ordering here, so a name carrying 'huber_fluxes_no_rsbl' would read as two
+# orderings at once.  Those fits are reached by passing `category` to the loader.
+#
+# Entries already present are left alone.  The 6.0 dicts are built from module constants
+# whose values differ from the loader's in the last bit (same ten significant figures,
+# different rounding path), and overwriting them here would move a result that the bit-
+# identity tests pin.
+for _version, _fit in NUFIT_GLOBAL_FITS.items():
+    _tag = _version.replace('NuFIT ', '').replace('.', '_')
+    _categories = _fit.get('categories', {})
+    if 'with_SK' in _categories:
+        _wanted = (('SK_', 'with_SK', ', with SK atmospheric data'),
+                   ('NOSK_', 'without_SK', ', without SK atmospheric data'))
+    else:
+        _wanted = (('', None, ''),)
+    for _infix, _category, _blurb in _wanted:
+        for _ordering in ('NO', 'IO'):
+            _name = 'OSC_PARAMS_NU_FIT_%s_%s%s' % (_tag, _infix, _ordering)
+            if _name in OSC_PARAMS_PREDEFINED:
+                continue
+            OSC_PARAMS_PREDEFINED[_name] = {
+                'name': _name,
+                'description': 'NuFit %s, %s%s' % (
+                    _version.replace('NuFIT ', ''), _ordering, _blurb),
+                **load_nufit_params(_version, _ordering, category=_category),
+            }
+del _version, _fit, _tag, _categories, _wanted
+del _infix, _category, _blurb, _ordering, _name
+
+
 __all__ = [
     'cstyle',
     'set_color_output',

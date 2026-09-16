@@ -7,7 +7,37 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Every NuFit release now has a named oscillation-parameter set, so
+  `default_osc_params_set_name` reaches all eighteen of them rather than only
+  6.0 and 6.1.  From 4.0 onward a release splits its fits by whether
+  Super-Kamiokande atmospheric data is included, and both halves are named:
+  `OSC_PARAMS_NU_FIT_<version>_SK_<ordering>`, the spelling the 6.0 and 6.1
+  entries already used, and `OSC_PARAMS_NU_FIT_<version>_NOSK_<ordering>`.  An
+  earlier release has no such split and is `OSC_PARAMS_NU_FIT_<version>_<ordering>`;
+  its secondary categories stay reachable through `load_nufit_params` alone,
+  since `NO` already means normal ordering here and a name carrying
+  `huber_fluxes_no_rsbl` would read as two orderings at once.  Fifty-three
+  names in all.  They are generated from `NUFIT_GLOBAL_FITS`, so a future
+  release needs no second table.  The four existing entries are untouched: the
+  6.0 dictionaries are built from module constants whose values differ from the
+  loader's in the last bit, and a caller pinned to 6.0 keeps the same bits.
+
 ### Fixed
+
+- The scenario functions warn, past `MAGNUS_MAX_PREDEFINED_NUM_FLAVORS`, that they
+  will use the vacuum Hamiltonian passed in `h_vac_energy_indep`, and that path
+  did not work.  `unpack_oscillation_params_from_dict` fell off the end of its
+  own branch and returned None, which `validate_input_battery` then iterated,
+  raising `TypeError`; with `validate_input=False` the parameter-filling step ran
+  on names that the 2-to-5 unpacking had never assigned, raising
+  `UnboundLocalError`.  The helper now returns an empty array, and the four
+  parameter-filling sites are bounded above as well as below, so
+  `osc_prob_vacuum`, `osc_prob_matter_std_potential`, `osc_prob_matter_nsi` and
+  `osc_prob_liv` accept any flavor count when handed a Hamiltonian.  Verified at
+  six and eight flavors, in vacuum and in matter; the two- through five-flavor
+  results are unchanged, bit for bit.
 
 - `earth.dms_to_decimal` added the minutes and seconds to a negative degree
   value instead of counting them in its direction, so every West or South
