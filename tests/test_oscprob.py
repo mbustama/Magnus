@@ -3015,3 +3015,45 @@ def test_save_log_writes_the_same_report_to_a_file(tmp_path, capsys):
     capsys.readouterr()
     assert log.exists(), "save_log=True wrote no file"
     assert log.read_text().strip(), "the log file is empty"
+
+
+def test_a_scenario_function_takes_more_flavors_than_it_has_hamiltonians_for():
+    """Past ``MAGNUS_MAX_PREDEFINED_NUM_FLAVORS`` the scenario functions warn that
+    they will use the caller's ``h_vac_energy_indep``, and that path has to work.
+
+    It did not.  ``unpack_oscillation_params_from_dict`` fell off the end of its
+    own branch and returned None, which ``validate_input_battery`` then iterated
+    (TypeError); with validation off, the parameter-filling step ran on names the
+    2-to-5 unpacking had never assigned (UnboundLocalError).  So the fallback the
+    warning advertises was unreachable in every scenario function.
+    """
+    rng = np.random.default_rng(3)
+    energy, baseline = 1.0*gd.UNIT_GEV, 1000.0*gd.UNIT_KM
+    rho = lambda l: 3.0*gd.UNIT_G_PER_CM3
+    for n in (gd.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS + 1, 8):
+        a = rng.normal(size=(n, n)) + 1j*rng.normal(size=(n, n))
+        h_vac = (a + a.conj().T)/2*1.0e-3
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            in_vacuum = np.asarray(op.osc_prob_vacuum(
+                n, energy, baseline, osc_params={}, h_vac_energy_indep=h_vac))
+            in_matter = np.asarray(op.osc_prob_matter_std_potential(
+                n, rho, energy, baseline, osc_params={},
+                h_vac_energy_indep=h_vac))
+        for probabilities in (in_vacuum, in_matter):
+            assert probabilities.shape == (n, n)
+            np.testing.assert_allclose(probabilities.sum(axis=1), 1.0,
+                                       rtol=0.0, atol=1.0e-12)
+
+
+def test_the_unpacking_helper_returns_an_array_past_the_predefined_maximum():
+    """The contract the callers rely on: an empty array, not None, so that the
+    validation battery can iterate it without special-casing."""
+    n = gd.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS + 1
+    h_vac = np.eye(n)*1.0e-3
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        unpacked = op.unpack_oscillation_params_from_dict(
+            'test', n, {}, h_vac)
+    assert isinstance(unpacked, np.ndarray)
+    assert len(unpacked) == 0

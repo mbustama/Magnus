@@ -2303,6 +2303,11 @@ def unpack_oscillation_params_from_dict(
         if (h_vac_energy_indep is None):
             raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": provided " + \
                 "h_vac_energy_indep is None.")
+        # There are no standard parameters to unpack here: the caller's Hamiltonian replaces
+        # them.  Returned as an empty array rather than by falling off the end of the function,
+        # because the callers pass this straight into validate_input_battery, which iterates it:
+        # an implicit None made the path the warning above advertises raise TypeError instead.
+        return np.array([])
     elif (num_flavors < 1):
         raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": num_flavors must be " + \
             ">= 2.")
@@ -6921,7 +6926,11 @@ def osc_prob_vacuum(
     # value from the specified parameter set with name default_osc_params_set_name.  Only the values
     # of the parameters passed as None are assigned from the predefined set; others are not 
     # modified.
-    if num_flavors > 2:
+    # Bounded above as well as below: past MAGNUS_MAX_PREDEFINED_NUM_FLAVORS there are no
+    # standard parameters to fill in -- the caller's h_vac_energy_indep is the Hamiltonian --
+    # and s12 and its neighbours were never assigned, so an unbounded test raised
+    # UnboundLocalError on the path the unpacking warning says is supported.
+    if 2 < num_flavors <= gd.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS:
         s12, s23, s13, dCP, D21, D31 = values_to_unspecified_osc_params(s12, s23, s13, dCP, D21, 
             D31, default_osc_params_set_name, verbose, angles=angles)
 
@@ -7289,7 +7298,11 @@ def osc_prob_matter_std_potential(
     # value from the specified parameter set with name default_osc_params_set_name.  Only the values
     # of the parameters passed as None are assigned from the predefined set; others are not
     # modified.
-    if num_flavors > 2:
+    # Bounded above as well as below: past MAGNUS_MAX_PREDEFINED_NUM_FLAVORS there are no
+    # standard parameters to fill in -- the caller's h_vac_energy_indep is the Hamiltonian --
+    # and s12 and its neighbours were never assigned, so an unbounded test raised
+    # UnboundLocalError on the path the unpacking warning says is supported.
+    if 2 < num_flavors <= gd.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS:
         s12, s23, s13, dCP, D21, D31 = values_to_unspecified_osc_params(s12, s23, s13, dCP, D21,
             D31, default_osc_params_set_name, verbose, angles=angles)
 
@@ -7781,7 +7794,11 @@ def osc_prob_matter_nsi(
     # value from the specified parameter set with name default_osc_params_set_name.  Only the values
     # of the parameters passed as None are assigned from the predefined set; others are not 
     # modified.
-    if num_flavors > 2:
+    # Bounded above as well as below: past MAGNUS_MAX_PREDEFINED_NUM_FLAVORS there are no
+    # standard parameters to fill in -- the caller's h_vac_energy_indep is the Hamiltonian --
+    # and s12 and its neighbours were never assigned, so an unbounded test raised
+    # UnboundLocalError on the path the unpacking warning says is supported.
+    if 2 < num_flavors <= gd.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS:
         s12, s23, s13, dCP, D21, D31 = values_to_unspecified_osc_params(s12, s23, s13, dCP, D21, 
             D31, default_osc_params_set_name, verbose, angles=angles)
 
@@ -8262,7 +8279,11 @@ def osc_prob_liv(
     # value from the specified parameter set with name default_osc_params_set_name.  Only the values
     # of the parameters passed as None are assigned from the predefined set; others are not 
     # modified.
-    if num_flavors > 2:
+    # Bounded above as well as below: past MAGNUS_MAX_PREDEFINED_NUM_FLAVORS there are no
+    # standard parameters to fill in -- the caller's h_vac_energy_indep is the Hamiltonian --
+    # and s12 and its neighbours were never assigned, so an unbounded test raised
+    # UnboundLocalError on the path the unpacking warning says is supported.
+    if 2 < num_flavors <= gd.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS:
         s12, s23, s13, dCP, D21, D31 = values_to_unspecified_osc_params(s12, s23, s13, dCP, D21, 
             D31, default_osc_params_set_name, verbose, angles=angles)
 
