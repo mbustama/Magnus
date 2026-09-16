@@ -263,8 +263,7 @@ configures):
                       [--electron-fraction ELECTRON_FRACTION] [--costhz COSTHZ]
                       [--loc-ini LOC_INI] [--loc-fin LOC_FIN] [--angles {sin,sin2,rad,deg}]
                       [--sth STH] [--dm2 DM2] [--s12 S12] [--s23 S23] [--s13 S13]
-                      [--dcp DCP] [--dm21 D21] [--dm31 D31]
-                      [--osc-params-set {OSC_PARAMS_DEFAULT,OSC_PARAMS_NU_FIT_6_0_SK_IO,OSC_PARAMS_NU_FIT_6_0_SK_NO,OSC_PARAMS_NU_FIT_6_1_SK_IO,OSC_PARAMS_NU_FIT_6_1_SK_NO}]
+                      [--dcp DCP] [--dm21 D21] [--dm31 D31] [--osc-params-set NAME]
                       [--s14 S14] [--d14 D14] [--s24 S24] [--d24 D24] [--s34 S34]
                       [--dm41 D41] [--s15 S15] [--d15 D15] [--s25 S25] [--s35 S35]
                       [--d35 D35] [--dm51 D51] [--eps-aa EPS_AA] [--eps-ab EPS_AB]
@@ -357,10 +356,13 @@ configures):
                            6.1.
      --dm21 D21            Mass-squared difference Delta m^2_21. Default: NuFit 6.1.
      --dm31 D31            Mass-squared difference Delta m^2_31. Default: NuFit 6.1.
-     --osc-params-set {OSC_PARAMS_DEFAULT,OSC_PARAMS_NU_FIT_6_0_SK_IO,OSC_PARAMS_NU_FIT_6_0_SK_NO,OSC_PARAMS_NU_FIT_6_1_SK_IO,OSC_PARAMS_NU_FIT_6_1_SK_NO}
+     --osc-params-set NAME
                            Predefined set used to fill in any of s12/s23/s13/dCP/D21/D31
-                           left unspecified: normal ordering (..._NO) or inverted ordering
-                           (..._IO). OSC_PARAMS_DEFAULT is NuFit 6.1 NO. Taken from
+                           left unspecified: one per NuFit release, in normal ordering
+                           (..._NO) or inverted (..._IO), and for releases from 4.0 on with
+                           (..._SK_) or without (..._NOSK_) Super-Kamiokande atmospheric
+                           data. OSC_PARAMS_DEFAULT is NuFit 6.1 SK NO. Pass an unknown
+                           name to see the full list. Taken from
                            globaldefs.OSC_PARAMS_PREDEFINED rather than listed here,
                            because a hand-written list went stale: it offered only the 6.0
                            sets, so asking for inverted ordering silently dropped a release

@@ -178,11 +178,19 @@ def build_parser() -> argparse.ArgumentParser:
     g_osc3.add_argument('--osc-params-set', default='OSC_PARAMS_DEFAULT',
         dest='default_osc_params_set_name',
         choices=sorted(gd.OSC_PARAMS_PREDEFINED),
+        # `metavar` hides the enumeration without weakening it: argparse still rejects a
+        # name that is not in `choices`, and still prints the full list in the error it
+        # raises.  What it stops is printing all of them in the usage line and again in
+        # the option's own entry.  With five sets that was informative; with one per NuFit
+        # release, ordering and SK variant it is some 2500 characters of help, twice over.
+        metavar='NAME',
         help='Predefined set used to fill in any of s12/s23/s13/dCP/D21/D31 left unspecified: '
-             'normal ordering (..._NO) or inverted ordering (..._IO).  OSC_PARAMS_DEFAULT is '
-             'NuFit 6.1 NO.  Taken from globaldefs.OSC_PARAMS_PREDEFINED rather than listed here, '
-             'because a hand-written list went stale: it offered only the 6.0 sets, so asking for '
-             'inverted ordering silently dropped a release behind the default.')
+             'one per NuFit release, in normal ordering (..._NO) or inverted (..._IO), and for '
+             'releases from 4.0 on with (..._SK_) or without (..._NOSK_) Super-Kamiokande '
+             'atmospheric data.  OSC_PARAMS_DEFAULT is NuFit 6.1 SK NO.  Pass an unknown name to '
+             'see the full list.  Taken from globaldefs.OSC_PARAMS_PREDEFINED rather than listed '
+             'here, because a hand-written list went stale: it offered only the 6.0 sets, so '
+             'asking for inverted ordering silently dropped a release behind the default.')
 
     g_osc4 = p.add_argument_group('Additional sterile mixing (4+ flavors)')
     g_osc4.add_argument('--s14', type=float, default=0.0, help='Mixing angle theta_14, per --angles. Default: 0.0.')
