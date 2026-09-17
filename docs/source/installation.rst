@@ -321,7 +321,7 @@ File Tree
    │       ├── refs.bib                # NuOscProbExact's bibliography, with the Magnus entries appended below a separator
    │       ├── elsarticle.cls          # Bundled, so the folder compiles without the Elsevier bundle
    │       ├── elsarticle-num.bst
-   │       └── figs/                   # Its twenty-one figures, written by notebook 28
+   │       └── figs/                   # Its twenty-two figures, written by notebook 28
    ├── tools/                          # Standalone utilities that are not part of the package
    │   └── make_demo_video.py          # Joins and shrinks notebook 27's clips; shared with NuOscProbExact
    ├── src/                            # The package itself -- the only thing a `pip install` delivers

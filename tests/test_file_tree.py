@@ -314,7 +314,7 @@ TREE = [
      "NuOscProbExact's bibliography, with the Magnus entries appended below a separator"),
     ('resources/paper/elsarticle.cls', 'Bundled, so the folder compiles without the Elsevier bundle'),
     ('resources/paper/elsarticle-num.bst', None),
-    ('resources/paper/figs/', 'Its twenty-one figures, written by notebook 28'),
+    ('resources/paper/figs/', 'Its twenty-two figures, written by notebook 28'),
     ('tools/', 'Standalone utilities that are not part of the package'),
     ('tools/make_demo_video.py',
      "Joins and shrinks notebook 27's clips; shared with NuOscProbExact"),
