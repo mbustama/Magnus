@@ -261,25 +261,26 @@ configures):
                       [--rho RHO] [--rho-central RHO_CENTRAL] [--l-scale L_SCALE]
                       [--density-unit {g/cm3,natural}] [--ratio-n-to-p RATIO_N_TO_P]
                       [--electron-fraction ELECTRON_FRACTION] [--costhz COSTHZ]
-                      [--loc-ini LOC_INI] [--loc-fin LOC_FIN] [--angles {sin,sin2,rad,deg}]
-                      [--sth STH] [--dm2 DM2] [--s12 S12] [--s23 S23] [--s13 S13]
-                      [--dcp DCP] [--dm21 D21] [--dm31 D31] [--osc-params-set NAME]
-                      [--s14 S14] [--d14 D14] [--s24 S24] [--d24 D24] [--s34 S34]
-                      [--dm41 D41] [--s15 S15] [--d15 D15] [--s25 S25] [--s35 S35]
-                      [--d35 D35] [--dm51 D51] [--eps-aa EPS_AA] [--eps-ab EPS_AB]
-                      [--eps-ee EPS_EE] [--eps-em EPS_EM] [--eps-et EPS_ET]
-                      [--eps-mm EPS_MM] [--eps-mt EPS_MT] [--eps-tt EPS_TT]
-                      [--eps-es EPS_ES] [--eps-ms EPS_MS] [--eps-ts EPS_TS]
-                      [--eps-ss EPS_SS] [--eps-es1 EPS_ES1] [--eps-es2 EPS_ES2]
-                      [--eps-ms1 EPS_MS1] [--eps-ms2 EPS_MS2] [--eps-ts1 EPS_TS1]
-                      [--eps-ts2 EPS_TS2] [--eps-s1s1 EPS_S1S1] [--eps-s1s2 EPS_S1S2]
-                      [--eps-s2s2 EPS_S2S2] [--sxi SXI] [--sxi12 SXI12] [--sxi23 SXI23]
-                      [--sxi13 SXI13] [--dxicp DXICP] [--dxi13 DXI13] [--sxi14 SXI14]
-                      [--dxi14 DXI14] [--sxi24 SXI24] [--dxi24 DXI24] [--sxi34 SXI34]
-                      [--sxi15 SXI15] [--dxi15 DXI15] [--sxi25 SXI25] [--sxi35 SXI35]
-                      [--dxi35 DXI35] [--b1 B1] [--b2 B2] [--b3 B3] [--b4 B4] [--b5 B5]
-                      [--liv-lambda LAMBDA] [--n-liv N_LIV] [--nu-i NU_I] [--nu-f NU_F]
-                      [--magnus-exp-order MAGNUS_EXP_ORDER]
+                      [--loc-ini LOC_INI] [--loc-fin LOC_FIN]
+                      [--detector-depth DETECTOR_DEPTH] [--source-depth SOURCE_DEPTH]
+                      [--angles {sin,sin2,rad,deg}] [--sth STH] [--dm2 DM2] [--s12 S12]
+                      [--s23 S23] [--s13 S13] [--dcp DCP] [--dm21 D21] [--dm31 D31]
+                      [--osc-params-set NAME] [--s14 S14] [--d14 D14] [--s24 S24]
+                      [--d24 D24] [--s34 S34] [--dm41 D41] [--s15 S15] [--d15 D15]
+                      [--s25 S25] [--s35 S35] [--d35 D35] [--dm51 D51] [--eps-aa EPS_AA]
+                      [--eps-ab EPS_AB] [--eps-ee EPS_EE] [--eps-em EPS_EM]
+                      [--eps-et EPS_ET] [--eps-mm EPS_MM] [--eps-mt EPS_MT]
+                      [--eps-tt EPS_TT] [--eps-es EPS_ES] [--eps-ms EPS_MS]
+                      [--eps-ts EPS_TS] [--eps-ss EPS_SS] [--eps-es1 EPS_ES1]
+                      [--eps-es2 EPS_ES2] [--eps-ms1 EPS_MS1] [--eps-ms2 EPS_MS2]
+                      [--eps-ts1 EPS_TS1] [--eps-ts2 EPS_TS2] [--eps-s1s1 EPS_S1S1]
+                      [--eps-s1s2 EPS_S1S2] [--eps-s2s2 EPS_S2S2] [--sxi SXI]
+                      [--sxi12 SXI12] [--sxi23 SXI23] [--sxi13 SXI13] [--dxicp DXICP]
+                      [--dxi13 DXI13] [--sxi14 SXI14] [--dxi14 DXI14] [--sxi24 SXI24]
+                      [--dxi24 DXI24] [--sxi34 SXI34] [--sxi15 SXI15] [--dxi15 DXI15]
+                      [--sxi25 SXI25] [--sxi35 SXI35] [--dxi35 DXI35] [--b1 B1] [--b2 B2]
+                      [--b3 B3] [--b4 B4] [--b5 B5] [--liv-lambda LAMBDA] [--n-liv N_LIV]
+                      [--nu-i NU_I] [--nu-f NU_F] [--magnus-exp-order MAGNUS_EXP_ORDER]
                       [--integration-method {gl,trapezoid,simpson}] [--rtol RTOL]
                       [--atol ATOL] [--n-jobs N_JOBS] [--strategy {auto,hybrid,magnus}]
                       [--verbose {0,1,2}] [--json] [--precision PRECISION]
@@ -336,6 +337,15 @@ configures):
                            magnus.earth.loc_coords_dms. Must be given together with --loc-
                            fin, as an alternative to --costhz.
      --loc-fin LOC_FIN     Final location name; see --loc-ini.
+     --detector-depth DETECTOR_DEPTH
+                           Depth of the detector below the surface, in --baseline-unit. The
+                           zenith angle is measured at the detector, so a buried one also
+                           sees downward-going neutrinos (--costhz > 0) through its
+                           overburden. Computes the baseline, so --baseline must be
+                           omitted. Default: 0 (a detector on the surface).
+     --source-depth SOURCE_DEPTH
+                           Depth of the neutrino's entry point below the surface, in
+                           --baseline-unit. Default: 0 (entry at the surface).
 
    Standard oscillation parameters (2-flavor):
      --angles {sin,sin2,rad,deg}

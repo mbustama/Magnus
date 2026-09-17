@@ -3057,3 +3057,78 @@ def test_the_unpacking_helper_returns_an_array_past_the_predefined_maximum():
             'test', n, {}, h_vac)
     assert isinstance(unpacked, np.ndarray)
     assert len(unpacked) == 0
+
+
+# ---------------------------------------------------------------------------
+# Underground source and detector (1.1.1)
+# ---------------------------------------------------------------------------
+
+def test_an_earth_wrapper_computes_the_baseline_for_a_buried_detector():
+    import magnus.earth as earth
+    costhz, depth_km = -0.8, 2.0
+    expected = earth.distance_traveled_inside_earth(costhz, 0.0, depth_km)*gd.UNIT_KM
+    got_costhz, got_L = op.validate_input_osc_prob_earth(
+        'test', costhz=costhz, L=None, detector_depth=depth_km*gd.UNIT_KM)
+    assert got_costhz == costhz
+    assert got_L == pytest.approx(expected, rel=1e-15)
+    # The probability follows, and sits close to but not on the surface answer.
+    buried = op.osc_prob_3nu_earth(energy=10.0*gd.UNIT_GEV, costhz=costhz,
+                                   detector_depth=depth_km*gd.UNIT_KM, nu_i=1, nu_f=1)
+    surface = op.osc_prob_3nu_earth(
+        energy=10.0*gd.UNIT_GEV, costhz=costhz, nu_i=1, nu_f=1,
+        L=earth.distance_traveled_inside_earth(costhz)*gd.UNIT_KM)
+    assert buried != surface
+    assert abs(buried - surface) < 1.0e-3
+
+
+def test_a_buried_detector_and_a_baseline_cannot_both_fix_the_endpoint():
+    with pytest.raises(ValueError, match='detector_depth'):
+        op.validate_input_osc_prob_earth('test', costhz=-0.5, L=1.0e3,
+                                         detector_depth=2.0*gd.UNIT_KM)
+    # A buried *source* does not fix the endpoint, so it may travel with an explicit L.
+    costhz, L = op.validate_input_osc_prob_earth(
+        'test', costhz=-0.5, L=1.0e3, source_depth=2.0*gd.UNIT_KM)
+    assert L == 1.0e3
+
+
+def test_two_surface_locations_do_not_take_a_depth():
+    with pytest.raises(ValueError, match='loc_ini'):
+        op.validate_input_osc_prob_earth('test', loc_ini='fermilab', loc_fin='homestake',
+                                         detector_depth=2.0*gd.UNIT_KM)
+
+
+def test_a_buried_trajectory_declines_the_palindrome():
+    import magnus.earth as earth
+    costhz = -0.8
+    L = earth.distance_traveled_inside_earth(costhz)*gd.UNIT_KM
+    assert op._earth_chord_symmetry(costhz, L) == (0.0, L)
+    # A chord is symmetric; a trajectory that stops short of the surface is not.
+    assert op._earth_chord_symmetry(costhz, L, 0.0, 2.0*gd.UNIT_KM) is None
+    assert op._earth_chord_symmetry(costhz, L, 2.0*gd.UNIT_KM, 0.0) is None
+    assert op._earth_chord_symmetry(costhz, L, 2.0*gd.UNIT_KM, 2.0*gd.UNIT_KM) is None
+
+
+def test_the_ocean_density_override_reaches_the_probability():
+    import magnus.earth as earth
+    # Near-horizontal, so PREM's 3 km ocean shell is a sizable share of the path and
+    # replacing it with rock is visible in the answer.
+    costhz = -0.02
+    kw = dict(energy=1.0*gd.UNIT_GEV, costhz=costhz, nu_i=1, nu_f=0,
+              L=earth.distance_traveled_inside_earth(costhz)*gd.UNIT_KM,
+              rtol=1.0e-10, atol=1.0e-12)
+    prem = op.osc_prob_3nu_earth(**kw)
+    rock = op.osc_prob_3nu_earth(density_matter_ocean=2.65, **kw)
+    assert prem != rock
+    assert abs(rock - prem) > 1.0e-4
+    # The default is PREM's own ocean, so passing it explicitly changes nothing.
+    assert op.osc_prob_3nu_earth(density_matter_ocean=None, **kw) == prem
+
+
+def test_a_downgoing_neutrino_reaches_a_buried_detector():
+    # A detector on the surface has no path for costhz > 0, and the wrapper says so by
+    # refusing a zero baseline.  Buried, the overburden is a real path, and 2 km of it
+    # leaves a 10 GeV neutrino almost unoscillated.
+    P = op.osc_prob_3nu_earth(energy=10.0*gd.UNIT_GEV, costhz=1.0,
+                              detector_depth=2.0*gd.UNIT_KM, nu_i=1, nu_f=1)
+    assert P == pytest.approx(1.0, abs=1.0e-5)
+    assert P < 1.0

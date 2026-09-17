@@ -132,6 +132,17 @@ chord specified either by the cosine of the zenith angle (plus a
 baseline) or by two named locations (``loc_ini``/``loc_fin``; see
 :data:`magnus.earth.loc_coords_dms` for the predefined sites).
 
+Both named locations lie on the surface.  Either end of the trajectory can
+instead be put underground with ``source_depth`` and ``detector_depth``,
+which every function below accepts.  The zenith angle is measured at the
+detector, so a buried detector also sees downward-going neutrinos
+(:math:`\cos\theta_z > 0`) through its overburden, which a detector on the
+surface has no path for at all.  Naming ``detector_depth`` fixes where the
+trajectory ends, so the baseline is computed rather than given.  A third
+keyword, ``density_matter_ocean``, replaces the density of PREM's outermost
+shell: that shell is a global-average ocean, and a detector under rock or
+ice is not under one.
+
 .. list-table::
    :header-rows: 1
    :widths: 15 30 30 25

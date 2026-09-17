@@ -92,6 +92,30 @@ aligned with the layer boundaries all follow.
     print('chord   = %.0f km' % (L/gd.UNIT_KM))
     print('P_mue   = %.6f' % P[1][0])
 
+A detector underground is the same call with its depth named. The zenith angle
+is measured at the detector, so the baseline follows from the geometry and is
+computed rather than given. A buried detector also sees downward-going
+neutrinos through its overburden, which a detector on the surface has no path
+for at all.
+
+.. jupyter-execute::
+
+    depth = 2.0*gd.UNIT_KM
+
+    for costhz_det in (-0.5, 1.0):
+        L_km = earth.distance_traveled_inside_earth(
+            costhz_det, detector_depth=depth/gd.UNIT_KM)
+        P_buried = np.asarray(oscprob.osc_prob_3nu_earth(
+            10.0*gd.UNIT_GEV, costhz=costhz_det, detector_depth=depth))
+        print('costhz = %5.2f: %10.3f km, P_mumu = %.6f'
+              % (costhz_det, L_km, P_buried[1][1]))
+
+PREM's outermost shell is 3 km of global-average ocean, which a detector under
+rock or ice is not sitting under. Replace its density with
+``density_matter_ocean``, and its composition with ``electron_fraction_ocean``.
+Both matter for a trajectory close to horizontal, which can spend its whole
+length inside that shell.
+
 The PREM layer boundaries are inserted as mandatory slab edges automatically, so
 the quadrature never integrates across a density discontinuity. Notebooks
 `02 <https://github.com/mbustama/Magnus/blob/main/notebooks/02_magnus_2nu_vacuum_matter.ipynb>`_

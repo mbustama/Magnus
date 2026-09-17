@@ -153,6 +153,18 @@ def build_parser() -> argparse.ArgumentParser:
              'Must be given together with --loc-fin, as an alternative to --costhz.')
     g_earth.add_argument('--loc-fin', default=None,
         help='Final location name; see --loc-ini.')
+    # Both depths are read in --baseline-unit, so they are stated in the same unit as the
+    # baseline they replace.  Naming --detector-depth makes --baseline unnecessary rather
+    # than optional: the library raises if both arrive, so the branch below stops it here
+    # with a message that names the flags rather than the parameters.
+    g_earth.add_argument('--detector-depth', type=float, default=0.0,
+        help='Depth of the detector below the surface, in --baseline-unit. The zenith '
+             'angle is measured at the detector, so a buried one also sees downward-going '
+             'neutrinos (--costhz > 0) through its overburden. Computes the baseline, so '
+             '--baseline must be omitted. Default: 0 (a detector on the surface).')
+    g_earth.add_argument('--source-depth', type=float, default=0.0,
+        help="Depth of the neutrino's entry point below the surface, in --baseline-unit. "
+             'Default: 0 (entry at the surface).')
 
     g_osc = p.add_argument_group('Standard oscillation parameters (2-flavor)')
     g_osc.add_argument('--angles', default='sin', choices=list(gd.ANGLE_CONVENTIONS),
@@ -374,15 +386,27 @@ def _env_kwargs(environment: str, density_profile: str, args: argparse.Namespace
         return kw
     if environment == 'earth':
         using_locations = bool(args.loc_ini and args.loc_fin)
+        scale = LENGTH_UNITS[args.baseline_unit]
+        source_depth = args.source_depth*scale
+        detector_depth = args.detector_depth*scale
+        buried = bool(source_depth or detector_depth)
+        if buried and using_locations:
+            raise SystemExit("magnus prob: --loc-ini/--loc-fin fix a surface-to-surface "
+                              "chord, so neither --source-depth nor --detector-depth applies "
+                              "to them. Use --costhz with the depths instead.")
+        if detector_depth and baseline_ev is not None:
+            raise SystemExit("magnus prob: --detector-depth says where the trajectory ends "
+                              "and so does --baseline. Give one or the other.")
         if not using_locations:
             if args.costhz is None:
                 raise SystemExit("magnus prob: --environment earth requires either --costhz "
                                   "(together with --baseline) or both --loc-ini and --loc-fin.")
-            if baseline_ev is None:
+            if baseline_ev is None and not buried:
                 raise SystemExit("magnus prob: --baseline is required together with --costhz "
                                   "(only --loc-ini/--loc-fin compute the baseline automatically).")
         return {'costhz': args.costhz, 'loc_ini': args.loc_ini, 'loc_fin': args.loc_fin,
-                'L': baseline_ev}
+                'L': baseline_ev, 'source_depth': source_depth,
+                'detector_depth': detector_depth}
     if environment == 'sun':
         if baseline_ev is None:  # pragma: no cover - pre-empted, see below
             # Unreachable from the command line: main() rejects a missing --baseline for

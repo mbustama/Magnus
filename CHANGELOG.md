@@ -9,6 +9,28 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Either end of an Earth trajectory can now be underground.  Every Earth
+  entry point takes `source_depth` and `detector_depth`, and
+  `earth.distance_traveled_inside_earth`,
+  `earth.earth_radial_distance_from_depth` and
+  `earth.prem_layer_edges_along_chord` take them too.  The zenith angle is
+  measured at the detector, which is what it already meant when the detector
+  was on the surface, so a buried detector also sees downward-going
+  neutrinos (`costhz > 0`) through its overburden — a trajectory the surface
+  geometry gives no path for at all.  Naming `detector_depth` fixes where
+  the trajectory ends, so `L` is then computed rather than given, and
+  passing both raises.  The two named locations still describe a
+  surface-to-surface chord, so combining them with a depth raises as well.
+  Both defaults are zero and every default result is unchanged bit for bit:
+  the three geometry functions return through the expressions they have
+  always used, rather than through the generalized ones, which agree on
+  every zenith angle tested but are not the same expression.
+- `density_matter_ocean` replaces the density of PREM's outermost shell,
+  wherever `electron_fraction_ocean` already replaced its composition.  That
+  shell is 3 km of global-average ocean at 1.020 g/cm³; a detector under
+  continental rock sits under about 2.6 instead, and one under Antarctic ice
+  under about 0.92.  It is a correction worth making for a trajectory close
+  to horizontal, which can spend its whole length inside that shell.
 - Every NuFit release now has a named oscillation-parameter set, so
   `default_osc_params_set_name` reaches all eighteen of them rather than only
   6.0 and 6.1.  From 4.0 onward a release splits its fits by whether

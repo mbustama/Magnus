@@ -60,8 +60,10 @@ profile** (e.g., in a supernova or the Sun):
 - :func:`osc_prob_5nu_matter_exp_density`: Two additional flavors.
   Matter potential affects only :math:`\\nu_e`.
 
-Neutrino oscillations between any two locations on the surface of the
-**Earth**, useful for long-baseline neutrino experiments:
+Neutrino oscillations through the **Earth**, useful for long-baseline
+neutrino experiments.  The trajectory runs between two locations on the
+surface by default; ``source_depth`` and ``detector_depth`` put either end
+of it underground:
 
 - :func:`osc_prob_2nu_earth`: Two-neutrino oscillation probabilities.  
 
@@ -1678,7 +1680,8 @@ def validate_input_battery(
 def _warn_if_sterile_projector_disagrees_with_composition(
         source_func_name, num_flavors, costhz, electron_fraction,
         ratio_number_neutrons_to_protons,
-        core, mantle, crust, ocean):
+        core, mantle, crust, ocean,
+        source_depth=0.0, detector_depth=0.0):
     r"""Warns when a caller's scalar builds the sterile matter entry from a different medium
     than the density.
 
@@ -1748,9 +1751,12 @@ def _warn_if_sterile_projector_disagrees_with_composition(
     # Layered composition plus one scalar: different media by construction, so this warns
     # regardless of the scalar's value.  The layer values are listed so the caller can see
     # what the chord actually crosses.
-    chord = float(_earth.distance_traveled_inside_earth(costhz))
+    chord = float(_earth.distance_traveled_inside_earth(
+        costhz, source_depth/gd.UNIT_KM, detector_depth/gd.UNIT_KM))
     l_km = np.linspace(0.0, chord, 2001)
-    radii = _earth.earth_radial_distance_from_depth(costhz, l_km)
+    radii = _earth.earth_radial_distance_from_depth(
+        costhz, l_km, source_depth=source_depth/gd.UNIT_KM,
+        detector_depth=detector_depth/gd.UNIT_KM)
     ye_path = _earth.electron_fraction_func_prem(
         radii, electron_fraction_core=core, electron_fraction_mantle=mantle,
         electron_fraction_crust=crust, electron_fraction_ocean=ocean)
@@ -1775,7 +1781,9 @@ def _warn_if_sterile_projector_disagrees_with_composition(
 def _earth_composition(costhz, electron_fraction, ratio_number_neutrons_to_protons,
                        electron_fraction_core, electron_fraction_mantle,
                        electron_fraction_crust, electron_fraction_ocean,
-                       source_func_name, num_flavors=None):
+                       source_func_name, num_flavors=None,
+                       source_depth=0.0, detector_depth=0.0,
+                       density_matter_ocean=None):
     r"""The electron density along a chord, with :math:`Y_e` resolved per PREM layer.
 
     Returns the pair ``(rho_func, ratio_resolved)`` every Earth entry point hands to
@@ -1814,11 +1822,18 @@ def _earth_composition(costhz, electron_fraction, ratio_number_neutrons_to_proto
        ``ratio_number_neutrons_to_protons=None`` (the new wrapper default) meaning
        "follow the composition".
     """
+
+    # Both depths are declared Optional, so None has to mean "no depth".  Normalized
+    # before anything reads them, the sterile-projector warning below included, since it
+    # samples the trajectory the caller asked for.
+    source_depth, detector_depth = earth._depths_or_zero(source_depth, detector_depth)
+
     _warn_if_sterile_projector_disagrees_with_composition(
         source_func_name, num_flavors, costhz, electron_fraction,
         ratio_number_neutrons_to_protons,
         electron_fraction_core, electron_fraction_mantle,
-        electron_fraction_crust, electron_fraction_ocean)
+        electron_fraction_crust, electron_fraction_ocean,
+        source_depth=source_depth, detector_depth=detector_depth)
 
     layered = {
         'electron_fraction_core': electron_fraction_core,
@@ -1849,8 +1864,22 @@ def _earth_composition(costhz, electron_fraction, ratio_number_neutrons_to_proto
         def ye_of_r(r):
             return earth.electron_fraction_func_prem(r, **layered)
 
+    # The depths reach earth.py in kilometers, the unit its trajectory functions work in;
+    # they arrive here in natural units, like every other length in this module.
+    _depths = {'source_depth': source_depth/gd.UNIT_KM,
+               'detector_depth': detector_depth/gd.UNIT_KM}
+
+    # PREM's own ocean unless the caller replaced it.  Bound once rather than tested inside
+    # rho_func, which runs at every quadrature node of every slab.
+    if density_matter_ocean is None:
+        density_of_r = earth.density_matter_func_prem
+    else:
+        def density_of_r(r):
+            return earth.density_matter_func_prem(
+                r, density_matter_ocean=density_matter_ocean)
+
     def rho_func(l):
-        r = earth.earth_radial_distance_from_depth(costhz, l/gd.UNIT_KM)
+        r = earth.earth_radial_distance_from_depth(costhz, l/gd.UNIT_KM, **_depths)
         ye = ye_of_r(r)
         # ALWAYS derived from Y_e here, never taken from the caller's
         # `ratio_number_neutrons_to_protons`.  In this conversion the ratio only sets the
@@ -1858,7 +1887,7 @@ def _earth_composition(costhz, electron_fraction, ratio_number_neutrons_to_proto
         # follow Y_e layer by layer.  The ratio's other role -- the sterile states' entry
         # in the matter projector -- is resolved below, from this same Y_e by default.
         return matter.num_density_e_func(
-            r, earth.density_matter_func_prem,
+            r, density_of_r,
             ratio_number_neutrons_to_protons=
                 earth.neutron_to_proton_ratio_from_electron_fraction(ye),
             electron_fraction=ye,
@@ -1881,7 +1910,7 @@ def _earth_composition(costhz, electron_fraction, ratio_number_neutrons_to_proto
             float(electron_fraction) if electron_fraction is not None else 0.5))
     else:
         def ratio_resolved(l):
-            r = earth.earth_radial_distance_from_depth(costhz, l/gd.UNIT_KM)
+            r = earth.earth_radial_distance_from_depth(costhz, l/gd.UNIT_KM, **_depths)
             return earth.neutron_to_proton_ratio_from_electron_fraction(ye_of_r(r))
 
     return rho_func, ratio_resolved
@@ -1894,6 +1923,8 @@ def validate_input_osc_prob_earth(
     costhz: Optional[Union[int, float]]=None,
     L: Optional[Union[float, list, np.ndarray]]=None,
     verbose: Optional[int]=0,
+    source_depth: Optional[float]=0.0,
+    detector_depth: Optional[float]=0.0,
     ) -> Tuple[float, np.ndarray]:
     r"""Resolves (costhz, L) for :func:`osc_prob_earth`, from either two locations or costhz+L.
 
@@ -1902,7 +1933,16 @@ def validate_input_osc_prob_earth(
     their coordinates), or give ``costhz`` and ``L`` directly. Aborts with a descriptive error if
     exactly one location is given, or if neither locations nor (costhz, L) are given.
 
+    Burying an endpoint changes which of those the caller has to supply.  ``detector_depth`` says
+    where the trajectory ends, and so does ``L``; giving both is an error rather than a silent
+    choice between them.  With either depth set and ``L`` left as None, the baseline is computed
+    from the geometry.  At the default depths of zero nothing changes: ``L`` stays required
+    alongside ``costhz``, as in every earlier version.
+
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.1
+       Added ``source_depth`` and ``detector_depth``.
 
     Parameters
     ----------
@@ -1921,13 +1961,35 @@ def validate_input_osc_prob_earth(
     verbose : int, optional
         Verbosity level: if > 0, print a note when the chord between the two given locations is
         used as the baseline. Default: 0.
+    source_depth : float, optional
+        Depth of the entry point below the surface [:math:`\text{eV}^{-1}`]. Default: 0.0.
+    detector_depth : float, optional
+        Depth of the detector below the surface [:math:`\text{eV}^{-1}`]. Default: 0.0.
 
     Returns
     -------
     (float, np.ndarray)
         The resolved ``(costhz, L)`` pair.
     """
-    # If the initial and final locations are given (i.e., if they are not None), then the neutrino 
+    # Both depths are declared Optional, so None has to mean "no depth"; see
+    # earth._depths_or_zero for why normalizing beats letting float(None) surface.
+    source_depth, detector_depth = earth._depths_or_zero(source_depth, detector_depth)
+
+    buried = (source_depth != 0.0) or (detector_depth != 0.0)
+
+    if buried and (loc_ini is not None or loc_fin is not None):
+        raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": the two "
+            "locations on the surface of the Earth (loc_ini, loc_fin) fix a surface-to-surface "
+            "chord, so neither source_depth nor detector_depth applies to them. Give costhz "
+            "with the depths instead, or drop the depths.")
+
+    if (detector_depth != 0.0) and (L is not None):
+        raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": "
+            "detector_depth says where the trajectory ends and so does L, and the two need "
+            "not agree. Give one or the other: omit L to have the baseline computed from the "
+            "geometry, or omit detector_depth to stop the trajectory at the L you name.")
+
+    # If the initial and final locations are given (i.e., if they are not None), then the neutrino
     # travels the chord joining them through the Earth, overriding any given value of costhz given.
     # If only a single location is given, throw an exception.  If neither of the two locations are
     # given, use the given value of costhz and of baseline given (could be an array of baselines).
@@ -1989,6 +2051,14 @@ def validate_input_osc_prob_earth(
                 "or, alternatively, the value of costhz.")
 
         if L is None:
+
+            # With an endpoint underground there is a baseline to compute, so a missing L is
+            # an omission the geometry can fill rather than an error.  At the default depths
+            # this branch is unreachable and the error below is the one raised, unchanged.
+            if buried:
+                return costhz, earth.distance_traveled_inside_earth(
+                    costhz, source_depth/gd.UNIT_KM, detector_depth/gd.UNIT_KM)*gd.UNIT_KM
+
             raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + \
                 ": since two locations on the surface of the Earth have not been given, " + \
                 "the value of costhz will be used to define the chord length, but the" + \
@@ -1999,7 +2069,9 @@ def validate_input_osc_prob_earth(
 
 
 def _earth_chord_symmetry(costhz: float,
-                          L: Union[int, float, list, np.ndarray]) -> Optional[tuple]:
+                          L: Union[int, float, list, np.ndarray],
+                          source_depth: float=0.0,
+                          detector_depth: float=0.0) -> Optional[tuple]:
     r"""The interval over which an Earth chord's matter profile is mirror-symmetric, or None.
 
     A chord through a spherically symmetric Earth meets every radius twice, so its density reads
@@ -2020,12 +2092,21 @@ def _earth_chord_symmetry(costhz: float,
 
     .. versionadded:: 1.0.0
 
+    .. versionchanged:: 1.1.1
+       Added ``source_depth`` and ``detector_depth``, either of which declines the symmetry.
+
     Parameters
     ----------
     costhz : float
         Cosine of the zenith angle, which fixes the chord.
     L : int, float, list or np.ndarray
         Baseline(s) actually requested [eV^-1].
+    source_depth : float, optional
+        Depth of the entry point below the surface [eV^-1]. Any nonzero value declines the
+        symmetry. Default: 0.0.
+    detector_depth : float, optional
+        Depth of the detector below the surface [eV^-1]. Any nonzero value declines the
+        symmetry. Default: 0.0.
 
     Returns
     -------
@@ -2034,6 +2115,17 @@ def _earth_chord_symmetry(costhz: float,
     """
     if costhz is None or costhz >= 0.0:
         return None
+
+    # A buried endpoint breaks the mirror this optimization rests on: the trajectory starts
+    # at one radius and stops at another, so its profile does not read the same from both
+    # ends.  Two endpoints buried to the *same* depth are symmetric again, and could be
+    # declared -- but declaring a symmetry that does not hold returns a wrong probability
+    # with no warning, while declining one that does costs a factor of two in Hamiltonian
+    # evaluations.  The cheap side of that trade is to decline.
+    source_depth, detector_depth = earth._depths_or_zero(source_depth, detector_depth)
+    if source_depth != 0.0 or detector_depth != 0.0:
+        return None
+
     L_chord = earth.distance_traveled_inside_earth(costhz)*gd.UNIT_KM
     L_arr = np.atleast_1d(np.asarray(L, dtype=float))
     if L_arr.size == 0 or not bool(np.all(L_arr == L_chord)):
@@ -10544,6 +10636,9 @@ def osc_prob_2nu_earth(
     electron_fraction_mantle: Optional[Union[int, float]]=None,
     electron_fraction_crust: Optional[Union[int, float]]=None,
     electron_fraction_ocean: Optional[Union[int, float]]=None,
+    source_depth: Optional[Union[int, float]]=0.0,
+    detector_depth: Optional[Union[int, float]]=0.0,
+    density_matter_ocean: Optional[Union[int, float]]=None,
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
@@ -10568,6 +10663,14 @@ def osc_prob_2nu_earth(
     are not ``None``), then the neutrino travels the chord joining them 
     through the Earth, overriding any given value of costhz given, and 
     using the chord length as the baseline. 
+
+    Both locations lie on the surface.  To put either end of the
+    trajectory underground, give ``costhz`` instead and name
+    ``source_depth``, ``detector_depth``, or both.  ``costhz`` is the
+    zenith angle at the detector, which is the surface angle when the
+    detector is on the surface, so nothing changes for a call that
+    leaves the depths alone.  A buried detector fixes where the
+    trajectory ends, so ``L`` is then computed rather than given.
 
     The initial and final location can be given as a three-entry tuple
     of coordinates in the (degree, minute, second) format.  Alternatively,
@@ -10621,6 +10724,11 @@ def osc_prob_2nu_earth(
         P
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.1
+       Added ``source_depth``, ``detector_depth`` and ``density_matter_ocean``.
+       Their defaults leave the trajectory and the density profile exactly as
+       they were: both endpoints on the surface, and PREM's own ocean.
 
     Parameters
     ----------
@@ -10711,6 +10819,25 @@ def osc_prob_2nu_earth(
         hydrogen has :math:`Z/A = 1`).  PREM's ocean is a global average that a
         land-based baseline does not cross; pass
         :data:`magnus.earth.Y_E_CRUST_PREM` for one.
+    source_depth : int or float, optional
+        Depth of the neutrino's entry point below the surface of the Earth
+        [:math:`\text{eV}^{-1}`].  Default: 0.0, i.e. the neutrino enters at
+        the surface, which is the geometry every earlier version assumed.
+    detector_depth : int or float, optional
+        Depth of the detector below the surface of the Earth
+        [:math:`\text{eV}^{-1}`].  The zenith angle ``costhz`` is measured at
+        the detector, so a buried detector also sees downward-going neutrinos
+        (``costhz > 0``) through its overburden.  Naming this fixes where the
+        trajectory ends, so ``L`` must then be left as None and the baseline
+        is computed for you.  Default: 0.0, i.e. a detector on the surface.
+    density_matter_ocean : int or float, optional
+        Density of PREM's outermost shell, :math:`r > 6368` km
+        [:math:`\text{g cm}^{-3}`].  PREM puts a global-average ocean there,
+        at 1.020; continental rock is about 2.6 and Antarctic ice about 0.92.
+        The shell is 3 km thick, so this matters for a trajectory close to
+        horizontal, which can spend its whole length inside it.  Pair it with
+        ``electron_fraction_ocean``, which sets the composition of the same
+        shell.  Default: None, i.e. PREM's own ocean.
     angles : str, optional
         How the mixing angle is stated: ``'sin'`` (default) its sine,
         ``'sin2'`` its sine *squared* -- which is what global fits report --
@@ -10739,13 +10866,20 @@ def osc_prob_2nu_earth(
     # and using the chord length as the baseline. If only a single location is given, throw an 
     # exception.  If neither of the two locations are given, use the given value of costhz and of 
     # baseline given (could be an array of baselines).
+    # Both depths are declared Optional, so None has to mean "no depth".  Normalized here,
+    # where they first arrive, because the three uses below divide by gd.UNIT_KM and a None
+    # would surface as a TypeError rather than this package's descriptive ValueError.
+    source_depth, detector_depth = earth._depths_or_zero(source_depth, detector_depth)
+
     costhz, L = validate_input_osc_prob_earth(source_func_name, loc_ini, loc_fin, costhz, L,
-        verbose=verbose) # L in eV^{-1}
+        verbose=verbose, source_depth=source_depth, detector_depth=detector_depth) # L in eV^{-1}
 
     # Align the slab edges with the crossings of the PREM layer boundaries along the chord: the
     # matter density is discontinuous there, and the high-order quadrature of the Magnus kernel
     # converges at its nominal order only if the Hamiltonian is smooth inside each slab.
-    t_breakpoints = earth.prem_layer_edges_along_chord(costhz)*gd.UNIT_KM # [eV^{-1}]
+    t_breakpoints = earth.prem_layer_edges_along_chord(
+        costhz, source_depth/gd.UNIT_KM,
+        detector_depth/gd.UNIT_KM)*gd.UNIT_KM # [eV^{-1}]
 
     # A caller may have breakpoints of their own -- a feature in a custom H, say.  These
     # wrappers set t_breakpoints themselves, so an argument of the same name arrived in
@@ -10782,7 +10916,9 @@ def osc_prob_2nu_earth(
         costhz, electron_fraction, ratio_number_neutrons_to_protons,
         electron_fraction_core, electron_fraction_mantle,
         electron_fraction_crust, electron_fraction_ocean,
-        source_func_name, num_flavors=2)
+        source_func_name, num_flavors=2,
+        source_depth=source_depth, detector_depth=detector_depth,
+        density_matter_ocean=density_matter_ocean)
 
     return osc_prob_matter_std_potential(
         num_flavors=2,
@@ -10794,7 +10930,7 @@ def osc_prob_2nu_earth(
         # end.  Declared, not detected: see _earth_chord_symmetry.  Returns None -- and
         # so takes the ordinary path -- unless every requested baseline is the whole
         # chord, because a chord is symmetric over no shorter prefix of itself.
-        symmetric_over=_earth_chord_symmetry(costhz, L),
+        symmetric_over=_earth_chord_symmetry(costhz, L, source_depth, detector_depth),
         osc_params={'sth': sth, 'Dm2': Dm2},
         L0=0.0,
         nubar=nubar,
@@ -10839,6 +10975,9 @@ def osc_prob_3nu_earth(
     electron_fraction_mantle: Optional[Union[int, float]]=None,
     electron_fraction_crust: Optional[Union[int, float]]=None,
     electron_fraction_ocean: Optional[Union[int, float]]=None,
+    source_depth: Optional[Union[int, float]]=0.0,
+    detector_depth: Optional[Union[int, float]]=0.0,
+    density_matter_ocean: Optional[Union[int, float]]=None,
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
@@ -10863,6 +11002,14 @@ def osc_prob_3nu_earth(
     are not ``None``), then the neutrino travels the chord joining them 
     through the Earth, overriding any given value of costhz given, and 
     using the chord length as the baseline. 
+
+    Both locations lie on the surface.  To put either end of the
+    trajectory underground, give ``costhz`` instead and name
+    ``source_depth``, ``detector_depth``, or both.  ``costhz`` is the
+    zenith angle at the detector, which is the surface angle when the
+    detector is on the surface, so nothing changes for a call that
+    leaves the depths alone.  A buried detector fixes where the
+    trajectory ends, so ``L`` is then computed rather than given.
 
     The initial and final location can be given as a three-entry tuple
     of coordinates in the (degree, minute, second) format.  Alternatively,
@@ -10914,6 +11061,11 @@ def osc_prob_3nu_earth(
         P
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.1
+       Added ``source_depth``, ``detector_depth`` and ``density_matter_ocean``.
+       Their defaults leave the trajectory and the density profile exactly as
+       they were: both endpoints on the surface, and PREM's own ocean.
 
     Parameters
     ----------
@@ -11014,6 +11166,25 @@ def osc_prob_3nu_earth(
         hydrogen has :math:`Z/A = 1`).  PREM's ocean is a global average that a
         land-based baseline does not cross; pass
         :data:`magnus.earth.Y_E_CRUST_PREM` for one.
+    source_depth : int or float, optional
+        Depth of the neutrino's entry point below the surface of the Earth
+        [:math:`\text{eV}^{-1}`].  Default: 0.0, i.e. the neutrino enters at
+        the surface, which is the geometry every earlier version assumed.
+    detector_depth : int or float, optional
+        Depth of the detector below the surface of the Earth
+        [:math:`\text{eV}^{-1}`].  The zenith angle ``costhz`` is measured at
+        the detector, so a buried detector also sees downward-going neutrinos
+        (``costhz > 0``) through its overburden.  Naming this fixes where the
+        trajectory ends, so ``L`` must then be left as None and the baseline
+        is computed for you.  Default: 0.0, i.e. a detector on the surface.
+    density_matter_ocean : int or float, optional
+        Density of PREM's outermost shell, :math:`r > 6368` km
+        [:math:`\text{g cm}^{-3}`].  PREM puts a global-average ocean there,
+        at 1.020; continental rock is about 2.6 and Antarctic ice about 0.92.
+        The shell is 3 km thick, so this matters for a trajectory close to
+        horizontal, which can spend its whole length inside it.  Pair it with
+        ``electron_fraction_ocean``, which sets the composition of the same
+        shell.  Default: None, i.e. PREM's own ocean.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -11043,13 +11214,20 @@ def osc_prob_3nu_earth(
     # and using the chord length as the baseline. If only a single location is given, throw an 
     # exception.  If neither of the two locations are given, use the given value of costhz and of 
     # baseline given (could be an array of baselines).
+    # Both depths are declared Optional, so None has to mean "no depth".  Normalized here,
+    # where they first arrive, because the three uses below divide by gd.UNIT_KM and a None
+    # would surface as a TypeError rather than this package's descriptive ValueError.
+    source_depth, detector_depth = earth._depths_or_zero(source_depth, detector_depth)
+
     costhz, L = validate_input_osc_prob_earth(source_func_name, loc_ini, loc_fin, costhz, L,
-        verbose=verbose)
+        verbose=verbose, source_depth=source_depth, detector_depth=detector_depth)
 
     # Align the slab edges with the crossings of the PREM layer boundaries along the chord: the
     # matter density is discontinuous there, and the high-order quadrature of the Magnus kernel
     # converges at its nominal order only if the Hamiltonian is smooth inside each slab.
-    t_breakpoints = earth.prem_layer_edges_along_chord(costhz)*gd.UNIT_KM # [eV^{-1}]
+    t_breakpoints = earth.prem_layer_edges_along_chord(
+        costhz, source_depth/gd.UNIT_KM,
+        detector_depth/gd.UNIT_KM)*gd.UNIT_KM # [eV^{-1}]
 
     # A caller may have breakpoints of their own -- a feature in a custom H, say.  These
     # wrappers set t_breakpoints themselves, so an argument of the same name arrived in
@@ -11082,7 +11260,9 @@ def osc_prob_3nu_earth(
         costhz, electron_fraction, ratio_number_neutrons_to_protons,
         electron_fraction_core, electron_fraction_mantle,
         electron_fraction_crust, electron_fraction_ocean,
-        source_func_name, num_flavors=3)
+        source_func_name, num_flavors=3,
+        source_depth=source_depth, detector_depth=detector_depth,
+        density_matter_ocean=density_matter_ocean)
 
     return osc_prob_matter_std_potential(
         num_flavors=3,
@@ -11094,7 +11274,7 @@ def osc_prob_3nu_earth(
         # end.  Declared, not detected: see _earth_chord_symmetry.  Returns None -- and
         # so takes the ordinary path -- unless every requested baseline is the whole
         # chord, because a chord is symmetric over no shorter prefix of itself.
-        symmetric_over=_earth_chord_symmetry(costhz, L),
+        symmetric_over=_earth_chord_symmetry(costhz, L, source_depth, detector_depth),
         osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 'D21': D21, 'D31': D31},
         L0=0.0,
         nubar=nubar,
@@ -11146,6 +11326,9 @@ def osc_prob_4nu_earth(
     electron_fraction_mantle: Optional[Union[int, float]]=None,
     electron_fraction_crust: Optional[Union[int, float]]=None,
     electron_fraction_ocean: Optional[Union[int, float]]=None,
+    source_depth: Optional[Union[int, float]]=0.0,
+    detector_depth: Optional[Union[int, float]]=0.0,
+    density_matter_ocean: Optional[Union[int, float]]=None,
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
@@ -11170,6 +11353,14 @@ def osc_prob_4nu_earth(
     are not ``None``), then the neutrino travels the chord joining them 
     through the Earth, overriding any given value of costhz given, and 
     using the chord length as the baseline. 
+
+    Both locations lie on the surface.  To put either end of the
+    trajectory underground, give ``costhz`` instead and name
+    ``source_depth``, ``detector_depth``, or both.  ``costhz`` is the
+    zenith angle at the detector, which is the surface angle when the
+    detector is on the surface, so nothing changes for a call that
+    leaves the depths alone.  A buried detector fixes where the
+    trajectory ends, so ``L`` is then computed rather than given.
 
     The initial and final location can be given as a three-entry tuple
     of coordinates in the (degree, minute, second) format.  Alternatively,
@@ -11224,6 +11415,11 @@ def osc_prob_4nu_earth(
         P
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.1
+       Added ``source_depth``, ``detector_depth`` and ``density_matter_ocean``.
+       Their defaults leave the trajectory and the density profile exactly as
+       they were: both endpoints on the surface, and PREM's own ocean.
 
     Parameters
     ----------
@@ -11336,6 +11532,25 @@ def osc_prob_4nu_earth(
         hydrogen has :math:`Z/A = 1`).  PREM's ocean is a global average that a
         land-based baseline does not cross; pass
         :data:`magnus.earth.Y_E_CRUST_PREM` for one.
+    source_depth : int or float, optional
+        Depth of the neutrino's entry point below the surface of the Earth
+        [:math:`\text{eV}^{-1}`].  Default: 0.0, i.e. the neutrino enters at
+        the surface, which is the geometry every earlier version assumed.
+    detector_depth : int or float, optional
+        Depth of the detector below the surface of the Earth
+        [:math:`\text{eV}^{-1}`].  The zenith angle ``costhz`` is measured at
+        the detector, so a buried detector also sees downward-going neutrinos
+        (``costhz > 0``) through its overburden.  Naming this fixes where the
+        trajectory ends, so ``L`` must then be left as None and the baseline
+        is computed for you.  Default: 0.0, i.e. a detector on the surface.
+    density_matter_ocean : int or float, optional
+        Density of PREM's outermost shell, :math:`r > 6368` km
+        [:math:`\text{g cm}^{-3}`].  PREM puts a global-average ocean there,
+        at 1.020; continental rock is about 2.6 and Antarctic ice about 0.92.
+        The shell is 3 km thick, so this matters for a trajectory close to
+        horizontal, which can spend its whole length inside it.  Pair it with
+        ``electron_fraction_ocean``, which sets the composition of the same
+        shell.  Default: None, i.e. PREM's own ocean.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -11365,13 +11580,20 @@ def osc_prob_4nu_earth(
     # and using the chord length as the baseline. If only a single location is given, throw an 
     # exception.  If neither of the two locations are given, use the given value of costhz and of 
     # baseline given (could be an array of baselines).
+    # Both depths are declared Optional, so None has to mean "no depth".  Normalized here,
+    # where they first arrive, because the three uses below divide by gd.UNIT_KM and a None
+    # would surface as a TypeError rather than this package's descriptive ValueError.
+    source_depth, detector_depth = earth._depths_or_zero(source_depth, detector_depth)
+
     costhz, L = validate_input_osc_prob_earth(source_func_name, loc_ini, loc_fin, costhz, L,
-        verbose=verbose)
+        verbose=verbose, source_depth=source_depth, detector_depth=detector_depth)
 
     # Align the slab edges with the crossings of the PREM layer boundaries along the chord: the
     # matter density is discontinuous there, and the high-order quadrature of the Magnus kernel
     # converges at its nominal order only if the Hamiltonian is smooth inside each slab.
-    t_breakpoints = earth.prem_layer_edges_along_chord(costhz)*gd.UNIT_KM # [eV^{-1}]
+    t_breakpoints = earth.prem_layer_edges_along_chord(
+        costhz, source_depth/gd.UNIT_KM,
+        detector_depth/gd.UNIT_KM)*gd.UNIT_KM # [eV^{-1}]
 
     # A caller may have breakpoints of their own -- a feature in a custom H, say.  These
     # wrappers set t_breakpoints themselves, so an argument of the same name arrived in
@@ -11404,7 +11626,9 @@ def osc_prob_4nu_earth(
         costhz, electron_fraction, ratio_number_neutrons_to_protons,
         electron_fraction_core, electron_fraction_mantle,
         electron_fraction_crust, electron_fraction_ocean,
-        source_func_name, num_flavors=4)
+        source_func_name, num_flavors=4,
+        source_depth=source_depth, detector_depth=detector_depth,
+        density_matter_ocean=density_matter_ocean)
 
     return osc_prob_matter_std_potential(
         num_flavors=4,
@@ -11416,7 +11640,7 @@ def osc_prob_4nu_earth(
         # end.  Declared, not detected: see _earth_chord_symmetry.  Returns None -- and
         # so takes the ordinary path -- unless every requested baseline is the whole
         # chord, because a chord is symmetric over no shorter prefix of itself.
-        symmetric_over=_earth_chord_symmetry(costhz, L),
+        symmetric_over=_earth_chord_symmetry(costhz, L, source_depth, detector_depth),
         osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 's14': s14, 'd14': d14, 
             's24': s24, 'd24': d24, 's34': s34, 'D21': D21, 'D31': D31, 'D41': D41},
         L0=0.0,
@@ -11475,6 +11699,9 @@ def osc_prob_5nu_earth(
     electron_fraction_mantle: Optional[Union[int, float]]=None,
     electron_fraction_crust: Optional[Union[int, float]]=None,
     electron_fraction_ocean: Optional[Union[int, float]]=None,
+    source_depth: Optional[Union[int, float]]=0.0,
+    detector_depth: Optional[Union[int, float]]=0.0,
+    density_matter_ocean: Optional[Union[int, float]]=None,
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
@@ -11499,6 +11726,14 @@ def osc_prob_5nu_earth(
     are not ``None``), then the neutrino travels the chord joining them 
     through the Earth, overriding any given value of costhz given, and 
     using the chord length as the baseline. 
+
+    Both locations lie on the surface.  To put either end of the
+    trajectory underground, give ``costhz`` instead and name
+    ``source_depth``, ``detector_depth``, or both.  ``costhz`` is the
+    zenith angle at the detector, which is the surface angle when the
+    detector is on the surface, so nothing changes for a call that
+    leaves the depths alone.  A buried detector fixes where the
+    trajectory ends, so ``L`` is then computed rather than given.
 
     The initial and final location can be given as a three-entry tuple
     of coordinates in the (degree, minute, second) format.  Alternatively,
@@ -11555,6 +11790,11 @@ def osc_prob_5nu_earth(
         P
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.1
+       Added ``source_depth``, ``detector_depth`` and ``density_matter_ocean``.
+       Their defaults leave the trajectory and the density profile exactly as
+       they were: both endpoints on the surface, and PREM's own ocean.
 
     Parameters
     ----------
@@ -11679,6 +11919,25 @@ def osc_prob_5nu_earth(
         hydrogen has :math:`Z/A = 1`).  PREM's ocean is a global average that a
         land-based baseline does not cross; pass
         :data:`magnus.earth.Y_E_CRUST_PREM` for one.
+    source_depth : int or float, optional
+        Depth of the neutrino's entry point below the surface of the Earth
+        [:math:`\text{eV}^{-1}`].  Default: 0.0, i.e. the neutrino enters at
+        the surface, which is the geometry every earlier version assumed.
+    detector_depth : int or float, optional
+        Depth of the detector below the surface of the Earth
+        [:math:`\text{eV}^{-1}`].  The zenith angle ``costhz`` is measured at
+        the detector, so a buried detector also sees downward-going neutrinos
+        (``costhz > 0``) through its overburden.  Naming this fixes where the
+        trajectory ends, so ``L`` must then be left as None and the baseline
+        is computed for you.  Default: 0.0, i.e. a detector on the surface.
+    density_matter_ocean : int or float, optional
+        Density of PREM's outermost shell, :math:`r > 6368` km
+        [:math:`\text{g cm}^{-3}`].  PREM puts a global-average ocean there,
+        at 1.020; continental rock is about 2.6 and Antarctic ice about 0.92.
+        The shell is 3 km thick, so this matters for a trajectory close to
+        horizontal, which can spend its whole length inside it.  Pair it with
+        ``electron_fraction_ocean``, which sets the composition of the same
+        shell.  Default: None, i.e. PREM's own ocean.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -11708,13 +11967,20 @@ def osc_prob_5nu_earth(
     # and using the chord length as the baseline. If only a single location is given, throw an 
     # exception.  If neither of the two locations are given, use the given value of costhz and of 
     # baseline given (could be an array of baselines).
+    # Both depths are declared Optional, so None has to mean "no depth".  Normalized here,
+    # where they first arrive, because the three uses below divide by gd.UNIT_KM and a None
+    # would surface as a TypeError rather than this package's descriptive ValueError.
+    source_depth, detector_depth = earth._depths_or_zero(source_depth, detector_depth)
+
     costhz, L = validate_input_osc_prob_earth(source_func_name, loc_ini, loc_fin, costhz, L,
-        verbose=verbose)
+        verbose=verbose, source_depth=source_depth, detector_depth=detector_depth)
 
     # Align the slab edges with the crossings of the PREM layer boundaries along the chord: the
     # matter density is discontinuous there, and the high-order quadrature of the Magnus kernel
     # converges at its nominal order only if the Hamiltonian is smooth inside each slab.
-    t_breakpoints = earth.prem_layer_edges_along_chord(costhz)*gd.UNIT_KM # [eV^{-1}]
+    t_breakpoints = earth.prem_layer_edges_along_chord(
+        costhz, source_depth/gd.UNIT_KM,
+        detector_depth/gd.UNIT_KM)*gd.UNIT_KM # [eV^{-1}]
 
     # A caller may have breakpoints of their own -- a feature in a custom H, say.  These
     # wrappers set t_breakpoints themselves, so an argument of the same name arrived in
@@ -11747,7 +12013,9 @@ def osc_prob_5nu_earth(
         costhz, electron_fraction, ratio_number_neutrons_to_protons,
         electron_fraction_core, electron_fraction_mantle,
         electron_fraction_crust, electron_fraction_ocean,
-        source_func_name, num_flavors=5)
+        source_func_name, num_flavors=5,
+        source_depth=source_depth, detector_depth=detector_depth,
+        density_matter_ocean=density_matter_ocean)
 
     return osc_prob_matter_std_potential(
         num_flavors=5,
@@ -11759,7 +12027,7 @@ def osc_prob_5nu_earth(
         # end.  Declared, not detected: see _earth_chord_symmetry.  Returns None -- and
         # so takes the ordinary path -- unless every requested baseline is the whole
         # chord, because a chord is symmetric over no shorter prefix of itself.
-        symmetric_over=_earth_chord_symmetry(costhz, L),
+        symmetric_over=_earth_chord_symmetry(costhz, L, source_depth, detector_depth),
         osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 's14': s14, 'd14': d14, 
             's15': s15, 'd15': d15, 's24': s24, 'd24': d24, 's25': s25, 's34': s34, 's35': s35, 
             'd35': d35, 'D21': D21, 'D31': D31, 'D41': D41, 'D51': D51},
@@ -11801,6 +12069,9 @@ def osc_prob_earth(
     electron_fraction_mantle: Optional[Union[int, float]]=None,
     electron_fraction_crust: Optional[Union[int, float]]=None,
     electron_fraction_ocean: Optional[Union[int, float]]=None,
+    source_depth: Optional[Union[int, float]]=0.0,
+    detector_depth: Optional[Union[int, float]]=0.0,
+    density_matter_ocean: Optional[Union[int, float]]=None,
     magnus_exp_order: Optional[int]=4,
     n_jobs: Optional[int]=1,
     integration_method: Optional[str]='gl',
@@ -11819,6 +12090,13 @@ def osc_prob_earth(
     neutrino flavors: the user supplies their own Hamiltonian function,
     ``H_func``, and this routine takes care of the geometry of the
     trajectory through the Earth and of the matter density along it.
+
+    The trajectory runs between two points on the surface unless
+    ``source_depth`` or ``detector_depth`` says otherwise.  ``costhz`` is
+    the zenith angle at the detector, which is the surface angle when the
+    detector is on the surface, so nothing changes for a call that leaves
+    the depths alone.  A buried detector fixes where the trajectory ends,
+    so ``L`` is then computed rather than given.
 
     ``H_func`` must be a function of either three arguments,
     ``H_func(energy, l, VCC)``, or two arguments,
@@ -11846,6 +12124,11 @@ def osc_prob_earth(
     the PREM layer boundaries along the chord.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.1
+       Added ``source_depth``, ``detector_depth`` and ``density_matter_ocean``.
+       Their defaults leave the trajectory and the density profile exactly as
+       they were: both endpoints on the surface, and PREM's own ocean.
 
     Parameters
     ----------
@@ -11891,6 +12174,23 @@ def osc_prob_earth(
     electron_fraction_ocean : int or float, optional
         :math:`Y_e` for :math:`r > 6368` km.  Default:
         :data:`magnus.earth.Y_E_OCEAN_PREM` (0.5551, seawater).
+    source_depth : int or float, optional
+        Depth of the neutrino's entry point below the surface of the Earth
+        [:math:`\text{eV}^{-1}`].  Default: 0.0, i.e. the neutrino enters at
+        the surface, which is the geometry every earlier version assumed.
+    detector_depth : int or float, optional
+        Depth of the detector below the surface of the Earth
+        [:math:`\text{eV}^{-1}`].  The zenith angle ``costhz`` is measured at
+        the detector, so a buried detector also sees downward-going neutrinos
+        (``costhz > 0``) through its overburden.  Naming this fixes where the
+        trajectory ends, so ``L`` must then be left as None and the baseline
+        is computed for you.  Default: 0.0, i.e. a detector on the surface.
+    density_matter_ocean : int or float, optional
+        Density of PREM's outermost shell, :math:`r > 6368` km
+        [:math:`\text{g cm}^{-3}`].  PREM puts a global-average ocean there,
+        at 1.020; continental rock is about 2.6 and Antarctic ice about 0.92.
+        Pair it with ``electron_fraction_ocean``, which sets the composition
+        of the same shell.  Default: None, i.e. PREM's own ocean.
     magnus_exp_order : int, optional
         Highest order of the Magnus expansion. Default: 4.
     n_jobs : int, optional
@@ -11974,11 +12274,18 @@ def osc_prob_earth(
         loc_fin = earth.coordinates_of_named_location(source_func_name, loc_name=loc_fin)
 
     # Resolve the trajectory: either the chord between two surface locations, or (costhz, L)
+    # Both depths are declared Optional, so None has to mean "no depth".  Normalized here,
+    # where they first arrive, because the three uses below divide by gd.UNIT_KM and a None
+    # would surface as a TypeError rather than this package's descriptive ValueError.
+    source_depth, detector_depth = earth._depths_or_zero(source_depth, detector_depth)
+
     costhz, L = validate_input_osc_prob_earth(source_func_name, loc_ini, loc_fin, costhz, L,
-        verbose=verbose)
+        verbose=verbose, source_depth=source_depth, detector_depth=detector_depth)
 
     # Align the slab edges with the crossings of the PREM layer boundaries along the chord
-    t_breakpoints = earth.prem_layer_edges_along_chord(costhz)*gd.UNIT_KM # [eV^{-1}]
+    t_breakpoints = earth.prem_layer_edges_along_chord(
+        costhz, source_depth/gd.UNIT_KM,
+        detector_depth/gd.UNIT_KM)*gd.UNIT_KM # [eV^{-1}]
 
     # A caller may have breakpoints of their own -- a feature in a custom H, say.  These
     # wrappers set t_breakpoints themselves, so an argument of the same name arrived in
@@ -12005,7 +12312,9 @@ def osc_prob_earth(
         costhz, electron_fraction, ratio_number_neutrons_to_protons,
         electron_fraction_core, electron_fraction_mantle,
         electron_fraction_crust, electron_fraction_ocean,
-        source_func_name, num_flavors=None)
+        source_func_name, num_flavors=None,
+        source_depth=source_depth, detector_depth=detector_depth,
+        density_matter_ocean=density_matter_ocean)
     VCC_func = matter.vcc_func_from_rho_func(
         rho_func=rho_func,
         nubar=nubar,
@@ -12017,7 +12326,7 @@ def osc_prob_earth(
     return _osc_prob_with_potential(source_func_name, H_func, VCC_func, energy, L, 0.0, nu_i,
         nu_f, t_breakpoints, magnus_exp_order, n_jobs, integration_method, rtol, atol,
         validate_input, verbose, strategy=strategy, strategy_info=strategy_info,
-        symmetric_over=_earth_chord_symmetry(costhz, L), **kwargs)
+        symmetric_over=_earth_chord_symmetry(costhz, L, source_depth, detector_depth), **kwargs)
 
 
 def _osc_prob_with_potential(
@@ -14522,6 +14831,9 @@ def osc_prob_2nu_earth_nsi(
     electron_fraction_mantle: Optional[Union[int, float]]=None,
     electron_fraction_crust: Optional[Union[int, float]]=None,
     electron_fraction_ocean: Optional[Union[int, float]]=None,
+    source_depth: Optional[Union[int, float]]=0.0,
+    detector_depth: Optional[Union[int, float]]=0.0,
+    density_matter_ocean: Optional[Union[int, float]]=None,
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
@@ -14543,6 +14855,14 @@ def osc_prob_2nu_earth_nsi(
     are not ``None``), then the neutrino travels the chord joining them 
     through the Earth, overriding any given value of costhz given, and 
     using the chord length as the baseline. 
+
+    Both locations lie on the surface.  To put either end of the
+    trajectory underground, give ``costhz`` instead and name
+    ``source_depth``, ``detector_depth``, or both.  ``costhz`` is the
+    zenith angle at the detector, which is the surface angle when the
+    detector is on the surface, so nothing changes for a call that
+    leaves the depths alone.  A buried detector fixes where the
+    trajectory ends, so ``L`` is then computed rather than given.
 
     The initial and final location can be given as a three-entry tuple
     of coordinates in the (degree, minute, second) format.  Alternatively,
@@ -14597,6 +14917,11 @@ def osc_prob_2nu_earth_nsi(
         P
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.1
+       Added ``source_depth``, ``detector_depth`` and ``density_matter_ocean``.
+       Their defaults leave the trajectory and the density profile exactly as
+       they were: both endpoints on the surface, and PREM's own ocean.
 
     Parameters
     ----------
@@ -14691,6 +15016,25 @@ def osc_prob_2nu_earth_nsi(
         hydrogen has :math:`Z/A = 1`).  PREM's ocean is a global average that a
         land-based baseline does not cross; pass
         :data:`magnus.earth.Y_E_CRUST_PREM` for one.
+    source_depth : int or float, optional
+        Depth of the neutrino's entry point below the surface of the Earth
+        [:math:`\text{eV}^{-1}`].  Default: 0.0, i.e. the neutrino enters at
+        the surface, which is the geometry every earlier version assumed.
+    detector_depth : int or float, optional
+        Depth of the detector below the surface of the Earth
+        [:math:`\text{eV}^{-1}`].  The zenith angle ``costhz`` is measured at
+        the detector, so a buried detector also sees downward-going neutrinos
+        (``costhz > 0``) through its overburden.  Naming this fixes where the
+        trajectory ends, so ``L`` must then be left as None and the baseline
+        is computed for you.  Default: 0.0, i.e. a detector on the surface.
+    density_matter_ocean : int or float, optional
+        Density of PREM's outermost shell, :math:`r > 6368` km
+        [:math:`\text{g cm}^{-3}`].  PREM puts a global-average ocean there,
+        at 1.020; continental rock is about 2.6 and Antarctic ice about 0.92.
+        The shell is 3 km thick, so this matters for a trajectory close to
+        horizontal, which can spend its whole length inside it.  Pair it with
+        ``electron_fraction_ocean``, which sets the composition of the same
+        shell.  Default: None, i.e. PREM's own ocean.
     angles : str, optional
         How the mixing angle is stated: ``'sin'`` (default) its sine,
         ``'sin2'`` its sine *squared* -- which is what global fits report --
@@ -14719,13 +15063,20 @@ def osc_prob_2nu_earth_nsi(
     # and using the chord length as the baseline. If only a single location is given, throw an 
     # exception.  If neither of the two locations are given, use the given value of costhz and of 
     # baseline given (could be an array of baselines).
+    # Both depths are declared Optional, so None has to mean "no depth".  Normalized here,
+    # where they first arrive, because the three uses below divide by gd.UNIT_KM and a None
+    # would surface as a TypeError rather than this package's descriptive ValueError.
+    source_depth, detector_depth = earth._depths_or_zero(source_depth, detector_depth)
+
     costhz, L = validate_input_osc_prob_earth(source_func_name, loc_ini, loc_fin, costhz, L,
-        verbose=verbose)
+        verbose=verbose, source_depth=source_depth, detector_depth=detector_depth)
 
     # Align the slab edges with the crossings of the PREM layer boundaries along the chord: the
     # matter density is discontinuous there, and the high-order quadrature of the Magnus kernel
     # converges at its nominal order only if the Hamiltonian is smooth inside each slab.
-    t_breakpoints = earth.prem_layer_edges_along_chord(costhz)*gd.UNIT_KM # [eV^{-1}]
+    t_breakpoints = earth.prem_layer_edges_along_chord(
+        costhz, source_depth/gd.UNIT_KM,
+        detector_depth/gd.UNIT_KM)*gd.UNIT_KM # [eV^{-1}]
 
     # A caller may have breakpoints of their own -- a feature in a custom H, say.  These
     # wrappers set t_breakpoints themselves, so an argument of the same name arrived in
@@ -14761,7 +15112,9 @@ def osc_prob_2nu_earth_nsi(
         costhz, electron_fraction, ratio_number_neutrons_to_protons,
         electron_fraction_core, electron_fraction_mantle,
         electron_fraction_crust, electron_fraction_ocean,
-        source_func_name, num_flavors=2)
+        source_func_name, num_flavors=2,
+        source_depth=source_depth, detector_depth=detector_depth,
+        density_matter_ocean=density_matter_ocean)
 
     return osc_prob_matter_nsi(
         num_flavors=2,
@@ -14773,7 +15126,7 @@ def osc_prob_2nu_earth_nsi(
         # end.  Declared, not detected: see _earth_chord_symmetry.  Returns None -- and
         # so takes the ordinary path -- unless every requested baseline is the whole
         # chord, because a chord is symmetric over no shorter prefix of itself.
-        symmetric_over=_earth_chord_symmetry(costhz, L),
+        symmetric_over=_earth_chord_symmetry(costhz, L, source_depth, detector_depth),
         osc_params={'sth': sth, 'Dm2': Dm2},
         nsi_params={'eps_aa': eps_aa, 'eps_ab': eps_ab},
         L0=0.0,
@@ -14825,6 +15178,9 @@ def osc_prob_3nu_earth_nsi(
     electron_fraction_mantle: Optional[Union[int, float]]=None,
     electron_fraction_crust: Optional[Union[int, float]]=None,
     electron_fraction_ocean: Optional[Union[int, float]]=None,
+    source_depth: Optional[Union[int, float]]=0.0,
+    detector_depth: Optional[Union[int, float]]=0.0,
+    density_matter_ocean: Optional[Union[int, float]]=None,
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
@@ -14846,6 +15202,14 @@ def osc_prob_3nu_earth_nsi(
     are not ``None``), then the neutrino travels the chord joining them 
     through the Earth, overriding any given value of costhz given, and 
     using the chord length as the baseline. 
+
+    Both locations lie on the surface.  To put either end of the
+    trajectory underground, give ``costhz`` instead and name
+    ``source_depth``, ``detector_depth``, or both.  ``costhz`` is the
+    zenith angle at the detector, which is the surface angle when the
+    detector is on the surface, so nothing changes for a call that
+    leaves the depths alone.  A buried detector fixes where the
+    trajectory ends, so ``L`` is then computed rather than given.
 
     The initial and final location can be given as a three-entry tuple
     of coordinates in the (degree, minute, second) format.  Alternatively,
@@ -14899,6 +15263,11 @@ def osc_prob_3nu_earth_nsi(
         P
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.1
+       Added ``source_depth``, ``detector_depth`` and ``density_matter_ocean``.
+       Their defaults leave the trajectory and the density profile exactly as
+       they were: both endpoints on the surface, and PREM's own ocean.
 
     Parameters
     ----------
@@ -15011,6 +15380,25 @@ def osc_prob_3nu_earth_nsi(
         hydrogen has :math:`Z/A = 1`).  PREM's ocean is a global average that a
         land-based baseline does not cross; pass
         :data:`magnus.earth.Y_E_CRUST_PREM` for one.
+    source_depth : int or float, optional
+        Depth of the neutrino's entry point below the surface of the Earth
+        [:math:`\text{eV}^{-1}`].  Default: 0.0, i.e. the neutrino enters at
+        the surface, which is the geometry every earlier version assumed.
+    detector_depth : int or float, optional
+        Depth of the detector below the surface of the Earth
+        [:math:`\text{eV}^{-1}`].  The zenith angle ``costhz`` is measured at
+        the detector, so a buried detector also sees downward-going neutrinos
+        (``costhz > 0``) through its overburden.  Naming this fixes where the
+        trajectory ends, so ``L`` must then be left as None and the baseline
+        is computed for you.  Default: 0.0, i.e. a detector on the surface.
+    density_matter_ocean : int or float, optional
+        Density of PREM's outermost shell, :math:`r > 6368` km
+        [:math:`\text{g cm}^{-3}`].  PREM puts a global-average ocean there,
+        at 1.020; continental rock is about 2.6 and Antarctic ice about 0.92.
+        The shell is 3 km thick, so this matters for a trajectory close to
+        horizontal, which can spend its whole length inside it.  Pair it with
+        ``electron_fraction_ocean``, which sets the composition of the same
+        shell.  Default: None, i.e. PREM's own ocean.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -15040,13 +15428,20 @@ def osc_prob_3nu_earth_nsi(
     # and using the chord length as the baseline. If only a single location is given, throw an 
     # exception.  If neither of the two locations are given, use the given value of costhz and of 
     # baseline given (could be an array of baselines).
+    # Both depths are declared Optional, so None has to mean "no depth".  Normalized here,
+    # where they first arrive, because the three uses below divide by gd.UNIT_KM and a None
+    # would surface as a TypeError rather than this package's descriptive ValueError.
+    source_depth, detector_depth = earth._depths_or_zero(source_depth, detector_depth)
+
     costhz, L = validate_input_osc_prob_earth(source_func_name, loc_ini, loc_fin, costhz, L,
-        verbose=verbose)
+        verbose=verbose, source_depth=source_depth, detector_depth=detector_depth)
 
     # Align the slab edges with the crossings of the PREM layer boundaries along the chord: the
     # matter density is discontinuous there, and the high-order quadrature of the Magnus kernel
     # converges at its nominal order only if the Hamiltonian is smooth inside each slab.
-    t_breakpoints = earth.prem_layer_edges_along_chord(costhz)*gd.UNIT_KM # [eV^{-1}]
+    t_breakpoints = earth.prem_layer_edges_along_chord(
+        costhz, source_depth/gd.UNIT_KM,
+        detector_depth/gd.UNIT_KM)*gd.UNIT_KM # [eV^{-1}]
 
     # A caller may have breakpoints of their own -- a feature in a custom H, say.  These
     # wrappers set t_breakpoints themselves, so an argument of the same name arrived in
@@ -15079,7 +15474,9 @@ def osc_prob_3nu_earth_nsi(
         costhz, electron_fraction, ratio_number_neutrons_to_protons,
         electron_fraction_core, electron_fraction_mantle,
         electron_fraction_crust, electron_fraction_ocean,
-        source_func_name, num_flavors=3)
+        source_func_name, num_flavors=3,
+        source_depth=source_depth, detector_depth=detector_depth,
+        density_matter_ocean=density_matter_ocean)
 
     return osc_prob_matter_nsi(
         num_flavors=3,
@@ -15091,7 +15488,7 @@ def osc_prob_3nu_earth_nsi(
         # end.  Declared, not detected: see _earth_chord_symmetry.  Returns None -- and
         # so takes the ordinary path -- unless every requested baseline is the whole
         # chord, because a chord is symmetric over no shorter prefix of itself.
-        symmetric_over=_earth_chord_symmetry(costhz, L),
+        symmetric_over=_earth_chord_symmetry(costhz, L, source_depth, detector_depth),
         osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 'D21': D21, 'D31': D31},
         nsi_params={'eps_ee': eps_ee, 'eps_em': eps_em, 'eps_et': eps_et, 'eps_mm': eps_mm,
             'eps_mt': eps_mt, 'eps_tt': eps_tt},
@@ -15155,6 +15552,9 @@ def osc_prob_4nu_earth_nsi(
     electron_fraction_mantle: Optional[Union[int, float]]=None,
     electron_fraction_crust: Optional[Union[int, float]]=None,
     electron_fraction_ocean: Optional[Union[int, float]]=None,
+    source_depth: Optional[Union[int, float]]=0.0,
+    detector_depth: Optional[Union[int, float]]=0.0,
+    density_matter_ocean: Optional[Union[int, float]]=None,
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
@@ -15176,6 +15576,14 @@ def osc_prob_4nu_earth_nsi(
     are not ``None``), then the neutrino travels the chord joining them 
     through the Earth, overriding any given value of costhz given, and 
     using the chord length as the baseline. 
+
+    Both locations lie on the surface.  To put either end of the
+    trajectory underground, give ``costhz`` instead and name
+    ``source_depth``, ``detector_depth``, or both.  ``costhz`` is the
+    zenith angle at the detector, which is the surface angle when the
+    detector is on the surface, so nothing changes for a call that
+    leaves the depths alone.  A buried detector fixes where the
+    trajectory ends, so ``L`` is then computed rather than given.
 
     The initial and final location can be given as a three-entry tuple
     of coordinates in the (degree, minute, second) format.  Alternatively,
@@ -15231,6 +15639,11 @@ def osc_prob_4nu_earth_nsi(
         P
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.1
+       Added ``source_depth``, ``detector_depth`` and ``density_matter_ocean``.
+       Their defaults leave the trajectory and the density profile exactly as
+       they were: both endpoints on the surface, and PREM's own ocean.
 
     Parameters
     ----------
@@ -15363,6 +15776,25 @@ def osc_prob_4nu_earth_nsi(
         hydrogen has :math:`Z/A = 1`).  PREM's ocean is a global average that a
         land-based baseline does not cross; pass
         :data:`magnus.earth.Y_E_CRUST_PREM` for one.
+    source_depth : int or float, optional
+        Depth of the neutrino's entry point below the surface of the Earth
+        [:math:`\text{eV}^{-1}`].  Default: 0.0, i.e. the neutrino enters at
+        the surface, which is the geometry every earlier version assumed.
+    detector_depth : int or float, optional
+        Depth of the detector below the surface of the Earth
+        [:math:`\text{eV}^{-1}`].  The zenith angle ``costhz`` is measured at
+        the detector, so a buried detector also sees downward-going neutrinos
+        (``costhz > 0``) through its overburden.  Naming this fixes where the
+        trajectory ends, so ``L`` must then be left as None and the baseline
+        is computed for you.  Default: 0.0, i.e. a detector on the surface.
+    density_matter_ocean : int or float, optional
+        Density of PREM's outermost shell, :math:`r > 6368` km
+        [:math:`\text{g cm}^{-3}`].  PREM puts a global-average ocean there,
+        at 1.020; continental rock is about 2.6 and Antarctic ice about 0.92.
+        The shell is 3 km thick, so this matters for a trajectory close to
+        horizontal, which can spend its whole length inside it.  Pair it with
+        ``electron_fraction_ocean``, which sets the composition of the same
+        shell.  Default: None, i.e. PREM's own ocean.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -15392,13 +15824,20 @@ def osc_prob_4nu_earth_nsi(
     # and using the chord length as the baseline. If only a single location is given, throw an 
     # exception.  If neither of the two locations are given, use the given value of costhz and of 
     # baseline given (could be an array of baselines).
+    # Both depths are declared Optional, so None has to mean "no depth".  Normalized here,
+    # where they first arrive, because the three uses below divide by gd.UNIT_KM and a None
+    # would surface as a TypeError rather than this package's descriptive ValueError.
+    source_depth, detector_depth = earth._depths_or_zero(source_depth, detector_depth)
+
     costhz, L = validate_input_osc_prob_earth(source_func_name, loc_ini, loc_fin, costhz, L,
-        verbose=verbose)
+        verbose=verbose, source_depth=source_depth, detector_depth=detector_depth)
 
     # Align the slab edges with the crossings of the PREM layer boundaries along the chord: the
     # matter density is discontinuous there, and the high-order quadrature of the Magnus kernel
     # converges at its nominal order only if the Hamiltonian is smooth inside each slab.
-    t_breakpoints = earth.prem_layer_edges_along_chord(costhz)*gd.UNIT_KM # [eV^{-1}]
+    t_breakpoints = earth.prem_layer_edges_along_chord(
+        costhz, source_depth/gd.UNIT_KM,
+        detector_depth/gd.UNIT_KM)*gd.UNIT_KM # [eV^{-1}]
 
     # A caller may have breakpoints of their own -- a feature in a custom H, say.  These
     # wrappers set t_breakpoints themselves, so an argument of the same name arrived in
@@ -15431,7 +15870,9 @@ def osc_prob_4nu_earth_nsi(
         costhz, electron_fraction, ratio_number_neutrons_to_protons,
         electron_fraction_core, electron_fraction_mantle,
         electron_fraction_crust, electron_fraction_ocean,
-        source_func_name, num_flavors=4)
+        source_func_name, num_flavors=4,
+        source_depth=source_depth, detector_depth=detector_depth,
+        density_matter_ocean=density_matter_ocean)
 
     return osc_prob_matter_nsi(
         num_flavors=4,
@@ -15443,7 +15884,7 @@ def osc_prob_4nu_earth_nsi(
         # end.  Declared, not detected: see _earth_chord_symmetry.  Returns None -- and
         # so takes the ordinary path -- unless every requested baseline is the whole
         # chord, because a chord is symmetric over no shorter prefix of itself.
-        symmetric_over=_earth_chord_symmetry(costhz, L),
+        symmetric_over=_earth_chord_symmetry(costhz, L, source_depth, detector_depth),
         osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 's14': s14, 'd14': d14, 
             's24': s24, 'd24': d24, 's34': s34, 'D21': D21, 'D31': D31, 'D41': D41},
         nsi_params={'eps_ee': eps_ee, 'eps_em': eps_em, 'eps_et': eps_et, 'eps_es': eps_es, 
@@ -15520,6 +15961,9 @@ def osc_prob_5nu_earth_nsi(
     electron_fraction_mantle: Optional[Union[int, float]]=None,
     electron_fraction_crust: Optional[Union[int, float]]=None,
     electron_fraction_ocean: Optional[Union[int, float]]=None,
+    source_depth: Optional[Union[int, float]]=0.0,
+    detector_depth: Optional[Union[int, float]]=0.0,
+    density_matter_ocean: Optional[Union[int, float]]=None,
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
@@ -15541,6 +15985,14 @@ def osc_prob_5nu_earth_nsi(
     are not ``None``), then the neutrino travels the chord joining them 
     through the Earth, overriding any given value of costhz given, and 
     using the chord length as the baseline. 
+
+    Both locations lie on the surface.  To put either end of the
+    trajectory underground, give ``costhz`` instead and name
+    ``source_depth``, ``detector_depth``, or both.  ``costhz`` is the
+    zenith angle at the detector, which is the surface angle when the
+    detector is on the surface, so nothing changes for a call that
+    leaves the depths alone.  A buried detector fixes where the
+    trajectory ends, so ``L`` is then computed rather than given.
 
     The initial and final location can be given as a three-entry tuple
     of coordinates in the (degree, minute, second) format.  Alternatively,
@@ -15599,6 +16051,11 @@ def osc_prob_5nu_earth_nsi(
         P
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.1
+       Added ``source_depth``, ``detector_depth`` and ``density_matter_ocean``.
+       Their defaults leave the trajectory and the density profile exactly as
+       they were: both endpoints on the surface, and PREM's own ocean.
 
     Parameters
     ----------
@@ -15753,6 +16210,25 @@ def osc_prob_5nu_earth_nsi(
         hydrogen has :math:`Z/A = 1`).  PREM's ocean is a global average that a
         land-based baseline does not cross; pass
         :data:`magnus.earth.Y_E_CRUST_PREM` for one.
+    source_depth : int or float, optional
+        Depth of the neutrino's entry point below the surface of the Earth
+        [:math:`\text{eV}^{-1}`].  Default: 0.0, i.e. the neutrino enters at
+        the surface, which is the geometry every earlier version assumed.
+    detector_depth : int or float, optional
+        Depth of the detector below the surface of the Earth
+        [:math:`\text{eV}^{-1}`].  The zenith angle ``costhz`` is measured at
+        the detector, so a buried detector also sees downward-going neutrinos
+        (``costhz > 0``) through its overburden.  Naming this fixes where the
+        trajectory ends, so ``L`` must then be left as None and the baseline
+        is computed for you.  Default: 0.0, i.e. a detector on the surface.
+    density_matter_ocean : int or float, optional
+        Density of PREM's outermost shell, :math:`r > 6368` km
+        [:math:`\text{g cm}^{-3}`].  PREM puts a global-average ocean there,
+        at 1.020; continental rock is about 2.6 and Antarctic ice about 0.92.
+        The shell is 3 km thick, so this matters for a trajectory close to
+        horizontal, which can spend its whole length inside it.  Pair it with
+        ``electron_fraction_ocean``, which sets the composition of the same
+        shell.  Default: None, i.e. PREM's own ocean.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -15782,13 +16258,20 @@ def osc_prob_5nu_earth_nsi(
     # and using the chord length as the baseline. If only a single location is given, throw an 
     # exception.  If neither of the two locations are given, use the given value of costhz and of 
     # baseline given (could be an array of baselines).
+    # Both depths are declared Optional, so None has to mean "no depth".  Normalized here,
+    # where they first arrive, because the three uses below divide by gd.UNIT_KM and a None
+    # would surface as a TypeError rather than this package's descriptive ValueError.
+    source_depth, detector_depth = earth._depths_or_zero(source_depth, detector_depth)
+
     costhz, L = validate_input_osc_prob_earth(source_func_name, loc_ini, loc_fin, costhz, L,
-        verbose=verbose)
+        verbose=verbose, source_depth=source_depth, detector_depth=detector_depth)
 
     # Align the slab edges with the crossings of the PREM layer boundaries along the chord: the
     # matter density is discontinuous there, and the high-order quadrature of the Magnus kernel
     # converges at its nominal order only if the Hamiltonian is smooth inside each slab.
-    t_breakpoints = earth.prem_layer_edges_along_chord(costhz)*gd.UNIT_KM # [eV^{-1}]
+    t_breakpoints = earth.prem_layer_edges_along_chord(
+        costhz, source_depth/gd.UNIT_KM,
+        detector_depth/gd.UNIT_KM)*gd.UNIT_KM # [eV^{-1}]
 
     # A caller may have breakpoints of their own -- a feature in a custom H, say.  These
     # wrappers set t_breakpoints themselves, so an argument of the same name arrived in
@@ -15821,7 +16304,9 @@ def osc_prob_5nu_earth_nsi(
         costhz, electron_fraction, ratio_number_neutrons_to_protons,
         electron_fraction_core, electron_fraction_mantle,
         electron_fraction_crust, electron_fraction_ocean,
-        source_func_name, num_flavors=5)
+        source_func_name, num_flavors=5,
+        source_depth=source_depth, detector_depth=detector_depth,
+        density_matter_ocean=density_matter_ocean)
 
     return osc_prob_matter_nsi(
         num_flavors=5,
@@ -15833,7 +16318,7 @@ def osc_prob_5nu_earth_nsi(
         # end.  Declared, not detected: see _earth_chord_symmetry.  Returns None -- and
         # so takes the ordinary path -- unless every requested baseline is the whole
         # chord, because a chord is symmetric over no shorter prefix of itself.
-        symmetric_over=_earth_chord_symmetry(costhz, L),
+        symmetric_over=_earth_chord_symmetry(costhz, L, source_depth, detector_depth),
         osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 's14': s14, 'd14': d14, 
             's15': s15, 'd15': d15, 's24': s24, 'd24': d24, 's25': s25, 's34': s34, 's35': s35, 
             'd35': d35, 'D21': D21, 'D31': D31, 'D41': D41, 'D51': D51},
@@ -18853,6 +19338,9 @@ def osc_prob_2nu_earth_liv(
     electron_fraction_mantle: Optional[Union[int, float]]=None,
     electron_fraction_crust: Optional[Union[int, float]]=None,
     electron_fraction_ocean: Optional[Union[int, float]]=None,
+    source_depth: Optional[Union[int, float]]=0.0,
+    detector_depth: Optional[Union[int, float]]=0.0,
+    density_matter_ocean: Optional[Union[int, float]]=None,
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
@@ -18874,6 +19362,14 @@ def osc_prob_2nu_earth_liv(
     are not ``None``), then the neutrino travels the chord joining them 
     through the Earth, overriding any given value of costhz given, and 
     using the chord length as the baseline. 
+
+    Both locations lie on the surface.  To put either end of the
+    trajectory underground, give ``costhz`` instead and name
+    ``source_depth``, ``detector_depth``, or both.  ``costhz`` is the
+    zenith angle at the detector, which is the surface angle when the
+    detector is on the surface, so nothing changes for a call that
+    leaves the depths alone.  A buried detector fixes where the
+    trajectory ends, so ``L`` is then computed rather than given.
 
     The initial and final location can be given as a three-entry tuple
     of coordinates in the (degree, minute, second) format.  Alternatively,
@@ -18928,6 +19424,11 @@ def osc_prob_2nu_earth_liv(
         P
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.1
+       Added ``source_depth``, ``detector_depth`` and ``density_matter_ocean``.
+       Their defaults leave the trajectory and the density profile exactly as
+       they were: both endpoints on the surface, and PREM's own ocean.
 
     Parameters
     ----------
@@ -19028,6 +19529,25 @@ def osc_prob_2nu_earth_liv(
         hydrogen has :math:`Z/A = 1`).  PREM's ocean is a global average that a
         land-based baseline does not cross; pass
         :data:`magnus.earth.Y_E_CRUST_PREM` for one.
+    source_depth : int or float, optional
+        Depth of the neutrino's entry point below the surface of the Earth
+        [:math:`\text{eV}^{-1}`].  Default: 0.0, i.e. the neutrino enters at
+        the surface, which is the geometry every earlier version assumed.
+    detector_depth : int or float, optional
+        Depth of the detector below the surface of the Earth
+        [:math:`\text{eV}^{-1}`].  The zenith angle ``costhz`` is measured at
+        the detector, so a buried detector also sees downward-going neutrinos
+        (``costhz > 0``) through its overburden.  Naming this fixes where the
+        trajectory ends, so ``L`` must then be left as None and the baseline
+        is computed for you.  Default: 0.0, i.e. a detector on the surface.
+    density_matter_ocean : int or float, optional
+        Density of PREM's outermost shell, :math:`r > 6368` km
+        [:math:`\text{g cm}^{-3}`].  PREM puts a global-average ocean there,
+        at 1.020; continental rock is about 2.6 and Antarctic ice about 0.92.
+        The shell is 3 km thick, so this matters for a trajectory close to
+        horizontal, which can spend its whole length inside it.  Pair it with
+        ``electron_fraction_ocean``, which sets the composition of the same
+        shell.  Default: None, i.e. PREM's own ocean.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines,
         ``'sin2'`` their sines *squared* -- which is what global fits report --
@@ -19056,13 +19576,20 @@ def osc_prob_2nu_earth_liv(
     # and using the chord length as the baseline. If only a single location is given, throw an 
     # exception.  If neither of the two locations are given, use the given value of costhz and of 
     # baseline given (could be an array of baselines).
+    # Both depths are declared Optional, so None has to mean "no depth".  Normalized here,
+    # where they first arrive, because the three uses below divide by gd.UNIT_KM and a None
+    # would surface as a TypeError rather than this package's descriptive ValueError.
+    source_depth, detector_depth = earth._depths_or_zero(source_depth, detector_depth)
+
     costhz, L = validate_input_osc_prob_earth(source_func_name, loc_ini, loc_fin, costhz, L,
-        verbose=verbose)
+        verbose=verbose, source_depth=source_depth, detector_depth=detector_depth)
 
     # Align the slab edges with the crossings of the PREM layer boundaries along the chord: the
     # matter density is discontinuous there, and the high-order quadrature of the Magnus kernel
     # converges at its nominal order only if the Hamiltonian is smooth inside each slab.
-    t_breakpoints = earth.prem_layer_edges_along_chord(costhz)*gd.UNIT_KM # [eV^{-1}]
+    t_breakpoints = earth.prem_layer_edges_along_chord(
+        costhz, source_depth/gd.UNIT_KM,
+        detector_depth/gd.UNIT_KM)*gd.UNIT_KM # [eV^{-1}]
 
     # A caller may have breakpoints of their own -- a feature in a custom H, say.  These
     # wrappers set t_breakpoints themselves, so an argument of the same name arrived in
@@ -19098,7 +19625,9 @@ def osc_prob_2nu_earth_liv(
         costhz, electron_fraction, ratio_number_neutrons_to_protons,
         electron_fraction_core, electron_fraction_mantle,
         electron_fraction_crust, electron_fraction_ocean,
-        source_func_name, num_flavors=2)
+        source_func_name, num_flavors=2,
+        source_depth=source_depth, detector_depth=detector_depth,
+        density_matter_ocean=density_matter_ocean)
 
     return osc_prob_liv(
         num_flavors=2,
@@ -19110,7 +19639,7 @@ def osc_prob_2nu_earth_liv(
         # end.  Declared, not detected: see _earth_chord_symmetry.  Returns None -- and
         # so takes the ordinary path -- unless every requested baseline is the whole
         # chord, because a chord is symmetric over no shorter prefix of itself.
-        symmetric_over=_earth_chord_symmetry(costhz, L),
+        symmetric_over=_earth_chord_symmetry(costhz, L, source_depth, detector_depth),
         osc_params={'sth': sth, 'Dm2': Dm2},
         liv_params={'sxi': sxi, 'b1': b1, 'b2': b2, 'Lambda': Lambda, 'n_liv': n_liv},
         L0=0.0,
@@ -19165,6 +19694,9 @@ def osc_prob_3nu_earth_liv(
     electron_fraction_mantle: Optional[Union[int, float]]=None,
     electron_fraction_crust: Optional[Union[int, float]]=None,
     electron_fraction_ocean: Optional[Union[int, float]]=None,
+    source_depth: Optional[Union[int, float]]=0.0,
+    detector_depth: Optional[Union[int, float]]=0.0,
+    density_matter_ocean: Optional[Union[int, float]]=None,
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
@@ -19186,6 +19718,14 @@ def osc_prob_3nu_earth_liv(
     are not ``None``), then the neutrino travels the chord joining them 
     through the Earth, overriding any given value of costhz given, and 
     using the chord length as the baseline. 
+
+    Both locations lie on the surface.  To put either end of the
+    trajectory underground, give ``costhz`` instead and name
+    ``source_depth``, ``detector_depth``, or both.  ``costhz`` is the
+    zenith angle at the detector, which is the surface angle when the
+    detector is on the surface, so nothing changes for a call that
+    leaves the depths alone.  A buried detector fixes where the
+    trajectory ends, so ``L`` is then computed rather than given.
 
     The initial and final location can be given as a three-entry tuple
     of coordinates in the (degree, minute, second) format.  Alternatively,
@@ -19241,6 +19781,11 @@ def osc_prob_3nu_earth_liv(
         P
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.1
+       Added ``source_depth``, ``detector_depth`` and ``density_matter_ocean``.
+       Their defaults leave the trajectory and the density profile exactly as
+       they were: both endpoints on the surface, and PREM's own ocean.
 
     Parameters
     ----------
@@ -19359,6 +19904,25 @@ def osc_prob_3nu_earth_liv(
         hydrogen has :math:`Z/A = 1`).  PREM's ocean is a global average that a
         land-based baseline does not cross; pass
         :data:`magnus.earth.Y_E_CRUST_PREM` for one.
+    source_depth : int or float, optional
+        Depth of the neutrino's entry point below the surface of the Earth
+        [:math:`\text{eV}^{-1}`].  Default: 0.0, i.e. the neutrino enters at
+        the surface, which is the geometry every earlier version assumed.
+    detector_depth : int or float, optional
+        Depth of the detector below the surface of the Earth
+        [:math:`\text{eV}^{-1}`].  The zenith angle ``costhz`` is measured at
+        the detector, so a buried detector also sees downward-going neutrinos
+        (``costhz > 0``) through its overburden.  Naming this fixes where the
+        trajectory ends, so ``L`` must then be left as None and the baseline
+        is computed for you.  Default: 0.0, i.e. a detector on the surface.
+    density_matter_ocean : int or float, optional
+        Density of PREM's outermost shell, :math:`r > 6368` km
+        [:math:`\text{g cm}^{-3}`].  PREM puts a global-average ocean there,
+        at 1.020; continental rock is about 2.6 and Antarctic ice about 0.92.
+        The shell is 3 km thick, so this matters for a trajectory close to
+        horizontal, which can spend its whole length inside it.  Pair it with
+        ``electron_fraction_ocean``, which sets the composition of the same
+        shell.  Default: None, i.e. PREM's own ocean.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -19388,13 +19952,20 @@ def osc_prob_3nu_earth_liv(
     # and using the chord length as the baseline. If only a single location is given, throw an 
     # exception.  If neither of the two locations are given, use the given value of costhz and of 
     # baseline given (could be an array of baselines).
+    # Both depths are declared Optional, so None has to mean "no depth".  Normalized here,
+    # where they first arrive, because the three uses below divide by gd.UNIT_KM and a None
+    # would surface as a TypeError rather than this package's descriptive ValueError.
+    source_depth, detector_depth = earth._depths_or_zero(source_depth, detector_depth)
+
     costhz, L = validate_input_osc_prob_earth(source_func_name, loc_ini, loc_fin, costhz, L,
-        verbose=verbose)
+        verbose=verbose, source_depth=source_depth, detector_depth=detector_depth)
 
     # Align the slab edges with the crossings of the PREM layer boundaries along the chord: the
     # matter density is discontinuous there, and the high-order quadrature of the Magnus kernel
     # converges at its nominal order only if the Hamiltonian is smooth inside each slab.
-    t_breakpoints = earth.prem_layer_edges_along_chord(costhz)*gd.UNIT_KM # [eV^{-1}]
+    t_breakpoints = earth.prem_layer_edges_along_chord(
+        costhz, source_depth/gd.UNIT_KM,
+        detector_depth/gd.UNIT_KM)*gd.UNIT_KM # [eV^{-1}]
 
     # A caller may have breakpoints of their own -- a feature in a custom H, say.  These
     # wrappers set t_breakpoints themselves, so an argument of the same name arrived in
@@ -19427,7 +19998,9 @@ def osc_prob_3nu_earth_liv(
         costhz, electron_fraction, ratio_number_neutrons_to_protons,
         electron_fraction_core, electron_fraction_mantle,
         electron_fraction_crust, electron_fraction_ocean,
-        source_func_name, num_flavors=3)
+        source_func_name, num_flavors=3,
+        source_depth=source_depth, detector_depth=detector_depth,
+        density_matter_ocean=density_matter_ocean)
 
     return osc_prob_liv(
         num_flavors=3,
@@ -19439,7 +20012,7 @@ def osc_prob_3nu_earth_liv(
         # end.  Declared, not detected: see _earth_chord_symmetry.  Returns None -- and
         # so takes the ordinary path -- unless every requested baseline is the whole
         # chord, because a chord is symmetric over no shorter prefix of itself.
-        symmetric_over=_earth_chord_symmetry(costhz, L),
+        symmetric_over=_earth_chord_symmetry(costhz, L, source_depth, detector_depth),
         osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 'D21': D21, 'D31': D31},
         liv_params={'sxi12': sxi12, 'sxi23': sxi23, 'sxi13': sxi13, 'dxiCP': dxiCP, 'b1': b1, 
             'b2': b2, 'b3': b3, 'Lambda': Lambda, 'n_liv': n_liv},
@@ -19508,6 +20081,9 @@ def osc_prob_4nu_earth_liv(
     electron_fraction_mantle: Optional[Union[int, float]]=None,
     electron_fraction_crust: Optional[Union[int, float]]=None,
     electron_fraction_ocean: Optional[Union[int, float]]=None,
+    source_depth: Optional[Union[int, float]]=0.0,
+    detector_depth: Optional[Union[int, float]]=0.0,
+    density_matter_ocean: Optional[Union[int, float]]=None,
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
@@ -19529,6 +20105,14 @@ def osc_prob_4nu_earth_liv(
     are not ``None``), then the neutrino travels the chord joining them 
     through the Earth, overriding any given value of costhz given, and 
     using the chord length as the baseline. 
+
+    Both locations lie on the surface.  To put either end of the
+    trajectory underground, give ``costhz`` instead and name
+    ``source_depth``, ``detector_depth``, or both.  ``costhz`` is the
+    zenith angle at the detector, which is the surface angle when the
+    detector is on the surface, so nothing changes for a call that
+    leaves the depths alone.  A buried detector fixes where the
+    trajectory ends, so ``L`` is then computed rather than given.
 
     The initial and final location can be given as a three-entry tuple
     of coordinates in the (degree, minute, second) format.  Alternatively,
@@ -19584,6 +20168,11 @@ def osc_prob_4nu_earth_liv(
         P
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.1
+       Added ``source_depth``, ``detector_depth`` and ``density_matter_ocean``.
+       Their defaults leave the trajectory and the density profile exactly as
+       they were: both endpoints on the surface, and PREM's own ocean.
 
     Parameters
     ----------
@@ -19726,6 +20315,25 @@ def osc_prob_4nu_earth_liv(
         hydrogen has :math:`Z/A = 1`).  PREM's ocean is a global average that a
         land-based baseline does not cross; pass
         :data:`magnus.earth.Y_E_CRUST_PREM` for one.
+    source_depth : int or float, optional
+        Depth of the neutrino's entry point below the surface of the Earth
+        [:math:`\text{eV}^{-1}`].  Default: 0.0, i.e. the neutrino enters at
+        the surface, which is the geometry every earlier version assumed.
+    detector_depth : int or float, optional
+        Depth of the detector below the surface of the Earth
+        [:math:`\text{eV}^{-1}`].  The zenith angle ``costhz`` is measured at
+        the detector, so a buried detector also sees downward-going neutrinos
+        (``costhz > 0``) through its overburden.  Naming this fixes where the
+        trajectory ends, so ``L`` must then be left as None and the baseline
+        is computed for you.  Default: 0.0, i.e. a detector on the surface.
+    density_matter_ocean : int or float, optional
+        Density of PREM's outermost shell, :math:`r > 6368` km
+        [:math:`\text{g cm}^{-3}`].  PREM puts a global-average ocean there,
+        at 1.020; continental rock is about 2.6 and Antarctic ice about 0.92.
+        The shell is 3 km thick, so this matters for a trajectory close to
+        horizontal, which can spend its whole length inside it.  Pair it with
+        ``electron_fraction_ocean``, which sets the composition of the same
+        shell.  Default: None, i.e. PREM's own ocean.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -19755,13 +20363,20 @@ def osc_prob_4nu_earth_liv(
     # and using the chord length as the baseline. If only a single location is given, throw an 
     # exception.  If neither of the two locations are given, use the given value of costhz and of 
     # baseline given (could be an array of baselines).
+    # Both depths are declared Optional, so None has to mean "no depth".  Normalized here,
+    # where they first arrive, because the three uses below divide by gd.UNIT_KM and a None
+    # would surface as a TypeError rather than this package's descriptive ValueError.
+    source_depth, detector_depth = earth._depths_or_zero(source_depth, detector_depth)
+
     costhz, L = validate_input_osc_prob_earth(source_func_name, loc_ini, loc_fin, costhz, L,
-        verbose=verbose)
+        verbose=verbose, source_depth=source_depth, detector_depth=detector_depth)
 
     # Align the slab edges with the crossings of the PREM layer boundaries along the chord: the
     # matter density is discontinuous there, and the high-order quadrature of the Magnus kernel
     # converges at its nominal order only if the Hamiltonian is smooth inside each slab.
-    t_breakpoints = earth.prem_layer_edges_along_chord(costhz)*gd.UNIT_KM # [eV^{-1}]
+    t_breakpoints = earth.prem_layer_edges_along_chord(
+        costhz, source_depth/gd.UNIT_KM,
+        detector_depth/gd.UNIT_KM)*gd.UNIT_KM # [eV^{-1}]
 
     # A caller may have breakpoints of their own -- a feature in a custom H, say.  These
     # wrappers set t_breakpoints themselves, so an argument of the same name arrived in
@@ -19794,7 +20409,9 @@ def osc_prob_4nu_earth_liv(
         costhz, electron_fraction, ratio_number_neutrons_to_protons,
         electron_fraction_core, electron_fraction_mantle,
         electron_fraction_crust, electron_fraction_ocean,
-        source_func_name, num_flavors=4)
+        source_func_name, num_flavors=4,
+        source_depth=source_depth, detector_depth=detector_depth,
+        density_matter_ocean=density_matter_ocean)
 
     return osc_prob_liv(
         num_flavors=4,
@@ -19806,7 +20423,7 @@ def osc_prob_4nu_earth_liv(
         # end.  Declared, not detected: see _earth_chord_symmetry.  Returns None -- and
         # so takes the ordinary path -- unless every requested baseline is the whole
         # chord, because a chord is symmetric over no shorter prefix of itself.
-        symmetric_over=_earth_chord_symmetry(costhz, L),
+        symmetric_over=_earth_chord_symmetry(costhz, L, source_depth, detector_depth),
         osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 's14': s14, 'd14': d14, 
             's24': s24, 'd24': d24, 's34': s34, 'D21': D21, 'D31': D31, 'D41': D41},
         liv_params={'sxi12': sxi12, 'sxi23': sxi23, 'sxi13': sxi13, 'dxi13': dxi13, 'sxi14': sxi14,
@@ -19889,6 +20506,9 @@ def osc_prob_5nu_earth_liv(
     electron_fraction_mantle: Optional[Union[int, float]]=None,
     electron_fraction_crust: Optional[Union[int, float]]=None,
     electron_fraction_ocean: Optional[Union[int, float]]=None,
+    source_depth: Optional[Union[int, float]]=0.0,
+    detector_depth: Optional[Union[int, float]]=0.0,
+    density_matter_ocean: Optional[Union[int, float]]=None,
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
@@ -19910,6 +20530,14 @@ def osc_prob_5nu_earth_liv(
     are not ``None``), then the neutrino travels the chord joining them 
     through the Earth, overriding any given value of costhz given, and 
     using the chord length as the baseline. 
+
+    Both locations lie on the surface.  To put either end of the
+    trajectory underground, give ``costhz`` instead and name
+    ``source_depth``, ``detector_depth``, or both.  ``costhz`` is the
+    zenith angle at the detector, which is the surface angle when the
+    detector is on the surface, so nothing changes for a call that
+    leaves the depths alone.  A buried detector fixes where the
+    trajectory ends, so ``L`` is then computed rather than given.
 
     The initial and final location can be given as a three-entry tuple
     of coordinates in the (degree, minute, second) format.  Alternatively,
@@ -19966,6 +20594,11 @@ def osc_prob_5nu_earth_liv(
         P
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.1
+       Added ``source_depth``, ``detector_depth`` and ``density_matter_ocean``.
+       Their defaults leave the trajectory and the density profile exactly as
+       they were: both endpoints on the surface, and PREM's own ocean.
 
     Parameters
     ----------
@@ -20132,6 +20765,25 @@ def osc_prob_5nu_earth_liv(
         hydrogen has :math:`Z/A = 1`).  PREM's ocean is a global average that a
         land-based baseline does not cross; pass
         :data:`magnus.earth.Y_E_CRUST_PREM` for one.
+    source_depth : int or float, optional
+        Depth of the neutrino's entry point below the surface of the Earth
+        [:math:`\text{eV}^{-1}`].  Default: 0.0, i.e. the neutrino enters at
+        the surface, which is the geometry every earlier version assumed.
+    detector_depth : int or float, optional
+        Depth of the detector below the surface of the Earth
+        [:math:`\text{eV}^{-1}`].  The zenith angle ``costhz`` is measured at
+        the detector, so a buried detector also sees downward-going neutrinos
+        (``costhz > 0``) through its overburden.  Naming this fixes where the
+        trajectory ends, so ``L`` must then be left as None and the baseline
+        is computed for you.  Default: 0.0, i.e. a detector on the surface.
+    density_matter_ocean : int or float, optional
+        Density of PREM's outermost shell, :math:`r > 6368` km
+        [:math:`\text{g cm}^{-3}`].  PREM puts a global-average ocean there,
+        at 1.020; continental rock is about 2.6 and Antarctic ice about 0.92.
+        The shell is 3 km thick, so this matters for a trajectory close to
+        horizontal, which can spend its whole length inside it.  Pair it with
+        ``electron_fraction_ocean``, which sets the composition of the same
+        shell.  Default: None, i.e. PREM's own ocean.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -20161,13 +20813,20 @@ def osc_prob_5nu_earth_liv(
     # and using the chord length as the baseline. If only a single location is given, throw an 
     # exception.  If neither of the two locations are given, use the given value of costhz and of 
     # baseline given (could be an array of baselines).
+    # Both depths are declared Optional, so None has to mean "no depth".  Normalized here,
+    # where they first arrive, because the three uses below divide by gd.UNIT_KM and a None
+    # would surface as a TypeError rather than this package's descriptive ValueError.
+    source_depth, detector_depth = earth._depths_or_zero(source_depth, detector_depth)
+
     costhz, L = validate_input_osc_prob_earth(source_func_name, loc_ini, loc_fin, costhz, L,
-        verbose=verbose)
+        verbose=verbose, source_depth=source_depth, detector_depth=detector_depth)
 
     # Align the slab edges with the crossings of the PREM layer boundaries along the chord: the
     # matter density is discontinuous there, and the high-order quadrature of the Magnus kernel
     # converges at its nominal order only if the Hamiltonian is smooth inside each slab.
-    t_breakpoints = earth.prem_layer_edges_along_chord(costhz)*gd.UNIT_KM # [eV^{-1}]
+    t_breakpoints = earth.prem_layer_edges_along_chord(
+        costhz, source_depth/gd.UNIT_KM,
+        detector_depth/gd.UNIT_KM)*gd.UNIT_KM # [eV^{-1}]
 
     # A caller may have breakpoints of their own -- a feature in a custom H, say.  These
     # wrappers set t_breakpoints themselves, so an argument of the same name arrived in
@@ -20200,7 +20859,9 @@ def osc_prob_5nu_earth_liv(
         costhz, electron_fraction, ratio_number_neutrons_to_protons,
         electron_fraction_core, electron_fraction_mantle,
         electron_fraction_crust, electron_fraction_ocean,
-        source_func_name, num_flavors=5)
+        source_func_name, num_flavors=5,
+        source_depth=source_depth, detector_depth=detector_depth,
+        density_matter_ocean=density_matter_ocean)
 
     return osc_prob_liv(
         num_flavors=5,
@@ -20212,7 +20873,7 @@ def osc_prob_5nu_earth_liv(
         # end.  Declared, not detected: see _earth_chord_symmetry.  Returns None -- and
         # so takes the ordinary path -- unless every requested baseline is the whole
         # chord, because a chord is symmetric over no shorter prefix of itself.
-        symmetric_over=_earth_chord_symmetry(costhz, L),
+        symmetric_over=_earth_chord_symmetry(costhz, L, source_depth, detector_depth),
         osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 's14': s14, 'd14': d14, 
             's15': s15, 'd15': d15, 's24': s24, 'd24': d24, 's25': s25, 's34': s34, 's35': s35, 
             'd35': d35, 'D21': D21, 'D31': D31, 'D41': D41, 'D51': D51},
