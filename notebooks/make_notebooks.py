@@ -15258,6 +15258,91 @@ print('  reference peaks at %.1f MeV, P = %.4f' % (CAV_E_STAT, CAV_P0.max()))
 print('  largest shift per cavity: %s'
       % ', '.join('%+.3f' % d[np.abs(d).argmax()] for d in CAV_DP))
 save(fig, 'cavity.pdf')'''),
+    md(r'''## Figure 4d --- the beam swept across a buried body
+
+The reorientation of arXiv:1201.6080. The source and the baseline are held fixed and the
+beam is turned through an angle $\alpha$, so the chord cuts a different slice of the same
+body at every angle. The body here is a sphere, so the width the beam crosses traces a
+semicircle in $\alpha$, and the map is that silhouette projected onto the energy--angle
+plane. Outside the silhouette the beam misses the body and the change is exactly zero,
+which is the one part of the map that needs no calculation at all.'''),
+    code(r'''# ----------------------------------------- the beam swept across a buried body
+# Hold the source and the 1500 km baseline of the cell above, turn the beam through an
+# angle alpha, and let the chord cut a different slice of one buried body.  The body is a
+# sphere, so the crossed width traces its silhouette; the map is that silhouette in the
+# energy-angle plane.  Where the beam misses, the change is exactly zero by construction.
+SWEEP_R, SWEEP_D0 = 125.0, 750.0        # km: the body's radius, and how far along
+SWEEP_RHO, SWEEP_YE = 10.0, 0.5         # a heavy mineral deposit
+SWEEP_E = np.linspace(25.0, 150.0, 400)*gd.UNIT_MEV
+SWEEP_ALPHA = np.linspace(-15.0, 15.0, 220)
+SWEEP_NE = cav_ne(SWEEP_RHO, SWEEP_YE)
+
+
+def sweep_crossing(alpha_deg):
+    """Where the beam at this angle enters and leaves the body, in km along the chord."""
+    a = np.radians(alpha_deg)
+    miss = abs(SWEEP_D0*np.sin(a))
+    if miss >= SWEEP_R:
+        return None
+    half = np.sqrt(SWEEP_R**2 - miss**2)
+    mid = SWEEP_D0*np.cos(a)
+    return mid - half, mid + half
+
+
+SWEEP_P0 = np.asarray(quiet(oscprob.osc_prob_matter_std_potential, 3, NE_CRUST, SWEEP_E,
+                            CAV_L0*gd.UNIT_KM, **CAV_KW))
+SWEEP_DP = np.zeros((len(SWEEP_E), len(SWEEP_ALPHA)))
+for sweep_j, sweep_a in enumerate(SWEEP_ALPHA):
+    sweep_seg = sweep_crossing(sweep_a)
+    if sweep_seg is None:
+        continue
+
+    def sweep_profile(l, lo=sweep_seg[0], hi=sweep_seg[1]):
+        x = np.asarray(l, dtype=float)/gd.UNIT_KM
+        return NE_CRUST + (SWEEP_NE - NE_CRUST)*((x >= lo) & (x <= hi))
+
+    SWEEP_DP[:, sweep_j] = np.asarray(quiet(
+        oscprob.osc_prob_matter_std_potential, 3, sweep_profile, SWEEP_E,
+        CAV_L0*gd.UNIT_KM, t_breakpoints=np.array(sweep_seg)*gd.UNIT_KM,
+        **CAV_KW)) - SWEEP_P0
+
+SWEEP_LIM = max(abs(SWEEP_DP.min()), abs(SWEEP_DP.max()))
+SWEEP_A_MAX = np.degrees(np.arcsin(SWEEP_R/SWEEP_D0))
+# The silhouette itself: how much body the beam crosses at each angle.  The map's
+# envelope in alpha is this curve, which is what the projection means here.
+SWEEP_AF = np.linspace(-SWEEP_A_MAX, SWEEP_A_MAX, 400)
+SWEEP_WF = 2.0*np.sqrt(np.maximum(
+    SWEEP_R**2 - (SWEEP_D0*np.sin(np.radians(SWEEP_AF)))**2, 0.0))
+
+fig, (axw, ax) = plt.subplots(1, 2, figsize=(COL, 2.75), sharey=True,
+                              gridspec_kw=dict(width_ratios=[1.0, 3.0]))
+axw.fill_betweenx(SWEEP_AF, 0.0, SWEEP_WF, facecolor=BLUE, alpha=0.20, lw=0.0)
+axw.plot(SWEEP_WF, SWEEP_AF, color=BLUE, lw=1.0)
+axw.set_xlim(0.0, 300.0); axw.set_xticks([0, 250])
+axw.set_xlabel(r'$w$ [km]', labelpad=2.0)
+axw.set_ylabel(r'Beam angle, $\alpha$ [deg]', labelpad=2.0)
+im = ax.pcolormesh(SWEEP_E/gd.UNIT_MEV, SWEEP_ALPHA, SWEEP_DP.T, cmap='RdBu_r',
+                   vmin=-SWEEP_LIM, vmax=SWEEP_LIM, shading='gouraud', rasterized=True)
+ax.set_xlabel(r'Antineutrino energy, $E$ [MeV]', labelpad=2.0)
+# The stationary point of the cell above: the crust curve peaks there, so no density
+# contrast moves the probability at first order and the map changes sign across it.
+ax.axvline(float(SWEEP_E[SWEEP_P0.argmax()]/gd.UNIT_MEV), color='black', lw=0.7,
+           ls=(0, (3, 2)), zorder=4)
+corner(ax, r'$10$~g~cm$^{-3}$, $R = 125$~km', loc='lower left', fontsize=6.5,
+       x=0.035, y=0.04)
+for sweep_ax in (axw, ax):
+    for sweep_s in (-1.0, 1.0):
+        sweep_ax.axhline(sweep_s*SWEEP_A_MAX, color='black', lw=0.7, ls=(0, (3, 2)),
+                         zorder=4)
+ax.set_ylim(SWEEP_ALPHA[0], SWEEP_ALPHA[-1])
+cb = fig.colorbar(im, ax=ax, pad=0.025, aspect=24)
+cb.set_label(r'$P_{\rm body} - P_{\rm crust}$', fontsize=8.5, labelpad=3)
+fig.tight_layout(pad=0.4)
+fig.subplots_adjust(wspace=0.08)
+print('  the body subtends +/- %.2f deg; widest crossing %.0f km'
+      % (SWEEP_A_MAX, SWEEP_WF.max()))
+print('  change in probability from %+.3f to %+.3f' % (SWEEP_DP.min(), SWEEP_DP.max()))
+save(fig, 'cavity_sweep.pdf')'''),
     md(r'''## Figure 5 --- the Sun: model, observable, and residual
 
 The reference in the bottom panel is the adiabatic limit built from the instantaneous
