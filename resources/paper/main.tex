@@ -2153,7 +2153,9 @@ ax.legend()
 \end{figure}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-Figure~\ref{fig:prem} shows the density profile \magnus\ uses for the Earth, the Preliminary Reference Earth Model (PREM)\ \cite{Dziewonski:1981xy}, built from seismic data. The Earth is treated as a layered, spherically symmetric with a radius of $R_\oplus = 6\,371$~km. The density falls from 13.1~g~cm$^{-3}$ at the core to 1~g~cm$^{-3}$ (the density of water) at the surface, smoothly inside each of nine shells and in jumps between them. The largest jump is at the core-mantle boundary, $3480$~km from the center, where the density drops from $9.90$ to $5.57$~g~cm$^{-3}$. The electron fraction, $Y_e$, reflects the chemical composition of the Earth and also changes with radial distance, but not at every PREM jump. \magnus\ resolves it thus: 0.4656 in the core, 0.4957 in the mantle, 0.4952 in the crust, and 0.5551 in the ocean. Using a uniform $Y_e = 0.5$ instead would make $P_{\nu_\mu \to \nu_e}$ differ by up to $7 \cdot 10^{-2}$ on a core-crossing chord.
+Figure~\ref{fig:prem} shows the density profile \magnus\ uses for the Earth, the Preliminary Reference Earth Model (PREM)\ \cite{Dziewonski:1981xy}, built from seismic data. The Earth is treated as a layered, spherically symmetric with a radius of $R_\oplus = 6\,371$~km. The density falls from 13.1~g~cm$^{-3}$ at the core to 1~g~cm$^{-3}$ (the density of water) at the surface, smoothly inside each of nine shells and in jumps between them. The largest jump is at the core-mantle boundary, $3480$~km from the center, where the density drops from $9.90$ to $5.57$~g~cm$^{-3}$. The electron fraction, $Y_e$, reflects the chemical composition of the Earth and so changes with radial distance, but not at every PREM jump. \magnus\ resolves it thus: 0.4656 in the core, 0.4957 in the mantle, 0.4952 in the crust, and 0.5551 in the ocean. They are {\tt electron\_fraction\_core}, {\tt electron\_fraction\_mantle}, {\tt electron\_fraction\_crust}, and {\tt electron\_fraction\_ ocean} in the {\tt earth} module.
+
+% Using a uniform $Y_e = 0.5$ instead would make $P_{\nu_\mu \to \nu_e}$ differ by up to $7 \cdot 10^{-2}$ on a core-crossing chord.
 % , which is why Section \ref{sec:comparison} passes the composition explicitly on both sides of every cross-code measurement.
 
 The trajectory of a neutrino through the Earth is determined by its zenith angle at the detector, $\theta_z$. The detector sits on the surface by default. (Section~\ref{sec:underground} shows how to place sources and detectors underground.) A core-crossing neutrino arriving from straight below has $\cos\theta_z = -1$ and crosses an Earth diameter. One arriving along the horizon has $\cos\theta_z = 0$ and does travel inside the Earth at all (for a detector on the surface). Between them, the chord reaches a minimum radius of $R_\oplus \sqrt{1 - \cos^2\theta_z}$, so a shallower trajectory, closer to horizontal, samples only the outer PREM shells. 
@@ -2173,94 +2175,178 @@ edges = earth.prem_layer_edges_along_chord(
 len(edges)                     # 16
 \end{pysnip}
 For a given {\tt costhz}, every {\tt osc\_prob\_*\_earth} wrapper computes those positions itself and passes them to the refinement as {\tt t\_breakpoints}. A slab edge is automatically placed on every crossing, at every level of the refinement ladder and at whatever tolerance the method is requested. 
-% That placement is what keeps the quadrature at its nominal order: the density is smooth inside a shell and discontinuous between shells, and a slab that straddles a jump converges slowly whatever order is requested (Section \ref{sec:refinement}).
+
+The wrappers define the neutrino trajectory via the zenith angle and the baseline. A given {\tt costhz} determines---internally in the wrapper---the density at each point of the chord, the electron fraction there, and the slab edges. The baseline needs converting, since {\tt earth} reports kilometers. At three flavors, for a 10-GeV neutrino, $P_{\nu_\mu \to \nu_e}$ is computed via
+\begin{pysnip}
+import magnus.oscprob as oscprob
+import magnus.globaldefs as gd
+
+P = oscprob.osc_prob_3nu_earth(
+    10.0*gd.UNIT_GEV, costhz=costhz,
+    L=L*gd.UNIT_KM)
+P[gd.NUMU][gd.NUE]             # 0.127041
+\end{pysnip}
+By default, the electron fraction changes through the PREM, as explained above. Passing {\tt electron\_fraction} to the wrappers overrides this by replacing those values with a single one for the whole Earth. At $5$~GeV along this chord, the two probability calculations differ by $0.08$ in $P_{\nu_\mu \to \nu_e}$:
+\begin{pysnip}
+kw = dict(costhz=costhz, L=L*gd.UNIT_KM,
+          nu_i=gd.NUMU, nu_f=gd.NUE)
+E = 5.0*gd.UNIT_GEV
+
+oscprob.osc_prob_3nu_earth(E, **kw) # 0.1009
+                               
+oscprob.osc_prob_3nu_earth(
+    E, **kw, electron_fraction=0.5) # 0.0207
+                               
+\end{pysnip}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\subsubsection{Neutrinos and antineutrinos through the Earth}
+\subsubsection{Neutrinos and antineutrinos, two to five flavors}
 \label{sec:nu_nubar}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \begin{figure}[t!]
  \centering
  \includegraphics[width=\columnwidth]{nu_nubar_earth.pdf}
- \caption{\label{fig:nu_nubar}Survival probability of a muon neutrino ({\it solid}) and of a muon antineutrino ({\it dashed}) along the PREM chord at $\cos\theta_z = -0.9$ of \figu{bsm}, computed with \magnus\ at two, three, four, and five flavors. {\it Top}: the two-flavor $(\nu_e, \nu_\mu)$ system with $\theta_{13}$ and $\Delta m^2_{31}$, and the full three-flavor case, from $1$ to $40$~GeV. {\it Bottom}: the $3+1$ and $3+2$ cases at the parameters of \figu{validation}, three decades higher in energy, where an eV-scale splitting places its resonance. In the top row the neutrino meets the matter resonance and the antineutrino does not; in the bottom row it is the antineutrino that does, because the sterile resonance lies in the antineutrino channel for a positive $\Delta m^2_{41}$. Only {\tt nubar} changes between the two curves of a panel}
+ \caption{\label{fig:nu_nubar}Survival probability of $\nu_\mu$ and $\bar{\nu}_\mu$ along a PREM chord at $\cos\theta_z = -0.9$, computed with \magnus. {\it Top}: two flavors, the $(\nu_e, \nu_\mu)$ reduction of the 1--3 sector, and three flavors, both from $1$ to $40$~GeV. {\it Bottom}: $3+1$ and $3+2$ from $1$ to $30$~TeV, where an eV-scale splitting places its resonance, with $\sin^2\theta_{14} = \sin^2\theta_{24} = 0.10$ and $\Delta m^2_{41} = 1$~eV$^2$, joined in the $3+2$ panel by $\sin^2\theta_{15} = \sin^2\theta_{25} = 0.06$ and $\Delta m^2_{51} = 1.7$~eV$^2$. Listing~\ref{lst:nu_nubar} draws all four pairs. See notebooks \#15 and \#28, and Sec.~\ref{sec:nu_nubar} for details.}
 \end{figure}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-Figure~\ref{fig:nu_nubar} compares a muon neutrino with a muon antineutrino along the chord of \figu{bsm}, at two, three, four, and five flavors. Every wrapper takes {\tt nubar}, and {\tt nubar=True} is the whole of the antineutrino case: the wrapper conjugates the mixing matrix and reverses the sign of the matter potential, and nothing else in the call changes. Listing~\ref{lst:nu_nubar} is the three-flavor pair and the $3+1$ pair; the other two differ from them only in the wrapper's name and its parameters. Notebook \#15 takes the two operations apart and shows what each one alone gets wrong.
+Figure~\ref{fig:nu_nubar} shows $\nu_\mu$ and $\bar{\nu}_\mu$ survival probabilities along the same core-crossing $\cos \theta_z = -0.9$ chord as before, at two to five flavors. Listing~\ref{lst:nu_nubar} draws all eight curves. One dictionary carries the chord, the channel, and the tolerances through every call, so the four flavor counts differ only in the wrapper's name, the energy range, and the mixing 3+1 and 3+2 one add.
 
-The top row is the standard picture. Along this chord the neutrino meets the matter resonance and the antineutrino does not, so the two survival probabilities separate between $2$ and $10$~GeV. At two flavors the vacuum oscillation is the small one that $\theta_{13}$ drives, and the resonance is all there is to see: it takes the neutrino's survival probability down to $0.25$ at $4.2$~GeV, while the antineutrino's stays above $0.92$. At three flavors the same separation rides on the large oscillation that $\theta_{23}$ drives, and the two curves draw back together above $10$~GeV.
+In the top row, the ordinary matter resonance depletes the $\nu_\mu$ and leaves the $\bar{\nu}_\mu$ unaffected, because the matter potential enters their Hamiltonians with opposite signs. The two-flavor panel shows this cleanly. A $(\nu_e, \nu_\mu)$ system carries no $\theta_{23}$ oscillation, so the only structure left is resonant: the $\nu_\mu$ dips deeply at a few GeV, while the $\bar{\nu}_\mu$ stays near one across the panel. The three-flavor panel restores the $\theta_{23}$ oscillation, which is near-maximal. Both curves then sweep between zero and one several times over, so the resonance stops being easily identifiable. The resonance survives as a phase offset between the $\nu_\mu$ and the $\bar{\nu}_\mu$ below about $10$~GeV. That offset closes as the energy rises, until the two curves coincide above $20$~GeV.
 
-The bottom row reverses the roles. Section~\ref{sec:earth} explains where the sterile resonance comes from: a sterile state feels no matter potential, so what drives it is the neutral-current potential that the active states feel and it does not. For a positive $\Delta m^2_{41}$ that resonance lies in the antineutrino channel, and it is what IceCube looks for in atmospheric muon antineutrinos at TeV energies~\cite{IceCube:2016rnb, IceCube:2020phf}. Here the antineutrino's survival probability drops to $0.27$ at $1.4$~TeV with one sterile state and to $0.004$ at $4.2$~TeV with two, while the neutrino's never falls below $0.57$.
+In the bottom row, for 3+1 and 3+2, the roles are reversed. A sterile state feels no matter potential at all. A sterile state feels no matter potential at all. The active states all feel the same neutral-current potential, $V_{\rm NC}$, which cancels out of the oscillation. The $\nu_e$ keeps the charged-current potential, $V_{\rm CC}$, since it alone scatters off electrons that way. Each sterile state carries $-V_{\rm NC}$. A resonance needs the potential to act on the lighter of the two mass states that mix. For two and three flavors, it acts on the $\nu_e$, which for normal mass ordering is mostly the lighter of that pair, so the $\nu_\mu$ is the one that resonates and gets depleted. For 3+1 and 3+2, the potential acts on the sterile state, which a positive $\Delta m^2_{41}$ makes the heavier, so the $\bar{\nu}_\mu$ is depleted instead. Section~\ref{sec:bsm} locates the resonance in energy. 
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\begin{lstlisting}[language=Python, caption={A neutrino and an antineutrino through the Earth, at three flavors and at $3+1$. Between the two calls of each pair only {\tt nubar} changes: the wrapper conjugates the mixing matrix and reverses the sign of the matter potential itself, so no other argument needs to know which sign it is computing for. The $3+1$ pair runs three decades higher in energy, where \figu{nu_nubar} draws it. The two-flavor and $3+2$ pairs of the figure differ from these only in the wrapper's name and its parameters, as Listing~\ref{lst:fivenu} shows.}, label={lst:nu_nubar}, float=tbp]
+The resonance is legible here in the way $\bar{\nu}_\mu$ falls into an isolated dip near $1.4$~TeV, while the $\nu_\mu$ stays high across the panel. Searches for a sterile state in atmospheric neutrinos look for exactly this dip~\cite{IceCube:2016rnb, IceCube:2020phf}. A second sterile state adds a second dip at three times the energy, deeper than the first and much wider. Above $10$~TeV, both curves come back together near one.
+
+% In the bottom row, for 3+1 and 3+2, the roles are reversed, for the reason Sec.~\ref{sec:bsm} gives. A positive $\Delta m^2_{41}$ places the sterile resonance in the antineutrino channel, so the $\bar{\nu}_\mu$ is the depleted one. The resonance is legible here in a way it was not at three flavors: the $\bar{\nu}_\mu$ falls into an isolated dip near $1.4$~TeV, while the $\nu_\mu$ stays high across the panel. Searches for a sterile state in atmospheric muon antineutrinos look for this dip~\cite{IceCube:2016rnb, IceCube:2020phf}. A second sterile state adds a second dip at three times the energy, deeper than the first and much wider. Above $10$~TeV, both curves come back together near one.
+
+\begin{lstlisting}[language=Python, caption={The $\nu_\mu$ and $\bar{\nu}_\mu$ probability curves of \figu{nu_nubar}. Only {\tt nubar} separates the two members of a pair at the same flavor count. See notebooks \#15 and \#28, and Sec.~\ref{sec:nu_nubar} for details.}, label={lst:nu_nubar}, float=tbp]
 import numpy as np
 import magnus.oscprob as oscprob
 import magnus.earth as earth
 import magnus.globaldefs as gd
 
-osc = gd.load_nufit_params('NuFIT 6.1')
 costhz = -0.9
 L = earth.distance_traveled_inside_earth(costhz) \
  *gd.UNIT_KM
 kw = dict(costhz=costhz, L=L, nu_i=gd.NUMU,
           nu_f=gd.NUMU, rtol=1.0e-8, atol=1.0e-10)
 
-# Three flavors, 1-40 GeV.  nubar=True is the
-# whole of the antineutrino case
-E = np.logspace(0, np.log10(40), 260)*gd.UNIT_GEV
-P3, P3bar = [oscprob.osc_prob_3nu_earth(
-    E, nubar=nubar, **osc, **kw)
-    for nubar in (False, True)]
+def both_signs(wrapper, E, **params):
+    """Survival probability, for a nu then a nubar."""
+    return [wrapper(E, nubar=nubar, **params, **kw)
+            for nubar in (False, True)]
 
-# 3+1, three decades higher in energy: that is
-# where an eV-scale splitting puts its resonance
+# Two flavors is the (nu_e, nu_mu) reduction of the 1-3
+# sector, so it takes that one angle and splitting by
+# name.  Every wrapper above two flavors defaults to
+# the same NuFIT 6.1 set, so it needs none passed.
+osc = gd.load_nufit_params('NuFIT 6.1')
+E = np.logspace(0, np.log10(40), 260)*gd.UNIT_GEV
+P2, P2bar = both_signs(oscprob.osc_prob_2nu_earth, E,
+                       sth=osc['s13'], Dm2=osc['D31'])
+P3, P3bar = both_signs(oscprob.osc_prob_3nu_earth, E)
+
+# The sterile pairs run three decades higher, where an
+# eV-scale splitting places its resonance
 E_TEV = np.logspace(0, np.log10(30), 200)*gd.UNIT_TEV
-sterile = dict(s14=np.sqrt(0.1), s24=np.sqrt(0.1),
-               s34=0.0, D41=1.0)
-P4, P4bar = [oscprob.osc_prob_4nu_earth(
-    E_TEV, nubar=nubar, **osc, **sterile, **kw)
-    for nubar in (False, True)]
+s4 = dict(s14=np.sqrt(0.10), s24=np.sqrt(0.10), s34=0.0,
+          D41=1.0)
+s5 = dict(**s4, s15=np.sqrt(0.06), s25=np.sqrt(0.06),
+          s35=0.0, D51=1.7)
+P4, P4bar = both_signs(oscprob.osc_prob_4nu_earth,
+                       E_TEV, **s4)
+P5, P5bar = both_signs(oscprob.osc_prob_5nu_earth,
+                       E_TEV, **s5)
 \end{lstlisting}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\subsubsection{Probabilities between named locations}
+\subsubsection{Probabilities between two locations}
 \label{sec:named_baselines}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \begin{figure*}[t!]
  \centering
  \includegraphics[width=\textwidth]{named_baselines.pdf}
- \caption{\label{fig:named_baselines}Appearance probability $P_{\nu_\mu \to \nu_e}$ against energy for a beam sent from Fermilab to four named sites, computed with \magnus\ along the PREM chord joining each pair of locations, at the layered composition of Section~\ref{sec:earth}. The wrapper derives each chord and its direction from the two site names alone; the legend gives the chord lengths. The two shortest chords stay within $33$~km of the surface and show the pattern of a beam experiment, a first oscillation maximum at a few GeV with faster oscillations below it. The chord to CERN reaches the lower mantle and the one to the South Pole crosses the outer core; both cross the matter resonance, which is why the probability along them is several times larger}
+ \caption{\label{fig:named_baselines}Appearance probability $P_{\nu_\mu \to \nu_e}$ against energy for a beam sent from Fermilab to four named sites, computed with \magnus\ along the PREM chord joining each pair of locations, at the layered composition of Section~\ref{sec:prem}. The legend gives the chord length of each. The two shortest show the pattern of a beam experiment, a first oscillation maximum at a few GeV with faster oscillations below it. The two longest cross the matter resonance, which is why the probability along them is several times larger. Listing~\ref{lst:named} draws the curves. See notebooks \#04 and \#28, and Sec.~\ref{sec:named_baselines} for details.}
 \end{figure*}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-Listing~\ref{lst:minimal} specifies a trajectory through the Earth by its arrival direction. A long-baseline experiment is specified the other way round, by where the beam is made and where it is detected, and the Earth wrappers accept that form as well. Passing {\tt loc\_ini} and {\tt loc\_fin}, each either a pair of coordinates or one of the fifteen site names the {\tt earth} module carries, replaces both {\tt costhz} and {\tt L}: the chord joining the two sites is the baseline, its direction fixes the shells of PREM it crosses, and the slab edges go on the shell boundaries as in Section~\ref{sec:earth}. Figure~\ref{fig:named_baselines} sends a beam from Fermilab to four of the named sites, and Listing~\ref{lst:named} is the call behind it. The chord to SNOLAB never leaves the crust. The one to Homestake, which is the DUNE baseline, reaches $33$~km down, just below the crust. The one to CERN reaches $960$~km down, into the lower mantle, and the one to the South Pole passes $3800$~km below the surface, through the outer core. The two long chords cross the matter resonance, which is why the probability along them is several times larger. Notebook \#4 is where these chords come from, and it also reports the arrival direction that each one corresponds to.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{table}[t!]
+{\normalsize
+\begin{tabular}{@{}p{2.6cm}p{2.5cm}p{2.7cm}@{}}
+ Site name & Latitude & Longitude \\
+ \hline
+ {\tt baikal} & $51^\circ\,45'\,54''$ & $104^\circ\,24'\,54''$ \\
+ {\tt cern} & $46^\circ\,14'\,1.8''$ & $6^\circ\,3'\,11.4''$ \\
+ {\tt desy} & $53^\circ\,34'\,19.79''$ & $9^\circ\,52'\,27.59''$ \\
+ {\tt ess} & $55^\circ\,44'\,6''$ & $13^\circ\,15'\,5.04''$ \\
+ {\tt fermilab} & $41^\circ\,49'\,55''$ & $-88^\circ\,15'\,26''$ \\
+ {\tt gran\_sasso} & $42^\circ\,25'\,15.8''$ & $13^\circ\,30'\,58.43''$ \\
+ {\tt homestake} & $44^\circ\,21'\,5.76''$ & $-103^\circ\,45'\,4.68''$ \\
+ {\tt kamioka} & $36^\circ\,25'\,50.05''$ & $137^\circ\,18'\,41.15''$ \\
+ {\tt km3net\_arca} & $36^\circ\,16'\,0''$ & $16^\circ\,6'\,0''$ \\
+ {\tt km3net\_orca} & $42^\circ\,48'\,0''$ & $6^\circ\,2'\,0''$ \\
+ {\tt north\_pole} & $90^\circ\,0'\,0''$ & $0^\circ\,0'\,0''$ \\
+ {\tt pyhaasalmi} & $63^\circ\,39'\,31''$ & $26^\circ\,2'\,28''$ \\
+ {\tt snolab} & $46^\circ\,28'\,18''$ & $-81^\circ\,11'\,12''$ \\
+ {\tt south\_pole} & $-90^\circ\,0'\,0''$ & $0^\circ\,0'\,0''$ \\
+ {\tt tokai} & $36^\circ\,27'\,59''$ & $140^\circ\,36'\,24''$ \\
+\end{tabular}
+}
+\caption{\label{tab:sites}The fifteen locations {\tt magnus.earth} carries by name, with the coordinates it stores for each. A name passed as {\tt loc\_ini} or {\tt loc\_fin} stands for the pair beside it. Coordinates are in degrees, minutes and seconds, which is the form the module stores and the one {\tt loc\_ini} and {\tt loc\_fin} accept; {\tt earth.dms\_to\_decimal} returns the same coordinate in decimal degrees.}
+\end{table}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\textit{Locations given as coordinates.---}Earlier examples specified a trajectory through the Earth by its arrival direction, given by its zenith angle. A long-baseline experiment is described by where the beam is made and where it is detected. The Earth wrappers accept that form, too. Passing {\tt loc\_ini} and {\tt loc\_fin} replaces both {\tt costhz} and {\tt L}: the chord joining the two sites becomes the baseline; its direction fixes which PREM shells that chord crosses. Each location is a (latitude, longitude) pair, with both stated in degrees, minutes and seconds. North and east are positive; south and west are negative. The sign is read from the first non-zero part:
+\begin{pysnip}
+# (degree, minute, second), north and east
+# positive, south and west negative
+fnal = ((41, 49, 55), (-88, 15, 26))
+hs = ((44, 21, 5.76), (-103, 45, 4.68))
+P = oscprob.osc_prob_3nu_earth(
+    2.0*gd.UNIT_GEV, loc_ini=fnal,
+    loc_fin=hs, nu_i=gd.NUMU, nu_f=gd.NUE)
+P                              # 0.0794317
+\end{pysnip}
+
+A chord between two surface locations is a density palindrome. The trajectory meets every radius twice, so \magnus\ evaluates the Hamiltonian over the first half and mirrors the rest; Sec.~\ref{sec:cost} gives what that saves. Also, naming two locations also fixes the baseline at the whole chord length between them. An {\tt L} passed alongside is discarded.
+% The symmetry follows from that, since it holds over the full chord alone: a trajectory given by {\tt costhz} earns it only when its {\tt L} is the whole chord too.
+
+\smallskip
+
+\textit{Named sites.---}Figure~\ref{fig:named_baselines} shows the appearance probability $P_{\nu_\mu \to \nu_e}$ along four chords, each running from Fermilab to a named site. Listing~\ref{lst:named} shows how to compute them. Table~\ref{tab:sites} lists the fifteen locations the {\tt earth} module carries by name. Passing a name is the same as passing the coordinates beside it:
+\begin{pysnip}
+P = oscprob.osc_prob_3nu_earth(
+    2.0*gd.UNIT_GEV, 
+    loc_ini='fermilab', loc_fin='homestake',
+    nu_i=gd.NUMU, nu_f=gd.NUE)
+P                              # 0.0794317
+\end{pysnip}
+The two calls return the same probability. The named form is the one Listing~\ref{lst:named} makes. How deep a chord runs varies. The one to SNOLAB stays inside the crust, $11$~km down at its deepest. The one to Homestake, which is the DUNE baseline, reaches $33$~km. The one to CERN reaches $960$~km, into the lower mantle. The one to the South Pole reaches $3\,770$~km, through the outer core. 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\begin{lstlisting}[language=Python, caption={The four curves of \figu{named_baselines}. Two site names replace {\tt costhz} and {\tt L}: the wrapper takes the chord between them as the baseline and its direction as the trajectory, so the PREM shells the chord crosses and the slab edges on their boundaries follow without the caller placing anything. The last lines recover the chord length in kilometers from the coordinate table the wrapper reads. {\tt loc\_coords\_dms} carries fifteen sites, and a pair of (latitude, longitude) coordinates, each in degrees, minutes, and seconds, serves for any other location.}, label={lst:named}, float=tbp]
+\begin{lstlisting}[language=Python, caption={The four curves of \figu{named_baselines}. Two site names replace {\tt costhz} and {\tt L}: the wrapper takes the chord between them as the baseline and its direction as the trajectory. {\tt chord\_length\_inside\_earth} returns the chord length. Site names are in \tabl{sites}. See notebooks \#04 and \#28, and Sec.~\ref{sec:named_baselines} for details.}, label={lst:named}, float=tbp]
 import numpy as np
 import magnus.oscprob as oscprob
 import magnus.earth as earth
 import magnus.globaldefs as gd
 
-osc = gd.load_nufit_params('NuFIT 6.1')
 E = np.logspace(np.log10(0.3), 1.0, 400)*gd.UNIT_GEV
+sites = ('snolab', 'homestake', 'cern', 'south_pole')
 
 # Two site names replace costhz and L: the chord
-# between them is the baseline, and its direction
-# fixes which PREM shells it crosses
-P = {}
-for site in ('snolab', 'homestake', 'cern',
-             'south_pole'):
-    P[site] = oscprob.osc_prob_3nu_earth(
-        E, loc_ini='fermilab', loc_fin=site,
-        nu_i=gd.NUMU, nu_f=gd.NUE,
-        rtol=1.0e-8, atol=1.0e-10, **osc)
+# between them is the baseline
+P = {site: oscprob.osc_prob_3nu_earth(
+         E, loc_ini='fermilab', loc_fin=site,
+         nu_i=gd.NUMU, nu_f=gd.NUE,
+         rtol=1.0e-8, atol=1.0e-10)
+     for site in sites}
 
 # The chord itself, in km, for a legend
 a = earth.loc_coords_dms['fermilab']
@@ -2273,43 +2359,93 @@ print('%.0f km' % L_km)   # 1285
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\subsubsection{Five flavors and new physics}
+\subsubsection{New physics}
 \label{sec:bsm}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \begin{figure}[t!]
  \centering
  \includegraphics[width=\columnwidth]{bsm.pdf}
- \caption{\label{fig:bsm}Muon-neutrino survival probability $P_{\nu_\mu \to \nu_\mu}$ along a PREM chord at $\cos\theta_z = -0.9$, computed with \magnus\ for four departures from the standard three-flavor case. {\it Top}: non-standard interactions with $\varepsilon_{ee} = 0.10$, $\varepsilon_{e\mu} = 0.05$ and $\varepsilon_{\mu\tau} = 0.03$, and an isotropic CPT-even Lorentz-violating term whose eigenvalue we set to the value at which its phase reaches $\pi$ over this chord. {\it Bottom}: a $3+1$ sterile system and a $3+2$ one, at the parameters of \figu{validation}, drawn three decades higher in energy because that is where an eV-scale splitting places its matter resonance. The standard case is flat at one there for a physical reason: the vacuum term falls as $1/E$, so above about $100$~GeV the active sector has stopped oscillating over an Earth chord and every feature left belongs to the sterile sector. Only the Hermitian matrix changes between panels; the call does not}
+ \caption{\label{fig:bsm}Muon-neutrino survival probability $P_{\nu_\mu \to \nu_\mu}$ along a PREM chord at $\cos\theta_z = -0.9$, computed with \magnus\ for four departures from the standard three-flavor case. {\it Top left}: non-standard interactions with $\varepsilon_{ee} = 0.10$, $\varepsilon_{e\mu} = 0.05$ and $\varepsilon_{\mu\tau} = 0.03$. {\it Top right}: isotropic CPT-even Lorentz-violating termwith eigenvalues $b_1 = b_2 = 0$ and $b_3 = 5.4 \cdot 10^{-14}$~eV, the value that advances the phase by $\pi$ over this chord. {\it Bottom}: the 3+1 and 3+2 systems of \figu{nu_nubar}, where the eV-scale splittings, $\Delta m_{41}^2$ and $\Delta m_{51}^2$, respectively, place the matter resonance at the TeV scale. Listing~\ref{lst:bsm} draws the curves. See notebook \#07, \#08, \#09, and \#28, and Sec.~\ref{sec:bsm} for details.}
 \end{figure}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-Figure~\ref{fig:bsm} shows four departures from the standard three-flavor case along one Earth chord: non-standard interactions\ \cite{Farzan:2017xzy}, Lorentz-invariance violation\ \cite{Kostelecky:2003xn, Kostelecky:2011gq}, a sterile state\ \cite{Gariazzo:2015rra, Dentler:2018sju}, and two\ \cite{Sorel:2003hf}. Each enters the Hamiltonian as an additional Hermitian term, which is how we treat them: the same call, a different matrix.
-
-The $3+2$ curve is the one that could not be drawn with a closed form. The SU($n$) constructions need the eigenvalues of the Hamiltonian in radicals. The Abel--Ruffini theorem stops that at four: the characteristic polynomial of a five-flavor Hamiltonian is a quintic (not soluble in radicals). The obstruction is a theorem external to neutrino physics. Nothing in the Magnus expansion refers to the dimension of the matrix at any point, so five flavors is not a new case but the same one. We ship wrappers for it throughout: in vacuum, in matter, through the Earth, through the Sun, with non-standard interactions, and with Lorentz-invariance violation. Listing \ref{lst:fivenu} is the whole of the difference between three flavors and five. Notebooks \#7, \#8 and \#9 take the sterile, non-standard-interaction and Lorentz-violating cases in turn.
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\begin{lstlisting}[language=Python, caption={Three flavors and five, on the same chord. The two calls differ only in the wrapper's name and in the parameters the extra states bring; nothing about the method changes, and nothing in it refers to the size of the matrix. The $3+2$ case is the one \figu{bsm} draws that no closed form reaches.}, label={lst:fivenu}, float=tbp]
+\begin{lstlisting}[language=Python, caption={The five scenarios of \figu{bsm}, in six calls: the standard case is computed twice, once for each energy range. Every call shares the chord, the channel and the tolerances, differing only in the wrapper's name and in the parameters the extra term brings. See notebook \#07, \#08, \#09, and \#28, and Sec.~\ref{sec:bsm} for details.}, label={lst:bsm}, float=tbp]
+import numpy as np
 import magnus.oscprob as oscprob
-import magnus.globaldefs as gd
 import magnus.earth as earth
+import magnus.globaldefs as gd
 
 costhz = -0.9
 L = earth.distance_traveled_inside_earth(costhz) \
  *gd.UNIT_KM
-# Where an eV-scale splitting resonates in matter
-E = 10.0*gd.UNIT_TEV
-osc = gd.load_nufit_params('NuFIT 6.1')
+kw = dict(costhz=costhz, L=L, nu_i=gd.NUMU,
+          nu_f=gd.NUMU, rtol=1.0e-8, atol=1.0e-10)
+E = np.logspace(0, np.log10(40), 260)*gd.UNIT_GEV
+# Three decades up is where an eV-scale splitting
+# places its matter resonance
+E_TEV = np.logspace(0, np.log10(30), 200)*gd.UNIT_TEV
 
-P3 = oscprob.osc_prob_3nu_earth(
- E, costhz=costhz, L=L, **osc)
+eps = dict(eps_ee=0.10, eps_em=0.05, eps_mt=0.03)
+liv = dict(b1=0.0, b2=0.0, b3=np.pi/L, Lambda=1.0,
+           sxi12=0.0, sxi23=1.0/np.sqrt(2.0),
+           sxi13=0.0, dxiCP=0.0, n_liv=0)
+s4 = dict(s14=np.sqrt(0.10), s24=np.sqrt(0.10),
+          s34=0.0, D41=1.0)
+s5 = dict(**s4, s15=np.sqrt(0.06),
+          s25=np.sqrt(0.06), s35=0.0, D51=1.7)
 
-# Two extra states: same call, more parameters
-P5 = oscprob.osc_prob_5nu_earth(
- E, costhz=costhz, L=L, **osc,
- s14=0.32, s24=0.32, s34=0.0,
- s15=0.24, s25=0.24, s35=0.0,
- D41=1.0, D51=1.7)
+# The same call each time, a different extra term
+P_std = oscprob.osc_prob_3nu_earth(E, **kw)
+P_nsi = oscprob.osc_prob_3nu_earth_nsi(E, **eps, **kw)
+P_liv = oscprob.osc_prob_3nu_earth_liv(E, **liv, **kw)
+P_std_tev = oscprob.osc_prob_3nu_earth(E_TEV, **kw)
+P_3p1 = oscprob.osc_prob_4nu_earth(E_TEV, **s4, **kw)
+P_3p2 = oscprob.osc_prob_5nu_earth(E_TEV, **s5, **kw)
+\end{lstlisting}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+Figure~\ref{fig:bsm} shows four departures from the standard three-flavor case along one deep Earth chord: non-standard interactions\ \cite{Farzan:2017xzy}, Lorentz-invariance violation\ \cite{Kostelecky:2003xn, Kostelecky:2011gq}, one sterile state\ \cite{Gariazzo:2015rra, Dentler:2018sju}, and two sterile states\ \cite{Sorel:2003hf}. Each adds a different term to the Hamiltonian. Listing~\ref{lst:bsm} shows how all calls to \magnus\ are similar, only the wrapper name changing and being given extra new-physics parameters.
+
+Figure~\ref{fig:sterile_scan} scans the sterile parameters themselves. Nothing about the call changes across the plane: the wrapper takes $\Delta m^2_{41}$ and $\theta_{14}$ like any other argument, so a map is a comprehension over the two of them, and Listing~\ref{lst:sterile_scan} is the whole of it. What the map shows is the reversal of Sec.~\ref{sec:nu_nubar} laid out in parameter space. The $\nu_\mu$ panels barely move, reaching $-0.27$ at their darkest. The $\bar{\nu}_\mu$ panels carry a resonance band at $\Delta m^2_{41} \simeq 1$~eV$^2$ that removes up to $0.87$ of the flux. The band closes at both ends of the mixing range, since the effect vanishes at $\theta_{14} = 0$ and again at maximal mixing.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{figure}[t!]
+ \centering
+ \includegraphics[width=\columnwidth]{sterile_scan.pdf}
+ \caption{\label{fig:sterile_scan}Change in the muon-neutrino survival probability when one sterile state is added, $P_{3+1} - P_{3\nu}$, as a function of $\Delta m_{41}^2$ and $\sin^2 \theta_{14}$, at a fixed energy of $5$~TeV. {\it Top row}: $\nu_\mu$. {\it Bottom row}: $\bar{\nu}_\mu$. {\it Left column}: a core-crossing chord, $\cos\theta_z = -1$. {\it Right column}: a shallower one, $\cos\theta_z = -0.5$. The other sterile parameters are held at $\sin^2\theta_{24} = 0.10$ and $\theta_{34} = 0$. Each panel is $80 \times 80$ probabilities. See notebooks \#7 and \#28, and Sec.~\ref{sec:bsm} for details.}
+\end{figure}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{lstlisting}[language=Python, caption={The four panels of \figu{sterile_scan}. The standard, three-flavor probability case is computed once per panel. The other three panels change {\tt costhz} and {\tt nubar}. See notebooks \#07 and \#28, and Sec.~\ref{sec:bsm} for details.}, label={lst:sterile_scan}, float=tbp]
+import numpy as np
+import magnus.oscprob as oscprob
+import magnus.earth as earth
+import magnus.globaldefs as gd
+
+E = 5.0*gd.UNIT_TEV
+D41 = np.logspace(np.log10(0.1), np.log10(3.0), 80)
+S14 = np.logspace(np.log10(0.02), 0.0, 80)
+s24 = np.sqrt(0.10)
+
+def panel(costhz, nubar):
+    """One chord and one sign, over the whole plane."""
+    L = earth.distance_traveled_inside_earth(costhz) \
+     *gd.UNIT_KM
+    kw = dict(costhz=costhz, L=L, nu_i=gd.NUMU,
+              nu_f=gd.NUMU, nubar=nubar,
+              rtol=1.0e-8, atol=1.0e-10)
+    # Standard 3nu oscillations
+    std = oscprob.osc_prob_3nu_earth(E, **kw)
+    return np.array([[oscprob.osc_prob_4nu_earth(
+        E, s14=s, s24=s24, s34=0.0, D41=d, **kw)
+        - std for s in S14] for d in D41])
+
+# Change between 3nu and 3+1 survival probability
+dP = {(cz, nb): panel(cz, nb)
+      for cz in (-1.0, -0.5) for nb in (False, True)}
 \end{lstlisting}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -2362,7 +2498,7 @@ fig.colorbar(im, ax=ax,
              label=r'$P_{\nu_\mu \to \nu_\mu}$')
 \end{lstlisting}
 
-Not all of the structure in the standard panel is an MSW resonance. A neutrino crossing mantle, core and mantle again meets a potential that alternates instead of passing through a resonant value. The alternation amplifies the oscillation on its own whenever its period is commensurate with the oscillation phase, an effect found independently by Akhmedov\ \cite{Akhmedov:1988kd} and by Krastev and Smirnov\ \cite{Krastev:1989ix}, solved exactly for an idealized periodic profile\ \cite{Akhmedov:1998ui} and organized for the Earth by Floquet's theorem\ \cite{Akhmedov:2000js}. It needs no particular density, which is what separates it from an MSW resonance. It accounts for much of the structure that makes atmospheric oscillograms sensitive to the mass ordering\ \cite{Akhmedov:2006hb, Akhmedov:2012ah}, carried by the core-crossing trajectories rather than by the horizon, where the chord is short and the pattern close to the vacuum one.
+Not all of the structure in the standard panel is an MSW resonance. A neutrino crossing mantle, core and mantle again meets a potential that alternates instead of passing through a resonant value. The alternation amplifies the oscillation on its own whenever its period is commensurate with the oscillation phase, an effect found in \Refs~\cite{Akhmedov:1988kd, Krastev:1989ix}, solved exactly for an idealized periodic profile\ \cite{Akhmedov:1998ui} and organized for the Earth by Floquet's theorem\ \cite{Akhmedov:2000js}. It needs no particular density, which is what separates it from an MSW resonance. It accounts for much of the structure that makes atmospheric oscillograms sensitive to the mass ordering\ \cite{Akhmedov:2006hb, Akhmedov:2012ah}, carried by the core-crossing trajectories rather than by the horizon, where the chord is short and the pattern close to the vacuum one.
 
 In the sterile panels the sharp feature at high energy is a resonance of the opposite origin. A sterile state feels no matter potential, so what drives it is the neutral-current potential the active states feel and it does not. The crossing sits near the energy at which $\Delta m^2_{41}$ balances that potential, which locates the feature to within tens of per cent.
 
@@ -2375,27 +2511,189 @@ PREM is a density model and fixes no composition, so the electron fraction is su
 \subsubsection{Underground sources and detectors}
 \label{sec:underground}
 
+By default, both ends of an Earth trajectory sit on the surface. However, neutrino detectors and---less prominently---sources are often placed underground, at depths ranging from 100~m to a 2--3~km. Passing {\tt source\_depth} or {\tt detector\_depth} to the wrapper puts either one underground. The zenith angle keeps the meaning it had before, since it is measured at the detector, (which at zero depth is on the surface). When passing a nonzero {\tt source\_depth} {\tt detector\_depth}, passing {\tt L}, {\tt loc\_ini}, {\tt loc\_fin}, or two named locations raises an error.  In addition, the trajectory stops being a palindrome once either end moves: a path that starts at the surface and stops short of it does not read the same from both ends, so \magnus\ declines the symmetry of Sec.~\ref{sec:cost}.
+
+The effect on the probability of burying the detector depends on the choice of zenith angle. For a long chord through the Earth, of $\cos \theta_z = -0.8$, the last 2 km is a small correction so the probability does not vary when burying the detector:
+\begin{pysnip}
+E, costhz = 10.0*gd.UNIT_GEV, -0.8
+kw = dict(nu_i=gd.NUMU, nu_f=gd.NUMU)
+
+# On the surface, the baseline is given
+L = earth.distance_traveled_inside_earth(
+    costhz)*gd.UNIT_KM
+oscprob.osc_prob_3nu_earth(E, costhz=costhz, 
+    L=L, **kw)
+                               # 0.905580
+
+# 2 km down, the depth fixes the baseline
+oscprob.osc_prob_3nu_earth(
+    E, costhz=costhz,
+    detector_depth=2.0*gd.UNIT_KM, **kw)
+                               # 0.905595
+\end{pysnip}
+The difference in probabilities is of order $10^{-5}$. In contrast, for a neutrino arriving horizontally at the detector, with $\cos \theta_z = 0$, burying the detector makes the neutrino travel through the Earth, whereas it would not have done so had the detector been sitting on the surface,
+\begin{pysnip}
+E, costhz = 10.0*gd.UNIT_GEV, 0.0
+kw = dict(nu_i=gd.NUMU, nu_f=gd.NUMU)
+
+# Horizontal: no path at all at the surface
+L = earth.distance_traveled_inside_earth(
+    costhz)*gd.UNIT_KM
+oscprob.osc_prob_3nu_earth(
+    E, costhz=costhz, L=L, **kw)
+                               # 1.000000
+
+# 2 km down it crosses 160 km of rock
+oscprob.osc_prob_3nu_earth(
+    E, costhz=costhz,
+    detector_depth=2.0*gd.UNIT_KM, **kw)
+                               # 0.997560
+\end{pysnip}
+In this case, the probabilities are different at the $10^{-3}$ level. A nonzero {\tt source\_depth} has similar effects.
+
+PREM puts 3~km of ocean at the top of the Earth. That is a fair description for KM3NeT in the Mediterranean, Baikal-GVD in a lake and, slighlty less so, IceCube in ice. The same description fails for SNOLAB or Super-Kamiokande, which sit under rock. Two keywords replace that medium: {\tt density\_matter\_ocean} sets the density of the ocean shell, {\tt electron\_fraction\_ocean} its electron fraction. How much the replacement matters depends on how much of the path lies within three kilometers of the surface. A steep trajectory crosses the shell and leaves it behind. A near-horizontal one can spend its whole length inside, where the replacement moves the probability by about $10^{-2}$:
+\begin{pysnip}
+# PREM puts an ocean in the outer 3 km;
+# a detector under rock is not under one
+L = earth.distance_traveled_inside_earth(
+    -0.02)*gd.UNIT_KM
+kw = dict(costhz=-0.02, L=L, nu_i=gd.NUMU,
+          nu_f=gd.NUE)
+oscprob.osc_prob_3nu_earth(
+    1.0*gd.UNIT_GEV, **kw)     # 0.020928
+oscprob.osc_prob_3nu_earth(
+    1.0*gd.UNIT_GEV, **kw,
+    density_matter_ocean=2.65) # 0.021401
+\end{pysnip}
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\subsection{Finding which engine answered the call}
+\subsubsection{Using a custom Earth density profile}
+\label{sec:custom_earth}
+
+The Earth wrappers take their density from PREM. Only the outermost shell has a keyword for changing it; see Sec.~\ref{sec:underground}. The user wishing to supply a profile of their own will need to make a \magnus\ call one layer down, to the scenario function {\tt osc\_prob\_matter\_std\_potential} the wrappers themselves call. The profile is a function of position; the radii at which its density jumps are passed as slab edges. 
+
+Listing~\ref{lst:coarse_earth} uses four, wider shells instead of PREM's nine, each of the four keeping PREM's own electron fraction. Each carries the mass-weighted mean density of the PREM region it replaces (unlike PREM, the density does not vary inside shells). Along a chord of $\cos \theta_z = -0.9$ at $10$~GeV, the four-shell Earth gives $P_{\nu_\mu \to \nu_\mu} = 0.780$ vs.~PREM's $0.801$. The shift is $0.02$; a four-shell Earth with a uniform $Y_e = 0.5$ yields a similar shift. 
+
+The four-shell Earth has three shell boundaries, at radii of $1\,221.5$, $3\,480$ and $6\,346.6$~km. The chord of $\cos \theta_z = -0.9$ crosses only the outer two. It meets each boundary twice, once going in and once coming out. That makes four slab edges, compared to the sixteen the PREM profile needs. Those four positions are passed to the scenario function as {\tt t\_breakpoints}, just as the Earth wrappers do for PREM.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{lstlisting}[language=Python, caption={A four-shell Earth in place of PREM. The profile is any function of position that returns an electron density; naming the radii where it jumps keeps every slab inside one shell. See Sec.~\ref{sec:custom_earth} for details.}, label={lst:coarse_earth}, float=tbp]
+import numpy as np
+import magnus.oscprob as oscprob
+import magnus.earth as earth
+import magnus.matter as matter
+import magnus.globaldefs as gd
+
+# Four shells for PREM's nine, each at the mass-weighted
+# mean density of the region it replaces
+EDGES = [1221.5, 3480.0, 6346.6]       # km
+RHO = [12.894, 10.901, 4.476, 2.521]   # g/cm^3
+YE = [0.4656, 0.4656, 0.4957, 0.4952]  # PREM's own
+
+costhz = -0.9
+r_of = earth.earth_radial_distance_from_depth
+L = earth.distance_traveled_inside_earth(costhz) \
+ *gd.UNIT_KM
+osc = gd.load_nufit_params('NuFIT 6.1')
+
+def ne_coarse(l):
+    """Electron density [eV^3] at position l."""
+    r = r_of(costhz, l/gd.UNIT_KM)
+    i = int(np.searchsorted(EDGES, r))
+    return matter.num_density_e_func(
+        r, lambda _: RHO[i], electron_fraction=YE[i],
+        ratio_number_neutrons_to_protons=
+            (1.0 - YE[i])/YE[i],
+        density_matter_is_in_g_per_cm3=True)
+
+# Those four edges are PREM boundaries, so their
+# crossings come straight out of the helper
+cross = earth.prem_layer_edges_along_chord(costhz)
+keep = cross[np.isclose(
+    r_of(costhz, cross)[:, None], EDGES).any(axis=1)]
+
+E = 10.0*gd.UNIT_GEV
+kw = dict(nu_i=gd.NUMU, nu_f=gd.NUMU,
+          rtol=1.0e-8, atol=1.0e-10)
+P = oscprob.osc_prob_matter_std_potential(
+    3, ne_coarse, E, L, osc_params=osc, L0=0.0,
+    t_breakpoints=keep*gd.UNIT_KM,
+    density_is_of_number_of_electrons=True, **kw)
+P                               # 0.780446
+\end{lstlisting}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Strategy report after a call}
 \label{sec:which_engine}
 
-Which engine answered a call can be read back. A dictionary passed as {\tt strategy\_info} returns carrying the engine that answered, whether its answer was certified, and the engines that declined together with their reasons.
-
+Every wrapper and scenario function takes a dictionary as {\tt strategy\_info} and fills it in place. (The three closed-form functions {\tt osc\_prob\_ 2nu\_vacuum\_std}, {\tt osc\_prob\_3nu\_vacuum\_std}, and {\tt osc\_ prob\_2nu\_matter\_std} do not: they evaluate a formula, so no engine is tried.) The returned dictionary names the engine that answered, the family it belongs to, whether the answer was certified, and which engines declined with their reasons. It also contains two diagnostics: whether a hidden feature was found in the profile, and how well the trajectory was sampled, \eg,
 \begin{pysnip}
 info = {}
 P = oscprob.osc_prob_3nu_earth(
- E, costhz=costhz, L=L, strategy_info=info)
-info['engine']             # 'separable'
+    10.0*gd.UNIT_GEV, costhz=-0.9, L=L,
+    nu_i=gd.NUMU, nu_f=gd.NUMU,
+    strategy_info=info)
+sorted(info)
+# ['certified', 'declined', 'engine',
+#  'family', 'hidden_feature', 'sampling',
+#  'trace']
 \end{pysnip}
+The arguments of the function called choose the engine. One energy, an array of them, or a phase average via {\tt osc\_prob\_3nu\_earth}, or constant density via {\tt osc\_prob\_3nu\_matter\_constant\_density}, take different routes on the same chord:
+\begin{pysnip}
+# One energy: the refinement ladder
+info['engine']             # 'magnus'
+info['family']             # 'magnus-ladder'
 
-Where no batched engine applies, {\tt n\_jobs} distributes the points over worker processes instead (Sec.~\ref{sec:batching}). On a scan that a batched engine does accept, any value above one returns the request to the per-point path, which measured ten times slower on $5000$ energies, so one process is the default.
+# An array of energies at one baseline
+info['engine']             # 'separable'
+
+# average=True
+info['engine']             # 'average'
+info['family']             # 'phase-average'
+
+# osc_prob_3nu_matter_constant_density
+info['engine']             # 'constant'
+info['family']             # 'exact'
+\end{pysnip}
+The {\tt 'sampling'} entry helps diagnose results that look wrong. It gives the oscillation length, how many cycles fit in the trajectory, and the number of points a Nyquist criterion asks for (the number points a scan would need to sample the fastest oscillation twice per cycle), \eg,
+\begin{pysnip}
+s = info['sampling']
+s['oscillation_length']/gd.UNIT_KM
+                               # 3253.0
+s['cycles_over_trajectory']    # 3.5
+s['nyquist_points']            # 9
+\end{pysnip}
+% Where no batched engine applies, {\tt n\_jobs} distributes the points over worker processes instead (Sec.~\ref{sec:batching}). On a scan that a batched engine does accept, any value above one returns the request to the per-point path, which measured ten times slower on $5000$ energies, so one process is the default.
+
+An engine that declines says so and why. For instance, this profile falls with a scale height of $50$~m over an Earth diameter, which is narrower than the grid the hybrid strategy probes it on:
+\begin{pysnip}
+info = {}
+P = oscprob.osc_prob_2nu_matter_exp_density(
+    1.0*gd.UNIT_GEV, 12742.0*gd.UNIT_KM, 0.0,
+    3.0, 0.05*gd.UNIT_KM, sth=0.5, Dm2=2.5e-3,
+    density_matter_is_in_g_per_cm3=True,
+    nu_i=0, nu_f=1, strategy_info=info)
+info['declined']    
+# [('hybrid',
+#   'the profile is not resolved at the probe scale')]
+info['engine']        # 'ip_exp'
+info['family']        # 'interaction-picture'
+\end{pysnip}
+Widening the scale height to $50$~km leaves the same call to the hybrid strategy, which now certifies its own answer:
+\begin{pysnip}
+# l_scale = 50.0*gd.UNIT_KM, everything else equal
+info['engine']        # 'hybrid'
+info['certified']     # True
+info['declined']      # []
+\end{pysnip}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\subsection{The Sun and the observable a solar experiment measures}
+\subsection{The Sun }
 \label{sec:sun}
-\label{sec:solar}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 

@@ -14978,6 +14978,78 @@ gx.plot([0, 1], [0, 0], color='0.3', lw=0.7, zorder=5)
 gx.plot([0, 0], [0, 1], color='0.3', lw=0.7, zorder=5)
 
 save(fig, 'prem_profile.pdf')'''),
+    md(r'''## Figure 3f --- a sterile scan over mass splitting and mixing
+
+Six thousand four hundred probabilities per panel, four panels, one comprehension each.
+The window is chosen by what the grid resolves rather than by taste: above about
+$3$~eV$^2$ the oscillation in $\Delta m^2_{41}$ outruns eighty log-spaced nodes, and the
+map would then show aliasing rather than physics. Measured against a four-times finer
+grid, the worst swing between adjacent nodes is $0.099$ inside this window and $0.39$
+over a full decade.'''),
+    code(r'''# --- Figure 3f -- the sterile parameter scan
+SCAN_N = 80
+SCAN_E = 5.0*gd.UNIT_TEV
+SCAN_D41 = np.logspace(np.log10(0.1), np.log10(3.0), SCAN_N)
+SCAN_S14 = np.logspace(np.log10(0.02), 0.0, SCAN_N)
+SCAN_S24 = np.sqrt(0.10)
+SCAN_PANELS = [(-1.0, False, r'$\nu_\mu$, $\cos\theta_z = -1$'),
+               (-0.5, False, r'$\nu_\mu$, $\cos\theta_z = -0.5$'),
+               (-1.0, True,  r'$\bar{\nu}_\mu$, $\cos\theta_z = -1$'),
+               (-0.5, True,  r'$\bar{\nu}_\mu$, $\cos\theta_z = -0.5$')]
+
+
+def sterile_scan(costhz, nubar):
+    """P(3+1) - P(3nu) over the plane, for one chord and one sign.
+
+    Cached like every other measured quantity here: 6400 four-flavor Earth
+    probabilities per panel is a property of the configuration, not of the run.
+    """
+    def run():
+        L = chord(costhz)
+        kw = dict(costhz=costhz, L=L, nu_i=gd.NUMU, nu_f=gd.NUMU, nubar=nubar,
+                  rtol=RTOL_FIG, atol=ATOL_FIG)
+        std = float(quiet(oscprob.osc_prob_3nu_earth, SCAN_E, **OSC, **kw))
+        return [[float(quiet(oscprob.osc_prob_4nu_earth, SCAN_E, s14=s, s24=SCAN_S24,
+                             s34=0.0, D41=d, **OSC, **kw)) - std
+                 for s in SCAN_S14] for d in SCAN_D41]
+    key = ('sterile_scan', float(costhz), bool(nubar), float(SCAN_E), SCAN_N,
+           [float(x) for x in SCAN_D41], [float(x) for x in SCAN_S14],
+           float(SCAN_S24), RTOL_FIG, ATOL_FIG, sorted(OSC.items()))
+    tag = 'sterile_scan_%s_%s' % (('m%g' % abs(costhz)).replace('.', 'p'),
+                                  'nubar' if nubar else 'nu')
+    return np.asarray(cached(tag, key, run, what='one panel of the sterile scan'))
+
+
+fig, axes = plt.subplots(2, 2, figsize=(COL, 3.45), sharex=True, sharey=True)
+for ax, (cz, nb, label) in zip(axes.ravel(), SCAN_PANELS):
+    im = ax.pcolormesh(SCAN_S14**2, SCAN_D41, sterile_scan(cz, nb), cmap='magma_r',
+                       vmin=-0.9, vmax=0.0, shading='gouraud', rasterized=True)
+    ax.set_xscale('log'); ax.set_yscale('log')
+    ax.set_xlim((SCAN_S14**2).min(), (SCAN_S14**2).max())
+    ax.set_ylim(SCAN_D41.min(), SCAN_D41.max())
+    ax.set_xticks([1e-3, 1e-2, 1e-1, 1.0])
+    ax.set_xticklabels([r'$10^{-3}$', r'$10^{-2}$', r'$10^{-1}$', r'$1$'])
+    ax.set_yticks([0.1, 0.3, 1.0, 3.0]); ax.set_yticklabels(['0.1', '0.3', '1', '3'])
+    ax.xaxis.set_minor_formatter(mpl.ticker.NullFormatter())
+    ax.yaxis.set_minor_formatter(mpl.ticker.NullFormatter())
+    # White on a dark map; the labels stay dark so they read against the page.
+    ax.tick_params(which='both', color='white')
+    corner(ax, label, loc='lower left', fontsize=7.0, x=0.05, y=0.06)
+fig.subplots_adjust(left=0.145, right=0.845, bottom=0.115, top=0.99,
+                    wspace=0.10, hspace=0.08)
+# One label per direction, centered on the block of panels rather than on the
+# canvas, so the colorbar does not pull either off center.
+fig.text(0.495, 0.030, r'$\sin^2\theta_{14}$', ha='center', va='bottom', fontsize=9.0)
+fig.text(0.032, 0.553, r'$\Delta m^2_{41}$ [eV$^2$]', ha='left', va='center',
+         rotation='vertical', fontsize=9.0)
+cax = fig.add_axes([0.862, 0.115, 0.032, 0.875])
+cb = fig.colorbar(im, cax=cax)
+cb.set_label(r'$P_{3+1} - P_{3\nu}$', fontsize=8.5, labelpad=3)
+cb.set_ticks([0.0, -0.2, -0.4, -0.6, -0.8])
+cb.ax.tick_params(color='white')
+print('  deepest depletion per panel: %s'
+      % ', '.join('%.3f' % sterile_scan(cz, nb).min() for cz, nb, _ in SCAN_PANELS))
+save(fig, 'sterile_scan.pdf')'''),
     md(r'''## Figure 4 --- three oscillograms
 
 **The middle row carries its own energy axis and cannot share the others'.** An eV-scale
