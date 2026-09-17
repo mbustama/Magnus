@@ -15169,6 +15169,95 @@ ax.legend(loc='upper left', bbox_to_anchor=(0.20, 0.97), ncol=2, fontsize=7.0,
           title_fontsize=7.0)
 fig.tight_layout(pad=0.4)
 save(fig, 'named_baselines.pdf')'''),
+    md(r'''## Figure 4c --- a cavity in the Earth's crust
+
+The cavity search of arXiv:1201.6080: a low-energy $\bar{\nu}_e$ beam over $1\,500$~km of
+crust, against the same beam with a slab of anomalous density centered on the baseline.
+Every cavity has two walls. Every wall is a density jump, so both positions go to
+`t_breakpoints`. Leaving them out is not a small error. At a width of $20$~km the
+refinement steps over the cavity and returns the empty-crust probability to fourteen
+digits, while reporting that it converged to the $10^{-8}$ it was asked for.'''),
+    code(r'''# --------------------------------------------- a cavity in the Earth's crust
+# The search of arXiv:1201.6080, done with magnus: a low-energy antineutrino beam over
+# 1500 km of crust, against the same beam crossing a slab of anomalous density.  The
+# crust is uniform, so the reference needs no profile at all -- the scenario function
+# takes a number wherever it takes a function.
+CAV_L0 = 1500.0                            # km, source to detector
+CAV_RHO_CRUST, CAV_YE_CRUST = 3.3, 0.5     # the outermost PREM layers, averaged
+CAV_E = np.linspace(25.0, 150.0, 2500)*gd.UNIT_MEV
+CAV_KW = dict(osc_params=OSC, L0=0.0, nu_i=gd.NUE, nu_f=gd.NUE, nubar=True,
+              rtol=RTOL_FIG, atol=ATOL_FIG, density_is_of_number_of_electrons=True)
+# Water, an iron-banded formation, a mineral deposit, a zone of seismic faults.  The
+# widths fall as the density contrast grows, which is how the four were chosen there.
+CAVITIES = ((1.0, 0.555, 250.0, BLUE, 'Water, 250 km'),
+            (5.0, 0.500, 250.0, GREEN, 'Iron-banded, 250 km'),
+            (10.0, 0.500, 100.0, ORANGE, 'Mineral, 100 km'),
+            (25.0, 0.500, 50.0, RED, 'Faults, 50 km'))
+
+
+def cav_ne(rho, ye):
+    """Electron density [eV^3] of uniform matter of density rho [g cm^-3]."""
+    return matter.num_density_e_func(
+        0.0, lambda _: rho, electron_fraction=ye,
+        ratio_number_neutrons_to_protons=(1.0-ye)/ye,
+        density_matter_is_in_g_per_cm3=True)
+
+
+NE_CRUST = cav_ne(CAV_RHO_CRUST, CAV_YE_CRUST)
+
+
+def cav_profile(rho, ye, w):
+    """A crust holding one centered cavity, plus the positions of its two walls."""
+    d = (CAV_L0 - w)/2.0
+    ne_in = cav_ne(rho, ye)
+
+    def profile(l):
+        x = np.asarray(l, dtype=float)/gd.UNIT_KM
+        return NE_CRUST + (ne_in - NE_CRUST)*((x >= d) & (x <= d + w))
+
+    return profile, np.array([d, d + w])*gd.UNIT_KM
+
+
+# Twelve thousand five hundred probabilities in under a second: nothing is cached here.
+CAV_P0 = np.asarray(quiet(oscprob.osc_prob_matter_std_potential, 3, NE_CRUST, CAV_E,
+                          CAV_L0*gd.UNIT_KM, **CAV_KW))
+CAV_DP = []
+for cav_rho, cav_ye, cav_w, _, _ in CAVITIES:
+    cav_prof, cav_walls = cav_profile(cav_rho, cav_ye, cav_w)
+    CAV_DP.append(np.asarray(quiet(oscprob.osc_prob_matter_std_potential, 3, cav_prof,
+                                   CAV_E, CAV_L0*gd.UNIT_KM, t_breakpoints=cav_walls,
+                                   **CAV_KW)) - CAV_P0)
+
+CAV_EM = CAV_E/gd.UNIT_MEV
+# Every cavity curve crosses zero at the reference maximum.  The probability is
+# stationary there, so a change of density cannot move it at first order.
+CAV_E_STAT = float(CAV_EM[CAV_P0.argmax()])
+
+fig, (ax0, ax1) = plt.subplots(2, 1, figsize=(COL, 3.30), sharex=True,
+                               gridspec_kw=dict(height_ratios=[1.0, 1.55]))
+for ax in (ax0, ax1):
+    ax.axvline(CAV_E_STAT, color=INK, lw=0.6, ls=(0, (3, 2)), zorder=2)
+    ax.grid(True, which='major', color=GRID, lw=0.5)
+    ax.set_axisbelow(True)
+ax0.plot(CAV_EM, CAV_P0, color=INK, lw=1.0, zorder=3)
+ax0.set_ylim(0.0, 1.0); ax0.set_yticks([0.0, 0.5, 1.0])
+ax0.set_ylabel(r'$P_{\bar{\nu}_e \to \bar{\nu}_e}$', labelpad=2.0)
+corner(ax0, r'Crust alone, $3.3$~g~cm$^{-3}$', loc='lower right', fontsize=7.0,
+       x=0.975, y=0.07)
+for (cav_rho, cav_ye, cav_w, cav_color, cav_label), cav_dP in zip(CAVITIES, CAV_DP):
+    ax1.plot(CAV_EM, cav_dP, color=cav_color, lw=0.9, zorder=3, label=cav_label)
+ax1.axhline(0.0, color=INK, lw=0.6, zorder=2)
+ax1.set_xlim(CAV_EM[0], CAV_EM[-1]); ax1.set_ylim(-0.105, 0.105)
+ax1.set_xlabel(r'Antineutrino energy, $E$ [MeV]', labelpad=2.0)
+ax1.set_ylabel(r'$P_{\rm cavity} - P_{\rm crust}$', labelpad=2.0)
+ax1.legend(loc='lower right', ncol=2, fontsize=6.6, handlelength=1.3,
+           columnspacing=1.0, borderpad=0.35)
+fig.tight_layout(pad=0.4)
+fig.subplots_adjust(hspace=0.08)
+print('  reference peaks at %.1f MeV, P = %.4f' % (CAV_E_STAT, CAV_P0.max()))
+print('  largest shift per cavity: %s'
+      % ', '.join('%+.3f' % d[np.abs(d).argmax()] for d in CAV_DP))
+save(fig, 'cavity.pdf')'''),
     md(r'''## Figure 5 --- the Sun: model, observable, and residual
 
 The reference in the bottom panel is the adiabatic limit built from the instantaneous
