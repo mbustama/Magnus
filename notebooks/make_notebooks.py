@@ -15727,6 +15727,7 @@ $$\gamma_{ij}(l) = \frac{|\lambda_i - \lambda_j|^2}{2\,|\langle i|\,d\mathbb{H}/
 the usual $\Delta\lambda / 2|d\theta_m/dl|$ written so that no mixing angle has to be defined
 for three flavors. This cell takes the worst case over position and over level pair.'''),
     code(r'''# ------------------------------------- adiabaticity along a solar chord
+import magnus.adiabatic as adiabatic
 # The chord at impact parameter b, and the worst adiabaticity anywhere on it.
 SOLAR_R = gd.SUN_RADIUS*gd.UNIT_KM
 SOLAR_H_EI = hamiltonians.hamiltonian_3nu_vacuum_energy_independent(
@@ -15747,33 +15748,25 @@ def solar_chord_ne(br):
     return ne_b, hl
 
 
-def gamma_max(energy, br, npts=20000):
-    """Worst adiabaticity over position and over the three level pairs.
+def gamma_max(energy, br, n_probe=20000):
+    """Worst adiabaticity along the chord, from the package's own diagnostic.
 
-    The convention is Eq. (hf) of the method section: gamma is LARGE where the
-    levels approach, so large means non-adiabatic.  The worst case is therefore a
-    maximum, not a minimum.
+    find_nonadiabatic_windows is what the adiabatic engine uses to decide where it
+    needs a Magnus patch.  It evaluates the adiabaticity parameter of Eq. (hf) --
+    large where two levels approach, so large means non-adiabatic -- and reports the
+    largest value it found.  That is exactly the quantity this figure plots, so the
+    figure measures the package rather than a copy of it.
     """
     ne_b, hl = solar_chord_ne(br)
-    l = np.linspace(0.0, 2*hl, npts)
-    vcc = PER_NE*ne_b(l)
-    H = np.broadcast_to(SOLAR_H_EI/energy, (npts, 3, 3)).copy()
-    H[:, 0, 0] += vcc
-    w, v = np.linalg.eigh(H)
-    dH = np.zeros((npts, 3, 3), dtype=complex)
-    dH[:, 0, 0] = np.gradient(vcc, l)
-    M = np.einsum('nai,nab,nbj->nij', v.conj(), dH, v)
-    g = np.zeros(npts)
-    for i in range(3):
-        for j in range(i+1, 3):
-            gap = np.abs(w[:, i] - w[:, j])
-            coup = np.abs(M[:, i, j])
-            # np.where would still divide everywhere, so guard the division itself:
-            # a vanishing gap is a crossing, which is maximally non-adiabatic.
-            gij = np.full(npts, np.inf)
-            np.divide(coup, gap**2, out=gij, where=gap > 0.0)
-            g = np.maximum(g, gij)
-    return float(g.max())
+
+    def H_func(l):
+        H = (SOLAR_H_EI/energy).astype(complex).copy()
+        H[0, 0] += PER_NE*ne_b(l)
+        return H
+
+    info = {}
+    adiabatic.find_nonadiabatic_windows(H_func, 0.0, 2*hl, n_probe=n_probe, info=info)
+    return float(info['gamma_max'])
 
 
 def solar_gamma_curve(br):
@@ -15781,7 +15774,7 @@ def solar_gamma_curve(br):
     each one an eigendecomposition at 20 000 points along the chord."""
     def run():
         return [gamma_max(e*gd.UNIT_GEV, br) for e in SOLAR_E]
-    key = ('solar_gamma_max', float(br), [float(x) for x in SOLAR_E],
+    key = ('solar_gamma_pkg', float(br), [float(x) for x in SOLAR_E],
            sorted(OSC.items()), float(SOLAR_R))
     tag = 'solar_gamma_b%s' % ('%g' % br).replace('.', 'p')
     return np.asarray(cached(tag, key, run, what='one adiabaticity curve'))
@@ -15789,7 +15782,61 @@ def solar_gamma_curve(br):
 
 GAMMA = {br: solar_gamma_curve(br) for br, _, _ in SOLAR_B}
 
-fig, ax = plt.subplots(figsize=(COL, 2.75))
+fig = plt.figure(figsize=(COL, 3.95))
+solar_gs = fig.add_gridspec(2, 1, height_ratios=[0.33, 1.0], hspace=0.06)
+
+# --- the setup, drawn above the measurement: flux in, Sun, flux out, Earth.
+axs = fig.add_subplot(solar_gs[0])
+SUN_X, SUN_RD, EAR_X, EAR_RD = 4.35, 1.05, 9.55, 0.47
+for y_arrow in (-0.88, -0.44, 0.0, 0.44, 0.88):
+    for x0, dx in ((0.10, 2.35), (5.65, 2.70)):
+        axs.add_patch(mpl.patches.FancyArrow(
+            x0, y_arrow, dx, 0.0, width=0.028, head_width=0.16, head_length=0.28,
+            length_includes_head=True, facecolor=INK, edgecolor='none', zorder=3))
+# A quarter of the Sun is cut away, shaded by its own electron density: bright at
+# the center, where the density is highest, dark at the surface.
+solar_cmap = plt.get_cmap('afmhot')
+solar_edges = np.linspace(0.0, 1.0, 60)
+solar_lo, solar_hi = np.log10(ne_tab.min()), np.log10(ne_tab.max())
+for r0, r1 in zip(solar_edges[:-1], solar_edges[1:]):
+    shade = (np.log10(np.interp(0.5*(r0 + r1), r_over_rsun, ne_tab))
+             - solar_lo)/(solar_hi - solar_lo)
+    axs.add_patch(Wedge((SUN_X, 0.0), r1*SUN_RD, 0.0, 90.0, width=(r1 - r0)*SUN_RD,
+                        facecolor=solar_cmap(0.12 + 0.78*shade), edgecolor='none',
+                        zorder=4))
+axs.add_patch(Wedge((SUN_X, 0.0), SUN_RD, 90.0, 360.0, facecolor='#f5c451',
+                    edgecolor='none', zorder=4))
+axs.add_patch(Wedge((SUN_X, 0.0), SUN_RD, 0.0, 360.0, width=0.001, edgecolor=INK,
+                    facecolor='none', lw=0.8, zorder=6))
+axs.plot([SUN_X, SUN_X + SUN_RD], [0, 0], color=INK, lw=0.6, zorder=6)
+axs.plot([SUN_X, SUN_X], [0, SUN_RD], color=INK, lw=0.6, zorder=6)
+axs.add_patch(Wedge((EAR_X, 0.0), EAR_RD, 0.0, 360.0, facecolor='#cfe3f5',
+                    edgecolor=INK, lw=0.7, zorder=4))
+solar_lat0, solar_lon0 = np.deg2rad(22.0), np.deg2rad(10.0)
+for ring in LAND:
+    a = np.deg2rad(np.asarray(ring, dtype=float))
+    lon, lat = a[:, 0], a[:, 1]
+    cosc = (np.sin(solar_lat0)*np.sin(lat)
+            + np.cos(solar_lat0)*np.cos(lat)*np.cos(lon - solar_lon0))
+    if (cosc > 0).sum() < 3:
+        continue
+    xx = np.cos(lat)*np.sin(lon - solar_lon0)
+    yy = (np.cos(solar_lat0)*np.sin(lat)
+          - np.sin(solar_lat0)*np.cos(lat)*np.cos(lon - solar_lon0))
+    far = cosc <= 0
+    if far.any():
+        nn = np.hypot(xx, yy); nn[nn == 0] = 1.0
+        xx = np.where(far, xx/nn, xx); yy = np.where(far, yy/nn, yy)
+    axs.add_patch(Polygon(np.column_stack([EAR_X + EAR_RD*xx, EAR_RD*yy]),
+                          closed=True, facecolor='#8fb98a', edgecolor='#4f7a55',
+                          lw=0.3, zorder=5))
+axs.text(1.25, 1.10, r'Astrophysical $\nu$', ha='center', va='bottom', fontsize=7.0,
+         color=INK)
+axs.text(EAR_X, -EAR_RD - 0.14, 'Earth', ha='center', va='top', fontsize=7.0, color=INK)
+axs.set_xlim(-0.05, 10.2); axs.set_ylim(-1.35, 1.45)
+axs.set_aspect('equal'); axs.axis('off')
+
+ax = fig.add_subplot(solar_gs[1])
 # Grey, not red: the red curve is an impact parameter, the shading is a regime.
 ax.axhspan(1.0, 1e12, color='0.5', alpha=0.13, lw=0, zorder=0)
 for br, color, label in SOLAR_B:
@@ -15814,7 +15861,6 @@ ax.grid(True, which='major', color=GRID, lw=0.5); ax.set_axisbelow(True)
 leg = ax.legend(loc='lower right', fontsize=6.8, handlelength=1.4, borderpad=0.35,
                 labelspacing=0.3, title=r'Impact parameter, $b$', title_fontsize=6.8)
 leg.get_frame().set_edgecolor('black')
-fig.tight_layout(pad=0.4)
 for br, _, _ in SOLAR_B:
     above = SOLAR_E[GAMMA[br] > 1.0]
     print('  b = %.2f R_sun: crosses gamma = 1 at %s GeV'
