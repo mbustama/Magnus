@@ -15716,6 +15716,172 @@ b.set_ylabel(r'$\Delta \langle P \rangle$', fontsize=8.0)
 b.set_ylim(-0.02, 0.02)
 minor_y(b, 5)
 save(fig, 'solar_long_range.pdf')'''),
+    md(r'''## Figure 5e --- adiabaticity along a solar chord
+
+A neutrino that crosses the Sun from outside enters where the density vanishes, so it starts
+as a vacuum mass eigenstate. If the passage is adiabatic it leaves as the same one, and the
+Sun drops out of the flavor composition entirely. Whether that holds is decided by
+
+$$\gamma_{ij}(l) = \frac{|\lambda_i - \lambda_j|^2}{2\,|\langle i|\,d\mathbb{H}/dl\,|j\rangle|},$$
+
+the usual $\Delta\lambda / 2|d\theta_m/dl|$ written so that no mixing angle has to be defined
+for three flavors. This cell takes the worst case over position and over level pair.'''),
+    code(r'''# ------------------------------------- adiabaticity along a solar chord
+# The chord at impact parameter b, and the worst adiabaticity anywhere on it.
+SOLAR_R = gd.SUN_RADIUS*gd.UNIT_KM
+SOLAR_H_EI = hamiltonians.hamiltonian_3nu_vacuum_energy_independent(
+    OSC['s12'], OSC['s23'], OSC['s13'], OSC['dCP'], OSC['D21'], OSC['D31'])
+SOLAR_E = np.logspace(-3, 6, 110)          # GeV
+SOLAR_B = [(0.0, BLUE, r'$0$ (diameter)'), (0.6, GREEN, r'$0.6\,R_\odot$'),
+           (0.9, ORANGE, r'$0.9\,R_\odot$'), (0.95, RED, r'$0.95\,R_\odot$')]
+
+
+def solar_chord_ne(br):
+    """Electron density along the chord at impact parameter br = b/R_sun."""
+    b = br*SOLAR_R
+    hl = np.sqrt(max(SOLAR_R**2 - b**2, 0.0))
+
+    def ne_b(l):
+        return ne_sun(np.sqrt((np.asarray(l, dtype=float) - hl)**2 + b**2))
+
+    return ne_b, hl
+
+
+def gamma_min(energy, br, npts=20000):
+    """Worst gamma over position and over the three level pairs."""
+    ne_b, hl = solar_chord_ne(br)
+    l = np.linspace(0.0, 2*hl, npts)
+    vcc = PER_NE*ne_b(l)
+    H = np.broadcast_to(SOLAR_H_EI/energy, (npts, 3, 3)).copy()
+    H[:, 0, 0] += vcc
+    w, v = np.linalg.eigh(H)
+    dH = np.zeros((npts, 3, 3), dtype=complex)
+    dH[:, 0, 0] = np.gradient(vcc, l)
+    M = np.einsum('nai,nab,nbj->nij', v.conj(), dH, v)
+    g = np.full(npts, np.inf)
+    for i in range(3):
+        for j in range(i+1, 3):
+            gap = np.abs(w[:, i] - w[:, j])
+            coup = np.abs(M[:, i, j])
+            # np.where would still divide everywhere, so guard the division itself:
+            # a vanishing coupling means no mixing to break, i.e. perfectly adiabatic.
+            gij = np.full(npts, np.inf)
+            np.divide(gap**2, 2.0*coup, out=gij, where=coup > 0.0)
+            g = np.minimum(g, gij)
+    return float(g.min())
+
+
+def solar_gamma_curve(br):
+    """gamma_min against energy, for one impact parameter.  Cached: 110 energies,
+    each one an eigendecomposition at 20 000 points along the chord."""
+    def run():
+        return [gamma_min(e*gd.UNIT_GEV, br) for e in SOLAR_E]
+    key = ('solar_gamma', float(br), [float(x) for x in SOLAR_E],
+           sorted(OSC.items()), float(SOLAR_R))
+    tag = 'solar_gamma_b%s' % ('%g' % br).replace('.', 'p')
+    return np.asarray(cached(tag, key, run, what='one adiabaticity curve'))
+
+
+GAMMA = {br: solar_gamma_curve(br) for br, _, _ in SOLAR_B}
+
+fig, ax = plt.subplots(figsize=(COL, 2.75))
+# Grey, not red: the red curve is an impact parameter, the shading is a regime.
+ax.axhspan(1e-5, 1.0, color='0.5', alpha=0.13, lw=0, zorder=0)
+for br, color, label in SOLAR_B:
+    ax.loglog(SOLAR_E, GAMMA[br], color=color, lw=1.2, zorder=3, label=label)
+ax.axhline(1.0, color=INK, lw=0.8, ls=(0, (3, 2)), zorder=2)
+ax.set_xlim(SOLAR_E[0], SOLAR_E[-1]); ax.set_ylim(1e-4, 1e10)
+ax.set_yticks([10.0**k for k in range(-4, 11)])
+ax.set_yticklabels([(r'$10^{%d}$' % k) if k % 2 == 0 else '' for k in range(-4, 11)])
+ax.set_xticks([10.0**k for k in range(-3, 7)])
+ax.xaxis.set_minor_locator(mpl.ticker.LogLocator(base=10.0, subs=tuple(np.arange(2, 10)*0.1),
+                                                 numticks=100))
+ax.yaxis.set_minor_locator(mpl.ticker.LogLocator(base=10.0, subs=tuple(np.arange(2, 10)*0.1),
+                                                 numticks=100))
+ax.set_xlabel(r'Neutrino energy, $E$ [GeV]', labelpad=2.0)
+ax.set_ylabel(r'Minimum adiabatic parameter, $\gamma_{\rm min}$', labelpad=2.0, fontsize=8.5)
+ax.text(4.0e4, 4.0e0, 'Adiabatic', fontsize=7.0, color='0.35', ha='right')
+ax.text(4.0e4, 1.6e-1, 'Non-adiabatic', fontsize=7.0, color='0.35', ha='right')
+ax.grid(True, which='major', color=GRID, lw=0.5); ax.set_axisbelow(True)
+leg = ax.legend(loc='upper right', fontsize=6.8, handlelength=1.4, borderpad=0.35,
+                labelspacing=0.3, title=r'Impact parameter, $b$', title_fontsize=6.8)
+leg.get_frame().set_edgecolor('black')
+fig.tight_layout(pad=0.4)
+for br, _, _ in SOLAR_B:
+    below = SOLAR_E[GAMMA[br] < 1.0]
+    print('  b = %.2f R_sun: crosses gamma = 1 at %s GeV'
+          % (br, ('%.3g' % below.min()) if len(below) else 'never'))
+save(fig, 'solar_adiabaticity.pdf')'''),
+    md(r'''## Figure 5f --- the Sun in the electron-neutrino channel
+
+The line of sight runs into the page, so a point of the disk is an impact parameter and the
+neutrino crosses the whole Sun along it. What is plotted is the **phase-averaged**
+probability. The instantaneous one is not drawable here: at $100$~GeV the $\nu_e$ state
+accumulates about $1\,030$ cycles of $\int V\,dl$ across a chord, which changes by $7.5$
+cycles when $b$ moves by $0.0013\,R_\odot$, so $P$ sweeps the whole range between adjacent
+pixels. The averaged probability carries no such phase: its structure is the level-crossing
+matrix, and it converges at 200 impact parameters.'''),
+    code(r'''# --------------------------- the Sun in the electron-neutrino channel
+# Each pixel is an impact parameter; the neutrino crosses the whole Sun along it.
+SOLAR_NB = 200
+SOLAR_BGRID = np.linspace(0.0, 1.0, SOLAR_NB)
+SOLAR_PANELS = [(0.01, r'$10$~MeV'), (10.0, r'$10$~GeV'), (30.0, r'$30$~GeV'),
+                (100.0, r'$100$~GeV'), (300.0, r'$300$~GeV'), (1.0e3, r'$1$~TeV'),
+                (3.0e3, r'$3$~TeV'), (1.0e4, r'$10$~TeV'), (5.0e4, r'$50$~TeV')]
+
+
+def solar_disk(energy_gev):
+    """Phase-averaged P(nu_e -> nu_e) after the whole crossing, per impact parameter."""
+    def run():
+        out = []
+        for br in SOLAR_BGRID:
+            ne_b, hl = solar_chord_ne(br)
+            if hl <= 0.0:
+                out.append(np.nan); continue
+            out.append(float(quiet(
+                oscprob.osc_prob_matter_std_potential, 3, ne_b,
+                energy_gev*gd.UNIT_GEV, 2*hl, average=True, osc_params=OSC, L0=0.0,
+                nu_i=gd.NUE, nu_f=gd.NUE, density_is_of_number_of_electrons=True)))
+        return out
+    key = ('solar_disk', float(energy_gev), SOLAR_NB, sorted(OSC.items()), float(SOLAR_R))
+    tag = 'solar_disk_%s' % ('%g' % energy_gev).replace('.', 'p').replace('+', '')
+    P = np.asarray(cached(tag, key, run, what='one panel of the solar disk'))
+    P[np.isnan(P)] = P[np.isfinite(P)][-1]
+    return P
+
+
+SOLAR_MAPS = [solar_disk(e) for e, _ in SOLAR_PANELS]
+
+SOLAR_NPIX = 520
+solar_g = np.linspace(-1.0, 1.0, SOLAR_NPIX)
+solar_xx, solar_yy = np.meshgrid(solar_g, solar_g)
+solar_rr = np.sqrt(solar_xx**2 + solar_yy**2)
+fig, axes = plt.subplots(3, 3, figsize=(WIDE, WIDE*0.92), sharex=True, sharey=True)
+solar_th = np.linspace(0.0, 2.0*np.pi, 500)
+for ax, P, (e, label) in zip(axes.ravel(), SOLAR_MAPS, SOLAR_PANELS):
+    M = np.where(solar_rr <= 1.0, np.interp(np.clip(solar_rr, 0.0, 1.0), SOLAR_BGRID, P),
+                 np.nan)
+    im = ax.pcolormesh(solar_g, solar_g, M, cmap='viridis', vmin=0.0, vmax=1.0,
+                       shading='gouraud', rasterized=True)
+    ax.plot(np.cos(solar_th), np.sin(solar_th), color=INK, lw=0.8)
+    ax.set_aspect('equal'); ax.set_xlim(-1.12, 1.12); ax.set_ylim(-1.12, 1.12)
+    ax.set_xticks([-1, 0, 1]); ax.set_yticks([-1, 0, 1])
+    ax.set_title(label, fontsize=8.5, pad=3)
+fig.subplots_adjust(left=0.075, right=0.865, bottom=0.075, top=0.965, wspace=0.06,
+                    hspace=0.12)
+# One label per direction, centred on the block of panels rather than on the canvas.
+fig.text(0.470, 0.026, r'$x / R_\odot$', ha='center', va='bottom', fontsize=9.5)
+fig.text(0.021, 0.520, r'$y / R_\odot$', ha='left', va='center', rotation='vertical',
+         fontsize=9.5)
+cax = fig.add_axes([0.880, 0.075, 0.017, 0.890])
+cb = fig.colorbar(im, cax=cax)
+cb.set_label(r'Phase-averaged $P_{\nu_e \to \nu_e}$ after crossing the Sun', fontsize=8.5,
+             labelpad=4)
+print('  vacuum decohered value, sum_i |U_ei|^4 = %.6f'
+      % float(np.sum(np.abs(np.linalg.eigh(SOLAR_H_EI)[1][0, :])**4)))
+for P, (e, label) in zip(SOLAR_MAPS, SOLAR_PANELS):
+    print('  %-10s P in [%.6f, %.6f]' % (label, P.min(), P.max()))
+save(fig, 'solar_tomography.pdf')'''),
     md(r'''## Figure 6 --- a supernova shock
 
 Rows 1 and 2 share the full-ray axis; row 3 is a window at the front and gets its own.
