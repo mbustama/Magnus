@@ -15783,16 +15783,23 @@ def solar_gamma_curve(br):
 GAMMA = {br: solar_gamma_curve(br) for br, _, _ in SOLAR_B}
 
 fig = plt.figure(figsize=(COL, 3.95))
-solar_gs = fig.add_gridspec(2, 1, height_ratios=[0.33, 1.0], hspace=0.06)
+solar_gs = fig.add_gridspec(2, 1, height_ratios=[0.33, 1.0], hspace=0.01)
 
 # --- the setup, drawn above the measurement: flux in, Sun, flux out, Earth.
 axs = fig.add_subplot(solar_gs[0])
 SUN_X, SUN_RD, EAR_X, EAR_RD = 4.35, 1.05, 9.55, 0.47
+# Each ray runs unbroken from left to right, turning grey over the stretch that
+# lies inside the Sun, so the picture shows one trajectory rather than two.
 for y_arrow in (-0.88, -0.44, 0.0, 0.44, 0.88):
-    for x0, dx in ((0.10, 2.35), (5.65, 2.70)):
-        axs.add_patch(mpl.patches.FancyArrow(
-            x0, y_arrow, dx, 0.0, width=0.028, head_width=0.16, head_length=0.28,
-            length_includes_head=True, facecolor=INK, edgecolor='none', zorder=3))
+    chord = np.sqrt(max(SUN_RD**2 - y_arrow**2, 0.0))
+    x_in, x_out = SUN_X - chord, SUN_X + chord
+    for xa, xb, color in ((0.10, x_in, INK), (x_in, x_out, '0.62'),
+                          (x_out, 8.05, INK)):
+        axs.plot([xa, xb], [y_arrow, y_arrow], color=color, lw=1.1,
+                 solid_capstyle='butt', zorder=5)
+    axs.add_patch(mpl.patches.FancyArrow(
+        8.05, y_arrow, 0.30, 0.0, width=0.001, head_width=0.17, head_length=0.30,
+        length_includes_head=True, facecolor=INK, edgecolor='none', zorder=5))
 # A quarter of the Sun is cut away, shaded by its own electron density: bright at
 # the center, where the density is highest, dark at the surface.
 solar_cmap = plt.get_cmap('afmhot')
@@ -15830,10 +15837,18 @@ for ring in LAND:
     axs.add_patch(Polygon(np.column_stack([EAR_X + EAR_RD*xx, EAR_RD*yy]),
                           closed=True, facecolor='#8fb98a', edgecolor='#4f7a55',
                           lw=0.3, zorder=5))
-axs.text(1.25, 1.10, r'Astrophysical $\nu$', ha='center', va='bottom', fontsize=7.0,
+axs.text(1.25, 1.10, r'Astrophysical $\nu_e$', ha='center', va='bottom', fontsize=7.0,
          color=INK)
+# The impact parameter, marked on one ray: the perpendicular distance from the
+# Sun's center to that trajectory.
+axs.annotate('', xy=(SUN_X - 0.52, 0.88), xytext=(SUN_X - 0.52, 0.0),
+             arrowprops=dict(arrowstyle='<->', color=INK, lw=0.7,
+                             shrinkA=0.0, shrinkB=0.0), zorder=7)
+axs.text(SUN_X - 0.62, 0.44, r'$b$', ha='right', va='center', fontsize=7.5,
+         color=INK, zorder=7)
+axs.text(SUN_X, 1.10, 'Sun', ha='center', va='bottom', fontsize=7.0, color=INK)
 axs.text(EAR_X, -EAR_RD - 0.14, 'Earth', ha='center', va='top', fontsize=7.0, color=INK)
-axs.set_xlim(-0.05, 10.2); axs.set_ylim(-1.35, 1.45)
+axs.set_xlim(-0.05, 10.2); axs.set_ylim(-1.24, 1.45)
 axs.set_aspect('equal'); axs.axis('off')
 
 ax = fig.add_subplot(solar_gs[1])
