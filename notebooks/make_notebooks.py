@@ -15747,8 +15747,13 @@ def solar_chord_ne(br):
     return ne_b, hl
 
 
-def gamma_min(energy, br, npts=20000):
-    """Worst gamma over position and over the three level pairs."""
+def gamma_max(energy, br, npts=20000):
+    """Worst adiabaticity over position and over the three level pairs.
+
+    The convention is Eq. (hf) of the method section: gamma is LARGE where the
+    levels approach, so large means non-adiabatic.  The worst case is therefore a
+    maximum, not a minimum.
+    """
     ne_b, hl = solar_chord_ne(br)
     l = np.linspace(0.0, 2*hl, npts)
     vcc = PER_NE*ne_b(l)
@@ -15758,25 +15763,25 @@ def gamma_min(energy, br, npts=20000):
     dH = np.zeros((npts, 3, 3), dtype=complex)
     dH[:, 0, 0] = np.gradient(vcc, l)
     M = np.einsum('nai,nab,nbj->nij', v.conj(), dH, v)
-    g = np.full(npts, np.inf)
+    g = np.zeros(npts)
     for i in range(3):
         for j in range(i+1, 3):
             gap = np.abs(w[:, i] - w[:, j])
             coup = np.abs(M[:, i, j])
             # np.where would still divide everywhere, so guard the division itself:
-            # a vanishing coupling means no mixing to break, i.e. perfectly adiabatic.
+            # a vanishing gap is a crossing, which is maximally non-adiabatic.
             gij = np.full(npts, np.inf)
-            np.divide(gap**2, 2.0*coup, out=gij, where=coup > 0.0)
-            g = np.minimum(g, gij)
-    return float(g.min())
+            np.divide(coup, gap**2, out=gij, where=gap > 0.0)
+            g = np.maximum(g, gij)
+    return float(g.max())
 
 
 def solar_gamma_curve(br):
-    """gamma_min against energy, for one impact parameter.  Cached: 110 energies,
+    """gamma_max against energy, for one impact parameter.  Cached: 110 energies,
     each one an eigendecomposition at 20 000 points along the chord."""
     def run():
-        return [gamma_min(e*gd.UNIT_GEV, br) for e in SOLAR_E]
-    key = ('solar_gamma', float(br), [float(x) for x in SOLAR_E],
+        return [gamma_max(e*gd.UNIT_GEV, br) for e in SOLAR_E]
+    key = ('solar_gamma_max', float(br), [float(x) for x in SOLAR_E],
            sorted(OSC.items()), float(SOLAR_R))
     tag = 'solar_gamma_b%s' % ('%g' % br).replace('.', 'p')
     return np.asarray(cached(tag, key, run, what='one adiabaticity curve'))
@@ -15786,31 +15791,32 @@ GAMMA = {br: solar_gamma_curve(br) for br, _, _ in SOLAR_B}
 
 fig, ax = plt.subplots(figsize=(COL, 2.75))
 # Grey, not red: the red curve is an impact parameter, the shading is a regime.
-ax.axhspan(1e-5, 1.0, color='0.5', alpha=0.13, lw=0, zorder=0)
+ax.axhspan(1.0, 1e12, color='0.5', alpha=0.13, lw=0, zorder=0)
 for br, color, label in SOLAR_B:
     ax.loglog(SOLAR_E, GAMMA[br], color=color, lw=1.2, zorder=3, label=label)
 ax.axhline(1.0, color=INK, lw=0.8, ls=(0, (3, 2)), zorder=2)
-ax.set_xlim(SOLAR_E[0], SOLAR_E[-1]); ax.set_ylim(1e-4, 1e10)
-ax.set_yticks([10.0**k for k in range(-4, 11)])
-ax.set_yticklabels([(r'$10^{%d}$' % k) if k % 2 == 0 else '' for k in range(-4, 11)])
+ax.set_xlim(SOLAR_E[0], SOLAR_E[-1]); ax.set_ylim(1e-10, 1e4)
+ax.set_yticks([10.0**k for k in range(-10, 5)])
+ax.set_yticklabels([(r'$10^{%d}$' % k) if k % 2 == 0 else '' for k in range(-10, 5)])
 ax.set_xticks([10.0**k for k in range(-3, 7)])
 ax.xaxis.set_minor_locator(mpl.ticker.LogLocator(base=10.0, subs=tuple(np.arange(2, 10)*0.1),
                                                  numticks=100))
 ax.yaxis.set_minor_locator(mpl.ticker.LogLocator(base=10.0, subs=tuple(np.arange(2, 10)*0.1),
                                                  numticks=100))
 ax.set_xlabel(r'Neutrino energy, $E$ [GeV]', labelpad=2.0)
-ax.set_ylabel(r'Minimum adiabatic parameter, $\gamma_{\rm min}$', labelpad=2.0, fontsize=8.5)
-ax.text(4.0e4, 4.0e0, 'Adiabatic', fontsize=7.0, color='0.35', ha='right')
-ax.text(4.0e4, 1.6e-1, 'Non-adiabatic', fontsize=7.0, color='0.35', ha='right')
+ax.set_ylabel(r'Maximum adiabaticity parameter, $\gamma_{\rm max}$', labelpad=2.0,
+              fontsize=8.5)
+ax.text(4.0e4, 1.2e-2, 'Adiabatic', fontsize=7.0, color='0.35', ha='right')
+ax.text(4.0e4, 8.0e0, 'Non-adiabatic', fontsize=7.0, color='0.35', ha='right')
 ax.grid(True, which='major', color=GRID, lw=0.5); ax.set_axisbelow(True)
-leg = ax.legend(loc='upper right', fontsize=6.8, handlelength=1.4, borderpad=0.35,
+leg = ax.legend(loc='lower right', fontsize=6.8, handlelength=1.4, borderpad=0.35,
                 labelspacing=0.3, title=r'Impact parameter, $b$', title_fontsize=6.8)
 leg.get_frame().set_edgecolor('black')
 fig.tight_layout(pad=0.4)
 for br, _, _ in SOLAR_B:
-    below = SOLAR_E[GAMMA[br] < 1.0]
+    above = SOLAR_E[GAMMA[br] > 1.0]
     print('  b = %.2f R_sun: crosses gamma = 1 at %s GeV'
-          % (br, ('%.3g' % below.min()) if len(below) else 'never'))
+          % (br, ('%.3g' % above.min()) if len(above) else 'never'))
 save(fig, 'solar_adiabaticity.pdf')'''),
     md(r'''## Figure 5f --- the Sun in the electron-neutrino channel
 
