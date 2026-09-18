@@ -15837,7 +15837,7 @@ for ring in LAND:
     axs.add_patch(Polygon(np.column_stack([EAR_X + EAR_RD*xx, EAR_RD*yy]),
                           closed=True, facecolor='#8fb98a', edgecolor='#4f7a55',
                           lw=0.3, zorder=5))
-axs.text(1.25, 1.10, r'Astrophysical $\nu_e$', ha='center', va='bottom', fontsize=7.0,
+axs.text(0.10, 1.10, r'Astrophysical $\nu_e$', ha='left', va='bottom', fontsize=7.0,
          color=INK)
 # The impact parameter, marked on one ray: the perpendicular distance from the
 # Sun's center to that trajectory.
@@ -15859,8 +15859,13 @@ for br, color, label in SOLAR_B:
 ax.axhline(1.0, color=INK, lw=0.8, ls=(0, (3, 2)), zorder=2)
 ax.set_xlim(SOLAR_E[0], SOLAR_E[-1]); ax.set_ylim(1e-10, 1e4)
 ax.set_yticks([10.0**k for k in range(-10, 5)])
-ax.set_yticklabels([(r'$10^{%d}$' % k) if k % 2 == 0 else '' for k in range(-10, 5)])
+ax.set_yticklabels([('' if k % 2 else (r'$1$' if k == 0 else r'$10^{%d}$' % k))
+                    for k in range(-10, 5)])
 ax.set_xticks([10.0**k for k in range(-3, 7)])
+ax.set_xticklabels([(r'$1$' if k == 0 else r'$10^{%d}$' % k)
+                    for k in range(-3, 7)])
+# A touch more air under the energy labels than the shared rcParams give.
+ax.tick_params(axis='x', which='major', pad=2.6)
 ax.xaxis.set_minor_locator(mpl.ticker.LogLocator(base=10.0, subs=tuple(np.arange(2, 10)*0.1),
                                                  numticks=100))
 ax.yaxis.set_minor_locator(mpl.ticker.LogLocator(base=10.0, subs=tuple(np.arange(2, 10)*0.1),
