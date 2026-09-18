@@ -15314,8 +15314,64 @@ SWEEP_AF = np.linspace(-SWEEP_A_MAX, SWEEP_A_MAX, 400)
 SWEEP_WF = 2.0*np.sqrt(np.maximum(
     SWEEP_R**2 - (SWEEP_D0*np.sin(np.radians(SWEEP_AF)))**2, 0.0))
 
-fig, (axw, ax) = plt.subplots(1, 2, figsize=(COL, 2.75), sharey=True,
-                              gridspec_kw=dict(width_ratios=[1.0, 3.0]))
+fig = plt.figure(figsize=(COL, 4.30))
+# The colorbar takes a column of its own, so the sketch on top can span the panels
+# below rather than being pushed off center by it.
+sweep_gs = fig.add_gridspec(2, 3, height_ratios=[0.54, 1.0],
+                            width_ratios=[1.0, 3.0, 0.10], hspace=0.025, wspace=0.08)
+
+# --- the geometry, drawn to scale: a wedge 1500 km long and 388 km across
+axs = fig.add_subplot(sweep_gs[0, :])
+SWEEP_Y = CAV_L0*np.sin(np.radians(SWEEP_ALPHA[-1]))
+sweep_arc = np.radians(np.linspace(SWEEP_ALPHA[0], SWEEP_ALPHA[-1], 200))
+axs.plot(CAV_L0*np.cos(sweep_arc), CAV_L0*np.sin(sweep_arc), color=INK, lw=0.8,
+         ls=(0, (4, 2)), zorder=2)
+for sweep_s in (-1.0, 1.0):                 # the two beams tangent to the body
+    sweep_t = np.radians(sweep_s*SWEEP_A_MAX)
+    axs.plot([0.0, CAV_L0*np.cos(sweep_t)], [0.0, CAV_L0*np.sin(sweep_t)],
+             color='black', lw=0.8, ls=(0, (3, 2)), zorder=3)
+sweep_th = np.linspace(0.0, 2.0*np.pi, 300)
+axs.fill(SWEEP_D0 + SWEEP_R*np.cos(sweep_th), SWEEP_R*np.sin(sweep_th), facecolor=BLUE,
+         alpha=0.22, lw=0.0, zorder=3)
+axs.plot(SWEEP_D0 + SWEEP_R*np.cos(sweep_th), SWEEP_R*np.sin(sweep_th), color=BLUE,
+         lw=1.0, zorder=4)
+# one beam that clips the body, with the width it crosses drawn on it
+SWEEP_A_DRAW = 6.0
+sweep_t = np.radians(SWEEP_A_DRAW)
+sweep_u = np.array([np.cos(sweep_t), np.sin(sweep_t)])
+sweep_h = np.sqrt(SWEEP_R**2 - (SWEEP_D0*np.sin(sweep_t))**2)
+sweep_p1 = (SWEEP_D0*np.cos(sweep_t) - sweep_h)*sweep_u
+sweep_p2 = (SWEEP_D0*np.cos(sweep_t) + sweep_h)*sweep_u
+axs.plot([0.0, CAV_L0*sweep_u[0]], [0.0, CAV_L0*sweep_u[1]], color=RED, lw=1.0, zorder=5)
+axs.plot([sweep_p1[0], sweep_p2[0]], [sweep_p1[1], sweep_p2[1]], color=RED, lw=2.8,
+         zorder=6, solid_capstyle='butt')
+axs.annotate(r'$w$', xy=(0.5*(sweep_p1[0] + sweep_p2[0]), 0.5*(sweep_p1[1] + sweep_p2[1])),
+             xytext=(0.5*(sweep_p1[0] + sweep_p2[0]) - 20.0,
+                     0.5*(sweep_p1[1] + sweep_p2[1]) + 175.0), fontsize=8.0, color=RED,
+             ha='center', va='bottom', arrowprops=dict(arrowstyle='-', color=RED, lw=0.6))
+SWEEP_RARC = 440.0
+axs.add_patch(mpl.patches.Arc((0.0, 0.0), 2*SWEEP_RARC, 2*SWEEP_RARC, theta1=0.0,
+                              theta2=SWEEP_A_DRAW, color=RED, lw=0.8, zorder=5))
+axs.annotate(r'$\alpha$', xy=(SWEEP_RARC*np.cos(np.radians(SWEEP_A_DRAW/2)) + 30.0,
+                              SWEEP_RARC*np.sin(np.radians(SWEEP_A_DRAW/2))), fontsize=8.5,
+             color=RED, ha='left', va='center')
+axs.plot([0.0, CAV_L0], [0.0, 0.0], color=INK, lw=0.6, ls=(0, (1, 2)), zorder=2)
+axs.plot([0.0], [0.0], marker='o', ms=4.0, color=INK, zorder=7)
+axs.annotate(r'$\bar{\nu}_e$ source', xy=(0.0, 0.0), xytext=(-2, -10),
+             textcoords='offset points', fontsize=7.0, color=INK, ha='left', va='top')
+axs.annotate('Detectors,\n' + r'$L_0 = 1\,500$~km', xy=(CAV_L0, 0.0), xytext=(6, 0),
+             textcoords='offset points', fontsize=7.0, color=INK, ha='left', va='center',
+             linespacing=1.4)
+axs.annotate(r'$10$~g~cm$^{-3}$, $R = 125$~km', xy=(SWEEP_D0, -SWEEP_R), xytext=(0, -7),
+             textcoords='offset points', fontsize=7.0, color=BLUE, ha='center', va='top')
+axs.set_xlim(-55.0, CAV_L0 + 240.0)
+axs.set_ylim(-SWEEP_Y - 30.0, SWEEP_Y + 26.0)
+axs.set_aspect('equal'); axs.axis('off')
+
+# --- the silhouette, the map, and the colorbar
+axw = fig.add_subplot(sweep_gs[1, 0])
+ax = fig.add_subplot(sweep_gs[1, 1], sharey=axw)
+cax = fig.add_subplot(sweep_gs[1, 2])
 axw.fill_betweenx(SWEEP_AF, 0.0, SWEEP_WF, facecolor=BLUE, alpha=0.20, lw=0.0)
 axw.plot(SWEEP_WF, SWEEP_AF, color=BLUE, lw=1.0)
 axw.set_xlim(0.0, 300.0); axw.set_xticks([0, 250])
@@ -15328,17 +15384,14 @@ ax.set_xlabel(r'Antineutrino energy, $E$ [MeV]', labelpad=2.0)
 # contrast moves the probability at first order and the map changes sign across it.
 ax.axvline(float(SWEEP_E[SWEEP_P0.argmax()]/gd.UNIT_MEV), color='black', lw=0.7,
            ls=(0, (3, 2)), zorder=4)
-corner(ax, r'$10$~g~cm$^{-3}$, $R = 125$~km', loc='lower left', fontsize=6.5,
-       x=0.035, y=0.04)
 for sweep_ax in (axw, ax):
     for sweep_s in (-1.0, 1.0):
         sweep_ax.axhline(sweep_s*SWEEP_A_MAX, color='black', lw=0.7, ls=(0, (3, 2)),
                          zorder=4)
 ax.set_ylim(SWEEP_ALPHA[0], SWEEP_ALPHA[-1])
-cb = fig.colorbar(im, ax=ax, pad=0.025, aspect=24)
+plt.setp(ax.get_yticklabels(), visible=False)
+cb = fig.colorbar(im, cax=cax)
 cb.set_label(r'$P_{\rm body} - P_{\rm crust}$', fontsize=8.5, labelpad=3)
-fig.tight_layout(pad=0.4)
-fig.subplots_adjust(wspace=0.08)
 print('  the body subtends +/- %.2f deg; widest crossing %.0f km'
       % (SWEEP_A_MAX, SWEEP_WF.max()))
 print('  change in probability from %+.3f to %+.3f' % (SWEEP_DP.min(), SWEEP_DP.max()))
