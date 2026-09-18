@@ -15806,8 +15806,10 @@ ax.yaxis.set_minor_locator(mpl.ticker.LogLocator(base=10.0, subs=tuple(np.arange
 ax.set_xlabel(r'Neutrino energy, $E$ [GeV]', labelpad=2.0)
 ax.set_ylabel(r'Maximum adiabaticity parameter, $\gamma_{\rm max}$', labelpad=2.0,
               fontsize=8.5)
-ax.text(4.0e4, 1.2e-2, 'Adiabatic', fontsize=7.0, color='0.35', ha='right')
-ax.text(4.0e4, 8.0e0, 'Non-adiabatic', fontsize=7.0, color='0.35', ha='right')
+ax.text(5.0e-3, 10.0**0.45, 'Non-adiabatic', fontsize=7.0, color='0.35',
+        ha='left', va='bottom')
+ax.text(5.0e-3, 10.0**-0.45, 'Adiabatic', fontsize=7.0, color='0.35',
+        ha='left', va='top')
 ax.grid(True, which='major', color=GRID, lw=0.5); ax.set_axisbelow(True)
 leg = ax.legend(loc='lower right', fontsize=6.8, handlelength=1.4, borderpad=0.35,
                 labelspacing=0.3, title=r'Impact parameter, $b$', title_fontsize=6.8)
