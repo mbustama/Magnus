@@ -213,6 +213,9 @@ Milliseconds per probability at the default tolerance; the median over 164 Earth
 
 \end{small}
 
+\setcounter{tocdepth}{3}
+\tableofcontents
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -633,7 +636,7 @@ No value of $p$ in \tabl{orders} is odd, on either path. The reason is the Magnu
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\subsection{Composition, and what the slab approximation is doing}
+\subsection{Slab composition}
 \label{sec:order_is_the_slab_product}
 
 We cut a trajectory into $N_{\rm slabs}$ slabs, evaluate the expansion in each, and compose the slab operators in position order,
@@ -2201,7 +2204,7 @@ oscprob.osc_prob_3nu_earth(
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\subsubsection{Neutrinos and antineutrinos, two to five flavors}
+\subsubsection{Neutrinos \& antineutrinos, 2--5 flavors}
 \label{sec:nu_nubar}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -2458,53 +2461,72 @@ dP = {(cz, nb): panel(cz, nb)
 \begin{figure}[t!]
  \centering
  \includegraphics[width=\columnwidth]{earth_oscillogram.pdf}
- \caption{\label{fig:oscillogram}Oscillogram: the $\nu_\mu$ survival probability over energy and arrival direction, computed with \magnus\ along the PREM profile\ \cite{Dziewonski:1981xy}. Each chord's slab edges sit where it crosses a PREM shell boundary, so no slab straddles a density jump. The non-standard couplings are those of \figu{bsm}; the sterile parameters are those of \figu{validation}. The marked chord at $\cos\theta_z = -0.837$ just grazes the outer core; trajectories below it are both longer and denser than any mantle chord, which is why the structure changes character there. See Sec.~\ref{sec:earth_oscillograms} for details.}
+ \caption{\label{fig:oscillogram}Oscillogram: the $\nu_\mu$ survival probability, $P_{\nu_\mu \to \nu_\mu}$, over neutrino energy and arrival direction, computed with \magnus\ along the PREM profile\ \cite{Dziewonski:1981xy}. {\it Top to bottom}: standard three flavors; three flavors with the non-standard couplings of \figu{bsm}; 3+1 and 3+2 with the sterile parameters of \figu{nu_nubar}. The dashed line in each panel marks $\cos\theta_z = -0.837$, the direction whose chord just grazes the outer core; steeper trajectories enter the core, where the density nearly doubles. Listing~\ref{lst:oscillogram} generates the oscillograms. See notebooks \#06 and \#28, and Sec.~\ref{sec:earth_oscillograms} for details.}
 \end{figure}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-Figure~\ref{fig:oscillogram} shows the muon-neutrino survival probability over energy and arrival direction, for the standard case, with non-standard interactions, and with one and two sterile states. The direction is the zenith angle at the detector: $\cos\theta_z = -1$ is a neutrino arriving from straight below, along a diameter of $12\,742$~km, and $\cos\theta_z = 0$ one arriving along the horizon, whose path inside the Earth is zero. The chord length follows from that angle alone. Listing~\ref{lst:oscillogram} computes the standard panel.
+Figure~\ref{fig:oscillogram} shows oscillograms for $\nu_\mu$ survival through the Earth, \ie, $P_{\nu_\mu \to \nu_\mu}$ varied over energy and arrival direction, for the standard case, with non-standard interactions, and with one and two sterile states. Listing~\ref{lst:oscillogram} shows how to generate them.
 
-The Earth is the case most codes meet most often. For \magnus\ it is a mixed one: the PREM profile varies smoothly inside each of its ten shells and jumps between them, so a chord needs the refinement of Section \ref{sec:refinement} and the declared edges of Section \ref{sec:declaring_edges} together. The {\tt earth} module solves the chord geometry, finds where a trajectory crosses each shell boundary, and hands those positions to the refinement as mandatory slab edges. Notebook \#6 builds oscillograms from scratch; notebook \#4 treats the long-baseline case they generalize.
-
-\begin{lstlisting}[language=Python, caption={The standard panel of \figu{oscillogram}. One wrapper call per arrival direction returns the whole energy sweep, with the chord length taken from the direction alone. The oscillogram is then drawn twice: first by {\tt plotting.plot\_oscillogram}, then by {\tt matplotlib} directly. The other three panels differ from this one only in the wrapper and in the parameters handed to it. See Sec.~\ref{sec:earth_oscillograms} for details.}, label={lst:oscillogram}, float=tbp]
+\begin{lstlisting}[language=Python, caption={The four panels of \figu{oscillogram}. One wrapper call per arrival direction returns a whole energy sweep, with the chord length taken from the direction alone. Only the wrapper and its extra parameters change between panels. The panel is then drawn twice: first by {\tt plotting.plot\_oscillogram}, then by {\tt matplotlib} directly. See Sec.~\ref{sec:earth_oscillograms} for details.}, label={lst:oscillogram}, float=tbp]
 import numpy as np
 import matplotlib.pyplot as plt
 import magnus.oscprob as oscprob
-import magnus.globaldefs as gd
 import magnus.earth as earth
+import magnus.globaldefs as gd
 import magnus.plotting as plotting
 
-costhz = np.linspace(-1.0, -0.05, 200)
-log10E = np.linspace(np.log10(2.0), np.log10(60.0), 300)
-E = 10.0**log10E*gd.UNIT_GEV
+chord = earth.distance_traveled_inside_earth
+CZ = np.linspace(-1.0, -0.05, 170)
+E_GEV = np.logspace(np.log10(2.0),
+                    np.log10(60.0), 200)*gd.UNIT_GEV
+E_TEV = np.logspace(0.0,
+                    np.log10(30.0), 200)*gd.UNIT_TEV
+kw = dict(nu_i=gd.NUMU, nu_f=gd.NUMU,
+          rtol=1.0e-8, atol=1.0e-10)
 
-P = np.empty((len(log10E), len(costhz)))
-for j, c in enumerate(costhz):
-    L = earth.distance_traveled_inside_earth(c)
-    P[:, j] = oscprob.osc_prob_3nu_earth(
-        E, costhz=c, L=L*gd.UNIT_KM,
+eps = dict(eps_ee=0.10, eps_em=0.05, eps_mt=0.03)
+s4 = dict(s14=np.sqrt(0.10), s24=np.sqrt(0.10),
+          s34=0.0, D41=1.0)
+s5 = dict(**s4, s15=np.sqrt(0.06),
+          s25=np.sqrt(0.06), s35=0.0, D51=1.7)
+
+def oscillogram(wrapper, E, **params):
+    """One panel: an energy sweep per direction."""
+    return np.array([wrapper(E, costhz=c,
+        L=chord(c)*gd.UNIT_KM, **params, **kw)
+        for c in CZ]).T
+
+PANELS = [(oscprob.osc_prob_3nu_earth, E_GEV, {}),
+          (oscprob.osc_prob_3nu_earth_nsi, E_GEV, eps),
+          (oscprob.osc_prob_4nu_earth, E_TEV, s4),
+          (oscprob.osc_prob_5nu_earth, E_TEV, s5)]
+P = [oscillogram(w, E, **p) for w, E, p in PANELS]
+
+# With the shipped plotter, one call per panel
+for (_, E, _), grid in zip(PANELS, P):
+    fig, ax = plotting.plot_oscillogram(
+        CZ, np.log10(E/gd.UNIT_GEV), grid,
         nu_i=gd.NUMU, nu_f=gd.NUMU)
 
-# With the shipped plotter
-fig, ax = plotting.plot_oscillogram(
-    costhz, log10E, P, nu_i=gd.NUMU, nu_f=gd.NUMU)
-
-# With matplotlib directly
-fig, ax = plt.subplots()
-im = ax.pcolormesh(costhz, log10E, P, shading='gouraud')
-ax.set_xlabel(r'$\cos\theta_z$')
-ax.set_ylabel(r'$\log_{10}(E/{\rm GeV})$')
-fig.colorbar(im, ax=ax,
-             label=r'$P_{\nu_\mu \to \nu_\mu}$')
+# Or with matplotlib directly, one axes per panel
+for (_, E, _), grid in zip(PANELS, P):
+    fig, ax = plt.subplots()
+    im = ax.pcolormesh(CZ, np.log10(E/gd.UNIT_GEV),
+                       grid, shading='gouraud')
+    ax.set_xlabel(r'$\cos\theta_z$')
+    ax.set_ylabel(r'$\log_{10}(E/{\rm GeV})$')
+    fig.colorbar(im, ax=ax,
+                 label=r'$P_{\nu_\mu \to \nu_\mu}$')
 \end{lstlisting}
 
-Not all of the structure in the standard panel is an MSW resonance. A neutrino crossing mantle, core and mantle again meets a potential that alternates instead of passing through a resonant value. The alternation amplifies the oscillation on its own whenever its period is commensurate with the oscillation phase, an effect found in \Refs~\cite{Akhmedov:1988kd, Krastev:1989ix}, solved exactly for an idealized periodic profile\ \cite{Akhmedov:1998ui} and organized for the Earth by Floquet's theorem\ \cite{Akhmedov:2000js}. It needs no particular density, which is what separates it from an MSW resonance. It accounts for much of the structure that makes atmospheric oscillograms sensitive to the mass ordering\ \cite{Akhmedov:2006hb, Akhmedov:2012ah}, carried by the core-crossing trajectories rather than by the horizon, where the chord is short and the pattern close to the vacuum one.
+Varying over direction is what the oscillogram adds to the previous figures, where the chord was held at a single angle. Direction sets the length of the chord and the densities that chord reaches. From chords through the horizon to those through the diameter, the length grows by an order of magnitude, smoothly. The densities grow far more gently, until the trajectory first touches the outer core at the angle marked in each panel. Just below that angle the chord enters the core, where the density jumps to nearly twice the highest value the mantle holds.
 
-In the sterile panels the sharp feature at high energy is a resonance of the opposite origin. A sterile state feels no matter potential, so what drives it is the neutral-current potential the active states feel and it does not. The crossing sits near the energy at which $\Delta m^2_{41}$ balances that potential, which locates the feature to within tens of per cent.
+Each panel is filled with bands of high and low probability. Two different effects produce them: the tilt of a band tells which of the two produced it. One effect is the oscillation phase, which depends on the ratio $L/E$. Moving down a panel lengthens the chord, so the same phase arrives at a higher energy. A phase band therefore tilts to the right, sweeping across the whole panel as it goes. The other effect is a matter resonance. A resonance is met at whichever energy balances the density along the path. That density changes far less across the mantle than the length does, so a resonant band drifts only slightly as the direction turns.
 
-The figure does not carry the spread in baseline. We take the path length from the arrival direction alone, while a real atmospheric neutrino is produced somewhere in a column of atmosphere tens of kilometers deep, which the geometry stretches as the trajectory flattens, from a few tens of kilometers overhead to a few hundred near the horizon\ \cite{Gaisser:1997eu}. Folding in that distribution is an averaging step above the probability rather than inside it. A code that takes the baseline from the zenith angle alone skips that step without saying so.
+Below the core-mantle boundary at $\cos\theta_z = -0.837$, the trajectory crosses mantle, core, then mantle again: the Earth has built the castle-wall profile of Sec.~\ref{sec:arrangement}. When the length of one crossing matches the oscillation length in matter there, the effect of each crossing adds to the effect of the last. That is why the strip below the line carries a pattern of its own.
 
-PREM is a density model and fixes no composition, so the electron fraction is supplied separately. \magnus\ resolves it per PREM layer, about $0.4656$ for the iron core and $0.4957$ for the mantle, which differs from a uniform $0.5$ by up to $7 \cdot 10^{-2}$ in $P_{\nu_\mu \to \nu_e}$ on a core-crossing chord. That is far above anything a solver comparison can resolve, which is why every cross-code measurement in Section \ref{sec:comparison} passes the composition explicitly on both sides.
+Both sterile panels, 3+1 and 3+2, show neutrinos: a positive $\Delta m^2_{41}$ puts the sterile resonance in the $\bar{\nu}_\mu$ channel (Sec.~\ref{sec:nu_nubar}), so every band in these two panels is of the tilted, phase kind. For $\nu_\mu$, the matter potential acts the other way: it shrinks the mixing angle in matter toward zero. The splitting $\Delta m^2_{41}/2E$ falls as the energy rises, while the potential along the chord does not depend on energy at all. Therefore, the potential dominates the Hamiltonian at high energy. The bands lose contrast from left to right across each panel. The strongest of them removes about a third of the flux.
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -2742,7 +2764,7 @@ The lowest panel measures the departure from adiabaticity, and it is worth being
 
 Computing all three flavors also lets us price the shortcut that most solar analyses take. The standard reduction decouples the third state up to its admixture and solves a two-flavor problem at an electron density rescaled by $\cos^2\theta_{13}$\ \cite{Kuo:1989qe}, giving $P^{3\nu}_{\nu_e \to \nu_e} = \sin^4\theta_{13} + \cos^4\theta_{13}\,P^{2\nu}_{\nu_e \to \nu_e}$. It is exact in vacuum but not in matter, where what it drops is more often quoted than measured. Running both sides on the same profile and the same parameters, we find the reduction low by $1.8 \cdot 10^{-4}$ in the median across $0.1$--$20$~MeV, rising monotonically with energy to $1.9 \cdot 10^{-3}$ at $20$~MeV, and holding a median of $8.7 \cdot 10^{-4}$ above $5$~MeV. The next-to-leading correction that removes most of this has been derived\ \cite{Lim:2002iz} and is not in general use. The discrepancy is far above what \magnus\ costs to avoid it. It is also a modeling error rather than a numerical one: no tolerance reaches it, because both sides are converged.
 
-\subsubsection{Averaging a scan is not asking for the average}
+\subsubsection{Probability averaging}
 \label{sec:averaging_is_not_estimating}
 
 A scan can also be averaged after the fact: compute the instantaneous probability across a window in energy and take its mean. That estimator does not converge.
@@ -2752,97 +2774,10 @@ A finite-window mean is an estimator with a bias of its own, and on a profile wh
 
 The obvious guard does not catch the related trap. \magnus\ reports, on request, how coarsely a scan samples the oscillation it is computing---the number of cycles per step, and how many points a Nyquist-adequate scan would need. On the trajectories this package serves those numbers are stark: an Earth chord is about $430$ oscillations long, a solar ray about $2\,200$, a supernova ray about $37\,000$; a Nyquist-adequate scan needs twice as many points as that. The measurement is \emph{reported and never warned about}, deliberately: the Nyquist criterion is objectively correct and would fire on $44$ of $45$ realistic scan sizes, and a warning firing on $98\%$ of calls is noise however right each firing is---and it would teach users to silence a category that also carries genuine discontinuity warnings.
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsubsection{Comparing solar models}
+\label{sec:solar_model_comparison}
 
-\subsection{A supernova shock front}
-\label{sec:shock}
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\begin{figure*}[t!]
- \centering
- \includegraphics[width=\textwidth]{shock_probability.pdf}
- \caption{\label{fig:shock}Electron number density along a supernova ray, and the survival probability $P_{\nu_e \to \nu_e}$ it produces at $15$~MeV. {\it Top}: the density from $10^{4}$ to $8 \cdot 10^{4}$~km, carrying two fronts\ \cite{Schirato:2002tg, Fogli:2003dw}. The forward shock at $30\,323$~km is the outward-moving front itself. The contact discontinuity behind it, at $12\,348$~km, is the surface dividing the material the shock has swept up from the ejecta driving it, across which the density jumps but the pressure does not. A neutrino leaving the core meets the contact first. The left and right columns widen both jumps from $0.07$ to $70$~km and differ in nothing else; neither width exceeds $0.1\%$ of the ray, hence the insets. {\it Center}: the probability along the whole ray, computed with \magnus\ at ${\tt rtol} = 10^{-8}$ for four Hamiltonians. The ray is some $140$ oscillation lengths long, so the panel resolves the envelope and not the oscillation. The two columns agree bitwise until the wider contact ramp begins at $12\,313$~km, and differ by $0.22$ on average beyond it. {\it Bottom}: the same probability through a $\pm 75$~km window at the forward shock, where it is resolved, with the front marked by the dotted line and its extent shaded in the insets above. We omit two flavors: with only $\Delta m^2_{21}$ available at this energy it spans $0.998$ to $1.000$}
-\end{figure*}
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-Figure~\ref{fig:shock} shows a supernova ray, the probability along the whole of it, and the same probability resolved at the shock front, for two front widths that differ by three orders of magnitude and in nothing else. A shock sweeping outward through the envelope changes the adiabaticity of a level crossing and so leaves a signature in the neutrino signal\ \cite{Schirato:2002tg, Fogli:2003dw}. The ray carries two such crossings rather than one.
-
-Both the forward shock and the contact discontinuity behind it are declared to the refinement rather than left to be found, which is what Listing \ref{lst:shock} shows. Notebook \#14 follows the front outward and notebook \#18 collects the profiles that break a fixed grid. The pair of columns is also the cleanest demonstration in this paper that the boundary between a closed form and an integrator is a property of the \emph{problem} rather than of either code: here we move it by turning one dial.
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\begin{lstlisting}[language=Python, caption={A shock front, declared. {\tt t\_breakpoints} names the positions at which the profile jumps, and the refinement puts slab edges there; for a front much narrower than the slabs themselves, pass its interior edges too, since a slab count grids the whole path uniformly rather than dealing slabs into the intervals the breakpoints create; without it a $0.07$~km front falls between two nodes of whatever grid the ladder happens to reach. It is not the same parameter as {\tt t\_slab\_edges}, which replaces the grid rather than seeding it. {\tt ne\_shock}, the radii and {\tt osc} are the shock model of \figu{shock}, built in notebook \#14.}, label={lst:shock}, float=tbp]
-import magnus.oscprob as oscprob
-import magnus.globaldefs as gd
-
-# Where the density jumps, in natural units
-edges = [r_contact*gd.UNIT_KM,
- r_forward*gd.UNIT_KM]
-
-P = oscprob.osc_prob_matter_std_potential(
- 3, ne_shock, 15.0*gd.UNIT_MEV, L, osc,
- t_breakpoints=edges,
- # A tolerance small enough to resolve the front
- rtol=1.0e-8, atol=1.0e-10,
- L0=0.0, nu_i=gd.NUE, nu_f=gd.NUE,
- density_is_of_number_of_electrons=True)
-\end{lstlisting}
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-At a front width of $0.07$~km each jump is, on the scale of the oscillation length, a discontinuity: the probability changes character across a single point. Widened to $70$~km, nothing else altered, the same jump becomes a smooth function spanning half the window, across which the transition is gradual. We widen both jumps together, which is why the two columns already differ below the forward shock and not only at it. 
-
-The oscillation length that matters here is the local one. It is not the solar pair: on $\Delta m^2_{21}$ alone, two flavors barely oscillate at this energy. It is the pair split by $\Delta m^2_{31}$, whose length $4\pi E/\Delta m^2_{31}$ is some $15$~km at $15$~MeV, stretched a little by the matter term near the fronts to about $16$~km. At the densities there, $n_e \sim 10^{27}$~cm$^{-3}$, the potential is comparable to $\Delta m^2_{31}/2E$ and some fifty times $\Delta m^2_{21}/2E$, which is why the slower pair is pinned and the faster one is the one the front acts on. A $0.07$~km ramp is therefore crossed faster than the state can respond, which projects it onto the new eigenbasis; a $70$~km one is crossed slowly enough that the state follows the instantaneous eigenstate instead. What differs between the columns is therefore the conversion probability itself rather than the phase of an oscillation, which the two columns share.
-
-The wider contact ramp begins at $12\,313$~km. Past it the two columns differ by $0.22$ on average through the shocked region, the wider front leaving a mean survival of $0.91$ against $0.72$. Sweeping the width confirms both halves of that statement: the columns stay together for every ramp thinner than the local oscillation length, and part once it is reached. The width at which they part follows that length as we vary the energy, at $6.3$~km for $5$~MeV, $15.7$~km for $15$~MeV and $46.6$~km for $45$~MeV. Those are the local oscillation lengths themselves, and they grow linearly with the energy because $4\pi E/\Delta m^2_{31}$ does; nothing more than that formula is needed to reproduce them. It is the signature of a change in adiabaticity rather than of a resolution effect, whose width would not track the energy.
-
-Away from the two transitions the profiles are identical to the last bit, so nothing else in the figure can be responsible. The four scenarios drawn differ only in the Hermitian matrix handed to the same call. Two flavors barely oscillate here, since only $\Delta m^2_{21}$ is available to them at this energy; the others convert strongly, and the sterile system most of all.
-
-The question to ask of a profile is not what physics is in it but what it looks like at the scale of the oscillation length. A staircase belongs to a closed form and a smooth function to an integrator. The profile decides, and the same physical object can be either, depending on how well it is resolved. Section \ref{sec:shock_comparison} puts numbers to both halves of that.
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\begin{figure*}[t!]
- \centering
- \includegraphics[width=\textwidth]{astro_composition.pdf}
- \caption{\label{fig:astro}Flavor composition of an astrophysical neutrino flux at Earth, and the survival probabilities behind it, for five Hamiltonians. Such a flux arrives decohered, so what these panels carry is the phase-averaged limit of \equ{averaged} rather than a propagated probability. \emph{Top}: $\langle P_{\nu_\alpha \to \nu_\alpha}\rangle$ against energy. \emph{Bottom}: the flavor fractions reaching Earth from a pion-decay source, $1:2:0$, with the standard case repeated beneath each panel (gray, dashed) so that a departure from it is legible. We renormalize the $3+1$ and pseudo-Dirac fractions to the three active flavors, past the $13.3\%$ and $19.3\%$ of the flux their sterile states remove, since that share is not observed. In the pseudo-Dirac panel the second mass state alone carries a partner, split from it by $10^{-13}$~eV$^2$: pairing all three would halve every active-active probability by the same factor and leave the fractions untouched, so it is the \emph{uneven} suppression that moves them. The Lorentz-violating term grows linearly with energy (the $n = 1$ operator), and the dotted line marks where it equals the vacuum term, at $100$~TeV. The Earth case crosses the core, $\cos\theta_z = -1$}
-\end{figure*}
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-\subsection{High-energy astrophysical neutrinos}
-\label{sec:astro}
-
-Figure~\ref{fig:astro} shows the flavor composition that a TeV--PeV astrophysical flux arrives with at Earth, and the average flavor-transition probabilities behind it, for five Hamiltonians over $1$~TeV to $10$~PeV. The top row carries the survival probabilities $\langle P_{\nu_\alpha \to \nu_\alpha}\rangle$; the bottom row carries the flavor fractions reaching Earth from a source that produces neutrinos through the full pion decay chain. The standard three-flavor case is repeated beneath each panel so that a departure from it is legible, and the dotted line in the second column marks the energy at which the Lorentz-violating term equals the vacuum one.
-
-\textit{Producing them.}---In cosmic accelerators---active galaxies, gamma-ray bursts, supernovae---protons interact with ambient matter and radiation to produce pions\ \cite{Margolis:1977wt, Stecker:1978ah, Kelner:2006tc}. The pions decay through $\pi^+ \to \mu^+ + \nu_\mu$, followed by $\mu^+ \to \bar{\nu}_\mu + \nu_e + e^+$, and their charge conjugates, so that the flux leaving the source carries flavor ratios $(f_e, f_\mu, f_\tau)_{\rm S} = \left(\frac{1}{3}, \frac{2}{3}, 0\right)$, with $f_{\alpha, {\rm S}}$ the fraction of $\nu_\alpha + \bar{\nu}_\alpha$ in the total. Neutrino telescopes cannot ordinarily tell $\nu$ from $\bar\nu$, so $\nu_\alpha$ below means $\nu_\alpha + \bar{\nu}_\alpha$. We take that full pion-decay composition throughout. Notebook \#10 develops the averaged limit that this section rests on, and notebook \#23 says when averaging a scan is not the same as asking for the average.
-
-\textit{What is observable.}---Over Mpc--Gpc baselines the oscillation length is minute against the distance, and neither the distance, the size of the production region, nor the energy resolution of a detector is known to anything approaching the precision the phase would demand. A telescope is therefore sensitive only to the average flavor-transition probabilities $\langle P_{\nu_\alpha \to \nu_\beta}\rangle$ of \equ{averaged}, which \magnus\ returns in closed form from the eigenvectors of $\mathbb{H}$ rather than by propagating a phase it is about to average away. In vacuum $\mathbb{V}$ is the PMNS matrix and \equ{averaged} is the familiar $\sum_i \lvert U_{\alpha i}\rvert^2 \lvert U_{\beta i}\rvert^2$; for a sterile state or a new term in the \emph{vacuum} Hamiltonian it is the same expression evaluated in whatever eigenbasis that Hamiltonian has. Matter is different, and the difference matters here: the flux decoheres in the vacuum mass basis long before it arrives, and then crosses the Earth \emph{coherently}. The two legs therefore compose as probability matrices rather than as amplitudes, $f_{\beta,\oplus} = \sum_{\alpha,\gamma} f_\alpha \langle P_{\nu_\alpha \to \nu_\gamma}\rangle P^{\oplus}_{\nu_\gamma \to \nu_\beta}$, with the second factor an ordinary propagation through the profile. Evaluating \equ{averaged} in the eigenbasis of the Earth Hamiltonian instead would be wrong, and badly so: above a TeV the matter term dominates, its eigenvectors are nearly the flavor states, and the expression would return the source composition unchanged. The composition at Earth follows as $f_{\alpha, \oplus} = \sum_\beta \langle P_{\nu_\beta \to \nu_\alpha}\rangle f_{\beta, {\rm S}}$. Listing \ref{lst:astro} is both steps. Oscillation over astrophysical distances populates a $\nu_\tau$ component that the sources do not make, which is what turns the composition at Earth into an observable and, run backwards, into a constraint on the production mechanism\ \cite{Learned:1994wg, Athar:2000yw, Beacom:2003nh, Farzan:2008eg, Song:2020nfh}.
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\begin{lstlisting}[language=Python, caption={The flavor composition an astrophysical flux arrives with. {\tt averaged\_probabilities\_constant\_hamiltonian} returns the full matrix $\langle P_{\nu_\alpha \to \nu_\beta}\rangle$ of \equ{averaged} from the eigenvectors of whatever Hamiltonian it is handed, so the composition is one contraction away. Nothing here is specific to the standard case: pass a Hamiltonian carrying a sterile state or a new term and the same two lines answer. {\tt H} is any energy-independent vacuum Hamiltonian from {\tt magnus.hamiltonians}, divided by the energy; notebook \#28 builds the four drawn in \figu{astro}.}, label={lst:astro}, float=tbp]
-import numpy as np
-import magnus.avgprob as avgprob
-
-# Any Hermitian matrix; here the vacuum term at E
-P = avgprob.\
- averaged_probabilities_constant_hamiltonian(H)
-
-# Pion decay at the source, 1 : 2 : 0
-f_source = np.array([1.0/3.0, 2.0/3.0, 0.0])
-# Row a is the initial flavor, so sum over it
-f_earth = np.einsum('a,ab->b', f_source, P)
-\end{lstlisting}
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-\textit{What varies with energy, and what does not.}---For standard oscillations the composition does not depend on the energy at all. Equation~(\ref{equ:averaged}) is built from $\lvert \mathbb{V}_{\alpha i}\rvert^2$ alone, and in vacuum no energy enters it. Two of the four departures we draw are flat for the same reason. A sterile state moves the composition from $0.326:0.343:0.330$ to $0.330:0.325:0.346$ and leaves it there, after we renormalize past the $13.3\%$ of the flux it removes. Non-standard interactions through the Earth move it by less than $0.005$ and likewise do not vary, because above a TeV the matter term dominates the Hamiltonian inside the Earth and carries no energy dependence of its own. Both are shifts to a different constant, flat across the whole decade drawn. The Earth panel is drawn over that decade to show the machinery, not to predict a rate: above about $100$~TeV a core-crossing chord is opaque, and the attenuation that dominates is an open-system effect outside a unitary solver (Section \ref{sec:limitations}).
-
-What separates the fourth case is that its term keeps growing relative to the others across the decade drawn, so the eigenvectors never settle; the other three reach a regime in which one term dominates and the composition stops moving. The Lorentz-violating case carries $\nu_e$ from $0.326$ up to $0.348$ and down again to $0.317$ across the crossover, with $\nu_\mu$ dipping to $0.328$ and recovering; the survival probability driving it reaches $0.894$. That is what a flavor measurement across a decade of energy could distinguish, and it requires evaluating \equ{averaged} for a Hamiltonian nobody has written down.
-
-The fifth case is where \equ{averaged_blocks} is needed, though the figure itself does not exercise the block sum: at $10^{-13}$~eV$^2$ over $100$~Mpc every pair has long decohered, so the grouping finds six singletons and \equ{averaged_blocks} reduces to \equ{averaged} on a six-state spectrum. Notebook \#29 sweeps the splitting through the coherent and intermediate regimes where the blocks are genuinely formed. If neutrinos are pseudo-Dirac\ \cite{Wolfenstein:1981kw, Petcov:1982ya}, a mass state is really two, separated by a splitting far below anything a terrestrial experiment resolves; the pair then stays mutually coherent long after the three standard splittings have averaged away. Which expression applies is then a question about the spectrum rather than about the code: at $100$~Mpc and $100$~TeV the pair's own phase $\delta m^2 L/2E$ is what fixes the two ends. Below about $2 \cdot 10^{-19}$~eV$^2$ that phase is a small fraction of a radian, the pair stays coherent, and \equ{averaged_blocks} returns the unpaired answer exactly. Above about $10^{-16}$~eV$^2$ it turns through more than a cycle and averages away, so \equ{averaged} counts the two members separately and halves the channels they carry.
-
-\magnus\ groups the spectrum itself rather than being told which case it is in, and refuses to average at all in the band between, where neither expression describes the physics. We pair the second mass state alone, a four-state spectrum, which is the case the interface exists for: pairing all three would suppress every channel by the same factor and leave the fractions where they were, so only an uneven pairing moves the observable. The signature it produces at a neutrino telescope is the one identified in \Ref\ \cite{Beacom:2003eu}. Notebook \#29 develops the model, sweeps a splitting through all three regimes, and shows that the same spectrum is invisible at a terrestrial baseline.
-
-\subsection{A Hamiltonian of your own}
+\subsubsection{A Hamiltonian of your own}
 \label{sec:arbitrary}
 
 Everything above goes through named wrappers. Each assembles a Hamiltonian and hands it to {\tt osc\_prob}; a caller who already has one can skip that first step. Listing \ref{lst:arbitrary} does exactly that, passing a Hamiltonian the package knows nothing about, which is the escape hatch and also the design.
@@ -2910,6 +2845,377 @@ with $g^\prime$ the new gauge coupling. Where $V_{\rm CC}$ reads the density at 
 That is what makes the Sun a sharper test of it than the Earth. The solar density falls by five orders of magnitude along the ray, so $V_{\rm CC}$ and $V_{e\mu}$ fall at quite different rates, and the shape of the new potential---not merely its size---is what the observable responds to. We fix the coupling separately for each mediator range so that both put $V_{e\mu}$ at a tenth of $V_{\rm CC}$ at the center; what then differs between the two curves is that shape alone. At half a solar radius the longer-ranged potential still stands at $2.5$ times $V_{\rm CC}$ where the shorter has fallen to $0.4$.
 
 The two shift the averaged probability by up to $0.021$ and $0.018$ across $0.1$--$20$~MeV, and they are not a rescaling of one another: the shorter range samples the profile where it falls fastest; its shift stays negative across the decade drawn, while the longer one changes sign near $8$~MeV. Both curves are computed with no expansion in $V_{e\mu}$, because the method does not care what the Hermitian matrix contains. Notebook \#19 develops the potential and checks it against a closed form where one exists.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{A supernova shock front}
+\label{sec:shock}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{figure*}[t!]
+ \centering
+ \includegraphics[width=\textwidth]{shock_probability.pdf}
+ \caption{\label{fig:shock}Electron number density along a supernova ray, and the survival probability $P_{\nu_e \to \nu_e}$ it produces at $15$~MeV. {\it Top}: the density from $10^{4}$ to $8 \cdot 10^{4}$~km, carrying two fronts\ \cite{Schirato:2002tg, Fogli:2003dw}. The forward shock at $30\,323$~km is the outward-moving front itself. The contact discontinuity behind it, at $12\,348$~km, is the surface dividing the material the shock has swept up from the ejecta driving it, across which the density jumps but the pressure does not. A neutrino leaving the core meets the contact first. The left and right columns widen both jumps from $0.07$ to $70$~km and differ in nothing else; neither width exceeds $0.1\%$ of the ray, hence the insets. {\it Center}: the probability along the whole ray, computed with \magnus\ at ${\tt rtol} = 10^{-8}$ for four Hamiltonians. The ray is some $140$ oscillation lengths long, so the panel resolves the envelope and not the oscillation. The two columns agree bitwise until the wider contact ramp begins at $12\,313$~km, and differ by $0.22$ on average beyond it. {\it Bottom}: the same probability through a $\pm 75$~km window at the forward shock, where it is resolved, with the front marked by the dotted line and its extent shaded in the insets above. We omit two flavors: with only $\Delta m^2_{21}$ available at this energy it spans $0.998$ to $1.000$}
+\end{figure*}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+Figure~\ref{fig:shock} shows a supernova ray, the probability along the whole of it, and the same probability resolved at the shock front, for two front widths that differ by three orders of magnitude and in nothing else. A shock sweeping outward through the envelope changes the adiabaticity of a level crossing and so leaves a signature in the neutrino signal\ \cite{Schirato:2002tg, Fogli:2003dw}. The ray carries two such crossings rather than one.
+
+Both the forward shock and the contact discontinuity behind it are declared to the refinement rather than left to be found, which is what Listing \ref{lst:shock} shows. Notebook \#14 follows the front outward and notebook \#18 collects the profiles that break a fixed grid. The pair of columns is also the cleanest demonstration in this paper that the boundary between a closed form and an integrator is a property of the \emph{problem} rather than of either code: here we move it by turning one dial.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{lstlisting}[language=Python, caption={A shock front, declared. {\tt t\_breakpoints} names the positions at which the profile jumps, and the refinement puts slab edges there; for a front much narrower than the slabs themselves, pass its interior edges too, since a slab count grids the whole path uniformly rather than dealing slabs into the intervals the breakpoints create; without it a $0.07$~km front falls between two nodes of whatever grid the ladder happens to reach. It is not the same parameter as {\tt t\_slab\_edges}, which replaces the grid rather than seeding it. {\tt ne\_shock}, the radii and {\tt osc} are the shock model of \figu{shock}, built in notebook \#14.}, label={lst:shock}, float=tbp]
+import magnus.oscprob as oscprob
+import magnus.globaldefs as gd
+
+# Where the density jumps, in natural units
+edges = [r_contact*gd.UNIT_KM,
+ r_forward*gd.UNIT_KM]
+
+P = oscprob.osc_prob_matter_std_potential(
+ 3, ne_shock, 15.0*gd.UNIT_MEV, L, osc,
+ t_breakpoints=edges,
+ # A tolerance small enough to resolve the front
+ rtol=1.0e-8, atol=1.0e-10,
+ L0=0.0, nu_i=gd.NUE, nu_f=gd.NUE,
+ density_is_of_number_of_electrons=True)
+\end{lstlisting}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+At a front width of $0.07$~km each jump is, on the scale of the oscillation length, a discontinuity: the probability changes character across a single point. Widened to $70$~km, nothing else altered, the same jump becomes a smooth function spanning half the window, across which the transition is gradual. We widen both jumps together, which is why the two columns already differ below the forward shock and not only at it. 
+
+The oscillation length that matters here is the local one. It is not the solar pair: on $\Delta m^2_{21}$ alone, two flavors barely oscillate at this energy. It is the pair split by $\Delta m^2_{31}$, whose length $4\pi E/\Delta m^2_{31}$ is some $15$~km at $15$~MeV, stretched a little by the matter term near the fronts to about $16$~km. At the densities there, $n_e \sim 10^{27}$~cm$^{-3}$, the potential is comparable to $\Delta m^2_{31}/2E$ and some fifty times $\Delta m^2_{21}/2E$, which is why the slower pair is pinned and the faster one is the one the front acts on. A $0.07$~km ramp is therefore crossed faster than the state can respond, which projects it onto the new eigenbasis; a $70$~km one is crossed slowly enough that the state follows the instantaneous eigenstate instead. What differs between the columns is therefore the conversion probability itself rather than the phase of an oscillation, which the two columns share.
+
+The wider contact ramp begins at $12\,313$~km. Past it the two columns differ by $0.22$ on average through the shocked region, the wider front leaving a mean survival of $0.91$ against $0.72$. Sweeping the width confirms both halves of that statement: the columns stay together for every ramp thinner than the local oscillation length, and part once it is reached. The width at which they part follows that length as we vary the energy, at $6.3$~km for $5$~MeV, $15.7$~km for $15$~MeV and $46.6$~km for $45$~MeV. Those are the local oscillation lengths themselves, and they grow linearly with the energy because $4\pi E/\Delta m^2_{31}$ does; nothing more than that formula is needed to reproduce them. It is the signature of a change in adiabaticity rather than of a resolution effect, whose width would not track the energy.
+
+Away from the two transitions the profiles are identical to the last bit, so nothing else in the figure can be responsible. The four scenarios drawn differ only in the Hermitian matrix handed to the same call. Two flavors barely oscillate here, since only $\Delta m^2_{21}$ is available to them at this energy; the others convert strongly, and the sterile system most of all.
+
+The question to ask of a profile is not what physics is in it but what it looks like at the scale of the oscillation length. A staircase belongs to a closed form and a smooth function to an integrator. The profile decides, and the same physical object can be either, depending on how well it is resolved. Section \ref{sec:shock_comparison} puts numbers to both halves of that.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{figure*}[t!]
+ \centering
+ \includegraphics[width=\textwidth]{astro_composition.pdf}
+ \caption{\label{fig:astro}Flavor composition of an astrophysical neutrino flux at Earth, and the survival probabilities behind it, for five Hamiltonians. Such a flux arrives decohered, so what these panels carry is the phase-averaged limit of \equ{averaged} rather than a propagated probability. \emph{Top}: $\langle P_{\nu_\alpha \to \nu_\alpha}\rangle$ against energy. \emph{Bottom}: the flavor fractions reaching Earth from a pion-decay source, $1:2:0$, with the standard case repeated beneath each panel (gray, dashed) so that a departure from it is legible. We renormalize the $3+1$ and pseudo-Dirac fractions to the three active flavors, past the $13.3\%$ and $19.3\%$ of the flux their sterile states remove, since that share is not observed. In the pseudo-Dirac panel the second mass state alone carries a partner, split from it by $10^{-13}$~eV$^2$: pairing all three would halve every active-active probability by the same factor and leave the fractions untouched, so it is the \emph{uneven} suppression that moves them. The Lorentz-violating term grows linearly with energy (the $n = 1$ operator), and the dotted line marks where it equals the vacuum term, at $100$~TeV. The Earth case crosses the core, $\cos\theta_z = -1$}
+\end{figure*}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{High-energy astrophysical neutrinos}
+\label{sec:astro}
+
+\subsubsection{Average flavor-transition probabilities}
+
+Figure~\ref{fig:astro} shows the flavor composition that a TeV--PeV astrophysical flux arrives with at Earth, and the average flavor-transition probabilities behind it, for five Hamiltonians over $1$~TeV to $10$~PeV. The top row carries the survival probabilities $\langle P_{\nu_\alpha \to \nu_\alpha}\rangle$; the bottom row carries the flavor fractions reaching Earth from a source that produces neutrinos through the full pion decay chain. The standard three-flavor case is repeated beneath each panel so that a departure from it is legible, and the dotted line in the second column marks the energy at which the Lorentz-violating term equals the vacuum one.
+
+\textit{Producing them.}---In cosmic accelerators---active galaxies, gamma-ray bursts, supernovae---protons interact with ambient matter and radiation to produce pions\ \cite{Margolis:1977wt, Stecker:1978ah, Kelner:2006tc}. The pions decay through $\pi^+ \to \mu^+ + \nu_\mu$, followed by $\mu^+ \to \bar{\nu}_\mu + \nu_e + e^+$, and their charge conjugates, so that the flux leaving the source carries flavor ratios $(f_e, f_\mu, f_\tau)_{\rm S} = \left(\frac{1}{3}, \frac{2}{3}, 0\right)$, with $f_{\alpha, {\rm S}}$ the fraction of $\nu_\alpha + \bar{\nu}_\alpha$ in the total. Neutrino telescopes cannot ordinarily tell $\nu$ from $\bar\nu$, so $\nu_\alpha$ below means $\nu_\alpha + \bar{\nu}_\alpha$. We take that full pion-decay composition throughout. Notebook \#10 develops the averaged limit that this section rests on, and notebook \#23 says when averaging a scan is not the same as asking for the average.
+
+\textit{What is observable.}---Over Mpc--Gpc baselines the oscillation length is minute against the distance, and neither the distance, the size of the production region, nor the energy resolution of a detector is known to anything approaching the precision the phase would demand. A telescope is therefore sensitive only to the average flavor-transition probabilities $\langle P_{\nu_\alpha \to \nu_\beta}\rangle$ of \equ{averaged}, which \magnus\ returns in closed form from the eigenvectors of $\mathbb{H}$ rather than by propagating a phase it is about to average away. In vacuum $\mathbb{V}$ is the PMNS matrix and \equ{averaged} is the familiar $\sum_i \lvert U_{\alpha i}\rvert^2 \lvert U_{\beta i}\rvert^2$; for a sterile state or a new term in the \emph{vacuum} Hamiltonian it is the same expression evaluated in whatever eigenbasis that Hamiltonian has. Matter is different, and the difference matters here: the flux decoheres in the vacuum mass basis long before it arrives, and then crosses the Earth \emph{coherently}. The two legs therefore compose as probability matrices rather than as amplitudes, $f_{\beta,\oplus} = \sum_{\alpha,\gamma} f_\alpha \langle P_{\nu_\alpha \to \nu_\gamma}\rangle P^{\oplus}_{\nu_\gamma \to \nu_\beta}$, with the second factor an ordinary propagation through the profile. Evaluating \equ{averaged} in the eigenbasis of the Earth Hamiltonian instead would be wrong, and badly so: above a TeV the matter term dominates, its eigenvectors are nearly the flavor states, and the expression would return the source composition unchanged. The composition at Earth follows as $f_{\alpha, \oplus} = \sum_\beta \langle P_{\nu_\beta \to \nu_\alpha}\rangle f_{\beta, {\rm S}}$. Listing \ref{lst:astro} is both steps. Oscillation over astrophysical distances populates a $\nu_\tau$ component that the sources do not make, which is what turns the composition at Earth into an observable and, run backwards, into a constraint on the production mechanism\ \cite{Learned:1994wg, Athar:2000yw, Beacom:2003nh, Farzan:2008eg, Song:2020nfh}.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{lstlisting}[language=Python, caption={The flavor composition an astrophysical flux arrives with. {\tt averaged\_probabilities\_constant\_hamiltonian} returns the full matrix $\langle P_{\nu_\alpha \to \nu_\beta}\rangle$ of \equ{averaged} from the eigenvectors of whatever Hamiltonian it is handed, so the composition is one contraction away. Nothing here is specific to the standard case: pass a Hamiltonian carrying a sterile state or a new term and the same two lines answer. {\tt H} is any energy-independent vacuum Hamiltonian from {\tt magnus.hamiltonians}, divided by the energy; notebook \#28 builds the four drawn in \figu{astro}.}, label={lst:astro}, float=tbp]
+import numpy as np
+import magnus.avgprob as avgprob
+
+# Any Hermitian matrix; here the vacuum term at E
+P = avgprob.\
+ averaged_probabilities_constant_hamiltonian(H)
+
+# Pion decay at the source, 1 : 2 : 0
+f_source = np.array([1.0/3.0, 2.0/3.0, 0.0])
+# Row a is the initial flavor, so sum over it
+f_earth = np.einsum('a,ab->b', f_source, P)
+\end{lstlisting}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\textit{What varies with energy, and what does not.}---For standard oscillations the composition does not depend on the energy at all. Equation~(\ref{equ:averaged}) is built from $\lvert \mathbb{V}_{\alpha i}\rvert^2$ alone, and in vacuum no energy enters it. Two of the four departures we draw are flat for the same reason. A sterile state moves the composition from $0.326:0.343:0.330$ to $0.330:0.325:0.346$ and leaves it there, after we renormalize past the $13.3\%$ of the flux it removes. Non-standard interactions through the Earth move it by less than $0.005$ and likewise do not vary, because above a TeV the matter term dominates the Hamiltonian inside the Earth and carries no energy dependence of its own. Both are shifts to a different constant, flat across the whole decade drawn. The Earth panel is drawn over that decade to show the machinery, not to predict a rate: above about $100$~TeV a core-crossing chord is opaque, and the attenuation that dominates is an open-system effect outside a unitary solver (Section \ref{sec:limitations}).
+
+What separates the fourth case is that its term keeps growing relative to the others across the decade drawn, so the eigenvectors never settle; the other three reach a regime in which one term dominates and the composition stops moving. The Lorentz-violating case carries $\nu_e$ from $0.326$ up to $0.348$ and down again to $0.317$ across the crossover, with $\nu_\mu$ dipping to $0.328$ and recovering; the survival probability driving it reaches $0.894$. That is what a flavor measurement across a decade of energy could distinguish, and it requires evaluating \equ{averaged} for a Hamiltonian nobody has written down.
+
+The fifth case is where \equ{averaged_blocks} is needed, though the figure itself does not exercise the block sum: at $10^{-13}$~eV$^2$ over $100$~Mpc every pair has long decohered, so the grouping finds six singletons and \equ{averaged_blocks} reduces to \equ{averaged} on a six-state spectrum. Notebook \#29 sweeps the splitting through the coherent and intermediate regimes where the blocks are genuinely formed. If neutrinos are pseudo-Dirac\ \cite{Wolfenstein:1981kw, Petcov:1982ya}, a mass state is really two, separated by a splitting far below anything a terrestrial experiment resolves; the pair then stays mutually coherent long after the three standard splittings have averaged away. Which expression applies is then a question about the spectrum rather than about the code: at $100$~Mpc and $100$~TeV the pair's own phase $\delta m^2 L/2E$ is what fixes the two ends. Below about $2 \cdot 10^{-19}$~eV$^2$ that phase is a small fraction of a radian, the pair stays coherent, and \equ{averaged_blocks} returns the unpaired answer exactly. Above about $10^{-16}$~eV$^2$ it turns through more than a cycle and averages away, so \equ{averaged} counts the two members separately and halves the channels they carry.
+
+\magnus\ groups the spectrum itself rather than being told which case it is in, and refuses to average at all in the band between, where neither expression describes the physics. We pair the second mass state alone, a four-state spectrum, which is the case the interface exists for: pairing all three would suppress every channel by the same factor and leave the fractions where they were, so only an uneven pairing moves the observable. The signature it produces at a neutrino telescope is the one identified in \Ref\ \cite{Beacom:2003eu}. Notebook \#29 develops the model, sweeps a splitting through all three regimes, and shows that the same spectrum is invisible at a terrestrial baseline.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsubsection{Oscillations in an astrophysical relativistic jet}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Assorted long examples}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsubsection{A cavity in the Earth's crust}
+\label{sec:cavity}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{figure}[t!]
+ \centering
+ \includegraphics[width=\columnwidth]{cavity.pdf}
+ \caption{\label{fig:cavity}Effect of a cavity in the Earth's crust on the $\bar{\nu}_e$ survival probability over a baseline of $1\,500$~km, computed with \magnus, after \Ref\ \cite{Arguelles:2012nw}. {\it Top}: the crust alone, uniform at $3.3$~g~cm$^{-3}$ with $Y_e = 0.5$. {\it Bottom}: the change that four cavities make to it, each centered on the baseline, with the density and width its label gives. The water cavity carries $Y_e = 0.555$, the other three $0.5$. The dashed line marks $49$~MeV, where the crust curve peaks. The beam of \Ref\ \cite{Arguelles:2012nw} spans $5$ to $150$~MeV; below $25$~MeV the oscillation is too rapid to draw at this width. Listing~\ref{lst:cavity} computes every curve. See notebook \#28 and Sec.~\ref{sec:cavity} for details.}
+\end{figure}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{lstlisting}[language=Python, caption={A cavity search in the Earth's crust, after \Ref\ \cite{Arguelles:2012nw}: the $\bar{\nu}_e$ survival probability over $1\,500$~km of Earth's crust, with and without a cavity of different density centered on the baseline. A cavity is a density profile with two walls, whose positions are declared as breakpoints so that the refinement ladder runs inside the cavity. See Sec.~\ref{sec:cavity} for details.}, label={lst:cavity}, float=tbp]
+import numpy as np
+import magnus.oscprob as oscprob
+import magnus.matter as matter
+import magnus.globaldefs as gd
+
+L0 = 1500.0                     # km, source to detector
+RHO_CRUST, YE_CRUST = 3.3, 0.5  # PREM crust
+E = np.linspace(25.0, 150.0, 2500)*gd.UNIT_MEV
+osc = gd.load_nufit_params('NuFIT 6.1')
+kw = dict(osc_params=osc, L0=0.0, nu_i=gd.NUE,
+          nu_f=gd.NUE, nubar=True, rtol=1.0e-8,
+          atol=1.0e-10,
+          density_is_of_number_of_electrons=True)
+
+def n_e(rho, ye):
+    """Electron density [eV^3] of uniform matter."""
+    return matter.num_density_e_func(
+        0.0, lambda _: rho, electron_fraction=ye,
+        ratio_number_neutrons_to_protons=(1.0-ye)/ye,
+        density_matter_is_in_g_per_cm3=True)
+
+NE_CRUST = n_e(RHO_CRUST, YE_CRUST)
+
+def cavity(rho, ye, w):
+    """Crust holding a cavity of width w, centered."""
+    d = (L0 - w)/2.0
+    ne_in = n_e(rho, ye)
+
+    def profile(l):
+        x = np.asarray(l, dtype=float)/gd.UNIT_KM
+        return NE_CRUST + (ne_in - NE_CRUST) \
+            *((x >= d) & (x <= d + w))
+
+    return profile, np.array([d, d + w])*gd.UNIT_KM
+
+# An empty crust needs no profile, only a number
+P0 = oscprob.osc_prob_matter_std_potential(
+    3, NE_CRUST, E, L0*gd.UNIT_KM, **kw)
+
+# Water, iron, a mineral deposit, a zone of faults:
+# (rho, Y_e, w) for each
+CASES = [(1.0, 0.555, 250.0), (5.0, 0.5, 250.0),
+         (10.0, 0.5, 100.0), (25.0, 0.5, 50.0)]
+dP = []
+for rho, ye, w in CASES:
+    profile, walls = cavity(rho, ye, w)
+    # The two walls are density jumps: declare them
+    P = oscprob.osc_prob_matter_std_potential(
+        3, profile, E, L0*gd.UNIT_KM,
+        t_breakpoints=walls, **kw)
+    dP.append(P - P0)
+\end{lstlisting}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+A region of anomalous density along the trajectory of a neutrino moving in an otherwise uniform medium changes the oscillation probability measured at the far end. This observation has motivated proposals for using neutrinos to search for underground cavities in the Earth's crust. We use \magnus\ to implement the prescription of \Ref\ \cite{Arguelles:2012nw}: a low-energy $\bar{\nu}_e$ beam crossing $1\,500$~km of crust, with the survival probability measured from 5 to 150~MeV. Our goal is primarily illustrative; we point out the doubtful feasibility of such an experimental setup.
+
+Listing~\ref{lst:cavity} sets this up in \magnus. The crust is uniform at 3.3~g~cm$^{-3}$ with $Y_e = 0.5$, the average of the outermost PREM layers. The cavity is a slab of different density centered on the baseline. We show cavities of four densities~\cite{Arguelles:2012nw}: water at 1~g~cm$^{-3}$ and $Y_e = 0.555$, an iron-banded formation at 5~g~cm$^{-3}$, a mineral deposit at 10~g~cm$^{-3}$, a zone of seismic faults at 25~g~cm$^{-3}$. Their widths along the neutrino trajectory fall from 250 to 50~km as the contrast with the crust grows. Each cavity has two walls. Every wall is a density jump: we pass their positions via {\tt t\_breakpoints} to the scenario function, allowing the refinement ladder to act inside the cavity.
+
+Figure~\ref{fig:cavity} shows the resulting probabilities. Every cavity curve crosses zero at $49$~MeV, where the crust curve peaks at 0.9997 (it would be exactly 1 if $\theta_{13}$ were zero). The presence of a cavity moves the peak energy. Adding column density pushes the peak up in energy; removing column density pulls it down. What a cavity does to the curve is to displace it bodily along the energy axis, leaving its shape almost untouched.  For a denser cavity, at energies below the peak the peak has moved further away, so the probability there falls; at energies above the peak it has moved closer, so the probability rises. A lighter cavity moves the peak the other way, swapping both signs. Either way the shift crosses zero between the crust's peak and the cavity's, which puts the four crossings between 48.1 and 49.5~MeV.
+
+Figure~\ref{fig:cavity_sweep} turns the neutrino beam across the cavity. The source stays put and the baseline keeps its length; only the direction changes, by an angle $\alpha$. Each direction cuts a different slice through the same cavity, a sphere of radius 125~km centered 750~km along the baseline. (Reference~\cite{Arguelles:2012nw} works with elliptical cavities, but a sphere carries the point just as well.) The spread of the angle is $\alpha = \pm 9.59^\circ$; within those angles, the cavity width it crosses traces a semicircle.
+
+The probability contrast map reflects that semicircle. Structure fills the $\alpha$ band and fades at its edges as the width falls. Outside the band, the beam misses the body, so the profile is the uniform crust and the difference is exactly zero. The sweep is what separates a large, light body from a small heavy one: a single direction measures only the excess column, in which density and width are degenerate, while the angular width of the band fixes the size by itself. Listing~\ref{lst:cavity_sweep} computes the map.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{figure}[t!]
+ \centering
+ \includegraphics[width=\columnwidth]{cavity_sweep.pdf}
+ \caption{\label{fig:cavity_sweep}{\it Top}: the geometry. The beam leaves the source at an angle $\alpha$ and reaches a detector on the dashed arc, $1\,500$~km away. The two dashed straight lines are the beams tangent to the body, at $\alpha = \pm 9.59^\circ$. A neutrino beam crosses the cavity width, $w$. {\it Bottom left}: that width against the angle, \ie, the cavity's silhouette. {\it Bottom right}: the change in probability over energy and angle. The dashed vertical line marks the $49$~MeV of \figu{cavity}. Listing~\ref{lst:cavity_sweep} computes the map.}
+\end{figure}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{lstlisting}[language=Python, caption={The map of \figu{cavity_sweep}, continuing Listing~\ref{lst:cavity}, whose {\tt n\_e}, {\tt NE\_CRUST}, {\tt L0} and {\tt kw} it reuses. Only the geometry is new: at each angle, where the chord enters and leaves the body. Those two positions are the profile's walls and the call's {\tt t\_breakpoints} at once, so they move together with the angle. An angle that misses the body needs no call, since its profile is the crust the reference already used. See Sec.~\ref{sec:cavity} for details.}, label={lst:cavity_sweep}, float=tbp]
+import numpy as np
+
+BODY_R, BODY_D0 = 125.0, 750.0   # km: size, position
+NE_BODY = n_e(10.0, 0.5)         # a mineral deposit
+E = np.linspace(25.0, 150.0, 400)*gd.UNIT_MEV
+ALPHA = np.linspace(-15.0, 15.0, 220)
+
+
+def crossing(alpha_deg):
+    """Entry and exit points in the body [km]."""
+    a = np.radians(alpha_deg)
+    miss = abs(BODY_D0*np.sin(a))
+    if miss >= BODY_R:
+        return None              # the beam misses it
+    half = np.sqrt(BODY_R**2 - miss**2)
+    mid = BODY_D0*np.cos(a)
+    return mid - half, mid + half
+
+
+P0 = oscprob.osc_prob_matter_std_potential(
+    3, NE_CRUST, E, L0*gd.UNIT_KM, **kw)
+
+dP = np.zeros((len(E), len(ALPHA)))
+for j, alpha in enumerate(ALPHA):
+    seg = crossing(alpha)
+    if seg is None:
+        continue                 # no body, no change
+    lo, hi = seg
+
+    def body(l, lo=lo, hi=hi):
+        x = np.asarray(l, dtype=float)/gd.UNIT_KM
+        return NE_CRUST + (NE_BODY - NE_CRUST) \
+            *((x >= lo) & (x <= hi))
+
+    # The walls move with the angle, so every call
+    # declares its own pair
+    dP[:, j] = oscprob.osc_prob_matter_std_potential(
+        3, body, E, L0*gd.UNIT_KM,
+        t_breakpoints=np.array(seg)*gd.UNIT_KM,
+        **kw) - P0
+\end{lstlisting}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsubsection{Neutrino oscillation tomography of the Sun}
+\label{sec:solar_tomography}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{figure}[t!]
+ \centering
+ \includegraphics[width=\columnwidth]{solar_adiabaticity.pdf}
+ \caption{\label{fig:solar_adiabaticity}{\it Top}: the setup. An isotropic flux of $\nu_e$ crosses the Sun and continues to Earth, where it may oscillate. The impact parameter $b$ is marked on one ray. {\it Bottom:} Adiabaticity of a neutrino trajectory through the Sun against neutrino energy, computed with \magnus\ on the BS2005-AGS,OP solar density profile\ \cite{Bahcall:2004pz}, for four impact parameters, each defining a chord through the Sun. The parameter $\gamma_{\rm max}$ is the adiabaticity parameter of \equ{hf}, evaluated at its maximum value along the chord and over the three pairs of eigenvalue levels. See notebook \#28 and Sec.~\ref{sec:solar_tomography} for details.}
+\end{figure}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+Neutrinos made outside the Solar System cross the Sun on their way to Earth. At around 10~MeV, they are mainly from the diffuse supernova neutrino background. From TeV to PeV, they are part of the high-energy astrophysical flux. Both fluxes are isotropic, so a share of each passes through the Sun before reaching a detector. Below, we compute what that does to their oscillations, using the same tabulated BS2005-AGS,OP density profile\ \cite{Bahcall:2004pz} from Sec.~\ref{sec:sun}.
+
+A neutrino from such a source has traveled far enough that the wave packets of its mass eigenstates have separated. What arrives is an incoherent mixture, so what is measured is the phase-averaged probability of Sec.~\ref{sec:averaged} instead of the instantaneous one. Inside the Sun, the Hamiltonian changes along the path, which makes \equ{averaged_varying} the applicable form of the probability, with the eigenbasis taken at entry and at exit, and the level-crossing matrix $P^{\rm cross}$ between them.
+
+Both ends of the path lie in vacuum, where the eigenvectors are the vacuum mixing matrix, so $\mathbb{V}(l_0) = \mathbb{V}(l_1) = \mathbb{U}$ in \equ{averaged_varying}. An adiabatic passage would make $P^{\rm cross}$ the identity. Equation (\ref{equ:averaged_varying}) would then collapse to \equ{averaged} evaluated in vacuum, leaving no trace of the Sun. Whether or not the passage is adiabatic depends on the energy, via \equ{hf}.
+
+A solar neutrino behaves differently: because it is born deep inside the Sun, at high density, it begins as a matter eigenstate. The adiabatic passage outward then maps it onto a single mass eigenstate. That is the MSW effect of Sec.~\ref{sec:sun}. A neutrino crossing from outside meets the same density profile, but enters it as a vacuum mass eigenstate. Because the density vanishes at both ends of that path, adiabatic passage keeps the neutrino in one eigenstate of the instantaneous $\mathbb{H}$ and returns it to the mass eigenstate it entered with. What separates the two cases is where each path begins and ends.
+
+Figure~\ref{fig:solar_adiabaticity} shows how adiabatic the passage is, from MeV to PeV, for four choices of the impact parameter at which the neutrinos hit the Sun, and assuming three flavors. Equation~(\ref{equ:hf}) attaches an adiabaticity parameter $\gamma_{jk}(l)$ to every pair of eigenvalues (1-2, 1-3, 2-3) of $\mathbb{H}$ at every point $l$ of the trajectory. It is large where two of those eigenvalues approach each other and small where they stay apart. The figure plots $\gamma_{\rm max}$, the largest value found anywhere along the chord and over all three pairs, so a curve above one means the neutrino moves between eigenstates of $\mathbb{H}$ somewhere on its way through. The parameter can be computed using the {\tt adiabatic} module of \magnus:
+\begin{pysnip}
+import numpy as np
+import magnus.adiabatic as adiabatic
+import magnus.hamiltonians as ham
+import magnus.matter as matter
+import magnus.globaldefs as gd
+
+R = gd.SUN_RADIUS*gd.UNIT_KM
+b = 0.3*R                # impact parameter
+half = np.sqrt(R**2 - b**2)
+E = 100.0*gd.UNIT_GEV
+hv = ham.hamiltonian_3nu_vacuum(E, **osc)
+
+def ne(l):
+    """Electron density on the chord."""
+    r = np.sqrt((l - half)**2 + b**2)
+    return ne_sun(r)
+
+def H(l):
+    """Hamiltonian at l along the chord."""
+    h = np.array(hv, dtype=complex)
+    h[0, 0] += matter.VCC_func(l, ne)
+    return h
+
+info = {}
+adiabatic.find_nonadiabatic_windows(
+    H, 0.0, 2*half, n_probe=20000,
+    info=info)
+info['gamma_max']        # 13.2510
+\end{pysnip}
+Here, {\tt ne\_sun} is the log-interpolated BS2005-AGS,OP table of Sec.~\ref{sec:sun}, {\tt ne} evaluates it along the chord, and {\tt hv} is the vacuum Hamiltonian at this energy. The value shown is for a $100$-GeV neutrino crossing at an impact parameter of $b = 0.3\,R_\odot$.
+
+The parameter $\gamma_{\rm max}$ grows with energy because the vacuum splitting $\Delta m^2/2E$ shrinks while the matter potential in the Sun stays fixed. Above $100$~GeV, $\gamma_{\rm max}$ is attained at a radius between $0.97$ and $0.98\,R_\odot$, independently of the impact parameter. That shell sits just below the solar surface, where the density gradient is steepest (see \figu{solar}). [Figure~\ref{fig:solar_adiabaticity} shows only the effect of oscillations; absorption, which matters above the GeV scale, is outside what \magnus\ models (Sec.~\ref{sec:limitations}).]
+
+Figure~\ref{fig:solar_tomography} shows the averaged survival probability across the face of the Sun, at selected energies. The line of sight runs into the page, so each point in the disk fixes the impact parameter of one trajectory, along which the neutrino crosses the whole Sun. For one impact parameter, the probability is computed via
+\begin{pysnip}
+import magnus.oscprob as oscprob
+
+# The chord above: b = 0.3 R_sun
+P = oscprob.osc_prob_matter_std_potential(
+    3, ne, E, 2*half, average=True,
+    osc_params=osc, L0=0.0, nu_i=gd.NUE,
+    nu_f=gd.NUE,
+    density_is_of_number_of_electrons=True)
+P                        # 0.365123
+\end{pysnip}
+Here, {\tt average=True} evaluates the phase-averaged limit in closed form, \equ{averaged_varying}. Section~\ref{sec:averaging_is_not_estimating} shows why averaging a scan of probabilities does not necessarily reproduce this.  (Drawing the instantaneous probability would take thousands of impact parameters per panel: $\int V_{\rm CC} \, dl$ changes by $7.5$ cycles when $b$ moves by $0.0013\,R_\odot$, so the probability swings between nearly the full probability range---from 0.12 to 0.98---from one pixel to the next.)
+
+At $10$~MeV, the disk is uniform at about $\sum_i |\mathbb{U}_{ei}|^4 \approx 0.55$: the Sun is transparent, exactly as $P^{\rm cross} = \mathbb{1}$ requires. At intermediate energies, structure appears in the form of rings; this occurs within the non-adiabatic region of \figu{solar_adiabaticity}. The rings are drawn by the level-crossing $P^{\rm cross}$ of \equ{averaged_varying}, the one quantity in the averaged probability that departs from the identity. The deepest point of the ring pattern moves outward with energy, settling at $b = 0.88\,R_\odot$ above 1~TeV. At 50~TeV, the disk is uniform again, but for the opposite reason it was uniform at 10~MeV. The matter term at 50~TeV exceeds $\Delta m^2_{31}/2E$ even in the tenuous outer shells, so the eigenstates of $\mathbb{H}$ at both ends of the chord lie close to the flavor states: the largest of the three, $|\mathbb{V}_{ei}(l_0)|^2$ of \equ{averaged_varying}, is 0.991 at 50~TeV, against 0.676 at 10~MeV. This means that, at the highest energies, a $\nu_e$ enters as one eigenstate and leaves as the same one, whatever $P^{\rm cross}$ does in between.
+
+To be clear, no neutrino telescope resolves any of this structure. While the Sun has been imaged in MeV neutrinos, most famously by Super-Kamiokande, the width of that image is set by the angular resolution of the detector: the recoil electron of neutrino-electron elastic scattering carries the neutrino direction only to within tens of degrees, against a disk of half a degree. At tens of TeV, the angular resolution is better, but still comparable to the size of the disk itself. The rings of \figu{solar_tomography} would need arcminute-level resolution to be resolved (the instantaneous probability would need arcsecond-level). In addition, the panels of \figu{solar_tomography} at GeV energies---where the rings first appear---lie in a band where no astrophysical neutrino flux has been identified above the atmospheric background.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{figure*}[t!]
+ \centering
+ \includegraphics[width=\textwidth]{solar_tomography.pdf}
+ \caption{\label{fig:solar_tomography}The Sun seen face-on in the $\nu_e$ survival channel, computed with \magnus\ on the BS2005-AGS,OP solar density profile\ \cite{Bahcall:2004pz}. The line of sight runs into the page, so each point of the disk is an impact parameter and the neutrino crosses the whole Sun along it. The color is the phase-averaged $P_{\nu_e \to \nu_e}$ at exit. See notebook \#28 and Sec.~\ref{sec:solar_tomography} for details.}
+\end{figure*}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsubsection{Turbulent matter profile}
+\label{sec:turbulence}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Running a scan in parallel}
+\label{sec:njobs}
+
+A scan of many probabilities can be shared among processes. Every wrapper accepts the argument {\tt n\_jobs} for that, the number of processes to use, with {\tt n\_jobs = 1} as default:
+\begin{pysnip}
+import numpy as np
+import magnus.oscprob as oscprob
+import magnus.globaldefs as gd
+
+N = 5000
+E = np.logspace(-0.3, 1.3, N)*gd.UNIT_GEV
+L = np.linspace(2e3, 11467.8, N)*gd.UNIT_KM
+kw = dict(costhz=-0.9, rtol=1e-6, atol=1e-8,
+          nu_i=gd.NUMU, nu_f=gd.NUMU)
+
+# Every point has its own baseline, so no
+# batched engine takes this scan
+P = oscprob.osc_prob_3nu_earth(
+    E, L=L, n_jobs=4, **kw)
+\end{pysnip}
+
+The first point in the scan runs by itself, in the main process. That run fixes the parameters. Its refinement ladder settles on two numbers: how many slabs the trajectory needs ($N_{\rm slabs}$), and how many collocation points each slab needs to evaluate the Magnus expansion. Those two numbers become the starting floor for every later point, set two rungs below where the first point landed. Each worker then begins its ladder close to the answer. The rest of the scan goes to the workers. Each worker takes a chunk of consecutive points and computes them one after another. {\tt joblib} picks the batch size, aiming for chunks that run between $0.2$ and $2$~s, so cheap points are gathered in bulk and an expensive point is handed over on its own.
+
+Two conditions decide whether using {\tt n\_jobs} larger than 1 helps. The first is the shape of the scan. A batched engine answers only at {\tt n\_jobs} $= 1$, so asking for more processes sends the request down the per-point path instead, which for a batchable scan is the slower of the two (Sec.~\ref{sec:batching}). A scan whose points share one baseline should keep the default of {\tt n\_jobs} $= 1$ and let the batching of Sec.~\ref{sec:batched_calls} do the work:
+\begin{pysnip}
+# One baseline for all energies: the batched
+# engine takes it, at the default n_jobs = 1
+P = oscprob.osc_prob_3nu_earth(
+    E, L=11467.8*gd.UNIT_KM, **kw)
+\end{pysnip}
+Parallelism is for scans that no batched engine accepts, such as the one above, where every energy carries a different baseline.
+
+The second condition is length. Starting the workers costs time, paid once per call, so the scan has to be long enough to absorb this overhead. Measured on the scan above, four workers return $2.4$ times the speed of one process at $5\,000$ points, $2.3$ at $2\,000$ and $1.8$ at $500$. A scan of a few hundred points called once can finish slower than it would have in a single process. Section~\ref{sec:cost} and \figu{njobs_scaling} measure how that gain grows with the size of the scan and where it stops paying; \ref{app:workers} reports how much the measurement depends on the way it is taken.
+
+Parallelism changes more than the speed. A serial scan warm-starts each point from its neighbor. A parallel scan warm-starts every point from the first one. A ladder that starts on a different rung can stop on a different rung, so two runs that differ only in {\tt n\_jobs} agree to the tolerance asked for, but no better. The gap between grows with the length of the scan. Measured on the chord above at {\tt rtol} $= 10^{-6}$, two points agree exactly, three differ by $8 \cdot 10^{-10}$, and forty by $10^{-8}$. The user should hold {\tt n\_jobs} fixed when two runs have to match to the last digit.
+
+All of the above concerns a scan of several probabilities. A call for a single probability uses {\tt n\_jobs} for something else: it spreads that one calculation's slabs across the workers.
+\begin{pysnip}
+# Many points: a worker receives points
+P = oscprob.osc_prob_3nu_earth(
+    E, L=L, n_jobs=4, **kw)
+
+# One point: a worker receives that point's
+# slabs instead
+P = oscprob.osc_prob_3nu_earth(
+    10.0*gd.UNIT_GEV, L=11467.8*gd.UNIT_KM,
+    n_jobs=4, **kw)
+\end{pysnip}
+A slab is far smaller than a probability, so this second form of parallelization rarely repays itself. On the chord above, one worker and four take the same $3.5$~milliseconds and return the same digits. The setting is there for a Hamiltonian that is expensive to evaluate, where a slab is no longer cheap.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -3161,7 +3467,7 @@ The expensive intermediate range of widths can be located in two ways. The first
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\subsection{Accuracy and speed: average probabilities in the Sun}
+\subsection{Accuracy and speed: the Sun}
 \label{sec:solar_comparison}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -3448,7 +3754,7 @@ MB is supported by the Villum Fonden projects no.~13164 and 29388.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\section{The Magnus expansion at any order}
+\section{Magnus expansion at any order}
 \label{app:terms}
 \appresetfloats
 
@@ -3493,7 +3799,7 @@ Higher order buys a genuinely faster convergence rate in the slab width---measur
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\section{The predefined oscillation-parameter sets}
+\section{Predefined oscillation-parameter sets}
 \label{app:params}
 \appresetfloats
 
