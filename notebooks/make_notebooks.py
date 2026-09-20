@@ -17026,6 +17026,83 @@ for r, name in ((R_CONTACT_KM, 'Contact'), (R_FORWARD_KM, 'Forward shock (FS)'))
                         xytext=(4.5, 0), textcoords='offset points',
                         fontsize=8.0, color='0.35', ha='left', va='bottom')
 save(fig, 'shock_probability.pdf')'''),
+    md(r'''## Figure 6b --- the shock signature against energy
+
+The observable of a supernova signal is averaged twice over: over the phase accumulated
+after the last front, which no detector resolves, and over the phase accumulated between
+the two fronts, which makes the two crossings interfere and turns over every few keV in
+energy, so that any detector's resolution smears it out.  A mean of the resolved scan over
+the last stretch of the ray keeps that interference and is not the observable.
+
+On a profile with declared fronts, `average=True` propagates the probability at 41 energies
+across a window of $\pm 10\%$ and returns their mean, warning that it did so and quoting the
+standard error of the mean (`avgprob.averaged_probabilities_numerically`).  This cell calls
+that route directly, once per energy, so that it also has the standard errors to draw, and
+checks at 15 MeV that `average=True` returns the same number.  Without a shock the profile is
+smooth and the same keyword takes the adiabatic route, which certifies.'''),
+    code(r'''def undisturbed_ne(l):
+    r = np.asarray(l, dtype=float)/KM
+    out = 1.0e14*r**(-2.4)*gd.UNIT_G_PER_CM3/MEAN_NUCLEON*0.5
+    return out[()] if np.ndim(out) == 0 else out
+
+
+E_SN = np.logspace(np.log10(5.0), np.log10(60.0), 60)*gd.UNIT_MEV
+KW_SN = dict(L0=L0, nu_i=gd.NUE, nu_f=gd.NUE, density_is_of_number_of_electrons=True)
+got = cached('shock_energy_none',
+             ('shock energy', 'none', [float(e) for e in E_SN], float(L1),
+              [float(undisturbed_ne(x)) for x in np.linspace(L0, L1, 9)], sorted(OSC.items())),
+             lambda: dict(P=np.asarray(quiet(oscprob.osc_prob_matter_std_potential, 3,
+                                             undisturbed_ne, E_SN, L1, OSC, average=True,
+                                             **KW_SN)).tolist()),
+             what='the no-shock averaged curve, adiabatic route')
+SN_ENERGY = {'none': dict(mean=np.asarray(got['P']))}
+print('no shock: adiabatic route, P in %.3f..%.3f' % (SN_ENERGY['none']['mean'].min(),
+                                                      SN_ENERGY['none']['mean'].max()))
+for key, width in (('0p07', 1.0e-6), ('70', 1.0e-3)):
+    ne, bp = sn_shock_ne(width), shock_breakpoints(width)
+
+    def prob_of_energy(e, ne=ne, bp=bp):
+        return np.asarray(quiet(oscprob.osc_prob_matter_std_potential, 3, ne, e, L1, OSC,
+                                t_breakpoints=bp, **KW_SN))
+
+    def run(prob_of_energy=prob_of_energy):
+        means, sems = [], []
+        for e in E_SN:
+            m, sem = avgprob.averaged_probabilities_numerically(prob_of_energy, float(e))
+            means.append(float(m)); sems.append(float(sem))
+        return dict(mean=means, sem=sems)
+    got = cached('shock_energy_%s' % key,
+                 ('shock energy', key, [float(e) for e in E_SN], float(L1),
+                  [float(ne(x)) for x in np.linspace(L0, L1, 9)], sorted(OSC.items()),
+                  float(avgprob.AVG_DEFAULT_ENERGY_SPREAD), int(avgprob.AVG_DEFAULT_N_SAMPLES)),
+                 run, what='one shock width, the energy-window average at every energy')
+    SN_ENERGY[key] = {k: np.asarray(v) for k, v in got.items()}
+    w_km = width*(R1_KM - R0_KM)
+    print('fronts %g km: window means in %.3f..%.3f, standard errors up to %.3f'
+          % (w_km, SN_ENERGY[key]['mean'].min(), SN_ENERGY[key]['mean'].max(),
+             SN_ENERGY[key]['sem'].max()))
+    # average=True on the same call is this route: same window, same samples, same number.
+    k = int(np.argmin(np.abs(E_SN/gd.UNIT_MEV - 15.0)))
+    P_kw = float(quiet(oscprob.osc_prob_matter_std_potential, 3, ne, float(E_SN[k]), L1, OSC,
+                       t_breakpoints=bp, average=True, **KW_SN))
+    print('  at %.2f MeV: average=True %.6f, this route %.6f, difference %.1e'
+          % (E_SN[k]/gd.UNIT_MEV, P_kw, SN_ENERGY[key]['mean'][k],
+             abs(P_kw - SN_ENERGY[key]['mean'][k])))'''),
+    code(r'''fig, ax = plt.subplots(figsize=(COL, 2.5))
+ax.plot(E_SN/gd.UNIT_MEV, SN_ENERGY['none']['mean'], color=INK, lw=1.3, label='No shock')
+for key, color, label in (('0p07', BLUE, 'Fronts 0.07 km wide'),
+                          ('70', ORANGE, 'Fronts 70 km wide')):
+    m, s = SN_ENERGY[key]['mean'], SN_ENERGY[key]['sem']
+    ax.fill_between(E_SN/gd.UNIT_MEV, m - s, m + s, color=color, alpha=0.25, lw=0)
+    ax.plot(E_SN/gd.UNIT_MEV, m, color=color, lw=1.3, label=label)
+ax.set_xlim(5.0, 60.0); ax.set_ylim(0.0, 0.8)
+ax.xaxis.set_minor_locator(AutoMinorLocator(5)); minor_y(ax, 5)
+ax.set_xlabel(r'Neutrino energy, $E$ [MeV]')
+ax.set_ylabel(r'Average probability, $\langle P_{\nu_e \to \nu_e}\rangle$', fontsize=8.0)
+ax.legend(loc='upper right', handlelength=1.6)
+corner(ax, r'SN, at $80\,000$ km', loc='upper left', x=0.035, y=0.94)
+fig.subplots_adjust(left=0.20)
+save(fig, 'shock_energy.pdf')'''),
     md(r'''### Figure 8 --- what an astrophysical flux arrives as
 
 Decohered over the distance, so the observable is the flavor composition. Standard
