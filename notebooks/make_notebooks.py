@@ -15396,12 +15396,18 @@ print('  the body subtends +/- %.2f deg; widest crossing %.0f km'
       % (SWEEP_A_MAX, SWEEP_WF.max()))
 print('  change in probability from %+.3f to %+.3f' % (SWEEP_DP.min(), SWEEP_DP.max()))
 save(fig, 'cavity_sweep.pdf')'''),
-    md(r'''## Figure 5 --- the Sun: model, observable, and residual
+    md(r'''## Figure 5 --- the Sun: model and observable
 
-The reference in the bottom panel is the adiabatic limit built from the instantaneous
+The check printed under the figure is the adiabatic limit built from the instantaneous
 eigenbases alone --- two calls to `eigh` and a contraction, touching none of the package's
-averaging machinery, so it works for all three scenarios rather than only the standard
-one.
+averaging machinery, so it works for all four scenarios rather than only the standard
+one.  Its detection eigenbasis is taken at the density where the table ends,
+$0.98\,R_\odot$, not in vacuum.  Read out in vacuum instead, the reference differs from
+the package by up to $10^{-5}$ at 20 MeV, and that is the matter effect of the electrons
+still present at the table's last row, not a departure from adiabaticity: the LMA crossing
+is adiabatic to $e^{-2000}$ there.  Read out at the edge, the agreement is to machine
+precision, which is why the residual panel an earlier version of this figure carried is
+gone.
 
 One trap paid for here: `hamiltonian_3nu_nsi` returns $V_{\rm CC}$ times the epsilon matrix
 **alone** --- it is zero when every epsilon is --- so the standard matter term has to be
@@ -15437,20 +15443,26 @@ print('BS2005-AGS,OP: %d rows, ray 0 to %.0f km; n_e falls by %.1e over it'
       % (len(solar), R_SUN/gd.UNIT_KM, ne_tab[0]/ne_tab[-1]))
 
 
-def adiabatic_limit(build_H, energy, vcc0, a=gd.NUE, b=gd.NUE):
+def adiabatic_limit(build_H, energy, vcc0, vcc1, a=gd.NUE, b=gd.NUE):
     r"""The decohered adiabatic limit, from the instantaneous eigenbases alone.
 
     Decohere in the matter eigenbasis at production, transport along the levels, read
-    out in the vacuum eigenbasis at the surface.  This touches none of the package's
+    out in the eigenbasis at the far end of the ray.  This touches none of the package's
     averaging machinery -- two calls to ``eigh`` and a contraction -- so it is an
     independent reference for every scenario rather than only for the standard one,
     where it reduces to the textbook MSW expression.
+
+    ``vcc1`` is the potential where the ray ends.  The table stops at 0.98 R_sun with
+    5e20 electrons per cm^3 still there, and a reference read out in vacuum instead
+    differs from the package by up to 1e-5 at 20 MeV.  That is the matter effect of the
+    edge, not a departure from adiabaticity, and it is what an earlier version of this
+    figure drew as a residual panel.
     """
-    hv = np.asarray(build_H(energy, 0.0), dtype=complex)
     hm = np.asarray(build_H(energy, vcc0), dtype=complex)
+    he = np.asarray(build_H(energy, vcc1), dtype=complex)
     _, u_matter = np.linalg.eigh(hm)
-    _, u_vac = np.linalg.eigh(hv)
-    return float(np.sum(np.abs(u_matter[a])**2 * np.abs(u_vac[b])**2))
+    _, u_end = np.linalg.eigh(he)
+    return float(np.sum(np.abs(u_matter[a])**2 * np.abs(u_end[b])**2))
 
 
 OSC4 = dict(OSC); OSC4.update(STERILE4); OSC4.update(d14=0.0, d24=0.0)
@@ -15459,6 +15471,7 @@ OSC5.update(d14=0.0, d24=0.0, d15=0.0, d25=0.0, d35=0.0)
 E_AVG = np.logspace(np.log10(0.1), np.log10(20.0), 90)*gd.UNIT_MEV
 COMMON = dict(L0=0.0, nu_i=gd.NUE, nu_f=gd.NUE, density_is_of_number_of_electrons=True)
 VCC0 = float(PER_NE*ne_sun(0.0))
+VCC1 = float(PER_NE*ne_sun(R_SUN))
 
 HV3 = np.asarray(vacuum_hamiltonian(3), dtype=complex)
 HV4 = np.asarray(vacuum_hamiltonian(4), dtype=complex)
@@ -15492,15 +15505,14 @@ SCEN = [
                                                      average=True, **COMMON),
      lambda E, v: HV5/E + v*P5),
 ]'''),
-    code(r'''fig = plt.figure(figsize=(COL, 5.0))
-outer = fig.add_gridspec(2, 1, height_ratios=[1.22, 2.30], hspace=0.22)
-gs_low = outer[1].subgridspec(2, 1, height_ratios=[1.60, 0.90], hspace=0.09)
-axes = [fig.add_subplot(outer[0]), fig.add_subplot(gs_low[0]), None]
-axes[2] = fig.add_subplot(gs_low[1], sharex=axes[1])
+    code(r'''fig, axes = plt.subplots(2, 1, figsize=(COL, 4.1),
+                         gridspec_kw=dict(height_ratios=[1.0, 1.35], hspace=0.30))
 
 # --- the model
 ax = axes[0]
-rr = x_solar/R_SUN
+# The table's own radius column.  R_SUN is the last tabulated radius, 0.983 R_sun, so
+# x_solar/R_SUN would stretch the profile to reach the right edge of the panel.
+rr = r_over_rsun
 # n_e in cm^-3: natural units cube the energy, and nobody quotes a solar electron
 # density that way.  gd.UNIT_PER_CM3 is one cm^-3 expressed in eV^3.
 PER_CM3 = gd.UNIT_PER_CM3
@@ -15526,42 +15538,32 @@ ax.set_xlabel(r'Radius, $r/R_\odot$', labelpad=1.5)
 ax.set_ylabel(r'Electron density, $n_e$ [cm$^{-3}$]', fontsize=8.0)
 
 
-# --- the averaged observable, and the residual under it
-resid = {}
+# --- the averaged observable, checked against the two-eigenbasis reference
 for label, color, call, build_H in SCEN:
     def run(call=call, build_H=build_H):
         P = np.asarray(quiet(call, E_AVG))
-        R = np.array([adiabatic_limit(build_H, e, VCC0) for e in E_AVG])
+        R = np.array([adiabatic_limit(build_H, e, VCC0, VCC1) for e in E_AVG])
         return dict(P=P.tolist(), R=R.tolist())
     got = cached('solar_%s' % re.sub(r'\W+', '_', label).strip('_'),
                  ('solar', label, [float(e) for e in E_AVG], float(R_SUN),
                   profile_samples(lambda l: PER_NE*ne_sun(l), R_SUN),
-                  sorted(OSC.items())),
+                  sorted(OSC.items()), 'reference read out at the table edge'),
                  run, what='one averaged solar scenario')
     P, R = np.asarray(got['P']), np.asarray(got['R'])
     axes[1].semilogx(E_AVG/gd.UNIT_MEV, P, color=color, lw=1.3, label=label)
-    resid[label] = (color, np.abs(P - R))
     print('%-14s P in %.3f-%.3f, worst |Magnus - adiabatic| %.2e'
-          % (label, P.min(), P.max(), resid[label][1].max()))
+          % (label, P.min(), P.max(), np.abs(P - R).max()))
 
 a = axes[1]
 logx(a); snug(a, E_AVG/gd.UNIT_MEV); xticks_at(a, (0.1, 0.3, 1, 3, 10, 20))
-a.set_ylim(0.25, 0.60); minor_y(a, 5)
+a.set_ylim(0.20, 0.60); minor_y(a, 5)
 a.set_ylabel(r'Average probability, $\langle P_{\nu_e \to \nu_e}\rangle$',
              fontsize=8.0)
-a.tick_params(labelbottom=False)
+a.set_xlabel(r'Neutrino energy, $E$ [MeV]')
 a.legend(loc='upper right', handlelength=1.4)
 corner(a, r'Sun', loc='upper left', x=0.035, y=0.965)
-
-b = axes[2]
-for label, (color, dP) in resid.items():
-    b.semilogy(E_AVG/gd.UNIT_MEV, np.maximum(dP, 1.0e-17), color=color, lw=1.0)
-logx(b); logy(b); snug(b, E_AVG/gd.UNIT_MEV); xticks_at(b, (0.1, 0.3, 1, 3, 10, 20))
-b.set_xlabel(r'Neutrino energy, $E$ [MeV]')
-b.set_ylabel(r'$|\Delta P|$', fontsize=8.0)
-corner(b, r'Vs.\ adiabatic limit', loc='upper left', x=0.035, y=0.94,
-       fontsize=8.0)
 fig.subplots_adjust(left=0.20)
+fig.align_ylabels(axes)
 # Along the curve, and last: label_along reads the slope off transData, so it has to
 # run once the axes have their final width.  Called before subplots_adjust, it was
 # rotated to an angle the panel no longer had, and the curve cut through the words.
@@ -15570,6 +15572,127 @@ fig.subplots_adjust(left=0.20)
 label_along(ax, rr, ne_tab/PER_CM3, int(np.searchsorted(rr, 0.30)),
             'Sun (BS2005-AGS,OP)', INK, fontsize=8.0, offset=(0, -13), chord=True)
 save(fig, 'solar_averaged.pdf')'''),
+    md(r'''## Figure 5c --- three solar models
+
+The same averaged observable on three descriptions of the solar electron density: the
+BS2005-AGS,OP table used everywhere else in this notebook, the B16-GS98 table of
+Vinyoles et al. (ApJ 835, 202, 2017), and the exponential fit
+$n_e = 245\,N_A\,e^{-10.54\,r/R_\odot}$ cm$^{-3}$ that `osc_prob_3nu_sun` carries.  The
+two tables agree to a few percent in density and to about $10^{-3}$ in the averaged
+probability.  The fit is 2.4 times too dense at the center, and that is the one place
+that matters: on an adiabatic passage the average depends on the eigenbases at the two
+ends of the ray, and the far end is vacuum.  It moves the curve by up to 0.1.
+
+The B16-GS98 structure file is the one Aldo Serenelli distributed at
+`ice.csic.es/personal/aldos/Solar_Data.html` (`Solar_Data_files/struct_b16_gs98.dat`),
+kept beside the BS2005 table in `docs/dev/adversarial_batteries/`.  Its columns happen to
+sit in the same order as BS2005's, so the same three are read from both.'''),
+    code(r'''B16 = os.path.join('..', 'docs', 'dev', 'adversarial_batteries', 'struct_b16_gs98.dat')
+r_b16, rho_b16, x_b16 = np.loadtxt(B16, usecols=(1, 3, 6)).T
+ne_b16_tab = rho_b16*gd.UNIT_G_PER_CM3/MEAN_NUCLEON*(0.5*(1.0 + x_b16))
+x_b16_grid = r_b16*gd.SUN_RADIUS*gd.UNIT_KM
+log_ne_b16 = np.log(ne_b16_tab)
+R_B16 = float(x_b16_grid[-1])
+
+
+def ne_b16(l):
+    xs = np.clip(np.asarray(l, dtype=float), x_b16_grid[0], x_b16_grid[-1])
+    out = np.exp(np.interp(xs, x_b16_grid, log_ne_b16))
+    return out[()] if np.ndim(out) == 0 else out
+
+
+R_EXP = gd.SUN_RADIUS*gd.UNIT_KM
+r_exp = np.linspace(0.0, 1.0, 801)
+ne_exp_tab = gd.NUM_DENSITY_E_SUN_CENTRAL*np.exp(-r_exp*R_EXP/gd.L_SCALE_SUN)
+print('B16-GS98: %d rows, ray 0 to %.0f km; central n_e %.2e cm^-3 against %.2e (BS2005)'
+      % (len(r_b16), R_B16/gd.UNIT_KM, ne_b16_tab[0]/PER_CM3, ne_tab[0]/PER_CM3))
+print('exponential fit: %.2e cm^-3 at the center, %.1f times the table'
+      % (ne_exp_tab[0]/PER_CM3, ne_exp_tab[0]/ne_tab[0]))
+
+# The tables go through the same call as the paper's listing; the fit through the wrapper
+# that carries it, which is the paper's one-line alternative.  The two routes return the
+# same numbers for the same profile (checked bitwise on the fit).
+MODELS = [
+    ('BS05', INK, 'BS2005-AGS,OP (reference)', 1.5, 2, r_over_rsun, ne_tab, R_SUN,
+     lambda E: oscprob.osc_prob_matter_std_potential(3, ne_sun, E, R_SUN, OSC,
+                                                     average=True, **COMMON),
+     lambda l: PER_NE*ne_sun(l)),
+    ('B16', BLUE, 'B16-GS98', 1.1, 3, r_b16, ne_b16_tab, R_B16,
+     lambda E: oscprob.osc_prob_matter_std_potential(3, ne_b16, E, R_B16, OSC,
+                                                     average=True, **COMMON),
+     lambda l: PER_NE*ne_b16(l)),
+    ('exp', ORANGE, 'Exponential fit', 1.1, 4, r_exp, ne_exp_tab, R_EXP,
+     lambda E: oscprob.osc_prob_3nu_sun(E, R_EXP, 0.0, **OSC, average=True,
+                                        nu_i=gd.NUE, nu_f=gd.NUE),
+     lambda l: PER_NE*matter.density_matter_func_exp(l, gd.NUM_DENSITY_E_SUN_CENTRAL,
+                                                     gd.L_SCALE_SUN)),
+]
+P_MODEL = {}
+for key, color, label, lw, z, rr_m, ne_m, R_m, call, vcc in MODELS:
+    got = cached('solar_model_%s' % key,
+                 ('solar model', key, [float(e) for e in E_AVG], float(R_m),
+                  profile_samples(vcc, R_m), sorted(OSC.items())),
+                 lambda call=call: dict(P=np.asarray(quiet(call, E_AVG)).tolist()),
+                 what='one averaged solar curve')
+    P_MODEL[key] = np.asarray(got['P'])
+for key in ('B16', 'exp'):
+    d = P_MODEL[key] - P_MODEL['BS05']
+    i = int(np.argmax(np.abs(d)))
+    print('%-4s minus BS2005: largest %+.4f at %.2f MeV' % (key, d[i], E_AVG[i]/gd.UNIT_MEV))'''),
+    code(r'''from matplotlib.ticker import FixedLocator
+
+fig = plt.figure(figsize=(COL, 5.5))
+outer = fig.add_gridspec(2, 1, height_ratios=[1.0, 1.0], hspace=0.26)
+gs_top = outer[0].subgridspec(2, 1, height_ratios=[1.55, 0.90], hspace=0.08)
+gs_bot = outer[1].subgridspec(2, 1, height_ratios=[1.55, 0.90], hspace=0.08)
+ax = fig.add_subplot(gs_top[0]); axr = fig.add_subplot(gs_top[1], sharex=ax)
+a = fig.add_subplot(gs_bot[0]); ad = fig.add_subplot(gs_bot[1], sharex=a)
+
+# --- the profiles, and their ratio to the reference
+for key, color, label, lw, z, rr_m, ne_m, R_m, call, vcc in MODELS:
+    ax.semilogy(rr_m, ne_m/PER_CM3, color=color, lw=lw, label=label, zorder=z)
+    if key != 'BS05':
+        # Only where BS2005 is tabulated: past its last row (0.983 R_sun) the interpolant
+        # holds the edge value, and a ratio to that would be an artifact.
+        m = rr_m <= r_over_rsun[-1]
+        axr.semilogy(rr_m[m], ne_m[m]/ne_sun(rr_m[m]*gd.SUN_RADIUS*gd.UNIT_KM),
+                     color=color, lw=lw, zorder=z)
+axr.axhline(1.0, color=INK, lw=0.7, zorder=1)
+logy(ax); ax.set_ylim(1e20, 3e26); ax.tick_params(labelbottom=False)
+ax.set_ylabel(r'Electron density, $n_e$ [cm$^{-3}$]', fontsize=8.0)
+ax.legend(loc='lower left', handlelength=1.4)
+axr.set_yscale('log'); axr.set_ylim(0.4, 8.0)
+axr.yaxis.set_major_locator(FixedLocator([0.5, 1, 2, 5]))
+axr.yaxis.set_major_formatter(FuncFormatter(_plain))
+axr.yaxis.set_minor_locator(LogLocator(base=10.0, subs=(2., 3., 4., 5., 6., 7., 8., 9.),
+                                       numticks=100))
+axr.yaxis.set_minor_formatter(FuncFormatter(lambda *_: ''))
+axr.set_xlim(0.0, 1.0); axr.xaxis.set_minor_locator(AutoMinorLocator(5))
+axr.set_xlabel(r'Radius, $r/R_\odot$', labelpad=1.5)
+axr.set_ylabel('Ratio', fontsize=8.0)
+
+# --- the observable, and its difference from the reference
+for key, color, label, lw, z, rr_m, ne_m, R_m, call, vcc in MODELS:
+    a.semilogx(E_AVG/gd.UNIT_MEV, P_MODEL[key], color=color, lw=lw, label=label, zorder=z)
+    if key != 'BS05':
+        ad.semilogx(E_AVG/gd.UNIT_MEV, P_MODEL[key] - P_MODEL['BS05'], color=color, lw=lw,
+                    zorder=z)
+ad.axhline(0.0, color=INK, lw=0.7, zorder=1)
+logx(a); snug(a, E_AVG/gd.UNIT_MEV); xticks_at(a, (0.1, 0.3, 1, 3, 10, 20))
+a.tick_params(labelbottom=False)
+a.set_ylim(0.25, 0.60); minor_y(a, 5)
+a.set_ylabel(r'Average probability, $\langle P_{\nu_e \to \nu_e}\rangle$', fontsize=8.0)
+corner(a, r'Sun, $3\nu$', loc='upper right', y=0.94)
+logx(ad); snug(ad, E_AVG/gd.UNIT_MEV); xticks_at(ad, (0.1, 0.3, 1, 3, 10, 20))
+ad.set_ylim(-0.125, 0.025); ad.yaxis.set_major_locator(FixedLocator([-0.1, -0.05, 0.0]))
+minor_y(ad, 5)
+ad.set_xlabel(r'Neutrino energy, $E$ [MeV]')
+ad.set_ylabel(r'$\Delta \langle P_{\nu_e \to \nu_e} \rangle$', fontsize=8.0)
+fig.subplots_adjust(left=0.20)
+# One column of labels: each panel would otherwise set its own label just outside its
+# own tick labels, and four panels with tick labels of four widths give four positions.
+fig.align_ylabels([ax, axr, a, ad])
+save(fig, 'solar_models.pdf')'''),
     md(r'''### Figure 5b --- a Hamiltonian the package never heard of
 
 A gauged $L_e - L_\mu$ symmetry adds a long-range potential sourced by the electrons of the
