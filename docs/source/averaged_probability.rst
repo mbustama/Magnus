@@ -270,6 +270,39 @@ follows in one line: a source producing the pion-decay composition
     at_earth = at_source @ np.asarray(P)
     np.round(at_earth*3.0, 3)
 
+The keyword is not confined to the wrappers.  On the direct route, a
+Hamiltonian of your own goes through ``osc_prob_energy_baseline`` (or through
+``osc_prob_earth`` and ``osc_prob_sun``, which add the geometry), and
+``average=True`` there takes the same three routes the wrappers take: the closed
+form when the Hamiltonian does not depend on position, adiabatic transport when
+it does and the profile is smooth, and an energy-window average when
+``t_breakpoints`` or ``t_slab_edges`` declare discontinuities.  The Hamiltonian
+is passed as ``H(E, l)``, or as ``H(E)`` with
+``H_func_is_function_only_of_energy=True``, or as a matrix.
+
+.. jupyter-execute::
+
+    import magnus.hamiltonians as hamiltonians
+    import magnus.matter as matter
+
+    h_vac = hamiltonians.hamiltonian_3nu_vacuum_energy_independent(**osc)
+    proj = matter.matter_potential_projector(3)
+    vcc = matter.vcc_func_from_rho_func(
+        lambda l: 5.0*np.exp(-l/(1000.0*gd.UNIT_KM)), 0.0, 1.0, 0.5,
+        nubar=False, density_matter_is_in_g_per_cm3=True,
+        density_is_of_number_of_electrons=False)
+
+    def H(E, l):
+        return h_vac/E + np.asarray(vcc(l))[..., None, None]*proj
+
+    P = oscprob.osc_prob_energy_baseline(
+        H, 1.0*gd.UNIT_GEV, 5000.0*gd.UNIT_KM, 0.0,
+        nu_i=gd.NUE, nu_f=gd.NUE, average=True)
+    round(float(P), 4)
+
+``osc_prob`` itself, which computes one point, does not take the keyword and
+says so if handed it.
+
 Am I computing the wrong thing?  ``strategy_info['sampling']``
 ----------------------------------------------------------------
 

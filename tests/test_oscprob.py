@@ -1417,7 +1417,7 @@ def test_no_wrapper_redeclares_standard_refinement_kwargs():
         'new_recursion_limit',
         # Output selection rather than refinement, but the same rule: declared by the core
         # and the entry points, reaching every wrapper through **kwargs.
-        'return_evolution_operator',
+        'return_evolution_operator', 'average',
     }
     wrapper_pattern = re.compile(r'^osc_prob_[2345]nu_')
     offenders = {}
@@ -3249,6 +3249,11 @@ def test_return_evolution_operator_refuses_average_and_hybrid():
     with pytest.raises(ValueError, match='osc_prob_vacuum.*average'):
         op.osc_prob_3nu_vacuum(1.0*gd.UNIT_GEV, 1000.0*gd.UNIT_KM, average=True,
                                return_evolution_operator=True)
+    H = np.asarray(hams.hamiltonian_3nu_vacuum(1.0*gd.UNIT_GEV, s12=S12, s23=S23, s13=S13,
+                                                dCP=DCP, D21=D21, D31=D31), dtype=complex)
+    with pytest.raises(ValueError, match='osc_prob_energy_baseline.*average'):
+        op.osc_prob_energy_baseline(H, 1.0*gd.UNIT_GEV, 1000.0*gd.UNIT_KM, average=True,
+                                    return_evolution_operator=True)
 
 
 def test_return_evolution_operator_bypasses_the_cumulative_traversal():

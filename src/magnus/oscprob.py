@@ -3200,6 +3200,15 @@ def osc_prob(
     # named (see _reject_parameter_set_metadata).
     _reject_parameter_set_metadata(kwargs, 'osc_prob')
     _check_passthrough_kwargs(kwargs, 'osc_prob')
+    # Two keywords the guard admits, because the batching layer declares them, that mean
+    # nothing here: osc_prob computes one point, and averaging or a cumulative scan are what
+    # osc_prob_energy_baseline and the wrappers do with many.  Caught here, where the caller can
+    # be named, rather than by magnus_expansion_multislab at the far end of **kwargs.
+    for _key in ('average', 'cumulative'):
+        if _key in kwargs:
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob: '" + _key + "' is not "
+                "an argument of osc_prob, which computes one point; it belongs to "
+                "osc_prob_energy_baseline and to the wrappers.")
 
     # Validate input; set validate_input to False for speed-up.
     # None means 'use the cap appropriate to this integration method'
@@ -3748,7 +3757,7 @@ def _avg_prob_dispatch(
     smooth_profile: Optional[bool] = True,
     engine_kwargs: Optional[dict] = None
 ):
-    r"""Phase-averaged probabilities, for the position-independent Hamiltonians.
+    r"""Phase-averaged probabilities: in closed form, by adiabatic transport, or over an energy window.
 
     Returns ``NotImplemented`` when ``average`` is falsy, so a caller can place this ahead of
     its ordinary dispatch chain and fall through untouched in the default case.
@@ -3765,10 +3774,12 @@ def _avg_prob_dispatch(
     Parameters
     ----------
     htot : Callable
-        Total Hamiltonian as a function of energy alone [eV].
+        Total Hamiltonian [eV]: ``htot(energy)`` when it does not depend on position,
+        ``htot(energy, l)`` otherwise.
     htot_is_function_only_of_energy : bool
-        Whether ``htot`` is independent of position.  Averaging a position-dependent
-        Hamiltonian needs the adiabatic treatment, which this does not yet implement.
+        Whether ``htot`` is independent of position.  A position-dependent Hamiltonian is
+        averaged by adiabatic transport when ``smooth_profile`` is True, and across an energy
+        window, by real propagation, when it is not.
     energy : int, float, list, or np.ndarray
         Neutrino energy/energies [eV].
     L : int, float, list, or np.ndarray
@@ -6036,6 +6047,7 @@ def osc_prob_energy_baseline(
     cumulative: Optional[Union[bool, str]]='auto',
     symmetric_over: Optional[tuple]=None,
     return_evolution_operator: Optional[bool]=False,
+    average: Optional[bool]=False,
     **kwargs
 ) -> Union[int, float, np.ndarray, Tuple[np.ndarray, np.ndarray]]:
     r"""Compute and return oscillation probabilities for given arrays of
@@ -6052,7 +6064,7 @@ def osc_prob_energy_baseline(
     .. versionadded:: 1.0.0
 
     .. versionchanged:: 1.1.1
-       Added ``return_evolution_operator``.
+       Added ``return_evolution_operator`` and ``average``.
 
     Parameters
     ----------
@@ -6195,6 +6207,18 @@ def osc_prob_energy_baseline(
         cumulative traversal is bypassed, since it walks a fixed grid with no ladder: every
         point takes the per-point path.  Every other setting keeps its meaning.  Default: False.
 
+    average : bool, optional
+        If True, return the phase-averaged probability of the averaged limit (see
+        :mod:`magnus.avgprob`) instead of the oscillating one, as the wrappers do with the
+        same keyword.  Which route answers follows from the Hamiltonian: a matrix, or a
+        function of the energy alone, is averaged in closed form, one eigendecomposition per
+        energy; a function of position is averaged by adiabatic transport along its
+        instantaneous eigenstates, with a Magnus patch across every non-adiabatic crossing,
+        when the profile is smooth; and across an energy window, with a warning, when
+        ``t_breakpoints`` or ``t_slab_edges`` declare discontinuities.  ``strategy``,
+        ``n_jobs`` and the cumulative traversal play no role on this route.  Cannot be
+        combined with ``return_evolution_operator``.  Default: False.
+
     Returns
     -------
     int, float, or np.ndarray, or a pair of them
@@ -6214,6 +6238,9 @@ def osc_prob_energy_baseline(
     # Turn int into float
     energy = float(energy) if isinstance(energy, int) else energy
     L = float(L) if isinstance(L, int) else L
+    # As given, before the broadcasting below: the averaged route broadcasts for itself and
+    # reads the scalar-or-array shape of its answer off the caller's values.
+    energy_in, L_in = energy, L
 
     # Flag return_float remembers if energy and L were both floats.  If True,
     # osc_prob_energy_baseline returns a float, too.
@@ -6291,6 +6318,44 @@ def osc_prob_energy_baseline(
     # constant, or scalar-only): the verdict is structural and holds for every (energy, L) point,
     # so probing here avoids re-probing inside every osc_prob call.
     H_first = H_at_energy(energy[0])
+
+    # Phase-averaged limit, requested with average=True: the same dispatch the wrappers place
+    # ahead of their engines, reached here on the direct route.  Answered before the
+    # evaluation-mode probe below, which the averaged routes never use.  The size check that
+    # the ordinary path runs further down is run here first, since this route allocates its
+    # result the same way.
+    if average:
+        if return_evolution_operator:
+            _check_operator_request(True, None, 'osc_prob_energy_baseline')
+        _check_output_fits(
+            n_points,
+            np.asarray(H_first(L0) if callable(H_first) else H_first).shape[-1],
+            'osc_prob_energy_baseline')
+        # The dispatch takes the Hamiltonian as a function of the energy alone when it does
+        # not depend on position, and of (energy, position) otherwise; the four forms H_func
+        # can take are wrapped into those two.
+        if not callable(H_func):
+            def htot(enu):
+                return H_func
+            only_energy = True
+        elif _n_required_params(H_func) == 2:
+            htot, only_energy = H_func, False
+        elif H_func_is_function_only_of_energy:
+            htot, only_energy = H_func, True
+        else:
+            def htot(enu, l):
+                return H_func(l)
+            only_energy = False
+        breakpoints = kwargs.get('t_breakpoints')
+        smooth = ((breakpoints is None or len(np.atleast_1d(breakpoints)) == 0)
+                  and (t_slab_edges is None))
+        # The refinement and logging keywords assembled above, for the energy-window route,
+        # which propagates for real; the two averaging keywords stay out of it.
+        engine = dict(osc_prob_kwargs, cumulative=cumulative)
+        engine.pop('return_evolution_operator', None)
+        return _avg_prob_dispatch(htot, only_energy, energy_in, L_in, L0, nu_i, nu_f, True,
+            'osc_prob_energy_baseline', smooth_profile=smooth, engine_kwargs=engine)
+
     if callable(H_first):
         osc_prob_kwargs['A_eval_mode'] = magnus.probe_eval_mode(
             lambda t: -1j*H_first(t), L0, np.max(L))
@@ -12224,6 +12289,7 @@ def osc_prob_earth(
     verbose: Optional[int]=0,
     strategy: Optional[str]='auto',
     strategy_info: Optional[Dict]=None,
+    average: Optional[bool]=False,
     **kwargs
 ) -> Union[float, np.ndarray]:
     r"""Compute and return the neutrino oscillation probability inside
@@ -12272,6 +12338,7 @@ def osc_prob_earth(
        Added ``source_depth``, ``detector_depth`` and ``density_matter_ocean``.
        Their defaults leave the trajectory and the density profile exactly as
        they were: both endpoints on the surface, and PREM's own ocean.
+       Added ``average``.
 
     Parameters
     ----------
@@ -12364,6 +12431,17 @@ def osc_prob_earth(
     strategy_info : dict, optional
         If given, filled in place with which engine actually answered, following the
         same out-parameter convention as ``convergence_info`` in :func:`osc_prob`.
+    average : bool, optional
+        If True, return the phase-averaged probability of the averaged limit (see
+        :mod:`magnus.avgprob`) instead of the oscillating one, as the wrappers do with the
+        same keyword; ``strategy`` is then not consulted.  Which route answers follows from
+        the Hamiltonian: a function of the energy alone is averaged in closed form, one
+        eigendecomposition per energy; a function of position is averaged by adiabatic
+        transport along its instantaneous eigenstates, with a Magnus patch across every
+        non-adiabatic crossing, when the profile is smooth; and across an energy window, with
+        a warning, when ``t_breakpoints`` declare discontinuities.  ``n_jobs`` and the
+        cumulative traversal play no role on this route.  Cannot be combined with
+        ``return_evolution_operator``.  Default: False.
 
     Returns
     -------
@@ -12468,7 +12546,7 @@ def osc_prob_earth(
     # here and not by a general caller, and why it declines unless the whole chord is traversed.
     return _osc_prob_with_potential(source_func_name, H_func, VCC_func, energy, L, 0.0, nu_i,
         nu_f, t_breakpoints, magnus_exp_order, n_jobs, integration_method, rtol, atol,
-        validate_input, verbose, strategy=strategy, strategy_info=strategy_info,
+        validate_input, verbose, strategy=strategy, strategy_info=strategy_info, average=average,
         symmetric_over=_earth_chord_symmetry(costhz, L, source_depth, detector_depth), **kwargs)
 
 
@@ -12493,6 +12571,7 @@ def _osc_prob_with_potential(
     strategy_info: Optional[Dict] = None,
     symmetric_over: Optional[tuple] = None,
     return_evolution_operator: Optional[bool] = False,
+    average: Optional[bool] = False,
     **kwargs
 ) -> Union[float, np.ndarray, Tuple[np.ndarray, np.ndarray]]:
     r"""Common machinery of :func:`osc_prob_earth` and
@@ -12504,7 +12583,7 @@ def _osc_prob_with_potential(
     .. versionadded:: 1.0.0
 
     .. versionchanged:: 1.1.1
-       Added ``return_evolution_operator``.
+       Added ``return_evolution_operator`` and ``average``.
 
     .. note::
         With ``strategy='auto'`` (the default) or ``'hybrid'``, this also tries the
@@ -12564,6 +12643,17 @@ def _osc_prob_with_potential(
         Interval over which the caller declares the profile mirror-symmetric, forwarded to
         :func:`osc_prob`.  Set by :func:`osc_prob_earth`, whose chord is symmetric by geometry;
         left None by :func:`osc_prob_sun`, whose profile is monotonic.
+    average : bool, optional
+        If True, return the phase-averaged probability of the averaged limit (see
+        :mod:`magnus.avgprob`) instead of the oscillating one, as the wrappers do with the
+        same keyword; ``strategy`` is then not consulted.  Which route answers follows from
+        the Hamiltonian: a function of the energy alone is averaged in closed form, one
+        eigendecomposition per energy; a function of position is averaged by adiabatic
+        transport along its instantaneous eigenstates, with a Magnus patch across every
+        non-adiabatic crossing, when the profile is smooth; and across an energy window, with
+        a warning, when ``t_breakpoints`` declare discontinuities.  ``n_jobs`` and the
+        cumulative traversal play no role on this route.  Cannot be combined with
+        ``return_evolution_operator``.  Default: False.
     \**kwargs
         Additional arguments forwarded to :func:`osc_prob_energy_baseline`.
 
@@ -12610,7 +12700,7 @@ def _osc_prob_with_potential(
                 ": strategy must be 'auto', 'hybrid', or 'magnus'.")
 
     if return_evolution_operator:
-        _check_operator_request(False, strategy, source_func_name)
+        _check_operator_request(average, strategy, source_func_name)
 
     n_params_H = _n_required_params(H_func)
     if n_params_H == 3:
@@ -12645,6 +12735,20 @@ def _osc_prob_with_potential(
     # gets the same answer to "which engine answered, and what stood aside" as a built-in one.
     with _engine_probe(disabled=_OPERATOR_ONLY_FROM_LADDER if return_evolution_operator else (),
                        info=strategy_info, extra={'hidden_feature': _hidden, 'sampling': _osc}):
+        # Phase-averaged limit, as in the three scenario wrappers: answered before any engine
+        # that would resolve the phases the average discards.  Dispatched from here rather
+        # than through osc_prob_energy_baseline, so that its errors and warnings name the
+        # function the caller called.
+        P_avg = _avg_prob_dispatch(htot, False, energy, L, L0, nu_i, nu_f, average,
+            source_func_name,
+            smooth_profile=(t_breakpoints is None or len(np.atleast_1d(t_breakpoints)) == 0),
+            engine_kwargs=dict(t_breakpoints=t_breakpoints, magnus_exp_order=magnus_exp_order,
+                n_jobs=n_jobs, integration_method=integration_method, rtol=rtol, atol=atol,
+                validate_input=validate_input, verbose=verbose, cumulative=cumulative,
+                symmetric_over=symmetric_over, kwargs=kwargs))
+        if P_avg is not NotImplemented:
+            return P_avg
+
         P_hybrid = (NotImplemented if cumulative is True else
             _osc_prob_hybrid_dispatch_generic(htot, VCC_func, energy, L, L0, nu_i, nu_f,
                 t_breakpoints, rtol, atol, magnus_exp_order, integration_method, strategy,
@@ -13445,6 +13549,7 @@ def osc_prob_sun(
     verbose: Optional[int]=0,
     strategy: Optional[str]='auto',
     strategy_info: Optional[Dict]=None,
+    average: Optional[bool]=False,
     **kwargs
 ) -> Union[float, np.ndarray]:
     r"""Compute and return the neutrino oscillation probability inside
@@ -13478,6 +13583,9 @@ def osc_prob_sun(
     Wook Kim.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.1
+       Added ``average``.
 
     Parameters
     ----------
@@ -13525,6 +13633,17 @@ def osc_prob_sun(
     strategy_info : dict, optional
         If given, filled in place with which engine actually answered, following the
         same out-parameter convention as ``convergence_info`` in :func:`osc_prob`.
+    average : bool, optional
+        If True, return the phase-averaged probability of the averaged limit (see
+        :mod:`magnus.avgprob`) instead of the oscillating one, as the wrappers do with the
+        same keyword; ``strategy`` is then not consulted.  Which route answers follows from
+        the Hamiltonian: a function of the energy alone is averaged in closed form, one
+        eigendecomposition per energy; a function of position is averaged by adiabatic
+        transport along its instantaneous eigenstates, with a Magnus patch across every
+        non-adiabatic crossing, when the profile is smooth; and across an energy window, with
+        a warning, when ``t_breakpoints`` declare discontinuities.  ``n_jobs`` and the
+        cumulative traversal play no role on this route.  Cannot be combined with
+        ``return_evolution_operator``.  Default: False.
 
     Returns
     -------
@@ -13581,7 +13700,8 @@ def osc_prob_sun(
 
     return _osc_prob_with_potential(source_func_name, H_func, VCC_func, energy, L, L0, nu_i,
         nu_f, None, magnus_exp_order, n_jobs, integration_method, rtol, atol,
-        validate_input, verbose, strategy=strategy, strategy_info=strategy_info, **kwargs)
+        validate_input, verbose, strategy=strategy, strategy_info=strategy_info,
+        average=average, **kwargs)
 
 
 #-----------------------------------------------------------------------
