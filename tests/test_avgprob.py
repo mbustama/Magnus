@@ -787,3 +787,193 @@ def test_earth_averaging_falls_back_to_sampling_and_says_so():
     assert str(100.0*ap.AVG_DEFAULT_ENERGY_SPREAD) in text, "the window width is not named"
     assert str(ap.AVG_DEFAULT_N_SAMPLES) in text, "the sample count is not named"
     assert 'standard error' in text, "the uncertainty of the result is not quoted"
+
+
+# ----------------------------------------------------------------------
+# average=True on the direct route: osc_prob_energy_baseline, osc_prob_earth, osc_prob_sun
+# ----------------------------------------------------------------------
+
+def _std_pieces():
+    """The energy-independent vacuum Hamiltonian and the matter projector, for Hamiltonians
+    built by hand that must match the wrappers' exactly."""
+    import magnus.hamiltonians as hams
+    import magnus.matter as matter
+    hv = np.asarray(hams.hamiltonian_3nu_vacuum_energy_independent(**OSC_PARAMS), dtype=complex)
+    proj = np.asarray(matter.matter_potential_projector(3), dtype=complex)
+    return hv, proj
+
+
+def test_average_on_the_direct_route_matches_the_closed_form_for_a_matrix():
+    """A constant matrix on osc_prob_energy_baseline: the same closed form the vacuum wrapper
+    returns, bit for bit, since both run one eigendecomposition on the same matrix."""
+    import magnus.hamiltonians as hams
+    H = np.asarray(hams.hamiltonian_3nu_vacuum(ENERGY, **OSC_PARAMS), dtype=complex)
+    direct = np.asarray(op.osc_prob_energy_baseline(H, ENERGY, FAR, average=True))
+    wrapper = np.asarray(op.osc_prob_3nu_vacuum(ENERGY, FAR, average=True, **OSC_PARAMS))
+    assert maxabs(direct - wrapper) == 0.0
+
+
+def test_average_on_the_direct_route_accepts_an_energy_only_function():
+    """The energy-only form, declared by the flag, takes the same closed-form route."""
+    hv, _ = _std_pieces()
+    direct = np.asarray(op.osc_prob_energy_baseline(lambda enu: hv/enu, ENERGY, FAR,
+                                                    H_func_is_function_only_of_energy=True,
+                                                    average=True))
+    wrapper = np.asarray(op.osc_prob_3nu_vacuum(ENERGY, FAR, average=True, **OSC_PARAMS))
+    assert maxabs(direct - wrapper) < 1e-14
+
+
+def _exp_density_hamiltonian(rho0, l_scale):
+    import magnus.matter as matter
+    hv, proj = _std_pieces()
+    vcc = matter.vcc_func_from_rho_func(lambda l: rho0*np.exp(-l/l_scale), 0.0, 1.0, 0.5,
+                                        nubar=False, density_matter_is_in_g_per_cm3=True,
+                                        density_is_of_number_of_electrons=False)
+
+    def H(enu, l):
+        return hv/enu + np.asarray(vcc(l))[..., None, None]*proj
+    return H
+
+
+def test_average_on_the_direct_route_matches_the_wrapper_on_a_smooth_profile():
+    """A position-dependent Hamiltonian built by hand from the same exponential density the
+    wrapper builds inside: both take the adiabatic route on the same samples."""
+    rho0, l_scale, L = 5.0, 1000.0*gd.UNIT_KM, 5000.0*gd.UNIT_KM
+    H = _exp_density_hamiltonian(rho0, l_scale)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        direct = np.asarray(op.osc_prob_energy_baseline(H, ENERGY, L, 0.0, average=True))
+        wrapper = np.asarray(op.osc_prob_3nu_matter_exp_density(
+            ENERGY, L, 0.0, rho0, l_scale, density_matter_is_in_g_per_cm3=True,
+            average=True, **OSC_PARAMS))
+    assert maxabs(direct - wrapper) < 1e-10
+
+
+def test_average_on_the_direct_route_accepts_a_position_only_function():
+    """The position-only form, at one energy, equals the two-argument form at that energy."""
+    rho0, l_scale, L = 5.0, 1000.0*gd.UNIT_KM, 5000.0*gd.UNIT_KM
+    H = _exp_density_hamiltonian(rho0, l_scale)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        two = np.asarray(op.osc_prob_energy_baseline(H, ENERGY, L, 0.0, average=True))
+        one = np.asarray(op.osc_prob_energy_baseline(lambda l: H(ENERGY, l), ENERGY, L, 0.0,
+                                                     average=True))
+    assert maxabs(one - two) < 1e-12
+
+
+def test_average_on_the_direct_route_uses_the_window_average_across_declared_edges():
+    """With t_breakpoints declared there is no instantaneous eigenbasis to decohere in, so
+    both the direct route and the standard wrapper propagate across an energy window and
+    warn about it; the window is the same, so the numbers agree."""
+    import magnus.hamiltonians as hams
+    import magnus.matter as matter
+    energy, l1 = 50.0e6, gd.L_SCALE_SUN
+    edges = np.array([0.0, 0.17, 0.41, 0.63, 0.88, 1.0])*l1
+    values = gd.NUM_DENSITY_E_SUN_CENTRAL*np.array([0.03, 0.21, 0.07, 0.30, 0.12])
+
+    def ne(l):
+        x = np.asarray(l, dtype=float)
+        idx = np.clip(np.searchsorted(edges, x, side='right') - 1, 0, len(values) - 1)
+        a = np.asarray(values[idx])
+        return a[()] if a.ndim == 0 else a
+
+    sth, Dm2 = gd.S12_NO_BF_NUFIT_6_0, gd.D21_NO_BF_NUFIT_6_0
+    h_vac = np.asarray(hams.hamiltonian_2nu_vacuum_energy_independent(sth, Dm2), dtype=complex)
+    proj = np.diag([1.0, 0.0]).astype(complex)
+    vcc = matter.vcc_func_from_rho_func(ne, 0.0, 1.0, 0.5, nubar=False,
+                                        density_matter_is_in_g_per_cm3=False,
+                                        density_is_of_number_of_electrons=True)
+
+    def H(enu, l):
+        return h_vac/enu + np.asarray(vcc(l))[..., None, None]*proj
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter('always')
+        direct = np.asarray(op.osc_prob_energy_baseline(H, energy, l1, 0.0, average=True,
+                                                        t_breakpoints=edges[1:-1]))
+        wrapper = np.asarray(op.osc_prob_matter_std_potential(
+            2, ne, energy, l1, {'sth': sth, 'Dm2': Dm2}, L0=0.0,
+            density_is_of_number_of_electrons=True, t_breakpoints=edges[1:-1], average=True))
+    assert any(issubclass(w.category, op.PhaseAveragingWarning) for w in caught)
+    assert maxabs(direct - wrapper) < 1e-10
+
+
+def test_average_on_the_direct_route_refuses_the_operator():
+    import magnus.hamiltonians as hams
+    H = np.asarray(hams.hamiltonian_3nu_vacuum(ENERGY, **OSC_PARAMS), dtype=complex)
+    with pytest.raises(ValueError, match='osc_prob_energy_baseline.*average'):
+        op.osc_prob_energy_baseline(H, ENERGY, FAR, average=True,
+                                    return_evolution_operator=True)
+
+
+def test_osc_prob_names_the_batching_keywords_it_does_not_take():
+    """average and cumulative pass the passthrough guard, because the batching layer declares
+    them, and used to reach magnus_expansion_multislab as an unexpected keyword.  osc_prob
+    now refuses them by name."""
+    import magnus.hamiltonians as hams
+    H = np.asarray(hams.hamiltonian_3nu_vacuum(ENERGY, **OSC_PARAMS), dtype=complex)
+    for key in ('average', 'cumulative'):
+        with pytest.raises(ValueError, match='osc_prob.*' + key + '.*osc_prob_energy_baseline'):
+            op.osc_prob(H, 0.0, FAR, **{key: True})
+
+
+def test_average_reaches_osc_prob_earth_and_matches_the_thin_wrapper():
+    """A user Hamiltonian of the standard form through osc_prob_earth, averaged, equals the
+    thin wrapper's averaged answer on the same chord; the engine reported is the average."""
+    import magnus.earth as earth
+    hv, proj = _std_pieces()
+    costhz = -0.8
+    L = earth.distance_traveled_inside_earth(costhz)*gd.UNIT_KM
+
+    def H(enu, l, VCC):
+        return hv/enu + np.asarray(VCC)[..., None, None]*proj
+
+    info = {}
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        direct = np.asarray(op.osc_prob_earth(H, ENERGY, costhz=costhz, L=L, average=True,
+                                              strategy_info=info))
+        wrapper = np.asarray(op.osc_prob_3nu_earth(ENERGY, costhz=costhz, L=L, average=True,
+                                                   **OSC_PARAMS))
+    assert maxabs(direct - wrapper) < 1e-8
+    assert info['engine'] == 'average'
+
+
+def test_average_reaches_osc_prob_sun_and_matches_the_thin_wrapper():
+    hv, proj = _std_pieces()
+    E, L = 10.0*gd.UNIT_MEV, 0.05*gd.SUN_RADIUS*gd.UNIT_KM
+
+    def H(enu, l, VCC):
+        return hv/enu + np.asarray(VCC)[..., None, None]*proj
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        direct = np.asarray(op.osc_prob_sun(H, E, L, 0.0, average=True))
+        wrapper = np.asarray(op.osc_prob_3nu_sun(E, L, 0.0, average=True, **OSC_PARAMS))
+    assert maxabs(direct - wrapper) < 1e-10
+
+
+def test_average_on_the_direct_route_keeps_the_batching_shapes():
+    rho0, l_scale, L = 5.0, 1000.0*gd.UNIT_KM, 5000.0*gd.UNIT_KM
+    H = _exp_density_hamiltonian(rho0, l_scale)
+    energies = np.array([0.5, 1.0, 2.0])*gd.UNIT_GEV
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        full = op.osc_prob_energy_baseline(H, energies, L, 0.0, average=True)
+        one = op.osc_prob_energy_baseline(H, energies, L, 0.0, nu_i=gd.NUE, nu_f=gd.NUE,
+                                          average=True)
+        scalar = op.osc_prob_energy_baseline(H, float(energies[0]), L, 0.0, nu_i=gd.NUE,
+                                             nu_f=gd.NUE, average=True)
+    assert np.shape(full) == (3, 3, 3) and np.shape(one) == (3,)
+    assert np.isscalar(scalar) or np.shape(scalar) == ()
+    assert np.allclose(np.asarray(one), np.asarray(full)[:, gd.NUE, gd.NUE])
+
+
+def test_average_off_is_the_plain_call_on_the_direct_route():
+    rho0, l_scale, L = 5.0, 1000.0*gd.UNIT_KM, 5000.0*gd.UNIT_KM
+    H = _exp_density_hamiltonian(rho0, l_scale)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        without = np.asarray(op.osc_prob_energy_baseline(H, ENERGY, L, 0.0))
+        explicit = np.asarray(op.osc_prob_energy_baseline(H, ENERGY, L, 0.0, average=False))
+    assert maxabs(without - explicit) == 0.0

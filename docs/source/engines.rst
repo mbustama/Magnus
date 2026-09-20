@@ -105,6 +105,8 @@ engines in a fixed order, falling through on ``NotImplemented``:
      - Engine
      - Why it is first
    * - ``average=True`` and the Hamiltonian is position-independent
+       (on every entry point, ``osc_prob_energy_baseline`` and the
+       Earth and Sun routes included)
      - closed-form phase average (``magnus.avgprob``)
      - No propagation at all; the decohered limit is algebraic
    * - Smooth profile, a tolerance was requested, ``strategy != 'magnus'``,

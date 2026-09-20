@@ -259,3 +259,11 @@ lines:
     P_far = abs(R)**2 @ content           # phases averaged on the way
 
 with ``R`` the mixing matrix in vacuum (``magnus.hamiltonians.pmns_mixing_matrix``).
+
+The phase-averaged limit is likewise available on the direct route:
+``average=True`` on ``osc_prob_energy_baseline``, ``osc_prob_earth`` and
+``osc_prob_sun`` returns what the same keyword returns on a wrapper, by the same
+three routes (closed form, adiabatic transport, or an energy-window average
+across declared discontinuities); see :doc:`averaged_probability`.
+``osc_prob`` computes one point and refuses the keyword by name, as it refuses
+``cumulative``.

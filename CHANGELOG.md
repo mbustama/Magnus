@@ -9,6 +9,23 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- `average=True` on the direct route: `osc_prob_energy_baseline`,
+  `osc_prob_earth` and `osc_prob_sun` now take the keyword that the wrappers
+  have carried since 1.0.0, so a Hamiltonian of your own gets the
+  phase-averaged limit from the same call the wrappers use, by the same three
+  routes -- the closed form when the Hamiltonian does not depend on position,
+  adiabatic transport with a Magnus patch at every crossing when it does and
+  the profile is smooth, and an energy-window average when `t_breakpoints` or
+  `t_slab_edges` declare discontinuities.  The Hamiltonian may be a matrix, a
+  function of the energy, of the position, or of both.  `average=True` refuses
+  `return_evolution_operator=True`, since the averaged routes form no operator.
+  Defaults are unchanged bit for bit.
+- `osc_prob` refuses `average` and `cumulative` by name.  Both pass the
+  passthrough guard, because the batching layer declares them, and used to
+  travel down `**kwargs` to `magnus_expansion_multislab`, which rejected them
+  with a `TypeError` naming a function the caller never invoked; the error now
+  says which function takes them.
+
 - Every oscillation-probability function can return the converged evolution
   operator alongside the probabilities: `return_evolution_operator=True` makes
   the call return the pair `(P, U)`, with `P` exactly what it returns today and
