@@ -15956,6 +15956,357 @@ print('  vacuum decohered value, sum_i |U_ei|^4 = %.6f'
 for P, (e, label) in zip(SOLAR_MAPS, SOLAR_PANELS):
     print('  %-10s P in [%.6f, %.6f]' % (label, P.min(), P.max()))
 save(fig, 'solar_tomography.pdf')'''),
+    md(r'''## Figure 5g --- a density mode against the closed form
+
+Behind a supernova shock the medium is turbulent. Decomposed into Fourier modes, a mode of
+wavenumber $q$ moves neutrinos between two eigenstates of $\mathbb{H}$ when $q$ matches the
+gap between their eigenvalues. Patton, Kneller and McLaughlin solve that in closed form, as
+a Rabi formula for one isolated pair of levels over a long region. This cell tests both
+assumptions: it sweeps one mode across the gap at four lengths of the turbulent region, and
+compares the closed form against \magnus\ at two, three and four flavors.
+
+The quantity is the transition between the two matter levels, not a flavor probability,
+because that is what the closed form predicts. It vanishes identically in a smooth medium,
+so nothing is subtracted.'''),
+    code(r'''# ------------------------- a density mode against the closed form
+TURB_E = 5.0*gd.UNIT_GEV
+TURB_RHO0 = 4.0             # g/cm3, the mean density of the region
+TURB_C = 0.03               # fractional amplitude of the single mode
+TURB_NE0 = matter.num_density_e_func(0.0, lambda l: TURB_RHO0,
+                                     density_matter_is_in_g_per_cm3=True)
+TURB_V0 = matter.VCC_func(0.0, lambda l: TURB_NE0)
+
+# The same medium at two, three and four flavors.  Two flavors is the (nu_e, nu_mu)
+# reduction of the 1-3 sector, which is the system the closed form is written for.
+TURB_HV = {
+    2: np.array(hamiltonians.hamiltonian_2nu_vacuum(TURB_E, OSC['s13'], OSC['D31']),
+                dtype=complex),
+    3: np.array(hamiltonians.hamiltonian_3nu_vacuum(TURB_E, **OSC), dtype=complex),
+    4: np.array(hamiltonians.hamiltonian_4nu_vacuum(
+        TURB_E, OSC4['s12'], OSC4['s23'], OSC4['s13'], OSC4['dCP'], OSC4['s14'],
+        OSC4['d14'], OSC4['s24'], OSC4['d24'], OSC4['s34'],
+        OSC4['D21'], OSC4['D31'], OSC4['D41']), dtype=complex)}
+TURB_MATT = {2: hamiltonians.hamiltonian_2nu_matter,
+             3: hamiltonians.hamiltonian_3nu_matter,
+             4: hamiltonians.hamiltonian_4nu_matter}
+# The pair the mode drives: the two levels that share the electron flavor.  At two
+# flavors that is the only pair; at three and four it is levels 2 and 3.
+TURB_PAIR = {2: (1, 0), 3: (2, 1), 4: (2, 1)}
+TURB_EIG = {}
+for _n in (2, 3, 4):
+    _w, _V = np.linalg.eigh(TURB_HV[_n] + TURB_MATT[_n](TURB_V0))
+    _hi, _lo = TURB_PAIR[_n]
+    TURB_EIG[_n] = (_w, _V, abs(_w[_hi] - _w[_lo]))
+DPSI32 = TURB_EIG[3][2]
+LOSC = 2.0*np.pi/DPSI32
+# The Rabi coupling the mode induces between the two levels of the 2nu system, which is
+# the kappa of the closed form.
+KAPPA2 = 0.5*TURB_C*TURB_V0*abs(np.conj(TURB_EIG[2][1][0, 0])*TURB_EIG[2][1][0, 1])
+# The shortest oscillation each flavor count carries.  It sets the slab count: an
+# eV-scale splitting puts a 12.4 km oscillation under a region of hundreds of
+# thousands of kilometers, and every one of those periods has to be resolved.
+TURB_LAM_MIN = {n: 2.0*np.pi/max(abs(TURB_EIG[n][0][j] - TURB_EIG[n][0][i])
+                                 for i in range(n) for j in range(i + 1, n))
+                for n in (2, 3, 4)}
+print('L_osc = %.0f km;  resonance at q/Dpsi_32 = %.4f (2nu), %.4f (3nu), %.4f (3+1)'
+      % (LOSC/gd.UNIT_KM, TURB_EIG[2][2]/DPSI32, 1.0, TURB_EIG[4][2]/DPSI32))
+print('shortest oscillation: %.0f km (2nu), %.0f km (3nu), %.3f km (3+1)'
+      % tuple(TURB_LAM_MIN[n]/gd.UNIT_KM for n in (2, 3, 4)))
+
+
+def turb_rho(q):
+    """Density along the ray: the mean, plus one mode of wavenumber q."""
+    def rho(l):
+        return TURB_RHO0*(1.0 + TURB_C*np.cos(q*np.asarray(l, dtype=float)))
+    return rho
+
+
+def turb_operator(n, q, L, n_slabs):
+    """Evolution operator across the region, at n flavors, on a uniform slab grid.
+
+    The refinement ladder is not used here.  A profile that oscillates everywhere has no
+    feature for it to place slabs around, so the grid is uniform by construction and the
+    count is set from the shortest oscillation present; what has to be shown instead is
+    that doubling it does not move the answer, which `turb_levels` reports.
+    """
+    def H(l):
+        x = np.asarray(l, dtype=float)
+        return TURB_HV[n] + TURB_MATT[n](TURB_V0*(1.0 + TURB_C*np.cos(q*x)))
+
+    e = np.linspace(0.0, L, n_slabs + 1)
+    Us = np.asarray(quiet(oscprob.compute_evolution_operator_multiple_slabs,
+                          H, np.stack([e[:-1], e[1:]], axis=1), 9, 6))
+    # The time-ordered product, earliest slab applied first.  Written as a loop
+    # rather than np.linalg.multi_dot, whose search for an optimal
+    # parenthesization is cubic in the number of factors and never returns when
+    # that number is in the hundreds of thousands.
+    U = Us[0]
+    for u in Us[1:]:
+        U = u @ U
+    return U
+
+
+def turb_p_levels(n, q, L, n_slabs):
+    """Probability of leaving as the upper level, having entered as the lower one."""
+    _, V, _ = TURB_EIG[n]
+    hi, lo = TURB_PAIR[n]
+    U = turb_operator(n, q, L, n_slabs)
+    return float(abs((V.conj().T @ U @ V)[hi, lo])**2), \
+        float(np.abs(U.conj().T @ U - np.eye(n)).max())
+
+
+def turb_closed_form(q, L):
+    """Eq. (turb_rabi): the Rabi formula of Patton, Kneller and McLaughlin."""
+    p = 0.5*(TURB_EIG[2][2] - q)
+    om = np.hypot(p, KAPPA2)
+    return float(KAPPA2**2/(p*p + KAPPA2*KAPPA2)*np.sin(om*L)**2)
+
+
+# The four region lengths, in units of L_osc, and the sweep they share.  The window is
+# symmetric about the three-flavor gap, so q = Dpsi_32 sits at the same place in every
+# panel; 801 points put a dozen across the narrowest resonance, at 30 L_osc.
+TURB_NLAM = [1, 3, 10, 30]
+TURB_Q = np.linspace(0.005, 1.7, 801)
+
+
+def turb_levels(nlam):
+    """The four curves of one panel, plus the controls that stand behind them."""
+    L = nlam*LOSC
+
+    def run():
+        rec = {'closed': [turb_closed_form(r*DPSI32, L) for r in TURB_Q], 'n_slabs': {}}
+        for n in (2, 3, 4):
+            ns = max(200, int(6*L/TURB_LAM_MIN[n]))
+            vals = [turb_p_levels(n, r*DPSI32, L, ns) for r in TURB_Q]
+            rec['magnus%d' % n] = [v for v, _ in vals]
+            rec['unitarity%d' % n] = max(u for _, u in vals)
+            # the control: the same points on twice as many slabs
+            step = 50
+            twice = [turb_p_levels(n, TURB_Q[i]*DPSI32, L, 2*ns)[0]
+                     for i in range(0, len(TURB_Q), step)]
+            rec['doubling%d' % n] = max(
+                abs(rec['magnus%d' % n][i] - t)
+                for i, t in zip(range(0, len(TURB_Q), step), twice))
+            # String keys, because that is what JSON returns on the way back in:
+            # the cell must read the same whether it computed this or read it.
+            rec['n_slabs'][str(n)] = ns
+        return rec
+
+    key = ('turb_levels', int(nlam), float(TURB_C), float(TURB_RHO0), float(TURB_E),
+           [float(r) for r in TURB_Q], sorted(OSC.items()), sorted(OSC4.items()))
+    return cached('turb_levels_%d' % nlam, key, run, what='one panel of the comparison')
+
+
+TURB_LEV = {nlam: turb_levels(nlam) for nlam in TURB_NLAM}
+for nlam in TURB_NLAM:
+    c = TURB_LEV[nlam]
+    cf, m2 = np.asarray(c['closed']), np.asarray(c['magnus2'])
+    m3, m4 = np.asarray(c['magnus3']), np.asarray(c['magnus4'])
+    print('  L = %2d L_osc: slabs %d/%d/%d, unitarity <= %.1e, slab doubling <= %.1e'
+          % (nlam, c['n_slabs']['2'], c['n_slabs']['3'], c['n_slabs']['4'],
+             max(c['unitarity%d' % n] for n in (2, 3, 4)),
+             max(c['doubling%d' % n] for n in (2, 3, 4))))
+    print('       closed form vs 2nu %5.1f%% of peak;  2nu vs 3nu %5.1f%%'
+          % (100*np.abs(cf - m2).max()/m2.max(), 100*np.abs(m2 - m3).max()/m3.max()))
+
+YMAX_LEV = [0.002, 0.016, 0.17, 0.95]
+SER = [(2, GREEN, r'$2\nu$ Mag$\nu$s'), (3, BLUE, r'$3\nu$ Mag$\nu$s'),
+       (4, PURPLE, r'$3+1$ Mag$\nu$s')]
+fig, axes = plt.subplots(len(TURB_NLAM), 1, figsize=(COL, 5.05), sharex=True)
+fig.subplots_adjust(hspace=0.12, left=0.175, right=0.985, top=0.985, bottom=0.075)
+for ax, nlam, ymax in zip(axes, TURB_NLAM, YMAX_LEV):
+    c = TURB_LEV[nlam]
+    ax.axvline(1.0, color='0.55', lw=0.7, ls=(0, (4, 2.5)), zorder=1)
+    ax.plot(TURB_Q, np.asarray(c['closed']), color=ORANGE, lw=1.5, ls=(0, (3.4, 2.0)),
+            zorder=2, label=r'$2\nu$ closed form' + '\n(Patton et al.)')
+    for n, color, lab in SER:
+        ax.plot(TURB_Q, np.asarray(c['magnus%d' % n]), color=color, lw=0.9,
+                zorder=3 + n, label=lab)
+    ax.set_xlim(0.0, 1.7)
+    ax.set_ylim(0.0, ymax)
+    ax.yaxis.set_major_locator(mpl.ticker.MaxNLocator(4))
+    ax.xaxis.set_major_locator(mpl.ticker.MaxNLocator(5))
+    ax.text(0.030, 0.93, r'$L = L_{\rm osc}$' if nlam == 1
+            else r'$L = %d\,L_{\rm osc}$' % nlam, transform=ax.transAxes,
+            ha='left', va='top', fontsize=8.5,
+            bbox=dict(boxstyle='round,pad=0.35', fc='white', ec=INK, lw=0.6))
+axes[1].legend(loc='lower left', fontsize=6.8, handlelength=1.8, borderpad=0.28,
+               labelspacing=0.30, borderaxespad=0.45)
+axes[-1].set_xlabel(r'Mode wavenumber, $q/\Delta_{32}$', labelpad=1.5)
+fig.canvas.draw()
+_inv = fig.transFigure.inverted()
+_left = min(a.get_tightbbox(fig.canvas.get_renderer()).transformed(_inv).x0 for a in axes)
+_ymid = 0.5*(axes[0].get_position().y1 + axes[-1].get_position().y0)
+fig.text(_left - 0.020, _ymid, r'Transition probability between the two matter levels',
+         va='center', ha='center', rotation='vertical',
+         fontsize=plt.rcParams['axes.labelsize'])
+save(fig, 'turbulence_rabi.pdf')'''),
+    md(r'''## Figure 5h --- the same sweep, in the flavor channel
+
+What a detector sees is a flavor probability, not a transition between matter levels. This
+cell sweeps the same mode and reports $P_{\nu_\mu \to \nu_e}$, at the same four region
+lengths and the same three flavor counts, over a range wide enough to hold all three
+three-flavor gaps. Alongside them it draws the flavor probability that follows from the
+closed form, computed from its rotating-wave propagator rotated to the flavor basis.'''),
+    code(r'''# ---------------------- the same sweep, in the flavor channel
+# Wide enough to carry the three regimes: modes faster than every gap, modes near one,
+# and modes far slower than all of them.
+TURB_QF = np.concatenate([np.linspace(0.05, 0.45, 60, endpoint=False),
+                          np.linspace(0.45, 1.35, 260, endpoint=False),
+                          np.linspace(1.35, 2.60, 60)])
+
+
+def turb_p_mue(n, q, L, n_slabs):
+    """P(numu -> nue); q of None is the smooth medium, carrying no mode at all."""
+    if q is None:
+        def H(l):
+            x = np.asarray(l, dtype=float)
+            return TURB_HV[n] + TURB_MATT[n](TURB_V0*(1.0 + 0.0*x))
+
+        e = np.linspace(0.0, L, n_slabs + 1)
+        Us = np.asarray(quiet(oscprob.compute_evolution_operator_multiple_slabs,
+                              H, np.stack([e[:-1], e[1:]], axis=1), 9, 6))
+        U = Us[0]
+        for u in Us[1:]:
+            U = u @ U
+    else:
+        U = turb_operator(n, q, L, n_slabs)
+    return float(abs(U[0, 1])**2)
+
+
+def turb_flavor(nlam):
+    """P(numu -> nue) against wavenumber, at each flavor count, for one region length."""
+    L = nlam*LOSC
+
+    def run():
+        rec = {}
+        for n in (2, 3, 4):
+            ns = max(200, int(6*L/TURB_LAM_MIN[n]))
+            rec['P%d' % n] = [turb_p_mue(n, r*DPSI32, L, ns) for r in TURB_QF]
+            rec['smooth%d' % n] = turb_p_mue(n, None, L, ns)
+        return rec
+
+    key = ('turb_flavor', int(nlam), float(TURB_C), float(TURB_RHO0), float(TURB_E),
+           [float(r) for r in TURB_QF], sorted(OSC.items()), sorted(OSC4.items()))
+    return cached('turb_flavor_%d' % nlam, key, run, what='one panel of the channel')
+
+
+TURB_FLA = {nlam: turb_flavor(nlam) for nlam in TURB_NLAM}
+for nlam in TURB_NLAM:
+    c = TURB_FLA[nlam]
+    print('  L = %2d L_osc: the smooth medium alone gives P(numu -> nue) = '
+          '%.4f / %.4f / %.4f at 2nu / 3nu / 3+1'
+          % (nlam, c['smooth2'], c['smooth3'], c['smooth4']))
+
+# The flavor probability that follows from the closed form: the rotating-wave propagator
+# of the two-level (1-3) system at the mean density, rotated to the flavor basis.  It is
+# analytic, so nothing here is cached.
+_w2, _V2, _gap2 = TURB_EIG[2]
+_lbar2 = 0.5*(_w2[0] + _w2[1])
+_kc2 = 0.5*TURB_C*TURB_V0*np.conj(_V2[0, 0])*_V2[0, 1]      # |_kc2| is kappa
+
+
+def turb_closed_form_flavor(q, L):
+    """P(numu -> nue) from the closed form's propagator, at wavenumber q over length L."""
+    p = 0.5*(_gap2 - q)
+    om = np.sqrt(p**2 + abs(_kc2)**2)
+    m = np.array([[-p, _kc2], [np.conj(_kc2), p]])
+    u_rot = np.exp(-1j*_lbar2*L)*(np.cos(om*L)*np.eye(2) - 1j*np.sin(om*L)/om*m)
+    u_mat = np.diag([np.exp(1j*q*L/2), np.exp(-1j*q*L/2)]) @ u_rot   # undo the rotation
+    u_fla = _V2 @ u_mat @ _V2.conj().T
+    return float(abs(u_fla[0, 1])**2)
+
+
+TURB_CFF = {nlam: np.array([turb_closed_form_flavor(r*DPSI32, nlam*LOSC) for r in TURB_QF])
+            for nlam in TURB_NLAM}
+
+YMAX_FLA = [0.018, 0.06, 0.45, 0.95]
+SERF = [(2, GREEN, r'$2\nu$ Mag$\nu$s'), (3, BLUE, r'$3\nu$ Mag$\nu$s'),
+        (4, PURPLE, r'$3+1$ Mag$\nu$s')]
+fig, axes = plt.subplots(len(TURB_NLAM), 1, figsize=(COL, 5.05), sharex=True)
+fig.subplots_adjust(hspace=0.12, left=0.175, right=0.985, top=0.945, bottom=0.075)
+for ax, nlam, ymax in zip(axes, TURB_NLAM, YMAX_FLA):
+    c = TURB_FLA[nlam]
+    ax.axvline(1.0, color='0.55', lw=0.7, ls=(0, (4, 2.5)), zorder=1)
+    ax.plot(TURB_QF, TURB_CFF[nlam], color=ORANGE, lw=1.5, ls=(0, (3.4, 2.0)), zorder=2,
+            label=r'$2\nu$ closed form')
+    for n, color, lab in SERF:
+        ax.plot(TURB_QF, np.asarray(c['P%d' % n]), color=color, lw=0.9,
+                zorder=3 + n, label=lab)
+    ax.set_xlim(0.0, 2.6)
+    ax.set_ylim(0.0, ymax)
+    ax.yaxis.set_major_locator(mpl.ticker.MaxNLocator(4))
+    ax.text(0.030, 0.93, r'$L = L_{\rm osc}$' if nlam == 1
+            else r'$L = %d\,L_{\rm osc}$' % nlam, transform=ax.transAxes,
+            ha='left', va='top', fontsize=8.5,
+            bbox=dict(boxstyle='round,pad=0.35', fc='white', ec=INK, lw=0.6))
+# One label, on the side of the line the curves leave free.
+axes[0].text(1.0 - 0.035, 0.40, r'$q = \Delta_{32}$',
+             transform=axes[0].get_xaxis_transform(), ha='right', va='center',
+             fontsize=8.5, color='0.35')
+axes[0].legend(loc='center right', bbox_to_anchor=(1.0, 0.44), fontsize=7.2,
+               handlelength=1.7, borderpad=0.28, labelspacing=0.22, borderaxespad=0.45)
+axes[-1].set_xlabel(r'Mode wavenumber, $q/\Delta_{32}$', labelpad=1.5)
+fig.canvas.draw()
+_inv = fig.transFigure.inverted()
+_left = min(a.get_tightbbox(fig.canvas.get_renderer()).transformed(_inv).x0 for a in axes)
+_ymid = 0.5*(axes[0].get_position().y1 + axes[-1].get_position().y0)
+fig.text(_left - 0.020, _ymid, r'$P_{\nu_\mu \to \nu_e}$', va='center', ha='center',
+         rotation='vertical', fontsize=plt.rcParams['axes.labelsize'])
+save(fig, 'turbulence.pdf')'''),
+    md(r'''## The sterile gaps --- what a fourth state adds
+
+A sterile state adds an eigenvalue, and with it three more gaps for the medium to resonate
+with. At an eV-scale mass they are nearly three orders of magnitude above the active ones:
+where $\Delta_{32}$ asks for a mode of $10\,938$~km, they ask for modes of $12.4$~km.
+Nothing here is drawn; these are the numbers the text quotes, and the accuracy control that
+backs them.'''),
+    code(r'''# ------------------------------------ the same sweep with a sterile state
+TURB4_L = 12000.0*gd.UNIT_KM
+H_TURB4 = (np.array(hamiltonians.hamiltonian_4nu_vacuum(
+               TURB_E, OSC4['s12'], OSC4['s23'], OSC4['s13'], OSC4['dCP'],
+               OSC4['s14'], OSC4['d14'], OSC4['s24'], OSC4['d24'], OSC4['s34'],
+               OSC4['D21'], OSC4['D31'], OSC4['D41']), dtype=complex)
+           + hamiltonians.hamiltonian_4nu_matter(
+               matter.VCC_func(0.0, lambda l: TURB_NE0)))
+TURB4_W = np.linalg.eigvalsh(H_TURB4)
+DPSI4 = [abs(TURB4_W[3] - TURB4_W[k]) for k in (0, 1, 2)]      # 41, 42, 43
+LAM4_KM = [2.0*np.pi/dpsi/gd.UNIT_KM for dpsi in DPSI4]
+print('sterile splittings ask for modes of %.4f, %.4f and %.4f km; the region holds '
+      '%.0f of the shortest' % (LAM4_KM[0], LAM4_KM[1], LAM4_KM[2],
+                                TURB4_L/gd.UNIT_KM/LAM4_KM[0]))
+
+print('the longest region used in the figures, %.0f km, holds %.0f periods of the '
+      'shortest' % (37.3*10938.5, 37.3*10938.5/LAM4_KM[0]))
+
+# A profile that oscillates everywhere is invisible to the structural tests, so what has
+# to answer for the accuracy is the refinement ladder.  Four settings at the resonance
+# that the figure shows: two tolerances, and two slab-count floors forced on top.
+TURB4_SETTINGS = [(RTOL_FIG, None), (1.0e-6, None), (RTOL_FIG, 5000), (RTOL_FIG, 20000)]
+
+
+def turb_convergence():
+    """P(nue -> nue) at q = Dpsi_42, under four accuracy settings."""
+    def run():
+        out = []
+        for rtol, n_slabs in TURB4_SETTINGS:
+            kw = dict(TURB4_KW, rtol=rtol, atol=rtol*1.0e-2,
+                      nu_i=gd.NUE, nu_f=gd.NUE)
+            if n_slabs is not None:
+                kw['n_slabs'] = n_slabs
+            out.append(float(quiet(oscprob.osc_prob_matter_std_potential, 4,
+                                   turb_mode(DPSI4[1]), TURB_E, TURB4_L, **kw)))
+        return out
+
+    key = ('turb_convergence', float(TURB_C), float(TURB_RHO0), float(TURB_E),
+           float(TURB4_L), sorted(OSC4.items()),
+           [(float(r), n) for r, n in TURB4_SETTINGS])
+    return cached('turb_convergence', key, run, what='four accuracy settings')
+
+
+for (rtol, n_slabs), p_ee in zip(TURB4_SETTINGS, turb_convergence()):
+    print('  rtol %.0e, n_slabs floor %-7s: P(nue -> nue) = %.9f'
+          % (rtol, n_slabs, p_ee))'''),
     md(r'''## Figure 6 --- a supernova shock
 
 Rows 1 and 2 share the full-ray axis; row 3 is a window at the front and gets its own.

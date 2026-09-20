@@ -2940,7 +2940,7 @@ The fifth case is where \equ{averaged_blocks} is needed, though the figure itsel
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\subsubsection{Oscillations in an astrophysical relativistic jet}
+% \subsubsection{Oscillations in an astrophysical relativistic jet}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -3134,6 +3134,14 @@ Here, {\tt ne\_sun} is the log-interpolated BS2005-AGS,OP table of Sec.~\ref{sec
 
 The parameter $\gamma_{\rm max}$ grows with energy because the vacuum splitting $\Delta m^2/2E$ shrinks while the matter potential in the Sun stays fixed. Above $100$~GeV, $\gamma_{\rm max}$ is attained at a radius between $0.97$ and $0.98\,R_\odot$, independently of the impact parameter. That shell sits just below the solar surface, where the density gradient is steepest (see \figu{solar}). [Figure~\ref{fig:solar_adiabaticity} shows only the effect of oscillations; absorption, which matters above the GeV scale, is outside what \magnus\ models (Sec.~\ref{sec:limitations}).]
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{figure*}[t!]
+ \centering
+ \includegraphics[width=\textwidth]{solar_tomography.pdf}
+ \caption{\label{fig:solar_tomography}The Sun seen face-on in the $\nu_e$ survival channel, computed with \magnus\ on the BS2005-AGS,OP solar density profile\ \cite{Bahcall:2004pz}. The line of sight runs into the page, so each point of the disk is an impact parameter and the neutrino crosses the whole Sun along it. The color is the phase-averaged $P_{\nu_e \to \nu_e}$ at exit. See notebook \#28 and Sec.~\ref{sec:solar_tomography} for details.}
+\end{figure*}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 Figure~\ref{fig:solar_tomography} shows the averaged survival probability across the face of the Sun, at selected energies. The line of sight runs into the page, so each point in the disk fixes the impact parameter of one trajectory, along which the neutrino crosses the whole Sun. For one impact parameter, the probability is computed via
 \begin{pysnip}
 import magnus.oscprob as oscprob
@@ -3153,18 +3161,170 @@ At $10$~MeV, the disk is uniform at about $\sum_i |\mathbb{U}_{ei}|^4 \approx 0.
 To be clear, no neutrino telescope resolves any of this structure. While the Sun has been imaged in MeV neutrinos, most famously by Super-Kamiokande, the width of that image is set by the angular resolution of the detector: the recoil electron of neutrino-electron elastic scattering carries the neutrino direction only to within tens of degrees, against a disk of half a degree. At tens of TeV, the angular resolution is better, but still comparable to the size of the disk itself. The rings of \figu{solar_tomography} would need arcminute-level resolution to be resolved (the instantaneous probability would need arcsecond-level). In addition, the panels of \figu{solar_tomography} at GeV energies---where the rings first appear---lie in a band where no astrophysical neutrino flux has been identified above the atmospheric background.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\begin{figure*}[t!]
- \centering
- \includegraphics[width=\textwidth]{solar_tomography.pdf}
- \caption{\label{fig:solar_tomography}The Sun seen face-on in the $\nu_e$ survival channel, computed with \magnus\ on the BS2005-AGS,OP solar density profile\ \cite{Bahcall:2004pz}. The line of sight runs into the page, so each point of the disk is an impact parameter and the neutrino crosses the whole Sun along it. The color is the phase-averaged $P_{\nu_e \to \nu_e}$ at exit. See notebook \#28 and Sec.~\ref{sec:solar_tomography} for details.}
-\end{figure*}
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsubsection{Oscillations in an astrophysical relativistic jet}
+\label{sec:jet}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \subsubsection{Turbulent matter profile}
 \label{sec:turbulence}
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{figure}[t!]
+ \centering
+ \includegraphics[width=\columnwidth]{turbulence_rabi.pdf}
+ \caption{\label{fig:turbulence_rabi}Probability of transition between two matter levels coupled by a single density mode, against the wavenumber of the Fourier mode of the matter density in the medium, for a 5-GeV neutrino in a region of mean density $\rho_0 = 4$~g~cm$^{-3}$ carrying one mode of amplitude $C = 0.03$. The panels are region lengths of $1$, $3$, $10$, and $30\,L_{\rm osc}$, with $L_{\rm osc} = 2\pi/\Delta_{32} = 10\,938$~km the oscillation length driven by the 2-3 sector. The closed form of \Refs\ \cite{Patton:2013dba, Patton:2014lza}, \equ{turb_rabi}, is evaluated for the two-flavor reduction of the 1-3 sector; \magnus\ is run at two, three, and four flavors, the last with $\sin^2\theta_{14} = \sin^2\theta_{24} = 0.10$ and $\Delta m^2_{41} = 1$~eV$^2$. The levels are those of the mean density, between which no transition occurs without the mode. See notebook \#28 and Sec.~\ref{sec:turbulence} for details.}
+\end{figure}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{figure}[t!]
+ \centering
+ \includegraphics[width=\columnwidth]{turbulence.pdf}
+ \caption{\label{fig:turbulence}Flavor transition probability $P_{\nu_\mu \to \nu_e}$ for the same neutrino, medium, mode, and region lengths as Fig.~\ref{fig:turbulence_rabi}, at two, three, and four flavors. The line labeled $q = \Delta_{32}$ marks the mode that matches the three-flavor gap; the two- and four-flavor gaps lie a few percent away from it. The curves sit at different heights because the three flavor counts give different probabilities over the same region even without the mode. The closed-form curve is \equ{turb_rw_flavor}, the flavor probability built from the propagator behind \equ{turb_rabi}, for the same two-flavor system as in Fig.~\ref{fig:turbulence_rabi}. See notebook \#28 and Sec.~\ref{sec:turbulence} for details.}
+\end{figure}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+Matter behind a supernova shock does not settle: convection keeps stirring it. Its density fluctuates around its mean value by tens of percent, over a range of length scales spanning from the size of the star to far below it\ \cite{Loreti:1995ae, Schirato:2002tg, Fogli:2006xy, Patton:2013dba, Patton:2014lza}. Therefore, an escaping neutrino meets a profile with a density that has a regular component---decreasing with distance from the center---and a random component overlaid on it. In the Fourier decomposition of that random component, a mode of wavenumber $q$ moves neutrinos between a pair of eigenstates of $\mathbb{H}$ when $q$ coincides with the eigenvalue gap $\Delta_{jk} = \lambda_j - \lambda_k$, the random density mode playing the role that an oscillating field plays in parametric resonance (Sec.~\ref{sec:order_is_the_slab_product}).
+
+References\ \cite{Patton:2013dba, Patton:2014lza} solved that problem in closed form. Treating the random component as a perturbation on the regular one and keeping the resonant term, they obtained a Rabi formula for the transition between the two levels,
+\begin{equation}
+ P_{jk}
+ =
+ \frac{\kappa^2}{p^2 + \kappa^2}\,
+ \sin^2\!\left(\sqrt{p^2 + \kappa^2}\; L\right) ,
+ \qquad
+ p = \tfrac{1}{2}\left(\Delta_{jk} - q\right) ,
+ \label{equ:turb_rabi}
+\end{equation}
+where $L$ is the length of the turbulent region and $\kappa \equiv \tfrac{1}{2} C V_{\rm CC} \lvert U^m_{ej} U^m_{ek}\rvert$ is the coupling induced between the two levels by a density mode $\rho(l) = \rho_0 \left[1 + C \cos(q l)\right]$, with $\rho_0$ the mean density and $U^m$ the mixing matrix in matter. On resonance, where $q = \Delta_{jk}$, the probability is $\sin^2(\kappa L)$: the amplitude $C$ sets how long the region must be for complete conversion to occur.
+
+As example, we consider a region of mean density $\rho_0 = 4$~g~cm$^{-3}$ carrying one mode of amplitude $C = 0.03$, crossed by a 5-GeV neutrino:
+\begin{pysnip}
+import numpy as np
+import magnus.globaldefs as gd
+import magnus.matter as matter
+import magnus.hamiltonians as ham
+
+OSC = gd.load_nufit_params('NuFIT 6.1')
+E = 5.0*gd.UNIT_GEV    # Neutrino energy
+RHO0 = 4.0             # Mean density, g/cm3
+C = 0.03               # Mode amplitude
+
+def one_mode(q):
+    """Density along the ray: the mean, plus
+    one mode of wavenumber q."""
+    def rho(l):
+        x = np.asarray(l, dtype=float)
+        return RHO0*(1.0 + C*np.cos(q*x))
+    return rho
+\end{pysnip}
+The gaps of the Hamiltonian at $\rho_0$ fix the range of $q$ to scan:
+\begin{pysnip}
+# n_e and V_CC of the smooth medium
+ne0 = matter.num_density_e_func(
+    0.0, lambda l: RHO0,
+    density_matter_is_in_g_per_cm3=True)
+V0 = matter.VCC_func(0.0, lambda l: ne0)
+
+# H at the mean density: vacuum plus matter
+H0 = np.array(ham.hamiltonian_3nu_vacuum(
+    E, **OSC), dtype=complex)
+H0 += ham.hamiltonian_3nu_matter(V0)
+
+# Eigenvalues w, matter eigenvectors Vm, and
+# the gap the mode has to match
+w, Vm = np.linalg.eigh(H0)
+d32 = abs(w[2] - w[1])
+LOSC = 2*np.pi/d32     # 10 938 km
+\end{pysnip}
+Here, $\Delta_{32}$ is matched by a mode of wavelength $L_{\rm osc} \equiv 2\pi/\Delta_{32} = 10\,938$~km, the oscillation length of that pair of levels.
+
+Equation~(\ref{equ:turb_rabi}) gives the transition probability between two eigenstates of $\mathbb{H}$~\cite{Patton:2013dba, Patton:2014lza}.  The same quantity is contained in the evolution operator $\mathbb{U}$ of \equ{probability}, once $\mathbb{U}$ is written in the basis of those eigenstates: $\lvert [\mathbb{U}]_{jk} \rvert^2$ is the transition probability between levels $k$ and $j$. If the density were constant, $\mathbb{H}$ would be the same at every point of the region; its eigenstates would then evolve independently of one another, so $\lvert [\mathbb{U}]_{jk} \rvert^2$ would vanish for $j \neq k$. The Fourier mode makes the density vary along the region, so $\mathbb{H}$ varies with it. In the basis of the eigenstates at $\rho_0$, that variation appears as the off-diagonal elements $C V_{\rm CC} \cos(ql)\, U^{m*}_{ej} U^m_{ek}$ of $\mathbb{H}$. Those elements mix the levels as the neutrino advances, so $\mathbb{U}$ acquires off-diagonal elements too; $\lvert [\mathbb{U}]_{jk} \rvert^2$ is what that mixing amounts to over the whole region. \magnus\ returns $\mathbb{U}$; rotating it into that basis is one line:
+\begin{pysnip}
+from magnus.oscprob import (
+  compute_evolution_operator_multiple_slabs
+  as chain)
+
+L = LOSC             # The region, one L_osc
+rho = one_mode(d32)  # Mode tuned to the gap
+
+def H(l):
+    """H at position l, with the mode on."""
+    h = np.array(ham.hamiltonian_3nu_vacuum(
+        E, **OSC), dtype=complex)
+    # V_CC follows the density
+    return h + ham.hamiltonian_3nu_matter(
+        V0*rho(l)/RHO0)
+
+# One operator per slab, then the ordered
+# product over the chain
+edges = np.linspace(0.0, L, 501)
+slabs = np.stack([edges[:-1], edges[1:]], 1)
+Us = chain(H, slabs, 9, 6)
+U = Us[0]
+for u in Us[1:]:     # Earliest slab first
+    U = u @ U
+
+# Rotate to the matter basis, then read the
+# transition between levels 2 and 3
+P32 = abs((Vm.conj().T @ U @ Vm)[2, 1])**2
+P32                    # 0.001674
+\end{pysnip}
+
+Figure~\ref{fig:turbulence_rabi} compares \equ{turb_rabi} with \magnus\ at four lengths of the turbulent region; the closed form is evaluated for the two-flavor system it was derived for, the 1--3 sector, with $\kappa$ from the two-flavor $\mathbb{U}^m$ at $\rho_0$. The closed form of \Refs~\cite{Patton:2013dba, Patton:2014lza} keeps only the part of the coupling that varies slowly along the trajectory; the part it discards averages out only over many of its own cycles. One $L_{\rm osc}$ (\figu{turbulence_rabi}, top panel) contains too few of them, so the closed form and the two-flavor \magnus\ curve differ appreciably; the difference shrinks as the region lengthens (\figu{turbulence_rabi}, bottom three panels). A third or fourth flavor changes the eigenvalue gap and moves the resonance to a different wavenumber, while the length of the region sets its width: the longer the region, the more closely the mode has to match the gap. 
+% Over a short region, the shift is smaller than the width, so the closed form still overlaps the three- and four-flavor curves; over a long region it does not. Locating the resonance at three or four flavors thus takes an integration of the full Hamiltonian.
+
+Figure~\ref{fig:turbulence} shows the associated oscillation probabilities $P_{\nu_\mu \to \nu_e}$, computed via
+\begin{pysnip}
+import magnus.oscprob as oscprob
+
+kw = dict(
+    nu_i=gd.NUMU, nu_f=gd.NUE,
+    density_matter_is_in_g_per_cm3=True)
+
+# Two flavors: the 1-3 sector
+OSC2 = dict(sth=OSC['s13'], Dm2=OSC['D31'])
+P2 = oscprob.osc_prob_matter_std_potential(
+    2, one_mode(d32), E, L, OSC2, **kw)
+
+# Three flavors
+P3 = oscprob.osc_prob_matter_std_potential(
+    3, one_mode(d32), E, L, OSC, **kw)
+
+# The same call with a sterile state added
+OSC4 = dict(OSC, s14=np.sqrt(0.10), D41=1.0,
+            s24=np.sqrt(0.10), s34=0.0,
+            d14=0.0, d24=0.0)
+P4 = oscprob.osc_prob_matter_std_potential(
+    4, one_mode(d32), E, L, OSC4, **kw)
+\end{pysnip}
+In \figu{turbulence}, the largest change of the probability sits around wavenumber, $q = \Delta_{32}$. This is the resonance of \figu{turbulence_rabi}, seen in the flavor channel; as there, it narrows as the region lengthens. Above $\Delta_{32}$ the curves are flat: a mode faster than every gap cancels its effect along the trajectory. 
+% The other two gaps produce no feature: the element that the mode adds between levels $j$ and $k$ is proportional to $U^{m*}_{ej} U^m_{ek}$, the electron content of each; level 1 here has almost none, $\lvert U^m_{e1}\rvert^2 = 5.6 \cdot 10^{-4}$.
+
+Figure~\ref{fig:turbulence} also shows the flavor probability that follows from the closed form. Near the resonance it follows the two-flavor \magnus\ curve, more closely the longer the region. At low wavenumber it does not: there it stays at the value of the smooth medium, while \magnus\ swings above it. That curve is built as follows. Equation~(\ref{equ:turb_rabi}) is the modulus squared of one element of the propagator of the two-level system in the rotating-wave approximation, the solution behind the closed form\ \cite{Patton:2013dba, Patton:2014lza}. In the matter basis of the mean density, that propagator is
+\begin{equation}
+ \tilde{\mathbb{U}}(L)
+ =
+ {\rm diag}\!\left(e^{iqL/2}, e^{-iqL/2}\right)
+ \exp\!\left[
+ -i L
+ \begin{pmatrix}
+  \bar\lambda - p & \kappa_c \\
+  \kappa_c^* & \bar\lambda + p
+ \end{pmatrix}
+ \right] ,
+ \label{equ:turb_rw_u}
+\end{equation}
+where $\bar\lambda = \tfrac{1}{2}(\lambda_1 + \lambda_2)$ and $p = \tfrac{1}{2}(\lambda_2 - \lambda_1 - q)$ are the mean of the two levels and the detuning, while $\kappa_c = \tfrac{1}{2} C V_{\rm CC}\, U^{m*}_{e1} U^m_{e2}$ is the coupling, with $\lvert \kappa_c \rvert = \kappa$. The matrix in the exponent is the Hamiltonian in the frame that rotates with the mode, in which it is constant; the first factor undoes that rotation. The flavor probability reads the same propagator with flavor indices,
+\begin{equation}
+ P_{\nu_\mu \to \nu_e}
+ =
+ \left\lvert \left[ U^m\, \tilde{\mathbb{U}}(L)\, U^{m\dagger} \right]_{e\mu} \right\rvert^2 .
+ \label{equ:turb_rw_flavor}
+\end{equation}
+The matrix in \equ{turb_rw_u} couples the two levels but does not move them: the rotating-wave approximation drops the part of the mode that raises and lowers the levels along with the density. At low wavenumber that part is all there is. Such a mode changes the density slowly; the levels follow it, with no transition driven between them. Equation~(\ref{equ:turb_rw_u}) misses that effect, so its curve stays at the value of the smooth medium at low wavenumber.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \subsection{Running a scan in parallel}
