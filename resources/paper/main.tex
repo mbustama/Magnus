@@ -3080,7 +3080,7 @@ for j, alpha in enumerate(ALPHA):
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\subsubsection{Neutrino oscillation tomography of the Sun}
+\subsubsection{Neutrino tomography of the Sun}
 \label{sec:solar_tomography}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -3164,6 +3164,92 @@ To be clear, no neutrino telescope resolves any of this structure. While the Sun
 
 \subsubsection{Oscillations in an astrophysical relativistic jet}
 \label{sec:jet}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{figure}[t!]
+ \centering
+ \includegraphics[width=\columnwidth]{jet.pdf}
+ \caption{\label{fig:jet}Neutrinos from a jet inside a collapsing star. \textit{Top:} the setup, not to scale. Neutrinos are made at the head of the jet, at $r_0 = 6.3 \cdot 10^{10}$~cm from the center, and leave the star at $R_\star = 3 \cdot 10^{12}$~cm. \textit{Middle:} matter density along their path, for a smooth envelope, the same envelope with turbulence overlaid, and the same envelope with a drop in density at the edge of the helium core. The right axis gives the energy whose 1--3 resonance lies at each density. \textit{Bottom:} probability that a $\nu_e$ produced at the jet head is detected as $\nu_e$ at Earth, against its energy, for the three envelopes. The horizontal line is the value without matter effects. See notebook \#28 and Sec.~\ref{sec:jet} for details.}
+\end{figure}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+Gamma-ray bursts are the relativistic jets that some massive stars launch as they collapse. Shells of plasma ejected by the central engine collide with one another along the jet; protons accelerated at those collisions make neutrinos of TeV to PeV energies\ \cite{Bustamante:2014oka}. The jet itself does change their flavor composition: at the radii where the collisions happen, $10^{13}$--$10^{15}$~cm, its density is around $10^{-11}$~g~cm$^{-3}$, nine orders of magnitude below the density at which a TeV neutrino resonates; the phase that the jet matter adds to the evolution is only $10^{-4}$. Matter effects arise only while the jet is still inside the star, in the choked jets that never break out and in the precursor phase of the jets that do\ \cite{Mena:2006eq, Razzaque:2009kq, Sahu:2010ap, Varela:2014mma, Xiao:2015gea}. The neutrinos then cross the stellar envelope. Its density falls from about 1~g~cm$^{-3}$ at the head of the jet to zero at the surface; somewhere along, neutrinos between $100$~GeV and $100$~TeV meet their 1-3 resonance. At the low energy end, the crossing is adiabatic and the neutrino leaves the star in a mass eigenstate; at the high end, it is not: the flavor content then survives. Therefore, the flavor ratios at Earth depend on the neutrino energy, in a way that reflects the density profile of the star\ \cite{Razzaque:2009kq, Xiao:2015gea}.
+
+As example, we take a jet at $r_0 = 6.3 \cdot 10^{10}$~cm inside a blue supergiant of radius $R_\star = 3 \cdot 10^{12}$~cm, with the hydrogen envelope of \Refs\ \cite{Mena:2006eq, Razzaque:2009kq}, $\rho(r) = 3.3 \cdot 10^{-6}\,(R_\star/r - 1)^3$~g~cm$^{-3}$, and an electron fraction of $Y_e = 1$:
+\begin{pysnip}
+import numpy as np
+import magnus.globaldefs as gd
+import magnus.matter as matter
+import magnus.hamiltonians as ham
+
+OSC = gd.load_nufit_params('NuFIT 6.1')
+CM = 1.0e-5*gd.UNIT_KM   # One cm in eV^-1
+RSTAR = 3.0e12           # Star's radius, cm
+R0 = 6.3e10              # Jet head, cm
+
+def rho_smooth(r):
+    """Envelope density, g/cm3, r in cm."""
+    return 3.3e-6*(RSTAR/r - 1.0)**3
+
+# V_CC of one g/cm3 of hydrogen
+ne1 = matter.num_density_e_func(
+    0.0, lambda l: 1.0,
+    electron_fraction=1.0,
+    density_matter_is_in_g_per_cm3=True)
+V1 = matter.VCC_func(0.0, lambda l: ne1)
+\end{pysnip}
+The density at the head is $0.33$~g~cm$^{-3}$. The oscillation length there is set by the potential, $2\pi/V_{\rm CC} = 5 \cdot 10^{9}$~cm, a tenth of $r_0$, so the phase accumulated across the whole envelope is modest. Slabs of $2 \cdot 10^{8}$~cm resolve every oscillation length in the star at every energy of interest; the evolution operator is the ordered product over them, as in Sec.~\ref{sec:turbulence}:
+\begin{pysnip}
+from magnus.oscprob import (
+  compute_evolution_operator_multiple_slabs
+  as chain)
+
+hm = ham.hamiltonian_3nu_matter
+E = 1.0*gd.UNIT_TEV
+hv = np.array(ham.hamiltonian_3nu_vacuum(
+    E, **OSC), dtype=complex)
+
+def H(l):
+    """H at l, inside the envelope."""
+    return hv + hm(V1*rho_smooth(l/CM))
+
+edges = np.linspace(R0, RSTAR, 14686)*CM
+slabs = np.stack([edges[:-1], edges[1:]], 1)
+Us = chain(H, slabs, 9, 6)
+U = Us[0]
+for u in Us[1:]:     # Earliest slab first
+    U = u @ U
+\end{pysnip}
+
+What a telescope detects is not the flavor content at the surface of the star. The neutrino travels a cosmological distance afterwards, over which the phases between its mass components average out, so it arrives as an incoherent mixture of mass eigenstates\ \cite{Razzaque:2009kq}. The quantity to compute is therefore the content of each mass eigenstate $\nu_i$ in the state that leaves the star, weighted by the probability that $\nu_i$ is detected as the final flavor,
+\begin{equation}
+ P_{\nu_\alpha \to \nu_\beta}
+ =
+ \sum_i
+ \left\lvert \left[ \mathbb{R}^\dagger\, \mathbb{U} \right]_{i\alpha} \right\rvert^2
+ \left\lvert \mathbb{R}_{\beta i} \right\rvert^2 ,
+ \label{equ:jet_earth}
+\end{equation}
+where $\mathbb{U}$ is the evolution operator from the jet head to the surface and $\mathbb{R}$ is the mixing matrix in vacuum, the medium the neutrino is in once it leaves the star:
+\begin{pysnip}
+# Vacuum mass states; the content of each in
+# the state that leaves the star, by flavor
+w, R = np.linalg.eigh(hv)
+content = abs(R.conj().T @ U)**2
+
+# Phases average on the way to Earth
+P_earth = abs(R)**2 @ content
+P_earth[gd.NUE, gd.NUE]    # 0.315
+\end{pysnip}
+Without matter effects the same construction gives $0.55$.
+
+Figure~\ref{fig:jet} shows this probability between $0.1$~TeV and $10$~PeV for three envelopes. The first is the smooth profile above. The second overlays turbulence on it: a single realization of forty modes with a Kolmogorov spectrum, with wavelengths from $10^{10}$ to $10^{12}$~cm at a root-mean-square amplitude of twenty percent. The third is model C of \Refs\ \cite{Mena:2006eq}, the same star with the density dropping by a factor of five at the edge of the helium core, $r = 10^{11}$~cm; in the code, that edge is one of the slab edges.
+
+The smooth envelope sets the pattern. At $0.1$~TeV, a $\nu_e$ leaves the star mostly as $\nu_3$ and is rarely detected as $\nu_e$; with rising energy the probability climbs to its vacuum value, reached at $100$~TeV. The reason is where the resonance sits. A neutrino of higher energy resonates farther out, where the density falls more gently, but its oscillation length grows faster than that gain, so the crossing becomes abrupt and the flavor content survives it. The PeV neutrinos that IceCube detects come out of the star as if it were not there.
+
+Turbulence shifts the smooth curve by up to $0.05$ between $0.2$ and a few TeV. Those are the energies whose resonance lies where the modes of the realization match the local oscillation length; the mechanism is that of Sec.~\ref{sec:turbulence}, now acting on a resonance instead of on a fixed pair of levels. The drop at the helium-core edge does something larger. The energies whose resonance density lies inside the drop, $0.15$ to $0.7$~TeV, do not cross the resonance gradually: they meet it in one jump, at the edge, so the crossing is non-adiabatic regardless of the energy and the flavor content survives. The result is the plateau in the bottom panel of \figu{jet}, where the probability sits well above the smooth curve. Above the band, the two envelopes agree again.
+
+Each envelope costs a few seconds for the energies drawn. Halving the slab width changes no probability by more than $10^{-6}$; the operators are unitary to $10^{-13}$. The turbulent envelope is the one case that sets the slab count, since its shortest mode has to be resolved everywhere; the smooth and the stepped envelopes would converge with far fewer slabs, provided that the step falls on a slab edge.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 

@@ -15956,7 +15956,253 @@ print('  vacuum decohered value, sum_i |U_ei|^4 = %.6f'
 for P, (e, label) in zip(SOLAR_MAPS, SOLAR_PANELS):
     print('  %-10s P in [%.6f, %.6f]' % (label, P.min(), P.max()))
 save(fig, 'solar_tomography.pdf')'''),
-    md(r'''## Figure 5g --- a density mode against the closed form
+    md(r'''## Figure 5g --- neutrinos from a jet inside a collapsing star
+
+A gamma-ray-burst jet makes TeV--PeV neutrinos at its head; while the jet is still inside
+the star, they cross the stellar envelope, where the density falls from a fraction of a
+gram per cubic centimeter to zero. Every energy between $100$~GeV and $100$~TeV meets its
+1--3 resonance somewhere along the way. What a telescope measures is the phase-averaged
+probability at Earth, which needs the amplitudes onto the mass states: the cell asks the
+scenario function for the evolution operator (`return_evolution_operator=True`), projects
+it onto the vacuum mass states, and averages over eight production points spread across
+one oscillation length at the jet head. Three envelopes: smooth (Mena et al.; Razzaque
+and Smirnov), the same with Kolmogorov turbulence, and the same with the density drop at
+the helium-core edge (model C of Mena et al.), declared to the ladder as a breakpoint.
+A hand-built grid of $2\cdot10^8$~cm slabs is run at five energies as the control.'''),
+    code(r'''# ------------------------------ neutrinos from a jet inside a collapsing star
+JET_CM = 1.0e-5*gd.UNIT_KM                 # one cm in eV^-1
+JET_RSTAR, JET_R0, JET_RHE = 3.0e12, 6.3e10, 1.0e11    # star, jet head, He-core edge, cm
+JET_YE, JET_TOL = 1.0, 1.0e-6
+JET_E_TEV = np.geomspace(0.1, 1.0e4, 161)
+JET_E = JET_E_TEV*gd.UNIT_TEV
+
+
+def jet_smooth(r):
+    """The hydrogen envelope, g/cm3, r in cm."""
+    return 3.3e-6*(JET_RSTAR/r - 1.0)**3
+
+
+# One realization of forty Kolmogorov modes between 1e10 and 1e12 cm, 20 % rms.  Log-spaced
+# modes with amplitude ~ k^(-1/3) give k^(-5/3) in power per unit wavenumber.
+JET_LAM = np.geomspace(1.0e12, 1.0e10, 40)
+JET_K = 2*np.pi/JET_LAM
+JET_AMP = JET_K**(-1.0/3.0)
+JET_AMP *= 0.20/np.sqrt(0.5*np.sum(JET_AMP**2))
+JET_PHI = np.random.default_rng(7).uniform(0.0, 2*np.pi, 40)
+
+
+def jet_turbulent(r):
+    return jet_smooth(r)*(1.0 + np.sum(JET_AMP*np.cos(JET_K*r + JET_PHI)))
+
+
+def jet_stepped(r):
+    """Model C of Mena et al.: a factor-of-five drop at the helium-core edge."""
+    x = JET_RSTAR/r - 1.0
+    return 6.3e-6*(20.0*x**2.1 if r < JET_RHE else x**2.5)
+
+
+JET_PROFILES = {'smooth': (jet_smooth, ()), 'turbulent': (jet_turbulent, ()),
+                'stepped': (jet_stepped, (JET_RHE,))}
+
+# The potential of one g/cm3 at Y_e = 1, and from it the oscillation length at the jet
+# head, 2 pi / V_CC there; the eight production points are spread across that length.
+JET_V1 = matter.VCC_func(0.0, lambda l: matter.num_density_e_func(
+    0.0, lambda l: 1.0, electron_fraction=JET_YE, density_matter_is_in_g_per_cm3=True))
+JET_LOSC_HEAD = 2*np.pi/(JET_V1*jet_smooth(JET_R0))/JET_CM        # cm
+JET_R0S = JET_R0 + JET_LOSC_HEAD*np.arange(8)/8.0
+
+
+def jet_vacuum_R(e):
+    """Columns: the vacuum mass states at energy e, in the flavor basis."""
+    return np.linalg.eigh(np.array(hamiltonians.hamiltonian_3nu_vacuum(e, **OSC),
+                                   dtype=complex))[1]
+
+
+def jet_to_earth(U, e):
+    """The phase-averaged probability at Earth from the operator across the envelope:
+    the mass-state content of what leaves, times the flavor content of each mass state."""
+    R = jet_vacuum_R(e)
+    return np.abs(R)**2 @ np.abs(R.conj().T @ U)**2
+
+
+def jet_hand_grid(e, rho, breakpoints, r0):
+    """The control: 2e8 cm slabs from r0 to the surface, with the breakpoints as edges."""
+    hv = np.array(hamiltonians.hamiltonian_3nu_vacuum(e, **OSC), dtype=complex)
+
+    def H(l):
+        return hv + hamiltonians.hamiltonian_3nu_matter(JET_V1*float(rho(l/JET_CM)))
+
+    edges = np.linspace(r0, JET_RSTAR, int((JET_RSTAR - r0)/2.0e8) + 1)
+    for b in breakpoints:
+        edges = np.unique(np.append(edges, b))
+    edges = edges*JET_CM
+    Us = quiet(oscprob.compute_evolution_operator_multiple_slabs, H,
+               np.stack([edges[:-1], edges[1:]], axis=1), 9, 6)
+    U = Us[0]
+    for u in Us[1:]:
+        U = u @ U
+    return U
+
+
+def jet_earth(name):
+    """P at Earth against energy for one envelope, averaged over the production points,
+    with the largest difference from the hand-built grid at five energies."""
+    rho, bps = JET_PROFILES[name]
+    kw = dict(electron_fraction=JET_YE, density_matter_is_in_g_per_cm3=True,
+              rtol=JET_TOL, atol=JET_TOL, return_evolution_operator=True)
+    if bps:
+        kw['t_breakpoints'] = [b*JET_CM for b in bps]
+
+    def run():
+        P_earth = np.zeros((len(JET_E), 3, 3))
+        for r0 in JET_R0S:
+            _, U = quiet(oscprob.osc_prob_matter_std_potential, 3,
+                         lambda l: float(rho(l/JET_CM)), JET_E, JET_RSTAR*JET_CM, OSC,
+                         L0=r0*JET_CM, **kw)
+            for i, e in enumerate(JET_E):
+                P_earth[i] += jet_to_earth(np.asarray(U)[i], e)/len(JET_R0S)
+        control = 0.0
+        for i in range(0, len(JET_E), 40):
+            P_hand = np.mean([jet_to_earth(jet_hand_grid(JET_E[i], rho, bps, r0), JET_E[i])
+                              for r0 in JET_R0S], axis=0)
+            control = max(control, float(np.max(np.abs(P_hand - P_earth[i]))))
+        return dict(P_earth=P_earth.tolist(), control=control)
+
+    key = ('jet', name, [float(e) for e in JET_E_TEV], JET_RSTAR, JET_R0, JET_RHE, JET_YE,
+           JET_TOL, [float(r) for r in JET_R0S], JET_LAM.tolist(), JET_AMP.tolist(),
+           JET_PHI.tolist(), sorted(OSC.items()))
+    return cached('jet_%s' % name, key, run, what='one envelope of the jet example')
+
+
+JET_DATA = {name: jet_earth(name) for name in JET_PROFILES}
+for name in JET_PROFILES:
+    print('  %-9s ladder vs hand grid, max |dP| = %.1e' % (name, JET_DATA[name]['control']))
+'''),
+    code(r'''# ---------------------------------------------- the figure: schematic, envelopes, P
+from matplotlib.patches import FancyArrowPatch
+
+JET_SERIES = [('smooth', BLUE, 'Smooth envelope'), ('turbulent', GREEN, 'With turbulence'),
+              ('stepped', RED, 'With He-core edge')]
+
+
+def jet_resonant_energy(rho):
+    """The energy whose 1-3 resonance sits at density rho (g/cm3, Y_e = 1), in TeV."""
+    cos2th13 = 1.0 - 2.0*OSC['s13']**2
+    return OSC['D31']*cos2th13/(2.0*JET_V1*rho)/gd.UNIT_TEV
+
+
+fig = plt.figure(figsize=(COL, 6.5))
+gs = fig.add_gridspec(3, 1, height_ratios=[1.25, 1.55, 2.0], hspace=0.26,
+                      left=0.16, right=0.86, top=0.995, bottom=0.07)
+
+
+def curved_text(ax, text, radius, theta_deg, fontsize, color):
+    """Characters along the circle of the given radius about the origin, centered on
+    theta_deg (90 is the top), reading left to right."""
+    fig.canvas.draw()
+    rend = fig.canvas.get_renderer()
+    inv = ax.transData.inverted()
+    widths = []
+    for ch in text:
+        t = ax.text(0, 0, ch if ch != ' ' else 'i', fontsize=fontsize)
+        bb = t.get_window_extent(rend)
+        t.remove()
+        w = inv.transform((bb.width, 0))[0] - inv.transform((0, 0))[0]
+        widths.append(w*(0.7 if ch == ' ' else 1.0))
+    pos = np.radians(theta_deg) + 0.5*sum(widths)/radius
+    for ch, w in zip(text, widths):
+        ang = pos - 0.5*w/radius
+        ax.text(radius*np.cos(ang), radius*np.sin(ang), ch, fontsize=fontsize, color=color,
+                ha='center', va='center', rotation=np.degrees(ang) - 90.0,
+                rotation_mode='anchor', zorder=7)
+        pos -= w/radius
+
+
+# Top: the setup, not to scale
+ax0 = fig.add_subplot(gs[0])
+ax0.set_aspect('equal')
+ax0.axis('off')
+ax0.set_xlim(-1.06, 2.25)
+ax0.set_ylim(-1.08, 1.08)
+RCORE = 0.50
+for rr_, fc_ in zip(np.linspace(1.0, RCORE, 7),
+                    ['#faf3e3', '#f6ebd3', '#f2e3c2', '#eedbb1', '#ead3a0', '#e6cb90', '#e2c380']):
+    ax0.add_patch(Circle((0, 0), rr_, fc=fc_, ec='none', zorder=1))
+ax0.add_patch(Circle((0, 0), 1.0, fc='none', ec=INK, lw=0.7, zorder=2))
+ax0.add_patch(Circle((0, 0), RCORE, fc='#d9b466', ec=INK, lw=0.5, zorder=2))
+ax0.add_patch(Polygon([[0, 0], [0.43, 0.13], [0.43, -0.13]], closed=True, fc=ORANGE,
+                      ec='none', zorder=3))
+ax0.plot([0.43], [0.0], marker='*', ms=8, color=PURPLE, mec=INK, mew=0.4, zorder=5)
+ax0.add_patch(FancyArrowPatch((0.47, 0.0), (1.62, 0.0), arrowstyle='-|>', mutation_scale=9,
+                              lw=1.0, color=PURPLE, zorder=4))
+ax0.text(1.68, 0.0, 'To Earth', ha='left', va='center', fontsize=7.5, color=INK)
+ax0.text(1.10, 0.08, r'$\nu$', ha='center', va='bottom', fontsize=8.5, color=PURPLE)
+ax0.text(0.21, 0.17, 'Jet', ha='center', va='bottom', fontsize=6.8, color=ORANGE, zorder=6,
+         path_effects=[pe.withStroke(linewidth=1.8, foreground='white')])
+curved_text(ax0, 'H envelope', 0.90, 90.0, 6.8, INK)
+curved_text(ax0, 'He core', RCORE + 0.075, 90.0, 6.8, INK)
+ax0.annotate('Production site, $r_0$', xy=(0.49, 0.07), xytext=(0.95, 0.62), fontsize=6.8,
+             color=INK, ha='left', va='center',
+             arrowprops=dict(arrowstyle='-', lw=0.5, color=INK, shrinkA=0, shrinkB=2))
+ax0.annotate('Surface, $R_\star$', xy=(1.0, -0.02), xytext=(1.22, -0.52), fontsize=6.8,
+             color=INK, ha='left', va='center',
+             arrowprops=dict(arrowstyle='-', lw=0.5, color=INK, shrinkA=0, shrinkB=2))
+ax0.text(2.22, -1.04, 'Not to scale', ha='right', va='bottom', fontsize=6.3, color='0.4',
+         style='italic')
+
+# Middle: the three envelopes, with the energy resonant at each density on the right
+ax1 = fig.add_subplot(gs[1])
+rr = np.geomspace(JET_R0, JET_RSTAR*(1.0 - 1.0e-4), 3000)
+for name, color, label in JET_SERIES:
+    rho = JET_PROFILES[name][0]
+    ax1.plot(rr, [float(rho(x)) for x in rr], color=color,
+             lw=0.9 if name != 'turbulent' else 0.6, label=label,
+             zorder=3 if name != 'turbulent' else 2)
+ax1.set_xscale('log')
+ax1.set_yscale('log')
+ax1.set_xlim(JET_R0, JET_RSTAR)
+ax1.set_ylim(1.0e-7, 1.0)
+ax1.yaxis.set_major_locator(LogLocator(base=10.0, numticks=12))
+ax1.yaxis.set_minor_locator(LogLocator(base=10.0, subs=np.arange(2, 10), numticks=40))
+ax1.yaxis.set_minor_formatter(mpl.ticker.NullFormatter())
+ax1.tick_params(axis='x', which='major', pad=3.0)
+ax1.set_xlabel('Distance from the center, $r$ [cm]', labelpad=1.5)
+ax1.set_ylabel(r'Density [g cm$^{-3}$]', labelpad=2)
+ax1b = ax1.twinx()
+ax1b.set_yscale('log')
+ax1b.set_ylim(jet_resonant_energy(1.0e-7), jet_resonant_energy(1.0))
+ax1b.set_ylabel('Energy resonant here [TeV]', labelpad=4)
+ax1b.yaxis.set_major_locator(LogLocator(base=10.0, numticks=12))
+ax1b.yaxis.set_minor_locator(LogLocator(base=10.0, subs=np.arange(2, 10), numticks=40))
+ax1b.yaxis.set_minor_formatter(mpl.ticker.NullFormatter())
+ax1b.tick_params(which='both', direction='in', labelsize=8.5)
+ax1.tick_params(right=False, which='both')
+ax1.legend(loc='lower left', fontsize=7.2, handlelength=1.6, borderpad=0.28,
+           labelspacing=0.22, borderaxespad=0.45)
+
+# Bottom: P(nu_e -> nu_e) at Earth against energy
+ax2 = fig.add_subplot(gs[2])
+R_vac = jet_vacuum_R(JET_E[0])
+P_novac = float((np.abs(R_vac)**2 @ (np.abs(R_vac)**2).T)[gd.NUE, gd.NUE])
+ax2.axhline(P_novac, color='0.55', lw=0.7, ls=(0, (4, 2.5)), zorder=1)
+ax2.text(3.0e3, P_novac - 0.012, 'No matter effect', ha='right', va='top', fontsize=7.2,
+         color='0.35')
+for name, color, label in JET_SERIES:
+    P = np.asarray(JET_DATA[name]['P_earth'])[:, gd.NUE, gd.NUE]
+    ax2.plot(JET_E_TEV, P, color=color, lw=0.9, label=label, zorder=3)
+ax2.set_xscale('log')
+ax2.set_xlim(0.1, 1.0e4)
+ax2.set_ylim(0.0, 0.6)
+ax2.tick_params(axis='x', which='major', pad=3.0)
+ax2.set_xlabel(r'Neutrino energy, $E$ [TeV]', labelpad=1.5)
+ax2.set_ylabel(r'$P_{\nu_e \to \nu_e}$ at Earth', labelpad=2)
+
+# The equal-aspect schematic is shorter than its box: slide it down onto the density panel
+fig.canvas.draw()
+_p0, _p1 = ax0.get_position(), ax1.get_position()
+ax0.set_position([_p0.x0, _p1.y1 + 0.012, _p0.width, _p0.height])
+save(fig, 'jet.pdf')'''),
+    md(r'''## Figure 5h --- a density mode against the closed form
 
 Behind a supernova shock the medium is turbulent. Decomposed into Fourier modes, a mode of
 wavenumber $q$ moves neutrinos between two eigenstates of $\mathbb{H}$ when $q$ matches the
@@ -16141,7 +16387,7 @@ fig.text(_left - 0.020, _ymid, r'Transition probability between the two matter l
          va='center', ha='center', rotation='vertical',
          fontsize=plt.rcParams['axes.labelsize'])
 save(fig, 'turbulence_rabi.pdf')'''),
-    md(r'''## Figure 5h --- the same sweep, in the flavor channel
+    md(r'''## Figure 5i --- the same sweep, in the flavor channel
 
 What a detector sees is a flavor probability, not a transition between matter levels. This
 cell sweeps the same mode and reports $P_{\nu_\mu \to \nu_e}$, at the same four region
