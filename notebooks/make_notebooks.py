@@ -15693,6 +15693,77 @@ fig.subplots_adjust(left=0.20)
 # own tick labels, and four panels with tick labels of four widths give four positions.
 fig.align_ylabels([ax, axr, a, ad])
 save(fig, 'solar_models.pdf')'''),
+    md(r'''## Figure 5d --- the averaged probability against the production radius
+
+The same observable as Figure 5, with the production point moved instead of the energy:
+`L0` runs from the center to $0.8\,R_\odot$ at 1, 5 and 20 MeV, standard and with the NSI
+of Figure 5.  Each curve steps from its matter value to the vacuum value at the radius
+where the resonance density of that energy meets the profile, which is the statement that
+on an adiabatic passage only the density at production enters.
+
+The shaded band is where 90% of the $^8$B neutrinos are made: the 5th to 95th percentile
+of the production distribution of the same BS2005-AGS,OP model, from Bahcall's
+`bs2005agsopflux` file (astro-ph/0412440), kept beside the structure table.'''),
+    code(r'''FLUX = os.path.join('..', 'docs', 'dev', 'adversarial_batteries', 'bs2005agsopflux.csv')
+frac = []
+with open(FLUX) as fh:
+    for line in fh:
+        f = line.split()
+        if len(f) == 13:
+            try:
+                frac.append([float(x) for x in f])
+            except ValueError:
+                continue
+frac = np.array(frac)
+# Columns: radius, T, log10(n_e/N_A), mass, X(7Be), then the fraction of each flux made in
+# the zone: pp, 8B, 13N, 15O, 17F, 7Be, pep, hep.
+cum_b8 = np.cumsum(frac[:, 6])/frac[:, 6].sum()
+B8_BAND = tuple(float(np.interp(q, cum_b8, frac[:, 0])) for q in (0.05, 0.95))
+print('90%% of the 8B neutrinos are made between %.3f and %.3f R_sun' % B8_BAND)
+
+R0 = np.linspace(0.0, 0.8, 41)*gd.SUN_RADIUS*gd.UNIT_KM
+PROD_E = (1.0, 5.0, 20.0)
+KW = dict(nu_i=gd.NUE, nu_f=gd.NUE, density_is_of_number_of_electrons=True, average=True)
+P_PROD = {}
+for Emev in PROD_E:
+    E = Emev*gd.UNIT_MEV
+    def run(E=E):
+        std = [float(quiet(oscprob.osc_prob_matter_std_potential, 3, ne_sun, E, R_SUN, OSC,
+                           L0=float(l0), **KW)) for l0 in R0]
+        nsi = [float(quiet(oscprob.osc_prob_matter_nsi, 3, ne_sun, E, R_SUN, OSC, EPS,
+                           L0=float(l0), **KW)) for l0 in R0]
+        return dict(std=std, nsi=nsi)
+    got = cached('solar_production_%gMeV' % Emev,
+                 ('solar production radius', float(E), [float(l0) for l0 in R0],
+                  float(R_SUN), profile_samples(lambda l: PER_NE*ne_sun(l), R_SUN),
+                  sorted(OSC.items()),
+                  sorted((k, float(np.real(v)), float(np.imag(v))) for k, v in EPS.items())),
+                 run, what='one energy, both scenarios, along the production radius')
+    P_PROD[Emev] = {k: np.asarray(v) for k, v in got.items()}
+    print('%4.0f MeV: %.3f at the center -> %.3f at 0.8 R_sun; NSI moves it by up to %.4f'
+          % (Emev, P_PROD[Emev]['std'][0], P_PROD[Emev]['std'][-1],
+             np.abs(P_PROD[Emev]['nsi'] - P_PROD[Emev]['std']).max()))'''),
+    code(r'''fig, ax = plt.subplots(figsize=(COL, 2.6))
+r0 = R0/(gd.SUN_RADIUS*gd.UNIT_KM)
+# The band under the curves, labeled upright inside it, in the gap between the 1 and
+# 5 MeV curves.
+ax.axvspan(B8_BAND[0], B8_BAND[1], color='#e6e6e6', lw=0, zorder=0)
+ax.text(0.5*(B8_BAND[0] + B8_BAND[1]), 0.4565, r'$90\%$ of $^8$B', ha='center', va='center',
+        rotation=90, fontsize=7.5, color=INK)
+for Emev, color in zip(PROD_E, (BLUE, ORANGE, RED)):
+    ax.plot(r0, P_PROD[Emev]['std'], color=color, lw=1.3, label=r'$%g$ MeV' % Emev)
+    ax.plot(r0, P_PROD[Emev]['nsi'], color=color, lw=1.1, ls=(0, (4, 2)))
+ax.plot([], [], color=INK, lw=1.3, label=r'$3\nu$')
+ax.plot([], [], color=INK, lw=1.1, ls=(0, (4, 2)), label=r'$3\nu$ + NSI')
+ax.set_xlim(0.0, 0.8); ax.set_ylim(0.29, 0.56)
+ax.xaxis.set_minor_locator(AutoMinorLocator(5)); minor_y(ax, 5)
+ax.set_xlabel(r'Production radius, $r_0/R_\odot$', labelpad=1.5)
+ax.set_ylabel(r'Average probability, $\langle P_{\nu_e \to \nu_e}\rangle$', fontsize=8.0)
+ax.legend(loc='lower right', handlelength=1.8, ncol=2, columnspacing=1.0)
+# Just under the plateau of the curves, clear of the legend below.
+corner(ax, r'Sun', loc='upper right', y=0.905)
+fig.subplots_adjust(left=0.20)
+save(fig, 'solar_production.pdf')'''),
     md(r'''### Figure 5b --- a Hamiltonian the package never heard of
 
 A gauged $L_e - L_\mu$ symmetry adds a long-range potential sourced by the electrons of the
