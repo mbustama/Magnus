@@ -1785,6 +1785,41 @@ In brief, a user should use:
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+\subsubsection{Returning the evolution operator}
+\label{sec:evolution_operator}
+
+Every wrapper and scenario function above returns probabilities; for most purposes, that is the output wanted. But some observables are built from the amplitudes instead: the content of each mass eigenstate in the state that leaves a dense source, the factor the source contributes to \equ{averaged_varying}; the flavor composition at a detector after an incoherent mixture of mass eigenstates has crossed the Earth; the evolution through two media in sequence. None of them can be recovered from a probability matrix, since the phases are gone at that stage. For those cases, every probability function of \magnus, on any of the three routes above and at any flavor count, returns the evolution operator alongside the probabilities when asked via {\tt return\_evolution\_operator}:
+\begin{pysnip}
+P, U = oscprob.osc_prob_3nu_vacuum(
+    E, L, return_evolution_operator=True,
+    **osc)
+# P is the matrix the call returns without
+# the keyword; U is complex and unitary.
+# Both of these hold:
+np.allclose(P, abs(U.T)**2)
+np.allclose(U.conj().T @ U, np.eye(3))
+\end{pysnip}
+The operator is indexed {\tt U[final, initial]}, so that its moduli squared, transposed, are the probability matrix, indexed the other way. Everything else keeps its meaning: {\tt nu\_i} and {\tt nu\_f} still select one channel of {\tt P} while {\tt U} stays the full operator; arrays of energies or baselines return one operator per point, of shape {\tt (n, d, d)}. The keyword is declared by {\tt osc\_prob} and forwarded by every wrapper, as {\tt t\_breakpoints} is.
+
+Inside {\tt osc\_prob}, the request changes two behaviors. First, the refinement ladder compares the operator itself between levels, at the same {\tt rtol} and {\tt atol}, so the operator returned is converged in its phases, not only in its moduli. Second, the specialized engines of Sec.~\ref{sec:engines} stand aside for the call, since only the general Magnus ladder forms the evolution operator; a scan over baselines takes the per-point path instead of the cumulative traversal. Two settings are refused if asked together with {\tt return\_evolution\_operator}, with an error returned naming why: {\tt average=True}, since its routes decohere before any operator is formed; {\tt strategy='hybrid'}, since that engine answers with probabilities only.
+
+The evolution operators returned can be composed. The evolution through two media in sequence is the product of their operators, the later one on the left:
+\begin{pysnip}
+# Two slabs of constant density in sequence,
+# the second denser than the first
+H1 = H_vac/E + gd.VCC_EARTH_CRUST*proj
+H2 = H_vac/E + 1.5*gd.VCC_EARTH_CRUST*proj
+_, U1 = oscprob.osc_prob(H1, 0.0, L,
+    return_evolution_operator=True)
+_, U2 = oscprob.osc_prob(H2, 0.0, L,
+    return_evolution_operator=True)
+U = U2 @ U1
+P = abs(U.T)**2       # Over both slabs, 2L
+\end{pysnip}
+The same probabilities come from one call over a two-slab profile with the edge declared through {\tt t\_breakpoints}, as in Listing~\ref{lst:edges}; the product above is what that call assembles internally. Section~\ref{sec:jet} uses the {\tt return\_evolution\_operator} flag and operator composition to first compute the mass-eigenstate content the neutrino flux that leaves a star, and then its flavor content at a detector on Earth.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 \subsection{The Hamiltonians}
 \label{sec:hamiltonians}
 
@@ -2726,13 +2761,6 @@ info['declined']      # []
  \caption{\label{fig:solar}Phase-averaged survival probability of a solar neutrino, and the density profile that sets it. {\it Top}: the electron number density along a radial ray of the tabulated BS2005-AGS,OP solar model\ \cite{Bahcall:2004pz}, falling five orders of magnitude without a discontinuity anywhere to place a slab edge on. The marked densities are those of the Mikheyev--Smirnov--Wolfenstein resonance, $\sqrt{2} G_F n_e = \Delta m^2_{21}\cos 2\theta_{12}/2E$, at three energies: a $20$~MeV neutrino crosses it about a third of the way out, a $1$~MeV neutrino never does. {\it Center}: the phase-averaged survival probability of \equ{averaged_varying}, computed with \magnus\ at ${\tt rtol} = 10^{-8}$ for four Hamiltonians. The two sterile cases lie lowest, $3+2$ below $3+1$, because each extra state takes a share of the flux that does not return. {\it Bottom}: the deviation of each from the adiabatic limit built from the instantaneous eigenbases alone, which uses none of the averaging machinery and so serves all four.}
 \end{figure}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\begin{figure}[t!]
- \centering
- \includegraphics[width=\columnwidth]{solar_long_range.pdf}
- \caption{\label{fig:solar_lri}Phase-averaged solar survival probability under a gauged $L_e - L_\mu$ symmetry. The sketch above the panels shows what each mediator range lets a neutrino feel: one born inside $0.1\,R_\odot$ leaves along the ray drawn, and the discs are the electrons within $1/m$ of it as it goes, so the charged-current case carries none, $1/m = R_\odot/10$ carries a narrow tube, and $1/m = R_\odot$ reaches most of the Sun at once and past its surface. \emph{Top}: $\langle P_{\nu_e \to \nu_e}\rangle$ along a radial ray of the same BS2005-AGS,OP model as \figu{solar}, with and without a long-range potential sourced by the Sun's own electrons, at two mediator ranges. We fix the coupling separately for each, so that the new potential is a tenth of $V_{\rm CC}$ at the center in both cases; what differs is its shape along the ray: at half a solar radius the longer-ranged one still stands at $2.5$ times $V_{\rm CC}$ where the shorter has fallen to $0.4$. \emph{Bottom}: the difference from the standard case, reaching $0.021$ and $0.018$.}
-\end{figure}
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 Figure~\ref{fig:solar} shows the solar electron density, the averaged survival probability it produces at four different Hamiltonians, and how far each of those is from the adiabatic limit. The Sun is the case that needs both the method of Section \ref{sec:method} and the observable of Section \ref{sec:averaged}. Its density falls smoothly by five orders of magnitude along a radial ray, with no discontinuity anywhere to align a slab edge to. A $5$~MeV neutrino leaving it accumulates $\Phi \approx 9 \cdot 10^{5}$ radians.
 
@@ -2776,75 +2804,6 @@ The obvious guard does not catch the related trap. \magnus\ reports, on request,
 
 \subsubsection{Comparing solar models}
 \label{sec:solar_model_comparison}
-
-\subsubsection{A Hamiltonian of your own}
-\label{sec:arbitrary}
-
-Everything above goes through named wrappers. Each assembles a Hamiltonian and hands it to {\tt osc\_prob}; a caller who already has one can skip that first step. Listing \ref{lst:arbitrary} does exactly that, passing a Hamiltonian the package knows nothing about, which is the escape hatch and also the design.
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\begin{lstlisting}[language=Python, caption={\magnus\ with an arbitrary, user-supplied Hamiltonian, here the long-range $L_e - L_\mu$ interaction of \equ{h3_lri} sourced by the electrons of the Sun. The profile and $V_{\rm CC}$ are the solar model of \figu{solar}; only $V_{e\mu}$ is new, and what it costs the caller is three lines---the potential, the charge matrix $\mathbb{Q}$, and the extra term inside {\tt H\_func}. The {\tt [..., None, None]} is what lets one call evaluate the Hamiltonian at every quadrature node of every slab at once; written to take a scalar, the same function returns bit-identical numbers more slowly, one call per node instead of one per slab. {\tt long\_range\_potential}, {\tt vcc\_sun} and the solar grids are built in notebook \#19, which derives the potential and checks it against a closed form; this listing is the last two cells of it.}, label={lst:arbitrary}, float=tbp]
-import numpy as np
-import magnus.avgprob as avgprob
-import magnus.globaldefs as gd
-import magnus.hamiltonians as hamiltonians
-
-# Energy-independent; H_func divides by E below
-h_vac = hamiltonians.\
- hamiltonian_3nu_vacuum_energy_independent(**osc)
-# V_CC reaches nu_e only
-e00 = np.diag([1.0, 0.0, 0.0])
-
-# V_emu [eV] on the solar radial grid, from the
-# Yukawa integral of Eq. (21) over the same n_e(r)
-# the matter term reads, so the two potentials
-# cannot disagree about the electron distribution
-v_emu = g2*long_range_potential(r, n_e, 1.0/R_SUN)
-
-# nu_e and nu_mu carry opposite charge, nu_tau none
-q = np.diag([1.0, -1.0, 0.0])
-
-def H_func(l):
- VCC = np.asarray(vcc_sun(l))
- return (h_vac/energy
- + VCC[..., None, None]*e00
- + np.interp(l, r, v_emu)[..., None, None]*q)
-
-# Center to surface; [0] is the single energy
-P = avgprob.averaged_probabilities_adiabatic(
- H_func, 0.0, R_SUN)[0]
-\end{lstlisting}
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-Two properties govern how one should be written. The first is that the engine samples the Hamiltonian at every quadrature node of every slab (a few hundred positions for a single probability, repeated at each refinement level) so a function that accepts only one position at a time turns that into a Python loop. \magnus\ probes the function once, verifies a vectorized evaluation against a scalar spot-check, and uses whichever form works; the fallback is correct and $4.6$ times slower, with bit-identical output, and it says so once per session and names the fix. The {\tt [..., None, None]} in Listing \ref{lst:arbitrary} is the whole of that fix. The second is that a Hamiltonian which ignores its argument is detected separately and routed to the constant-Hamiltonian engine, so the easiest case there is does not take the slowest path available.
-
-Figure~\ref{fig:solar_lri} puts one such Hamiltonian to work on the solar ray of Section \ref{sec:sun}, at two mediator ranges, and draws the difference each makes to the averaged survival probability. Nothing in the package anticipates the new term, and nothing needs to: the same averaging machinery of Section \ref{sec:averaged} answers, because it never asked what the Hamiltonian contained.
-
-\textit{The interaction.}---The example is a long-range neutrino-electron interaction, made possible by a new light neutral gauge boson $Z^\prime$ from gauging the anomaly-free combination $L_e - L_\mu$\ \cite{He:1990pn, Foot:1994vd}, with $L_e$ and $L_\mu$ the electron and muon lepton numbers. The charge under it, $Q \equiv L_e - L_\mu$, is $+1$ for the electron and $\nu_e$, $-1$ for the muon and $\nu_\mu$, and zero for every other Standard-Model field. A new matter potential sourced by electrons therefore enters the Hamiltonian,
-\begin{equation}
- \label{equ:h3_lri}
- \mathbb{H}^{\rm LRI}(E, l)
- =
- \frac{\mathbb{A}}{E} + V_{\rm CC}(l)\,\mathbb{P}
- + V_{e\mu}(l)\,{\rm diag}\left(1, -1, 0\right) \;,
-\end{equation}
-where the first two terms are the vacuum and charged-current matter terms of Section \ref{sec:recap} and the third is the whole of the modification, supplied by the caller as one more additive matrix.
-
-\textit{A non-local potential.}---Under $L_e - L_\mu$ an electron sources a Yukawa potential centered on its position, so what a neutrino at $\mathbf{r}$ feels is an integral over the electrons around it,
-\begin{equation}
- \label{equ:yukawa}
- V_{e\mu}(\mathbf{r})
- =
- \frac{g^{\prime 2}}{4\pi}
- \int d^3r^\prime \, n_e(\mathbf{r}^\prime) \,
- \frac{e^{-m_{Z^\prime} \lvert \mathbf{r} - \mathbf{r}^\prime \rvert}}
-      {\lvert \mathbf{r} - \mathbf{r}^\prime \rvert} \;,
-\end{equation}
-with $g^\prime$ the new gauge coupling. Where $V_{\rm CC}$ reads the density at the neutrino's own position, \equ{yukawa} is \emph{non-local}: at mediator masses light enough to matter its value at any radius is an integral over the whole electron distribution, so it depends on how many electrons there are and only weakly on where they sit\ \cite{Wise:2018rnb}. Its variation along a trajectory is a matter of geometry rather than of the local density.
-
-That is what makes the Sun a sharper test of it than the Earth. The solar density falls by five orders of magnitude along the ray, so $V_{\rm CC}$ and $V_{e\mu}$ fall at quite different rates, and the shape of the new potential---not merely its size---is what the observable responds to. We fix the coupling separately for each mediator range so that both put $V_{e\mu}$ at a tenth of $V_{\rm CC}$ at the center; what then differs between the two curves is that shape alone. At half a solar radius the longer-ranged potential still stands at $2.5$ times $V_{\rm CC}$ where the shorter has fallen to $0.4$.
-
-The two shift the averaged probability by up to $0.021$ and $0.018$ across $0.1$--$20$~MeV, and they are not a rescaling of one another: the shorter range samples the profile where it falls fastest; its shift stays negative across the decade drawn, while the longer one changes sign near $8$~MeV. Both curves are computed with no expansion in $V_{e\mu}$, because the method does not care what the Hermitian matrix contains. Notebook \#19 develops the potential and checks it against a closed form where one exists.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -3165,75 +3124,51 @@ To be clear, no neutrino telescope resolves any of this structure. While the Sun
 \subsubsection{Oscillations in an astrophysical relativistic jet}
 \label{sec:jet}
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\begin{figure}[t!]
- \centering
- \includegraphics[width=\columnwidth]{jet.pdf}
- \caption{\label{fig:jet}Neutrinos from a jet inside a collapsing star. \textit{Top:} the setup, not to scale. Neutrinos are made at the head of the jet, at $r_0 = 6.3 \cdot 10^{10}$~cm from the center, and leave the star at $R_\star = 3 \cdot 10^{12}$~cm. \textit{Middle:} matter density along their path, for a smooth envelope, the same envelope with turbulence overlaid, and the same envelope with a drop in density at the edge of the helium core. The right axis gives the energy whose 1--3 resonance lies at each density. \textit{Bottom:} probability that a $\nu_e$ produced at the jet head is detected as $\nu_e$ at Earth, against its energy, for the three envelopes. The horizontal line is the value without matter effects. See notebook \#28 and Sec.~\ref{sec:jet} for details.}
-\end{figure}
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
 Gamma-ray bursts are the relativistic jets that some massive stars launch as they collapse. Shells of plasma ejected by the central engine collide with one another along the jet; protons accelerated at those collisions make neutrinos of TeV to PeV energies\ \cite{Bustamante:2014oka}. The jet itself does change their flavor composition: at the radii where the collisions happen, $10^{13}$--$10^{15}$~cm, its density is around $10^{-11}$~g~cm$^{-3}$, nine orders of magnitude below the density at which a TeV neutrino resonates; the phase that the jet matter adds to the evolution is only $10^{-4}$. Matter effects arise only while the jet is still inside the star, in the choked jets that never break out and in the precursor phase of the jets that do\ \cite{Mena:2006eq, Razzaque:2009kq, Sahu:2010ap, Varela:2014mma, Xiao:2015gea}. The neutrinos then cross the stellar envelope. Its density falls from about 1~g~cm$^{-3}$ at the head of the jet to zero at the surface; somewhere along, neutrinos between $100$~GeV and $100$~TeV meet their 1-3 resonance. At the low energy end, the crossing is adiabatic and the neutrino leaves the star in a mass eigenstate; at the high end, it is not: the flavor content then survives. Therefore, the flavor ratios at Earth depend on the neutrino energy, in a way that reflects the density profile of the star\ \cite{Razzaque:2009kq, Xiao:2015gea}.
 
 As example, we take a jet at $r_0 = 6.3 \cdot 10^{10}$~cm inside a blue supergiant of radius $R_\star = 3 \cdot 10^{12}$~cm, with the hydrogen envelope of \Refs\ \cite{Mena:2006eq, Razzaque:2009kq}, $\rho(r) = 3.3 \cdot 10^{-6}\,(R_\star/r - 1)^3$~g~cm$^{-3}$, and an electron fraction of $Y_e = 1$:
 \begin{pysnip}
 import numpy as np
 import magnus.globaldefs as gd
-import magnus.matter as matter
 import magnus.hamiltonians as ham
+import magnus.oscprob as oscprob
 
 OSC = gd.load_nufit_params('NuFIT 6.1')
 CM = 1.0e-5*gd.UNIT_KM   # One cm in eV^-1
 RSTAR = 3.0e12           # Star's radius, cm
 R0 = 6.3e10              # Jet head, cm
 
-def rho_smooth(r):
-    """Envelope density, g/cm3, r in cm."""
-    return 3.3e-6*(RSTAR/r - 1.0)**3
-
-# V_CC of one g/cm3 of hydrogen
-ne1 = matter.num_density_e_func(
-    0.0, lambda l: 1.0,
-    electron_fraction=1.0,
-    density_matter_is_in_g_per_cm3=True)
-V1 = matter.VCC_func(0.0, lambda l: ne1)
+def rho(l):
+    """Density, g/cm3, at l in eV^-1."""
+    return 3.3e-6*(RSTAR/(l/CM) - 1.0)**3
 \end{pysnip}
-The density at the head is $0.33$~g~cm$^{-3}$. The oscillation length there is set by the potential, $2\pi/V_{\rm CC} = 5 \cdot 10^{9}$~cm, a tenth of $r_0$, so the phase accumulated across the whole envelope is modest. Slabs of $2 \cdot 10^{8}$~cm resolve every oscillation length in the star at every energy of interest; the evolution operator is the ordered product over them, as in Sec.~\ref{sec:turbulence}:
+The density at the head is $0.33$~g~cm$^{-3}$. The oscillation length there is set by the potential, $2\pi/V_{\rm CC} = 5 \cdot 10^{9}$~cm, a tenth of $r_0$, so the phase accumulated across the whole envelope is modest. The observable, the phase-averaged probability of \equ{averaged_varying}, is built here from the evolution operator rather than from probabilities. The scenario functions return the operator alongside the probabilities when asked ({\tt return\_evolution\_operator=True}), with the refinement ladder choosing the slabs internally:
 \begin{pysnip}
-from magnus.oscprob import (
-  compute_evolution_operator_multiple_slabs
-  as chain)
-
-hm = ham.hamiltonian_3nu_matter
 E = 1.0*gd.UNIT_TEV
-hv = np.array(ham.hamiltonian_3nu_vacuum(
-    E, **OSC), dtype=complex)
-
-def H(l):
-    """H at l, inside the envelope."""
-    return hv + hm(V1*rho_smooth(l/CM))
-
-edges = np.linspace(R0, RSTAR, 14686)*CM
-slabs = np.stack([edges[:-1], edges[1:]], 1)
-Us = chain(H, slabs, 9, 6)
-U = Us[0]
-for u in Us[1:]:     # Earliest slab first
-    U = u @ U
+out = oscprob.osc_prob_matter_std_potential(
+    3, rho, E, RSTAR*CM, OSC, L0=R0*CM,
+    electron_fraction=1.0,
+    rtol=1.0e-6, atol=1.0e-6,
+    density_matter_is_in_g_per_cm3=True,
+    return_evolution_operator=True)
+P, U = out
 \end{pysnip}
+Here, {\tt P} is the probability matrix at the surface of the star and {\tt U} is the evolution operator from the jet head to the surface, in the flavor basis.
 
-What a telescope detects is not the flavor content at the surface of the star. The neutrino travels a cosmological distance afterwards, over which the phases between its mass components average out, so it arrives as an incoherent mixture of mass eigenstates\ \cite{Razzaque:2009kq}. The quantity to compute is therefore the content of each mass eigenstate $\nu_i$ in the state that leaves the star, weighted by the probability that $\nu_i$ is detected as the final flavor,
-\begin{equation}
- P_{\nu_\alpha \to \nu_\beta}
- =
- \sum_i
- \left\lvert \left[ \mathbb{R}^\dagger\, \mathbb{U} \right]_{i\alpha} \right\rvert^2
- \left\lvert \mathbb{R}_{\beta i} \right\rvert^2 ,
- \label{equ:jet_earth}
-\end{equation}
-where $\mathbb{U}$ is the evolution operator from the jet head to the surface and $\mathbb{R}$ is the mixing matrix in vacuum, the medium the neutrino is in once it leaves the star:
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{figure}[t!]
+ \centering
+ \includegraphics[width=\columnwidth]{jet.pdf}
+ \caption{\label{fig:jet}Neutrinos from a relativistic jet inside a collapsing star. \textit{Top:} the setup. Neutrinos are made at the head of the jet, at $r_0 = 6.3 \cdot 10^{10}$~cm from the center, and leave the star at $R_\star = 3 \cdot 10^{12}$~cm. \textit{Middle:} matter density along their path, for a smooth envelope, the same envelope with turbulence overlaid, and the same envelope with a drop in density at the edge of the helium core. The right axis gives the energy whose 1-3 resonance lies at each density. \textit{Bottom:} probability that a $\nu_e$ produced at the jet head is detected as $\nu_e$ at Earth, against its energy, for the three envelopes. See notebook \#28 and Sec.~\ref{sec:jet} for details.}
+\end{figure}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+What a telescope detects is not the flavor content at the surface of the star: the neutrino travels a cosmological distance afterwards, over which the phases between its mass components average out, so it arrives as an incoherent mixture of mass eigenstates\ \cite{Razzaque:2009kq}. Its probability is the phase-averaged form of \equ{averaged_varying}, with the eigenbasis at detection being the mixing matrix in vacuum, $\mathbb{R}$. The factor in it that carries the star, the probability that a neutrino produced as $\nu_\alpha$ leaves it as the mass eigenstate $\nu_i$, is read off the evolution operator as $\lvert [\mathbb{R}^\dagger \mathbb{U}]_{i\alpha} \rvert^2$:
 \begin{pysnip}
 # Vacuum mass states; the content of each in
 # the state that leaves the star, by flavor
+hv = np.array(ham.hamiltonian_3nu_vacuum(
+    E, **OSC), dtype=complex)
 w, R = np.linalg.eigh(hv)
 content = abs(R.conj().T @ U)**2
 
@@ -3241,15 +3176,154 @@ content = abs(R.conj().T @ U)**2
 P_earth = abs(R)**2 @ content
 P_earth[gd.NUE, gd.NUE]    # 0.315
 \end{pysnip}
-Without matter effects the same construction gives $0.55$.
+Thus, the probability computed is $P_{\nu_\alpha \to \nu_\beta} = \sum_i \left\lvert \left[ \mathbb{R}^\dagger\, \mathbb{U} \right]_{i\alpha} \right\rvert^2 \left\lvert \mathbb{R}_{\beta i} \right\rvert^2$.  Without matter effects the same construction gives $0.55$.
 
-Figure~\ref{fig:jet} shows this probability between $0.1$~TeV and $10$~PeV for three envelopes. The first is the smooth profile above. The second overlays turbulence on it: a single realization of forty modes with a Kolmogorov spectrum, with wavelengths from $10^{10}$ to $10^{12}$~cm at a root-mean-square amplitude of twenty percent. The third is model C of \Refs\ \cite{Mena:2006eq}, the same star with the density dropping by a factor of five at the edge of the helium core, $r = 10^{11}$~cm; in the code, that edge is one of the slab edges.
+Figure~\ref{fig:jet} shows this probability between 0.1~TeV and 10~PeV for three density envelopes. The neutrinos are not all made at the same point: the production region at the jet head is about one oscillation length across, so each curve averages over production points spread over that length. Without this average, the lowest energies would show an interference pattern, since their resonance lies only a few oscillation lengths from the head; a region of that size washes it out. The first envelope is the smooth profile above. The second overlays turbulence on it: a single realization of forty modes with a Kolmogorov spectrum, with wavelengths from $10^{10}$ to $10^{12}$~cm at a root-mean-square amplitude of twenty percent. The third is model C of \Refs\ \cite{Mena:2006eq}, the same star with the density dropping by a factor of five at the edge of the helium core, $r = 10^{11}$~cm; in the code, that edge is declared to the ladder as a breakpoint. Listing~\ref{lst:jet} is the calculation behind the figure.
 
-The smooth envelope sets the pattern. At $0.1$~TeV, a $\nu_e$ leaves the star mostly as $\nu_3$ and is rarely detected as $\nu_e$; with rising energy the probability climbs to its vacuum value, reached at $100$~TeV. The reason is where the resonance sits. A neutrino of higher energy resonates farther out, where the density falls more gently, but its oscillation length grows faster than that gain, so the crossing becomes abrupt and the flavor content survives it. The PeV neutrinos that IceCube detects come out of the star as if it were not there.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{lstlisting}[language=Python, caption={Computing the data in \figu{jet} with \magnus: the phase-averaged $\nu_e$ survival probability at Earth for neutrinos from a jet head at $r_0$, through the three envelopes. Each call returns the evolution operator from the refinement ladder alongside the probabilities; the projection onto the vacuum mass states and the sum over them are \equ{averaged_varying}, with the eigenbasis at detection the vacuum one. The eight production points span one oscillation length at the jet head, $4.9 \cdot 10^{9}$~cm. The turbulent envelope is one realization of forty Kolmogorov modes between $10^{10}$ and $10^{12}$~cm at twenty percent rms; the stepped one is model C of \Refs\ \cite{Mena:2006eq}, with the drop at the helium-core edge declared through {\tt t\_breakpoints}. See notebook \#28 and Sec.~\ref{sec:jet} for details.}, label={lst:jet}, float=t]
+import numpy as np
+import magnus.globaldefs as gd
+import magnus.hamiltonians as ham
+import magnus.oscprob as oscprob
 
-Turbulence shifts the smooth curve by up to $0.05$ between $0.2$ and a few TeV. Those are the energies whose resonance lies where the modes of the realization match the local oscillation length; the mechanism is that of Sec.~\ref{sec:turbulence}, now acting on a resonance instead of on a fixed pair of levels. The drop at the helium-core edge does something larger. The energies whose resonance density lies inside the drop, $0.15$ to $0.7$~TeV, do not cross the resonance gradually: they meet it in one jump, at the edge, so the crossing is non-adiabatic regardless of the energy and the flavor content survives. The result is the plateau in the bottom panel of \figu{jet}, where the probability sits well above the smooth curve. Above the band, the two envelopes agree again.
+OSC = gd.load_nufit_params('NuFIT 6.1')
+CM = 1.0e-5*gd.UNIT_KM               # One cm in eV^-1
+RSTAR, R0, RHE = 3.0e12, 6.3e10, 1.0e11      # cm
+E = np.geomspace(0.1, 1.0e4, 161)*gd.UNIT_TEV
 
-Each envelope costs a few seconds for the energies drawn. Halving the slab width changes no probability by more than $10^{-6}$; the operators are unitary to $10^{-13}$. The turbulent envelope is the one case that sets the slab count, since its shortest mode has to be resolved everywhere; the smooth and the stepped envelopes would converge with far fewer slabs, provided that the step falls on a slab edge.
+# The three envelopes, g/cm3, r in cm
+def smooth(r):
+    return 3.3e-6*(RSTAR/r - 1.0)**3
+
+rng = np.random.default_rng(7)        
+lam = np.geomspace(1.0e12, 1.0e10, 40)  # Modes, cm
+k = 2*np.pi/lam
+amp = k**(-1/3)                         # Kolmogorov
+amp *= 0.20/np.sqrt(0.5*np.sum(amp**2)) # 20% rms
+phi = rng.uniform(0.0, 2*np.pi, 40)
+def turbulent(r):
+    d = np.sum(amp*np.cos(k*r + phi))
+    return smooth(r)*(1.0 + d)
+
+def stepped(r):            # Mena et al., model C
+    x = RSTAR/r - 1.0
+    return 6.3e-6*(20.0*x**2.1 if r < RHE else x**2.5)
+
+# Production points spread over one oscillation
+# length at the jet head
+r0s = R0 + 4.9e9*np.arange(8)/8.0
+
+def p_earth(rho, **extra):
+    """P at Earth, Eq. (25), averaged over the
+    production points."""
+    P_out = np.zeros((len(E), 3, 3))
+    for r0 in r0s:
+        P, U = oscprob.osc_prob_matter_std_potential(
+            3, lambda l: rho(l/CM), E, RSTAR*CM, OSC,
+            L0=r0*CM, electron_fraction=1.0,
+            density_matter_is_in_g_per_cm3=True,
+            rtol=1.0e-6, atol=1.0e-6,
+            return_evolution_operator=True, **extra)
+        for i, e in enumerate(E):
+            hv = np.array(ham.hamiltonian_3nu_vacuum(
+                e, **OSC), dtype=complex)
+            w, R = np.linalg.eigh(hv)
+            content = abs(R.conj().T @ U[i])**2
+            P_out[i] += abs(R)**2 @ content/len(r0s)
+    return P_out
+
+P_smooth = p_earth(smooth)
+P_turb = p_earth(turbulent)
+P_step = p_earth(stepped, t_breakpoints=[RHE*CM])
+# Drawn: P_smooth[:, gd.NUE, gd.NUE], and the others
+\end{lstlisting}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+The smooth envelope sets the trend. At 0.1~TeV, a $\nu_e$ leaves the star mostly as $\nu_3$---which has the least electron content among the three mass eigenstates---and so is rarely detected as $\nu_e$. With rising energy, the survival probability climbs to its vacuum value, reached at 100~TeV. The reason is where the resonance sits. A neutrino of higher energy resonates farther out, where the density falls more gently, but its oscillation length grows faster than that gain, so the crossing becomes abrupt and the flavor content survives it. The PeV neutrinos that IceCube detects come out of the star as if it were not there.
+
+Turbulence shifts the smooth curve by up to 0.05 below a few TeV. Those are the energies whose resonance lies where the modes of the realization match the local oscillation length; the mechanism is that of Sec.~\ref{sec:turbulence}. The drop at the helium-core edge has a larger effect. The energies whose resonance density lies inside the drop, 0.15--0.7~TeV, do not cross the resonance gradually: they meet it in one jump, at the edge, so the crossing is non-adiabatic regardless of the energy and the flavor content survives. The result is the low-energy plateau in the probability seen in \figu{jet}. Above the band, the two envelopes agree again.
+
+Each envelope costs a few minutes for the energies drawn and the eight production points averaged. The ladder settles on a few thousand slabs per energy at the tolerance requested ($10^{-6}$), with the helium-core edge declared to it as a breakpoint.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsubsection{Long-range interactions in the Sun}
+\label{sec:lri_sun}
+
+Everything above goes through named wrappers. Each assembles a Hamiltonian and hands it to {\tt osc\_prob}; a caller who already has one can skip that first step. Listing \ref{lst:arbitrary} does exactly that, passing a Hamiltonian the package knows nothing about, which is the escape hatch and also the design.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{lstlisting}[language=Python, caption={\magnus\ with an arbitrary, user-supplied Hamiltonian, here the long-range $L_e - L_\mu$ interaction of \equ{h3_lri} sourced by the electrons of the Sun. The profile and $V_{\rm CC}$ are the solar model of \figu{solar}; only $V_{e\mu}$ is new, and what it costs the caller is three lines---the potential, the charge matrix $\mathbb{Q}$, and the extra term inside {\tt H\_func}. The {\tt [..., None, None]} is what lets one call evaluate the Hamiltonian at every quadrature node of every slab at once; written to take a scalar, the same function returns bit-identical numbers more slowly, one call per node instead of one per slab. {\tt long\_range\_potential}, {\tt vcc\_sun} and the solar grids are built in notebook \#19, which derives the potential and checks it against a closed form; this listing is the last two cells of it.}, label={lst:arbitrary}, float=tbp]
+import numpy as np
+import magnus.avgprob as avgprob
+import magnus.globaldefs as gd
+import magnus.hamiltonians as hamiltonians
+
+# Energy-independent; H_func divides by E below
+h_vac = hamiltonians.\
+ hamiltonian_3nu_vacuum_energy_independent(**osc)
+# V_CC reaches nu_e only
+e00 = np.diag([1.0, 0.0, 0.0])
+
+# V_emu [eV] on the solar radial grid, from the
+# Yukawa integral of Eq. (21) over the same n_e(r)
+# the matter term reads, so the two potentials
+# cannot disagree about the electron distribution
+v_emu = g2*long_range_potential(r, n_e, 1.0/R_SUN)
+
+# nu_e and nu_mu carry opposite charge, nu_tau none
+q = np.diag([1.0, -1.0, 0.0])
+
+def H_func(l):
+ VCC = np.asarray(vcc_sun(l))
+ return (h_vac/energy
+ + VCC[..., None, None]*e00
+ + np.interp(l, r, v_emu)[..., None, None]*q)
+
+# Center to surface; [0] is the single energy
+P = avgprob.averaged_probabilities_adiabatic(
+ H_func, 0.0, R_SUN)[0]
+\end{lstlisting}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{figure}[t!]
+ \centering
+ \includegraphics[width=\columnwidth]{solar_long_range.pdf}
+ \caption{\label{fig:solar_lri}Phase-averaged solar survival probability under a gauged $L_e - L_\mu$ symmetry. The sketch above the panels shows what each mediator range lets a neutrino feel: one born inside $0.1\,R_\odot$ leaves along the ray drawn, and the discs are the electrons within $1/m$ of it as it goes, so the charged-current case carries none, $1/m = R_\odot/10$ carries a narrow tube, and $1/m = R_\odot$ reaches most of the Sun at once and past its surface. \emph{Top}: $\langle P_{\nu_e \to \nu_e}\rangle$ along a radial ray of the same BS2005-AGS,OP model as \figu{solar}, with and without a long-range potential sourced by the Sun's own electrons, at two mediator ranges. We fix the coupling separately for each, so that the new potential is a tenth of $V_{\rm CC}$ at the center in both cases; what differs is its shape along the ray: at half a solar radius the longer-ranged one still stands at $2.5$ times $V_{\rm CC}$ where the shorter has fallen to $0.4$. \emph{Bottom}: the difference from the standard case, reaching $0.021$ and $0.018$.}
+\end{figure}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+Two properties govern how one should be written. The first is that the engine samples the Hamiltonian at every quadrature node of every slab (a few hundred positions for a single probability, repeated at each refinement level) so a function that accepts only one position at a time turns that into a Python loop. \magnus\ probes the function once, verifies a vectorized evaluation against a scalar spot-check, and uses whichever form works; the fallback is correct and $4.6$ times slower, with bit-identical output, and it says so once per session and names the fix. The {\tt [..., None, None]} in Listing \ref{lst:arbitrary} is the whole of that fix. The second is that a Hamiltonian which ignores its argument is detected separately and routed to the constant-Hamiltonian engine, so the easiest case there is does not take the slowest path available.
+
+Figure~\ref{fig:solar_lri} puts one such Hamiltonian to work on the solar ray of Section \ref{sec:sun}, at two mediator ranges, and draws the difference each makes to the averaged survival probability. Nothing in the package anticipates the new term, and nothing needs to: the same averaging machinery of Section \ref{sec:averaged} answers, because it never asked what the Hamiltonian contained.
+
+\textit{The interaction.}---The example is a long-range neutrino-electron interaction, made possible by a new light neutral gauge boson $Z^\prime$ from gauging the anomaly-free combination $L_e - L_\mu$\ \cite{He:1990pn, Foot:1994vd}, with $L_e$ and $L_\mu$ the electron and muon lepton numbers. The charge under it, $Q \equiv L_e - L_\mu$, is $+1$ for the electron and $\nu_e$, $-1$ for the muon and $\nu_\mu$, and zero for every other Standard-Model field. A new matter potential sourced by electrons therefore enters the Hamiltonian,
+\begin{equation}
+ \label{equ:h3_lri}
+ \mathbb{H}^{\rm LRI}(E, l)
+ =
+ \frac{\mathbb{A}}{E} + V_{\rm CC}(l)\,\mathbb{P}
+ + V_{e\mu}(l)\,{\rm diag}\left(1, -1, 0\right) \;,
+\end{equation}
+where the first two terms are the vacuum and charged-current matter terms of Section \ref{sec:recap} and the third is the whole of the modification, supplied by the caller as one more additive matrix.
+
+\textit{A non-local potential.}---Under $L_e - L_\mu$ an electron sources a Yukawa potential centered on its position, so what a neutrino at $\mathbf{r}$ feels is an integral over the electrons around it,
+\begin{equation}
+ \label{equ:yukawa}
+ V_{e\mu}(\mathbf{r})
+ =
+ \frac{g^{\prime 2}}{4\pi}
+ \int d^3r^\prime \, n_e(\mathbf{r}^\prime) \,
+ \frac{e^{-m_{Z^\prime} \lvert \mathbf{r} - \mathbf{r}^\prime \rvert}}
+      {\lvert \mathbf{r} - \mathbf{r}^\prime \rvert} \;,
+\end{equation}
+with $g^\prime$ the new gauge coupling. Where $V_{\rm CC}$ reads the density at the neutrino's own position, \equ{yukawa} is \emph{non-local}: at mediator masses light enough to matter its value at any radius is an integral over the whole electron distribution, so it depends on how many electrons there are and only weakly on where they sit\ \cite{Wise:2018rnb}. Its variation along a trajectory is a matter of geometry rather than of the local density.
+
+That is what makes the Sun a sharper test of it than the Earth. The solar density falls by five orders of magnitude along the ray, so $V_{\rm CC}$ and $V_{e\mu}$ fall at quite different rates, and the shape of the new potential---not merely its size---is what the observable responds to. We fix the coupling separately for each mediator range so that both put $V_{e\mu}$ at a tenth of $V_{\rm CC}$ at the center; what then differs between the two curves is that shape alone. At half a solar radius the longer-ranged potential still stands at $2.5$ times $V_{\rm CC}$ where the shorter has fallen to $0.4$.
+
+The two shift the averaged probability by up to $0.021$ and $0.018$ across $0.1$--$20$~MeV, and they are not a rescaling of one another: the shorter range samples the profile where it falls fastest; its shift stays negative across the decade drawn, while the longer one changes sign near $8$~MeV. Both curves are computed with no expansion in $V_{e\mu}$, because the method does not care what the Hermitian matrix contains. Notebook \#19 develops the potential and checks it against a closed form where one exists.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
