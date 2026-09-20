@@ -208,7 +208,7 @@ any of the refinement/logging keyword arguments that layers 1-2 own:
    magnus_exp_order, n_jobs, integration_method, rtol, atol,
    growth_factor_n_slabs, growth_factor_n_tpts_per_slab, max_num_loops,
    min_n_slabs, max_n_slabs, min_n_tpts_per_slab, max_n_tpts_per_slab,
-   new_recursion_limit
+   new_recursion_limit, return_evolution_operator
 
 This is not a style preference; it is a correctness requirement, and the
 history of this package shows what happens when it is violated. Before
@@ -234,6 +234,15 @@ CI, and will fail if it is ever violated again:
 If you are adding a wrapper and find yourself typing
 ``rtol: Optional[float] = 1.e-3`` in its signature, that is a signal you
 are working at the wrong layer: forward it through ``**kwargs`` instead.
+
+``return_evolution_operator`` follows the same rule, and shows why the rule
+pays: it is declared by the core, by ``osc_prob_energy_baseline``, and by the
+generic entry points, and every one of the sixty ``osc_prob_{N}nu_*`` wrappers
+got it for free through ``**kwargs``. The keyword is honored by the core and
+the batching layer; the specialized engines answer with probabilities only,
+so the entry points disable them for the call (through the same
+``_engine_probe`` mechanism the cross-check uses) and the general ladder
+answers.
 
 Data flow: how the Hamiltonian and potential are built
 -----------------------------------------------------------

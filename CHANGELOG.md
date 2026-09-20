@@ -9,6 +9,27 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Every oscillation-probability function can return the converged evolution
+  operator alongside the probabilities: `return_evolution_operator=True` makes
+  the call return the pair `(P, U)`, with `P` exactly what it returns today and
+  `U` the operator over the same interval, complex and unitary, indexed
+  `U[final, initial]` so that `P == abs(U)**2.T`.  The keyword lives in the
+  core `osc_prob`, in `osc_prob_energy_baseline` and in the generic entry
+  points, and reaches all sixty `osc_prob_{N}nu_*` wrappers through their
+  `**kwargs`.  It exists for observables built from amplitudes -- the
+  mass-state content of what leaves a dense source, the phase-averaged flavor
+  content at a distant detector -- which no probability matrix can give back,
+  since the phases are gone.  With the keyword set, the refinement ladder
+  compares the operator itself between levels, at the same `rtol` and `atol`,
+  so the returned operator is converged in its phases and not only in its
+  moduli; the specialized engines (hybrid, interaction picture, scan) stand
+  aside for the call, since only the general ladder forms the operator, and a
+  baseline scan takes the per-point path instead of the cumulative traversal.
+  `average=True` and `strategy='hybrid'` are refused together with it, with
+  an error naming the entry point, rather than ignored.  Every default result
+  is unchanged bit for bit: with the keyword off, the only difference is one
+  boolean test at the exit points of the core.
+
 - Either end of an Earth trajectory can now be underground.  Every Earth
   entry point takes `source_depth` and `detector_depth`, and
   `earth.distance_traveled_inside_earth`,

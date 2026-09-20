@@ -2882,14 +2882,18 @@ def osc_prob(
     t_breakpoints: Optional[Union[list, np.ndarray]]=None,
     strict_convergence: Optional[bool]=False,
     symmetric_over: Optional[tuple]=None,
+    return_evolution_operator: Optional[bool]=False,
     **kwargs
-) -> np.ndarray:
+) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
     r"""Computes and returns the neutrino oscillation probability.
 
     Computes the oscillation probability of neutrinos starting at time
     (or position) ``t_ini`` and ending at time (or position) ``t_fin``.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.1
+       Added ``return_evolution_operator``.
 
     Parameters
     ----------
@@ -3049,7 +3053,8 @@ def osc_prob(
         - ``'n_slabs_previous'``, ``'n_tpts_per_slab_previous'``,
           ``'n_slab_edges_previous'`` -- the level compared against, or None
           if no second level was ever computed.
-        - ``'last_gap'`` -- ``max|P - P_old|`` between those two levels, or
+        - ``'last_gap'`` -- ``max|P - P_old|`` between those two levels (``max|U - U_old|``
+          when ``return_evolution_operator`` is set), or
           None if only one level was ever computed (which happens whenever the
           seed already sits at ``max_n_slabs``).
         - ``'n_agreements'`` -- consecutive agreements at the point of return.
@@ -3169,15 +3174,25 @@ def osc_prob(
         profile is discontinuous, marking *every* discontinuity -- including
         where it switches on and off, which may lie inside the trajectory --
         is worth more than any amount of refinement.
+    return_evolution_operator : bool, optional
+        If True, return the pair ``(P, U)`` instead of ``P`` alone: ``U`` is the evolution
+        operator over the same interval, in the flavor basis, a complex square array with
+        ``U[final, initial]`` the amplitude from the initial to the final state, so that
+        ``P == abs(U)**2.T``.  The refinement ladder then compares the operator itself
+        between levels, with the same ``rtol`` and ``atol``, so the returned operator is
+        converged in its own right (phases included) and not only in its moduli.  Every
+        other setting keeps its meaning.  Default: False.
     \**kwargs
         Additional arguments passed through to the Magnus-expansion
         routines
 
     Returns
     -------
-    np.ndarray
+    np.ndarray, or (np.ndarray, np.ndarray)
         NumPy array containing the probability matrix of the same 
-        dimensions as the Hamiltonian, ``H_func``.
+        dimensions as the Hamiltonian, ``H_func``.  With
+        ``return_evolution_operator=True``, the pair ``(P, U)``, where ``U`` is the
+        evolution operator from ``t_ini`` to ``t_fin`` (see that parameter).
     """
 
     # Checked before anything forwards **kwargs onwards, and regardless of validate_input:
@@ -3337,6 +3352,8 @@ def osc_prob(
     # why the early-exit checks inside the loop are guarded on loop_count > 1.
     P = None
     P_old = None
+    Utot = None
+    Utot_old = None
     last_gap = None
     # Consecutive refinement levels that have agreed within (rtol, atol) so far.  The ladder
     # normally returns on the first agreement; strict_convergence requires two in a row, so that
@@ -3478,7 +3495,7 @@ def osc_prob(
                             "increasing max_num_loops.\n",
                             file=f)
                 if save_log and close_file_log_upon_exit: file_log.close()
-                return P
+                return (P, Utot) if return_evolution_operator else P
             # Reached maximum allowed number of slabs: continue execution
             if (n_slabs == max_n_slabs):
                 if ((verbose > 0) and not warned_reached_max_n_slabs):
@@ -3526,7 +3543,7 @@ def osc_prob(
                             ") not achieved. Try increasing max_n_slabs or max_n_tpts_per_slab.\n",
                             file=f)
                 if save_log and close_file_log_upon_exit: file_log.close()
-                return P
+                return (P, Utot) if return_evolution_operator else P
 
         # The array (or list) t_slab_edges contains user-provided pairs of start and end times, 
         # [ti, tf]_k, that define the initial and final times of each of the k-th time slab.  It is 
@@ -3641,7 +3658,7 @@ def osc_prob(
         # tolerance is achieved.
         if ((rtol is None) and (atol is None)): # No target tolerance requested: return right away
             if save_log and close_file_log_upon_exit: file_log.close()
-            return P
+            return (P, Utot) if return_evolution_operator else P
         else: # Target tolerance requested: iterate until tolerance is achieved
             if (verbose > 1):
                 for f in [None, file_log] if save_log else [None]:
@@ -3658,7 +3675,8 @@ def osc_prob(
                 # Kept so the tolerance-not-achieved warnings below can say how far from
                 # converged the refinement stopped, rather than only that it stopped.  The
                 # comparison is being made anyway; this is the number it is made on.
-                last_gap = float(np.max(np.abs(P - P_old)))
+                last_gap = float(np.max(np.abs(Utot - Utot_old)) if return_evolution_operator
+                                 else np.max(np.abs(P - P_old)))
                 # An agreement only counts if the two levels compared were genuinely
                 # different grids.  With breakpoints re-inserted at every level, a nominal
                 # 2 -> 3 slab step can be a 16 -> 17 edge one, and two grids that differ by
@@ -3667,8 +3685,12 @@ def osc_prob(
                 effective_refinement = (
                     len(t_slab_edges)/n_edges_prev_level
                     if n_edges_prev_level else float('inf'))
-                if (np.allclose(P, P_old, rtol=rtol, atol=atol)
-                        and effective_refinement >= MIN_EFFECTIVE_REFINEMENT):
+                # With the operator requested, the operator is what has to have converged:
+                # its moduli can agree between two levels while its phases still move.
+                levels_agree = (np.allclose(Utot, Utot_old, rtol=rtol, atol=atol)
+                                if return_evolution_operator
+                                else np.allclose(P, P_old, rtol=rtol, atol=atol))
+                if levels_agree and effective_refinement >= MIN_EFFECTIVE_REFINEMENT:
                     n_agreements += 1
                 else:
                     n_agreements = 0
@@ -3684,8 +3706,10 @@ def osc_prob(
                                 "= " + str(magnus_exp_order) + "): rtol = " + str(rtol) + \
                                 ", atol = " + str(atol) + ".\n", file=f)
                         if save_log and close_file_log_upon_exit: file_log.close()
-                    return P
+                    return (P, Utot) if return_evolution_operator else P
             P_old = np.ndarray.copy(P)
+            if return_evolution_operator:
+                Utot_old = np.ndarray.copy(Utot)
             n_slabs_prev_level = n_slabs
             n_tpts_prev_level = n_tpts_per_slab
             n_edges_prev_level = len(t_slab_edges)
@@ -6011,8 +6035,9 @@ def osc_prob_energy_baseline(
     verbose: Optional[int]=0,
     cumulative: Optional[Union[bool, str]]='auto',
     symmetric_over: Optional[tuple]=None,
+    return_evolution_operator: Optional[bool]=False,
     **kwargs
-) -> Union[int, float, np.ndarray]:
+) -> Union[int, float, np.ndarray, Tuple[np.ndarray, np.ndarray]]:
     r"""Compute and return oscillation probabilities for given arrays of
     neutrino energy and baseline, and an arbitrary Hamiltonian.
 
@@ -6025,6 +6050,9 @@ def osc_prob_energy_baseline(
     :func:`osc_prob_matter_std_potential`, :func:`osc_prob_matter_nsi`, and :func:`osc_prob_liv`.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.1
+       Added ``return_evolution_operator``.
 
     Parameters
     ----------
@@ -6157,11 +6185,23 @@ def osc_prob_energy_baseline(
         the Hamiltonian be evaluated on half the slabs.  A declaration, not a test: it
         is not checked.  See :func:`magnus.magnus.magnus_expansion_multislab`.
 
+    return_evolution_operator : bool, optional
+        If True, return the pair ``(P, U)`` instead of ``P`` alone: ``U`` is the evolution
+        operator over the same interval, in the flavor basis, a complex square array with
+        ``U[final, initial]`` the amplitude from the initial to the final state, so that
+        ``P == abs(U)**2.T``.  The refinement ladder then compares the operator itself
+        between levels, with the same ``rtol`` and ``atol``, so the returned operator is
+        converged in its own right (phases included) and not only in its moduli.  The
+        cumulative traversal is bypassed, since it walks a fixed grid with no ladder: every
+        point takes the per-point path.  Every other setting keeps its meaning.  Default: False.
+
     Returns
     -------
-    int, float, or np.ndarray
+    int, float, or np.ndarray, or a pair of them
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for
         each (energy, L) point; a single value/matrix if both ``energy`` and ``L`` were floats.
+        With ``return_evolution_operator=True``, the pair ``(P, U)``: ``P`` as above and ``U``
+        the operators, one ``(d, d)`` array per point, ``(n, d, d)`` for arrays of points.
     """
 
     if (callable(H_func) and (_n_required_params(H_func) > 2)):
@@ -6223,7 +6263,8 @@ def osc_prob_energy_baseline(
         validate_input=validate_input, save_log=save_log, filename_log=filename_log,
         file_log=file_log, close_file_log_upon_exit=close_file_log_upon_exit,
         new_recursion_limit=new_recursion_limit, verbose=verbose,
-        symmetric_over=symmetric_over, **kwargs)
+        symmetric_over=symmetric_over,
+        return_evolution_operator=return_evolution_operator, **kwargs)
 
     # Build, for a given neutrino energy, the Hamiltonian to be passed to osc_prob: either a
     # one-parameter function of position or, if position-independent, a constant matrix (which
@@ -6296,6 +6337,10 @@ def osc_prob_energy_baseline(
             and _cumulative_scan_would_serve(np.asarray(energy), np.asarray(L), L0,
                                              CUMULATIVE_AUTO_MIN_POINTS))
 
+    if return_evolution_operator:
+        # The cumulative traversal walks a fixed grid with no ladder, and the operator is only
+        # offered from the ladder: every point takes the per-point path below instead.
+        cumulative = False
     if cumulative:
         if t_slab_edges is not None:
             raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob_energy_baseline: "
@@ -6474,12 +6519,13 @@ def osc_prob_energy_baseline(
             osc_prob_kwargs['min_n_tpts_per_slab'] = max(min_n_tpts_per_slab,
                 int(np.ceil(conv_info['n_tpts_per_slab']/g2)))
 
-    def compute_single_point(enu: float, baseline: float) -> Union[float, np.ndarray]:
-        P = osc_prob(H_at_energy(enu), L0, baseline, **osc_prob_kwargs)
-        # Select one oscillation channel if requested; otherwise return the full matrix
+    def compute_single_point(enu: float, baseline: float):
+        out = osc_prob(H_at_energy(enu), L0, baseline, **osc_prob_kwargs)
+        P, U = out if return_evolution_operator else (out, None)
+        # Select one oscillation channel if requested; otherwise keep the full matrix
         if ((nu_i is not None) and (nu_f is not None)):
-            return P[nu_i][nu_f]
-        return P
+            P = P[nu_i][nu_f]
+        return (P, U) if return_evolution_operator else P
 
     if parallelize_over_points:
         # Compute the first point serially to learn the refinement parameters, then distribute
@@ -6519,12 +6565,41 @@ def osc_prob_energy_baseline(
         t_breakpoints=kwargs.get('t_breakpoints')))
     # The call to __getitem__ below is a way to return a single float (or single probability
     # matrix) if both energy and L were given as floats.
-    return np.array(probs).__getitem__(0 if return_float else slice(None))
+    sel = 0 if return_float else slice(None)
+    if return_evolution_operator:
+        return np.array([p for p, _ in probs])[sel], np.array([u for _, u in probs])[sel]
+    return np.array(probs).__getitem__(sel)
 
 
 #-----------------------------------------------------------------------
 # Cross-method agreement
 #-----------------------------------------------------------------------
+
+# Engines that answer with probabilities only.  A request for the evolution operator disables
+# them for the call, so that the general Magnus ladder -- the one engine that forms the
+# operator -- is the engine that answers.  Same set the cross-check uses to force the ladder.
+_OPERATOR_ONLY_FROM_LADDER = ('hybrid', 'ip_exp', 'separable', 'constant')
+
+
+def _check_operator_request(average: bool, strategy: Optional[str], source_func_name: str) -> None:
+    r"""Rejects a request for the evolution operator that no engine could serve.
+
+    ``average=True`` answers through the phase-averaged routes, and ``strategy='hybrid'``
+    insists on the adiabatic engine; neither forms an evolution operator, so combining either
+    with ``return_evolution_operator=True`` raises here, naming the entry point, rather than
+    being silently ignored.
+
+    .. versionadded:: 1.1.1
+    """
+    if average:
+        raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name +
+            ": return_evolution_operator=True cannot be combined with average=True: the "
+            "phase-averaged routes never form an evolution operator.")
+    if strategy == 'hybrid':
+        raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name +
+            ": return_evolution_operator=True cannot be combined with strategy='hybrid': that "
+            "engine answers with probabilities only.  Use strategy='auto' or 'magnus'.")
+
 
 _CROSS_CHECK_FORCING = {
     # label:      (strategy, cumulative, engines to forbid so that this one is reached)
@@ -6876,7 +6951,8 @@ def osc_prob_vacuum(
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
     angles: Optional[str]='sin',
-    **kwargs) -> Union[float, np.ndarray]:
+    return_evolution_operator: Optional[bool]=False,
+    **kwargs) -> Union[float, np.ndarray, Tuple[np.ndarray, np.ndarray]]:
     r"""Computes and returns neutrino oscillation probabilities for
     oscillations in vacuum
 
@@ -6887,6 +6963,9 @@ def osc_prob_vacuum(
     :func:`osc_prob_3nu_vacuum`, :func:`osc_prob_4nu_vacuum`, and :func:`osc_prob_5nu_vacuum`.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.1
+       Added ``return_evolution_operator``.
 
     Parameters
     ----------
@@ -6987,6 +7066,14 @@ def osc_prob_vacuum(
         ``'deg'`` the CP phases are read as degrees too; under the other three
         they stay in radians, a sine being no way to state a phase.
 
+    return_evolution_operator : bool, optional
+        If True, return the pair ``(P, U)`` instead of ``P`` alone: ``U`` is the evolution
+        operator over the same interval, in the flavor basis, a complex square array with
+        ``U[final, initial]`` the amplitude from the initial to the final state, so that
+        ``P == abs(U)**2.T``.  The refinement ladder then compares the operator itself
+        between levels, with the same ``rtol`` and ``atol``, so the returned operator is
+        converged in its own right (phases included) and not only in its moduli.  Every
+        other setting keeps its meaning.  Default: False.
     Returns
     -------
     float or np.ndarray
@@ -7058,6 +7145,14 @@ def osc_prob_vacuum(
     # Hamiltonian does not depend on position, so it is tried before any of the propagation
     # machinery below, all of which would resolve phases that the average discards (see
     # _avg_prob_dispatch and :mod:`magnus.avgprob`).
+    if return_evolution_operator:
+        # The phase-averaged and scan engines below answer with probabilities only, so the
+        # request goes straight to the ladder, which is the one engine that forms the operator.
+        _check_operator_request(average, None, 'osc_prob_vacuum')
+        return osc_prob_energy_baseline(htot, energy, L, 0.0, nu_i, nu_f,
+            htot_is_function_only_of_energy, n_jobs=n_jobs, validate_input=validate_input,
+            verbose=verbose, return_evolution_operator=True, **kwargs)
+
     P_avg = _avg_prob_dispatch(htot, htot_is_function_only_of_energy, energy, L, 0.0, nu_i, nu_f,
         average, 'osc_prob_vacuum')
     if P_avg is not NotImplemented:
@@ -7103,6 +7198,7 @@ def osc_prob_matter_std_potential(
     average: Optional[bool]=False,
     strategy: Optional[str]='auto',
     strategy_info: Optional[Dict]=None,
+    return_evolution_operator: Optional[bool]=False,
     t_slab_edges: Optional[Union[list, np.ndarray]]=None,
     magnus_exp_order: Optional[int]=4,
     n_jobs: Optional[int]=1,
@@ -7125,7 +7221,7 @@ def osc_prob_matter_std_potential(
     new_recursion_limit: Optional[int]=5000,
     symmetric_over: Optional[tuple]=None,
     angles: Optional[str]='sin',
-    **kwargs) -> Union[float, np.ndarray]:
+    **kwargs) -> Union[float, np.ndarray, Tuple[np.ndarray, np.ndarray]]:
     r"""Computes and returns neutrino oscillation probabilities for
     standard oscillations in matter, i.e., the matter potential is only
     due to the coherent forward scattering of nu_e on electrons.
@@ -7140,6 +7236,9 @@ def osc_prob_matter_std_potential(
     ``osc_prob_{2,3,4,5}nu_earth``/``osc_prob_{2,3,4,5}nu_sun`` wrapper.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.1
+       Added ``return_evolution_operator``.
 
     Parameters
     ----------
@@ -7275,6 +7374,14 @@ def osc_prob_matter_std_potential(
         Costs nothing when omitted.  Default: None.
 
         .. versionadded:: 1.0.0
+    return_evolution_operator : bool, optional
+        If True, return the pair ``(P, U)`` instead of ``P`` alone: ``U`` is the evolution
+        operator over the same interval, in the flavor basis, a complex square array with
+        ``U[final, initial]`` the amplitude from the initial to the final state, so that
+        ``P == abs(U)**2.T``.  The refinement ladder then compares the operator itself
+        between levels, with the same ``rtol`` and ``atol``, so the returned operator is
+        converged in its own right (phases included) and not only in its moduli.  Every
+        other setting keeps its meaning.  Default: False.
     t_slab_edges : list or np.ndarray, optional
         Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
     magnus_exp_order : int
@@ -7360,6 +7467,8 @@ def osc_prob_matter_std_potential(
         each (energy, L) point.
     """
 
+    if return_evolution_operator:
+        _check_operator_request(average, strategy, 'osc_prob_matter_std_potential')
     if validate_input and (strategy not in ('auto', 'hybrid', 'magnus')):
         raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob_matter_std_potential:" + \
             " strategy must be 'auto', 'hybrid', or 'magnus'.")
@@ -7519,7 +7628,8 @@ def osc_prob_matter_std_potential(
     # that strategy_info can report which one answered and, for the hybrid strategy,
     # whether it certified -- see _engine_probe.  Costs one list allocation per call when
     # nobody is watching.
-    with _engine_probe(info=strategy_info, extra={'hidden_feature': _hidden, 'sampling': _osc}):
+    with _engine_probe(disabled=_OPERATOR_ONLY_FROM_LADDER if return_evolution_operator else (),
+                       info=strategy_info, extra={'hidden_feature': _hidden, 'sampling': _osc}):
         P_avg = _avg_prob_dispatch(htot, htot_is_function_only_of_energy, energy, L, L0, nu_i, nu_f,
             average, 'osc_prob_matter_std_potential', smooth_profile=_profile_is_smooth, engine_kwargs=scan_kwargs)
         if P_avg is not NotImplemented:
@@ -7571,6 +7681,7 @@ def osc_prob_matter_std_potential(
         # Generate the probabilities for all pairs of energy and baseline in zip(energy, L).
         return osc_prob_energy_baseline(htot, energy, L, L0, nu_i, nu_f,
             htot_is_function_only_of_energy, t_slab_edges=t_slab_edges,
+            return_evolution_operator=return_evolution_operator,
             magnus_exp_order=magnus_exp_order, n_jobs=n_jobs, integration_method=integration_method,
             rtol=rtol, atol=atol, growth_factor_n_slabs=growth_factor_n_slabs,
             growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
@@ -7639,6 +7750,7 @@ def osc_prob_matter_nsi(
     average: Optional[bool]=False,
     strategy: Optional[str]='auto',
     strategy_info: Optional[Dict]=None,
+    return_evolution_operator: Optional[bool]=False,
     t_slab_edges: Optional[Union[list, np.ndarray]]=None,
     magnus_exp_order: Optional[int]=4,
     n_jobs: Optional[int]=1,
@@ -7661,7 +7773,7 @@ def osc_prob_matter_nsi(
     new_recursion_limit: Optional[int]=5000,
     symmetric_over: Optional[tuple]=None,
     angles: Optional[str]='sin',
-    **kwargs) -> Union[float, np.ndarray]:
+    **kwargs) -> Union[float, np.ndarray, Tuple[np.ndarray, np.ndarray]]:
     r"""Computes and returns neutrino oscillation probabilities for
     oscillations in matter with non-standard interactions (NSI), i.e., the matter potential
     includes both the standard coherent-forward-scattering term and the NSI epsilon couplings.
@@ -7676,6 +7788,9 @@ def osc_prob_matter_nsi(
     ``osc_prob_{2,3,4,5}nu_earth_nsi``/``osc_prob_{2,3,4,5}nu_sun_nsi`` wrapper.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.1
+       Added ``return_evolution_operator``.
 
     Parameters
     ----------
@@ -7763,6 +7878,14 @@ def osc_prob_matter_nsi(
         Costs nothing when omitted.  Default: None.
 
         .. versionadded:: 1.0.0
+    return_evolution_operator : bool, optional
+        If True, return the pair ``(P, U)`` instead of ``P`` alone: ``U`` is the evolution
+        operator over the same interval, in the flavor basis, a complex square array with
+        ``U[final, initial]`` the amplitude from the initial to the final state, so that
+        ``P == abs(U)**2.T``.  The refinement ladder then compares the operator itself
+        between levels, with the same ``rtol`` and ``atol``, so the returned operator is
+        converged in its own right (phases included) and not only in its moduli.  Every
+        other setting keeps its meaning.  Default: False.
     t_slab_edges : list or np.ndarray, optional
         Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
     magnus_exp_order : int
@@ -7848,6 +7971,8 @@ def osc_prob_matter_nsi(
         each (energy, L) point.
     """
 
+    if return_evolution_operator:
+        _check_operator_request(average, strategy, 'osc_prob_matter_nsi')
     if validate_input and (strategy not in ('auto', 'hybrid', 'magnus')):
         raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob_matter_nsi: strategy" + \
             " must be 'auto', 'hybrid', or 'magnus'.")
@@ -8055,7 +8180,8 @@ def osc_prob_matter_nsi(
     # that strategy_info can report which one answered and, for the hybrid strategy,
     # whether it certified -- see _engine_probe.  Costs one list allocation per call when
     # nobody is watching.
-    with _engine_probe(info=strategy_info, extra={'hidden_feature': _hidden, 'sampling': _osc}):
+    with _engine_probe(disabled=_OPERATOR_ONLY_FROM_LADDER if return_evolution_operator else (),
+                       info=strategy_info, extra={'hidden_feature': _hidden, 'sampling': _osc}):
         P_avg = _avg_prob_dispatch(htot, htot_is_function_only_of_energy, energy, L, L0, nu_i, nu_f,
             average, 'osc_prob_matter_nsi', smooth_profile=_profile_is_smooth, engine_kwargs=scan_kwargs)
         if P_avg is not NotImplemented:
@@ -8088,6 +8214,7 @@ def osc_prob_matter_nsi(
         # Generate the probabilities for all pairs of energy and baseline in zip(energy, L).
         return osc_prob_energy_baseline(htot, energy, L, L0, nu_i, nu_f,
             htot_is_function_only_of_energy, t_slab_edges=t_slab_edges,
+            return_evolution_operator=return_evolution_operator,
             magnus_exp_order=magnus_exp_order, n_jobs=n_jobs, integration_method=integration_method,
             rtol=rtol, atol=atol, growth_factor_n_slabs=growth_factor_n_slabs,
             growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
@@ -8123,6 +8250,7 @@ def osc_prob_liv(
     average: Optional[bool]=False,
     strategy: Optional[str]='auto',
     strategy_info: Optional[Dict]=None,
+    return_evolution_operator: Optional[bool]=False,
     t_slab_edges: Optional[Union[list, np.ndarray]]=None,
     magnus_exp_order: Optional[int]=4,
     n_jobs: Optional[int]=1,
@@ -8145,7 +8273,7 @@ def osc_prob_liv(
     new_recursion_limit: Optional[int]=5000,
     symmetric_over: Optional[tuple]=None,
     angles: Optional[str]='sin',
-    **kwargs) -> Union[float, np.ndarray]:
+    **kwargs) -> Union[float, np.ndarray, Tuple[np.ndarray, np.ndarray]]:
     r"""Computes and returns neutrino oscillation probabilities for
     oscillations under (one form of) Lorentz-invariance violation, in
     vacuum or in matter.
@@ -8160,6 +8288,9 @@ def osc_prob_liv(
     ``osc_prob_{2,3,4,5}nu_earth_liv``/``osc_prob_{2,3,4,5}nu_sun_liv`` wrapper.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.1
+       Added ``return_evolution_operator``.
 
     Parameters
     ----------
@@ -8248,6 +8379,14 @@ def osc_prob_liv(
         Costs nothing when omitted.  Default: None.
 
         .. versionadded:: 1.0.0
+    return_evolution_operator : bool, optional
+        If True, return the pair ``(P, U)`` instead of ``P`` alone: ``U`` is the evolution
+        operator over the same interval, in the flavor basis, a complex square array with
+        ``U[final, initial]`` the amplitude from the initial to the final state, so that
+        ``P == abs(U)**2.T``.  The refinement ladder then compares the operator itself
+        between levels, with the same ``rtol`` and ``atol``, so the returned operator is
+        converged in its own right (phases included) and not only in its moduli.  Every
+        other setting keeps its meaning.  Default: False.
     t_slab_edges : list or np.ndarray, optional
         Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
     magnus_exp_order : int
@@ -8333,6 +8472,8 @@ def osc_prob_liv(
         each (energy, L) point.
     """
 
+    if return_evolution_operator:
+        _check_operator_request(average, strategy, 'osc_prob_liv')
     if validate_input and (strategy not in ('auto', 'hybrid', 'magnus')):
         raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob_liv: strategy must be" + \
             " 'auto', 'hybrid', or 'magnus'.")
@@ -8539,7 +8680,8 @@ def osc_prob_liv(
     # that strategy_info can report which one answered and, for the hybrid strategy,
     # whether it certified -- see _engine_probe.  Costs one list allocation per call when
     # nobody is watching.
-    with _engine_probe(info=strategy_info, extra={'hidden_feature': _hidden, 'sampling': _osc}):
+    with _engine_probe(disabled=_OPERATOR_ONLY_FROM_LADDER if return_evolution_operator else (),
+                       info=strategy_info, extra={'hidden_feature': _hidden, 'sampling': _osc}):
         P_avg = _avg_prob_dispatch(htot, htot_is_function_only_of_energy, energy, L, L0, nu_i, nu_f,
             average, 'osc_prob_liv', smooth_profile=_profile_is_smooth, engine_kwargs=scan_kwargs)
         if P_avg is not NotImplemented:
@@ -8569,7 +8711,8 @@ def osc_prob_liv(
 
         # Generate the probabilities for all pairs of energy and baseline in zip(energy, L).
         return osc_prob_energy_baseline(htot, energy, L, L0, nu_i, nu_f,
-            htot_is_function_only_of_energy, t_slab_edges=t_slab_edges, 
+            htot_is_function_only_of_energy, t_slab_edges=t_slab_edges,
+            return_evolution_operator=return_evolution_operator,
             magnus_exp_order=magnus_exp_order, n_jobs=n_jobs, integration_method=integration_method,
             rtol=rtol, atol=atol, growth_factor_n_slabs=growth_factor_n_slabs,
             growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
@@ -12349,8 +12492,9 @@ def _osc_prob_with_potential(
     strategy: Optional[str] = 'auto',
     strategy_info: Optional[Dict] = None,
     symmetric_over: Optional[tuple] = None,
+    return_evolution_operator: Optional[bool] = False,
     **kwargs
-) -> Union[float, np.ndarray]:
+) -> Union[float, np.ndarray, Tuple[np.ndarray, np.ndarray]]:
     r"""Common machinery of :func:`osc_prob_earth` and
     :func:`osc_prob_sun`: wire a user-supplied Hamiltonian function --
     H_func(energy, l, VCC) or H_func(energy, l) -- to the environment
@@ -12358,6 +12502,9 @@ def _osc_prob_with_potential(
     :func:`osc_prob_energy_baseline`.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.1
+       Added ``return_evolution_operator``.
 
     .. note::
         With ``strategy='auto'`` (the default) or ``'hybrid'``, this also tries the
@@ -12462,6 +12609,9 @@ def _osc_prob_with_potential(
             raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + \
                 ": strategy must be 'auto', 'hybrid', or 'magnus'.")
 
+    if return_evolution_operator:
+        _check_operator_request(False, strategy, source_func_name)
+
     n_params_H = _n_required_params(H_func)
     if n_params_H == 3:
         def htot(enu: Union[int, float], l: Union[int, float, np.ndarray]) -> np.ndarray:
@@ -12493,7 +12643,8 @@ def _osc_prob_with_potential(
 
     # Watched as a unit, as in the three scenario wrappers, so that a user-supplied Hamiltonian
     # gets the same answer to "which engine answered, and what stood aside" as a built-in one.
-    with _engine_probe(info=strategy_info, extra={'hidden_feature': _hidden, 'sampling': _osc}):
+    with _engine_probe(disabled=_OPERATOR_ONLY_FROM_LADDER if return_evolution_operator else (),
+                       info=strategy_info, extra={'hidden_feature': _hidden, 'sampling': _osc}):
         P_hybrid = (NotImplemented if cumulative is True else
             _osc_prob_hybrid_dispatch_generic(htot, VCC_func, energy, L, L0, nu_i, nu_f,
                 t_breakpoints, rtol, atol, magnus_exp_order, integration_method, strategy,
@@ -12502,6 +12653,7 @@ def _osc_prob_with_potential(
             return P_hybrid
 
         return osc_prob_energy_baseline(htot, energy, L, L0, nu_i, nu_f, False,
+            return_evolution_operator=return_evolution_operator,
             t_breakpoints=t_breakpoints, magnus_exp_order=magnus_exp_order, n_jobs=n_jobs,
             integration_method=integration_method, rtol=rtol, atol=atol,
             validate_input=validate_input, verbose=verbose, cumulative=cumulative,

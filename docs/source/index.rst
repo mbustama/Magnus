@@ -264,7 +264,10 @@ The SU(N) closed forms stop at SU(4); Magνs has no ceiling.
 **Pre-packaged observables.**  ``average=True`` returns the phase-averaged
 probability a solar experiment actually measures, evaluated in closed form,
 rather than leaving you to resolve some 13 000 radians of phase and average the
-result yourself.  Neither of the other codes offers it.
+result yourself.  Neither of the other codes offers it.  And every entry point
+can hand back the converged evolution operator alongside the probabilities
+(``return_evolution_operator=True``), for the observables that are built from
+amplitudes rather than from probabilities.
 
 .. _performance:
 
