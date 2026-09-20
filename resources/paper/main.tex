@@ -853,7 +853,7 @@ where $\mathbb{V}(l_0)$ and $\mathbb{V}(l_1)$ are the eigenvector matrices at pr
 
 (A varying medium is one reason for the eigenbases at the two ends to differ; \equ{averaged_varying} does not care what the reason is. If the mixing matrix is not unitary, because heavy states have been integrated out, its effective form can differ between the production and the detection process\ \cite{Antusch:2014woa, Blennow:2016jkn, Fong:2022oim}. And if the mixing parameters run with energy, and new physics brings that running into the range an experiment spans, then production and detection at different energies see two evaluations of one matrix\ \cite{Antusch:2003kp, Antusch:2005gp, Bustamante:2010bf, Babu:2021cxe, Babu:2022non, Ge:2024ibn, Bustamante:2026zst}. Equation (\ref{equ:averaged_varying}) accommodates either case with $P^{\rm cross}$ the identity and the two matrices supplied directly. Presently, \magnus\ does not expose that: it computes both eigenbases from the one Hamiltonian it is given.)
 
-Section \ref{sec:solar} shows what this buys on the Sun, and Section \ref{sec:averaging_is_not_estimating} why averaging a scan over energy does not converge to the same number.
+Section \ref{sec:sun} shows what this buys on the Sun, and Section \ref{sec:averaging_is_not_estimating} why averaging a scan over energy does not converge to the same number.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -2977,8 +2977,6 @@ The two tables give the same averaged probability to about $10^{-3}$ at every en
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
 \subsection{A supernova shock front}
 \label{sec:shock}
 
@@ -2986,52 +2984,96 @@ The two tables give the same averaged probability to about $10^{-3}$ at every en
 \begin{figure*}[t!]
  \centering
  \includegraphics[width=\textwidth]{shock_probability.pdf}
- \caption{\label{fig:shock}Electron number density along a supernova ray, and the survival probability $P_{\nu_e \to \nu_e}$ it produces at $15$~MeV. {\it Top}: the density from $10^{4}$ to $8 \cdot 10^{4}$~km, carrying two fronts\ \cite{Schirato:2002tg, Fogli:2003dw}. The forward shock at $30\,323$~km is the outward-moving front itself. The contact discontinuity behind it, at $12\,348$~km, is the surface dividing the material the shock has swept up from the ejecta driving it, across which the density jumps but the pressure does not. A neutrino leaving the core meets the contact first. The left and right columns widen both jumps from $0.07$ to $70$~km and differ in nothing else; neither width exceeds $0.1\%$ of the ray, hence the insets. {\it Center}: the probability along the whole ray, computed with \magnus\ at ${\tt rtol} = 10^{-8}$ for four Hamiltonians. The ray is some $140$ oscillation lengths long, so the panel resolves the envelope and not the oscillation. The two columns agree bitwise until the wider contact ramp begins at $12\,313$~km, and differ by $0.22$ on average beyond it. {\it Bottom}: the same probability through a $\pm 75$~km window at the forward shock, where it is resolved, with the front marked by the dotted line and its extent shaded in the insets above. We omit two flavors: with only $\Delta m^2_{21}$ available at this energy it spans $0.998$ to $1.000$}
+ \caption{\label{fig:shock}Electron number density along a supernova ray, and the survival probability of a $15$-MeV $\nu_e$ along it. {\it Top}: the density from $10^{4}$ to $8 \cdot 10^{4}$~km. Two fronts sit on the ray: the forward shock at $30\,323$~km, where the density jumps by a factor of ten, and the contact discontinuity at $12\,348$~km, where it jumps by $2.5$. The two columns differ in one thing only, the width of both fronts: $0.07$~km on the left, $70$~km on the right. Neither width is visible on the scale of the ray, so the insets show the forward shock, with its extent shaded. {\it Center}: the probability along the whole ray, computed with \magnus\ at ${\tt rtol} = 10^{-8}$ for four Hamiltonians. The ray holds thousands of oscillation lengths of the pair split by $\Delta m^2_{31}$, so the panel resolves the envelope of the oscillation and not the oscillation itself. The two columns agree bitwise up to the contact discontinuity and part there. {\it Bottom}: the same probability through a $\pm 75$~km window at the forward shock, where the oscillation is resolved. Two flavors are not drawn: on $\Delta m^2_{21}$ alone the probability stays between $0.998$ and $1$ at this energy. The profile follows \cite{Schirato:2002tg, Fogli:2003dw}, with the radii of a simulation snapshot\ \cite{Kneller:2014oea}. Listing~\ref{lst:shock} generates the three-flavor curve of the left column. See notebooks \#14 and \#28, and Sec.~\ref{sec:shock} for details.}
 \end{figure*}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-Figure~\ref{fig:shock} shows a supernova ray, the probability along the whole of it, and the same probability resolved at the shock front, for two front widths that differ by three orders of magnitude and in nothing else. A shock sweeping outward through the envelope changes the adiabaticity of a level crossing and so leaves a signature in the neutrino signal\ \cite{Schirato:2002tg, Fogli:2003dw}. The ray carries two such crossings rather than one.
+Figure~\ref{fig:shock} shows a supernova ray, the survival probability of a $15$-MeV neutrino along it, and the same probability resolved at the shock front, for two front widths that differ by a factor of a thousand and in nothing else. The forward shock is the blast wave of the explosion, launched at core bounce and sweeping outward through the envelope: ahead of it the star is still undisturbed, with a density falling as $r^{-2.4}$, and behind it the matter it has swept up is compressed tenfold. The contact discontinuity, inside it, is the surface between that swept-up shell and the ejecta driving the shock from within; across it the pressure is continuous and the density is not. A neutrino leaving the core crosses the contact first, where the density drops by $2.5$, then the shocked shell, thinned by a rarefaction, then the forward shock, where the density drops tenfold. A shock sweeping outward changes the adiabaticity of a level crossing; the change leaves a signature in the neutrino signal\ \cite{Schirato:2002tg, Fogli:2003dw}. This ray carries two such crossings.
 
-Both the forward shock and the contact discontinuity behind it are declared to the refinement rather than left to be found, which is what Listing \ref{lst:shock} shows. Notebook \#14 follows the front outward and notebook \#18 collects the profiles that break a fixed grid. The pair of columns is also the cleanest demonstration in this paper that the boundary between a closed form and an integrator is a property of the \emph{problem} rather than of either code: here we move it by turning one dial.
+What the width of a front does is decided by the oscillation length at the front. The pair split by $\Delta m^2_{21}$ takes no part: at the densities on the ray, near $10^{27}$~cm$^{-3}$, the matter potential is fifty times its vacuum splitting, so that pair is pinned and two flavors barely oscillate here. The pair split by $\Delta m^2_{31}$ does take part, since the potential is comparable to its vacuum splitting, and its oscillation length is about 15~km at 15~MeV. A 0.07-km front is a small fraction of that length: the neutrino crosses it before its state can respond and arrives on the far side as a superposition of the new eigenstates. A 70-km front is a few oscillation lengths wide: the state follows the eigenstates as they rotate and stays in one of them. What changes between the columns is therefore the conversion probability itself, not the phase of an oscillation. At three flavors, the sharp fronts leave a mean survival near 0.8 beyond the forward shock and the wide ones near 0.2. The other Hamiltonians move by different amounts, the 3+2 case in the opposite direction. Each curve is the same call with a different Hermitian matrix.
+
+Listing~\ref{lst:shock} computes the three-flavor curve of the left column. Called without {\tt t\_breakpoints}, the same scan comes out wrong beyond the forward shock, by up to 0.25 in the probability, and \magnus\ says so:
+\begin{pysnip}
+P = oscprob.osc_prob_matter_std_potential(
+ 3, ne_shock, 15.0*gd.UNIT_MEV, Ls, osc,
+ L0=10000.0*gd.UNIT_KM, rtol=1.0e-8,
+ atol=1.0e-10, nu_i=gd.NUE, nu_f=gd.NUE,
+ density_is_of_number_of_electrons=True)
+# UnmarkedDiscontinuityWarning: the
+# Hamiltonian is discontinuous at the scale
+# of the grid this scan builds, and no
+# t_breakpoints were given.  A slab
+# straddling a density jump degrades the
+# quadrature no matter how many slabs are
+# used; pass t_breakpoints at the
+# discontinuities.
+\end{pysnip}
+Two tolerance warnings come with it, since the ladder ran out of slabs before it could certify the scan. A 0.07-km front lies between two nodes of whatever grid the ladder reaches, and a slab that straddles a jump degrades the quadrature however many slabs are used. The cure is to declare both fronts, as the positions where each begins and ends, so that slab edges fall there at every level of the ladder. That is the the difference between the call above and Listing~\ref{lst:shock}. 
+
+A scan of baselines at one energy goes to the cumulative engine, and declared breakpoints keep the adiabatic strategy of Sec.~\ref{sec:hybrid} out of the way in any case; the last line of the listing confirms which engine answered. Notebook \#14 checks the front against an independent integration; notebook \#18 collects the profiles that break a fixed grid. Section~\ref{sec:shock_comparison} measures what the width of the front costs.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\begin{lstlisting}[language=Python, caption={A shock front, declared. {\tt t\_breakpoints} names the positions at which the profile jumps, and the refinement puts slab edges there; for a front much narrower than the slabs themselves, pass its interior edges too, since a slab count grids the whole path uniformly rather than dealing slabs into the intervals the breakpoints create; without it a $0.07$~km front falls between two nodes of whatever grid the ladder happens to reach. It is not the same parameter as {\tt t\_slab\_edges}, which replaces the grid rather than seeding it. {\tt ne\_shock}, the radii and {\tt osc} are the shock model of \figu{shock}, built in notebook \#14.}, label={lst:shock}, float=tbp]
+\begin{lstlisting}[language=Python, caption={The three-flavor curve of the left column of \figu{shock}: a scan of $4\,000$ baselines along the ray at one energy, with both fronts declared. {\tt t\_breakpoints} names the positions where each front begins and ends, and the refinement puts slab edges there at every level. It is not {\tt t\_slab\_edges}, which replaces the grid instead of seeding it. {\tt ne\_shock} is the electron density of \figu{shock} as a function of position and {\tt osc} the oscillation parameters; both are built in notebook \#14. See Sec.~\ref{sec:shock} for details.}, label={lst:shock}, float=tbp]
+import numpy as np
 import magnus.oscprob as oscprob
 import magnus.globaldefs as gd
 
-# Where the density jumps, in natural units
-edges = [r_contact*gd.UNIT_KM,
- r_forward*gd.UNIT_KM]
+# Both fronts, 0.07 km wide, centered on the contact
+# discontinuity and on the forward shock: declare
+# where each begins and ends
+w = 0.07*gd.UNIT_KM
+edges = [r + s*w/2 for r in (12348.0*gd.UNIT_KM,
+ 30323.0*gd.UNIT_KM) for s in (-1.0, 1.0)]
 
+# 4000 baselines from 10,200 to 80,000 km, at one
+# energy: the cumulative engine answers
+Ls = np.linspace(10200.0, 80000.0, 4000)*gd.UNIT_KM
+info = {}
 P = oscprob.osc_prob_matter_std_potential(
- 3, ne_shock, 15.0*gd.UNIT_MEV, L, osc,
- t_breakpoints=edges,
- # A tolerance small enough to resolve the front
- rtol=1.0e-8, atol=1.0e-10,
- L0=0.0, nu_i=gd.NUE, nu_f=gd.NUE,
+ 3, ne_shock, 15.0*gd.UNIT_MEV, Ls, osc,
+ L0=10000.0*gd.UNIT_KM, t_breakpoints=edges,
+ rtol=1.0e-8, atol=1.0e-10, strategy_info=info,
+ nu_i=gd.NUE, nu_f=gd.NUE,
  density_is_of_number_of_electrons=True)
+info['engine']   # 'cumulative'
 \end{lstlisting}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-At a front width of $0.07$~km each jump is, on the scale of the oscillation length, a discontinuity: the probability changes character across a single point. Widened to $70$~km, nothing else altered, the same jump becomes a smooth function spanning half the window, across which the transition is gradual. We widen both jumps together, which is why the two columns already differ below the forward shock and not only at it. 
+A detector measures the survival probability averaged over its energy resolution. Two phases average out inside that resolution. One is the phase accumulated from the forward shock to the detector, hundreds to thousands of cycles at these energies. The other is the phase accumulated between the two fronts: a neutrino can change eigenstate at either crossing, so the two paths interfere, with an interference that cycles about once every ten keV of energy. In the Sun, \equ{averaged_varying} needed only the eigenbases at the two ends of the ray, since the passage was adiabatic with $P^{\rm cross}$ the identity. Here each front is crossed suddenly, so $P^{\rm cross}$ depends on the width of the front; with two crossings, the amplitudes of the two paths add before the modulus is taken. That sum carries the second phase. 
 
-The oscillation length that matters here is the local one. It is not the solar pair: on $\Delta m^2_{21}$ alone, two flavors barely oscillate at this energy. It is the pair split by $\Delta m^2_{31}$, whose length $4\pi E/\Delta m^2_{31}$ is some $15$~km at $15$~MeV, stretched a little by the matter term near the fronts to about $16$~km. At the densities there, $n_e \sim 10^{27}$~cm$^{-3}$, the potential is comparable to $\Delta m^2_{31}/2E$ and some fifty times $\Delta m^2_{21}/2E$, which is why the slower pair is pinned and the faster one is the one the front acts on. A $0.07$~km ramp is therefore crossed faster than the state can respond, which projects it onto the new eigenbasis; a $70$~km one is crossed slowly enough that the state follows the instantaneous eigenstate instead. What differs between the columns is therefore the conversion probability itself rather than the phase of an oscillation, which the two columns share.
-
-The wider contact ramp begins at $12\,313$~km. Past it the two columns differ by $0.22$ on average through the shocked region, the wider front leaving a mean survival of $0.91$ against $0.72$. Sweeping the width confirms both halves of that statement: the columns stay together for every ramp thinner than the local oscillation length, and part once it is reached. The width at which they part follows that length as we vary the energy, at $6.3$~km for $5$~MeV, $15.7$~km for $15$~MeV and $46.6$~km for $45$~MeV. Those are the local oscillation lengths themselves, and they grow linearly with the energy because $4\pi E/\Delta m^2_{31}$ does; nothing more than that formula is needed to reproduce them. It is the signature of a change in adiabaticity rather than of a resolution effect, whose width would not track the energy.
-
-Away from the two transitions the profiles are identical to the last bit, so nothing else in the figure can be responsible. The four scenarios drawn differ only in the Hermitian matrix handed to the same call. Two flavors barely oscillate here, since only $\Delta m^2_{21}$ is available to them at this energy; the others convert strongly, and the sterile system most of all.
-
-The question to ask of a profile is not what physics is in it but what it looks like at the scale of the oscillation length. A staircase belongs to a closed form and a smooth function to an integrator. The profile decides, and the same physical object can be either, depending on how well it is resolved. Section \ref{sec:shock_comparison} puts numbers to both halves of that.
+Thus, the correct call to make is with {\tt average=True} and the fronts declared:
+\begin{pysnip}
+P = oscprob.osc_prob_matter_std_potential(
+ 3, ne_shock, 15.0*gd.UNIT_MEV, Ls[-1], osc,
+ L0=10000.0*gd.UNIT_KM, t_breakpoints=edges,
+ average=True, nu_i=gd.NUE, nu_f=gd.NUE,
+ density_is_of_number_of_electrons=True)
+# PhaseAveragingWarning: average=True on a
+# profile with discontinuities has no closed
+# form, so the probability was propagated
+# across an energy window of +/-10.0% and
+# averaged over 41 samples.  This is the
+# average over that window, not the L/E ->
+# infinity limit, and it depends on the
+# window: the largest standard error of the
+# mean here is 4.47e-02.  Pass an explicit
+# width via magnus.avgprob.
+# averaged_probabilities_numerically if
+# the measurement has a known resolution.
+# P = 0.56
+\end{pysnip}
+The warning states what \magnus\ did. The two numbers in it are the defaults of {\tt magnus.avgprob}, named constants with their reasons in their docstrings: a half-width of $10\%$, the order of the energy resolution of a detector, which is what does the averaging in a measurement; and $41$ samples, spread evenly in $1/E$ so that they are spread evenly in phase, which put the error of the mean at a few percent, since each sample is a full propagation and the error falls only as the inverse square root of their number. Here that error is $0.04$. A caller with a known resolution passes it in place of the default.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\begin{figure*}[t!]
+\begin{figure}[t!]
  \centering
- \includegraphics[width=\textwidth]{astro_composition.pdf}
- \caption{\label{fig:astro}Flavor composition of an astrophysical neutrino flux at Earth, and the survival probabilities behind it, for five Hamiltonians. Such a flux arrives decohered, so what these panels carry is the phase-averaged limit of \equ{averaged} rather than a propagated probability. \emph{Top}: $\langle P_{\nu_\alpha \to \nu_\alpha}\rangle$ against energy. \emph{Bottom}: the flavor fractions reaching Earth from a pion-decay source, $1:2:0$, with the standard case repeated beneath each panel (gray, dashed) so that a departure from it is legible. We renormalize the $3+1$ and pseudo-Dirac fractions to the three active flavors, past the $13.3\%$ and $19.3\%$ of the flux their sterile states remove, since that share is not observed. In the pseudo-Dirac panel the second mass state alone carries a partner, split from it by $10^{-13}$~eV$^2$: pairing all three would halve every active-active probability by the same factor and leave the fractions untouched, so it is the \emph{uneven} suppression that moves them. The Lorentz-violating term grows linearly with energy (the $n = 1$ operator), and the dotted line marks where it equals the vacuum term, at $100$~TeV. The Earth case crosses the core, $\cos\theta_z = -1$}
-\end{figure*}
+ \includegraphics[width=\columnwidth]{shock_energy.pdf}
+ \caption{\label{fig:shock_energy}Phase-averaged survival probability of a $\nu_e$ at the end of the supernova ray of \figu{shock}, $80\,000$~km, against energy, with no shock and with the two front widths of that figure. Each point with a shock is the mean over an energy window of $\pm 10\%$, the average that {\tt average=True} returns on a profile with declared fronts; the bands are the standard errors of those means. Without a shock the passage is adiabatic and the survival stays at a few percent. With the fronts it rises to several tenths where the resonance of the pair split by $\Delta m^2_{31}$ sits inside the shocked shell, and returns to the no-shock value above $30$~MeV, where the resonance lies in undisturbed matter beyond the forward shock. See notebooks \#14 and \#28, and Sec.~\ref{sec:shock} for details.}
+\end{figure}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+Figure~\ref{fig:shock_energy} shows what the shock does to the energy spectrum. Without a shock, the survival probability is a few percent at every energy: the profile is smooth, so the passage is adiabatic and a $\nu_e$ leaves as $\nu_3$. With a shock, the survival rises to tens of percent between about 5 and 25~MeV, and falls back to the no-shock value above 30~MeV. That window is set by where the resonance density, a quantity that scales as $1/E$, falls on the profile. Above 30~MeV, it lies below the density on both sides of the forward shock, so the neutrino crosses it in the smooth matter outside, adiabatically. Between 6 and 25~MeV, it lies between the two sides of the forward shock, so the neutrino crosses it at the front in one step; the state is left in a superposition richer in $\nu_e$. Within that window, the sharp front gives the larger effect, because a 70~km ramp exceeds the oscillation length there, 10--25~km; the state partly follows it. Near 5~MeV, the resonance density also falls between the two sides of the contact discontinuity, so both fronts act. The outcome depends on both crossings and on the phase between them; there, the wide fronts give the larger survival.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \subsection{High-energy astrophysical neutrinos}
@@ -3213,6 +3255,11 @@ for j, alpha in enumerate(ALPHA):
         **kw) - P0
 \end{lstlisting}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsubsection{Geoneutrinos}
+\label{sec:geoneutrinos}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
