@@ -216,3 +216,46 @@ functions accept an arbitrary user-supplied Hamiltonian directly:
 
 See :doc:`architecture` for how these three relate to the ``osc_prob_{N}nu_*``
 functions above (they are, in fact, what those functions call internally).
+
+
+Returning the evolution operator
+-----------------------------------
+
+Every function above returns probabilities, which is what most observables
+need. Some need the amplitudes instead: the content of each mass eigenstate in
+the state that leaves a star, the flavor composition at a detector so far away
+that the phases have averaged, or any quantity built from a product of
+operators. For those, pass ``return_evolution_operator=True`` to any of the
+functions, and the call returns the pair ``(P, U)`` instead of ``P`` alone:
+
+.. code-block:: python
+
+    P, U = oscprob.osc_prob_3nu_matter_exp_density(
+        energy, L, 0.0, rho_central, l_scale,
+        density_matter_is_in_g_per_cm3=True,
+        return_evolution_operator=True)
+
+``P`` is exactly what the call returns without the keyword, so ``nu_i``, ``nu_f``
+and the batching over arrays keep their meaning. ``U`` is the evolution operator
+over the same interval, in the flavor basis, complex and unitary, with
+``U[final, initial]`` the amplitude from the initial to the final flavor, so that
+``P == abs(U)**2.T``; for arrays of points it has shape ``(n, d, d)``.
+
+The operator comes from the general Magnus ladder, the one engine that forms it.
+With the keyword set, the ladder compares the operator itself between refinement
+levels, at the same ``rtol`` and ``atol``, so what comes back is converged in its
+phases and not only in its moduli; the specialized engines of :doc:`engines`
+stand aside for the call, and a baseline scan that would otherwise take the
+cumulative traversal takes the per-point path instead. Two combinations are
+refused with an error, because no operator exists to return: ``average=True``,
+and ``strategy='hybrid'``.
+
+The phase-averaged content at a distant detector, from the operator, is then two
+lines:
+
+.. code-block:: python
+
+    content = abs(R.conj().T @ U)**2      # mass-state content, per initial flavor
+    P_far = abs(R)**2 @ content           # phases averaged on the way
+
+with ``R`` the mixing matrix in vacuum (``magnus.hamiltonians.pmns_mixing_matrix``).

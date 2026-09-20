@@ -123,9 +123,10 @@ engines in a fixed order, falling through on ``NotImplemented``:
        :data:`~magnus.oscprob.CUMULATIVE_AUTO_MIN_POINTS` points
      - cumulative scan
      - Every baseline is a prefix of the longest one
-   * - Otherwise
+   * - Otherwise, or whenever ``return_evolution_operator=True``
      - general Magnus ladder
-     - Always applicable; the one that is never skipped
+     - Always applicable; the one that is never skipped, and the only one
+       that forms the evolution operator
 
 Each row falls through to the next on ``NotImplemented``, so the last row is
 reached whenever nothing above it applies.

@@ -1415,6 +1415,9 @@ def test_no_wrapper_redeclares_standard_refinement_kwargs():
         'growth_factor_n_slabs', 'growth_factor_n_tpts_per_slab', 'max_num_loops',
         'min_n_slabs', 'max_n_slabs', 'min_n_tpts_per_slab', 'max_n_tpts_per_slab',
         'new_recursion_limit',
+        # Output selection rather than refinement, but the same rule: declared by the core
+        # and the entry points, reaching every wrapper through **kwargs.
+        'return_evolution_operator',
     }
     wrapper_pattern = re.compile(r'^osc_prob_[2345]nu_')
     offenders = {}
@@ -3132,3 +3135,183 @@ def test_a_downgoing_neutrino_reaches_a_buried_detector():
                               detector_depth=2.0*gd.UNIT_KM, nu_i=1, nu_f=1)
     assert P == pytest.approx(1.0, abs=1.0e-5)
     assert P < 1.0
+
+
+# ----------------------------------------------------------------------
+# return_evolution_operator: the pair (P, U) from every entry point
+# ----------------------------------------------------------------------
+
+def _operator_wrapper_names():
+    """Every per-flavor scenario wrapper.  The ``*_std`` functions are the closed-form
+    references of ``oscprobstd`` re-exported here; they take a mixing matrix, not a
+    profile, and are not entry points of the engine."""
+    import inspect
+    import re
+    return sorted(n for n in dir(op) if re.match(r'^osc_prob_[2345]nu_', n)
+                  and not n.endswith('_std') and inspect.isfunction(getattr(op, n)))
+
+
+def _operator_call(name, **extra):
+    """Call a wrapper on a small, resolvable configuration of its family, filling the
+    required positional arguments by name.  The Sun setting is one the general ladder
+    converges at the default slab cap for every flavor count (10 MeV over 0.05 solar
+    radii); half a solar radius at 10 MeV is not, at 3 or 4 flavors, and is answered
+    there by the hybrid engine instead."""
+    import inspect
+    import magnus.earth as earth
+    f = getattr(op, name)
+    sig = inspect.signature(f)
+    required = [p.name for p in sig.parameters.values()
+                if p.default is inspect._empty and p.kind is p.POSITIONAL_OR_KEYWORD]
+    fill = {'energy': 1.0*gd.UNIT_GEV, 'L': 2000.0*gd.UNIT_KM, 'L0': 0.0, 'rho': 3.0,
+            'rho_central': 5.0, 'l_scale': 1000.0*gd.UNIT_KM, 'sth': 0.3, 'Dm2': 2.5e-3}
+    kw = {}
+    if 'sun' in name:
+        kw.update(energy=10.0*gd.UNIT_MEV, L=0.05*gd.SUN_RADIUS*gd.UNIT_KM, L0=0.0)
+    elif 'earth' in name:
+        costhz = -0.8
+        kw.update(energy=fill['energy'], costhz=costhz,
+                  L=earth.distance_traveled_inside_earth(costhz)*gd.UNIT_KM)
+    for r in required:
+        kw.setdefault(r, fill[r])
+    if ('rho' in required) or ('rho_central' in required):
+        kw['density_matter_is_in_g_per_cm3'] = True
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        return f(**kw, **extra)
+
+
+def test_every_scenario_function_can_return_the_evolution_operator():
+    """The static half of the guarantee: a function either declares the keyword or forwards
+    ``**kwargs`` to one that does.  A wrapper that did neither would raise TypeError on the
+    keyword, and would be the only one in the family to do so."""
+    import inspect
+    names = [n for n in dir(op) if n.startswith('osc_prob') and not n.endswith('_std')
+             and inspect.isfunction(getattr(op, n))]
+    lacking = [n for n in names if not (
+        {'return_evolution_operator', 'kwargs'} & set(inspect.signature(getattr(op, n)).parameters))]
+    assert not lacking, lacking
+
+
+@pytest.mark.parametrize('name', _operator_wrapper_names())
+def test_return_evolution_operator_pair_is_consistent(name):
+    """The dynamic half, on every wrapper: the call returns the pair, ``P`` is the modulus
+    squared of ``U`` transposed, ``U`` is unitary, and ``P`` agrees with the plain call
+    within the requested tolerance.  Not bitwise: with the keyword the ladder compares
+    operators between levels and the specialized engines stand aside, so the accepted
+    level can differ from the plain call's."""
+    out = _operator_call(name, return_evolution_operator=True)
+    assert isinstance(out, tuple) and len(out) == 2, name
+    P, U = np.asarray(out[0]), np.asarray(out[1])
+    d = U.shape[-1]
+    assert U.shape == (d, d) and P.shape == (d, d), (name, P.shape, U.shape)
+    assert np.allclose(P, (np.abs(U)**2).T, atol=1e-12), name
+    assert np.max(np.abs(U.conj().T @ U - np.eye(d))) < 1e-8, name
+    P_plain = np.asarray(_operator_call(name))
+    assert np.max(np.abs(P - P_plain)) < 2e-3, (name, np.max(np.abs(P - P_plain)))
+
+
+def test_return_evolution_operator_shapes_follow_the_batching():
+    """Arrays of points give ``(n, d, d)`` operators; a single channel keeps ``P`` at one
+    number per point while ``U`` stays a full operator; scalars give ``(d, d)``."""
+    energies = np.array([1.0, 3.0, 10.0])*gd.UNIT_GEV
+    L = 2000.0*gd.UNIT_KM
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        P, U = op.osc_prob_3nu_matter_exp_density(
+            energies, L, 0.0, 5.0, 1000.0*gd.UNIT_KM, density_matter_is_in_g_per_cm3=True,
+            return_evolution_operator=True)
+        assert np.shape(P) == (3, 3, 3) and np.shape(U) == (3, 3, 3)
+        P1, U1 = op.osc_prob_3nu_matter_exp_density(
+            energies, L, 0.0, 5.0, 1000.0*gd.UNIT_KM, density_matter_is_in_g_per_cm3=True,
+            nu_i=gd.NUMU, nu_f=gd.NUE, return_evolution_operator=True)
+        assert np.shape(P1) == (3,) and np.shape(U1) == (3, 3, 3)
+        assert np.allclose(P1, np.asarray(P)[:, gd.NUMU, gd.NUE])
+        assert np.allclose(np.asarray(U1), np.asarray(U))
+        P0, U0 = op.osc_prob_3nu_matter_exp_density(
+            float(energies[0]), L, 0.0, 5.0, 1000.0*gd.UNIT_KM,
+            density_matter_is_in_g_per_cm3=True, return_evolution_operator=True)
+        assert np.shape(P0) == (3, 3) and np.shape(U0) == (3, 3)
+
+
+def test_return_evolution_operator_refuses_average_and_hybrid():
+    """The two combinations under which no operator exists to return raise, naming the
+    entry point, instead of being ignored."""
+    import magnus.earth as earth
+    costhz = -0.8
+    L = earth.distance_traveled_inside_earth(costhz)*gd.UNIT_KM
+    # The error names the entry point that dispatches, which for a thin wrapper is the
+    # middle-layer function it delegates to, as every error raised below it does.
+    for bad, word in ((dict(average=True), 'average'), (dict(strategy='hybrid'), 'hybrid')):
+        with pytest.raises(ValueError, match='osc_prob_matter_std_potential.*' + word):
+            op.osc_prob_3nu_earth(1.0*gd.UNIT_GEV, costhz=costhz, L=L,
+                                  return_evolution_operator=True, **bad)
+    with pytest.raises(ValueError, match='osc_prob_vacuum.*average'):
+        op.osc_prob_3nu_vacuum(1.0*gd.UNIT_GEV, 1000.0*gd.UNIT_KM, average=True,
+                               return_evolution_operator=True)
+
+
+def test_return_evolution_operator_bypasses_the_cumulative_traversal():
+    """A baseline scan at one energy would take the cumulative traversal, which walks a fixed
+    grid with no ladder.  With the keyword, every baseline takes the per-point ladder: one
+    operator per baseline, each agreeing with the same baseline computed alone."""
+    energy = 1.0*gd.UNIT_GEV
+    baselines = np.linspace(500.0, 5000.0, 12)*gd.UNIT_KM
+    kw = dict(density_matter_is_in_g_per_cm3=True, return_evolution_operator=True)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        P, U = op.osc_prob_3nu_matter_exp_density(energy, baselines, 0.0, 5.0,
+                                                  1000.0*gd.UNIT_KM, **kw)
+        assert np.shape(U) == (12, 3, 3)
+        for k in (0, 5, 11):
+            Pk, Uk = op.osc_prob_3nu_matter_exp_density(energy, float(baselines[k]), 0.0, 5.0,
+                                                        1000.0*gd.UNIT_KM, **kw)
+            assert np.max(np.abs(np.asarray(U)[k] - np.asarray(Uk))) < 2e-3
+            assert np.max(np.abs(np.asarray(P)[k] - np.asarray(Pk))) < 2e-3
+
+
+def test_return_evolution_operator_honors_breakpoints():
+    """On the piecewise profile of the declared-breakpoints test, the operator's moduli
+    reproduce the exact expm product as closely as the probabilities do."""
+    energy, l1 = 50.0e6, gd.L_SCALE_SUN
+    edges = np.array([0.0, 0.17, 0.41, 0.63, 0.88, 1.0])*l1
+    values = gd.NUM_DENSITY_E_SUN_CENTRAL*np.array([0.03, 0.21, 0.07, 0.30, 0.12])
+
+    def ne(l):
+        x = np.asarray(l, dtype=float)
+        idx = np.clip(np.searchsorted(edges, x, side='right') - 1, 0, len(values) - 1)
+        a = np.asarray(values[idx])
+        return a[()] if a.ndim == 0 else a
+
+    sth, Dm2 = gd.S12_NO_BF_NUFIT_6_0, gd.D21_NO_BF_NUFIT_6_0
+    h_vac = np.asarray(hams.hamiltonian_2nu_vacuum_energy_independent(sth, Dm2), dtype=complex)
+    proj = np.diag([1.0, 0.0]).astype(complex)
+    vcc = matter.vcc_func_from_rho_func(ne, 0.0, 1.0, 0.5, nubar=False,
+                                        density_matter_is_in_g_per_cm3=False,
+                                        density_is_of_number_of_electrons=True)
+    U_exact = np.eye(2, dtype=complex)
+    for a, b in zip(edges[:-1], edges[1:]):
+        H_m = (1.0/energy)*h_vac + float(np.asarray(vcc(0.5*(a + b))))*proj
+        U_exact = sp.linalg.expm(-1j*H_m*(b - a)) @ U_exact
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        P, U = op.osc_prob_matter_std_potential(
+            2, ne, energy, l1, {'sth': sth, 'Dm2': Dm2}, L0=0.0,
+            density_is_of_number_of_electrons=True, t_breakpoints=edges[1:-1],
+            return_evolution_operator=True)
+    assert np.max(np.abs(np.abs(np.asarray(U))**2 - np.abs(U_exact)**2)) < 1e-8
+    assert np.max(np.abs(np.asarray(P) - np.transpose(np.abs(U_exact)**2))) < 1e-8
+
+
+def test_return_evolution_operator_off_is_the_plain_call():
+    """Passing the keyword as False is the plain call, bit for bit."""
+    energies = np.array([1.0, 3.0]) * gd.UNIT_GEV
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        a = np.asarray(op.osc_prob_3nu_matter_exp_density(
+            energies, 2000.0*gd.UNIT_KM, 0.0, 5.0, 1000.0*gd.UNIT_KM,
+            density_matter_is_in_g_per_cm3=True))
+        b = np.asarray(op.osc_prob_3nu_matter_exp_density(
+            energies, 2000.0*gd.UNIT_KM, 0.0, 5.0, 1000.0*gd.UNIT_KM,
+            density_matter_is_in_g_per_cm3=True, return_evolution_operator=False))
+    assert np.array_equal(a, b)
