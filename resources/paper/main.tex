@@ -1772,7 +1772,7 @@ Assembling the Hamiltonian rarely means writing a matrix from scratch. \magnus\ 
 
 What this route does not do is batch: {\tt osc\_prob} takes one Hamiltonian and returns one matrix. A scan goes through {\tt osc\_ prob\_energy\_baseline}---the layer the wrappers call (\figu{layers})---which feeds it points one at a time. A scan of 200 energies costs 3.6~ms that way, thirty times what a wrapper takes.
 
-Calling {\tt osc\_prob} is the most general route: replacing the scalar {\tt V\_CC} by a function of position gives a varying profile, as in Sec.~\ref{sec:hamiltonians}; replacing the whole Hamiltonian matrix is illustrated in Secs.~\ref{sec:building_new_hamiltonian} and ~\ref{sec:arbitrary}.
+Calling {\tt osc\_prob} is the most general route: replacing the scalar {\tt V\_CC} by a function of position gives a varying profile, as in Sec.~\ref{sec:hamiltonians}; replacing the whole Hamiltonian matrix is illustrated in Secs.~\ref{sec:building_new_hamiltonian} and ~\ref{sec:lri_sun}.
 
 \subsubsection{Which to use}
 
@@ -1817,6 +1817,52 @@ U = U2 @ U1
 P = abs(U.T)**2       # Over both slabs, 2L
 \end{pysnip}
 The same probabilities come from one call over a two-slab profile with the edge declared through {\tt t\_breakpoints}, as in Listing~\ref{lst:edges}; the product above is what that call assembles internally. Section~\ref{sec:jet} uses the {\tt return\_evolution\_operator} flag and operator composition to first compute the mass-eigenstate content the neutrino flux that leaves a star, and then its flavor content at a detector on Earth.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsubsection{Asking for the averaged probability}
+\label{sec:average_keyword}
+
+Every function above also returns the phase-averaged limit of Sec.~\ref{sec:averaged}, with one keyword, {\tt average}. For a Hamiltonian that does not depend on position, {\tt average=True} returns \equ{averaged} from the eigenvectors of $\mathbb{H}$, one diagonalization per energy and no propagation at all. Where some pairs of eigenstates have not decohered over the baseline, it returns \equ{averaged_blocks} instead, grouping the pairs itself. In the context of Listing~\ref{lst:constant},
+\begin{pysnip}
+FAR = 1.0e8*gd.UNIT_KM   # Astrophysical L
+P = oscprob.osc_prob_3nu_vacuum(
+    E, FAR, average=True, **osc)
+# P[0, 0] = 0.5481, P[1, 0] = 0.2155: the
+# familiar sum_i |U_ei|^2 |U_mi|^2, from the
+# eigenvectors alone
+\end{pysnip}
+Whether a pair has averaged is decided from the baseline and the eigenvalue gap, not assumed. Asked at the $1\,000$~km of Listing~\ref{lst:constant} instead, the same call answers with a warning:
+\begin{pysnip}
+P = oscprob.osc_prob_3nu_vacuum(
+    E, L, average=True, **osc)   # 1000 km
+# PhaseAveragingWarning: the averaged
+# probability was requested at 1 of 1
+# (energy, L) point(s) where at least one
+# pair of eigenvalues has neither decohered
+# nor stayed coherent, so no averaged
+# expression describes it.  The oscillation
+# probability itself (average=False) is the
+# meaningful quantity there.
+# P[0, 0] = 1.0000; without the keyword,
+# the observable: 0.9924
+\end{pysnip}
+
+The keyword is neither a resolution effect nor a mean over an energy window: the first is a damping of each term of the probability that \magnus\ does not perform, the second an estimator that does not converge on a varying profile (Sec.~\ref{sec:averaging_is_not_estimating}). 
+
+For a Hamiltonian that varies along the path, {\tt average=True} returns \equ{averaged_varying}: the neutrino decoheres in the eigenbasis at production, is transported along the instantaneous eigenstates, with the Magnus patch of Sec.~\ref{sec:hybrid} across every crossing that is not adiabatic, then read out in the eigenbasis at detection. That route needs an instantaneous eigenbasis, so it applies to a profile without discontinuities. Where the profile declares them, through {\tt t\_breakpoints} or {\tt t\_slab\_edges}, there is no such basis. \magnus\ then propagates for real across a window in energy and averages, warning that this is a different quantity: an average over that window rather than the limit. A chord through the Earth is that case: the PREM layer boundaries are breakpoints.
+
+The keyword lives on every wrapper and scenario function, as well as on the direct route of Sec.~\ref{sec:wrapper_vs_direct}, {\tt osc\_prob\_energy\_baseline}, {\tt osc\_prob\_earth}, and {\tt osc\_prob\_sun}, so a custom Hamiltonian is averaged the same way as a shipped Hamiltonian, \ie,
+\begin{pysnip}
+H = H_vac/E + gd.VCC_EARTH_CRUST*proj
+P = oscprob.osc_prob_energy_baseline(
+    H, E, FAR, average=True)
+# P[0, 0] = 0.8926: Eq. (23) again,
+# now from the eigenvectors in matter
+\end{pysnip}
+There are two settings it does not combine with: {\tt osc\_prob} itself computes one point and refuses the keyword by name; and {\tt return\_evolution\_operator} (Sec.~\ref{sec:evolution_operator}) keeps the phases the average discards, so passing it with {\tt average} together raises. Which route answered is reported in {\tt strategy\_info['engine']} as {\tt 'average'} (Sec.~\ref{sec:which_engine}).
+
+Three later sections use the keyword: the Sun (Sec.~\ref{sec:sun}, Listing~\ref{lst:sun}), where \equ{averaged_varying} replaces a phase of $10^{5}$ radians that no panel could show; the flavor composition of TeV--PeV astrophysical fluxes (Sec.~\ref{sec:astro}), where \equ{averaged} is the whole observable; and a custom Hamiltonian on the direct route (Sec.~\ref{sec:lri_sun}). Section~\ref{sec:jet} is the case the keyword does not cover: there the coherence at production matters, so the averaging is done at Earth, from the evolution operator.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -2736,74 +2782,200 @@ P = oscprob.osc_prob_2nu_matter_exp_density(
 info['declined']    
 # [('hybrid',
 #   'the profile is not resolved at the probe scale')]
-info['engine']        # 'ip_exp'
-info['family']        # 'interaction-picture'
+info['engine']       # 'ip_exp'
+info['family']       # 'interaction-picture'
 \end{pysnip}
 Widening the scale height to $50$~km leaves the same call to the hybrid strategy, which now certifies its own answer:
 \begin{pysnip}
-# l_scale = 50.0*gd.UNIT_KM, everything else equal
-info['engine']        # 'hybrid'
-info['certified']     # True
-info['declined']      # []
+# l_scale = 50.0*gd.UNIT_KM, ceteris paribus
+info['engine']       # 'hybrid'
+info['certified']    # True
+info['declined']     # []
 \end{pysnip}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\subsection{The Sun }
+\subsection{The Sun}
 \label{sec:sun}
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \begin{figure}[t!]
  \centering
  \includegraphics[width=\columnwidth]{solar_averaged.pdf}
- \caption{\label{fig:solar}Phase-averaged survival probability of a solar neutrino, and the density profile that sets it. {\it Top}: the electron number density along a radial ray of the tabulated BS2005-AGS,OP solar model\ \cite{Bahcall:2004pz}, falling five orders of magnitude without a discontinuity anywhere to place a slab edge on. The marked densities are those of the Mikheyev--Smirnov--Wolfenstein resonance, $\sqrt{2} G_F n_e = \Delta m^2_{21}\cos 2\theta_{12}/2E$, at three energies: a $20$~MeV neutrino crosses it about a third of the way out, a $1$~MeV neutrino never does. {\it Center}: the phase-averaged survival probability of \equ{averaged_varying}, computed with \magnus\ at ${\tt rtol} = 10^{-8}$ for four Hamiltonians. The two sterile cases lie lowest, $3+2$ below $3+1$, because each extra state takes a share of the flux that does not return. {\it Bottom}: the deviation of each from the adiabatic limit built from the instantaneous eigenbases alone, which uses none of the averaging machinery and so serves all four.}
+ \caption{\label{fig:solar}Phase-averaged survival probability of a solar neutrino, and the density profile that sets it. The neutrino is born at the center of the Sun. {\it Top}: the electron number density along a radial ray of the BS2005-AGS,OP solar model\ \cite{Bahcall:2004pz}. The marked densities are those of the MSW resonance, $\sqrt{2} G_F n_e = \Delta m^2_{21}\cos 2\theta_{12}/2E$, at three energies: a $20$~MeV neutrino crosses it a third of the way out, a $1$~MeV neutrino never does. {\it Bottom}: the phase-averaged survival probability of \equ{averaged_varying}, computed with {\tt average=True} for four Hamiltonians on the same profile. The two sterile cases lie lowest, $3+2$ below $3+1$, because each extra state takes a share of the flux that does not return. Listing~\ref{lst:sun} generates the data. See notebooks \#10, \#13, and \#28, and Sec.~\ref{sec:sun} for details.}
 \end{figure}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-Figure~\ref{fig:solar} shows the solar electron density, the averaged survival probability it produces at four different Hamiltonians, and how far each of those is from the adiabatic limit. The Sun is the case that needs both the method of Section \ref{sec:method} and the observable of Section \ref{sec:averaged}. Its density falls smoothly by five orders of magnitude along a radial ray, with no discontinuity anywhere to align a slab edge to. A $5$~MeV neutrino leaving it accumulates $\Phi \approx 9 \cdot 10^{5}$ radians.
+Figure~\ref{fig:solar} shows the solar electron density from the BS2005-AGS,OP solar model\ \cite{Bahcall:2004pz}, and the averaged survival probability it produces for four Hamiltonians. The Sun needs both the method of Sec.~\ref{sec:method} and the observable of Sec.~\ref{sec:averaged}. Its density falls smoothly by five orders of magnitude along a radial ray, with no discontinuity anywhere to align a slab edge to. A 5-MeV neutrino accumulates a phase of order $10^{6}$ radians on the way out, so its survival probability at the surface runs through a full oscillation when the production point moves by a few kilometers or the energy by a few parts in a million. Neutrinos are produced over a region thousands of times wider than that; no detector resolves energy that finely either. Therefore, what a solar experiment measures is the average probability over the phase, \equ{averaged_varying}, with the eigenbasis of production taken at the center of the Sun and that of detection in vacuum, at its surface.
 
-The model is the tabulated BS2005-AGS,OP profile\ \cite{Bahcall:2004pz}, interpolated log-linearly in the electron number density: a real tabulated profile rather than an exponential fit (the case the method is for). Asked for the instantaneous probability, \magnus\ answers correctly, but the answer is not plottable---over the last few thousand kilometers of the ray it covers most of the unit interval, because the phase changes by thousands of radians across that stretch. That is why no panel of it appears in \figu{solar}. Asked with {\tt average=True} instead, \magnus\ returns \equ{averaged_varying} directly, for any of the four Hamiltonians drawn and without propagating at all. Listing \ref{lst:sun} is that call. Notebook \#13 works through the tabulated model itself, and notebook \#10 the averaged observable that a solar experiment reports.
+The energy dependence in the bottom panel of \figu{solar} is set by where the resonance density of the top panel sits relative to the density at production. The resonance density falls with energy as $1/E$. At 1~MeV, it lies above the central density, so the neutrino is born on the vacuum side of the resonance and stays there; its average is the vacuum value, about 0.55. At 20~MeV, the resonance sits a third of the way out. A neutrino born inside it is mostly the matter eigenstate that connects adiabatically to $\nu_2$, so it leaves the Sun as $\nu_2$; its average drops to $\lvert \mathbb{U}_{e2} \rvert^2 \approx 0.3$. 
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\begin{lstlisting}[language=Python, caption={The averaged solar probability, complete and runnable as it stands. The whole of the difference from an ordinary call is {\tt average=True}: it returns \equ{averaged_varying} from the instantaneous eigenbases, without propagating the phase it would otherwise have to average away. Forty energies take about $0.7$~s, against the ten minutes a solver needs to reach a tolerance at which its output is a probability at all. {\tt osc\_prob\_3nu\_sun} carries the tabulated solar model of \figu{solar} itself; to supply a profile of your own, hand $n_e(l)$ to {\tt osc\_prob\_matter\_std\_potential} instead, as notebook \#13 does.}, label={lst:sun}, float=tbp]
+The bottom panel shows the passage between the two regimes, over an energy range that spans the spectrum of neutrinos from $^8$B decay. Along the ray, the density changes slowly compared with the local oscillation length, so a neutrino stays in the eigenstate it was born in: $P^{\rm cross}$ in \equ{averaged_varying} is the identity, at every energy. What remains are the two eigenbases at the ends of the ray. The one at the surface is the vacuum mixing matrix, the same for any profile; the other end is inside the Sun, with a density given by where the neutrino is born. 
+% Section~\ref{sec:solar_model_comparison} shows what that implies for the choice of solar model.
+
+Listing~\ref{lst:sun} computes the four curves. The model is the tabulated BS2005-AGS,OP profile\ \cite{Bahcall:2004pz}, interpolated log-linearly in the electron number density and handed as a function of position to {\tt osc\_prob\_matter\_std\_potential} for the standard and sterile cases and to {\tt osc\_prob\_matter\_nsi} for the non-standard interactions. The only difference from an ordinary probability call is {\tt average=True} (Sec.~\ref{sec:average_keyword}). With it, \magnus\ does not propagate along the ray. Instead, it diagonalizes $\mathbb{H}$ at the two ends of the ray, verifies along the ray that the passage is adiabatic and that the levels have decohered by the surface, and contracts the two eigenbases as in \equ{averaged_varying}. Where a crossing fails the adiabatic test, it is bridged by the Magnus patch of Sec.~\ref{sec:hybrid}; on the Sun, none does. 
+
+In Listing~\ref{lst:sun}, between the four probability calls only the Hamiltonian changes. The cost of the calls follows the number of levels whose eigenvalues must be tracked, not the content of the Hamiltonian. The non-standard interactions add no levels to the standard three-flavor case, while each sterile state adds level pairs for the engine to test for adiabaticity and decoherence along the ray: three pairs at three flavors, six at $3+1$, ten at $3+2$. The four curves take about 1~s, 1~s, 2~s, and 3~s, respectively, over ninety energies.
+
+\begin{lstlisting}[language=Python, caption={The four averaged solar probabilities of \figu{solar}, complete and runnable as it stands given the BS2005-AGS,OP table\ \cite{Bahcall:2004pz}. The profile enters as a function of position, and the same keywords serve the four Hamiltonians. {\tt average=True} is the whole of the difference from an instantaneous call: it returns \equ{averaged_varying} from the eigenbases at the two ends of the ray, without propagating the phase it would otherwise have to average away. The four curves take about seven seconds. The B16-GS98 table of \figu{solar_models} loads with the same three columns. See notebooks \#10, \#13, and \#28, and Sec.~\ref{sec:sun} for details.}, label={lst:sun}, float=tbp]
 import numpy as np
 import magnus.oscprob as oscprob
 import magnus.globaldefs as gd
 
+# Columns r/R_sun, rho [g/cm^3] and X(H) of the
+# table; n_e = rho (1 + X)/(2 m_N), interpolated
+# log-linearly in the radius
+r, rho, X = np.loadtxt('bs05_agsop.dat',
+ skiprows=23, max_rows=1284, usecols=(1, 3, 6)).T
+r = r*gd.SUN_RADIUS*gd.UNIT_KM
+m_N = (gd.MASS_PROTON + gd.MASS_NEUTRON)/2
+log_ne = np.log(rho*gd.UNIT_G_PER_CM3*(1 + X)/(2*m_N))
+ne_sun = lambda l: np.exp(np.interp(l, r, log_ne))
+
 # The solar spectrum, 0.1 to 20 MeV
-E = np.logspace(-1.0, np.log10(20.0), 40) \
- *gd.UNIT_MEV
+E = np.logspace(-1.0, np.log10(20.0), 90)*gd.UNIT_MEV
 osc = gd.load_nufit_params('NuFIT 6.1')
 
-# Production at the center, out to the surface.
-# SUN_RADIUS is in km, so it needs UNIT_KM like
-# every other length; see the units rule.
-P = oscprob.osc_prob_3nu_sun(
- E, gd.SUN_RADIUS*gd.UNIT_KM, 0.0, **osc,
- average=True, nu_i=gd.NUE, nu_f=gd.NUE)
+# Shared by the four calls: from the center to the
+# last tabulated radius, nu_e to nu_e, the average
+run = dict(L0=0.0, nu_i=gd.NUE, nu_f=gd.NUE,
+ density_is_of_number_of_electrons=True,
+ average=True)
 
-# P = 0.5403 at 0.1 MeV, 0.2904 at 20 MeV
+# Standard three-flavor oscillations
+P3 = oscprob.osc_prob_matter_std_potential(
+ 3, ne_sun, E, r[-1], osc, **run)
+
+# The same, with non-standard interactions
+eps = dict(eps_ee=0.10, eps_em=0.05, eps_et=0.0,
+ eps_mm=0.0, eps_mt=0.03, eps_tt=0.0)
+P3_nsi = oscprob.osc_prob_matter_nsi(
+ 3, ne_sun, E, r[-1], osc, eps, **run)
+
+# One and two sterile states
+osc4 = dict(osc, s14=0.10**0.5, s24=0.10**0.5,
+ s34=0.0, D41=1.0, d14=0.0, d24=0.0)
+P4 = oscprob.osc_prob_matter_std_potential(
+ 4, ne_sun, E, r[-1], osc4, **run)
+osc5 = dict(osc4, s15=0.06**0.5, s25=0.06**0.5,
+ s35=0.0, D51=1.7, d15=0.0, d25=0.0, d35=0.0)
+P5 = oscprob.osc_prob_matter_std_potential(
+ 5, ne_sun, E, r[-1], osc5, **run)
+
+# P3 = 0.5449 at 0.1 MeV, 0.2993 at 20 MeV
 \end{lstlisting}
+
+Without the {\tt average} keyword, the same call returns the instantaneous probability at the surface. That answer is correct but not plottable: over the last few thousand kilometers of the ray, the probability fluctuates over most of [0,1], because the phase changes by thousands of radians across that stretch:
+\begin{pysnip}
+dL = np.array([0, 50, 100])*gd.UNIT_KM
+L = r[-1] - dL
+P = oscprob.osc_prob_matter_std_potential(
+ 3, ne_sun, 5.0*gd.UNIT_MEV, L, osc,
+ L0=0.0, nu_i=gd.NUE, nu_f=gd.NUE,
+ density_is_of_number_of_electrons=True)
+# P = 0.053, 0.623, 0.490 in about 7 s
+\end{pysnip}
+Asked at the surface and 50 and 100~km inside it, for a 5-MeV neutrino, the three values span most of the unit interval, and the hybrid engine of Sec.~\ref{sec:hybrid} certifies each of them. That is why we do not show it in \figu{solar}. The wrapper {\tt osc\_prob\_3nu\_sun} takes the same keyword and carries an exponential fit to the solar density instead of a table (Sec.~\ref{sec:solar_model_comparison}).
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-The lowest panel measures the departure from adiabaticity, and it is worth being clear that this is a physical quantity rather than an error. Its reference is the adiabatic limit assembled from the instantaneous eigenbases alone: diagonalize $\mathbb{H}$ at production and at the surface, then contract the two sets of eigenvector magnitudes. That touches none of the machinery of Section \ref{sec:averaged}, so it serves all four scenarios rather than only the standard one, where it reduces to the textbook expression. All four agree with it to between $10^{-5}$ and $10^{-8}$ across $0.1$--$20$~MeV, which brackets the solar spectrum.
+\subsubsection{Varying the production point}
+\label{sec:sun_production_point}
 
-Computing all three flavors also lets us price the shortcut that most solar analyses take. The standard reduction decouples the third state up to its admixture and solves a two-flavor problem at an electron density rescaled by $\cos^2\theta_{13}$\ \cite{Kuo:1989qe}, giving $P^{3\nu}_{\nu_e \to \nu_e} = \sin^4\theta_{13} + \cos^4\theta_{13}\,P^{2\nu}_{\nu_e \to \nu_e}$. It is exact in vacuum but not in matter, where what it drops is more often quoted than measured. Running both sides on the same profile and the same parameters, we find the reduction low by $1.8 \cdot 10^{-4}$ in the median across $0.1$--$20$~MeV, rising monotonically with energy to $1.9 \cdot 10^{-3}$ at $20$~MeV, and holding a median of $8.7 \cdot 10^{-4}$ above $5$~MeV. The next-to-leading correction that removes most of this has been derived\ \cite{Lim:2002iz} and is not in general use. The discrepancy is far above what \magnus\ costs to avoid it. It is also a modeling error rather than a numerical one: no tolerance reaches it, because both sides are converged.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{figure}[t!]
+ \centering
+ \includegraphics[width=\columnwidth]{solar_production.pdf}
+ \caption{\label{fig:solar_production}Phase-averaged survival probability of a solar neutrino as a function of where it is produced, along the radial ray of \figu{solar}, at three energies, with and without the non-standard interactions (NSI) of \figu{solar}. The density is from the BS2005-AGS,OP solar model~\cite{Bahcall:2004pz}. Each curve rises from its value at the center to the vacuum value once the production point lies outside the resonance. The rise is centered on the radius where the resonance density of \figu{solar} meets the profile: a third of the way out at 20~MeV, a sixth at 5~MeV. At 1~MeV, the resonance lies above the central density, so the curve never leaves the vacuum side. The band marks where $90\%$ of the $^8$B neutrinos are made, in the same model. See notebooks \#10, \#13, and \#28, and Sec.~\ref{sec:sun} for details.}
+\end{figure}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+Figure~\ref{fig:solar_production} takes a different perspective: it moves the production point instead of the energy. At 20~MeV, a neutrino born inside $R_\odot/3$ leaves as $\nu_2$, with the average near $0.3$; born outside, it never meets the resonance and the average is the vacuum value. The step between the two sits at the radius where the resonance line of \figu{solar} crosses the profile; it moves inward as the energy drops, to about $R_\odot/6$ at 5~MeV. At 1~MeV, there is no transition step, since the resonance lies above the central density; what remains is a mild depression. Every point of the figure is one call with {\tt average=True}, like before, and a different {\tt L0}:
+\begin{pysnip}
+P = oscprob.osc_prob_matter_std_potential(
+ 3, ne_sun, 5.0*gd.UNIT_MEV, r[-1], osc,
+ L0=0.05*gd.SUN_RADIUS*gd.UNIT_KM,
+ average=True, nu_i=gd.NUE, nu_f=gd.NUE,
+ density_is_of_number_of_electrons=True)
+# P = 0.390, against 0.375 from the center
+\end{pysnip}
+At 5~MeV, moving the production point from the center to where the $^8$B neutrinos are made raises the average by 0.015.
+
+Figure~\ref{fig:solar_production} shows that, given that most $^8$B neutrinos are made around $0.05\,R_\odot$, and given their energies, they are born on the matter side of the resonance. This is why the high-energy end of \figu{solar} sits near 0.3. Non-standard interactions shift each curve by about 0.01, most where the step is. 
 
 \subsubsection{Probability averaging}
 \label{sec:averaging_is_not_estimating}
 
-A scan can also be averaged after the fact: compute the instantaneous probability across a window in energy and take its mean. That estimator does not converge.
+Given a scan of the instantaneous probability along the ray, one might try to reach the averaged observable of \figu{solar} by taking the mean of the scan over its last few oscillation lengths. On the Sun, that mean does not converge to anything. The density keeps falling across the window, and the averaged probability depends on the density, so a wider window averages more of the phase but also more of that change; there is no width at which the two separate. On the solar ray of \figu{solar}, at $5$~MeV, the mean moves by about $0.01$ as the window widens from six to fifty oscillation lengths, and it is still moving at the widest window we tried. The keyword {\tt average=True} takes no window: it evaluates the limit directly from the eigenbases at the two ends of the ray, as described in Sec.~\ref{sec:averaged}. At two flavors on a smooth exponential profile, where the textbook expression $\langle P_{\nu_e \to \nu_e}\rangle = \tfrac12 + \tfrac12\cos2\theta_m(l_0)\cos2\theta_m(l_1)$ holds exactly, with $\theta_m$ the mixing angle in matter at the two ends of the ray, the keyword reproduces it to machine precision across $1$--$20$~MeV.
 
-A finite-window mean is an estimator with a bias of its own, and on a profile whose density varies across the window that bias does not shrink as the window widens---because a wider window also averages over different matter conditions. Measured on the solar ray above, the window mean moves from $0.592$ to $0.602$ between six and forty-eight oscillation lengths, and is still moving at the widest window we tried. There is no width at which one can stop and claim convergence. Asked for the limit instead, and run at two flavors on a smooth exponential profile so that the closed form applies, \magnus\ reproduces the analytic adiabatic MSW expression $\langle P_{ee}\rangle = \tfrac12 + \tfrac12\cos2\theta_m(l_0)\cos2\theta_m(l_1)$ to $3 \cdot 10^{-16}$ across $1$--$20$~MeV, and matches it to $1.3 \cdot 10^{-5}$ on the full tabulated model where the analytic expression is itself an idealization. Forty averaged energies take about $0.7$~s.
+A scan along the ray has a second problem, and \magnus\ measures it on request. The scan samples an oscillation, and with fewer than two baselines per cycle it is aliased: each value is correct on its own, but a curve drawn through them is not the probability. When {\tt strategy\_info} is passed, the package reports how many cycles the trajectory holds and how many baselines a scan would need to resolve them. The averaged call fills the same report at no cost, since it runs no scan:
+\begin{pysnip}
+info = {}
+P = oscprob.osc_prob_matter_std_potential(
+ 3, ne_sun, 5.0*gd.UNIT_MEV, r[-1], osc,
+ strategy_info=info, **run)
+s = info['sampling']
+s['cycles_over_trajectory']   # 138314.1
+s['nyquist_points']           # 276630
+\end{pysnip}
+Between the center and the surface, the fastest pair of a 5-MeV neutrino goes through $138\,000$ cycles, and a scan that resolved them would need $277\,000$ baselines. On an Earth chord (Sec.~\ref{sec:prem}), the count is a few hundred; on a supernova ray (Sec.~\ref{sec:shock}), tens of thousands. The report is never turned into a warning, deliberately: nearly every realistic scan size fails the criterion, and a warning that fires on nearly every call is noise that users would learn to silence, together with the discontinuity warnings that share its category.
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-The obvious guard does not catch the related trap. \magnus\ reports, on request, how coarsely a scan samples the oscillation it is computing---the number of cycles per step, and how many points a Nyquist-adequate scan would need. On the trajectories this package serves those numbers are stark: an Earth chord is about $430$ oscillations long, a solar ray about $2\,200$, a supernova ray about $37\,000$; a Nyquist-adequate scan needs twice as many points as that. The measurement is \emph{reported and never warned about}, deliberately: the Nyquist criterion is objectively correct and would fire on $44$ of $45$ realistic scan sizes, and a warning firing on $98\%$ of calls is noise however right each firing is---and it would teach users to silence a category that also carries genuine discontinuity warnings.
+\subsubsection{Comparing against approximations}
+\label{sec:sun_compare_approx}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{figure}[t!]
+ \centering
+ \includegraphics[width=\columnwidth]{solar_approx.pdf}
+ \caption{\label{fig:solar_approx}Relative error of the two-flavor approximation to the averaged solar survival probability, $\langle P \rangle^{\rm approx}_{2\nu}$ of \equ{two_flavor_reduction}, with respect to the three-flavor result computed with \magnus, $\langle P \rangle_{3\nu}$, on the three solar density profiles of \figu{solar_models}. The approximation overestimates the probability at every energy, by an amount that grows in proportion to the energy. On the two tabulated models it reaches $0.6\%$ at $20$~MeV. On the exponential fit, whose central density is $2.4$ times higher, it is two to three times larger, and its curve leaves the panel above $10$~MeV. See notebook \#28 and Sec.~\ref{sec:sun_compare_approx} for details.}
+\end{figure}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+Solar analyses rarely solve the three-flavor problem. The standard shortcut\ \cite{Kuo:1989qe} reduces it to two flavors in two steps. First, the $1$--$2$ sector is solved on its own, as a two-flavor problem with $\theta_{12}$ and $\Delta m^2_{21}$, on an electron density scaled by $\cos^2\theta_{13}$. Second, $\theta_{13}$ is folded back in through
+\begin{equation}
+ \label{equ:two_flavor_reduction}
+ \langle P_{\nu_e \to \nu_e} \rangle
+ \simeq
+ \langle P \rangle^{\rm approx}_{2\nu}
+ \equiv
+ \sin^4\theta_{13} + \cos^4\theta_{13}\,\langle P^{2\nu}_{\nu_e \to \nu_e} \rangle \;.
+\end{equation}
+The reduction rests on $\Delta m^2_{31}$ being large compared with $\Delta m^2_{21}$ and with the matter potential, so that the third mass state decouples. In vacuum, \equ{two_flavor_reduction} is exact. In matter, it drops terms of relative size $2 E V_{\rm CC}/\Delta m^2_{31}$, about $0.1$ at the center of the Sun for a $20$~MeV neutrino, multiplying the admixture $\sin^2\theta_{13} \approx 0.02$ of the decoupled state. Analyses that use the reduction state that these terms are negligible; few evaluate them.
+
+Figure~\ref{fig:solar_approx} evaluates them on the three density profiles of \figu{solar_models}. The three-flavor result, $\langle P \rangle_{3\nu}$, is the numerical result of \magnus: {\tt P3} of Listing~\ref{lst:sun} for the BS2005-AGS,OP table, and the same call on the other two profiles. The two-flavor result is the same listing run at two flavors, but using \equ{two_flavor_reduction}:
+\begin{pysnip}
+# The 1-2 sector on the rescaled density
+c13 = 1.0 - osc['s13']**2
+P2 = oscprob.osc_prob_matter_std_potential(
+ 2, lambda l: c13*ne_sun(l), E, r[-1],
+ dict(sth=osc['s12'], Dm2=osc['D21']),
+ **run)
+# Fold theta_13 back in
+P_approx = osc['s13']**4 + c13**2*P2
+(P_approx - P3)/P3   # 6e-3 at 20 MeV
+\end{pysnip}
+The approximation overestimates the probability at every energy, on every profile, and its relative error grows in proportion to the energy, as the size of the dropped terms does. On the two tabulated models, which agree here as they did in \figu{solar_models}, it is a few parts in $10^{5}$ at $0.1$~MeV, a few parts in $10^{4}$ at $1$~MeV, and $0.6\%$ at $20$~MeV. On the exponential fit it is two to three times larger, $2\%$ at $20$~MeV, because the fit's central density is $2.4$ times higher and the dropped terms grow with it.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \subsubsection{Comparing solar models}
 \label{sec:solar_model_comparison}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{figure}[t!]
+ \centering
+ \includegraphics[width=\columnwidth]{solar_models.pdf}
+ \caption{\label{fig:solar_models}Three descriptions of the solar electron density, and the averaged survival probability each produces. {\it Top}: the tabulated BS2005-AGS,OP\ \cite{Bahcall:2004pz} and B16-GS98\ \cite{Vinyoles:2016djt} standard solar models, and the exponential fit $n_e = 245\,N_A\,e^{-10.54\,r/R_\odot}$~cm$^{-3}$\ \cite{Giunti:2007ry}, with $N_A$ the Avogadro number, that {\tt osc\_prob\_3nu\_sun} carries, with the ratio of each to BS2005-AGS,OP underneath. The two tables agree to within a few percent; the fit is more than twice too dense at the center and several times too dense in the outermost layers. {\it Bottom}: $\langle P_{\nu_e \to \nu_e}\rangle$ at three flavors on each profile, with the difference from the BS2005-AGS,OP result underneath. The two tables give the same probability to about $10^{-3}$; the fit is low by up to $0.1$, in the middle of the $^8$B spectrum. See notebooks \#10, \#13, and \#28, and Sec.~\ref{sec:sun} for details.}
+\end{figure}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+Figure~\ref{fig:solar_models} compares the probabilities computed with three choices of solar density profile. Two are tabulated standard solar models, created a decade apart: BS2005-AGS,OP\ \cite{Bahcall:2004pz}, from 2004, used throughout this section, and B16-GS98\ \cite{Vinyoles:2016djt}, from 2016, with updated nuclear rates, equation of state, and opacities. The third is the exponential fit that textbooks quote\ \cite{Giunti:2007ry} and that {\tt osc\_prob\_3nu\_sun} carries built in. The two tables track each other to within a few percent over the inner half of the Sun and within ten percent over the outer half. The exponential fit is high by a factor of 2.4 at the center, where the real profile flattens, and high again by several times near the surface of the Sun, where the real profile plunges. (The B16-GS98 table loads with {\tt np.loadtxt(path, usecols=(1, 3, 6))}, the same three columns as in Listing~\ref{lst:sun} and no rows to skip; the rest of the listing is unchanged.)
+
+The two tables give the same averaged probability to about $10^{-3}$ at every energy, far below the precision of any solar measurement. The fit is low by up to 0.1 at a few MeV. The reason is in Sec.~\ref{sec:sun}: on an adiabatic passage, the averaged probability depends on the eigenbases at the two ends of the ray, and the far end is vacuum. What the Sun contributes is the density at the production point, which is exactly where the fit is worst. A profile more than twice too dense at the center moves the transition between the two regimes of \figu{solar} to energies lower by about the same factor. The two plateaus do not move: at low energy, the matter term is negligible for any profile; and at high energy, any profile dense enough at the center places the neutrino above the resonance. A curve shifted sideways between fixed plateaus differs most from the original where it is steepest, at a few MeV, which is where the probabilities differ.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -2907,6 +3079,11 @@ The fifth case is where \equ{averaged_blocks} is needed, though the figure itsel
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+\subsubsection{Long-baseline CP vs.~CPT confusion}
+\label{sec:lbl_confusion}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 \subsubsection{A cavity in the Earth's crust}
 \label{sec:cavity}
 
@@ -2914,7 +3091,7 @@ The fifth case is where \equ{averaged_blocks} is needed, though the figure itsel
 \begin{figure}[t!]
  \centering
  \includegraphics[width=\columnwidth]{cavity.pdf}
- \caption{\label{fig:cavity}Effect of a cavity in the Earth's crust on the $\bar{\nu}_e$ survival probability over a baseline of $1\,500$~km, computed with \magnus, after \Ref\ \cite{Arguelles:2012nw}. {\it Top}: the crust alone, uniform at $3.3$~g~cm$^{-3}$ with $Y_e = 0.5$. {\it Bottom}: the change that four cavities make to it, each centered on the baseline, with the density and width its label gives. The water cavity carries $Y_e = 0.555$, the other three $0.5$. The dashed line marks $49$~MeV, where the crust curve peaks. The beam of \Ref\ \cite{Arguelles:2012nw} spans $5$ to $150$~MeV; below $25$~MeV the oscillation is too rapid to draw at this width. Listing~\ref{lst:cavity} computes every curve. See notebook \#28 and Sec.~\ref{sec:cavity} for details.}
+ \caption{\label{fig:cavity}Effect of a cavity in the Earth's crust on the $\bar{\nu}_e$ survival probability over a baseline of $1\,500$~km, computed with \magnus, after \Ref\ \cite{Arguelles:2012nw}. {\it Top}: the crust alone, uniform at 3.3~g~cm$^{-3}$ with $Y_e = 0.5$. {\it Bottom}: the change that four cavities make to it, each centered on the baseline, with the density and width its label gives. The water cavity carries $Y_e = 0.555$, the other three 0.5. The dashed line marks 49~MeV, where the crust curve peaks. The beam of \Ref\ \cite{Arguelles:2012nw} spans 5--150~MeV; below 25~MeV, the oscillation is too rapid to draw. Listing~\ref{lst:cavity} computes every curve. See notebook \#28 and Sec.~\ref{sec:cavity} for details.}
 \end{figure}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -3121,7 +3298,7 @@ To be clear, no neutrino telescope resolves any of this structure. While the Sun
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\subsubsection{Oscillations in an astrophysical relativistic jet}
+\subsubsection{Astrophysical relativistic jet}
 \label{sec:jet}
 
 Gamma-ray bursts are the relativistic jets that some massive stars launch as they collapse. Shells of plasma ejected by the central engine collide with one another along the jet; protons accelerated at those collisions make neutrinos of TeV to PeV energies\ \cite{Bustamante:2014oka}. The jet itself does change their flavor composition: at the radii where the collisions happen, $10^{13}$--$10^{15}$~cm, its density is around $10^{-11}$~g~cm$^{-3}$, nine orders of magnitude below the density at which a TeV neutrino resonates; the phase that the jet matter adds to the evolution is only $10^{-4}$. Matter effects arise only while the jet is still inside the star, in the choked jets that never break out and in the precursor phase of the jets that do\ \cite{Mena:2006eq, Razzaque:2009kq, Sahu:2010ap, Varela:2014mma, Xiao:2015gea}. The neutrinos then cross the stellar envelope. Its density falls from about 1~g~cm$^{-3}$ at the head of the jet to zero at the surface; somewhere along, neutrinos between $100$~GeV and $100$~TeV meet their 1-3 resonance. At the low energy end, the crossing is adiabatic and the neutrino leaves the star in a mass eigenstate; at the high end, it is not: the flavor content then survives. Therefore, the flavor ratios at Earth depend on the neutrino energy, in a way that reflects the density profile of the star\ \cite{Razzaque:2009kq, Xiao:2015gea}.
@@ -3251,55 +3428,15 @@ Each envelope costs a few minutes for the energies drawn and the eight productio
 \subsubsection{Long-range interactions in the Sun}
 \label{sec:lri_sun}
 
-Everything above goes through named wrappers. Each assembles a Hamiltonian and hands it to {\tt osc\_prob}; a caller who already has one can skip that first step. Listing \ref{lst:arbitrary} does exactly that, passing a Hamiltonian the package knows nothing about, which is the escape hatch and also the design.
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\begin{lstlisting}[language=Python, caption={\magnus\ with an arbitrary, user-supplied Hamiltonian, here the long-range $L_e - L_\mu$ interaction of \equ{h3_lri} sourced by the electrons of the Sun. The profile and $V_{\rm CC}$ are the solar model of \figu{solar}; only $V_{e\mu}$ is new, and what it costs the caller is three lines---the potential, the charge matrix $\mathbb{Q}$, and the extra term inside {\tt H\_func}. The {\tt [..., None, None]} is what lets one call evaluate the Hamiltonian at every quadrature node of every slab at once; written to take a scalar, the same function returns bit-identical numbers more slowly, one call per node instead of one per slab. {\tt long\_range\_potential}, {\tt vcc\_sun} and the solar grids are built in notebook \#19, which derives the potential and checks it against a closed form; this listing is the last two cells of it.}, label={lst:arbitrary}, float=tbp]
-import numpy as np
-import magnus.avgprob as avgprob
-import magnus.globaldefs as gd
-import magnus.hamiltonians as hamiltonians
-
-# Energy-independent; H_func divides by E below
-h_vac = hamiltonians.\
- hamiltonian_3nu_vacuum_energy_independent(**osc)
-# V_CC reaches nu_e only
-e00 = np.diag([1.0, 0.0, 0.0])
-
-# V_emu [eV] on the solar radial grid, from the
-# Yukawa integral of Eq. (21) over the same n_e(r)
-# the matter term reads, so the two potentials
-# cannot disagree about the electron distribution
-v_emu = g2*long_range_potential(r, n_e, 1.0/R_SUN)
-
-# nu_e and nu_mu carry opposite charge, nu_tau none
-q = np.diag([1.0, -1.0, 0.0])
-
-def H_func(l):
- VCC = np.asarray(vcc_sun(l))
- return (h_vac/energy
- + VCC[..., None, None]*e00
- + np.interp(l, r, v_emu)[..., None, None]*q)
-
-# Center to surface; [0] is the single energy
-P = avgprob.averaged_probabilities_adiabatic(
- H_func, 0.0, R_SUN)[0]
-\end{lstlisting}
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \begin{figure}[t!]
  \centering
  \includegraphics[width=\columnwidth]{solar_long_range.pdf}
- \caption{\label{fig:solar_lri}Phase-averaged solar survival probability under a gauged $L_e - L_\mu$ symmetry. The sketch above the panels shows what each mediator range lets a neutrino feel: one born inside $0.1\,R_\odot$ leaves along the ray drawn, and the discs are the electrons within $1/m$ of it as it goes, so the charged-current case carries none, $1/m = R_\odot/10$ carries a narrow tube, and $1/m = R_\odot$ reaches most of the Sun at once and past its surface. \emph{Top}: $\langle P_{\nu_e \to \nu_e}\rangle$ along a radial ray of the same BS2005-AGS,OP model as \figu{solar}, with and without a long-range potential sourced by the Sun's own electrons, at two mediator ranges. We fix the coupling separately for each, so that the new potential is a tenth of $V_{\rm CC}$ at the center in both cases; what differs is its shape along the ray: at half a solar radius the longer-ranged one still stands at $2.5$ times $V_{\rm CC}$ where the shorter has fallen to $0.4$. \emph{Bottom}: the difference from the standard case, reaching $0.021$ and $0.018$.}
+ \caption{\label{fig:solar_lri}Phase-averaged survival probability of a solar neutrino under a long-range $L_e - L_\mu$ interaction sourced by the electrons of the Sun. \textit{Top:} what each mediator range lets the neutrino feel. A $\nu_e$ born inside $0.1\,R_\odot$ leaves along the ray drawn; the discs are the electrons within $1/m$ of it as it goes. The charged-current potential is local and carries no disc; at $1/m = R_\odot/10$ the neutrino feels a narrow tube; at $1/m = R_\odot$ it feels most of the Sun at once, and past the surface. \textit{Middle:} $\langle P_{\nu_e \to \nu_e}\rangle$ along a radial ray of the BS2005-AGS,OP model of \figu{solar}, without the new potential and with it at the two ranges. The coupling is fixed separately for each range so that $V_{e\mu}$ is a tenth of $V_{\rm CC}$ at the center; the two curves then differ only through the shape of the potential along the ray. \textit{Bottom:} the difference from the standard case. See notebooks \#19 and \#28 and Sec.~\ref{sec:lri_sun} for details.}
 \end{figure}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-Two properties govern how one should be written. The first is that the engine samples the Hamiltonian at every quadrature node of every slab (a few hundred positions for a single probability, repeated at each refinement level) so a function that accepts only one position at a time turns that into a Python loop. \magnus\ probes the function once, verifies a vectorized evaluation against a scalar spot-check, and uses whichever form works; the fallback is correct and $4.6$ times slower, with bit-identical output, and it says so once per session and names the fix. The {\tt [..., None, None]} in Listing \ref{lst:arbitrary} is the whole of that fix. The second is that a Hamiltonian which ignores its argument is detected separately and routed to the constant-Hamiltonian engine, so the easiest case there is does not take the slowest path available.
-
-Figure~\ref{fig:solar_lri} puts one such Hamiltonian to work on the solar ray of Section \ref{sec:sun}, at two mediator ranges, and draws the difference each makes to the averaged survival probability. Nothing in the package anticipates the new term, and nothing needs to: the same averaging machinery of Section \ref{sec:averaged} answers, because it never asked what the Hamiltonian contained.
-
-\textit{The interaction.}---The example is a long-range neutrino-electron interaction, made possible by a new light neutral gauge boson $Z^\prime$ from gauging the anomaly-free combination $L_e - L_\mu$\ \cite{He:1990pn, Foot:1994vd}, with $L_e$ and $L_\mu$ the electron and muon lepton numbers. The charge under it, $Q \equiv L_e - L_\mu$, is $+1$ for the electron and $\nu_e$, $-1$ for the muon and $\nu_\mu$, and zero for every other Standard-Model field. A new matter potential sourced by electrons therefore enters the Hamiltonian,
+This example adds to the Hamiltonian a term that \magnus\ does not ship, written as Sec.~\ref{sec:building_new_hamiltonian} describes, then carries it through the same averaging machinery as the standard solar case of Sec.~\ref{sec:sun}. The term comes from gauging $L_e - L_\mu$, the difference of the electron and muon lepton numbers, an anomaly-free combination that admits a new light gauge boson $Z'$ that acts as a new mediator\ \cite{He:1990pn, Foot:1994vd}. The charge $Q \equiv L_e - L_\mu$ is $+1$ for the electron and $\nu_e$, $-1$ for the muon and $\nu_\mu$, zero for every other field of the Standard Model, so the electrons of a body source a potential that the three neutrino flavors feel differently, via the Hamiltonian
 \begin{equation}
  \label{equ:h3_lri}
  \mathbb{H}^{\rm LRI}(E, l)
@@ -3307,23 +3444,127 @@ Figure~\ref{fig:solar_lri} puts one such Hamiltonian to work on the solar ray of
  \frac{\mathbb{A}}{E} + V_{\rm CC}(l)\,\mathbb{P}
  + V_{e\mu}(l)\,{\rm diag}\left(1, -1, 0\right) \;,
 \end{equation}
-where the first two terms are the vacuum and charged-current matter terms of Section \ref{sec:recap} and the third is the whole of the modification, supplied by the caller as one more additive matrix.
+where the first two terms are the vacuum and charged-current matter terms of Sec.~\ref{sec:recap}; the third is the modification.
 
-\textit{A non-local potential.}---Under $L_e - L_\mu$ an electron sources a Yukawa potential centered on its position, so what a neutrino at $\mathbf{r}$ feels is an integral over the electrons around it,
+The new potential is non-local. An electron sources a Yukawa potential centered on its own position, so a neutrino at $\mathbf{r}$ feels an integral over the electrons around it,
 \begin{equation}
  \label{equ:yukawa}
  V_{e\mu}(\mathbf{r})
  =
  \frac{g^{\prime 2}}{4\pi}
  \int d^3r^\prime \, n_e(\mathbf{r}^\prime) \,
- \frac{e^{-m_{Z^\prime} \lvert \mathbf{r} - \mathbf{r}^\prime \rvert}}
+ \frac{e^{-m \lvert \mathbf{r} - \mathbf{r}^\prime \rvert}}
       {\lvert \mathbf{r} - \mathbf{r}^\prime \rvert} \;,
 \end{equation}
-with $g^\prime$ the new gauge coupling. Where $V_{\rm CC}$ reads the density at the neutrino's own position, \equ{yukawa} is \emph{non-local}: at mediator masses light enough to matter its value at any radius is an integral over the whole electron distribution, so it depends on how many electrons there are and only weakly on where they sit\ \cite{Wise:2018rnb}. Its variation along a trajectory is a matter of geometry rather than of the local density.
+with $g^\prime$ the new gauge coupling and $m$ the mediator mass. Where $V_{\rm CC}$ reads the density at the neutrino's own position, \equ{yukawa} reaches every electron within about $1/m$ of it. At mediator masses light enough for that range to span the body, the potential depends on how many electrons the body holds and only weakly on where they sit\ \cite{Wise:2018rnb}. For a spherical body, like the Sun, the angular integral is elementary; \equ{yukawa} then splits into an interior and an exterior piece,
+\begin{equation}
+ \label{equ:yukawa_1d}
+ \begin{split}
+ V_{e\mu}(r)
+ = {} &
+ \frac{g^{\prime 2}}{r}\, e^{-m r}
+ \int_0^{r} dr^\prime\, r^{\prime 2}\, n_e(r^\prime)\, {\rm shc}(m r^\prime) \\
+ & + g^{\prime 2}\, {\rm shc}(m r)
+ \int_r^{R_\odot} dr^\prime\, r^\prime\, n_e(r^\prime)\, e^{-m r^\prime} \;,
+ \end{split}
+\end{equation}
+with ${\rm shc}(x) \equiv \sinh(x)/x$ and $m \equiv m_{Z'}$. Both integrals run over the density profile, so one pass over the table of densities of a solar model serves every position along the ray. The form also holds for a massless mediator: as $m \to 0$, both ${\rm shc}$ and the exponential tend to 1, leaving the Coulomb-like potential of the electrons enclosed within $r$ and of those outside it. Notebook \#19 derives \equ{yukawa_1d} and checks its evaluation against the closed form that a uniform ball has at any mediator mass.
 
-That is what makes the Sun a sharper test of it than the Earth. The solar density falls by five orders of magnitude along the ray, so $V_{\rm CC}$ and $V_{e\mu}$ fall at quite different rates, and the shape of the new potential---not merely its size---is what the observable responds to. We fix the coupling separately for each mediator range so that both put $V_{e\mu}$ at a tenth of $V_{\rm CC}$ at the center; what then differs between the two curves is that shape alone. At half a solar radius the longer-ranged potential still stands at $2.5$ times $V_{\rm CC}$ where the shorter has fallen to $0.4$.
+Listing~\ref{lst:arbitrary} is the calculation behind \figu{solar_lri}. The electron density is the BS2005-AGS,OP table of \figu{solar}. The potential is \equ{yukawa_1d} on that table at two mediator ranges, $1/m = R_\odot$ and $R_\odot/10$, \ie, $m  = 2.8 \cdot 10^{-16}$ and $2.8 \cdot 10^{-15}$~eV, respectively. The coupling is fixed separately for each so that $V_{e\mu}$ is a tenth of $V_{\rm CC}$ at the center. What then differs between the two is only the shape of the potential along the ray. The Sun makes that difference large: its electron density falls by five orders of magnitude from the center to the surface, so $V_{\rm CC}$ falls with it, while $V_{e\mu}$, an integral over the whole body, does not. With the objects of the listing, at half a solar radius,
+\begin{pysnip}
+half = np.searchsorted(r, 0.5*R_SUN)
+v_emu[1.0][half]/vcc[half]     # 2.49
+v_emu[0.1][half]/vcc[half]     # 0.38
+\end{pysnip}
+The longer-ranged potential is about $2.5\,V_{\rm CC}$ and the shorter-ranged one, $0.4\,V_{\rm CC}$. Both started at $0.1\,V_{\rm CC}$ at the center, so both have fallen less steeply than $V_{\rm CC}$ itself. At the surface, where $V_{\rm CC}$ has all but vanished, the shorter-ranged potential is $6\,V_{\rm CC}$ and the longer-ranged one, $10^3\,V_{\rm CC}$. The sketch atop \figu{solar_lri} shows why: at $1/m = R_\odot$ the neutrino feels most of the Sun at once, wherever it is.
 
-The two shift the averaged probability by up to $0.021$ and $0.018$ across $0.1$--$20$~MeV, and they are not a rescaling of one another: the shorter range samples the profile where it falls fastest; its shift stays negative across the decade drawn, while the longer one changes sign near $8$~MeV. Both curves are computed with no expansion in $V_{e\mu}$, because the method does not care what the Hermitian matrix contains. Notebook \#19 develops the potential and checks it against a closed form where one exists.
+The Hamiltonian is one function returning the sum of the three terms, written to take an array of positions so that the engine evaluates it once per slab rather than once per quadrature node (Sec.~\ref{sec:cost}). The averaged probability comes from the same call that serves the standard case, since nothing in it asks what the Hamiltonian contains. At $10$~MeV,
+\begin{pysnip}
+i = np.argmin(abs(Es - 10.0*gd.UNIT_MEV))
+P_std[i]                      # 0.318
+P_lri[1.0][i], P_lri[0.1][i]  # 0.322, 0.311
+\end{pysnip}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{lstlisting}[language=Python, caption={Computing the data in \figu{solar_lri} with \magnus: the $L_e - L_\mu$ interaction of \equ{h3_lri} in the Sun. The electron density is read from the BS2005-AGS,OP table\ \cite{Bahcall:2004pz}; $V_{e\mu}$ is \equ{yukawa_1d} on that table, with the coupling fixed so that it is a tenth of $V_{\rm CC}$ at the center. The vacuum and matter terms come from the shipped builders; the new term is the one line written here. The averaged probability of \equ{averaged_varying} is the same {\tt average=True} the wrappers take, on the direct route. Notebooks \#19 and \#28 derive the potential and draw the figure.}, label={lst:arbitrary}, float=tbp]
+import numpy as np
+import magnus.globaldefs as gd
+import magnus.hamiltonians as hamiltonians
+import magnus.matter as matter
+import magnus.oscprob as oscprob
+
+osc = gd.load_nufit_params('NuFIT 6.1')
+
+# The BS2005-AGS,OP model: radius, density in g/cm3
+# and hydrogen mass fraction are columns 1, 3 and 6
+rows = [l.split() for l in open('bs05_agsop.dat')]
+tab = np.array([[float(x) for x in f] for f in rows
+                if len(f) == 12 and f[0][0].isdigit()])
+r = tab[:, 1]*gd.SUN_RADIUS*gd.UNIT_KM
+R_SUN = r[-1]                       # Table's last row
+m_N = 0.5*(gd.MASS_PROTON + gd.MASS_NEUTRON)
+n_e = tab[:, 3]*gd.UNIT_G_PER_CM3/m_N
+n_e = n_e*(1.0 + tab[:, 6])/2.0     # Electrons/nucleon
+vcc = matter.VCC_func(0.0, lambda l: 1.0)*n_e
+
+def vcc_sun(l):
+    """V_CC at l, log-linear between table rows."""
+    return np.exp(np.interp(l, r, np.log(vcc)))
+
+def cumulative(y, x):
+    """Running trapezoidal integral, zero at x[0]."""
+    steps = 0.5*(y[1:] + y[:-1])*np.diff(x)
+    return np.concatenate([[0.0], np.cumsum(steps)])
+
+def shc(x):
+    """sinh(x)/x, equal to 1 at the origin."""
+    x = np.asarray(x, dtype=float)
+    return np.divide(np.sinh(x), x, out=np.ones_like(x),
+                     where=(x != 0.0))
+
+def long_range_potential(r, n_e, m):
+    """Eq. (34): V_emu(r)/g'^2, spherical n_e."""
+    I_in = cumulative(r**2*n_e*shc(m*r), r)
+    I_out = cumulative(r*n_e*np.exp(-m*r), r)
+    I_out = I_out[-1] - I_out      # From r outward
+    r_safe = np.where(r > 0.0, r, 1.0e-30)
+    return np.exp(-m*r)*I_in/r_safe + shc(m*r)*I_out
+
+# Two mediator ranges.  g'^2 is fixed so that V_emu is
+# a tenth of V_CC at the center in both cases.
+v_emu = {}
+for frac in (1.0, 0.1):            # 1/m in R_sun
+    v = long_range_potential(r, n_e, 1.0/(frac*R_SUN))
+    v_emu[frac] = 0.1*vcc[0]/v[0]*v
+
+# The standard part from the shipped builders; the
+# new term is the only line written here
+h_vac = hamiltonians.\
+    hamiltonian_3nu_vacuum_energy_independent(**osc)
+q = np.diag([1.0, -1.0, 0.0])     # L_e-L_mu charges
+
+def H_lri(v):
+    """Eq. (32) with V_emu = v on r, as H(E, l)."""
+    def H(E, l):
+        h_matt = hamiltonians.hamiltonian_3nu_matter_td(
+            l, vcc_sun)
+        return (h_vac/E + h_matt
+                + np.interp(l, r, v)[..., None, None]*q)
+    return H
+Es = np.logspace(-1.0, np.log10(20.0), 70)*gd.UNIT_MEV
+
+def averaged(v):
+    """<P_ee> from the center to the surface, per E."""
+    return oscprob.osc_prob_energy_baseline(
+        H_lri(v), Es, R_SUN, 0.0, nu_i=gd.NUE,
+        nu_f=gd.NUE, average=True)
+
+P_std = averaged(0.0*vcc)
+P_lri = {frac: averaged(v_emu[frac]) for frac in v_emu}
+\end{lstlisting}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+Figure~\ref{fig:solar_lri} shows the average survival probability in an energy sweep from 0.1 to 20~MeV. Both potentials shift the averaged probability by up to 2\%, but they are not mere rescalings of one another. The shorter-ranged one samples the profile where it falls fastest and lowers the probability across the whole range. The longer-ranged one lowers it below about 9~MeV and raises it above, so at the top of the energy range the two curves sit on opposite sides of the standard one. 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -4257,7 +4498,7 @@ They are \emph{generated}: one script builds all of them, executes them, and ref
 \end{table*}}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\tabl{notebooks} lists them. Three carry more of this paper's content than the rest. Notebook \#28 produces every figure in it: the probabilities are computed as the notebook runs, except in the figures comparing this code against another, where every code's numbers---including this one's, where the timing has to be comparable---are read from data frozen in the repository. Notebook \#25 is the whole of Sections \ref{sec:performance} and \ref{sec:comparison}, including the parts not summarized there. Notebook \#13 is the tabulated solar model of Section \ref{sec:solar}, including the window-mean sweep that does not converge.
+\tabl{notebooks} lists them. Three carry more of this paper's content than the rest. Notebook \#28 produces every figure in it: the probabilities are computed as the notebook runs, except in the figures comparing this code against another, where every code's numbers---including this one's, where the timing has to be comparable---are read from data frozen in the repository. Notebook \#25 is the whole of Sections \ref{sec:performance} and \ref{sec:comparison}, including the parts not summarized there. Notebook \#13 is the tabulated solar model of Sec.~\ref{sec:sun}, including the window-mean sweep that does not converge.
 
 
 \end{document}
