@@ -15766,6 +15766,45 @@ ax.legend(loc='lower right', handlelength=1.8, ncol=2, columnspacing=1.0)
 corner(ax, r'Sun', loc='upper right', y=0.905)
 fig.subplots_adjust(left=0.20)
 save(fig, 'solar_production.pdf')'''),
+    md(r'''## Figure 5j --- the two-flavor approximation, priced
+
+Most solar analyses solve the 1-2 sector alone on a density scaled by $\cos^2\theta_{13}$
+and fold $\theta_{13}$ back in as $P^{3\nu} \simeq \sin^4\theta_{13} + \cos^4\theta_{13}\,P^{2\nu}$
+(Kuo & Pantaleone 1989).  Exact in vacuum; in matter it drops terms of relative size
+$2EV_{\rm CC}/\Delta m^2_{31}$ times the $\sin^2\theta_{13}$ admixture.  This cell evaluates
+them on the BS2005-AGS,OP ray of Figure 5: the two-flavor side is the same averaged call at
+two flavors on the rescaled density, the three-flavor side is the standard curve of Figure 5,
+read from its cache.'''),
+    code(r'''C13 = 1.0 - OSC['s13']**2   # cos^2 theta_13
+got = cached('solar_two_flavor',
+             ('solar two-flavor reduction', [float(e) for e in E_AVG], float(R_SUN),
+              profile_samples(lambda l: PER_NE*C13*ne_sun(l), R_SUN), sorted(OSC.items())),
+             lambda: dict(P2=np.asarray(quiet(
+                 oscprob.osc_prob_matter_std_potential, 2, lambda l: C13*ne_sun(l), E_AVG,
+                 R_SUN, dict(sth=OSC['s12'], Dm2=OSC['D21']), average=True,
+                 **COMMON)).tolist()),
+             what='the two-flavor solar curve on the rescaled density')
+P_2F = OSC['s13']**4 + C13**2*np.asarray(got['P2'])
+# The three-flavor side is the standard curve of Figure 5, from the same cache.
+blob = json.loads(MP_CACHE.read_text())
+P_3F = np.asarray(blob['solar_3_nu']['value']['P'])
+REL = (P_2F - P_3F)/P_3F
+for Emev in (0.1, 1.0, 5.0, 20.0):
+    k = int(np.argmin(np.abs(E_AVG/gd.UNIT_MEV - Emev)))
+    print('%5.1f MeV: two-flavor minus three-flavor %+.1e, relative %+.1e'
+          % (Emev, P_2F[k] - P_3F[k], REL[k]))
+print('the approximation lies above the three-flavor result at every energy: %s'
+      % bool(np.all(REL > 0.0)))'''),
+    code(r'''fig, ax = plt.subplots(figsize=(COL, 2.3))
+ax.loglog(E_AVG/gd.UNIT_MEV, REL, color=INK, lw=1.3)
+logx(ax); logy(ax); snug(ax, E_AVG/gd.UNIT_MEV); xticks_at(ax, (0.1, 0.3, 1, 3, 10, 20))
+ax.set_ylim(1e-5, 2e-2)
+ax.set_xlabel(r'Neutrino energy, $E$ [MeV]')
+ax.set_ylabel(r'$(\langle P\rangle_{2\nu} - \langle P\rangle_{3\nu})/\langle P\rangle_{3\nu}$',
+              fontsize=8.5)
+corner(ax, r'Sun', loc='upper left', x=0.035, y=0.94)
+fig.subplots_adjust(left=0.20)
+save(fig, 'solar_approx.pdf')'''),
     md(r'''### Figure 5b --- a Hamiltonian the package never heard of
 
 A gauged $L_e - L_\mu$ symmetry adds a long-range potential sourced by the electrons of the
