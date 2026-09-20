@@ -15659,7 +15659,9 @@ for key, color, label, lw, z, rr_m, ne_m, R_m, call, vcc in MODELS:
                      color=color, lw=lw, zorder=z)
 axr.axhline(1.0, color=INK, lw=0.7, zorder=1)
 logy(ax); ax.set_ylim(1e20, 3e26); ax.tick_params(labelbottom=False)
-ax.set_ylabel(r'Electron density, $n_e$ [cm$^{-3}$]', fontsize=8.0)
+# Centered a little below the panel's midpoint: the label is longer than the panel is
+# tall, and centered on it the closing bracket ran past the top edge of the figure.
+ax.set_ylabel(r'Electron density, $n_e$ [cm$^{-3}$]', fontsize=8.0, y=0.45)
 ax.legend(loc='lower left', handlelength=1.4)
 axr.set_yscale('log'); axr.set_ylim(0.4, 8.0)
 axr.yaxis.set_major_locator(FixedLocator([0.5, 1, 2, 5]))
