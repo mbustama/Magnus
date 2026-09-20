@@ -15573,8 +15573,10 @@ save(fig, 'solar_averaged.pdf')'''),
     md(r'''### Figure 5b --- a Hamiltonian the package never heard of
 
 A gauged $L_e - L_\mu$ symmetry adds a long-range potential sourced by the electrons of the
-Sun itself. Nothing about it is built in: it is a callable returning a Hermitian matrix,
-which is the whole of the interface.'''),
+Sun itself. Nothing about it is built in: the Hamiltonian is a callable returning a Hermitian
+matrix, the vacuum and matter terms from the shipped builders plus the new term, and the
+averaged probability comes from `average=True` on the direct route,
+`osc_prob_energy_baseline`, the same keyword the wrappers take.'''),
     code(r'''# ------------------------------------------------ Figure 5b: L_e - L_mu in the Sun
 def running_integral(y, x):
     """Trapezoidal running integral of y over x, zero at the first node."""
@@ -15620,30 +15622,42 @@ for frac, _, _ in LR_RANGES:
              / float(PER_NE*ne_sun(0.5*R_SUN))))
 
 
-def H_lr(E, frac=None):
-    """Standard three-flavor solar Hamiltonian, with a long-range term or without."""
-    def f(l):
-        v = float(PER_NE*ne_sun(l))
-        h = HV3/E + v*P3
+def vcc_sun(l):
+    """V_CC along the ray, on the tabulated model; takes an array of positions."""
+    return PER_NE*ne_sun(l)
+
+
+def H_lr(frac=None):
+    """The solar Hamiltonian as H(E, l): the vacuum and matter terms from the shipped
+    builders, plus the long-range term when a mediator range is given.  Written for an
+    array of positions, so the engine evaluates it once per slab."""
+    def f(E, l):
+        h = HV3/E + hamiltonians.hamiltonian_3nu_matter_td(l, vcc_sun)
         if frac is not None:
-            h = h + float(G2[frac]*np.interp(l, x_solar, V_LR[frac]))*LR_CHARGE
+            v = G2[frac]*np.interp(l, x_solar, V_LR[frac])
+            h = h + np.asarray(v)[..., None, None]*LR_CHARGE
         return h
     return f
 
 
 E_LR = np.logspace(np.log10(0.1), np.log10(20.0), 70)*gd.UNIT_MEV
-avg = lambda H: avgprob.averaged_probabilities_adiabatic(H, 0.0, R_SUN)[0][0, 0]
 
 
 def _lri_sweep():
-    out = {'std': [avg(H_lr(e)) for e in E_LR]}
+    # average=True on the direct route: the closed form, the adiabatic transport or the
+    # window average, decided from the Hamiltonian, exactly as behind the wrappers.
+    def sweep(frac):
+        return np.asarray(quiet(oscprob.osc_prob_energy_baseline, H_lr(frac), E_LR, R_SUN,
+                                0.0, nu_i=gd.NUE, nu_f=gd.NUE, average=True)).tolist()
+    out = {'std': sweep(None)}
     for frac, _, _ in LR_RANGES:
-        out['%g' % frac] = [avg(H_lr(e, frac)) for e in E_LR]
+        out['%g' % frac] = sweep(frac)
     return out
 
 
 _got = cached('solar_long_range',
-              ('lri', [float(e) for e in E_LR], float(R_SUN), [f for f, _, _ in LR_RANGES],
+              ('lri', 'average=True on osc_prob_energy_baseline', [float(e) for e in E_LR],
+               float(R_SUN), [f for f, _, _ in LR_RANGES],
                {'%g' % f: float(G2[f]) for f, _, _ in LR_RANGES}, sorted(OSC.items())),
               _lri_sweep, what='the long-range solar sweep')
 P_std = np.asarray(_got['std'])

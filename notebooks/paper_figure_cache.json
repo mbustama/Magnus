@@ -159273,7 +159273,7 @@
   "seconds": 4.4
  },
  "solar_long_range": {
-  "fingerprint": "34e631687271e3164be39a102c59e62395980c624455ea60d297dc6cfdd0c0f5",
+  "fingerprint": "280de6cd063e5792fbc9c1ef518dd3d4e27a8f6ee3f04515f639a1dc354208b2",
   "value": {
    "std": [
     0.5449462953410618,
@@ -159494,8 +159494,8 @@
   },
   "what": "the long-range solar sweep",
   "machine": "laptop-6",
-  "measured": "2026-08-31",
-  "seconds": 8.3
+  "measured": "2026-09-20",
+  "seconds": 4.9
  },
  "shock_3_nu_0p07": {
   "fingerprint": "63268e3f7c79a215a833fe8f9f035d7dc04103f8bf020863f3d388a66b944d8f",
