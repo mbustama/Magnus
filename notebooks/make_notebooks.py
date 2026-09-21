@@ -14978,6 +14978,175 @@ gx.plot([0, 1], [0, 0], color='0.3', lw=0.7, zorder=5)
 gx.plot([0, 0], [0, 1], color='0.3', lw=0.7, zorder=5)
 
 save(fig, 'prem_profile.pdf')'''),
+    md(r"""## Figure 3g --- probability against distance and against energy
+
+The two plots that appear in almost every oscillation study: the probability against the
+distance traveled, at one energy, and against the neutrino energy, at one distance. Each
+is a single batched call. Three matter profiles are drawn, plus the vacuum: a constant
+density, an exponential fall, and a Gaussian bump the neutrino crosses and leaves behind.
+
+The two scans go to different engines, and on the energy scan the choice is worth 20x.
+A scan over distance at one energy walks the profile once (the cumulative engine). A scan
+over energy cannot, because the Hamiltonian depends on the energy; but where it separates
+as a vacuum term over E plus an energy-independent matter term, the potential can be
+sampled once and the energies carried as a batch. That is the separable engine, and
+`strategy='magnus'` asks for it. Left alone, `strategy='auto'` prefers the hybrid engine
+here, which treats each energy separately and costs about twenty times more for an answer
+that is no more accurate."""),
+    code(r"""# ------------------------------------ Figure 3g: probability vs distance and vs energy
+# One mole of electrons per cubic centimeter, in the natural units magnus works in.
+NA_CM3 = gd.N_AV/gd.CONV_CM_TO_INV_EV**3
+# A constant profile is passed as a number; a varying one as a function of the distance
+# traveled, which arrives in eV^-1 and returns the electron number density there.
+NE_FLAT = 10.0*NA_CM3
+PV_SCALE, PV_PEAK, PV_CENTRE, PV_WIDTH = 100.0*gd.UNIT_KM, 8.0*NA_CM3, 300.0*gd.UNIT_KM, 100.0*gd.UNIT_KM
+
+
+def pv_exponential(l):
+    return NE_FLAT*np.exp(-l/PV_SCALE)
+
+
+def pv_gaussian(l):
+    return PV_PEAK*np.exp(-(l - PV_CENTRE)**2/(2*PV_WIDTH**2))
+
+
+PV_PROFILES = (('constant', NE_FLAT), ('exponential', pv_exponential),
+               ('gaussian', pv_gaussian))
+PV_KW = dict(density_is_of_number_of_electrons=True, rtol=RTOL_FIG, atol=ATOL_FIG)
+PV_E, PV_L_PANEL = 10.0*gd.UNIT_MEV, 200.0*gd.UNIT_KM
+PV_L = np.linspace(20.0, 500.0, 5000)*gd.UNIT_KM
+PV_ES = np.logspace(np.log10(3.0), 2.0, 3000)*gd.UNIT_MEV
+
+# Distances at one energy: the cumulative engine walks the profile once.
+PV_VS_L = {}
+for _name, _ne in PV_PROFILES:
+    _info = {}
+    PV_VS_L[_name] = np.asarray(cached(
+        'prob_vs_L_%s' % _name,
+        ('prob_vs L', _name, 10.0, 20.0, 500.0, len(PV_L), RTOL_FIG, ATOL_FIG,
+         sorted(OSC.items()), [float(x) for x in np.atleast_1d(
+             _ne(PV_L[::500]) if callable(_ne) else np.full(10, _ne))]),
+        lambda ne=_ne: np.asarray(oscprob.osc_prob_matter_std_potential(
+            3, ne, PV_E, PV_L, OSC, L0=0.0, **PV_KW)).tolist(),
+        what='the probability against distance through the %s profile' % _name))
+PV_VS_L['vacuum'] = np.asarray(oscprob.osc_prob_3nu_vacuum(PV_E, PV_L, **OSC))
+
+# Energies at one distance: strategy='magnus' picks the engine that batches the energies.
+PV_VS_E = {}
+for _name, _ne in PV_PROFILES:
+    PV_VS_E[_name] = np.asarray(cached(
+        'prob_vs_E_%s' % _name,
+        ('prob_vs E', _name, 200.0, 3.0, 100.0, len(PV_ES), 4000, RTOL_FIG, ATOL_FIG,
+         sorted(OSC.items()), [float(x) for x in np.atleast_1d(
+             _ne(PV_L[::500]) if callable(_ne) else np.full(10, _ne))]),
+        lambda ne=_ne: np.asarray(oscprob.osc_prob_matter_std_potential(
+            3, ne, PV_ES, PV_L_PANEL, OSC, L0=0.0, strategy='magnus', n_slabs=4000,
+            **PV_KW)).tolist(),
+        what='the probability against energy through the %s profile' % _name))
+PV_VS_E['vacuum'] = np.asarray(oscprob.osc_prob_3nu_vacuum(PV_ES, PV_L_PANEL, **OSC))
+
+# Which engine answers each scan, and what the alternative costs on the energy scan.
+for _label, _kw, _x, _Lb in (('distances, one energy', {}, PV_E, PV_L),
+                             ('energies, one distance', dict(strategy='magnus', n_slabs=4000),
+                              PV_ES[::10], PV_L_PANEL)):
+    _info = {}
+    _t0 = time.perf_counter()
+    oscprob.osc_prob_matter_std_potential(3, pv_exponential, _x, _Lb, OSC, L0=0.0,
+                                          strategy_info=_info, **_kw, **PV_KW)
+    print('  %-24s -> %-11s %6.2f s' % (_label, _info['engine'], time.perf_counter() - _t0))"""),
+    code(r"""# --- Figure 3g -- drawing it
+PV_CH = [(gd.NUE, gd.NUE), (gd.NUE, gd.NUMU), (gd.NUMU, gd.NUMU), (gd.NUMU, gd.NUTAU)]
+_FL = {gd.NUE: r'\nu_e', gd.NUMU: r'\nu_\mu', gd.NUTAU: r'\nu_\tau'}
+PV_PAIR = {(a, b): r'$%s \to %s$' % (_FL[a], _FL[b]) for a, b in PV_CH}
+PV_STYLE = [('vacuum', '0.55', (0, (1, 1.2)), 0.7, 'Vacuum'),
+            ('constant', BLUE, '-', 0.85, 'Constant'),
+            ('exponential', RED, (0, (4, 1.6)), 0.85, 'Exponential'),
+            ('gaussian', GREEN, (0, (3, 1.2, 1, 1.2)), 0.85, 'Gaussian')]
+# The lower three channels oscillate too fast to separate at the scale of the panel, so
+# each carries an inset over a window where the four curves do separate.
+PV_ZOOM = {(gd.NUE, gd.NUMU), (gd.NUMU, gd.NUMU), (gd.NUMU, gd.NUTAU)}
+PV_WIN_L, PV_WIN_E = (240.0, 266.0), (8.0, 9.2)
+PANEL_H = 1.60
+
+fig = plt.figure(figsize=(WIDE, 1.55 + PANEL_H*len(PV_CH)))
+gs = fig.add_gridspec(1 + len(PV_CH), 2, height_ratios=[0.62] + [1]*len(PV_CH),
+                      hspace=0.14, wspace=0.10, left=0.075, right=0.985,
+                      top=1.0 - 0.05/(1.55 + PANEL_H*len(PV_CH)),
+                      bottom=0.58/(1.55 + PANEL_H*len(PV_CH)))
+axp = fig.add_subplot(gs[0, 0])
+for _key, _col, _ls, _lw, _ in PV_STYLE[1:]:
+    _ne = dict(PV_PROFILES)[_key]
+    axp.plot(PV_L/gd.UNIT_KM, (_ne(PV_L) if callable(_ne) else np.full(PV_L.shape, _ne))/NA_CM3,
+             color=_col, ls=_ls, lw=_lw)
+axp.set_xlim(20.0, 500.0); axp.set_ylim(0, 11.5); axp.set_yticks([0, 5, 10])
+axp.set_ylabel(r'$n_e$ [$N_A$ cm$^{-3}$]', fontsize=7.5, labelpad=2)
+axp.tick_params(labelbottom=False)
+axp.xaxis.set_minor_locator(AutoMinorLocator(5)); minor_y(axp, 5)
+axl = fig.add_subplot(gs[0, 1]); axl.axis('off')
+for _key, _col, _ls, _lw, _lab in PV_STYLE:
+    axl.plot([], [], color=_col, ls=_ls, lw=_lw*1.4, label=_lab)
+_leg = axl.legend(loc='center', ncol=2, fontsize=7.6, handlelength=2.4, columnspacing=1.4,
+                  labelspacing=0.5, frameon=True, edgecolor='black', framealpha=1.0,
+                  borderpad=0.6, title='Electron-density profile', title_fontsize=7.6)
+_leg.get_frame().set_linewidth(0.6)
+
+pv_axes = []
+for _r, (_a, _b) in enumerate(PV_CH):
+    axL = fig.add_subplot(gs[_r + 1, 0], sharex=axp)
+    axE = fig.add_subplot(gs[_r + 1, 1])
+    for _key, _col, _ls, _lw, _ in PV_STYLE:
+        axL.plot(PV_L/gd.UNIT_KM, PV_VS_L[_key][:, _a, _b], color=_col, ls=_ls, lw=_lw,
+                 rasterized=True)
+        axE.semilogx(PV_ES/gd.UNIT_MEV, PV_VS_E[_key][:, _a, _b], color=_col, ls=_ls,
+                     lw=_lw, rasterized=True)
+    for _ax in (axL, axE):
+        _ax.set_ylim(-0.02, 1.02); _ax.set_yticks([0, 0.5, 1.0]); minor_y(_ax, 5)
+        corner(_ax, PV_PAIR[(_a, _b)], loc='upper right', x=0.975, y=0.955,
+               fontsize=7.2)
+    axL.set_xlim(20.0, 500.0); axL.xaxis.set_minor_locator(AutoMinorLocator(5))
+    axE.set_xlim(3.0, 100.0); logx(axE)
+    axE.xaxis.set_major_formatter(FuncFormatter(_plain))
+    axE.tick_params(labelleft=False)
+    if _r < len(PV_CH) - 1:
+        axL.tick_params(labelbottom=False); axE.tick_params(labelbottom=False)
+    if (_a, _b) in PV_ZOOM:
+        for _ax, _x, _store, (_x0, _x1) in ((axL, PV_L/gd.UNIT_KM, PV_VS_L, PV_WIN_L),
+                                            (axE, PV_ES/gd.UNIT_MEV, PV_VS_E, PV_WIN_E)):
+            ins = _ax.inset_axes([0.125, 0.50, 0.30, 0.46])
+            _m = (_x >= _x0) & (_x <= _x1)
+            for _key, _col, _ls, _lw, _ in PV_STYLE:
+                ins.plot(_x[_m], _store[_key][_m, _a, _b], color=_col, ls=_ls, lw=_lw*0.9)
+            ins.set_xlim(_x0, _x1)
+            _yy = np.concatenate([_store[_key][_m, _a, _b] for _key, *_ in PV_STYLE])
+            _pad = 0.06*(_yy.max() - _yy.min())
+            ins.set_ylim(_yy.min() - _pad, _yy.max() + _pad)
+            ins.xaxis.set_major_locator(MaxNLocator(3, prune='both'))
+            ins.yaxis.set_major_locator(MaxNLocator(3, prune='both'))
+            ins.tick_params(labelsize=5.2, length=1.5, width=0.4, pad=1.0, color='0.35')
+            for _side in ins.spines.values():
+                _side.set_linewidth(0.5); _side.set_color('0.35')
+            ins.patch.set_alpha(1.0)
+            # The tick labels fall outside the inset, over the dense curves of the panel,
+            # so each gets a white outline to stay legible.
+            for _t in list(ins.get_xticklabels()) + list(ins.get_yticklabels()):
+                _t.set_path_effects([pe.withStroke(linewidth=1.8, foreground='white')])
+    pv_axes.append((axL, axE))
+pv_axes[-1][0].set_xlabel(r'Baseline, $L$ [km]')
+pv_axes[-1][1].set_xlabel(r'Neutrino energy, $E$ [MeV]')
+corner(pv_axes[0][0], r'$E = 10$ MeV', loc='upper left', x=0.025, y=0.955, fontsize=7.2)
+corner(pv_axes[0][1], r'$L = 200$ km', loc='upper left', x=0.025, y=0.955, fontsize=7.2)
+# One label for the four probability rows, set just left of the widest tick label so that
+# the gap does not change when the panel height does.
+fig.canvas.draw()
+_rend = fig.canvas.get_renderer()
+_x0 = min(t.get_window_extent(_rend).x0 for _pair in pv_axes
+          for t in _pair[0].get_yticklabels() if t.get_text())/fig.bbox.width
+fig.text(_x0 - 0.10/fig.get_size_inches()[0],
+         0.5*(pv_axes[0][0].get_position().y1 + pv_axes[-1][0].get_position().y0),
+         r'Three-flavor oscillation probability', rotation=90, ha='right', va='center',
+         fontsize=9.0)
+fig.savefig(FIGDIR/'prob_vs.pdf', dpi=300)
+print('  wrote %s' % (FIGDIR/'prob_vs.pdf'))"""),
     md(r'''## Figure 3f --- a sterile scan over mass splitting and mixing
 
 Six thousand four hundred probabilities per panel, four panels, one comprehension each.
@@ -17122,40 +17291,47 @@ L_ASTRO = earth.distance_traveled_inside_earth(COSTHZ_ASTRO)*gd.CONV_KM_TO_INV_E
 N_LIV, E_STAR = 1, 100.0e3*gd.UNIT_GEV
 B3_ASTRO = float(OSC['D31'])/(2.0*E_STAR**(N_LIV + 1))
 
-HVA3 = np.asarray(vacuum_hamiltonian(3), dtype=complex)
-HVA4 = np.asarray(vacuum_hamiltonian(4), dtype=complex)
+# The wrappers carry the averaged limit with one keyword.  They decide from the baseline
+# and the eigenvalue gaps which pairs have decohered, so the baseline has to be
+# astrophysical in fact: at 100 Mpc every pair has decohered at every energy drawn, while
+# over 1e8 km, less than an astronomical unit, the pair split by Dm21^2 has not completed a
+# cycle above a few TeV, so the wrapper warns and returns the coherent expression instead.
+L_SOURCE = 100.0*3.0857e19*gd.CONV_KM_TO_INV_EV        # 100 Mpc [eV^-1]
+LIV_ASTRO = dict(sxi12=OSC['s12'], sxi23=OSC['s23'], sxi13=OSC['s13'], dxiCP=0.0,
+                 b1=0.0, b2=0.0, b3=B3_ASTRO, Lambda=1.0, n_liv=N_LIV)
+
+
 def _astro_vac():
-    return dict(p3=[avgprob.averaged_probabilities_constant_hamiltonian(HVA3/e).tolist()
-                    for e in E_ASTRO],
-                p4=[avgprob.averaged_probabilities_constant_hamiltonian(HVA4/e).tolist()
-                    for e in E_ASTRO])
+    return dict(p3=np.asarray(oscprob.osc_prob_3nu_vacuum(
+                    E_ASTRO, L_SOURCE, average=True, **OSC)).tolist(),
+                p4=np.asarray(oscprob.osc_prob_4nu_vacuum(
+                    E_ASTRO, L_SOURCE, average=True, s14=STERILE4['s14'], s24=STERILE4['s24'],
+                    s34=STERILE4['s34'], D41=STERILE4['D41'], **OSC)).tolist())
 
 
 _av = cached('astro_vacuum',
-             ('astro_vac', [float(e) for e in E_ASTRO], sorted(OSC.items()),
-              sorted(STERILE4.items())), _astro_vac, what='the decohered vacuum matrices')
+             ('astro_vac', 'wrapper', [float(e) for e in E_ASTRO], float(L_SOURCE),
+              sorted(OSC.items()), sorted(STERILE4.items())), _astro_vac,
+             what='the decohered vacuum matrices')
 P_VAC3, P_VAC4 = np.asarray(_av['p3']), np.asarray(_av['p4'])
-
-
-def liv_term(e):
-    return np.asarray(hamiltonians.hamiltonian_3nu_liv(
-        e, sxi12=OSC['s12'], sxi23=OSC['s23'], sxi13=OSC['s13'], dxiCP=0.0,
-        b1=0.0, b2=0.0, b3=B3_ASTRO, Lambda=1.0, n_liv=N_LIV), dtype=complex)
-
-
 P_LIV = np.asarray(cached(
     'astro_liv',
-    ('astro_liv', [float(e) for e in E_ASTRO], N_LIV, float(B3_ASTRO), sorted(OSC.items())),
-    lambda: [avgprob.averaged_probabilities_constant_hamiltonian(HVA3/e + liv_term(e)).tolist()
-             for e in E_ASTRO], what='the decohered matrices with a Lorentz-violating term'))
+    ('astro_liv', 'wrapper', [float(e) for e in E_ASTRO], float(L_SOURCE), N_LIV,
+     float(B3_ASTRO), sorted(OSC.items())),
+    lambda: np.asarray(oscprob.osc_prob_3nu_vacuum_liv(
+        E_ASTRO, L_SOURCE, average=True, **LIV_ASTRO, **OSC)).tolist(),
+    what='the decohered matrices with a Lorentz-violating term'))
 # Through the Earth the flux is already decohered when it arrives, so the two legs
 # compose as probability matrices rather than as amplitudes.
+# The ladder starts at 32 slabs, as in the paper's listing: on a coarser first level the
+# matter term alone winds more than pi across a slab, and the expansion says so.
 P_EARTH = np.asarray(cached(
     'astro_earth_nsi',
     ('astro_earth', [float(e) for e in E_ASTRO], COSTHZ_ASTRO, float(L_ASTRO),
-     sorted(OSC.items()), sorted((k, str(v)) for k, v in EPS.items())),
-    lambda: np.asarray(quiet(oscprob.osc_prob_3nu_earth_nsi, E_ASTRO, costhz=COSTHZ_ASTRO,
-                             L=L_ASTRO, **OSC, **EPS, rtol=1e-6, atol=1e-8)).tolist(),
+     sorted(OSC.items()), sorted((k, str(v)) for k, v in EPS.items()), 32),
+    lambda: np.asarray(oscprob.osc_prob_3nu_earth_nsi(E_ASTRO, costhz=COSTHZ_ASTRO, L=L_ASTRO,
+                                                       n_slabs=32, **OSC, **EPS, rtol=1e-6,
+                                                       atol=1e-8)).tolist(),
     what='the Earth leg with non-standard interactions'))
 P_NSI = np.einsum('ij,ejk->eik', P_VAC3[0], P_EARTH)
 
@@ -17165,8 +17341,8 @@ P_NSI = np.einsum('ij,ejk->eik', P_VAC3[0], P_EARTH)
 # Pair one, and the suppression is uneven and the composition moves.  We pair the second
 # mass state alone.  At 100 Mpc a splitting of 1e-13 eV^2 leaves both members of the pair
 # decohered from each other across the whole range drawn, so no averaged expression is
-# being stretched: avgprob groups the spectrum itself, and finds six singletons.
-L_SOURCE = 100.0*3.0857e19*gd.CONV_KM_TO_INV_EV        # 100 Mpc [eV^-1]
+# being stretched: the direct route groups the spectrum itself, and finds four singletons.
+# No wrapper ships this Hamiltonian, so it is built and handed to osc_prob_energy_baseline.
 PD_PAIRS = {1: 1.0e-13}
 U_PMNS = np.asarray(hamiltonians.pmns_mixing_matrix(
     OSC['s12'], OSC['s23'], OSC['s13'], OSC['dCP']), dtype=complex)
@@ -17177,14 +17353,14 @@ def _astro_pd():
     out = []
     for e in E_ASTRO:
         H = hamiltonians.hamiltonian_pseudo_dirac_vacuum(e, U_PMNS, M2_PMNS, PD_PAIRS)
-        out.append(avgprob.averaged_probabilities_constant_hamiltonian(
-            np.asarray(H, dtype=complex), baseline=L_SOURCE).tolist())
+        out.append(np.asarray(oscprob.osc_prob_energy_baseline(
+            H, e, L_SOURCE, average=True)).tolist())
     return out
 
 
 P_PD = np.asarray(cached(
     'astro_pseudo_dirac',
-    ('astro_pd', [float(e) for e in E_ASTRO], sorted(PD_PAIRS.items()),
+    ('astro_pd', 'direct route', [float(e) for e in E_ASTRO], sorted(PD_PAIRS.items()),
      float(L_SOURCE), sorted(OSC.items())),
     _astro_pd, what='the decohered matrices with one pseudo-Dirac pair'))
 
@@ -17259,6 +17435,494 @@ for _ax in axes[1, 1:]:
         if _lb.get_text() in ('$1$', '1'):
             _lb.set_visible(False)
 save(fig, 'astro_composition.pdf')'''),
+    md(r"""### Figure 8b --- the composition on the flavor triangle
+
+Two of the departures of Figure 8, each as a curve in its own parameter: the eigenvalue of
+the Lorentz-violating operator at 100 TeV, and the two active--sterile angles of the $3+1$
+case, grown together from zero. Every composition lies within 0.03 of the standard point,
+so the triangle is drawn over 0.30 to 0.40 on each axis. The simplex is drawn by
+`python-ternary`, an extra of the notebooks and not a dependency of the package; the
+layout, labels, ticks and marker styles follow the author's flavor-triangle figures
+elsewhere."""),
+    code(r"""# ------------------------------------ Figure 8b: the composition on the flavor triangle
+import ternary
+
+E_TRI = 100.0*gd.UNIT_TEV
+F_VAC = COMP_STD[0]
+# LIV: b3 grows from zero at 100 TeV.  The ratio of the new term to the vacuum one runs
+# from 1e-3 to 1e3, which at the fixed b3 of Figure 8 is its sweep from 3 TeV to 3 PeV.
+TRI_RATIOS = np.concatenate([[0.0], np.logspace(-3.0, 3.0, 241)])
+B3_UNIT = float(OSC['D31'])/(2.0*E_TRI**2)
+
+
+def tri_liv(ratio):
+    P = np.asarray(oscprob.osc_prob_3nu_vacuum_liv(
+        E_TRI, L_SOURCE, average=True, **dict(LIV_ASTRO, b3=ratio*B3_UNIT), **OSC))
+    f = np.einsum('a,ab->b', PION_SOURCE, P)
+    return f/f.sum()
+
+
+# 3+1: sin^2 theta_14 = sin^2 theta_24 grow together from zero; the fractions are
+# renormalized to the three active flavors, as in Figure 8.
+TRI_S2 = np.linspace(0.0, 0.3, 121)
+
+
+def tri_sterile(s2):
+    P = np.asarray(oscprob.osc_prob_4nu_vacuum(
+        E_TRI, L_SOURCE, average=True, s14=np.sqrt(s2), s24=np.sqrt(s2), s34=0.0,
+        D41=STERILE4['D41'], **OSC))
+    src = np.zeros(4); src[:3] = PION_SOURCE
+    f = np.einsum('a,ab->b', src, P)[:3]
+    return f/f.sum()
+
+
+F_LIV = np.array([tri_liv(r) for r in TRI_RATIOS])
+F_STERILE = np.array([tri_sterile(s2) for s2 in TRI_S2])
+print('  standard, vacuum: %.4f : %.4f : %.4f' % tuple(F_VAC))
+for r in (0.1, 1.0, 10.0):
+    kk = int(np.argmin(np.abs(TRI_RATIOS - r)))
+    print('  LIV at %5.1f times the vacuum term: %.4f : %.4f : %.4f' % ((r,) + tuple(F_LIV[kk])))
+for s2 in (0.1, 0.2, 0.3):
+    kk = int(np.argmin(np.abs(TRI_S2 - s2)))
+    print('  3+1 at sin^2 = %.1f: %.4f : %.4f : %.4f' % ((s2,) + tuple(F_STERILE[kk])))
+
+# A zoomed simplex: each fraction from 0.30 to 0.40 (0.30 + 0.30 + 0.30 + 0.10 = 1), at
+# scale 10 so that one unit is 0.01.  Points go through convert_coordinates in the order
+# (b, r, l) = (f_e, f_mu, f_tau): nu_e along the bottom, nu_mu up the right side, nu_tau
+# down the left side.
+LO, HI, SCALE = 0.30, 0.40, 10
+fig, tax = ternary.figure(scale=SCALE)
+tax.ax.axis('off')
+fig.set_facecolor('w')
+tax.set_axis_limits({'b': [LO, HI], 'l': [LO, HI], 'r': [LO, HI]})
+tax.boundary(linewidth=1.0)
+tax.gridlines(color='gray', multiple=1, linewidth=0.5, ls='-', alpha=0.5)
+tax.left_axis_label(r'Fraction of $\nu_\tau$, $f_{\tau, \oplus}$', fontsize=15, offset=0.16)
+tax.right_axis_label(r'Fraction of $\nu_\mu$, $f_{\mu, \oplus}$', fontsize=15, offset=0.16)
+tax.bottom_axis_label(r'Fraction of $\nu_e$, $f_{e, \oplus}$', fontsize=15, offset=0.08)
+tax.get_ticks_from_axis_limits(multiple=1)
+tax.set_custom_ticks(linewidth=0.5, multiple=1, offset=0.022, clockwise=False, tick_formats='%.2f')
+
+
+def tri_conv(points):
+    return tax.convert_coordinates(np.atleast_2d(points), axisorder='brl')
+
+
+def tri_xy(point):
+    p = np.asarray(tri_conv(point))[0]
+    return p[0] + 0.5*p[1], np.sqrt(3.0)/2.0*p[1]
+
+
+def tri_note(text, x, y, ha='left', va='center', size=10, color='k'):
+    t = tax.ax.annotate(text, xy=(x, y), xycoords='data', color=color, fontsize=size, ha=ha,
+                        va=va, zorder=200)
+    t.set_path_effects([pe.Stroke(linewidth=3, foreground='white'), pe.Normal()])
+    return t
+
+
+tax.plot(tri_conv(F_LIV), linewidth=1.5, color=ORANGE, zorder=50)
+tax.plot(tri_conv(F_STERILE), linewidth=1.5, color=BLUE, zorder=50)
+for r, lab, off, ha, va in ((0.1, '0.1', (0.22, 0.0), 'left', 'center'),
+                            (1.0, '1', (0.0, -0.22), 'center', 'top'),
+                            (10.0, '10', (0.0, -0.22), 'center', 'top')):
+    kk = int(np.argmin(np.abs(TRI_RATIOS - r)))
+    tax.scatter(tri_conv(F_LIV[kk]), marker='s', color=ORANGE, edgecolor='w', s=28,
+                linewidths=0.5, zorder=100)
+    tri_note(lab, *np.add(tri_xy(F_LIV[kk]), off), ha=ha, va=va, size=8, color=ORANGE)
+for s2, lab, off, ha, va in ((0.1, '0.1', (-0.22, 0.0), 'right', 'center'),
+                             (0.2, '0.2', (0.0, -0.22), 'center', 'top'),
+                             (0.3, '0.3', (0.0, -0.24), 'center', 'top')):
+    kk = int(np.argmin(np.abs(TRI_S2 - s2)))
+    tax.scatter(tri_conv(F_STERILE[kk]), marker='^', color=BLUE, edgecolor='w', s=34,
+                linewidths=0.5, zorder=100)
+    tri_note(lab, *np.add(tri_xy(F_STERILE[kk]), off), ha=ha, va=va, size=8, color=BLUE)
+tax.scatter(tri_conv(F_VAC), marker='o', color='salmon', edgecolor='w', s=40, linewidths=0.5,
+            zorder=101, alpha=1.0)
+tri_note(r'LIV', *np.add(tri_xy(F_LIV[-1]), (-0.28, 0.02)), ha='right', color=ORANGE)
+tri_note(r'$3+1$', *np.add(tri_xy(F_STERILE[-1]), (0.28, 0.0)), ha='left', color=BLUE)
+xv, yv = tri_xy(F_VAC)
+tax.ax.plot([xv, xv], [yv + 0.08, yv + 0.30], color='k', lw=0.6, zorder=150)
+tri_note(r'Standard, vacuum', xv, yv + 0.32, ha='center', va='bottom')
+tax.clear_matplotlib_ticks()
+tax._redraw_labels()
+fig.tight_layout()
+save(fig, 'astro_ternary.pdf')"""),
+    md(r"""## Figures 8c, 8d and 8e --- geoneutrinos
+
+Antineutrinos from uranium and thorium decays in the crust and the mantle, reaching
+Borexino at Gran Sasso, 1.4 km underground, from a few km to a full Earth diameter away.
+Three figures: the geometry, with a quarter of the Earth cut away; the survival
+probability against energy from four production points, resolved down to the pair split by
+$\Delta m^2_{31}$; and where the detectable flux comes from, with what oscillations leave of
+it. The Earth wrapper propagates from the far end of a chord, so the production point in
+the local crust is run from the detector with the two depths in swapped roles and the
+zenith angle taken at the production point: the survival probability of a flavor is the
+same along a path and along its reverse. The energy curves, the local scan and the flux
+integral are cached."""),
+    code(r"""# ------------------------------------ Figures 8c-8e: geoneutrinos, the inputs
+# Every probability is nubar_e survival on the Earth wrapper, with PREM's ocean layer
+# replaced by rock, since Gran Sasso is a continental site.
+D_DET, D_LOCAL = 1.4, 10.0             # km: the detector, and the local production depth
+KW_GEO = dict(nubar=True, nu_i=gd.NUE, nu_f=gd.NUE, density_matter_ocean=2.65)
+# Twelve energies per cycle of the pair split by Dm31^2 on the longest chord, 7,300 km,
+# uniform in 1/E so that they are uniform in phase.  The window is the detectable one:
+# inverse beta decay opens at 1.8 MeV, the uranium chain ends at 3.3 MeV.
+E_GEO = 1.0/np.linspace(1.0/1.8, 1.0/3.3, 22500)*gd.UNIT_MEV
+#              key        depth [km]  cos(theta_z)  run from the detector?
+GEO_POINTS = [('local',        10.0,  0.078, True),
+              ('far_crust',    20.0, -0.272, False),
+              ('mantle',     1000.0, -0.552, False),
+              ('core',       2800.0, -0.872, False)]
+GEO_LABEL = {'local': r'Local crust, 100 km', 'far_crust': r'Far crust, 3\,400 km',
+             'mantle': r'Mantle, 4\,300 km', 'core': r'Through core, 7\,300 km'}
+GEO_COLOR = {'local': GREEN, 'far_crust': BLUE, 'mantle': ORANGE, 'core': RED}
+
+
+def geo_depths(depth, from_detector, unit=1.0):
+    # The wrapper's two depths, in the order the call needs them: the reversed call puts
+    # the detector at the source's slot.
+    return (dict(source_depth=D_DET*unit, detector_depth=depth*unit) if from_detector
+            else dict(source_depth=depth*unit, detector_depth=D_DET*unit))
+
+
+def geo_curve(depth, costhz, from_detector):
+    return np.asarray(oscprob.osc_prob_3nu_earth(
+        E_GEO, costhz=costhz, **geo_depths(depth, from_detector, gd.UNIT_KM), **KW_GEO))
+
+
+GEO_CURVES, GEO_L = {}, {}
+for key, depth, costhz, from_detector in GEO_POINTS:
+    GEO_L[key] = earth.distance_traveled_inside_earth(costhz, **geo_depths(depth, from_detector))
+    GEO_CURVES[key] = np.asarray(cached(
+        'geo_energy_%s' % key,
+        ('geo energy', key, depth, costhz, from_detector, D_DET, 1.8, 3.3, len(E_GEO),
+         sorted(OSC.items()), sorted((k, str(v)) for k, v in KW_GEO.items())),
+        lambda depth=depth, costhz=costhz, fd=from_detector: geo_curve(depth, costhz, fd).tolist(),
+        what='nubar_e survival against energy from the %s production point' % key))
+    edges = earth.prem_layer_edges_along_chord(costhz, **geo_depths(depth, from_detector))
+    print('  %-9s %5.0f km deep, cos = %+.3f: L = %6.1f km, %d PREM boundaries, P in %.3f..%.3f'
+          % (key, depth, costhz, GEO_L[key], len(edges), GEO_CURVES[key].min(),
+             GEO_CURVES[key].max()))
+
+# The line drawn across every panel: the phase average in vacuum, from the closed form.
+P_GEO_VACUUM = float(oscprob.osc_prob_3nu_vacuum(E_GEO[0], 1.0e8*gd.UNIT_KM, average=True,
+                                                  nubar=True, nu_i=gd.NUE, nu_f=gd.NUE, **OSC))
+# Matter raises the average along each chord.  The passage is adiabatic, so the average is
+# the two-endpoint form of the paper's Sec. 4.10, which the direct entry point takes when
+# the profile is handed to it as a smooth function with no declared breakpoints.  The
+# Earth wrapper cannot be asked for it: it declares the PREM boundaries itself and so goes
+# down the energy-window route, whose standard error, 0.05, exceeds the shift.
+E_GEO_AVG = 1.0/np.linspace(1.0/1.8, 1.0/3.3, 301)*gd.UNIT_MEV
+
+
+def geo_matter_average(depth, costhz):
+    geo = dict(source_depth=depth, detector_depth=D_DET)
+    L = earth.distance_traveled_inside_earth(costhz, **geo)
+
+    def rho(l):
+        r = earth.earth_radial_distance_from_depth(costhz, l/gd.UNIT_KM, **geo)
+        return earth.density_matter_func_prem(r, density_matter_ocean=2.65)
+
+    return np.asarray(oscprob.osc_prob_matter_std_potential(
+        3, rho, E_GEO_AVG, L*gd.UNIT_KM, OSC, average=True, nubar=True, nu_i=gd.NUE,
+        nu_f=gd.NUE, electron_fraction=earth.Y_E_MANTLE_PREM,
+        density_matter_is_in_g_per_cm3=True)).tolist()
+
+
+GEO_MATTER_AVG = cached(
+    'geo_matter_average',
+    ('geo matter average', [(k, d, c) for k, d, c, fd in GEO_POINTS if not fd], D_DET, 1.8,
+     3.3, len(E_GEO_AVG), sorted(OSC.items()), float(earth.Y_E_MANTLE_PREM), 2.65),
+    lambda: {k: geo_matter_average(d, c) for k, d, c, fd in GEO_POINTS if not fd},
+    what='the phase average in matter along the three far chords, adiabatic route')
+print('  vacuum phase average %.4f' % P_GEO_VACUUM)
+for key, val in GEO_MATTER_AVG.items():
+    v = np.asarray(val)
+    print('  %-9s matter raises the average by %+.2f%% to %+.2f%%'
+          % (key, 100*(v.min()/P_GEO_VACUUM - 1), 100*(v.max()/P_GEO_VACUUM - 1)))"""),
+    code(r"""# ------------------------------------ Figure 8c: the geometry
+# A quarter of the Earth cut away, the four production points, and the local crust in an
+# inset.  The land polygons are those of Figure 3e, projected so that Gran Sasso
+# (42.5 N, 13.6 E) sits at the top of the limb: the projection is centred 90 degrees
+# south of it, on the same meridian.
+from matplotlib.patches import Rectangle
+
+R_E = gd.EARTH_RADIUS
+GEO_LAYERS = [(0.0, 1221.5, '#f6d9a8'), (1221.5, 3480.0, '#f0bd7e'),
+              (3480.0, 6346.6, '#d99a63'), (6346.6, R_E, '#a9663a')]
+R_DET = R_E - D_DET
+
+
+def source_xy(depth_km, L_km):
+    # Where a production point at that depth and chord length sits, in units of R_E, with
+    # the detector at the top of the cut and the chord in the plane of the cut.
+    r_s = R_E - depth_km
+    cosa = (R_DET**2 + r_s**2 - L_km**2)/(2*R_DET*r_s)
+    a = np.arccos(np.clip(cosa, -1.0, 1.0))
+    return r_s*np.sin(a)/R_E, r_s*np.cos(a)/R_E
+
+
+def curved_text(ax, text, radius, theta_deg, fontsize, color):
+    # One character at a time along the arc of a layer, each rotated to the local tangent.
+    f = ax.figure; f.canvas.draw(); rend = f.canvas.get_renderer()
+    t = ax.text(0, 0, 'a b', fontsize=fontsize); w_ab = t.get_window_extent(rend).width
+    t.remove()
+    t = ax.text(0, 0, 'ab', fontsize=fontsize); w_space = w_ab - t.get_window_extent(rend).width
+    t.remove()
+    widths = []
+    for ch in text:
+        if ch == ' ':
+            widths.append(w_space); continue
+        t = ax.text(0, 0, ch, fontsize=fontsize); widths.append(t.get_window_extent(rend).width)
+        t.remove()
+    pix_per_unit = ax.transData.transform((1, 0))[0] - ax.transData.transform((0, 0))[0]
+    angs = np.array(widths)/pix_per_unit/radius
+    a = np.deg2rad(theta_deg) + angs.sum()/2.0
+    for ch, da in zip(text, angs):
+        am = a - da/2.0
+        ax.text(radius*np.cos(am), radius*np.sin(am), ch, fontsize=fontsize, color=color,
+                ha='center', va='center', rotation=np.degrees(am) - 90.0,
+                rotation_mode='anchor', zorder=7)
+        a -= da
+
+
+fig, ax = plt.subplots(figsize=(COL, COL*1.02))
+ax.set_aspect('equal'); ax.axis('off'); ax.set_xlim(-1.12, 1.12); ax.set_ylim(-1.12, 1.16)
+surface = Wedge((0, 0), 1.0, 90.0, 360.0, facecolor='#cfe3f5', edgecolor='none', zorder=1)
+ax.add_patch(surface)
+lat0, lon0 = np.deg2rad(42.5 - 90.0), np.deg2rad(13.6)
+for ring in LAND:
+    a = np.deg2rad(np.asarray(ring, dtype=float)); lon, lat = a[:, 0], a[:, 1]
+    cosc = np.sin(lat0)*np.sin(lat) + np.cos(lat0)*np.cos(lat)*np.cos(lon - lon0)
+    if (cosc > 0).sum() < 3:
+        continue
+    x = np.cos(lat)*np.sin(lon - lon0)
+    y = np.cos(lat0)*np.sin(lat) - np.sin(lat0)*np.cos(lat)*np.cos(lon - lon0)
+    far = cosc <= 0
+    if far.any():
+        n = np.hypot(x, y); n[n == 0] = 1.0
+        x = np.where(far, x/n, x); y = np.where(far, y/n, y)
+    patch = Polygon(np.column_stack([x, y]), closed=True, facecolor='#8fb98a',
+                    edgecolor='#4f7a55', lw=0.3, zorder=2)
+    ax.add_patch(patch); patch.set_clip_path(surface)
+for r0, r1, col in GEO_LAYERS[::-1]:
+    ax.add_patch(Wedge((0, 0), r1/R_E, 0.0, 90.0, width=(r1 - r0)/R_E, facecolor=col,
+                       edgecolor='white', lw=0.4, zorder=3))
+ax.add_patch(Wedge((0, 0), 1.0, 0.0, 360.0, facecolor='none', edgecolor=INK, lw=0.7, zorder=6))
+curved_text(ax, 'Inner', 0.148, 45.0, 5.6, '0.25')
+curved_text(ax, 'core', 0.092, 45.0, 5.6, '0.25')
+curved_text(ax, 'Outer core', 0.37, 45.0, 6.0, '0.25')
+curved_text(ax, 'Mantle', 0.77, 45.0, 6.0, '0.25')
+ax.plot([0.0], [1.0], marker='*', ms=9, color=PURPLE, mec=INK, mew=0.4, zorder=8)
+ax.text(-0.04, 1.03, 'Borexino', fontsize=7.5, ha='right', va='bottom', color=INK, zorder=8)
+for key, depth, costhz, from_detector in GEO_POINTS:
+    if from_detector:
+        continue
+    xs, ys = source_xy(depth, GEO_L[key])
+    ax.plot([0.0, xs], [R_DET/R_E, ys], color=GEO_COLOR[key], lw=1.1, zorder=7)
+    ax.plot([xs], [ys], marker='o', ms=3.2, color=GEO_COLOR[key], mec=INK, mew=0.3, zorder=8)
+    ax.plot([], [], color=GEO_COLOR[key], lw=1.1, label=GEO_LABEL[key])
+ax.plot([], [], color=GREEN, lw=1.1, label='Local crust, 100 km (inset)')
+leg = ax.legend(loc='lower right', bbox_to_anchor=(1.02, -0.02), fontsize=6.4, handlelength=1.4,
+                frameon=True, borderpad=0.4, labelspacing=0.3, framealpha=1.0,
+                facecolor='white', edgecolor='black')
+leg.set_zorder(30)
+# The inset: the local crust, to scale in distance and stretched in depth.
+ins = ax.inset_axes([0.02, 0.05, 0.50, 0.30], zorder=25)
+ins.set_facecolor('white'); ins.patch.set_alpha(1.0)
+ins.set_xlim(-20.0, 360.0); ins.set_ylim(60.0, -6.0)
+for y0, y1, col in [(-6.0, 0.0, '#cfe3f5'), (0.0, 15.0, '#b9805a'), (15.0, 24.4, '#a9663a'),
+                    (24.4, 60.0, '#d99a63')]:
+    ins.add_patch(Rectangle((-20.0, y0), 380.0, y1 - y0, facecolor=col, edgecolor='none',
+                            zorder=1))
+for y in (0.0, 15.0, 24.4):
+    ins.axhline(y, color='white', lw=0.5, zorder=2)
+ins.text(352, 8.0, r'2.6 g cm$^{-3}$', fontsize=5.8, ha='right', va='center', color='white',
+         zorder=4)
+ins.text(352, 19.7, r'2.9', fontsize=5.8, ha='right', va='center', color='white', zorder=4)
+ins.text(352, 42.0, r'Mantle, 3.4', fontsize=5.8, ha='right', va='center', color='white',
+         zorder=4)
+ins.plot([0.0], [D_DET], marker='*', ms=7, color=PURPLE, mec=INK, mew=0.3, zorder=6)
+x_loc = np.sqrt(GEO_L['local']**2 - (D_LOCAL - D_DET)**2)
+ins.plot([0.0, x_loc], [D_DET, D_LOCAL], color=GREEN, lw=1.1, zorder=5)
+ins.plot([x_loc], [D_LOCAL], marker='o', ms=3.2, color=GREEN, mec=INK, mew=0.3, zorder=6)
+ins.text(x_loc + 6, D_LOCAL + 3.0, 'Production point', fontsize=6.0, color='black', ha='left',
+         va='top', zorder=6, path_effects=[pe.withStroke(linewidth=1.4, foreground='white')])
+ins.set_xlabel('Distance along the surface [km]', fontsize=6.4, labelpad=1.0)
+ins.set_ylabel('Depth [km]', fontsize=6.4, labelpad=1.0)
+ins.tick_params(labelsize=6.0, pad=1.0, length=1.8)
+ins.set_xticks([0, 100, 200, 300]); ins.set_yticks([0, 20, 40, 60])
+for side in ins.spines.values():
+    side.set_linewidth(0.5)
+save(fig, 'geoneutrinos.pdf')"""),
+    code(r"""# ------------------------------------ Figure 8d: survival against energy, four production points
+fig, axes = plt.subplots(4, 1, figsize=(COL, 5.6), sharex=True, gridspec_kw=dict(hspace=0.12))
+for ax, (key, depth, costhz, from_detector) in zip(axes, GEO_POINTS):
+    ax.plot(E_GEO/gd.UNIT_MEV, GEO_CURVES[key], color=GEO_COLOR[key],
+            lw=(0.7 if key == 'local' else 0.25), alpha=(1.0 if key == 'local' else 0.85),
+            rasterized=True)
+    ax.axhline(P_GEO_VACUUM, color=INK, lw=1.2, ls=(0, (4, 2)), label='Average')
+    ax.set_ylim(0.0, 1.0); ax.set_yticks([0.0, 0.5, 1.0]); minor_y(ax, 5)
+    ax.set_xlim(1.8, 3.3); ax.xaxis.set_minor_locator(AutoMinorLocator(5))
+    corner(ax, GEO_LABEL[key], loc='upper left', x=0.035, y=0.94, fontsize=7.5)
+axes[0].legend(loc='lower right', handlelength=1.8, fontsize=7.5)
+axes[-1].set_xlabel(r'Neutrino energy, $E$ [MeV]')
+fig.text(0.066, 0.53, r'Survival probability, $P_{\bar\nu_e \to \bar\nu_e}$', rotation=90,
+         ha='center', va='center', fontsize=9.0)
+fig.subplots_adjust(left=0.165, right=0.98, top=0.98, bottom=0.08)
+# The curves are rasterized (22,500 points each); 300 dpi keeps the fast ripple.
+fig.savefig(FIGDIR/'geoneutrino_energy.pdf', dpi=300)
+print('  wrote %s' % (FIGDIR/'geoneutrino_energy.pdf'))"""),
+    code(r"""# ------------------------------------ Figure 8e: where the flux comes from, and what survives
+# (i) P(2.5 MeV, L) across the local crust, resolved: 0.25 km steps, ten per cycle of the
+# fast pair, for a production point 10 km deep at every distance the reversed call reaches,
+# from straight below the detector to the horizon.
+_RS, _RD = R_E - D_DET, R_E - D_LOCAL
+
+
+def local_L_of_c(c):
+    return np.sqrt(_RS**2 - (_RD*np.sqrt(1.0 - c*c))**2) - _RD*c
+
+
+def local_c_of_L(L):
+    lo, hi = 0.0, 1.0
+    for _ in range(80):
+        mid = 0.5*(lo + hi)
+        if local_L_of_c(mid) > L:
+            lo = mid
+        else:
+            hi = mid
+    return 0.5*(lo + hi)
+
+
+L_LOCAL = np.arange(local_L_of_c(1.0), local_L_of_c(0.0)*0.999, 0.25)
+P_LOCAL = np.asarray(cached(
+    'geo_local_scan',
+    ('geo local scan', D_DET, D_LOCAL, 2.5, [float(x) for x in L_LOCAL[::100]], len(L_LOCAL),
+     sorted(OSC.items()), sorted((k, str(v)) for k, v in KW_GEO.items())),
+    lambda: [float(oscprob.osc_prob_3nu_earth(2.5*gd.UNIT_MEV, costhz=local_c_of_L(L),
+                                               source_depth=D_DET*gd.UNIT_KM,
+                                               detector_depth=D_LOCAL*gd.UNIT_KM, **KW_GEO))
+             for L in L_LOCAL],
+    what='nubar_e survival at 2.5 MeV against distance across the local crust'))
+
+# (ii) The flux, Eq. (geoflux) of the paper: the emission integrated over the Earth with the
+# inverse square of the distance, in coordinates centred on the detector.  The simplest
+# Earth that carries both reservoirs: a spherically symmetric crust 35 km thick holding
+# 7 TW of radiogenic power at Th/U = 4.5 (0.67 ppm U, 3.0 ppm Th), a mantle to 2891 km
+# with the abundances of the geochemical model of Bellini et al. (0.0127 ppm U, 0.0446 ppm
+# Th), nothing in the core, and the density of PREM throughout.  Per chain decay, 0.392 (U)
+# and 0.147 (Th) antineutrinos lie above the inverse-beta-decay threshold.
+N_AV, YR = 6.02214076e23, 3.15576e7
+LAM_U, LAM_TH = np.log(2.0)/(4.468e9*YR), np.log(2.0)/(1.405e10*YR)        # 1/s
+NU_U, NU_TH, A_U, A_TH = 0.392, 0.147, 238.0, 232.0
+CRUST_KM, MANTLE_KM = 35.0, 2891.0
+ABUND = dict(crust=(0.67e-6, 3.0e-6), mantle=(0.0127e-6, 0.0446e-6))     # (U, Th) mass fractions
+
+
+def geo_emissivity(r_km):
+    # Detectable antineutrinos per second per cm^3 at radius r.
+    d = R_E - r_km
+    U = np.where(d <= CRUST_KM, ABUND['crust'][0], np.where(d <= MANTLE_KM, ABUND['mantle'][0], 0.0))
+    Th = np.where(d <= CRUST_KM, ABUND['crust'][1], np.where(d <= MANTLE_KM, ABUND['mantle'][1], 0.0))
+    return earth.density_matter_func_prem(r_km)*(U/A_U*NU_U*LAM_U + Th/A_TH*NU_TH*LAM_TH)*N_AV
+
+
+L_FLUX = np.logspace(0.0, np.log10(2*R_E), 900)                           # km, 1 to the diameter
+
+
+def _geo_flux_unoscillated():
+    # dPhi/dL: the L^2 of the volume element cancels the inverse square, leaving the
+    # emissivity integrated over the directions in which the shell at L lies inside the Earth.
+    psis = np.linspace(0.0, np.pi, 40001)
+    dPhi, dPhi_crust = np.zeros_like(L_FLUX), np.zeros_like(L_FLUX)
+    for i, L in enumerate(L_FLUX):
+        r = np.sqrt(R_E**2 + L**2 - 2*R_E*L*np.cos(psis)); inside = r <= R_E
+        if not inside.any():
+            continue
+        em = geo_emissivity(r[inside]); crust = (R_E - r[inside]) <= CRUST_KM
+        w = 0.5*np.sin(psis[inside])
+        dPhi[i] = trapz(em*w, psis[inside])*1.0e5                        # per s per cm^2 per km
+        dPhi_crust[i] = trapz(np.where(crust, em, 0.0)*w, psis[inside])*1.0e5
+    return dict(dPhi=dPhi.tolist(), dPhi_crust=dPhi_crust.tolist())
+
+
+got = cached('geo_flux_unoscillated',
+             ('geo flux', [float(x) for x in L_FLUX[::50]], len(L_FLUX), CRUST_KM, MANTLE_KM,
+              sorted(ABUND.items()), NU_U, NU_TH, 40001),
+             _geo_flux_unoscillated, what='the unoscillated geoneutrino flux by distance')
+DPHI, DPHI_CRUST = np.asarray(got['dPhi']), np.asarray(got['dPhi_crust'])
+
+# (iii) The survival probability averaged over the detectable window with equal weight in
+# energy: through the crust with the reversed call up to the horizon of a point 10 km deep,
+# 331 km; the vacuum closed form beyond, where matter moves the average by 0.01 at the
+# seam and by less farther out.  Twelve energies per cycle of the fast pair throughout.
+L_HORIZON = local_L_of_c(0.0)
+
+
+def geo_window_average(L):
+    cycles = OSC['D31']*L*gd.UNIT_KM/(4*np.pi)*(1/(1.8*gd.UNIT_MEV) - 1/(3.3*gd.UNIT_MEV))
+    E = 1.0/np.linspace(1.0/1.8, 1.0/3.3, max(240, int(12*cycles)))*gd.UNIT_MEV
+    if local_L_of_c(1.0) <= L <= L_HORIZON:
+        P = np.asarray(oscprob.osc_prob_3nu_earth(E, costhz=local_c_of_L(L),
+                                                   source_depth=D_DET*gd.UNIT_KM,
+                                                   detector_depth=D_LOCAL*gd.UNIT_KM, **KW_GEO))
+    else:
+        P = np.asarray(oscprob.osc_prob_3nu_vacuum(E, L*gd.UNIT_KM, nubar=True, nu_i=gd.NUE,
+                                                    nu_f=gd.NUE, **OSC))
+    return float(trapz(P, E)/(E[-1] - E[0]))
+
+
+P_WINDOW = np.asarray(cached(
+    'geo_flux_window_average',
+    ('geo window average', [float(x) for x in L_FLUX[::50]], len(L_FLUX), D_DET, D_LOCAL, 1.8,
+     3.3, 12, sorted(OSC.items()), sorted((k, str(v)) for k, v in KW_GEO.items())),
+    lambda: [geo_window_average(L) for L in L_FLUX],
+    what='the window-averaged survival probability against distance'))
+DPHI_OSC = DPHI*P_WINDOW
+TOTAL, TOTAL_OSC = trapz(DPHI, L_FLUX), trapz(DPHI_OSC, L_FLUX)
+CUM = np.array([trapz(DPHI[:i + 1], L_FLUX[:i + 1]) for i in range(len(L_FLUX))])/TOTAL
+CUM_OSC = np.array([trapz(DPHI_OSC[:i + 1], L_FLUX[:i + 1]) for i in range(len(L_FLUX))])/TOTAL_OSC
+
+
+def _at(x):
+    return int(np.searchsorted(L_FLUX, x))
+
+
+print('  crust %.0f%% of the detectable flux; within 100 km %.0f%%, 350 km %.0f%%, 1000 km %.0f%%; '
+      'oscillations leave %.0f%%' % (100*trapz(DPHI_CRUST, L_FLUX)/TOTAL, 100*CUM[_at(100)],
+                                     100*CUM[_at(350)], 100*CUM[_at(1000)], 100*TOTAL_OSC/TOTAL))
+print('  the two pieces of the average meet at %.0f km: %.4f through the crust, %.4f in vacuum'
+      % (L_HORIZON, P_WINDOW[_at(L_HORIZON) - 1], P_WINDOW[_at(L_HORIZON)]))
+
+fig, axes = plt.subplots(2, 1, figsize=(COL, 4.4),
+                         gridspec_kw=dict(height_ratios=[1.0, 1.3], hspace=0.30))
+a = axes[0]
+a.plot(L_LOCAL, P_LOCAL, color=GREEN, lw=0.35, rasterized=True)
+a.axhline(P_GEO_VACUUM, color=INK, lw=1.0, ls=(0, (4, 2)))
+a.set_xlim(0.0, 330.0); a.set_ylim(0.0, 1.0); a.set_yticks([0.0, 0.5, 1.0]); minor_y(a, 5)
+a.xaxis.set_minor_locator(AutoMinorLocator(5))
+a.set_xlabel(r'Distance to the production point, $L$ [km]', labelpad=1.5)
+a.set_ylabel(r'$P_{\bar\nu_e \to \bar\nu_e}$ at 2.5 MeV', fontsize=8.5)
+corner(a, 'Local crust, production 10 km deep', loc='lower left', x=0.035, y=0.06, fontsize=7.0)
+b = axes[1]
+w = L_FLUX*np.log(10.0)          # per unit log10 L: the area under a curve is the share
+b.fill_between(L_FLUX, 0.0, DPHI_CRUST*w/TOTAL, color='#c9a27e', lw=0, label='Crust')
+b.fill_between(L_FLUX, DPHI_CRUST*w/TOTAL, DPHI*w/TOTAL, color='#e8cfa8', lw=0, label='Mantle')
+b.plot(L_FLUX, DPHI*w/TOTAL, color=INK, lw=1.0, label='Unoscillated')
+b.plot(L_FLUX, DPHI_OSC*w/TOTAL, color=PURPLE, lw=1.0, label='Oscillated, averaged')
+b.set_xscale('log'); b.set_xlim(3.0, 2*R_E); b.set_ylim(0.0, 1.08*float((DPHI*w/TOTAL).max()))
+b.xaxis.set_major_formatter(FuncFormatter(_plain))
+b.set_xlabel(r'Distance to the production point, $L$ [km]', labelpad=1.5)
+b.set_ylabel(r'$\Phi^{-1}\, d\Phi / d\log_{10} L$', fontsize=9.0, labelpad=4.0)
+b2 = b.twinx()
+b2.plot(L_FLUX, CUM_OSC, color=PURPLE, lw=1.0, ls=(0, (2, 2)))
+b2.set_ylim(0.0, 1.0); b2.set_ylabel('Cumulative fraction, oscillated', fontsize=8.0, color=PURPLE)
+b2.tick_params(axis='y', colors=PURPLE); minor_y(b2, 5)
+b.legend(loc='upper left', fontsize=7.0, handlelength=1.6)
+fig.subplots_adjust(left=0.18, right=0.86)
+fig.savefig(FIGDIR/'geoneutrino_flux.pdf', dpi=300)
+print('  wrote %s' % (FIGDIR/'geoneutrino_flux.pdf'))"""),
     md(r'''## Figure 7 --- a smooth profile: reach, and the flavor ceiling
 
 Four rows on one shared time axis, which spans three decades, so the cost of a flavor
@@ -18232,7 +18896,7 @@ legend_at(axes[0], leg2, LEFT2, BELOW2 - 0.012)
 save(fig, 'njobs_protocol.pdf')'''),
     md(r'''## What was written
 
-Twenty-one PDFs, which is every figure in `resources/paper/main.tex`.
+Every figure in `resources/paper/main.tex`, as a PDF.
 
 ```bash
 python notebooks/make_notebooks.py --only 28

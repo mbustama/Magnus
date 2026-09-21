@@ -71,7 +71,7 @@ fast = []          # numba is a base dependency; kept so `magnuspy[fast]` still 
 test = ["pytest", "pytest-cov", "pytest-xdist", "matplotlib>=3.5", "nbformat"]
 dev = ["pytest", "pytest-cov", "pytest-xdist", "twine", "build", "ruff",
        "matplotlib>=3.5", "nbformat"]
-notebooks = ["nbformat", "nbclient", "ipykernel", "matplotlib>=3.5", "scipy", "mpmath"]
+notebooks = ["nbformat", "nbclient", "ipykernel", "matplotlib>=3.5", "scipy", "mpmath", "python-ternary"]
 docs = ["sphinx", "sphinx-autoapi", "sphinx-rtd-theme", "sphinx-copybutton", "sphinxcontrib-bibtex", "sphinxcontrib-mermaid", "myst-parser", "jupyter-sphinx", "ipykernel", "matplotlib>=3.5"]
 
 [project.scripts]
