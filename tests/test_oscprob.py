@@ -962,17 +962,24 @@ def _solar_2nu_H(energy):
 
 
 def test_strict_convergence_rejects_a_coincidental_agreement():
-    """The refinement ladder returns on the *first* agreement between successive levels, which is
-    only sound while the sequence is settling. At 10 MeV over one solar radius it is not: the
-    errors run 5.9e-02, 3.8e-03, 1.6e-02, 1.7e-02, 8.1e-03, ... and levels 3 and 4 agree to
-    1.1e-03 -- inside the default tolerance -- while both are wrong by ~1.6e-02.
+    """The refinement ladder returns on the *first* agreement between successive levels, which
+    is only sound while the sequence is settling. At 12 MeV over 680 000 km of the solar profile
+    it is not: the default ladder stops after a single agreement, reports a gap of 4.0e-04 --
+    inside the 1e-3 it was asked for -- and declares the tolerance achieved, while the answer is
+    wrong by 3.3e-02.
 
     strict_convergence=True requires two consecutive agreements, so that lone coincidence is
-    vetoed by the level after it. Scored against solve_ivp, which is the only valid oracle here:
+    vetoed by the level after it: it stops with a gap of 1.1e-05 and an error of 2.1e-06, four
+    orders of magnitude better. Scored against solve_ivp, which is the only valid oracle here:
     comparing the two Magnus results against each other would only show that they differ, not
-    which one is right."""
-    energy = 10.0*gd.UNIT_MEV
-    L = gd.SUN_RADIUS*gd.UNIT_KM
+    which one is right.
+
+    The baseline is written out rather than taken from gd.SUN_RADIUS. The case rests on where
+    the oscillation phase lands, so tying it to a physical constant means any correction to that
+    constant dissolves it -- which is exactly what happened when the solar radius was corrected
+    from 694 700 km to the IAU value."""
+    energy = 12.0*gd.UNIT_MEV
+    L = 680000.0*gd.UNIT_KM
     H = _solar_2nu_H(energy)
 
     def rhs(l, y):

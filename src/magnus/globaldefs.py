@@ -165,9 +165,10 @@ class BaselineUnitWarning(UserWarning):
     :math:`L_{\rm km} \times` :data:`CONV_KM_TO_INV_EV`, some 5.07e9 per kilometer.
     Passing the raw kilometer value does not fail: the call returns a converged, exactly
     unitary probability for a baseline a few meters long, which looks like an ordinary
-    answer rather than a wrong one.  Measured on the Sun, 694700 passed raw returns 0.910
-    at 20 MeV where the correct value is 0.290, and the survival probability comes out
-    *rising* with energy, which is backwards for an MSW resonance.
+    answer rather than a wrong one.  Measured on the Sun, the radius in kilometres passed
+    raw returns 1.000 at 20 MeV where the correct value is 0.29, and the survival
+    probability comes out *rising* with energy, which is backwards for an MSW
+    resonance.
 
     The threshold is :data:`IMPLAUSIBLE_BASELINE_NATURAL_UNITS`, about two meters in
     natural units, so a genuinely short baseline is still reachable without tripping it.
@@ -454,10 +455,11 @@ Average Earth radius.
 Units: [km]
 """
 
-SUN_RADIUS = 6.947e5
+SUN_RADIUS = 6.957e5
 r"""float: Module-level constant
 
-Average solar radius.
+Nominal solar radius, IAU 2015 Resolution B3.  :data:`L_SCALE_SUN` is derived from
+it, so every solar scale height and baseline in the package follows it.
 Units: [km]
 """
 
