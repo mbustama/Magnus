@@ -296,7 +296,7 @@ is passed as ``H(E, l)``, or as ``H(E)`` with
         return h_vac/E + np.asarray(vcc(l))[..., None, None]*proj
 
     P = oscprob.osc_prob_energy_baseline(
-        H, 1.0*gd.UNIT_GEV, 5000.0*gd.UNIT_KM, 0.0,
+        H, 0.1*gd.UNIT_GEV, 5000.0*gd.UNIT_KM, 0.0,
         nu_i=gd.NUE, nu_f=gd.NUE, average=True)
     round(float(P), 4)
 

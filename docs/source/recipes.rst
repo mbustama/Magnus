@@ -60,7 +60,7 @@ operator itself, phases included.
     P, U = oscprob.osc_prob_3nu_matter_exp_density(
         1.0*gd.UNIT_GEV, 5000.0*gd.UNIT_KM, 0.0, 10.0, 1000.0*gd.UNIT_KM,
         density_matter_is_in_g_per_cm3=True, return_evolution_operator=True,
-        **OSC)
+        n_slabs=32, **OSC)
 
     # The mixing matrix in vacuum, the medium past the source; then the
     # mass-state content of what leaves, and the flavor content far away

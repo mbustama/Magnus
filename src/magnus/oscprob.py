@@ -6221,7 +6221,7 @@ def osc_prob_energy_baseline(
 
     Returns
     -------
-    int, float, or np.ndarray, or a pair of them
+    int, float, np.ndarray, or tuple
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for
         each (energy, L) point; a single value/matrix if both ``energy`` and ``L`` were floats.
         With ``return_evolution_operator=True``, the pair ``(P, U)``: ``P`` as above and ``U``
@@ -7139,6 +7139,7 @@ def osc_prob_vacuum(
         between levels, with the same ``rtol`` and ``atol``, so the returned operator is
         converged in its own right (phases included) and not only in its moduli.  Every
         other setting keeps its meaning.  Default: False.
+
     Returns
     -------
     float or np.ndarray
