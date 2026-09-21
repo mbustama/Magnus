@@ -2182,10 +2182,10 @@ def values_to_unspecified_osc_params(
     r"""Return values of unspecified standard oscillation parameters
 
     If any of the oscillation parameters has not been given a value, assign to it the value from
-    the specified parameter set with name default_osc_params_set_name.  When input validation is
-    on (validate_input == True), the routine checks whether the parameter set name is among the
-    predefined ones (see validation above).  Only the values of the parameters passed as None are
-    assigned from the predefined set; other parameters are not modified.
+    the specified parameter set with name default_osc_params_set_name.  The parameter-set name is
+    always checked against :data:`magnus.globaldefs.OSC_PARAMS_PREDEFINED`, and an unknown one
+    raises ``ValueError``.  Only the values of the parameters passed as None are assigned from
+    the predefined set; other parameters are not modified.
 
     .. versionadded:: 1.0.0
 
@@ -2211,9 +2211,11 @@ def values_to_unspecified_osc_params(
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
-        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
-        ``'deg'`` the CP phase is read as degrees too; under the other three
-        it stays in radians, a sine being no way to state a phase.
+        themselves in radians, or ``'deg'`` in degrees.  Unlike the ``osc_prob_*`` entry
+        points, this routine does not check the name: an unrecognized one falls through to
+        the degrees branch rather than raising.  Under ``'deg'`` the CP phase is read as
+        degrees too; under the other three it stays in radians, a sine being no way to
+        state a phase.
 
     Returns
     -------
@@ -2754,8 +2756,12 @@ def compute_evolution_operator(
     magnus_exp_order: int,
     **kwargs
 ) -> np.ndarray:
-    r"""Computes the evolution operator inside a given time slab.  This functions is not designed to
-    be called directly by the user, but rather internally by :func:`osc_prob`.
+    r"""Computes the evolution operator inside a given time slab.
+
+    Exported so the single-slab kernel can be used on its own.  It is not on
+    :func:`osc_prob`'s path: that routine calls
+    :func:`compute_evolution_operator_multiple_slabs` instead, and nothing in the
+    package calls this one.
 
     .. versionadded:: 1.0.0
 
@@ -2948,22 +2954,12 @@ def osc_prob(
         Order at which the Magnus expansion is truncated (1 to
         ``globaldefs.MAGNUS_EXP_ORDER_MAX``).
     n_jobs : int, optional
-        Number of parallel joblib workers used to compute the per-slab
-        evolution operators.  With the default, ``n_jobs = 1``, all
-        slabs are computed in a single vectorized (batched) call, which
-        is usually fastest; use ``n_jobs > 1`` only for very expensive
-        Hamiltonian functions.
-
-        **It is not a pure performance knob.**  Splitting the slabs across
-        workers changes the order the arithmetic is done in, and the
-        refinement ladder's stopping test compares successive levels, so it
-        can stop one level earlier or later than the serial run.  The two
-        agree to the tolerance you asked for and no better: measured on a
-        3nu PREM chord over eight energies, serial against two workers
-        differs by 1.2e-03 at the default ``rtol = 1e-3``, 6.6e-08 at
-        ``rtol = 1e-6`` and 5.6e-11 at ``rtol = 1e-9``.  If you need runs to
-        be comparable bit for bit, hold ``n_jobs`` fixed, or tighten the
-        tolerance until the difference is below what you care about.
+        Accepted and ignored.  The per-slab parallelization it used to select was
+        retired: every slab is now computed in a single vectorized call, which was
+        faster in every case measured, and serial against two workers now agrees to
+        exactly 0.0.  Parallelism over points lives one layer up, in
+        :func:`osc_prob_energy_baseline`, whose ``n_jobs`` is a live argument.
+        Default: 1.
     integration_method : str, optional
         'gl' for Gauss-Legendre collocation, which needs only 1, 2, 3, or 4
         Hamiltonian evaluations per slab for orders <= 2, <= 4, <= 6, <= 8, and
@@ -3030,7 +3026,8 @@ def osc_prob(
     close_file_log_upon_exit : bool, optional
         If True, close the log file before returning.
     new_recursion_limit : int, optional
-        If not None, raise Python's recursion limit to this value.
+        Accepted and ignored, for backward compatibility.  Nothing in the package
+        calls ``sys.setrecursionlimit``. Default: 5000.
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the
         refinement loops).

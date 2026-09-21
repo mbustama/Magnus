@@ -1704,7 +1704,7 @@ def _gl_nodes(order: int) -> np.ndarray:
     Raises
     ------
     ValueError
-        If ``order`` exceeds :data:`MAGNUS_EXP_ORDER_MAX_GL`.
+        If ``order`` exceeds ``MAGNUS_EXP_ORDER_MAX_GL``.
     """
     if order > MAGNUS_EXP_ORDER_MAX_GL:
         # Backstop.  _validate() reports this with a fuller message, but it is skipped when
@@ -2457,7 +2457,7 @@ def _validate(order: int, integration_method: str):
     order : int
         Requested Magnus order; must satisfy 1 <= order <= MAGNUS_EXP_ORDER_MAX.
         On ``'gl'``, which is the default method, the tighter cap
-        :data:`MAGNUS_EXP_ORDER_MAX_GL` applies, so the stated ceiling is
+        ``MAGNUS_EXP_ORDER_MAX_GL`` applies, so the stated ceiling is
         reachable only on ``'trapezoid'`` and ``'simpson'``.
     integration_method : str
         Must be one of ``valid_integration_methods``.  Orders above 6 on
@@ -2748,7 +2748,7 @@ def gl_nodes(order: int) -> np.ndarray:
     Raises
     ------
     ValueError
-        If ``order`` exceeds :data:`MAGNUS_EXP_ORDER_MAX_GL`.
+        If ``order`` exceeds ``MAGNUS_EXP_ORDER_MAX_GL``.
 
     Examples
     --------
@@ -2844,7 +2844,7 @@ roughly thirteen times headroom over the measured worst case while still admitti
 floating-point noise: even at 1024 slabs the bound is ~1e-13 relative, which no physically uneven
 grid approaches.
 
-See :func:`_mirror_applies` for why this one comparison is a tolerance when :func:`palindromic`
+See ``_mirror_applies`` for why this one comparison is a tolerance when :func:`palindromic`
 is exact."""
 
 
@@ -2960,7 +2960,7 @@ def magnus_expansion_multislab(
         Caller's declaration that ``A(t) == A(lo + hi - t)`` on ``(lo, hi)``.
         When given, and when the slab chain is found to span exactly that
         interval with widths palindromic to within a few ulp (see
-        :func:`_mirror_applies`), ``A`` is evaluated on the
+        ``_mirror_applies``), ``A`` is evaluated on the
         first half of the slabs only and the rest follows by reversal --
         halving the calls to the caller's Hamiltonian.  Ignored when
         :data:`USE_PALINDROME` is False.

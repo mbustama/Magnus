@@ -39,7 +39,12 @@ from pathlib import Path
 
 
 def _version_from_metadata() -> str:
-    """Version of the installed ``magnus`` distribution, or '' if not installed."""
+    """Version of the installed ``magnuspy`` distribution.
+
+    ``magnuspy`` is the distribution name; ``magnus`` is the import package, and an
+    unrelated distribution of that name may also be installed.  Returns '' if the
+    distribution is not installed, and also if ``importlib.metadata`` is unavailable.
+    """
     try:
         from importlib.metadata import PackageNotFoundError, version
     except ImportError:                                       # pragma: no cover

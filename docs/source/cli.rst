@@ -308,12 +308,15 @@ configures):
      --energy-unit {eV,keV,MeV,GeV,TeV,PeV}
                            Unit of --energy (default: GeV).
      --baseline BASELINE   Baseline / final position. Required for vacuum, matter, and sun,
-                           and for earth when using --costhz. Only computed automatically
-                           for earth when both --loc-ini and --loc-fin are given instead.
+                           and for earth when using --costhz, unless --source-depth or
+                           --detector-depth is given, which computes it. Computed
+                           automatically for earth when both --loc-ini and --loc-fin are
+                           given instead. --detector-depth requires it to be omitted.
      --l0 L0               Initial position (used by --environment sun and --density-
                            profile exp). Default: 0.0.
      --baseline-unit {eV-1,km,cm}
-                           Unit of --baseline, --l0, and --l-scale (default: km).
+                           Unit of --baseline, --l0, --l-scale, --source-depth and
+                           --detector-depth (default: km).
 
    Matter (--environment matter):
      --rho RHO             Matter density (constant profile).
@@ -422,18 +425,24 @@ configures):
      --sxi12 SXI12         LIV mixing angle xi_12, per --angles.
      --sxi23 SXI23         LIV mixing angle xi_23, per --angles.
      --sxi13 SXI13         LIV mixing angle xi_13, per --angles.
-     --dxicp DXICP         (3nu) LIV CP-violation phase [radian].
-     --dxi13 DXI13         (4/5nu) LIV CP-violation phase [radian] (replaces --dxicp).
+     --dxicp DXICP         (3nu) LIV CP-violation phase [radian, or degree with --angles
+                           deg].
+     --dxi13 DXI13         (4/5nu) LIV CP-violation phase [radian, or degree with --angles
+                           deg] (replaces --dxicp).
      --sxi14 SXI14         (4/5nu) LIV mixing angle xi_14, per --angles.
-     --dxi14 DXI14         (4/5nu) LIV CP-violation phase [radian].
+     --dxi14 DXI14         (4/5nu) LIV CP-violation phase [radian, or degree with --angles
+                           deg].
      --sxi24 SXI24         (4/5nu) LIV mixing angle xi_24, per --angles.
-     --dxi24 DXI24         (4/5nu) LIV CP-violation phase [radian].
+     --dxi24 DXI24         (4/5nu) LIV CP-violation phase [radian, or degree with --angles
+                           deg].
      --sxi34 SXI34         (4/5nu) LIV mixing angle xi_34, per --angles.
      --sxi15 SXI15         (5nu) LIV mixing angle xi_15, per --angles.
-     --dxi15 DXI15         (5nu) LIV CP-violation phase [radian].
+     --dxi15 DXI15         (5nu) LIV CP-violation phase [radian, or degree with --angles
+                           deg].
      --sxi25 SXI25         (5nu) LIV mixing angle xi_25, per --angles.
      --sxi35 SXI35         (5nu) LIV mixing angle xi_35, per --angles.
-     --dxi35 DXI35         (5nu) LIV CP-violation phase [radian].
+     --dxi35 DXI35         (5nu) LIV CP-violation phase [radian, or degree with --angles
+                           deg].
      --b1 B1               LIV eigenvalue b1.
      --b2 B2               LIV eigenvalue b2.
      --b3 B3               LIV eigenvalue b3.
@@ -450,15 +459,17 @@ configures):
 
    Advanced numerics:
      --magnus-exp-order MAGNUS_EXP_ORDER
-                           Highest order of the Magnus expansion (1-8). Default: 4.
+                           Highest order of the Magnus expansion (1-10; 1-8 with the
+                           default --integration-method gl). Default: 4.
      --integration-method {gl,trapezoid,simpson}
                            Quadrature method. 'gl' (Gauss-Legendre collocation) needs only
                            1-4 Hamiltonian evaluations per slab and matches its quadrature
                            order to the expansion order, so it is both the fastest and the
                            most accurate for a smooth Hamiltonian. 'trapezoid'/'simpson'
-                           sample a uniform grid of --n-tpts-per-slab points instead, and
-                           are the safer choice if the Hamiltonian is not smooth within a
-                           slab. Default: gl.
+                           sample a uniform grid of 100 points per slab instead (the
+                           library default; the CLI does not expose it), and are the safer
+                           choice if the Hamiltonian is not smooth within a slab. Default:
+                           gl.
      --rtol RTOL           Relative tolerance on the agreement between successive
                            refinement levels -- a stopping rule, not a guaranteed accuracy.
                            Default: 1e-3.
@@ -477,7 +488,8 @@ configures):
    Output:
      --json                Print the result as JSON instead of a table.
      --precision PRECISION
-                           Decimal digits shown in table output. Default: 4.
+                           Decimal digits shown in the table and in the single-channel
+                           value; ignored with --json. Default: 4.
 
 Implementation notes
 -----------------------

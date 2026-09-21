@@ -927,7 +927,7 @@ def neutron_to_proton_ratio_from_electron_fraction(electron_fraction):
     ----------
     electron_fraction : float or np.ndarray
         :math:`Y_e`, in (0, 1].  Unchecked here: the domain is enforced by the caller,
-        :func:`magnus.oscprob._earth_composition`.  A zero returns ``inf`` with a NumPy
+        ``magnus.oscprob._earth_composition``.  A zero returns ``inf`` with a NumPy
         divide warning, and a value outside the range returns a negative ratio in
         silence.
 

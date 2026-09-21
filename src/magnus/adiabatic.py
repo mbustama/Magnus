@@ -394,8 +394,14 @@ def find_hidden_features(profile: Callable, l0: float, l1: float,
     -------
     dict
         ``'concentration'`` (the statistic), ``'hidden'`` (whether it exceeds
-        :data:`HIDDEN_FEATURE_CONCENTRATION`), ``'l_lo'``/``'l_hi'`` (the reference interval
-        carrying the excess) and ``'l_centre'``.  On a constant profile, concentration 0.0.
+        :data:`HIDDEN_FEATURE_CONCENTRATION`), ``'l_lo'``/``'l_hi'`` (the *pair* of
+        adjacent reference intervals carrying the excess, so the bracket is two intervals
+        wide) and ``'l_centre'``.  On a constant profile, concentration 0.0.
+
+        The same null result comes back when no verdict could be reached at all: fewer than
+        two reference intervals or sub-steps, a zero-length interval, a profile that raises
+        on array input, one whose output is scalar or mis-shaped, and one containing a
+        non-finite value.  ``hidden=False`` there means "not measured", not "nothing there".
     """
     n_sub = N_HIDDEN_FEATURE_SUBDIVISION if n_sub is None else n_sub
     quiet = {'concentration': 0.0, 'hidden': False,
@@ -494,9 +500,12 @@ def oscillation_sampling(H_func: Callable, l0: float, l1: float,
     dict
         ``'oscillation_length'`` (shortest on the trajectory [eV^-1]),
         ``'cycles_over_trajectory'``, ``'nyquist_points'`` (points a scan would need to sample
-        the fastest oscillation twice per cycle), and, when ``baselines`` is given,
-        ``'spacing'``, ``'cycles_per_step'`` and ``'aliased'``.  Empty dict if the spectrum is
-        degenerate or the interval has zero length.
+        the fastest oscillation twice per cycle), and, when ``baselines`` holds more than
+        one position, ``'spacing'``, ``'cycles_per_step'`` and ``'aliased'``.  A single
+        baseline, scalar or length-one, does not get those three, so reading them then
+        raises ``KeyError``.  Empty dict if the spectrum is degenerate, if the interval has
+        zero length, if ``n_probe`` is below 1, or if ``H_func`` raises or returns a
+        non-finite eigenvalue at any probe point.
     
     Examples
     --------
@@ -646,10 +655,17 @@ def _profile_is_resolved(H_func: Callable, l0: float, l1: float, n_probe: int) -
     *tells* it about the discontinuity and accepts when they do not, which is exactly backwards
     with respect to the risk.  This test replaces asking with measuring.
 
-    Method: evaluate ``H`` on the probe grid and again at its midpoints, and compare the largest
-    adjacent change at spacing ``h`` with the largest at spacing ``h/2``.  For a :math:`C^1`
-    Hamiltonian the latter is about half the former; across a jump the two are equal, because a
-    finer grid still straddles the jump.  See :data:`RESOLUTION_RATIO`.
+    Method, in two stages.  First, evaluate ``H`` on the probe grid and again at its midpoints,
+    and ask, for each interval, what fraction of that interval's variation falls in its larger
+    half.  Across a smooth stretch the two halves are comparable; across a jump one half carries
+    nearly all of it.  An interval whose fraction exceeds :data:`RESOLUTION_RATIO` is flagged,
+    after intervals carrying far less variation than the median are dropped.  A flagged interval
+    is a candidate, not a verdict: the single interval holding a smooth turning point is
+    genuinely lopsided too.  So the second stage re-samples up to
+    :data:`MAX_LOCAL_CONFIRMATIONS` of the flagged intervals on :data:`N_LOCAL_CONFIRM` points
+    each, and reports a jump only when one step still carries more than
+    :data:`LOCAL_JUMP_RATIO` of the interval's whole variation.  Refinement does not dilute a
+    jump; it does spread a smooth feature over every step.
 
     **What this cannot do.** A feature *narrower than the probe spacing* is generally not sampled
     by either grid, so neither sees it and this test reports "resolved".  That is a limit of any
@@ -680,8 +696,9 @@ def _profile_is_resolved(H_func: Callable, l0: float, l1: float, n_probe: int) -
     Returns
     -------
     bool
-        False when ``H_func`` shows a jump at this probe scale, True otherwise (including for a
-        constant Hamiltonian, where there is nothing to resolve).
+        False when ``H_func`` shows a jump at this probe scale, confirmed by the local
+        re-sampling stage; True otherwise, including for a constant Hamiltonian, where there is
+        nothing to resolve, and for a profile whose flagged intervals all fail confirmation.
     """
     if n_probe < 2:
         return True
@@ -1407,8 +1424,9 @@ def hybrid_propagator(H_func: Callable, l0: float, l1: float, rtol: Optional[flo
     l1 : float
         Final position.
     rtol : float, optional
-        Relative tolerance on the *agreement* between successive refinement levels, and on the
-        adiabaticity bound in ``_certified``.  Default: 1e-3.  Like every tolerance in this
+        Relative tolerance on the *agreement* between successive refinement levels.  It also
+        enters the adiabaticity bound in the nested ``adiabatic_is_good_enough``, but there
+        additively, as ``atol + rtol``, not as a relative tolerance.  Default: 1e-3.  Like every tolerance in this
         package it is a stopping rule rather than a guaranteed accuracy: the loop halts when
         two successive levels agree, and no error of the returned operator is ever estimated.
         See the ``rtol`` entry of :func:`magnus.oscprob.osc_prob` for what that does and does
@@ -1497,8 +1515,9 @@ def hybrid_propagator(H_func: Callable, l0: float, l1: float, rtol: Optional[flo
         doubles it, so the starting value only shifts which iteration finds a given feature.
     max_n_probe : int, optional
         Ceiling on the probe grid density. Default: 6400.  A cost ceiling rather than a
-        calibration -- reaching it is reported rather than absorbed -- and it also sets what
-        :func:`find_hidden_features` treats as resolvable.
+        calibration: reaching it is reported rather than absorbed.  It is not forwarded to
+        :func:`find_hidden_features`, whose ``n_ref`` has its own default of 6400; the two
+        are chosen to agree, and overriding one does not move the other.
     n_points0 : int, optional
         Starting number of positions used for adiabatic-transport quadrature. Default: 201.
 

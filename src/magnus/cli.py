@@ -8,7 +8,7 @@ oscillation probability (or probability matrix) from the command line,
 without writing any Python. Wraps the same ``osc_prob_{2,3,4,5}nu_*``
 functions used by the Python API (see :py:mod:`magnus.oscprob`
 and :doc:`/cli`), dispatching to the right one based on ``--flavors``,
-``--environment``, and ``--scenario``.
+``--environment``, ``--scenario`` and ``--density-profile``.
 
 Installed as the ``magnus`` console script (see ``[project.scripts]``
 in pyproject.toml) and also runnable as ``python -m magnus``.
@@ -22,6 +22,8 @@ Routine listings
            to their globaldefs index
     * ENERGY_UNITS, LENGTH_UNITS - Unit-name to :math:`\text{eV}` / :math:`\text{eV}^{-1}`
            conversion factors
+    * FLAVOR_LABELS - Row and column names used by the printed table
+    * ALWAYS_FORWARD - Numerics keywords forwarded to every wrapper
 """
 
 __author__ = "Mauricio Bustamante"
@@ -62,9 +64,12 @@ FLAVOR_LABELS = {
     5: ['nu_e', 'nu_mu', 'nu_tau', 'nu_s1', 'nu_s2'],
 }
 
-# Refinement/logging/numerics kwargs that every osc_prob_* wrapper accepts via
-# **kwargs even where they are not explicit named parameters (see the "layer
-# contract" in docs/source/architecture.rst) -- always safe to forward.
+# Refinement/numerics kwargs that every osc_prob_* wrapper accepts via **kwargs
+# even where they are not explicit named parameters (see the "layer contract" in
+# docs/source/architecture.rst).  One exception: 'strategy' is only taken by the
+# position-dependent wrappers, so main drops it for vacuum and constant density.
+# No logging keyword belongs here -- verbose reaches the wrappers because every
+# one of them declares it.
 ALWAYS_FORWARD = {'magnus_exp_order', 'n_jobs', 'integration_method', 'rtol', 'atol',
                   'strategy'}
 
@@ -122,13 +127,15 @@ def build_parser() -> argparse.ArgumentParser:
         help='Unit of --energy (default: GeV).')
     g_kin.add_argument('--baseline', type=float, default=None,
         help='Baseline / final position. Required for vacuum, matter, and sun, and for earth '
-             'when using --costhz. Only computed automatically for earth when both --loc-ini '
-             'and --loc-fin are given instead.')
+             'when using --costhz, unless --source-depth or --detector-depth is given, which '
+             'computes it. Computed automatically for earth when both --loc-ini and --loc-fin '
+             'are given instead. --detector-depth requires it to be omitted.')
     g_kin.add_argument('--l0', type=float, default=0.0,
         help='Initial position (used by --environment sun and --density-profile exp). '
              'Default: 0.0.')
     g_kin.add_argument('--baseline-unit', choices=list(LENGTH_UNITS), default='km',
-        help='Unit of --baseline, --l0, and --l-scale (default: km).')
+        help='Unit of --baseline, --l0, --l-scale, --source-depth and --detector-depth '
+             '(default: km).')
 
     g_mat = p.add_argument_group('Matter (--environment matter)')
     g_mat.add_argument('--rho', type=float, default=None,
@@ -251,19 +258,19 @@ def build_parser() -> argparse.ArgumentParser:
     g_liv.add_argument('--sxi23', type=float, default=0.0, help='LIV mixing angle xi_23, per --angles.')
     g_liv.add_argument('--sxi13', type=float, default=0.0, help='LIV mixing angle xi_13, per --angles.')
     g_liv.add_argument('--dxicp', type=float, default=0.0, dest='dxiCP',
-        help='(3nu) LIV CP-violation phase [radian].')
+        help='(3nu) LIV CP-violation phase [radian, or degree with --angles deg].')
     g_liv.add_argument('--dxi13', type=float, default=0.0,
-        help='(4/5nu) LIV CP-violation phase [radian] (replaces --dxicp).')
+        help='(4/5nu) LIV CP-violation phase [radian, or degree with --angles deg] (replaces --dxicp).')
     g_liv.add_argument('--sxi14', type=float, default=0.0, help='(4/5nu) LIV mixing angle xi_14, per --angles.')
-    g_liv.add_argument('--dxi14', type=float, default=0.0, help='(4/5nu) LIV CP-violation phase [radian].')
+    g_liv.add_argument('--dxi14', type=float, default=0.0, help='(4/5nu) LIV CP-violation phase [radian, or degree with --angles deg].')
     g_liv.add_argument('--sxi24', type=float, default=0.0, help='(4/5nu) LIV mixing angle xi_24, per --angles.')
-    g_liv.add_argument('--dxi24', type=float, default=0.0, help='(4/5nu) LIV CP-violation phase [radian].')
+    g_liv.add_argument('--dxi24', type=float, default=0.0, help='(4/5nu) LIV CP-violation phase [radian, or degree with --angles deg].')
     g_liv.add_argument('--sxi34', type=float, default=0.0, help='(4/5nu) LIV mixing angle xi_34, per --angles.')
     g_liv.add_argument('--sxi15', type=float, default=0.0, help='(5nu) LIV mixing angle xi_15, per --angles.')
-    g_liv.add_argument('--dxi15', type=float, default=0.0, help='(5nu) LIV CP-violation phase [radian].')
+    g_liv.add_argument('--dxi15', type=float, default=0.0, help='(5nu) LIV CP-violation phase [radian, or degree with --angles deg].')
     g_liv.add_argument('--sxi25', type=float, default=0.0, help='(5nu) LIV mixing angle xi_25, per --angles.')
     g_liv.add_argument('--sxi35', type=float, default=0.0, help='(5nu) LIV mixing angle xi_35, per --angles.')
-    g_liv.add_argument('--dxi35', type=float, default=0.0, help='(5nu) LIV CP-violation phase [radian].')
+    g_liv.add_argument('--dxi35', type=float, default=0.0, help='(5nu) LIV CP-violation phase [radian, or degree with --angles deg].')
     g_liv.add_argument('--b1', type=float, default=0.0, help='LIV eigenvalue b1.')
     g_liv.add_argument('--b2', type=float, default=0.0, help='LIV eigenvalue b2.')
     g_liv.add_argument('--b3', type=float, default=0.0, help='LIV eigenvalue b3.')
@@ -283,12 +290,14 @@ def build_parser() -> argparse.ArgumentParser:
 
     g_num = p.add_argument_group('Advanced numerics')
     g_num.add_argument('--magnus-exp-order', type=int, default=4, dest='magnus_exp_order',
-        help='Highest order of the Magnus expansion (1-8). Default: 4.')
+        help='Highest order of the Magnus expansion (1-10; 1-8 with the default '
+             '--integration-method gl). Default: 4.')
     g_num.add_argument('--integration-method', choices=['gl', 'trapezoid', 'simpson'], default='gl',
         help="Quadrature method. 'gl' (Gauss-Legendre collocation) needs only 1-4 Hamiltonian "
              "evaluations per slab and matches its quadrature order to the expansion order, so "
              "it is both the fastest and the most accurate for a smooth Hamiltonian. "
-             "'trapezoid'/'simpson' sample a uniform grid of --n-tpts-per-slab points instead, "
+             "'trapezoid'/'simpson' sample a uniform grid of 100 points per slab instead "
+             "(the library default; the CLI does not expose it), "
              "and are the safer choice if the Hamiltonian is not smooth within a slab. "
              "Default: gl.")
     g_num.add_argument('--rtol', type=float, default=1.e-3,
@@ -308,12 +317,34 @@ def build_parser() -> argparse.ArgumentParser:
 
     g_out = p.add_argument_group('Output')
     g_out.add_argument('--json', action='store_true', help='Print the result as JSON instead of a table.')
-    g_out.add_argument('--precision', type=int, default=4, help='Decimal digits shown in table output. Default: 4.')
+    g_out.add_argument('--precision', type=int, default=4,
+        help='Decimal digits shown in the table and in the single-channel value; ignored '
+             'with --json. Default: 4.')
 
     return parser
 
 
 def _std_osc_kwargs(flavors: int, args: argparse.Namespace) -> dict:
+    r"""Collects the standard oscillation parameters for one flavor count.
+
+    Returns only the keywords the ``osc_prob_{flavors}nu_*`` wrappers declare at that
+    count: the two-flavor pair at two flavors, otherwise the three-flavor set together
+    with ``default_osc_params_set_name``, extended with a fourth state's mixing at four
+    or more and a fifth state's at five.  Values go through unconverted, in whichever
+    convention ``--angles`` names.
+
+    Parameters
+    ----------
+    flavors : int
+        Number of neutrino flavors (2, 3, 4 or 5).
+    args : argparse.Namespace
+        Parsed command-line arguments.
+
+    Returns
+    -------
+    dict
+        Keyword arguments for the wrapper, under the library's parameter names.
+    """
     if flavors == 2:
         return {'sth': args.sth, 'Dm2': args.Dm2, 'angles': args.angles}
     kw = {'s12': args.s12, 's23': args.s23, 's13': args.s13, 'dCP': args.dCP,
@@ -329,6 +360,26 @@ def _std_osc_kwargs(flavors: int, args: argparse.Namespace) -> dict:
 
 
 def _nsi_kwargs(flavors: int, args: argparse.Namespace) -> dict:
+    r"""Collects the non-standard-interaction couplings for one flavor count.
+
+    Returns the ``eps_*`` keywords the NSI wrappers declare at that count: the
+    two-flavor pair at two flavors, otherwise the active-sector block, plus the
+    couplings to one sterile state at four flavors and to two at five.  Every coupling
+    defaults to 0.0 in the parser, so an unset one is forwarded as zero rather than
+    omitted.
+
+    Parameters
+    ----------
+    flavors : int
+        Number of neutrino flavors (2, 3, 4 or 5).
+    args : argparse.Namespace
+        Parsed command-line arguments.
+
+    Returns
+    -------
+    dict
+        Keyword arguments for the wrapper, under the library's parameter names.
+    """
     if flavors == 2:
         return {'eps_aa': args.eps_aa, 'eps_ab': args.eps_ab}
     kw = {'eps_ee': args.eps_ee, 'eps_em': args.eps_em, 'eps_et': args.eps_et,
@@ -344,6 +395,26 @@ def _nsi_kwargs(flavors: int, args: argparse.Namespace) -> dict:
 
 
 def _liv_kwargs(flavors: int, args: argparse.Namespace) -> dict:
+    r"""Collects the Lorentz-violating operator's parameters for one flavor count.
+
+    Returns the mixing angles, the CP phases and the eigenvalues the LIV wrappers
+    declare at that count.  Three flavors take ``dxiCP``; four and five replace it with
+    ``dxi13`` and add the sterile sector's angles, phases and eigenvalues.  ``Lambda``
+    and ``n_liv`` go in at every count.  An eigenvalue above the flavor count is
+    accepted by the parser and dropped here.
+
+    Parameters
+    ----------
+    flavors : int
+        Number of neutrino flavors (2, 3, 4 or 5).
+    args : argparse.Namespace
+        Parsed command-line arguments.
+
+    Returns
+    -------
+    dict
+        Keyword arguments for the wrapper, under the library's parameter names.
+    """
     if flavors == 2:
         return {'sxi': args.sxi, 'b1': args.b1, 'b2': args.b2, 'Lambda': args.Lambda,
                 'n_liv': args.n_liv}
@@ -362,6 +433,39 @@ def _liv_kwargs(flavors: int, args: argparse.Namespace) -> dict:
 
 def _env_kwargs(environment: str, density_profile: str, args: argparse.Namespace,
                  baseline_ev: Optional[float], l0_ev: float) -> dict:
+    r"""Builds the environment's keywords, and refuses combinations it cannot serve.
+
+    Returns what the chosen ``osc_prob_*`` wrapper needs: the baseline alone for vacuum;
+    density, composition and unit flag for matter, with either one density or a central
+    density and a scale height by profile; the trajectory for earth, with both depths
+    converted to natural units; and the two positions for sun.  Every invalid
+    combination of flags exits here rather than downstream, so the message names the
+    flags the user typed rather than the library's parameters.
+
+    Parameters
+    ----------
+    environment : str
+        'vacuum', 'matter', 'earth' or 'sun'.
+    density_profile : str
+        'constant' or 'exp'; read only when ``environment`` is 'matter'.
+    args : argparse.Namespace
+        Parsed command-line arguments.
+    baseline_ev : float or None
+        Baseline [eV^-1], or None if ``--baseline`` was not given.
+    l0_ev : float
+        Initial position [eV^-1].
+
+    Returns
+    -------
+    dict
+        Keyword arguments for the wrapper, under the library's parameter names.
+
+    Raises
+    ------
+    SystemExit
+        If the flags given do not describe a trajectory this environment can
+        propagate.  The message names the flags at fault, and the exit code is 1.
+    """
     if environment == 'vacuum':
         return {'L': baseline_ev}
     if environment == 'matter':
@@ -420,6 +524,35 @@ def _env_kwargs(environment: str, density_profile: str, args: argparse.Namespace
 
 
 def _wrapper_name(flavors: int, environment: str, scenario: str, density_profile: str) -> str:
+    r"""Names the :mod:`magnus.oscprob` wrapper that serves a requested combination.
+
+    Composes ``osc_prob_{flavors}nu_*`` from the environment, the physics scenario and,
+    for matter, the density profile.  Non-standard interactions in vacuum is the one
+    combination with no wrapper, since the couplings scale a matter potential that
+    vacuum does not have, and it exits here rather than failing later as a missing
+    attribute.
+
+    Parameters
+    ----------
+    flavors : int
+        Number of neutrino flavors (2, 3, 4 or 5).
+    environment : str
+        'vacuum', 'matter', 'earth' or 'sun'.
+    scenario : str
+        'std', 'nsi' or 'liv'.
+    density_profile : str
+        'constant' or 'exp'; read only when ``environment`` is 'matter'.
+
+    Returns
+    -------
+    str
+        Name of a function in :mod:`magnus.oscprob`.
+
+    Raises
+    ------
+    SystemExit
+        If ``scenario`` is 'nsi' and ``environment`` is 'vacuum'.
+    """
     if environment == 'vacuum':
         if scenario == 'nsi':
             raise SystemExit("magnus prob: --scenario nsi is not available with --environment "
@@ -449,6 +582,27 @@ def _call(fn, candidate_kwargs: dict):
 
 
 def _format_table(P: np.ndarray, flavors: int, precision: int) -> str:
+    r"""Renders a probability matrix as a labeled fixed-width text table.
+
+    Rows are the initial flavor and columns the final one, both named by
+    :data:`FLAVOR_LABELS`; at two flavors the system is abstract, so the labels are 0
+    and 1.  Each column is as wide as the longest label plus two, or ``precision + 4``,
+    whichever is larger, so the entries stay aligned at any precision.
+
+    Parameters
+    ----------
+    P : np.ndarray
+        Probability matrix, shape ``(flavors, flavors)``.
+    flavors : int
+        Number of neutrino flavors (2, 3, 4 or 5).
+    precision : int
+        Decimal digits shown for each entry.
+
+    Returns
+    -------
+    str
+        The table, newline-joined and without a trailing newline.
+    """
     labels = FLAVOR_LABELS[flavors]
     width = max(len(l) for l in labels) + 2
     width = max(width, precision + 4)
@@ -474,7 +628,14 @@ def main(argv=None) -> int:
     Returns
     -------
     int
-        Process exit code (0 on success).
+        Always 0.  Every failure leaves through :class:`SystemExit` instead, so
+        this function has no non-zero return.
+
+    Raises
+    ------
+    SystemExit
+        Exit code 2 for an argparse error or a value the library rejects, and 1 for a
+        combination of flags that ``_env_kwargs`` or ``_wrapper_name`` refuses.
     """
     parser = build_parser()
     args = parser.parse_args(argv)
