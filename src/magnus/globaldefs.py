@@ -24,8 +24,10 @@ Routine listings
            convention is asked for
 
 The remaining module-level names are physical constants, unit-conversion
-factors, the ANGLE_CONVENTIONS tuple and the MixingAngleConventionWarning
-class, not routines; see the module source for the full list.
+factors, the ANGLE_CONVENTIONS tuple and the three warning classes defined
+here -- MixingAngleConventionWarning, BaselineUnitWarning and
+SterileMatterCompositionWarning -- not routines; see the module source for
+the full list.
 """
 
 
@@ -270,7 +272,7 @@ def set_color_output(enabled: bool) -> None:
 
 
 MAGNUS_MAX_PREDEFINED_NUM_FLAVORS = 5
-r"""float: Module-level constant
+r"""int: Module-level constant
 
 Maximum number of flavors for which we have hard-coded routines in the oscprob module.
 Units: [Adimensional]
@@ -347,14 +349,14 @@ Units: [:math:`\text{cm}^{3}~\text{eV}^{3}`]
 CONV_EV_TO_G = 1.783e-33
 r"""float: Module-level constant
 
-Multiplicative conversion factor from :math:`\text{eV}^{-1}` to grams.
+Multiplicative conversion factor from eV to grams: the mass equivalent of one eV.
 Units: [:math:`\text{g eV}^{-1}`]
 """
 
 CONV_G_TO_EV = 1./CONV_EV_TO_G
 r"""float: Module-level constant
 
-Multiplicative conversion factor from grams to :math:`\text{eV}^{-1}`.
+Multiplicative conversion factor from grams to eV, as a mass.
 Units: [:math:`\text{eV g}^{-1}`]
 """
 
@@ -369,7 +371,7 @@ Units: [:math:`\text{g}^{-1}~\text{cm}^{3}~\text{eV}^{4}`]
 SQRT_OF_2 = np.sqrt(2.0)
 r"""float: Module-level constant
 
-Square root of 2..
+Square root of 2.
 Units: [Adimensional]
 """
 
@@ -432,7 +434,9 @@ NUM_DENSITY_E_EARTH_CRUST = DENSITY_MATTER_CRUST_G_PER_CM3 * CONV_G_TO_EV \
                             / pow(CONV_CM_TO_INV_EV, 3.0)
 r"""float: Module-level constant
 
-Electron number density in the Earth's crust
+Electron number density in the Earth's crust.  The mean nucleon mass is taken as
+:math:`(m_p + m_n)/2`, not the atomic mass unit, which puts this about 0.8% below the
+textbook :math:`\rho N_A Y_e`; :data:`VCC_EARTH_CRUST` inherits the same convention.
 Units: [:math:`\text{eV}^{3}`]
 """
 
@@ -500,57 +504,98 @@ Units: [:math:`\text{eV}^{-1}`]
 """
 
 NUE = 0
-r"""float: Module-level constant
+r"""int: Module-level constant
 
 Index used to denote nu_e flavor when computing probabilities.
 Units: [Adimensional]
 """
 
 NUMU = 1
-r"""float: Module-level constant
+r"""int: Module-level constant
 
 Index used to denote nu_mu flavor when computing probabilities.
 Units: [Adimensional]
 """
 
 NUTAU = 2
-r"""float: Module-level constant
+r"""int: Module-level constant
 
 Index used to denote nu_tau flavor when computing probabilities.
 Units: [Adimensional]
 """
 
 NUS = 3
-r"""float: Module-level constant
+r"""int: Module-level constant
 
-Index used to denote the sterile flavor in when computing four-neutrino
+Index used to denote the sterile flavor when computing four-neutrino
 (3+1) probabilities.
 Units: [Adimensional]
 """
 
 NUS1 = 3
-r"""float: Module-level constant
+r"""int: Module-level constant
 
-Index used to denote the first sterile flavor in when computing 
+Index used to denote the first sterile flavor when computing 
 five-neutrino (3+2) probabilities.
 Units: [Adimensional]
 """
 
 NUS2 = 4
-r"""float: Module-level constant
+r"""int: Module-level constant
 
-Index used to denote the second sterile flavor in when computing 
+Index used to denote the second sterile flavor when computing 
 five-neutrino (3+2) probabilities.
 Units: [Adimensional]
 """
 
 
 UNIT_KEV = 1.e3
+r"""float: Module-level constant
+
+One keV, in eV.  Multiply by it to turn a number of keV into the eV every
+entry point expects: ``1.0*gd.UNIT_KEV`` is one keV.
+Units: [:math:`\text{eV keV}^{-1}`]
+"""
+
 UNIT_MEV = 1.e6
+r"""float: Module-level constant
+
+One MeV, in eV.  Multiply by it to turn a number of MeV into the eV every
+entry point expects: ``1.0*gd.UNIT_MEV`` is one MeV.
+Units: [:math:`\text{eV MeV}^{-1}`]
+"""
+
 UNIT_GEV = 1.e9
+r"""float: Module-level constant
+
+One GeV, in eV.  Multiply by it to turn a number of GeV into the eV every
+entry point expects: ``1.0*gd.UNIT_GEV`` is one GeV.
+Units: [:math:`\text{eV GeV}^{-1}`]
+"""
+
 UNIT_TEV = 1.e12
+r"""float: Module-level constant
+
+One TeV, in eV.  Multiply by it to turn a number of TeV into the eV every
+entry point expects: ``1.0*gd.UNIT_TEV`` is one TeV.
+Units: [:math:`\text{eV TeV}^{-1}`]
+"""
+
 UNIT_PEV = 1.e15
+r"""float: Module-level constant
+
+One PeV, in eV.  Multiply by it to turn a number of PeV into the eV every
+entry point expects: ``1.0*gd.UNIT_PEV`` is one PeV.
+Units: [:math:`\text{eV PeV}^{-1}`]
+"""
+
 UNIT_EEV = 1.e18
+r"""float: Module-level constant
+
+One EeV, in eV.  Multiply by it to turn a number of EeV into the eV every
+entry point expects: ``1.0*gd.UNIT_EEV`` is one EeV.
+Units: [:math:`\text{eV EeV}^{-1}`]
+"""
 
 
 S12_NO_BF_NUFIT_6_0 = np.sqrt(0.308)
@@ -637,7 +682,7 @@ D21_IO_BF_NUFIT_6_0 = 7.49e-5
 r"""float: Module-level constant
 
 Mass-squared difference :math:`\Delta m_{21}^2`, best fit from NuFit 6.0, assuming
-normal ordering with SK atmospheric data.
+inverted ordering with SK atmospheric data.
 Units: [:math:`\text{eV}^{2}`]
 """
 
@@ -645,7 +690,7 @@ D32_IO_BF_NUFIT_6_0 = -2.484e-3
 r"""float: Module-level constant
 
 Mass-squared difference :math:`\Delta m_{32}^2`, best fit from NuFit 6.0, assuming
-normal ordering with SK atmospheric data.
+inverted ordering with SK atmospheric data.
 Units: [:math:`\text{eV}^{2}`]
 """
 
@@ -735,14 +780,14 @@ Units: [Adimensional]
 """
 
 EPS_2 = [EPS_EE, EPS_EM, EPS_MM]
-r"""float: Module-level constant
+r"""list of float: Module-level constant
 
 Vector of total NSI strength parameters for two-neutrino oscillations.
 Units: [Adimensional]
 """
 
 EPS_3 = [EPS_EE, EPS_EM, EPS_ET, EPS_MM, EPS_MT, EPS_TT]
-r"""float: Module-level constant
+r"""list of float: Module-level constant
 
 Vector of total NSI strength parameters for three-neutrino oscillations.
 Units: [Adimensional]
@@ -1097,8 +1142,8 @@ def load_nufit_params(version='NuFIT 6.1', ordering='NO', category=None, angles=
     as a plain dict with the same parameter names used throughout Magnus
     (``s12``, ``s23``, ``s13``, ``dCP``, ``D21``, ``D31``), so the result
     can be passed directly as keyword arguments to any ``osc_prob_3nu_*``
-    function (or to :func:`magnus.hamiltonians.hamiltonians3nu` and other
-    functions that take the same standard-oscillation parameter names).
+    function (or to the builders in :py:mod:`magnus.hamiltonians.hamiltonians3nu`
+    and other functions that take the same standard-oscillation parameter names).
 
     Parameters
     ----------
@@ -1117,7 +1162,7 @@ def load_nufit_params(version='NuFIT 6.1', ordering='NO', category=None, angles=
         If ``None`` (default), the release's preferred/primary category is
         used (for releases with a ``with_SK``/``without_SK`` split, this is
         ``'with_SK'``). See ``NUFIT_GLOBAL_FITS[version]['categories'].keys()``
-        for the categories available for a given release.
+        for the categories available for a given release. Default: None.
 
     angles : str, optional
         Convention the three mixing angles are returned in: ``'sin'`` (default) their sines,
@@ -1145,8 +1190,9 @@ def load_nufit_params(version='NuFIT 6.1', ordering='NO', category=None, angles=
     ------
     ValueError
         If ``version`` is not a known NuFit release, if ``ordering`` is
-        not ``'NO'`` or ``'IO'``, or if ``category`` is not one of the
-        categories available for ``version``.
+        not ``'NO'`` or ``'IO'``, if ``category`` is not one of the
+        categories available for ``version``, or if ``angles`` is not one of
+        :data:`ANGLE_CONVENTIONS`.
 
     Examples
     --------

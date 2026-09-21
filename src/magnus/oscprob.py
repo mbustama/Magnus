@@ -8892,7 +8892,7 @@ def osc_prob_2nu_vacuum(
         If True, also write all messages to the log file.
     filename_log : str, optional
         Name of the log file.
-    file_log : file object, optional
+    file_log : TextIOWrapper, optional
         Open file handle to write the log to, if one is already open.
     close_file_log_upon_exit : bool, optional
         If True, close ``file_log`` before returning.
@@ -9074,7 +9074,7 @@ def osc_prob_3nu_vacuum(
         If True, also write all messages to the log file.
     filename_log : str, optional
         Name of the log file.
-    file_log : file object, optional
+    file_log : TextIOWrapper, optional
         Open file handle to write the log to, if one is already open.
     close_file_log_upon_exit : bool, optional
         If True, close ``file_log`` before returning.
@@ -9314,7 +9314,7 @@ def osc_prob_4nu_vacuum(
         If True, also write all messages to the log file.
     filename_log : str, optional
         Name of the log file.
-    file_log : file object, optional
+    file_log : TextIOWrapper, optional
         Open file handle to write the log to, if one is already open.
     close_file_log_upon_exit : bool, optional
         If True, close ``file_log`` before returning.
@@ -9575,7 +9575,7 @@ def osc_prob_5nu_vacuum(
         If True, also write all messages to the log file.
     filename_log : str, optional
         Name of the log file.
-    file_log : file object, optional
+    file_log : TextIOWrapper, optional
         Open file handle to write the log to, if one is already open.
     close_file_log_upon_exit : bool, optional
         If True, close ``file_log`` before returning.
