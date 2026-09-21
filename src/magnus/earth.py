@@ -271,25 +271,33 @@ def distance_traveled_inside_earth(costhz: float, source_depth: Optional[float]=
     ----------
     costhz : float
         Cosine of the zenith angle of the neutrino, measured at the
-        detector.
-    source_depth : float, optional
-        Depth of the entry point below the surface [km]. Default: 0.0,
-        i.e. the neutrino enters at the surface.
-    detector_depth : float, optional
-        Depth of the detector below the surface [km]. Default: 0.0, i.e.
-        the detector sits on the surface.
+        detector; must lie in [-1, 1].  The bound is enforced only when an
+        endpoint is buried: with both ends on the surface, a costhz outside
+        it returns a number rather than raising.
+    source_depth : float or None, optional
+        Depth of the entry point below the surface [km].  None is read as
+        0.0. Default: 0.0, i.e. the neutrino enters at the surface.
+    detector_depth : float or None, optional
+        Depth of the detector below the surface [km].  None is read as 0.0.
+        Default: 0.0, i.e. the detector sits on the surface.
 
     Returns
     -------
     float
-        Path length inside the Earth [km].
+        Path length inside the Earth [km].  Every ``osc_prob_*`` baseline is
+        in :math:`\text{eV}^{-1}`, so multiply by
+        :data:`magnus.globaldefs.UNIT_KM` before passing this on; handing the
+        raw value over returns a converged, unitary, wrong answer.
 
     Raises
     ------
     ValueError
-        If either depth is outside [0, R_earth), or if the trajectory
-        never reaches the source radius, which happens when the source is
-        buried below the trajectory's closest approach to the center.
+        If ``costhz`` is outside [-1, 1] and an endpoint is buried, if either
+        depth is outside [0, R_earth), if the trajectory never reaches the
+        source radius, which happens when the source is buried below the
+        trajectory's closest approach to the center, or if the resulting path
+        length is negative, which happens when the source sits deeper than the
+        detector on a downward-going trajectory.
 
     Examples
     --------
@@ -384,7 +392,7 @@ def earth_radial_distance_from_depth(costhz: float, l: Union[float, np.ndarray],
         Distance(s) of the neutrino from its point of entry into the
         Earth [km].
     tol : float, optional
-        Absolute tolerance by which ``l`` may exceed the distance
+        Absolute tolerance [km] by which ``l`` may exceed the distance
         traveled inside the Earth before a ValueError is raised;
         distances within the tolerance are clamped onto the exit point.
         Default: 1e-8.
@@ -712,8 +720,9 @@ def costhz_between_points_on_surface(lat1_dms: tuple[float, float, float],
     Computes the cosine of the zenith angle at which a neutrino would need to travel in a
     straight chord through the Earth to reach the second location from the first (e.g., a source
     and a detector both on the surface).  Assumes a spherical Earth and a detector on the
-    surface, not underground, so the returned value is always non-positive (an upward- or
-    horizontally-traveling neutrino, i.e. costhz > 0, would not cross the Earth's interior at all).
+    surface, not underground, so the returned value is always non-positive.  A neutrino
+    arriving from above, ``costhz > 0``, crosses no part of the Earth's interior, and
+    ``costhz = 0`` grazes the surface horizontally.
     Two surface coordinates cannot describe a buried endpoint; to place one, give the zenith
     angle directly and pass ``source_depth`` or ``detector_depth`` to
     :func:`distance_traveled_inside_earth`.
@@ -755,7 +764,8 @@ def coordinates_of_named_location(source_func_name: str, loc_name: str) -> np.nd
     ----------
     source_func_name : str
         Name of the calling function, used only to build a more informative error message if
-        ``loc_name`` is not found.
+        ``loc_name`` is not found.  The message prefixes it with ``oscprob.``, so a caller
+        from another module is reported under that name.
     loc_name : str
         Name of the predefined location (e.g., ``'kamioka'``, ``'south_pole'``). See
         ``earth.loc_coords_dms`` for the full list.
@@ -763,7 +773,13 @@ def coordinates_of_named_location(source_func_name: str, loc_name: str) -> np.nd
     Returns
     -------
     np.ndarray
-        Array ``[lat, lon]``, with ``lat`` and ``lon`` each a (degree, minute, second) tuple.
+        Array of shape ``(2, 3)`` in degrees, arcminutes and arcseconds: row 0 the
+        latitude, row 1 the longitude.  The stored tuples are converted to floats.
+
+    Raises
+    ------
+    ValueError
+        If ``loc_name`` is not one of the predefined locations.
     """
     # The latitude and longitude are each returned in day-minute-second format, (dd, mm, ss)
 
@@ -910,7 +926,10 @@ def neutron_to_proton_ratio_from_electron_fraction(electron_fraction):
     Parameters
     ----------
     electron_fraction : float or np.ndarray
-        :math:`Y_e`, in (0, 1].
+        :math:`Y_e`, in (0, 1].  Unchecked here: the domain is enforced by the caller,
+        :func:`magnus.oscprob._earth_composition`.  A zero returns ``inf`` with a NumPy
+        divide warning, and a value outside the range returns a negative ratio in
+        silence.
 
     Returns
     -------

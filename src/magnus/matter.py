@@ -44,9 +44,13 @@ import magnus.globaldefs as gd
 
 
 class DensityUnitWarning(UserWarning):
-    r"""Warns that a matter density declared to be in
-    :math:`\text{g cm}^{-3}` is too large to be one, and was most likely
-    already converted to natural units.
+    r"""Warns that a matter density does not look like the unit it was declared in.
+
+    Raised in both directions.  A density declared to be in
+    :math:`\text{g cm}^{-3}` and too large to be one was most likely already
+    converted to natural units; a density declared not to be in
+    :math:`\text{g cm}^{-3}` and far too small for natural units was most
+    likely left unconverted.
 
     The conversion factor is :math:`4.3 \times 10^{18}`, so converting a
     second time inflates the matter potential far beyond anything physical.
@@ -76,8 +80,9 @@ def density_matter_func_const(l: float,
         Position at which the density profile is evaluated (in this
         case, the profile is uniform, so any value of l returns the same
         constant density).
-    density_matter_const : float
-        Matter density [:math:`\text{g cm}^{-3}`]
+    density_matter_const : int or float, optional
+        Matter density [:math:`\text{g cm}^{-3}`].
+        Default: :data:`magnus.globaldefs.DENSITY_MATTER_CRUST_G_PER_CM3`.
 
     Returns
     -------
@@ -107,17 +112,22 @@ def density_matter_func_exp(l: float, density_matter_central:float , l_scale: fl
 
     Parameters
     ----------
-    l : float
-        Position at which the density profile is evaluated.
-    density_matter_central : float
-        Matter density at the center of the profile (l = 0) [:math:`\text{g cm}^{-3}`]
-    l_scale : float
-        Length scale of the exponential density decrease.
+    l : int, float, or np.ndarray
+        Position at which the density profile is evaluated, in the same unit as
+        ``l_scale``.
+    density_matter_central : int or float
+        Density at the center of the profile (l = 0), in :math:`\text{g cm}^{-3}` if it
+        is a matter density, or :math:`\text{eV}^{3}` if it is an electron number
+        density.  The function only rescales it, so the return carries whichever unit
+        is passed in.
+    l_scale : int or float
+        Length scale of the exponential density decrease, in the same unit as ``l``.
+        The package's own trajectories are in :math:`\text{eV}^{-1}`.
 
     Returns
     -------
-    float
-        Matter density [:math:`\text{g cm}^{-3}`]
+    float or np.ndarray
+        Density at ``l``, in the unit ``density_matter_central`` was given in.
     """
 
     return density_matter_central*np.exp(-l/l_scale)
@@ -136,18 +146,24 @@ def exp_density_profile(density_matter_central: float, l_scale: float) -> Callab
     to the much faster interaction-picture Magnus integrator (see
     ``_osc_prob_ip_exp_dispatch``), with a transparent fallback to the general
     slab-refinement method whenever the fast method does not converge (e.g., near an MSW resonance).
-    A plain lambda with the same functional form would work numerically but, lacking the marker,
-    would silently skip the fast path -- always build exponential profiles through this function (or
-    ``osc_prob_*_exp_density``/``osc_prob_*_sun*``, which already do) to get the speed-up.
+    A plain lambda with the same functional form would work numerically but, lacking the
+    attributes, would silently skip the fast path -- always build exponential profiles through
+    this function (or ``osc_prob_{2,3,4,5}nu_*_exp_density`` and
+    ``osc_prob_{2,3,4,5}nu_sun*``, which already do) to get the speed-up.
+    :func:`vcc_func_from_rho_func` decides whether to carry the tag over by looking for the
+    ``l_scale`` attribute alone, so anything carrying one is treated as an exponential
+    profile.
 
     .. versionadded:: 1.0.0
 
     Parameters
     ----------
-    density_matter_central : float
-        Matter density (or electron number density) at the center of the profile (l = 0).
-    l_scale : float
-        Length scale of the exponential density decrease.
+    density_matter_central : int or float
+        Matter density (:math:`\text{g cm}^{-3}`) or electron number density
+        (:math:`\text{eV}^{3}`) at the center of the profile (l = 0).
+    l_scale : int or float
+        Length scale of the exponential density decrease [:math:`\text{eV}^{-1}`], which
+        is the unit the returned callable reads its argument in.
 
     Returns
     -------
@@ -416,8 +432,10 @@ r"""int: How many entries :data:`_VCC_CONST_CACHE` holds before being cleared wh
 def _remember_const_vcc(key, value):
     r"""Stores a constant V_CC against ``key`` and returns it.
 
-    ``key`` is None when the caller's density was a function, in which case there is nothing to
-    remember and the value passes straight through.
+    ``key`` is None when the density could not be reduced to one hashable number: an
+    array-valued constant, or one that would trip a unit guard and so must not be cached
+    past it.  A density that was a function never reaches here at all.  A full cache is
+    cleared wholesale rather than evicted entry by entry.
 
     Parameters
     ----------
@@ -485,22 +503,26 @@ def num_density_e_func(l: float, density_matter_func: Callable,
 
     Converts the matter density [:math:`\text{g cm}^{-3}`] to electron number density
     [:math:`\text{eV}^{3}`], for a given matter density profile, density_matter_func,
-    and position, l. Matter is assumed to be isoscalar, with the
-    fraction of electrons given by electron_fraction.
+    and position, l. The composition is set by ``ratio_number_neutrons_to_protons``
+    and ``electron_fraction``, isoscalar matter being their defaults of 1.0 and 0.5;
+    the Earth path passes both as arrays, one value per radius.
 
     .. versionadded:: 1.0.0
 
     Parameters
     ----------
-    l : float
-        Position at which the density profile is evaluated.
+    l : float or np.ndarray
+        Position at which the density profile is evaluated, in whatever unit
+        ``density_matter_func`` expects.  The package uses two: the PREM profile takes a
+        radius in km, the position-along-trajectory profiles take
+        :math:`\text{eV}^{-1}`.
     density_matter_func : Callable
         Matter density as a function of l [:math:`\text{g cm}^{-3}`] (or, if
         ``density_matter_is_in_g_per_cm3`` is False, already in natural units).
-    ratio_number_neutrons_to_protons : float, optional
+    ratio_number_neutrons_to_protons : float or np.ndarray, optional
         Ratio of the number of neutrons to protons in matter, used to compute the average
         nucleon mass. Default: 1.0.
-    electron_fraction : float, optional
+    electron_fraction : float or np.ndarray, optional
         Electron fraction. Default: 0.5.
     density_matter_is_in_g_per_cm3 : bool, optional
         If True, ``density_matter_func`` returns the density in :math:`\text{g cm}^{-3}` and it is converted to
@@ -509,8 +531,15 @@ def num_density_e_func(l: float, density_matter_func: Callable,
 
     Returns
     -------
-    float
+    float or np.ndarray
         Number density of electrons [:math:`\text{eV}^{3}`]
+
+    Warns
+    -----
+    DensityUnitWarning
+        If the density does not look like the unit it was declared in: too large for
+        :math:`\text{g cm}^{-3}` when that is declared, or far too small for natural
+        units when it is not.
     """
     avg_mass_nucleon = (gd.MASS_PROTON+gd.MASS_NEUTRON*ratio_number_neutrons_to_protons) \
                         / (1.0+ratio_number_neutrons_to_protons)
@@ -555,7 +584,8 @@ def VCC_func(l: float, num_density_e_func: Callable) -> float:
     Returns
     -------
     float
-        Coherent forward electron potntial, V_CC [eV]
+        Coherent forward electron potential, V_CC [eV].  An array if
+        ``num_density_e_func`` returns one.
     
     Examples
     --------
@@ -614,7 +644,8 @@ def vcc_func_from_rho_func(
         .. versionchanged:: 1.1.0
            A callable is accepted; it used to have to be a scalar.
     electron_fraction : int or float, optional
-        Electron fraction. Default: 0.5.
+        Electron fraction.  Ignored when ``density_is_of_number_of_electrons`` is True,
+        where no conversion happens. Default: 0.5.
     nubar : bool, optional
         If True, flip the sign of :math:`V_\text{CC}` (electrons couple to :math:`\nu_e` and
         :math:`\bar{\nu}_e` with opposite-sign weak charge). Default: False.
@@ -628,10 +659,23 @@ def vcc_func_from_rho_func(
 
     Returns
     -------
-    int, float, or Callable
-        V_CC [eV], as a function of position if ``rho_func`` is a function (or if a callable
-        ``ratio_number_neutrons_to_protons`` makes the conversion position-dependent), or as
-        a constant (evaluated once, at ``L0``) if both are constants.
+    float, np.ndarray, or Callable
+        V_CC [eV], as a function of position if ``rho_func`` is a function, or if a callable
+        ``ratio_number_neutrons_to_protons`` makes the *matter-density* conversion
+        position-dependent.  Otherwise a constant, evaluated once at ``L0``: an array when
+        ``rho_func`` is an array-valued constant, a float otherwise.  Never an int.
+
+        When ``rho_func`` carries an ``l_scale`` attribute, the returned callable is stamped
+        with ``is_exp_density_profile = True`` and the same ``l_scale``.  That tag is the
+        only switch for the fast interaction-picture integrator, so it is what
+        :func:`exp_density_profile` exists to set.
+
+    Warns
+    -----
+    DensityUnitWarning
+        Through :func:`num_density_e_func`, if the density does not look like the unit it
+        was declared in.  A density that would trip the guard is deliberately not cached,
+        so the warning fires on every call rather than only the first.
     """
     s = 1.0 if not nubar else -1.0
 
