@@ -108,19 +108,21 @@ Python.  Full reference: [CLI](https://mbustama.github.io/Magnus/cli.html).
 
 | Use Magnus when | Use something else when |
 |---|---|
-| The density varies along the path — the Sun, a supernova, a tabulated profile | The density is constant or piecewise constant: a closed form is exact and about 20× cheaper ([NuOscProbExact][npe]) |
-| You need accuracy past 10⁻¹¹, where composing constant slabs floors and then worsens | A per-cent answer is enough |
-| You have more than four flavors, or a Hamiltonian nobody has diagonalized | Your problem is standard three-flavor and speed is everything ([NuFast][nf]) |
-| You want the phase-averaged probability an experiment measures, returned rather than reconstructed | You need decoherence, decay, or collective oscillations — all non-unitary, so outside this method |
+| The density varies along the path — the Sun, a supernova, a tabulated profile | The density is constant or piecewise constant, where a closed form is exact and about 20× cheaper |
+| You need accuracy below 10⁻¹¹: composing constant slabs floors at 2.5 × 10⁻¹¹ and then worsens, while Magnus reaches 2.9 × 10⁻¹³ | A per-cent answer is enough |
+| You have more than four flavors, or a Hamiltonian nobody has diagonalized | Your problem is standard three-flavor and speed is everything |
+| You want the phase-averaged probability an experiment measures, returned rather than reconstructed | Your problem is not unitary |
+
+That last row is the hard boundary.  Magnus solves the Schrödinger equation for
+a Hermitian Hamiltonian, so decoherence, decay and collective oscillations lie
+outside it: each needs a density matrix with a non-unitary term, which no
+truncation of this expansion can carry.
 
 Numbers behind each row, and a case-by-case table, are on the
 [Against other codes](https://mbustama.github.io/Magnus/comparison.html) page;
 [notebook 25](notebooks/25_magnus_against_other_codes.ipynb) runs the
 comparison in full, every code timed in one process and refereed by a method
 that is neither code's.
-
-[npe]: https://github.com/mbustama/NuOscProbExact
-[nf]: https://github.com/PeterDenton/NuFast
 
 ## What it covers
 
@@ -251,6 +253,7 @@ Full documentation: **[mbustama.github.io/Magnus](https://mbustama.github.io/Mag
 | | |
 |---|---|
 | [Mathematical method](https://mbustama.github.io/Magnus/methodology.html) | The expansion derived term by term, and why truncation is unitary |
+| [Expansion terms](https://mbustama.github.io/Magnus/expansion_terms.html) | The $\Omega_k$ at any order, and how they are generated |
 | [Architecture](https://mbustama.github.io/Magnus/architecture.html) | How the modules fit together, and which layer to call |
 | [Engines and dispatch](https://mbustama.github.io/Magnus/engines.html) | Which of the six engines answers a call, and why |
 | [Accuracy and diagnostics](https://mbustama.github.io/Magnus/diagnostics.html) | What each safeguard cannot catch, and every warning explained |
