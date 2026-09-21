@@ -2708,9 +2708,22 @@ class _PositionProfileCache:
     (comparatively expensive) density-profile chain runs once per distinct
     grid instead of once per Hamiltonian evaluation.  Scalar evaluations are
     passed through uncached.
+
+    Cached arrays come back marked read-only, so a caller that writes into a returned
+    profile gets a ``ValueError`` rather than corrupting the next caller's values.
+    ``maxsize`` bounds the store, and the oldest entry is evicted past it.
     """
 
     def __init__(self, func: Callable, maxsize: Optional[int]=8):
+        r"""Wraps ``func``, carrying over any exponential-profile tag it has.
+
+        Parameters
+        ----------
+        func : Callable
+            Position profile to memoize.
+        maxsize : int, optional
+            How many distinct grids to keep before evicting the oldest. Default: 8.
+        """
         self.func = func
         self._cache = {}
         self._keys = []
@@ -2723,6 +2736,18 @@ class _PositionProfileCache:
             self.l_scale = func.l_scale
 
     def __call__(self, l: Union[int, float, np.ndarray]):
+        r"""Returns the profile at ``l``, from the store when the grid has been seen.
+
+        Parameters
+        ----------
+        l : int, float, or np.ndarray
+            Position or grid of positions.
+
+        Returns
+        -------
+        float or np.ndarray
+            The profile's value.  An array result is read-only.
+        """
         if np.ndim(l) == 0:
             return self.func(l)
         l = np.asarray(l, dtype=float)
@@ -3782,12 +3807,21 @@ def _avg_prob_dispatch(
     L : int, float, list, or np.ndarray
         Baseline(s) [:math:`\text{eV}^{-1}`], used to decide which eigenvalue pairs have
         decohered.
+    L0 : int or float
+        Start of the trajectory [:math:`\text{eV}^{-1}`], the position the
+        position-dependent routes integrate from.
     nu_i, nu_f : int or None
         Initial and final flavor; if both are given, the single probability is returned.
     average : bool
         Whether the caller asked for the averaged probability.
     source_func_name : str
         Name of the calling function, for error messages.
+    smooth_profile : bool
+        Whether the caller declared the profile smooth.  True selects adiabatic
+        transport; False selects the energy-window average.
+    engine_kwargs : dict or None
+        Engine settings forwarded to the energy-window route.  Required there: the
+        non-smooth branch raises ``ValueError`` without them.
 
     Returns
     -------
@@ -5957,10 +5991,25 @@ def _osc_prob_cumulative_scan(H_func, L_out, L0, n_acc, magnus_exp_order,
     H_func : Callable
         Hamiltonian as a function of position alone; the energy is already bound.
     L_out : np.ndarray
-        Requested baselines, strictly ascending and all greater than ``L0``.
+        Requested baselines, non-decreasing and all at or beyond ``L0``.  One equal to
+        ``L0`` is the identity and is filled in as such.
+    L0 : int or float
+        Start of the trajectory [:math:`\text{eV}^{-1}`].
     n_acc : int
         Slabs the accuracy grid would use over the whole path on its own; see
         :func:`_cumulative_scan_grid`.
+    magnus_exp_order : int
+        Order at which the Magnus expansion is truncated.
+    n_tpts_per_slab : int
+        Quadrature points per slab, read only by the cumulative methods.
+    integration_method : str
+        ``'gl'``, ``'trapezoid'`` or ``'simpson'``.
+    t_breakpoints : list, np.ndarray, or None
+        Positions at which to force slab edges.
+    A_eval_mode : str or None
+        How the Hamiltonian may be evaluated; see
+        :func:`magnus.magnus.probe_eval_mode`.  Forced to ``'vector'`` for a
+        non-callable ``H_func``, whatever the caller passed.
 
     Returns
     -------
@@ -12664,6 +12713,11 @@ def _osc_prob_with_potential(
         Interval over which the caller declares the profile mirror-symmetric, forwarded to
         :func:`osc_prob`.  Set by :func:`osc_prob_earth`, whose chord is symmetric by geometry;
         left None by :func:`osc_prob_sun`, whose profile is monotonic.
+    return_evolution_operator : bool, optional
+        If True, return the pair ``(P, U)`` instead of ``P`` alone, with ``U`` the
+        evolution operators, one ``(d, d)`` array per point.  Cannot be combined
+        with ``average``. Default: False.
+
     average : bool, optional
         If True, return the phase-averaged probability of the averaged limit (see
         :mod:`magnus.avgprob`) instead of the oscillating one, as the wrappers do with the
@@ -12701,9 +12755,10 @@ def _osc_prob_with_potential(
 
     Returns
     -------
-    float or np.ndarray
-        Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for
-        each (energy, L) point.
+    float, np.ndarray, or tuple
+        Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are
+        given) for each (energy, L) point.  With
+        ``return_evolution_operator=True``, the pair ``(P, U)``.
     """
 
     if validate_input:
@@ -13820,13 +13875,6 @@ def osc_prob_2nu_matter_nsi_constant_density(
         ``'rad'`` the angle itself in radians, or ``'deg'`` in degrees.  Any other
         value raises.
 
-    strategy_info : dict, optional
-        If given, filled in place with which engine actually answered, exactly as in
-        :func:`osc_prob_matter_std_potential` -- see that function for the keys.  A
-        user-supplied Hamiltonian gets the same answer to "which engine answered, and what
-        stood aside" as a built-in scenario does. Default: None.
-
-        .. versionadded:: 1.0.0
     Returns
     -------
     float or np.ndarray
