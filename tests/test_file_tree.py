@@ -452,7 +452,7 @@ def render_summary_tree():
 
 def _readme_block(text):
     lines = text.split('\n')
-    start = next(i for i, l in enumerate(lines) if l.startswith('## File Tree'))
+    start = next(i for i, l in enumerate(lines) if l.startswith('## Repository layout'))
     # The opening fence carries an info string (```text); the closing one does
     # not.  Matching '```' exactly finds the CLOSING fence first and rewrites
     # the wrong region -- which is exactly what it did.
