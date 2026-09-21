@@ -4160,7 +4160,7 @@ A slab is far smaller than a probability, so this second form of parallelization
 \subsection{Using \magnus\ from the command line}
 \label{sec:cli}
 
-\magnus\ installs a console script, {\tt magnus}, that computes a single probability, or a probability matrix, without writing any Python; {\tt python -m magnus} runs the same program. Its {\tt prob} subcommand selects a wrapper of Section \ref{sec:scope_interface} from three options, {\tt --flavors}, {\tt --environment}, and {\tt --scenario}, and takes the physical parameters as options of the same names as the wrapper's arguments, with the oscillation parameters defaulting to the NuFIT 6.1 values. For the Earth, the baseline may be given directly, together with the arrival direction, or computed from two named locations. The refinement keywords of Section \ref{sec:architecture} are available as options as well. Listing~\ref{lst:cli} shows two calls: the constant-density probability matrix of Listing~\ref{lst:constant}, and the $\nu_\mu \to \nu_e$ probability along the chord from Fermilab to Homestake. Adding {\tt --json} prints the result as JSON, with the function that computed it and the inputs in natural units, for use in a script. The documentation site\ \cite{MagnusDocs} lists every option.
+\magnus\ installs a console script, {\tt magnus}, that computes a single probability, or a probability matrix, without writing any Python; {\tt python -m magnus} runs the same program. Its {\tt prob} subcommand selects a wrapper of Section \ref{sec:scope_interface} from three options, {\tt --flavors}, {\tt --environment}, and {\tt --scenario}, and takes the physical parameters as options of the same names as the wrapper's arguments, with the oscillation parameters defaulting to the NuFIT 6.1 values. For the Earth, the baseline may be given directly, together with the arrival direction, or computed from two named locations. The refinement keywords of Section \ref{sec:architecture} are available as options as well. Listing~\ref{lst:cli} shows two calls: the constant-density probability matrix of Listing~\ref{lst:constant}, and the $\nu_\mu \to \nu_e$ probability along the chord from Fermilab to Homestake. The documentation site\ \cite{MagnusDocs} lists every option.
 
 \begin{lstlisting}[language=bash, caption={Two probabilities from the command line. The first is the matrix of Listing~\ref{lst:constant}; the second is one channel along a chord through the Earth, with the baseline computed from the two named locations. The mixing parameters take their NuFIT 6.1 defaults.}, label={lst:cli}, float=tbp]
 $ magnus prob --flavors 3 --environment matter \
@@ -4182,6 +4182,29 @@ E = 2.5 GeV
 
 P = 0.0663
 \end{lstlisting}
+
+The script also exposes the numerical options of Sec.~\ref{sec:architecture}. {\tt --rtol} and {\tt --atol} set the tolerance, {\tt --strategy} asks for one of the routes of Sec.~\ref{sec:engines}, {\tt --magnus-exp-order} sets the order of the expansion, {\tt --n-jobs} spreads the work over several workers. Both tolerances default to $10^{-3}$ here, looser than the setting behind every figure in this paper, so a number from the command line can differ from a plotted one in the third digit.
+
+Listing~\ref{lst:cli_json} shows that adding {\tt --json} prints the same result as a JSON object, making it ready for a script that is part of a bigger pipeline. Two cases require the baseline explicitly. Through the Earth, {\tt --costhz} fixes the direction of the chord but not its length, so it needs {\tt --baseline} beside it. Only the pair {\tt --loc-ini} and {\tt --loc-fin} works out the length on its own. The Sun likewise needs an explicit {\tt --baseline}.
+
+\begin{lstlisting}[language=bash, caption={The same probability as in Listing~\ref{lst:cli}, but returned as JSON. The object names the function that computed it, the configuration behind it, the inputs in natural units.}, label={lst:cli_json}, float=tbp]
+$ magnus prob --flavors 3 --environment matter \
+    --density-profile constant --rho 3.0 \
+    --energy 1 --baseline 1000 \
+    --nu-i mu --nu-f e --json
+{
+  "function": "osc_prob_3nu_matter_constant_density",
+  "flavors": 3,
+  "environment": "matter",
+  "scenario": "std",
+  "nubar": false,
+  "energy_eV": 1000000000.0,
+  "baseline_eV-1": 5067730000000.0,
+  "probability": 0.013475467612077624
+}
+\end{lstlisting}
+
+The console script computes one probability at a time. It takes one energy and one baseline. It offers no scan, no averaged probability, no way to read a density profile from a file, no way to supply a Hamiltonian of one's own. Those belong in Python, through the calls of the sections above. The script is for a quick number, for a check against another code, or for a probability inside a shell pipeline.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
