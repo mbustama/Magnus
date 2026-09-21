@@ -16958,6 +16958,7 @@ print('the longest region used in the figures, %.0f km, holds %.0f periods of th
 # to answer for the accuracy is the refinement ladder.  Four settings at the resonance
 # that the figure shows: two tolerances, and two slab-count floors forced on top.
 TURB4_SETTINGS = [(RTOL_FIG, None), (1.0e-6, None), (RTOL_FIG, 5000), (RTOL_FIG, 20000)]
+TURB4_KW = dict(osc_params=OSC4, density_matter_is_in_g_per_cm3=True)
 
 
 def turb_convergence():
@@ -16970,7 +16971,7 @@ def turb_convergence():
             if n_slabs is not None:
                 kw['n_slabs'] = n_slabs
             out.append(float(quiet(oscprob.osc_prob_matter_std_potential, 4,
-                                   turb_mode(DPSI4[1]), TURB_E, TURB4_L, **kw)))
+                                   turb_rho(DPSI4[1]), TURB_E, TURB4_L, **kw)))
         return out
 
     key = ('turb_convergence', float(TURB_C), float(TURB_RHO0), float(TURB_E),

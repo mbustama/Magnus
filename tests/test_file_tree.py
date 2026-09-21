@@ -316,6 +316,8 @@ TREE = [
     ('resources/paper/elsarticle-num.bst', None),
     ('resources/paper/figs/', 'Its twenty-three figures, written by notebook 28'),
     ('tools/', 'Standalone utilities that are not part of the package'),
+    ('tools/lint_notebook_cells.py',
+     'Finds names the notebooks use but never define; run by the lint workflow'),
     ('tools/make_demo_video.py',
      "Joins and shrinks notebook 27's clips; shared with NuOscProbExact"),
     ('src/', 'The package itself -- the only thing a `pip install` delivers'),

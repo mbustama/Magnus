@@ -323,6 +323,7 @@ File Tree
    │       ├── elsarticle-num.bst
    │       └── figs/                   # Its twenty-three figures, written by notebook 28
    ├── tools/                          # Standalone utilities that are not part of the package
+   │   ├── lint_notebook_cells.py      # Finds names the notebooks use but never define; run by the lint workflow
    │   └── make_demo_video.py          # Joins and shrinks notebook 27's clips; shared with NuOscProbExact
    ├── src/                            # The package itself -- the only thing a `pip install` delivers
    │   ├── magnus/                     # Main Python package
