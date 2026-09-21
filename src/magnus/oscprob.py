@@ -3094,22 +3094,6 @@ def osc_prob(
         into the automatically generated slab grid at every refinement
         level, so that the quadrature never integrates across them.
         Ignored when ``t_slab_edges`` is given explicitly.
-    symmetric_over : tuple, optional
-        Caller's declaration that ``H_func(t) == H_func(lo + hi - t)`` on ``(lo, hi)``.  When the
-        slab chain is found to span exactly that interval, the Magnus core evaluates ``H_func``
-        on its first half only and mirrors the rest, halving the Hamiltonian evaluations.
-
-        Passed as the *interval*, not as a flag, and that is what makes it safe in a scan: a
-        chord through the Earth is symmetric over its full length and over no shorter prefix, so
-        a scan point at a shorter baseline spans ``(L0, baseline)``, fails to match, and takes
-        the ordinary path.  No extra bookkeeping is needed for that -- the check in
-        ``magnus.magnus._mirror_applies`` is the whole of it.
-
-        **Not a user-facing switch, and unchecked**: verifying it would need the evaluations it
-        exists to avoid, and declaring it of a profile that is not symmetric returns a silently
-        wrong answer.  It is set by the Earth entry points, where the symmetry is a fact of chord
-        geometry -- a chord meets every radius twice -- rather than a claim.  Turn the mechanism
-        off globally with ``magnus.magnus.USE_PALINDROME = False``.
     strict_convergence : bool, optional
         Require the refinement ladder to agree **twice in a row** before
         declaring convergence, instead of once.  Default: False.
@@ -3174,6 +3158,22 @@ def osc_prob(
         profile is discontinuous, marking *every* discontinuity -- including
         where it switches on and off, which may lie inside the trajectory --
         is worth more than any amount of refinement.
+    symmetric_over : tuple, optional
+        Caller's declaration that ``H_func(t) == H_func(lo + hi - t)`` on ``(lo, hi)``.  When the
+        slab chain is found to span exactly that interval, the Magnus core evaluates ``H_func``
+        on its first half only and mirrors the rest, halving the Hamiltonian evaluations.
+
+        Passed as the *interval*, not as a flag, and that is what makes it safe in a scan: a
+        chord through the Earth is symmetric over its full length and over no shorter prefix, so
+        a scan point at a shorter baseline spans ``(L0, baseline)``, fails to match, and takes
+        the ordinary path.  No extra bookkeeping is needed for that -- the check in
+        ``magnus.magnus._mirror_applies`` is the whole of it.
+
+        **Not a user-facing switch, and unchecked**: verifying it would need the evaluations it
+        exists to avoid, and declaring it of a profile that is not symmetric returns a silently
+        wrong answer.  It is set by the Earth entry points, where the symmetry is a fact of chord
+        geometry -- a chord meets every radius twice -- rather than a claim.  Turn the mechanism
+        off globally with ``magnus.magnus.USE_PALINDROME = False``.
     return_evolution_operator : bool, optional
         If True, return the pair ``(P, U)`` instead of ``P`` alone: ``U`` is the evolution
         operator over the same interval, in the flavor basis, a complex square array with
@@ -7046,6 +7046,8 @@ def osc_prob_vacuum(
     h_vac_energy_indep : list or np.ndarray, optional
         Precomputed energy-independent vacuum Hamiltonian, used instead of ``osc_params`` when
         ``num_flavors`` exceeds ``globaldefs.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS``.
+    average : bool, optional
+        If True, return the phase-averaged probability rather than the oscillating one.
     nubar : bool, optional
         If True, compute the probability for antineutrinos. Default: False.
     nu_i : int, optional
@@ -7122,8 +7124,6 @@ def osc_prob_vacuum(
         away by a function the caller never invoked.
 
     
-    average : bool, optional
-        If True, return the phase-averaged probability rather than the oscillating one.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -7295,7 +7295,7 @@ def osc_prob_matter_std_potential(
     Middle (scenario) layer for the standard-matter case, generic in ``num_flavors``: unpacks
     ``osc_params``, builds the vacuum + matter Hamiltonian (via
     ``hamiltonians.hamiltonian_{num_flavors}nu_vacuum_energy_independent`` and
-    ``hamiltonian_{num_flavors}nu_matter_td``, with the potential from
+    :func:`magnus.matter.matter_potential_projector`, with the potential from
     :func:`magnus.matter.vcc_func_from_rho_func`), and calls
     :func:`osc_prob_energy_baseline`. Called by every
     ``osc_prob_{2,3,4,5}nu_matter_{constant,exp}_density`` and
@@ -7354,6 +7354,8 @@ def osc_prob_matter_std_potential(
     default_osc_params_set_name : str, optional
         Name of the predefined oscillation-parameter set used to fill in any parameter left as
         None in ``osc_params``. Default: 'OSC_PARAMS_DEFAULT'.
+    average : bool, optional
+        If True, return the phase-averaged probability rather than the oscillating one.
     strategy : str, optional
         Numerical strategy used to compute the evolution operator: 'auto' (default), 'hybrid',
         or 'magnus'.
@@ -7423,8 +7425,8 @@ def osc_prob_matter_std_potential(
         calls, and wrong for anyone asking why a result moved or why a call got slow -- so this
         is how to see them without turning the fallbacks into warnings.  Keys:
 
-        * ``'engine'`` -- ``'hybrid'``, ``'ip_exp'``, ``'separable'``, ``'cumulative'``,
-          ``'magnus'`` or ``'average'``.
+        * ``'engine'`` -- ``'hybrid'``, ``'ip_exp'``, ``'separable'``, ``'constant'``,
+          ``'cumulative'``, ``'magnus'`` or ``'average'``.
         * ``'family'`` -- the engine's family; see :data:`ENGINE_FAMILIES`.
         * ``'certified'`` -- for ``'hybrid'``, whether
           :func:`magnus.adiabatic.hybrid_propagator` self-certified.  ``None`` for engines
@@ -7513,8 +7515,6 @@ def osc_prob_matter_std_potential(
         away by a function the caller never invoked.
 
     
-    average : bool, optional
-        If True, return the phase-averaged probability rather than the oscillating one.
     symmetric_over : tuple, optional
         Caller's declaration that ``A(t) == A(lo + hi - t)`` on ``(lo, hi)``, which lets
         the Hamiltonian be evaluated on half the slabs.  A declaration, not a test: it
@@ -7847,7 +7847,8 @@ def osc_prob_matter_nsi(
     Middle (scenario) layer for the NSI case, generic in ``num_flavors``: unpacks ``osc_params``
     and ``nsi_params``, builds the vacuum + matter + NSI Hamiltonian (via
     ``hamiltonians.hamiltonian_{num_flavors}nu_vacuum_energy_independent``,
-    ``hamiltonian_{num_flavors}nu_matter_td``, and ``hamiltonian_{num_flavors}nu_nsi_td``, with
+    :func:`magnus.matter.matter_potential_projector`, and
+    ``hamiltonian_{num_flavors}nu_nsi``, with
     the potential from :func:`magnus.matter.vcc_func_from_rho_func`), and calls
     :func:`osc_prob_energy_baseline`. Called by every
     ``osc_prob_{2,3,4,5}nu_matter_nsi_{constant,exp}_density`` and
@@ -7912,6 +7913,8 @@ def osc_prob_matter_nsi(
     default_osc_params_set_name : str, optional
         Name of the predefined oscillation-parameter set used to fill in any parameter left as
         None in ``osc_params``. Default: 'OSC_PARAMS_DEFAULT'.
+    average : bool, optional
+        If True, return the phase-averaged probability rather than the oscillating one.
     strategy : str, optional
         Numerical strategy used to compute the evolution operator: 'auto' (default), 'hybrid',
         or 'magnus'; see the ``strategy`` parameter of :func:`osc_prob_matter_std_potential` for
@@ -7927,8 +7930,8 @@ def osc_prob_matter_nsi(
         calls, and wrong for anyone asking why a result moved or why a call got slow -- so this
         is how to see them without turning the fallbacks into warnings.  Keys:
 
-        * ``'engine'`` -- ``'hybrid'``, ``'ip_exp'``, ``'separable'``, ``'cumulative'``,
-          ``'magnus'`` or ``'average'``.
+        * ``'engine'`` -- ``'hybrid'``, ``'ip_exp'``, ``'separable'``, ``'constant'``,
+          ``'cumulative'``, ``'magnus'`` or ``'average'``.
         * ``'family'`` -- the engine's family; see :data:`ENGINE_FAMILIES`.
         * ``'certified'`` -- for ``'hybrid'``, whether
           :func:`magnus.adiabatic.hybrid_propagator` self-certified.  ``None`` for engines
@@ -8017,8 +8020,6 @@ def osc_prob_matter_nsi(
         away by a function the caller never invoked.
 
     
-    average : bool, optional
-        If True, return the phase-averaged probability rather than the oscillating one.
     symmetric_over : tuple, optional
         Caller's declaration that ``A(t) == A(lo + hi - t)`` on ``(lo, hi)``, which lets
         the Hamiltonian be evaluated on half the slabs.  A declaration, not a test: it
@@ -8347,7 +8348,7 @@ def osc_prob_liv(
     Middle (scenario) layer for the LIV case, generic in ``num_flavors``: unpacks ``osc_params``
     and ``liv_params``, builds the vacuum (+ matter, if ``rho_func`` is nonzero) + LIV
     Hamiltonian (via ``hamiltonians.hamiltonian_{num_flavors}nu_vacuum_energy_independent``,
-    optionally ``hamiltonian_{num_flavors}nu_matter_td``, and
+    optionally :func:`magnus.matter.matter_potential_projector`, and
     ``hamiltonian_{num_flavors}nu_liv_energy_independent``), and calls
     :func:`osc_prob_energy_baseline`. Called by every ``osc_prob_{2,3,4,5}nu_vacuum_liv``,
     ``osc_prob_{2,3,4,5}nu_matter_liv_{constant,exp}_density``, and
@@ -8411,6 +8412,8 @@ def osc_prob_liv(
     default_osc_params_set_name : str, optional
         Name of the predefined oscillation-parameter set used to fill in any parameter left as
         None in ``osc_params``. Default: 'OSC_PARAMS_DEFAULT'.
+    average : bool, optional
+        If True, return the phase-averaged probability rather than the oscillating one.
     strategy : str, optional
         Numerical strategy used to compute the evolution operator: 'auto' (default), 'hybrid',
         or 'magnus'; see the ``strategy`` parameter of :func:`osc_prob_matter_std_potential` for
@@ -8428,8 +8431,8 @@ def osc_prob_liv(
         calls, and wrong for anyone asking why a result moved or why a call got slow -- so this
         is how to see them without turning the fallbacks into warnings.  Keys:
 
-        * ``'engine'`` -- ``'hybrid'``, ``'ip_exp'``, ``'separable'``, ``'cumulative'``,
-          ``'magnus'`` or ``'average'``.
+        * ``'engine'`` -- ``'hybrid'``, ``'ip_exp'``, ``'separable'``, ``'constant'``,
+          ``'cumulative'``, ``'magnus'`` or ``'average'``.
         * ``'family'`` -- the engine's family; see :data:`ENGINE_FAMILIES`.
         * ``'certified'`` -- for ``'hybrid'``, whether
           :func:`magnus.adiabatic.hybrid_propagator` self-certified.  ``None`` for engines
@@ -8518,8 +8521,6 @@ def osc_prob_liv(
         away by a function the caller never invoked.
 
     
-    average : bool, optional
-        If True, return the phase-averaged probability rather than the oscillating one.
     symmetric_over : tuple, optional
         Caller's declaration that ``A(t) == A(lo + hi - t)`` on ``(lo, hi)``, which lets
         the Hamiltonian be evaluated on half the slabs.  A declaration, not a test: it
@@ -8887,11 +8888,6 @@ def osc_prob_2nu_vacuum(
     validate_input : bool, optional
         True to validate input (default); False not to, which is faster
         but riskier.
-    verbose : int, optional
-        0 not to print warnings and errors; 1 to print them; 2 to print
-        progress.
-
-    
     save_log : bool, optional
         If True, also write all messages to the log file.
     filename_log : str, optional
@@ -8900,6 +8896,11 @@ def osc_prob_2nu_vacuum(
         Open file handle to write the log to, if one is already open.
     close_file_log_upon_exit : bool, optional
         If True, close ``file_log`` before returning.
+    verbose : int, optional
+        0 not to print warnings and errors; 1 to print them; 2 to print
+        progress.
+
+    
     angles : str, optional
         How the mixing angle is stated: ``'sin'`` (default) its sine,
         ``'sin2'`` its sine *squared* -- which is what global fits report --
@@ -8984,8 +8985,12 @@ def osc_prob_3nu_vacuum(
 
     By default, returns :math:`3 \times 3` probability matrices for all 
     the oscillation channels. Each matrix has shape ``np.ndarray([[Pee,
-    Pem,Pet],[Pme,Pmm,Pmt],[Pte,Ptm,Ptt]])``.  The matrix is symmetric, 
-    i.e., ``Pme == Pee``, ``Pte == Pet``, and ``Ptm == Pmt``.  
+    Pem,Pet],[Pme,Pmm,Pmt],[Pte,Ptm,Ptt]])``.  The matrix is symmetric
+    only when ``dCP`` is zero, where ``Pem == Pme``, ``Pet == Pte`` and
+    ``Pmt == Ptm``.  A non-zero ``dCP`` breaks it, and the shipped
+    parameter set carries one: at the example below the two sides differ
+    by 4.8e-02.  ``P[i][j]`` is always the probability that flavor ``i``
+    arrives as flavor ``j``.
 
     If a single energy and baseline is given, the function returns a 
     single matrix.  If multiple energies and baselines are given, 
@@ -9065,11 +9070,6 @@ def osc_prob_3nu_vacuum(
     validate_input : bool, optional
         True to validate input (default); False not to, which is faster
         but riskier.
-    verbose : int, optional
-        0 not to print warnings and errors; 1 to print them; 2 to print
-        progress.
-
-    
     save_log : bool, optional
         If True, also write all messages to the log file.
     filename_log : str, optional
@@ -9078,6 +9078,11 @@ def osc_prob_3nu_vacuum(
         Open file handle to write the log to, if one is already open.
     close_file_log_upon_exit : bool, optional
         If True, close ``file_log`` before returning.
+    verbose : int, optional
+        0 not to print warnings and errors; 1 to print them; 2 to print
+        progress.
+
+    
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -9095,7 +9100,7 @@ def osc_prob_3nu_vacuum(
     --------
     If both ``energy`` and ``L`` are single values, this function returns
     the full :math:`3\times 3` probability matrix computed at those
-    values, using the NuFit 6.0 (normal ordering) defaults for any
+    values, using the NuFit 6.1 (normal ordering) defaults for any
     oscillation parameter not passed explicitly:
 
     .. jupyter-execute::
@@ -9207,9 +9212,12 @@ def osc_prob_4nu_vacuum(
     By default, returns :math:`4 \times 4` probability matrices for all 
     the oscillation channels. Each matrix has shape ``np.ndarray([[Pee,
     Pem,Pet,Pes],[Pme,Pmm,Pmt,Pms],[Pte,Ptm,Ptt,Pts],
-    [Pse,Psm,Pst,Pss]])``.  The matrix is symmetric, i.e., 
-    ``Pme == Pee``, ``Pte == Pet``, ``Pse == Pes``, ``Ptm == Pmt``,
-    ``Psm == Pms``, and ``Pst == Pts``.
+    [Pse,Psm,Pst,Pss]])``.  The matrix is symmetric only when every CP
+    phase is zero, where ``Pem == Pme``, ``Pet == Pte``, ``Pes == Pse``,
+    ``Pmt == Ptm``, ``Pms == Psm`` and ``Pts == Pst``.  A non-zero phase
+    breaks it, and the shipped parameter set carries one: at the example
+    below the two sides differ by 4.8e-02.  ``P[i][j]`` is always the
+    probability that flavor ``i`` arrives as flavor ``j``.
 
     If a single energy and baseline is given, the function returns a 
     single matrix.  If multiple energies and baselines are given, 
@@ -9302,11 +9310,6 @@ def osc_prob_4nu_vacuum(
     validate_input : bool, optional
         True to validate input (default); False not to, which is faster
         but riskier.
-    verbose : int, optional
-        0 not to print warnings and errors; 1 to print them; 2 to print
-        progress.
-
-    
     save_log : bool, optional
         If True, also write all messages to the log file.
     filename_log : str, optional
@@ -9315,6 +9318,11 @@ def osc_prob_4nu_vacuum(
         Open file handle to write the log to, if one is already open.
     close_file_log_upon_exit : bool, optional
         If True, close ``file_log`` before returning.
+    verbose : int, optional
+        0 not to print warnings and errors; 1 to print them; 2 to print
+        progress.
+
+    
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -9331,7 +9339,7 @@ def osc_prob_4nu_vacuum(
     Examples
     --------
     With the sterile-sector angles/phases given explicitly and the
-    active-sector angles left at their NuFit 6.0 defaults:
+    active-sector angles left at their NuFit 6.1 defaults:
 
     .. jupyter-execute::
 
@@ -9450,10 +9458,13 @@ def osc_prob_5nu_vacuum(
     the oscillation channels. Each matrix has shape ``np.ndarray([[Pee,
     Pem,Pet,Pes1,Pes2],[Pme,Pmm,Pmt,Pms1,Pms2],[Pte,Ptm,Ptt,Pts1,Pts2],
     [Ps1e,Ps1m,Ps1t,Ps1s1,Ps1s2],[Ps2e,Ps2m,Ps2t,Ps2s1,Ps2s2]])``.  The 
-    matrix is symmetric, i.e., ``Pme == Pee``, ``Pte == Pet``, 
-    ``Ps1e == Pes1``, ``Ps2e == Pes2`` ``Ptm == Pmt``,
-    ``Ps1m == Pms1``, ``Ps1t == Pts1``, ``Ps2t == Pts2``, and 
-    ``Ps2s1 == Ps1s2``.
+    matrix is symmetric only when every CP phase is zero, where
+    ``Pem == Pme``, ``Pet == Pte``, ``Pes1 == Ps1e``, ``Pes2 == Ps2e``,
+    ``Pmt == Ptm``, ``Pms1 == Ps1m``, ``Pts1 == Ps1t``, ``Pts2 == Ps2t``
+    and ``Ps1s2 == Ps2s1``.  A non-zero phase breaks it, and the shipped
+    parameter set carries one: at the example below the two sides differ
+    by 4.8e-02.  ``P[i][j]`` is always the probability that flavor ``i``
+    arrives as flavor ``j``.
 
     If a single energy and baseline is given, the function returns a 
     single matrix.  If multiple energies and baselines are given, 
@@ -9560,11 +9571,6 @@ def osc_prob_5nu_vacuum(
     validate_input : bool, optional
         True to validate input (default); False not to, which is faster
         but riskier.
-    verbose : int, optional
-        0 not to print warnings and errors; 1 to print them; 2 to print
-        progress.
-
-    
     save_log : bool, optional
         If True, also write all messages to the log file.
     filename_log : str, optional
@@ -9573,6 +9579,11 @@ def osc_prob_5nu_vacuum(
         Open file handle to write the log to, if one is already open.
     close_file_log_upon_exit : bool, optional
         If True, close ``file_log`` before returning.
+    verbose : int, optional
+        0 not to print warnings and errors; 1 to print them; 2 to print
+        progress.
+
+    
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -9589,7 +9600,7 @@ def osc_prob_5nu_vacuum(
     Examples
     --------
     With the sterile-sector angles/phases given explicitly and the
-    active-sector angles left at their NuFit 6.0 defaults:
+    active-sector angles left at their NuFit 6.1 defaults:
 
     .. jupyter-execute::
 
@@ -9746,9 +9757,10 @@ def osc_prob_2nu_matter_constant_density(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angle is stated: ``'sin'`` (default) its sine,
         ``'sin2'`` its sine *squared* -- which is what global fits report --
@@ -9869,9 +9881,10 @@ def osc_prob_3nu_matter_constant_density(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -10012,9 +10025,10 @@ def osc_prob_4nu_matter_constant_density(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -10174,9 +10188,10 @@ def osc_prob_5nu_matter_constant_density(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -10305,9 +10320,10 @@ def osc_prob_2nu_matter_exp_density(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angle is stated: ``'sin'`` (default) its sine,
         ``'sin2'`` its sine *squared* -- which is what global fits report --
@@ -10444,9 +10460,10 @@ def osc_prob_3nu_matter_exp_density(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -10600,9 +10617,10 @@ def osc_prob_4nu_matter_exp_density(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -10775,9 +10793,10 @@ def osc_prob_5nu_matter_exp_density(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -10961,29 +10980,6 @@ def osc_prob_2nu_earth(
         Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
     nu_f : int, optional
         Final flavor index; see ``nu_i``. Default: None.
-    validate_input : bool, optional
-        If True, validate the input parameters. Default: True.
-    save_log : bool, optional
-        If True, also write log messages to a file. Default: False.
-    filename_log : str, optional
-        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
-    file_log : TextIOWrapper, optional
-        Optional file object to write log messages to. Default: None.
-    close_file_log_upon_exit : bool, optional
-        If True, close the log file before returning. Default: True.
-    verbose : int, optional
-        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
-    \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function, and
-        through it to :func:`osc_prob`, whose signature declares them. The refinement
-        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
-        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
-        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
-
-    
     ratio_number_neutrons_to_protons : int, float, or Callable, optional
         :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
         matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: None,
@@ -11047,6 +11043,30 @@ def osc_prob_2nu_earth(
         horizontal, which can spend its whole length inside it.  Pair it with
         ``electron_fraction_ocean``, which sets the composition of the same
         shell.  Default: None, i.e. PREM's own ocean.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
+
+    
     angles : str, optional
         How the mixing angle is stated: ``'sin'`` (default) its sine,
         ``'sin2'`` its sine *squared* -- which is what global fits report --
@@ -11248,7 +11268,7 @@ def osc_prob_3nu_earth(
     Examples
     --------
     Standard three-neutrino oscillations through the Earth, using the
-    NuFit 6.0 defaults for the oscillation parameters:
+    NuFit 6.1 defaults for the oscillation parameters:
 
     .. jupyter-execute::
 
@@ -11308,29 +11328,6 @@ def osc_prob_3nu_earth(
         Final flavor index; see ``nu_i``. Default: None.
     default_osc_params_set_name : str, optional
         Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
-    validate_input : bool, optional
-        If True, validate the input parameters. Default: True.
-    save_log : bool, optional
-        If True, also write log messages to a file. Default: False.
-    filename_log : str, optional
-        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
-    file_log : TextIOWrapper, optional
-        Optional file object to write log messages to. Default: None.
-    close_file_log_upon_exit : bool, optional
-        If True, close the log file before returning. Default: True.
-    verbose : int, optional
-        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
-    \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function, and
-        through it to :func:`osc_prob`, whose signature declares them. The refinement
-        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
-        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
-        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
-
-    
     ratio_number_neutrons_to_protons : int, float, or Callable, optional
         :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
         matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: None,
@@ -11394,6 +11391,30 @@ def osc_prob_3nu_earth(
         horizontal, which can spend its whole length inside it.  Pair it with
         ``electron_fraction_ocean``, which sets the composition of the same
         shell.  Default: None, i.e. PREM's own ocean.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
+
+    
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -11599,7 +11620,7 @@ def osc_prob_4nu_earth(
     Examples
     --------
     Four-neutrino (3+1 sterile) oscillations through the Earth, with a
-    modest sterile mixing on top of the NuFit 6.0 active-sector defaults:
+    modest sterile mixing on top of the NuFit 6.1 active-sector defaults:
 
     .. jupyter-execute::
 
@@ -11674,29 +11695,6 @@ def osc_prob_4nu_earth(
         Final flavor index; see ``nu_i``. Default: None.
     default_osc_params_set_name : str, optional
         Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
-    validate_input : bool, optional
-        If True, validate the input parameters. Default: True.
-    save_log : bool, optional
-        If True, also write log messages to a file. Default: False.
-    filename_log : str, optional
-        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
-    file_log : TextIOWrapper, optional
-        Optional file object to write log messages to. Default: None.
-    close_file_log_upon_exit : bool, optional
-        If True, close the log file before returning. Default: True.
-    verbose : int, optional
-        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
-    \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function, and
-        through it to :func:`osc_prob`, whose signature declares them. The refinement
-        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
-        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
-        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
-
-    
     ratio_number_neutrons_to_protons : int, float, or Callable, optional
         :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
         matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: None,
@@ -11760,6 +11758,30 @@ def osc_prob_4nu_earth(
         horizontal, which can spend its whole length inside it.  Pair it with
         ``electron_fraction_ocean``, which sets the composition of the same
         shell.  Default: None, i.e. PREM's own ocean.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
+
+    
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -11972,7 +11994,7 @@ def osc_prob_5nu_earth(
     Examples
     --------
     Five-neutrino (3+2 sterile) oscillations through the Earth, with
-    modest sterile mixing on top of the NuFit 6.0 active-sector defaults:
+    modest sterile mixing on top of the NuFit 6.1 active-sector defaults:
 
     .. jupyter-execute::
 
@@ -12061,29 +12083,6 @@ def osc_prob_5nu_earth(
         Final flavor index; see ``nu_i``. Default: None.
     default_osc_params_set_name : str, optional
         Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
-    validate_input : bool, optional
-        If True, validate the input parameters. Default: True.
-    save_log : bool, optional
-        If True, also write log messages to a file. Default: False.
-    filename_log : str, optional
-        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
-    file_log : TextIOWrapper, optional
-        Optional file object to write log messages to. Default: None.
-    close_file_log_upon_exit : bool, optional
-        If True, close the log file before returning. Default: True.
-    verbose : int, optional
-        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
-    \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function, and
-        through it to :func:`osc_prob`, whose signature declares them. The refinement
-        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
-        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
-        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
-
-    
     ratio_number_neutrons_to_protons : int, float, or Callable, optional
         :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
         matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: None,
@@ -12147,6 +12146,30 @@ def osc_prob_5nu_earth(
         horizontal, which can spend its whole length inside it.  Pair it with
         ``electron_fraction_ocean``, which sets the composition of the same
         shell.  Default: None, i.e. PREM's own ocean.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
+
+    
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -12595,13 +12618,6 @@ def _osc_prob_with_potential(
 
     Parameters
     ----------
-    strategy_info : dict, optional
-        If given, filled in place with which engine actually answered, exactly as in
-        :func:`osc_prob_matter_std_potential` -- see that function for the keys.  A
-        user-supplied Hamiltonian gets the same answer to "which engine answered, and what
-        stood aside" as a built-in scenario does. Default: None.
-
-        .. versionadded:: 1.0.0
     source_func_name : str
         Name of the calling function (``osc_prob_earth`` or ``osc_prob_sun``), used to build more
         informative error messages.
@@ -12638,6 +12654,13 @@ def _osc_prob_with_potential(
         or 'magnus'; see the ``strategy`` parameter of :func:`osc_prob_matter_std_potential` for
         the full description and :doc:`/adiabatic_strategy` for the derivation and validation.
         Default: 'auto'.
+
+        .. versionadded:: 1.0.0
+    strategy_info : dict, optional
+        If given, filled in place with which engine actually answered, exactly as in
+        :func:`osc_prob_matter_std_potential` -- see that function for the keys.  A
+        user-supplied Hamiltonian gets the same answer to "which engine answered, and what
+        stood aside" as a built-in scenario does. Default: None.
 
         .. versionadded:: 1.0.0
     symmetric_over : tuple, optional
@@ -12890,9 +12913,10 @@ def osc_prob_2nu_sun(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angle is stated: ``'sin'`` (default) its sine,
         ``'sin2'`` its sine *squared* -- which is what global fits report --
@@ -12972,7 +12996,7 @@ def osc_prob_3nu_sun(
     Examples
     --------
     Standard three-neutrino oscillations through the Sun, using the
-    NuFit 6.0 defaults for the oscillation parameters:
+    NuFit 6.1 defaults for the oscillation parameters:
 
     .. jupyter-execute::
 
@@ -13022,8 +13046,6 @@ def osc_prob_3nu_sun(
         Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
     nu_f : int, optional
         Final flavor index; see ``nu_i``. Default: None.
-    default_osc_params_set_name : str, optional
-        Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
     strategy : str, optional
         Numerical strategy used to compute the evolution operator: 'auto' (default),
         'hybrid', or 'magnus'; see the ``strategy`` parameter of
@@ -13031,6 +13053,8 @@ def osc_prob_3nu_sun(
         :doc:`/adiabatic_strategy` for the derivation and validation. Default: 'auto'.
 
         .. versionadded:: 1.0.0
+    default_osc_params_set_name : str, optional
+        Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
     validate_input : bool, optional
         If True, validate the input parameters. Default: True.
     save_log : bool, optional
@@ -13049,9 +13073,10 @@ def osc_prob_3nu_sun(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -13142,7 +13167,7 @@ def osc_prob_4nu_sun(
     Examples
     --------
     Four-neutrino (3+1 sterile) oscillations through the Sun, with a
-    modest sterile mixing on top of the NuFit 6.0 active-sector defaults:
+    modest sterile mixing on top of the NuFit 6.1 active-sector defaults:
 
     .. jupyter-execute::
 
@@ -13206,8 +13231,6 @@ def osc_prob_4nu_sun(
         Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
     nu_f : int, optional
         Final flavor index; see ``nu_i``. Default: None.
-    default_osc_params_set_name : str, optional
-        Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
     strategy : str, optional
         Numerical strategy used to compute the evolution operator: 'auto' (default),
         'hybrid', or 'magnus'; see the ``strategy`` parameter of
@@ -13215,6 +13238,8 @@ def osc_prob_4nu_sun(
         :doc:`/adiabatic_strategy` for the derivation and validation. Default: 'auto'.
 
         .. versionadded:: 1.0.0
+    default_osc_params_set_name : str, optional
+        Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
     validate_input : bool, optional
         If True, validate the input parameters. Default: True.
     save_log : bool, optional
@@ -13233,9 +13258,17 @@ def osc_prob_4nu_sun(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
+
     ratio_number_neutrons_to_protons : int or float, optional
         :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
         matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
@@ -13251,13 +13284,6 @@ def osc_prob_4nu_sun(
         averaged survival probability moves by about 4e-03 at
         :math:`\sin\theta_{14} = 0.4`, above the default tolerance.  Three flavors are
         unaffected -- the projector's sterile block is empty.
-    angles : str, optional
-        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
-        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
-        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
-        ``'deg'`` the CP phases are read as degrees too; under the other three
-        they stay in radians, a sine being no way to state a phase.
-
     Returns
     -------
     float or np.ndarray
@@ -13354,7 +13380,7 @@ def osc_prob_5nu_sun(
     Examples
     --------
     Five-neutrino (3+2 sterile) oscillations through the Sun, with
-    modest sterile mixing on top of the NuFit 6.0 active-sector defaults:
+    modest sterile mixing on top of the NuFit 6.1 active-sector defaults:
 
     .. jupyter-execute::
 
@@ -13433,8 +13459,6 @@ def osc_prob_5nu_sun(
         Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
     nu_f : int, optional
         Final flavor index; see ``nu_i``. Default: None.
-    default_osc_params_set_name : str, optional
-        Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
     strategy : str, optional
         Numerical strategy used to compute the evolution operator: 'auto' (default),
         'hybrid', or 'magnus'; see the ``strategy`` parameter of
@@ -13442,6 +13466,8 @@ def osc_prob_5nu_sun(
         :doc:`/adiabatic_strategy` for the derivation and validation. Default: 'auto'.
 
         .. versionadded:: 1.0.0
+    default_osc_params_set_name : str, optional
+        Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
     validate_input : bool, optional
         If True, validate the input parameters. Default: True.
     save_log : bool, optional
@@ -13460,9 +13486,17 @@ def osc_prob_5nu_sun(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
+
     ratio_number_neutrons_to_protons : int or float, optional
         :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
         matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
@@ -13478,13 +13512,6 @@ def osc_prob_5nu_sun(
         averaged survival probability moves by about 4e-03 at
         :math:`\sin\theta_{14} = 0.4`, above the default tolerance.  Three flavors are
         unaffected -- the projector's sterile block is empty.
-    angles : str, optional
-        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
-        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
-        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
-        ``'deg'`` the CP phases are read as degrees too; under the other three
-        they stay in radians, a sine being no way to state a phase.
-
     Returns
     -------
     float or np.ndarray
@@ -13740,13 +13767,6 @@ def osc_prob_2nu_matter_nsi_constant_density(
 
     Parameters
     ----------
-    strategy_info : dict, optional
-        If given, filled in place with which engine actually answered, exactly as in
-        :func:`osc_prob_matter_std_potential` -- see that function for the keys.  A
-        user-supplied Hamiltonian gets the same answer to "which engine answered, and what
-        stood aside" as a built-in scenario does. Default: None.
-
-        .. versionadded:: 1.0.0
     energy : int, float, list, or np.ndarray
         Neutrino energy/energies.
     L : int, float, list, or np.ndarray
@@ -13793,15 +13813,23 @@ def osc_prob_2nu_matter_nsi_constant_density(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angle is stated: ``'sin'`` (default) its sine,
         ``'sin2'`` its sine *squared* -- which is what global fits report --
         ``'rad'`` the angle itself in radians, or ``'deg'`` in degrees.  Any other
         value raises.
 
+    strategy_info : dict, optional
+        If given, filled in place with which engine actually answered, exactly as in
+        :func:`osc_prob_matter_std_potential` -- see that function for the keys.  A
+        user-supplied Hamiltonian gets the same answer to "which engine answered, and what
+        stood aside" as a built-in scenario does. Default: None.
+
+        .. versionadded:: 1.0.0
     Returns
     -------
     float or np.ndarray
@@ -13936,9 +13964,10 @@ def osc_prob_3nu_matter_nsi_constant_density(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -14109,9 +14138,10 @@ def osc_prob_4nu_matter_nsi_constant_density(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -14317,9 +14347,10 @@ def osc_prob_5nu_matter_nsi_constant_density(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -14456,9 +14487,10 @@ def osc_prob_2nu_matter_nsi_exp_density(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angle is stated: ``'sin'`` (default) its sine,
         ``'sin2'`` its sine *squared* -- which is what global fits report --
@@ -14615,9 +14647,10 @@ def osc_prob_3nu_matter_nsi_exp_density(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -14804,9 +14837,10 @@ def osc_prob_4nu_matter_nsi_exp_density(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -15028,9 +15062,10 @@ def osc_prob_5nu_matter_nsi_exp_density(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -15222,29 +15257,6 @@ def osc_prob_2nu_earth_nsi(
         Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
     nu_f : int, optional
         Final flavor index; see ``nu_i``. Default: None.
-    validate_input : bool, optional
-        If True, validate the input parameters. Default: True.
-    save_log : bool, optional
-        If True, also write log messages to a file. Default: False.
-    filename_log : str, optional
-        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
-    file_log : TextIOWrapper, optional
-        Optional file object to write log messages to. Default: None.
-    close_file_log_upon_exit : bool, optional
-        If True, close the log file before returning. Default: True.
-    verbose : int, optional
-        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
-    \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function, and
-        through it to :func:`osc_prob`, whose signature declares them. The refinement
-        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
-        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
-        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
-
-    
     ratio_number_neutrons_to_protons : int, float, or Callable, optional
         :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
         matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: None,
@@ -15308,6 +15320,30 @@ def osc_prob_2nu_earth_nsi(
         horizontal, which can spend its whole length inside it.  Pair it with
         ``electron_fraction_ocean``, which sets the composition of the same
         shell.  Default: None, i.e. PREM's own ocean.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
+
+    
     angles : str, optional
         How the mixing angle is stated: ``'sin'`` (default) its sine,
         ``'sin2'`` its sine *squared* -- which is what global fits report --
@@ -15512,7 +15548,7 @@ def osc_prob_3nu_earth_nsi(
     Examples
     --------
     Three-neutrino oscillations through the Earth with non-standard
-    interactions, using the NuFit 6.0 defaults for the standard
+    interactions, using the NuFit 6.1 defaults for the standard
     oscillation parameters:
 
     .. jupyter-execute::
@@ -15586,29 +15622,6 @@ def osc_prob_3nu_earth_nsi(
         Final flavor index; see ``nu_i``. Default: None.
     default_osc_params_set_name : str, optional
         Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
-    validate_input : bool, optional
-        If True, validate the input parameters. Default: True.
-    save_log : bool, optional
-        If True, also write log messages to a file. Default: False.
-    filename_log : str, optional
-        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
-    file_log : TextIOWrapper, optional
-        Optional file object to write log messages to. Default: None.
-    close_file_log_upon_exit : bool, optional
-        If True, close the log file before returning. Default: True.
-    verbose : int, optional
-        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
-    \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function, and
-        through it to :func:`osc_prob`, whose signature declares them. The refinement
-        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
-        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
-        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
-
-    
     ratio_number_neutrons_to_protons : int, float, or Callable, optional
         :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
         matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: None,
@@ -15672,6 +15685,30 @@ def osc_prob_3nu_earth_nsi(
         horizontal, which can spend its whole length inside it.  Pair it with
         ``electron_fraction_ocean``, which sets the composition of the same
         shell.  Default: None, i.e. PREM's own ocean.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
+
+    
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -15982,29 +16019,6 @@ def osc_prob_4nu_earth_nsi(
         Final flavor index; see ``nu_i``. Default: None.
     default_osc_params_set_name : str, optional
         Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
-    validate_input : bool, optional
-        If True, validate the input parameters. Default: True.
-    save_log : bool, optional
-        If True, also write log messages to a file. Default: False.
-    filename_log : str, optional
-        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
-    file_log : TextIOWrapper, optional
-        Optional file object to write log messages to. Default: None.
-    close_file_log_upon_exit : bool, optional
-        If True, close the log file before returning. Default: True.
-    verbose : int, optional
-        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
-    \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function, and
-        through it to :func:`osc_prob`, whose signature declares them. The refinement
-        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
-        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
-        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
-
-    
     ratio_number_neutrons_to_protons : int, float, or Callable, optional
         :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
         matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: None,
@@ -16068,6 +16082,30 @@ def osc_prob_4nu_earth_nsi(
         horizontal, which can spend its whole length inside it.  Pair it with
         ``electron_fraction_ocean``, which sets the composition of the same
         shell.  Default: None, i.e. PREM's own ocean.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
+
+    
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -16416,29 +16454,6 @@ def osc_prob_5nu_earth_nsi(
         Final flavor index; see ``nu_i``. Default: None.
     default_osc_params_set_name : str, optional
         Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
-    validate_input : bool, optional
-        If True, validate the input parameters. Default: True.
-    save_log : bool, optional
-        If True, also write log messages to a file. Default: False.
-    filename_log : str, optional
-        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
-    file_log : TextIOWrapper, optional
-        Optional file object to write log messages to. Default: None.
-    close_file_log_upon_exit : bool, optional
-        If True, close the log file before returning. Default: True.
-    verbose : int, optional
-        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
-    \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function, and
-        through it to :func:`osc_prob`, whose signature declares them. The refinement
-        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
-        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
-        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
-
-    
     ratio_number_neutrons_to_protons : int, float, or Callable, optional
         :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
         matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: None,
@@ -16502,6 +16517,30 @@ def osc_prob_5nu_earth_nsi(
         horizontal, which can spend its whole length inside it.  Pair it with
         ``electron_fraction_ocean``, which sets the composition of the same
         shell.  Default: None, i.e. PREM's own ocean.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
+
+    
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -16742,9 +16781,10 @@ def osc_prob_2nu_sun_nsi(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angle is stated: ``'sin'`` (default) its sine,
         ``'sin2'`` its sine *squared* -- which is what global fits report --
@@ -16826,7 +16866,7 @@ def osc_prob_3nu_sun_nsi(
     Examples
     --------
     Three-neutrino oscillations through the Sun with non-standard
-    interactions, using the NuFit 6.0 defaults for the standard
+    interactions, using the NuFit 6.1 defaults for the standard
     oscillation parameters:
 
     .. jupyter-execute::
@@ -16889,8 +16929,6 @@ def osc_prob_3nu_sun_nsi(
         Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
     nu_f : int, optional
         Final flavor index; see ``nu_i``. Default: None.
-    default_osc_params_set_name : str, optional
-        Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
     strategy : str, optional
         Numerical strategy used to compute the evolution operator: 'auto' (default),
         'hybrid', or 'magnus'; see the ``strategy`` parameter of
@@ -16898,6 +16936,8 @@ def osc_prob_3nu_sun_nsi(
         :doc:`/adiabatic_strategy` for the derivation and validation. Default: 'auto'.
 
         .. versionadded:: 1.0.0
+    default_osc_params_set_name : str, optional
+        Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
     validate_input : bool, optional
         If True, validate the input parameters. Default: True.
     save_log : bool, optional
@@ -16916,9 +16956,10 @@ def osc_prob_3nu_sun_nsi(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -17107,8 +17148,6 @@ def osc_prob_4nu_sun_nsi(
         Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
     nu_f : int, optional
         Final flavor index; see ``nu_i``. Default: None.
-    default_osc_params_set_name : str, optional
-        Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
     strategy : str, optional
         Numerical strategy used to compute the evolution operator: 'auto' (default),
         'hybrid', or 'magnus'; see the ``strategy`` parameter of
@@ -17116,6 +17155,8 @@ def osc_prob_4nu_sun_nsi(
         :doc:`/adiabatic_strategy` for the derivation and validation. Default: 'auto'.
 
         .. versionadded:: 1.0.0
+    default_osc_params_set_name : str, optional
+        Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
     validate_input : bool, optional
         If True, validate the input parameters. Default: True.
     save_log : bool, optional
@@ -17134,9 +17175,17 @@ def osc_prob_4nu_sun_nsi(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
+
     ratio_number_neutrons_to_protons : int or float, optional
         :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
         matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
@@ -17152,13 +17201,6 @@ def osc_prob_4nu_sun_nsi(
         averaged survival probability moves by about 4e-03 at
         :math:`\sin\theta_{14} = 0.4`, above the default tolerance.  Three flavors are
         unaffected -- the projector's sterile block is empty.
-    angles : str, optional
-        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
-        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
-        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
-        ``'deg'`` the CP phases are read as degrees too; under the other three
-        they stay in radians, a sine being no way to state a phase.
-
     Returns
     -------
     float or np.ndarray
@@ -17387,8 +17429,6 @@ def osc_prob_5nu_sun_nsi(
         Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
     nu_f : int, optional
         Final flavor index; see ``nu_i``. Default: None.
-    default_osc_params_set_name : str, optional
-        Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
     strategy : str, optional
         Numerical strategy used to compute the evolution operator: 'auto' (default),
         'hybrid', or 'magnus'; see the ``strategy`` parameter of
@@ -17396,6 +17436,8 @@ def osc_prob_5nu_sun_nsi(
         :doc:`/adiabatic_strategy` for the derivation and validation. Default: 'auto'.
 
         .. versionadded:: 1.0.0
+    default_osc_params_set_name : str, optional
+        Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
     validate_input : bool, optional
         If True, validate the input parameters. Default: True.
     save_log : bool, optional
@@ -17414,9 +17456,17 @@ def osc_prob_5nu_sun_nsi(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
+
     ratio_number_neutrons_to_protons : int or float, optional
         :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
         matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
@@ -17432,13 +17482,6 @@ def osc_prob_5nu_sun_nsi(
         averaged survival probability moves by about 4e-03 at
         :math:`\sin\theta_{14} = 0.4`, above the default tolerance.  Three flavors are
         unaffected -- the projector's sterile block is empty.
-    angles : str, optional
-        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
-        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
-        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
-        ``'deg'`` the CP phases are read as degrees too; under the other three
-        they stay in radians, a sine being no way to state a phase.
-
     Returns
     -------
     float or np.ndarray
@@ -17542,7 +17585,7 @@ def osc_prob_2nu_vacuum_liv(
     Dm2 : int or float
         Mass-squared difference :math:`\Delta m^2` of the two-flavor system.
     sxi : int or float, optional
-        Sin(xi), with xi the rotation angle between the space of the eigenvectors of the LIV operator and the flavor states. Default: 0.0.
+        Rotation angle xi between the space of the eigenvectors of the LIV operator and the flavor states, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     b1 : int or float, optional
         Eigenvalue b1 of the LIV operator. Default: 0.0.
     b2 : int or float, optional
@@ -17573,9 +17616,10 @@ def osc_prob_2nu_vacuum_liv(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines,
         ``'sin2'`` their sines *squared* -- which is what global fits report --
@@ -17663,13 +17707,13 @@ def osc_prob_3nu_vacuum_liv(
     D31 : int or float, optional
         Mass-squared difference :math:`\Delta m_{31}^2`. Default: None.
     sxi12 : int or float, optional
-        Sin(xi_12), one of the mixing angles between the space of the eigenvectors of the LIV operator and the flavor states. Default: 0.0.
+        Mixing angle xi_12 between the space of the eigenvectors of the LIV operator and the flavor states, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     sxi23 : int or float, optional
-        Sin(xi_23); see ``sxi12``. Default: 0.0.
+        Angle xi_23; see ``sxi12``. Default: 0.0.
     sxi13 : int or float, optional
-        Sin(xi_13); see ``sxi12``. Default: 0.0.
+        Angle xi_13; see ``sxi12``. Default: 0.0.
     dxiCP : int or float, optional
-        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+        CP-violation phase of the LIV operator [radian, or degree if ``angles='deg'``]. Default: 0.0.
     b1 : int or float, optional
         Eigenvalue b1 of the LIV operator. Default: 0.0.
     b2 : int or float, optional
@@ -17704,9 +17748,10 @@ def osc_prob_3nu_vacuum_liv(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -17819,23 +17864,23 @@ def osc_prob_4nu_vacuum_liv(
     D41 : int or float, optional
         Mass-squared difference :math:`\Delta m_{41}^2`. Default: 0.0.
     sxi12 : int or float, optional
-        Sin(xi_12), one of the mixing angles between the space of the eigenvectors of the LIV operator and the flavor states. Default: 0.0.
+        Mixing angle xi_12 between the space of the eigenvectors of the LIV operator and the flavor states, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     sxi23 : int or float, optional
-        Sin(xi_23); see ``sxi12``. Default: 0.0.
+        Angle xi_23; see ``sxi12``. Default: 0.0.
     sxi13 : int or float, optional
-        Sin(xi_13); see ``sxi12``. Default: 0.0.
+        Angle xi_13; see ``sxi12``. Default: 0.0.
     dxi13 : int or float, optional
         CP-violation phase of the LIV operator [radian] (replaces ``dxiCP`` for 4/5-flavor systems). Default: 0.0.
     sxi14 : int or float, optional
-        Sin(xi_14); see ``sxi12``. Default: 0.0.
+        Angle xi_14; see ``sxi12``. Default: 0.0.
     dxi14 : int or float, optional
-        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+        CP-violation phase of the LIV operator [radian, or degree if ``angles='deg'``]. Default: 0.0.
     sxi24 : int or float, optional
-        Sin(xi_24); see ``sxi12``. Default: 0.0.
+        Angle xi_24; see ``sxi12``. Default: 0.0.
     dxi24 : int or float, optional
-        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+        CP-violation phase of the LIV operator [radian, or degree if ``angles='deg'``]. Default: 0.0.
     sxi34 : int or float, optional
-        Sin(xi_34); see ``sxi12``. Default: 0.0.
+        Angle xi_34; see ``sxi12``. Default: 0.0.
     b1 : int or float, optional
         Eigenvalue b1 of the LIV operator. Default: 0.0.
     b2 : int or float, optional
@@ -17872,9 +17917,10 @@ def osc_prob_4nu_vacuum_liv(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -18013,33 +18059,33 @@ def osc_prob_5nu_vacuum_liv(
     D51 : int or float, optional
         Mass-squared difference :math:`\Delta m_{51}^2`. Default: 0.0.
     sxi12 : int or float, optional
-        Sin(xi_12), one of the mixing angles between the space of the eigenvectors of the LIV operator and the flavor states. Default: 0.0.
+        Mixing angle xi_12 between the space of the eigenvectors of the LIV operator and the flavor states, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     sxi23 : int or float, optional
-        Sin(xi_23); see ``sxi12``. Default: 0.0.
+        Angle xi_23; see ``sxi12``. Default: 0.0.
     sxi13 : int or float, optional
-        Sin(xi_13); see ``sxi12``. Default: 0.0.
+        Angle xi_13; see ``sxi12``. Default: 0.0.
     dxi13 : int or float, optional
         CP-violation phase of the LIV operator [radian] (replaces ``dxiCP`` for 4/5-flavor systems). Default: 0.0.
     sxi14 : int or float, optional
-        Sin(xi_14); see ``sxi12``. Default: 0.0.
+        Angle xi_14; see ``sxi12``. Default: 0.0.
     dxi14 : int or float, optional
-        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+        CP-violation phase of the LIV operator [radian, or degree if ``angles='deg'``]. Default: 0.0.
     sxi15 : int or float, optional
-        Sin(xi_15); see ``sxi12``. Default: 0.0.
+        Angle xi_15; see ``sxi12``. Default: 0.0.
     dxi15 : int or float, optional
-        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+        CP-violation phase of the LIV operator [radian, or degree if ``angles='deg'``]. Default: 0.0.
     sxi24 : int or float, optional
-        Sin(xi_24); see ``sxi12``. Default: 0.0.
+        Angle xi_24; see ``sxi12``. Default: 0.0.
     dxi24 : int or float, optional
-        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+        CP-violation phase of the LIV operator [radian, or degree if ``angles='deg'``]. Default: 0.0.
     sxi25 : int or float, optional
-        Sin(xi_25); see ``sxi12``. Default: 0.0.
+        Angle xi_25; see ``sxi12``. Default: 0.0.
     sxi34 : int or float, optional
-        Sin(xi_34); see ``sxi12``. Default: 0.0.
+        Angle xi_34; see ``sxi12``. Default: 0.0.
     sxi35 : int or float, optional
-        Sin(xi_35); see ``sxi12``. Default: 0.0.
+        Angle xi_35; see ``sxi12``. Default: 0.0.
     dxi35 : int or float, optional
-        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+        CP-violation phase of the LIV operator [radian, or degree if ``angles='deg'``]. Default: 0.0.
     b1 : int or float, optional
         Eigenvalue b1 of the LIV operator. Default: 0.0.
     b2 : int or float, optional
@@ -18078,9 +18124,10 @@ def osc_prob_5nu_vacuum_liv(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -18169,7 +18216,7 @@ def osc_prob_2nu_matter_liv_constant_density(
     Dm2 : int or float
         Mass-squared difference :math:`\Delta m^2` of the two-flavor system.
     sxi : int or float, optional
-        Sin(xi), with xi the rotation angle between the space of the eigenvectors of the LIV operator and the flavor states. Default: 0.0.
+        Rotation angle xi between the space of the eigenvectors of the LIV operator and the flavor states, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     b1 : int or float, optional
         Eigenvalue b1 of the LIV operator. Default: 0.0.
     b2 : int or float, optional
@@ -18210,9 +18257,10 @@ def osc_prob_2nu_matter_liv_constant_density(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines,
         ``'sin2'`` their sines *squared* -- which is what global fits report --
@@ -18314,13 +18362,13 @@ def osc_prob_3nu_matter_liv_constant_density(
     D31 : int or float, optional
         Mass-squared difference :math:`\Delta m_{31}^2`. Default: None.
     sxi12 : int or float, optional
-        Sin(xi_12), one of the mixing angles between the space of the eigenvectors of the LIV operator and the flavor states. Default: 0.0.
+        Mixing angle xi_12 between the space of the eigenvectors of the LIV operator and the flavor states, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     sxi23 : int or float, optional
-        Sin(xi_23); see ``sxi12``. Default: 0.0.
+        Angle xi_23; see ``sxi12``. Default: 0.0.
     sxi13 : int or float, optional
-        Sin(xi_13); see ``sxi12``. Default: 0.0.
+        Angle xi_13; see ``sxi12``. Default: 0.0.
     dxiCP : int or float, optional
-        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+        CP-violation phase of the LIV operator [radian, or degree if ``angles='deg'``]. Default: 0.0.
     b1 : int or float, optional
         Eigenvalue b1 of the LIV operator. Default: 0.0.
     b2 : int or float, optional
@@ -18365,9 +18413,10 @@ def osc_prob_3nu_matter_liv_constant_density(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -18494,23 +18543,23 @@ def osc_prob_4nu_matter_liv_constant_density(
     D41 : int or float, optional
         Mass-squared difference :math:`\Delta m_{41}^2`. Default: 0.0.
     sxi12 : int or float, optional
-        Sin(xi_12), one of the mixing angles between the space of the eigenvectors of the LIV operator and the flavor states. Default: 0.0.
+        Mixing angle xi_12 between the space of the eigenvectors of the LIV operator and the flavor states, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     sxi23 : int or float, optional
-        Sin(xi_23); see ``sxi12``. Default: 0.0.
+        Angle xi_23; see ``sxi12``. Default: 0.0.
     sxi13 : int or float, optional
-        Sin(xi_13); see ``sxi12``. Default: 0.0.
+        Angle xi_13; see ``sxi12``. Default: 0.0.
     dxi13 : int or float, optional
         CP-violation phase of the LIV operator [radian] (replaces ``dxiCP`` for 4/5-flavor systems). Default: 0.0.
     sxi14 : int or float, optional
-        Sin(xi_14); see ``sxi12``. Default: 0.0.
+        Angle xi_14; see ``sxi12``. Default: 0.0.
     dxi14 : int or float, optional
-        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+        CP-violation phase of the LIV operator [radian, or degree if ``angles='deg'``]. Default: 0.0.
     sxi24 : int or float, optional
-        Sin(xi_24); see ``sxi12``. Default: 0.0.
+        Angle xi_24; see ``sxi12``. Default: 0.0.
     dxi24 : int or float, optional
-        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+        CP-violation phase of the LIV operator [radian, or degree if ``angles='deg'``]. Default: 0.0.
     sxi34 : int or float, optional
-        Sin(xi_34); see ``sxi12``. Default: 0.0.
+        Angle xi_34; see ``sxi12``. Default: 0.0.
     b1 : int or float, optional
         Eigenvalue b1 of the LIV operator. Default: 0.0.
     b2 : int or float, optional
@@ -18557,9 +18606,10 @@ def osc_prob_4nu_matter_liv_constant_density(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -18712,33 +18762,33 @@ def osc_prob_5nu_matter_liv_constant_density(
     D51 : int or float, optional
         Mass-squared difference :math:`\Delta m_{51}^2`. Default: 0.0.
     sxi12 : int or float, optional
-        Sin(xi_12), one of the mixing angles between the space of the eigenvectors of the LIV operator and the flavor states. Default: 0.0.
+        Mixing angle xi_12 between the space of the eigenvectors of the LIV operator and the flavor states, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     sxi23 : int or float, optional
-        Sin(xi_23); see ``sxi12``. Default: 0.0.
+        Angle xi_23; see ``sxi12``. Default: 0.0.
     sxi13 : int or float, optional
-        Sin(xi_13); see ``sxi12``. Default: 0.0.
+        Angle xi_13; see ``sxi12``. Default: 0.0.
     dxi13 : int or float, optional
         CP-violation phase of the LIV operator [radian] (replaces ``dxiCP`` for 4/5-flavor systems). Default: 0.0.
     sxi14 : int or float, optional
-        Sin(xi_14); see ``sxi12``. Default: 0.0.
+        Angle xi_14; see ``sxi12``. Default: 0.0.
     dxi14 : int or float, optional
-        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+        CP-violation phase of the LIV operator [radian, or degree if ``angles='deg'``]. Default: 0.0.
     sxi15 : int or float, optional
-        Sin(xi_15); see ``sxi12``. Default: 0.0.
+        Angle xi_15; see ``sxi12``. Default: 0.0.
     dxi15 : int or float, optional
-        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+        CP-violation phase of the LIV operator [radian, or degree if ``angles='deg'``]. Default: 0.0.
     sxi24 : int or float, optional
-        Sin(xi_24); see ``sxi12``. Default: 0.0.
+        Angle xi_24; see ``sxi12``. Default: 0.0.
     dxi24 : int or float, optional
-        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+        CP-violation phase of the LIV operator [radian, or degree if ``angles='deg'``]. Default: 0.0.
     sxi25 : int or float, optional
-        Sin(xi_25); see ``sxi12``. Default: 0.0.
+        Angle xi_25; see ``sxi12``. Default: 0.0.
     sxi34 : int or float, optional
-        Sin(xi_34); see ``sxi12``. Default: 0.0.
+        Angle xi_34; see ``sxi12``. Default: 0.0.
     sxi35 : int or float, optional
-        Sin(xi_35); see ``sxi12``. Default: 0.0.
+        Angle xi_35; see ``sxi12``. Default: 0.0.
     dxi35 : int or float, optional
-        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+        CP-violation phase of the LIV operator [radian, or degree if ``angles='deg'``]. Default: 0.0.
     b1 : int or float, optional
         Eigenvalue b1 of the LIV operator. Default: 0.0.
     b2 : int or float, optional
@@ -18787,9 +18837,10 @@ def osc_prob_5nu_matter_liv_constant_density(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -18889,7 +18940,7 @@ def osc_prob_2nu_matter_liv_exp_density(
     Dm2 : int or float
         Mass-squared difference :math:`\Delta m^2` of the two-flavor system.
     sxi : int or float, optional
-        Sin(xi), with xi the rotation angle between the space of the eigenvectors of the LIV operator and the flavor states. Default: 0.0.
+        Rotation angle xi between the space of the eigenvectors of the LIV operator and the flavor states, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     b1 : int or float, optional
         Eigenvalue b1 of the LIV operator. Default: 0.0.
     b2 : int or float, optional
@@ -18930,9 +18981,10 @@ def osc_prob_2nu_matter_liv_exp_density(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines,
         ``'sin2'`` their sines *squared* -- which is what global fits report --
@@ -19046,13 +19098,13 @@ def osc_prob_3nu_matter_liv_exp_density(
     D31 : int or float, optional
         Mass-squared difference :math:`\Delta m_{31}^2`. Default: None.
     sxi12 : int or float, optional
-        Sin(xi_12), one of the mixing angles between the space of the eigenvectors of the LIV operator and the flavor states. Default: 0.0.
+        Mixing angle xi_12 between the space of the eigenvectors of the LIV operator and the flavor states, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     sxi23 : int or float, optional
-        Sin(xi_23); see ``sxi12``. Default: 0.0.
+        Angle xi_23; see ``sxi12``. Default: 0.0.
     sxi13 : int or float, optional
-        Sin(xi_13); see ``sxi12``. Default: 0.0.
+        Angle xi_13; see ``sxi12``. Default: 0.0.
     dxiCP : int or float, optional
-        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+        CP-violation phase of the LIV operator [radian, or degree if ``angles='deg'``]. Default: 0.0.
     b1 : int or float, optional
         Eigenvalue b1 of the LIV operator. Default: 0.0.
     b2 : int or float, optional
@@ -19095,9 +19147,10 @@ def osc_prob_3nu_matter_liv_exp_density(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -19234,23 +19287,23 @@ def osc_prob_4nu_matter_liv_exp_density(
     D41 : int or float, optional
         Mass-squared difference :math:`\Delta m_{41}^2`. Default: 0.0.
     sxi12 : int or float, optional
-        Sin(xi_12), one of the mixing angles between the space of the eigenvectors of the LIV operator and the flavor states. Default: 0.0.
+        Mixing angle xi_12 between the space of the eigenvectors of the LIV operator and the flavor states, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     sxi23 : int or float, optional
-        Sin(xi_23); see ``sxi12``. Default: 0.0.
+        Angle xi_23; see ``sxi12``. Default: 0.0.
     sxi13 : int or float, optional
-        Sin(xi_13); see ``sxi12``. Default: 0.0.
+        Angle xi_13; see ``sxi12``. Default: 0.0.
     dxi13 : int or float, optional
         CP-violation phase of the LIV operator [radian] (replaces ``dxiCP`` for 4/5-flavor systems). Default: 0.0.
     sxi14 : int or float, optional
-        Sin(xi_14); see ``sxi12``. Default: 0.0.
+        Angle xi_14; see ``sxi12``. Default: 0.0.
     dxi14 : int or float, optional
-        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+        CP-violation phase of the LIV operator [radian, or degree if ``angles='deg'``]. Default: 0.0.
     sxi24 : int or float, optional
-        Sin(xi_24); see ``sxi12``. Default: 0.0.
+        Angle xi_24; see ``sxi12``. Default: 0.0.
     dxi24 : int or float, optional
-        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+        CP-violation phase of the LIV operator [radian, or degree if ``angles='deg'``]. Default: 0.0.
     sxi34 : int or float, optional
-        Sin(xi_34); see ``sxi12``. Default: 0.0.
+        Angle xi_34; see ``sxi12``. Default: 0.0.
     b1 : int or float, optional
         Eigenvalue b1 of the LIV operator. Default: 0.0.
     b2 : int or float, optional
@@ -19295,9 +19348,10 @@ def osc_prob_4nu_matter_liv_exp_density(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -19460,33 +19514,33 @@ def osc_prob_5nu_matter_liv_exp_density(
     D51 : int or float, optional
         Mass-squared difference :math:`\Delta m_{51}^2`. Default: 0.0.
     sxi12 : int or float, optional
-        Sin(xi_12), one of the mixing angles between the space of the eigenvectors of the LIV operator and the flavor states. Default: 0.0.
+        Mixing angle xi_12 between the space of the eigenvectors of the LIV operator and the flavor states, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     sxi23 : int or float, optional
-        Sin(xi_23); see ``sxi12``. Default: 0.0.
+        Angle xi_23; see ``sxi12``. Default: 0.0.
     sxi13 : int or float, optional
-        Sin(xi_13); see ``sxi12``. Default: 0.0.
+        Angle xi_13; see ``sxi12``. Default: 0.0.
     dxi13 : int or float, optional
         CP-violation phase of the LIV operator [radian] (replaces ``dxiCP`` for 4/5-flavor systems). Default: 0.0.
     sxi14 : int or float, optional
-        Sin(xi_14); see ``sxi12``. Default: 0.0.
+        Angle xi_14; see ``sxi12``. Default: 0.0.
     dxi14 : int or float, optional
-        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+        CP-violation phase of the LIV operator [radian, or degree if ``angles='deg'``]. Default: 0.0.
     sxi15 : int or float, optional
-        Sin(xi_15); see ``sxi12``. Default: 0.0.
+        Angle xi_15; see ``sxi12``. Default: 0.0.
     dxi15 : int or float, optional
-        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+        CP-violation phase of the LIV operator [radian, or degree if ``angles='deg'``]. Default: 0.0.
     sxi24 : int or float, optional
-        Sin(xi_24); see ``sxi12``. Default: 0.0.
+        Angle xi_24; see ``sxi12``. Default: 0.0.
     dxi24 : int or float, optional
-        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+        CP-violation phase of the LIV operator [radian, or degree if ``angles='deg'``]. Default: 0.0.
     sxi25 : int or float, optional
-        Sin(xi_25); see ``sxi12``. Default: 0.0.
+        Angle xi_25; see ``sxi12``. Default: 0.0.
     sxi34 : int or float, optional
-        Sin(xi_34); see ``sxi12``. Default: 0.0.
+        Angle xi_34; see ``sxi12``. Default: 0.0.
     sxi35 : int or float, optional
-        Sin(xi_35); see ``sxi12``. Default: 0.0.
+        Angle xi_35; see ``sxi12``. Default: 0.0.
     dxi35 : int or float, optional
-        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+        CP-violation phase of the LIV operator [radian, or degree if ``angles='deg'``]. Default: 0.0.
     b1 : int or float, optional
         Eigenvalue b1 of the LIV operator. Default: 0.0.
     b2 : int or float, optional
@@ -19533,9 +19587,10 @@ def osc_prob_5nu_matter_liv_exp_density(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -19712,7 +19767,7 @@ def osc_prob_2nu_earth_liv(
     Dm2 : int or float
         Mass-squared difference :math:`\Delta m^2` of the two-flavor system.
     sxi : int or float, optional
-        Sin(xi), with xi the rotation angle between the space of the eigenvectors of the LIV operator and the flavor states. Default: 0.0.
+        Rotation angle xi between the space of the eigenvectors of the LIV operator and the flavor states, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     b1 : int or float, optional
         Eigenvalue b1 of the LIV operator. Default: 0.0.
     b2 : int or float, optional
@@ -19735,29 +19790,6 @@ def osc_prob_2nu_earth_liv(
         Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
     nu_f : int, optional
         Final flavor index; see ``nu_i``. Default: None.
-    validate_input : bool, optional
-        If True, validate the input parameters. Default: True.
-    save_log : bool, optional
-        If True, also write log messages to a file. Default: False.
-    filename_log : str, optional
-        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
-    file_log : TextIOWrapper, optional
-        Optional file object to write log messages to. Default: None.
-    close_file_log_upon_exit : bool, optional
-        If True, close the log file before returning. Default: True.
-    verbose : int, optional
-        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
-    \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function, and
-        through it to :func:`osc_prob`, whose signature declares them. The refinement
-        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
-        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
-        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
-
-    
     ratio_number_neutrons_to_protons : int, float, or Callable, optional
         :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
         matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: None,
@@ -19821,6 +19853,30 @@ def osc_prob_2nu_earth_liv(
         horizontal, which can spend its whole length inside it.  Pair it with
         ``electron_fraction_ocean``, which sets the composition of the same
         shell.  Default: None, i.e. PREM's own ocean.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
+
+    
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines,
         ``'sin2'`` their sines *squared* -- which is what global fits report --
@@ -20028,7 +20084,7 @@ def osc_prob_3nu_earth_liv(
     Examples
     --------
     Three-neutrino oscillations through the Earth under Lorentz-invariance
-    violation, using the NuFit 6.0 defaults for the standard oscillation
+    violation, using the NuFit 6.1 defaults for the standard oscillation
     parameters:
 
     .. jupyter-execute::
@@ -20085,13 +20141,13 @@ def osc_prob_3nu_earth_liv(
     D31 : int or float, optional
         Mass-squared difference :math:`\Delta m_{31}^2`. Default: None.
     sxi12 : int or float, optional
-        Sin(xi_12), one of the mixing angles between the space of the eigenvectors of the LIV operator and the flavor states. Default: 0.0.
+        Mixing angle xi_12 between the space of the eigenvectors of the LIV operator and the flavor states, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     sxi23 : int or float, optional
-        Sin(xi_23); see ``sxi12``. Default: 0.0.
+        Angle xi_23; see ``sxi12``. Default: 0.0.
     sxi13 : int or float, optional
-        Sin(xi_13); see ``sxi12``. Default: 0.0.
+        Angle xi_13; see ``sxi12``. Default: 0.0.
     dxiCP : int or float, optional
-        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+        CP-violation phase of the LIV operator [radian, or degree if ``angles='deg'``]. Default: 0.0.
     b1 : int or float, optional
         Eigenvalue b1 of the LIV operator. Default: 0.0.
     b2 : int or float, optional
@@ -20110,29 +20166,6 @@ def osc_prob_3nu_earth_liv(
         Final flavor index; see ``nu_i``. Default: None.
     default_osc_params_set_name : str, optional
         Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
-    validate_input : bool, optional
-        If True, validate the input parameters. Default: True.
-    save_log : bool, optional
-        If True, also write log messages to a file. Default: False.
-    filename_log : str, optional
-        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
-    file_log : TextIOWrapper, optional
-        Optional file object to write log messages to. Default: None.
-    close_file_log_upon_exit : bool, optional
-        If True, close the log file before returning. Default: True.
-    verbose : int, optional
-        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
-    \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function, and
-        through it to :func:`osc_prob`, whose signature declares them. The refinement
-        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
-        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
-        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
-
-    
     ratio_number_neutrons_to_protons : int, float, or Callable, optional
         :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
         matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: None,
@@ -20196,6 +20229,30 @@ def osc_prob_3nu_earth_liv(
         horizontal, which can spend its whole length inside it.  Pair it with
         ``electron_fraction_ocean``, which sets the composition of the same
         shell.  Default: None, i.e. PREM's own ocean.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
+
+    
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -20484,23 +20541,23 @@ def osc_prob_4nu_earth_liv(
     D41 : int or float, optional
         Mass-squared difference :math:`\Delta m_{41}^2`. Default: 0.0.
     sxi12 : int or float, optional
-        Sin(xi_12), one of the mixing angles between the space of the eigenvectors of the LIV operator and the flavor states. Default: 0.0.
+        Mixing angle xi_12 between the space of the eigenvectors of the LIV operator and the flavor states, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     sxi23 : int or float, optional
-        Sin(xi_23); see ``sxi12``. Default: 0.0.
+        Angle xi_23; see ``sxi12``. Default: 0.0.
     sxi13 : int or float, optional
-        Sin(xi_13); see ``sxi12``. Default: 0.0.
+        Angle xi_13; see ``sxi12``. Default: 0.0.
     dxi13 : int or float, optional
         CP-violation phase of the LIV operator [radian] (replaces ``dxiCP`` for 4/5-flavor systems). Default: 0.0.
     sxi14 : int or float, optional
-        Sin(xi_14); see ``sxi12``. Default: 0.0.
+        Angle xi_14; see ``sxi12``. Default: 0.0.
     dxi14 : int or float, optional
-        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+        CP-violation phase of the LIV operator [radian, or degree if ``angles='deg'``]. Default: 0.0.
     sxi24 : int or float, optional
-        Sin(xi_24); see ``sxi12``. Default: 0.0.
+        Angle xi_24; see ``sxi12``. Default: 0.0.
     dxi24 : int or float, optional
-        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+        CP-violation phase of the LIV operator [radian, or degree if ``angles='deg'``]. Default: 0.0.
     sxi34 : int or float, optional
-        Sin(xi_34); see ``sxi12``. Default: 0.0.
+        Angle xi_34; see ``sxi12``. Default: 0.0.
     b1 : int or float, optional
         Eigenvalue b1 of the LIV operator. Default: 0.0.
     b2 : int or float, optional
@@ -20521,29 +20578,6 @@ def osc_prob_4nu_earth_liv(
         Final flavor index; see ``nu_i``. Default: None.
     default_osc_params_set_name : str, optional
         Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
-    validate_input : bool, optional
-        If True, validate the input parameters. Default: True.
-    save_log : bool, optional
-        If True, also write log messages to a file. Default: False.
-    filename_log : str, optional
-        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
-    file_log : TextIOWrapper, optional
-        Optional file object to write log messages to. Default: None.
-    close_file_log_upon_exit : bool, optional
-        If True, close the log file before returning. Default: True.
-    verbose : int, optional
-        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
-    \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function, and
-        through it to :func:`osc_prob`, whose signature declares them. The refinement
-        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
-        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
-        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
-
-    
     ratio_number_neutrons_to_protons : int, float, or Callable, optional
         :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
         matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: None,
@@ -20607,6 +20641,30 @@ def osc_prob_4nu_earth_liv(
         horizontal, which can spend its whole length inside it.  Pair it with
         ``electron_fraction_ocean``, which sets the composition of the same
         shell.  Default: None, i.e. PREM's own ocean.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
+
+    
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -20922,33 +20980,33 @@ def osc_prob_5nu_earth_liv(
     D51 : int or float, optional
         Mass-squared difference :math:`\Delta m_{51}^2`. Default: 0.0.
     sxi12 : int or float, optional
-        Sin(xi_12), one of the mixing angles between the space of the eigenvectors of the LIV operator and the flavor states. Default: 0.0.
+        Mixing angle xi_12 between the space of the eigenvectors of the LIV operator and the flavor states, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     sxi23 : int or float, optional
-        Sin(xi_23); see ``sxi12``. Default: 0.0.
+        Angle xi_23; see ``sxi12``. Default: 0.0.
     sxi13 : int or float, optional
-        Sin(xi_13); see ``sxi12``. Default: 0.0.
+        Angle xi_13; see ``sxi12``. Default: 0.0.
     dxi13 : int or float, optional
         CP-violation phase of the LIV operator [radian] (replaces ``dxiCP`` for 4/5-flavor systems). Default: 0.0.
     sxi14 : int or float, optional
-        Sin(xi_14); see ``sxi12``. Default: 0.0.
+        Angle xi_14; see ``sxi12``. Default: 0.0.
     dxi14 : int or float, optional
-        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+        CP-violation phase of the LIV operator [radian, or degree if ``angles='deg'``]. Default: 0.0.
     sxi15 : int or float, optional
-        Sin(xi_15); see ``sxi12``. Default: 0.0.
+        Angle xi_15; see ``sxi12``. Default: 0.0.
     dxi15 : int or float, optional
-        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+        CP-violation phase of the LIV operator [radian, or degree if ``angles='deg'``]. Default: 0.0.
     sxi24 : int or float, optional
-        Sin(xi_24); see ``sxi12``. Default: 0.0.
+        Angle xi_24; see ``sxi12``. Default: 0.0.
     dxi24 : int or float, optional
-        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+        CP-violation phase of the LIV operator [radian, or degree if ``angles='deg'``]. Default: 0.0.
     sxi25 : int or float, optional
-        Sin(xi_25); see ``sxi12``. Default: 0.0.
+        Angle xi_25; see ``sxi12``. Default: 0.0.
     sxi34 : int or float, optional
-        Sin(xi_34); see ``sxi12``. Default: 0.0.
+        Angle xi_34; see ``sxi12``. Default: 0.0.
     sxi35 : int or float, optional
-        Sin(xi_35); see ``sxi12``. Default: 0.0.
+        Angle xi_35; see ``sxi12``. Default: 0.0.
     dxi35 : int or float, optional
-        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+        CP-violation phase of the LIV operator [radian, or degree if ``angles='deg'``]. Default: 0.0.
     b1 : int or float, optional
         Eigenvalue b1 of the LIV operator. Default: 0.0.
     b2 : int or float, optional
@@ -20971,29 +21029,6 @@ def osc_prob_5nu_earth_liv(
         Final flavor index; see ``nu_i``. Default: None.
     default_osc_params_set_name : str, optional
         Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
-    validate_input : bool, optional
-        If True, validate the input parameters. Default: True.
-    save_log : bool, optional
-        If True, also write log messages to a file. Default: False.
-    filename_log : str, optional
-        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
-    file_log : TextIOWrapper, optional
-        Optional file object to write log messages to. Default: None.
-    close_file_log_upon_exit : bool, optional
-        If True, close the log file before returning. Default: True.
-    verbose : int, optional
-        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
-    \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function, and
-        through it to :func:`osc_prob`, whose signature declares them. The refinement
-        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
-        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
-        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
-
-    
     ratio_number_neutrons_to_protons : int, float, or Callable, optional
         :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
         matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: None,
@@ -21057,6 +21092,30 @@ def osc_prob_5nu_earth_liv(
         horizontal, which can spend its whole length inside it.  Pair it with
         ``electron_fraction_ocean``, which sets the composition of the same
         shell.  Default: None, i.e. PREM's own ocean.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
+
+    
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -21230,7 +21289,7 @@ def osc_prob_2nu_sun_liv(
     Dm2 : int or float
         Mass-squared difference :math:`\Delta m^2` of the two-flavor system.
     sxi : int or float, optional
-        Sin(xi), with xi the rotation angle between the space of the eigenvectors of the LIV operator and the flavor states. Default: 0.0.
+        Rotation angle xi between the space of the eigenvectors of the LIV operator and the flavor states, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     b1 : int or float, optional
         Eigenvalue b1 of the LIV operator. Default: 0.0.
     b2 : int or float, optional
@@ -21270,9 +21329,10 @@ def osc_prob_2nu_sun_liv(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines,
         ``'sin2'`` their sines *squared* -- which is what global fits report --
@@ -21389,13 +21449,13 @@ def osc_prob_3nu_sun_liv(
     D31 : int or float, optional
         Mass-squared difference :math:`\Delta m_{31}^2`. Default: None.
     sxi12 : int or float, optional
-        Sin(xi_12), one of the mixing angles between the space of the eigenvectors of the LIV operator and the flavor states. Default: 0.0.
+        Mixing angle xi_12 between the space of the eigenvectors of the LIV operator and the flavor states, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     sxi23 : int or float, optional
-        Sin(xi_23); see ``sxi12``. Default: 0.0.
+        Angle xi_23; see ``sxi12``. Default: 0.0.
     sxi13 : int or float, optional
-        Sin(xi_13); see ``sxi12``. Default: 0.0.
+        Angle xi_13; see ``sxi12``. Default: 0.0.
     dxiCP : int or float, optional
-        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+        CP-violation phase of the LIV operator [radian, or degree if ``angles='deg'``]. Default: 0.0.
     b1 : int or float, optional
         Eigenvalue b1 of the LIV operator. Default: 0.0.
     b2 : int or float, optional
@@ -21437,9 +21497,10 @@ def osc_prob_3nu_sun_liv(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -21590,23 +21651,23 @@ def osc_prob_4nu_sun_liv(
     D41 : int or float, optional
         Mass-squared difference :math:`\Delta m_{41}^2`. Default: 0.0.
     sxi12 : int or float, optional
-        Sin(xi_12), one of the mixing angles between the space of the eigenvectors of the LIV operator and the flavor states. Default: 0.0.
+        Mixing angle xi_12 between the space of the eigenvectors of the LIV operator and the flavor states, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     sxi23 : int or float, optional
-        Sin(xi_23); see ``sxi12``. Default: 0.0.
+        Angle xi_23; see ``sxi12``. Default: 0.0.
     sxi13 : int or float, optional
-        Sin(xi_13); see ``sxi12``. Default: 0.0.
+        Angle xi_13; see ``sxi12``. Default: 0.0.
     dxi13 : int or float, optional
         CP-violation phase of the LIV operator [radian] (replaces ``dxiCP`` for 4/5-flavor systems). Default: 0.0.
     sxi14 : int or float, optional
-        Sin(xi_14); see ``sxi12``. Default: 0.0.
+        Angle xi_14; see ``sxi12``. Default: 0.0.
     dxi14 : int or float, optional
-        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+        CP-violation phase of the LIV operator [radian, or degree if ``angles='deg'``]. Default: 0.0.
     sxi24 : int or float, optional
-        Sin(xi_24); see ``sxi12``. Default: 0.0.
+        Angle xi_24; see ``sxi12``. Default: 0.0.
     dxi24 : int or float, optional
-        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+        CP-violation phase of the LIV operator [radian, or degree if ``angles='deg'``]. Default: 0.0.
     sxi34 : int or float, optional
-        Sin(xi_34); see ``sxi12``. Default: 0.0.
+        Angle xi_34; see ``sxi12``. Default: 0.0.
     b1 : int or float, optional
         Eigenvalue b1 of the LIV operator. Default: 0.0.
     b2 : int or float, optional
@@ -21650,9 +21711,17 @@ def osc_prob_4nu_sun_liv(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
+
     ratio_number_neutrons_to_protons : int or float, optional
         :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
         matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
@@ -21668,13 +21737,6 @@ def osc_prob_4nu_sun_liv(
         averaged survival probability moves by about 4e-03 at
         :math:`\sin\theta_{14} = 0.4`, above the default tolerance.  Three flavors are
         unaffected -- the projector's sterile block is empty.
-    angles : str, optional
-        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
-        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
-        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
-        ``'deg'`` the CP phases are read as degrees too; under the other three
-        they stay in radians, a sine being no way to state a phase.
-
     Returns
     -------
     float or np.ndarray
@@ -21854,33 +21916,33 @@ def osc_prob_5nu_sun_liv(
     D51 : int or float, optional
         Mass-squared difference :math:`\Delta m_{51}^2`. Default: 0.0.
     sxi12 : int or float, optional
-        Sin(xi_12), one of the mixing angles between the space of the eigenvectors of the LIV operator and the flavor states. Default: 0.0.
+        Mixing angle xi_12 between the space of the eigenvectors of the LIV operator and the flavor states, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     sxi23 : int or float, optional
-        Sin(xi_23); see ``sxi12``. Default: 0.0.
+        Angle xi_23; see ``sxi12``. Default: 0.0.
     sxi13 : int or float, optional
-        Sin(xi_13); see ``sxi12``. Default: 0.0.
+        Angle xi_13; see ``sxi12``. Default: 0.0.
     dxi13 : int or float, optional
         CP-violation phase of the LIV operator [radian] (replaces ``dxiCP`` for 4/5-flavor systems). Default: 0.0.
     sxi14 : int or float, optional
-        Sin(xi_14); see ``sxi12``. Default: 0.0.
+        Angle xi_14; see ``sxi12``. Default: 0.0.
     dxi14 : int or float, optional
-        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+        CP-violation phase of the LIV operator [radian, or degree if ``angles='deg'``]. Default: 0.0.
     sxi15 : int or float, optional
-        Sin(xi_15); see ``sxi12``. Default: 0.0.
+        Angle xi_15; see ``sxi12``. Default: 0.0.
     dxi15 : int or float, optional
-        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+        CP-violation phase of the LIV operator [radian, or degree if ``angles='deg'``]. Default: 0.0.
     sxi24 : int or float, optional
-        Sin(xi_24); see ``sxi12``. Default: 0.0.
+        Angle xi_24; see ``sxi12``. Default: 0.0.
     dxi24 : int or float, optional
-        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+        CP-violation phase of the LIV operator [radian, or degree if ``angles='deg'``]. Default: 0.0.
     sxi25 : int or float, optional
-        Sin(xi_25); see ``sxi12``. Default: 0.0.
+        Angle xi_25; see ``sxi12``. Default: 0.0.
     sxi34 : int or float, optional
-        Sin(xi_34); see ``sxi12``. Default: 0.0.
+        Angle xi_34; see ``sxi12``. Default: 0.0.
     sxi35 : int or float, optional
-        Sin(xi_35); see ``sxi12``. Default: 0.0.
+        Angle xi_35; see ``sxi12``. Default: 0.0.
     dxi35 : int or float, optional
-        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+        CP-violation phase of the LIV operator [radian, or degree if ``angles='deg'``]. Default: 0.0.
     b1 : int or float, optional
         Eigenvalue b1 of the LIV operator. Default: 0.0.
     b2 : int or float, optional
@@ -21926,9 +21988,17 @@ def osc_prob_5nu_sun_liv(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
+    angles : str, optional
+        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
+        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
+        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
+        ``'deg'`` the CP phases are read as degrees too; under the other three
+        they stay in radians, a sine being no way to state a phase.
+
     ratio_number_neutrons_to_protons : int or float, optional
         :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
         matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
@@ -21944,13 +22014,6 @@ def osc_prob_5nu_sun_liv(
         averaged survival probability moves by about 4e-03 at
         :math:`\sin\theta_{14} = 0.4`, above the default tolerance.  Three flavors are
         unaffected -- the projector's sterile block is empty.
-    angles : str, optional
-        How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
-        their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
-        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
-        ``'deg'`` the CP phases are read as degrees too; under the other three
-        they stay in radians, a sine being no way to state a phase.
-
     Returns
     -------
     float or np.ndarray

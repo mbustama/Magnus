@@ -1110,6 +1110,15 @@ def load_nufit_params(version='NuFIT 6.1', ordering='NO', category=None, angles=
     ordering : str, optional
         Neutrino mass ordering: ``'NO'`` (normal) or ``'IO'`` (inverted).
         Default: ``'NO'``.
+    category : str or None, optional
+        Release-specific secondary category (e.g. ``'with_SK'`` /
+        ``'without_SK'`` for v4.0+, ``'LEM'`` / ``'LID'`` for v2.1,
+        ``'free_fluxes_rsbl'`` / ``'huber_fluxes_no_rsbl'`` for v1.0-v1.3).
+        If ``None`` (default), the release's preferred/primary category is
+        used (for releases with a ``with_SK``/``without_SK`` split, this is
+        ``'with_SK'``). See ``NUFIT_GLOBAL_FITS[version]['categories'].keys()``
+        for the categories available for a given release.
+
     angles : str, optional
         Convention the three mixing angles are returned in: ``'sin'`` (default) their sines,
         ``'sin2'`` their sines *squared* -- which is the form NuFit itself reports --
@@ -1124,15 +1133,6 @@ def load_nufit_params(version='NuFIT 6.1', ordering='NO', category=None, angles=
         :func:`magnus.hamiltonians.hamiltonians3nu.hamiltonian_3nu_vacuum_energy_independent`
         catches that particular pairing, but the reliable fix is to state the convention once
         and use it on both calls.
-    category : str or None, optional
-        Release-specific secondary category (e.g. ``'with_SK'`` /
-        ``'without_SK'`` for v4.0+, ``'LEM'`` / ``'LID'`` for v2.1,
-        ``'free_fluxes_rsbl'`` / ``'huber_fluxes_no_rsbl'`` for v1.0-v1.3).
-        If ``None`` (default), the release's preferred/primary category is
-        used (for releases with a ``with_SK``/``without_SK`` split, this is
-        ``'with_SK'``). See ``NUFIT_GLOBAL_FITS[version]['categories'].keys()``
-        for the categories available for a given release.
-
     Returns
     -------
     dict
