@@ -54,9 +54,11 @@ between, where no closed form is valid; :func:`coherence_report` names
 those pairs, and the callers in :mod:`magnus.oscprob` warn rather than
 return a number the physics does not support.
 
-This module is self-contained: it depends only on ``numpy``, not on
-:mod:`magnus.oscprob`, so it can be applied to any Hermitian Hamiltonian
-of any dimension independently of the rest of the API.
+This module stands apart from :mod:`magnus.oscprob`, so it can be applied to any
+Hermitian Hamiltonian of any dimension independently of the rest of the API.  It
+depends on ``numpy`` and on :mod:`magnus.adiabatic`; everything except
+:func:`level_crossing_matrix` and :func:`averaged_probabilities_adiabatic` needs
+``numpy`` alone.
 
 Routine listings
 ----------------
@@ -102,8 +104,10 @@ treated as fully coherent, so that its cross term is kept in full.
 
 The gap between this and :data:`DECOHERENCE_PHASE_THRESHOLD` is deliberate and
 is not a tolerance to be tightened away: a pair falling between the two is in
-neither limit, and no averaged expression describes it.  Such pairs are reported
-by :func:`coherence_report` rather than silently assigned to one side.
+neither limit, and no averaged expression describes it.  Such a pair is still
+placed in a block -- coherent below the decoherence threshold, decohered at or
+above it -- so the accompanying number is a definite choice; what
+:func:`coherence_report` adds is that the choice is not made silently.
 
 .. versionadded:: 1.0.0
 """
@@ -231,8 +235,9 @@ def coherence_report(
     -------
     (list of list of int, list of (int, int, float))
         The coherence blocks, and the list of ``(i, j, phase)`` triples for pairs
-        that are in neither limit.  An empty second element means the averaged
-        result is exact for this spectrum and baseline.
+        that are in neither limit.  An empty second element means no pair sits
+        between the two thresholds; the averaged result is then exact up to the
+        residual the thresholds themselves allow, not exactly exact.
     """
     lam = np.asarray(eigenvalues, dtype=float).ravel()
     blocks = coherence_blocks(lam, phase_scale, decoherence_threshold)
@@ -351,7 +356,9 @@ def averaged_probabilities_constant_hamiltonian(
         Baseline [:math:`\text{eV}^{-1}`], used only to decide which eigenvalues
         have decohered from each other.  If None (default), every pair is taken
         to be decohered, which is the astrophysical limit and makes the result
-        independent of distance.
+        independent of distance.  Only for a single Hamiltonian: giving a baseline
+        for a batch raises, since the coherence structure may differ from one entry
+        to the next.
 
     Returns
     -------
@@ -388,8 +395,10 @@ Ten per cent is the order of a real detector's energy resolution, and it is the
 *smearing* that does the averaging: the physical statement is that the
 oscillation phase varies by many cycles across whatever window the measurement
 integrates over.  It is a default, not a property of the physics, so it is named
-here rather than buried, every use of it is warned about, and callers with an
-actual resolution should pass theirs.
+here rather than buried, every use of it through the :mod:`magnus.oscprob` entry
+points is warned about, and callers with an actual resolution should pass theirs.
+Calling this module directly warns nobody: the width and the standard error come
+back in the result instead.
 
 .. versionadded:: 1.0.0
 """
@@ -494,7 +503,9 @@ def adiabatic_phase_differences(
     l0, l1 : float
         Start and end of the trajectory [:math:`\text{eV}^{-1}`].
     n_points : int, optional
-        Number of sampling points; forced to be odd for Simpson's rule.  Default: 201.
+        Number of sampling points.  Truncated to an integer, raised to 3 if smaller,
+        then raised to the next odd number for Simpson's rule -- all three silently.
+        Default: 201.
 
     Returns
     -------
@@ -634,7 +645,7 @@ def averaged_probabilities_adiabatic(
     n_points : int, optional
         Sampling density for the accumulated-phase integrals.  Default: 201.
     threshold, n_probe, fd_step_frac : float, int, float, optional
-        Passed to :func:`level_crossing_matrix`.
+        Passed to :func:`level_crossing_matrix`. Defaults: 0.1, 200 and 1e-6.
     magnus_exp_order : int, optional
         Magnus order for the local patches.  Default: 6.
     integration_method : str, optional
@@ -645,9 +656,14 @@ def averaged_probabilities_adiabatic(
     (np.ndarray, dict)
         The averaged probability matrix, rows summing to one, and a report with keys
         ``'windows'`` (the non-adiabatic windows), ``'patches_converged'`` (bool),
-        ``'undecided'`` (pairs that are in neither the coherent nor the decohered limit over the
-        whole trajectory) and ``'undecided_between_crossings'`` (the same, over each adiabatic
-        stretch separating two crossings).
+        ``'undecided'`` (pairs that are in neither the coherent nor the decohered limit over
+        the whole trajectory, as ``(i, j, phase)`` triples) and
+        ``'undecided_between_crossings'`` (every pair that has *not* decohered over an
+        adiabatic stretch separating two crossings, coherent pairs included, since composing
+        crossings as probabilities fails for those too; entries are
+        ``(l_start, l_end, i, j, phase)``).  The returned matrix is always the fully
+        decohered form, so these entries qualify a number that was computed regardless --
+        unlike the constant-Hamiltonian route, which keeps coherent pairs coherent.
     """
     H0 = np.asarray(H_func(l0), dtype=complex)
     H1 = np.asarray(H_func(l1), dtype=complex)
