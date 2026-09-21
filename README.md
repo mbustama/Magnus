@@ -324,9 +324,6 @@ https://github.com/mbustama/Magnus.
 * Sergio Blanes, Fernando Casas & Javier Ros (2000). Improved high order
   integrators based on the Magnus expansion. *BIT Numerical Mathematics,
   40*(3), 434-450. [doi:10.1023/A:1022311628317](https://doi.org/10.1023/A:1022311628317).
-* Adam M. Dziewonski & Don L. Anderson (1981). Preliminary reference Earth
-  model. *Physics of the Earth and Planetary Interiors, 25*(4), 297-356.
-  [doi:10.1016/0031-9201(81)90046-7](https://doi.org/10.1016/0031-9201(81)90046-7).
 
 ## License
 
