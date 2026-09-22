@@ -1,7 +1,9 @@
 # Handover: notebook 24's expansion-order measurement
 
 **Written:** 2026-09-22, on branch `parked-defects`, after the notebook prose pass
-(`ae9c845`…`754a722`).  **Parked at the author's request.**  Nothing below has been started.
+(`ae9c845`…`754a722`).  **DONE 2026-09-22 on `docs-audit`.**  §5.1–5.5 are implemented and
+notebook 24 is rebuilt; see the closing section for what the measurement actually said, which
+reverses part of §0 and §2.
 
 **The one-line version.** Section 4 of notebook 24 claims to measure what
 `magnus_exp_order` buys, and measures nothing: its referee describes a different Earth from
@@ -224,3 +226,49 @@ interleaved.
 **The engine count.**  The paper and `engines.rst` each say "six engines" and mean different
 sets; `ENGINE_FAMILIES` registers eight.  Notebook 22 now names both.  Reconciling the paper
 with the docs is the author's call.
+
+
+---
+
+# Closing note: what the corrected measurement said
+
+Implemented on `docs-audit`.  Two findings reverse what is written above.
+
+**The retracted 5600x was numerically right.**  Against a referee that is composition-matched
+*and* validated against an unrelated integrator, order 2 -> 4 comes out at **5602x**: 8.929e-07
+against 1.594e-10.  §0 retracted that number for the right reason -- a Magnus reference cannot
+justify it -- but the number itself survives a proper referee.  The retraction was about the
+method, not the arithmetic, and this note is not a re-retraction of the retraction: the claim is
+now supported by evidence it did not have before.
+
+**§2's replacement figure was the wrong one.**  The "independent, composition-matched" row above
+reports 4.018e-08 for orders 3 and up.  That is not Magnus's error; it is that referee's own
+floor, which §3 itself measures at about 1.2e-07.  The true order-4 error is **1.594e-10**, some
+250x smaller, stable to 2% across three DOP853 tolerances.
+
+**DOP853 turned out to be the better referee, not the slab product.**  §5.1 prescribes replacing
+`dop853_earth` with a Richardson-extrapolated slab product.  Measured, the slab product is
+round-off limited: against DOP853 it reaches 3.1e-11 at n_lo = 3200 and gets *worse* at 6400
+(2.2e-10).  DOP853 at rtol=1e-13 self-converges to 5.6e-12.  So the shipped cell keeps DOP853,
+fixes its composition, and uses the slab product only to *bound* it -- two unrelated integrators
+agreeing to 3.1e-11 is the floor, and it is printed.
+
+**The final table.**
+
+| order | error | resolved? |
+|---|---|---|
+| 1, 2 | 8.929e-07 | yes |
+| 3, 4 | 1.594e-10 | yes, 5x the floor |
+| 5, 6 | 3.140e-13 | **no** -- two orders below the referee |
+
+So 2 -> 4 is quotable and 4 -> 6 is not, which is what §3 predicted.  The notebook says so in a
+column rather than in a footnote.
+
+**The timing side.**  §5.3's interleaved control is in and reads **1.03**, so the rebuild was
+clean.  Re-verifying the prose against fresh output caught three stale claims beyond the ones
+listed in §5.6: the palindrome scan figure (2.48x -> 2.44x), and two about `rtol`, where the
+summary table said tightening by 10^3 "costs ~2x" while the measurement shows **no measurable
+cost at all** -- `n_slabs` comes back as 9662 at every tolerance, because the physics-informed
+seed already lands where the first refinement level accepts.  Per §4.2 the two millisecond-scale
+rows are now reported as what they are rather than as ratios, and cell 14 declines to quote a
+cost ratio for orders whose runs are single-digit milliseconds.

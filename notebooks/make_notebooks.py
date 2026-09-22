@@ -9349,7 +9349,7 @@ for label, kwargs in (('single point', dict(energy=5.0*gd.UNIT_GEV)),
 agree to round-off. The package documentation quotes 1.4--1.67x on an expensive `H_func`,
 measured on a different profile; the numbers above are the same effect on this one.
 
-The lesson is not that the palindrome is worth 1.68x here and 2.48x on the scan. It is that
+The lesson is not that the palindrome is worth 1.68x here and 2.44x on the scan. It is that
 **it is worth exactly half of whatever your Hamiltonian charges per position, and nothing for
 what it charges per call**. If
 you want it off, `magnus.magnus.USE_PALINDROME = False`.
@@ -9378,8 +9378,10 @@ for tol in (1.0e-2, 1.0e-3, 1.0e-4, 1.0e-5):
     baseline_time = baseline_time or t
     print('%-14.0e %-10.3f %-12s %.2fx'
           % (tol, t, info['n_slabs'], t/baseline_time))'''),
-    md(r'''Three orders of magnitude of extra accuracy for roughly twice the work, and the first
-of them free. Tolerances are usually worth tightening.
+    md(r'''Three orders of magnitude of tolerance for no measurable extra work: `n_slabs` comes back
+as 9662 at every setting, so the physics-informed seed has already landed somewhere the
+first refinement level accepts, and tightening never asks for a second. Tolerances are
+usually worth tightening, and on a profile this smooth they are nearly free.
 
 ## Summary
 
@@ -9387,9 +9389,9 @@ of them free. Tolerances are usually worth tightening.
 |---|---|---|
 | pass an array of energies | **~3x** | single-point calls |
 | write `H_func` to take an array of positions | **~4.6x** (notebook 19) | never -- always do this |
-| the palindrome, expensive `H_func` | **1.7x**, 2.5x on a scan | cheap or per-call-dominated `H_func` |
+| the palindrome, expensive `H_func` | **1.7x**, 2.4x on a scan | cheap or per-call-dominated `H_func` |
 | the palindrome, plain PREM | ~1.0x | this is the "worth nothing" case |
-| tightening `rtol` by $10^{3}$ | costs ~2x | -- |
+| tightening `rtol` by $10^{3}$ | no measurable cost here | -- |
 
 Ranked by what you control: **vectorize your `H_func` first** (notebook 19), **pass arrays
 second**, and let the palindrome look after itself -- it is on by default, it is free when it
@@ -9418,32 +9420,80 @@ than being told they do.
 is 10, but reaching 7--10 requires `trapezoid` or `simpson`, which changes the *integrator* as
 well as the order. Those points are not on the same curve and are not drawn here.'''),
     code(r'''from scipy.integrate import solve_ivp
+from scipy.linalg import expm as sp_expm
 
 E_ORD = np.logspace(np.log10(1.0), np.log10(10.0), 12)*gd.UNIT_GEV
 CHORD_KM = earth.distance_traveled_inside_earth(COSTHZ)
 
 
 def vcc_prem_at(l):
-    """V_CC at distance l along the chord, from PREM."""
-    r = np.sqrt(gd.EARTH_RADIUS**2 + (l/gd.CONV_KM_TO_INV_EV)**2
-                + 2.0*gd.EARTH_RADIUS*(l/gd.CONV_KM_TO_INV_EV)*COSTHZ)
+    """V_CC at distance l along the chord, with PREM's composition.
+
+    Y_e and the neutron-to-proton ratio are passed rather than left to their
+    defaults.  Leaving them was this cell's bug: the referee integrated an Earth
+    of uniform Y_e = 0.5 while `osc_prob_3nu_earth` takes Y_e from PREM layer by
+    layer, and the gap between the two Earths swamped every truncation the cell
+    exists to measure.  Both arguments are needed rather than just the first,
+    because `oscprob` derives the average nucleon mass from r = (1 - Y_e)/Y_e,
+    so V_CC is not linear in Y_e.
+    """
+    km = l/gd.CONV_KM_TO_INV_EV
+    r = np.sqrt(gd.EARTH_RADIUS**2 + km*km + 2.0*gd.EARTH_RADIUS*km*COSTHZ)
+    ye = float(np.asarray(earth.electron_fraction_func_prem(r)))
     return matter.vcc_func_from_rho_func(
         float(np.asarray(earth.density_matter_func_prem(r))),
+        electron_fraction=ye,
+        ratio_number_neutrons_to_protons=float(
+            earth.neutron_to_proton_ratio_from_electron_fraction(ye)),
         density_matter_is_in_g_per_cm3=True)
 
 
-def dop853_earth(energy):
-    """A referee that is not a Magnus expansion, so the order cannot flatter itself."""
+def dop853_earth(energy, rtol=1.0e-13, atol=1.0e-15):
+    """The referee: an adaptive Runge-Kutta, so the order cannot flatter itself."""
     def rhs(l, y):
         return (-1j*(h_vac/energy + float(vcc_prem_at(l))*e00) @ y.reshape(3, 3)).ravel()
     sol = solve_ivp(rhs, (0.0, L_EARTH), np.eye(3, dtype=complex).ravel(),
-                    rtol=1.0e-12, atol=1.0e-14, method='DOP853')
-    u = sol.y[:, -1].reshape(3, 3)
-    return abs(u[gd.NUE, gd.NUMU])**2
+                    rtol=rtol, atol=atol, method='DOP853')
+    return abs(sol.y[:, -1].reshape(3, 3)[gd.NUE, gd.NUMU])**2
+
+
+def slab_referee(energies, n_slabs):
+    """A second referee of a different family: a product of matrix exponentials.
+
+    Its slab edges land on the PREM layer crossings and subdivide within them, so
+    no slab straddles a density jump.  It exists only to bound the first referee:
+    two unrelated integrators agreeing somewhere is the only honest floor.
+    """
+    seg = np.concatenate(([0.0],
+        np.asarray(earth.prem_layer_edges_along_chord(COSTHZ), dtype=float),
+        [CHORD_KM]))
+    per = max(2, int(round(n_slabs/(len(seg) - 1))))
+    edges = np.unique(np.concatenate([np.linspace(seg[i], seg[i + 1], per + 1)
+                                      for i in range(len(seg) - 1)]))
+    mid = 0.5*(edges[:-1] + edges[1:])
+    widths = np.diff(edges)*gd.CONV_KM_TO_INV_EV
+    vcc = np.array([vcc_prem_at(m*gd.CONV_KM_TO_INV_EV) for m in mid])
+    out = []
+    for e in np.atleast_1d(energies):
+        U = np.eye(3, dtype=complex)
+        for k in range(len(mid)):
+            U = sp_expm(-1j*(h_vac/e + vcc[k]*e00)*widths[k]) @ U
+        out.append(abs(U[gd.NUE, gd.NUMU])**2)
+    return np.array(out)
 
 
 REF_ORD = np.array([dop853_earth(e) for e in E_ORD])
 
+# The floor, measured rather than assumed.  The slab product is O(h^2), so
+# (4*P_2n - P_n)/3 removes its leading term; where the two families stop agreeing
+# is where this cell stops being able to see.  Rows below that line report the
+# referee's error rather than Magnus's, and the last column says which.
+_lo, _hi = slab_referee(E_ORD, 3200), slab_referee(E_ORD, 6400)
+REF_FLOOR = float(np.max(np.abs(REF_ORD - (4.0*_hi - _lo)/3.0)))
+print('referee: DOP853 at rtol=1e-13, PREM composition on both sides')
+print('  it agrees with an unrelated slab product to %.1e' % REF_FLOOR)
+print('  nothing below that line is a measurement of the truncation')
+print()
 
 def earth_at_order(order):
     return np.asarray(oscprob.osc_prob_3nu_earth(
@@ -9454,36 +9504,67 @@ def earth_at_order(order):
 
 earth_at_order(4)                       # discard: the first call compiles the kernel
 
+
+def control_call():
+    """A workload nothing in this section touches, timed on both sides of the sweep.
+
+    This notebook times six cells and carried no control, so a run sharing the
+    machine with other work could not announce itself.  If the ratio printed
+    below is not close to 1, every timing on this page is suspect.
+    """
+    return np.asarray(oscprob.osc_prob_3nu_vacuum(
+        E_ORD, np.full(len(E_ORD), L_EARTH), **OSC))
+
+
+control_call()                          # discard: same reason as above
+_, t_ctl_0 = best_of(control_call)
+
 print('EARTH THROUGH PREM, slab count fixed at 600 so the order is the only variable')
-print('%8s %14s %16s   %s' % ('order', 'ms', 'max |dP| vs DOP853', 'GL nodes'))
-print('-'*62)
+print('%6s %10s %14s %7s   %s'
+      % ('order', 'ms', 'max |dP|', 'nodes', 'resolved by the referee?'))
+print('-'*74)
 rows_ord = []
 for order in (1, 2, 3, 4, 5, 6):
     P, t = best_of(lambda o=order: earth_at_order(o))
     err = float(np.max(np.abs(P - REF_ORD)))
     rows_ord.append((order, t, err))
-    print('%8d %14.2f %16.3e   %d' % (order, 1.0e3*t, err, 1 if order <= 2 else
-                                      (2 if order <= 4 else 3)))'''),
+    print('%6d %10.2f %14.3e %7d   %s'
+          % (order, 1.0e3*t, err, 1 if order <= 2 else (2 if order <= 4 else 3),
+             'yes' if err > 5.0*REF_FLOOR else "no -- the referee's own error"))
+
+_, t_ctl_1 = best_of(control_call)
+print()
+print('control, before and after the sweep: %.2f -> %.2f ms, ratio %.2f'
+      % (1.0e3*t_ctl_0, 1.0e3*t_ctl_1, t_ctl_1/t_ctl_0))'''),
     md(r'''**The pairs collapse exactly** -- 1 and 2 agree to the last digit, as do 3 and 4, and 5 and 6.
 There are three settings here wearing six names, which is the clearest way to see that the order
 requests a quadrature scheme rather than turning a continuous knob.
 
-**But so does every other row, and that is the referee's fault rather than the order's.** All
-six report the same $1.137\times10^{-1}$, because `vcc_prem_at` builds its potential with the
-default electron fraction of 0.5 while `osc_prob_3nu_earth` takes $Y_e$ from PREM layer by
-layer -- 0.4656 in the core, 0.4957 in the mantle, 0.4952 in the crust and 0.5551 in the
-ocean, none of them the 0.5 the referee assumes. The two are integrating different Earths, and
-that gap swamps anything the truncation does.
+**Order 2 to order 4 is worth about 5600x** -- $8.9\times10^{-7}$ against $1.6\times10^{-10}$, on
+the same 600 slabs, for well under twice the time. That is the whole case for the default
+being 4. The cost ratio is deliberately not quoted more precisely than that: both orders
+run in single-digit milliseconds here, and a ratio of two such numbers moves by tens of
+percent between runs, which is what the control line under the table is for.
 
-**So this cell cannot price the order, and no number here should be read as if it could.**
-Refereeing it properly needs more than the composition fix: a step solver crossing the PREM
-jumps undeclared floors at $7\times10^{-5}$ whatever its tolerance, and a referee built from
-Mag$\nu$s itself would share the error it is meant to measure. What is wanted is the
-construction notebook 25 uses -- a slab product on the *continuous* profile, Richardson
-extrapolated, **reporting its own uncertainty** so the floor is visible rather than assumed.
+**Order 4 to order 6 is not measured here, and the last column says so.** Order 6 lands near
+$3\times10^{-13}$, two orders below anything this referee can see, so that row reports the
+referee's own error rather than Mag$\nu$s's. A number below the floor is not a small number; it
+is no number. Section 6 prices that step on a profile where it can be seen.
 
-The timings do not depend on the referee, and they are the shape of the trade: order 2 to 4
-costs **1.87x**, and 4 to 6 a further **1.86x**.'''),
+**The floor is measured rather than assumed.** The referee is `DOP853` at `rtol=1e-13`; what
+bounds it is a second referee of a different family -- a product of `scipy` matrix exponentials
+on slab edges that land on the PREM density jumps -- and the two agree to about
+$3\times10^{-11}$. That is the line the last column draws. Pushing the slab product finer does
+not lower it: at 6400 slabs per side it agrees *less* well, which is round-off rather than
+discretization, and is the sign that the floor is real.
+
+**What this cell used to say.** Every order reported the same $1.137\times10^{-1}$, because
+`vcc_prem_at` built its potential with the default electron fraction of 0.5 while
+`osc_prob_3nu_earth` takes $Y_e$ from PREM layer by layer -- 0.4656 in the core, 0.4957 in the
+mantle, 0.4952 in the crust and 0.5551 in the ocean. The two integrated different Earths, and
+that gap swamped the truncation the cell exists to measure. Matching the composition needs two
+arguments rather than one: `oscprob` derives the average nucleon mass from $r = (1 - Y_e)/Y_e$,
+so $V_{\rm CC}$ is not linear in $Y_e$, and passing $Y_e$ alone still leaves $7\times10^{-5}$.'''),
     code(r'''fig, ax = plt.subplots(figsize=(6.4, 4.4))
 for order, t, err in rows_ord:
     marker = 'o' if order in (2, 4, 6) else 'x'
@@ -9570,9 +9651,10 @@ here it buys between two and five orders of magnitude over order 2.
 
 Raise it to **6** when the profile is **smooth** and the target accuracy is tight. What that
 extra node buys depends strongly on the profile: about **22x** on the resolved shock front
-below, for roughly 1.8x the time. The PREM chord above cannot price it, for the reason given
-there. Smoother profiles pay better, which is the same ordering
-the slab-refinement rate follows.
+below, for roughly 1.8x the time. The PREM chord in section 4 cannot price that step -- order 6
+lands below what its referee resolves -- though it does price the one below it, at about 5600x
+for order 2 to 4. Smoother profiles pay better, which is the same ordering the slab-refinement
+rate follows.
 
 Do **not** raise it when a `MagnusConvergenceWarning` appears. That warning means a slab is too
 wide for the series to converge on, and a higher-order truncation of a series that is not
