@@ -410,5 +410,5 @@ Where things live: a quick lookup
        :math:`V_{CC}` potential construction
      - ``magnus.matter``
    * - A physical constant, unit conversion, or a predefined oscillation
-       parameter set (e.g. NuFit 6.0)
+       parameter set (e.g. NuFIT 6.0)
      - ``magnus.globaldefs``

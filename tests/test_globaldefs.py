@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Tests for the historical NuFit data in magnus.globaldefs.
+"""Tests for the historical NuFIT data in magnus.globaldefs.
 
 Covers NUFIT_GLOBAL_FITS structure/coverage and the load_nufit_params()
 loader: version/ordering/category validation, default category selection,
@@ -219,7 +219,7 @@ def test_the_superseded_release_is_still_reachable_by_name():
 
 
 def test_every_release_has_a_named_parameter_set():
-    """`default_osc_params_set_name` reaches every NuFit release, not only the
+    """`default_osc_params_set_name` reaches every NuFIT release, not only the
     newest two.  The names follow the releases: a release carrying a 'with_SK'
     category is named ..._SK_NO / ..._SK_IO, matching the spelling the 6.0 and
     6.1 entries already used; an older release, which has no such split, is

@@ -342,7 +342,7 @@ File Tree
    │   │   ├── earth.py                # PREM density profile, chord/zenith-angle geometry
    │   │   ├── expansionterms.py       # Generates the Omega_k terms symbolically, to any order
    │   │   ├── expmkernels.py          # Compiled Cayley-Hamilton matrix exponential for 2x2/3x3 (the numba backend)
-   │   │   ├── globaldefs.py           # Units, physical constants, NuFit parameter sets
+   │   │   ├── globaldefs.py           # Units, physical constants, NuFIT parameter sets
    │   │   ├── hamiltonians/           # 2nu-5nu Hamiltonians: vacuum, matter, NSI, LIV (the one true subpackage)
    │   │   │   ├── __init__.py         # Explicit named imports from the four hamiltonians{2,3,4,5}nu.py modules
    │   │   │   ├── _angles.py          # Interprets the four angles conventions; rejects an out-of-range sine
@@ -381,7 +381,7 @@ File Tree
        ├── test_expm_backend.py        # The two matrix-exponential backends, their switch, and degeneracies
        ├── test_fuzz_statistics.py     # Randomized profiles, scored in bulk
        ├── test_file_tree.py           # This file: generates the tree above and checks it against git
-       ├── test_globaldefs.py          # NuFit historical parameter dict/loader
+       ├── test_globaldefs.py          # NuFIT historical parameter dict/loader
        ├── test_hamiltonians.py        # Hamiltonian/mixing-matrix builders
        ├── test_invariants.py          # Properties that must hold across the whole engine matrix
        ├── test_magnus_expansion.py    # Magnus-core correctness (terms, orders, GL rates, unitarity)

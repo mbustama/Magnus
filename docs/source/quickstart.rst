@@ -115,7 +115,7 @@ through:
 
    P = oscprob.osc_prob_3nu_vacuum(energy, L, **osc)
 
-Every NuFit release from v1.0 to v6.1 is available, along with the
+Every NuFIT release from v1.0 to v6.1 is available, along with the
 release-specific secondary category where one exists (``'with_SK'`` /
 ``'without_SK'`` from v4.0, ``'LEM'`` / ``'LID'`` for v2.1); omitting
 ``category`` takes the release's preferred one.  ``gd.NUFIT_GLOBAL_FITS.keys()``
@@ -251,7 +251,7 @@ built-in potential entirely.
           s12=0.308, s23=0.470, s13=2.215e-2,
           dCP=212./180.*np.pi, D21=7.49e-5, D31=2.513e-3, angles='sin2')
 
-      # or straight off the NuFit table, degrees and all
+      # or straight off the NuFIT table, degrees and all
       h_vac = hamiltonians.hamiltonian_3nu_vacuum_energy_independent(
           s12=33.76, s23=43.28, s13=8.62,
           dCP=212.0, D21=7.49e-5, D31=2.513e-3, angles='deg')
