@@ -13975,27 +13975,28 @@ fig.text(0.5*(box[0].x0 + box[3].x1), box[0].y0 - 0.075,
 save(fig, 'validation.pdf')'''),
     md(r'''### Figure 1b --- how a call is answered
 
-Six engines can answer a request, tried in a fixed order; each declines what it cannot
+Seven engines can answer a request, tried in a fixed order; each declines what it cannot
 serve honestly and falls through to the next.'''),
-    code(r'''# ------------------------------------------- Figure 1b: the six engines, in order
+    code(r'''# ------------------------------------------- Figure 1b: the seven engines, in order
 # Same idiom as the slab-composition figure of the companion paper: one bar per
 # engine, shaded by density, with what each does to the trajectory drawn rather
 # than named.  The order is the dispatch order of the three scenario wrappers.
 SLAB = ['#eaf2fb', '#bcd8f3', '#7fb4e6', '#3a86d4', '#1c71d8']
 from matplotlib.patches import Rectangle
 fig, ax = plt.subplots(figsize=(WIDE, 4.3))
-ax.set_xlim(0, 100); ax.set_ylim(0, 100); ax.axis('off')
+ax.set_xlim(0, 90); ax.set_ylim(0, 100); ax.axis('off')
 X0, X1 = 30.0, 66.0                      # the bar spans the same x in every row
 H = 6.2                                  # bar height
 rows = [
  ('Closed-form average',   'An average is asked for,\nand $\\mathbb{H}$ does not vary'),
  ('Adiabatic $+$ Magnus',  'Smooth profile, a tolerance,\nand it certifies itself'),
  ('Interaction picture',   'Declared exponential, two flavors,\nand its iteration converges'),
+ ('Constant Hamiltonian',  '$\\mathbb{H}$ does not vary\nalong the trajectory'),
  ('Energy-batched scan',   'Many energies,\none baseline'),
  ('Cumulative scan',       'One energy,\nmany baselines'),
  ('General Magnus ladder', 'Anything else'),
 ]
-ys = np.linspace(84, 6, len(rows))
+ys = np.linspace(87, 2, len(rows))
 
 def bar(y, edges, shades, lw=0.7):
     for (a, b), c in zip(edges, shades):
@@ -14004,14 +14005,17 @@ def bar(y, edges, shades, lw=0.7):
 for i, ((name, when), y) in enumerate(zip(rows, ys)):
     # The energy-batched row has arrows entering at its left edge, so its name needs
     # more clearance than the others.
-    ax.text(X0-(4.2 if i == 3 else 2.5), y+H/2, name, ha='right', va='center',
+    ax.text(X0-(5.0 if i == 4 else 3.3), y+H/2, name, ha='right', va='center',
             fontsize=8.6, color='black')
     # The ladder row carries the refine arrow just past its bar, so its condition
     # text starts further right than the others'.
-    ax.text(X1+(6.0 if i == 5 else 2.6), y+H/2, when, ha='left', va='center',
+    ax.text(X1+(6.0 if i == 6 else 2.6), y+H/2, when, ha='left', va='center',
             fontsize=6.6, color=INK)
     if i:                                        # every engine but the first walks a path
-        ax.annotate('', xy=(X0-0.6, y+H/2), xytext=(X0-1.8, y+H/2),
+        # The energy-batched row already has three blue arrows entering at X0, so its
+        # black one starts further left rather than hiding behind them.
+        bx = X0 - (2.9 if i == 4 else 0.6)
+        ax.annotate('', xy=(bx, y+H/2), xytext=(bx-1.2, y+H/2),
                     arrowprops=dict(arrowstyle='-|>', color=INK, lw=0.8))
     if i == 0:
         # One undivided block: nothing is composed along it, because nothing is
@@ -14031,7 +14035,7 @@ for i, ((name, when), y) in enumerate(zip(rows, ys)):
         px = X0 + 0.56*(X1-X0)
         ax.add_patch(Rectangle((px, y), 5.0, H, facecolor=ORANGE, edgecolor='black',
                                lw=0.8, zorder=4))
-        ax.text(px+2.5, y+H+1.4, 'Magnus patch', ha='center', va='bottom',
+        ax.text(px+2.5, y-1.2, 'Magnus patch', ha='center', va='top',
                 fontsize=6.6, color=ORANGE)
         ax.text(X0+0.22*(X1-X0), y+H/2, 'Adiabatic transport', ha='center', va='center',
                 fontsize=7.0, color='white', zorder=5)
@@ -14044,7 +14048,17 @@ for i, ((name, when), y) in enumerate(zip(rows, ys)):
         ax.plot(xs, y+H/2 + 1.5*np.sin((xs-X0)*1.5), color='white', lw=0.9, zorder=5)
         ax.text((X0+X1)/2, y-1.6, r'Vacuum phase removed analytically, then one Magnus pass',
                 ha='center', va='top', fontsize=6.4, color=INK)
-    elif i == 3:                                 # profile once, many energies
+    elif i == 3:                                 # nothing to compose: one exponential
+        # The series terminates at its first term when H does not vary, so the whole
+        # path is a single exact exponential.  Drawn undivided, like the average row,
+        # because there are no slabs to show -- but shaded as a propagation, which the
+        # average row is not.
+        bar(y, [(X0, X1)], [SLAB[3]])
+        ax.text((X0+X1)/2, y+H/2, r'One exponential, $\exp(-i\mathbb{H}L)$',
+                ha='center', va='center', fontsize=7.0, color='white')
+        ax.text((X0+X1)/2, y-1.6, 'Exact at any flavor count; a point or a scan',
+                ha='center', va='top', fontsize=6.4, color=INK)
+    elif i == 4:                                 # profile once, many energies
         ed = np.linspace(X0, X1, 6)
         bar(y, list(zip(ed[:-1], ed[1:])), [SLAB[1], SLAB[3], SLAB[2], SLAB[4], SLAB[1]])
         for dy in (1.9, 0.0, -1.9):
@@ -14052,13 +14066,13 @@ for i, ((name, when), y) in enumerate(zip(rows, ys)):
                         arrowprops=dict(arrowstyle='-|>', color=BLUE, lw=0.7))
         ax.text(X0-2.0, y+H+1.2, r'$E_1 \ldots E_n$', ha='center', va='bottom',
                 fontsize=6.6, color=BLUE)
-    elif i == 4:                                 # one pass, many baselines out
+    elif i == 5:                                 # one pass, many baselines out
         ed = np.linspace(X0, X1, 6)
         bar(y, list(zip(ed[:-1], ed[1:])), [SLAB[1], SLAB[3], SLAB[2], SLAB[4], SLAB[1]])
         for xx in ed[1:]:
-            ax.annotate('', xy=(xx, y-2.6), xytext=(xx, y+0.2),
+            ax.annotate('', xy=(xx, y-3.3), xytext=(xx, y-0.5),
                         arrowprops=dict(arrowstyle='-|>', color=GREEN, lw=0.7))
-        ax.text((X0+X1)/2, y-4.2, r'$P(L_1),\, P(L_2),\, \ldots$', ha='center', va='top',
+        ax.text((X0+X1)/2, y-3.6, r'$P(L_1),\, P(L_2),\, \ldots$', ha='center', va='top',
                 fontsize=6.6, color=GREEN)
     else:                                        # the ladder: refine until two levels agree
         for tier, (nsl, dy, al) in enumerate([(4, 3.4, 0.40), (6, 1.7, 0.68), (10, 0.0, 1.0)]):
@@ -14068,10 +14082,10 @@ for i, ((name, when), y) in enumerate(zip(rows, ys)):
                                        edgecolor=INK, lw=0.5, alpha=al, zorder=2))
         ax.annotate('', xy=(X1+1.8, y-0.8), xytext=(X1+1.8, y+H+4.2),
                     arrowprops=dict(arrowstyle='-|>', color=INK, lw=0.9))
-        ax.text(X1+3.4, y+H/2+1.7, 'Refine', ha='center', va='center', fontsize=6.6,
+        ax.text(X1+4.3, y+H/2+1.7, 'Refine', ha='center', va='center', fontsize=6.6,
                 color=INK, rotation=90)
 
-ax.text(56.0, 97.0, r'How Mag$\nu$s answers a call: the six engines, in dispatch order',
+ax.text(56.0, 97.0, r'How Mag$\nu$s answers a call: the seven engines, in dispatch order',
         ha='center', va='center', fontsize=9.4, color='black')
 
 # The order they are tried in, drawn once in the margin: down the middle it crossed
@@ -14081,17 +14095,15 @@ ax.annotate('', xy=(6.0, ys[-1]-1.0), xytext=(6.0, ys[0]+H+1.0),
 ax.text(3.2, (ys[0]+ys[-1])/2 + H/2, 'Tried in this order; each falls through to the next',
         rotation=90, ha='center', va='center', fontsize=7.0, color='black')
 
-# The last three share one kernel, which is what decides whether a disagreement between
-# two of them means anything.  The energy-batched row is the exception noted beside it:
-# a potential that does not vary is served by a single exact exponential instead.
+# The three engines that reuse work across an array, which is the grouping Sec. 4293 of
+# the paper uses: the general ladder below them computes point by point and is not one.
+# Their conditions are short, so the bracket sits well left of the widest row above it.
 gy0, gy1 = ys[5] - 1.6, ys[3] + H + 1.6
-gx = 92.0
+gx = 82.0
 ax.plot([gx, gx+1.2, gx+1.2, gx], [gy0, gy0, gy1, gy1], color=INK, lw=0.8,
         solid_joinstyle='miter')
-ax.text(gx + 2.8, (gy0 + gy1)/2, 'One slab kernel,\nthree ways of batching', rotation=90,
+ax.text(gx + 2.8, (gy0 + gy1)/2, 'Batching engines', rotation=90,
         ha='center', va='center', fontsize=6.4, color=INK)
-ax.text(X1+2.6, ys[3]-1.4, r'(constant $\mathbb{H}$: one exact exponential instead)',
-        ha='left', va='top', fontsize=6.0, color=INK, style='italic')
 fig.subplots_adjust(left=0.01, right=0.99, top=0.99, bottom=0.01)
 save(fig, 'strategies.pdf')'''),
 
@@ -14135,7 +14147,7 @@ _abox(0.3, 0.50, 7.1, 3.50, C_IN, E_IN, 'hamiltonians, matter, earth',
       'The worked scenarios and the\nprofiles they run through: PREM,\nthe Sun, NSI, LIV, sterile.')
 _abox(8.9, 2.85, 7.3, 4.30, C_CORE, E_CORE, 'oscprob',
       'Sixty named wrappers.\n$\\rightarrow$ four scenario functions\n'
-      '$\\rightarrow$ {\\tt osc\\_prob} and its ladder\n$\\rightarrow$ six engines, self-chosen')
+      '$\\rightarrow$ {\\tt osc\\_prob} and its ladder\n$\\rightarrow$ seven engines, self-chosen')
 _abox(17.7, 6.00, 6.4, 3.50, C_CORE, E_CORE, 'magnus',
       'The expansion to order ten,\nthe quadrature, the slab\ncomposition. No physics in it.')
 _abox(17.7, 0.50, 6.4, 3.50, C_COMP, E_COMP, 'avgprob, adiabatic',
@@ -14247,7 +14259,7 @@ box(24.8, 3.4, C_BASE, E_BASE, 'Base layer',
      ('Refinement ladder,', 'centre', 0.0),
      ('validation, logging.', 'centre', 0.0)], size=5.6)
 arrow(28.45, 30.05, 'From the\nrequest')
-box(30.2, 2.0, C_ENG, E_ENG, 'Engines', [('Six', 'centre', 0.0), ('routes', 'centre', 0.0)],
+box(30.2, 2.0, C_ENG, E_ENG, 'Engines', [('Seven', 'centre', 0.0), ('routes', 'centre', 0.0)],
     size=5.6)
 
 fig.tight_layout(pad=0.3)

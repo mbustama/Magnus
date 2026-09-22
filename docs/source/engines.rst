@@ -130,6 +130,9 @@ engines in a fixed order, falling through on ``NotImplemented``:
    * - Exponential profile, two flavors -- *and it converges*
      - interaction picture
      - An exact reference solution exists for this one case
+   * - ``V_CC`` does not vary along the trajectory
+     - constant Hamiltonian
+     - The series terminates at its first term, so the answer is one exponential
    * - Many energies at a single baseline
      - energy-batched scan
      - One traversal serves every energy
