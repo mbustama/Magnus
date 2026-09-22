@@ -7119,10 +7119,13 @@ print('  with    t_breakpoints : %.3e   (%.0fx better)' % (e_bp, e_bare/e_bp))''
 
 On a **single point**, `t_breakpoints` is not an established cure. Declaring breakpoints
 there also changes which engine answers -- it moves the request onto the general Magnus
-ladder -- and it can make the answer worse. The cell below is that case: on the 70 km front
-the bare call already sits inside the requested $10^{-3}$, and declaring the front pushes it
-fifteen times further out, past the tolerance. `cumulative=True` on the same point beats
-either by more than two orders of magnitude.
+ladder -- and measured across 18 shock configurations on the averaged observable it improved
+7, **worsened 11**, and pushed 2 answers from inside the requested tolerance to outside it.
+
+The cell below is one of those cases. On the 70 km front the bare call already sits inside
+the requested $10^{-3}$, and declaring the front pushes it fifteen times further out, past
+the tolerance; `cumulative=True` on the same point beats either by more than two orders of
+magnitude.
 
 So: on a scan, pass `t_breakpoints`. On a single point, pass it *and check*, for example
 against `strategy='magnus'` or `cumulative=True`.'''),
@@ -7926,7 +7929,10 @@ $\{1, 9\}$ g cm$^{-3}$ or held at the mean, 5 g cm$^{-3}$ -- so every profile be
 same mean density and the same integrated column depth.
 
 Slab edges are density **jumps**, so they are passed as `t_breakpoints`. A slab of the
-integrator straddling a jump is not fixed by refinement, at any tolerance.'''),
+integrator straddling a jump is not fixed by refinement, at any tolerance.
+
+The scan cells below raise `ScalarHamiltonianWarning`, because `build_H` picks one slab per
+call instead of accepting an array of positions; notebook 19 shows the vectorized form.'''),
     code(r'''TOTAL_KM = 6000.0
 LOW, HIGH, MEAN = 1.0, 9.0, 5.0
 
@@ -8052,14 +8058,16 @@ for dcp in (0.0, np.pi, OSC['dCP']):
     print('%-10.4f %-12s %-14.2e %.2e'
           % (dcp, np.allclose(h3, h3.T),
              np.max(np.abs(np.diag(A) - np.diag(B))), np.max(np.abs(A - B.T))))'''),
-    md(r'''Sixteen orders of magnitude separate the CP-conserving rows from the last one. The
+    md(r'''Fourteen orders of magnitude separate the CP-conserving rows from the last one. The
 symmetry is not approximately true and then slightly broken -- it is exact, and then absent.
 
 **Why this matters to Mag$\nu$s.** A chord through a spherically symmetric Earth meets every
 radius twice: the density profile *is* a palindrome. Mag$\nu$s exploits that by evaluating the
 Hamiltonian on the first half of the slab chain and obtaining the rest by reversal, which
 halves the calls to your `H_func`. It is worth 1.4--1.67x on an expensive Hamiltonian and
-about 0.91x on plain PREM, where a density lookup is too cheap to be worth halving.
+nothing measurable on plain PREM, where a density lookup is too cheap to be worth
+halving -- the documentation quotes 0.91x there and notebook 24 measures 1.10x, which is the
+same statement twice.
 `magnus.magnus.USE_PALINDROME` disarms it. Notebook 24 measures this.
 
 Note that the optimization reuses *evaluations of the profile*, which is valid whatever
@@ -8199,7 +8207,9 @@ PREM lookup there is little to save, and on a real interpolated profile or an in
 a great deal. The package documentation quotes **4.6x** on a three-flavor exponential-density
 profile, measured the same way.
 
-The warning fires once per session and names the fix:'''),
+The warning fires once per session -- that is Python's default filter rather than a flag of
+Mag$\nu$s's, so the cell below asks for `'always'` and sees every occurrence instead of the
+first:'''),
     code(r'''with warnings.catch_warnings(record=True) as caught:
     warnings.simplefilter('always')
     oscprob.osc_prob_earth(make_H(0, False), energy=ENERGY, costhz=COSTHZ,
@@ -8222,8 +8232,8 @@ allowed to declare it (via `symmetric_over`) and a general caller is not. `osc_p
 The declaration is also withdrawn when it would not be true -- a request over part of a chord
 rather than the whole of it is not symmetric, and is not mirrored.
 
-It is worth what your Hamiltonian costs: 1.4--1.67x on an expensive `H_func`, and about 0.91x
-on plain PREM, where halving cheap lookups does not repay the bookkeeping.
+It is worth what your Hamiltonian costs: 1.4--1.67x on an expensive `H_func`, and nothing
+measurable on plain PREM, where halving cheap lookups does not repay the bookkeeping.
 `magnus.magnus.USE_PALINDROME` disarms it globally. Notebook 24 measures this.
 
 ## 4. A worked example: a long-range force
@@ -8378,6 +8388,12 @@ it has forgotten the profile entirely and is a smooth bowl. The right panel show
 crossover: $V_{e\mu}(0)$ grows as $1/m^2$ while the range is short, and saturates once the
 mediator reaches across the body, because there are no more electrons left to enclose.
 
+One number in the table above needs its reference read carefully. $V(0)/V(R)$ does not
+converge on the density contrast printed beneath it, and should not: a point at the *surface*
+has electrons only on its inward side, so $V(R)$ tends to half the local limit while $V(0)$
+tends to the whole of it. The short-range ratio therefore approaches **twice** the contrast,
+about 10, which is the direction the column is moving.
+
 ### Through the Earth
 
 Now put it in a Hamiltonian and propagate. The potential is a lookup against the pass computed
@@ -8454,7 +8470,7 @@ place a closed-form implementation divides by zero, and the Magnus expansion nev
 denominators -- it exponentiates a matrix, and a degenerate matrix exponentiates perfectly
 well.
 
-Second, and more useful in practice: Mag$\nu$s has **nine** warning classes, and they do not
+Second, and more useful in practice: Mag$\nu$s has **fourteen** warning classes, and they do not
 all mean the same kind of thing. Some report a bad input, some an expensive choice, and some a
 condition that was not met but may not matter. Knowing which is which is the difference between
 a warning you act on and one you note.''',
@@ -8532,11 +8548,13 @@ For a constant Hamiltonian one slab is already exact, so all three agree.'''),
                       ('rtol=atol=None ', dict(rtol=None, atol=None))):
     P = np.asarray(oscprob.osc_prob(h_vac/ENERGY, 0.0, BASELINE, **kwargs))
     print('%s P_ee = %.12f' % (label, P[0][0]))'''),
-    md(r'''## 6. The nine warnings
+    md(r'''## 6. The fourteen warnings
 
 | class | says | act on it? |
 |---|---|---|
 | `DensityUnitWarning` | a density is implausible for the units declared | **yes -- bad input** |
+| `BaselineUnitWarning` | a baseline looks like kilometers, not eV$^{-1}$ | **yes -- bad input** |
+| `MixingAngleConventionWarning` | the values do not match the `angles` convention declared | **yes -- bad input** |
 | `ScalarHamiltonianWarning` | your `H_func` takes one position at a time | yes -- costs speed only |
 | `MagnusHighOrderCostWarning` | order > 6 with trapezoid/simpson is dear | your call |
 | `MagnusConvergenceWarning` | a slab is wider than the sufficient condition | **often not** -- see below |
@@ -8545,13 +8563,16 @@ For a constant Hamiltonian one slab is already exact, so all three agree.'''),
 | `UnmarkedDiscontinuityWarning` | a density jump was detected, not declared | **yes -- pass `t_breakpoints`** |
 | `HiddenFeatureWarning` | structure was found the sampling nearly missed | yes |
 | `PhaseAveragingWarning` | `average=True` where the phase has not averaged | yes -- wrong question |
+| `CrossCheckInconclusiveWarning` | a spread of zero because nothing was compared | yes -- the check did not run |
+| `SterileMatterCompositionWarning` | the sterile entry and the density describe different media | yes |
+| `PseudoDiracSplittingWarning` | a pseudo-Dirac splitting is not small against the standard ones | yes -- wrong regime |
 
 `MagnusConvergenceWarning` deserves its own sentence: it is a statement about **slab width, not
 about the answer**, and it is measured to be a false alarm about three quarters of the time. It
 fires in notebook 16 on a converged result. Do not read it as "this number is wrong"; read it
 as "a sufficient condition was not met somewhere".
 
-Below, each of six is provoked deliberately.'''),
+Six of them are provoked deliberately below.'''),
     code(r'''def provoke(label, call):
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter('always')
@@ -8616,9 +8637,11 @@ defensive coding: the Magnus expansion exponentiates a matrix, and never forms t
 $1/(\lambda_i - \lambda_j)$ that closed forms must.
 
 For the warnings, one rule: **`MagnusConvergenceWarning` is about slab width, everything else
-is about you.** Measured false-alarm rates for each are in `implementation_details.rst`.
+is about you.** Three of them have measured false-alarm rates, in `diagnostics.rst`: 76 % for
+`MagnusConvergenceWarning`, 59 % and 57 % for the two tolerance warnings -- against 2 silent
+misses in the whole population of 168 configurations.
 
-Notebook 21 takes the tolerance warnings further, and it is the one to read next if you have
+Notebook 21 takes the tolerance itself further, and it is the one to read next if you have
 ever taken `rtol` for an error bound.'''),
     ])
 
@@ -19554,8 +19577,12 @@ def add_footers():
             following, title, blurb = READING_ORDER[index+1]
             parts.append('**Next:** [%s](%s) --- %s'
                          % (title, following, blurb))
+        # Not `implementation_details.html`: that page was split into engines,
+        # performance and diagnostics, and the footer pointed at the hole it left
+        # from all twenty-nine notebooks.  The docs home lists all three under
+        # "How it works", and survives the next split too.
         parts.append('[API reference](%s/functions.html) &middot; '
-                     '[Implementation details](%s/implementation_details.html) '
+                     '[Documentation](%s/) '
                      '&middot; [All notebooks](.)' % (DOCS, DOCS))
         books[name].cells.append(md('---\n\n' + '  \n'.join(parts)))
 
