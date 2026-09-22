@@ -197,3 +197,69 @@ these files byte-for-byte. It refuses any edit that changes the cell count or to
 cell.
 
 This is what made notebooks 19, 24, 25, 27 and 28 reachable at all.
+
+
+---
+
+## 5. Second pass, same day: sweeps rather than a second read
+
+Commit `18eb86e`.  Pass 1 read notebook by notebook; pass 2 built a check for each defect
+class pass 1 had turned up and ran it over all twenty-nine at once.
+
+### Found
+
+- **Notebook 01 had never been read** -- only its footer was ever touched, and it is 74
+  markdown cells and 3900 words.  Six typos, two broken sentences, an unbalanced
+  parenthesis, a cross-reference to `10_magnus_matrix_exponential.ipynb` (it is **11**; 10
+  is the averaged probability), and "the NuFit 6.0 global fit" where cell 2 loads
+  **NuFIT 6.1**.
+- **It taught two settings that do nothing.**  `n_jobs = 10` in four cells, with prose
+  claiming it pays off "as here, with a thousand baselines" -- those baselines are a Python
+  loop calling `osc_prob` once each, and `oscprob.py:6359` gates parallelism on
+  `n_points > 1`.  Inert.  Had the scan been batched it would have been *worse* than inert:
+  `oscprob.py:4925` makes the batched engines decline whenever `n_jobs != 1`.  Alongside
+  it, `magnus_exp_order = 3` "for speed", where 3 and 4 share the two-node Gauss--Legendre
+  scheme (notebook 24: 9.67 ms against 10.01 ms).  **Both removed, and all ten figures came
+  back byte-identical** -- which is the proof rather than the argument.
+- **Two stale notebooks**, both now current: 01 in its version banner only, and **27's
+  section 7** (0.1817 -> 0.2120 and two others) from the same `SUN_RADIUS` correction that
+  moved 21 and 22.  No prose quoted those three.  Rebuilding 27 regenerates no GIFs:
+  `RENDER = False`, every GIF write is behind it, there is no `savefig` outside that guard,
+  and `img/` stays untouched.
+- **A miss from pass 1:** notebook 19's footer still said "nine warnings" after notebook
+  20's table became fourteen.  The blurb lives in `READING_ORDER` and renders in the
+  *previous* notebook -- the same trap as notebook 22's blurb.  The stale count had reached
+  `tutorials.rst` and `installation.rst` too; the latter's tree is generated from
+  `tests/test_file_tree.py`, so the fix went to the source and the tree was regenerated.
+  `tutorials.rst` was also still quoting notebook 21's pre-solar-radius `2.5e-2`.
+- Eight literal `Magνs` in the two parked notebooks, one "colours", one micro sign.
+
+### The engine count: two sixes, different sets
+
+Worth naming rather than smoothing over, and it predates this work:
+
+| source | the six it counts | omits |
+|---|---|---|
+| paper, Fig. 1b and `tab:engines` | average, hybrid, ip_exp, separable, cumulative, magnus | `constant`, `expm` |
+| `docs/source/engines.rst` | constant, hybrid, ip_exp, separable, cumulative, magnus | `average`, `expm` |
+| `oscprob.ENGINE_FAMILIES` | all eight | -- |
+
+`engines.rst` also states that `expm` "is not an engine but is used as an oracle", which
+pass 1's notebook 22 wording contradicted.  Notebook 22 now names both sixes and says which
+omits what.  **Reconciling the paper with the docs is the author's call.**
+
+### Sweeps that found nothing, so they need not be repeated
+
+Broken notebook links (0); repo paths named in prose (1 hit, a false positive); per-notebook
+number check against each notebook's own outputs and data files (17 candidates, all sourced
+in code comments or set during pass 1); near-duplicate sentences across notebooks (5, all
+deliberate restatements carrying no numbers); unbalanced inline math (0); reST roles left in
+markdown (0, after pass 1 removed the one `:doc:`); non-ASCII outside the expected set (the
+`ö` of Schrodinger, and the one micro sign).
+
+### A process error worth recording
+
+Removing those two keywords, I ran `str.replace` over the **whole generator** rather than
+notebook 01's block: 24 sites across several notebooks instead of 8.  `git diff --stat`
+caught it before any rebuild.  **Scope every replacement to the notebook block it belongs
+to** -- the generator is one file holding twenty-nine documents.
