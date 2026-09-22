@@ -18362,7 +18362,7 @@ b.plot(L_FLUX, DPHI_OSC*w/TOTAL, color=PURPLE, lw=1.0, label='Oscillated, averag
 b.set_xscale('log'); b.set_xlim(3.0, 2*R_E); b.set_ylim(0.0, 1.08*float((DPHI*w/TOTAL).max()))
 b.xaxis.set_major_formatter(FuncFormatter(_plain))
 b.set_xlabel(r'Distance to the production point, $L$ [km]', labelpad=1.5)
-b.set_ylabel(r'$\Phi^{-1}\, d\Phi / d\log_{10} L$', fontsize=9.0, labelpad=4.0)
+b.set_ylabel(r'$F^{-1}\, dF / d\log_{10} L$', fontsize=9.0, labelpad=4.0)
 b2 = b.twinx()
 b2.plot(L_FLUX, CUM_OSC, color=PURPLE, lw=1.0, ls=(0, (2, 2)))
 b2.set_ylim(0.0, 1.0); b2.set_ylabel('Cumulative fraction, oscillated', fontsize=8.0, color=PURPLE)
