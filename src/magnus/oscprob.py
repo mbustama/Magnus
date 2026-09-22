@@ -9183,7 +9183,7 @@ def osc_prob_3nu_vacuum(
     --------
     If both ``energy`` and ``L`` are single values, this function returns
     the full :math:`3\times 3` probability matrix computed at those
-    values, using the NuFit 6.1 (normal ordering) defaults for any
+    values, using the NuFIT 6.1 (normal ordering) defaults for any
     oscillation parameter not passed explicitly:
 
     .. jupyter-execute::
@@ -9422,7 +9422,7 @@ def osc_prob_4nu_vacuum(
     Examples
     --------
     With the sterile-sector angles/phases given explicitly and the
-    active-sector angles left at their NuFit 6.1 defaults:
+    active-sector angles left at their NuFIT 6.1 defaults:
 
     .. jupyter-execute::
 
@@ -9683,7 +9683,7 @@ def osc_prob_5nu_vacuum(
     Examples
     --------
     With the sterile-sector angles/phases given explicitly and the
-    active-sector angles left at their NuFit 6.1 defaults:
+    active-sector angles left at their NuFIT 6.1 defaults:
 
     .. jupyter-execute::
 
@@ -11355,7 +11355,7 @@ def osc_prob_3nu_earth(
     Examples
     --------
     Standard three-neutrino oscillations through the Earth, using the
-    NuFit 6.1 defaults for the oscillation parameters:
+    NuFIT 6.1 defaults for the oscillation parameters:
 
     .. jupyter-execute::
 
@@ -11707,7 +11707,7 @@ def osc_prob_4nu_earth(
     Examples
     --------
     Four-neutrino (3+1 sterile) oscillations through the Earth, with a
-    modest sterile mixing on top of the NuFit 6.1 active-sector defaults:
+    modest sterile mixing on top of the NuFIT 6.1 active-sector defaults:
 
     .. jupyter-execute::
 
@@ -12081,7 +12081,7 @@ def osc_prob_5nu_earth(
     Examples
     --------
     Five-neutrino (3+2 sterile) oscillations through the Earth, with
-    modest sterile mixing on top of the NuFit 6.1 active-sector defaults:
+    modest sterile mixing on top of the NuFIT 6.1 active-sector defaults:
 
     .. jupyter-execute::
 
@@ -13095,7 +13095,7 @@ def osc_prob_3nu_sun(
     Examples
     --------
     Standard three-neutrino oscillations through the Sun, using the
-    NuFit 6.1 defaults for the oscillation parameters:
+    NuFIT 6.1 defaults for the oscillation parameters:
 
     .. jupyter-execute::
 
@@ -13266,7 +13266,7 @@ def osc_prob_4nu_sun(
     Examples
     --------
     Four-neutrino (3+1 sterile) oscillations through the Sun, with a
-    modest sterile mixing on top of the NuFit 6.1 active-sector defaults:
+    modest sterile mixing on top of the NuFIT 6.1 active-sector defaults:
 
     .. jupyter-execute::
 
@@ -13479,7 +13479,7 @@ def osc_prob_5nu_sun(
     Examples
     --------
     Five-neutrino (3+2 sterile) oscillations through the Sun, with
-    modest sterile mixing on top of the NuFit 6.1 active-sector defaults:
+    modest sterile mixing on top of the NuFIT 6.1 active-sector defaults:
 
     .. jupyter-execute::
 
@@ -15660,7 +15660,7 @@ def osc_prob_3nu_earth_nsi(
     Examples
     --------
     Three-neutrino oscillations through the Earth with non-standard
-    interactions, using the NuFit 6.1 defaults for the standard
+    interactions, using the NuFIT 6.1 defaults for the standard
     oscillation parameters:
 
     .. jupyter-execute::
@@ -16978,7 +16978,7 @@ def osc_prob_3nu_sun_nsi(
     Examples
     --------
     Three-neutrino oscillations through the Sun with non-standard
-    interactions, using the NuFit 6.1 defaults for the standard
+    interactions, using the NuFIT 6.1 defaults for the standard
     oscillation parameters:
 
     .. jupyter-execute::
@@ -20196,7 +20196,7 @@ def osc_prob_3nu_earth_liv(
     Examples
     --------
     Three-neutrino oscillations through the Earth under Lorentz-invariance
-    violation, using the NuFit 6.1 defaults for the standard oscillation
+    violation, using the NuFIT 6.1 defaults for the standard oscillation
     parameters:
 
     .. jupyter-execute::

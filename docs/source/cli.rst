@@ -363,19 +363,19 @@ configures):
      --dm2 DM2             Mass-squared difference Delta m^2 (required for --flavors 2).
 
    Standard oscillation parameters (3+ flavors):
-     --s12 S12             Mixing angle theta_12, per --angles. Default: NuFit 6.1.
-     --s23 S23             Mixing angle theta_23, per --angles. Default: NuFit 6.1.
-     --s13 S13             Mixing angle theta_13, per --angles. Default: NuFit 6.1.
-     --dcp DCP             delta_CP [radian, or degree with --angles deg]. Default: NuFit
+     --s12 S12             Mixing angle theta_12, per --angles. Default: NuFIT 6.1.
+     --s23 S23             Mixing angle theta_23, per --angles. Default: NuFIT 6.1.
+     --s13 S13             Mixing angle theta_13, per --angles. Default: NuFIT 6.1.
+     --dcp DCP             delta_CP [radian, or degree with --angles deg]. Default: NuFIT
                            6.1.
-     --dm21 D21            Mass-squared difference Delta m^2_21. Default: NuFit 6.1.
-     --dm31 D31            Mass-squared difference Delta m^2_31. Default: NuFit 6.1.
+     --dm21 D21            Mass-squared difference Delta m^2_21. Default: NuFIT 6.1.
+     --dm31 D31            Mass-squared difference Delta m^2_31. Default: NuFIT 6.1.
      --osc-params-set NAME
                            Predefined set used to fill in any of s12/s23/s13/dCP/D21/D31
-                           left unspecified: one per NuFit release, in normal ordering
+                           left unspecified: one per NuFIT release, in normal ordering
                            (..._NO) or inverted (..._IO), and for releases from 4.0 on with
                            (..._SK_) or without (..._NOSK_) Super-Kamiokande atmospheric
-                           data. OSC_PARAMS_DEFAULT is NuFit 6.1 SK NO. Pass an unknown
+                           data. OSC_PARAMS_DEFAULT is NuFIT 6.1 SK NO. Pass an unknown
                            name to see the full list. Taken from
                            globaldefs.OSC_PARAMS_PREDEFINED rather than listed here,
                            because a hand-written list went stale: it offered only the 6.0

@@ -187,28 +187,28 @@ def build_parser() -> argparse.ArgumentParser:
         help='Mass-squared difference Delta m^2 (required for --flavors 2).')
 
     g_osc3 = p.add_argument_group('Standard oscillation parameters (3+ flavors)')
-    g_osc3.add_argument('--s12', type=float, default=None, help='Mixing angle theta_12, per --angles. Default: NuFit 6.1.')
-    g_osc3.add_argument('--s23', type=float, default=None, help='Mixing angle theta_23, per --angles. Default: NuFit 6.1.')
-    g_osc3.add_argument('--s13', type=float, default=None, help='Mixing angle theta_13, per --angles. Default: NuFit 6.1.')
+    g_osc3.add_argument('--s12', type=float, default=None, help='Mixing angle theta_12, per --angles. Default: NuFIT 6.1.')
+    g_osc3.add_argument('--s23', type=float, default=None, help='Mixing angle theta_23, per --angles. Default: NuFIT 6.1.')
+    g_osc3.add_argument('--s13', type=float, default=None, help='Mixing angle theta_13, per --angles. Default: NuFIT 6.1.')
     g_osc3.add_argument('--dcp', type=float, default=None, dest='dCP',
-        help='delta_CP [radian, or degree with --angles deg]. Default: NuFit 6.1.')
+        help='delta_CP [radian, or degree with --angles deg]. Default: NuFIT 6.1.')
     g_osc3.add_argument('--dm21', type=float, default=None, dest='D21',
-        help='Mass-squared difference Delta m^2_21. Default: NuFit 6.1.')
+        help='Mass-squared difference Delta m^2_21. Default: NuFIT 6.1.')
     g_osc3.add_argument('--dm31', type=float, default=None, dest='D31',
-        help='Mass-squared difference Delta m^2_31. Default: NuFit 6.1.')
+        help='Mass-squared difference Delta m^2_31. Default: NuFIT 6.1.')
     g_osc3.add_argument('--osc-params-set', default='OSC_PARAMS_DEFAULT',
         dest='default_osc_params_set_name',
         choices=sorted(gd.OSC_PARAMS_PREDEFINED),
         # `metavar` hides the enumeration without weakening it: argparse still rejects a
         # name that is not in `choices`, and still prints the full list in the error it
         # raises.  What it stops is printing all of them in the usage line and again in
-        # the option's own entry.  With five sets that was informative; with one per NuFit
+        # the option's own entry.  With five sets that was informative; with one per NuFIT
         # release, ordering and SK variant it is some 2500 characters of help, twice over.
         metavar='NAME',
         help='Predefined set used to fill in any of s12/s23/s13/dCP/D21/D31 left unspecified: '
-             'one per NuFit release, in normal ordering (..._NO) or inverted (..._IO), and for '
+             'one per NuFIT release, in normal ordering (..._NO) or inverted (..._IO), and for '
              'releases from 4.0 on with (..._SK_) or without (..._NOSK_) Super-Kamiokande '
-             'atmospheric data.  OSC_PARAMS_DEFAULT is NuFit 6.1 SK NO.  Pass an unknown name to '
+             'atmospheric data.  OSC_PARAMS_DEFAULT is NuFIT 6.1 SK NO.  Pass an unknown name to '
              'see the full list.  Taken from globaldefs.OSC_PARAMS_PREDEFINED rather than listed '
              'here, because a hand-written list went stale: it offered only the 6.0 sets, so '
              'asking for inverted ordering silently dropped a release behind the default.')
