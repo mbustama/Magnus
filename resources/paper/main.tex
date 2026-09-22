@@ -174,7 +174,7 @@ neutrino \sep oscillation \sep flavor \sep particle physics \sep Magnus expansio
 \begin{small}
 
 \noindent
-{\em Program title:} Mag$\nu$s ({\tt magnuspy}) v1.1.1 \\ \\
+{\em Program title:} Mag$\nu$s ({\tt magnuspy}) v1.1.0 \\ \\
 \smallskip
 %%%%
 {\em Licensing provisions:} GPL-3.0-only \\ \\
@@ -268,9 +268,9 @@ Figure~\ref{fig:validation} shows the survival probability $P_{\nu_e \to \nu_e}$
 
 Listing~\ref{lst:validation} shows that generating the data for \figu{validation} is only a few lines of code. The listing calls four of the wrappers \magnus\ ships for the cases most often met: one per flavor count, differing only in the energy window and in the mixing parameters that count adds. The wrappers are a provided as a convenience to the user: each builds a Hamiltonian internally and hands it to the core function of \magnus, which takes an arbitrary Hermitian matrix of any size. Nothing in the method fixes the number of flavors, the form of the Hamiltonian, or the physics inside it, so a scenario \magnus\ ships no wrapper for is computed by the same call with a different matrix. Section~\ref{sec:examples} explains the usage.
 
-While the Magnus expansion is at the core of \magnus, the code does not rely on the expansion alone. Where the accumulated phase is extreme and the profile varies slowly, as in the Sun, \magnus transports the state along the instantaneous eigenstates of $\mathbb{H}$ and reserves the expansion for the narrow windows in which two eigenvalues approach and that transport fails. \magnus\ decide the hand-over from the Hamiltonian itself, with no intervention from the user (Sec.~\ref{sec:hybrid}).
+While the Magnus expansion is at the core of \magnus, the code does not rely on the expansion alone. Where the accumulated phase is extreme and the profile varies slowly, as in the Sun, \magnus\ transports the state along the instantaneous eigenstates of $\mathbb{H}$ and reserves the expansion for the narrow windows in which two eigenvalues approach and that transport fails. \magnus\ decide the hand-over from the Hamiltonian itself, with no intervention from the user (Sec.~\ref{sec:hybrid}).
 
-\begin{lstlisting}[language=Python, caption={Computing the data in \figu{validation} with \magnus: the $\nu_e$ survival probability along an exponentially falling density profile at two, three, four (3+1), and five (3+2) flavors (left to right). One wrapper serves each flavor count; the four calls differ only in the energy window and in the mixing each count adds. The oscillation parameters are best-fit values from the NuFIT 6.1 global oscillation fit~\cite{Esteban:2018azc} (normal ordering, with Super-Kamiokande atmospheric data). The only nonzero active-sterile mixing parameters are $\sin \theta_{14} = \sin \theta_{24} = \sqrt{0.1}$, $\Delta m_{41}^2 = 1.0$~eV$^2$ in the 3+1 case; and $\sin \theta_{15} = \sin \theta_{25} = \sqrt{0.06}$, $\Delta m_{41}^2 = 1.0$~eV$^2$, $\Delta m_{51}^2 = 1.7$~eV$^2$ in the 3+2 case.}, label={lst:validation}, float=t]
+\begin{lstlisting}[language=Python, caption={Computing the data in \figu{validation} with \magnus: the $\nu_e$ survival probability along an exponentially falling density profile at two, three, four (3+1), and five (3+2) flavors (left to right). One wrapper serves each flavor count; the four calls differ only in the energy window and in the mixing each count adds. The oscillation parameters are best-fit values from the NuFIT 6.1 global oscillation fit~\cite{Esteban:2024eli} (normal ordering, with Super-Kamiokande atmospheric data). The only nonzero active-sterile mixing parameters are $\sin \theta_{14} = \sin \theta_{24} = \sqrt{0.1}$, $\Delta m_{41}^2 = 1.0$~eV$^2$ in the 3+1 case; and $\sin \theta_{15} = \sin \theta_{25} = \sqrt{0.06}$, $\Delta m_{41}^2 = 1.0$~eV$^2$, $\Delta m_{51}^2 = 1.7$~eV$^2$ in the 3+2 case.}, label={lst:validation}, float=t]
 import numpy as np
 import magnus.globaldefs as gd
 import magnus.oscprob as oscprob
@@ -364,7 +364,7 @@ Section \ref{sec:recap} fixes notation. Section \ref{sec:method} presents the me
 \section{Neutrino oscillations: notation and conventions}
 \label{sec:recap}
 
-In a system of $n \geq 2$ neutrino flavors, $\nu_\alpha$ is the flavor state of a neutrino, represented by an $n$-component column vector, and $\mathbb{H}$ is the $n \times n$ Hamiltonian in flavor space. We use natural units, $c = \hbar = 1$, with energies in eV and distances in eV$^{-1}$, so that $\mathbb{H}L$ is dimensionless. Every length crossing the package's interface is in eV$^{-1}$: baselines, radii, slab edges, breakpoints alike. The factor {\tt globaldefs.UNIT\_KM} converts them into kilometers, one kilometer being some $5.07 \cdot 10^{9}$~eV$^{-1}$. This is the one convention worth stating as a rule rather than meeting case by case, because getting it wrong does not raise errors: a baseline handed over in kilometers is a chord a few millimeters long, and the call returns a converged, unitary probability for it. \magnus\ warns when a length is small enough to be kilometers left unconverted, but does not halt.
+In a system of $n \geq 2$ neutrino flavors, $\nu_\alpha$ is the flavor state of a neutrino, represented by an $n$-component column vector, and $\mathbb{H}$ is the $n \times n$ Hamiltonian in flavor space. We use natural units, $c = \hbar = 1$, with energies in eV and distances in eV$^{-1}$, so that $\mathbb{H}L$ is dimensionless. Every length crossing the package's interface is in eV$^{-1}$: baselines, radii, slab edges, breakpoints alike. The factor {\tt globaldefs.UNIT\_KM} converts kilometers into eV$^{-1}$---multiply by it---one kilometer being some $5.07 \cdot 10^{9}$~eV$^{-1}$. This is the one convention worth stating as a rule rather than meeting case by case, because getting it wrong does not raise errors: a baseline handed over in kilometers is a chord a few millimeters long, and the call returns a converged, unitary probability for it. \magnus\ warns when a length is small enough to be kilometers left unconverted, but does not halt.
 
 Because neutrinos are relativistic, we identify the elapsed time with the distance traveled and write both as $l$. The state obeys \equ{schrodinger}; its solution defines the evolution operator $\mathbb{U}(l_1, l_0)$  through $\nu_\alpha(l_1) = \mathbb{U}(l_1,l_0)\, \nu_
 \alpha(l_0)$, with $\mathbb{U}(l_0,l_0) = \mathbb{1}$. The probability that a neutrino born as $\nu_\alpha$ is detected as $\nu_\beta$ is
@@ -947,7 +947,7 @@ Extending the package usually requires only a new Hamiltonian. {\tt osc\_prob} a
  {\tt plotting} & Pre-packaged figures; imports only {\tt globaldefs} \\
  {\tt cli} & The {\tt magnus} console script \\
  \end{tabular}}
- \caption{\label{tab:modules}The modules of \magnus\ v1.1.1. {\tt magnus} and {\tt hamiltonians} can be used and tested independently of the probability functions.}
+ \caption{\label{tab:modules}The modules of \magnus\ v1.1.0. {\tt magnus} and {\tt hamiltonians} can be used and tested independently of the probability functions.}
 \end{table}}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -1015,9 +1015,9 @@ When a user requests a probability from \magnus, by default they do not need to 
 
 \smallskip
 
-\textit{How a request is assigned to an engine.}---No argument passed to a probability function names an engine; the content of the request determines which one is used. A request for an averaged probability with a position-independent Hamiltonian is assigned to the closed-form average (Sec.~\ref{sec:averaged}). An array of energies at a single baseline is assigned to the energy-batched scan, and a single energy at an array of baselines to the cumulative scan. A profile declared as exponential, at two flavors, is assigned to the interaction picture. Slab edges supplied through {\tt t\_slab\_edges}, or a request that specifies no tolerance, exclude the adiabatic engine. Every other request is assigned to the general Magnus ladder. Passing an array instead of looping over its entries therefore changes which engine computes the answer; Section~\ref{sec:cost} measures the difference in cost. We explain the engines below.
+\textit{How a request is assigned to an engine.}---No argument names the engine that answers; the content of the request decides. One keyword, {\tt strategy}, gates whether the adiabatic engine may take part, and is described below---it selects no engine of its own. A request for an averaged probability with a position-independent Hamiltonian is assigned to the closed-form average (Sec.~\ref{sec:averaged}). An array of energies at a single baseline is assigned to the energy-batched scan, and a single energy at an array of baselines to the cumulative scan. A profile declared as exponential, at two flavors, is assigned to the interaction picture. Slab edges supplied through {\tt t\_slab\_edges}, or a request that specifies no tolerance, exclude the adiabatic engine. Every other request is assigned to the general Magnus ladder. Passing an array instead of looping over its entries therefore changes which engine computes the answer; Section~\ref{sec:cost} measures the difference in cost. We explain the engines below.
 
-The keyword {\tt strategy} overrides the assignment of a request to an engine. It takes three values. The default, {\tt 'auto'}, lets the adiabatic engine attempt any request that meets its conditions; the engine returns its answer only if it can certify it, otherwise the request passes to the next engine. {\tt 'hybrid'} forces the adiabatic engine to answer, whether or not it can certify the answer. {\tt 'magnus'} excludes it, so that the request goes directly to the slab-based engines. The accuracy of the default is therefore the accuracy of the certified answers. Section~\ref{sec:hybrid} reports it as the error of the adiabatic engine over the whole validation grid, including every answer it certified.
+The keyword {\tt strategy} is that exception: it gates a single engine rather than choosing among them. It takes three values. The default, {\tt 'auto'}, lets the adiabatic engine attempt any request that meets its conditions; the engine returns its answer only if it can certify it, otherwise the request passes to the next engine. {\tt 'hybrid'} lets it answer whether or not it can certify, provided its other conditions hold; where they do not---declared breakpoints, or no requested tolerance---the request passes on regardless. {\tt 'magnus'} excludes it, so that the request goes directly to the slab-based engines. The accuracy of the default is therefore the accuracy of the certified answers. Section~\ref{sec:hybrid} reports it as the error of the adiabatic engine over the whole validation grid, including every answer it certified.
 
 \smallskip
 
@@ -1086,7 +1086,7 @@ Agreement among the engines is not a check, since the general ladder, the cumula
  Closed-form average & {\tt 'average'} & An averaged probability is requested and $\mathbb{H}$ is position-independent \\
  Adiabatic $+$ Magnus & {\tt 'hybrid'} & A smooth profile, a requested tolerance, no declared breakpoints, and a certified answer \\
  Interaction picture & {\tt 'ip\_exp'} & A profile declared as exponential, at two flavors, and a converged iteration \\
- Constant Hamiltonian & {\tt 'constant'} & $V_{\rm CC}$ does not vary along the trajectory; any flavor count, a single point or a scan \\
+ Constant Hamiltonian & {\tt 'constant'} & $\mathbb{H}$ does not vary along the trajectory; any flavor count, a single point or a scan \\
  Energy-batched scan & {\tt 'separable'} & Many energies at one baseline \\
  Cumulative scan & {\tt 'cumulative'} & Many baselines at one energy \\
  General Magnus ladder & {\tt 'magnus'} & Every other request \\
@@ -1105,7 +1105,7 @@ In \magnus, a request for many probabilities can be made faster in two ways---ba
 \begin{itemize}
 \item \emph{Batching} means passing an array in one call: many energies at one baseline, or many baselines at one energy. (A call can also take an array of energies and an array of baselines of the same length, which it reads as a list of points, the $i$-th energy with the $i$-th baseline. Such a list is not batched: each point is computed on its own. There is no single call that returns the probability at every energy for every one of several baselines; a caller who wants that table makes one call per baseline, each passing the full array of energies, and each of those calls is batched.)
 
-A request with one shared value reaches one of the batched engines of Sec.~\ref{sec:engines}, which reuse work across the array. The \textit{energy-batched scan} evaluates the profile once and carries the energy as a batch dimension through every slab; the \textit{cumulative scan} traverses the profile once and records the running product at every requested baseline. Both run in a single process. The gain is that the profile is not traversed once per point, at no cost in accuracy: batched answers are bit-identical to the point-by-point ones (Sec.~\ref{sec:validation}).
+A request with one shared value reaches one of the batched engines of Sec.~\ref{sec:engines}, which reuse work across the array. The \textit{energy-batched scan} evaluates the profile once and carries the energy as a batch dimension through every slab; the \textit{cumulative scan} traverses the profile once and records the running product at every requested baseline. Both run in a single process. The gain is that the profile is not traversed once per point, at no cost in accuracy: where the potential does not vary the batched answers are bit-identical to the point-by-point ones, and where it does they agree to $10^{-12}$ on a shared grid (Sec.~\ref{sec:validation}).
 %%%%
 \item \emph{Parallelization} means computing points in several processes at once, on several cores, as specified by the {\tt n\_jobs} argument. \magnus\ uses the {\tt joblib} library for it: {\tt n\_jobs} processes are started, the requested points are divided among them, and each point is computed on the per-point path. The work is not reduced, only shared, so the gain is bounded by the number of cores and by the cost of moving work between processes.
 
@@ -1225,7 +1225,7 @@ We develop \magnus\ in the public GitHub repository\ \cite{Magnus}, which carrie
 \subsection{Code validation}
 \label{sec:validation}
 
-The repository carries $1250$ tests, run on Python $3.10$ through $3.13$, covering $93\%$ of the code base, and including a clean-room installation of the built wheel. \ref{app:tests} groups tests by what they cover. The validation is layered, its layers independent on purpose.
+The repository carries about $1400$ tests, run on Python $3.10$ through $3.13$, covering $92\%$ of the code base, and including a clean-room installation of the built wheel. \ref{app:tests} groups tests by what they cover. The validation is layered, its layers independent on purpose.
 
 \smallskip
 
@@ -1241,7 +1241,7 @@ The repository carries $1250$ tests, run on Python $3.10$ through $3.13$, coveri
 
 \smallskip
 
-\textit{Against itself, where that is meaningful.}---The energy-batched scan is asserted \emph{bit-identical} to the per-point path, and a parallel run---{\tt n\_jobs} above one---bit-identical to a serial one, so an optimization that changed an answer fails rather than passes quietly. No Magnus path is ever scored against another as an accuracy measurement; a cross-check between two paths is reported as agreement and never as accuracy.
+\textit{Against itself, where that is meaningful.}---A parallel run---{\tt n\_jobs} above one---is asserted \emph{bit-identical} to a serial one, so an optimization that changed an answer fails rather than passes quietly. The energy-batched scan is held to $10^{-12}$ against the per-point path, with the grid and the tolerances pinned so that the two are arithmetically the same problem; left to refine on its own, it builds the profile once for the whole scan and moves the answer at the $10^{-6}$ level. No Magnus path is ever scored against another as an accuracy measurement; a cross-check between two paths is reported as agreement and never as accuracy.
 
 \smallskip
 
@@ -1270,7 +1270,7 @@ The limitations of \magnus\ are of two kinds. Those of the method follow from wh
 
 \smallskip
 
-\textit{A constant Hamiltonian.}---When the Hamiltonian does not depend on position, the evolution operator is a single exponential, which \magnus\ evaluates in the same closed form a dedicated code uses (Sec.~\ref{sec:exponential}). The accuracy is the same, to round-off. The cost is not: the exponential arrives wrapped in the dispatch, the validation, and the refinement ladder of a general solver, which on this problem have nothing to do, so a code built for the constant case alone is cheaper, by about seven times per point in the comparison of Sec.~\ref{sec:comparison}.
+\textit{A constant Hamiltonian.}---When the Hamiltonian does not depend on position, the evolution operator is a single exponential, which \magnus\ evaluates in the same closed form a dedicated code uses (Sec.~\ref{sec:exponential}). The accuracy is the same, to round-off. The cost is not: the exponential arrives wrapped in the dispatch, the validation, and the refinement ladder of a general solver, which on this problem have nothing to do, so a code built for the constant case alone is cheaper, by about sixty times per point against the three-flavor specialization {\tt NuFast-LBL} in the comparison of Sec.~\ref{sec:comparison}.
 
 \smallskip
 
@@ -1336,7 +1336,7 @@ The examples in this section illustrate the calls for the cases a user is most l
 \subsection{A minimal example in vacuum, step-by-step}
 \label{sec:minimal}
 
-\begin{lstlisting}[language=Python, caption={The simplest complete calculation: the three-flavor vacuum probabilities for a $1$-GeV neutrino over $1300$~km. The oscillation parameters take their defaults, the NuFIT 6.1 best fit with Super-Kamiokande atmospheric data in normal ordering\ \cite{Esteban:2018azc}.}, label={lst:minimal}, float=tbp]
+\begin{lstlisting}[language=Python, caption={The simplest complete calculation: the three-flavor vacuum probabilities for a $1$-GeV neutrino over $1300$~km. The oscillation parameters take their defaults, the NuFIT 6.1 best fit with Super-Kamiokande atmospheric data in normal ordering\ \cite{Esteban:2024eli}.}, label={lst:minimal}, float=tbp]
 import magnus.oscprob as oscprob
 import magnus.globaldefs as gd
 
@@ -1400,7 +1400,7 @@ In vacuum, the Hamiltonian does not depend on position, so the Magnus series sto
 
 \subsubsection{Three flavors}
 
-Every {\tt osc\_prob\_3nu\_*} wrapper leaves its six standard parameters unset by default. An unset parameter is read from a named set, {\tt OSC\_PARAMS\_DEFAULT}, which is the NuFIT 6.1 best fit with Super-Kamiokande atmospheric data in normal ordering\ \cite{Esteban:2018azc}. Naming a different set changes all six at once.
+Every {\tt osc\_prob\_3nu\_*} wrapper leaves its six standard parameters unset by default. An unset parameter is read from a named set, {\tt OSC\_PARAMS\_DEFAULT}, which is the NuFIT 6.1 best fit with Super-Kamiokande atmospheric data in normal ordering\ \cite{Esteban:2024eli}. Naming a different set changes all six at once.
 
 \begin{pysnip}
 P = oscprob.osc_prob_3nu_vacuum(E, L,
@@ -1429,7 +1429,7 @@ osc = gd.load_nufit_params('NuFIT 1.3',
 # Pme = 0.04998; 'free_fluxes_rsbl'
 # gives 0.04552
 \end{pysnip}
-\ref{app:params} shows the list of parameters sets  in \magnus\ v1.1.1.
+\ref{app:params} shows the list of parameter sets  in \magnus\ v1.1.0.
 
 Individual values are passed by name. Anything left unset still comes from the default set, so one angle can be moved without restating the other five:
 \begin{pysnip}
@@ -1728,7 +1728,7 @@ Passing {\tt rho} as a scalar tells the refinement ladder that the Hamiltonian d
 \end{table*}}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\tabl{scenarios} lists the four scenario functions shipped with \magnus (plus two other functions at the same level that handle geometry in the Earth and the Sun). The scenario functions sit one layer below the wrappers, one per physics scenario and each applicable at any flavor count. They take the density as a \emph{function of position}, which is what makes them the entry point for a profile that varies; Sec.~\ref{sec:smooth_comparison} calls \magnus\ this way.
+\tabl{scenarios} lists the four scenario functions shipped with \magnus\ (plus two other functions at the same level that handle geometry in the Earth and the Sun). The scenario functions sit one layer below the wrappers, one per physics scenario and each applicable at any flavor count. They take the density as a \emph{function of position}, which is what makes them the entry point for a profile that varies; Sec.~\ref{sec:smooth_comparison} calls \magnus\ this way.
 
 Every scenario function takes its arguments in the same groups, with the flavor count first and the physics handed over as dictionaries rather than as keywords. For instance, for NSI at three flavors in constant density,
 \begin{pysnip}
@@ -2116,7 +2116,8 @@ fig, ax = plotting.plot_probability_vs_energy(
           label='Survival')],
     nu_i=gd.NUMU, nu_f=gd.NUE)
 \end{pysnip}
-The axis labels follow from {\tt nu\_i} and {\tt nu\_f}; {\tt prob\_label} builds the same label on its own. Module constants carry the house-style figure size, grid, legend and {\tt savefig} settings, so figures drawn this way match one another without being told to. The API documentation~\cite{MagnusDocs} gives the full signatures of all the {\tt plotting} functions.
+The API documentation~\cite{MagnusDocs} gives the full signatures of all the {\tt plotting}
+functions.
 
 Each call returns the {\tt matplotlib} figure and axes it built, so a plot that can be adjusted afterwards. The flavor indices {\tt nu\_i} and {\tt nu\_f} set the axis label, so the label string need not be passed; {\tt prob\_label} returns that same string for use elsewhere. House constants in the module set the figure size, the grid, the legend and the {\tt savefig} options, so a set of figures comes out consistent with no styling passed at all.
 
@@ -2135,7 +2136,7 @@ Two plots appear in almost every study of neutrino oscillations: probability as 
 \end{figure*}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-Figure~\ref{fig:prob_vs} show both types of plot, at three flavors, for vacuum and three illustrative choices of the electron density profile: constant density, an exponential fall, and a Gaussian bump near the middle of the path. The constant profile pulls the probabilities furthest from the vacuum ones. The exponential profile follows it near the start of the path, where the density is still high, then drifts back toward the vacuum curves as the density falls. The Gaussian profile does the reverse: it tracks the vacuum curves until the bump, then parts from them.
+Figure~\ref{fig:prob_vs} shows both types of plot, at three flavors, for vacuum and three illustrative choices of the electron density profile: constant density, an exponential fall, and a Gaussian bump near the middle of the path. The constant profile pulls the probabilities furthest from the vacuum ones. The exponential profile follows it near the start of the path, where the density is still high, then drifts back toward the vacuum curves as the density falls. The Gaussian profile does the reverse: it tracks the vacuum curves until the bump, then parts from them.
 
 Listing~\ref{lst:prob_vs} computes the probabilities. \magnus\ takes a constant profile as a single number and a varying profile as a function of the distance traveled. Each column needs four calls: one per matter profile, one in vacuum. Every call receives the full list of distances, or of energies, at once. For the exponential- and constant-density cases, \magnus\ ships functions that take their parameters directly, so the profile need not be supplied separately. Both return the same numbers as the calls in the listing:
 \begin{pysnip}
@@ -2237,7 +2238,7 @@ On a scan of 300 energies through the exponential profile, the energy-batched sc
 \end{figure}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-Figure~\ref{fig:arrangement} shows the appearance probability along four piecewise-constant profiles, for neutrinos and for antineutrinos. All four have a mean density of $5$~g~cm$^{-3}$ and the same twenty-four slabs; only the order of the slabs changes, but the the probabilities change with it. Against the uniform profile, the random wall departs by up to 0.10 in $P_{\nu_\mu \to \nu_e}$ and 0.12 in $P_{\bar{\nu}_\mu \to \bar{\nu}_e}$. 
+Figure~\ref{fig:arrangement} shows the appearance probability along four piecewise-constant profiles, for neutrinos and for antineutrinos. All four have a mean density of $5$~g~cm$^{-3}$ and the same twenty-four slabs; only the order of the slabs changes, but the probabilities change with it. Against the uniform profile, the random wall departs by up to 0.10 in $P_{\nu_\mu \to \nu_e}$ and 0.12 in $P_{\bar{\nu}_\mu \to \bar{\nu}_e}$. 
 
 For neutrinos, the largest feature of the neutrino panel, the broad peak near 6~GeV, is common to all four profiles: it is the matter resonance at 5~g~cm$^{-3}$, which is independent of the arrangement of the slabs. For antineutrinos, there is no counterpart to it, since the matter potential has the opposite sign there.
 
@@ -2509,7 +2510,7 @@ P = oscprob.osc_prob_3nu_earth(
 P                              # 0.0794317
 \end{pysnip}
 
-A chord between two surface locations is a density palindrome. The trajectory meets every radius twice, so \magnus\ evaluates the Hamiltonian over the first half and mirrors the rest; Sec.~\ref{sec:cost} gives what that saves. Also, naming two locations also fixes the baseline at the whole chord length between them. An {\tt L} passed alongside is discarded.
+A chord between two surface locations is a density palindrome. The trajectory meets every radius twice, so \magnus\ evaluates the Hamiltonian over the first half and mirrors the rest; Sec.~\ref{sec:cost} gives what that saves. Naming two locations also fixes the baseline at the whole chord length between them. An {\tt L} passed alongside is discarded.
 % The symmetry follows from that, since it holds over the full chord alone: a trajectory given by {\tt costhz} earns it only when its {\tt L} is the whole chord too.
 
 \smallskip
@@ -2560,7 +2561,7 @@ print('%.0f km' % L_km)   # 1285
 \begin{figure}[t!]
  \centering
  \includegraphics[width=\columnwidth]{bsm.pdf}
- \caption{\label{fig:bsm}Muon-neutrino survival probability $P_{\nu_\mu \to \nu_\mu}$ along a PREM chord at $\cos\theta_z = -0.9$, computed with \magnus\ for four departures from the standard three-flavor case. {\it Top left}: non-standard interactions with $\varepsilon_{ee} = 0.10$, $\varepsilon_{e\mu} = 0.05$ and $\varepsilon_{\mu\tau} = 0.03$. {\it Top right}: isotropic CPT-even Lorentz-violating termwith eigenvalues $b_1 = b_2 = 0$ and $b_3 = 5.4 \cdot 10^{-14}$~eV, the value that advances the phase by $\pi$ over this chord. {\it Bottom}: the 3+1 and 3+2 systems of \figu{nu_nubar}, where the eV-scale splittings, $\Delta m_{41}^2$ and $\Delta m_{51}^2$, respectively, place the matter resonance at the TeV scale. Listing~\ref{lst:bsm} draws the curves. See notebook \#07, \#08, \#09, and \#28, and Sec.~\ref{sec:bsm} for details.}
+ \caption{\label{fig:bsm}Muon-neutrino survival probability $P_{\nu_\mu \to \nu_\mu}$ along a PREM chord at $\cos\theta_z = -0.9$, computed with \magnus\ for four departures from the standard three-flavor case. {\it Top left}: non-standard interactions with $\varepsilon_{ee} = 0.10$, $\varepsilon_{e\mu} = 0.05$ and $\varepsilon_{\mu\tau} = 0.03$. {\it Top right}: isotropic CPT-even Lorentz-violating term with eigenvalues $b_1 = b_2 = 0$ and $b_3 = 5.4 \cdot 10^{-14}$~eV, the value that advances the phase by $\pi$ over this chord. {\it Bottom}: the 3+1 and 3+2 systems of \figu{nu_nubar}, where the eV-scale splittings, $\Delta m_{41}^2$ and $\Delta m_{51}^2$, respectively, place the matter resonance at the TeV scale. Listing~\ref{lst:bsm} draws the curves. See notebook \#07, \#08, \#09, and \#28, and Sec.~\ref{sec:bsm} for details.}
 \end{figure}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -2871,7 +2872,7 @@ info['family']             # 'phase-average'
 info['engine']             # 'constant'
 info['family']             # 'exact'
 \end{pysnip}
-The {\tt 'sampling'} entry helps diagnose results that look wrong. It gives the oscillation length, how many cycles fit in the trajectory, and the number of points a Nyquist criterion asks for (the number points a scan would need to sample the fastest oscillation twice per cycle), \eg,
+The {\tt 'sampling'} entry helps diagnose results that look wrong. It gives the oscillation length, how many cycles fit in the trajectory, and the number of points a Nyquist criterion asks for (the number of points a scan would need to sample the fastest oscillation twice per cycle), \eg,
 \begin{pysnip}
 s = info['sampling']
 s['oscillation_length']/gd.UNIT_KM
@@ -3118,7 +3119,7 @@ P = oscprob.osc_prob_matter_std_potential(
 # used; pass t_breakpoints at the
 # discontinuities.
 \end{pysnip}
-Two tolerance warnings come with it, since the ladder ran out of slabs before it could certify the scan. A 0.07-km front lies between two nodes of whatever grid the ladder reaches, and a slab that straddles a jump degrades the quadrature however many slabs are used. The cure is to declare both fronts, as the positions where each begins and ends, so that slab edges fall there at every level of the ladder. That is the the difference between the call above and Listing~\ref{lst:shock}. 
+Two tolerance warnings come with it, since the ladder ran out of slabs before it could certify the scan. A 0.07-km front lies between two nodes of whatever grid the ladder reaches, and a slab that straddles a jump degrades the quadrature however many slabs are used. The cure is to declare both fronts, as the positions where each begins and ends, so that slab edges fall there at every level of the ladder. That is the difference between the call above and Listing~\ref{lst:shock}. 
 
 A scan of baselines at one energy goes to the cumulative engine, and declared breakpoints keep the adiabatic strategy of Sec.~\ref{sec:hybrid} out of the way in any case; the last line of the listing confirms which engine answered. Notebook \#14 checks the front against an independent integration; notebook \#18 collects the profiles that break a fixed grid. Section~\ref{sec:shock_comparison} measures what the width of the front costs.
 
@@ -3300,7 +3301,7 @@ f_earth = {k: np.array([at_earth(P) for P in v])
  \item 
   In the $3+1$ case, a sterile state moves the composition at Earth from $(0.326, 0.343, 0.330)_\oplus$ to $(0.330, 0.325, 0.346)_\oplus$. (Sterile states take away 13.3\% of the originally purely active flux; these triplets are the three active fractions rescaled to add to one.)
  \item 
-  In NSI through the Earth, the fractions move by less than 0.005 and also do not vary, because above a TeV the matter term dominates the Hamiltonian inside the Earth and carries no energy dependence. (Towards the low energy end, the the energy dependence starts becoming visible.)
+  In NSI through the Earth, the fractions move by less than 0.005 and also do not vary, because above a TeV the matter term dominates the Hamiltonian inside the Earth and carries no energy dependence. (Towards the low energy end, the energy dependence starts becoming visible.)
  \item
   In the pseudo-Dirac case, expanded below, the composition is flat in energy for the same reason as for sterile neutrinos: it is a vacuum Hamiltonian, just with more states.
 \end{itemize}
@@ -3415,7 +3416,7 @@ A region of anomalous density along the trajectory of a neutrino moving in an ot
 
 Listing~\ref{lst:cavity} sets this up in \magnus. The crust is uniform at 3.3~g~cm$^{-3}$ with $Y_e = 0.5$, the average of the outermost PREM layers. The cavity is a slab of different density centered on the baseline. We show cavities of four densities~\cite{Arguelles:2012nw}: water at 1~g~cm$^{-3}$ and $Y_e = 0.555$, an iron-banded formation at 5~g~cm$^{-3}$, a mineral deposit at 10~g~cm$^{-3}$, a zone of seismic faults at 25~g~cm$^{-3}$. Their widths along the neutrino trajectory fall from 250 to 50~km as the contrast with the crust grows. Each cavity has two walls. Every wall is a density jump: we pass their positions via {\tt t\_breakpoints} to the scenario function, allowing the refinement ladder to act inside the cavity.
 
-Figure~\ref{fig:cavity} shows the resulting probabilities. Every cavity curve crosses zero at $49$~MeV, where the crust curve peaks at 0.9997 (it would be exactly 1 if $\theta_{13}$ were zero). The presence of a cavity moves the peak energy. Adding column density pushes the peak up in energy; removing column density pulls it down. What a cavity does to the curve is to displace it bodily along the energy axis, leaving its shape almost untouched.  For a denser cavity, at energies below the peak the peak has moved further away, so the probability there falls; at energies above the peak it has moved closer, so the probability rises. A lighter cavity moves the peak the other way, swapping both signs. Either way the shift crosses zero between the crust's peak and the cavity's, which puts the four crossings between 48.1 and 49.5~MeV.
+Figure~\ref{fig:cavity} shows the resulting probabilities. Every cavity curve crosses zero near the $49$~MeV at which the crust curve peaks at 0.9997 (it would be exactly 1 if $\theta_{13}$ were zero). The presence of a cavity moves the peak energy. Adding column density pushes the peak up in energy; removing column density pulls it down. What a cavity does to the curve is to displace it bodily along the energy axis, leaving its shape almost untouched.  For a denser cavity, at energies below the peak the peak has moved further away, so the probability there falls; at energies above the peak it has moved closer, so the probability rises. A lighter cavity moves the peak the other way, swapping both signs. Either way the shift crosses zero between the crust's peak and the cavity's, which puts the four crossings between 48.1 and 49.5~MeV.
 
 Figure~\ref{fig:cavity_sweep} turns the neutrino beam across the cavity. The source stays put and the baseline keeps its length; only the direction changes, by an angle $\alpha$. Each direction cuts a different slice through the same cavity, a sphere of radius 125~km centered 750~km along the baseline. (Reference~\cite{Arguelles:2012nw} works with elliptical cavities, but a sphere carries the point just as well.) The spread of the angle is $\alpha = \pm 9.59^\circ$; within those angles, the cavity width it crosses traces a semicircle.
 
@@ -3585,7 +3586,7 @@ P['local'] = oscprob.osc_prob_3nu_earth(E,
 
 Figure~\ref{fig:geoneutrino_flux} shows how the detectable flux is distributed over the distance to the production point and how much of it survives the oscillations. A flux measurement weighs the curves of \figu{geoneutrino_energy} by that distribution. The Earth model chosen for the figure is the simplest one that carries both reservoirs: a spherically symmetric crust 35-km thick holding 7~TW of radiogenic power at a thorium-to-uranium ratio of 4.5, a mantle with the abundances of the geochemical model of Ref.~\cite{Bellini:2013wsa}, no uranium or thorium in the core, and the density of PREM throughout. The flux at the detector is
 \begin{equation}
- \Phi = \int_\oplus d^3r \, \frac{\varepsilon(\mathbf{r})}{4 \pi L^2} \, \langle P_{\bar\nu_e \to \bar\nu_e} \rangle (L) \,, \qquad L = \lvert \mathbf{r} - \mathbf{r}_{\rm det} \rvert \,,
+ F = \int_\oplus d^3r \, \frac{\varepsilon(\mathbf{r})}{4 \pi L^2} \, \langle P_{\bar\nu_e \to \bar\nu_e} \rangle (L) \,, \qquad L = \lvert \mathbf{r} - \mathbf{r}_{\rm det} \rvert \,,
  \label{equ:geoflux}
 \end{equation}
 where $\varepsilon(\mathbf{r})$ is the number of detectable $\bar{\nu}_e$ emitted per unit volume and time at position $\mathbf{r}$, fixed by the density of PREM and the abundances above. The survival probability from that point, $\langle P_{\bar\nu_e \to \bar\nu_e}(L) \rangle$, is the mean over the detectable window, 1.8--3.3~MeV. In spherical coordinates centered on the detector, $d^3r = L^2 \, dL \, d\Omega$ and the $L^2$ cancels: the production points between $L$ and $L + dL$ contribute $dL / 4\pi$ times the emissivity integrated over the directions in which that shell lies inside the Earth. The lower panel of \figu{geoneutrino_flux} shows this distribution per unit $\log_{10} L$, normalized to the total flux without oscillations, so that the area under a curve between two distances is the share of the flux from between them. In the unoscillated curve (normalized so $\langle P_{\bar\nu_e \to \bar\nu_e} \rangle = 1$), 61\% of the detectable flux comes from the crust, 17\% from within 100~km, 30\% from within 350~km, and 43\% from within 1\,000~km.
@@ -4309,7 +4310,7 @@ Four features account for that. The user controls three of them; \magnus\ applie
 %%%%
 \item \emph{Ask for worker processes where no batched engine applies.} (The user's decision, \magnus\ implements it.) The {\tt n\_jobs} argument distributes the requested points over several processes, as described in Sec.~\ref{sec:batching}.
 
-Figure~\ref{fig:njobs_scaling} measures the resulting speed-up against the number of processes requested, at three scan sizes, along an Earth chord on which every energy carries its own baseline. No batched engine accepts that request, so both the single-process and the multi-process timings run the same per-point path: the ratio between them isolates the effect of the parallelism. The shaded band marks requests exceeding the ten physical cores of the machine. Using {\tt n\_jobs} $ = 10$ reduces the run time by a factor of 2--3, the factor improving with the size of the scan, but remaining well below the number of processes requested. Requesting more processes than the machine has cores (\ie, {\tt n\_jobs} $> 12$) yields no further improvement. 
+Figure~\ref{fig:njobs_scaling} measures the resulting speed-up against the number of processes requested, at three scan sizes, along an Earth chord on which every energy carries its own baseline. No batched engine accepts that request, so both the single-process and the multi-process timings run the same per-point path: the ratio between them isolates the effect of the parallelism. The shaded band marks requests exceeding the ten physical cores of the machine. Using {\tt n\_jobs} $ = 10$ reduces the run time by a factor of 2--3, the factor improving with the size of the scan, but remaining well below the number of processes requested. Requesting more processes than the machine has cores (\ie, {\tt n\_jobs} $> 10$) yields no further improvement. 
 % \ref{app:workers} reports how the measurement depends on the protocol used to take it.
 
 The more common request is a single baseline shared by the whole scan. There, the batched engine answers only at {\tt n\_jobs} $=1$; any larger value returns the request to the per-point path, which is then computed in parallel. On a scan of $5000$ energies that substitution measured ten times slower than the batched call in one process. Thus, one process is the appropriate default.
@@ -4322,9 +4323,9 @@ The four features above lower the cost of a scan. One part of the method raises 
 \subsection{Precision, accuracy, and tolerance}
 \label{sec:diagnostics}
 
-Precision and accuracy are limited by different things. Precision is how closely \magnus\ agrees with itself. Two paths that should return the same number do: the batched scan and the point-by-point route agree bit for bit, as do a parallel run and a serial one. The test suite requires exact equality there, not agreement within a tolerance, so an optimization that changed a single digit would fail it. The two matrix-exponential backends of Sec.~\ref{sec:exponential} agree to about $10^{-15}$ at a single point. On a solar profile that chains some $N_{\rm slab} \approx 30000$ slab exponentials, the backends separate by $3 \cdot 10^{-12}$, inside the drift that an ordered product of that many double-precision factors allows, $N_{\rm slabs} \, \varepsilon = 7.4 \cdot 10^{-12}$ with $\varepsilon$ the unit round-off. At that depth the two backends are indistinguishable.
+Precision and accuracy are limited by different things. Precision is how closely \magnus\ agrees with itself. A parallel run and a serial one return the same number bit for bit, and the test suite requires exact equality there rather than agreement within a tolerance, so an optimization that changed a single digit would fail it. The batched scan and the point-by-point route agree to $10^{-12}$ once the grid and the tolerances are pinned; left adaptive, the two refine differently and separate at the $10^{-6}$ level. The two matrix-exponential backends of Sec.~\ref{sec:exponential} agree to about $10^{-15}$ at a single point. On a solar profile that chains some $N_{\rm slab} \approx 30000$ slab exponentials, the backends separate by $3 \cdot 10^{-12}$, inside the drift that an ordered product of that many double-precision factors allows, $N_{\rm slabs} \, \varepsilon = 7.4 \cdot 10^{-12}$ with $\varepsilon$ the unit round-off. At that depth the two backends are indistinguishable.
 
-Accuracy is measured against a calculation outside the library. Section~\ref{sec:validation} gives the references used and the error distributions they produce. At the default {\tt rtol} $=$ {\tt atol} $= 10^{-3}$, an Earth crossing returns a probability accurate to about $5 \cdot 10^{-4}$ against a {\tt DOP853} reference computed at $10^{-7}$ tolerance.
+Accuracy is measured against a calculation outside the library. Section~\ref{sec:validation} gives the references used and the error distributions they produce. At the default {\tt rtol} $=$ {\tt atol} $= 10^{-3}$, an Earth crossing is usually far more accurate than it promises and occasionally less. Measured against the same call at $10^{-7}$, over eight chords from grazing to core-crossing at six energies between $0.5$ and $20$~GeV, the median difference is $9 \cdot 10^{-7}$ and the ninetieth percentile $1.2 \cdot 10^{-4}$; it reaches $2.2 \cdot 10^{-3}$ on the core-crossing chord at $0.5$~GeV, outside the tolerance requested. No single figure summarizes a spread of three orders.
 
 That accuracy is already far better than a typical oscillation analysis needs. Such an analysis evaluates the probability on a grid---\eg, in energy and arrival direction for an atmospheric experiment, in energy alone for an accelerator experiment---interpolates between the nodes, then folds the result with a flux, a cross section, and a detector response. The error from the grid and its interpolant is orders of magnitude larger than anything the oscillation code contributes\ \cite{IceCube:2018ikn}. A code accurate to $10^{-13}$ and one accurate to $10^{-6}$ return the same answer once both have passed through that chain.
 
@@ -4636,11 +4637,11 @@ Elsewhere, another code may be cheaper. On constant density, closed-form and spe
 
 We have presented \magnus\ \cite{Magnus}, a code that returns neutrino oscillation probabilities for any Hermitian Hamiltonian---standard or not---at any number of flavors, through any density profile. It does so by computing the neutrino evolution operator with the Magnus expansion, a method that expands the operator---which ordinarily requires an integral---in evaluations of the Hamiltonian at different points along the neutrino trajectory, and of the commutators thereof. The size of the Hamiltonian, its contents, and the reason it varies along the trajectory are all free, so a changing matter profile, a Lorentz-violating background, and a sterile neutrino sector are the same calculation for \magnus. For convenience, \magnus\ ships wrappers for two to five flavors across common environments and scenarios.
 
-\magnus\ cuts the trajectory into slabs and computes the evolution operator across each. It then composes the slab operators in the order the neutrino meets them in order to evaluate the propagation across the full trajectory. The number of slabs required follows from the tolerance requested of the code. The Magnus expansion ensures the evolution is unitary---\ie, the sum of probabilities between all flavors is one---at any number of slabs and any order of the Magnus expansion. \magnus\ admits pinning edges to  discontinuities along a profile, as it happens inside the Earth or across a supernova shock front.
+\magnus\ cuts the trajectory into slabs and computes the evolution operator across each. It then composes the slab operators in the order the neutrino meets them, to evaluate the propagation across the full trajectory. The number of slabs required follows from the tolerance requested of the code. The Magnus expansion ensures the evolution is unitary---\ie, the sum of probabilities between all flavors is one---at any number of slabs and any order of the Magnus expansion. \magnus\ admits pinning edges to  discontinuities along a profile, as it happens inside the Earth or across a supernova shock front.
 
 Along a neutrino trajectory, \magnus\ automatically detects stretches of adiabaticity---where the Hamiltonian varies smoothly and relatively slowly---and of non-adiabaticity---where the Hamiltonian varies more suddenly and its eigenvalues cross---and adapts accordingly. It combines the use of a precise eigensolver for the adiabatic stretches and the Magnus expansion for the non-adiabatic ones.
 
-Further, \magnus\ returns phase-averaged, non oscillatory probabilities, which describes, \eg, high-energy astrophysical neutrinos that propagate over cosmological-scale baselines.
+Further, \magnus\ returns phase-averaged, non-oscillatory probabilities, which describe, \eg, high-energy astrophysical neutrinos that propagate over cosmological-scale baselines.
 
 We have provided multiple examples, each with the code that produces it: layered matter, a core-crossing Earth chord, the Sun, a supernova shock front, five flavors with new physics, and a user-provided Hamiltonian. Each is a variation on one call, with the Hamiltonian, the profile, or the observable changed. A console script computes the same probabilities on a terminal window, without writing any Python code. Multiple tutorial notebooks in the \magnus\ repository~\cite{Magnus} carry each topic further. 
 
@@ -4722,7 +4723,7 @@ MB is supported by the Villum Fonden projects no.~13164 and 29388.
 \label{app:terms}
 \appresetfloats
 
-Section \ref{sec:expansion} gave the definition of the Magnus expansion via recursion.  This appendix gives its structure, which is what makes a relatively succinct implementation. The maximum expansion order in \magnus is set to {\tt MAGNUS\_EXP\_ORDER\_MAX=10}. Orders nine and ten of the  expansion need either Simpson's rule or the trapezoidal rule to integrate, since the Gauss-Legendre collocation of \equ{gl} stop at order eight ({\tt MAGNUS\_EXP\_ORDER\_MAX\_GL=8}).
+Section \ref{sec:expansion} gave the definition of the Magnus expansion via recursion.  This appendix gives its structure, which is what makes a relatively succinct implementation. The maximum expansion order in \magnus\ is set to {\tt MAGNUS\_EXP\_ORDER\_MAX=10}. Orders nine and ten of the  expansion need either Simpson's rule or the trapezoidal rule to integrate, since the Gauss-Legendre collocation of \equ{gl} stop at order eight ({\tt MAGNUS\_EXP\_ORDER\_MAX\_GL=8}).
 
 \subsection{Computing Magnus terms}
 
@@ -4765,7 +4766,7 @@ The two facts meet at odd $k$, where $h^{k+1}$ is an even power. The parity forb
 \label{app:params}
 \appresetfloats
 
-Section \ref{sec:params} showed how to select a set of standard oscillation parameters by name. \tabl{params} lists  the fifty-six sets \magnus\ recognizes, one for each NuFit release\ \cite{Esteban:2018azc} and mass ordering.
+Section \ref{sec:params} showed how to select a set of standard oscillation parameters by name. \tabl{params} lists  the fifty-two sets \magnus\ recognizes, one for each NuFIT release\ \cite{Esteban:2024eli} and mass ordering.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 {\def\arraystretch{1.08}
@@ -4852,7 +4853,7 @@ Section \ref{sec:params} showed how to select a set of standard oscillation para
 \label{app:tests}
 \appresetfloats
 
-The repository carries 1409 tests covering 92\% of the library, run on Python 3.10 through 3.13 on every push and every pull request. Coverage is a gate rather than a report: the suite fails below 90\%. A release runs the same suite again, from a built wheel, before anything reaches the index. The tests are not packaged with the library, but are obtainable from a clone,
+The repository carries about 1400 tests covering 92\% of the library, run on Python 3.10 through 3.13 on every push and every pull request. Coverage is a gate rather than a report: the suite fails below 90\%. A release runs the same suite again, from a built wheel, before anything reaches the index. The tests are not packaged with the library, but are obtainable from a clone,
 \begin{verbatim}
 pip install -e ".[test]"
 pytest
