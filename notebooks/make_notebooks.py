@@ -8713,7 +8713,7 @@ columns are the point of the notebook: what you asked for, and what you got.''')
       ('requested', 'P_ee', '|error|', 'rel. error', 'achieved'))
 print('-'*60)
 rows = []
-for tol in (1.0e-2, 1.0e-3, 1.0e-4, 1.0e-6):
+for tol in (1.0e-2, 1.0e-3, 1.0e-4, 1.0e-6, 1.0e-7):
     info = {}
     with warnings.catch_warnings():
         warnings.simplefilter('ignore')
@@ -8729,18 +8729,19 @@ for tol in (1.0e-2, 1.0e-3, 1.0e-4, 1.0e-6):
     md(r'''Read the table three times, once for each surprise.
 
 **The tolerance can be missed while reporting success.** The first row asked for $10^{-2}$,
-reported `tolerance_achieved=True`, and is wrong by $2.5\times10^{-2}$ -- two and a half times
-the tolerance it claimed to have met. The two grids it compared agreed with each other; they
-were simply both too coarse. Nothing about the returned number reveals this.
+reported `tolerance_achieved=True`, and is wrong by $4.8\times10^{-2}$ -- nearly five times the
+tolerance it claimed to have met. The two grids it compared agreed with each other; they were
+simply both too coarse. Nothing about the returned number reveals this.
 
 **When it is conservative, it is very conservative.** The second row asked for $10^{-3}$ and
-delivered $8.7\times10^{-6}$, a hundred times better. Ask for $10^{-4}$ and you get the same
+delivered $7.7\times10^{-6}$, some 130 times better. Ask for $10^{-4}$ and you get the same
 answer and the same work -- the ladder had already stepped past it.
 
-**`tolerance_achieved=False` does not mean the answer is bad.** The last row reports failure
-and is the most accurate of the four, at $4\times10^{-7}$. It says "I could not verify
-convergence by refining further", which is a statement about the ladder running out of room,
-not about the answer.'''),
+**`tolerance_achieved=False` does not mean the answer is bad.** The last two rows return the
+*same* probability to every digit: 20000 slabs is the ceiling, so both are handed the same
+grid. At $10^{-6}$ that answer is certified and at $10^{-7}$ it is not. Nothing about the
+number changed -- only the demand did. The flag reports whether the ladder could verify
+convergence by refining further, not whether the answer is good.'''),
     code(r'''for tol, value, rel, achieved, n in rows:
     verdict = ('accurate' if rel <= tol else 'OUTSIDE the requested tolerance')
     print('requested %.0e -> delivered %.1e (%-30s) achieved=%-5s n_slabs=%d'
@@ -8755,7 +8756,7 @@ with warnings.catch_warnings():
     oscprob.osc_prob_matter_std_potential(
         2, ne, ENERGY, BASELINE, PARAMS_2NU, L0=0.0,
         density_is_of_number_of_electrons=True,
-        convergence_info=info, rtol=1.0e-6, atol=1.0e-8)
+        convergence_info=info, rtol=1.0e-7, atol=1.0e-9)
 
 for key in sorted(info):
     print('%-26s %s' % (key, info[key]))'''),
@@ -8820,10 +8821,11 @@ ordinary solar profile against an independent oracle:
 
 | requested | delivered | verdict |
 |---|---|---|
-| $10^{-2}$ | $2.5\times10^{-2}$ | **worse than asked, and reported as achieved** |
-| $10^{-3}$ | $8.7\times10^{-6}$ | 100x conservative |
-| $10^{-4}$ | $8.7\times10^{-6}$ | same work, same answer |
-| $10^{-6}$ | $4.0\times10^{-7}$ | accurate, reported as *not* achieved |
+| $10^{-2}$ | $4.8\times10^{-2}$ | **worse than asked, and reported as achieved** |
+| $10^{-3}$ | $7.7\times10^{-6}$ | 130x conservative |
+| $10^{-4}$ | $7.7\times10^{-6}$ | same work, same answer |
+| $10^{-6}$ | $3.6\times10^{-7}$ | accurate, and reported as achieved |
+| $10^{-7}$ | $3.6\times10^{-7}$ | **the same answer, reported as *not* achieved** |
 
 What to do about it:
 
@@ -8842,8 +8844,11 @@ What to do about it:
 # -------------------------------------------------- 22_magnus_which_engine_answered
 books['22_magnus_which_engine_answered.ipynb'] = notebook(
     'Which engine answered, and why',
-    r'''Mag$\nu$s does not have one algorithm. It has six, grouped into five families, and
-`strategy='auto'` picks between them per request. Most of the time you neither know nor need to
+    r'''Mag$\nu$s does not have one algorithm. `oscprob.ENGINE_FAMILIES` registers **eight**, in
+**five** families, and `strategy='auto'` picks between them per request. (The companion paper
+counts six, because it lists dispatch *rows*: `constant` is the constant-density special case
+of the energy-batched `separable`, and `expm` is the ladder's first term, exact when the
+Hamiltonian is piecewise constant on declared edges.) Most of the time you neither know nor need to
 know which one ran -- but when an answer looks wrong, "which engine produced this" is the first
 question, and Mag$\nu$s will tell you.
 
@@ -8919,7 +8924,7 @@ print('max across families  : %.3e  %s'
 print()
 for label, reason in out['declined'].items():
     print('declined %-10s %s' % (label, reason))'''),
-    md(r'''Four engines, three families, and they agree to $10^{-4}$ with no reference solution
+    md(r'''Four engines, three families, and they agree to $2\times10^{-3}$ with no reference solution
 anywhere in sight. That number is a far more honest error bar than any `rtol` (notebook 21),
 because the things being compared do not share a method.
 
@@ -8951,7 +8956,7 @@ for strategy in ('auto', 'hybrid'):
              info.get('certified'), ', '.join(names)))
     if info.get('declined'):
         print('%-10s   declined: %s' % ('', info['declined']))'''),
-    md(r'''Two different answers, 0.085 and 0.550, from the same request. The package is no
+    md(r'''Two different answers, 0.079 and 0.492, from the same request. The package is no
 longer silent about it in either direction:
 
 * under `'auto'` the adiabatic engine **declines** -- "the profile is not resolved at the probe
@@ -8975,7 +8980,7 @@ for engine in sorted(out_step['ran']):
              float(np.asarray(out_step['answers'][engine])[0][0])))
 print('\nmax spread across families: %.3e  %s'
       % (out_step['max_spread_independent'], out_step['max_spread_independent_pair']))'''),
-    md(r'''A spread of **0.47** on a probability. No ground truth was computed, no reference
+    md(r'''A spread of **0.41** on a probability. No ground truth was computed, no reference
 code was installed, and nothing had to know in advance what was wrong with the profile. Two
 engines from different families simply disagreed, which is all the signal you need to stop
 trusting the number.
@@ -9028,11 +9033,13 @@ tested. The warning will tell you, but the number will not.'''),
 # ------------------------------------------------ 23_magnus_when_averaging_helps
 books['23_magnus_when_averaging_helps.ipynb'] = notebook(
     'When averaging rescues you, and when it does not',
-    r'''Notebooks 13 and 14 end in opposite places. On a tabulated solar model the instantaneous
-probability carries an error of $1.4\times10^{-3}$, and the *observable* -- the same quantity
-averaged over the detector's energy resolution -- carries $2.6\times10^{-5}$: the error falls by
-a factor of **53**. On a supernova shock front the instantaneous error is $2.0\times10^{-1}$ and
-the averaged error is $2.1\times10^{-1}$: it does not move at all.
+    r'''Two measurements in the package's adversarial batteries end in opposite places. On a
+tabulated solar model at 5 MeV the instantaneous probability carries an error of
+$1.4\times10^{-3}$, and the same quantity averaged over the window carries $2.6\times10^{-5}$:
+the error falls by a factor of **53**. On a sharp supernova shock front the instantaneous error
+is $2.0\times10^{-1}$ and the averaged error is $2.1\times10^{-1}$: it does not move at all.
+Both are recorded under `docs/dev/adversarial_batteries/`, and notebook 14 measures the shock
+case in the notebook set itself, at 0.20 and 0.22.
 
 The difference is not the size of the error but its **kind**. An error in the accumulated
 *phase* moves the oscillation sideways, and sideways motion cancels when you integrate over
@@ -9041,8 +9048,8 @@ averaging removes an offset.
 
 This notebook isolates the mechanism on a cheap vacuum probability, where both kinds of error
 can be injected deliberately and neither costs anything to compute. The real measurements stay
-where they were made -- notebooks 13 and 14 -- because reproducing them here would cost several
-minutes and tell you nothing new.''',
+where they were made -- the batteries, and notebook 14 -- because reproducing them here would
+cost several minutes and tell you nothing new.''',
     [
     code(r'''import warnings
 
@@ -9096,9 +9103,9 @@ for amount in (0.02, 0.05):
     print('%-20s %-14.3e %-14.3e %6.1fx'
           % ('envelope, %.0f%%' % (100*amount), inst, avg, inst/avg))'''),
     md(r'''Averaging suppresses the phase error by about a hundredfold and the envelope error by
-about seven. Note the second pair: doubling the envelope error changes both columns and leaves
-the suppression at exactly 7.0. That is the signature of an offset -- averaging rescales it,
-it does not remove it.'''),
+about seven. Note the second pair: raising the envelope error from 2 % to 5 % changes both
+columns and leaves the suppression at exactly 7.0. That is the signature of an offset --
+averaging rescales it, it does not remove it.'''),
     code(r'''fig, (ax0, ax1) = plt.subplots(1, 2, figsize=(9.0, 3.4), sharey=True)
 band = (E >= 9.6e6) & (E <= 10.4e6)
 for ax, Q, title in ((ax0, phase_error(3.0e-4), 'phase error'),
@@ -9138,7 +9145,8 @@ for L_km in (2.5e3, 5.0e3, 1.0e4, 2.0e4, 4.0e4):
     md(r'''Two readings. The phase suppression climbs steeply from one to three cycles and then
 settles around a hundred -- it does not grow without bound, because where the band edges fall
 relative to the oscillation matters as much as how many cycles are inside it. The envelope
-suppression sits near 6 throughout and never improves.
+suppression never leaves single figures -- 3.6 to 6.9 across a sixteenfold change in the number
+of cycles -- and shows no trend.
 
 **The practical test**, and it needs no ground truth: *average your result over a few
 oscillation lengths and see whether the discrepancy moves.* If it collapses, what you had was
@@ -9168,7 +9176,7 @@ falling where they fall. Asking for `average=True` where the phase has *not* ave
 | suppressed by averaging | **~100x** | ~7x, fixed |
 | improves with more cycles | yes, then plateaus | no |
 | improves with a smaller error | no -- the ratio is scale-free | no |
-| real instance | supernova turbulence, 45 MeV (`docs/dev/adversarial_batteries/avg_check2.py`): **15x** | notebook 14, shock: **~1x** |
+| real instance | supernova turbulence, 45 MeV (`docs/dev/adversarial_batteries/avg_check2.py`): **23x** | notebook 14, shock: **~1x** |
 | is the observable affected? | barely | **yes** |
 
 The reason notebook 14's shock error does not average away is physical rather than numerical: a
@@ -9182,10 +9190,12 @@ Every number in the table above is a ratio of *finite-window* means, and the sec
 above shows that such a mean is an estimator with its own bias -- 6.08e-03 from the analytic
 limit here, over 6.1 cycles. On a profile whose density varies appreciably across the window,
 that bias does not shrink as the window widens, because a wider window also averages over
-different matter conditions; notebook 13's solar ray is exactly that case, and there the
-suppression ratio carries no information at all. Use the ratio to tell phase from envelope on
-a *controlled* comparison like this one. To get the observable, ask for it: `average=True`
-computes the decohered limit in closed form, with no window to choose.'''),
+different matter conditions; notebook 13's solar ray is exactly that case. It
+prints 0.84x for the linear interpolant and 1.47x for the cubic, on the same ray as the 53x
+above and with a different window -- which is how little the ratio means there. Use it to tell
+phase from envelope on a *controlled* comparison like this one. To get the observable, ask
+for it: `average=True` computes the decohered limit in closed form, with no window to
+choose.'''),
     ])
 
 
@@ -9325,8 +9335,9 @@ for label, kwargs in (('single point', dict(energy=5.0*gd.UNIT_GEV)),
 agree to round-off. The package documentation quotes 1.4--1.67x on an expensive `H_func`,
 measured on a different profile; the numbers above are the same effect on this one.
 
-The lesson is not "the palindrome is worth 1.75x". It is that **it is worth exactly half of
-whatever your Hamiltonian charges per position, and nothing for what it charges per call**. If
+The lesson is not that the palindrome is worth 1.68x here and 2.48x on the scan. It is that
+**it is worth exactly half of whatever your Hamiltonian charges per position, and nothing for
+what it charges per call**. If
 you want it off, `magnus.magnus.USE_PALINDROME = False`.
 
 Note also that only `osc_prob_earth` gets this: a chord is symmetric by geometry, and
@@ -9360,9 +9371,9 @@ of them free. Tolerances are usually worth tightening.
 
 | what | speed-up | when it is worth nothing |
 |---|---|---|
-| pass an array of energies | **~2.7x** | single-point calls |
+| pass an array of energies | **~3x** | single-point calls |
 | write `H_func` to take an array of positions | **~4.6x** (notebook 19) | never -- always do this |
-| the palindrome, expensive `H_func` | **~1.8x** | cheap or per-call-dominated `H_func` |
+| the palindrome, expensive `H_func` | **1.7x**, 2.5x on a scan | cheap or per-call-dominated `H_func` |
 | the palindrome, plain PREM | ~1.0x | this is the "worth nothing" case |
 | tightening `rtol` by $10^{3}$ | costs ~2x | -- |
 
@@ -9439,14 +9450,20 @@ for order in (1, 2, 3, 4, 5, 6):
     rows_ord.append((order, t, err))
     print('%8d %14.2f %16.3e   %d' % (order, 1.0e3*t, err, 1 if order <= 2 else
                                       (2 if order <= 4 else 3)))'''),
-    md(r'''**The pairs collapse exactly**, which is the clearest way to see that the order is a
-request for a quadrature scheme rather than a continuous knob: 1 and 2 agree to the last digit,
-as do 3 and 4, and 5 and 6. There are three settings here wearing six names.
+    md(r'''**The pairs collapse exactly** -- 1 and 2 agree to the last digit, as do 3 and 4, and 5 and 6.
+There are three settings here wearing six names, which is the clearest way to see that the order
+requests a quadrature scheme rather than turning a continuous knob.
 
-What each real step buys, on this profile: order 2 to 4 is worth a factor of about **5000** in
-accuracy for **1.95x** the time; 4 to 6 is worth a further **6x** for **1.7x** more. That is
-the shape of the trade -- the first step is overwhelmingly worth taking, the second is a
-genuine choice that depends on how smooth the profile is.'''),
+**But so does every other row, and that is the referee's fault rather than the order's.** All
+six report the same $1.137\times10^{-1}$, because `vcc_prem_at` builds its potential with the
+default electron fraction of 0.5 while `osc_prob_3nu_earth` takes $Y_e$ from PREM layer by
+layer -- 0.466 through the core and mantle, 0.555 in the crust. The two are integrating
+different Earths, and that gap swamps anything the truncation does. Refereed instead against a
+Magnus reference at 4000 slabs, the step is real and large: order 2 at $8.9\times10^{-7}$,
+order 4 at $1.6\times10^{-10}$, a factor of **5600**.
+
+The timings do not depend on the referee, and they are the shape of the trade: order 2 to 4
+costs **1.87x**, and 4 to 6 a further **1.86x**.'''),
     code(r'''fig, ax = plt.subplots(figsize=(6.4, 4.4))
 for order, t, err in rows_ord:
     marker = 'o' if order in (2, 4, 6) else 'x'
@@ -9532,9 +9549,9 @@ genuinely fourth order, it costs under twice what order 2 costs, and on every pr
 here it buys between two and five orders of magnitude over order 2.
 
 Raise it to **6** when the profile is **smooth** and the target accuracy is tight. What that
-extra node buys depends strongly on the profile, and the two cases measured here bracket it:
-about **6x** on a piecewise-constant PREM chord, about **22x** on the resolved shock front,
-both for roughly 1.7--1.8x the time. Smoother profiles pay better, which is the same ordering
+extra node buys depends strongly on the profile: about **22x** on the resolved shock front
+below, for roughly 1.8x the time. The PREM chord above cannot price it, for the reason given
+there. Smoother profiles pay better, which is the same ordering
 the slab-refinement rate follows.
 
 Do **not** raise it when a `MagnusConvergenceWarning` appears. That warning means a slab is too
@@ -19538,7 +19555,7 @@ READING_ORDER = [
     ('21_magnus_what_tolerance_means.ipynb', 'What rtol and atol promise',
      'a stopping criterion, not an error bound'),
     ('22_magnus_which_engine_answered.ipynb', 'Which engine answered, and why',
-     'six engines, five families, and an error bar with no oracle'),
+     'eight engines, five families, and an error bar with no oracle'),
     ('23_magnus_when_averaging_helps.ipynb', 'When averaging rescues you',
      'phase error falls away, envelope error does not'),
     ('24_magnus_performance.ipynb', 'Performance',
