@@ -24,10 +24,11 @@ variable, optionally over a short relative-error subpanel.**  That shape is
 probability-against-energy functions are thin presets over it that fix labels,
 scales and tick spacings.
 
-Only four layouts beyond it are genuinely distinct: small multiples (where the
+Only five layouts beyond it are genuinely distinct: small multiples (where the
 comparison runs *between* panels, so every panel needs identical limits while
 the labels, title and legend must each appear exactly once), a density profile
-stacked over probability panels, the bi-probability plane, and the oscillogram.
+stacked over probability panels, an oscillating probability under its
+phase-averaged limit, the bi-probability plane, and the oscillogram.
 
 What it draws
 ---------------
@@ -88,10 +89,9 @@ A first figure
     energy = 1.0 * gd.UNIT_GEV
     distances = np.logspace(1.0, 4.0, 300)                      # [km]
 
-    prob = np.array([
-        oscprob.osc_prob_3nu_vacuum(energy, L * gd.CONV_KM_TO_INV_EV,
-                                    **osc)[gd.NUMU][gd.NUMU]
-        for L in distances])
+    prob = np.asarray(oscprob.osc_prob_3nu_vacuum(
+        np.full(distances.size, energy), distances*gd.CONV_KM_TO_INV_EV,
+        **osc))[:, gd.NUMU, gd.NUMU]
 
     fig, ax = plot_probability_vs_baseline(
         distances,
@@ -121,18 +121,17 @@ so they read as a single figure:
     import magnus.oscprobstd as oscprobstd
     from magnus.plotting import plot_curves
 
-    sth, Dm2 = gd.S12_NO_BF_NUFIT_6_0, gd.D21_NO_BF_NUFIT_6_0
+    sth, Dm2 = osc['s12'], osc['D21']
     energy = 10.0 * gd.UNIT_MEV
     L = np.logspace(1.0, 5.0, 400)
+    L_nat = L * gd.CONV_KM_TO_INV_EV
 
-    exact = np.array([
-        oscprobstd.osc_prob_2nu_vacuum_std(sth, Dm2, energy,
-                                           l * gd.CONV_KM_TO_INV_EV)[0][0]
-        for l in L])
-    approx = np.array([
-        oscprob.osc_prob_2nu_vacuum(energy, l * gd.CONV_KM_TO_INV_EV,
-                                    sth, Dm2)[0][0]
-        for l in L])
+    # One call each. The point axis lands last in the closed form and first in
+    # osc_prob, which is the only difference between the two lines.
+    exact = np.asarray(
+        oscprobstd.osc_prob_2nu_vacuum_std(sth, Dm2, energy, L_nat))[0, 0]
+    approx = np.asarray(oscprob.osc_prob_2nu_vacuum(
+        np.full(L.size, energy), L_nat, sth, Dm2))[:, 0, 0]
 
     fig, ax = plot_curves(
         L,

@@ -216,14 +216,15 @@ meaning "use the cap appropriate to ``integration_method``": 20000 for
 ``magnus.oscprob.MAX_N_SLABS_DEFAULT``; an explicit value is always used as
 given).  A single cap cannot serve both families, because their cost per
 slab differs by more than an order of magnitude -- ``'gl'`` evaluates the
-Hamiltonian 1 to 3 times per slab, the quadrature methods
+Hamiltonian 1 to 4 times per slab, the quadrature methods
 ``n_tpts_per_slab`` times.  With a shared cap of 2000, ``'gl'`` hit the
 ceiling on problems it could resolve comfortably (eV-scale sterile
 splittings over an Earth-crossing baseline need about 8,600 slabs) and
 reported that it could not verify convergence, on answers that were in fact
 far more accurate than the quadrature methods reached within the same cap.
-Even at 20000 slabs, ``'gl'`` is the cheaper worst case: 40,000-60,000
-Hamiltonian evaluations, against the ~200,000 that 2000 quadrature slabs at
+Even at 20000 slabs, ``'gl'`` is the cheaper worst case: 40,000 Hamiltonian
+evaluations at the default order and 80,000 at order 8, against the ~200,000
+that 2000 quadrature slabs at
 100 points per slab already permit.
 
 If a refinement cap (``max_n_slabs``, ``max_n_tpts_per_slab``,
@@ -424,7 +425,7 @@ the methodology above directly:
   the same Schrödinger equation, confirming that each additional Magnus
   order improves the error, and that the Gauss-Legendre integrators
   achieve their nominal orders 2/4/6 (measured error reduction ratios of
-  4.0/16.0/63.8 under slab halving, matching :math:`2^{\text{order}+1}`).
+  4.0/16.0/63.8 under slab halving, matching :math:`2^{\text{order}}`).
 * **Physical probabilities** are cross-checked against closed-form
   expressions for 2ν and 3ν vacuum oscillations and 2ν constant-density
   matter oscillations (for both neutrinos and antineutrinos), and against
@@ -507,12 +508,12 @@ Mass ordering
 The ordering is carried by the **sign of** :math:`\Delta m^2_{31}`, not by a
 flag: positive is normal, negative is inverted. ``OSC_PARAMS_DEFAULT`` is the
 normal ordering, with :math:`\Delta m^2_{31} = +2.511 \times 10^{-3}`
-eV\ :sup:`2`. It is NuFit 6.1, the same release
-:func:`~magnus.globaldefs.load_nufit_params` returns by default, and is derived
-from it rather than written out a second time.
-``magnus.globaldefs.OSC_PARAMS_PREDEFINED`` also carries
-``OSC_PARAMS_NU_FIT_6_1_SK_NO``, ``..._SK_IO`` and the 6.0 pair, if you want to
-name the fit explicitly.
+eV\ :sup:`2`. It is NuFIT 6.1 with Super-Kamiokande atmospheric data, the same
+release :func:`~magnus.globaldefs.load_nufit_params` returns by default, and is
+derived from it rather than written out a second time.
+``magnus.globaldefs.OSC_PARAMS_PREDEFINED`` carries every NuFIT release from 1.0
+on, in both orderings and, from 4.0 on, with and without that atmospheric data,
+if you want to name the fit explicitly.
 
 For two flavors the same rule applies to :math:`\Delta m^2`, which is what
 makes the two-flavor case easy to get backwards: flipping its sign moves the

@@ -270,9 +270,11 @@ Choosing a strategy, and seeing which engine answered
 -----------------------------------------------------
 
 ``strategy='auto'`` (the default) tries an adiabatic-transport-plus-Magnus-patch
-propagator first and falls back silently. ``'magnus'`` is the pre-1.0.0 route.
-The difference is not only speed: on solar configurations the fallback can be
-*fast and wrong*.
+propagator first and falls back silently. ``'magnus'`` reproduces the behavior
+of releases before that propagator existed. The difference is not only speed: on
+the NSI configurations notebook 12 measures, the fallback is the faster route
+and the less accurate one, raising ``ToleranceNotAchievedWarning`` rather than
+answering quietly.
 
 .. jupyter-execute::
 

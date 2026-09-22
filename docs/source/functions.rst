@@ -16,12 +16,9 @@ roughly what you want ("3-flavor, matter, with NSI") but not the exact name.
 The internal middle layer these wrappers dispatch through
 (``osc_prob_vacuum``, ``osc_prob_matter_std_potential``,
 ``osc_prob_matter_nsi``, ``osc_prob_liv``, and
-``osc_prob_energy_baseline``) is deliberately not listed
-here; see :doc:`architecture` for what it does and when you would call it
-directly.
-
-See :doc:`architecture` for how these functions are organized internally
-(the wrapper/middle/primordial layering), and :doc:`cli` for the
+``osc_prob_energy_baseline``) is deliberately not listed here; see
+:doc:`architecture` for what it does, when you would call it directly, and how
+the wrapper/middle/primordial layering fits together.  :doc:`cli` is the
 command-line calculator that wraps the same functions.
 
 Every function below returns a full :math:`d \times d` probability matrix

@@ -1347,6 +1347,8 @@ __all__ = [
     'ERROR_MSG_NO_COLOR',
     'ERROR_MSG_IN_COLOR',
     'ANGLE_CONVENTIONS',
+    'BaselineUnitWarning',
+    'IMPLAUSIBLE_BASELINE_NATURAL_UNITS',
     'MixingAngleConventionWarning',
     'SterileMatterCompositionWarning',
     'TOL_MSG_NO_COLOR',

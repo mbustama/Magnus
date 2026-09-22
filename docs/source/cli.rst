@@ -95,6 +95,10 @@ table:
 Examples
 ----------
 
+.. The example blocks below are checked against the live CLI by
+   tests/test_cli_examples_match.py.  Do not hand-edit their output: run
+   `python tests/test_cli_examples_match.py --write` instead.
+
 Three-flavor vacuum oscillation, full probability matrix (output captured
 from this version):
 
@@ -102,13 +106,13 @@ from this version):
 
    $ magnus prob --flavors 3 --environment vacuum \
        --energy 1 --energy-unit GeV --baseline 1300 --baseline-unit km
-   Magνs 1.0.0rc1 -- osc_prob_3nu_vacuum
+   Magνs 1.1.0 -- osc_prob_3nu_vacuum
    E = 1 GeV, L = 1300 km
 
                nu_e   nu_mu  nu_tau
-   nu_e      0.9297  0.0085  0.0618
-   nu_mu     0.0311  0.3885  0.5804
-   nu_tau    0.0393  0.6029  0.3578
+   nu_e      0.9289  0.0085  0.0625
+   nu_mu     0.0313  0.3923  0.5764
+   nu_tau    0.0398  0.5992  0.3611
 
 The same calculation, one channel only:
 
@@ -116,7 +120,7 @@ The same calculation, one channel only:
 
    $ magnus prob --flavors 3 --environment vacuum --energy 1 --energy-unit GeV \
        --baseline 1300 --baseline-unit km --nu-i e --nu-f mu
-   Magνs 1.0.0rc1 -- osc_prob_3nu_vacuum
+   Magνs 1.1.0 -- osc_prob_3nu_vacuum
    E = 1 GeV, L = 1300 km
 
    P = 0.0085
@@ -128,13 +132,18 @@ named locations -- see ``--loc-ini``/``--loc-fin`` below):
 
    $ magnus prob --flavors 3 --environment earth --energy 1 --energy-unit GeV \
        --costhz -0.8 --baseline 10193.6 --baseline-unit km
-   Magνs 1.0.0rc1 -- osc_prob_3nu_earth
+   Magνs 1.1.0 -- osc_prob_3nu_earth
    E = 1 GeV, L = 10193.6 km
 
                nu_e   nu_mu  nu_tau
-   nu_e      0.9128  0.0863  0.0009
-   nu_mu     0.0629  0.6681  0.2690
-   nu_tau    0.0243  0.2456  0.7301
+   nu_e      0.9129  0.0861  0.0010
+   nu_mu     0.0638  0.6912  0.2449
+   nu_tau    0.0233  0.2227  0.7540
+
+That command also writes ``MagnusConvergenceWarning`` twice to standard error:
+some slabs of this chord are wider than the sufficient condition for the series
+to converge.  It reports a slab width rather than an error; :doc:`diagnostics`
+gives its measured false-alarm rate and says what to do about it.
 
 Constant-density matter with non-standard interactions:
 
@@ -143,13 +152,13 @@ Constant-density matter with non-standard interactions:
    $ magnus prob --flavors 3 --environment matter --scenario nsi --rho 2.7 \
        --eps-ee 0.06 --eps-em -0.06 \
        --energy 1 --energy-unit GeV --baseline 1000 --baseline-unit km
-   Magνs 1.0.0rc1 -- osc_prob_3nu_matter_nsi_constant_density
+   Magνs 1.1.0 -- osc_prob_3nu_matter_nsi_constant_density
    E = 1 GeV, L = 1000 km
 
                nu_e   nu_mu  nu_tau
-   nu_e      0.9898  0.0093  0.0009
-   nu_mu     0.0093  0.9906  0.0001
-   nu_tau    0.0009  0.0001  0.9990
+   nu_e      0.9895  0.0095  0.0010
+   nu_mu     0.0096  0.9903  0.0001
+   nu_tau    0.0009  0.0002  0.9989
 
 Vacuum with a (deliberately large, for illustration) Lorentz-invariance-violating
 term -- compare to the plain-vacuum result above at the same energy and baseline:
@@ -159,13 +168,13 @@ term -- compare to the plain-vacuum result above at the same energy and baseline
    $ magnus prob --flavors 3 --environment vacuum --scenario liv \
        --sxi12 0.3 --b1 6e-13 --b2 1.2e-12 --liv-lambda 1e9 --n-liv 1 \
        --energy 1 --energy-unit GeV --baseline 1300 --baseline-unit km
-   Magνs 1.0.0rc1 -- osc_prob_3nu_vacuum_liv
+   Magνs 1.1.0 -- osc_prob_3nu_vacuum_liv
    E = 1 GeV, L = 1300 km
 
                nu_e   nu_mu  nu_tau
-   nu_e      0.4971  0.0506  0.4523
-   nu_mu     0.1341  0.7020  0.1639
-   nu_tau    0.3688  0.2474  0.3838
+   nu_e      0.4956  0.0510  0.4535
+   nu_mu     0.1349  0.7013  0.1639
+   nu_tau    0.3696  0.2477  0.3827
 
 A 3+2 sterile scenario (5 flavors), machine-readable output:
 
@@ -234,6 +243,10 @@ traceback:
 
 Full flag reference
 ----------------------
+
+.. The block below is generated from src/magnus/cli.py by docs/regen_cli_help.py
+   and checked by lint.yml.  Edit the argparse help strings in cli.py, then run
+   `python3 docs/regen_cli_help.py`; edits made here are reverted.
 
 The complete, current ``--help`` output (every flag is grouped by what it
 configures):

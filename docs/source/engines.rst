@@ -14,8 +14,9 @@ for what to do when one warns.
 The engines
 -------------
 
-Six independent engines can answer a request. None of them is a special case of another,
-and each declines requests it cannot serve honestly.
+Seven engines can answer a request, and each declines the ones it cannot serve
+honestly. Several of them share machinery, which is what makes the section after the
+table necessary.
 
 .. list-table::
    :header-rows: 1
@@ -55,6 +56,13 @@ and each declines requests it cannot serve honestly.
      - Baselines nest: :math:`U(0\to L_2) = U(L_1 \to L_2)\,U(0 \to L_1)`.
      - A baseline scan at a **single** energy, with a position-dependent ``H``.
      - Differing energies, ``t_slab_edges``, a baseline behind ``L0``, a constant ``H``.
+   * - **Phase average**
+       (:mod:`magnus.avgprob`)
+     - The observable integrates over phase; pairs that have not decohered are summed
+       coherently, as blocks.
+     - ``average=True``, on every entry point that takes the keyword.
+     - Nothing -- but where a pair sits between the coherent and decohered limits it
+       warns rather than returning an averaged expression that does not apply.
    * - **Adiabatic + Magnus hybrid**
        (:func:`magnus.adiabatic.hybrid_propagator`)
      - ``H`` is smooth at the scale of a 200-point probe grid.
@@ -62,7 +70,8 @@ and each declines requests it cannot serve honestly.
      - Breakpoints or slab edges supplied, a constant potential, no requested tolerance,
        a profile that fails the resolution test, or failure to self-certify.
 
-A sixth reference, ``scipy.linalg.expm``, is not an engine but is used as an oracle by
+The eighth entry in the registry, ``scipy.linalg.expm``, never answers a request; it is
+used as an oracle by
 :func:`magnus.oscprob.cross_check_strategies` wherever it is *exact* -- a constant ``H``,
 or a piecewise-constant one whose edges are declared.
 
@@ -82,7 +91,10 @@ grouping the package will defend:
   function.
 * ``'adiabatic'`` -- the hybrid strategy. A genuinely different method; its blind spots are
   the resonance detector's, not the quadrature's.
-* ``'exact'`` -- ``expm``, independent of all of them.
+* ``'phase-average'`` -- the decohered limit. It propagates nothing, so it shares no
+  quadrature with any of the others; what it shares with them is the eigendecomposition
+  of the same ``H``.
+* ``'exact'`` -- ``expm`` and the constant-Hamiltonian engine, independent of the rest.
 
 Two engines in the same family can be wrong in the same way at the same time. Their
 disagreement is informative; their agreement is not.
@@ -183,7 +195,8 @@ three scenario wrappers to see the route without changing it::
 
     info = {}
     P = oscprob.osc_prob_matter_std_potential(..., strategy_info=info)
-    info['engine']      # 'hybrid', 'ip_exp', 'separable', 'cumulative', 'magnus', 'average'
+    info['engine']      # 'hybrid', 'ip_exp', 'separable', 'constant',
+                        # 'cumulative', 'magnus' or 'average'
     info['certified']   # for the hybrid strategy
     info['declined']    # [(engine, why it stood aside)]
 

@@ -442,12 +442,12 @@ both real and genuinely complex (CP-violating) Hamiltonians.
 Speedups for the patched cases are smaller than the purely adiabatic ones
 for a simple reason: a patch means ``solve_ivp`` itself is being compared
 against on a shorter, more tractable sub-problem (the same reason the
-purely-adiabatic 2ν case reaches the largest speedup of all -- it is also
-the case where ``solve_ivp`` is slowest, since nothing shortens its own
-work). What stays constant across every case is the two things that
-matter: exact unitarity, at every accuracy setting, and agreement with
-direct integration well within the package's standard :math:`10^{-3}`
-target tolerance.
+purely-adiabatic 5ν case reaches the largest speedup of all -- it is also
+the case where ``solve_ivp`` is slowest, since a larger Hamiltonian does
+nothing to shorten its own work). What stays constant across every case is
+the two things that matter: exact unitarity, at every accuracy setting, and
+agreement with direct integration well within the package's standard
+:math:`10^{-3}` target tolerance.
 
 Limitations and scope
 --------------------------

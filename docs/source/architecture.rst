@@ -16,10 +16,14 @@ itself); this page is about the *code*, not the *math*.
 Module layout
 ---------------
 
-Magνs is thirteen modules under ``src/magnus/`` plus the
-``hamiltonians`` subpackage, each with a single, non-overlapping
-responsibility, all explicitly listed in ``magnus/__init__.py``'s
-``submodules``/``__all__``. The figure is the **actual** import graph,
+Magνs is twelve modules under ``src/magnus/`` plus the ``hamiltonians``
+subpackage, each with a single, non-overlapping responsibility (``authors.py``
+and ``version.py`` are internal helpers rather than part of that picture).
+``magnus/__init__.py``'s ``submodules``/``__all__`` advertise eleven of them.
+``expmkernels`` is imported alongside but left out of the list, being an
+implementation detail of ``magnus.magnus``; ``cli`` is not imported at all,
+since it is the console script's entry point rather than something a caller
+reaches through ``import magnus``. The figure is the **actual** import graph,
 top-level imports only, and an arrow points from a module to one that
 imports it -- so it reads bottom-up, and nothing at the bottom knows
 anything above it:
@@ -44,8 +48,8 @@ anything above it:
      - Compiled kernels for the matrix exponential: Cayley--Hamilton at 2x2 and
        3x3, a batched Jacobi eigensolver at 4x4 and 5x5
    * - ``expansionterms``
-     - The explicit :math:`\Omega_1`, :math:`\Omega_2`, :math:`\Omega_3`
-       integrands
+     - The Magnus terms derived from the Bernoulli recursion in exact rational
+       arithmetic, at any order (:doc:`expansion_terms`)
    * - ``globaldefs``
      - Physical constants, unit conversions, NuFIT parameter sets
    * - ``adiabatic``
@@ -102,17 +106,18 @@ easy to break by accident when adding code:
   place instead of scattering it across the physics and numerical
   modules.
 
-``earth.py``, ``globaldefs.py``, ``magnus.py``, ``adiabatic.py``,
-``avgprob.py``, ``expansionterms.py``, ``expmkernels.py``, ``matter.py``,
-``oscprob.py``, ``oscprobstd.py``, and ``plotting.py`` are flat sibling files directly
-under ``src/magnus/`` -- there is no subpackage directory
+``adiabatic.py``, ``avgprob.py``, ``cli.py``, ``earth.py``,
+``expansionterms.py``, ``expmkernels.py``, ``globaldefs.py``, ``magnus.py``,
+``matter.py``, ``oscprob.py``, ``oscprobstd.py`` and ``plotting.py`` are flat
+sibling files directly under ``src/magnus/`` -- there is no subpackage directory
 wrapping any of them. Only ``magnus.hamiltonians`` is a genuine
-subpackage, since it holds four distinct, flavor-count-specific modules
-(``hamiltonians2nu.py`` through ``hamiltonians5nu.py``); its
-``__init__.py`` explicitly imports and re-exports each one's public
-names (no ``from .module import *``). ``magnus/__init__.py`` itself
-explicitly imports all twelve top-level modules (again, no wildcard
-imports) so that ``import magnus`` alone makes ``magnus.earth``,
+subpackage, since it holds one module per flavor count
+(``hamiltonians2nu.py`` through ``hamiltonians5nu.py``) plus
+``hamiltonians_pseudodirac.py`` for the paired spectra of
+:doc:`averaged_probability`; its ``__init__.py`` explicitly imports and
+re-exports each one's public names (no ``from .module import *``).
+``magnus/__init__.py`` does the same for the eleven it lists (again, no
+wildcard imports) so that ``import magnus`` alone makes ``magnus.earth``,
 ``magnus.oscprob``, etc. immediately accessible.
 
 ``plotting.py`` is the one module outside this dependency picture: it
@@ -130,7 +135,7 @@ closed-form validation counterpart to the wrapper API), so both
 The three-layer structure of ``magnus.oscprob``
 ----------------------------------------------------
 
-``magnus.oscprob`` is the largest module (~10,000 lines) because it exposes a
+``magnus.oscprob`` is the largest module (~22,000 lines) because it exposes a
 dedicated, explicitly-named function for every combination of
 (flavor count) :math:`\times` (environment) :math:`\times` (BSM
 scenario) — roughly 60 combinations. To keep that size from turning into
@@ -322,7 +327,7 @@ closest sibling to copy from. The recipe:
            r"""Compute the 3nu NSI oscillation probability for a
            user-supplied radial matter density profile.
 
-           .. versionadded:: 1.0.0
+           .. versionadded:: <the next release>
            """
            return osc_prob_matter_nsi(
                num_flavors=3,

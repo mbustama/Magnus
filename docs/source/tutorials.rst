@@ -15,7 +15,7 @@ version to drift out of step.
 
 To run them rather than read them::
 
-   pip install "magnus[notebooks]"
+   pip install "magnuspy[notebooks]"
    jupyter lab notebooks/
 
 .. note::
@@ -114,9 +114,11 @@ are, rather than how to ask for them.
    exponential itself preserves that.
 
 `12. The strategy parameter <https://github.com/mbustama/Magnus/blob/main/notebooks/12_magnus_adiabatic_hybrid_strategy.ipynb>`_
-   ``'auto'`` against ``'magnus'``, timed and scored against ``solve_ivp``. The
-   headline is not the speed: for three or more flavors the old default can hit
-   its refinement caps and return a plausible, exactly unitary, **wrong** answer.
+   ``'auto'`` against ``'magnus'``, timed and scored against ``solve_ivp`` from
+   two to five flavors. The old route is not uniformly worse -- it wins on
+   accuracy in two of the seven cases -- but on two flavors it is slower than
+   the ``solve_ivp`` oracle itself; on the NSI cases it stops short of the
+   tolerance while staying exactly unitary.
 
 
 Where the limits are

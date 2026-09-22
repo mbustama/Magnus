@@ -366,6 +366,8 @@ File Tree
        ├── test_paper_assets_are_tracked.py  # Every figure main.tex includes is tracked, which .gitignore's *.pdf defeats
        ├── test_readme_lists_every_notebook.py  # notebooks/README.md describes every notebook make_notebooks.py builds
        ├── test_adiabatic_validation_table.py  # adiabatic_strategy.rst's speed-up table and make_figures.py's chart agree
+       ├── test_cli_examples_match.py  # cli.rst's worked examples still print what the CLI prints
+       ├── test_diagnostics_documents_every_warning.py  # diagnostics.rst's catalogue covers every warning class the package defines
        ├── conftest.py                 # Path setup so magnus is importable without installation
        ├── test_adiabatic.py           # Adiabatic + Magnus hybrid strategy: detection, merging, ODE cross-checks
        ├── test_angles.py              # The four `angles` conventions and the guards between them

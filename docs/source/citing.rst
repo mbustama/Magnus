@@ -23,7 +23,7 @@ the version you used — results can depend on it, and Magνs records its own:
      title   = {{Mag$\nu$s: neutrino oscillation probabilities via the
                  Magnus expansion}},
      url     = {https://github.com/mbustama/Magnus},
-     version = {1.0.0rc1},
+     version = {1.1.0},
      year    = {2026}
    }
 

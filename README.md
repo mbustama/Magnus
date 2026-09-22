@@ -255,7 +255,7 @@ Full documentation: **[mbustama.github.io/Magnus](https://mbustama.github.io/Mag
 | [Mathematical method](https://mbustama.github.io/Magnus/methodology.html) | The expansion derived term by term, and why truncation is unitary |
 | [Expansion terms](https://mbustama.github.io/Magnus/expansion_terms.html) | The $\Omega_k$ at any order, and how they are generated |
 | [Architecture](https://mbustama.github.io/Magnus/architecture.html) | How the modules fit together, and which layer to call |
-| [Engines and dispatch](https://mbustama.github.io/Magnus/engines.html) | Which of the six engines answers a call, and why |
+| [Engines and dispatch](https://mbustama.github.io/Magnus/engines.html) | Which of the seven engines answers a call, and why |
 | [Accuracy and diagnostics](https://mbustama.github.io/Magnus/diagnostics.html) | What each safeguard cannot catch, and every warning explained |
 | [Against other codes](https://mbustama.github.io/Magnus/comparison.html) | The full cross-code comparison, with the measurements behind it |
 | [Tutorials](https://mbustama.github.io/Magnus/tutorials.html) | All 29 notebooks, with what each is for |
