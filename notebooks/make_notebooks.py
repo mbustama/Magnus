@@ -9834,8 +9834,9 @@ minima, and the deeper one on the normal-ordering curve (0.445 and 0.451) is not
 `globaldefs` quotes as the best fit (0.593 and 0.577). Both numbers are in NuFIT's own table,
 joined by $\oplus$; the extraction recovers both to about 0.002. That is the bimodality this
 notebook exists to keep, and it is exactly what a Gaussian centerd on either branch would
-throw away -- so the check above compares the *pair* of minima for those releases rather than
-insisting on one.
+throw away -- so `make_nufit_chi2.py` verifies the *pair* against NuFIT's published pair for
+those releases rather than insisting on one. The table above prints only the deeper minimum,
+which is why its v1.3 row reads 0.4511 against a shipped 0.5770.
 
 ## 2. How the parameters themselves moved
 
@@ -9903,7 +9904,7 @@ for i, (key, _, label) in enumerate(PARAMETERS):
 
 fig.suptitle('Mixing parameters across eighteen NuFIT releases (normal ordering)',
              fontsize=10)'''),
-    md(r'''$\theta_{13}$ improved most -- a factor of four -- going from barely measured in
+    md(r'''$\theta_{13}$ improved most -- a factor of four and a half -- going from barely measured in
 2012 to the best-known angle in the matrix once the reactor experiments reported.
 $\theta_{23}$ is the one that did not: its band stays the widest and wanders rather than
 shrinks, because the octant keeps changing its mind. That is the parameter which will drive
@@ -9987,9 +9988,10 @@ T2K and NOvA data pulled in different directions. A one-dimensional $\Delta\chi^
 $\sin^2\theta_{23}$ with two nearly degenerate minima is wide, and it produces a wide
 probability distribution regardless of how much data went into it.
 
-Note also how far the **best-fit curve** wanders relative to the band. Between 3.0 and 4.0 it
-moves by more than the 68% width of either -- because the best fit hops between octants while
-the distribution, which contains both, moves far less. **A single best-fit probability is a
+Note also how far the **best-fit curve** wanders relative to the band. Between 1.1 and 1.2 the
+best fit moves by 0.039 -- more than the 68% width of either release -- while the median moves
+less than half as far, because $\theta_{23}$'s best fit hops from the first octant to the
+second and the distribution, which contains both, barely notices. **A single best-fit probability is a
 less stable thing than the distribution it comes from**, which is the practical argument for
 propagating the likelihood rather than the central values.
 
@@ -10026,8 +10028,8 @@ for name, key in (('th12', 'T12'), ('th13', 'T13'), ('th23', 'T23'),
 | releases from machine-readable $\chi^2$ | 14 (v2.0 -- v6.1) |
 | releases read from vector figures | 4 (v1.0 -- v1.3) |
 | **total** | **18**, spanning 2012--2025 |
-| 68% width, first release | 0.024 |
-| 68% width, narrowest (v4.0) | **0.012** |
+| 68% width, first release | 0.035 |
+| 68% width, narrowest (v4.1) | **0.012** |
 | 68% width, latest (v6.1) | 0.016 |
 
 Three things worth taking away.
@@ -10364,7 +10366,13 @@ P_REF3, REF3_UNC = refereed(E_PREM)
 print('referee (scipy slab product, PREM edges honored, Richardson-extrapolated)')
 print('  its own residual discretization error: %.2e' % REF3_UNC)
 print('  nothing below that line can be resolved by this comparison')'''),
-    md(r'''### Self-convergence: each code refined against itself'''),
+    md(r'''### Self-convergence: each code refined against itself
+
+The first thing to ask of either code is whether its answer has stopped moving. It is a weak
+question -- a method agreeing with itself shares its own blind spots, which is notebook 22's
+whole subject -- but it is the one a user can ask without installing a second code, and a
+curve that has *not* flattened settles the matter on its own. The refereed column beside it
+says whether the answer stopped on the right value.'''),
     code(r'''print('Magnus, refined against its own tightest setting')
 P_mg_ref = magnus_prem(1.0e-11, 1.0e-13)
 print('%-22s %-12s %s' % ('rtol/atol', 'time [ms]', 'max |P - P_tightest|'))
@@ -11976,9 +11984,12 @@ is worth showing because it decides what can be validated at all:
 
 | | accumulated phase over the ray | oscillation lengths |
 |---|---|---|
-| $\Delta m^2_{31} = 2.5\times10^{-3}$ (section 11) | $1.5\times10^{4}$ rad | 2 352 |
-| $\Delta m^2_{41} = 1$ eV$^2$ | $5.9\times10^{6}$ rad | **940 981** |
-| $\Delta m^2_{41} = 10^{-2}$ eV$^2$ | $5.9\times10^{4}$ rad | 9 410 |
+| $\Delta m^2_{31} = 2.5\times10^{-3}$ (section 11) | $1.5\times10^{4}$ rad | 4 705 |
+| $\Delta m^2_{41} = 1$ eV$^2$ | $5.9\times10^{6}$ rad | **1 881 960** |
+| $\Delta m^2_{41} = 10^{-2}$ eV$^2$ | $5.9\times10^{4}$ rad | 18 820 |
+
+(One oscillation length advances the $\sin^2$ argument by $\pi$, not $2\pi$, so the right
+column is the phase over $\pi$. Notebook 14 prints 4 726 for the first row independently.)
 
 An adaptive DOP853 reference has to resolve every one of those oscillations. At an eV-scale
 splitting that is of order a day for a single front width -- measured by starting one and
@@ -12172,7 +12183,7 @@ books['27_magnus_animations.ipynb'] = notebook(
 
 The first four are the same four that [NuOscProbExact's notebook 19](https://github.com/mbustama/NuOscProbExact/blob/main/notebooks/19_animations.ipynb)
 draws, computed here with Mag$\nu$s so that the two can be read side by side. The five after
-them have no counterpart there, because each animates something a closed-form slab code does
+them have no counterpart there, because each shows something a closed-form slab code does
 not have: a refinement ladder deciding it has converged, a front that travels, an observable
 that is an average rather than a value, and a Hamiltonian that genuinely varies along the path.
 
@@ -12513,7 +12524,7 @@ print('One slab is off by %.2e; forty slabs by %.2e.'
       % (abs(slabbed(1) - P_CONVERGED), abs(slabbed(40) - P_CONVERGED)))'''),
     md(r'''# Part II --- five scenes with no counterpart
 
-Each of these animates something a closed-form slab code does not have: a ladder that decides
+Each of these shows something a closed-form slab code does not have: a ladder that decides
 when it has converged, a front that travels, an observable that is an average rather than a
 value, and Hamiltonians that vary along the path.'''),
     md(r'''## 5. The refinement ladder, deciding
@@ -12872,8 +12883,8 @@ print('At eps_ee = 0.30 they differ by up to %.3f.'
       % float(np.max(np.abs(solar_curve(0.30) - SOLAR_STANDARD))))'''),
     md(r'''## Rendering them as animations
 
-Six of the nine scenes animate: the CP phase, the sterile state, the Earth, the slab count,
-the shock and the traveling crest, plus the Sun with NSI. The ladder and the averaging scenes
+Seven of the nine scenes animate: the CP phase, the sterile state, the Earth, the slab
+count, the shock, the traveling crest and the Sun with NSI. The ladder and the averaging scenes
 do not --- one is a table and the other costs about a minute per point.
 
 The stills above are what this notebook draws by default. Set `RENDER = True` to write the
@@ -18943,11 +18954,12 @@ and 1e-6 is still 1.3e-2 away.
 
 The four sterile rows carry an arrow instead. A step solver has to resolve the fastest
 phase in the Hamiltonian, and an eV-scale `D41` puts about 5.5e7 cycles along the ray
-against 1.4e5 at three flavours -- on an identical segment, 3+1 takes 305,162 right-hand
+against 1.4e5 at three flavors -- on an identical segment, 3+1 takes 305,162 right-hand
 sides where 3nu takes 926. Those solves run for tens of hours, so they are projected from
 a measured segment rather than run, and nothing projected is drawn at a coordinate. The
-projection is checked where it can be: it reproduces the three-flavour cost to 354 s
-against 354 s measured.'''),
+projection is checked on the four rows whose reference could actually be run: it lands
+2.6 % high at three flavors -- 401 s projected against 391 s measured -- and 17 to 19 %
+high on the other three.'''),
     code(r'''# ------------------------------------------- averaged probability, by configuration
 COST = json.loads((HERE/'external_solar_average_cost.json').read_text())
 print('machine: %s | interleaved control: %.3f'
@@ -19376,14 +19388,18 @@ print('instantaneous probability is not the quantity an experiment reports.')'''
 
     md(r"""## 5. The averaged regime, and the factor of two
 
-Now the standard phases have averaged away and each pair is still coherent.
-`coherence_blocks` sees exactly that: three blocks of two.
+Now the standard phases have averaged away while each pair is still on its first cycle.
+`coherence_blocks` groups exactly that: three blocks of two.
 
 Two expressions are then in play. The **coherent-block** form sums *amplitudes* within a block
 and squares once; the **naive** form sums probabilities, one term per eigenstate. Within a
 block the pair splits its parent state's mixing evenly between two columns, so summing the
 amplitudes rebuilds $|U_{\alpha j}|^2$ and the block form returns the ordinary Dirac answer.
-Summing probabilities instead loses a factor of two."""),
+Summing probabilities instead loses a factor of two.
+
+Both are *limits* -- zero pair phase on one side, full decoherence on the other -- and the
+factor of two between them is algebra, not a measurement. At the splitting used here
+`coherence_report` places every pair in neither limit, which is what Section 6 is about."""),
 
     code(r'''W = hamiltonians.pseudo_dirac_mixing_matrix(U, PAIRS_PHYS)
 masses = hamiltonians.pseudo_dirac_mass_squared(M2, PAIRS_PHYS)
