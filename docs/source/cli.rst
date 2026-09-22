@@ -201,32 +201,18 @@ the full description of the three values).  It defaults to ``auto`` and is
 ignored for vacuum and constant-density environments, whose Hamiltonians do not
 depend on position at all.
 
-This matters most for low-energy solar neutrinos, where the accumulated phase is
-extreme.  ``magnus`` is not merely slower there -- it can hit its refinement caps
-and return a confidently wrong number:
+Since ``auto`` is the default, you need this flag only to *opt out* of the
+hybrid strategy (``--strategy magnus``, which reproduces the behavior of
+releases before the adiabatic strategy existed) or to force it and be warned
+when it cannot certify its own result (``--strategy hybrid``).
 
-.. code-block:: bash
-
-   magnus prob --flavors 3 --environment sun --energy 10 --energy-unit MeV \
-       --baseline 626000 --nu-i e --nu-f e --strategy magnus
-
-.. code-block:: text
-
-   P = 0.6560
-
-.. code-block:: bash
-
-   magnus prob --flavors 3 --environment sun --energy 10 --energy-unit MeV \
-       --baseline 626000 --nu-i e --nu-f e --strategy auto
-
-.. code-block:: text
-
-   P = 0.2905
-
-The second value is the correct one.  Since ``auto`` is the default, you only
-need this flag to *opt out* of the hybrid strategy (``--strategy magnus``, to
-reproduce the older behavior) or to force it and be warned when it cannot
-certify its own result (``--strategy hybrid``).
+Opting out is rarely what you want.  ``magnus`` resolves the oscillation phase
+slab by slab, and a low-energy solar neutrino accumulates an extreme amount of
+it, so that is the route that runs into a refinement cap and raises
+``ToleranceNotAchievedWarning``.  `Notebook 12
+<https://github.com/mbustama/Magnus/blob/main/notebooks/12_magnus_adiabatic_hybrid_strategy.ipynb>`_
+times all three against ``solve_ivp`` from two to five flavors, with and
+without NSI, printing the error beside each time.
 
 Errors are explicit rather than silent
 ------------------------------------------

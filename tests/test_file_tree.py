@@ -361,6 +361,8 @@ TREE = [
      "Every figure main.tex includes is tracked, which .gitignore's *.pdf defeats"),
     ('tests/test_readme_lists_every_notebook.py',
      'notebooks/README.md describes every notebook make_notebooks.py builds'),
+    ('tests/test_adiabatic_validation_table.py',
+     "adiabatic_strategy.rst's speed-up table and make_figures.py's chart agree"),
     ('tests/conftest.py', 'Path setup so magnus is importable without installation'),
     ('tests/test_adiabatic.py', 'Adiabatic + Magnus hybrid strategy: detection, merging, ODE cross-checks'),
     ('tests/test_angles.py', "The four `angles` conventions and the guards between them"),

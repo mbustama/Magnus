@@ -432,8 +432,8 @@ both real and genuinely complex (CP-violating) Hamiltonians.
 
    Measured speedup versus a tight-tolerance ``solve_ivp`` ground truth
    across the validation grid (log scale), plotting exactly the numbers in
-   the table above -- both come from ``VALIDATION_GRID`` in
-   ``docs/make_figures.py``, so they cannot drift apart. Purely adiabatic
+   the table above -- ``tests/test_adiabatic_validation_table.py`` holds the
+   two against each other, so they cannot drift apart. Purely adiabatic
    cases (green) are fastest, since no exact patch is ever computed; cases
    needing one or more Magnus patches (red) are still 30-90x faster than
    direct integration, dominated by the (still cheap, since the window is

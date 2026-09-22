@@ -8,9 +8,10 @@ drifted out of step with the validation table it sits directly beneath: the char
 a 25,800x bar for the case that table reports as ~30x (25,800x came from a *different*
 measurement -- a standard-3nu run at 2 MeV that does not appear in the table at all).
 
-The numbers now live in exactly one place in this repository, ``VALIDATION_GRID`` below,
-which mirrors the table in ``adiabatic_strategy.rst``.  Change a measurement there, rerun
-this script, and the chart follows::
+The chart is drawn from ``VALIDATION_GRID`` below, which carries the same measurements as
+the validation table in ``adiabatic_strategy.rst``; ``tests/test_adiabatic_validation_table.py``
+fails if the two ever disagree.  Change a measurement in both, rerun this script, and the
+chart follows::
 
     python3 docs/make_figures.py
 
@@ -48,7 +49,8 @@ INK = '#333333'
 GRID = '#cccccc'
 
 # (label, number of non-adiabatic windows, measured speedup vs. tight-tolerance solve_ivp).
-# Must stay in step with the validation table in docs/source/adiabatic_strategy.rst.
+# Must stay in step with the validation table in docs/source/adiabatic_strategy.rst,
+# which tests/test_adiabatic_validation_table.py checks rather than trusts.
 VALIDATION_GRID = [
     ('Standard 3ν', 0, 3600),
     ('Standard 4ν (3+1)', 0, 4670),

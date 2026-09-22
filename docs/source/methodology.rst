@@ -288,11 +288,11 @@ Dropping to order 2 is almost never worthwhile -- at :math:`10^{-8}` on the
 Earth cases it needs thousands of slabs where order 6 needs about a hundred,
 and runs roughly twenty times slower.
 
-Beyond order 6 the terms are generated rather than written out, the count
-roughly doubles per order, and ``'gl'`` has no scheme at all (see
-:doc:`expansion_terms`), so orders 7 to 10 require ``'trapezoid'`` or
-``'simpson'`` and warn about their cost.  They are there for accuracy
-studies rather than production runs.
+Beyond order 6 the terms are generated rather than written out and their count
+roughly doubles per order (see :doc:`expansion_terms`).  ``'gl'`` reaches order
+8 on its four-node scheme; orders 9 and 10 exist only on ``'trapezoid'`` and
+``'simpson'``, which warn about their cost above order 6.  The high orders are
+there for accuracy studies rather than production runs.
 
 .. note::
    How these numbers were obtained, since they are the basis for leaving the
@@ -523,10 +523,11 @@ take the square root — ``gd.S12_NO_BF_NUFIT_6_0`` is ``np.sqrt(0.308)``.
 Phases are in **radians**; the default :math:`\delta_{CP}` is 3.7001 rad, i.e.
 212 degrees.
 
-Two flavors take ``sth`` and ``Dm2`` rather than ``s12`` and ``D21``. Passing
-the three-flavor names to a two-flavor call is not an error — the keys are
-simply not recognized — so check the names if a two-flavor result looks
-untouched by the parameters you set.
+Two flavors take ``sth`` and ``Dm2`` rather than ``s12`` and ``D21``. This is
+one of the few convention errors here that cannot pass quietly: unrecognized
+keywords are refused by name at the call site rather than forwarded down, so a
+two-flavor call written with the three-flavor names raises instead of returning
+a probability computed from the defaults.
 
 Units
 ~~~~~

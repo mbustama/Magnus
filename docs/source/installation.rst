@@ -359,6 +359,7 @@ File Tree
        ├── test_notebooks_match_their_generator.py  # The committed .ipynb files are the ones make_notebooks.py builds
        ├── test_paper_assets_are_tracked.py  # Every figure main.tex includes is tracked, which .gitignore's *.pdf defeats
        ├── test_readme_lists_every_notebook.py  # notebooks/README.md describes every notebook make_notebooks.py builds
+       ├── test_adiabatic_validation_table.py  # adiabatic_strategy.rst's speed-up table and make_figures.py's chart agree
        ├── conftest.py                 # Path setup so magnus is importable without installation
        ├── test_adiabatic.py           # Adiabatic + Magnus hybrid strategy: detection, merging, ODE cross-checks
        ├── test_angles.py              # The four `angles` conventions and the guards between them
