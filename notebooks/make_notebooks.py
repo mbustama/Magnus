@@ -13934,8 +13934,11 @@ for d in sorted(results):
     print('d=%d  %d points   max|dP| %.2e   oracle floor %.2e   unitarity %.2e'
           % (d, N_PLOT, r['resid'].max(), r['floor'].max(), r['unit'].max()))'''),
     md(r'''### Drawing it'''),
-    code(r'''fig, axes = plt.subplots(2, 4, figsize=(WIDE, 3.25), sharex='col',
-                         gridspec_kw=dict(height_ratios=[2.05, 1.0], hspace=0.06,
+    code(r'''# The bottom row is given a larger share than the 1.0 it began with, and the
+# figure a matching 0.23 in of extra height so the top row keeps its size: at the
+# original proportions the residual legend sat on the curves it describes.
+fig, axes = plt.subplots(2, 4, figsize=(WIDE, 3.48), sharex='col',
+                         gridspec_kw=dict(height_ratios=[2.05, 1.22], hspace=0.06,
                                           wspace=0.09))
 COLORS = {2: BLUE, 3: ORANGE, 4: GREEN, 5: PURPLE}
 for j, d in enumerate((2, 3, 4, 5)):
@@ -13965,7 +13968,15 @@ axes[0, 0].legend(loc='lower right', handlelength=1.3)
 axes[1, 0].plot([], [], color=INK, lw=1.0, label=r'Max $|\Delta P|$')
 axes[1, 0].plot([], [], color=INK, lw=0.7, ls='--', label='Oracle floor')
 axes[1, 0].plot([], [], color='0.55', lw=0.5, label=r'$|\sum_\beta P - 1|$')
-axes[1, 0].legend(loc='upper left', handlelength=1.4, labelspacing=0.18, fontsize=8.0)
+leg = axes[1, 0].legend(loc='upper left', handlelength=1.4, labelspacing=0.18,
+                        fontsize=8.0)
+# Translucent fill, opaque border.  `framealpha` would do the first but applies the
+# alpha to the patch as a whole, fading the black edge the house style asks for to
+# grey; setting the face colour directly leaves the edge alone.
+frame = leg.get_frame()
+frame.set_alpha(None)
+frame.set_facecolor((1.0, 1.0, 1.0, 0.75))
+frame.set_edgecolor('black')
 # Centred on the four columns rather than on the figure, which the y-axis label
 # would otherwise pull left, and close to the axis it belongs to.
 fig.align_labels()
