@@ -182,16 +182,16 @@ Using and diagnosing the machinery
 
 `20. Numerical edge cases <https://github.com/mbustama/Magnus/blob/main/notebooks/20_magnus_numerical_edge_cases.ipynb>`_
    Exact degeneracies, zero baselines and empty requests all return numbers
-   rather than ``NaN``. Plus what each of the nine warning classes means, and
+   rather than ``NaN``. Plus what each of the fourteen warning classes means, and
    which to act on.
 
 `21. What rtol and atol promise <https://github.com/mbustama/Magnus/blob/main/notebooks/21_magnus_what_tolerance_means.ipynb>`_
    A stopping criterion, not an error bound. Measured against an independent
    ``solve_ivp`` oracle: a request for :math:`10^{-2}` came back wrong by
-   :math:`2.5\times10^{-2}` and reported success.
+   :math:`4.8\times10^{-2}` and reported success.
 
 `22. Which engine answered, and why <https://github.com/mbustama/Magnus/blob/main/notebooks/22_magnus_which_engine_answered.ipynb>`_
-   Six engines in five families, and ``cross_check_strategies`` — an error bar
+   Eight registered engines in five families, and ``cross_check_strategies`` — an error bar
    that needs no oracle, because two different methods disagreeing is itself the
    signal.
 

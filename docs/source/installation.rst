@@ -242,7 +242,7 @@ File Tree
    │   ├── 17_magnus_ordering_and_octant.ipynb  # The sign of D31, and how large the two open questions are
    │   ├── 18_magnus_unusual_density_profiles.ipynb  # Arrangement beats the mean, except for one exact symmetry
    │   ├── 19_magnus_custom_hamiltonian.ipynb  # The H_func contract, and the vectorization trick
-   │   ├── 20_magnus_numerical_edge_cases.ipynb  # Degeneracies that return numbers, and the nine warnings
+   │   ├── 20_magnus_numerical_edge_cases.ipynb  # Degeneracies that return numbers, and the fourteen warnings
    │   ├── 21_magnus_what_tolerance_means.ipynb  # rtol is a stopping criterion, not an error bound
    │   ├── 22_magnus_which_engine_answered.ipynb  # strategy_info, and an error bar with no oracle
    │   ├── 23_magnus_when_averaging_helps.ipynb  # Phase error falls away, envelope error does not

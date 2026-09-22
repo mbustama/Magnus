@@ -91,7 +91,7 @@ import magnus.globaldefs as gd
 # osc_prob_3nu_* functions take, so it can be splatted straight in.
 NUFIT_NO = gd.load_nufit_params('NuFIT 6.1', 'NO')
 import magnus.plotting as plotting'''),
-    md(r'''To compute neutrino oscillation proabilities, Mag$\nu$s needs only three ingredients: 
+    md(r'''To compute neutrino oscillation probabilities, Mag$\nu$s needs only three ingredients: 
 * a Hamiltonian (`H_func`), written in the flavor basis, as a function of neutrino position (or time),
 * the initial neutrino position (or time, `t_ini`), and
 * the final neutrino position (or time, `t_fin`).
@@ -125,7 +125,7 @@ All of them live in a single module, `magnus.hamiltonians`, which we import as''
   \end{array}
  \right) \;.
 \end{equation}'''),
-    md(r'''We need values for the oscillation parameters $\theta$ and $\Delta m^2$.  Users can provide any values they wish.  For this example, we will shows oscillations between $\nu_e$ and $\nu_mu$, and use central values of the $\theta_{12}$ and $\Delta m_{21}^2$ parameters from the NuFit 6.0 global fit to oscillation data, which are predefined in the Mag$\nu$s globaldefs module, i.e.,'''),
+    md(r'''We need values for the oscillation parameters $\theta$ and $\Delta m^2$.  Users can provide any values they wish.  For this example, we will show oscillations between $\nu_e$ and $\nu_\mu$, and use central values of the $\theta_{12}$ and $\Delta m_{21}^2$ parameters from the NuFIT 6.1 global fit to oscillation data, which are predefined in the Mag$\nu$s globaldefs module, i.e.,'''),
     code(r'''import magnus.globaldefs as gd
 
 sth = NUFIT_NO['s12'] # sin(theta) [adim]
@@ -139,7 +139,7 @@ energy = 1.*gd.UNIT_MEV # [eV]'''),
     code(r'''import magnus.oscprobstd as oscprobstd'''),
     md(r'''Internally, the `osc_prob` function performs Magnus expansion to compute the evolution of the neutrino oscillation amplitude from `t_ini` to `t_fin` by partitioning this interval into subintervals, computing the evolution operator inside each subinterval, and performing their time-ordered product. The user manipulates the options of the Magnus expansion indirectly, via parameters passed to osc_prob.
 
-(Users interested in using Mag$\nu$s to compute the Magnus expansion of an arbitrary matrix exponential, not only in neutrino oscillations, should look at the notebook `10_magnus_matrix_exponential.ipynb`.)
+(Users interested in using Mag$\nu$s to compute the Magnus expansion of an arbitrary matrix exponential, not only in neutrino oscillations, should look at the notebook `11_magnus_matrix_exponential.ipynb`.)
 
 The `osc_prob` function computes probabilities for *any* number of neutrino flavors.  If it is fed a $2 \times 2$ Hamiltonian, then it will return probabilities for a two-neutrino system; if it is fed a $3 \times 3$ Hamiltonian, it will return probabilities for a three-neutrino system, *etc*.'''),
     md(r'''We call `osc_prob` to compute the probability from `t_ini = 0.0` to `t_fin = baseline`. We pass `verbose = 2` to see run information and warnings:'''),
@@ -176,9 +176,9 @@ For convenience, Mag$\nu$s includes a wrapper to return the probability matrix i
 prob'''),
     md(r'''And from this we can select the probability channel we are interested, say $\nu_e \to \nu_\mu$,'''),
     code(r'''prob[:,gd.NUE,gd.NUMU]'''),
-    md(r'''We one can directly ask `osc_prob_2nu_vacuum` to return only that probability by passing the initial and final flavors, `nu_i` and `nu_f` (which reduces memory requirements).
+    md(r'''One can also ask `osc_prob_2nu_vacuum` to return only that probability by passing the initial and final flavors, `nu_i` and `nu_f` (which reduces memory requirements).
 
-If `energy` and `L` as floats, the probability is returned as a float.'''),
+If `energy` and `L` are floats, the probability is returned as a float.'''),
     code(r'''oscprob.osc_prob_2nu_vacuum(gd.UNIT_MEV*1.0, baseline, sth, Dm2, nu_i=gd.NUE, nu_f=gd.NUMU)'''),
     md(r'''If `energy` is a float and `L` is a list (or NumPy array) with multiple entries, `osc_prob_2nu_vacuum` returns an array with the probability computed for that fixed `energy` and each value inside `L`:'''),
     code(r'''oscprob.osc_prob_2nu_vacuum(gd.UNIT_MEV*1.0, gd.UNIT_KM*np.array([1.0, 10.0, 100.0, 1000.0]), sth, Dm2, nu_i=gd.NUE, nu_f=gd.NUMU)'''),
@@ -249,7 +249,7 @@ Also, `osc_prob_3nu_vacuum` can be called without passing values for any of the 
     md(r'''We can also specify only some of the oscillation parameter values, and let `osc_prob_3nu_vacuum` set the unspecified parameters to their default values, *e.g.*,'''),
     code(r'''oscprob.osc_prob_3nu_vacuum(gd.UNIT_MEV*np.array([1.0, 10.0]), baseline, s13=0.0, dCP=0.0, D31=0.0,
                             nu_i=gd.NUE, nu_f=gd.NUMU, verbose=1)'''),
-    md(r'''Finally, by passing the argument `default_osc_params_set_name` we can specifiy which parameter data set should be used by `osc_prob_3nu_vacuum` as the default from which to assign values to the unspecified parameters.  We can print the list of available predefined parameter set names via'''),
+    md(r'''Finally, by passing the argument `default_osc_params_set_name` we can specify which parameter data set should be used by `osc_prob_3nu_vacuum` as the default from which to assign values to the unspecified parameters.  We can print the list of available predefined parameter set names via'''),
     code(r'''list(gd.OSC_PARAMS_PREDEFINED.keys())'''),
     md(r'''And the current default set is'''),
     code(r'''gd.OSC_PARAMS_PREDEFINED['OSC_PARAMS_DEFAULT']'''),
@@ -402,10 +402,10 @@ With this, the total Hamiltonian becomes
 \begin{equation}
  H_{3\nu} = H_{3\nu}^{\rm vac} + H_{3\nu}^{\rm matt} \;.
 \end{equation}
-The potential $V_{\rm CC} = \sqrt{2} G_F N_e$ varies proportionally to the electron number densit, $N_e$.'''),
+The potential $V_{\rm CC} = \sqrt{2} G_F N_e$ varies proportionally to the electron number density, $N_e$.'''),
     code(r'''rho = 10*gd.UNIT_G_PER_CM3 # [g cm^{-3}]'''),
     md(r'''which is roughly the density at the center of the Earth.'''),
-    md(r'''To compute the potential given the matter density, we will need a few helper functions that are provied by Mag$\nu$s in the `matter` module, which we now import:'''),
+    md(r'''To compute the potential given the matter density, we will need a few helper functions provided by Mag$\nu$s in the `matter` module, which we now import:'''),
     code(r'''import magnus.matter as matter'''),
     md(r'''First, we compute the electron number density using the `num_density_e_func` function.  This function can return the electron number density at any position given a varying matter density profile, which is why we need to pass `rho` as a position-dependent function, and evaluate at `l = 0.0` (any value of `l` will do, since `rho` is a constant).  We assume that the matter is isoscalar (*i.e.*, that the ratio of neutrons to protons is 1) and electrically neutral (*i.e.*, that the ratio of electrons to baryons, or the electron fraction, is 0.5):'''),
     code(r'''num_density_e = matter.num_density_e_func(l=0.0, density_matter_func=lambda l: rho, 
@@ -424,7 +424,7 @@ H_3nu = H_3nu_vac + H_3nu_matt'''),
     code(r'''oscprob.osc_prob_3nu_matter_constant_density(energy, baseline, rho, verbose=1)'''),
     md(r'''(A similar function exists for the two-neutrino case, `osc_prob_2nu_matter_constant_density`.)
 
-By default, this returns the probability for neutrinos.  To compute it for anti-neutrinos (which takes the complex-conjugate of the PMNS mixing matrix and flips the sign of $V_{\rm CC}$, the optional argument `nubar = True` must be passed.  For instance,'''),
+By default, this returns the probability for neutrinos.  To compute it for anti-neutrinos (which takes the complex conjugate of the PMNS mixing matrix and flips the sign of $V_{\rm CC}$), the optional argument `nubar = True` must be passed.  For instance,'''),
     code(r'''oscprob.osc_prob_3nu_matter_constant_density(energy, baseline, rho, nubar=True)'''),
     md(r'''And, like for the vacuum case (`osc_prob_2nu_vacuum` and `osc_prob_3nu_vacuum`), we can pass arrays of energy and baseline to compute in one go, and select single probability channels to return.'''),
     code(r'''oscprob.osc_prob_3nu_matter_constant_density(gd.UNIT_MEV*np.array([1.0, 5.0, 10.0, 100.0]), baseline, 
@@ -591,7 +591,10 @@ That is why the adaptive loop refines slabs rather than order, and why order 4 i
 Pass `verbose = 2` to watch the refinement happen:'''),
     code(r'''oscprob.osc_prob(lambda l: H_exp_density(l, energy), 0, baseline*gd.UNIT_KM, verbose=2,
                  rtol=1.e-3, atol=1.e-3, max_n_slabs=32)[nu_i][nu_f]'''),
-    md(r'''For most purposes a fixed `magnus_exp_order` of 3 or 4 is enough, and the slab refinement does the rest.
+    md(r'''For most purposes the default `magnus_exp_order` of 4 is enough, and the slab refinement does
+the rest. Asking for 3 instead buys nothing with the default `gl` integrator: orders 3 and 4
+share the same two-node Gauss-Legendre scheme, so 3 costs exactly what 4 costs. Notebook 24
+shows the pairs collapsing.
 
 Internally, `osc_prob` partitions the interval from `t_ini = 0` to `t_fin = baseline` into progressively more subintervals, or slabs, computes the evolution operator in each, and takes their position-ordered product.  It repeats that with a finer partition until two successive levels agree to within `rtol` and `atol`.
 
@@ -623,9 +626,14 @@ def VCC_gaussian_density(l, num_density_e_central, l_central, l_width):
 def H_gaussian_density(l, energy):
     return (1/energy)*H_vac_energy_indep  \
         + hamiltonians.hamiltonian_3nu_matter(VCC_gaussian_density(l, num_density_e_central, l_central, l_width)) # [eV]'''),
-    md(r'''Let's first generate the $\nu_e \to \nu_e$ survival probabilities vs. baseline for a fixed energy.  We pass `n_jobs = 10` to spread the work over ten parallel jobs: these parallelize over the requested **(energy, baseline) points**, not over the slabs within one point, so they pay off exactly when there are many points to compute -- as here, with a thousand baselines.  For a single point, leave it at 1.
+    md(r'''Let's first generate the $\nu_e \to \nu_e$ survival probabilities vs. baseline for a fixed energy.
 
-We also drop to third-order Magnus expansion for speed; the results do not change noticeably at this accuracy.'''),
+Note how the cell below computes them: one `osc_prob` call per baseline, inside a Python
+loop. That is the slow way round, and it is worth saying so rather than leaving it as the
+example to copy. `osc_prob` takes an **array** of baselines and answers the whole scan in one
+call, walking the profile once instead of a thousand times; notebook 24 prices that. `n_jobs`
+would not rescue the loop either -- it divides the points handed to a *single* call among
+processes, and every call here is handed exactly one.'''),
     code(r'''nu_i, nu_f = gd.NUE, gd.NUE
 
 # Baselines
@@ -656,15 +664,13 @@ print('   Done\n')
 
 # In matter: exponentially falling density profile
 print('Computing probabilities in matter, exponentially falling density ...\n')
-prob_matt_exp_density = [oscprob.osc_prob(lambda l: H_exp_density(l, energy), 0, l*gd.UNIT_KM,
-                                          magnus_exp_order=3, n_jobs=10)[nu_i][nu_f] 
+prob_matt_exp_density = [oscprob.osc_prob(lambda l: H_exp_density(l, energy), 0, l*gd.UNIT_KM)[nu_i][nu_f] 
                          for l in distances]
 print('   Done\n')
 
 # In matter: Gaussian density profile
 print('Computing probabilities in matter, Gaussian density ...\n')
-prob_matt_gaussian_density = [oscprob.osc_prob(lambda l: H_gaussian_density(l, energy), 0, l*gd.UNIT_KM, 
-                                               magnus_exp_order=3, n_jobs=10)[nu_i][nu_f] 
+prob_matt_gaussian_density = [oscprob.osc_prob(lambda l: H_gaussian_density(l, energy), 0, l*gd.UNIT_KM)[nu_i][nu_f] 
                               for l in distances]
 print('   Done\n')'''),
     md(r'''Now plot the probabilities vs. distance:'''),
@@ -707,15 +713,13 @@ print('   Done\n')
 
 # In matter: exponentially falling density profile
 print('Computing probabilities in matter, exponentially falling density ...\n')
-prob_matt_exp_density = [oscprob.osc_prob(lambda l: H_exp_density(l, enu), 0, baseline, 
-                                          magnus_exp_order=3, n_jobs=10)[nu_i][nu_f] 
+prob_matt_exp_density = [oscprob.osc_prob(lambda l: H_exp_density(l, enu), 0, baseline)[nu_i][nu_f] 
                          for enu in gd.UNIT_MEV*energies]
 print('   Done\n')
 
 # In matter: Gaussian density profile
 print('Computing probabilities in matter, Gaussian density ...\n')
-prob_matt_gaussian_density = [oscprob.osc_prob(lambda l: H_gaussian_density(l, enu), 0, baseline, 
-                                               magnus_exp_order=3, n_jobs=10)[nu_i][nu_f] 
+prob_matt_gaussian_density = [oscprob.osc_prob(lambda l: H_gaussian_density(l, enu), 0, baseline)[nu_i][nu_f] 
                               for enu in gd.UNIT_MEV*energies]
 print('   Done\n')'''),
     md(r'''And plot them:'''),
@@ -785,15 +789,13 @@ print('   Done\n')
 
 # In matter: exponentially falling density profile
 print('Computing probabilities in matter, exponentially falling density ...\n')
-prob_matt_exp_density = [oscprob.osc_prob(lambda l: H_exp_density(l, energy), 0, l*gd.UNIT_KM, 
-                                          magnus_exp_order=3, n_jobs=10)[nu_i][nu_f] 
+prob_matt_exp_density = [oscprob.osc_prob(lambda l: H_exp_density(l, energy), 0, l*gd.UNIT_KM)[nu_i][nu_f] 
                          for l in distances]
 print('   Done\n')
 
 # In matter: exponentially falling density profile with NSI
 print('Computing probabilities in matter, exponentially falling density with NSI ...\n')
-prob_matt_exp_density_nsi = [oscprob.osc_prob(lambda l: H_exp_density_nsi(l, energy), 0, l*gd.UNIT_KM, 
-                                              magnus_exp_order=3, n_jobs=10)[nu_i][nu_f] 
+prob_matt_exp_density_nsi = [oscprob.osc_prob(lambda l: H_exp_density_nsi(l, energy), 0, l*gd.UNIT_KM)[nu_i][nu_f] 
                              for l in distances]
 print('   Done\n')'''),
     md(r'''And plot them:'''),
@@ -835,15 +837,13 @@ print('   Done\n')
 
 # In matter: exponentially falling density profile
 print('Computing probabilities in matter, exponentially falling density ...\n')
-prob_matt_exp_density = [oscprob.osc_prob(lambda l: H_exp_density(l, enu), 0, baseline, 
-                                          magnus_exp_order=3, n_jobs=10)[nu_i][nu_f] 
+prob_matt_exp_density = [oscprob.osc_prob(lambda l: H_exp_density(l, enu), 0, baseline)[nu_i][nu_f] 
                          for enu in gd.UNIT_MEV*energies]
 print('   Done\n')
 
 # In matter: exponentially falling density profile
 print('Computing probabilities in matter, exponentially falling density with NSI ...\n')
-prob_matt_exp_density_nsi = [oscprob.osc_prob(lambda l: H_exp_density_nsi(l, enu), 0, baseline, 
-                                              magnus_exp_order=3, n_jobs=10)[nu_i][nu_f] 
+prob_matt_exp_density_nsi = [oscprob.osc_prob(lambda l: H_exp_density_nsi(l, enu), 0, baseline)[nu_i][nu_f] 
                              for enu in gd.UNIT_MEV*energies]
 print('   Done\n')'''),
     md(r'''And plot them:'''),
@@ -5538,7 +5538,7 @@ set the strongest limits on the higher-dimension operators.
 # -------------------------------------------- 10_magnus_averaged_probability
 books['10_magnus_averaged_probability.ipynb'] = notebook(
     'Phase-averaged (decohered) probabilities: `average=True`',
-    "A neutrino from an astrophysical source arrives with an oscillation phase\n$\\Delta m^2 L / 2E$ of order $10^{15}$.  Nothing in that number — the source\ndistance, the size of the production region, the detector's energy resolution —\nis known to anything close to the precision it would take to predict the phase,\nso the measurement integrates over many complete cycles and every oscillatory\nterm averages away.  What survives is\n\n$$P(\\nu_\\alpha \\to \\nu_\\beta) = \\sum_i |V_{\\alpha i}|^2 |V_{\\beta i}|^2$$\n\nwhere $V$ diagonalizes the Hamiltonian.  This is the exact $L/E \\to \\infty$\nlimit, not an approximation to be refined, and it costs one matrix product\ninstead of resolving $10^{15}$ radians.\n\nEvery oscillation-probability function in Magνs takes `average=True`.  This\nnotebook shows it for **2ν, 3ν, 4ν and 5ν**, and for a **custom Hamiltonian**\nthat is not one of the ones Magνs ships with.  Each plot plots the oscillating\nprobability against baseline (solid) together with its averaged value (dashed),\nso the average can be read as what the oscillation settles around.\n\nSee the [Phase-Averaged Probabilities](https://mbustama.github.io/Magnus/averaged_probability.html)\npage of the documentation for the derivation, the coherence criterion, and the\ntreatment of position-dependent Hamiltonians.",
+    "A neutrino from an astrophysical source arrives with an oscillation phase\n$\\Delta m^2 L / 2E$ of order $10^{15}$.  Nothing in that number — the source\ndistance, the size of the production region, the detector's energy resolution —\nis known to anything close to the precision it would take to predict the phase,\nso the measurement integrates over many complete cycles and every oscillatory\nterm averages away.  What survives is\n\n$$P(\\nu_\\alpha \\to \\nu_\\beta) = \\sum_i |V_{\\alpha i}|^2 |V_{\\beta i}|^2$$\n\nwhere $V$ diagonalizes the Hamiltonian.  This is the exact $L/E \\to \\infty$\nlimit, not an approximation to be refined, and it costs one matrix product\ninstead of resolving $10^{15}$ radians.\n\nEvery oscillation-probability function in Mag$\nu$s takes `average=True`.  This\nnotebook shows it for **2ν, 3ν, 4ν and 5ν**, and for a **custom Hamiltonian**\nthat is not one of the ones Mag$\nu$s ships with.  Each plot plots the oscillating\nprobability against baseline (solid) together with its averaged value (dashed),\nso the average can be read as what the oscillation settles around.\n\nSee the [Phase-Averaged Probabilities](https://mbustama.github.io/Magnus/averaged_probability.html)\npage of the documentation for the derivation, the coherence criterion, and the\ntreatment of position-dependent Hamiltonians.",
     [
     code(r'''import numpy as np
 import matplotlib.pyplot as plt
@@ -5678,7 +5678,7 @@ for num_flavors, sterile, fname in [(4, S4, 'prob_4nu_vacuum_averaged_vs_baselin
         fname)'''),
     md(r'''## A custom Hamiltonian
 
-Nothing above depends on the Hamiltonian being one Magνs ships with.  Here is a
+Nothing above depends on the Hamiltonian being one Mag$\nu$s ships with.  Here is a
 hand-built three-level Hamiltonian — a vacuum-like diagonal in a mixing basis of
 our own choosing, plus an off-diagonal term with no counterpart in the standard
 parameterization — driven through the same two functions.
@@ -5733,7 +5733,7 @@ plot_oscillating_and_averaged(
     ylabel=r'Probability')"""),
     md(r'''## When the average does not apply
 
-The averaged expression is a limit, and Magνs checks whether the request is
+The averaged expression is a limit, and Mag$\nu$s checks whether the request is
 actually in it.  At a terrestrial baseline the solar pair has accumulated a
 fraction of a radian and has not decohered at all, so no averaged expression
 describes the result — and asking for one warns instead of quietly answering.'''),
@@ -6032,7 +6032,7 @@ print("   int " + et.format_term(terms_12[-1]))'''),
 # --------------------------------------- 12_magnus_adiabatic_hybrid_strategy
 books['12_magnus_adiabatic_hybrid_strategy.ipynb'] = notebook(
     "The `strategy` parameter: `'auto'` vs. `'hybrid'` vs. `'magnus'`",
-    "Every matter/NSI/LIV oscillation-probability function in Magνs (and every\n`osc_prob_*_sun`/`osc_prob_*_sun_nsi`/`osc_prob_*_sun_liv` wrapper built on\nthem, plus the fully generic `osc_prob_sun`/`osc_prob_earth`) accepts a\n`strategy` keyword: `'auto'` (the default), `'hybrid'`, or `'magnus'`.\n\n* **`'magnus'`** uses only the traditional Magnus-expansion machinery: the\n  closed-form two-flavor interaction-picture integrator when it applies, or\n  the general adaptive slab-refinement method. This is the exact behavior\n  Magνs had before this feature existed.\n* **`'hybrid'`** additionally tries an **adiabatic-transport-plus-Magnus-patch**\n  propagator (`magnus.adiabatic.hybrid_propagator`): away from an eigenvalue\n  crossing of the instantaneous Hamiltonian, the evolution operator is\n  computed via the instantaneous eigenbasis (cheap regardless of how large\n  the accumulated oscillation phase is); near a genuine MSW resonance, a\n  short, exact Magnus patch is stitched in. The result stays exactly\n  unitary, and the whole computation self-certifies against its own\n  internal tolerances.\n* **`'auto'`** tries `'hybrid'` first, silently falling back to `'magnus'`\n  for any point where it does not apply or fails to self-certify.\n\nThis notebook reproduces, live, the validation described in\n[`docs/source/adiabatic_strategy.rst`](../docs/source/adiabatic_strategy.rst):\nfor a sequence of increasingly demanding cases (2 through 5 flavors,\nstandard oscillations and an engineered BSM resonance), we compare all\nthree `strategy` values against each other **and** against a\ntight-tolerance `scipy.integrate.solve_ivp` solution of the same\nSchrödinger equation, in both **runtime** and **accuracy**.\n\n**The headline result, previewed:** for 3 or more flavors, `strategy='magnus'`\n(the old default behavior) does not just get *slower* as the accumulated\noscillation phase grows -- with the library's default refinement caps, it\ncan hit them and return a **silently plausible-looking but wrong** answer,\nstill warning about it but not fixing it. `strategy='hybrid'`/`'auto'` are\nboth **fast and correct** in exactly this regime.",
+    "Every matter/NSI/LIV oscillation-probability function in Mag$\nu$s (and every\n`osc_prob_*_sun`/`osc_prob_*_sun_nsi`/`osc_prob_*_sun_liv` wrapper built on\nthem, plus the fully generic `osc_prob_sun`/`osc_prob_earth`) accepts a\n`strategy` keyword: `'auto'` (the default), `'hybrid'`, or `'magnus'`.\n\n* **`'magnus'`** uses only the traditional Magnus-expansion machinery: the\n  closed-form two-flavor interaction-picture integrator when it applies, or\n  the general adaptive slab-refinement method. This is the exact behavior\n  Mag$\nu$s had before this feature existed.\n* **`'hybrid'`** additionally tries an **adiabatic-transport-plus-Magnus-patch**\n  propagator (`magnus.adiabatic.hybrid_propagator`): away from an eigenvalue\n  crossing of the instantaneous Hamiltonian, the evolution operator is\n  computed via the instantaneous eigenbasis (cheap regardless of how large\n  the accumulated oscillation phase is); near a genuine MSW resonance, a\n  short, exact Magnus patch is stitched in. The result stays exactly\n  unitary, and the whole computation self-certifies against its own\n  internal tolerances.\n* **`'auto'`** tries `'hybrid'` first, silently falling back to `'magnus'`\n  for any point where it does not apply or fails to self-certify.\n\nThis notebook reproduces, live, the validation described in\n[`docs/source/adiabatic_strategy.rst`](../docs/source/adiabatic_strategy.rst):\nfor a sequence of increasingly demanding cases (2 through 5 flavors,\nstandard oscillations and an engineered BSM resonance), we compare all\nthree `strategy` values against each other **and** against a\ntight-tolerance `scipy.integrate.solve_ivp` solution of the same\nSchrödinger equation, in both **runtime** and **accuracy**.\n\n**The headline result, previewed:** for 3 or more flavors, `strategy='magnus'`\n(the old default behavior) does not just get *slower* as the accumulated\noscillation phase grows -- with the library's default refinement caps, it\ncan hit them and return a **silently plausible-looking but wrong** answer,\nstill warning about it but not fixing it. `strategy='hybrid'`/`'auto'` are\nboth **fast and correct** in exactly this regime.",
     [
     code(r'''import time
 import warnings
@@ -6060,7 +6060,7 @@ For every case below, we also solve the Schrödinger equation directly with
 `scipy.integrate.solve_ivp` (`DOP853`, `rtol=1e-10`, `atol=1e-12`) as an
 independent, method-agnostic ground truth to check every `strategy` value
 against.  We use the same sign/time-ordering convention as the rest of
-Magνs, $dU/dl = -iH(l)\,U(l)$.'''),
+Mag$\nu$s, $dU/dl = -iH(l)\,U(l)$.'''),
     code(r"""def exact_U(H_func, l0, l1, dim):
     '''Ground-truth evolution operator via a tight-tolerance ODE solve.'''
     def rhs(l, y):
@@ -6118,7 +6118,7 @@ def run_case(name, wrapper_func, wrapper_kwargs, H_func, l0, l1, dim):
     md(r'''## Case 1: two flavors
 
 Two-flavor oscillations already have a dedicated, exact, closed-form
-"interaction-picture" fast path in Magνs, independent of `strategy` (see
+"interaction-picture" fast path in Mag$\nu$s, independent of `strategy` (see
 `docs/source/methodology.rst`). So for two flavors, all three `strategy`
 values end up doing essentially the same thing -- and, at this particular
 baseline, even `solve_ivp` itself is cheap, since a 2-level ODE is
@@ -6387,6 +6387,16 @@ plt.show()'''),
   package's standard $10^{-3}$ target tolerance.
 * None of this requires the user to do anything: `strategy='auto'` is
   already the default everywhere it applies.
+
+**One limit on "correct across every case tested here", because it is a limit on the
+testing rather than on the cases.** The hybrid route certifies itself by probing the
+profile, so a feature narrower than the probe spacing is invisible to it -- and invisible
+in the same way to the general ladder's slab grid and to the cumulative scan, so all three
+agree and all three are wrong. Measured, that is up to $2.9\times10^{-2}$ against a
+requested $10^{-3}$, with no warning. `magnus.adiabatic` documents the detector and why
+concentration rather than size is the statistic it reports; notebook 22 shows the failure
+and the one thing that catches it, which is running two engines from genuinely different
+families. Declaring a known feature with `t_breakpoints` removes the question entirely.
 
 See [`docs/source/adiabatic_strategy.rst`](../docs/source/adiabatic_strategy.rst)
 for the full mathematical derivation (the adiabatic theorem, the exact
@@ -8845,10 +8855,14 @@ What to do about it:
 books['22_magnus_which_engine_answered.ipynb'] = notebook(
     'Which engine answered, and why',
     r'''Mag$\nu$s does not have one algorithm. `oscprob.ENGINE_FAMILIES` registers **eight**, in
-**five** families, and `strategy='auto'` picks between them per request. (The companion paper
-counts six, because it lists dispatch *rows*: `constant` is the constant-density special case
-of the energy-batched `separable`, and `expm` is the ladder's first term, exact when the
-Hamiltonian is piecewise constant on declared edges.) Most of the time you neither know nor need to
+**five** families, and `strategy='auto'` picks between them per request.
+
+Two other counts are in circulation and both say six, for different reasons and about
+different sets. The companion paper's Fig. 1b draws the six *dispatch rows* a scenario
+wrapper walks, which omits `constant` (folded into the energy-batched row) and `expm`. The
+`engines.rst` page counts six as well but lists `constant` separately and leaves out the
+closed-form average, and it says plainly that `expm` "is not an engine but is used as an
+oracle". The dictionary printed below is the registry, which is the superset. Most of the time you neither know nor need to
 know which one ran -- but when an answer looks wrong, "which engine produced this" is the first
 question, and Mag$\nu$s will tell you.
 
@@ -10982,7 +10996,7 @@ alone and survives a change of machine. "Code A is faster than code B" does not.
 | | |
 |---|---|
 | constant density, exactness | Mag$\nu$s and NuOscProbExact both $\sim10^{-16}$ |
-| constant density, speed | **comparable batched**, both ~1 µs/probability; both an order of magnitude slower called one energy at a time |
+| constant density, speed | **comparable batched**, both ~1 $\mu$s/probability; both an order of magnitude slower called one energy at a time |
 | single point, constant density | the closed form by ~1.7×, almost all of it wrapper parameter resolution |
 | PREM, 3ν, cost per call | NuOscProbExact by ~20× |
 | PREM, 3ν, accuracy reachable | Mag$\nu$s to $3\times10^{-10}$; the closed form stalls near $6\times10^{-5}$ |
@@ -15211,7 +15225,7 @@ save(fig, 'density_arrangement.pdf')'''),
 
 Before any chord: the density profile every Earth calculation reads, against radial
 distance. The bands are the layers, the dashed lines the three radii at which the
-electron fraction changes, and the cut-away globe carries the same colours. Every
+electron fraction changes, and the cut-away globe carries the same colors. Every
 `osc_prob_*_earth` call places a slab edge wherever its chord crosses one of the nine
 PREM boundaries, so no slab of the expansion straddles a density jump.'''),
     code(r'''# --- Figure 3e -- the Earth's density, with a cut-away globe
@@ -19567,7 +19581,7 @@ READING_ORDER = [
     ('19_magnus_custom_hamiltonian.ipynb', 'Bring your own Hamiltonian',
      'the contract, the vectorization trick, and what the Earth declares for you'),
     ('20_magnus_numerical_edge_cases.ipynb', 'Numerical edge cases',
-     'degeneracies that return numbers, and what the nine warnings mean'),
+     'degeneracies that return numbers, and what the fourteen warnings mean'),
     ('21_magnus_what_tolerance_means.ipynb', 'What rtol and atol promise',
      'a stopping criterion, not an error bound'),
     ('22_magnus_which_engine_answered.ipynb', 'Which engine answered, and why',

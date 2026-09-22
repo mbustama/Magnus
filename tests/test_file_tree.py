@@ -171,7 +171,7 @@ TREE = [
     ('notebooks/19_magnus_custom_hamiltonian.ipynb',
      'The H_func contract, and the vectorization trick'),
     ('notebooks/20_magnus_numerical_edge_cases.ipynb',
-     'Degeneracies that return numbers, and the nine warnings'),
+     'Degeneracies that return numbers, and the fourteen warnings'),
     ('notebooks/21_magnus_what_tolerance_means.ipynb',
      'rtol is a stopping criterion, not an error bound'),
     ('notebooks/22_magnus_which_engine_answered.ipynb',
