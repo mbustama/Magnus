@@ -145,10 +145,10 @@ The first row reproduces the committed output exactly.
 separate the orders, because an adaptive DOP853 crosses the ~16 PREM density jumps without
 being told they are there. It needs to integrate piecewise *between* the boundaries.
 
-Against a Magnus reference at 4000 slabs the real step is order 2 → 4 = **5591x**, which is
-the "about 5000" the prose claimed all along. The 4 → 6 step measures 4101x the same way and
-is deliberately **not** quoted anywhere: that is Magnus refereeing Magnus, which is what an
-independent referee would fix.
+**Retracted — see §6.** I wrote here and in the notebook that an independent measurement
+gives order 2 → 4 = 5591x. It does not: that figure came from a Magnus reference judging
+Magnus, and an independent referee puts order 4's error 250 times higher. Both the notebook
+claim and this one are withdrawn.
 
 Cost: notebook 24 times in seven cells through its `best_of` helper. `fig/expansion_order.pdf`
 is a docs figure, **not** a paper figure — the paper draws from `resources/paper/figs/`.
@@ -263,3 +263,84 @@ Removing those two keywords, I ran `str.replace` over the **whole generator** ra
 notebook 01's block: 24 sites across several notebooks instead of 8.  `git diff --stat`
 caught it before any rebuild.  **Scope every replacement to the notebook block it belongs
 to** -- the generator is one file holding twenty-nine documents.
+
+
+---
+
+## 6. Deep audit of the numbers this work introduced, 2026-09-22
+
+Prompted by a justified challenge.  I had put "a factor of **5600**" into notebook 24's
+committed prose, derived from a self-refereed comparison -- in the same paragraph where I
+withheld the 4 -> 6 step *because* it was self-refereed.
+
+### Method
+
+The 151 markdown lines added across `ae9c845..18eb86e` that carry a number, sorted by
+**provenance**, since provenance predicts this failure:
+
+- transcribed from a cell's own printed output;
+- read from a sourced file in the repository;
+- computed from table data or arithmetic, independently checkable;
+- **measured by comparing the package against a reference I built** -- the only class that
+  can fail the way 5600x failed.
+
+Exactly two claims fell in the last class: notebook 16's convergence statement, and
+notebook 24's factor.
+
+### Results
+
+| claim | verdict |
+|---|---|
+| nb12 2.9e-02 blind spot | stated verbatim in `adiabatic.py` |
+| nb13 X range, 37 % / 76 %, fit 1.6x and 2.4x | recomputed from the BS05 table |
+| nb14 70 m front | arithmetic |
+| nb14 resonance 30 323 / 28 058 km | re-derived; one crossing, as claimed |
+| nb15 collapse above 6 GeV, 0.03 vs 0.02, peaks 2.8 / 2.1 / 2.4 | all reproduced |
+| nb16 "fifth decimal ... sixth" | **audited against an independent referee -- sound** |
+| nb17 0.015, 0.49 / 0.42, thirty times | reproduced (29.9) |
+| nb19 ratio tends to twice the contrast | reproduced; surface term heads for 0.5 |
+| nb24 Y_e "0.466 core and mantle, 0.555 crust" | **WRONG -- corrected** |
+| nb24 "a factor of 5600" | **WRONG -- removed** |
+| nb25 phase table 4 705 / 1 881 960 / 18 820 | two derivations agree |
+| nb26 0.039 between 1.1 and 1.2 | from the printed table |
+
+Notebook 16 is worth singling out: its self-movement under a tighter tolerance is 3.39e-05
+and its true error against an independent referee is 3.40e-05.  There the ladder's own
+estimate is honest, and the claim survives -- now checked in a way the notebook itself
+cannot check.
+
+### The two failures
+
+**The 5600x.**  Order 4 at 600 slabs measures 1.597e-10 against a Magnus reference at 4000
+slabs and **4.018e-08** against an independent one.  The two referees agree about order 2
+(8.93e-07 and 8.72e-07) and differ 250-fold about order 4, because the Magnus reference
+shares order 4's error and it cancels in the difference.  Removed, and nothing replaces it:
+the honest statement is that the cell cannot price the order, which the notebook now says.
+
+**The electron fractions.**  PREM has **four** Y_e zones, not two: core 0.4656 (r <= 3480),
+mantle 0.4957 (to 6346.6), crust 0.4952 (to 6368), ocean 0.5551 above.  I wrote "0.466
+through the core and mantle, 0.555 in the crust" -- 0.466 is the core alone, and 0.555 is
+the *ocean*.  Corrected.  **The same wrong pair is in commit `c4d6b9a`'s message**, which
+cannot be rewritten; this is the correction of record.
+
+### What fixing notebook 24 actually requires
+
+Established by measurement during the audit, and more than §3 first proposed:
+
+1. per-layer `electron_fraction`, **and**
+2. per-layer `ratio_number_neutrons_to_protons` = (1-Y_e)/Y_e -- without it a residual of
+   6.7e-05 survives and the orders still do not separate; and
+3. a **Richardson-extrapolated** referee that reports its own uncertainty.  A plain midpoint
+   product self-converges to only ~1.2e-07 at 16 000 slabs, which cannot resolve orders 3
+   and up, sitting at 4.0e-08.
+
+With (1) and (2) alone the notebook could say 2 -> 4 is worth at least about tenfold, and no
+more.  Only (3) prices 4 -> 6.
+
+### Reading for next time
+
+The rule I stated and then broke: **a reference built from the code under test cannot
+measure that code's error.**  It measures the difference between their discretizations,
+which is smaller -- here by 250x -- and looks like accuracy.  The tell was in the data and I
+did not take it: the two referees agreed about order 2 and disagreed about order 4, which is
+the signature of a shared error cancelling.

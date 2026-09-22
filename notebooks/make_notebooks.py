@@ -9471,10 +9471,16 @@ requests a quadrature scheme rather than turning a continuous knob.
 **But so does every other row, and that is the referee's fault rather than the order's.** All
 six report the same $1.137\times10^{-1}$, because `vcc_prem_at` builds its potential with the
 default electron fraction of 0.5 while `osc_prob_3nu_earth` takes $Y_e$ from PREM layer by
-layer -- 0.466 through the core and mantle, 0.555 in the crust. The two are integrating
-different Earths, and that gap swamps anything the truncation does. Refereed instead against a
-Magnus reference at 4000 slabs, the step is real and large: order 2 at $8.9\times10^{-7}$,
-order 4 at $1.6\times10^{-10}$, a factor of **5600**.
+layer -- 0.4656 in the core, 0.4957 in the mantle, 0.4952 in the crust and 0.5551 in the
+ocean, none of them the 0.5 the referee assumes. The two are integrating different Earths, and
+that gap swamps anything the truncation does.
+
+**So this cell cannot price the order, and no number here should be read as if it could.**
+Refereeing it properly needs more than the composition fix: a step solver crossing the PREM
+jumps undeclared floors at $7\times10^{-5}$ whatever its tolerance, and a referee built from
+Mag$\nu$s itself would share the error it is meant to measure. What is wanted is the
+construction notebook 25 uses -- a slab product on the *continuous* profile, Richardson
+extrapolated, **reporting its own uncertainty** so the floor is visible rather than assumed.
 
 The timings do not depend on the referee, and they are the shape of the trade: order 2 to 4
 costs **1.87x**, and 4 to 6 a further **1.86x**.'''),
