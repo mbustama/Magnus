@@ -174,7 +174,7 @@ neutrino \sep oscillation \sep flavor \sep particle physics \sep Magnus expansio
 \begin{small}
 
 \noindent
-{\em Program title:} Mag$\nu$s ({\tt magnuspy}) v1.1.0 \\ \\
+{\em Program title:} Mag$\nu$s ({\tt magnuspy}) v1.1.1 \\ \\
 \smallskip
 %%%%
 {\em Licensing provisions:} GPL-3.0-only \\ \\
@@ -947,7 +947,7 @@ Extending the package usually requires only a new Hamiltonian. {\tt osc\_prob} a
  {\tt plotting} & Pre-packaged figures; imports only {\tt globaldefs} \\
  {\tt cli} & The {\tt magnus} console script \\
  \end{tabular}}
- \caption{\label{tab:modules}The modules of \magnus\ v1.1.0. {\tt magnus} and {\tt hamiltonians} can be used and tested independently of the probability functions.}
+ \caption{\label{tab:modules}The modules of \magnus\ v1.1.1. {\tt magnus} and {\tt hamiltonians} can be used and tested independently of the probability functions.}
 \end{table}}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -1429,7 +1429,7 @@ osc = gd.load_nufit_params('NuFIT 1.3',
 # Pme = 0.04998; 'free_fluxes_rsbl'
 # gives 0.04552
 \end{pysnip}
-\ref{app:params} shows the list of parameter sets  in \magnus\ v1.1.0.
+\ref{app:params} shows the list of parameter sets  in \magnus\ v1.1.1.
 
 Individual values are passed by name. Anything left unset still comes from the default set, so one angle can be moved without restating the other five:
 \begin{pysnip}
@@ -4169,7 +4169,7 @@ P = oscprob.osc_prob_3nu_earth(
 $ magnus prob --flavors 3 --environment matter \
     --density-profile constant --rho 3.0 \
     --energy 1 --baseline 1000
-Magnus 1.1.0 -- osc_prob_3nu_matter_constant_density
+Magnus 1.1.1 -- osc_prob_3nu_matter_constant_density
 E = 1 GeV, L = 1000 km
 
             nu_e   nu_mu  nu_tau
@@ -4180,10 +4180,10 @@ nu_tau    0.0011  0.0002  0.9987
 $ magnus prob --flavors 3 --environment earth \
     --loc-ini fermilab --loc-fin homestake \
     --energy 2.5 --nu-i mu --nu-f e
-Magnus 1.1.0 -- osc_prob_3nu_earth
+Magnus 1.1.1 -- osc_prob_3nu_earth
 E = 2.5 GeV
 
-P = 0.0663
+P = 0.0722
 \end{lstlisting}
 
 The script also exposes the numerical options of Sec.~\ref{sec:architecture}. {\tt --rtol} and {\tt --atol} set the tolerance, {\tt --strategy} asks for one of the routes of Sec.~\ref{sec:engines}, {\tt --magnus-exp-order} sets the order of the expansion, {\tt --n-jobs} spreads the work over several workers. Both tolerances default to $10^{-3}$ here, looser than the setting behind every figure in this paper, so a number from the command line can differ from a plotted one in the third digit.
