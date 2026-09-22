@@ -144,12 +144,22 @@ Refined against itself, each code reaches:
    * -
      - Magνs
      - NuOscProbExact
-   * - Best accuracy reached
+   * - Best accuracy **tried**
      - **3.3e-10**
      - 5.6e-05
    * - Cost per call
      - ~20× more
      - ~20× less
+
+**Neither figure is a floor.**  Each is the last point of a sweep that was still
+descending: Magνs over ``rtol`` down to 1e-8 against a 1e-11 reference, and
+NuOscProbExact over 2, 4, 8 and 16 slabs per segment against a 64-slab one,
+improving by about an order at every doubling and never run past 16 here.  What
+the closed form can actually reach is settled elsewhere: the paper's cross-code
+planes score each code against a 50-digit reference built in *its own* constants
+and conventions, and put NuOscProbExact near 2e-10 on a core-crossing chord.
+This comparison could not have resolved that in any case -- its referee's own
+residual is 4.3e-07.
 
 The residual between the two codes is 4.1e-04, which is the same order as the
 *looser* of the two curves — so most of it is NuOscProbExact's discretization
@@ -335,7 +345,8 @@ Summary
    * - PREM 3ν, cost
      - NuOscProbExact by ~20×
    * - PREM 3ν, accuracy reachable
-     - Magνs to 3e-10; the closed form stalls near 6e-05
+     - Magνs to 3e-10; the closed form was swept only to 16 slabs, still
+       improving, and reaches about 2e-10 when pushed (see above)
    * - PREM 3+1, cost
      - NuOscProbExact by ~400×, and Magνs *warns*
    * - PREM 3+1, accuracy reachable
