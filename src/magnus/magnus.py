@@ -2514,7 +2514,7 @@ def magnus_expansion(
     validate_input: Optional[bool] = True,
     A_eval_mode: Optional[str] = None,
     expm_backend: Optional[str] = None
-) -> np.ndarray:
+) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
     r"""Compute :math:`\exp(\Omega_1 + \cdots + \Omega_\text{order})` of :math:`A(t)` from
     ``t0`` to ``t1``.
 
@@ -2763,7 +2763,10 @@ def gl_nodes(order: int) -> np.ndarray:
 
     One to four nodes: the scheme uses the fewest that reach the order.
 """
-    return _gl_nodes(order)
+    # A copy: _gl_nodes returns the module constant itself, so writing into the value
+    # handed to a caller would corrupt every later quadrature in the process.  The
+    # internal callers keep using _gl_nodes, so no hot path pays for this.
+    return _gl_nodes(order).copy()
 
 
 USE_PALINDROME = True

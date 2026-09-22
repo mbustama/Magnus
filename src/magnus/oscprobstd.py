@@ -145,7 +145,9 @@ def osc_prob_2nu_matter_std(sth: float, Dm2: float, VCC: float, energy: float,
     cth = np.sqrt(1.0-sth*sth)
     s2th = 2.0*sth*cth
     s2thsq = s2th*s2th
-    c2th = np.sqrt(1.0-s2thsq)
+    # Signed: sqrt(1 - sin^2(2 theta)) is non-negative, which silently reflects the
+    # second octant onto the first.  The two agree only up to theta = 45 degrees.
+    c2th = cth*cth - sth*sth
 
     Dm2m = Dm2*np.sqrt(s2thsq+pow(c2th-x, 2.0))
     s2thmsq = s2thsq / (s2thsq+pow(c2th-x, 2.0))

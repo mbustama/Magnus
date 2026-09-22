@@ -2165,6 +2165,18 @@ def valid_flavor_indices_2nu(nu_i: int, nu_f: int) -> Tuple[int, int]:
     elif ((nu_i == gd.NUTAU) and (nu_f == gd.NUMU)):
         nu_i, nu_f = 1,0
 
+    # A pair the chain above does not cover -- (NUTAU, NUTAU) is the one that reaches here --
+    # used to pass through unmapped and index a 2x2 matrix out of bounds, several frames away
+    # and with nothing naming the cause.  Two flavors cannot say which state a tau-to-tau
+    # survival probability is about, so the request is refused where it is made.
+    for name, value in (('nu_i', nu_i), ('nu_f', nu_f)):
+        if (value is not None) and (value > 1):
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.valid_flavor_indices_2nu: " +
+                name + " = " + str(value) + " has no unambiguous two-flavor counterpart. "
+                "A two-flavor system has states 0 and 1; globaldefs.NUE, NUMU and NUTAU are "
+                "accepted only in the mixed pairs, where which state is meant follows from "
+                "the other index.")
+
     return nu_i, nu_f
 
 
@@ -2402,7 +2414,7 @@ def unpack_oscillation_params_from_dict(
         # because the callers pass this straight into validate_input_battery, which iterates it:
         # an implicit None made the path the warning above advertises raise TypeError instead.
         return np.array([])
-    elif (num_flavors < 1):
+    elif (num_flavors < 2):
         raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": num_flavors must be " + \
             ">= 2.")
 
@@ -2527,7 +2539,7 @@ def unpack_nsi_params_from_dict(
         # num_flavors exceeds the predefined range: the caller builds its Hamiltonian directly from
         # h_nsi instead of from a flat parameter list, so there is nothing to unpack here.
         return None
-    elif (num_flavors < 1):
+    elif (num_flavors < 2):
         raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": num_flavors must be " + \
             ">= 2.")
 
@@ -2682,7 +2694,7 @@ def unpack_liv_params_from_dict(
         # num_flavors exceeds the predefined range: the caller builds its Hamiltonian directly from
         # h_liv instead of from a flat parameter list, so there is nothing to unpack here.
         return None
-    elif (num_flavors < 1):
+    elif (num_flavors < 2):
         raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": num_flavors must be " + \
             ">= 2.")
 
@@ -4795,6 +4807,27 @@ def _refinement_params_rejected(scan_kwargs: Dict) -> bool:
         return True
     max_n_tpts = scan_kwargs.get('max_n_tpts_per_slab')
     if (max_n_tpts is not None) and (max_n_tpts <= 2):
+        return True
+    # The floors, and each floor against its own ceiling.  osc_prob rejects all six; without
+    # them here the same request was answered by the batched engine and refused by the
+    # per-point one, so whether a caller saw an error depended on which engine applied.
+    n_slabs = scan_kwargs.get('n_slabs')
+    if (n_slabs is not None) and (n_slabs < 1):
+        return True
+    min_n_slabs = scan_kwargs.get('min_n_slabs')
+    if (min_n_slabs is not None) and (min_n_slabs < 1):
+        return True
+    n_tpts = scan_kwargs.get('n_tpts_per_slab')
+    if (n_tpts is not None) and (n_tpts < 2):
+        return True
+    min_n_tpts = scan_kwargs.get('min_n_tpts_per_slab')
+    if (min_n_tpts is not None) and (min_n_tpts < 2):
+        return True
+    if ((min_n_slabs is not None) and (max_n_slabs is not None)
+            and (min_n_slabs > max_n_slabs)):
+        return True
+    if ((min_n_tpts is not None) and (max_n_tpts is not None)
+            and (min_n_tpts > max_n_tpts)):
         return True
     return False
 
