@@ -1349,6 +1349,15 @@ def plot_probability_with_average(
         akw.update(average_kw or {})
         curves.append(dict(y=avg_curve, **akw))
 
+    # Three keywords are handled here rather than forwarded.  `legend` collided with the
+    # legend=False below, so a caller who forwarded it got "multiple values" and could not
+    # suppress the legend at all.  `savefig` would have written the file inside the call
+    # below, before the averaged entry is added to the legend, so the saved figure was
+    # missing the very thing the plot exists to show.
+    _legend = _forbidden.pop('legend', True)
+    _savefig = _forbidden.pop('savefig', None)
+    _savefig_kw = _forbidden.pop('savefig_kw', None)
+
     fig, ax = plot_probability_vs_baseline(x, curves, legend=False, **_forbidden)
 
     main = ax[0] if isinstance(ax, np.ndarray) else ax
@@ -1362,7 +1371,10 @@ def plot_probability_with_average(
     for key, name in (('legend_title', 'title'), ('legend_loc', 'loc')):
         if _forbidden.get(key) is not None:
             lkw[name] = _forbidden[key]
-    main.legend(handles, labs, **lkw)
+    if _legend:
+        main.legend(handles, labs, **lkw)
+    # Saved last, so the file carries the averaged entry.
+    _finish(fig, _savefig, _savefig_kw, False)
     return fig, ax
 
 

@@ -302,6 +302,8 @@ configures):
                            'constant' (requires --rho) or 'exp' (requires --rho-central and
                            --l-scale). Default: constant.
      --nubar               Compute the probability for antineutrinos instead of neutrinos.
+                           No effect with --flavors 2 --environment vacuum, where there is
+                           no CP phase and no matter, so the two probabilities are equal.
 
    Energy and baseline:
      --energy ENERGY       Neutrino energy.

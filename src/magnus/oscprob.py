@@ -3748,7 +3748,10 @@ def osc_prob(
                             print("   " + tol_msg + " (for fixed magnus_exp_order "+ \
                                 "= " + str(magnus_exp_order) + "): rtol = " + str(rtol) + \
                                 ", atol = " + str(atol) + ".\n", file=f)
-                        if save_log and close_file_log_upon_exit: file_log.close()
+                    # Outside the verbosity branch.  The other three return paths close
+                    # unconditionally; honoring close_file_log_upon_exit only when the caller
+                    # also asked for output left the file open on the ordinary converged path.
+                    if save_log and close_file_log_upon_exit: file_log.close()
                     return (P, Utot) if return_evolution_operator else P
             P_old = np.ndarray.copy(P)
             if return_evolution_operator:
@@ -7321,7 +7324,8 @@ def osc_prob_vacuum(
     # slab; the tolerance and refinement parameters play no role and are not forwarded.)
     return osc_prob_energy_baseline(htot, energy, L, 0.0, nu_i, nu_f,
         htot_is_function_only_of_energy, n_jobs=n_jobs, validate_input=validate_input,
-        verbose=verbose, **kwargs)
+        verbose=verbose, save_log=save_log, filename_log=filename_log, file_log=file_log,
+        close_file_log_upon_exit=close_file_log_upon_exit, **kwargs)
 
 
 def osc_prob_matter_std_potential(
@@ -9868,6 +9872,10 @@ def osc_prob_2nu_matter_constant_density(
         density_matter_is_in_g_per_cm3=density_matter_is_in_g_per_cm3,
         density_is_of_number_of_electrons=density_is_of_number_of_electrons,
         validate_input=validate_input,
+        save_log=save_log,
+        filename_log=filename_log,
+        file_log=file_log,
+        close_file_log_upon_exit=close_file_log_upon_exit,
         new_recursion_limit=None,
         verbose=verbose,
         angles=angles,
@@ -12469,7 +12477,13 @@ def osc_prob_earth(
     nu_f : int, optional
         Final flavor index; see ``nu_i``.
     ratio_number_neutrons_to_protons : int or float, optional
-        Ratio of the number of neutrons to protons in Earth matter. Default: 1.0.
+        Accepted and **inert on this entry point**.  The density derives its own ratio from
+        the layered :math:`Y_e`, and with a caller-supplied ``H_func`` there is no
+        package-built matter projector for the ratio to enter -- sterile entries, if any,
+        are ``H_func``'s own business.  Changing it moves nothing: the largest difference
+        between ``r = 1.0`` and ``r = 0.1`` is exactly 0.0, at three flavors and at four.
+        The flavor-specific wrappers do use it, and there it is worth 0.29 in probability.
+        Default: 1.0.
     electron_fraction : int or float, optional
         One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
         ``0.5`` reproduces the uniform composition assumed before those existed.
@@ -13811,8 +13825,12 @@ def osc_prob_sun(
         density_is_of_number_of_electrons=True) # [eV]
     VCC_func = _PositionProfileCache(VCC_func)
 
+    # Popped rather than left in kwargs: the positional slot below is t_breakpoints, so a
+    # caller who supplied one collided with the None passed here.  osc_prob_earth already
+    # pops it; this path did not.
+    t_breakpoints = kwargs.pop('t_breakpoints', None)
     return _osc_prob_with_potential(source_func_name, H_func, VCC_func, energy, L, L0, nu_i,
-        nu_f, None, magnus_exp_order, n_jobs, integration_method, rtol, atol,
+        nu_f, t_breakpoints, magnus_exp_order, n_jobs, integration_method, rtol, atol,
         validate_input, verbose, strategy=strategy, strategy_info=strategy_info,
         average=average, **kwargs)
 
@@ -13931,6 +13949,10 @@ def osc_prob_2nu_matter_nsi_constant_density(
         density_matter_is_in_g_per_cm3=density_matter_is_in_g_per_cm3,
         density_is_of_number_of_electrons=density_is_of_number_of_electrons,
         validate_input=validate_input,
+        save_log=save_log,
+        filename_log=filename_log,
+        file_log=file_log,
+        close_file_log_upon_exit=close_file_log_upon_exit,
         new_recursion_limit=None,
         verbose=verbose,
         angles=angles,
@@ -14075,6 +14097,10 @@ def osc_prob_3nu_matter_nsi_constant_density(
         density_is_of_number_of_electrons=density_is_of_number_of_electrons,
         default_osc_params_set_name=default_osc_params_set_name,
         validate_input=validate_input,
+        save_log=save_log,
+        filename_log=filename_log,
+        file_log=file_log,
+        close_file_log_upon_exit=close_file_log_upon_exit,
         new_recursion_limit=None,
         verbose=verbose,
         angles=angles,
@@ -14251,6 +14277,10 @@ def osc_prob_4nu_matter_nsi_constant_density(
         density_is_of_number_of_electrons=density_is_of_number_of_electrons,
         default_osc_params_set_name=default_osc_params_set_name,
         validate_input=validate_input,
+        save_log=save_log,
+        filename_log=filename_log,
+        file_log=file_log,
+        close_file_log_upon_exit=close_file_log_upon_exit,
         new_recursion_limit=None,
         verbose=verbose,
         angles=angles,
@@ -14462,6 +14492,10 @@ def osc_prob_5nu_matter_nsi_constant_density(
         density_is_of_number_of_electrons=density_is_of_number_of_electrons,
         default_osc_params_set_name=default_osc_params_set_name,
         validate_input=validate_input,
+        save_log=save_log,
+        filename_log=filename_log,
+        file_log=file_log,
+        close_file_log_upon_exit=close_file_log_upon_exit,
         new_recursion_limit=None,
         verbose=verbose,
         angles=angles,

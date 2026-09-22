@@ -119,7 +119,9 @@ def build_parser() -> argparse.ArgumentParser:
         help="Matter density profile, only used with --environment matter: 'constant' "
              "(requires --rho) or 'exp' (requires --rho-central and --l-scale). Default: constant.")
     g_env.add_argument('--nubar', action='store_true',
-        help='Compute the probability for antineutrinos instead of neutrinos.')
+        help='Compute the probability for antineutrinos instead of neutrinos. No effect '
+             'with --flavors 2 --environment vacuum, where there is no CP phase and no '
+             'matter, so the two probabilities are equal.')
 
     g_kin = p.add_argument_group('Energy and baseline')
     g_kin.add_argument('--energy', type=float, required=True, help='Neutrino energy.')
