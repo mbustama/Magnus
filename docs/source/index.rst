@@ -96,20 +96,23 @@ tolerance.  Truncating early costs accuracy, never norm.
      - machine precision
    * - 2ν constant-density matter vs the closed form, ν and ν̄
      - machine precision
-   * - Earth crossing (PREM) at the default ``rtol = atol = 1e-3``, against a
-       1e-7-tolerance reference
-     - ~5e-4
+   * - Earth crossing (PREM) at the default ``rtol = atol = 1e-3``, against the
+       same call at 1e-7
+     - median 9e-7, worst 2e-3
    * - Asymmetric profiles with complex Hamiltonians vs ``solve_ivp``/DOP853 at
        ``rtol=1e-12``
      - 1e-4 to 1e-7
-   * - Energy-batched scan vs the per-point path
-     - exactly 0.0
+   * - Energy-batched scan vs the per-point path, grid and tolerances pinned
+     - 1e-12
    * - ``n_jobs > 1`` vs serial
      - exactly 0.0
 
-The last two rows are the ones worth reading twice: they are *bit-identity*
-assertions, not tolerances, so an optimization that changed an answer would fail
-them rather than pass quietly.
+The last row is the one worth reading twice: it is a *bit-identity* assertion
+rather than a tolerance, so an optimization that changed an answer would fail it
+rather than pass quietly.  The batched scan is held to 1e-12, and only with the
+grid pinned, which is what isolates the batching: left to refine on its own it
+builds the matter profile once for the whole scan, moving the answer at the 1e-6
+level.  Notebook 24 measures that comparison.
 
 **And the honest caveat.** ``rtol``/``atol`` are a stopping criterion --- the
 ladder halts when two successive refinement levels agree --- not a bound on the

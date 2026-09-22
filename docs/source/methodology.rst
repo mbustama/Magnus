@@ -436,11 +436,17 @@ the methodology above directly:
   quadrature) that isolates the slab time-ordering from every other
   source of numerical error.
 
-In practice, the default tolerance setting (``rtol = atol = 1e-3``, a
-target for the difference between successive refinements rather than a
-strict global error bound) delivers an actual accuracy of about
-:math:`5\times10^{-4}` on Earth crossings, verified against
-:math:`10^{-7}`-tolerance references.
+In practice the default setting (``rtol = atol = 1e-3``, a target for the
+difference between successive refinements rather than a strict global error
+bound) is usually far better than it promises and occasionally worse.  Over
+eight Earth chords from grazing to core-crossing at six energies between 0.5
+and 20 GeV, the same call at :math:`10^{-7}` differs from it by a median of
+9e-07 and a p90 of 1.2e-04 -- but by 2.2e-03 on the core-crossing chord at
+0.5 GeV, outside the tolerance that was asked for.  No single figure summarises
+a spread of three orders.  That sweep is
+``docs/dev/adversarial_batteries/prem_default_tolerance.py``; :doc:`diagnostics`
+gives the distribution over much larger populations, scored against an
+independent oracle rather than against a tighter run of the same method.
 
 See :doc:`references` for full citations of the works referred to above.
 

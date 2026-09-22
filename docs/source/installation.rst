@@ -48,19 +48,23 @@ repository root:
    cd Magnus
    pip install -e .
 
+Either way, one command confirms it worked:
+
 .. code-block:: bash
 
    magnus prob --flavors 3 --environment vacuum --energy 1 --energy-unit GeV \
        --baseline 1300 --baseline-unit km
 
-If you would rather not install anything, put ``src/`` on your Python
-path instead.  That is all that is needed -- every module imports through
-the ``magnus`` package (``import magnus.globaldefs``), so the package
-directory itself does not belong on the path:
+If you would rather not install the package at all, put ``src/`` on your Python
+path instead.  You still need its three runtime dependencies:
 
 .. code-block:: bash
 
    pip install -r src/requirements.txt
+
+Then point at ``src/`` itself.  Every module imports through the ``magnus``
+package (``import magnus.globaldefs``), so the package directory does not
+belong on the path:
 
 .. code-block:: python
 
@@ -81,9 +85,9 @@ is configured correctly for your system:
    pip install -e '.[test]'
    pytest tests/ -v
 
-It is about 1200 tests and takes some fifteen minutes with ``-n auto``; the same suite runs in CI on
-Python 3.10-3.13 on every push, so the badge on the :doc:`index` page tells
-you whether it passes there.
+It is about 1400 tests and takes a few minutes with ``-n auto``; the same suite
+runs in CI on Python 3.10-3.13 on every push, so the badge on the :doc:`index`
+page tells you whether it passes there.
 
 **What passing means.**  The suite is not only a smoke test, so it is worth
 knowing what it establishes:
@@ -97,10 +101,12 @@ knowing what it establishes:
 * **Against an independently coded recursion.**  The Magnus terms at orders
   1--6, and the Gauss--Legendre convergence rates under slab halving (error
   ratios 4, 16, 64).
-* **Properties that must hold exactly.**  Unitarity, and two *bit-identity*
-  assertions rather than tolerances: the energy-batched scan against the
-  per-point path, and ``n_jobs > 1`` against serial.  An optimization that
-  changed an answer fails those rather than passing quietly.
+* **Properties that must hold exactly.**  Unitarity, and one *bit-identity*
+  assertion rather than a tolerance: ``n_jobs > 1`` against serial, which an
+  optimization that changed an answer fails rather than passing quietly.  The
+  energy-batched scan is held to 1e-12 against the per-point path, with the
+  grid and tolerances pinned so that the two are arithmetically the same
+  problem.
 * **Conventions.**  Slab ordering, the antineutrino potential sign, the mass
   ordering and the channel indexing -- each of which has been wrong here at
   some point, and each of which is self-consistent when wrong.  See
@@ -352,7 +358,7 @@ File Tree
    │   │   ├── plotting.py             # Pre-packaged plotting tools: one call instead of thirty lines
    │   │   ├── py.typed                # PEP 561 marker: tells type checkers the annotations are real
    │   │   └── version.py              # Resolves the version from pyproject.toml (internal)
-   │   └── requirements.txt            # Sphinx + theme + extensions needed to build the docs
+   │   └── requirements.txt            # The three runtime dependencies: numpy, scipy, joblib
    └── tests/                          # Test suite (pytest; runs in CI)
        ├── test_paper_cache_key_is_portable.py  # The figure cache's key survives a change of machine: a ULP must not move it
        ├── test_ci_honours_the_docs.py  # Every MAGNUS_* variable the docs tell CI to set, a workflow actually sets

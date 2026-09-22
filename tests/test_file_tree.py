@@ -349,7 +349,7 @@ TREE = [
     ('src/magnus/plotting.py', 'Pre-packaged plotting tools: one call instead of thirty lines'),
     ('src/magnus/py.typed', 'PEP 561 marker: tells type checkers the annotations are real'),
     ('src/magnus/version.py', 'Resolves the version from pyproject.toml (internal)'),
-    ('src/requirements.txt', 'Sphinx + theme + extensions needed to build the docs'),
+    ('src/requirements.txt', 'The three runtime dependencies: numpy, scipy, joblib'),
     ('tests/', 'Test suite (pytest; runs in CI)'),
     ('tests/test_paper_cache_key_is_portable.py',
      "The figure cache's key survives a change of machine: a ULP must not move it"),
