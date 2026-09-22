@@ -909,7 +909,7 @@ Table~\ref{tab:modules} lists the twelve modules under {\tt src/magnus/}, togeth
 \begin{figure*}[t!]
  \centering
  \includegraphics[width=\textwidth]{layers.pdf}
- \caption{\label{fig:layers}The four layers of {\tt oscprob}, and the path of a request through them. A request enters at one of the named wrappers, which convert their named arguments into a parameter dictionary and pass it to the scenario function of the second layer; that function builds the Hamiltonian and passes it to {\tt osc\_prob\_energy\_baseline}, which calls {\tt osc\_prob} once for every requested energy and baseline; {\tt osc\_prob} runs the refinement ladder of Section \ref{sec:refinement} and selects one of the six engines of Section \ref{sec:engines} according to the form of the request. The wrappers are a product set: the fourteen environment-and-scenario names listed in the left box exist at each of the four flavor counts, giving $4 \times 14 = 56$ in all. There is no wrapper for non-standard interactions in vacuum, since those interactions require matter}
+ \caption{\label{fig:layers}The four layers of {\tt oscprob}, and the path of a request through them. A request enters at one of the named wrappers, which convert their named arguments into a parameter dictionary and pass it to the scenario function of the second layer; that function builds the Hamiltonian and passes it to {\tt osc\_prob\_energy\_baseline}, which calls {\tt osc\_prob} once for every requested energy and baseline; {\tt osc\_prob} runs the refinement ladder of Section \ref{sec:refinement} and selects one of the seven engines of Section \ref{sec:engines} according to the form of the request. The wrappers are a product set: the fourteen environment-and-scenario names listed in the left box exist at each of the four flavor counts, giving $4 \times 14 = 56$ in all. There is no wrapper for non-standard interactions in vacuum, since those interactions require matter}
 \end{figure*}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -920,7 +920,7 @@ Figure \ref{fig:layers} shows the four layers:
 \item The third layer is {\tt osc\us prob\us energy\us baseline}, which receives the Hamiltonian together with the arrays of energies and baselines and calls the base layer once for each pair, seeding the refinement of each point from the converged slab count of the previous one.
 \item The base layer is {\tt osc\_prob}, which computes one probability matrix. It is the only function that invokes the Magnus core; it implements the refinement ladder, validates the input, and handles logging; and it can be called directly with an arbitrary Hamiltonian, as in Listing~\ref{lst:constant}.
 \end{enumerate}
-Below the base layer, {\tt osc\_prob} selects one of the six engines of Sec.~\ref{sec:engines} below, according to the form of the request.
+Below the base layer, {\tt osc\_prob} selects one of the seven engines of Sec.~\ref{sec:engines} below, according to the form of the request.
 
 The refinement keywords ({\tt n\_slabs}, {\tt max\us n\us slabs}, {\tt t\_breakpoints}, {\tt magnus\_exp\_order}, {\tt integration\us method}, {\tt rtol}, {\tt atol}, {\tt strict\_convergence}, and {\tt n\_jobs}) are declared once, in {\tt osc\_prob}, and reach every wrapper through {\tt **kwargs}. Therefore, they do not appear in the signature of a wrapper, and {\tt help()} on a wrapper does not list them; its docstring names them and refers to {\tt osc\_prob}, where they are documented.
 
@@ -1008,10 +1008,10 @@ def osc_prob(H_func, l0, l1, rtol, atol, ...):
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\subsection{The six engines}
+\subsection{The seven engines}
 \label{sec:engines}
 
-A user asks \magnus\ for a probability and need not choose a method to compute it. Behind the interface of Section~\ref{sec:scope_interface}, six engines can answer such a request. Every entry point tries them in a fixed order, from the most specialized to the most general, and uses the first one whose conditions the request satisfies. An engine whose conditions are not satisfied declines the request, which then passes to the next engine in the order. The general Magnus ladder, which comes last, accepts every request.
+When a user requests a probability from \magnus, by default they do not need to separately select a method to compute it. Behind the interface of Sec.~\ref{sec:scope_interface}, seven engines can answer such a request. Every entry point tries them in a fixed order, from the most specialized to the most general, and uses the first one whose conditions the request satisfies. An engine whose conditions are not satisfied declines the request, which then passes to the next engine in the order. The general Magnus ladder, which comes last, accepts every request.
 
 \smallskip
 
@@ -1021,7 +1021,7 @@ The keyword {\tt strategy} overrides the assignment of a request to an engine. I
 
 \smallskip
 
-\textit{The engines.---}Figure~\ref{fig:strategies} and Table\tabl{engines} show the six engines in the order in which they are tried internally by \magnus. 
+\textit{The engines.---}Figure~\ref{fig:strategies} and Table\tabl{engines} show the seven engines in the order in which they are tried internally by \magnus. 
 \begin{enumerate}
 
 \item \emph{Closed-form average.} This engine answers a request made with {\tt average=True}, when $\mathbb{H}$ does not depend on position. It returns the phase-averaged probability of \equ{averaged}, the limit of $P_{\nu_\alpha \to \nu_\beta}$ as $L/E \to \infty$, in which every interference term between two eigenstates of $\mathbb{H}$ has averaged to zero; this is the quantity a solar or an astrophysical experiment measures. The engine diagonalizes $\mathbb{H}$ once, numerically, then evaluates \equ{averaged} from the moduli of the eigenvector components. Nothing is propagated; no baseline enters; no average over a range of baselines or energies is taken. See Sec.~\ref{sec:astro} for an example.
@@ -1045,7 +1045,11 @@ where a tilde marks a matrix in the eigenbasis of $\mathbb{H}_0$, $\Delta_{jk} =
 
 \smallskip
 
-\item \emph{Energy-batched scan.} A scan over many energies at one baseline, computed point by point, traverses the same profile once per energy although the profile does not depend on the energy. When $\mathbb{H}$ separates as above (\eg, as the standard, non-standard-interaction, and Lorentz-violating Hamiltonians do), this engine samples the potential once per refinement level and shares it across the batch; the quadrature, the commutators, the exponentials, and the slab products carry the energy as a batch dimension, and energies that have converged drop out of further refinement. If $V_{\rm CC}$ is constant along the trajectory, the expansion terminates at its first term and the whole scan is a single stacked matrix exponential, which is exact.
+\item \emph{Constant Hamiltonian.} When $\mathbb{H}$ does not vary along the trajectory, the Magnus series terminates at its first term: every $\Omega_k$ beyond $\Omega_1$ is a nested commutator of $\mathbb{H}$ with itself, hence zero. The evolution operator is therefore $\exp(-i\mathbb{H}L)$ exactly, with no discretization at all, and a whole scan is one stacked exponential over an $(n_E, d, d)$ array, with $d$ the number of flavors. The engine applies at any flavor count, to a single point as well as to a scan, and it accepts per-point baselines, which the energy-batched scan below does not. Refinement keywords are accepted and ignored, since they can only ask for a refinement of something already exact.
+
+\smallskip
+
+\item \emph{Energy-batched scan.} A scan over many energies at one baseline, computed point by point, traverses the same profile once per energy although the profile does not depend on it. When $\mathbb{H}$ separates as above (\eg, as the standard, non-standard-interaction, and Lorentz-violating Hamiltonians do), this engine samples the potential once per refinement level and shares it across the batch; the quadrature, the commutators, the exponentials, and the slab products carry the energy as a batch dimension, and energies that have converged drop out of further refinement. 
 
 \smallskip
 
@@ -1068,26 +1072,27 @@ Agreement among the engines is not a check, since the general ladder, the cumula
 \begin{figure*}[t!]
  \centering
  \includegraphics[width=\textwidth]{strategies.pdf}
- \caption{\label{fig:strategies}The six engines that can answer a request, in the order in which they are tried. Each row draws what its engine does to the trajectory: one exponential for the closed-form average; adiabatic transport with an exact Magnus patch across the resonance; the fast vacuum phase removed analytically before a single Magnus pass; one evaluation of the profile shared across many energies; one pass returning many baselines; and the general ladder, refining until two successive stages agree. Shading is the matter density. An engine declines a request whose conditions it does not meet, and the request passes to the next engine, so the last is reached whenever no other applies; \tabl{engines} gives the conditions}
+  \caption{\label{fig:strategies}The seven engines that can answer a request, in the order in which they are tried. Each row draws what its engine does to the trajectory: nothing propagated at all for the closed-form average, which reads $\langle P \rangle$ from the eigenbasis of $\mathbb{H}$; adiabatic transport with an exact Magnus patch across the resonance; the fast vacuum phase removed analytically before a single Magnus pass; one exponential for the whole path where $\mathbb{H}$ does not vary; one evaluation of the profile shared across many energies; one pass returning many baselines; and the general ladder, refining until two successive stages agree. Shading is the matter density. An engine declines a request whose conditions it does not meet, and the request passes to the next engine, so the last is reached whenever no other applies; \tabl{engines} gives the conditions.}
 \end{figure*}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 {\def\arraystretch{1.2}
-\begin{table}[t!]
- {\small
- \begin{tabular}{@{}lp{4.4cm}@{}}
- Engine & Condition \\
+\begin{table*}[t!]
+ {\footnotesize
+ \begin{tabular}{@{}p{3.3cm}p{3.3cm}p{10.2cm}@{}}
+ Engine & Name in {\tt strategy\_info} & Condition \\
  \hline
- Closed-form average & An averaged probability is requested and $\mathbb{H}$ is position-independent \\
- Adiabatic $+$ Magnus & A smooth profile, a requested tolerance, no declared breakpoints, and a certified answer \\
- Interaction picture & A profile declared as exponential, at two flavors, and a converged iteration \\
- Energy-batched scan & Many energies at one baseline \\
- Cumulative scan & Many baselines at one energy \\
- General Magnus ladder & Every other request \\
+ Closed-form average & {\tt 'average'} & An averaged probability is requested and $\mathbb{H}$ is position-independent \\
+ Adiabatic $+$ Magnus & {\tt 'hybrid'} & A smooth profile, a requested tolerance, no declared breakpoints, and a certified answer \\
+ Interaction picture & {\tt 'ip\_exp'} & A profile declared as exponential, at two flavors, and a converged iteration \\
+ Constant Hamiltonian & {\tt 'constant'} & $V_{\rm CC}$ does not vary along the trajectory; any flavor count, a single point or a scan \\
+ Energy-batched scan & {\tt 'separable'} & Many energies at one baseline \\
+ Cumulative scan & {\tt 'cumulative'} & Many baselines at one energy \\
+ General Magnus ladder & {\tt 'magnus'} & Every other request \\
  \end{tabular}}
- \caption{\label{tab:engines}The six engines, in the order in which they are tried. A request that fails the condition of a row passes to the next row, so the last is reached whenever no other applies. The accuracy changes in a step at the boundary between two engines, since they are different methods, and the step is always toward higher accuracy. Section~\ref{sec:implementation_limits} treats these boundaries}
-\end{table}}
+ \caption{\label{tab:engines}The seven engines, in the order in which they are tried, with the name each reports through {\tt strategy\_info}. A request that fails the condition of a row passes to the next row, so the last is reached whenever no other applies. The accuracy changes in a step at the boundary between two engines, since they are different methods, and the step is always toward higher accuracy. Section~\ref{sec:implementation_limits} treats these boundaries}
+\end{table*}}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1100,7 +1105,7 @@ In \magnus, a request for many probabilities can be made faster in two ways---ba
 \begin{itemize}
 \item \emph{Batching} means passing an array in one call: many energies at one baseline, or many baselines at one energy. (A call can also take an array of energies and an array of baselines of the same length, which it reads as a list of points, the $i$-th energy with the $i$-th baseline. Such a list is not batched: each point is computed on its own. There is no single call that returns the probability at every energy for every one of several baselines; a caller who wants that table makes one call per baseline, each passing the full array of energies, and each of those calls is batched.)
 
-A request with one shared value reaches one of the two batched engines of Sec.~\ref{sec:engines}, which reuse work across the array. The \textit{energy-batched scan} evaluates the profile once and carries the energy as a batch dimension through every slab; the \textit{cumulative scan} traverses the profile once and records the running product at every requested baseline. Both run in a single process. The gain is that the profile is not traversed once per point, at no cost in accuracy: batched answers are bit-identical to the point-by-point ones (Sec.~\ref{sec:validation}).
+A request with one shared value reaches one of the batched engines of Sec.~\ref{sec:engines}, which reuse work across the array. The \textit{energy-batched scan} evaluates the profile once and carries the energy as a batch dimension through every slab; the \textit{cumulative scan} traverses the profile once and records the running product at every requested baseline. Both run in a single process. The gain is that the profile is not traversed once per point, at no cost in accuracy: batched answers are bit-identical to the point-by-point ones (Sec.~\ref{sec:validation}).
 %%%%
 \item \emph{Parallelization} means computing points in several processes at once, on several cores, as specified by the {\tt n\_jobs} argument. \magnus\ uses the {\tt joblib} library for it: {\tt n\_jobs} processes are started, the requested points are divided among them, and each point is computed on the per-point path. The work is not reduced, only shared, so the gain is bounded by the number of cores and by the cost of moving work between processes.
 
@@ -4138,19 +4143,19 @@ The second condition is length. Starting the workers costs time, paid once per c
 
 Parallelism changes more than the speed. A serial scan warm-starts each point from its neighbor. A parallel scan warm-starts every point from the first one. A ladder that starts on a different rung can stop on a different rung, so two runs that differ only in {\tt n\_jobs} agree to the tolerance asked for, but no better. The gap between grows with the length of the scan. Measured on the chord above at {\tt rtol} $= 10^{-6}$, two points agree exactly, three differ by $8 \cdot 10^{-10}$, and forty by $10^{-8}$. The user should hold {\tt n\_jobs} fixed when two runs have to match to the last digit.
 
-All of the above concerns a scan of several probabilities. A call for a single probability uses {\tt n\_jobs} for something else: it spreads that one calculation's slabs across the workers.
+All of the above concerns a scan of several probabilities, which is the only thing {\tt n\_jobs} affects. A call for a single probability accepts it and ignores it. The slabs of one calculation go to the batched kernel in a single call, and no worker is started:
 \begin{pysnip}
-# Many points: a worker receives points
+# Many points: each worker receives points
 P = oscprob.osc_prob_3nu_earth(
     E, L=L, n_jobs=4, **kw)
 
-# One point: a worker receives that point's
-# slabs instead
+# One point: n_jobs is accepted and does
+# nothing; the call runs in one process
 P = oscprob.osc_prob_3nu_earth(
     10.0*gd.UNIT_GEV, L=11467.8*gd.UNIT_KM,
     n_jobs=4, **kw)
 \end{pysnip}
-A slab is far smaller than a probability, so this second form of parallelization rarely repays itself. On the chord above, one worker and four take the same $3.5$~milliseconds and return the same digits. The setting is there for a Hamiltonian that is expensive to evaluate, where a slab is no longer cheap.
+(Distributing slabs was tried and retired. A slab is far smaller than a probability, and evaluating all of them in one batched call beats handing them out one at a time.) 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -4913,7 +4918,7 @@ The notebooks are generated: one script builds them, executes them, and refuses 
  19 & {\tt custom\_hamiltonian} & Supplying a Hamiltonian of your own. & \ref{sec:lri_sun} \\
  20 & {\tt numerical\_edge\_cases} & Numerical edge cases: the meaning of each warning. & \ref{sec:limitations}, \ref{sec:implementation_limits} \\
  21 & {\tt what\_tolerance\_means} & What {\tt rtol} and {\tt atol} promise, against what they do not. & \ref{sec:refinement}, \ref{sec:diagnostics} \\
- 22 & {\tt which\_engine\_answered} & Which of the six engines answered a call, with the reason. & \ref{sec:engines} \\
+ 22 & {\tt which\_engine\_answered} & Which of the seven engines answered a call, with the reason. & \ref{sec:engines} \\
  23 & {\tt when\_averaging\_helps} & Where averaging rescues a calculation, where it fails. & \ref{sec:averaging_is_not_estimating}, \ref{sec:astro} \\
  24 & {\tt performance} & Which optimizations are worth applying. & \ref{sec:cost}, \ref{sec:timing_protocol} \\
  25 & {\tt against\_other\_codes}$^{\dagger}$ & Every comparison against another code, in full. & \ref{sec:performance}, \ref{sec:comparison} \\
