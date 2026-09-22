@@ -86,6 +86,38 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- The hybrid engine carried a decoupled state across an exact level crossing
+  onto the other level, and certified the result (issue #59).  At their
+  defaults the 4nu Sun wrappers decouple the sterile state, whose matter term
+  then crosses the lowest active level inside the Sun; for neutrinos between
+  1 and 300 MeV, `osc_prob_4nu_sun`, `_nsi` and `_liv` came back certified and
+  wrong at 17 of 25 energies, the sterile row landing on an active level
+  (P_ss = 0 where it is 1) and P_ee off by up to 0.53.  Two levels that do not
+  couple have an adiabaticity parameter of 0 over a gap of round-off, and the
+  test for a degenerate pair was `gap > 0`, which caught an exact crossing only
+  when round-off happened to give a gap of exactly 0.0.  A gap `eigh` cannot
+  resolve now counts as degenerate, so every such crossing gets a window; the
+  bound is the new `adiabatic.DEGENERACY_ULPS`, measured at 303 exact
+  crossings against 2565 ordinary candidates, with eleven orders of magnitude
+  between them.  Every call without a degenerate pair is unchanged by this
+  part, bit for bit.
+
+- The hybrid engine's refinement certified on agreement alone as soon as any
+  window had opened, so a window at one resonance vouched for the stretch of
+  path it did not cover: a resonance just below the adiabaticity threshold
+  elsewhere was left to adiabatic transport, which agrees with itself whether
+  or not it is right.  The requirement that the adiabaticity parameter fit the
+  tolerance, which used to apply only when no window opened, now applies to
+  whatever no window covers.  Found through the fix above, where the window at
+  the sterile crossing let `osc_prob_4nu_sun` at 237 MeV certify 1.6e-03 out
+  after two iterations while the 3nu call on the same physics refines five
+  times and is right to 8e-05.  Over 300 Sun calls of two to five flavors this
+  moved eight results besides the 4nu defaults: seven became 55 to 7500 times
+  more accurate (the largest gain, a 3nu call at 187 MeV, from 1.3e-04 to 1.8e-08),
+  and one the hybrid can no longer certify is answered by the general ladder
+  within the requested tolerance.  `find_nonadiabatic_windows` and
+  `hybrid_propagator` report the new quantity as `gamma_unpatched` in `info`.
+
 - The scenario functions warn, past `MAGNUS_MAX_PREDEFINED_NUM_FLAVORS`, that they
   will use the vacuum Hamiltonian passed in `h_vac_energy_indep`, and that path
   did not work.  `unpack_oscillation_params_from_dict` fell off the end of its
