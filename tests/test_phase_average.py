@@ -264,3 +264,118 @@ def test_the_profile_route_rejects_a_negative_spread():
     H, D, l0, l1 = crossing_H()
     with pytest.raises(ValueError, match='spread'):
         ap.phase_averaged_probabilities_adiabatic(H, D, l0, l1, spread=-1.0)
+
+
+# ------------------------------------------------------------------ through the wrappers
+
+import warnings  # noqa: E402
+
+import magnus.oscprob as op  # noqa: E402
+import magnus.solarmodels as solarmodels  # noqa: E402
+
+OSC = dict(s12=S12, s23=S23, s13=S13, dCP=DCP, D21=D21, D31=D31)
+
+
+def call(fn, *args, **kwargs):
+    """The result and the categories of the warnings the call raised."""
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter('always')
+        P = np.asarray(fn(*args, **kwargs))
+    return P, {x.category.__name__ for x in w}
+
+
+def test_where_every_phase_has_decohered_the_old_value_comes_back_bit_for_bit():
+    E = np.array([1.0, 10.0, 100.0])*gd.UNIT_TEV
+    P, warned = call(op.osc_prob_3nu_vacuum, E, 1.0e20*gd.UNIT_KM, **OSC, average=True)
+    H = np.array([vacuum_H(e)[0] for e in E])
+    assert np.array_equal(P, ap.averaged_probabilities_constant_hamiltonian(H))
+    assert 'PhaseAveragingWarning' not in warned
+
+
+def test_a_solar_curve_without_windows_is_untouched():
+    """Adiabatic transport of a decohered start carries no interference, so the solar MSW curve
+    is what the decohered route returns, bit for bit, and it is not even recomputed."""
+    model = 'BS05-AGS-OP'
+    E = np.logspace(-1.0, np.log10(20.0), 12)*gd.UNIT_MEV
+    R = solarmodels.table_edge(model)
+    info = {}
+    P, warned = call(op.osc_prob_3nu_sun, E, R, 0.0, **OSC, nu_i=0, nu_f=0, average=True,
+                     density_profile=model, strategy_info=info)
+    assert 'PhaseAveragingWarning' not in warned
+    assert info['trace'][-1]['recomputed'] == 0
+
+
+def test_a_short_baseline_returns_the_phase_average_and_says_it_depends_on_the_spread():
+    E, L = 1.0*gd.UNIT_GEV, 1000.0*gd.UNIT_KM
+    P, warned = call(op.osc_prob_3nu_vacuum, E, L, **OSC, average=True)
+    H, D = vacuum_H(E)
+    expected, sens = ap.phase_averaged_probabilities_constant_hamiltonian(H, D, L)
+    assert maxabs(P - expected) < 1e-6            # D here is exact, the wrapper's a difference
+    assert sens > ap.PHASE_SPREAD_SENSITIVITY_THRESHOLD
+    assert 'PhaseAveragingWarning' in warned
+    # and it is not the old answer, which kept every pair here at zero phase: the identity
+    assert maxabs(P - np.eye(3)) > 0.05
+
+
+def test_average_spread_reaches_the_wrappers_through_their_keywords():
+    E, L = 1.0*gd.UNIT_GEV, 1000.0*gd.UNIT_KM
+    H, D = vacuum_H(E)
+    for spread in (0.0, 0.05, 0.3):
+        P, _ = call(op.osc_prob_3nu_vacuum, E, L, **OSC, average=True, average_spread=spread)
+        expected, _ = ap.phase_averaged_probabilities_constant_hamiltonian(H, D, L, spread=spread)
+        assert maxabs(P - expected) < 1e-6
+    P0, _ = call(op.osc_prob_3nu_vacuum, E, L, **OSC, average=True, average_spread=0.0)
+    assert maxabs(P0 - np.abs(scipy.linalg.expm(-1j*H*L).T)**2) < 1e-6
+
+
+@pytest.mark.parametrize("bad", [-0.1, float('nan'), 'wide', True])
+def test_average_spread_must_be_a_non_negative_number(bad):
+    with pytest.raises(ValueError, match='average_spread'):
+        op.osc_prob_3nu_vacuum(1.0*gd.UNIT_GEV, 1000.0*gd.UNIT_KM, **OSC, average=True,
+                               average_spread=bad)
+
+
+def test_a_profile_with_a_window_is_recomputed_and_reported():
+    """The end of the solar disk at 10 TeV (issue #62): one window over the whole chord, whose
+    readout the decohered route discarded; the phase average keeps it."""
+    import magnus.matter  # noqa: F401 -- the chord below is a plain density function
+    R = gd.SUN_RADIUS*gd.UNIT_KM
+    ne = solarmodels.electron_density_profile('B16-GS98')
+    b = 0.9*R
+    hl = np.sqrt(R**2 - b**2)
+
+    def ne_chord(l):
+        return ne(np.sqrt((np.asarray(l, dtype=float) - hl)**2 + b**2))
+
+    info = {}
+    nufit = gd.load_nufit_params('NuFIT 6.1')          # the parameters of the reference below
+    kw = dict(nu_i=0, nu_f=0, density_is_of_number_of_electrons=True, L0=0.0)
+    P, warned = call(op.osc_prob_matter_std_potential, 3, ne_chord, 1.0e4*gd.UNIT_GEV, 2*hl,
+                     nufit, average=True, strategy_info=info, **kw)
+    assert info['trace'][-1]['recomputed'] == 1
+    # a brute-force average of the definition gives 0.54109; the decohered route gave 0.40432
+    assert abs(float(P) - 0.54109) < 1e-4
+    assert 'PhaseAveragingWarning' not in warned      # matter phases: the spread does not matter
+
+
+def test_a_round_off_pseudo_dirac_pair_does_not_warn_through_the_dispatcher():
+    """Issue #61 as reported: osc_prob_energy_baseline on a pseudo-Dirac pair at 100 TeV over
+    100 Mpc warned that the pair was undecided below 1e-18 eV^2, on a round-off phase."""
+    U = hams.pmns_mixing_matrix(S12, S23, S13, DCP)
+    m2 = np.array([0.0, D21, D31])
+    E, L = 100.0*gd.UNIT_TEV, 100.0*3.0857e19*gd.UNIT_KM
+    for dm2 in (1.0e-19, 1.0e-21):
+        P, warned = call(op.osc_prob_energy_baseline,
+                         lambda e: hams.hamiltonian_pseudo_dirac_vacuum(e, U, m2, {1: dm2}), E, L,
+                         0.0, H_func_is_function_only_of_energy=True, average=True)
+        assert 'PhaseAveragingWarning' not in warned
+        assert maxabs(P.sum(axis=-1) - 1) < 1e-12
+
+
+def test_a_hamiltonian_without_energy_dependence_keeps_the_decohered_limit():
+    """A fixed matrix has no slope for an energy spread to act on: average=True returns the
+    L/E -> infinity limit for it, as before, and warns as before where that does not apply."""
+    H, _ = vacuum_H(1.0*gd.UNIT_GEV)
+    P, _ = call(op.osc_prob_energy_baseline, H, 1.0*gd.UNIT_GEV, 1.0e8*gd.UNIT_KM, 0.0,
+                average=True)
+    assert np.array_equal(P, ap.averaged_probabilities_constant_hamiltonian(H, 1.0e8*gd.UNIT_KM))

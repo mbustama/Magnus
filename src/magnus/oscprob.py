@@ -1218,7 +1218,22 @@ class PhaseAveragingWarning(UserWarning):
     statement that the *question* does not apply at that baseline, which
     is why it warns rather than refining anything.
 
+    Since 1.1.1 ``average=True`` returns the phase average over a relative
+    energy spread ``average_spread`` (see :mod:`magnus.avgprob`), which is
+    defined at every baseline, and the warning says instead that the result
+    **depends on that spread**: some interference term has partly survived
+    it, so that :math:`|\sigma\, \partial P/\partial\sigma|` exceeds
+    :data:`magnus.avgprob.PHASE_SPREAD_SENSITIVITY_THRESHOLD`.  The number is
+    then the average over the spread asked for, and ``average_spread`` should
+    match the resolution of the measurement.  The original meaning remains
+    for a Hamiltonian that does not depend on energy, which has no spread to
+    average over, and the energy-window route of a profile with declared
+    discontinuities warns as before.
+
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.1
+       Fires where the phase average depends on the spread.
     """
 
 
@@ -3801,6 +3816,30 @@ def osc_prob(
             loop_count += 1
 
 
+_PHASE_SLOPE_STEP = 1.0e-3
+r"""float: Module-level constant
+
+Step in :math:`\ln E` of the central difference :func:`_avg_prob_dispatch` takes of the
+Hamiltonian for the slopes of the phase average.  Truncation goes as its square (1e-7 relative
+for a Hamiltonian linear in 1/E), round-off as its inverse; a slope that round-off could explain
+is replaced from its phase in :mod:`magnus.avgprob`, which is told this step.
+
+.. versionadded:: 1.1.1
+"""
+
+
+_PHASE_AVERAGE_GATE = 1.0e-4
+r"""float: Module-level constant
+
+Largest change in any probability for which :func:`_avg_prob_dispatch` returns the decohered
+value it computed first, bit for bit, instead of the phase average (issue #64).  A tenth of the
+default tolerance: where every phase has decohered the two agree far below it, and a result
+that was right before stays exactly what it was.
+
+.. versionadded:: 1.1.1
+"""
+
+
 def _avg_prob_dispatch(
     htot: Callable,
     htot_is_function_only_of_energy: bool,
@@ -3812,7 +3851,9 @@ def _avg_prob_dispatch(
     average: bool,
     source_func_name: str,
     smooth_profile: Optional[bool] = True,
-    engine_kwargs: Optional[dict] = None
+    engine_kwargs: Optional[dict] = None,
+    average_spread: Optional[float] = None,
+    energy_dependent: Optional[bool] = True
 ):
     r"""Phase-averaged probabilities: in closed form, by adiabatic transport, or over an energy window.
 
@@ -3826,7 +3867,20 @@ def _avg_prob_dispatch(
     has not decohered is warned about instead of being answered with an expression that does not
     describe it.
 
+    Since 1.1.1 the first two routes return the phase average of :mod:`magnus.avgprob`
+    (issue #64) wherever it differs from the decohered limit: every interference term kept with
+    its phase and weighted by the spread of that phase across a relative energy spread
+    ``average_spread``.  Each point is computed the old way first; it is recomputed only where
+    some interference can survive -- on a profile, only where the old search found a
+    non-adiabatic window, since adiabatic transport of a decohered start carries none -- and the
+    old value is returned, bit for bit, wherever the two agree within
+    ``_PHASE_AVERAGE_GATE``.  ``PhaseAveragingWarning`` then means that the result depends on
+    the spread.
+
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.1
+       Returns the phase average; takes ``average_spread`` and ``energy_dependent``.
 
     Parameters
     ----------
@@ -3857,6 +3911,13 @@ def _avg_prob_dispatch(
     engine_kwargs : dict or None
         Engine settings forwarded to the energy-window route.  Required there: the
         non-smooth branch raises ``ValueError`` without them.
+    average_spread : float or None
+        Relative energy spread of the phase average.  None means
+        :data:`magnus.avgprob.AVG_PHASE_SPREAD`.
+    energy_dependent : bool
+        Whether ``htot`` depends on the energy it is given.  A Hamiltonian that does not -- a
+        fixed matrix, or a function of position alone, on the direct route -- has no slope for
+        an energy spread to act on, so it keeps the decohered limit.
 
     Returns
     -------
@@ -3866,6 +3927,15 @@ def _avg_prob_dispatch(
     """
     if not average:
         return NotImplemented
+
+    spread = avgprob.AVG_PHASE_SPREAD if average_spread is None else average_spread
+    if (isinstance(spread, bool) or not isinstance(spread, (int, float, np.integer, np.floating))
+            or not np.isfinite(spread) or spread < 0.0):
+        raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": average_spread "
+            "is the relative energy spread of the phase average and must be a non-negative "
+            "number, not " + repr(average_spread) + ".")
+    spread = float(spread)
+    phase_average = bool(energy_dependent)
 
     sample_numerically = (not htot_is_function_only_of_energy) and (not smooth_profile)
     if sample_numerically and (engine_kwargs is None):
@@ -3886,6 +3956,21 @@ def _avg_prob_dispatch(
     undecided_points = 0
     uncertified_points = 0
     unresolved_points = 0
+    recomputed_points = 0
+    spread_sensitive_points = 0
+    unaveraged_points = 0
+    largest_sensitivity = 0.0
+    h = _PHASE_SLOPE_STEP
+
+    def keep_or_replace(i, P_new, sensitivity):
+        # Today's value, bit for bit, unless the phase average moves it by more than the gate.
+        nonlocal recomputed_points, spread_sensitive_points, largest_sensitivity
+        if np.max(np.abs(P_new - P_out[i])) >= _PHASE_AVERAGE_GATE:
+            P_out[i] = P_new
+            recomputed_points += 1
+        largest_sensitivity = max(largest_sensitivity, float(sensitivity))
+        if sensitivity > avgprob.PHASE_SPREAD_SENSITIVITY_THRESHOLD:
+            spread_sensitive_points += 1
 
     if htot_is_function_only_of_energy:
         # Constant along the trajectory: the averaged limit is closed-form, one
@@ -3896,9 +3981,19 @@ def _avg_prob_dispatch(
         P_out = np.empty((n_pts, d, d))
         for i in range(n_pts):
             blocks, undecided = avgprob.coherence_report(eigenvalues[i], float(L_arr[i]))
-            if undecided: undecided_points += 1
+            if undecided and not phase_average: undecided_points += 1
             P_out[i] = avgprob.averaged_probabilities_from_eigenbasis(eigenvectors[i],
                 blocks=blocks)
+        if phase_average:
+            # The derivative in ln E by a central difference: two more Hamiltonians per energy
+            # and no eigendecomposition, the slopes coming from Hellmann-Feynman.
+            D = np.stack([(np.asarray(htot(float(enu)*np.exp(h)), dtype=complex)
+                           - np.asarray(htot(float(enu)*np.exp(-h)), dtype=complex))/(2.0*h)
+                          for enu in energy_arr])
+            P_new, sens = avgprob.phase_averaged_probabilities_constant_hamiltonian(H, D,
+                np.asarray(L_arr, dtype=float) - float(L0), spread=spread, dH_dlnE_step=h)
+            for i in range(n_pts):
+                keep_or_replace(i, P_new[i], sens[i])
     elif sample_numerically:
         # No closed form: the profile steps through discontinuities (PREM layer boundaries),
         # so there is no instantaneous eigenbasis to decohere in.  The probability is instead
@@ -3950,12 +4045,27 @@ def _avg_prob_dispatch(
 
             P_out[i], report = avgprob.averaged_probabilities_adiabatic(H_of_l, float(L0),
                 float(L_arr[i]))
-            if report['undecided'] or report['undecided_between_crossings']:
+            if (report['undecided'] or report['undecided_between_crossings']) and not phase_average:
                 undecided_points += 1
             if report.get('resolved') is False:
                 unresolved_points += 1
             elif (not report['patches_converged']) or report.get('certified') is False:
                 uncertified_points += 1
+            if phase_average and report['windows']:
+                # Without a window a decohered start, carried adiabatically, has no interference
+                # to keep: the value above is already the phase average.  With one, recompute.
+                def D_of_l(l, enu=enu):
+                    return (np.asarray(htot(enu*np.exp(h), l), dtype=complex)
+                            - np.asarray(htot(enu*np.exp(-h), l), dtype=complex))/(2.0*h)
+                try:
+                    P_new, pa_report = avgprob.phase_averaged_probabilities_adiabatic(H_of_l, D_of_l,
+                        float(L0), float(L_arr[i]), spread=spread, dH_dlnE_step=h)
+                except RuntimeError:
+                    unaveraged_points += 1
+                    continue
+                keep_or_replace(i, P_new, pa_report['sigma_sensitivity'])
+                if not (pa_report['patches_converged'] and pa_report['phases_converged']):
+                    uncertified_points += 1
 
     if unresolved_points > 0:
         # Issue #60.  The profile has a feature narrower than the averaging engine's probe
@@ -3979,6 +4089,22 @@ def _avg_prob_dispatch(
             "the crossings did not certify them -- so they are not trustworthy there.  Shown "
             "once per session.", HybridCertificationWarning, stacklevel=3)
 
+    if spread_sensitive_points > 0:
+        warnings.warn(gd.WARNING_MSG_NO_COLOR + " oscprob." + source_func_name + ": the phase-averaged "
+            "probability depends on the energy spread at " + str(spread_sensitive_points) + " of "
+            + str(n_pts) + " (energy, L) point(s): some interference has partly survived the "
+            "spread average_spread=" + format(spread, 'g') + ", so the result changes by more than "
+            + format(avgprob.PHASE_SPREAD_SENSITIVITY_THRESHOLD, 'g') + " per e-fold of it "
+            "(largest " + format(largest_sensitivity, '.1e') + ").  It is the average over that "
+            "spread; pass average_spread to match the resolution of the measurement.  Shown once "
+            "per session.", PhaseAveragingWarning, stacklevel=3)
+    if unaveraged_points > 0:
+        warnings.warn(gd.WARNING_MSG_NO_COLOR + " oscprob." + source_func_name + ": the phase "
+            "average could not be formed at " + str(unaveraged_points) + " of " + str(n_pts) +
+            " (energy, L) point(s), where too many interference terms survive across the "
+            "non-adiabatic windows; the decohered limit was returned there instead.  Shown once "
+            "per session.", PhaseAveragingWarning, stacklevel=3)
+
     if undecided_points > 0:
         warnings.warn(gd.WARNING_MSG_NO_COLOR + " oscprob." + source_func_name + ": the averaged "
             "probability was requested at " + str(undecided_points) + " of " +
@@ -3987,7 +4113,8 @@ def _avg_prob_dispatch(
             "The oscillation probability itself (average=False) is the meaningful quantity there. "
             "Shown once per session.", PhaseAveragingWarning, stacklevel=3)
 
-    _note_engine('average')
+    _note_engine('average', average_spread=spread, recomputed=recomputed_points,
+                 sigma_sensitivity=largest_sensitivity)
     if (nu_i is not None) and (nu_f is not None):
         P_out = P_out[:, nu_i, nu_f]
 
@@ -6168,6 +6295,7 @@ def osc_prob_energy_baseline(
     symmetric_over: Optional[tuple]=None,
     return_evolution_operator: Optional[bool]=False,
     average: Optional[bool]=False,
+    average_spread: Optional[float]=None,
     **kwargs
 ) -> Union[int, float, np.ndarray, Tuple[np.ndarray, np.ndarray]]:
     r"""Compute and return oscillation probabilities for given arrays of
@@ -6328,7 +6456,7 @@ def osc_prob_energy_baseline(
         point takes the per-point path.  Every other setting keeps its meaning.  Default: False.
 
     average : bool, optional
-        If True, return the phase-averaged probability of the averaged limit (see
+        If True, return the phase average of the probability over a relative energy spread (see
         :mod:`magnus.avgprob`) instead of the oscillating one, as the wrappers do with the
         same keyword.  Which route answers follows from the Hamiltonian: a matrix, or a
         function of the energy alone, is averaged in closed form, one eigendecomposition per
@@ -6336,8 +6464,16 @@ def osc_prob_energy_baseline(
         instantaneous eigenstates, with a Magnus patch across every non-adiabatic crossing,
         when the profile is smooth; and across an energy window, with a warning, when
         ``t_breakpoints`` or ``t_slab_edges`` declare discontinuities.  ``strategy``,
-        ``n_jobs`` and the cumulative traversal play no role on this route.  Cannot be
-        combined with ``return_evolution_operator``.  Default: False.
+        ``n_jobs`` and the cumulative traversal play no role on this route.  A matrix, or a
+        function of position alone, does not depend on the energy, so an energy spread has
+        nothing to act on and it keeps the decohered limit.  Cannot be combined with
+        ``return_evolution_operator``.  Default: False.
+    average_spread : float, optional
+        Relative energy spread :math:`\sigma` of the phase average ``average=True`` returns:
+        every interference term keeps its phase and is weighted by
+        :math:`e^{-\sigma^2\phi'^2/2}`, :math:`\phi' = d\phi/d\ln E` (see
+        :data:`magnus.avgprob.AVG_PHASE_SPREAD`).  Ignored without ``average``.  Default:
+        None, meaning 0.1.
 
     Returns
     -------
@@ -6454,18 +6590,20 @@ def osc_prob_energy_baseline(
         # The dispatch takes the Hamiltonian as a function of the energy alone when it does
         # not depend on position, and of (energy, position) otherwise; the four forms H_func
         # can take are wrapped into those two.
+        # A fixed matrix, or a function of position alone, does not depend on the energy, so
+        # an energy spread has no slope to act on and the decohered limit stands for it.
         if not callable(H_func):
             def htot(enu):
                 return H_func
-            only_energy = True
+            only_energy, energy_dependent = True, False
         elif _n_required_params(H_func) == 2:
-            htot, only_energy = H_func, False
+            htot, only_energy, energy_dependent = H_func, False, True
         elif H_func_is_function_only_of_energy:
-            htot, only_energy = H_func, True
+            htot, only_energy, energy_dependent = H_func, True, True
         else:
             def htot(enu, l):
                 return H_func(l)
-            only_energy = False
+            only_energy, energy_dependent = False, False
         breakpoints = kwargs.get('t_breakpoints')
         smooth = ((breakpoints is None or len(np.atleast_1d(breakpoints)) == 0)
                   and (t_slab_edges is None))
@@ -6474,7 +6612,8 @@ def osc_prob_energy_baseline(
         engine = dict(osc_prob_kwargs, cumulative=cumulative)
         engine.pop('return_evolution_operator', None)
         return _avg_prob_dispatch(htot, only_energy, energy_in, L_in, L0, nu_i, nu_f, True,
-            'osc_prob_energy_baseline', smooth_profile=smooth, engine_kwargs=engine)
+            'osc_prob_energy_baseline', smooth_profile=smooth, engine_kwargs=engine,
+            average_spread=average_spread, energy_dependent=energy_dependent)
 
     if callable(H_first):
         osc_prob_kwargs['A_eval_mode'] = magnus.probe_eval_mode(
@@ -7112,6 +7251,7 @@ def osc_prob_vacuum(
     osc_params: Dict,
     h_vac_energy_indep: Union[list, np.ndarray]=None,
     average: Optional[bool]=False,
+    average_spread: Optional[float]=None,
     nubar: Optional[bool]=False, 
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
@@ -7168,6 +7308,12 @@ def osc_prob_vacuum(
         ``num_flavors`` exceeds ``globaldefs.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS``.
     average : bool, optional
         If True, return the phase-averaged probability rather than the oscillating one.
+    average_spread : float, optional
+        Relative energy spread :math:`\sigma` of the phase average ``average=True`` returns:
+        every interference term keeps its phase and is weighted by
+        :math:`e^{-\sigma^2\phi'^2/2}`, :math:`\phi' = d\phi/d\ln E` (see
+        :data:`magnus.avgprob.AVG_PHASE_SPREAD`).  Ignored without ``average``.  Default:
+        None, meaning 0.1.
     nubar : bool, optional
         If True, compute the probability for antineutrinos. Default: False.
     nu_i : int, optional
@@ -7340,7 +7486,7 @@ def osc_prob_vacuum(
             verbose=verbose, return_evolution_operator=True, **kwargs)
 
     P_avg = _avg_prob_dispatch(htot, htot_is_function_only_of_energy, energy, L, 0.0, nu_i, nu_f,
-        average, 'osc_prob_vacuum')
+        average, 'osc_prob_vacuum', average_spread=average_spread)
     if P_avg is not NotImplemented:
         return P_avg
 
@@ -7383,6 +7529,7 @@ def osc_prob_matter_std_potential(
     density_is_of_number_of_electrons: Optional[bool]=False,
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
     average: Optional[bool]=False,
+    average_spread: Optional[float]=None,
     strategy: Optional[str]='auto',
     strategy_info: Optional[Dict]=None,
     return_evolution_operator: Optional[bool]=False,
@@ -7477,6 +7624,12 @@ def osc_prob_matter_std_potential(
         None in ``osc_params``. Default: 'OSC_PARAMS_DEFAULT'.
     average : bool, optional
         If True, return the phase-averaged probability rather than the oscillating one.
+    average_spread : float, optional
+        Relative energy spread :math:`\sigma` of the phase average ``average=True`` returns:
+        every interference term keeps its phase and is weighted by
+        :math:`e^{-\sigma^2\phi'^2/2}`, :math:`\phi' = d\phi/d\ln E` (see
+        :data:`magnus.avgprob.AVG_PHASE_SPREAD`).  Ignored without ``average``.  Default:
+        None, meaning 0.1.
     strategy : str, optional
         Numerical strategy used to compute the evolution operator: 'auto' (default), 'hybrid',
         or 'magnus'.
@@ -7818,7 +7971,8 @@ def osc_prob_matter_std_potential(
     with _engine_probe(disabled=_OPERATOR_ONLY_FROM_LADDER if return_evolution_operator else (),
                        info=strategy_info, extra={'hidden_feature': _hidden, 'sampling': _osc}):
         P_avg = _avg_prob_dispatch(htot, htot_is_function_only_of_energy, energy, L, L0, nu_i, nu_f,
-            average, 'osc_prob_matter_std_potential', smooth_profile=_profile_is_smooth, engine_kwargs=scan_kwargs)
+            average, 'osc_prob_matter_std_potential', smooth_profile=_profile_is_smooth, engine_kwargs=scan_kwargs,
+            average_spread=average_spread)
         if P_avg is not NotImplemented:
             return P_avg
 
@@ -7935,6 +8089,7 @@ def osc_prob_matter_nsi(
     density_is_of_number_of_electrons: Optional[bool]=False,
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
     average: Optional[bool]=False,
+    average_spread: Optional[float]=None,
     strategy: Optional[str]='auto',
     strategy_info: Optional[Dict]=None,
     return_evolution_operator: Optional[bool]=False,
@@ -8036,6 +8191,12 @@ def osc_prob_matter_nsi(
         None in ``osc_params``. Default: 'OSC_PARAMS_DEFAULT'.
     average : bool, optional
         If True, return the phase-averaged probability rather than the oscillating one.
+    average_spread : float, optional
+        Relative energy spread :math:`\sigma` of the phase average ``average=True`` returns:
+        every interference term keeps its phase and is weighted by
+        :math:`e^{-\sigma^2\phi'^2/2}`, :math:`\phi' = d\phi/d\ln E` (see
+        :data:`magnus.avgprob.AVG_PHASE_SPREAD`).  Ignored without ``average``.  Default:
+        None, meaning 0.1.
     strategy : str, optional
         Numerical strategy used to compute the evolution operator: 'auto' (default), 'hybrid',
         or 'magnus'; see the ``strategy`` parameter of :func:`osc_prob_matter_std_potential` for
@@ -8371,7 +8532,8 @@ def osc_prob_matter_nsi(
     with _engine_probe(disabled=_OPERATOR_ONLY_FROM_LADDER if return_evolution_operator else (),
                        info=strategy_info, extra={'hidden_feature': _hidden, 'sampling': _osc}):
         P_avg = _avg_prob_dispatch(htot, htot_is_function_only_of_energy, energy, L, L0, nu_i, nu_f,
-            average, 'osc_prob_matter_nsi', smooth_profile=_profile_is_smooth, engine_kwargs=scan_kwargs)
+            average, 'osc_prob_matter_nsi', smooth_profile=_profile_is_smooth, engine_kwargs=scan_kwargs,
+            average_spread=average_spread)
         if P_avg is not NotImplemented:
             return P_avg
 
@@ -8436,6 +8598,7 @@ def osc_prob_liv(
     density_is_of_number_of_electrons: Optional[bool]=False,
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
     average: Optional[bool]=False,
+    average_spread: Optional[float]=None,
     strategy: Optional[str]='auto',
     strategy_info: Optional[Dict]=None,
     return_evolution_operator: Optional[bool]=False,
@@ -8535,6 +8698,12 @@ def osc_prob_liv(
         None in ``osc_params``. Default: 'OSC_PARAMS_DEFAULT'.
     average : bool, optional
         If True, return the phase-averaged probability rather than the oscillating one.
+    average_spread : float, optional
+        Relative energy spread :math:`\sigma` of the phase average ``average=True`` returns:
+        every interference term keeps its phase and is weighted by
+        :math:`e^{-\sigma^2\phi'^2/2}`, :math:`\phi' = d\phi/d\ln E` (see
+        :data:`magnus.avgprob.AVG_PHASE_SPREAD`).  Ignored without ``average``.  Default:
+        None, meaning 0.1.
     strategy : str, optional
         Numerical strategy used to compute the evolution operator: 'auto' (default), 'hybrid',
         or 'magnus'; see the ``strategy`` parameter of :func:`osc_prob_matter_std_potential` for
@@ -8871,7 +9040,8 @@ def osc_prob_liv(
     with _engine_probe(disabled=_OPERATOR_ONLY_FROM_LADDER if return_evolution_operator else (),
                        info=strategy_info, extra={'hidden_feature': _hidden, 'sampling': _osc}):
         P_avg = _avg_prob_dispatch(htot, htot_is_function_only_of_energy, energy, L, L0, nu_i, nu_f,
-            average, 'osc_prob_liv', smooth_profile=_profile_is_smooth, engine_kwargs=scan_kwargs)
+            average, 'osc_prob_liv', smooth_profile=_profile_is_smooth, engine_kwargs=scan_kwargs,
+            average_spread=average_spread)
         if P_avg is not NotImplemented:
             return P_avg
 
@@ -12471,6 +12641,7 @@ def osc_prob_earth(
     strategy: Optional[str]='auto',
     strategy_info: Optional[Dict]=None,
     average: Optional[bool]=False,
+    average_spread: Optional[float]=None,
     **kwargs
 ) -> Union[float, np.ndarray]:
     r"""Compute and return the neutrino oscillation probability inside
@@ -12619,7 +12790,7 @@ def osc_prob_earth(
         If given, filled in place with which engine actually answered, following the
         same out-parameter convention as ``convergence_info`` in :func:`osc_prob`.
     average : bool, optional
-        If True, return the phase-averaged probability of the averaged limit (see
+        If True, return the phase average of the probability over a relative energy spread (see
         :mod:`magnus.avgprob`) instead of the oscillating one, as the wrappers do with the
         same keyword; ``strategy`` is then not consulted.  Which route answers follows from
         the Hamiltonian: a function of the energy alone is averaged in closed form, one
@@ -12629,6 +12800,12 @@ def osc_prob_earth(
         a warning, when ``t_breakpoints`` declare discontinuities.  ``n_jobs`` and the
         cumulative traversal play no role on this route.  Cannot be combined with
         ``return_evolution_operator``.  Default: False.
+    average_spread : float, optional
+        Relative energy spread :math:`\sigma` of the phase average ``average=True`` returns:
+        every interference term keeps its phase and is weighted by
+        :math:`e^{-\sigma^2\phi'^2/2}`, :math:`\phi' = d\phi/d\ln E` (see
+        :data:`magnus.avgprob.AVG_PHASE_SPREAD`).  Ignored without ``average``.  Default:
+        None, meaning 0.1.
 
     Returns
     -------
@@ -12734,6 +12911,7 @@ def osc_prob_earth(
     return _osc_prob_with_potential(source_func_name, H_func, VCC_func, energy, L, 0.0, nu_i,
         nu_f, t_breakpoints, magnus_exp_order, n_jobs, integration_method, rtol, atol,
         validate_input, verbose, strategy=strategy, strategy_info=strategy_info, average=average,
+        average_spread=average_spread,
         symmetric_over=_earth_chord_symmetry(costhz, L, source_depth, detector_depth), **kwargs)
 
 
@@ -12759,6 +12937,7 @@ def _osc_prob_with_potential(
     symmetric_over: Optional[tuple] = None,
     return_evolution_operator: Optional[bool] = False,
     average: Optional[bool] = False,
+    average_spread: Optional[float] = None,
     **kwargs
 ) -> Union[float, np.ndarray, Tuple[np.ndarray, np.ndarray]]:
     r"""Common machinery of :func:`osc_prob_earth` and
@@ -12836,7 +13015,7 @@ def _osc_prob_with_potential(
         with ``average``. Default: False.
 
     average : bool, optional
-        If True, return the phase-averaged probability of the averaged limit (see
+        If True, return the phase average of the probability over a relative energy spread (see
         :mod:`magnus.avgprob`) instead of the oscillating one, as the wrappers do with the
         same keyword; ``strategy`` is then not consulted.  Which route answers follows from
         the Hamiltonian: a function of the energy alone is averaged in closed form, one
@@ -12846,6 +13025,12 @@ def _osc_prob_with_potential(
         a warning, when ``t_breakpoints`` declare discontinuities.  ``n_jobs`` and the
         cumulative traversal play no role on this route.  Cannot be combined with
         ``return_evolution_operator``.  Default: False.
+    average_spread : float, optional
+        Relative energy spread :math:`\sigma` of the phase average ``average=True`` returns:
+        every interference term keeps its phase and is weighted by
+        :math:`e^{-\sigma^2\phi'^2/2}`, :math:`\phi' = d\phi/d\ln E` (see
+        :data:`magnus.avgprob.AVG_PHASE_SPREAD`).  Ignored without ``average``.  Default:
+        None, meaning 0.1.
     \**kwargs
         Additional arguments forwarded to :func:`osc_prob_energy_baseline`.
 
@@ -12938,7 +13123,8 @@ def _osc_prob_with_potential(
             engine_kwargs=dict(t_breakpoints=t_breakpoints, magnus_exp_order=magnus_exp_order,
                 n_jobs=n_jobs, integration_method=integration_method, rtol=rtol, atol=atol,
                 validate_input=validate_input, verbose=verbose, cumulative=cumulative,
-                symmetric_over=symmetric_over, kwargs=kwargs))
+                symmetric_over=symmetric_over, kwargs=kwargs),
+            average_spread=average_spread)
         if P_avg is not NotImplemented:
             return P_avg
 
@@ -13946,6 +14132,7 @@ def osc_prob_sun(
     strategy: Optional[str]='auto',
     strategy_info: Optional[Dict]=None,
     average: Optional[bool]=False,
+    average_spread: Optional[float]=None,
     density_profile: Optional[str]='exp',
     stop_at_table_edge: Optional[bool]=False,
     **kwargs
@@ -14032,7 +14219,7 @@ def osc_prob_sun(
         If given, filled in place with which engine actually answered, following the
         same out-parameter convention as ``convergence_info`` in :func:`osc_prob`.
     average : bool, optional
-        If True, return the phase-averaged probability of the averaged limit (see
+        If True, return the phase average of the probability over a relative energy spread (see
         :mod:`magnus.avgprob`) instead of the oscillating one, as the wrappers do with the
         same keyword; ``strategy`` is then not consulted.  Which route answers follows from
         the Hamiltonian: a function of the energy alone is averaged in closed form, one
@@ -14042,6 +14229,12 @@ def osc_prob_sun(
         a warning, when ``t_breakpoints`` declare discontinuities.  ``n_jobs`` and the
         cumulative traversal play no role on this route.  Cannot be combined with
         ``return_evolution_operator``.  Default: False.
+    average_spread : float, optional
+        Relative energy spread :math:`\sigma` of the phase average ``average=True`` returns:
+        every interference term keeps its phase and is weighted by
+        :math:`e^{-\sigma^2\phi'^2/2}`, :math:`\phi' = d\phi/d\ln E` (see
+        :data:`magnus.avgprob.AVG_PHASE_SPREAD`).  Ignored without ``average``.  Default:
+        None, meaning 0.1.
     density_profile : str, optional
         The Sun's electron density, which sets the ``VCC`` passed to ``H_func``.  ``'exp'``,
         the default, is the exponential fit described above.  The name of a standard solar
@@ -14122,7 +14315,7 @@ def osc_prob_sun(
     P = _osc_prob_with_potential(source_func_name, H_func, VCC_func, energy, L, L0, nu_i,
         nu_f, t_breakpoints, magnus_exp_order, n_jobs, integration_method, rtol, atol,
         validate_input, verbose, strategy=strategy, strategy_info=strategy_info,
-        average=average, **kwargs)
+        average=average, average_spread=average_spread, **kwargs)
     return _refuse_past_table_edge(P, _beyond)
 
 

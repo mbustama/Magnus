@@ -381,6 +381,7 @@ TREE = [
     ('tests/test_adiabatic.py', 'Adiabatic + Magnus hybrid strategy: detection, merging, ODE cross-checks'),
     ('tests/test_angles.py', "The four `angles` conventions and the guards between them"),
     ('tests/test_avgprob.py', 'Phase-averaged probabilities'),
+    ('tests/test_phase_average.py', 'The phase average over an energy spread (issue #64)'),
     ('tests/test_cli.py', 'magnus command-line calculator'),
     ('tests/test_pseudodirac.py',
      'Pseudo-Dirac Hamiltonians: the Dirac limit, blocks, and the factor of two'),

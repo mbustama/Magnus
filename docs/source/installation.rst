@@ -379,6 +379,7 @@ File Tree
        ├── test_adiabatic.py           # Adiabatic + Magnus hybrid strategy: detection, merging, ODE cross-checks
        ├── test_angles.py              # The four `angles` conventions and the guards between them
        ├── test_avgprob.py             # Phase-averaged probabilities
+       ├── test_phase_average.py       # The phase average over an energy spread (issue #64)
        ├── test_cli.py                 # magnus command-line calculator
        ├── test_pseudodirac.py         # Pseudo-Dirac Hamiltonians: the Dirac limit, blocks, and the factor of two
        ├── test_documented_examples.py  # Runs the code blocks in README.md and quickstart.rst

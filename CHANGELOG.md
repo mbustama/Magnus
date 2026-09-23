@@ -139,6 +139,32 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- **`average=True` returns the phase average** (issue #64), with the spread
+  set by a new keyword, `average_spread` (default 0.1), on every entry point
+  that takes `average`.  Before, a constant Hamiltonian kept each pair of
+  levels at zero phase below 2 pi and dropped it above, and a smooth profile
+  dropped every interference term, including the readout at the end of the
+  path: so a phase of 1 rad was set to zero, one of 20 rad was dropped
+  although 14 per cent of its interference survives a 10 per cent spread,
+  and the solar disk stepped wherever the window search changed its windows
+  (issue #62).  Each point is still computed the old way first, and the old
+  value is returned bit for bit wherever the phase average agrees with it to
+  1e-4 -- on a profile it is not even recomputed without a non-adiabatic
+  window, since adiabatic transport of a decohered start carries no
+  interference.  Measured over every averaged call in the notebooks, tests
+  and documentation, about 5 900 points: every solar MSW curve, notebooks 13,
+  24, 25 and 27, and paper Figures 14-17 are unchanged; 1 557 points move,
+  1 538 of them pixels of paper Figure 5f from 10 GeV up, the rest short
+  baselines and profiles with windows at GeV energies, each a case where the
+  old value was not the average.  `PhaseAveragingWarning` now says that the
+  result depends on the spread (it changes by more than 1e-3 per e-fold of
+  it) rather than that no averaged expression applies.  A Hamiltonian that
+  does not depend on energy, passed as a matrix or as a function of position
+  alone, has no spread to average over and keeps the old behavior; so does
+  the energy-window route of a profile with declared discontinuities.
+  `strategy_info` records the spread, how many points were recomputed, and
+  the largest sensitivity.
+
 - **The adiabatic machinery evaluates the Hamiltonian in batches.**  The search
   for non-adiabatic windows took the finite-difference derivative at every probe
   point, and bisected every gap extremum, one Python call per position: about

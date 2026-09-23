@@ -850,7 +850,10 @@ def test_average_on_the_direct_route_matches_the_wrapper_on_a_smooth_profile():
 
 
 def test_average_on_the_direct_route_accepts_a_position_only_function():
-    """The position-only form, at one energy, equals the two-argument form at that energy."""
+    """The position-only form is accepted, and returns the decohered limit: it does not depend on
+    energy, so an energy spread has no slope to act on (issue #64).  The two-argument form of the
+    same Hamiltonian does, and here returns something else -- at 1 GeV over 5000 km the phases
+    past the window run at tens of radians and part of their interference survives."""
     rho0, l_scale, L = 5.0, 1000.0*gd.UNIT_KM, 5000.0*gd.UNIT_KM
     H = _exp_density_hamiltonian(rho0, l_scale)
     with warnings.catch_warnings():
@@ -858,7 +861,9 @@ def test_average_on_the_direct_route_accepts_a_position_only_function():
         two = np.asarray(op.osc_prob_energy_baseline(H, ENERGY, L, 0.0, average=True))
         one = np.asarray(op.osc_prob_energy_baseline(lambda l: H(ENERGY, l), ENERGY, L, 0.0,
                                                      average=True))
-    assert maxabs(one - two) < 1e-12
+    decohered, _ = ap.averaged_probabilities_adiabatic(lambda l: H(ENERGY, l), 0.0, L)
+    assert maxabs(one - decohered) < 1e-12
+    assert maxabs(two - decohered) > 0.1
 
 
 def test_average_on_the_direct_route_uses_the_window_average_across_declared_edges():
