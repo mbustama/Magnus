@@ -31,7 +31,9 @@ files rather than the generator.
 
 Notebook 28 reads its expensive inputs from `paper_figure_cache.json` and recomputes only
 what the configuration has changed. Setting `MAGNUS_PAPER_CACHE_ONLY=1` forbids it from
-recomputing anything, which is how continuous integration runs it.
+recomputing anything, which is how continuous integration runs it. Notebook 13 keeps its
+comparison of the twelve solar models the same way, in `solar_models_cache.json`, and honors
+the same variable.
 
 ---
 
@@ -86,11 +88,13 @@ cycle, which is the regime the coherent-block averaging form exists for.
 
 ## Real profiles
 
-**13. A tabulated solar model** [[`13_magnus_tabulated_solar_model.ipynb`](13_magnus_tabulated_solar_model.ipynb)]
-Probabilities from a solar model on disk, BS2005-AGS,OP, and the difference between the
-instantaneous probability and the observable. Averaging a scan does not converge on a
-solar trajectory; `average=True` gives the limit in closed form, matching the textbook
-adiabatic MSW expression to 3e-16.
+**13. Tabulated solar models** [[`13_magnus_tabulated_solar_model.ipynb`](13_magnus_tabulated_solar_model.ipynb)]
+The twelve standard solar models that ship with the package, taken by name through
+`density_profile`. On BS2005-AGS,OP: the difference between the instantaneous probability and
+the observable. Averaging a scan does not converge on a solar trajectory; `average=True` gives
+the limit in closed form, matching the textbook adiabatic MSW expression to 3e-16. Then all
+twelve compared on the averaged observable: they agree to 2.4e-3, and the exponential fit is
+off by 0.1.
 
 **14. A supernova shock front** [[`14_magnus_supernova_shock.ipynb`](14_magnus_supernova_shock.ipynb)]
 The opposite case. A shock front changes the adiabaticity of the level crossing, so it

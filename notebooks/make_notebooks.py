@@ -6406,8 +6406,8 @@ procedure) behind everything demonstrated in this notebook.'''),
 
 # ------------------------------------------- 13_magnus_tabulated_solar_model
 books['13_magnus_tabulated_solar_model.ipynb'] = notebook(
-    'A tabulated solar model: are you computing the observable?',
-    "You have a real solar model on disk -- a table of radius, density and composition --\nand you want oscillation probabilities from it. This notebook does exactly that with\n**BS2005-AGS,OP** (Bahcall, Serenelli & Basu, ApJ 621, L85), and uses it to separate two\nquantities that are easy to confuse:\n\n* the **instantaneous** probability at one baseline, which is what `osc_prob_*` returns;\n* the **phase-averaged** probability, which is what a solar-neutrino experiment measures.\n\nThey are different quantities, not two estimates of one quantity, and the notebook's\nheadline is about how you get the second.\n\n**The tempting route does not work.** Averaging a scan of instantaneous probabilities over a\nwindow of several oscillation lengths looks like the obvious way to reach the observable. On\na solar trajectory it is not: the answer drifts by about $10^{-2}$ depending on how wide\na window you pick, because widening the window also averages over a changing density. The\nestimator has no converged value to offer.\n\n**The direct route is exact.** `average=True` evaluates the phase-averaged limit in closed\nform -- one matrix product, no scan -- and it reproduces the textbook adiabatic MSW\nexpression to **machine precision, 3e-16, across 1--20 MeV**, checked against a formula that\nowes nothing to Mag$\\nu$s.\n\nThe notebook also shows the diagnostics: `strategy_info['sampling']` for how coarsely a scan\nresolves the oscillation it is sampling, and `avgprob.coherence_report` for whether the\naveraged limit applies at all.",
+    'Tabulated solar models: are you computing the observable?',
+    "Mag$\\nu$s ships twelve standard solar models, from BP2000 to the B23 series, and the Sun\nwrappers take any of them by name through `density_profile`; the default is an exponential\nfit. This notebook works with one of them, **BS2005-AGS,OP** (Bahcall, Serenelli & Basu,\nApJ 621, L85), and uses it to separate two quantities that are easy to confuse:\n\n* the **instantaneous** probability at one baseline, which is what `osc_prob_*` returns;\n* the **phase-averaged** probability, which is what a solar-neutrino experiment measures.\n\nThey are different quantities, not two estimates of one quantity, and the notebook's\nheadline is about how you get the second.\n\n**The tempting route does not work.** Averaging a scan of instantaneous probabilities over a\nwindow of several oscillation lengths looks like the obvious way to reach the observable. On\na solar trajectory it is not: the answer sits several $10^{-3}$ from the averaged limit and\ndrifts by $2\\times10^{-3}$ depending on how wide a window you pick, because widening the window\nalso averages over a changing density. The estimator has no converged value to offer.\n\n**The direct route is exact.** `average=True` evaluates the phase-averaged limit in closed\nform -- one matrix product, no scan -- and it reproduces the textbook adiabatic MSW\nexpression to **machine precision, 3e-16, across 1--20 MeV**, checked against a formula that\nowes nothing to Mag$\\nu$s.\n\nThe notebook also shows the diagnostics: `strategy_info['sampling']` for how coarsely a scan\nresolves the oscillation it is sampling, and `avgprob.coherence_report` for whether the\naveraged limit applies at all.\n\n**Section 7 compares all twelve models** on the averaged observable. Its numbers are stored in\n`solar_models_cache.json` and read back on every rebuild, so continuous integration does not\nrecompute them.",
     [
     code(r'''import os
 import time
@@ -6427,12 +6427,18 @@ import magnus.hamiltonians as hamiltonians
 import magnus.matter as matter
 import magnus.oscprob as oscprob
 import magnus.adiabatic as adiabatic
+import magnus.solarmodels as solarmodels
+
+# The model this notebook works with, by the name the Sun wrappers take.
+MODEL = 'BS05-AGS-OP'
 
 plt.rcParams["figure.dpi"] = 110'''),
-    md(r'''## 1. Load the model and build an electron-density profile
+    md(r'''## 1. The model, and what the package does with it
 
-The table ships with the repository, under `docs/dev/adversarial_batteries/`. Two
-details matter and are easy to get wrong:
+`magnus.solarmodels` reads the tables that ship with the package: three columns of each
+authors' file, radius, mass density and hydrogen mass fraction, copied as written. A Sun
+wrapper given `density_profile=MODEL` builds the electron density from them, and two
+details in that are easy to get wrong:
 
 * **The electron fraction is not 0.5.** For fully ionized H + He,
   $n_e = \rho\,N_A\,(1+X)/2$, and the hydrogen mass fraction $X$ runs from 0.36 at the
@@ -6441,22 +6447,18 @@ details matter and are easy to get wrong:
   density ourselves rather than handing a mass density to `vcc_func_from_rho_func` (that
   function takes a *scalar* electron fraction).
 * **Interpolate in $\log n_e$.** The density spans five orders of magnitude; a linear
-  interpolant in the raw value is poor and a spline can undershoot to negative values.'''),
-    code(r"""TABLE = os.path.join('..', 'docs', 'dev', 'adversarial_batteries', 'bs05_agsop.dat')
+  interpolant in the raw value is poor and a spline can undershoot to negative values.
 
-rows = []
-with open(TABLE) as fh:
-    for line in fh:
-        f = line.split()
-        if len(f) == 12:
-            try:
-                rows.append([float(x) for x in f])
-            except ValueError:
-                continue          # the column-heading line
-table = np.array(rows)
+The cell below does the same by hand, and checks that it lands on the package's profile. That
+is also how to use a table of your own: build $n_e(l)$ and hand it to a scenario function, as
+the cubic spline of section 4 does.'''),
+    code(r"""print('models that ship:', ', '.join(solarmodels.available_solar_models()))
+info = solarmodels.solar_model_info(MODEL)
+print('%s: %s' % (MODEL, info['reference']))
 
-r_over_rsun = table[:, 1]
-rho_cgs, x_hydrogen = table[:, 3], table[:, 6]
+table = solarmodels.load_solar_model(MODEL)
+r_over_rsun = table['r_over_r_sun']
+rho_cgs, x_hydrogen = table['rho_g_per_cm3'], table['x_hydrogen']
 
 # n_e = rho * N_A * (1 + X) / 2, in the package's natural units [eV^3].
 MEAN_NUCLEON = 0.5*(gd.MASS_PROTON + gd.MASS_NEUTRON)
@@ -6471,12 +6473,20 @@ def ne_bs05(l):
     out = np.exp(np.interp(xs, x_nat, log_ne))
     return out[()] if np.ndim(out) == 0 else out
 
-print('%d rows, r = %.5f .. %.5f R_sun' % (len(table), r_over_rsun[0], r_over_rsun[-1]))
-print('central n_e = %.1f N_A cm^-3' % (ne_ev3[0]/gd.N_AV/gd.UNIT_PER_CM3))"""),
+# The package's own profile.  Inside the table the two are the same function; outside it,
+# the package holds the core value below the first row, as this does, and past the last row
+# continues the last interval's slope rather than holding the edge value.
+ne_package = solarmodels.electron_density_profile(MODEL)
+inside = np.linspace(x_nat[0], x_nat[-1], 5001)
+print('%d rows, r = %.5f .. %.5f R_sun' % (len(r_over_rsun), r_over_rsun[0], r_over_rsun[-1]))
+print('central n_e = %.1f N_A cm^-3' % (ne_ev3[0]/gd.N_AV/gd.UNIT_PER_CM3))
+print('hand-built profile equals the package\'s inside the table, bit for bit: %s'
+      % np.array_equal(ne_bs05(inside), ne_package(inside)))"""),
     md(r'''### The package's exponential is a *fit*, not this model
 
 `gd.NUM_DENSITY_E_SUN_CENTRAL` = 245 $N_A$ is the $r\to0$ intercept of the standard
-exponential fit $n_e = 245\,N_A e^{-10.54 r/R_\odot}$. The model's actual central value
+exponential fit $n_e = 245\,N_A e^{-10.54 r/R_\odot}$, which the Sun wrappers use unless
+`density_profile` names a model. The model's actual central value
 is 101.9 $N_A$ (printed below). The fit is a few-percent description only between about
 $0.2$ and $0.3\,R_\odot$; at $0.05\,R_\odot$ it is 1.6 times the model, and at the center
 2.4 times.'''),
@@ -6496,7 +6506,9 @@ fig.tight_layout()'''),
     md(r'''## 2. The instantaneous probability, and its error
 
 We take a two-flavor calculation at **5 MeV** -- in the $^8$B range -- over one solar
-scale height, and check it against a tight-tolerance `solve_ivp` ground truth.'''),
+scale height, and check it against a tight-tolerance `solve_ivp` ground truth.  The call is
+the two-flavor Sun wrapper with the model named; the ground truth integrates the same
+profile, built by hand above.'''),
     code(r"""def exact_U_many(H_func, l0, Ls, dim):
     '''Ground truth at many baselines from ONE integration.'''
     def rhs(l, y):
@@ -6525,9 +6537,8 @@ def H_of_l(l):
 info = {}
 with warnings.catch_warnings(record=True) as caught:
     warnings.simplefilter('always')
-    P = np.asarray(oscprob.osc_prob_matter_std_potential(
-        2, ne_bs05, ENERGY, L1, params2, L0=L0,
-        density_is_of_number_of_electrons=True, strategy_info=info))
+    P = np.asarray(oscprob.osc_prob_2nu_sun(
+        ENERGY, L1, L0, **params2, density_profile=MODEL, strategy_info=info))
     raised = sorted({w.category.__name__ for w in caught})
 
 P_ref = to_P(exact_U_many(H_of_l, L0, np.array([L1]), 2)[0])
@@ -6535,11 +6546,28 @@ print('engine        : %s' % info['engine'])
 print('certified     : %s' % info.get('certified'))
 print('warnings      : %s' % (', '.join(raised) or 'NONE'))
 print('P_ee          : %.6f   (truth %.6f)' % (P[0][0], P_ref[0][0]))
-print('max |error|   : %.3e   against a requested %.0e' % (np.max(np.abs(P - P_ref)), 1e-3))"""),
-    md(r'''That is inside the requested tolerance, reported as `certified`, with no warning --
-which is the right answer, but not yet an interesting one. The interesting question is what
-this number is *of*: it is the error in the probability at **one exact baseline**, and no
-solar experiment measures that.
+print('max |error|   : %.3e   against a requested %.0e' % (np.max(np.abs(P - P_ref)), 1e-3))
+print()
+# A tolerance is a stopping rule: the refinement stops when two successive levels agree to
+# it.  Asking for less makes it go further.
+for tol in (1e-4, 1e-5):
+    with warnings.catch_warnings(record=True) as caught_tol:
+        warnings.simplefilter('always')
+        P_tol = np.asarray(oscprob.osc_prob_2nu_sun(
+            ENERGY, L1, L0, **params2, density_profile=MODEL, rtol=tol, atol=tol))
+    print('rtol = atol = %.0e: max |error| %.3e  (%s)'
+          % (tol, np.max(np.abs(P_tol - P_ref)),
+             ', '.join(sorted({w.category.__name__ for w in caught_tol})) or 'no warning'))"""),
+    md(r'''The error is 1.7 times the tolerance asked for, and the result is reported `certified`,
+with no warning. That is what a tolerance means here: it is a stopping rule rather than a
+bound, and `certified` says that two successive refinements agreed to it, not that the answer
+lies within it of the truth (the `rtol` entry of `osc_prob` says what it does and does not
+promise). Asking for $10^{-4}$ brings the error to $9\times10^{-5}$, and $10^{-5}$ to
+$2\times10^{-6}$. Both are answered by the slab ladder, and both raise
+`MagnusConvergenceWarning`, which reports the width of a slab rather than an error.
+
+That settles the accuracy, but not the interesting question, which is what this number is
+*of*: it is the probability at **one exact baseline**, and no solar experiment measures that.
 
 The rest of this notebook is about the quantity one does measure, and about how easy it is
 to compute something that looks like it and is not.'''),
@@ -6552,9 +6580,8 @@ ask for it, so it costs nothing on an ordinary call.'''),
 info_scan = {}
 with warnings.catch_warnings():
     warnings.simplefilter('ignore')
-    oscprob.osc_prob_matter_std_potential(
-        2, ne_bs05, ENERGY, Ls_scan, params2, L0=L0,
-        density_is_of_number_of_electrons=True, strategy_info=info_scan)
+    oscprob.osc_prob_2nu_sun(
+        ENERGY, Ls_scan, L0, **params2, density_profile=MODEL, strategy_info=info_scan)
 
 for k, v in sorted(info_scan['sampling'].items()):
     print('%-24s %s' % (k, ('%.4e' % v) if isinstance(v, float) else v))'''),
@@ -6581,9 +6608,8 @@ Ls = np.linspace(L1 - 6.0*L_OSC, L1, 121)
 P_ref_many = np.array([to_P(U) for U in exact_U_many(H_of_l, L0, Ls, 2)])
 with warnings.catch_warnings():
     warnings.simplefilter('ignore')
-    P_pkg = np.array([np.asarray(oscprob.osc_prob_matter_std_potential(
-        2, ne_bs05, ENERGY, float(L), params2, L0=L0,
-        density_is_of_number_of_electrons=True)) for L in Ls])
+    P_pkg = np.array([np.asarray(oscprob.osc_prob_2nu_sun(
+        ENERGY, float(L), L0, **params2, density_profile=MODEL)) for L in Ls])
 
 err_inst = np.max(np.abs(P_pkg[-1] - P_ref_many[-1]))
 err_avg = np.max(np.abs(P_pkg.mean(axis=0) - P_ref_many.mean(axis=0)))
@@ -6613,9 +6639,9 @@ ax.axhline(P_ref_many[:, 0, 0].mean(), color='k', lw=1.2,
 ax.set_xlabel('baseline, in oscillation lengths'); ax.set_ylabel(r'$P_{ee}$')
 ax.legend(fontsize=8); ax.set_title('A scan, and the mean of that scan')
 fig.tight_layout()'''),
-    md(r'''Averaging did not help. It is worth being precise about why, because the reason is not
-that the package is inaccurate -- it is that **the mean of this scan is not a converged
-estimate of anything.**
+    md(r'''Averaging brings the package closer to the ground truth, by a factor of three. But that
+compares two estimates of the same scan mean, and the question is whether **the scan mean is
+the observable**. It is not: it is not a converged estimate of anything.
 
 Two things are wrong with it. The window is six *vacuum* oscillation lengths, but the
 neutrino is in matter, so the window is not a whole number of actual cycles. And -- the
@@ -6632,8 +6658,10 @@ for n_osc in (6, 12, 24, 48):
     Ls_w = np.linspace(L1 - n_osc*L_OSC, L1, 20*n_osc + 1)
     P_w = np.array([to_P(U) for U in exact_U_many(H_of_l, L0, Ls_w, 2)])
     print('%-22s %.6f' % ('%d oscillation lengths' % n_osc, P_w[:, 0, 0].mean()))'''),
-    md(r'''The number moves and keeps moving. Widening the window makes it *worse*, not better,
-which is the signature of an estimator whose bias is not statistical.
+    md(r'''The number moves by $2\times10^{-3}$ across the four windows, and the widest window leaves it
+further from the averaged limit computed below, 0.5953, than the narrowest: 0.0061 against
+0.0046. An estimator that does not settle as its window widens has a bias that is not
+statistical.
 
 ### The averaged probability, computed rather than estimated
 
@@ -6668,9 +6696,8 @@ for E_mev in (1.0, 2.0, 5.0, 8.0, 10.0, 15.0, 20.0):
     E_here = E_mev*gd.UNIT_MEV
     with warnings.catch_warnings():
         warnings.simplefilter('ignore')
-        got = np.asarray(oscprob.osc_prob_matter_std_potential(
-            2, ne_bs05, E_here, L1, params2, L0=L0,
-            density_is_of_number_of_electrons=True, average=True))[0][0]
+        got = np.asarray(oscprob.osc_prob_2nu_sun(
+            E_here, L1, L0, **params2, density_profile=MODEL, average=True))[0][0]
     want = adiabatic_averaged(E_here)
     worst = max(worst, abs(got - want))
     print('%-10.1f %-16.8f %-16.8f %.2e' % (E_mev, got, want, abs(got - want)))
@@ -6679,17 +6706,20 @@ print('worst disagreement across the 8B range: %.2e' % worst)'''),
     md(r'''Machine precision, across the whole $^8$B range. That is the averaged solar
 probability, and it is exact.
 
-Compare the two routes on the same quantity at 5 MeV: the scan mean gave a number that
-drifted by about $10^{-2}$ depending on how wide a window was chosen, while
-`average=True` reproduces an independent closed form to $10^{-16}$ at a fraction of the
-cost. **If the averaged probability is what you want, ask for it; do not estimate it by
+Compare the two routes on the same quantity at 5 MeV: the scan mean sat $4\times10^{-3}$ to
+$6\times10^{-3}$ above the averaged limit and moved by $2\times10^{-3}$ with the width of its
+window, while `average=True` reproduces an independent closed form to $10^{-16}$ at a
+fraction of the cost. **If the averaged probability is what you want, ask for it; do not estimate it by
 averaging a scan.** The scan is for looking at the oscillation, not for integrating it.'''),
     md(r'''### Nor is the scan's behavior an artifact of the interpolation
 
 A cubic spline through the same table (still in $\log n_e$) is a different profile, so it is
-a fair second opinion on the scan-mean estimator. It gives different numbers in both columns
-and the same verdict: the reduction factor is order unity either way, so the failure of the
-window mean is a property of the estimator rather than of one particular interpolant.'''),
+a fair second opinion on the scan-mean estimator.  It is also a profile of our own rather than
+one the package ships, so it goes through the scenario function, which takes any callable.
+It gives different numbers in both columns and the same picture: averaging brings the package
+closer to the ground truth by a factor of two to three either way, and neither column is
+about the observable. The failure of the window mean is a property of the estimator rather
+than of one particular interpolant.'''),
     code(r'''from scipy.interpolate import CubicSpline
 
 _cs = CubicSpline(x_nat, log_ne, extrapolate=True)
@@ -6738,8 +6768,8 @@ print('pairs in neither limit:', undecided or 'none -- the averaged expression i
 
 | | |
 |---|---|
-| instantaneous error at 5 MeV | inside the requested 1e-3, `certified`, no warning -- but it is the error at *one baseline*, which no solar experiment measures |
-| averaging a scan to get the observable | **does not work here.** The mean drifts by about $10^{-2}$ with the window width, because a wider window also averages over changing density |
+| instantaneous error at 5 MeV | 1.7e-3 against a requested 1e-3, `certified`, no warning: a tolerance is a stopping rule, not a bound, and 1e-4 brings it to 9e-5. And it is the error at *one baseline*, which no solar experiment measures |
+| averaging a scan to get the observable | **does not work here.** The mean sits $4$--$6\times10^{-3}$ above the averaged limit and drifts by $2\times10^{-3}$ with the window width, because a wider window also averages over changing density |
 | the averaged probability, done properly | `average=True` -- closed form, one matrix product, and it matches the adiabatic MSW expression to $10^{-16}$ across 1--20 MeV |
 | how to check the limit applies | `avgprob.coherence_report`, and `strategy_info['sampling']` for how coarsely a scan resolves the oscillation |
 
@@ -6768,17 +6798,16 @@ change three things at once, deliberately, and it is worth saying which:
 **In both sections the standard three-flavor curve is drawn alongside.** A BSM curve on its
 own says nothing about size, and size is the only thing worth reading off these panels.'''),
     code(r'''OSC3_BSM = dict(NUFIT_NO)
-R_SUN_BSM = float(x_nat[-1])
+R_SUN_BSM = solarmodels.table_edge(MODEL)       # the last tabulated radius, 0.983 R_sun
 E_BSM = np.logspace(np.log10(0.1), np.log10(20.0), 40)*gd.UNIT_MEV
-h_vac3_bsm = np.asarray(
-    hamiltonians.hamiltonian_3nu_vacuum_energy_independent(**OSC3_BSM))
-PER_NE_BSM = matter.VCC_func(l=0.0, num_density_e_func=lambda l: 1.0)
+# Everything the averaged calls below share: the model by name, from the center to the
+# edge of its table, nu_e to nu_e.
+SUN_BSM = dict(nu_i=gd.NUE, nu_f=gd.NUE, density_profile=MODEL, average=True)
 
 
 def averaged_3nu(**kw):
-    return np.asarray(oscprob.osc_prob_matter_std_potential(
-        3, ne_bs05, E_BSM, R_SUN_BSM, OSC3_BSM, L0=0.0, nu_i=gd.NUE, nu_f=gd.NUE,
-        density_is_of_number_of_electrons=True, average=True, **kw))
+    return np.asarray(oscprob.osc_prob_3nu_sun(
+        E_BSM, R_SUN_BSM, 0.0, **OSC3_BSM, **SUN_BSM, **kw))
 
 
 t0 = time.perf_counter()
@@ -6803,13 +6832,16 @@ NSI wrapper reaches is checked by its cost: the adiabatic route never propagates
                eps_mm=0.0, eps_mt=0.0, eps_tt=0.0)
 
 t0 = time.perf_counter()
-P_nsi_bsm = np.asarray(oscprob.osc_prob_matter_nsi(
-    3, ne_bs05, E_BSM, R_SUN_BSM, OSC3_BSM, EPS_BSM, L0=0.0,
-    nu_i=gd.NUE, nu_f=gd.NUE, density_is_of_number_of_electrons=True, average=True))
+P_nsi_bsm = np.asarray(oscprob.osc_prob_3nu_sun_nsi(
+    E_BSM, R_SUN_BSM, 0.0, **OSC3_BSM, **EPS_BSM, **SUN_BSM))
 t_nsi_bsm = time.perf_counter() - t0
 
-print('WHICH ROUTE? standard %.3f s, NSI %.3f s -- both sub-second, so both adiabatic.'
-      % (t_std_bsm, t_nsi_bsm))
+# The verdict is computed from the timings rather than written into the format string, so
+# that a loaded machine cannot make it print a claim its own numbers contradict.
+print('WHICH ROUTE? standard %.3f s, NSI %.3f s -- %s.'
+      % (t_std_bsm, t_nsi_bsm,
+         'seconds, not minutes, so both adiabatic' if max(t_std_bsm, t_nsi_bsm) < 60.0
+         else 'MINUTES: one of them may have taken the numerical route'))
 print('A numerical window over this ray propagates a ~13 000 radian phase and costs')
 print('minutes, so the timing is what distinguishes them.')
 print()
@@ -6828,18 +6860,23 @@ $\mathrm{diag}(1, 0, 0, r/2)$, and it comes from `matter.matter_potential_projec
 being written out --- writing it out is exactly how notebook 25's own PREM referee was wrong by
 $2.6\times10^{-2}$ until recently.
 
+The Sun wrappers take $r$ from the model: $(1 - X)/(1 + X)$ at each radius, from 0.47 at the
+center of this table to 0.14 at its edge. An explicit `ratio_number_neutrons_to_protons`, a
+number or a function of position, overrides it.
+
 **So the check that matters is whether that entry is live**, and it is easy: vary $r$ and watch
-the curve move. If the term were missing, the rows below would be identical.'''),
+the curve move. If the term were missing, the rows below would be identical. The last row is
+the model's own composition, which is what the curves below use.'''),
     code(r'''STERILE_BSM = dict(s14=np.sqrt(0.10), s24=np.sqrt(0.10), s34=0.0,
                    d14=0.0, d24=0.0, D41=1.0e-5)
 OSC4_BSM = dict(OSC3_BSM, **STERILE_BSM)
 
 
-def averaged_4nu(ratio=1.0, energies=None):
-    return np.asarray(oscprob.osc_prob_matter_std_potential(
-        4, ne_bs05, E_BSM if energies is None else energies, R_SUN_BSM, OSC4_BSM,
-        L0=0.0, nu_i=gd.NUE, nu_f=gd.NUE, density_is_of_number_of_electrons=True,
-        average=True, ratio_number_neutrons_to_protons=ratio))
+def averaged_4nu(ratio=None, energies=None):
+    # ratio=None is the wrapper's default: n_n/n_p from the model, radius by radius.
+    return np.asarray(oscprob.osc_prob_4nu_sun(
+        E_BSM if energies is None else energies, R_SUN_BSM, 0.0, **OSC4_BSM,
+        ratio_number_neutrons_to_protons=ratio, **SUN_BSM))
 
 
 t0 = time.perf_counter()
@@ -6850,10 +6887,10 @@ print('3+1, %d averaged energies: %.3f s  (the adiabatic route reaches four flav
 print()
 print('IS THE STERILE NEUTRAL-CURRENT ENTRY LIVE?  <P_ee> at 1, 5, 15 MeV:')
 E_PROBE_BSM = np.array([1.0, 5.0, 15.0])*gd.UNIT_MEV
-for ratio in (0.5, 1.0, 1.5):
-    print('   n_n/n_p = %.1f  ->  %s'
-          % (ratio, np.array2string(averaged_4nu(ratio, E_PROBE_BSM).ravel(),
-                                    precision=6)))
+for ratio in (0.5, 1.0, 1.5, None):
+    print('   n_n/n_p = %-11s ->  %s'
+          % ('the model\'s' if ratio is None else '%.1f' % ratio,
+             np.array2string(averaged_4nu(ratio, E_PROBE_BSM).ravel(), precision=6)))
 print('   The curve moves, so the sterile state is feeling the medium.')
 print()
 print('departure from the standard curve: max %.4f at %.2f MeV, mean %.4f'
@@ -6903,6 +6940,248 @@ instantaneous probability along a ray, and the phase term is the larger part of 
 That is worth carrying away from this notebook: **a BSM effect's size is a property of the
 observable at least as much as of the model**, and a sensitivity estimate quoted without saying
 which probability it refers to can be wrong by a factor of twenty.'''),
+    md(r'''## 7. All twelve models
+
+Everything above used one table. The Sun wrappers take any of the twelve by name, so the
+question of how much the choice matters costs one loop. This section asks it of the averaged
+observable, at three flavors and with the 3+1 state of section 6.2, from the center to the
+solar surface.
+
+Two things to know about the tables first. They come from three generations of models and
+several solar compositions: BP2000 and BP04; BS05 with the GS98 and AGS05 compositions; B16
+with GS98 and AGSS09met; and B23 with six. And the older ones stop short of the surface ---
+BP2000 and BP04 at $0.95\,R_\odot$, BS05 at $0.98$ --- past which the wrappers continue the
+density along the slope of the last tabulated interval.
+
+The numbers are computed once and stored in `solar_models_cache.json`, beside this notebook,
+keyed on everything they depend on: the profiles, the composition, the energies and the
+oscillation parameters. A rebuild reads them back, and a change in any input recomputes the
+entry.'''),
+    code(r'''import hashlib
+import json
+import pathlib
+import platform
+import re
+
+# Continuous integration rebuilds every notebook on each push with MAGNUS_PAPER_CACHE_ONLY
+# set; there, a missing or outdated entry stops the build rather than being recomputed.
+# MAGNUS_PAPER_REDO recomputes every entry.
+MODELS_CACHE = pathlib.Path('solar_models_cache.json')
+CACHE_ONLY = bool(os.environ.get('MAGNUS_PAPER_CACHE_ONLY'))
+
+
+def _canon(x):
+    """A text form of x that does not depend on the machine or the NumPy version: floats at
+    twelve significant digits (a last-place difference between machines must not move the
+    key), and np.float64 written as a float, which its repr is not under NumPy 2."""
+    if isinstance(x, (bool, np.bool_)):
+        return repr(bool(x))
+    if isinstance(x, (int, np.integer)):
+        return repr(int(x))
+    if isinstance(x, (float, np.floating)):
+        return '%.11e' % float(x)
+    if isinstance(x, (complex, np.complexfloating)):
+        return '(%s,%s)' % (_canon(x.real), _canon(x.imag))
+    if isinstance(x, str):
+        return repr(x)
+    if isinstance(x, dict):
+        return '{%s}' % ','.join('%s:%s' % (_canon(k), _canon(x[k])) for k in sorted(x))
+    if isinstance(x, np.ndarray):
+        x = x.ravel().tolist()
+    if isinstance(x, (list, tuple)):
+        return '[%s]' % ','.join(_canon(v) for v in x)
+    raise TypeError('cannot key on %r' % type(x))
+
+
+def cached(name, key_parts, compute):
+    """The stored value of `name` if its inputs are unchanged, else compute and store it."""
+    blob = json.loads(MODELS_CACHE.read_text()) if MODELS_CACHE.exists() else {}
+    key = hashlib.sha256(_canon(list(key_parts)).encode()).hexdigest()
+    entry = blob.get(name)
+    if entry and entry['key'] == key and not os.environ.get('MAGNUS_PAPER_REDO'):
+        return entry['value']
+    if CACHE_ONLY:
+        raise RuntimeError('%s is missing from %s or out of date, and MAGNUS_PAPER_CACHE_ONLY '
+                           'is set.  Rebuild this notebook without it and commit the file.'
+                           % (name, MODELS_CACHE.name))
+    value = compute()
+    blob[name] = dict(key=key, value=value, measured=time.strftime('%Y-%m-%d'),
+                      machine=platform.node())
+    MODELS_CACHE.write_text(json.dumps(blob, indent=1, sort_keys=True) + '\n')
+    return value
+
+
+PROFILES = ('exp',) + solarmodels.available_solar_models()
+L_SURFACE = gd.SUN_RADIUS*gd.UNIT_KM
+R_KEY = np.linspace(0.0, 1.0, 41)*L_SURFACE      # where the profiles are sampled for the key
+
+
+def ne_profile(name):
+    return fit if name == 'exp' else solarmodels.electron_density_profile(name)
+
+
+def ratio_profile(name):
+    # The exponential fit carries no composition; the wrappers hold n_n/n_p at 1 on it.
+    if name == 'exp':
+        return lambda l: np.ones_like(np.asarray(l, dtype=float))
+    return solarmodels.neutron_to_proton_ratio_profile(name)
+
+
+def averaged_center_to_surface(name):
+    sun = dict(nu_i=gd.NUE, nu_f=gd.NUE, density_profile=name, average=True)
+    return dict(
+        P3=np.asarray(oscprob.osc_prob_3nu_sun(E_BSM, L_SURFACE, 0.0, **OSC3_BSM,
+                                               **sun)).tolist(),
+        P4=np.asarray(oscprob.osc_prob_4nu_sun(E_BSM, L_SURFACE, 0.0, **OSC4_BSM,
+                                               **sun)).tolist())
+
+
+t0 = time.perf_counter()
+AVG = {}
+for name in PROFILES:
+    AVG[name] = {k: np.asarray(v) for k, v in cached(
+        'averaged center to surface, %s' % name,
+        ('averaged P_ee, 3nu and 3+1, center to surface', name,
+         ne_profile(name)(R_KEY), ratio_profile(name)(R_KEY), E_BSM, L_SURFACE,
+         OSC3_BSM, OSC4_BSM),
+        lambda name=name: averaged_center_to_surface(name)).items()}
+print('%d profiles, %d energies each, at 3 and 4 flavors: %.1f s'
+      % (len(PROFILES), len(E_BSM), time.perf_counter() - t0))
+
+
+
+def short_reference(reference):
+    """'J. N. Bahcall et al. (2001)' out of the full reference solar_model_info gives."""
+    names = re.split(r', | and ', reference.split(', "')[0])
+    who = names[0] + (' et al.' if len(names) > 2 else
+                      ' and ' + names[1] if len(names) == 2 else '')
+    return '%s (%s)' % (who, re.search(r'\((\d{4})\)', reference).group(1))
+
+
+print()
+print('%-14s %-12s %6s  %s' % ('model', 'tabulated to', 'rows', 'reference'))
+for name in solarmodels.available_solar_models():
+    info = solarmodels.solar_model_info(name)
+    print('%-14s %6.3f R_sun %6d  %s' % (name, info['r_max'], info['rows'],
+                                        short_reference(info['reference'])))'''),
+    code(r'''GENERATION = {'BP': ('#555555', '#999999'),
+              'BS05': ('#b35806', '#f1a340'),
+              'B16': ('#2166ac', '#67a9cf'),
+              'B23': ('#1b7837', '#5aae61', '#a6dba0', '#762a83', '#9970ab', '#c2a5cf')}
+
+
+def style(name):
+    """One hue per generation of models, shades within it; the fit dashed and black."""
+    if name == 'exp':
+        return dict(color='k', ls='--', lw=1.2)
+    gen = 'BP' if name.startswith('BP') else name.split('-')[0]
+    members = [m for m in solarmodels.available_solar_models()
+               if (m.startswith('BP') if gen == 'BP' else m.startswith(gen + '-'))]
+    return dict(color=GENERATION[gen][members.index(name)], ls='-', lw=1.1)
+
+
+LABEL = dict(fontsize=9)
+fig, ax = plt.subplots(3, 1, figsize=(6.6, 8.2), sharex=True,
+                       gridspec_kw=dict(height_ratios=[1.5, 1.0, 1.0], hspace=0.08))
+per_cm3 = gd.N_AV*gd.UNIT_PER_CM3
+ref_ne = solarmodels.electron_density_profile(MODEL)
+for name in PROFILES:
+    if name == 'exp':
+        rr = np.linspace(0.0, 1.0, 400)
+    else:
+        rr = solarmodels.load_solar_model(name)['r_over_r_sun']   # the tabulated rows only
+    xs = rr*L_SURFACE
+    ne = np.asarray(ne_profile(name)(xs))
+    ax[0].semilogy(rr, ne/per_cm3, label=name, **style(name))
+    inside = rr <= solarmodels.solar_model_info(MODEL)['r_max']
+    if name not in (MODEL, 'exp'):      # the fit's ratio runs off this scale; notebook 28 draws it
+        ax[1].plot(rr[inside], ne[inside]/ref_ne(xs[inside]), **style(name))
+    if name != 'exp':
+        ax[2].plot(rr, ratio_profile(name)(xs), **style(name))
+ax[0].set_ylabel(r'$n_e\ [N_A\ {\rm cm}^{-3}]$', **LABEL)
+ax[0].set_ylim(1e-6, 1e3)
+ax[0].legend(fontsize=6.8, ncol=3, loc='lower left')
+ax[0].set_title('Twelve standard solar models and the exponential fit', fontsize=10)
+ax[1].axhline(1.0, color='k', lw=0.6)
+ax[1].set_ylim(0.9, 1.15)
+ax[1].set_ylabel('ratio to %s' % MODEL, **LABEL)
+ax[2].set_ylabel(r'$n_n/n_p$', **LABEL)
+ax[2].set_xlabel(r'$r/R_\odot$', **LABEL)
+ax[2].set_xlim(0.0, 1.0)
+for a in ax:
+    a.grid(True, alpha=0.2)
+    a.tick_params(labelsize=8)
+fig.align_ylabels(ax)
+fig.savefig('../fig/solar_models_all_profiles.pdf', bbox_inches='tight')'''),
+    code(r'''fig, ax = plt.subplots(3, 1, figsize=(6.6, 8.2), sharex=True,
+                       gridspec_kw=dict(height_ratios=[1.5, 1.0, 1.0], hspace=0.08))
+e_mev = E_BSM/gd.UNIT_MEV
+for name in PROFILES:
+    ax[0].semilogx(e_mev, AVG[name]['P3'], label=name, **style(name))
+    if name != 'exp':
+        ax[1].semilogx(e_mev, AVG[name]['P3'] - AVG[MODEL]['P3'], **style(name))
+    ax[2].semilogx(e_mev, AVG[name]['P4'] - AVG[name]['P3'], **style(name))
+ax[0].set_ylabel(r'$\langle P(\nu_e \to \nu_e)\rangle$, $3\nu$', **LABEL)
+ax[0].set_ylim(0.25, 0.6)
+ax[0].legend(fontsize=6.8, ncol=3, loc='lower left')
+ax[0].set_title('The averaged survival probability on each model, center to surface',
+                fontsize=10)
+ax[1].axhline(0.0, color='k', lw=0.6)
+ax[1].set_ylabel('minus %s' % MODEL, **LABEL)
+ax[2].axhline(0.0, color='k', lw=0.6)
+ax[2].set_ylabel(r'3+1 minus $3\nu$', **LABEL)
+ax[2].set_xlabel(r'$E_\nu$ [MeV]', **LABEL)
+ax[2].set_xlim(e_mev[0], e_mev[-1])
+for a in ax:
+    a.grid(True, which='both', alpha=0.2)
+    a.tick_params(labelsize=8)
+fig.align_ylabels(ax)
+fig.savefig('../fig/solar_models_all_probability.pdf', bbox_inches='tight')
+
+tables = solarmodels.available_solar_models()
+P3 = np.array([AVG[m]['P3'] for m in tables])
+spread = P3.max(axis=0) - P3.min(axis=0)
+i = int(np.argmax(spread))
+print('spread of <P_ee> across the twelve tables: largest %.1e, at %.2f MeV (%s high, %s low)'
+      % (spread[i], e_mev[i], tables[int(P3[:, i].argmax())], tables[int(P3[:, i].argmin())]))
+d_exp = AVG['exp']['P3'] - AVG[MODEL]['P3']
+j = int(np.argmax(np.abs(d_exp)))
+print('exponential fit minus %s: largest %+.3f, at %.2f MeV' % (MODEL, d_exp[j], e_mev[j]))
+b23 = np.array([AVG[m]['P3'] for m in tables if m.startswith('B23-')])
+gs98 = np.array([AVG[m]['P3'] for m in ('BS05-OP', 'B16-GS98', 'B23-GS98')])
+print('six compositions within B23: largest spread %.1e' % (b23.max(0) - b23.min(0)).max())
+print('one composition (GS98) across BS05, B16, B23: largest spread %.1e'
+      % (gs98.max(0) - gs98.min(0)).max())
+ster = np.array([AVG[m]['P4'] - AVG[m]['P3'] for m in tables])
+print('3+1 departure from 3nu: between %+.3f and %+.3f over the energies; the tables agree '
+      'on it to %.1e' % (ster.min(), ster.max(), (ster.max(0) - ster.min(0)).max()))'''),
+    md(r'''**What the choice of model moves.** The twelve tables give the same averaged probability to
+$2.4\times10^{-3}$, most where the curve is steepest, near 4 MeV; on the two plateaus they agree
+far better. Most of that spread is between generations of models rather than between
+compositions: the six B23 compositions agree to $2\times10^{-4}$, while BS05, B16 and B23 with
+the same GS98 composition differ by $2.3\times10^{-3}$. The exponential fit is off by 0.1, forty
+times the spread of the tables, for the reason notebook 28 gives: the average depends on the
+density where the neutrino is born, and at the center the fit is 2.4 times too dense. The 3+1
+state pulls the probability down by up to 0.24, and the tables agree about that to
+$4\times10^{-3}$.'''),
+    md(r'''### Past the last row
+
+The older tables stop short of the surface, and the curves above continued them along the
+slope of their last interval. For a caller who would rather have no number than one computed
+past the table, `stop_at_table_edge=True` returns NaN there, with a warning naming the edge.
+How much the continuation moves the averaged observable is easy to check: stop at the edge
+instead, and compare.'''),
+    code(r'''edge = solarmodels.table_edge('BP04')
+kw = dict(nu_i=gd.NUE, nu_f=gd.NUE, density_profile='BP04', average=True)
+with warnings.catch_warnings(record=True) as caught:
+    warnings.simplefilter('always')
+    refused = oscprob.osc_prob_3nu_sun(E_BSM, L_SURFACE, 0.0, **OSC3_BSM,
+                                       stop_at_table_edge=True, **kw)
+print('BP04 to the surface, stop_at_table_edge=True: all NaN %s; warned %s'
+      % (bool(np.all(np.isnan(refused))), sorted({w.category.__name__ for w in caught})))
+at_edge = np.asarray(oscprob.osc_prob_3nu_sun(E_BSM, edge, 0.0, **OSC3_BSM, **kw))
+print('BP04 continued to the surface minus BP04 stopped at its edge (%.3f R_sun): '
+      'largest %.1e' % (edge/L_SURFACE, np.abs(AVG['BP04']['P3'] - at_edge).max()))'''),
     ])
 
 # ------------------------------------------------- 14_magnus_supernova_shock
@@ -13440,6 +13719,7 @@ import magnus.matter as matter
 import magnus.earth as earth
 import magnus.avgprob as avgprob
 import magnus.globaldefs as gd
+import magnus.solarmodels as solarmodels
 
 HERE = pathlib.Path.cwd()
 FIGDIR = pathlib.Path(os.environ.get('MAGNUS_PAPER_FIGDIR',
@@ -16067,6 +16347,13 @@ print('  change in probability from %+.3f to %+.3f' % (SWEEP_DP.min(), SWEEP_DP.
 save(fig, 'cavity_sweep.pdf')'''),
     md(r'''## Figure 5 --- the Sun: model and observable
 
+The four curves come from the Sun wrappers, which take the BS2005-AGS,OP table by name
+(`density_profile='BS05-AGS-OP'`).  For the two sterile cases they also read the
+neutron-to-proton ratio from it, $(1 - X)/(1 + X)$ at each radius, where the scenario
+functions this figure used before held it at 1; that moves the $3+1$ and $3+2$ curves by
+a few $10^{-3}$, and an explicit `ratio_number_neutrons_to_protons` overrides it.  The
+standard and NSI curves are unchanged bit for bit.
+
 The check printed under the figure is the adiabatic limit built from the instantaneous
 eigenbases alone --- two calls to `eigh` and a contraction, touching none of the package's
 averaging machinery, so it works for all four scenarios rather than only the standard
@@ -16081,35 +16368,42 @@ gone.
 One trap paid for here: `hamiltonian_3nu_nsi` returns $V_{\rm CC}$ times the epsilon matrix
 **alone** --- it is zero when every epsilon is --- so the standard matter term has to be
 added beside it. Omitting it put this reference 0.178 away from the answer instead of
-1e-5, which reads as a spectacular disagreement rather than as a missing term.'''),
-    code(r'''TABLE = os.path.join('..', 'docs', 'dev', 'adversarial_batteries', 'bs05_agsop.dat')
-rows = []
-with open(TABLE) as fh:
-    for line in fh:
-        f = line.split()
-        if len(f) == 12:
-            try:
-                rows.append([float(x) for x in f])
-            except ValueError:
-                continue
-solar = np.array(rows)
-r_over_rsun, rho_cgs, x_h = solar[:, 1], solar[:, 3], solar[:, 6]
+1e-5, which reads as a spectacular disagreement rather than as a missing term.  The sterile
+references take $n_n/n_p$ at each end of the ray from the same table, as the wrappers do.'''),
+    code(r'''# The BS2005-AGS,OP table ships with the package, and the Sun wrappers take it by name.
+# The columns are read here only to draw the density and to build the reference below.
+solar = solarmodels.load_solar_model('BS05-AGS-OP')
+r_over_rsun, rho_cgs, x_h = solar['r_over_r_sun'], solar['rho_g_per_cm3'], solar['x_hydrogen']
 MEAN_NUCLEON = 0.5*(gd.MASS_PROTON + gd.MASS_NEUTRON)
 ne_tab = rho_cgs*gd.UNIT_G_PER_CM3/MEAN_NUCLEON*(0.5*(1.0 + x_h))
 x_solar = r_over_rsun*gd.SUN_RADIUS*gd.UNIT_KM
 log_ne = np.log(ne_tab)
 R_SUN = float(x_solar[-1])
+assert R_SUN == solarmodels.table_edge('BS05-AGS-OP')
 
 
+# The same profile the wrappers build, except past the last row, where this one holds the
+# edge value and theirs continues the last interval's slope.  Only the chords of the
+# solar disk below reach past it, and they are drawn on this clamped profile (issue #62).
 def ne_sun(l):
     xs = np.clip(np.asarray(l, dtype=float), x_solar[0], x_solar[-1])
     out = np.exp(np.interp(xs, x_solar, log_ne))
     return out[()] if np.ndim(out) == 0 else out
 
 
+_ne_pkg = solarmodels.electron_density_profile('BS05-AGS-OP')
+_inside = np.linspace(0.0, R_SUN, 2001)
+assert np.array_equal(ne_sun(_inside), _ne_pkg(_inside))
+
+# The sterile states' neutral-current term needs n_n/n_p; the wrappers read it from the
+# same table, (1 - X)/(1 + X), radius by radius.
+RATIO_SUN = solarmodels.neutron_to_proton_ratio_profile('BS05-AGS-OP')
+RATIO0, RATIO1 = float(RATIO_SUN(0.0)), float(RATIO_SUN(R_SUN))
+
 PER_NE = matter.VCC_func(l=0.0, num_density_e_func=lambda l: 1.0)
-print('BS2005-AGS,OP: %d rows, ray 0 to %.0f km; n_e falls by %.1e over it'
-      % (len(solar), R_SUN/gd.UNIT_KM, ne_tab[0]/ne_tab[-1]))
+print('BS2005-AGS,OP: %d rows, ray 0 to %.0f km; n_e falls by %.1e over it; '
+      'n_n/n_p runs %.3f -> %.3f'
+      % (len(r_over_rsun), R_SUN/gd.UNIT_KM, ne_tab[0]/ne_tab[-1], RATIO0, RATIO1))
 
 
 def adiabatic_limit(build_H, energy, vcc0, vcc1, a=gd.NUE, b=gd.NUE):
@@ -16126,9 +16420,11 @@ def adiabatic_limit(build_H, energy, vcc0, vcc1, a=gd.NUE, b=gd.NUE):
     differs from the package by up to 1e-5 at 20 MeV.  That is the matter effect of the
     edge, not a departure from adiabaticity, and it is what an earlier version of this
     figure drew as a residual panel.
+
+    ``build_H`` also takes n_n/n_p at each end, which only the sterile Hamiltonians read.
     """
-    hm = np.asarray(build_H(energy, vcc0), dtype=complex)
-    he = np.asarray(build_H(energy, vcc1), dtype=complex)
+    hm = np.asarray(build_H(energy, vcc0, RATIO0), dtype=complex)
+    he = np.asarray(build_H(energy, vcc1, RATIO1), dtype=complex)
     _, u_matter = np.linalg.eigh(hm)
     _, u_end = np.linalg.eigh(he)
     return float(np.sum(np.abs(u_matter[a])**2 * np.abs(u_end[b])**2))
@@ -16146,33 +16442,40 @@ HV3 = np.asarray(vacuum_hamiltonian(3), dtype=complex)
 HV4 = np.asarray(vacuum_hamiltonian(4), dtype=complex)
 HV5 = np.asarray(vacuum_hamiltonian(5), dtype=complex)
 P3 = np.asarray(matter.matter_potential_projector(3), dtype=complex)
-P4 = np.asarray(matter.matter_potential_projector(4), dtype=complex)
-P5 = np.asarray(matter.matter_potential_projector(5), dtype=complex)
 EPS_ORDER = ('eps_ee', 'eps_em', 'eps_et', 'eps_mm', 'eps_mt', 'eps_tt')
+
+
+def projector(d, ratio):
+    return np.asarray(matter.matter_potential_projector(d, ratio), dtype=complex)
+
+
+# What every Sun wrapper call below shares: the BS2005-AGS,OP table by name, from the
+# center to its last row, nu_e to nu_e, the average.  The 5nu wrappers take no d25.
+SUN = dict(L0=0.0, nu_i=gd.NUE, nu_f=gd.NUE, average=True, density_profile='BS05-AGS-OP')
+OSC5_SUN = {k: v for k, v in OSC5.items() if k != 'd25'}
+# The sterile curves read n_n/n_p from the table, so their stored values carry it in their
+# key: the entries written when the ratio was held at 1 must not be read back as these.
+TABLE_RATIO = ('n_n/n_p from the table', profile_samples(RATIO_SUN, R_SUN))
 
 # 3nu, then the NSI case, then the two steriles: the order the middle panel reads in.
 SCEN = [
     (r'$3\nu$', BLUE,
-     lambda E: oscprob.osc_prob_matter_std_potential(3, ne_sun, E, R_SUN, OSC,
-                                                     average=True, **COMMON),
-     lambda E, v: HV3/E + v*P3),
+     lambda E: oscprob.osc_prob_3nu_sun(E, R_SUN, **OSC, **SUN),
+     lambda E, v, r: HV3/E + v*P3, ()),
     (r'$3\nu$ + NSI', ORANGE,
-     lambda E: oscprob.osc_prob_matter_nsi(3, ne_sun, E, R_SUN, OSC, EPS,
-                                           average=True, **COMMON),
+     lambda E: oscprob.osc_prob_3nu_sun_nsi(E, R_SUN, **OSC, **EPS, **SUN),
      # hamiltonian_3nu_nsi returns V_CC times the epsilon matrix ALONE -- it is zero
      # when every epsilon is -- so the standard matter term has to be added beside it.
      # Omitting it put this reference 0.178 away from the answer rather than 1e-5.
-     lambda E, v: HV3/E + v*P3 + np.asarray(hamiltonians.hamiltonian_3nu_nsi(
-         v, *[EPS[k] for k in EPS_ORDER]), dtype=complex)),
+     lambda E, v, r: HV3/E + v*P3 + np.asarray(hamiltonians.hamiltonian_3nu_nsi(
+         v, *[EPS[k] for k in EPS_ORDER]), dtype=complex), ()),
     (r'$3+1$', RED,
-     lambda E: oscprob.osc_prob_matter_std_potential(4, ne_sun, E, R_SUN, OSC4,
-                                                     average=True, **COMMON),
-     lambda E, v: HV4/E + v*P4),
+     lambda E: oscprob.osc_prob_4nu_sun(E, R_SUN, **OSC4, **SUN),
+     lambda E, v, r: HV4/E + v*projector(4, r), TABLE_RATIO),
     # Green, not purple: purple marks the resonance densities in the panel above.
     (r'$3+2$', GREEN,
-     lambda E: oscprob.osc_prob_matter_std_potential(5, ne_sun, E, R_SUN, OSC5,
-                                                     average=True, **COMMON),
-     lambda E, v: HV5/E + v*P5),
+     lambda E: oscprob.osc_prob_5nu_sun(E, R_SUN, **OSC5_SUN, **SUN),
+     lambda E, v, r: HV5/E + v*projector(5, r), TABLE_RATIO),
 ]'''),
     code(r'''fig, axes = plt.subplots(2, 1, figsize=(COL, 4.1),
                          gridspec_kw=dict(height_ratios=[1.0, 1.35], hspace=0.30))
@@ -16208,7 +16511,7 @@ ax.set_ylabel(r'Electron density, $n_e$ [cm$^{-3}$]', fontsize=8.0)
 
 
 # --- the averaged observable, checked against the two-eigenbasis reference
-for label, color, call, build_H in SCEN:
+for label, color, call, build_H, extra_key in SCEN:
     def run(call=call, build_H=build_H):
         P = np.asarray(quiet(call, E_AVG))
         R = np.array([adiabatic_limit(build_H, e, VCC0, VCC1) for e in E_AVG])
@@ -16216,7 +16519,7 @@ for label, color, call, build_H in SCEN:
     got = cached('solar_%s' % re.sub(r'\W+', '_', label).strip('_'),
                  ('solar', label, [float(e) for e in E_AVG], float(R_SUN),
                   profile_samples(lambda l: PER_NE*ne_sun(l), R_SUN),
-                  sorted(OSC.items()), 'reference read out at the table edge'),
+                  sorted(OSC.items()), 'reference read out at the table edge') + extra_key,
                  run, what='one averaged solar scenario')
     P, R = np.asarray(got['P']), np.asarray(got['R'])
     axes[1].semilogx(E_AVG/gd.UNIT_MEV, P, color=color, lw=1.3, label=label)
@@ -16246,22 +16549,24 @@ save(fig, 'solar_averaged.pdf')'''),
 The same averaged observable on three descriptions of the solar electron density: the
 BS2005-AGS,OP table used everywhere else in this notebook, the B16-GS98 table of
 Vinyoles et al. (ApJ 835, 202, 2017), and the exponential fit
-$n_e = 245\,N_A\,e^{-10.54\,r/R_\odot}$ cm$^{-3}$ that `osc_prob_3nu_sun` carries.  The
-two tables agree to a few percent in density and to about $10^{-3}$ in the averaged
+$n_e = 245\,N_A\,e^{-10.54\,r/R_\odot}$ cm$^{-3}$ that the Sun wrappers use by default.
+The two tables agree to a few percent in density and to about $10^{-3}$ in the averaged
 probability.  The fit is 2.4 times too dense at the center, and that is the one place
 that matters: on an adiabatic passage the average depends on the eigenbases at the two
 ends of the ray, and the far end is vacuum.  It moves the curve by up to 0.1.
 
-The B16-GS98 structure file is the one Aldo Serenelli distributed at
-`ice.csic.es/personal/aldos/Solar_Data.html` (`Solar_Data_files/struct_b16_gs98.dat`),
-kept beside the BS2005 table in `docs/dev/adversarial_batteries/`.  Its columns happen to
-sit in the same order as BS2005's, so the same three are read from both.'''),
-    code(r'''B16 = os.path.join('..', 'docs', 'dev', 'adversarial_batteries', 'struct_b16_gs98.dat')
-r_b16, rho_b16, x_b16 = np.loadtxt(B16, usecols=(1, 3, 6)).T
+All three go through the same wrapper, `osc_prob_3nu_sun`: the tables by name, through
+`density_profile`, and the fit as its default.  Both tables ship with the package
+(`magnus.solarmodels`, which lists the twelve it carries); the B16-GS98 one is the
+structure file Aldo Serenelli distributed at `ice.csic.es/personal/aldos/Solar_Data.html`.
+The columns are read here only to draw the densities.'''),
+    code(r'''B16 = solarmodels.load_solar_model('B16-GS98')
+r_b16, rho_b16, x_b16 = B16['r_over_r_sun'], B16['rho_g_per_cm3'], B16['x_hydrogen']
 ne_b16_tab = rho_b16*gd.UNIT_G_PER_CM3/MEAN_NUCLEON*(0.5*(1.0 + x_b16))
 x_b16_grid = r_b16*gd.SUN_RADIUS*gd.UNIT_KM
 log_ne_b16 = np.log(ne_b16_tab)
 R_B16 = float(x_b16_grid[-1])
+assert R_B16 == solarmodels.table_edge('B16-GS98')
 
 
 def ne_b16(l):
@@ -16278,17 +16583,16 @@ print('B16-GS98: %d rows, ray 0 to %.0f km; central n_e %.2e cm^-3 against %.2e 
 print('exponential fit: %.2e cm^-3 at the center, %.1f times the table'
       % (ne_exp_tab[0]/PER_CM3, ne_exp_tab[0]/ne_tab[0]))
 
-# The tables go through the same call as the paper's listing; the fit through the wrapper
-# that carries it, which is the paper's one-line alternative.  The two routes return the
-# same numbers for the same profile (checked bitwise on the fit).
+# All three through the same wrapper: the tables by name, each from the center to its last
+# row, and the exponential fit as the wrapper's default.  On a table the wrapper returns bit
+# for bit what the scenario call on the same profile does, so the stored curves stand.
 MODELS = [
     ('BS05', INK, 'BS2005-AGS,OP (reference)', 1.5, 2, r_over_rsun, ne_tab, R_SUN,
-     lambda E: oscprob.osc_prob_matter_std_potential(3, ne_sun, E, R_SUN, OSC,
-                                                     average=True, **COMMON),
+     lambda E: oscprob.osc_prob_3nu_sun(E, R_SUN, **OSC, **SUN),
      lambda l: PER_NE*ne_sun(l)),
     ('B16', BLUE, 'B16-GS98', 1.1, 3, r_b16, ne_b16_tab, R_B16,
-     lambda E: oscprob.osc_prob_matter_std_potential(3, ne_b16, E, R_B16, OSC,
-                                                     average=True, **COMMON),
+     lambda E: oscprob.osc_prob_3nu_sun(E, R_B16, **OSC,
+                                        **dict(SUN, density_profile='B16-GS98')),
      lambda l: PER_NE*ne_b16(l)),
     ('exp', ORANGE, 'Exponential fit', 1.1, 4, r_exp, ne_exp_tab, R_EXP,
      lambda E: oscprob.osc_prob_3nu_sun(E, R_EXP, 0.0, **OSC, average=True,
@@ -16394,15 +16698,14 @@ print('90%% of the 8B neutrinos are made between %.3f and %.3f R_sun' % B8_BAND)
 
 R0 = np.linspace(0.0, 0.8, 41)*gd.SUN_RADIUS*gd.UNIT_KM
 PROD_E = (1.0, 5.0, 20.0)
-KW = dict(nu_i=gd.NUE, nu_f=gd.NUE, density_is_of_number_of_electrons=True, average=True)
 P_PROD = {}
 for Emev in PROD_E:
     E = Emev*gd.UNIT_MEV
     def run(E=E):
-        std = [float(quiet(oscprob.osc_prob_matter_std_potential, 3, ne_sun, E, R_SUN, OSC,
-                           L0=float(l0), **KW)) for l0 in R0]
-        nsi = [float(quiet(oscprob.osc_prob_matter_nsi, 3, ne_sun, E, R_SUN, OSC, EPS,
-                           L0=float(l0), **KW)) for l0 in R0]
+        std = [float(quiet(oscprob.osc_prob_3nu_sun, E, R_SUN, **OSC,
+                           **dict(SUN, L0=float(l0)))) for l0 in R0]
+        nsi = [float(quiet(oscprob.osc_prob_3nu_sun_nsi, E, R_SUN, **OSC, **EPS,
+                           **dict(SUN, L0=float(l0)))) for l0 in R0]
         return dict(std=std, nsi=nsi)
     got = cached('solar_production_%gMeV' % Emev,
                  ('solar production radius', float(E), [float(l0) for l0 in R0],
@@ -16442,19 +16745,24 @@ and fold $\theta_{13}$ back in as
 $\langle P\rangle^{\rm approx}_{2\nu} = \sin^4\theta_{13} + \cos^4\theta_{13}\,P^{2\nu}$
 (Kuo & Pantaleone 1989).  Exact in vacuum; in matter it drops terms of relative size
 $2EV_{\rm CC}/\Delta m^2_{31}$ times the $\sin^2\theta_{13}$ admixture.  This cell evaluates
-them on the three profiles of Figure 5c: the two-flavor side is the same averaged call at
-two flavors on the rescaled density, the three-flavor side is the curve of Figure 5c, read
-from its cache.  The fit's error is about three times the tables', because its central
+them on the three profiles of Figure 5c: the two-flavor side is the averaged scenario call at
+two flavors on the rescaled density, taken from the profile the wrappers build (a wrapper
+takes a model by name, and so cannot rescale it); the three-flavor side is the curve of
+Figure 5c, read from its cache.  The fit's error is about three times the tables', because its central
 density is 2.4 times theirs and the dropped terms scale with it.'''),
     code(r'''C13 = 1.0 - OSC['s13']**2   # cos^2 theta_13
 TWO = dict(sth=OSC['s12'], Dm2=OSC['D21'])
+# The two-flavor side needs the density itself, to rescale it, so it takes the profile the
+# wrappers build from each table (or the fit) and goes through the scenario function.
+NE_PROFILE = {
+    'BS05': solarmodels.electron_density_profile('BS05-AGS-OP'),
+    'B16': solarmodels.electron_density_profile('B16-GS98'),
+    'exp': lambda l: matter.density_matter_func_exp(l, gd.NUM_DENSITY_E_SUN_CENTRAL,
+                                                    gd.L_SCALE_SUN),
+}
 REL = {}
 for key, color, label, lw, z, rr_m, ne_m, R_m, call, vcc in MODELS:
-    if key == 'exp':
-        ne_fn = lambda l: matter.density_matter_func_exp(l, gd.NUM_DENSITY_E_SUN_CENTRAL,
-                                                         gd.L_SCALE_SUN)
-    else:
-        ne_fn = ne_sun if key == 'BS05' else ne_b16
+    ne_fn = NE_PROFILE[key]
     got = cached('solar_two_flavor_%s' % key,
                  ('solar two-flavor reduction', key, [float(e) for e in E_AVG], float(R_m),
                   profile_samples(lambda l, ne_fn=ne_fn: PER_NE*C13*ne_fn(l), R_m),

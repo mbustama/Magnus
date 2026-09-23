@@ -28,7 +28,13 @@ and the project uses [Semantic Versioning](https://semver.org/).
   refusing any whose hash has changed.  On the command line,
   `--density-profile` takes the model names with `--environment sun`, and
   `--stop-at-table-edge` is new.  Defaults are unchanged bit for bit.  See
-  the new *Standard solar models* page of the documentation.
+  the new *Standard solar models* page of the documentation.  Notebook 13
+  now takes its model by name and compares all twelve on the averaged
+  observable, from a cache (`solar_models_cache.json`) that continuous
+  integration reads rather than recomputes; notebook 28 draws the solar
+  figures through the Sun wrappers, which moves the 3+1 and 3+2 curves of
+  the averaged-probability figure by up to 3.5e-3, since they now take
+  n_n/n_p from the table.
 
 - `average=True` on the direct route: `osc_prob_energy_baseline`,
   `osc_prob_earth` and `osc_prob_sun` now take the keyword that the wrappers

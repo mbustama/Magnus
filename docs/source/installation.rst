@@ -242,7 +242,7 @@ File Tree
    │   ├── 10_magnus_averaged_probability.ipynb  # What survives when the phase is unresolvable
    │   ├── 11_magnus_matrix_exponential.ipynb  # How exp(Omega) is actually built
    │   ├── 12_magnus_adiabatic_hybrid_strategy.ipynb  # 'auto' against 'magnus', timed against solve_ivp
-   │   ├── 13_magnus_tabulated_solar_model.ipynb  # A real BS05 profile: an error that is a phase
+   │   ├── 13_magnus_tabulated_solar_model.ipynb  # The twelve solar models by name, and the observable an experiment measures
    │   ├── 14_magnus_supernova_shock.ipynb  # A shock front: an error that is an envelope
    │   ├── 15_magnus_antineutrinos.ipynb  # Conjugate and flip, and two ways to get it half right
    │   ├── 16_magnus_exact_vs_approximations.ipynb  # Where the textbook formulas are exact, and where the substitution breaks
@@ -306,7 +306,8 @@ File Tree
    │   ├── matplotlibrc                # Shared plot styling for the notebooks
    │   ├── paper_figure_cache.json     # Every paper-figure input that depends on the configuration and not on the run: reference probabilities, order curves, and timings
    │   ├── nufit_chi2.json             # Those profiles, v2.0-v6.1 (NuFIT collaboration)
-   │   └── shock_reference.json        # That oracle, as exact hex floats
+   │   ├── shock_reference.json        # That oracle, as exact hex floats
+   │   └── solar_models_cache.json     # Notebook 13's comparison of the twelve solar models, keyed on its inputs
    ├── pyproject.toml                  # Build system, dependencies, and the `magnus` console-script entry point
    ├── resources/                      # Travels with the code; reaches neither the wheel nor the sdist
    │   ├── benchmarks/                 # The cross-code benchmark harness and its frozen artifacts, copied from NuOscProbExact so its measurements can be reproduced here

@@ -127,12 +127,14 @@ Where the limits are
 The three notebooks that show what Magνs gets wrong, and how to tell the two
 kinds of wrong apart.
 
-`13. A tabulated solar model <https://github.com/mbustama/Magnus/blob/main/notebooks/13_magnus_tabulated_solar_model.ipynb>`_
-   A real BS05 profile rather than an exponential, separating the instantaneous
-   probability from the one an experiment measures. Averaging a scan over a
-   window is the tempting route to the second and has no converged value to
-   offer; ``average=True`` reaches it in closed form instead, matching the
-   adiabatic MSW expression to 3e-16.
+`13. Tabulated solar models <https://github.com/mbustama/Magnus/blob/main/notebooks/13_magnus_tabulated_solar_model.ipynb>`_
+   The twelve standard solar models of :doc:`solar_models`, taken by name. On
+   BS2005-AGS,OP, it separates the instantaneous probability from the one an
+   experiment measures. Averaging a scan over a window is the tempting route to
+   the second and has no converged value to offer; ``average=True`` reaches it
+   in closed form instead, matching the adiabatic MSW expression to 3e-16. Then
+   all twelve models compared on that observable: they agree to 2.4e-3, and the
+   exponential fit is off by 0.1.
 
 `14. A supernova shock front <https://github.com/mbustama/Magnus/blob/main/notebooks/14_magnus_supernova_shock.ipynb>`_
    The contrast. Here averaging does essentially nothing, because a shock
