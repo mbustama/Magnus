@@ -9,6 +9,32 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **The phase average**, in `magnus.avgprob`:
+  `phase_averaged_probabilities_constant_hamiltonian` and
+  `phase_averaged_probabilities_adiabatic` (issue #64).  Every interference
+  term keeps its phase at the central energy and is weighted by
+  `exp(-sigma^2 phi'^2/2)`, `phi' = d phi / d ln E`, the spread a relative
+  energy spread `sigma` gives that phase; mixing, crossing amplitudes and the
+  eigenbases at the two ends stay at the central energy.  So a phase that runs
+  through many cycles is dropped, as in the `L/E -> infinity` limit, one that
+  barely moves is kept with its real value, and those between are damped
+  smoothly, where the existing functions keep a pair at zero phase below 2 pi
+  and drop it above (constant Hamiltonian), or drop every pair (smooth
+  profile).  On a profile the definition carries into the non-adiabatic
+  windows -- an energy offset moves each instantaneous eigenvalue and leaves
+  the eigenvectors -- so the answer does not depend on where the windows are
+  drawn: the step on the solar disk of issue #62 came from exactly that.
+  Windows are solved at a few Gauss-Hermite nodes in the offset, the stretches
+  between them are exact phases with exact slopes, and no energy is sampled.
+  Measured against a brute-force average of the same definition on five solar
+  chords from 10 GeV to 10 TeV: within 4.2e-05, where the decohered limit is
+  off by up to 0.14.  New constants: `AVG_PHASE_SPREAD` (0.1, the default
+  `sigma`), `PHASE_AVERAGE_WINDOW_THRESHOLD` (0.01, the window search of the
+  profile route) and `PHASE_SPREAD_SENSITIVITY_THRESHOLD`.  A pair whose slope
+  is round-off, as a pseudo-Dirac pair's is over cosmological distances, is
+  kept coherent rather than averaged away on noise (issue #61).  The existing
+  functions are unchanged.
+
 - Twelve standard solar models ship with the package, and every Sun entry
   point -- the `osc_prob_{2,3,4,5}nu_sun[_nsi|_liv]` wrappers and
   `osc_prob_sun` -- takes `density_profile` to use one in place of the
