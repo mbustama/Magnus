@@ -359,6 +359,8 @@ TREE = [
     ('src/magnus/version.py', 'Resolves the version from pyproject.toml (internal)'),
     ('src/requirements.txt', 'The three runtime dependencies: numpy, scipy, joblib'),
     ('tests/', 'Test suite (pytest; runs in CI)'),
+    ('tests/test_paper_cache_only.py',
+     "MAGNUS_PAPER_CACHE_ONLY stops notebook 28 on a cache miss instead of recomputing"),
     ('tests/test_paper_cache_key_is_portable.py',
      "The figure cache's key survives a change of machine: a ULP must not move it"),
     ('tests/test_ci_honours_the_docs.py',

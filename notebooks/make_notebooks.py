@@ -14030,6 +14030,9 @@ def cached(section, key_parts, compute, what=''):
     tells nobody anything, so both are stored, keyed on the configuration alone.  The
     machine and the date are stored beside them, because a number that does not say where
     it came from cannot be checked.
+
+    With MAGNUS_PAPER_CACHE_ONLY set, a section whose stored entry is missing or was
+    computed for another configuration raises instead of recomputing; see `cache_miss`.
     """
     blob = json.loads(MP_CACHE.read_text()) if MP_CACHE.exists() else {}
     key = fingerprint(*key_parts)
@@ -14051,6 +14054,11 @@ def cached(section, key_parts, compute, what=''):
               % (section, MP_CACHE.name, key[:12], got.get('measured', '?'),
                  got.get('machine', 'an unrecorded machine')))
         return got['value']
+    # Anything past this point is a miss.  Under MAGNUS_PAPER_CACHE_ONLY that stops the
+    # build and names the section, as the scan and timing sections always did; this helper
+    # used to recompute instead, on a runner that then threw the result away (issue #63).
+    # Without the variable, cache_miss does nothing and the section is recomputed.
+    cache_miss(section, key)
     print('  %s: configuration moved, recomputing' % section)
     t0 = time.perf_counter()
     value = compute()

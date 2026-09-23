@@ -113,6 +113,15 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- `MAGNUS_PAPER_CACHE_ONLY` now forbids notebook 28 from recomputing anything,
+  as both READMEs said it did (issue #63).  Only the scan and timing sections
+  honored it; `cached()`, the helper behind about thirty others, printed
+  "configuration moved, recomputing" and recomputed on the runner, so a
+  section whose configuration moved passed continuous integration instead of
+  failing and naming itself.  It now stops the build the way those two do.
+  The committed cache holds every section under its current key: rebuilt with
+  the variable set, all 84 are read back and none recomputed.
+
 - `average=True` missed any feature narrower than the grid it searches for
   non-adiabatic windows on, and returned the fully adiabatic answer without a
   warning (issue #60).  The adiabatic averaging engine looks for windows once,

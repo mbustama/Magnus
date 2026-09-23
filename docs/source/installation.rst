@@ -366,6 +366,7 @@ File Tree
    │   │   └── version.py              # Resolves the version from pyproject.toml (internal)
    │   └── requirements.txt            # The three runtime dependencies: numpy, scipy, joblib
    └── tests/                          # Test suite (pytest; runs in CI)
+       ├── test_paper_cache_only.py    # MAGNUS_PAPER_CACHE_ONLY stops notebook 28 on a cache miss instead of recomputing
        ├── test_paper_cache_key_is_portable.py  # The figure cache's key survives a change of machine: a ULP must not move it
        ├── test_ci_honours_the_docs.py  # Every MAGNUS_* variable the docs tell CI to set, a workflow actually sets
        ├── test_notebooks_match_their_generator.py  # The committed .ipynb files are the ones make_notebooks.py builds
