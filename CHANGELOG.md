@@ -86,6 +86,31 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- `average=True` missed any feature narrower than the grid it searches for
+  non-adiabatic windows on, and returned the fully adiabatic answer without a
+  warning (issue #60).  The adiabatic averaging engine looks for windows once,
+  on 200 probes, and never refines; on a supernova shock ray 70,000 km long
+  the probes are 350 km apart, so fronts 0.07 to 70 km wide were never
+  examined, and the call returned 0.04 where the averaged probability is 0.37
+  to 0.59.  The profile is now checked first for features that sharp and able
+  to move probability between levels -- an instantaneous change across them
+  would move more than the new `avgprob.SUDDEN_TRANSFER_THRESHOLD`, the
+  default tolerance.  Where there is one, the windows come from the hybrid
+  strategy's refinement instead, which certifies them; where no refinement
+  resolves the feature, `UnmarkedDiscontinuityWarning` says so and names the
+  cure, `t_breakpoints`.  Of 24 fronts 0.07 to 2000 km wide on that ray, 16
+  are now within 0.01 of a decohered reference and 8 warn; 16 were silently
+  wrong before.  Nothing else moves: every Sun wrapper, the BS05 solar model
+  and the tabulated profiles return the same result, bit for bit, and of the
+  roughly 5,000 averaged calls in the notebooks only 16 pixels of paper
+  Figure 5f are escalated, three of them changing, each to within 0.001 of a
+  reference.  The report of `averaged_probabilities_adiabatic` gains
+  `escalated`, `resolved` and `certified`.  The issue's own reference
+  values, 0.84 and 0.18, were a position average at one energy, which keeps
+  the interference between the two fronts; the averaged probability is the
+  decohered one, and against it the answers with the fronts declared are
+  right, not wrong as the issue said.
+
 - The hybrid engine carried a decoupled state across an exact level crossing
   onto the other level, and certified the result (issue #59).  At their
   defaults the 4nu Sun wrappers decouple the sterile state, whose matter term

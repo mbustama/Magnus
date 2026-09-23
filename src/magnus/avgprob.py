@@ -529,6 +529,101 @@ def adiabatic_phase_differences(
     return integral[:, None] - integral[None, :]
 
 
+SUDDEN_TRANSFER_THRESHOLD = 1.0e-3
+r"""float: Module-level constant
+
+How much probability a feature must be able to move between levels before
+:func:`averaged_probabilities_adiabatic` stops trusting its own 200-point search to have seen it.
+
+That search looks for non-adiabatic windows once, on a fixed probe grid.  A density front
+narrower than the probe spacing falls between two probes and is never examined: no window
+opens, :math:`P^\text{cross}` is the identity, and the answer is the fully adiabatic one,
+returned without a warning (issue #60).  Such a front can be *seen* cheaply -- one half of a
+probe interval carries nearly all of that interval's change -- but seeing it is not enough,
+because a solar-model table interpolated in log-density shows the same shape at every one of
+its grid points in the core, where nothing happens.  What separates the two is whether the
+feature could move a neutrino at all.  An instantaneous change from :math:`H(l_a)` to
+:math:`H(l_b)` moves at most :math:`\max_{i\ne j}|\langle v_i(l_a)|v_j(l_b)\rangle|^2`
+between levels, and a monotone passage between the two positions moves less; when even that
+bound is below this threshold, the feature cannot change the averaged probability by more than
+the default tolerance, and today's answer stands.
+
+Measured (``docs/dev/adversarial_batteries/sudden_transfer_sweep.py``) as the largest bound over
+the intervals the probe grid finds concentrated:
+
+=======================================================  =================  ==============================
+population                                               largest bound      averaged answer today
+=======================================================  =================  ==============================
+BS05 solar model, cubic and linear, 1-30 MeV (core)      4.8e-07            escalating moves it <= 1.7e-16
+issue #60's shock ray, the 16 of 24 fronts it got wrong  0.20 - 0.74        off by 0.08 - 0.56
+the same ray, broad fronts it got right                  9.3e-03 - 0.70     right
+supernova turbulence, 5-30 MeV                           0.043 - 0.93       off by up to 0.25
+Earth crust with undeclared layer edges, 5-30 MeV        7.3e-06 - 4.7e-03  not scored; 1 of 9 escalates
+=======================================================  =================  ==============================
+
+1e-3, the default tolerance, sits three orders above the solar model and two below the
+smallest front the engine gets wrong.  Across the roughly 5,000 averaged calls the notebooks
+make, it escalates 16 pixels of paper Figure 5f and nothing else; three of those change, each
+to within 0.001 of a decohered reference.
+
+.. versionadded:: 1.1.1
+"""
+
+
+def _sudden_transfer(H_func: Callable, l_a: float, l_b: float) -> float:
+    r"""The most probability an instantaneous change from ``H(l_a)`` to ``H(l_b)`` moves between levels.
+
+    See :data:`SUDDEN_TRANSFER_THRESHOLD`.
+
+    .. versionadded:: 1.1.1
+    """
+    V_a = np.linalg.eigh(np.asarray(H_func(l_a), dtype=complex))[1]
+    V_b = np.linalg.eigh(np.asarray(H_func(l_b), dtype=complex))[1]
+    M = np.abs(V_a.conj().T @ V_b)**2
+    np.fill_diagonal(M, 0.0)
+    return float(np.max(M))
+
+
+def _unseen_features(H_func: Callable, l0: float, l1: float, n_probe: int) -> List[Tuple[float, float]]:
+    r"""Probe intervals too sharp for a grid of ``n_probe`` points that could still move probability.
+
+    See :data:`SUDDEN_TRANSFER_THRESHOLD`.
+
+    .. versionadded:: 1.1.1
+    """
+    ls, flagged, _ = adiabatic._concentrated_intervals(H_func, float(l0), float(l1), n_probe)
+    return [(float(ls[i]), float(ls[i + 1])) for i in flagged
+            if _sudden_transfer(H_func, ls[i], ls[i + 1]) > SUDDEN_TRANSFER_THRESHOLD]
+
+
+def _crossing_from_windows(
+    H_func: Callable,
+    d: int,
+    windows: List[Tuple[float, float]],
+    magnus_exp_order: int,
+    integration_method: str
+) -> Tuple[np.ndarray, bool]:
+    r"""Level-to-level probabilities across ``windows``, each patched exactly; see :func:`level_crossing_matrix`.
+
+    .. versionadded:: 1.1.1
+    """
+    crossing = np.eye(d)
+    converged = True
+    for (l_b, l_c) in windows:
+        U_patch, ok = adiabatic._local_evolution_operator(H_func, l_b, l_c, magnus_exp_order,
+            integration_method)
+        converged = converged and ok
+
+        V_b = np.linalg.eigh(np.asarray(H_func(l_b), dtype=complex))[1]
+        V_c = np.linalg.eigh(np.asarray(H_func(l_c), dtype=complex))[1]
+
+        # M[j, i] is the amplitude to arrive on level j having entered on level i, so the
+        # probability matrix indexed by the starting level is the transpose of |M|^2.
+        M = V_c.conj().T @ U_patch @ V_b
+        crossing = crossing @ (M.real**2 + M.imag**2).T
+    return crossing, converged
+
+
 def level_crossing_matrix(
     H_func: Callable,
     l0: float,
@@ -584,22 +679,8 @@ def level_crossing_matrix(
 
     windows, _ = adiabatic.find_nonadiabatic_windows(H_func, float(l0), float(l1),
         threshold=threshold, n_probe=n_probe, fd_step_frac=fd_step_frac)
-
-    crossing = np.eye(d)
-    converged = True
-    for (l_b, l_c) in windows:
-        U_patch, ok = adiabatic._local_evolution_operator(H_func, l_b, l_c, magnus_exp_order,
-            integration_method)
-        converged = converged and ok
-
-        V_b = np.linalg.eigh(np.asarray(H_func(l_b), dtype=complex))[1]
-        V_c = np.linalg.eigh(np.asarray(H_func(l_c), dtype=complex))[1]
-
-        # M[j, i] is the amplitude to arrive on level j having entered on level i, so the
-        # probability matrix indexed by the starting level is the transpose of |M|^2.
-        M = V_c.conj().T @ U_patch @ V_b
-        crossing = crossing @ (M.real**2 + M.imag**2).T
-
+    crossing, converged = _crossing_from_windows(H_func, d, windows, magnus_exp_order,
+        integration_method)
     return crossing, windows, converged
 
 
@@ -628,6 +709,13 @@ def averaged_probabilities_adiabatic(
     evolution is adiabatic.  This is the standard MSW-plus-decoherence result, generalized to any
     number of levels and any number of crossings.
 
+    The windows come from a single search on ``n_probe`` points, which cannot see a front
+    narrower than their spacing.  So the profile is first checked for features that sharp and
+    able to move probability (see :data:`SUDDEN_TRANSFER_THRESHOLD`); where there is one, the
+    windows are taken from :func:`magnus.adiabatic.hybrid_propagator` instead, which refines its
+    search until it certifies, and which reports a profile it cannot resolve at all.  Everywhere
+    else the result is what it was, bit for bit.
+
     Two things have to hold for the expression to mean anything, and both are checked rather
     than assumed.  The levels must have decohered from each other by the time of detection, and
     if there is more than one crossing they must also have decohered *between* crossings, since
@@ -635,6 +723,11 @@ def averaged_probabilities_adiabatic(
     interference that is still there.  Both are reported.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.1
+       Checks for features narrower than the probe spacing that could move probability, and
+       takes the windows from :func:`magnus.adiabatic.hybrid_propagator` where it finds one
+       (issue #60).  The report gains ``'escalated'``, ``'resolved'`` and ``'certified'``.
 
     Parameters
     ----------
@@ -664,6 +757,13 @@ def averaged_probabilities_adiabatic(
         ``(l_start, l_end, i, j, phase)``).  The returned matrix is always the fully
         decohered form, so these entries qualify a number that was computed regardless --
         unlike the constant-Hamiltonian route, which keeps coherent pairs coherent.
+
+        Three more keys say which search the windows came from.  ``'escalated'`` is True when
+        the profile has a feature the ``n_probe`` grid cannot see and that could move
+        probability.  Then ``'resolved'`` is whether :func:`magnus.adiabatic.hybrid_propagator`
+        could resolve it -- False means a discontinuity, the matrix is the unescalated one, and
+        declaring the feature through ``t_breakpoints`` is the cure -- and ``'certified'`` is
+        whether that refinement certified.  Both are None when nothing escalated.
     """
     H0 = np.asarray(H_func(l0), dtype=complex)
     H1 = np.asarray(H_func(l1), dtype=complex)
@@ -671,9 +771,29 @@ def averaged_probabilities_adiabatic(
     V0 = np.linalg.eigh(H0)[1]
     V1 = np.linalg.eigh(H1)[1]
 
-    crossing, windows, converged = level_crossing_matrix(H_func, l0, l1, threshold=threshold,
-        n_probe=n_probe, fd_step_frac=fd_step_frac, magnus_exp_order=magnus_exp_order,
-        integration_method=integration_method)
+    # One search on n_probe points is all the windows usually need, and it is exactly what
+    # this function did before 1.1.1.  It cannot see a front narrower than the probe spacing:
+    # on a supernova shock ray every such front was missed, P^cross came out the identity, and
+    # the fully adiabatic answer was returned wrong by up to 0.56, silently (issue #60).  Where
+    # the profile has a feature that sharp and able to move probability, take the windows from
+    # the refinement the instantaneous route already certifies with -- or learn that no
+    # refinement resolves it, which the caller turns into a warning.
+    escalated = bool(_unseen_features(H_func, l0, l1, n_probe))
+    resolved = certified = None
+    windows = None
+    if escalated:
+        h_info = {}
+        _, h_windows, certified = adiabatic.hybrid_propagator(H_func, float(l0), float(l1),
+            info=h_info)
+        resolved, certified = bool(h_info.get('resolved', True)), bool(certified)
+        if resolved:
+            windows = [tuple(w) for w in h_windows]
+            crossing, converged = _crossing_from_windows(H_func, H0.shape[-1], windows,
+                magnus_exp_order, integration_method)
+    if windows is None:
+        crossing, windows, converged = level_crossing_matrix(H_func, l0, l1,
+            threshold=threshold, n_probe=n_probe, fd_step_frac=fd_step_frac,
+            magnus_exp_order=magnus_exp_order, integration_method=integration_method)
 
     W0 = V0.real**2 + V0.imag**2
     W1 = V1.real**2 + V1.imag**2
@@ -706,6 +826,9 @@ def averaged_probabilities_adiabatic(
         'patches_converged': bool(converged),
         'undecided': undecided,
         'undecided_between_crossings': undecided_between,
+        'escalated': escalated,
+        'resolved': resolved,
+        'certified': certified,
     }
 
     return P, report
@@ -718,6 +841,7 @@ __all__ = [
     'coherence_report',
     'averaged_probabilities_from_eigenbasis',
     'averaged_probabilities_constant_hamiltonian',
+    'SUDDEN_TRANSFER_THRESHOLD',
     'AVG_DEFAULT_ENERGY_SPREAD',
     'AVG_DEFAULT_N_SAMPLES',
     'adiabatic_phase_differences',

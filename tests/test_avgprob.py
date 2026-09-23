@@ -977,3 +977,141 @@ def test_average_off_is_the_plain_call_on_the_direct_route():
         without = np.asarray(op.osc_prob_energy_baseline(H, ENERGY, L, 0.0))
         explicit = np.asarray(op.osc_prob_energy_baseline(H, ENERGY, L, 0.0, average=False))
     assert maxabs(without - explicit) == 0.0
+
+
+# ----------------------------------------------------------------------
+# Features narrower than the probe grid (issue #60)
+# ----------------------------------------------------------------------
+# The supernova shock ray of issue #60 (notebook 14, paper Fig. 17): three flavors, 15 MeV,
+# 10,000 to 80,000 km, a contact front at 12,348 km and a forward shock at 30,323 km.  The
+# averaging engine searches for windows once, on 200 probes 350 km apart, so a front narrower
+# than that was never examined and the fully adiabatic 0.039 came back silently.
+_KM = gd.UNIT_KM
+_R_CONTACT, _R_FORWARD, _R0, _R1 = 12348.0, 30323.0, 1.0e4, 8.0e4     # km
+
+
+def _smoothstep(u):
+    u = np.clip(np.asarray(u, dtype=float), 0.0, 1.0)
+    return u*u*(3.0 - 2.0*u)
+
+
+def _ne_shock(w_km):
+    """Electron density of the shocked ray, with both fronts ``w_km`` wide."""
+    m_n = 0.5*(gd.MASS_PROTON + gd.MASS_NEUTRON)
+
+    def rarefaction(r, rs):   # Fogli, Lisi, Mirizzi & Montanino (2003)
+        u = np.clip(1.0 - np.asarray(r, dtype=float)/rs, 0.0, 1.0)
+        return np.exp((0.28 - 0.69*np.log(rs))*np.arcsin(u)**1.1)
+
+    def ne(l):
+        r = np.asarray(l, dtype=float)/_KM
+        f = 1.0 + _smoothstep((_R_FORWARD + 0.5*w_km - r)/w_km)*(10.0*rarefaction(r, _R_FORWARD) - 1.0)
+        f = f*(1.0 + _smoothstep((_R_CONTACT + 0.5*w_km - r)/w_km)*1.5)
+        out = 1.0e14*r**(-2.4)*f*gd.UNIT_G_PER_CM3/m_n*0.5
+        return out[()] if np.ndim(out) == 0 else out
+    return ne
+
+
+def _shock_average(w_km, **extra):
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter('always')
+        P = op.osc_prob_matter_std_potential(3, _ne_shock(w_km), 15.0*gd.UNIT_MEV, _R1*_KM,
+            gd.load_nufit_params('NuFIT 6.1'), L0=_R0*_KM, nu_i=gd.NUE, nu_f=gd.NUE,
+            average=True, density_is_of_number_of_electrons=True, **extra)
+    return float(np.asarray(P)), {w.category for w in caught}
+
+
+def test_a_front_narrower_than_the_probe_grid_is_found():
+    """70 km fronts, a fifth of the probe spacing.  The engine used to return 0.039 here,
+    silently -- the value for a trajectory with no fronts at all.
+
+    0.371 +/- 0.010 is a decohered reference built without the averaging engine: the
+    instantaneous probability, resolved with the fronts declared, averaged over the last
+    10,000 km and over 15 MeV +/- 2%.  It is stable across energy windows of 2 to 10%."""
+    P, caught = _shock_average(70.0)
+    assert abs(P - 0.371) < 0.03, "P = %.4f against a decohered reference of 0.371" % P
+    assert op.UnmarkedDiscontinuityWarning not in caught
+
+
+def test_an_undeclared_jump_no_refinement_resolves_is_loud():
+    """0.07 km fronts are jumps at every probe density up to 12,800.  No window can be put
+    on them, so the answer cannot be made right -- but it must no longer be silent."""
+    _, caught = _shock_average(0.07)
+    assert op.UnmarkedDiscontinuityWarning in caught
+
+
+def test_declaring_the_fronts_takes_the_route_that_handles_them():
+    """The cure the warning names.  With the fronts declared the call averages over an
+    energy window instead, measured at 0.558 against a decohered reference of
+    0.594 +/- 0.031, and the adiabatic engine -- which cannot see the fronts -- is not used."""
+    edges = [(r + s*0.035)*_KM for r in (_R_CONTACT, _R_FORWARD) for s in (-1, 1)]
+    P, caught = _shock_average(0.07, t_breakpoints=edges)
+    assert op.UnmarkedDiscontinuityWarning not in caught
+    assert abs(P - 0.594) < 0.1
+
+
+def _sharp_but_inert(width_frac):
+    """The solar-like profile above plus a sharp step in a term proportional to the identity.
+
+    Such a term shifts every level alike, so it never rotates the eigenbasis: however sharp,
+    it cannot move probability between levels, and its sudden-transfer bound is zero."""
+    H_smooth, l1 = _exponential_H(SOLAR_ENERGY), 5.0*L_SCALE
+    scale = float(np.max(np.abs(np.asarray(H_smooth(0.0)))))
+
+    def H(l):
+        x = np.asarray(l, dtype=float)
+        step = scale*0.5*(1.0 + np.tanh((x - 0.4137*l1)/(width_frac*l1)))
+        return np.asarray(H_smooth(x)) + np.asarray(step)[..., None, None]*np.eye(3)
+    return H, l1
+
+
+def test_a_sharp_feature_that_cannot_move_probability_is_left_alone():
+    """Sharpness at the probe scale is not enough to escalate.  A solar-model table
+    interpolated in log-density is sharp at every grid point of its core, where even an
+    instantaneous change moves at most 5e-7 between levels, and escalating there changed
+    nothing.  Only a feature able to move more than SUDDEN_TRANSFER_THRESHOLD escalates."""
+    import magnus.adiabatic as ad
+    H, l1 = _sharp_but_inert(1.0e-5)
+    ls, flagged, _ = ad._concentrated_intervals(H, 0.0, l1, 200)
+    assert flagged.size, "the step no longer looks sharp at the probe scale; the case has no teeth"
+    # The step adds nothing to what the smooth profile beneath it moves across the same
+    # interval, and that is far below the threshold.
+    smooth = _exponential_H(SOLAR_ENERGY)
+    for i in flagged:
+        with_step = ap._sudden_transfer(H, ls[i], ls[i + 1])
+        assert abs(with_step - ap._sudden_transfer(smooth, ls[i], ls[i + 1])) < 1e-12
+        assert with_step < 0.01*ap.SUDDEN_TRANSFER_THRESHOLD
+    _, report = ap.averaged_probabilities_adiabatic(H, 0.0, l1)
+    assert report['escalated'] is False
+    assert report['resolved'] is None and report['certified'] is None
+
+
+def test_a_smooth_profile_gets_exactly_the_unescalated_answer():
+    """Where nothing is escalated the result is what it was before 1.1.1, bit for bit."""
+    H, l1 = _exponential_H(SOLAR_ENERGY), 5.0*L_SCALE
+    P, report = ap.averaged_probabilities_adiabatic(H, 0.0, l1)
+    crossing, windows, _ = ap.level_crossing_matrix(H, 0.0, l1)
+    V0 = np.linalg.eigh(np.asarray(H(0.0), dtype=complex))[1]
+    V1 = np.linalg.eigh(np.asarray(H(l1), dtype=complex))[1]
+    expected = (V0.real**2 + V0.imag**2) @ crossing @ (V1.real**2 + V1.imag**2).T
+    assert report['escalated'] is False
+    assert np.array_equal(P, expected)
+    assert report['windows'] == windows
+
+
+def test_the_report_says_which_search_the_windows_came_from():
+    """A direct caller of averaged_probabilities_adiabatic gets the escalation too, and a
+    report saying so: the dispatcher's warnings are built from these keys."""
+    import magnus.matter as matter
+    h_vac = hams.hamiltonian_3nu_vacuum_energy_independent(S12, S23, S13, DCP, D21, D31)
+    vcc = matter.vcc_func_from_rho_func(_ne_shock(70.0), 0.0, 1.0, 0.5, nubar=False,
+        density_matter_is_in_g_per_cm3=False, density_is_of_number_of_electrons=True)
+    energy = 15.0*gd.UNIT_MEV
+
+    def H(l):
+        return (1.0/energy)*np.asarray(h_vac) + np.asarray(vcc(l))[..., None, None]*np.diag([1.0, 0, 0])
+
+    _, report = ap.averaged_probabilities_adiabatic(H, _R0*_KM, _R1*_KM)
+    assert report['escalated'] is True
+    assert report['resolved'] is True
+    assert report['windows'], "escalated and resolved, yet no window on the fronts"

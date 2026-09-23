@@ -62,7 +62,10 @@ table necessary.
        coherently, as blocks.
      - ``average=True``, on every entry point that takes the keyword.
      - Nothing -- but where a pair sits between the coherent and decohered limits it
-       warns rather than returning an averaged expression that does not apply.
+       warns rather than returning an averaged expression that does not apply, and where
+       the profile has a feature narrower than its 200-probe grid that could move
+       probability, it takes the windows from the hybrid's refinement, or warns that
+       none resolves it.
    * - **Adiabatic + Magnus hybrid**
        (:func:`magnus.adiabatic.hybrid_propagator`)
      - ``H`` is smooth at the scale of a 200-point probe grid.

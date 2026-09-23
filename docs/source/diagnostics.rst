@@ -270,9 +270,12 @@ much*, where the code knows), what to change, and when it is genuinely safe to i
      - Omit the ratio and let it be derived from :math:`Y_e` (its default, ``None``).
    * - :class:`magnus.oscprob.UnmarkedDiscontinuityWarning`
      - The Hamiltonian is discontinuous at the grid scale and no ``t_breakpoints`` were
-       given.
-     - Yes, and refinement cannot help -- a straddling slab only gets narrower.
-     - ``t_breakpoints`` at the jumps. Measured: median 7.8e-04 → 1.3e-12.
+       given -- on a cumulative scan, on the hybrid strategy, or with ``average=True``
+       where the jump could move probability between levels.
+     - Yes, and refinement cannot help -- a straddling slab only gets narrower, and the
+       averaged route treats the jump as smooth.
+     - ``t_breakpoints`` at the jumps. Measured: median 7.8e-04 → 1.3e-12 on a scan; with
+       ``average=True`` on a supernova shock, 0.04 → 0.56 against a reference of 0.59.
    * - :class:`magnus.oscprob.PhaseAveragingWarning`
      - ``average=True`` where the oscillation has not averaged.
      - The matrix is valid; the *question* does not apply there.
@@ -292,7 +295,9 @@ much*, where the code knows), what to change, and when it is genuinely safe to i
        of the tolerance.
      - Raise the named cap; or loosen ``rtol``/``atol``; or add ``t_breakpoints``.
    * - :class:`magnus.oscprob.HybridCertificationWarning`
-     - ``strategy='hybrid'`` was forced and a point did not self-certify.
+     - ``strategy='hybrid'`` was forced and a point did not self-certify; or, with
+       ``average=True``, the crossing probabilities on the adiabatic route could not be
+       certified.
      - **Unverified, which is not the same as wrong.** The result is still exactly unitary.
      - ``strategy='auto'`` (falls back automatically); or ``t_breakpoints`` at known
        structure; or a looser tolerance.

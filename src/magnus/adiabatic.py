@@ -691,6 +691,55 @@ def _H_on_grid(H_func: Callable, ls: np.ndarray) -> np.ndarray:
     return np.array([np.asarray(H_func(l), dtype=complex) for l in ls])
 
 
+def _concentrated_intervals(H_func: Callable, l0: float, l1: float,
+    n_probe: int) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    r"""Probe intervals in which one half carries most of the change in ``H_func``.
+
+    The first stage of :func:`_profile_is_resolved`, which confirms each of these locally
+    before calling the profile discontinuous.  Kept apart because a caller that samples at
+    this scale and never finer -- the adiabatic averaging engine in :mod:`magnus.avgprob` --
+    needs the unconfirmed list: a feature sharp here and smooth at 1/32 of it is no jump,
+    but it is still invisible to a grid this coarse.
+
+    Returns the probe grid, the indices ``i`` of the concentrated intervals
+    ``[ls[i], ls[i+1]]``, and each interval's total variation.
+
+    .. versionadded:: 1.1.1
+    """
+    ls = np.linspace(l0, l1, n_probe)
+    mids = 0.5*(ls[:-1] + ls[1:])
+    Hc = _H_on_grid(H_func, ls)
+    Hm = _H_on_grid(H_func, mids)
+
+    # Per interval, how much of the variation falls in each half.
+    first = np.max(np.abs(Hm - Hc[:-1]), axis=(1, 2))
+    second = np.max(np.abs(Hc[1:] - Hm), axis=(1, 2))
+    total = first + second
+
+    # A constant (or numerically constant) Hamiltonian has nothing to resolve.  The floor is
+    # scaled to the Hamiltonian itself, not absolute: these matrices carry physical magnitudes
+    # spanning many orders.
+    scale = np.max(np.abs(Hc))
+    live = total > 1.0e-12*scale
+    if not np.any(live):
+        return ls, np.array([], dtype=int), total
+
+    # Then drop intervals carrying far less variation than a typical one.  Near a smooth
+    # turning point an interval's two halves can differ by orders of magnitude -- one of them
+    # rounding to exactly zero -- while the interval as a whole moves by ~3% of typical, and
+    # the ratio there is noise, not structure.  Measured on a sine at 28 samples per period,
+    # that single interval drove the statistic to 1.0000 and would have declared every
+    # oscillating profile discontinuous.  The median is used rather than the maximum precisely
+    # so that a jump smaller than the steepest smooth step elsewhere still survives the cut --
+    # masking it is the bug this whole test exists to avoid.
+    live &= total > 0.25*np.median(total[live])
+    if not np.any(live):
+        return ls, np.array([], dtype=int), total
+
+    ratio = np.where(live, np.maximum(first, second)/np.where(total > 0.0, total, 1.0), 0.0)
+    return ls, np.where(ratio > RESOLUTION_RATIO)[0], total
+
+
 def _profile_is_resolved(H_func: Callable, l0: float, l1: float, n_probe: int) -> bool:
     r"""Whether ``H_func`` is continuous at the scale this module samples it on.
 
@@ -754,38 +803,7 @@ def _profile_is_resolved(H_func: Callable, l0: float, l1: float, n_probe: int) -
     """
     if n_probe < 2:
         return True
-    ls = np.linspace(l0, l1, n_probe)
-    mids = 0.5*(ls[:-1] + ls[1:])
-    Hc = _H_on_grid(H_func, ls)
-    Hm = _H_on_grid(H_func, mids)
-
-    # Per interval, how much of the variation falls in each half.
-    first = np.max(np.abs(Hm - Hc[:-1]), axis=(1, 2))
-    second = np.max(np.abs(Hc[1:] - Hm), axis=(1, 2))
-    total = first + second
-
-    # A constant (or numerically constant) Hamiltonian has nothing to resolve.  The floor is
-    # scaled to the Hamiltonian itself, not absolute: these matrices carry physical magnitudes
-    # spanning many orders.
-    scale = np.max(np.abs(Hc))
-    live = total > 1.0e-12*scale
-    if not np.any(live):
-        return True
-
-    # Then drop intervals carrying far less variation than a typical one.  Near a smooth
-    # turning point an interval's two halves can differ by orders of magnitude -- one of them
-    # rounding to exactly zero -- while the interval as a whole moves by ~3% of typical, and
-    # the ratio there is noise, not structure.  Measured on a sine at 28 samples per period,
-    # that single interval drove the statistic to 1.0000 and would have declared every
-    # oscillating profile discontinuous.  The median is used rather than the maximum precisely
-    # so that a jump smaller than the steepest smooth step elsewhere still survives the cut --
-    # masking it is the bug this whole test exists to avoid.
-    live &= total > 0.25*np.median(total[live])
-    if not np.any(live):
-        return True
-
-    ratio = np.where(live, np.maximum(first, second)/np.where(total > 0.0, total, 1.0), 0.0)
-    flagged = np.where(ratio > RESOLUTION_RATIO)[0]
+    ls, flagged, total = _concentrated_intervals(H_func, l0, l1, n_probe)
     if flagged.size == 0:
         return True
 

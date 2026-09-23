@@ -1073,6 +1073,11 @@ class UnmarkedDiscontinuityWarning(ToleranceNotAchievedWarning):
     discontinuous at the scale of the grid it built, without being told where the
     discontinuities are.
 
+    The hybrid strategy raises it for the same reason when it declines a profile, and so does
+    ``average=True`` when a discontinuity could move probability between levels: the
+    averaging engine treats the profile as smooth, and before 1.1.1 did so silently (issue
+    #60).  In every case the cure is the same -- ``t_breakpoints`` at the discontinuity.
+
     The cumulative scan lays a uniform accuracy grid over the trajectory (plus the requested
     baselines, plus any ``t_breakpoints``).  A slab that straddles a density jump degrades the
     quadrature to low order no matter how high ``magnus_exp_order`` is, and refining the grid
@@ -3865,6 +3870,7 @@ def _avg_prob_dispatch(
     n_pts = len(energy_arr)
     undecided_points = 0
     uncertified_points = 0
+    unresolved_points = 0
 
     if htot_is_function_only_of_energy:
         # Constant along the trajectory: the averaged limit is closed-form, one
@@ -3931,15 +3937,32 @@ def _avg_prob_dispatch(
                 float(L_arr[i]))
             if report['undecided'] or report['undecided_between_crossings']:
                 undecided_points += 1
-            if not report['patches_converged']:
+            if report.get('resolved') is False:
+                unresolved_points += 1
+            elif (not report['patches_converged']) or report.get('certified') is False:
                 uncertified_points += 1
 
+    if unresolved_points > 0:
+        # Issue #60.  The profile has a feature narrower than the averaging engine's probe
+        # grid, able to move probability between levels, and no refinement resolves it: a
+        # discontinuity.  The engine could only treat it as smooth, which is what it did
+        # silently before 1.1.1 -- measured wrong by up to 0.56 on a supernova shock ray.
+        warnings.warn(gd.WARNING_MSG_NO_COLOR + " oscprob." + source_func_name + ": average=True "
+            "on a profile with a discontinuity that was not declared, at " +
+            str(unresolved_points) + " of " + str(n_pts) + " (energy, L) point(s).  The "
+            "adiabatic route cannot resolve it and treated it as smooth, so the averaged "
+            "probability there ignores whatever the jump does and may be far off.  Pass "
+            "t_breakpoints at the discontinuity: the call then averages over an energy window "
+            "instead, measured within two standard errors of a decohered reference on a "
+            "supernova shock.  Shown once per session.",
+            UnmarkedDiscontinuityWarning, stacklevel=3)
     if uncertified_points > 0:
-        warnings.warn(gd.WARNING_MSG_NO_COLOR + " oscprob." + source_func_name + ": the local "
-            "Magnus patch across a non-adiabatic crossing did not converge at " +
-            str(uncertified_points) + " of " + str(n_pts) + " (energy, L) point(s), so the "
-            "level-crossing probabilities there are not trustworthy.  Shown once per session.",
-            HybridCertificationWarning, stacklevel=3)
+        warnings.warn(gd.WARNING_MSG_NO_COLOR + " oscprob." + source_func_name + ": the "
+            "level-crossing probabilities could not be certified at " +
+            str(uncertified_points) + " of " + str(n_pts) + " (energy, L) point(s) -- a local "
+            "Magnus patch across a crossing did not converge, or the refinement that located "
+            "the crossings did not certify them -- so they are not trustworthy there.  Shown "
+            "once per session.", HybridCertificationWarning, stacklevel=3)
 
     if undecided_points > 0:
         warnings.warn(gd.WARNING_MSG_NO_COLOR + " oscprob." + source_func_name + ": the averaged "

@@ -183,6 +183,27 @@ implementation assuming that formula:
      - 0.5680
      - 0.3%
 
+The search for windows runs on a grid of 200 probes.  A feature narrower
+than their spacing falls between two of them and is never examined: until
+1.1.1 no window opened there, :math:`P^{\rm cross}` came out the identity,
+and the fully adiabatic answer was returned without a warning -- on a
+supernova shock ray, 0.04 where the averaged probability is 0.37 to 0.59.
+The profile is now checked first for features that sharp *and* able to
+move probability between levels -- an instantaneous change across them
+would move more than
+:data:`magnus.avgprob.SUDDEN_TRANSFER_THRESHOLD`, the default tolerance.
+Where there is one, the windows are taken from
+:func:`magnus.adiabatic.hybrid_propagator`, which refines its search until
+it certifies.  Of 24 fronts on that ray, 0.07 to 2000 km wide, 16 then
+come back within 0.01 of a decohered reference, and the other 8 warn:
+where the feature is a discontinuity no
+refinement resolves, the call raises
+:class:`magnus.oscprob.UnmarkedDiscontinuityWarning`, and the cure is to
+declare it with ``t_breakpoints``, which selects the energy-window average
+described below.  Everywhere else -- every solar profile measured,
+tabulated models included -- nothing is escalated and the result is what
+it was, bit for bit.
+
 Two conditions have to hold for the expression above to mean anything,
 and :func:`magnus.avgprob.averaged_probabilities_adiabatic` checks both
 rather than assuming them.  The levels must have decohered from each
