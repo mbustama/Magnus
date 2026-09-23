@@ -589,15 +589,23 @@ def oscillation_sampling(H_func: Callable, l0: float, l1: float,
     l0, l1 = float(l0), float(l1)
     if (l1 == l0) or (n_probe < 1):
         return {}
-    spread = 0.0
-    for l in np.linspace(l0, l1, int(n_probe)):
+    ls = np.linspace(l0, l1, int(n_probe))
+    try:
+        # One vectorized call where the Hamiltonian takes arrays, one per position otherwise,
+        # and one batched eigendecomposition either way.  No dtype is imposed, as before.
         try:
-            lam = np.linalg.eigvalsh(np.asarray(H_func(l)))
-        except Exception:                  # noqa: BLE001 -- a diagnostic must never break a call
-            return {}
-        if not np.all(np.isfinite(lam)):
-            return {}
-        spread = max(spread, float(np.max(lam) - np.min(lam)))
+            Hs = np.asarray(H_func(ls))
+            batched = (Hs.ndim == 3) and (Hs.shape[0] == len(ls))
+        except Exception:                  # noqa: BLE001 -- any failure means "not vectorized"
+            batched = False
+        if not batched:
+            Hs = np.array([np.asarray(H_func(l)) for l in ls])
+        lam = np.linalg.eigvalsh(Hs)
+    except Exception:                      # noqa: BLE001 -- a diagnostic must never break a call
+        return {}
+    if not np.all(np.isfinite(lam)):
+        return {}
+    spread = max(0.0, float(np.max(np.max(lam, axis=-1) - np.min(lam, axis=-1))))
     if spread <= 0.0:
         return {}
 
@@ -852,14 +860,15 @@ def _eigs_along(H_func: Callable, ls: np.ndarray) -> Tuple[np.ndarray, np.ndarra
         ``W[i, :, k]`` is the ``k``-th eigenvector at ``ls[i]``).
     """
     n = len(ls)
-    H0 = np.asarray(H_func(ls[0]), dtype=complex)
-    d = H0.shape[-1]
+    # The Hamiltonians and eigendecompositions in one batch; the phase fixing below is
+    # sequential by nature and is done exactly as before, one position after the other.
+    lam_all, W_all = np.linalg.eigh(_H_on_grid(H_func, ls))
+    d = lam_all.shape[-1]
     lam = np.empty((n, d))
     W = np.empty((n, d, d), dtype=complex)
-    lam[0], W[0] = np.linalg.eigh(H0)
+    lam[0], W[0] = lam_all[0], W_all[0]
     for i in range(1, n):
-        Hi = np.asarray(H_func(ls[i]), dtype=complex)
-        li, Wi = np.linalg.eigh(Hi)
+        li, Wi = lam_all[i], W_all[i]
         for k in range(d):
             overlap = np.vdot(W[i - 1, :, k], Wi[:, k])
             phase = overlap / abs(overlap) if abs(overlap) > 1e-14 else 1.0
@@ -1002,6 +1011,34 @@ def _dH_dl(H_func: Callable, l: float, h: float,
     return (Hp - Hm) / span
 
 
+def _dH_dl_on_grid(H_func: Callable, ls: np.ndarray, h: float,
+    bounds: Optional[Tuple[float, float]] = None) -> np.ndarray:
+    r"""``_dH_dl`` at every position in ``ls``, from two vectorized calls rather than two per position.
+
+    The stencil is clipped element by element exactly as ``_dH_dl`` clips it for one position,
+    and the difference is divided the same way, so each matrix is bit for bit the one
+    ``_dH_dl`` returns.  What changes is the cost: the adiabatic detectors take this derivative
+    at every probe point and at every bisection step, and one Python call per position was most
+    of the time an averaged solar call spent (issue #64).
+
+    .. versionadded:: 1.1.1
+    """
+    ls = np.asarray(ls, dtype=float)
+    lm, lp = ls - h, ls + h
+    if bounds is not None:
+        lo, hi = bounds
+        low = lm < lo
+        high = ~low & (lp > hi)
+        lm, lp = (np.where(low, lo, np.where(high, np.maximum(hi - 2.0 * h, lo), lm)),
+                  np.where(low, np.minimum(lo + 2.0 * h, hi), np.where(high, hi, lp)))
+    span = lp - lm
+    flat = span <= 0.0
+    Hp = _H_on_grid(H_func, lp)
+    Hm = _H_on_grid(H_func, lm)
+    return np.divide(Hp - Hm, span[:, None, None], out=np.zeros_like(Hp),
+                     where=~flat[:, None, None])
+
+
 def find_resonance_candidates(H_func: Callable, l0: float, l1: float,
     n_probe: Optional[int] = 200, fd_step_frac: Optional[float] = 1e-6,
     info: Optional[Dict] = None) -> List[Dict]:
@@ -1118,18 +1155,26 @@ def find_resonance_candidates(H_func: Callable, l0: float, l1: float,
     Hs = _H_on_grid(H_func, ls)
     d = Hs.shape[-1]
     lam, W = np.linalg.eigh(Hs)
-    dH = np.array([_dH_dl(H_func, l, h, bounds) for l in ls])
+    dH = _dH_dl_on_grid(H_func, ls, h, bounds)
     if info is not None:
         info.update(ls=ls, lam=lam, W=W, dH=dH)
 
-    def f_pair(l: float, j: int, k: int) -> float:
-        H = np.asarray(H_func(l), dtype=complex)
-        _, Wi = np.linalg.eigh(H)
-        dHl = _dH_dl(H_func, l, h, bounds)
-        vj, vk = Wi[:, j], Wi[:, k]
-        return float(np.real(np.vdot(vj, dHl @ vj) - np.vdot(vk, dHl @ vk)))
+    def f_pairs(pos: np.ndarray, js: List[int], ks: List[int]) -> List[float]:
+        # The Hellmann-Feynman gap derivative at many (position, pair) points.  The
+        # Hamiltonians and eigendecompositions are batched; the reduction stays per point and
+        # written exactly as it was for one point, so every value is bit for bit what the
+        # single-point version returned, and so is every bisection step taken on its sign.
+        if len(pos) == 0:
+            return []
+        _, Wi = np.linalg.eigh(_H_on_grid(H_func, pos))
+        dHl = _dH_dl_on_grid(H_func, pos, h, bounds)
+        return [float(np.real(np.vdot(Wi[n][:, j], dHl[n] @ Wi[n][:, j])
+                              - np.vdot(Wi[n][:, k], dHl[n] @ Wi[n][:, k])))
+                for n, (j, k) in enumerate(zip(js, ks))]
 
-    candidates = []
+    # Every bracket, in the order the pairs and sign changes are visited, then all of them
+    # bisected together: sixty batched steps instead of sixty Python-level steps per bracket.
+    brackets = []
     for j in range(d):
         for k in range(j + 1, d):
             fjk = np.real(np.einsum('ni,nij,nj->n', np.conj(W[:, :, j]), dH, W[:, :, j])
@@ -1137,25 +1182,40 @@ def find_resonance_candidates(H_func: Callable, l0: float, l1: float,
             sgn = np.sign(fjk)
             changes = np.where(np.diff(sgn) != 0)[0]
             for idx in changes:
-                a, b = ls[idx], ls[idx + 1]
-                fa, fb = f_pair(a, j, k), f_pair(b, j, k)
-                if fa == 0.0:
-                    l_star = a
-                elif fb == 0.0:
-                    l_star = b
-                else:
-                    for _ in range(60):
-                        m = 0.5 * (a + b)
-                        fm = f_pair(m, j, k)
-                        if np.sign(fm) == np.sign(fa):
-                            a, fa = m, fm
-                        else:
-                            b, fb = m, fm
-                    l_star = 0.5 * (a + b)
-                H_star = np.asarray(H_func(l_star), dtype=complex)
-                lam_star = np.linalg.eigvalsh(H_star)
-                gap = float(lam_star[k] - lam_star[j])
-                candidates.append({'l': l_star, 'j': j, 'k': k, 'gap': gap})
+                brackets.append((ls[idx], ls[idx + 1], j, k))
+    if not brackets:
+        return []
+    n_br = len(brackets)
+    a = [br[0] for br in brackets]
+    b = [br[1] for br in brackets]
+    js = [br[2] for br in brackets]
+    ks = [br[3] for br in brackets]
+    f_ends = f_pairs(np.array(a + b), js + js, ks + ks)
+    fa, fb = f_ends[:n_br], f_ends[n_br:]
+    l_star = [None]*n_br
+    live = []
+    for n in range(n_br):
+        if fa[n] == 0.0:
+            l_star[n] = a[n]
+        elif fb[n] == 0.0:
+            l_star[n] = b[n]
+        else:
+            live.append(n)
+    for _ in range(60):
+        if not live:
+            break
+        m = [0.5 * (a[n] + b[n]) for n in live]
+        fm = f_pairs(np.array(m), [js[n] for n in live], [ks[n] for n in live])
+        for n, mn, fmn in zip(live, m, fm):
+            if np.sign(fmn) == np.sign(fa[n]):
+                a[n], fa[n] = mn, fmn
+            else:
+                b[n], fb[n] = mn, fmn
+    for n in live:
+        l_star[n] = 0.5 * (a[n] + b[n])
+    lam_star = np.linalg.eigvalsh(_H_on_grid(H_func, np.array(l_star, dtype=float)))
+    candidates = [{'l': l_star[n], 'j': js[n], 'k': ks[n],
+                   'gap': float(lam_star[n][ks[n]] - lam_star[n][js[n]])} for n in range(n_br)]
     candidates.sort(key=lambda c: c['l'])
     return candidates
 
@@ -1191,6 +1251,29 @@ def _point_adiabaticity(H_func: Callable, l: float, j: int, k: int, fd_step: flo
     return np.inf if _degenerate(gap, lam) else coupling / gap**2
 
 
+def _point_adiabaticity_many(H_func: Callable, ls: List[float], js: List[int], ks: List[int],
+    fd_step: float, bounds: Optional[Tuple[float, float]] = None) -> List[float]:
+    r"""``_point_adiabaticity`` at many (position, pair) points, bit for bit.
+
+    The Hamiltonians, their derivatives and the eigendecompositions are batched; the coupling and
+    the gap are still formed per point, written exactly as ``_point_adiabaticity`` writes them.
+
+    .. versionadded:: 1.1.1
+    """
+    if len(ls) == 0:
+        return []
+    pos = np.asarray(ls, dtype=float)
+    lam, W = np.linalg.eigh(_H_on_grid(H_func, pos))
+    dH = _dH_dl_on_grid(H_func, pos, fd_step, bounds)
+    out = []
+    for n, (j, k) in enumerate(zip(js, ks)):
+        vj, vk = W[n][:, j], W[n][:, k]
+        coupling = np.abs(np.vdot(vj, dH[n] @ vk))
+        gap = abs(lam[n][k] - lam[n][j])
+        out.append(np.inf if _degenerate(gap, lam[n]) else coupling / gap**2)
+    return out
+
+
 def _estimate_window_bounds(H_func: Callable, l_star: float, j: int, k: int, l0: float, l1: float,
     threshold: float, fd_step: float, safety_factor: Optional[float] = 2.0,
     max_doublings: Optional[int] = 60) -> Tuple[float, float]:
@@ -1220,6 +1303,51 @@ def _estimate_window_bounds(H_func: Callable, l_star: float, j: int, k: int, l0:
         l_pad = l_star + sign * safety_factor * width
         return min(l_pad, l1) if sign > 0 else max(l_pad, l0)
     return grow(-1.0), grow(+1.0)
+
+
+def _estimate_window_bounds_many(H_func: Callable, stars: List[Tuple[float, int, int]], l0: float,
+    l1: float, threshold: float, fd_step: float, safety_factor: Optional[float] = 2.0,
+    max_doublings: Optional[int] = 60) -> List[Tuple[float, float]]:
+    r"""``_estimate_window_bounds`` for many ``(l_star, j, k)`` at once, bit for bit.
+
+    Every window edge is still found by the same doubling search, step for step; what is batched
+    is the adiabaticity evaluated at each round, over every search still running.
+
+    .. versionadded:: 1.1.1
+    """
+    # One search per (star, side), in the order grow(-1) then grow(+1) for each star.
+    searches = [(l_star, j, k, sign) for (l_star, j, k) in stars for sign in (-1.0, +1.0)]
+    step = [fd_step]*len(searches)
+    result = [None]*len(searches)
+    live = list(range(len(searches)))
+    for _ in range(max_doublings):
+        if not live:
+            break
+        probe = []
+        for n in live:
+            l_star, j, k, sign = searches[n]
+            l_try = l_star + sign * step[n]
+            if sign > 0 and l_try >= l1:
+                result[n] = l1
+            elif sign < 0 and l_try <= l0:
+                result[n] = l0
+            else:
+                probe.append((n, l_try))
+        gammas = _point_adiabaticity_many(H_func, [p[1] for p in probe],
+            [searches[n][1] for n, _ in probe], [searches[n][2] for n, _ in probe], fd_step,
+            (l0, l1))
+        for (n, l_try), gamma in zip(probe, gammas):
+            if gamma < threshold:
+                l_star, _, _, sign = searches[n]
+                width = abs(l_try - l_star)
+                l_pad = l_star + sign * safety_factor * width
+                result[n] = min(l_pad, l1) if sign > 0 else max(l_pad, l0)
+            else:
+                step[n] *= 2.0
+        live = [n for n in live if result[n] is None]
+    for n in live:
+        result[n] = l1 if searches[n][3] > 0 else l0
+    return [(result[2*i], result[2*i + 1]) for i in range(len(stars))]
 
 
 def find_nonadiabatic_windows(H_func: Callable, l0: float, l1: float,
@@ -1282,14 +1410,16 @@ def find_nonadiabatic_windows(H_func: Callable, l0: float, l1: float,
     fd_step = (l1 - l0) * fd_step_frac
     windows = []
     gamma_max = 0.0
-    for c in candidates:
-        gamma = _point_adiabaticity(H_func, c['l'], c['j'], c['k'], fd_step, (l0, l1))
+    # Every window is grown in one batched search at the end (the order they are appended in
+    # does not matter: they are sorted before merging).
+    to_grow = []
+    gammas = _point_adiabaticity_many(H_func, [c['l'] for c in candidates],
+        [c['j'] for c in candidates], [c['k'] for c in candidates], fd_step, (l0, l1))
+    for c, gamma in zip(candidates, gammas):
         c['gamma'] = gamma
         gamma_max = max(gamma_max, gamma)
         if gamma > threshold:
-            l_b, l_c = _estimate_window_bounds(H_func, c['l'], c['j'], c['k'], l0, l1, threshold,
-                fd_step)
-            windows.append([l_b, l_c])
+            to_grow.append((c['l'], c['j'], c['k']))
 
     # Sweep the probe grid as well, not only the gap extrema above.  A gap extremum is where the
     # *gap* is stationary, which is not where gamma = |<v_j|dH/dl|v_k>| / gap^2 peaks: on a
@@ -1337,10 +1467,10 @@ def find_nonadiabatic_windows(H_func: Callable, l0: float, l1: float,
             # rather than forty-two.
             for run in np.split(over, np.where(np.diff(over) != 1)[0] + 1):
                 peak = int(run[np.argmax(gamma_p[run])])
-                l_b, l_c = _estimate_window_bounds(H_func, float(ls_probe[peak]), j, k, l0, l1,
-                    threshold, fd_step)
-                windows.append([l_b, l_c])
+                to_grow.append((float(ls_probe[peak]), j, k))
 
+    windows = [list(w) for w in _estimate_window_bounds_many(H_func, to_grow, l0, l1, threshold,
+                                                             fd_step)]
     merged = []
     for w in sorted(windows):
         if merged and w[0] <= merged[-1][1]:

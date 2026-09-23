@@ -111,6 +111,31 @@ and the project uses [Semantic Versioning](https://semver.org/).
   6.0 dictionaries are built from module constants whose values differ from the
   loader's in the last bit, and a caller pinned to 6.0 keeps the same bits.
 
+### Changed
+
+- **The adiabatic machinery evaluates the Hamiltonian in batches.**  The search
+  for non-adiabatic windows took the finite-difference derivative at every probe
+  point, and bisected every gap extremum, one Python call per position: about
+  1300 Hamiltonian calls per energy on an averaged solar call, most of its time.
+  The probe grid, the bisections (all of them advanced together, sixty batched
+  steps), the adiabaticity at every candidate, the growth of every window, the
+  parallel transport of `adiabatic_propagator`, the accumulated phases and
+  `oscillation_sampling` now evaluate the Hamiltonian over an array of positions
+  and decompose it in one batched call.  Every reduction is still formed per
+  position as before, so the results are unchanged: 15 044 calls to the
+  adiabatic and averaging functions, over the four solar curves, disk chords
+  with windows, hybrid-strategy calls, notebooks 10, 12, 13 and 23 and the
+  adiabatic and averaging tests, return identical bits.  The one difference
+  found was a single derivative entry, 1 ulp, on a chord profile whose scalar
+  and array evaluations disagree in the last place (NumPy squares an array but
+  calls `pow` on a scalar); nothing downstream moved.  A Hamiltonian that only
+  takes one position at a time is evaluated position by position, as before.
+  The four averaged solar curves of the paper's solar figure (three flavors, with
+  NSI, 3+1 and 3+2, ninety energies each), timed interleaved against the previous
+  code on an idle machine: 1.6, 1.6, 3.1 and 4.9 s before, 0.56, 0.57, 0.88 and
+  1.2 s after, 3.5 times faster together.  The hybrid strategy shares these functions
+  and gains with them (issue #64).
+
 ### Fixed
 
 - `MAGNUS_PAPER_CACHE_ONLY` now forbids notebook 28 from recomputing anything,

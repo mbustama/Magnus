@@ -517,7 +517,9 @@ def adiabatic_phase_differences(
     if n_points % 2 == 0: n_points += 1
 
     grid = np.linspace(float(l0), float(l1), n_points)
-    lam = np.array([np.linalg.eigvalsh(np.asarray(H_func(l), dtype=complex)) for l in grid])
+    # One vectorized Hamiltonian call and one batched eigendecomposition: the same eigenvalues,
+    # bit for bit, without a Python call per grid point (issue #64).
+    lam = np.linalg.eigvalsh(adiabatic._H_on_grid(H_func, grid))
 
     # Simpson weights, times the uniform spacing
     h = (grid[-1] - grid[0])/(n_points - 1)
