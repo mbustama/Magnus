@@ -3979,7 +3979,17 @@ def _avg_prob_dispatch(
         eigenvalues, eigenvectors = np.linalg.eigh(H)
         d = H.shape[-1]
         P_out = np.empty((n_pts, d, d))
-        for i in range(n_pts):
+        # Points where every pair has decohered have singleton blocks and nothing undecided --
+        # what coherence_report finds for them one at a time -- and their formula is batched.
+        # Bit for bit: a singleton block is a product, exact however many are formed at once.
+        gaps = (np.abs(eigenvalues[:, :, None] - eigenvalues[:, None, :])
+                * np.abs(np.asarray(L_arr, dtype=float))[:, None, None])
+        decohered = np.all(gaps[:, ~np.eye(d, dtype=bool)] > avgprob.DECOHERENCE_PHASE_THRESHOLD,
+                           axis=1)
+        if np.any(decohered):
+            P_out[decohered] = avgprob.averaged_probabilities_from_eigenbasis(
+                eigenvectors[decohered])
+        for i in np.flatnonzero(~decohered):
             blocks, undecided = avgprob.coherence_report(eigenvalues[i], float(L_arr[i]))
             if undecided and not phase_average: undecided_points += 1
             P_out[i] = avgprob.averaged_probabilities_from_eigenbasis(eigenvectors[i],
@@ -3987,13 +3997,17 @@ def _avg_prob_dispatch(
         if phase_average:
             # The derivative in ln E by a central difference: two more Hamiltonians per energy
             # and no eigendecomposition, the slopes coming from Hellmann-Feynman.
-            D = np.stack([(np.asarray(htot(float(enu)*np.exp(h)), dtype=complex)
+            D = np.array([(np.asarray(htot(float(enu)*np.exp(h)), dtype=complex)
                            - np.asarray(htot(float(enu)*np.exp(-h)), dtype=complex))/(2.0*h)
                           for enu in energy_arr])
             P_new, sens = avgprob.phase_averaged_probabilities_constant_hamiltonian(H, D,
                 np.asarray(L_arr, dtype=float) - float(L0), spread=spread, dH_dlnE_step=h)
-            for i in range(n_pts):
-                keep_or_replace(i, P_new[i], sens[i])
+            moved = np.max(np.abs(P_new - P_out), axis=(1, 2)) >= _PHASE_AVERAGE_GATE
+            P_out[moved] = P_new[moved]
+            recomputed_points += int(np.count_nonzero(moved))
+            spread_sensitive_points += int(np.count_nonzero(
+                sens > avgprob.PHASE_SPREAD_SENSITIVITY_THRESHOLD))
+            largest_sensitivity = max(largest_sensitivity, float(np.max(sens, initial=0.0)))
     elif sample_numerically:
         # No closed form: the profile steps through discontinuities (PREM layer boundaries),
         # so there is no instantaneous eigenbasis to decohere in.  The probability is instead

@@ -979,9 +979,15 @@ def phase_averaged_probabilities_constant_hamiltonian(
     x2 = (spread*dphi)**2
     w = np.exp(-0.5*x2)
     rot = np.exp(-1j*phi)
-    X = np.einsum('...ai,...bi->...abi', V.conj(), V)
-    P = np.real(np.einsum('...abi,...abj,...ij->...ab', X, X.conj(), rot*w))
-    S = np.real(np.einsum('...abi,...abj,...ij->...ab', X, X.conj(), rot*(-x2*w)))
+    # P_ab = Re sum_ij X_abi conj(X_abj) K_ij, X_abi = conj(V_ai) V_bi, as one batched product
+    # over j for the weights and their sigma-derivative together.
+    X = V.conj()[..., :, None, :]*V[..., None, :, :]
+    K = np.stack([rot*w, rot*(-x2*w)], axis=-3)                       # (..., 2, i, j)
+    Xc = X.conj()
+    Kt = np.swapaxes(K, -1, -2)                                         # (..., 2, j, i)
+    Y = Xc[..., None, :, :, :] @ Kt[..., :, None, :, :]                # (..., 2, a, b, i)
+    PS = np.real(np.sum(X[..., None, :, :, :]*Y, axis=-1))             # (..., 2, a, b)
+    P, S = PS[..., 0, :, :], PS[..., 1, :, :]
     return P, np.max(np.abs(S), axis=(-2, -1))
 
 
