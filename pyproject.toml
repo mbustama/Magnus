@@ -93,7 +93,9 @@ where = ["src"]
 # installed package, mypy and pyright treat magnuspy as untyped and discard every one of
 # those annotations.  The file is empty by design; its presence is the whole signal.
 [tool.setuptools.package-data]
-magnus = ["py.typed"]
+# The solar-model tables behind density_profile (magnus.solarmodels); each carries its source,
+# citation and terms in its header.
+magnus = ["py.typed", "data/solar_models/*.dat"]
 
 [tool.ruff]
 line-length = 100

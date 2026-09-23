@@ -439,6 +439,7 @@ Salient Features
    tutorials
    comparison
    functions
+   solar_models
    cli
    plotting
 

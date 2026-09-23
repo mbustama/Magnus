@@ -172,7 +172,9 @@ A profile of your own
 
 Any callable returning a density as a function of position works. The Sun's
 exponential profile ships as a helper, and carries a tag that lets the
-interaction-picture fast path recognize it.
+interaction-picture fast path recognize it.  For the Sun itself, twelve published
+standard solar models ship as well, and the Sun wrappers take them by name
+(see :doc:`solar_models`).
 
 .. jupyter-execute::
 

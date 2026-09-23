@@ -171,6 +171,8 @@ Sun
 The built-in exponentially-falling solar electron-density profile (see
 :func:`magnus.oscprob.osc_prob_sun`), from an initial radial
 position ``L0`` (default: the center) to a final radial position ``L``.
+Every one takes ``density_profile`` to use one of twelve tabulated standard
+solar models instead (see :doc:`solar_models`).
 
 .. list-table::
    :header-rows: 1

@@ -311,6 +311,7 @@ import magnus.matter as matter
 import magnus.earth as earth
 import magnus.adiabatic as adiabatic
 import magnus.avgprob as avgprob
+import magnus.solarmodels as solarmodels
 from magnus import version
 from magnus import authors
 
@@ -1248,6 +1249,20 @@ class CrossCheckInconclusiveWarning(UserWarning):
     caller who wants only one engine's answer is entitled to ask for it.
 
     .. versionadded:: 1.0.0
+    """
+
+
+class SolarModelRangeWarning(UserWarning):
+    r"""Warns that a baseline reaches past the last tabulated radius of a standard solar model
+    while ``stop_at_table_edge=True`` was asked for, so no probability is returned there.
+
+    Every table stops before the surface or at it -- BP2000 and BP04 at 0.95 :math:`R_\odot`,
+    the BS05 models at 0.98, B16 and B23 at 1.00 -- and past it the profile is a continuation of
+    the last tabulated interval, not a model (see :mod:`magnus.solarmodels`).
+    ``stop_at_table_edge`` is for a caller who would rather have no number than one computed
+    there: those probabilities come back as NaN, and this says how many and where the edge is.
+
+    .. versionadded:: 1.1.1
     """
 
 
@@ -10367,6 +10382,7 @@ def osc_prob_2nu_matter_exp_density(
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
     angles: Optional[str]='sin',
+    _rho_func: Optional[Callable]=None,
     **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the two-neutrino oscillation 
     probability in matter with an exponentially falling density profile.
@@ -10440,6 +10456,12 @@ def osc_prob_2nu_matter_exp_density(
         ``'rad'`` the angle itself in radians, or ``'deg'`` in degrees.  Any other
         value raises.
 
+    _rho_func : Callable, optional
+        Internal: a density profile to use in place of the exponential one, which is how the
+        ``osc_prob_*_sun*`` wrappers pass a tabulated standard solar model (see
+        :mod:`magnus.solarmodels`).  ``rho_central`` and ``l_scale`` are then not used.  Leave
+        it None.  Default: None.
+
     Returns
     -------
     float or np.ndarray
@@ -10456,7 +10478,8 @@ def osc_prob_2nu_matter_exp_density(
 
     return osc_prob_matter_std_potential(
         num_flavors=2,
-        rho_func=matter.exp_density_profile(rho_central, l_scale),
+        rho_func=(matter.exp_density_profile(rho_central, l_scale) if _rho_func is None
+                  else _rho_func),
         energy=energy,
         L=L,
         osc_params={'sth': sth, 'Dm2': Dm2},
@@ -10506,6 +10529,7 @@ def osc_prob_3nu_matter_exp_density(
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
     angles: Optional[str]='sin',
+    _rho_func: Optional[Callable]=None,
     **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the three-neutrino oscillation 
     probability in matter with an exponentially falling density profile.
@@ -10581,6 +10605,12 @@ def osc_prob_3nu_matter_exp_density(
         ``'deg'`` the CP phase is read as degrees too; under the other three
         it stays in radians, a sine being no way to state a phase.
 
+    _rho_func : Callable, optional
+        Internal: a density profile to use in place of the exponential one, which is how the
+        ``osc_prob_*_sun*`` wrappers pass a tabulated standard solar model (see
+        :mod:`magnus.solarmodels`).  ``rho_central`` and ``l_scale`` are then not used.  Leave
+        it None.  Default: None.
+
     Returns
     -------
     float or np.ndarray
@@ -10594,7 +10624,8 @@ def osc_prob_3nu_matter_exp_density(
 
     return osc_prob_matter_std_potential(
         num_flavors=3,
-        rho_func=matter.exp_density_profile(rho_central, l_scale),
+        rho_func=(matter.exp_density_profile(rho_central, l_scale) if _rho_func is None
+                  else _rho_func),
         energy=energy,
         L=L,
         osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 'D21': D21, 'D31': D31},
@@ -10651,6 +10682,7 @@ def osc_prob_4nu_matter_exp_density(
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
     angles: Optional[str]='sin',
+    _rho_func: Optional[Callable]=None,
     **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the four-neutrino (3+1) oscillation 
     probability in matter with an exponentially falling density profile.
@@ -10738,6 +10770,12 @@ def osc_prob_4nu_matter_exp_density(
         ``'deg'`` the CP phases are read as degrees too; under the other three
         they stay in radians, a sine being no way to state a phase.
 
+    _rho_func : Callable, optional
+        Internal: a density profile to use in place of the exponential one, which is how the
+        ``osc_prob_*_sun*`` wrappers pass a tabulated standard solar model (see
+        :mod:`magnus.solarmodels`).  ``rho_central`` and ``l_scale`` are then not used.  Leave
+        it None.  Default: None.
+
     Returns
     -------
     float or np.ndarray
@@ -10751,7 +10789,8 @@ def osc_prob_4nu_matter_exp_density(
 
     return osc_prob_matter_std_potential(
         num_flavors=4,
-        rho_func=matter.exp_density_profile(rho_central, l_scale),
+        rho_func=(matter.exp_density_profile(rho_central, l_scale) if _rho_func is None
+                  else _rho_func),
         energy=energy,
         L=L,
         osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 's14': s14, 'd14': d14, 
@@ -10815,6 +10854,7 @@ def osc_prob_5nu_matter_exp_density(
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
     angles: Optional[str]='sin',
+    _rho_func: Optional[Callable]=None,
     **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the five-neutrino (3+2) oscillation 
     probability in matter with an exponentially falling density profile.
@@ -10914,6 +10954,12 @@ def osc_prob_5nu_matter_exp_density(
         ``'deg'`` the CP phases are read as degrees too; under the other three
         they stay in radians, a sine being no way to state a phase.
 
+    _rho_func : Callable, optional
+        Internal: a density profile to use in place of the exponential one, which is how the
+        ``osc_prob_*_sun*`` wrappers pass a tabulated standard solar model (see
+        :mod:`magnus.solarmodels`).  ``rho_central`` and ``l_scale`` are then not used.  Leave
+        it None.  Default: None.
+
     Returns
     -------
     float or np.ndarray
@@ -10927,7 +10973,8 @@ def osc_prob_5nu_matter_exp_density(
 
     return osc_prob_matter_std_potential(
         num_flavors=5,
-        rho_func=matter.exp_density_profile(rho_central, l_scale),
+        rho_func=(matter.exp_density_profile(rho_central, l_scale) if _rho_func is None
+                  else _rho_func),
         energy=energy,
         L=L,
         osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 's14': s14, 'd14': d14, 
@@ -12914,6 +12961,99 @@ def _osc_prob_with_potential(
 # In matter, standard oscillations, in the Sun
 #-----------------------------------------------------------------------
 
+
+def _is_exponential(density_profile) -> bool:
+    return str(density_profile).strip().lower() == solarmodels.EXPONENTIAL
+
+
+def _solar_profile(density_profile, ratio_number_neutrons_to_protons, source_func_name: str):
+    r"""The density profile and neutron-to-proton ratio a Sun wrapper passes on.
+
+    For the exponential fit, ``(None, ratio)``: the ``_exp_density`` wrapper then builds the
+    profile exactly as it always has, and a ratio left unset is 1.0, as it always was.  For a
+    standard solar model, its tabulated electron density, and the ratio as given or, left unset,
+    the model's own composition (:mod:`magnus.solarmodels`).
+
+    .. versionadded:: 1.1.1
+    """
+    if _is_exponential(density_profile):
+        return None, (1.0 if ratio_number_neutrons_to_protons is None
+                      else ratio_number_neutrons_to_protons)
+    try:
+        name = solarmodels.canonical_name(density_profile)
+    except ValueError as e:
+        raise ValueError(str(e).replace(" solarmodels:", " oscprob." + source_func_name +
+            ": density_profile:", 1)) from None
+    ratio = (solarmodels.neutron_to_proton_ratio_profile(name)
+             if ratio_number_neutrons_to_protons is None else ratio_number_neutrons_to_protons)
+    return solarmodels.electron_density_profile(name), ratio
+
+
+def _stop_at_table_edge(density_profile, stop_at_table_edge, L, L0, source_func_name: str):
+    r"""Which baselines reach past a solar model's last tabulated radius, when that is refused.
+
+    Returns ``(L, None)`` unless ``stop_at_table_edge`` is set and some baseline does.  Then each
+    such baseline is replaced by ``L0``, a path of zero length that costs nothing and keeps the
+    call's shape, and the second value marks the results :func:`_refuse_past_table_edge` must
+    blank; a warning says how many and where the edge is.  A path that *starts* past the edge
+    has nothing inside the table to compute, and is refused outright.
+
+    .. versionadded:: 1.1.1
+    """
+    if not stop_at_table_edge:
+        return L, None
+    if _is_exponential(density_profile):
+        raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": "
+            "stop_at_table_edge applies to a tabulated standard solar model, and the exponential "
+            "fit has no last row to stop at.  Name one through density_profile -- " +
+            ", ".join(solarmodels.SOLAR_MODELS) + " -- or leave stop_at_table_edge at False.")
+    name = solarmodels.canonical_name(density_profile)
+    edge, r_edge = solarmodels.table_edge(name), solarmodels.solar_model_info(name)['r_max']
+    if float(L0) > edge:
+        raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": the path "
+            "starts past the last tabulated radius of the " + name + " solar model, " +
+            format(r_edge, '.4g') + " R_sun, so with stop_at_table_edge=True there is nothing "
+            "inside the table to compute.  Start the path inside it, or leave "
+            "stop_at_table_edge at False to continue the profile past the table.")
+    L_arr = np.asarray(L, dtype=float)
+    beyond = L_arr > edge
+    if not np.any(beyond):
+        return L, None
+    warnings.warn(gd.WARNING_MSG_NO_COLOR + " oscprob." + source_func_name + ": " +
+        str(int(np.sum(beyond))) + " of " + str(int(np.size(beyond))) + " baseline(s) reach past "
+        "the last tabulated radius of the " + name + " solar model, " + format(r_edge, '.4g') +
+        " R_sun, and stop_at_table_edge=True returns NaN there instead of a probability.  Leave "
+        "it False to continue the profile past the table along the slope of its last interval, "
+        "or use a model tabulated to the surface (B16 and B23 are).",
+        SolarModelRangeWarning, stacklevel=3)
+    L_eff = np.where(beyond, float(L0), L_arr)
+    return (float(L_eff) if np.ndim(L_eff) == 0 else L_eff), beyond
+
+
+def _refuse_past_table_edge(P, beyond):
+    r"""Blank the results :func:`_stop_at_table_edge` marked, leaving the rest as computed.
+
+    ``P`` is whatever the wrapper returns -- a probability, a matrix, one per point, or the pair
+    ``(P, U)`` -- and its first axis runs over the points when there is more than one.
+
+    .. versionadded:: 1.1.1
+    """
+    if beyond is None:
+        return P
+    if isinstance(P, tuple):
+        return tuple(_refuse_past_table_edge(x, beyond) for x in P)
+    out = np.array(P, dtype=complex if np.iscomplexobj(P) else float)
+    b = np.asarray(beyond)
+    if b.size == 1 or out.ndim == 0:
+        if bool(np.any(b)):
+            out[...] = np.nan
+    elif out.shape[0] == b.size:
+        out[b.ravel()] = np.nan
+    else:
+        out[...] = np.nan
+    return out[()] if out.ndim == 0 else out
+
+
 def osc_prob_2nu_sun(
     energy: Union[float, list, np.ndarray], 
     L: Union[float, list, np.ndarray],
@@ -12931,6 +13071,8 @@ def osc_prob_2nu_sun(
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
     angles: Optional[str]='sin',
+    density_profile: Optional[str]='exp',
+    stop_at_table_edge: Optional[bool]=False,
     **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the two-neutrino oscillation probability
     for neutrinos inside the Sun.
@@ -12975,6 +13117,10 @@ def osc_prob_2nu_sun(
         P
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.1
+       Takes ``density_profile``, to use a tabulated standard solar model in place of the
+       exponential fit, and ``stop_at_table_edge``.
 
     .. note::
         Dispatches to a fast, closed-form interaction-picture Magnus
@@ -13045,6 +13191,19 @@ def osc_prob_2nu_sun(
         ``'rad'`` the angle itself in radians, or ``'deg'`` in degrees.  Any other
         value raises.
 
+    density_profile : str, optional
+        The Sun's electron density.  ``'exp'``, the default, is the exponential fit described
+        above.  The name of a standard solar model -- one of
+        :data:`magnus.solarmodels.SOLAR_MODELS`, such as ``'B16-GS98'``, in any case -- uses
+        that model's tabulated profile instead: interpolated in the logarithm of the density,
+        held flat below the first tabulated radius, and continued past the last along the slope
+        of the last interval (see :mod:`magnus.solarmodels`).  Default: 'exp'.
+    stop_at_table_edge : bool, optional
+        Only with a standard solar model.  If True, a baseline reaching past the model's last
+        tabulated radius returns NaN instead of a probability, with a
+        :class:`SolarModelRangeWarning` naming the edge; if False, the profile is continued past
+        it.  Default: False.
+
     Returns
     -------
     float or np.ndarray
@@ -13053,7 +13212,9 @@ def osc_prob_2nu_sun(
     # If any of the flavor indices is > 1, fix it (read the docstring above).
     nu_i, nu_f = valid_flavor_indices_2nu(nu_i, nu_f)
 
-    return osc_prob_2nu_matter_exp_density(
+    _rho, _ = _solar_profile(density_profile, None, 'osc_prob_2nu_sun')
+    L, _beyond = _stop_at_table_edge(density_profile, stop_at_table_edge, L, L0, 'osc_prob_2nu_sun')
+    P = osc_prob_2nu_matter_exp_density(
         energy=energy,
         L=L,
         L0=L0,
@@ -13073,8 +13234,10 @@ def osc_prob_2nu_sun(
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
         angles=angles,
+        _rho_func=_rho,
         **kwargs
     )
+    return _refuse_past_table_edge(P, _beyond)
 
 
 def osc_prob_3nu_sun(
@@ -13099,6 +13262,8 @@ def osc_prob_3nu_sun(
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
     angles: Optional[str]='sin',
+    density_profile: Optional[str]='exp',
+    stop_at_table_edge: Optional[bool]=False,
     **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the three-neutrino oscillation probability 
     for neutrinos inside the Sun.
@@ -13141,6 +13306,10 @@ def osc_prob_3nu_sun(
         P
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.1
+       Takes ``density_profile``, to use a tabulated standard solar model in place of the
+       exponential fit, and ``stop_at_table_edge``.
 
     Parameters
     ----------
@@ -13206,13 +13375,28 @@ def osc_prob_3nu_sun(
         ``'deg'`` the CP phase is read as degrees too; under the other three
         it stays in radians, a sine being no way to state a phase.
 
+    density_profile : str, optional
+        The Sun's electron density.  ``'exp'``, the default, is the exponential fit described
+        above.  The name of a standard solar model -- one of
+        :data:`magnus.solarmodels.SOLAR_MODELS`, such as ``'B16-GS98'``, in any case -- uses
+        that model's tabulated profile instead: interpolated in the logarithm of the density,
+        held flat below the first tabulated radius, and continued past the last along the slope
+        of the last interval (see :mod:`magnus.solarmodels`).  Default: 'exp'.
+    stop_at_table_edge : bool, optional
+        Only with a standard solar model.  If True, a baseline reaching past the model's last
+        tabulated radius returns NaN instead of a probability, with a
+        :class:`SolarModelRangeWarning` naming the edge; if False, the profile is continued past
+        it.  Default: False.
+
     Returns
     -------
     float or np.ndarray
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
-    return osc_prob_3nu_matter_exp_density(
+    _rho, _ = _solar_profile(density_profile, None, 'osc_prob_3nu_sun')
+    L, _beyond = _stop_at_table_edge(density_profile, stop_at_table_edge, L, L0, 'osc_prob_3nu_sun')
+    P = osc_prob_3nu_matter_exp_density(
         energy=energy,
         L=L,
         L0=L0,
@@ -13237,8 +13421,10 @@ def osc_prob_3nu_sun(
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
         angles=angles,
+        _rho_func=_rho,
         **kwargs
     )
+    return _refuse_past_table_edge(P, _beyond)
 
 
 def osc_prob_4nu_sun(
@@ -13269,7 +13455,9 @@ def osc_prob_4nu_sun(
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
     angles: Optional[str]='sin',
-    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
+    ratio_number_neutrons_to_protons: Optional[Union[int, float, Callable]]=None,
+    density_profile: Optional[str]='exp',
+    stop_at_table_edge: Optional[bool]=False,
     **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the four-neutrino (3+1) oscillation 
     probability for neutrinos inside the Sun.
@@ -13314,6 +13502,12 @@ def osc_prob_4nu_sun(
         P
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.1
+       Takes ``density_profile``, to use a tabulated standard solar model in place of the
+       exponential fit, and ``stop_at_table_edge``.  ``ratio_number_neutrons_to_protons``
+       defaults to None: 1.0 with the exponential profile, as before, and the model's own
+       composition with a standard solar model.
 
     Parameters
     ----------
@@ -13391,28 +13585,48 @@ def osc_prob_4nu_sun(
         ``'deg'`` the CP phases are read as degrees too; under the other three
         they stay in radians, a sine being no way to state a phase.
 
-    ratio_number_neutrons_to_protons : int or float, optional
-        :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
-        matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
-        (isoscalar matter, i.e. :math:`Y_e = 0.5`).
+    ratio_number_neutrons_to_protons : int, float, Callable, or None, optional
+        :math:`r = n_n/n_p` of the medium, a number or a function of position.  Scales the
+        sterile states' entry in the matter term; see
+        :func:`magnus.matter.matter_potential_projector`.  Default: None, which means 1.0
+        (isoscalar matter, i.e. :math:`Y_e = 0.5`) with the exponential profile, as before,
+        and the model's own composition with a standard solar model:
+        :math:`r = (1 - X)/(1 + X)` at every radius, from its hydrogen mass fraction :math:`X`
+        (see :func:`magnus.solarmodels.neutron_to_proton_ratio_profile`).  A value passed here
+        is used as given, with either profile.
 
-        **The Sun is not isoscalar, and this is the only way to say so.**  It is
-        hydrogen-rich, so :math:`Y_e = (1 + X)/2` runs from about 0.68 at the center to
-        0.88 near the surface, and :math:`r = (1 - Y_e)/Y_e` from about 0.47 down to
-        0.14 -- nowhere near 1.0, unlike the Earth where the isoscalar value at least
-        sits among the layers.  The solar profile is a fit to the electron *number*
-        density, so :math:`Y_e` is already inside it and there is nothing for the
-        library to derive :math:`r` from: it has to be stated here.  Left at 1.0 the
-        averaged survival probability moves by about 4e-03 at
+        **The Sun is not isoscalar.**  It is hydrogen-rich, so :math:`Y_e = (1 + X)/2` runs
+        from about 0.68 at the center to 0.88 near the surface, and :math:`r` from about 0.47
+        down to 0.14 -- nowhere near 1.0, unlike the Earth where the isoscalar value at least
+        sits among the layers.  The exponential profile is a fit to the electron *number*
+        density and carries no composition to derive :math:`r` from, so 1.0 is kept there as
+        before; naming a standard solar model through ``density_profile`` supplies one.  Left
+        at 1.0 the averaged survival probability moves by about 4e-03 at
         :math:`\sin\theta_{14} = 0.4`, above the default tolerance.  Three flavors are
         unaffected -- the projector's sterile block is empty.
+    density_profile : str, optional
+        The Sun's electron density.  ``'exp'``, the default, is the exponential fit described
+        above.  The name of a standard solar model -- one of
+        :data:`magnus.solarmodels.SOLAR_MODELS`, such as ``'B16-GS98'``, in any case -- uses
+        that model's tabulated profile instead: interpolated in the logarithm of the density,
+        held flat below the first tabulated radius, and continued past the last along the slope
+        of the last interval (see :mod:`magnus.solarmodels`).  With the sterile states it also supplies the composition; see
+        ``ratio_number_neutrons_to_protons``.  Default: 'exp'.
+    stop_at_table_edge : bool, optional
+        Only with a standard solar model.  If True, a baseline reaching past the model's last
+        tabulated radius returns NaN instead of a probability, with a
+        :class:`SolarModelRangeWarning` naming the edge; if False, the profile is continued past
+        it.  Default: False.
+
     Returns
     -------
     float or np.ndarray
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
-    return osc_prob_4nu_matter_exp_density(
+    _rho, ratio_number_neutrons_to_protons = _solar_profile(density_profile, ratio_number_neutrons_to_protons, 'osc_prob_4nu_sun')
+    L, _beyond = _stop_at_table_edge(density_profile, stop_at_table_edge, L, L0, 'osc_prob_4nu_sun')
+    P = osc_prob_4nu_matter_exp_density(
         energy=energy,
         L=L,
         L0=L0,
@@ -13444,8 +13658,10 @@ def osc_prob_4nu_sun(
         verbose=verbose,
         angles=angles,
         ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
+        _rho_func=_rho,
         **kwargs
     )
+    return _refuse_past_table_edge(P, _beyond)
 
 
 def osc_prob_5nu_sun(
@@ -13482,7 +13698,9 @@ def osc_prob_5nu_sun(
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
     angles: Optional[str]='sin',
-    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
+    ratio_number_neutrons_to_protons: Optional[Union[int, float, Callable]]=None,
+    density_profile: Optional[str]='exp',
+    stop_at_table_edge: Optional[bool]=False,
     **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the five-neutrino (3+2) oscillation 
     probability for neutrinos inside the Sun.
@@ -13530,6 +13748,12 @@ def osc_prob_5nu_sun(
         P
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.1
+       Takes ``density_profile``, to use a tabulated standard solar model in place of the
+       exponential fit, and ``stop_at_table_edge``.  ``ratio_number_neutrons_to_protons``
+       defaults to None: 1.0 with the exponential profile, as before, and the model's own
+       composition with a standard solar model.
 
     Parameters
     ----------
@@ -13619,28 +13843,48 @@ def osc_prob_5nu_sun(
         ``'deg'`` the CP phases are read as degrees too; under the other three
         they stay in radians, a sine being no way to state a phase.
 
-    ratio_number_neutrons_to_protons : int or float, optional
-        :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
-        matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
-        (isoscalar matter, i.e. :math:`Y_e = 0.5`).
+    ratio_number_neutrons_to_protons : int, float, Callable, or None, optional
+        :math:`r = n_n/n_p` of the medium, a number or a function of position.  Scales the
+        sterile states' entry in the matter term; see
+        :func:`magnus.matter.matter_potential_projector`.  Default: None, which means 1.0
+        (isoscalar matter, i.e. :math:`Y_e = 0.5`) with the exponential profile, as before,
+        and the model's own composition with a standard solar model:
+        :math:`r = (1 - X)/(1 + X)` at every radius, from its hydrogen mass fraction :math:`X`
+        (see :func:`magnus.solarmodels.neutron_to_proton_ratio_profile`).  A value passed here
+        is used as given, with either profile.
 
-        **The Sun is not isoscalar, and this is the only way to say so.**  It is
-        hydrogen-rich, so :math:`Y_e = (1 + X)/2` runs from about 0.68 at the center to
-        0.88 near the surface, and :math:`r = (1 - Y_e)/Y_e` from about 0.47 down to
-        0.14 -- nowhere near 1.0, unlike the Earth where the isoscalar value at least
-        sits among the layers.  The solar profile is a fit to the electron *number*
-        density, so :math:`Y_e` is already inside it and there is nothing for the
-        library to derive :math:`r` from: it has to be stated here.  Left at 1.0 the
-        averaged survival probability moves by about 4e-03 at
+        **The Sun is not isoscalar.**  It is hydrogen-rich, so :math:`Y_e = (1 + X)/2` runs
+        from about 0.68 at the center to 0.88 near the surface, and :math:`r` from about 0.47
+        down to 0.14 -- nowhere near 1.0, unlike the Earth where the isoscalar value at least
+        sits among the layers.  The exponential profile is a fit to the electron *number*
+        density and carries no composition to derive :math:`r` from, so 1.0 is kept there as
+        before; naming a standard solar model through ``density_profile`` supplies one.  Left
+        at 1.0 the averaged survival probability moves by about 4e-03 at
         :math:`\sin\theta_{14} = 0.4`, above the default tolerance.  Three flavors are
         unaffected -- the projector's sterile block is empty.
+    density_profile : str, optional
+        The Sun's electron density.  ``'exp'``, the default, is the exponential fit described
+        above.  The name of a standard solar model -- one of
+        :data:`magnus.solarmodels.SOLAR_MODELS`, such as ``'B16-GS98'``, in any case -- uses
+        that model's tabulated profile instead: interpolated in the logarithm of the density,
+        held flat below the first tabulated radius, and continued past the last along the slope
+        of the last interval (see :mod:`magnus.solarmodels`).  With the sterile states it also supplies the composition; see
+        ``ratio_number_neutrons_to_protons``.  Default: 'exp'.
+    stop_at_table_edge : bool, optional
+        Only with a standard solar model.  If True, a baseline reaching past the model's last
+        tabulated radius returns NaN instead of a probability, with a
+        :class:`SolarModelRangeWarning` naming the edge; if False, the profile is continued past
+        it.  Default: False.
+
     Returns
     -------
     float or np.ndarray
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
-    return osc_prob_5nu_matter_exp_density(
+    _rho, ratio_number_neutrons_to_protons = _solar_profile(density_profile, ratio_number_neutrons_to_protons, 'osc_prob_5nu_sun')
+    L, _beyond = _stop_at_table_edge(density_profile, stop_at_table_edge, L, L0, 'osc_prob_5nu_sun')
+    P = osc_prob_5nu_matter_exp_density(
         energy=energy,
         L=L,
         L0=L0,
@@ -13678,8 +13922,10 @@ def osc_prob_5nu_sun(
         verbose=verbose,
         angles=angles,
         ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
+        _rho_func=_rho,
         **kwargs
     )
+    return _refuse_past_table_edge(P, _beyond)
 
 
 def osc_prob_sun(
@@ -13700,6 +13946,8 @@ def osc_prob_sun(
     strategy: Optional[str]='auto',
     strategy_info: Optional[Dict]=None,
     average: Optional[bool]=False,
+    density_profile: Optional[str]='exp',
+    stop_at_table_edge: Optional[bool]=False,
     **kwargs
 ) -> Union[float, np.ndarray]:
     r"""Compute and return the neutrino oscillation probability inside
@@ -13735,7 +13983,7 @@ def osc_prob_sun(
     .. versionadded:: 1.0.0
 
     .. versionchanged:: 1.1.1
-       Added ``average``.
+       Added ``average``, ``density_profile`` and ``stop_at_table_edge``.
 
     Parameters
     ----------
@@ -13794,6 +14042,21 @@ def osc_prob_sun(
         a warning, when ``t_breakpoints`` declare discontinuities.  ``n_jobs`` and the
         cumulative traversal play no role on this route.  Cannot be combined with
         ``return_evolution_operator``.  Default: False.
+    density_profile : str, optional
+        The Sun's electron density, which sets the ``VCC`` passed to ``H_func``.  ``'exp'``,
+        the default, is the exponential fit described above.  The name of a standard solar
+        model -- one of :data:`magnus.solarmodels.SOLAR_MODELS`, such as ``'B16-GS98'``, in any
+        case -- uses that model's tabulated profile instead: interpolated in the logarithm of
+        the density, held flat below the first tabulated radius, and continued past the last
+        along the slope of the last interval (see :mod:`magnus.solarmodels`).  Only the
+        electron density reaches ``H_func``; a Hamiltonian with sterile states that wants the
+        model's composition as well can take it from
+        :func:`magnus.solarmodels.neutron_to_proton_ratio_profile`.  Default: 'exp'.
+    stop_at_table_edge : bool, optional
+        Only with a standard solar model.  If True, a baseline reaching past the model's last
+        tabulated radius returns NaN instead of a probability, with a
+        :class:`SolarModelRangeWarning` naming the edge; if False, the profile is continued past
+        it.  Default: False.
 
     Returns
     -------
@@ -13837,12 +14100,16 @@ def osc_prob_sun(
     """
     source_func_name = sys._getframe().f_code.co_name
 
+    _rho, _ = _solar_profile(density_profile, None, source_func_name)
+    L, _beyond = _stop_at_table_edge(density_profile, stop_at_table_edge, L, L0,
+                                     source_func_name)
+
     # Solar electron number density [eV^3] along the radial trajectory; the antineutrino sign
     # flip of the potential is applied inside matter.vcc_func_from_rho_func.  The profile
     # evaluations are cached on repeated position grids.
     VCC_func = matter.vcc_func_from_rho_func(
-        rho_func=lambda l: matter.density_matter_func_exp(l, gd.NUM_DENSITY_E_SUN_CENTRAL,
-            gd.L_SCALE_SUN), # [eV^3] (l in eV^{-1})
+        rho_func=((lambda l: matter.density_matter_func_exp(l, gd.NUM_DENSITY_E_SUN_CENTRAL,
+            gd.L_SCALE_SUN)) if _rho is None else _rho), # [eV^3] (l in eV^{-1})
         L0=L0,
         nubar=nubar,
         density_is_of_number_of_electrons=True) # [eV]
@@ -13852,10 +14119,11 @@ def osc_prob_sun(
     # caller who supplied one collided with the None passed here.  osc_prob_earth already
     # pops it; this path did not.
     t_breakpoints = kwargs.pop('t_breakpoints', None)
-    return _osc_prob_with_potential(source_func_name, H_func, VCC_func, energy, L, L0, nu_i,
+    P = _osc_prob_with_potential(source_func_name, H_func, VCC_func, energy, L, L0, nu_i,
         nu_f, t_breakpoints, magnus_exp_order, n_jobs, integration_method, rtol, atol,
         validate_input, verbose, strategy=strategy, strategy_info=strategy_info,
         average=average, **kwargs)
+    return _refuse_past_table_edge(P, _beyond)
 
 
 #-----------------------------------------------------------------------
@@ -14554,6 +14822,7 @@ def osc_prob_2nu_matter_nsi_exp_density(
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
     angles: Optional[str]='sin',
+    _rho_func: Optional[Callable]=None,
     **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the two-neutrino oscillation probability in
     matter with an exponentially falling density profile, including
@@ -14632,6 +14901,12 @@ def osc_prob_2nu_matter_nsi_exp_density(
         ``'rad'`` the angle itself in radians, or ``'deg'`` in degrees.  Any other
         value raises.
 
+    _rho_func : Callable, optional
+        Internal: a density profile to use in place of the exponential one, which is how the
+        ``osc_prob_*_sun*`` wrappers pass a tabulated standard solar model (see
+        :mod:`magnus.solarmodels`).  ``rho_central`` and ``l_scale`` are then not used.  Leave
+        it None.  Default: None.
+
     Returns
     -------
     float or np.ndarray
@@ -14648,7 +14923,8 @@ def osc_prob_2nu_matter_nsi_exp_density(
 
     return osc_prob_matter_nsi(
         num_flavors=2,
-        rho_func=matter.exp_density_profile(rho_central, l_scale),
+        rho_func=(matter.exp_density_profile(rho_central, l_scale) if _rho_func is None
+                  else _rho_func),
         energy=energy,
         L=L,
         osc_params={'sth': sth, 'Dm2': Dm2},
@@ -14705,6 +14981,7 @@ def osc_prob_3nu_matter_nsi_exp_density(
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
     angles: Optional[str]='sin',
+    _rho_func: Optional[Callable]=None,
     **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the three-neutrino oscillation probability in
     matter with an exponentially falling density profile, including
@@ -14793,6 +15070,12 @@ def osc_prob_3nu_matter_nsi_exp_density(
         ``'deg'`` the CP phase is read as degrees too; under the other three
         it stays in radians, a sine being no way to state a phase.
 
+    _rho_func : Callable, optional
+        Internal: a density profile to use in place of the exponential one, which is how the
+        ``osc_prob_*_sun*`` wrappers pass a tabulated standard solar model (see
+        :mod:`magnus.solarmodels`).  ``rho_central`` and ``l_scale`` are then not used.  Leave
+        it None.  Default: None.
+
     Returns
     -------
     float or np.ndarray
@@ -14806,7 +15089,8 @@ def osc_prob_3nu_matter_nsi_exp_density(
 
     return osc_prob_matter_nsi(
         num_flavors=3,
-        rho_func=matter.exp_density_profile(rho_central, l_scale),
+        rho_func=(matter.exp_density_profile(rho_central, l_scale) if _rho_func is None
+                  else _rho_func),
         energy=energy,
         L=L,
         osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 'D21': D21, 'D31': D31},
@@ -14875,6 +15159,7 @@ def osc_prob_4nu_matter_nsi_exp_density(
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
     angles: Optional[str]='sin',
+    _rho_func: Optional[Callable]=None,
     **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the four-neutrino (3+1) oscillation 
     probability in matter with an exponentially falling density profile,
@@ -14983,6 +15268,12 @@ def osc_prob_4nu_matter_nsi_exp_density(
         ``'deg'`` the CP phases are read as degrees too; under the other three
         they stay in radians, a sine being no way to state a phase.
 
+    _rho_func : Callable, optional
+        Internal: a density profile to use in place of the exponential one, which is how the
+        ``osc_prob_*_sun*`` wrappers pass a tabulated standard solar model (see
+        :mod:`magnus.solarmodels`).  ``rho_central`` and ``l_scale`` are then not used.  Leave
+        it None.  Default: None.
+
     Returns
     -------
     float or np.ndarray
@@ -14996,7 +15287,8 @@ def osc_prob_4nu_matter_nsi_exp_density(
 
     return osc_prob_matter_nsi(
         num_flavors=4,
-        rho_func=matter.exp_density_profile(rho_central, l_scale),
+        rho_func=(matter.exp_density_profile(rho_central, l_scale) if _rho_func is None
+                  else _rho_func),
         energy=energy,
         L=L,
         osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 's14': s14, 'd14': d14, 
@@ -15078,6 +15370,7 @@ def osc_prob_5nu_matter_nsi_exp_density(
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
     angles: Optional[str]='sin',
+    _rho_func: Optional[Callable]=None,
     **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the five-neutrino (3+2) oscillation 
     probability in matter with an exponentially falling density profile,
@@ -15208,6 +15501,12 @@ def osc_prob_5nu_matter_nsi_exp_density(
         ``'deg'`` the CP phases are read as degrees too; under the other three
         they stay in radians, a sine being no way to state a phase.
 
+    _rho_func : Callable, optional
+        Internal: a density profile to use in place of the exponential one, which is how the
+        ``osc_prob_*_sun*`` wrappers pass a tabulated standard solar model (see
+        :mod:`magnus.solarmodels`).  ``rho_central`` and ``l_scale`` are then not used.  Leave
+        it None.  Default: None.
+
     Returns
     -------
     float or np.ndarray
@@ -15221,7 +15520,8 @@ def osc_prob_5nu_matter_nsi_exp_density(
 
     return osc_prob_matter_nsi(
         num_flavors=5,
-        rho_func=matter.exp_density_profile(rho_central, l_scale),
+        rho_func=(matter.exp_density_profile(rho_central, l_scale) if _rho_func is None
+                  else _rho_func),
         energy=energy,
         L=L,
         osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 's14': s14, 'd14': d14,
@@ -16818,6 +17118,8 @@ def osc_prob_2nu_sun_nsi(
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
     angles: Optional[str]='sin',
+    density_profile: Optional[str]='exp',
+    stop_at_table_edge: Optional[bool]=False,
     **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the two-neutrino oscillation probability 
     for neutrinos inside the Sun, including non-standard interactions
@@ -16859,6 +17161,10 @@ def osc_prob_2nu_sun_nsi(
         P
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.1
+       Takes ``density_profile``, to use a tabulated standard solar model in place of the
+       exponential fit, and ``stop_at_table_edge``.
 
     .. note::
         Dispatches to a fast, closed-form interaction-picture Magnus
@@ -16926,13 +17232,28 @@ def osc_prob_2nu_sun_nsi(
         ``'rad'`` the angle itself in radians, or ``'deg'`` in degrees.  Any other
         value raises.
 
+    density_profile : str, optional
+        The Sun's electron density.  ``'exp'``, the default, is the exponential fit described
+        above.  The name of a standard solar model -- one of
+        :data:`magnus.solarmodels.SOLAR_MODELS`, such as ``'B16-GS98'``, in any case -- uses
+        that model's tabulated profile instead: interpolated in the logarithm of the density,
+        held flat below the first tabulated radius, and continued past the last along the slope
+        of the last interval (see :mod:`magnus.solarmodels`).  Default: 'exp'.
+    stop_at_table_edge : bool, optional
+        Only with a standard solar model.  If True, a baseline reaching past the model's last
+        tabulated radius returns NaN instead of a probability, with a
+        :class:`SolarModelRangeWarning` naming the edge; if False, the profile is continued past
+        it.  Default: False.
+
     Returns
     -------
     float or np.ndarray
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
-    return osc_prob_2nu_matter_nsi_exp_density(
+    _rho, _ = _solar_profile(density_profile, None, 'osc_prob_2nu_sun_nsi')
+    L, _beyond = _stop_at_table_edge(density_profile, stop_at_table_edge, L, L0, 'osc_prob_2nu_sun_nsi')
+    P = osc_prob_2nu_matter_nsi_exp_density(
         energy=energy,
         L=L,
         L0=L0,
@@ -16954,8 +17275,10 @@ def osc_prob_2nu_sun_nsi(
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
         angles=angles,
+        _rho_func=_rho,
         **kwargs
     )
+    return _refuse_past_table_edge(P, _beyond)
 
 
 def osc_prob_3nu_sun_nsi(
@@ -16986,6 +17309,8 @@ def osc_prob_3nu_sun_nsi(
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
     angles: Optional[str]='sin',
+    density_profile: Optional[str]='exp',
+    stop_at_table_edge: Optional[bool]=False,
     **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the three-neutrino oscillation probability 
     for neutrinos inside the Sun.
@@ -17025,6 +17350,10 @@ def osc_prob_3nu_sun_nsi(
         P
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.1
+       Takes ``density_profile``, to use a tabulated standard solar model in place of the
+       exponential fit, and ``stop_at_table_edge``.
 
     Parameters
     ----------
@@ -17102,13 +17431,28 @@ def osc_prob_3nu_sun_nsi(
         ``'deg'`` the CP phase is read as degrees too; under the other three
         it stays in radians, a sine being no way to state a phase.
 
+    density_profile : str, optional
+        The Sun's electron density.  ``'exp'``, the default, is the exponential fit described
+        above.  The name of a standard solar model -- one of
+        :data:`magnus.solarmodels.SOLAR_MODELS`, such as ``'B16-GS98'``, in any case -- uses
+        that model's tabulated profile instead: interpolated in the logarithm of the density,
+        held flat below the first tabulated radius, and continued past the last along the slope
+        of the last interval (see :mod:`magnus.solarmodels`).  Default: 'exp'.
+    stop_at_table_edge : bool, optional
+        Only with a standard solar model.  If True, a baseline reaching past the model's last
+        tabulated radius returns NaN instead of a probability, with a
+        :class:`SolarModelRangeWarning` naming the edge; if False, the profile is continued past
+        it.  Default: False.
+
     Returns
     -------
     float or np.ndarray
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
-    return osc_prob_3nu_matter_nsi_exp_density(
+    _rho, _ = _solar_profile(density_profile, None, 'osc_prob_3nu_sun_nsi')
+    L, _beyond = _stop_at_table_edge(density_profile, stop_at_table_edge, L, L0, 'osc_prob_3nu_sun_nsi')
+    P = osc_prob_3nu_matter_nsi_exp_density(
         energy=energy,
         L=L,
         L0=L0,
@@ -17139,8 +17483,10 @@ def osc_prob_3nu_sun_nsi(
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
         angles=angles,
+        _rho_func=_rho,
         **kwargs
     )
+    return _refuse_past_table_edge(P, _beyond)
 
 
 def osc_prob_4nu_sun_nsi(
@@ -17181,7 +17527,9 @@ def osc_prob_4nu_sun_nsi(
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
     angles: Optional[str]='sin',
-    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
+    ratio_number_neutrons_to_protons: Optional[Union[int, float, Callable]]=None,
+    density_profile: Optional[str]='exp',
+    stop_at_table_edge: Optional[bool]=False,
     **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the four-neutrino (3+1) oscillation 
     probability for neutrinos inside the Sun.
@@ -17224,6 +17572,12 @@ def osc_prob_4nu_sun_nsi(
         P
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.1
+       Takes ``density_profile``, to use a tabulated standard solar model in place of the
+       exponential fit, and ``stop_at_table_edge``.  ``ratio_number_neutrons_to_protons``
+       defaults to None: 1.0 with the exponential profile, as before, and the model's own
+       composition with a standard solar model.
 
     Parameters
     ----------
@@ -17321,28 +17675,48 @@ def osc_prob_4nu_sun_nsi(
         ``'deg'`` the CP phases are read as degrees too; under the other three
         they stay in radians, a sine being no way to state a phase.
 
-    ratio_number_neutrons_to_protons : int or float, optional
-        :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
-        matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
-        (isoscalar matter, i.e. :math:`Y_e = 0.5`).
+    ratio_number_neutrons_to_protons : int, float, Callable, or None, optional
+        :math:`r = n_n/n_p` of the medium, a number or a function of position.  Scales the
+        sterile states' entry in the matter term; see
+        :func:`magnus.matter.matter_potential_projector`.  Default: None, which means 1.0
+        (isoscalar matter, i.e. :math:`Y_e = 0.5`) with the exponential profile, as before,
+        and the model's own composition with a standard solar model:
+        :math:`r = (1 - X)/(1 + X)` at every radius, from its hydrogen mass fraction :math:`X`
+        (see :func:`magnus.solarmodels.neutron_to_proton_ratio_profile`).  A value passed here
+        is used as given, with either profile.
 
-        **The Sun is not isoscalar, and this is the only way to say so.**  It is
-        hydrogen-rich, so :math:`Y_e = (1 + X)/2` runs from about 0.68 at the center to
-        0.88 near the surface, and :math:`r = (1 - Y_e)/Y_e` from about 0.47 down to
-        0.14 -- nowhere near 1.0, unlike the Earth where the isoscalar value at least
-        sits among the layers.  The solar profile is a fit to the electron *number*
-        density, so :math:`Y_e` is already inside it and there is nothing for the
-        library to derive :math:`r` from: it has to be stated here.  Left at 1.0 the
-        averaged survival probability moves by about 4e-03 at
+        **The Sun is not isoscalar.**  It is hydrogen-rich, so :math:`Y_e = (1 + X)/2` runs
+        from about 0.68 at the center to 0.88 near the surface, and :math:`r` from about 0.47
+        down to 0.14 -- nowhere near 1.0, unlike the Earth where the isoscalar value at least
+        sits among the layers.  The exponential profile is a fit to the electron *number*
+        density and carries no composition to derive :math:`r` from, so 1.0 is kept there as
+        before; naming a standard solar model through ``density_profile`` supplies one.  Left
+        at 1.0 the averaged survival probability moves by about 4e-03 at
         :math:`\sin\theta_{14} = 0.4`, above the default tolerance.  Three flavors are
         unaffected -- the projector's sterile block is empty.
+    density_profile : str, optional
+        The Sun's electron density.  ``'exp'``, the default, is the exponential fit described
+        above.  The name of a standard solar model -- one of
+        :data:`magnus.solarmodels.SOLAR_MODELS`, such as ``'B16-GS98'``, in any case -- uses
+        that model's tabulated profile instead: interpolated in the logarithm of the density,
+        held flat below the first tabulated radius, and continued past the last along the slope
+        of the last interval (see :mod:`magnus.solarmodels`).  With the sterile states it also supplies the composition; see
+        ``ratio_number_neutrons_to_protons``.  Default: 'exp'.
+    stop_at_table_edge : bool, optional
+        Only with a standard solar model.  If True, a baseline reaching past the model's last
+        tabulated radius returns NaN instead of a probability, with a
+        :class:`SolarModelRangeWarning` naming the edge; if False, the profile is continued past
+        it.  Default: False.
+
     Returns
     -------
     float or np.ndarray
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
-    return osc_prob_4nu_matter_nsi_exp_density(
+    _rho, ratio_number_neutrons_to_protons = _solar_profile(density_profile, ratio_number_neutrons_to_protons, 'osc_prob_4nu_sun_nsi')
+    L, _beyond = _stop_at_table_edge(density_profile, stop_at_table_edge, L, L0, 'osc_prob_4nu_sun_nsi')
+    P = osc_prob_4nu_matter_nsi_exp_density(
         energy=energy,
         L=L,
         L0=L0,
@@ -17384,8 +17758,10 @@ def osc_prob_4nu_sun_nsi(
         verbose=verbose,
         angles=angles,
         ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
+        _rho_func=_rho,
         **kwargs
     )
+    return _refuse_past_table_edge(P, _beyond)
 
 
 def osc_prob_5nu_sun_nsi(
@@ -17437,7 +17813,9 @@ def osc_prob_5nu_sun_nsi(
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
     angles: Optional[str]='sin',
-    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
+    ratio_number_neutrons_to_protons: Optional[Union[int, float, Callable]]=None,
+    density_profile: Optional[str]='exp',
+    stop_at_table_edge: Optional[bool]=False,
     **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the five-neutrino (3+2) oscillation 
     probability for neutrinos inside the Sun.
@@ -17483,6 +17861,12 @@ def osc_prob_5nu_sun_nsi(
         P
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.1
+       Takes ``density_profile``, to use a tabulated standard solar model in place of the
+       exponential fit, and ``stop_at_table_edge``.  ``ratio_number_neutrons_to_protons``
+       defaults to None: 1.0 with the exponential profile, as before, and the model's own
+       composition with a standard solar model.
 
     Parameters
     ----------
@@ -17602,28 +17986,48 @@ def osc_prob_5nu_sun_nsi(
         ``'deg'`` the CP phases are read as degrees too; under the other three
         they stay in radians, a sine being no way to state a phase.
 
-    ratio_number_neutrons_to_protons : int or float, optional
-        :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
-        matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
-        (isoscalar matter, i.e. :math:`Y_e = 0.5`).
+    ratio_number_neutrons_to_protons : int, float, Callable, or None, optional
+        :math:`r = n_n/n_p` of the medium, a number or a function of position.  Scales the
+        sterile states' entry in the matter term; see
+        :func:`magnus.matter.matter_potential_projector`.  Default: None, which means 1.0
+        (isoscalar matter, i.e. :math:`Y_e = 0.5`) with the exponential profile, as before,
+        and the model's own composition with a standard solar model:
+        :math:`r = (1 - X)/(1 + X)` at every radius, from its hydrogen mass fraction :math:`X`
+        (see :func:`magnus.solarmodels.neutron_to_proton_ratio_profile`).  A value passed here
+        is used as given, with either profile.
 
-        **The Sun is not isoscalar, and this is the only way to say so.**  It is
-        hydrogen-rich, so :math:`Y_e = (1 + X)/2` runs from about 0.68 at the center to
-        0.88 near the surface, and :math:`r = (1 - Y_e)/Y_e` from about 0.47 down to
-        0.14 -- nowhere near 1.0, unlike the Earth where the isoscalar value at least
-        sits among the layers.  The solar profile is a fit to the electron *number*
-        density, so :math:`Y_e` is already inside it and there is nothing for the
-        library to derive :math:`r` from: it has to be stated here.  Left at 1.0 the
-        averaged survival probability moves by about 4e-03 at
+        **The Sun is not isoscalar.**  It is hydrogen-rich, so :math:`Y_e = (1 + X)/2` runs
+        from about 0.68 at the center to 0.88 near the surface, and :math:`r` from about 0.47
+        down to 0.14 -- nowhere near 1.0, unlike the Earth where the isoscalar value at least
+        sits among the layers.  The exponential profile is a fit to the electron *number*
+        density and carries no composition to derive :math:`r` from, so 1.0 is kept there as
+        before; naming a standard solar model through ``density_profile`` supplies one.  Left
+        at 1.0 the averaged survival probability moves by about 4e-03 at
         :math:`\sin\theta_{14} = 0.4`, above the default tolerance.  Three flavors are
         unaffected -- the projector's sterile block is empty.
+    density_profile : str, optional
+        The Sun's electron density.  ``'exp'``, the default, is the exponential fit described
+        above.  The name of a standard solar model -- one of
+        :data:`magnus.solarmodels.SOLAR_MODELS`, such as ``'B16-GS98'``, in any case -- uses
+        that model's tabulated profile instead: interpolated in the logarithm of the density,
+        held flat below the first tabulated radius, and continued past the last along the slope
+        of the last interval (see :mod:`magnus.solarmodels`).  With the sterile states it also supplies the composition; see
+        ``ratio_number_neutrons_to_protons``.  Default: 'exp'.
+    stop_at_table_edge : bool, optional
+        Only with a standard solar model.  If True, a baseline reaching past the model's last
+        tabulated radius returns NaN instead of a probability, with a
+        :class:`SolarModelRangeWarning` naming the edge; if False, the profile is continued past
+        it.  Default: False.
+
     Returns
     -------
     float or np.ndarray
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
-    return osc_prob_5nu_matter_nsi_exp_density(
+    _rho, ratio_number_neutrons_to_protons = _solar_profile(density_profile, ratio_number_neutrons_to_protons, 'osc_prob_5nu_sun_nsi')
+    L, _beyond = _stop_at_table_edge(density_profile, stop_at_table_edge, L, L0, 'osc_prob_5nu_sun_nsi')
+    P = osc_prob_5nu_matter_nsi_exp_density(
         energy=energy,
         L=L,
         L0=L0,
@@ -17676,8 +18080,10 @@ def osc_prob_5nu_sun_nsi(
         verbose=verbose,
         angles=angles,
         ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
+        _rho_func=_rho,
         **kwargs
     )
+    return _refuse_past_table_edge(P, _beyond)
 
 
 #-----------------------------------------------------------------------
@@ -19051,6 +19457,7 @@ def osc_prob_2nu_matter_liv_exp_density(
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
     angles: Optional[str]='sin',
+    _rho_func: Optional[Callable]=None,
     **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the two-neutrino oscillation probability in
     matter with an exponentially falling density profile, under (one 
@@ -19126,6 +19533,12 @@ def osc_prob_2nu_matter_liv_exp_density(
         ``'rad'`` the angles themselves in radians, or ``'deg'`` in degrees.  Any other
         value raises.
 
+    _rho_func : Callable, optional
+        Internal: a density profile to use in place of the exponential one, which is how the
+        ``osc_prob_*_sun*`` wrappers pass a tabulated standard solar model (see
+        :mod:`magnus.solarmodels`).  ``rho_central`` and ``l_scale`` are then not used.  Leave
+        it None.  Default: None.
+
     Returns
     -------
     float or np.ndarray
@@ -19146,7 +19559,8 @@ def osc_prob_2nu_matter_liv_exp_density(
         L=L,
         osc_params={'sth': sth, 'Dm2': Dm2},
         liv_params={'sxi': sxi, 'b1': b1, 'b2': b2, 'Lambda': Lambda, 'n_liv': n_liv},
-        rho_func=matter.exp_density_profile(rho_central, l_scale),
+        rho_func=(matter.exp_density_profile(rho_central, l_scale) if _rho_func is None
+                  else _rho_func),
         L0=L0,
         ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons, 
         electron_fraction=electron_fraction,
@@ -19201,6 +19615,7 @@ def osc_prob_3nu_matter_liv_exp_density(
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
     angles: Optional[str]='sin',
+    _rho_func: Optional[Callable]=None,
     **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the three-neutrino oscillation probability in
     matter with an exponentially falling density profile, under (one 
@@ -19293,6 +19708,12 @@ def osc_prob_3nu_matter_liv_exp_density(
         ``'deg'`` the CP phases are read as degrees too; under the other three
         they stay in radians, a sine being no way to state a phase.
 
+    _rho_func : Callable, optional
+        Internal: a density profile to use in place of the exponential one, which is how the
+        ``osc_prob_*_sun*`` wrappers pass a tabulated standard solar model (see
+        :mod:`magnus.solarmodels`).  ``rho_central`` and ``l_scale`` are then not used.  Leave
+        it None.  Default: None.
+
     Returns
     -------
     float or np.ndarray
@@ -19311,7 +19732,8 @@ def osc_prob_3nu_matter_liv_exp_density(
         osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 'D21': D21, 'D31': D31},
         liv_params={'sxi12': sxi12, 'sxi23': sxi23, 'sxi13': sxi13, 'dxiCP': dxiCP, 'b1': b1, 
             'b2': b2, 'b3': b3, 'Lambda': Lambda, 'n_liv': n_liv},
-        rho_func=matter.exp_density_profile(rho_central, l_scale),
+        rho_func=(matter.exp_density_profile(rho_central, l_scale) if _rho_func is None
+                  else _rho_func),
         L0=L0,
         ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons, 
         electron_fraction=electron_fraction,
@@ -19378,6 +19800,7 @@ def osc_prob_4nu_matter_liv_exp_density(
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
     angles: Optional[str]='sin',
+    _rho_func: Optional[Callable]=None,
     **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the four-neutrino oscillation probability in
     matter with an exponentially falling density profile, under (one 
@@ -19494,6 +19917,12 @@ def osc_prob_4nu_matter_liv_exp_density(
         ``'deg'`` the CP phases are read as degrees too; under the other three
         they stay in radians, a sine being no way to state a phase.
 
+    _rho_func : Callable, optional
+        Internal: a density profile to use in place of the exponential one, which is how the
+        ``osc_prob_*_sun*`` wrappers pass a tabulated standard solar model (see
+        :mod:`magnus.solarmodels`).  ``rho_central`` and ``l_scale`` are then not used.  Leave
+        it None.  Default: None.
+
     Returns
     -------
     float or np.ndarray
@@ -19514,7 +19943,8 @@ def osc_prob_4nu_matter_liv_exp_density(
         liv_params={'sxi12': sxi12, 'sxi23': sxi23, 'sxi13': sxi13, 'dxi13': dxi13, 'sxi14': sxi14,
             'dxi14': dxi14, 'sxi24': sxi24, 'dxi24': dxi24, 'sxi34': sxi34, 'b1': b1, 'b2': b2, 
             'b3': b3, 'b4': b4, 'Lambda': Lambda, 'n_liv': n_liv},
-        rho_func=matter.exp_density_profile(rho_central, l_scale),
+        rho_func=(matter.exp_density_profile(rho_central, l_scale) if _rho_func is None
+                  else _rho_func),
         L0=L0,
         ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons, 
         electron_fraction=electron_fraction,
@@ -19593,6 +20023,7 @@ def osc_prob_5nu_matter_liv_exp_density(
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
     angles: Optional[str]='sin',
+    _rho_func: Optional[Callable]=None,
     **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the five-neutrino oscillation probability in
     matter with an exponentially falling density profile, under (one 
@@ -19733,6 +20164,12 @@ def osc_prob_5nu_matter_liv_exp_density(
         ``'deg'`` the CP phases are read as degrees too; under the other three
         they stay in radians, a sine being no way to state a phase.
 
+    _rho_func : Callable, optional
+        Internal: a density profile to use in place of the exponential one, which is how the
+        ``osc_prob_*_sun*`` wrappers pass a tabulated standard solar model (see
+        :mod:`magnus.solarmodels`).  ``rho_central`` and ``l_scale`` are then not used.  Leave
+        it None.  Default: None.
+
     Returns
     -------
     float or np.ndarray
@@ -19755,7 +20192,8 @@ def osc_prob_5nu_matter_liv_exp_density(
             'dxi14': dxi14, 'sxi15': sxi15, 'dxi15': dxi15, 'sxi24': sxi24, 'dxi24': dxi24, 
             'sxi25': sxi25, 'sxi34': sxi34, 'sxi35': sxi35, 'dxi35': dxi35, 'b1': b1, 'b2': b2, 
             'b3': b3, 'b4': b4, 'b5': b5, 'Lambda': Lambda, 'n_liv': n_liv},
-        rho_func=matter.exp_density_profile(rho_central, l_scale),
+        rho_func=(matter.exp_density_profile(rho_central, l_scale) if _rho_func is None
+                  else _rho_func),
         L0=L0,
         ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons, 
         electron_fraction=electron_fraction,
@@ -21396,6 +21834,8 @@ def osc_prob_2nu_sun_liv(
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
     angles: Optional[str]='sin',
+    density_profile: Optional[str]='exp',
+    stop_at_table_edge: Optional[bool]=False,
     **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the two-neutrino oscillation probability 
     for neutrinos inside the Sun, under (one form of) Lorentz-invariance
@@ -21410,6 +21850,10 @@ def osc_prob_2nu_sun_liv(
     Wook Kim.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.1
+       Takes ``density_profile``, to use a tabulated standard solar model in place of the
+       exponential fit, and ``stop_at_table_edge``.
 
     Parameters
     ----------
@@ -21474,13 +21918,28 @@ def osc_prob_2nu_sun_liv(
         ``'rad'`` the angles themselves in radians, or ``'deg'`` in degrees.  Any other
         value raises.
 
+    density_profile : str, optional
+        The Sun's electron density.  ``'exp'``, the default, is the exponential fit described
+        above.  The name of a standard solar model -- one of
+        :data:`magnus.solarmodels.SOLAR_MODELS`, such as ``'B16-GS98'``, in any case -- uses
+        that model's tabulated profile instead: interpolated in the logarithm of the density,
+        held flat below the first tabulated radius, and continued past the last along the slope
+        of the last interval (see :mod:`magnus.solarmodels`).  Default: 'exp'.
+    stop_at_table_edge : bool, optional
+        Only with a standard solar model.  If True, a baseline reaching past the model's last
+        tabulated radius returns NaN instead of a probability, with a
+        :class:`SolarModelRangeWarning` naming the edge; if False, the profile is continued past
+        it.  Default: False.
+
     Returns
     -------
     float or np.ndarray
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
-    return osc_prob_2nu_matter_liv_exp_density(
+    _rho, _ = _solar_profile(density_profile, None, 'osc_prob_2nu_sun_liv')
+    L, _beyond = _stop_at_table_edge(density_profile, stop_at_table_edge, L, L0, 'osc_prob_2nu_sun_liv')
+    P = osc_prob_2nu_matter_liv_exp_density(
         energy=energy,
         L=L,
         L0=L0,
@@ -21514,8 +21973,10 @@ def osc_prob_2nu_sun_liv(
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
         angles=angles,
+        _rho_func=_rho,
         **kwargs
     )
+    return _refuse_past_table_edge(P, _beyond)
 
 
 def osc_prob_3nu_sun_liv(
@@ -21548,6 +22009,8 @@ def osc_prob_3nu_sun_liv(
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
     angles: Optional[str]='sin',
+    density_profile: Optional[str]='exp',
+    stop_at_table_edge: Optional[bool]=False,
     **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the three-neutrino oscillation probability 
     for neutrinos inside the Sun, under (one form of) Lorentz-invariance
@@ -21562,6 +22025,10 @@ def osc_prob_3nu_sun_liv(
     Wook Kim.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.1
+       Takes ``density_profile``, to use a tabulated standard solar model in place of the
+       exponential fit, and ``stop_at_table_edge``.
 
     Parameters
     ----------
@@ -21643,13 +22110,28 @@ def osc_prob_3nu_sun_liv(
         ``'deg'`` the CP phases are read as degrees too; under the other three
         they stay in radians, a sine being no way to state a phase.
 
+    density_profile : str, optional
+        The Sun's electron density.  ``'exp'``, the default, is the exponential fit described
+        above.  The name of a standard solar model -- one of
+        :data:`magnus.solarmodels.SOLAR_MODELS`, such as ``'B16-GS98'``, in any case -- uses
+        that model's tabulated profile instead: interpolated in the logarithm of the density,
+        held flat below the first tabulated radius, and continued past the last along the slope
+        of the last interval (see :mod:`magnus.solarmodels`).  Default: 'exp'.
+    stop_at_table_edge : bool, optional
+        Only with a standard solar model.  If True, a baseline reaching past the model's last
+        tabulated radius returns NaN instead of a probability, with a
+        :class:`SolarModelRangeWarning` naming the edge; if False, the profile is continued past
+        it.  Default: False.
+
     Returns
     -------
     float or np.ndarray
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
-    return osc_prob_3nu_matter_liv_exp_density(
+    _rho, _ = _solar_profile(density_profile, None, 'osc_prob_3nu_sun_liv')
+    L, _beyond = _stop_at_table_edge(density_profile, stop_at_table_edge, L, L0, 'osc_prob_3nu_sun_liv')
+    P = osc_prob_3nu_matter_liv_exp_density(
         energy=energy,
         L=L,
         L0=L0,
@@ -21691,8 +22173,10 @@ def osc_prob_3nu_sun_liv(
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
         angles=angles,
+        _rho_func=_rho,
         **kwargs
     )
+    return _refuse_past_table_edge(P, _beyond)
 
 
 def osc_prob_4nu_sun_liv(
@@ -21737,7 +22221,9 @@ def osc_prob_4nu_sun_liv(
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
     angles: Optional[str]='sin',
-    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
+    ratio_number_neutrons_to_protons: Optional[Union[int, float, Callable]]=None,
+    density_profile: Optional[str]='exp',
+    stop_at_table_edge: Optional[bool]=False,
     **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the four-neutrino oscillation probability 
     for neutrinos inside the Sun, under (one form of) Lorentz-invariance
@@ -21752,6 +22238,12 @@ def osc_prob_4nu_sun_liv(
     Wook Kim.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.1
+       Takes ``density_profile``, to use a tabulated standard solar model in place of the
+       exponential fit, and ``stop_at_table_edge``.  ``ratio_number_neutrons_to_protons``
+       defaults to None: 1.0 with the exponential profile, as before, and the model's own
+       composition with a standard solar model.
 
     Parameters
     ----------
@@ -21857,28 +22349,48 @@ def osc_prob_4nu_sun_liv(
         ``'deg'`` the CP phases are read as degrees too; under the other three
         they stay in radians, a sine being no way to state a phase.
 
-    ratio_number_neutrons_to_protons : int or float, optional
-        :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
-        matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
-        (isoscalar matter, i.e. :math:`Y_e = 0.5`).
+    ratio_number_neutrons_to_protons : int, float, Callable, or None, optional
+        :math:`r = n_n/n_p` of the medium, a number or a function of position.  Scales the
+        sterile states' entry in the matter term; see
+        :func:`magnus.matter.matter_potential_projector`.  Default: None, which means 1.0
+        (isoscalar matter, i.e. :math:`Y_e = 0.5`) with the exponential profile, as before,
+        and the model's own composition with a standard solar model:
+        :math:`r = (1 - X)/(1 + X)` at every radius, from its hydrogen mass fraction :math:`X`
+        (see :func:`magnus.solarmodels.neutron_to_proton_ratio_profile`).  A value passed here
+        is used as given, with either profile.
 
-        **The Sun is not isoscalar, and this is the only way to say so.**  It is
-        hydrogen-rich, so :math:`Y_e = (1 + X)/2` runs from about 0.68 at the center to
-        0.88 near the surface, and :math:`r = (1 - Y_e)/Y_e` from about 0.47 down to
-        0.14 -- nowhere near 1.0, unlike the Earth where the isoscalar value at least
-        sits among the layers.  The solar profile is a fit to the electron *number*
-        density, so :math:`Y_e` is already inside it and there is nothing for the
-        library to derive :math:`r` from: it has to be stated here.  Left at 1.0 the
-        averaged survival probability moves by about 4e-03 at
+        **The Sun is not isoscalar.**  It is hydrogen-rich, so :math:`Y_e = (1 + X)/2` runs
+        from about 0.68 at the center to 0.88 near the surface, and :math:`r` from about 0.47
+        down to 0.14 -- nowhere near 1.0, unlike the Earth where the isoscalar value at least
+        sits among the layers.  The exponential profile is a fit to the electron *number*
+        density and carries no composition to derive :math:`r` from, so 1.0 is kept there as
+        before; naming a standard solar model through ``density_profile`` supplies one.  Left
+        at 1.0 the averaged survival probability moves by about 4e-03 at
         :math:`\sin\theta_{14} = 0.4`, above the default tolerance.  Three flavors are
         unaffected -- the projector's sterile block is empty.
+    density_profile : str, optional
+        The Sun's electron density.  ``'exp'``, the default, is the exponential fit described
+        above.  The name of a standard solar model -- one of
+        :data:`magnus.solarmodels.SOLAR_MODELS`, such as ``'B16-GS98'``, in any case -- uses
+        that model's tabulated profile instead: interpolated in the logarithm of the density,
+        held flat below the first tabulated radius, and continued past the last along the slope
+        of the last interval (see :mod:`magnus.solarmodels`).  With the sterile states it also supplies the composition; see
+        ``ratio_number_neutrons_to_protons``.  Default: 'exp'.
+    stop_at_table_edge : bool, optional
+        Only with a standard solar model.  If True, a baseline reaching past the model's last
+        tabulated radius returns NaN instead of a probability, with a
+        :class:`SolarModelRangeWarning` naming the edge; if False, the profile is continued past
+        it.  Default: False.
+
     Returns
     -------
     float or np.ndarray
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
-    return osc_prob_4nu_matter_liv_exp_density(
+    _rho, ratio_number_neutrons_to_protons = _solar_profile(density_profile, ratio_number_neutrons_to_protons, 'osc_prob_4nu_sun_liv')
+    L, _beyond = _stop_at_table_edge(density_profile, stop_at_table_edge, L, L0, 'osc_prob_4nu_sun_liv')
+    P = osc_prob_4nu_matter_liv_exp_density(
         energy=energy,
         L=L,
         L0=L0,
@@ -21932,8 +22444,10 @@ def osc_prob_4nu_sun_liv(
         verbose=verbose,
         angles=angles,
         ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
+        _rho_func=_rho,
         **kwargs
     )
+    return _refuse_past_table_edge(P, _beyond)
 
 
 def osc_prob_5nu_sun_liv(
@@ -21990,7 +22504,9 @@ def osc_prob_5nu_sun_liv(
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
     angles: Optional[str]='sin',
-    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
+    ratio_number_neutrons_to_protons: Optional[Union[int, float, Callable]]=None,
+    density_profile: Optional[str]='exp',
+    stop_at_table_edge: Optional[bool]=False,
     **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the five-neutrino oscillation probability 
     for neutrinos inside the Sun, under (one form of) Lorentz-invariance
@@ -22005,6 +22521,12 @@ def osc_prob_5nu_sun_liv(
     Wook Kim.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.1
+       Takes ``density_profile``, to use a tabulated standard solar model in place of the
+       exponential fit, and ``stop_at_table_edge``.  ``ratio_number_neutrons_to_protons``
+       defaults to None: 1.0 with the exponential profile, as before, and the model's own
+       composition with a standard solar model.
 
     Parameters
     ----------
@@ -22134,28 +22656,48 @@ def osc_prob_5nu_sun_liv(
         ``'deg'`` the CP phases are read as degrees too; under the other three
         they stay in radians, a sine being no way to state a phase.
 
-    ratio_number_neutrons_to_protons : int or float, optional
-        :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
-        matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
-        (isoscalar matter, i.e. :math:`Y_e = 0.5`).
+    ratio_number_neutrons_to_protons : int, float, Callable, or None, optional
+        :math:`r = n_n/n_p` of the medium, a number or a function of position.  Scales the
+        sterile states' entry in the matter term; see
+        :func:`magnus.matter.matter_potential_projector`.  Default: None, which means 1.0
+        (isoscalar matter, i.e. :math:`Y_e = 0.5`) with the exponential profile, as before,
+        and the model's own composition with a standard solar model:
+        :math:`r = (1 - X)/(1 + X)` at every radius, from its hydrogen mass fraction :math:`X`
+        (see :func:`magnus.solarmodels.neutron_to_proton_ratio_profile`).  A value passed here
+        is used as given, with either profile.
 
-        **The Sun is not isoscalar, and this is the only way to say so.**  It is
-        hydrogen-rich, so :math:`Y_e = (1 + X)/2` runs from about 0.68 at the center to
-        0.88 near the surface, and :math:`r = (1 - Y_e)/Y_e` from about 0.47 down to
-        0.14 -- nowhere near 1.0, unlike the Earth where the isoscalar value at least
-        sits among the layers.  The solar profile is a fit to the electron *number*
-        density, so :math:`Y_e` is already inside it and there is nothing for the
-        library to derive :math:`r` from: it has to be stated here.  Left at 1.0 the
-        averaged survival probability moves by about 4e-03 at
+        **The Sun is not isoscalar.**  It is hydrogen-rich, so :math:`Y_e = (1 + X)/2` runs
+        from about 0.68 at the center to 0.88 near the surface, and :math:`r` from about 0.47
+        down to 0.14 -- nowhere near 1.0, unlike the Earth where the isoscalar value at least
+        sits among the layers.  The exponential profile is a fit to the electron *number*
+        density and carries no composition to derive :math:`r` from, so 1.0 is kept there as
+        before; naming a standard solar model through ``density_profile`` supplies one.  Left
+        at 1.0 the averaged survival probability moves by about 4e-03 at
         :math:`\sin\theta_{14} = 0.4`, above the default tolerance.  Three flavors are
         unaffected -- the projector's sterile block is empty.
+    density_profile : str, optional
+        The Sun's electron density.  ``'exp'``, the default, is the exponential fit described
+        above.  The name of a standard solar model -- one of
+        :data:`magnus.solarmodels.SOLAR_MODELS`, such as ``'B16-GS98'``, in any case -- uses
+        that model's tabulated profile instead: interpolated in the logarithm of the density,
+        held flat below the first tabulated radius, and continued past the last along the slope
+        of the last interval (see :mod:`magnus.solarmodels`).  With the sterile states it also supplies the composition; see
+        ``ratio_number_neutrons_to_protons``.  Default: 'exp'.
+    stop_at_table_edge : bool, optional
+        Only with a standard solar model.  If True, a baseline reaching past the model's last
+        tabulated radius returns NaN instead of a probability, with a
+        :class:`SolarModelRangeWarning` naming the edge; if False, the profile is continued past
+        it.  Default: False.
+
     Returns
     -------
     float or np.ndarray
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
-    return osc_prob_5nu_matter_liv_exp_density(
+    _rho, ratio_number_neutrons_to_protons = _solar_profile(density_profile, ratio_number_neutrons_to_protons, 'osc_prob_5nu_sun_liv')
+    L, _beyond = _stop_at_table_edge(density_profile, stop_at_table_edge, L, L0, 'osc_prob_5nu_sun_liv')
+    P = osc_prob_5nu_matter_liv_exp_density(
         energy=energy,
         L=L,
         L0=L0,
@@ -22221,8 +22763,10 @@ def osc_prob_5nu_sun_liv(
         verbose=verbose,
         angles=angles,
         ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
+        _rho_func=_rho,
         **kwargs
     )
+    return _refuse_past_table_edge(P, _beyond)
 
 
 
@@ -22245,6 +22789,7 @@ __all__ = [
     'ToleranceNotAchievedWarning',
     'HybridCertificationWarning',
     'UnmarkedDiscontinuityWarning',
+    'SolarModelRangeWarning',
     'HiddenFeatureWarning',
     'ENGINE_FAMILIES',
     'CrossCheckInconclusiveWarning',

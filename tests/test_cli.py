@@ -255,6 +255,66 @@ def test_sun_run_forwards_its_baseline_and_origin(capsys):
     assert 'osc_prob_3nu_sun' in out
 
 
+SUN = ['prob', '--flavors', '3', '--environment', 'sun', '--energy', '10',
+       '--energy-unit', 'MeV', '--nu-i', 'e', '--nu-f', 'e', '--json']
+
+
+def test_sun_run_takes_a_solar_model_in_any_case(capsys):
+    """--density-profile names the model, and the CLI answers what the wrapper answers."""
+    import magnus.globaldefs as gd
+    import magnus.oscprob as oscprob
+    code, out = run(SUN + ['--baseline', '300000', '--density-profile', 'b16-gs98'], capsys)
+    assert code == 0
+    direct = oscprob.osc_prob_3nu_sun(energy=10*gd.UNIT_MEV, L=300000*gd.UNIT_KM, L0=0.0,
+                                      nu_i=0, nu_f=0, density_profile='B16-GS98')
+    assert json.loads(out)['probability'] == pytest.approx(float(np.asarray(direct)), abs=1e-12)
+
+
+def test_sun_run_defaults_to_the_exponential_profile(capsys):
+    _, default = run(SUN + ['--baseline', '69470'], capsys)
+    _, named = run(SUN + ['--baseline', '69470', '--density-profile', 'exp'], capsys)
+    assert json.loads(default)['probability'] == json.loads(named)['probability']
+
+
+def test_sun_run_names_the_model_it_used(capsys):
+    code, out = run(['prob', '--flavors', '3', '--environment', 'sun', '--energy', '10',
+                     '--energy-unit', 'MeV', '--baseline', '69470',
+                     '--density-profile', 'BP04', '--nu-i', 'e', '--nu-f', 'e'], capsys)
+    assert code == 0
+    assert 'BP04 solar model' in out
+
+
+def test_stop_at_table_edge_returns_nan_past_the_last_row(capsys):
+    """BP04 ends at 0.9468 R_sun, about 658 700 km."""
+    with pytest.warns(Warning, match='last tabulated radius of the BP04'):
+        code, out = run(SUN + ['--baseline', '690000', '--density-profile', 'BP04',
+                               '--stop-at-table-edge'], capsys)
+    assert code == 0
+    assert np.isnan(json.loads(out)['probability'])
+
+
+@pytest.mark.parametrize('extra, message', [
+    (['--environment', 'sun', '--density-profile', 'constant'], 'not available with --environment sun'),
+    (['--environment', 'sun', '--stop-at-table-edge'], 'needs a tabulated solar model'),
+    (['--environment', 'matter', '--rho', '3', '--density-profile', 'B16-GS98'],
+     'applies to --environment sun only'),
+    (['--environment', 'vacuum', '--stop-at-table-edge'], 'applies to --environment sun'),
+], ids=['constant-in-sun', 'stop-with-exp', 'model-in-matter', 'stop-in-vacuum'])
+def test_solar_model_flags_are_refused_where_they_do_not_apply(extra, message):
+    """Refused by _env_kwargs, whose SystemExit carries the message (exit status 1)."""
+    with pytest.raises(SystemExit, match=message) as excinfo:
+        cli.main(['prob', '--flavors', '3', '--energy', '1', '--baseline', '1000'] + extra)
+    assert str(excinfo.value.code).startswith('magnus prob: ')
+
+
+def test_an_unknown_density_profile_is_an_argument_error(capsys):
+    with pytest.raises(SystemExit) as excinfo:
+        cli.main(['prob', '--environment', 'sun', '--energy', '1', '--baseline', '1000',
+                  '--density-profile', 'BS99'])
+    assert excinfo.value.code == 2
+    assert 'B23-MB22p' in capsys.readouterr().err
+
+
 def test_a_library_validation_error_becomes_an_argument_error():
     """The library raises ValueError for a bad input; the CLI must turn that
     into a clean argument error rather than letting a traceback escape.

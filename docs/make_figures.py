@@ -192,13 +192,13 @@ BAND = '#dce7f5'     # the wide band for oscprob / layer groups
 MODULE_TIERS = [
     ['magnus', 'expmkernels', 'expansionterms'],
     ['globaldefs', 'adiabatic'],
-    ['earth', 'matter', 'avgprob'],
+    ['earth', 'matter', 'solarmodels', 'avgprob'],
     ['hamiltonians'],
     ['oscprobstd'],
 ]
 MODULE_EDGES = [
     ('magnus', 'globaldefs'), ('magnus', 'adiabatic'),
-    ('globaldefs', 'earth'), ('globaldefs', 'matter'),
+    ('globaldefs', 'earth'), ('globaldefs', 'matter'), ('globaldefs', 'solarmodels'),
     ('adiabatic', 'avgprob'),
     ('matter', 'hamiltonians'), ('globaldefs', 'hamiltonians'),
     ('hamiltonians', 'oscprobstd'),
@@ -263,10 +263,11 @@ def module_layout(path):
     for tier, names in enumerate(MODULE_TIERS):
         y = 0.55 + tier*dy
         span = width/(len(names) + 1)
+        w = min(bw, 0.88*span)          # a fourth box in a tier would overlap at full width
         for i, name in enumerate(names):
             x = left + span*(i + 1)
             pos[name] = (x, y)
-            rects[name] = _rounded(ax, x, y, bw, bh, name)
+            rects[name] = _rounded(ax, x, y, w, bh, name)
 
     for src, dst in MODULE_EDGES:
         deferred = (src, dst) == ('globaldefs', 'hamiltonians')

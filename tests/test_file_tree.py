@@ -44,10 +44,10 @@ COMMENT_COLUMN = 36
 # Directories shown as a single entry rather than enumerated, and exempt from
 # the membership check.  Each holds many files of one kind, none of which a
 # reader needs named: developer findings and adversarial batteries, figures
-# lifted out of the executed notebooks, and notebook output.  Listing them
-# would triple the tree without telling anyone anything.
+# lifted out of the executed notebooks, notebook output, and the solar-model
+# tables.  Listing them would triple the tree without telling anyone anything.
 COLLAPSED = ('docs/dev/', 'img/gallery/', 'fig/', 'resources/paper/figs/',
-             'resources/benchmarks/')
+             'resources/benchmarks/', 'src/magnus/data/solar_models/')
 
 TREE = [
     ('.github/', 'GitHub Actions workflows: tests, lint, notebooks, docs, publishing'),
@@ -116,7 +116,8 @@ TREE = [
     ('docs/source/quickstart.rst', 'Worked Python-API code examples for every entry point'),
     ('docs/source/recipes.rst', 'What Magnus can compute, with the code -- executed at build time'),
     ('docs/source/references.rst', 'Bibliography page rendering'),
-    ('docs/source/refs.bib', 'BibTeX citations for the Magnus-expansion and PREM literature'),
+    ('docs/source/refs.bib', 'BibTeX citations for the Magnus-expansion, PREM and solar-model literature'),
+    ('docs/source/solar_models.rst', 'The twelve tabulated standard solar models, and how the Sun wrappers use them'),
     ('docs/source/tutorials.rst', 'Guide to the numbered example notebooks in notebooks/'),
     ('fig/', 'Plots produced by the example notebooks'),
     ('img/', 'Figures used by the documentation'),
@@ -316,6 +317,8 @@ TREE = [
     ('resources/paper/elsarticle-num.bst', None),
     ('resources/paper/figs/', 'Its twenty-three figures, written by notebook 28'),
     ('tools/', 'Standalone utilities that are not part of the package'),
+    ('tools/build_solar_model_tables.py',
+     "Trims the authors' solar-model files to the shipped tables, checking each hash"),
     ('tools/lint_notebook_cells.py',
      'Finds names the notebooks use but never define; run by the lint workflow'),
     ('tools/make_demo_video.py',
@@ -328,6 +331,8 @@ TREE = [
     ('src/magnus/authors.py', 'Package author string (internal; not part of the public API)'),
     ('src/magnus/avgprob.py', 'Phase-averaged (decohered) probabilities'),
     ('src/magnus/cli.py', '`magnus` command-line calculator (also `python -m magnus`)'),
+    ('src/magnus/data/', 'Package data, installed with the code'),
+    ('src/magnus/data/solar_models/', 'Twelve standard solar models: three columns each, with provenance'),
     ('src/magnus/earth.py', 'PREM density profile, chord/zenith-angle geometry'),
     ('src/magnus/expansionterms.py', 'Generates the Omega_k terms symbolically, to any order'),
     ('src/magnus/expmkernels.py',
@@ -348,6 +353,7 @@ TREE = [
     ('src/magnus/oscprobstd.py', 'Closed-form 2nu/3nu probabilities (used to validate the wrapper API)'),
     ('src/magnus/plotting.py', 'Pre-packaged plotting tools: one call instead of thirty lines'),
     ('src/magnus/py.typed', 'PEP 561 marker: tells type checkers the annotations are real'),
+    ('src/magnus/solarmodels.py', 'Tabulated standard solar models, as profiles for the Sun wrappers'),
     ('src/magnus/version.py', 'Resolves the version from pyproject.toml (internal)'),
     ('src/requirements.txt', 'The three runtime dependencies: numpy, scipy, joblib'),
     ('tests/', 'Test suite (pytest; runs in CI)'),
@@ -393,6 +399,7 @@ TREE = [
     ('tests/test_plotting.py', 'Pre-packaged plotting tools: house-style defaults, layouts'),
     ('tests/test_routine_listings.py',
      "Each module's Routine listings names every public function it defines"),
+    ('tests/test_solarmodels.py', 'Solar-model tables, their profiles, and the Sun wrappers that use them'),
     ('tests/test_tolerance.py', 'What rtol/atol promise, and the effective-refinement gate'),
     ('tests/test_validation.py', 'Input-validation guards and their error messages'),
     ('tests/test_version.py', 'Version resolution from pyproject.toml / installed metadata'),

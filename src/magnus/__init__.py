@@ -4,9 +4,9 @@
 r"""__init__.py
 
 Top-level package initializer for magnus. Exposes the package version and
-explicitly imports the twelve modules that make up Magnus's public API:
+explicitly imports the thirteen modules that make up Magnus's public API:
 adiabatic, avgprob, earth, expansionterms, expmkernels, globaldefs,
-hamiltonians, magnus, matter, oscprob, oscprobstd, and plotting. See
+hamiltonians, magnus, matter, oscprob, oscprobstd, plotting, and solarmodels. See
 :doc:`/architecture` for how they fit together.
 
 :mod:`magnus.expmkernels` is listed because ``expmkernels.HAVE_NUMBA`` is the
@@ -49,6 +49,7 @@ from . import matter
 from . import oscprob
 from . import oscprobstd
 from . import plotting
+from . import solarmodels
 
 submodules = [
     'adiabatic',
@@ -62,6 +63,7 @@ submodules = [
     'oscprob',
     'oscprobstd',
     'plotting',
+    'solarmodels',
 ]
 
 __all__ = submodules

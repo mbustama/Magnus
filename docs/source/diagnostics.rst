@@ -316,6 +316,13 @@ much*, where the code knows), what to change, and when it is genuinely safe to i
      - No -- but the *diagnostic* is empty, which reads like a clean bill of health.
      - Pass an entry point that takes ``strategy`` (``osc_prob`` itself does not), and
        check ``out['ran']`` before reading any spread.
+   * - :class:`magnus.oscprob.SolarModelRangeWarning`
+     - ``stop_at_table_edge=True`` on a Sun entry point, and a baseline ends past the
+       solar model's last tabulated radius.
+     - Yes, as asked: those points come back as NaN.  The others are computed as usual.
+     - Nothing, if NaN is what you wanted.  Otherwise leave ``stop_at_table_edge`` False
+       to continue the profile past the table, or use a model tabulated to the surface
+       (B16, B23); see :doc:`solar_models`.
 
 **Measured false-positive rates** (``docs/dev/adversarial_batteries/warn_fp.py``, 168
 configurations across the profile families this package serves, d = 2-5, scored against

@@ -40,3 +40,4 @@ what was swept, on which workloads, and what the alternatives cost.
    api/magnus/oscprob/index
    api/magnus/oscprobstd/index
    api/magnus/plotting/index
+   api/magnus/solarmodels/index

@@ -24,6 +24,8 @@ Routine listings
            conversion factors
     * FLAVOR_LABELS - Row and column names used by the printed table
     * ALWAYS_FORWARD - Numerics keywords forwarded to every wrapper
+    * DENSITY_PROFILES - Values ``--density-profile`` accepts: 'constant', 'exp', and
+           every tabulated solar model in :mod:`magnus.solarmodels`
 """
 
 __author__ = "Mauricio Bustamante"
@@ -40,6 +42,7 @@ import numpy as np
 
 import magnus.oscprob as oscprob
 import magnus.globaldefs as gd
+import magnus.solarmodels as solarmodels
 from magnus.version import __version__
 
 
@@ -72,6 +75,24 @@ FLAVOR_LABELS = {
 # one of them declares it.
 ALWAYS_FORWARD = {'magnus_exp_order', 'n_jobs', 'integration_method', 'rtol', 'atol',
                   'strategy'}
+
+
+# 'constant' and 'exp' describe a profile by its shape; the rest name a tabulated standard
+# solar model (see magnus.solarmodels), and so apply to --environment sun only.
+DENSITY_PROFILES = ('constant', 'exp') + solarmodels.SOLAR_MODELS
+
+
+def _density_profile(value: str) -> str:
+    r"""argparse type= callback: the canonical spelling of a density profile, in any case.
+
+    A value it does not recognize is returned unchanged, so that argparse's own ``choices``
+    check rejects it and lists what is accepted.
+    """
+    key = value.strip().lower()
+    for name in DENSITY_PROFILES:
+        if name.lower() == key:
+            return name
+    return value
 
 
 def _flavor_index(value: str) -> int:
@@ -115,9 +136,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Physics scenario on top of the environment: 'std' (Standard Model), "
              "'nsi' (non-standard interactions), or 'liv' (Lorentz-invariance violation). "
              "'nsi' is not available with --environment vacuum. Default: std.")
-    g_env.add_argument('--density-profile', choices=['constant', 'exp'], default='constant',
-        help="Matter density profile, only used with --environment matter: 'constant' "
-             "(requires --rho) or 'exp' (requires --rho-central and --l-scale). Default: constant.")
+    g_env.add_argument('--density-profile', type=_density_profile, choices=DENSITY_PROFILES,
+        default=None, metavar='PROFILE',
+        help="Matter density profile.  With --environment matter: 'constant' (the default; "
+             "requires --rho) or 'exp' (requires --rho-central and --l-scale).  With "
+             "--environment sun: 'exp' (the default) or a tabulated standard solar model, "
+             "named in any case: " + ', '.join(solarmodels.SOLAR_MODELS) + '.')
     g_env.add_argument('--nubar', action='store_true',
         help='Compute the probability for antineutrinos instead of neutrinos. No effect '
              'with --flavors 2 --environment vacuum, where there is no CP phase and no '
@@ -174,6 +198,13 @@ def build_parser() -> argparse.ArgumentParser:
     g_earth.add_argument('--source-depth', type=float, default=0.0,
         help="Depth of the neutrino's entry point below the surface, in --baseline-unit. "
              'Default: 0 (entry at the surface).')
+
+    g_sun = p.add_argument_group('Sun (--environment sun)')
+    g_sun.add_argument('--stop-at-table-edge', action='store_true',
+        help='With a tabulated solar model, do not extrapolate past its last row: a baseline '
+             'that ends beyond it returns nan, with a warning.  Without it, the density '
+             "continues the last row's logarithmic slope.  Not available with 'exp', which "
+             'has no table.')
 
     g_osc = p.add_argument_group('Standard oscillation parameters (2-flavor)')
     g_osc.add_argument('--angles', default='sin', choices=list(gd.ANGLE_CONVENTIONS),
@@ -440,16 +471,22 @@ def _env_kwargs(environment: str, density_profile: str, args: argparse.Namespace
     Returns what the chosen ``osc_prob_*`` wrapper needs: the baseline alone for vacuum;
     density, composition and unit flag for matter, with either one density or a central
     density and a scale height by profile; the trajectory for earth, with both depths
-    converted to natural units; and the two positions for sun.  Every invalid
-    combination of flags exits here rather than downstream, so the message names the
-    flags the user typed rather than the library's parameters.
+    converted to natural units; and the two positions and the density profile for sun.
+    Every invalid combination of flags exits here rather than downstream, so the message
+    names the flags the user typed rather than the library's parameters.
+
+    .. versionchanged:: 1.1.1
+       The sun branch forwards the density profile and ``--stop-at-table-edge``, and a
+       solar model or ``--stop-at-table-edge`` outside ``--environment sun`` is refused.
 
     Parameters
     ----------
     environment : str
         'vacuum', 'matter', 'earth' or 'sun'.
     density_profile : str
-        'constant' or 'exp'; read only when ``environment`` is 'matter'.
+        One of :data:`DENSITY_PROFILES`, already resolved from its default: 'constant' or
+        'exp' for matter, 'exp' or a solar model for sun.  Ignored for vacuum and earth,
+        unless it names a solar model.
     args : argparse.Namespace
         Parsed command-line arguments.
     baseline_ev : float or None
@@ -468,6 +505,13 @@ def _env_kwargs(environment: str, density_profile: str, args: argparse.Namespace
         If the flags given do not describe a trajectory this environment can
         propagate.  The message names the flags at fault, and the exit code is 1.
     """
+    if environment != 'sun':
+        if density_profile in solarmodels.SOLAR_MODELS:
+            raise SystemExit(f"magnus prob: --density-profile {density_profile} is a solar "
+                              f"model, so it applies to --environment sun only.")
+        if args.stop_at_table_edge:
+            raise SystemExit("magnus prob: --stop-at-table-edge applies to --environment sun "
+                              "with a tabulated solar model only.")
     if environment == 'vacuum':
         return {'L': baseline_ev}
     if environment == 'matter':
@@ -521,7 +565,14 @@ def _env_kwargs(environment: str, density_profile: str, args: argparse.Namespace
             # knows what the sun branch needs, and a future caller reaching it by another
             # route should still get a clear message rather than a KeyError downstream.
             raise SystemExit("magnus prob: --baseline is required for --environment sun.")
-        return {'L': baseline_ev, 'L0': l0_ev}
+        if density_profile == 'constant':
+            raise SystemExit("magnus prob: --density-profile constant is not available with "
+                              "--environment sun; use 'exp' or a solar model.")
+        if args.stop_at_table_edge and density_profile == 'exp':
+            raise SystemExit("magnus prob: --stop-at-table-edge needs a tabulated solar model "
+                              "(--density-profile); the exponential profile has no last row.")
+        return {'L': baseline_ev, 'L0': l0_ev, 'density_profile': density_profile,
+                'stop_at_table_edge': args.stop_at_table_edge}
     raise AssertionError(environment)  # pragma: no cover
 
 
@@ -656,11 +707,17 @@ def main(argv=None) -> int:
     if environment != 'earth' and baseline_ev is None:
         parser.error(f"--baseline is required for --environment {environment}.")
 
-    fn_name = _wrapper_name(flavors, environment, scenario, args.density_profile)
+    # The default depends on the environment: a uniform slab for matter, the exponential
+    # profile for the Sun (what the sun wrappers have always used).
+    density_profile = args.density_profile
+    if density_profile is None:
+        density_profile = 'exp' if environment == 'sun' else 'constant'
+
+    fn_name = _wrapper_name(flavors, environment, scenario, density_profile)
     fn = getattr(oscprob, fn_name)
 
     candidate = {'energy': energy_ev}
-    candidate.update(_env_kwargs(environment, args.density_profile, args, baseline_ev, l0_ev))
+    candidate.update(_env_kwargs(environment, density_profile, args, baseline_ev, l0_ev))
     candidate.update(_std_osc_kwargs(flavors, args))
     if scenario == 'nsi':
         candidate.update(_nsi_kwargs(flavors, args))
@@ -677,7 +734,7 @@ def main(argv=None) -> int:
     # environments have no such dependence and their wrappers forward unknown keywords all the
     # way down to the Magnus core, which would reject it.
     if environment in ('earth', 'sun') or (environment == 'matter'
-                                           and args.density_profile == 'exp'):
+                                           and density_profile == 'exp'):
         candidate['strategy'] = args.strategy
 
     try:
@@ -701,6 +758,8 @@ def main(argv=None) -> int:
     label = f"E = {args.energy:g} {args.energy_unit}"
     if baseline_ev is not None:
         label += f", L = {args.baseline:g} {args.baseline_unit}"
+    if density_profile in solarmodels.SOLAR_MODELS:
+        label += f", {density_profile} solar model"
     if args.nubar:
         label += ", antineutrinos"
     print(label)

@@ -16,10 +16,10 @@ itself); this page is about the *code*, not the *math*.
 Module layout
 ---------------
 
-Magνs is twelve modules under ``src/magnus/`` plus the ``hamiltonians``
+Magνs is thirteen modules under ``src/magnus/`` plus the ``hamiltonians``
 subpackage, each with a single, non-overlapping responsibility (``authors.py``
 and ``version.py`` are internal helpers rather than part of that picture).
-``magnus/__init__.py``'s ``submodules``/``__all__`` advertise eleven of them.
+``magnus/__init__.py``'s ``submodules``/``__all__`` advertise twelve of them.
 ``expmkernels`` is imported alongside but left out of the list, being an
 implementation detail of ``magnus.magnus``; ``cli`` is not imported at all,
 since it is the console script's entry point rather than something a caller
@@ -56,6 +56,9 @@ anything above it:
      - Adiabatic transport and the Magnus-patch ``hybrid_propagator``
    * - ``earth``
      - PREM density profile, chord and zenith-angle geometry
+   * - ``solarmodels``
+     - Tabulated standard solar models, as density and composition profiles
+       (:doc:`solar_models`); imports only ``globaldefs``
    * - ``matter``
      - Density profiles, electron number density, :math:`V_{\rm CC}`
        construction, the matter-potential projector
@@ -108,7 +111,8 @@ easy to break by accident when adding code:
 
 ``adiabatic.py``, ``avgprob.py``, ``cli.py``, ``earth.py``,
 ``expansionterms.py``, ``expmkernels.py``, ``globaldefs.py``, ``magnus.py``,
-``matter.py``, ``oscprob.py``, ``oscprobstd.py`` and ``plotting.py`` are flat
+``matter.py``, ``oscprob.py``, ``oscprobstd.py``, ``plotting.py`` and
+``solarmodels.py`` are flat
 sibling files directly under ``src/magnus/`` -- there is no subpackage directory
 wrapping any of them. Only ``magnus.hamiltonians`` is a genuine
 subpackage, since it holds one module per flavor count
@@ -116,7 +120,7 @@ subpackage, since it holds one module per flavor count
 ``hamiltonians_pseudodirac.py`` for the paired spectra of
 :doc:`averaged_probability`; its ``__init__.py`` explicitly imports and
 re-exports each one's public names (no ``from .module import *``).
-``magnus/__init__.py`` does the same for the eleven it lists (again, no
+``magnus/__init__.py`` does the same for the twelve it lists (again, no
 wildcard imports) so that ``import magnus`` alone makes ``magnus.earth``,
 ``magnus.oscprob``, etc. immediately accessible.
 

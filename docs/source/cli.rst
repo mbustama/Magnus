@@ -89,7 +89,7 @@ table:
      - ``osc_prob_{N}nu_earth[_nsi|_liv]``
    * - sun
      - std / nsi / liv
-     - --
+     - exp / a solar model
      - ``osc_prob_{N}nu_sun[_nsi|_liv]``
 
 Examples
@@ -144,6 +144,26 @@ That command also writes ``MagnusConvergenceWarning`` twice to standard error:
 some slabs of this chord are wider than the sufficient condition for the series
 to converge.  It reports a slab width rather than an error; :doc:`diagnostics`
 gives its measured false-alarm rate and says what to do about it.
+
+The Sun, through a tabulated standard solar model rather than the exponential
+fit (:doc:`solar_models` lists the twelve, and ``--density-profile`` takes
+their names in any case):
+
+.. code-block:: text
+
+   $ magnus prob --flavors 3 --environment sun --density-profile B16-GS98 \
+       --energy 10 --energy-unit MeV --baseline 300000 --baseline-unit km
+   Magνs 1.1.1 -- osc_prob_3nu_sun
+   E = 10 MeV, L = 300000 km, B16-GS98 solar model
+
+               nu_e   nu_mu  nu_tau
+   nu_e      0.5739  0.1825  0.2436
+   nu_mu     0.1588  0.6341  0.2071
+   nu_tau    0.2673  0.1834  0.5493
+
+``--stop-at-table-edge`` returns ``nan``, with a warning, for a baseline that
+ends past the model's last tabulated radius, instead of continuing the profile
+beyond it.
 
 Constant-density matter with non-standard interactions:
 
@@ -254,32 +274,33 @@ configures):
 .. code-block:: text
 
    usage: magnus prob [-h] [--flavors {2,3,4,5}] [--environment {vacuum,matter,earth,sun}]
-                      [--scenario {std,nsi,liv}] [--density-profile {constant,exp}]
-                      [--nubar] --energy ENERGY [--energy-unit {eV,keV,MeV,GeV,TeV,PeV}]
+                      [--scenario {std,nsi,liv}] [--density-profile PROFILE] [--nubar]
+                      --energy ENERGY [--energy-unit {eV,keV,MeV,GeV,TeV,PeV}]
                       [--baseline BASELINE] [--l0 L0] [--baseline-unit {eV-1,km,cm}]
                       [--rho RHO] [--rho-central RHO_CENTRAL] [--l-scale L_SCALE]
                       [--density-unit {g/cm3,natural}] [--ratio-n-to-p RATIO_N_TO_P]
                       [--electron-fraction ELECTRON_FRACTION] [--costhz COSTHZ]
                       [--loc-ini LOC_INI] [--loc-fin LOC_FIN]
                       [--detector-depth DETECTOR_DEPTH] [--source-depth SOURCE_DEPTH]
-                      [--angles {sin,sin2,rad,deg}] [--sth STH] [--dm2 DM2] [--s12 S12]
-                      [--s23 S23] [--s13 S13] [--dcp DCP] [--dm21 D21] [--dm31 D31]
-                      [--osc-params-set NAME] [--s14 S14] [--d14 D14] [--s24 S24]
-                      [--d24 D24] [--s34 S34] [--dm41 D41] [--s15 S15] [--d15 D15]
-                      [--s25 S25] [--s35 S35] [--d35 D35] [--dm51 D51] [--eps-aa EPS_AA]
-                      [--eps-ab EPS_AB] [--eps-ee EPS_EE] [--eps-em EPS_EM]
-                      [--eps-et EPS_ET] [--eps-mm EPS_MM] [--eps-mt EPS_MT]
-                      [--eps-tt EPS_TT] [--eps-es EPS_ES] [--eps-ms EPS_MS]
-                      [--eps-ts EPS_TS] [--eps-ss EPS_SS] [--eps-es1 EPS_ES1]
-                      [--eps-es2 EPS_ES2] [--eps-ms1 EPS_MS1] [--eps-ms2 EPS_MS2]
-                      [--eps-ts1 EPS_TS1] [--eps-ts2 EPS_TS2] [--eps-s1s1 EPS_S1S1]
-                      [--eps-s1s2 EPS_S1S2] [--eps-s2s2 EPS_S2S2] [--sxi SXI]
-                      [--sxi12 SXI12] [--sxi23 SXI23] [--sxi13 SXI13] [--dxicp DXICP]
-                      [--dxi13 DXI13] [--sxi14 SXI14] [--dxi14 DXI14] [--sxi24 SXI24]
-                      [--dxi24 DXI24] [--sxi34 SXI34] [--sxi15 SXI15] [--dxi15 DXI15]
-                      [--sxi25 SXI25] [--sxi35 SXI35] [--dxi35 DXI35] [--b1 B1] [--b2 B2]
-                      [--b3 B3] [--b4 B4] [--b5 B5] [--liv-lambda LAMBDA] [--n-liv N_LIV]
-                      [--nu-i NU_I] [--nu-f NU_F] [--magnus-exp-order MAGNUS_EXP_ORDER]
+                      [--stop-at-table-edge] [--angles {sin,sin2,rad,deg}] [--sth STH]
+                      [--dm2 DM2] [--s12 S12] [--s23 S23] [--s13 S13] [--dcp DCP]
+                      [--dm21 D21] [--dm31 D31] [--osc-params-set NAME] [--s14 S14]
+                      [--d14 D14] [--s24 S24] [--d24 D24] [--s34 S34] [--dm41 D41]
+                      [--s15 S15] [--d15 D15] [--s25 S25] [--s35 S35] [--d35 D35]
+                      [--dm51 D51] [--eps-aa EPS_AA] [--eps-ab EPS_AB] [--eps-ee EPS_EE]
+                      [--eps-em EPS_EM] [--eps-et EPS_ET] [--eps-mm EPS_MM]
+                      [--eps-mt EPS_MT] [--eps-tt EPS_TT] [--eps-es EPS_ES]
+                      [--eps-ms EPS_MS] [--eps-ts EPS_TS] [--eps-ss EPS_SS]
+                      [--eps-es1 EPS_ES1] [--eps-es2 EPS_ES2] [--eps-ms1 EPS_MS1]
+                      [--eps-ms2 EPS_MS2] [--eps-ts1 EPS_TS1] [--eps-ts2 EPS_TS2]
+                      [--eps-s1s1 EPS_S1S1] [--eps-s1s2 EPS_S1S2] [--eps-s2s2 EPS_S2S2]
+                      [--sxi SXI] [--sxi12 SXI12] [--sxi23 SXI23] [--sxi13 SXI13]
+                      [--dxicp DXICP] [--dxi13 DXI13] [--sxi14 SXI14] [--dxi14 DXI14]
+                      [--sxi24 SXI24] [--dxi24 DXI24] [--sxi34 SXI34] [--sxi15 SXI15]
+                      [--dxi15 DXI15] [--sxi25 SXI25] [--sxi35 SXI35] [--dxi35 DXI35]
+                      [--b1 B1] [--b2 B2] [--b3 B3] [--b4 B4] [--b5 B5]
+                      [--liv-lambda LAMBDA] [--n-liv N_LIV] [--nu-i NU_I] [--nu-f NU_F]
+                      [--magnus-exp-order MAGNUS_EXP_ORDER]
                       [--integration-method {gl,trapezoid,simpson}] [--rtol RTOL]
                       [--atol ATOL] [--n-jobs N_JOBS] [--strategy {auto,hybrid,magnus}]
                       [--verbose {0,1,2}] [--json] [--precision PRECISION]
@@ -296,10 +317,13 @@ configures):
                            Model), 'nsi' (non-standard interactions), or 'liv' (Lorentz-
                            invariance violation). 'nsi' is not available with --environment
                            vacuum. Default: std.
-     --density-profile {constant,exp}
-                           Matter density profile, only used with --environment matter:
-                           'constant' (requires --rho) or 'exp' (requires --rho-central and
-                           --l-scale). Default: constant.
+     --density-profile PROFILE
+                           Matter density profile. With --environment matter: 'constant'
+                           (the default; requires --rho) or 'exp' (requires --rho-central
+                           and --l-scale). With --environment sun: 'exp' (the default) or a
+                           tabulated standard solar model, named in any case: BP2000, BP04,
+                           BS05-OP, BS05-AGS-OP, B16-GS98, B16-AGSS09met, B23-GS98,
+                           B23-AGSS09, B23-C11, B23-AAG21, B23-MB22m, B23-MB22p.
      --nubar               Compute the probability for antineutrinos instead of neutrinos.
                            No effect with --flavors 2 --environment vacuum, where there is
                            no CP phase and no matter, so the two probabilities are equal.
@@ -350,6 +374,12 @@ configures):
      --source-depth SOURCE_DEPTH
                            Depth of the neutrino's entry point below the surface, in
                            --baseline-unit. Default: 0 (entry at the surface).
+
+   Sun (--environment sun):
+     --stop-at-table-edge  With a tabulated solar model, do not extrapolate past its last
+                           row: a baseline that ends beyond it returns nan, with a warning.
+                           Without it, the density continues the last row's logarithmic
+                           slope. Not available with 'exp', which has no table.
 
    Standard oscillation parameters (2-flavor):
      --angles {sin,sin2,rad,deg}

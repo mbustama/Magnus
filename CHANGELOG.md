@@ -9,6 +9,27 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Twelve standard solar models ship with the package, and every Sun entry
+  point -- the `osc_prob_{2,3,4,5}nu_sun[_nsi|_liv]` wrappers and
+  `osc_prob_sun` -- takes `density_profile` to use one in place of the
+  exponential fit: BP2000, BP04, BS05-OP, BS05-AGS-OP, B16-GS98,
+  B16-AGSS09met, and B23 in six solar compositions, named in any case.  The
+  electron density comes from each table's mass density and hydrogen
+  fraction, interpolated in its logarithm, held flat below the first row and
+  continued along the last interval's slope past the last.  The sterile
+  wrappers take the neutron-to-proton ratio from the same table unless
+  `ratio_number_neutrons_to_protons` is given; its default is now `None`,
+  which the exponential fit reads as the 1.0 it always used.
+  `stop_at_table_edge=True` returns NaN instead, with the new
+  `SolarModelRangeWarning`, for a baseline that ends past the last row.  The
+  new module `magnus.solarmodels` reads the tables and gives each model's
+  reference, source and terms of use, and
+  `tools/build_solar_model_tables.py` rebuilds them from the authors' files,
+  refusing any whose hash has changed.  On the command line,
+  `--density-profile` takes the model names with `--environment sun`, and
+  `--stop-at-table-edge` is new.  Defaults are unchanged bit for bit.  See
+  the new *Standard solar models* page of the documentation.
+
 - `average=True` on the direct route: `osc_prob_energy_baseline`,
   `osc_prob_earth` and `osc_prob_sun` now take the keyword that the wrappers
   have carried since 1.0.0, so a Hamiltonian of your own gets the

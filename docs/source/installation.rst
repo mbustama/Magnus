@@ -216,7 +216,8 @@ File Tree
    │       ├── quickstart.rst          # Worked Python-API code examples for every entry point
    │       ├── recipes.rst             # What Magnus can compute, with the code -- executed at build time
    │       ├── references.rst          # Bibliography page rendering
-   │       ├── refs.bib                # BibTeX citations for the Magnus-expansion and PREM literature
+   │       ├── refs.bib                # BibTeX citations for the Magnus-expansion, PREM and solar-model literature
+   │       ├── solar_models.rst        # The twelve tabulated standard solar models, and how the Sun wrappers use them
    │       └── tutorials.rst           # Guide to the numbered example notebooks in notebooks/
    ├── fig/                            # Plots produced by the example notebooks
    ├── img/                            # Figures used by the documentation
@@ -329,6 +330,7 @@ File Tree
    │       ├── elsarticle-num.bst
    │       └── figs/                   # Its twenty-three figures, written by notebook 28
    ├── tools/                          # Standalone utilities that are not part of the package
+   │   ├── build_solar_model_tables.py  # Trims the authors' solar-model files to the shipped tables, checking each hash
    │   ├── lint_notebook_cells.py      # Finds names the notebooks use but never define; run by the lint workflow
    │   └── make_demo_video.py          # Joins and shrinks notebook 27's clips; shared with NuOscProbExact
    ├── src/                            # The package itself -- the only thing a `pip install` delivers
@@ -339,6 +341,8 @@ File Tree
    │   │   ├── authors.py              # Package author string (internal; not part of the public API)
    │   │   ├── avgprob.py              # Phase-averaged (decohered) probabilities
    │   │   ├── cli.py                  # `magnus` command-line calculator (also `python -m magnus`)
+   │   │   ├── data/                   # Package data, installed with the code
+   │   │   │   └── solar_models/       # Twelve standard solar models: three columns each, with provenance
    │   │   ├── earth.py                # PREM density profile, chord/zenith-angle geometry
    │   │   ├── expansionterms.py       # Generates the Omega_k terms symbolically, to any order
    │   │   ├── expmkernels.py          # Compiled Cayley-Hamilton matrix exponential for 2x2/3x3 (the numba backend)
@@ -357,6 +361,7 @@ File Tree
    │   │   ├── oscprobstd.py           # Closed-form 2nu/3nu probabilities (used to validate the wrapper API)
    │   │   ├── plotting.py             # Pre-packaged plotting tools: one call instead of thirty lines
    │   │   ├── py.typed                # PEP 561 marker: tells type checkers the annotations are real
+   │   │   ├── solarmodels.py          # Tabulated standard solar models, as profiles for the Sun wrappers
    │   │   └── version.py              # Resolves the version from pyproject.toml (internal)
    │   └── requirements.txt            # The three runtime dependencies: numpy, scipy, joblib
    └── tests/                          # Test suite (pytest; runs in CI)
@@ -389,6 +394,7 @@ File Tree
        ├── test_palindrome.py          # The palindromic-profile optimization and its gate
        ├── test_plotting.py            # Pre-packaged plotting tools: house-style defaults, layouts
        ├── test_routine_listings.py    # Each module's Routine listings names every public function it defines
+       ├── test_solarmodels.py         # Solar-model tables, their profiles, and the Sun wrappers that use them
        ├── test_tolerance.py           # What rtol/atol promise, and the effective-refinement gate
        ├── test_validation.py          # Input-validation guards and their error messages
        └── test_version.py             # Version resolution from pyproject.toml / installed metadata
