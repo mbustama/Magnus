@@ -13999,7 +13999,7 @@ ax.set_xlim(0, 90); ax.set_ylim(0, 100); ax.axis('off')
 X0, X1 = 30.0, 66.0                      # the bar spans the same x in every row
 H = 6.2                                  # bar height
 rows = [
- ('Closed-form average',   'An average is asked for,\nand $\\mathbb{H}$ does not vary'),
+ ('Phase average',         'An average is asked for'),
  ('Adiabatic $+$ Magnus',  'Smooth profile, a tolerance,\nand it certifies itself'),
  ('Interaction picture',   'Declared exponential, two flavors,\nand its iteration converges'),
  ('Constant Hamiltonian',  '$\\mathbb{H}$ does not vary\nalong the trajectory'),
@@ -14022,21 +14022,42 @@ for i, ((name, when), y) in enumerate(zip(rows, ys)):
     # text starts further right than the others'.
     ax.text(X1+(6.0 if i == 6 else 2.6), y+H/2, when, ha='left', va='center',
             fontsize=6.6, color=INK)
-    if i:                                        # every engine but the first walks a path
-        # The energy-batched row already has three blue arrows entering at X0, so its
-        # black one starts further left rather than hiding behind them.
-        bx = X0 - (2.9 if i == 4 else 0.6)
-        ax.annotate('', xy=(bx, y+H/2), xytext=(bx-1.2, y+H/2),
-                    arrowprops=dict(arrowstyle='-|>', color=INK, lw=0.8))
+    # Every engine takes the neutrino along the path -- the phase average too, which crosses
+    # the same windows the hybrid patches and only tracks no phase between them.  The
+    # energy-batched row already has three blue arrows entering at X0, so its black one
+    # starts further left rather than hiding behind them.
+    bx = X0 - (2.9 if i == 4 else 0.6)
+    ax.annotate('', xy=(bx, y+H/2), xytext=(bx-1.2, y+H/2),
+                arrowprops=dict(arrowstyle='-|>', color=INK, lw=0.8))
     if i == 0:
-        # One undivided block: nothing is composed along it, because nothing is
-        # propagated.  avgprob diagonalises H once and sums |sum_i V*_ai V_bi|^2 over
-        # the eigenbasis, which is exact for the averaged observable -- not a closed
-        # form in the mixing parameters, since it still needs the eigenvectors.
-        bar(y, [(X0, X1)], [SLAB[2]])
-        ax.text((X0+X1)/2, y+H/2, r'$\langle P\rangle$ from the eigenbasis',
-                ha='center', va='center', fontsize=7.0, color='white')
-        ax.text((X0+X1)/2, y-1.6, 'Exact for the average; nothing is propagated',
+        # Two cases of one expression, Eq. (averaged_varying), stacked in the row's space.
+        # Top: one eigenbasis serves the whole path and there is no crossing, so <P> is exact
+        # and needs no baseline -- unlike the constant-Hamiltonian row below, which returns
+        # the oscillating P(L) through exp(-iHL).  Drawn flat and undivided, as that row is.  Bottom: H varies -- the eigenbases at the two ends and
+        # the probability of each crossing between them.  No phase is tracked in either.
+        # Taller than half a row each, using the free space under the title, with a clear
+        # gap between them so they read as two cases rather than one striped bar.
+        h2, gap = 3.3, 1.1
+        yb = y - 0.6
+        yt = yb + h2 + gap
+        ax.add_patch(Rectangle((X0, yt), X1-X0, h2, facecolor=SLAB[2], edgecolor=INK,
+                               lw=0.7, zorder=2))
+        ax.text((X0+X1)/2, yt+h2/2, r'$\langle P\rangle$ from one eigenbasis: exact, no baseline',
+                ha='center', va='center', fontsize=6.4, color='white', zorder=5)
+        n = 60; e = np.linspace(X0, X1, n+1)
+        g = plt.cm.Blues(np.linspace(0.75, 0.15, n))
+        for (l, r), c in zip(zip(e[:-1], e[1:]), g):
+            ax.add_patch(Rectangle((l, yb), r-l, h2, facecolor=c, edgecolor='none', zorder=2))
+        ax.add_patch(Rectangle((X0, yb), X1-X0, h2, fill=False, edgecolor=INK, lw=0.7, zorder=3))
+        px = X0 + 0.80*(X1-X0)
+        ax.add_patch(Rectangle((px, yb), 2.4, h2, facecolor=ORANGE, edgecolor='black',
+                               lw=0.8, zorder=4))
+        ax.text(px+1.2, yb-0.9, r'$P^{\rm cross}$', ha='center', va='top',
+                fontsize=6.6, color=ORANGE)
+        ax.text(X0+0.38*(X1-X0), yb+h2/2, r'$\langle P\rangle$ from the eigenbases at both ends',
+                ha='center', va='center', fontsize=6.4, color='white', zorder=5)
+        # Near the middle of the bar, a little left of it, so that it clears P^cross.
+        ax.text(X0+0.40*(X1-X0), yb-1.4, 'No phase is tracked in either case',
                 ha='center', va='top', fontsize=6.4, color=INK)
     elif i == 1:                                 # smooth gradient, one exact patch
         n = 60; e = np.linspace(X0, X1, n+1)
@@ -14091,13 +14112,16 @@ for i, ((name, when), y) in enumerate(zip(rows, ys)):
             for a, b in zip(ed[:-1], ed[1:]):
                 ax.add_patch(Rectangle((a, y+dy), b-a, H*0.62, facecolor=SLAB[2],
                                        edgecolor=INK, lw=0.5, alpha=al, zorder=2))
-        ax.annotate('', xy=(X1+1.8, y-0.8), xytext=(X1+1.8, y+H+4.2),
-                    arrowprops=dict(arrowstyle='-|>', color=INK, lw=0.9))
-        ax.text(X1+4.3, y+H/2+1.7, 'Refine', ha='center', va='center', fontsize=6.6,
+        # The refine arrow spans the ladder exactly, top tier to bottom, and its label starts
+        # where the ladder does.  shrinkA/B are zeroed: annotate otherwise trims 2 points off
+        # each end of the arrow, and it would stop short of the bars it is measured against.
+        ladder_bottom, ladder_top = y, y + 3.4 + H*0.62
+        refine_arrow = ax.annotate('', xy=(X1+1.8, ladder_bottom), xytext=(X1+1.8, ladder_top),
+                    arrowprops=dict(arrowstyle='-|>', color=INK, lw=0.9, shrinkA=0, shrinkB=0))
+        refine_bottom = ladder_bottom
+        ax.text(X1+4.3, ladder_bottom, 'Refine', ha='center', va='bottom', fontsize=6.6,
                 color=INK, rotation=90)
 
-ax.text(56.0, 97.0, r'How Mag$\nu$s answers a call: the seven engines, in dispatch order',
-        ha='center', va='center', fontsize=9.4, color='black')
 
 # The order they are tried in, drawn once in the margin: down the middle it crossed
 # every bar and collided with the notes under rows 1, 3 and 5.
@@ -14116,6 +14140,24 @@ ax.plot([gx, gx+1.2, gx+1.2, gx], [gy0, gy0, gy1, gy1], color=INK, lw=0.8,
 ax.text(gx + 2.8, (gy0 + gy1)/2, 'Batching engines', rotation=90,
         ha='center', va='center', fontsize=6.4, color=INK)
 fig.subplots_adjust(left=0.01, right=0.99, top=0.99, bottom=0.01)
+
+# The title goes last, centred on what the page will show rather than on the axes.  The
+# saved figure is cropped to its content, and that content is not symmetric about the axes:
+# the dispatch-order note hangs off the left, the batching bracket off the right.  So the
+# extent of everything else is measured first, and the title placed at its middle.
+fig.canvas.draw()
+# FancyArrowPatch stops a '-|>' head about a point short of the end it is given, even with
+# shrinkB=0, and against the ladder's bottom edge that shows.  Measured once laid out, and the
+# end moved down by exactly the shortfall.
+tip = refine_arrow.arrow_patch.get_window_extent(fig.canvas.get_renderer()).y0
+short = tip - ax.transData.transform((0.0, refine_bottom))[1]
+end = ax.transData.transform(refine_arrow.xy)
+refine_arrow.xy = tuple(ax.transData.inverted().transform((end[0], end[1] - short)))
+fig.canvas.draw()
+content = fig.get_tightbbox(fig.canvas.get_renderer())          # inches
+x_mid = ax.transData.inverted().transform(((content.x0 + content.x1)/2*fig.dpi, 0.0))[0]
+ax.text(x_mid, 98.6, r'How Mag$\nu$s answers a call: the seven engines, in dispatch order',
+        ha='center', va='center', fontsize=9.4, color='black')
 save(fig, 'strategies.pdf')'''),
 
     md(r'''## Figure 1c --- how the modules fit together'''),
