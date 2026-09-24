@@ -125,12 +125,14 @@ engines in a fixed order, falling through on ``NotImplemented``:
      - closed-form phase average (``magnus.avgprob``)
      - No propagation at all; the phase average of a constant ``H`` is algebraic
    * - Smooth profile, a tolerance was requested, ``strategy != 'magnus'``,
-       and the scan is shorter than
-       :data:`~magnus.oscprob.HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS` --
+       the scan is shorter than
+       :data:`~magnus.oscprob.HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS`,
+       and ``'auto'`` did not hand it to the ladder (below) --
        *and it certifies*
      - adiabatic + Magnus patch
      - Transports along the levels instead of resolving every oscillation
-   * - Exponential profile, two flavors -- *and it converges*
+   * - Exponential profile, two flavors, not handed to the ladder --
+       *and it converges*
      - interaction picture
      - An exact reference solution exists for this one case
    * - ``V_CC`` does not vary along the trajectory
@@ -161,6 +163,27 @@ Two thresholds decide the seams, and both are constants with docstrings of their
   to 1 was reverted.
 * :data:`magnus.oscprob.CUMULATIVE_AUTO_MIN_POINTS` = 2. Below this there is no prefix to
   reuse.
+
+**The ladder route of** ``'auto'`` (issue #70).  On a smooth profile the hybrid strategy's cost
+is its window search, which does not follow the tolerance.  At a loose tolerance on a moderate
+phase that makes it the slower route, so ``'auto'`` hands a request to the ladder ahead of the
+hybrid when all three of these hold:
+
+* ``min(rtol, atol)`` is at least :data:`magnus.oscprob.AUTO_LADDER_MIN_TOLERANCE` = 1e-6;
+* the estimated accumulated phase (the integral of the spread of ``H``'s eigenvalues up to the
+  longest baseline) is at most :data:`magnus.oscprob.AUTO_LADDER_MAX_PHASE` = 1e4 rad;
+* the ladder's starting slab count is at most
+  :data:`magnus.oscprob.AUTO_LADDER_MAX_FLOOR_FRACTION` = 1/4 of its cap, which keeps every
+  solar path on the hybrid.
+
+The ladder then runs at a tenth of the tolerance
+(:data:`magnus.oscprob.AUTO_LADDER_TOLERANCE_MARGIN`), skips the interaction picture and starts
+on slabs over which the Magnus series is guaranteed to converge.  The hybrid's test for an
+undeclared density jump still runs, and still warns.  Over 20 smooth workloads with phases from
+5 to 1.2e4 rad, the ladder was 2 to 60 times faster than the hybrid on a single point and 12 to
+500 times faster per point of a 40-energy scan, within the tolerance on every one.  On the
+profile of the paper's Fig. 1, its four scans of 140 energies take 40 ms of computation at the
+default tolerance of 1e-3, where the hybrid took 8 s.
 
 **The accuracy steps at the seam rather than varying smoothly, and that is by design.**
 Adding one baseline to a scan just below it changes the answer, because it changes the engine.

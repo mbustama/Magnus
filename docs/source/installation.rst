@@ -385,6 +385,7 @@ File Tree
        ├── test_documented_examples.py  # Runs the code blocks in README.md and quickstart.rst
        ├── test_earth_matter.py        # PREM profile, chord geometry, electron density
        ├── test_engines.py             # Which engine answers, and the cross-checks between them
+       ├── test_auto_ladder.py         # When strategy='auto' takes the ladder (issue #70)
        ├── test_expansionterms.py      # The symbolic term generator against the hand-written orders
        ├── test_expm_backend.py        # The two matrix-exponential backends, their switch, and degeneracies
        ├── test_fuzz_statistics.py     # Randomized profiles, scored in bulk

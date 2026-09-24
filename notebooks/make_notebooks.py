@@ -6568,13 +6568,13 @@ for tol in (1e-4, 1e-5):
     print('rtol = atol = %.0e: max |error| %.3e  (%s)'
           % (tol, np.max(np.abs(P_tol - P_ref)),
              ', '.join(sorted({w.category.__name__ for w in caught_tol})) or 'no warning'))"""),
-    md(r'''The error is 1.7 times the tolerance asked for, and the result is reported `certified`,
-with no warning. That is what a tolerance means here: it is a stopping rule rather than a
-bound, and `certified` says that two successive refinements agreed to it, not that the answer
-lies within it of the truth (the `rtol` entry of `osc_prob` says what it does and does not
-promise). Asking for $10^{-4}$ brings the error to $9\times10^{-5}$, and $10^{-5}$ to
-$2\times10^{-6}$. Both are answered by the slab ladder, and both raise
-`MagnusConvergenceWarning`, which reports the width of a slab rather than an error.
+    md(r'''The error is $7.5\times10^{-5}$, well inside the tolerance asked for. At this
+tolerance, over one scale height, `strategy='auto'` hands the request to the slab ladder
+rather than the adiabatic engine and runs it at a tenth of the tolerance. The margin is
+deliberate: a tolerance is a stopping rule rather than a bound (the `rtol` entry of
+`osc_prob` says what it does and does not promise). `certified` is `None` because the ladder
+does not vouch for its own result; notebook 22 shows which engines do. Asking for $10^{-4}$
+brings the error to $4.5\times10^{-6}$, and $10^{-5}$ to $2.6\times10^{-7}$.
 
 That settles the accuracy, but not the interesting question, which is what this number is
 *of*: it is the probability at **one exact baseline**, and no solar experiment measures that.
@@ -6649,7 +6649,7 @@ ax.axhline(P_ref_many[:, 0, 0].mean(), color='k', lw=1.2,
 ax.set_xlabel('baseline, in oscillation lengths'); ax.set_ylabel(r'$P_{ee}$')
 ax.legend(fontsize=8); ax.set_title('A scan, and the mean of that scan')
 fig.tight_layout()'''),
-    md(r'''Averaging brings the package closer to the ground truth, by a factor of three. But that
+    md(r'''Averaging brings the package closer to the ground truth, by a factor of nine. But that
 compares two estimates of the same scan mean, and the question is whether **the scan mean is
 the observable**. It is not: it is not a converged estimate of anything.
 
@@ -6728,8 +6728,8 @@ A cubic spline through the same table (still in $\log n_e$) is a different profi
 a fair second opinion on the scan-mean estimator.  It is also a profile of our own rather than
 one the package ships, so it goes through the scenario function, which takes any callable.
 It gives different numbers in both columns and the same picture: averaging brings the package
-closer to the ground truth by a factor of two to three either way, and neither column is
-about the observable. The failure of the window mean is a property of the estimator rather
+closer to the ground truth by a factor of three to nine, yet neither column is about the
+observable. The failure of the window mean is a property of the estimator rather
 than of one particular interpolant.'''),
     code(r'''from scipy.interpolate import CubicSpline
 
@@ -6779,13 +6779,12 @@ print('pairs in neither limit:', undecided or 'none -- the averaged expression i
 
 | | |
 |---|---|
-| instantaneous error at 5 MeV | 1.7e-3 against a requested 1e-3, `certified`, no warning: a tolerance is a stopping rule, not a bound, and 1e-4 brings it to 9e-5. And it is the error at *one baseline*, which no solar experiment measures |
+| instantaneous error at 5 MeV | 7.5e-5 against a requested 1e-3: `'auto'` runs the slab ladder here at a tenth of the tolerance, because a tolerance is a stopping rule, not a bound. And it is the error at *one baseline*, which no solar experiment measures |
 | averaging a scan to get the observable | **does not work here.** The mean sits $4$--$6\times10^{-3}$ above the averaged limit and drifts by $2\times10^{-3}$ with the window width, because a wider window also averages over changing density |
 | the averaged probability, done properly | `average=True` -- closed form, one matrix product, and it matches the adiabatic MSW expression to $10^{-16}$ across 1--20 MeV |
 | how to check the limit applies | `avgprob.coherence_report`, and `strategy_info['sampling']` for how coarsely a scan resolves the oscillation |
 
-The lesson is not that a large instantaneous error is harmless -- it is that the
-instantaneous probability and the averaged probability are **different quantities**, and
+The lesson is that the instantaneous probability and the averaged probability are **different quantities**, and
 that estimating the second from a scan of the first is a numerical method with its own
 error, which here is larger than anything it was meant to diagnose.
 
@@ -9148,12 +9147,11 @@ books['22_magnus_which_engine_answered.ipynb'] = notebook(
     r'''Mag$\nu$s does not have one algorithm. `oscprob.ENGINE_FAMILIES` registers **eight**, in
 **five** families, and `strategy='auto'` picks between them per request.
 
-Two other counts are in circulation and both say six, for different reasons and about
-different sets. The companion paper's Fig. 1b draws the six *dispatch rows* a scenario
-wrapper walks, which omits `constant` (folded into the energy-batched row) and `expm`. The
-`engines.rst` page counts six as well but lists `constant` separately and leaves out the
-closed-form average, and it says plainly that `expm` "is not an engine but is used as an
-oracle". The dictionary printed below is the registry, which is the superset. Most of the time you neither know nor need to
+Two other counts are in circulation, for different reasons and about different sets. The
+companion paper's Fig. 1b draws the six *dispatch rows* a scenario wrapper walks, which omits
+`constant` (folded into the energy-batched row) and `expm`. The `engines.rst` page counts
+seven: it lists `constant` separately and says that `expm` never answers a request but serves
+as an oracle. The dictionary printed below is the registry, which is the superset. Most of the time you neither know nor need to
 know which one ran -- but when an answer looks wrong, "which engine produced this" is the first
 question, and Mag$\nu$s will tell you.
 
@@ -9204,9 +9202,12 @@ for strategy in ('auto', 'hybrid', 'magnus'):
     print('%-10s %-11s %-21s %-10s %s'
           % (strategy, info.get('engine'), info.get('family'),
              info.get('certified'), info.get('declined') or '--'))'''),
-    md(r'''On this smooth solar profile the default picks the **adiabatic** engine and certifies
-it. Forcing `strategy='magnus'` gets a different family entirely -- the interaction-picture
-integrator -- and it does not attempt to certify itself, which is why `certified` is `None`
+    md(r'''On this smooth solar profile, at the default tolerance of $10^{-3}$, `'auto'` hands the
+request to the **Magnus ladder**; `declined` says why. The adiabatic engine's search for
+non-adiabatic windows costs the same at any tolerance, so at a loose one over a moderate phase
+it is the slower route. Asked for by name, with `strategy='hybrid'`, it answers and certifies
+itself. Forcing `strategy='magnus'` gets a third family, the interaction-picture integrator.
+Neither it nor the ladder attempts to certify itself, which is why `certified` is `None`
 rather than `False`.
 
 ## 3. Cross-checking: an error bar with no oracle
@@ -9261,7 +9262,7 @@ for strategy in ('auto', 'hybrid'):
              info.get('certified'), ', '.join(names)))
     if info.get('declined'):
         print('%-10s   declined: %s' % ('', info['declined']))'''),
-    md(r'''Two different answers, 0.079 and 0.492, from the same request. The package is no
+    md(r'''Two different answers, 0.080 and 0.492, from the same request. The package is no
 longer silent about it in either direction:
 
 * under `'auto'` the adiabatic engine **declines** -- "the profile is not resolved at the probe

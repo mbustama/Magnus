@@ -389,6 +389,7 @@ TREE = [
      'Runs the code blocks in README.md and quickstart.rst'),
     ('tests/test_earth_matter.py', 'PREM profile, chord geometry, electron density'),
     ('tests/test_engines.py', 'Which engine answers, and the cross-checks between them'),
+    ('tests/test_auto_ladder.py', "When strategy='auto' takes the ladder (issue #70)"),
     ('tests/test_expansionterms.py', 'The symbolic term generator against the hand-written orders'),
     ('tests/test_expm_backend.py',
      'The two matrix-exponential backends, their switch, and degeneracies'),

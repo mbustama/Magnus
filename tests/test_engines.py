@@ -56,6 +56,17 @@ def call(ne, energy, L, params=PARAMS_2NU, d=2, **kw):
         d, ne, energy, L, params, L0=0.0, density_is_of_number_of_electrons=True, **kw)
 
 
+@pytest.fixture
+def hybrid_under_auto(monkeypatch):
+    """Keep ``strategy='auto'`` on the hybrid path for the test that asks for it.
+
+    These tests are about what the hybrid strategy does and reports when ``'auto'`` runs it.
+    Since issue #70, ``'auto'`` hands a moderate phase at a loose tolerance to the ladder
+    before the hybrid is tried, which is what most of the requests below are; that route has
+    its own tests in ``test_auto_ladder.py``."""
+    monkeypatch.setattr(op, 'AUTO_LADDER_MAX_PHASE', -1.0)
+
+
 # ----------------------------------------------------------------------
 # strategy_info
 # ----------------------------------------------------------------------
@@ -79,7 +90,7 @@ def test_strategy_info_names_the_engine_that_answered():
     assert seen['magnus-strategy'] != 'hybrid'
 
 
-def test_strategy_info_reports_a_silent_hybrid_fallback():
+def test_strategy_info_reports_a_silent_hybrid_fallback(hybrid_under_auto):
     """Under strategy='auto' an uncertified hybrid result falls back silently -- which is the
     right default and leaves a user debugging a moved result with nothing to look at.  This is
     the way to see it, and the unmarked step is the case that produces it.
@@ -122,7 +133,7 @@ def test_strategy_info_reports_a_silent_hybrid_fallback():
     assert hinfo['resolved'] is True
 
 
-def test_strategy_info_reports_hybrid_certification():
+def test_strategy_info_reports_hybrid_certification(hybrid_under_auto):
     """certified is True where the hybrid strategy answered under 'auto' (it cannot be
     otherwise, since 'auto' declines an uncertified result) and can be False under 'hybrid'."""
     info = {}
@@ -163,7 +174,7 @@ def test_strategy_info_trace_carries_no_private_keys():
 # an explicit `cumulative` must configure the scan, not disable three engines
 # ----------------------------------------------------------------------
 
-def test_passing_cumulative_does_not_disable_the_other_engines():
+def test_passing_cumulative_does_not_disable_the_other_engines(hybrid_under_auto):
     """Regression: ``cumulative`` reached the dispatchers inside ``**kwargs``, where any
     unrecognized key makes them decline.  Passing the documented default ``'auto'`` therefore
     changed which engine answered (hybrid -> general ladder) and moved a 10 MeV solar single
@@ -259,7 +270,7 @@ def test_cross_check_rejects_an_unknown_engine_label():
             L0=0.0, density_is_of_number_of_electrons=True, engines=('hybrid', 'nonesuch'))
 
 
-def test_cross_check_leaves_no_engine_disabled_after_a_raising_call():
+def test_cross_check_leaves_no_engine_disabled_after_a_raising_call(hybrid_under_auto):
     """cumulative=True raises by design on a request it cannot serve.  If that escaped the
     context manager it would leave dispatchers disabled for the rest of the session -- a
     diagnostic silently changing every later result."""
@@ -276,7 +287,7 @@ def test_cross_check_leaves_no_engine_disabled_after_a_raising_call():
     assert info['engine'] == 'hybrid'
 
 
-def test_a_short_baseline_scan_reaches_the_cumulative_engine():
+def test_a_short_baseline_scan_reaches_the_cumulative_engine(hybrid_under_auto):
     """The N = 25 seam was lowered to 8, and this pins why rather than only that.
 
     ``HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS`` used to be 25 on the grounds that yielding
@@ -378,7 +389,7 @@ def test_strategy_info_reports_sampling_only_when_asked():
         op._sampling_report = orig
 
 
-def test_hybrid_does_not_stand_aside_for_a_disabled_engine():
+def test_hybrid_does_not_stand_aside_for_a_disabled_engine(hybrid_under_auto):
     """The hybrid path must not yield to the cumulative scan when the caller switched it off.
 
     ``_cumulative_scan_would_serve``'s docstring argues the fall-through is safe: the hybrid
