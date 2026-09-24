@@ -15,7 +15,7 @@ version to drift out of step.
 
 To run them rather than read them::
 
-   pip install "magnus[notebooks]"
+   pip install "magnuspy[notebooks]"
    jupyter lab notebooks/
 
 .. note::
@@ -114,9 +114,11 @@ are, rather than how to ask for them.
    exponential itself preserves that.
 
 `12. The strategy parameter <https://github.com/mbustama/Magnus/blob/main/notebooks/12_magnus_adiabatic_hybrid_strategy.ipynb>`_
-   ``'auto'`` against ``'magnus'``, timed and scored against ``solve_ivp``. The
-   headline is not the speed: for three or more flavors the old default can hit
-   its refinement caps and return a plausible, exactly unitary, **wrong** answer.
+   ``'auto'`` against ``'magnus'``, timed and scored against ``solve_ivp`` from
+   two to five flavors. The old route is not uniformly worse -- it wins on
+   accuracy in two of the seven cases -- but on two flavors it is slower than
+   the ``solve_ivp`` oracle itself; on the NSI cases it stops short of the
+   tolerance while staying exactly unitary.
 
 
 Where the limits are
@@ -125,12 +127,14 @@ Where the limits are
 The three notebooks that show what Magνs gets wrong, and how to tell the two
 kinds of wrong apart.
 
-`13. A tabulated solar model <https://github.com/mbustama/Magnus/blob/main/notebooks/13_magnus_tabulated_solar_model.ipynb>`_
-   A real BS05 profile rather than an exponential, separating the instantaneous
-   probability from the one an experiment measures. Averaging a scan over a
-   window is the tempting route to the second and has no converged value to
-   offer; ``average=True`` reaches it in closed form instead, matching the
-   adiabatic MSW expression to 3e-16.
+`13. Tabulated solar models <https://github.com/mbustama/Magnus/blob/main/notebooks/13_magnus_tabulated_solar_model.ipynb>`_
+   The twelve standard solar models of :doc:`solar_models`, taken by name. On
+   BS2005-AGS,OP, it separates the instantaneous probability from the one an
+   experiment measures. Averaging a scan over a window is the tempting route to
+   the second and has no converged value to offer; ``average=True`` reaches it
+   in closed form instead, matching the adiabatic MSW expression to 3e-16. Then
+   all twelve models compared on that observable: they agree to 2.4e-3, and the
+   exponential fit is off by 0.1.
 
 `14. A supernova shock front <https://github.com/mbustama/Magnus/blob/main/notebooks/14_magnus_supernova_shock.ipynb>`_
    The contrast. Here averaging does essentially nothing, because a shock
@@ -182,16 +186,16 @@ Using and diagnosing the machinery
 
 `20. Numerical edge cases <https://github.com/mbustama/Magnus/blob/main/notebooks/20_magnus_numerical_edge_cases.ipynb>`_
    Exact degeneracies, zero baselines and empty requests all return numbers
-   rather than ``NaN``. Plus what each of the nine warning classes means, and
+   rather than ``NaN``. Plus what each of the fourteen warning classes means, and
    which to act on.
 
 `21. What rtol and atol promise <https://github.com/mbustama/Magnus/blob/main/notebooks/21_magnus_what_tolerance_means.ipynb>`_
    A stopping criterion, not an error bound. Measured against an independent
    ``solve_ivp`` oracle: a request for :math:`10^{-2}` came back wrong by
-   :math:`2.5\times10^{-2}` and reported success.
+   :math:`4.8\times10^{-2}` and reported success.
 
 `22. Which engine answered, and why <https://github.com/mbustama/Magnus/blob/main/notebooks/22_magnus_which_engine_answered.ipynb>`_
-   Six engines in five families, and ``cross_check_strategies`` — an error bar
+   Eight registered engines in five families, and ``cross_check_strategies`` — an error bar
    that needs no oracle, because two different methods disagreeing is itself the
    signal.
 

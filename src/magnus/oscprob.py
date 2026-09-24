@@ -60,8 +60,10 @@ profile** (e.g., in a supernova or the Sun):
 - :func:`osc_prob_5nu_matter_exp_density`: Two additional flavors.
   Matter potential affects only :math:`\\nu_e`.
 
-Neutrino oscillations between any two locations on the surface of the
-**Earth**, useful for long-baseline neutrino experiments:
+Neutrino oscillations through the **Earth**, useful for long-baseline
+neutrino experiments.  The trajectory runs between two locations on the
+surface by default; ``source_depth`` and ``detector_depth`` put either end
+of it underground:
 
 - :func:`osc_prob_2nu_earth`: Two-neutrino oscillation probabilities.  
 
@@ -309,6 +311,7 @@ import magnus.matter as matter
 import magnus.earth as earth
 import magnus.adiabatic as adiabatic
 import magnus.avgprob as avgprob
+import magnus.solarmodels as solarmodels
 from magnus import version
 from magnus import authors
 
@@ -1071,6 +1074,11 @@ class UnmarkedDiscontinuityWarning(ToleranceNotAchievedWarning):
     discontinuous at the scale of the grid it built, without being told where the
     discontinuities are.
 
+    The hybrid strategy raises it for the same reason when it declines a profile, and so does
+    ``average=True`` when a discontinuity could move probability between levels: the
+    averaging engine treats the profile as smooth, and before 1.1.1 did so silently (issue
+    #60).  In every case the cure is the same -- ``t_breakpoints`` at the discontinuity.
+
     The cumulative scan lays a uniform accuracy grid over the trajectory (plus the requested
     baselines, plus any ``t_breakpoints``).  A slab that straddles a density jump degrades the
     quadrature to low order no matter how high ``magnus_exp_order`` is, and refining the grid
@@ -1210,7 +1218,22 @@ class PhaseAveragingWarning(UserWarning):
     statement that the *question* does not apply at that baseline, which
     is why it warns rather than refining anything.
 
+    Since 1.1.1 ``average=True`` returns the phase average over a relative
+    energy spread ``average_spread`` (see :mod:`magnus.avgprob`), which is
+    defined at every baseline, and the warning says instead that the result
+    **depends on that spread**: some interference term has partly survived
+    it, so that :math:`|\sigma\, \partial P/\partial\sigma|` exceeds
+    :data:`magnus.avgprob.PHASE_SPREAD_SENSITIVITY_THRESHOLD`.  The number is
+    then the average over the spread asked for, and ``average_spread`` should
+    match the resolution of the measurement.  The original meaning remains
+    for a Hamiltonian that does not depend on energy, which has no spread to
+    average over, and the energy-window route of a profile with declared
+    discontinuities warns as before.
+
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.1
+       Fires where the phase average depends on the spread.
     """
 
 
@@ -1241,6 +1264,20 @@ class CrossCheckInconclusiveWarning(UserWarning):
     caller who wants only one engine's answer is entitled to ask for it.
 
     .. versionadded:: 1.0.0
+    """
+
+
+class SolarModelRangeWarning(UserWarning):
+    r"""Warns that a baseline reaches past the last tabulated radius of a standard solar model
+    while ``stop_at_table_edge=True`` was asked for, so no probability is returned there.
+
+    Every table stops before the surface or at it -- BP2000 and BP04 at 0.95 :math:`R_\odot`,
+    the BS05 models at 0.98, B16 and B23 at 1.00 -- and past it the profile is a continuation of
+    the last tabulated interval, not a model (see :mod:`magnus.solarmodels`).
+    ``stop_at_table_edge`` is for a caller who would rather have no number than one computed
+    there: those probabilities come back as NaN, and this says how many and where the edge is.
+
+    .. versionadded:: 1.1.1
     """
 
 
@@ -1678,7 +1715,8 @@ def validate_input_battery(
 def _warn_if_sterile_projector_disagrees_with_composition(
         source_func_name, num_flavors, costhz, electron_fraction,
         ratio_number_neutrons_to_protons,
-        core, mantle, crust, ocean):
+        core, mantle, crust, ocean,
+        source_depth=0.0, detector_depth=0.0):
     r"""Warns when a caller's scalar builds the sterile matter entry from a different medium
     than the density.
 
@@ -1748,9 +1786,12 @@ def _warn_if_sterile_projector_disagrees_with_composition(
     # Layered composition plus one scalar: different media by construction, so this warns
     # regardless of the scalar's value.  The layer values are listed so the caller can see
     # what the chord actually crosses.
-    chord = float(_earth.distance_traveled_inside_earth(costhz))
+    chord = float(_earth.distance_traveled_inside_earth(
+        costhz, source_depth/gd.UNIT_KM, detector_depth/gd.UNIT_KM))
     l_km = np.linspace(0.0, chord, 2001)
-    radii = _earth.earth_radial_distance_from_depth(costhz, l_km)
+    radii = _earth.earth_radial_distance_from_depth(
+        costhz, l_km, source_depth=source_depth/gd.UNIT_KM,
+        detector_depth=detector_depth/gd.UNIT_KM)
     ye_path = _earth.electron_fraction_func_prem(
         radii, electron_fraction_core=core, electron_fraction_mantle=mantle,
         electron_fraction_crust=crust, electron_fraction_ocean=ocean)
@@ -1775,7 +1816,9 @@ def _warn_if_sterile_projector_disagrees_with_composition(
 def _earth_composition(costhz, electron_fraction, ratio_number_neutrons_to_protons,
                        electron_fraction_core, electron_fraction_mantle,
                        electron_fraction_crust, electron_fraction_ocean,
-                       source_func_name, num_flavors=None):
+                       source_func_name, num_flavors=None,
+                       source_depth=0.0, detector_depth=0.0,
+                       density_matter_ocean=None):
     r"""The electron density along a chord, with :math:`Y_e` resolved per PREM layer.
 
     Returns the pair ``(rho_func, ratio_resolved)`` every Earth entry point hands to
@@ -1814,11 +1857,18 @@ def _earth_composition(costhz, electron_fraction, ratio_number_neutrons_to_proto
        ``ratio_number_neutrons_to_protons=None`` (the new wrapper default) meaning
        "follow the composition".
     """
+
+    # Both depths are declared Optional, so None has to mean "no depth".  Normalized
+    # before anything reads them, the sterile-projector warning below included, since it
+    # samples the trajectory the caller asked for.
+    source_depth, detector_depth = earth._depths_or_zero(source_depth, detector_depth)
+
     _warn_if_sterile_projector_disagrees_with_composition(
         source_func_name, num_flavors, costhz, electron_fraction,
         ratio_number_neutrons_to_protons,
         electron_fraction_core, electron_fraction_mantle,
-        electron_fraction_crust, electron_fraction_ocean)
+        electron_fraction_crust, electron_fraction_ocean,
+        source_depth=source_depth, detector_depth=detector_depth)
 
     layered = {
         'electron_fraction_core': electron_fraction_core,
@@ -1849,8 +1899,22 @@ def _earth_composition(costhz, electron_fraction, ratio_number_neutrons_to_proto
         def ye_of_r(r):
             return earth.electron_fraction_func_prem(r, **layered)
 
+    # The depths reach earth.py in kilometers, the unit its trajectory functions work in;
+    # they arrive here in natural units, like every other length in this module.
+    _depths = {'source_depth': source_depth/gd.UNIT_KM,
+               'detector_depth': detector_depth/gd.UNIT_KM}
+
+    # PREM's own ocean unless the caller replaced it.  Bound once rather than tested inside
+    # rho_func, which runs at every quadrature node of every slab.
+    if density_matter_ocean is None:
+        density_of_r = earth.density_matter_func_prem
+    else:
+        def density_of_r(r):
+            return earth.density_matter_func_prem(
+                r, density_matter_ocean=density_matter_ocean)
+
     def rho_func(l):
-        r = earth.earth_radial_distance_from_depth(costhz, l/gd.UNIT_KM)
+        r = earth.earth_radial_distance_from_depth(costhz, l/gd.UNIT_KM, **_depths)
         ye = ye_of_r(r)
         # ALWAYS derived from Y_e here, never taken from the caller's
         # `ratio_number_neutrons_to_protons`.  In this conversion the ratio only sets the
@@ -1858,7 +1922,7 @@ def _earth_composition(costhz, electron_fraction, ratio_number_neutrons_to_proto
         # follow Y_e layer by layer.  The ratio's other role -- the sterile states' entry
         # in the matter projector -- is resolved below, from this same Y_e by default.
         return matter.num_density_e_func(
-            r, earth.density_matter_func_prem,
+            r, density_of_r,
             ratio_number_neutrons_to_protons=
                 earth.neutron_to_proton_ratio_from_electron_fraction(ye),
             electron_fraction=ye,
@@ -1881,7 +1945,7 @@ def _earth_composition(costhz, electron_fraction, ratio_number_neutrons_to_proto
             float(electron_fraction) if electron_fraction is not None else 0.5))
     else:
         def ratio_resolved(l):
-            r = earth.earth_radial_distance_from_depth(costhz, l/gd.UNIT_KM)
+            r = earth.earth_radial_distance_from_depth(costhz, l/gd.UNIT_KM, **_depths)
             return earth.neutron_to_proton_ratio_from_electron_fraction(ye_of_r(r))
 
     return rho_func, ratio_resolved
@@ -1894,6 +1958,8 @@ def validate_input_osc_prob_earth(
     costhz: Optional[Union[int, float]]=None,
     L: Optional[Union[float, list, np.ndarray]]=None,
     verbose: Optional[int]=0,
+    source_depth: Optional[float]=0.0,
+    detector_depth: Optional[float]=0.0,
     ) -> Tuple[float, np.ndarray]:
     r"""Resolves (costhz, L) for :func:`osc_prob_earth`, from either two locations or costhz+L.
 
@@ -1902,7 +1968,16 @@ def validate_input_osc_prob_earth(
     their coordinates), or give ``costhz`` and ``L`` directly. Aborts with a descriptive error if
     exactly one location is given, or if neither locations nor (costhz, L) are given.
 
+    Burying an endpoint changes which of those the caller has to supply.  ``detector_depth`` says
+    where the trajectory ends, and so does ``L``; giving both is an error rather than a silent
+    choice between them.  With either depth set and ``L`` left as None, the baseline is computed
+    from the geometry.  At the default depths of zero nothing changes: ``L`` stays required
+    alongside ``costhz``, as in every earlier version.
+
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.1
+       Added ``source_depth`` and ``detector_depth``.
 
     Parameters
     ----------
@@ -1921,13 +1996,35 @@ def validate_input_osc_prob_earth(
     verbose : int, optional
         Verbosity level: if > 0, print a note when the chord between the two given locations is
         used as the baseline. Default: 0.
+    source_depth : float, optional
+        Depth of the entry point below the surface [:math:`\text{eV}^{-1}`]. Default: 0.0.
+    detector_depth : float, optional
+        Depth of the detector below the surface [:math:`\text{eV}^{-1}`]. Default: 0.0.
 
     Returns
     -------
     (float, np.ndarray)
         The resolved ``(costhz, L)`` pair.
     """
-    # If the initial and final locations are given (i.e., if they are not None), then the neutrino 
+    # Both depths are declared Optional, so None has to mean "no depth"; see
+    # earth._depths_or_zero for why normalizing beats letting float(None) surface.
+    source_depth, detector_depth = earth._depths_or_zero(source_depth, detector_depth)
+
+    buried = (source_depth != 0.0) or (detector_depth != 0.0)
+
+    if buried and (loc_ini is not None or loc_fin is not None):
+        raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": the two "
+            "locations on the surface of the Earth (loc_ini, loc_fin) fix a surface-to-surface "
+            "chord, so neither source_depth nor detector_depth applies to them. Give costhz "
+            "with the depths instead, or drop the depths.")
+
+    if (detector_depth != 0.0) and (L is not None):
+        raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": "
+            "detector_depth says where the trajectory ends and so does L, and the two need "
+            "not agree. Give one or the other: omit L to have the baseline computed from the "
+            "geometry, or omit detector_depth to stop the trajectory at the L you name.")
+
+    # If the initial and final locations are given (i.e., if they are not None), then the neutrino
     # travels the chord joining them through the Earth, overriding any given value of costhz given.
     # If only a single location is given, throw an exception.  If neither of the two locations are
     # given, use the given value of costhz and of baseline given (could be an array of baselines).
@@ -1989,6 +2086,14 @@ def validate_input_osc_prob_earth(
                 "or, alternatively, the value of costhz.")
 
         if L is None:
+
+            # With an endpoint underground there is a baseline to compute, so a missing L is
+            # an omission the geometry can fill rather than an error.  At the default depths
+            # this branch is unreachable and the error below is the one raised, unchanged.
+            if buried:
+                return costhz, earth.distance_traveled_inside_earth(
+                    costhz, source_depth/gd.UNIT_KM, detector_depth/gd.UNIT_KM)*gd.UNIT_KM
+
             raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + \
                 ": since two locations on the surface of the Earth have not been given, " + \
                 "the value of costhz will be used to define the chord length, but the" + \
@@ -1999,7 +2104,9 @@ def validate_input_osc_prob_earth(
 
 
 def _earth_chord_symmetry(costhz: float,
-                          L: Union[int, float, list, np.ndarray]) -> Optional[tuple]:
+                          L: Union[int, float, list, np.ndarray],
+                          source_depth: float=0.0,
+                          detector_depth: float=0.0) -> Optional[tuple]:
     r"""The interval over which an Earth chord's matter profile is mirror-symmetric, or None.
 
     A chord through a spherically symmetric Earth meets every radius twice, so its density reads
@@ -2020,12 +2127,21 @@ def _earth_chord_symmetry(costhz: float,
 
     .. versionadded:: 1.0.0
 
+    .. versionchanged:: 1.1.1
+       Added ``source_depth`` and ``detector_depth``, either of which declines the symmetry.
+
     Parameters
     ----------
     costhz : float
         Cosine of the zenith angle, which fixes the chord.
     L : int, float, list or np.ndarray
         Baseline(s) actually requested [eV^-1].
+    source_depth : float, optional
+        Depth of the entry point below the surface [eV^-1]. Any nonzero value declines the
+        symmetry. Default: 0.0.
+    detector_depth : float, optional
+        Depth of the detector below the surface [eV^-1]. Any nonzero value declines the
+        symmetry. Default: 0.0.
 
     Returns
     -------
@@ -2034,6 +2150,17 @@ def _earth_chord_symmetry(costhz: float,
     """
     if costhz is None or costhz >= 0.0:
         return None
+
+    # A buried endpoint breaks the mirror this optimization rests on: the trajectory starts
+    # at one radius and stops at another, so its profile does not read the same from both
+    # ends.  Two endpoints buried to the *same* depth are symmetric again, and could be
+    # declared -- but declaring a symmetry that does not hold returns a wrong probability
+    # with no warning, while declining one that does costs a factor of two in Hamiltonian
+    # evaluations.  The cheap side of that trade is to decline.
+    source_depth, detector_depth = earth._depths_or_zero(source_depth, detector_depth)
+    if source_depth != 0.0 or detector_depth != 0.0:
+        return None
+
     L_chord = earth.distance_traveled_inside_earth(costhz)*gd.UNIT_KM
     L_arr = np.atleast_1d(np.asarray(L, dtype=float))
     if L_arr.size == 0 or not bool(np.all(L_arr == L_chord)):
@@ -2073,6 +2200,18 @@ def valid_flavor_indices_2nu(nu_i: int, nu_f: int) -> Tuple[int, int]:
     elif ((nu_i == gd.NUTAU) and (nu_f == gd.NUMU)):
         nu_i, nu_f = 1,0
 
+    # A pair the chain above does not cover -- (NUTAU, NUTAU) is the one that reaches here --
+    # used to pass through unmapped and index a 2x2 matrix out of bounds, several frames away
+    # and with nothing naming the cause.  Two flavors cannot say which state a tau-to-tau
+    # survival probability is about, so the request is refused where it is made.
+    for name, value in (('nu_i', nu_i), ('nu_f', nu_f)):
+        if (value is not None) and (value > 1):
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.valid_flavor_indices_2nu: " +
+                name + " = " + str(value) + " has no unambiguous two-flavor counterpart. "
+                "A two-flavor system has states 0 and 1; globaldefs.NUE, NUMU and NUTAU are "
+                "accepted only in the mixed pairs, where which state is meant follows from "
+                "the other index.")
+
     return nu_i, nu_f
 
 
@@ -2090,10 +2229,10 @@ def values_to_unspecified_osc_params(
     r"""Return values of unspecified standard oscillation parameters
 
     If any of the oscillation parameters has not been given a value, assign to it the value from
-    the specified parameter set with name default_osc_params_set_name.  When input validation is
-    on (validate_input == True), the routine checks whether the parameter set name is among the
-    predefined ones (see validation above).  Only the values of the parameters passed as None are
-    assigned from the predefined set; other parameters are not modified.
+    the specified parameter set with name default_osc_params_set_name.  The parameter-set name is
+    always checked against :data:`magnus.globaldefs.OSC_PARAMS_PREDEFINED`, and an unknown one
+    raises ``ValueError``.  Only the values of the parameters passed as None are assigned from
+    the predefined set; other parameters are not modified.
 
     .. versionadded:: 1.0.0
 
@@ -2119,9 +2258,11 @@ def values_to_unspecified_osc_params(
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
-        themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
-        ``'deg'`` the CP phase is read as degrees too; under the other three
-        it stays in radians, a sine being no way to state a phase.
+        themselves in radians, or ``'deg'`` in degrees.  Unlike the ``osc_prob_*`` entry
+        points, this routine does not check the name: an unrecognized one falls through to
+        the degrees branch rather than raising.  Under ``'deg'`` the CP phase is read as
+        degrees too; under the other three it stays in radians, a sine being no way to
+        state a phase.
 
     Returns
     -------
@@ -2303,7 +2444,12 @@ def unpack_oscillation_params_from_dict(
         if (h_vac_energy_indep is None):
             raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": provided " + \
                 "h_vac_energy_indep is None.")
-    elif (num_flavors < 1):
+        # There are no standard parameters to unpack here: the caller's Hamiltonian replaces
+        # them.  Returned as an empty array rather than by falling off the end of the function,
+        # because the callers pass this straight into validate_input_battery, which iterates it:
+        # an implicit None made the path the warning above advertises raise TypeError instead.
+        return np.array([])
+    elif (num_flavors < 2):
         raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": num_flavors must be " + \
             ">= 2.")
 
@@ -2428,7 +2574,7 @@ def unpack_nsi_params_from_dict(
         # num_flavors exceeds the predefined range: the caller builds its Hamiltonian directly from
         # h_nsi instead of from a flat parameter list, so there is nothing to unpack here.
         return None
-    elif (num_flavors < 1):
+    elif (num_flavors < 2):
         raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": num_flavors must be " + \
             ">= 2.")
 
@@ -2583,7 +2729,7 @@ def unpack_liv_params_from_dict(
         # num_flavors exceeds the predefined range: the caller builds its Hamiltonian directly from
         # h_liv instead of from a flat parameter list, so there is nothing to unpack here.
         return None
-    elif (num_flavors < 1):
+    elif (num_flavors < 2):
         raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": num_flavors must be " + \
             ">= 2.")
 
@@ -2609,9 +2755,22 @@ class _PositionProfileCache:
     (comparatively expensive) density-profile chain runs once per distinct
     grid instead of once per Hamiltonian evaluation.  Scalar evaluations are
     passed through uncached.
+
+    Cached arrays come back marked read-only, so a caller that writes into a returned
+    profile gets a ``ValueError`` rather than corrupting the next caller's values.
+    ``maxsize`` bounds the store, and the oldest entry is evicted past it.
     """
 
     def __init__(self, func: Callable, maxsize: Optional[int]=8):
+        r"""Wraps ``func``, carrying over any exponential-profile tag it has.
+
+        Parameters
+        ----------
+        func : Callable
+            Position profile to memoize.
+        maxsize : int, optional
+            How many distinct grids to keep before evicting the oldest. Default: 8.
+        """
         self.func = func
         self._cache = {}
         self._keys = []
@@ -2624,6 +2783,18 @@ class _PositionProfileCache:
             self.l_scale = func.l_scale
 
     def __call__(self, l: Union[int, float, np.ndarray]):
+        r"""Returns the profile at ``l``, from the store when the grid has been seen.
+
+        Parameters
+        ----------
+        l : int, float, or np.ndarray
+            Position or grid of positions.
+
+        Returns
+        -------
+        float or np.ndarray
+            The profile's value.  An array result is read-only.
+        """
         if np.ndim(l) == 0:
             return self.func(l)
         l = np.asarray(l, dtype=float)
@@ -2657,8 +2828,12 @@ def compute_evolution_operator(
     magnus_exp_order: int,
     **kwargs
 ) -> np.ndarray:
-    r"""Computes the evolution operator inside a given time slab.  This functions is not designed to
-    be called directly by the user, but rather internally by :func:`osc_prob`.
+    r"""Computes the evolution operator inside a given time slab.
+
+    Exported so the single-slab kernel can be used on its own.  It is not on
+    :func:`osc_prob`'s path: that routine calls
+    :func:`compute_evolution_operator_multiple_slabs` instead, and nothing in the
+    package calls this one.
 
     .. versionadded:: 1.0.0
 
@@ -2785,14 +2960,18 @@ def osc_prob(
     t_breakpoints: Optional[Union[list, np.ndarray]]=None,
     strict_convergence: Optional[bool]=False,
     symmetric_over: Optional[tuple]=None,
+    return_evolution_operator: Optional[bool]=False,
     **kwargs
-) -> np.ndarray:
+) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
     r"""Computes and returns the neutrino oscillation probability.
 
     Computes the oscillation probability of neutrinos starting at time
     (or position) ``t_ini`` and ending at time (or position) ``t_fin``.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.1
+       Added ``return_evolution_operator``.
 
     Parameters
     ----------
@@ -2847,22 +3026,12 @@ def osc_prob(
         Order at which the Magnus expansion is truncated (1 to
         ``globaldefs.MAGNUS_EXP_ORDER_MAX``).
     n_jobs : int, optional
-        Number of parallel joblib workers used to compute the per-slab
-        evolution operators.  With the default, ``n_jobs = 1``, all
-        slabs are computed in a single vectorized (batched) call, which
-        is usually fastest; use ``n_jobs > 1`` only for very expensive
-        Hamiltonian functions.
-
-        **It is not a pure performance knob.**  Splitting the slabs across
-        workers changes the order the arithmetic is done in, and the
-        refinement ladder's stopping test compares successive levels, so it
-        can stop one level earlier or later than the serial run.  The two
-        agree to the tolerance you asked for and no better: measured on a
-        3nu PREM chord over eight energies, serial against two workers
-        differs by 1.2e-03 at the default ``rtol = 1e-3``, 6.6e-08 at
-        ``rtol = 1e-6`` and 5.6e-11 at ``rtol = 1e-9``.  If you need runs to
-        be comparable bit for bit, hold ``n_jobs`` fixed, or tighten the
-        tolerance until the difference is below what you care about.
+        Accepted and ignored.  The per-slab parallelization it used to select was
+        retired: every slab is now computed in a single vectorized call, which was
+        faster in every case measured, and serial against two workers now agrees to
+        exactly 0.0.  Parallelism over points lives one layer up, in
+        :func:`osc_prob_energy_baseline`, whose ``n_jobs`` is a live argument.
+        Default: 1.
     integration_method : str, optional
         'gl' for Gauss-Legendre collocation, which needs only 1, 2, 3, or 4
         Hamiltonian evaluations per slab for orders <= 2, <= 4, <= 6, <= 8, and
@@ -2929,7 +3098,8 @@ def osc_prob(
     close_file_log_upon_exit : bool, optional
         If True, close the log file before returning.
     new_recursion_limit : int, optional
-        If not None, raise Python's recursion limit to this value.
+        Accepted and ignored, for backward compatibility.  Nothing in the package
+        calls ``sys.setrecursionlimit``. Default: 5000.
     verbose : int, optional
         Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the
         refinement loops).
@@ -2952,7 +3122,8 @@ def osc_prob(
         - ``'n_slabs_previous'``, ``'n_tpts_per_slab_previous'``,
           ``'n_slab_edges_previous'`` -- the level compared against, or None
           if no second level was ever computed.
-        - ``'last_gap'`` -- ``max|P - P_old|`` between those two levels, or
+        - ``'last_gap'`` -- ``max|P - P_old|`` between those two levels (``max|U - U_old|``
+          when ``return_evolution_operator`` is set), or
           None if only one level was ever computed (which happens whenever the
           seed already sits at ``max_n_slabs``).
         - ``'n_agreements'`` -- consecutive agreements at the point of return.
@@ -2992,22 +3163,6 @@ def osc_prob(
         into the automatically generated slab grid at every refinement
         level, so that the quadrature never integrates across them.
         Ignored when ``t_slab_edges`` is given explicitly.
-    symmetric_over : tuple, optional
-        Caller's declaration that ``H_func(t) == H_func(lo + hi - t)`` on ``(lo, hi)``.  When the
-        slab chain is found to span exactly that interval, the Magnus core evaluates ``H_func``
-        on its first half only and mirrors the rest, halving the Hamiltonian evaluations.
-
-        Passed as the *interval*, not as a flag, and that is what makes it safe in a scan: a
-        chord through the Earth is symmetric over its full length and over no shorter prefix, so
-        a scan point at a shorter baseline spans ``(L0, baseline)``, fails to match, and takes
-        the ordinary path.  No extra bookkeeping is needed for that -- the check in
-        ``magnus.magnus._mirror_applies`` is the whole of it.
-
-        **Not a user-facing switch, and unchecked**: verifying it would need the evaluations it
-        exists to avoid, and declaring it of a profile that is not symmetric returns a silently
-        wrong answer.  It is set by the Earth entry points, where the symmetry is a fact of chord
-        geometry -- a chord meets every radius twice -- rather than a claim.  Turn the mechanism
-        off globally with ``magnus.magnus.USE_PALINDROME = False``.
     strict_convergence : bool, optional
         Require the refinement ladder to agree **twice in a row** before
         declaring convergence, instead of once.  Default: False.
@@ -3072,15 +3227,41 @@ def osc_prob(
         profile is discontinuous, marking *every* discontinuity -- including
         where it switches on and off, which may lie inside the trajectory --
         is worth more than any amount of refinement.
+    symmetric_over : tuple, optional
+        Caller's declaration that ``H_func(t) == H_func(lo + hi - t)`` on ``(lo, hi)``.  When the
+        slab chain is found to span exactly that interval, the Magnus core evaluates ``H_func``
+        on its first half only and mirrors the rest, halving the Hamiltonian evaluations.
+
+        Passed as the *interval*, not as a flag, and that is what makes it safe in a scan: a
+        chord through the Earth is symmetric over its full length and over no shorter prefix, so
+        a scan point at a shorter baseline spans ``(L0, baseline)``, fails to match, and takes
+        the ordinary path.  No extra bookkeeping is needed for that -- the check in
+        ``magnus.magnus._mirror_applies`` is the whole of it.
+
+        **Not a user-facing switch, and unchecked**: verifying it would need the evaluations it
+        exists to avoid, and declaring it of a profile that is not symmetric returns a silently
+        wrong answer.  It is set by the Earth entry points, where the symmetry is a fact of chord
+        geometry -- a chord meets every radius twice -- rather than a claim.  Turn the mechanism
+        off globally with ``magnus.magnus.USE_PALINDROME = False``.
+    return_evolution_operator : bool, optional
+        If True, return the pair ``(P, U)`` instead of ``P`` alone: ``U`` is the evolution
+        operator over the same interval, in the flavor basis, a complex square array with
+        ``U[final, initial]`` the amplitude from the initial to the final state, so that
+        ``P == abs(U)**2.T``.  The refinement ladder then compares the operator itself
+        between levels, with the same ``rtol`` and ``atol``, so the returned operator is
+        converged in its own right (phases included) and not only in its moduli.  Every
+        other setting keeps its meaning.  Default: False.
     \**kwargs
         Additional arguments passed through to the Magnus-expansion
         routines
 
     Returns
     -------
-    np.ndarray
+    np.ndarray, or (np.ndarray, np.ndarray)
         NumPy array containing the probability matrix of the same 
-        dimensions as the Hamiltonian, ``H_func``.
+        dimensions as the Hamiltonian, ``H_func``.  With
+        ``return_evolution_operator=True``, the pair ``(P, U)``, where ``U`` is the
+        evolution operator from ``t_ini`` to ``t_fin`` (see that parameter).
     """
 
     # Checked before anything forwards **kwargs onwards, and regardless of validate_input:
@@ -3088,6 +3269,15 @@ def osc_prob(
     # named (see _reject_parameter_set_metadata).
     _reject_parameter_set_metadata(kwargs, 'osc_prob')
     _check_passthrough_kwargs(kwargs, 'osc_prob')
+    # Two keywords the guard admits, because the batching layer declares them, that mean
+    # nothing here: osc_prob computes one point, and averaging or a cumulative scan are what
+    # osc_prob_energy_baseline and the wrappers do with many.  Caught here, where the caller can
+    # be named, rather than by magnus_expansion_multislab at the far end of **kwargs.
+    for _key in ('average', 'cumulative'):
+        if _key in kwargs:
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob: '" + _key + "' is not "
+                "an argument of osc_prob, which computes one point; it belongs to "
+                "osc_prob_energy_baseline and to the wrappers.")
 
     # Validate input; set validate_input to False for speed-up.
     # None means 'use the cap appropriate to this integration method'
@@ -3240,6 +3430,8 @@ def osc_prob(
     # why the early-exit checks inside the loop are guarded on loop_count > 1.
     P = None
     P_old = None
+    Utot = None
+    Utot_old = None
     last_gap = None
     # Consecutive refinement levels that have agreed within (rtol, atol) so far.  The ladder
     # normally returns on the first agreement; strict_convergence requires two in a row, so that
@@ -3381,7 +3573,7 @@ def osc_prob(
                             "increasing max_num_loops.\n",
                             file=f)
                 if save_log and close_file_log_upon_exit: file_log.close()
-                return P
+                return (P, Utot) if return_evolution_operator else P
             # Reached maximum allowed number of slabs: continue execution
             if (n_slabs == max_n_slabs):
                 if ((verbose > 0) and not warned_reached_max_n_slabs):
@@ -3429,7 +3621,7 @@ def osc_prob(
                             ") not achieved. Try increasing max_n_slabs or max_n_tpts_per_slab.\n",
                             file=f)
                 if save_log and close_file_log_upon_exit: file_log.close()
-                return P
+                return (P, Utot) if return_evolution_operator else P
 
         # The array (or list) t_slab_edges contains user-provided pairs of start and end times, 
         # [ti, tf]_k, that define the initial and final times of each of the k-th time slab.  It is 
@@ -3544,7 +3736,7 @@ def osc_prob(
         # tolerance is achieved.
         if ((rtol is None) and (atol is None)): # No target tolerance requested: return right away
             if save_log and close_file_log_upon_exit: file_log.close()
-            return P
+            return (P, Utot) if return_evolution_operator else P
         else: # Target tolerance requested: iterate until tolerance is achieved
             if (verbose > 1):
                 for f in [None, file_log] if save_log else [None]:
@@ -3561,7 +3753,8 @@ def osc_prob(
                 # Kept so the tolerance-not-achieved warnings below can say how far from
                 # converged the refinement stopped, rather than only that it stopped.  The
                 # comparison is being made anyway; this is the number it is made on.
-                last_gap = float(np.max(np.abs(P - P_old)))
+                last_gap = float(np.max(np.abs(Utot - Utot_old)) if return_evolution_operator
+                                 else np.max(np.abs(P - P_old)))
                 # An agreement only counts if the two levels compared were genuinely
                 # different grids.  With breakpoints re-inserted at every level, a nominal
                 # 2 -> 3 slab step can be a 16 -> 17 edge one, and two grids that differ by
@@ -3570,8 +3763,12 @@ def osc_prob(
                 effective_refinement = (
                     len(t_slab_edges)/n_edges_prev_level
                     if n_edges_prev_level else float('inf'))
-                if (np.allclose(P, P_old, rtol=rtol, atol=atol)
-                        and effective_refinement >= MIN_EFFECTIVE_REFINEMENT):
+                # With the operator requested, the operator is what has to have converged:
+                # its moduli can agree between two levels while its phases still move.
+                levels_agree = (np.allclose(Utot, Utot_old, rtol=rtol, atol=atol)
+                                if return_evolution_operator
+                                else np.allclose(P, P_old, rtol=rtol, atol=atol))
+                if levels_agree and effective_refinement >= MIN_EFFECTIVE_REFINEMENT:
                     n_agreements += 1
                 else:
                     n_agreements = 0
@@ -3586,9 +3783,14 @@ def osc_prob(
                             print("   " + tol_msg + " (for fixed magnus_exp_order "+ \
                                 "= " + str(magnus_exp_order) + "): rtol = " + str(rtol) + \
                                 ", atol = " + str(atol) + ".\n", file=f)
-                        if save_log and close_file_log_upon_exit: file_log.close()
-                    return P
+                    # Outside the verbosity branch.  The other three return paths close
+                    # unconditionally; honoring close_file_log_upon_exit only when the caller
+                    # also asked for output left the file open on the ordinary converged path.
+                    if save_log and close_file_log_upon_exit: file_log.close()
+                    return (P, Utot) if return_evolution_operator else P
             P_old = np.ndarray.copy(P)
+            if return_evolution_operator:
+                Utot_old = np.ndarray.copy(Utot)
             n_slabs_prev_level = n_slabs
             n_tpts_prev_level = n_tpts_per_slab
             n_edges_prev_level = len(t_slab_edges)
@@ -3614,6 +3816,30 @@ def osc_prob(
             loop_count += 1
 
 
+_PHASE_SLOPE_STEP = 1.0e-3
+r"""float: Module-level constant
+
+Step in :math:`\ln E` of the central difference :func:`_avg_prob_dispatch` takes of the
+Hamiltonian for the slopes of the phase average.  Truncation goes as its square (1e-7 relative
+for a Hamiltonian linear in 1/E), round-off as its inverse; a slope that round-off could explain
+is replaced from its phase in :mod:`magnus.avgprob`, which is told this step.
+
+.. versionadded:: 1.1.1
+"""
+
+
+_PHASE_AVERAGE_GATE = 1.0e-4
+r"""float: Module-level constant
+
+Largest change in any probability for which :func:`_avg_prob_dispatch` returns the decohered
+value it computed first, bit for bit, instead of the phase average (issue #64).  A tenth of the
+default tolerance: where every phase has decohered the two agree far below it, and a result
+that was right before stays exactly what it was.
+
+.. versionadded:: 1.1.1
+"""
+
+
 def _avg_prob_dispatch(
     htot: Callable,
     htot_is_function_only_of_energy: bool,
@@ -3625,40 +3851,71 @@ def _avg_prob_dispatch(
     average: bool,
     source_func_name: str,
     smooth_profile: Optional[bool] = True,
-    engine_kwargs: Optional[dict] = None
+    engine_kwargs: Optional[dict] = None,
+    average_spread: Optional[float] = None,
+    energy_dependent: Optional[bool] = True
 ):
-    r"""Phase-averaged probabilities, for the position-independent Hamiltonians.
+    r"""Phase-averaged probabilities: in closed form, by adiabatic transport, or over an energy window.
 
     Returns ``NotImplemented`` when ``average`` is falsy, so a caller can place this ahead of
     its ordinary dispatch chain and fall through untouched in the default case.
 
-    Averaging is exact here and costs one eigendecomposition per energy: with the Hamiltonian
-    independent of position, the evolution is a fixed set of phases whose averages are known in
-    closed form (see :mod:`magnus.avgprob`).  Which pairs of eigenvalues have actually averaged
-    is decided from the baseline rather than assumed, so a request made where the oscillation
-    has not decohered is warned about instead of being answered with an expression that does not
-    describe it.
+    The first two routes return the phase average of :mod:`magnus.avgprob` (issue #64): every
+    interference term kept with its phase and weighted by the spread of that phase across a
+    relative energy spread ``average_spread``.  With the Hamiltonian independent of position it
+    is a closed form, one eigendecomposition per energy.  Each point is computed as the decohered
+    limit first, and recomputed only where some interference can survive -- on a profile, only
+    where the limit's own search found a non-adiabatic window, since adiabatic transport of a
+    decohered start carries none; the limit is returned, bit for bit, wherever the two agree
+    within ``_PHASE_AVERAGE_GATE``, or, on a profile, within the tighter of ``rtol`` and ``atol``
+    in ``engine_kwargs`` when that is tighter still.  ``PhaseAveragingWarning`` then says that the result depends
+    on the spread.  A Hamiltonian without energy dependence keeps the limit, and the warning
+    keeps its original meaning for it: some pair has neither decohered nor stayed coherent.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.1
+       Returns the phase average; takes ``average_spread`` and ``energy_dependent``.
 
     Parameters
     ----------
     htot : Callable
-        Total Hamiltonian as a function of energy alone [eV].
+        Total Hamiltonian [eV]: ``htot(energy)`` when it does not depend on position,
+        ``htot(energy, l)`` otherwise.
     htot_is_function_only_of_energy : bool
-        Whether ``htot`` is independent of position.  Averaging a position-dependent
-        Hamiltonian needs the adiabatic treatment, which this does not yet implement.
+        Whether ``htot`` is independent of position.  A position-dependent Hamiltonian is
+        averaged by adiabatic transport when ``smooth_profile`` is True, and across an energy
+        window, by real propagation, when it is not.
     energy : int, float, list, or np.ndarray
         Neutrino energy/energies [eV].
     L : int, float, list, or np.ndarray
         Baseline(s) [:math:`\text{eV}^{-1}`], used to decide which eigenvalue pairs have
         decohered.
+    L0 : int or float
+        Start of the trajectory [:math:`\text{eV}^{-1}`], the position the
+        position-dependent routes integrate from.
     nu_i, nu_f : int or None
         Initial and final flavor; if both are given, the single probability is returned.
     average : bool
         Whether the caller asked for the averaged probability.
     source_func_name : str
         Name of the calling function, for error messages.
+    smooth_profile : bool
+        Whether the caller declared the profile smooth.  True selects adiabatic
+        transport; False selects the energy-window average.
+    engine_kwargs : dict or None
+        Engine settings forwarded to the energy-window route.  Required there: the
+        non-smooth branch raises ``ValueError`` without them.  On a smooth profile, the tighter
+        of their ``rtol`` and ``atol`` is the tolerance of the phase average's window patches
+        and stretch phases (issue #65); without either, those take the defaults of
+        :func:`magnus.avgprob.phase_averaged_probabilities_adiabatic`.
+    average_spread : float or None
+        Relative energy spread of the phase average.  None means
+        :data:`magnus.avgprob.AVG_PHASE_SPREAD`.
+    energy_dependent : bool
+        Whether ``htot`` depends on the energy it is given.  A Hamiltonian that does not -- a
+        fixed matrix, or a function of position alone, on the direct route -- has no slope for
+        an energy spread to act on, so it keeps the decohered limit.
 
     Returns
     -------
@@ -3668,6 +3925,15 @@ def _avg_prob_dispatch(
     """
     if not average:
         return NotImplemented
+
+    spread = avgprob.AVG_PHASE_SPREAD if average_spread is None else average_spread
+    if (isinstance(spread, bool) or not isinstance(spread, (int, float, np.integer, np.floating))
+            or not np.isfinite(spread) or spread < 0.0):
+        raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": average_spread "
+            "is the relative energy spread of the phase average and must be a non-negative "
+            "number, not " + repr(average_spread) + ".")
+    spread = float(spread)
+    phase_average = bool(energy_dependent)
 
     sample_numerically = (not htot_is_function_only_of_energy) and (not smooth_profile)
     if sample_numerically and (engine_kwargs is None):
@@ -3687,19 +3953,66 @@ def _avg_prob_dispatch(
     n_pts = len(energy_arr)
     undecided_points = 0
     uncertified_points = 0
+    unresolved_points = 0
+    recomputed_points = 0
+    spread_sensitive_points = 0
+    unaveraged_points = 0
+    largest_sensitivity = 0.0
+    h = _PHASE_SLOPE_STEP
+    # The caller's tolerance, for the profile route: the phase average converges its patches and
+    # phases to the tighter of rtol and atol, and the limit stands only where it agrees within
+    # that, if it is tighter than the gate (issue #65).
+    tols = [float(t) for t in ((engine_kwargs or {}).get('rtol'), (engine_kwargs or {}).get('atol'))
+            if t is not None]
+    tol = min(tols) if tols else None
+    gate = _PHASE_AVERAGE_GATE if tol is None else min(_PHASE_AVERAGE_GATE, tol)
+
+    def keep_or_replace(i, P_new, sensitivity):
+        # Today's value, bit for bit, unless the phase average moves it by more than the gate.
+        nonlocal recomputed_points, spread_sensitive_points, largest_sensitivity
+        if np.max(np.abs(P_new - P_out[i])) >= gate:
+            P_out[i] = P_new
+            recomputed_points += 1
+        largest_sensitivity = max(largest_sensitivity, float(sensitivity))
+        if sensitivity > avgprob.PHASE_SPREAD_SENSITIVITY_THRESHOLD:
+            spread_sensitive_points += 1
 
     if htot_is_function_only_of_energy:
-        # Constant along the trajectory: the averaged limit is closed-form, one
+        # Constant along the trajectory: the limit is closed-form, one
         # eigendecomposition per energy.
         H = np.stack([np.asarray(htot(float(enu)), dtype=complex) for enu in energy_arr])
         eigenvalues, eigenvectors = np.linalg.eigh(H)
         d = H.shape[-1]
         P_out = np.empty((n_pts, d, d))
-        for i in range(n_pts):
+        # Points where every pair has decohered have singleton blocks and nothing undecided --
+        # what coherence_report finds for them one at a time -- and their formula is batched.
+        # Bit for bit: a singleton block is a product, exact however many are formed at once.
+        gaps = (np.abs(eigenvalues[:, :, None] - eigenvalues[:, None, :])
+                * np.abs(np.asarray(L_arr, dtype=float))[:, None, None])
+        decohered = np.all(gaps[:, ~np.eye(d, dtype=bool)] > avgprob.DECOHERENCE_PHASE_THRESHOLD,
+                           axis=1)
+        if np.any(decohered):
+            P_out[decohered] = avgprob.averaged_probabilities_from_eigenbasis(
+                eigenvectors[decohered])
+        for i in np.flatnonzero(~decohered):
             blocks, undecided = avgprob.coherence_report(eigenvalues[i], float(L_arr[i]))
-            if undecided: undecided_points += 1
+            if undecided and not phase_average: undecided_points += 1
             P_out[i] = avgprob.averaged_probabilities_from_eigenbasis(eigenvectors[i],
                 blocks=blocks)
+        if phase_average:
+            # The derivative in ln E by a central difference: two more Hamiltonians per energy
+            # and no eigendecomposition, the slopes coming from Hellmann-Feynman.
+            D = np.array([(np.asarray(htot(float(enu)*np.exp(h)), dtype=complex)
+                           - np.asarray(htot(float(enu)*np.exp(-h)), dtype=complex))/(2.0*h)
+                          for enu in energy_arr])
+            P_new, sens = avgprob.phase_averaged_probabilities_constant_hamiltonian(H, D,
+                np.asarray(L_arr, dtype=float) - float(L0), spread=spread, dH_dlnE_step=h)
+            moved = np.max(np.abs(P_new - P_out), axis=(1, 2)) >= _PHASE_AVERAGE_GATE
+            P_out[moved] = P_new[moved]
+            recomputed_points += int(np.count_nonzero(moved))
+            spread_sensitive_points += int(np.count_nonzero(
+                sens > avgprob.PHASE_SPREAD_SENSITIVITY_THRESHOLD))
+            largest_sensitivity = max(largest_sensitivity, float(np.max(sens, initial=0.0)))
     elif sample_numerically:
         # No closed form: the profile steps through discontinuities (PREM layer boundaries),
         # so there is no instantaneous eigenbasis to decohere in.  The probability is instead
@@ -3751,17 +4064,66 @@ def _avg_prob_dispatch(
 
             P_out[i], report = avgprob.averaged_probabilities_adiabatic(H_of_l, float(L0),
                 float(L_arr[i]))
-            if report['undecided'] or report['undecided_between_crossings']:
+            if (report['undecided'] or report['undecided_between_crossings']) and not phase_average:
                 undecided_points += 1
-            if not report['patches_converged']:
+            if report.get('resolved') is False:
+                unresolved_points += 1
+            elif (not report['patches_converged']) or report.get('certified') is False:
                 uncertified_points += 1
+            if phase_average and report['windows']:
+                # Without a window a decohered start, carried adiabatically, has no interference
+                # to keep: the value above is already the phase average.  With one, recompute.
+                def D_of_l(l, enu=enu):
+                    return (np.asarray(htot(enu*np.exp(h), l), dtype=complex)
+                            - np.asarray(htot(enu*np.exp(-h), l), dtype=complex))/(2.0*h)
+                try:
+                    P_new, pa_report = avgprob.phase_averaged_probabilities_adiabatic(H_of_l, D_of_l,
+                        float(L0), float(L_arr[i]), spread=spread, dH_dlnE_step=h,
+                        patch_atol=tol, phase_tol=tol)
+                except RuntimeError:
+                    unaveraged_points += 1
+                    continue
+                keep_or_replace(i, P_new, pa_report['sigma_sensitivity'])
+                if not (pa_report['patches_converged'] and pa_report['phases_converged']):
+                    uncertified_points += 1
 
+    if unresolved_points > 0:
+        # Issue #60.  The profile has a feature narrower than the averaging engine's probe
+        # grid, able to move probability between levels, and no refinement resolves it: a
+        # discontinuity.  The engine could only treat it as smooth, which is what it did
+        # silently before 1.1.1 -- measured wrong by up to 0.56 on a supernova shock ray.
+        warnings.warn(gd.WARNING_MSG_NO_COLOR + " oscprob." + source_func_name + ": average=True "
+            "on a profile with a discontinuity that was not declared, at " +
+            str(unresolved_points) + " of " + str(n_pts) + " (energy, L) point(s).  The "
+            "adiabatic route cannot resolve it and treated it as smooth, so the averaged "
+            "probability there ignores whatever the jump does and may be far off.  Pass "
+            "t_breakpoints at the discontinuity: the call then averages over an energy window "
+            "instead, measured within two standard errors of a decohered reference on a "
+            "supernova shock.  Shown once per session.",
+            UnmarkedDiscontinuityWarning, stacklevel=3)
     if uncertified_points > 0:
-        warnings.warn(gd.WARNING_MSG_NO_COLOR + " oscprob." + source_func_name + ": the local "
-            "Magnus patch across a non-adiabatic crossing did not converge at " +
-            str(uncertified_points) + " of " + str(n_pts) + " (energy, L) point(s), so the "
-            "level-crossing probabilities there are not trustworthy.  Shown once per session.",
-            HybridCertificationWarning, stacklevel=3)
+        warnings.warn(gd.WARNING_MSG_NO_COLOR + " oscprob." + source_func_name + ": the "
+            "level-crossing probabilities could not be certified at " +
+            str(uncertified_points) + " of " + str(n_pts) + " (energy, L) point(s) -- a local "
+            "Magnus patch across a crossing did not converge, or the refinement that located "
+            "the crossings did not certify them -- so they are not trustworthy there.  Shown "
+            "once per session.", HybridCertificationWarning, stacklevel=3)
+
+    if spread_sensitive_points > 0:
+        warnings.warn(gd.WARNING_MSG_NO_COLOR + " oscprob." + source_func_name + ": the phase-averaged "
+            "probability depends on the energy spread at " + str(spread_sensitive_points) + " of "
+            + str(n_pts) + " (energy, L) point(s): some interference has partly survived the "
+            "spread average_spread=" + format(spread, 'g') + ", so the result changes by more than "
+            + format(avgprob.PHASE_SPREAD_SENSITIVITY_THRESHOLD, 'g') + " per e-fold of it "
+            "(largest " + format(largest_sensitivity, '.1e') + ").  It is the average over that "
+            "spread; pass average_spread to match the resolution of the measurement.  Shown once "
+            "per session.", PhaseAveragingWarning, stacklevel=3)
+    if unaveraged_points > 0:
+        warnings.warn(gd.WARNING_MSG_NO_COLOR + " oscprob." + source_func_name + ": the phase "
+            "average could not be formed at " + str(unaveraged_points) + " of " + str(n_pts) +
+            " (energy, L) point(s), where too many interference terms survive across the "
+            "non-adiabatic windows; the decohered limit was returned there instead.  Shown once "
+            "per session.", PhaseAveragingWarning, stacklevel=3)
 
     if undecided_points > 0:
         warnings.warn(gd.WARNING_MSG_NO_COLOR + " oscprob." + source_func_name + ": the averaged "
@@ -3771,7 +4133,8 @@ def _avg_prob_dispatch(
             "The oscillation probability itself (average=False) is the meaningful quantity there. "
             "Shown once per session.", PhaseAveragingWarning, stacklevel=3)
 
-    _note_engine('average')
+    _note_engine('average', average_spread=spread, recomputed=recomputed_points,
+                 sigma_sensitivity=largest_sensitivity)
     if (nu_i is not None) and (nu_f is not None):
         P_out = P_out[:, nu_i, nu_f]
 
@@ -4632,6 +4995,27 @@ def _refinement_params_rejected(scan_kwargs: Dict) -> bool:
         return True
     max_n_tpts = scan_kwargs.get('max_n_tpts_per_slab')
     if (max_n_tpts is not None) and (max_n_tpts <= 2):
+        return True
+    # The floors, and each floor against its own ceiling.  osc_prob rejects all six; without
+    # them here the same request was answered by the batched engine and refused by the
+    # per-point one, so whether a caller saw an error depended on which engine applied.
+    n_slabs = scan_kwargs.get('n_slabs')
+    if (n_slabs is not None) and (n_slabs < 1):
+        return True
+    min_n_slabs = scan_kwargs.get('min_n_slabs')
+    if (min_n_slabs is not None) and (min_n_slabs < 1):
+        return True
+    n_tpts = scan_kwargs.get('n_tpts_per_slab')
+    if (n_tpts is not None) and (n_tpts < 2):
+        return True
+    min_n_tpts = scan_kwargs.get('min_n_tpts_per_slab')
+    if (min_n_tpts is not None) and (min_n_tpts < 2):
+        return True
+    if ((min_n_slabs is not None) and (max_n_slabs is not None)
+            and (min_n_slabs > max_n_slabs)):
+        return True
+    if ((min_n_tpts is not None) and (max_n_tpts is not None)
+            and (min_n_tpts > max_n_tpts)):
         return True
     return False
 
@@ -5828,10 +6212,25 @@ def _osc_prob_cumulative_scan(H_func, L_out, L0, n_acc, magnus_exp_order,
     H_func : Callable
         Hamiltonian as a function of position alone; the energy is already bound.
     L_out : np.ndarray
-        Requested baselines, strictly ascending and all greater than ``L0``.
+        Requested baselines, non-decreasing and all at or beyond ``L0``.  One equal to
+        ``L0`` is the identity and is filled in as such.
+    L0 : int or float
+        Start of the trajectory [:math:`\text{eV}^{-1}`].
     n_acc : int
         Slabs the accuracy grid would use over the whole path on its own; see
         :func:`_cumulative_scan_grid`.
+    magnus_exp_order : int
+        Order at which the Magnus expansion is truncated.
+    n_tpts_per_slab : int
+        Quadrature points per slab, read only by the cumulative methods.
+    integration_method : str
+        ``'gl'``, ``'trapezoid'`` or ``'simpson'``.
+    t_breakpoints : list, np.ndarray, or None
+        Positions at which to force slab edges.
+    A_eval_mode : str or None
+        How the Hamiltonian may be evaluated; see
+        :func:`magnus.magnus.probe_eval_mode`.  Forced to ``'vector'`` for a
+        non-callable ``H_func``, whatever the caller passed.
 
     Returns
     -------
@@ -5914,8 +6313,11 @@ def osc_prob_energy_baseline(
     verbose: Optional[int]=0,
     cumulative: Optional[Union[bool, str]]='auto',
     symmetric_over: Optional[tuple]=None,
+    return_evolution_operator: Optional[bool]=False,
+    average: Optional[bool]=False,
+    average_spread: Optional[float]=None,
     **kwargs
-) -> Union[int, float, np.ndarray]:
+) -> Union[int, float, np.ndarray, Tuple[np.ndarray, np.ndarray]]:
     r"""Compute and return oscillation probabilities for given arrays of
     neutrino energy and baseline, and an arbitrary Hamiltonian.
 
@@ -5928,6 +6330,9 @@ def osc_prob_energy_baseline(
     :func:`osc_prob_matter_std_potential`, :func:`osc_prob_matter_nsi`, and :func:`osc_prob_liv`.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.1
+       Added ``return_evolution_operator`` and ``average``.
 
     Parameters
     ----------
@@ -5958,9 +6363,14 @@ def osc_prob_energy_baseline(
     integration_method : str
         Forwarded to :func:`osc_prob` for each (energy, L) point; see its docstring.
     rtol : int or float, optional
-        Forwarded to :func:`osc_prob` for each (energy, L) point; see its docstring.
+        Forwarded to :func:`osc_prob` for each (energy, L) point; see its docstring.  With
+        ``average=True`` on a smooth position-dependent Hamiltonian, the tighter of ``rtol`` and
+        ``atol`` is instead the tolerance of the phase average: of its window patches, of its
+        stretch phases, and of the agreement below which the decohered limit is returned (see
+        :func:`magnus.avgprob.phase_averaged_probabilities_adiabatic`).
     atol : int or float, optional
-        Forwarded to :func:`osc_prob` for each (energy, L) point; see its docstring.
+        Forwarded to :func:`osc_prob` for each (energy, L) point; see its docstring, and
+        ``rtol`` for ``average=True``.
     growth_factor_n_slabs : int or float
         Forwarded to :func:`osc_prob` for each (energy, L) point; see its docstring.
 
@@ -6060,11 +6470,44 @@ def osc_prob_energy_baseline(
         the Hamiltonian be evaluated on half the slabs.  A declaration, not a test: it
         is not checked.  See :func:`magnus.magnus.magnus_expansion_multislab`.
 
+    return_evolution_operator : bool, optional
+        If True, return the pair ``(P, U)`` instead of ``P`` alone: ``U`` is the evolution
+        operator over the same interval, in the flavor basis, a complex square array with
+        ``U[final, initial]`` the amplitude from the initial to the final state, so that
+        ``P == abs(U)**2.T``.  The refinement ladder then compares the operator itself
+        between levels, with the same ``rtol`` and ``atol``, so the returned operator is
+        converged in its own right (phases included) and not only in its moduli.  The
+        cumulative traversal is bypassed, since it walks a fixed grid with no ladder: every
+        point takes the per-point path.  Every other setting keeps its meaning.  Default: False.
+
+    average : bool, optional
+        If True, return the phase average of the probability over a relative energy spread (see
+        :mod:`magnus.avgprob`) instead of the oscillating one, as the wrappers do with the
+        same keyword.  Which route answers follows from the Hamiltonian: a matrix, or a
+        function of the energy alone, is averaged in closed form, one eigendecomposition per
+        energy; a function of position is averaged by adiabatic transport along its
+        instantaneous eigenstates, with a Magnus patch across every non-adiabatic crossing,
+        when the profile is smooth; and across an energy window, with a warning, when
+        ``t_breakpoints`` or ``t_slab_edges`` declare discontinuities.  ``strategy``,
+        ``n_jobs`` and the cumulative traversal play no role on this route, and on a smooth
+        profile the tighter of ``rtol`` and ``atol`` is its tolerance.  A matrix, or a
+        function of position alone, does not depend on the energy, so an energy spread has
+        nothing to act on and it keeps the decohered limit.  Cannot be combined with
+        ``return_evolution_operator``.  Default: False.
+    average_spread : float, optional
+        Relative energy spread :math:`\sigma` of the phase average ``average=True`` returns:
+        every interference term keeps its phase and is weighted by
+        :math:`e^{-\sigma^2\phi'^2/2}`, :math:`\phi' = d\phi/d\ln E` (see
+        :data:`magnus.avgprob.AVG_PHASE_SPREAD`).  Ignored without ``average``.  Default:
+        None, meaning 0.1.
+
     Returns
     -------
-    int, float, or np.ndarray
+    int, float, np.ndarray, or tuple
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for
         each (energy, L) point; a single value/matrix if both ``energy`` and ``L`` were floats.
+        With ``return_evolution_operator=True``, the pair ``(P, U)``: ``P`` as above and ``U``
+        the operators, one ``(d, d)`` array per point, ``(n, d, d)`` for arrays of points.
     """
 
     if (callable(H_func) and (_n_required_params(H_func) > 2)):
@@ -6077,6 +6520,9 @@ def osc_prob_energy_baseline(
     # Turn int into float
     energy = float(energy) if isinstance(energy, int) else energy
     L = float(L) if isinstance(L, int) else L
+    # As given, before the broadcasting below: the averaged route broadcasts for itself and
+    # reads the scalar-or-array shape of its answer off the caller's values.
+    energy_in, L_in = energy, L
 
     # Flag return_float remembers if energy and L were both floats.  If True,
     # osc_prob_energy_baseline returns a float, too.
@@ -6126,7 +6572,8 @@ def osc_prob_energy_baseline(
         validate_input=validate_input, save_log=save_log, filename_log=filename_log,
         file_log=file_log, close_file_log_upon_exit=close_file_log_upon_exit,
         new_recursion_limit=new_recursion_limit, verbose=verbose,
-        symmetric_over=symmetric_over, **kwargs)
+        symmetric_over=symmetric_over,
+        return_evolution_operator=return_evolution_operator, **kwargs)
 
     # Build, for a given neutrino energy, the Hamiltonian to be passed to osc_prob: either a
     # one-parameter function of position or, if position-independent, a constant matrix (which
@@ -6153,6 +6600,47 @@ def osc_prob_energy_baseline(
     # constant, or scalar-only): the verdict is structural and holds for every (energy, L) point,
     # so probing here avoids re-probing inside every osc_prob call.
     H_first = H_at_energy(energy[0])
+
+    # Phase average, requested with average=True: the same dispatch the wrappers place
+    # ahead of their engines, reached here on the direct route.  Answered before the
+    # evaluation-mode probe below, which the averaged routes never use.  The size check that
+    # the ordinary path runs further down is run here first, since this route allocates its
+    # result the same way.
+    if average:
+        if return_evolution_operator:
+            _check_operator_request(True, None, 'osc_prob_energy_baseline')
+        _check_output_fits(
+            n_points,
+            np.asarray(H_first(L0) if callable(H_first) else H_first).shape[-1],
+            'osc_prob_energy_baseline')
+        # The dispatch takes the Hamiltonian as a function of the energy alone when it does
+        # not depend on position, and of (energy, position) otherwise; the four forms H_func
+        # can take are wrapped into those two.
+        # A fixed matrix, or a function of position alone, does not depend on the energy, so
+        # an energy spread has no slope to act on and the decohered limit stands for it.
+        if not callable(H_func):
+            def htot(enu):
+                return H_func
+            only_energy, energy_dependent = True, False
+        elif _n_required_params(H_func) == 2:
+            htot, only_energy, energy_dependent = H_func, False, True
+        elif H_func_is_function_only_of_energy:
+            htot, only_energy, energy_dependent = H_func, True, True
+        else:
+            def htot(enu, l):
+                return H_func(l)
+            only_energy, energy_dependent = False, False
+        breakpoints = kwargs.get('t_breakpoints')
+        smooth = ((breakpoints is None or len(np.atleast_1d(breakpoints)) == 0)
+                  and (t_slab_edges is None))
+        # The refinement and logging keywords assembled above, for the energy-window route,
+        # which propagates for real; the two averaging keywords stay out of it.
+        engine = dict(osc_prob_kwargs, cumulative=cumulative)
+        engine.pop('return_evolution_operator', None)
+        return _avg_prob_dispatch(htot, only_energy, energy_in, L_in, L0, nu_i, nu_f, True,
+            'osc_prob_energy_baseline', smooth_profile=smooth, engine_kwargs=engine,
+            average_spread=average_spread, energy_dependent=energy_dependent)
+
     if callable(H_first):
         osc_prob_kwargs['A_eval_mode'] = magnus.probe_eval_mode(
             lambda t: -1j*H_first(t), L0, np.max(L))
@@ -6199,6 +6687,10 @@ def osc_prob_energy_baseline(
             and _cumulative_scan_would_serve(np.asarray(energy), np.asarray(L), L0,
                                              CUMULATIVE_AUTO_MIN_POINTS))
 
+    if return_evolution_operator:
+        # The cumulative traversal walks a fixed grid with no ladder, and the operator is only
+        # offered from the ladder: every point takes the per-point path below instead.
+        cumulative = False
     if cumulative:
         if t_slab_edges is not None:
             raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob_energy_baseline: "
@@ -6377,12 +6869,13 @@ def osc_prob_energy_baseline(
             osc_prob_kwargs['min_n_tpts_per_slab'] = max(min_n_tpts_per_slab,
                 int(np.ceil(conv_info['n_tpts_per_slab']/g2)))
 
-    def compute_single_point(enu: float, baseline: float) -> Union[float, np.ndarray]:
-        P = osc_prob(H_at_energy(enu), L0, baseline, **osc_prob_kwargs)
-        # Select one oscillation channel if requested; otherwise return the full matrix
+    def compute_single_point(enu: float, baseline: float):
+        out = osc_prob(H_at_energy(enu), L0, baseline, **osc_prob_kwargs)
+        P, U = out if return_evolution_operator else (out, None)
+        # Select one oscillation channel if requested; otherwise keep the full matrix
         if ((nu_i is not None) and (nu_f is not None)):
-            return P[nu_i][nu_f]
-        return P
+            P = P[nu_i][nu_f]
+        return (P, U) if return_evolution_operator else P
 
     if parallelize_over_points:
         # Compute the first point serially to learn the refinement parameters, then distribute
@@ -6422,12 +6915,41 @@ def osc_prob_energy_baseline(
         t_breakpoints=kwargs.get('t_breakpoints')))
     # The call to __getitem__ below is a way to return a single float (or single probability
     # matrix) if both energy and L were given as floats.
-    return np.array(probs).__getitem__(0 if return_float else slice(None))
+    sel = 0 if return_float else slice(None)
+    if return_evolution_operator:
+        return np.array([p for p, _ in probs])[sel], np.array([u for _, u in probs])[sel]
+    return np.array(probs).__getitem__(sel)
 
 
 #-----------------------------------------------------------------------
 # Cross-method agreement
 #-----------------------------------------------------------------------
+
+# Engines that answer with probabilities only.  A request for the evolution operator disables
+# them for the call, so that the general Magnus ladder -- the one engine that forms the
+# operator -- is the engine that answers.  Same set the cross-check uses to force the ladder.
+_OPERATOR_ONLY_FROM_LADDER = ('hybrid', 'ip_exp', 'separable', 'constant')
+
+
+def _check_operator_request(average: bool, strategy: Optional[str], source_func_name: str) -> None:
+    r"""Rejects a request for the evolution operator that no engine could serve.
+
+    ``average=True`` answers through the phase-averaged routes, and ``strategy='hybrid'``
+    insists on the adiabatic engine; neither forms an evolution operator, so combining either
+    with ``return_evolution_operator=True`` raises here, naming the entry point, rather than
+    being silently ignored.
+
+    .. versionadded:: 1.1.1
+    """
+    if average:
+        raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name +
+            ": return_evolution_operator=True cannot be combined with average=True: the "
+            "phase-averaged routes never form an evolution operator.")
+    if strategy == 'hybrid':
+        raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name +
+            ": return_evolution_operator=True cannot be combined with strategy='hybrid': that "
+            "engine answers with probabilities only.  Use strategy='auto' or 'magnus'.")
+
 
 _CROSS_CHECK_FORCING = {
     # label:      (strategy, cumulative, engines to forbid so that this one is reached)
@@ -6755,6 +7277,7 @@ def osc_prob_vacuum(
     osc_params: Dict,
     h_vac_energy_indep: Union[list, np.ndarray]=None,
     average: Optional[bool]=False,
+    average_spread: Optional[float]=None,
     nubar: Optional[bool]=False, 
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
@@ -6779,7 +7302,8 @@ def osc_prob_vacuum(
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
     angles: Optional[str]='sin',
-    **kwargs) -> Union[float, np.ndarray]:
+    return_evolution_operator: Optional[bool]=False,
+    **kwargs) -> Union[float, np.ndarray, Tuple[np.ndarray, np.ndarray]]:
     r"""Computes and returns neutrino oscillation probabilities for
     oscillations in vacuum
 
@@ -6790,6 +7314,9 @@ def osc_prob_vacuum(
     :func:`osc_prob_3nu_vacuum`, :func:`osc_prob_4nu_vacuum`, and :func:`osc_prob_5nu_vacuum`.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.1
+       Added ``return_evolution_operator``.
 
     Parameters
     ----------
@@ -6805,6 +7332,14 @@ def osc_prob_vacuum(
     h_vac_energy_indep : list or np.ndarray, optional
         Precomputed energy-independent vacuum Hamiltonian, used instead of ``osc_params`` when
         ``num_flavors`` exceeds ``globaldefs.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS``.
+    average : bool, optional
+        If True, return the phase-averaged probability rather than the oscillating one.
+    average_spread : float, optional
+        Relative energy spread :math:`\sigma` of the phase average ``average=True`` returns:
+        every interference term keeps its phase and is weighted by
+        :math:`e^{-\sigma^2\phi'^2/2}`, :math:`\phi' = d\phi/d\ln E` (see
+        :data:`magnus.avgprob.AVG_PHASE_SPREAD`).  Ignored without ``average``.  Default:
+        None, meaning 0.1.
     nubar : bool, optional
         If True, compute the probability for antineutrinos. Default: False.
     nu_i : int, optional
@@ -6881,14 +7416,21 @@ def osc_prob_vacuum(
         away by a function the caller never invoked.
 
     
-    average : bool, optional
-        If True, return the phase-averaged probability rather than the oscillating one.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
         themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
         ``'deg'`` the CP phases are read as degrees too; under the other three
         they stay in radians, a sine being no way to state a phase.
+
+    return_evolution_operator : bool, optional
+        If True, return the pair ``(P, U)`` instead of ``P`` alone: ``U`` is the evolution
+        operator over the same interval, in the flavor basis, a complex square array with
+        ``U[final, initial]`` the amplitude from the initial to the final state, so that
+        ``P == abs(U)**2.T``.  The refinement ladder then compares the operator itself
+        between levels, with the same ``rtol`` and ``atol``, so the returned operator is
+        converged in its own right (phases included) and not only in its moduli.  Every
+        other setting keeps its meaning.  Default: False.
 
     Returns
     -------
@@ -6921,7 +7463,11 @@ def osc_prob_vacuum(
     # value from the specified parameter set with name default_osc_params_set_name.  Only the values
     # of the parameters passed as None are assigned from the predefined set; others are not 
     # modified.
-    if num_flavors > 2:
+    # Bounded above as well as below: past MAGNUS_MAX_PREDEFINED_NUM_FLAVORS there are no
+    # standard parameters to fill in -- the caller's h_vac_energy_indep is the Hamiltonian --
+    # and s12 and its neighbours were never assigned, so an unbounded test raised
+    # UnboundLocalError on the path the unpacking warning says is supported.
+    if 2 < num_flavors <= gd.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS:
         s12, s23, s13, dCP, D21, D31 = values_to_unspecified_osc_params(s12, s23, s13, dCP, D21, 
             D31, default_osc_params_set_name, verbose, angles=angles)
 
@@ -6953,12 +7499,20 @@ def osc_prob_vacuum(
     _reject_parameter_set_metadata(kwargs, 'osc_prob_vacuum')
     _check_passthrough_kwargs(kwargs, 'osc_prob_vacuum')
 
-    # Phase-averaged limit, requested with average=True: exact and closed-form whenever the
+    # Phase average, requested with average=True: closed-form whenever the
     # Hamiltonian does not depend on position, so it is tried before any of the propagation
     # machinery below, all of which would resolve phases that the average discards (see
     # _avg_prob_dispatch and :mod:`magnus.avgprob`).
+    if return_evolution_operator:
+        # The phase-averaged and scan engines below answer with probabilities only, so the
+        # request goes straight to the ladder, which is the one engine that forms the operator.
+        _check_operator_request(average, None, 'osc_prob_vacuum')
+        return osc_prob_energy_baseline(htot, energy, L, 0.0, nu_i, nu_f,
+            htot_is_function_only_of_energy, n_jobs=n_jobs, validate_input=validate_input,
+            verbose=verbose, return_evolution_operator=True, **kwargs)
+
     P_avg = _avg_prob_dispatch(htot, htot_is_function_only_of_energy, energy, L, 0.0, nu_i, nu_f,
-        average, 'osc_prob_vacuum')
+        average, 'osc_prob_vacuum', average_spread=average_spread)
     if P_avg is not NotImplemented:
         return P_avg
 
@@ -6980,7 +7534,8 @@ def osc_prob_vacuum(
     # slab; the tolerance and refinement parameters play no role and are not forwarded.)
     return osc_prob_energy_baseline(htot, energy, L, 0.0, nu_i, nu_f,
         htot_is_function_only_of_energy, n_jobs=n_jobs, validate_input=validate_input,
-        verbose=verbose, **kwargs)
+        verbose=verbose, save_log=save_log, filename_log=filename_log, file_log=file_log,
+        close_file_log_upon_exit=close_file_log_upon_exit, **kwargs)
 
 
 def osc_prob_matter_std_potential(
@@ -7000,8 +7555,10 @@ def osc_prob_matter_std_potential(
     density_is_of_number_of_electrons: Optional[bool]=False,
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
     average: Optional[bool]=False,
+    average_spread: Optional[float]=None,
     strategy: Optional[str]='auto',
     strategy_info: Optional[Dict]=None,
+    return_evolution_operator: Optional[bool]=False,
     t_slab_edges: Optional[Union[list, np.ndarray]]=None,
     magnus_exp_order: Optional[int]=4,
     n_jobs: Optional[int]=1,
@@ -7024,7 +7581,7 @@ def osc_prob_matter_std_potential(
     new_recursion_limit: Optional[int]=5000,
     symmetric_over: Optional[tuple]=None,
     angles: Optional[str]='sin',
-    **kwargs) -> Union[float, np.ndarray]:
+    **kwargs) -> Union[float, np.ndarray, Tuple[np.ndarray, np.ndarray]]:
     r"""Computes and returns neutrino oscillation probabilities for
     standard oscillations in matter, i.e., the matter potential is only
     due to the coherent forward scattering of nu_e on electrons.
@@ -7032,13 +7589,16 @@ def osc_prob_matter_std_potential(
     Middle (scenario) layer for the standard-matter case, generic in ``num_flavors``: unpacks
     ``osc_params``, builds the vacuum + matter Hamiltonian (via
     ``hamiltonians.hamiltonian_{num_flavors}nu_vacuum_energy_independent`` and
-    ``hamiltonian_{num_flavors}nu_matter_td``, with the potential from
+    :func:`magnus.matter.matter_potential_projector`, with the potential from
     :func:`magnus.matter.vcc_func_from_rho_func`), and calls
     :func:`osc_prob_energy_baseline`. Called by every
     ``osc_prob_{2,3,4,5}nu_matter_{constant,exp}_density`` and
     ``osc_prob_{2,3,4,5}nu_earth``/``osc_prob_{2,3,4,5}nu_sun`` wrapper.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.1
+       Added ``return_evolution_operator``.
 
     Parameters
     ----------
@@ -7088,6 +7648,15 @@ def osc_prob_matter_std_potential(
     default_osc_params_set_name : str, optional
         Name of the predefined oscillation-parameter set used to fill in any parameter left as
         None in ``osc_params``. Default: 'OSC_PARAMS_DEFAULT'.
+    average : bool, optional
+        If True, return the phase-averaged probability rather than the oscillating one.  On a
+        smooth profile, the tighter of ``rtol`` and ``atol`` is its tolerance.
+    average_spread : float, optional
+        Relative energy spread :math:`\sigma` of the phase average ``average=True`` returns:
+        every interference term keeps its phase and is weighted by
+        :math:`e^{-\sigma^2\phi'^2/2}`, :math:`\phi' = d\phi/d\ln E` (see
+        :data:`magnus.avgprob.AVG_PHASE_SPREAD`).  Ignored without ``average``.  Default:
+        None, meaning 0.1.
     strategy : str, optional
         Numerical strategy used to compute the evolution operator: 'auto' (default), 'hybrid',
         or 'magnus'.
@@ -7157,8 +7726,8 @@ def osc_prob_matter_std_potential(
         calls, and wrong for anyone asking why a result moved or why a call got slow -- so this
         is how to see them without turning the fallbacks into warnings.  Keys:
 
-        * ``'engine'`` -- ``'hybrid'``, ``'ip_exp'``, ``'separable'``, ``'cumulative'``,
-          ``'magnus'`` or ``'average'``.
+        * ``'engine'`` -- ``'hybrid'``, ``'ip_exp'``, ``'separable'``, ``'constant'``,
+          ``'cumulative'``, ``'magnus'`` or ``'average'``.
         * ``'family'`` -- the engine's family; see :data:`ENGINE_FAMILIES`.
         * ``'certified'`` -- for ``'hybrid'``, whether
           :func:`magnus.adiabatic.hybrid_propagator` self-certified.  ``None`` for engines
@@ -7174,6 +7743,14 @@ def osc_prob_matter_std_potential(
         Costs nothing when omitted.  Default: None.
 
         .. versionadded:: 1.0.0
+    return_evolution_operator : bool, optional
+        If True, return the pair ``(P, U)`` instead of ``P`` alone: ``U`` is the evolution
+        operator over the same interval, in the flavor basis, a complex square array with
+        ``U[final, initial]`` the amplitude from the initial to the final state, so that
+        ``P == abs(U)**2.T``.  The refinement ladder then compares the operator itself
+        between levels, with the same ``rtol`` and ``atol``, so the returned operator is
+        converged in its own right (phases included) and not only in its moduli.  Every
+        other setting keeps its meaning.  Default: False.
     t_slab_edges : list or np.ndarray, optional
         Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
     magnus_exp_order : int
@@ -7239,8 +7816,6 @@ def osc_prob_matter_std_potential(
         away by a function the caller never invoked.
 
     
-    average : bool, optional
-        If True, return the phase-averaged probability rather than the oscillating one.
     symmetric_over : tuple, optional
         Caller's declaration that ``A(t) == A(lo + hi - t)`` on ``(lo, hi)``, which lets
         the Hamiltonian be evaluated on half the slabs.  A declaration, not a test: it
@@ -7259,6 +7834,8 @@ def osc_prob_matter_std_potential(
         each (energy, L) point.
     """
 
+    if return_evolution_operator:
+        _check_operator_request(average, strategy, 'osc_prob_matter_std_potential')
     if validate_input and (strategy not in ('auto', 'hybrid', 'magnus')):
         raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob_matter_std_potential:" + \
             " strategy must be 'auto', 'hybrid', or 'magnus'.")
@@ -7289,7 +7866,11 @@ def osc_prob_matter_std_potential(
     # value from the specified parameter set with name default_osc_params_set_name.  Only the values
     # of the parameters passed as None are assigned from the predefined set; others are not
     # modified.
-    if num_flavors > 2:
+    # Bounded above as well as below: past MAGNUS_MAX_PREDEFINED_NUM_FLAVORS there are no
+    # standard parameters to fill in -- the caller's h_vac_energy_indep is the Hamiltonian --
+    # and s12 and its neighbours were never assigned, so an unbounded test raised
+    # UnboundLocalError on the path the unpacking warning says is supported.
+    if 2 < num_flavors <= gd.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS:
         s12, s23, s13, dCP, D21, D31 = values_to_unspecified_osc_params(s12, s23, s13, dCP, D21,
             D31, default_osc_params_set_name, verbose, angles=angles)
 
@@ -7390,7 +7971,7 @@ def osc_prob_matter_std_potential(
     _reject_parameter_set_metadata(kwargs, 'osc_prob_matter_std_potential')
     _check_passthrough_kwargs(kwargs, 'osc_prob_matter_std_potential')
 
-    # Phase-averaged limit, requested with average=True: exact and closed-form whenever the
+    # Phase average, requested with average=True: closed-form whenever the
     # Hamiltonian does not depend on position, so it is tried before any of the propagation
     # machinery below, all of which would resolve phases that the average discards (see
     # _avg_prob_dispatch and :mod:`magnus.avgprob`).
@@ -7414,9 +7995,11 @@ def osc_prob_matter_std_potential(
     # that strategy_info can report which one answered and, for the hybrid strategy,
     # whether it certified -- see _engine_probe.  Costs one list allocation per call when
     # nobody is watching.
-    with _engine_probe(info=strategy_info, extra={'hidden_feature': _hidden, 'sampling': _osc}):
+    with _engine_probe(disabled=_OPERATOR_ONLY_FROM_LADDER if return_evolution_operator else (),
+                       info=strategy_info, extra={'hidden_feature': _hidden, 'sampling': _osc}):
         P_avg = _avg_prob_dispatch(htot, htot_is_function_only_of_energy, energy, L, L0, nu_i, nu_f,
-            average, 'osc_prob_matter_std_potential', smooth_profile=_profile_is_smooth, engine_kwargs=scan_kwargs)
+            average, 'osc_prob_matter_std_potential', smooth_profile=_profile_is_smooth, engine_kwargs=scan_kwargs,
+            average_spread=average_spread)
         if P_avg is not NotImplemented:
             return P_avg
 
@@ -7466,6 +8049,7 @@ def osc_prob_matter_std_potential(
         # Generate the probabilities for all pairs of energy and baseline in zip(energy, L).
         return osc_prob_energy_baseline(htot, energy, L, L0, nu_i, nu_f,
             htot_is_function_only_of_energy, t_slab_edges=t_slab_edges,
+            return_evolution_operator=return_evolution_operator,
             magnus_exp_order=magnus_exp_order, n_jobs=n_jobs, integration_method=integration_method,
             rtol=rtol, atol=atol, growth_factor_n_slabs=growth_factor_n_slabs,
             growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
@@ -7532,8 +8116,10 @@ def osc_prob_matter_nsi(
     density_is_of_number_of_electrons: Optional[bool]=False,
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
     average: Optional[bool]=False,
+    average_spread: Optional[float]=None,
     strategy: Optional[str]='auto',
     strategy_info: Optional[Dict]=None,
+    return_evolution_operator: Optional[bool]=False,
     t_slab_edges: Optional[Union[list, np.ndarray]]=None,
     magnus_exp_order: Optional[int]=4,
     n_jobs: Optional[int]=1,
@@ -7556,7 +8142,7 @@ def osc_prob_matter_nsi(
     new_recursion_limit: Optional[int]=5000,
     symmetric_over: Optional[tuple]=None,
     angles: Optional[str]='sin',
-    **kwargs) -> Union[float, np.ndarray]:
+    **kwargs) -> Union[float, np.ndarray, Tuple[np.ndarray, np.ndarray]]:
     r"""Computes and returns neutrino oscillation probabilities for
     oscillations in matter with non-standard interactions (NSI), i.e., the matter potential
     includes both the standard coherent-forward-scattering term and the NSI epsilon couplings.
@@ -7564,13 +8150,17 @@ def osc_prob_matter_nsi(
     Middle (scenario) layer for the NSI case, generic in ``num_flavors``: unpacks ``osc_params``
     and ``nsi_params``, builds the vacuum + matter + NSI Hamiltonian (via
     ``hamiltonians.hamiltonian_{num_flavors}nu_vacuum_energy_independent``,
-    ``hamiltonian_{num_flavors}nu_matter_td``, and ``hamiltonian_{num_flavors}nu_nsi_td``, with
+    :func:`magnus.matter.matter_potential_projector`, and
+    ``hamiltonian_{num_flavors}nu_nsi``, with
     the potential from :func:`magnus.matter.vcc_func_from_rho_func`), and calls
     :func:`osc_prob_energy_baseline`. Called by every
     ``osc_prob_{2,3,4,5}nu_matter_nsi_{constant,exp}_density`` and
     ``osc_prob_{2,3,4,5}nu_earth_nsi``/``osc_prob_{2,3,4,5}nu_sun_nsi`` wrapper.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.1
+       Added ``return_evolution_operator``.
 
     Parameters
     ----------
@@ -7626,6 +8216,15 @@ def osc_prob_matter_nsi(
     default_osc_params_set_name : str, optional
         Name of the predefined oscillation-parameter set used to fill in any parameter left as
         None in ``osc_params``. Default: 'OSC_PARAMS_DEFAULT'.
+    average : bool, optional
+        If True, return the phase-averaged probability rather than the oscillating one.  On a
+        smooth profile, the tighter of ``rtol`` and ``atol`` is its tolerance.
+    average_spread : float, optional
+        Relative energy spread :math:`\sigma` of the phase average ``average=True`` returns:
+        every interference term keeps its phase and is weighted by
+        :math:`e^{-\sigma^2\phi'^2/2}`, :math:`\phi' = d\phi/d\ln E` (see
+        :data:`magnus.avgprob.AVG_PHASE_SPREAD`).  Ignored without ``average``.  Default:
+        None, meaning 0.1.
     strategy : str, optional
         Numerical strategy used to compute the evolution operator: 'auto' (default), 'hybrid',
         or 'magnus'; see the ``strategy`` parameter of :func:`osc_prob_matter_std_potential` for
@@ -7641,8 +8240,8 @@ def osc_prob_matter_nsi(
         calls, and wrong for anyone asking why a result moved or why a call got slow -- so this
         is how to see them without turning the fallbacks into warnings.  Keys:
 
-        * ``'engine'`` -- ``'hybrid'``, ``'ip_exp'``, ``'separable'``, ``'cumulative'``,
-          ``'magnus'`` or ``'average'``.
+        * ``'engine'`` -- ``'hybrid'``, ``'ip_exp'``, ``'separable'``, ``'constant'``,
+          ``'cumulative'``, ``'magnus'`` or ``'average'``.
         * ``'family'`` -- the engine's family; see :data:`ENGINE_FAMILIES`.
         * ``'certified'`` -- for ``'hybrid'``, whether
           :func:`magnus.adiabatic.hybrid_propagator` self-certified.  ``None`` for engines
@@ -7658,6 +8257,14 @@ def osc_prob_matter_nsi(
         Costs nothing when omitted.  Default: None.
 
         .. versionadded:: 1.0.0
+    return_evolution_operator : bool, optional
+        If True, return the pair ``(P, U)`` instead of ``P`` alone: ``U`` is the evolution
+        operator over the same interval, in the flavor basis, a complex square array with
+        ``U[final, initial]`` the amplitude from the initial to the final state, so that
+        ``P == abs(U)**2.T``.  The refinement ladder then compares the operator itself
+        between levels, with the same ``rtol`` and ``atol``, so the returned operator is
+        converged in its own right (phases included) and not only in its moduli.  Every
+        other setting keeps its meaning.  Default: False.
     t_slab_edges : list or np.ndarray, optional
         Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
     magnus_exp_order : int
@@ -7723,8 +8330,6 @@ def osc_prob_matter_nsi(
         away by a function the caller never invoked.
 
     
-    average : bool, optional
-        If True, return the phase-averaged probability rather than the oscillating one.
     symmetric_over : tuple, optional
         Caller's declaration that ``A(t) == A(lo + hi - t)`` on ``(lo, hi)``, which lets
         the Hamiltonian be evaluated on half the slabs.  A declaration, not a test: it
@@ -7743,6 +8348,8 @@ def osc_prob_matter_nsi(
         each (energy, L) point.
     """
 
+    if return_evolution_operator:
+        _check_operator_request(average, strategy, 'osc_prob_matter_nsi')
     if validate_input and (strategy not in ('auto', 'hybrid', 'magnus')):
         raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob_matter_nsi: strategy" + \
             " must be 'auto', 'hybrid', or 'magnus'.")
@@ -7781,7 +8388,11 @@ def osc_prob_matter_nsi(
     # value from the specified parameter set with name default_osc_params_set_name.  Only the values
     # of the parameters passed as None are assigned from the predefined set; others are not 
     # modified.
-    if num_flavors > 2:
+    # Bounded above as well as below: past MAGNUS_MAX_PREDEFINED_NUM_FLAVORS there are no
+    # standard parameters to fill in -- the caller's h_vac_energy_indep is the Hamiltonian --
+    # and s12 and its neighbours were never assigned, so an unbounded test raised
+    # UnboundLocalError on the path the unpacking warning says is supported.
+    if 2 < num_flavors <= gd.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS:
         s12, s23, s13, dCP, D21, D31 = values_to_unspecified_osc_params(s12, s23, s13, dCP, D21, 
             D31, default_osc_params_set_name, verbose, angles=angles)
 
@@ -7922,7 +8533,7 @@ def osc_prob_matter_nsi(
     _reject_parameter_set_metadata(kwargs, 'osc_prob_matter_nsi')
     _check_passthrough_kwargs(kwargs, 'osc_prob_matter_nsi')
 
-    # Phase-averaged limit, requested with average=True: exact and closed-form whenever the
+    # Phase average, requested with average=True: closed-form whenever the
     # Hamiltonian does not depend on position, so it is tried before any of the propagation
     # machinery below, all of which would resolve phases that the average discards (see
     # _avg_prob_dispatch and :mod:`magnus.avgprob`).
@@ -7946,9 +8557,11 @@ def osc_prob_matter_nsi(
     # that strategy_info can report which one answered and, for the hybrid strategy,
     # whether it certified -- see _engine_probe.  Costs one list allocation per call when
     # nobody is watching.
-    with _engine_probe(info=strategy_info, extra={'hidden_feature': _hidden, 'sampling': _osc}):
+    with _engine_probe(disabled=_OPERATOR_ONLY_FROM_LADDER if return_evolution_operator else (),
+                       info=strategy_info, extra={'hidden_feature': _hidden, 'sampling': _osc}):
         P_avg = _avg_prob_dispatch(htot, htot_is_function_only_of_energy, energy, L, L0, nu_i, nu_f,
-            average, 'osc_prob_matter_nsi', smooth_profile=_profile_is_smooth, engine_kwargs=scan_kwargs)
+            average, 'osc_prob_matter_nsi', smooth_profile=_profile_is_smooth, engine_kwargs=scan_kwargs,
+            average_spread=average_spread)
         if P_avg is not NotImplemented:
             return P_avg
 
@@ -7979,6 +8592,7 @@ def osc_prob_matter_nsi(
         # Generate the probabilities for all pairs of energy and baseline in zip(energy, L).
         return osc_prob_energy_baseline(htot, energy, L, L0, nu_i, nu_f,
             htot_is_function_only_of_energy, t_slab_edges=t_slab_edges,
+            return_evolution_operator=return_evolution_operator,
             magnus_exp_order=magnus_exp_order, n_jobs=n_jobs, integration_method=integration_method,
             rtol=rtol, atol=atol, growth_factor_n_slabs=growth_factor_n_slabs,
             growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
@@ -8012,8 +8626,10 @@ def osc_prob_liv(
     density_is_of_number_of_electrons: Optional[bool]=False,
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
     average: Optional[bool]=False,
+    average_spread: Optional[float]=None,
     strategy: Optional[str]='auto',
     strategy_info: Optional[Dict]=None,
+    return_evolution_operator: Optional[bool]=False,
     t_slab_edges: Optional[Union[list, np.ndarray]]=None,
     magnus_exp_order: Optional[int]=4,
     n_jobs: Optional[int]=1,
@@ -8036,7 +8652,7 @@ def osc_prob_liv(
     new_recursion_limit: Optional[int]=5000,
     symmetric_over: Optional[tuple]=None,
     angles: Optional[str]='sin',
-    **kwargs) -> Union[float, np.ndarray]:
+    **kwargs) -> Union[float, np.ndarray, Tuple[np.ndarray, np.ndarray]]:
     r"""Computes and returns neutrino oscillation probabilities for
     oscillations under (one form of) Lorentz-invariance violation, in
     vacuum or in matter.
@@ -8044,13 +8660,16 @@ def osc_prob_liv(
     Middle (scenario) layer for the LIV case, generic in ``num_flavors``: unpacks ``osc_params``
     and ``liv_params``, builds the vacuum (+ matter, if ``rho_func`` is nonzero) + LIV
     Hamiltonian (via ``hamiltonians.hamiltonian_{num_flavors}nu_vacuum_energy_independent``,
-    optionally ``hamiltonian_{num_flavors}nu_matter_td``, and
+    optionally :func:`magnus.matter.matter_potential_projector`, and
     ``hamiltonian_{num_flavors}nu_liv_energy_independent``), and calls
     :func:`osc_prob_energy_baseline`. Called by every ``osc_prob_{2,3,4,5}nu_vacuum_liv``,
     ``osc_prob_{2,3,4,5}nu_matter_liv_{constant,exp}_density``, and
     ``osc_prob_{2,3,4,5}nu_earth_liv``/``osc_prob_{2,3,4,5}nu_sun_liv`` wrapper.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.1
+       Added ``return_evolution_operator``.
 
     Parameters
     ----------
@@ -8105,6 +8724,15 @@ def osc_prob_liv(
     default_osc_params_set_name : str, optional
         Name of the predefined oscillation-parameter set used to fill in any parameter left as
         None in ``osc_params``. Default: 'OSC_PARAMS_DEFAULT'.
+    average : bool, optional
+        If True, return the phase-averaged probability rather than the oscillating one.  On a
+        smooth profile, the tighter of ``rtol`` and ``atol`` is its tolerance.
+    average_spread : float, optional
+        Relative energy spread :math:`\sigma` of the phase average ``average=True`` returns:
+        every interference term keeps its phase and is weighted by
+        :math:`e^{-\sigma^2\phi'^2/2}`, :math:`\phi' = d\phi/d\ln E` (see
+        :data:`magnus.avgprob.AVG_PHASE_SPREAD`).  Ignored without ``average``.  Default:
+        None, meaning 0.1.
     strategy : str, optional
         Numerical strategy used to compute the evolution operator: 'auto' (default), 'hybrid',
         or 'magnus'; see the ``strategy`` parameter of :func:`osc_prob_matter_std_potential` for
@@ -8122,8 +8750,8 @@ def osc_prob_liv(
         calls, and wrong for anyone asking why a result moved or why a call got slow -- so this
         is how to see them without turning the fallbacks into warnings.  Keys:
 
-        * ``'engine'`` -- ``'hybrid'``, ``'ip_exp'``, ``'separable'``, ``'cumulative'``,
-          ``'magnus'`` or ``'average'``.
+        * ``'engine'`` -- ``'hybrid'``, ``'ip_exp'``, ``'separable'``, ``'constant'``,
+          ``'cumulative'``, ``'magnus'`` or ``'average'``.
         * ``'family'`` -- the engine's family; see :data:`ENGINE_FAMILIES`.
         * ``'certified'`` -- for ``'hybrid'``, whether
           :func:`magnus.adiabatic.hybrid_propagator` self-certified.  ``None`` for engines
@@ -8139,6 +8767,14 @@ def osc_prob_liv(
         Costs nothing when omitted.  Default: None.
 
         .. versionadded:: 1.0.0
+    return_evolution_operator : bool, optional
+        If True, return the pair ``(P, U)`` instead of ``P`` alone: ``U`` is the evolution
+        operator over the same interval, in the flavor basis, a complex square array with
+        ``U[final, initial]`` the amplitude from the initial to the final state, so that
+        ``P == abs(U)**2.T``.  The refinement ladder then compares the operator itself
+        between levels, with the same ``rtol`` and ``atol``, so the returned operator is
+        converged in its own right (phases included) and not only in its moduli.  Every
+        other setting keeps its meaning.  Default: False.
     t_slab_edges : list or np.ndarray, optional
         Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
     magnus_exp_order : int
@@ -8204,8 +8840,6 @@ def osc_prob_liv(
         away by a function the caller never invoked.
 
     
-    average : bool, optional
-        If True, return the phase-averaged probability rather than the oscillating one.
     symmetric_over : tuple, optional
         Caller's declaration that ``A(t) == A(lo + hi - t)`` on ``(lo, hi)``, which lets
         the Hamiltonian be evaluated on half the slabs.  A declaration, not a test: it
@@ -8224,6 +8858,8 @@ def osc_prob_liv(
         each (energy, L) point.
     """
 
+    if return_evolution_operator:
+        _check_operator_request(average, strategy, 'osc_prob_liv')
     if validate_input and (strategy not in ('auto', 'hybrid', 'magnus')):
         raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob_liv: strategy must be" + \
             " 'auto', 'hybrid', or 'magnus'.")
@@ -8262,7 +8898,11 @@ def osc_prob_liv(
     # value from the specified parameter set with name default_osc_params_set_name.  Only the values
     # of the parameters passed as None are assigned from the predefined set; others are not 
     # modified.
-    if num_flavors > 2:
+    # Bounded above as well as below: past MAGNUS_MAX_PREDEFINED_NUM_FLAVORS there are no
+    # standard parameters to fill in -- the caller's h_vac_energy_indep is the Hamiltonian --
+    # and s12 and its neighbours were never assigned, so an unbounded test raised
+    # UnboundLocalError on the path the unpacking warning says is supported.
+    if 2 < num_flavors <= gd.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS:
         s12, s23, s13, dCP, D21, D31 = values_to_unspecified_osc_params(s12, s23, s13, dCP, D21, 
             D31, default_osc_params_set_name, verbose, angles=angles)
 
@@ -8402,7 +9042,7 @@ def osc_prob_liv(
     _reject_parameter_set_metadata(kwargs, 'osc_prob_liv')
     _check_passthrough_kwargs(kwargs, 'osc_prob_liv')
 
-    # Phase-averaged limit, requested with average=True: exact and closed-form whenever the
+    # Phase average, requested with average=True: closed-form whenever the
     # Hamiltonian does not depend on position, so it is tried before any of the propagation
     # machinery below, all of which would resolve phases that the average discards (see
     # _avg_prob_dispatch and :mod:`magnus.avgprob`).
@@ -8426,9 +9066,11 @@ def osc_prob_liv(
     # that strategy_info can report which one answered and, for the hybrid strategy,
     # whether it certified -- see _engine_probe.  Costs one list allocation per call when
     # nobody is watching.
-    with _engine_probe(info=strategy_info, extra={'hidden_feature': _hidden, 'sampling': _osc}):
+    with _engine_probe(disabled=_OPERATOR_ONLY_FROM_LADDER if return_evolution_operator else (),
+                       info=strategy_info, extra={'hidden_feature': _hidden, 'sampling': _osc}):
         P_avg = _avg_prob_dispatch(htot, htot_is_function_only_of_energy, energy, L, L0, nu_i, nu_f,
-            average, 'osc_prob_liv', smooth_profile=_profile_is_smooth, engine_kwargs=scan_kwargs)
+            average, 'osc_prob_liv', smooth_profile=_profile_is_smooth, engine_kwargs=scan_kwargs,
+            average_spread=average_spread)
         if P_avg is not NotImplemented:
             return P_avg
 
@@ -8456,7 +9098,8 @@ def osc_prob_liv(
 
         # Generate the probabilities for all pairs of energy and baseline in zip(energy, L).
         return osc_prob_energy_baseline(htot, energy, L, L0, nu_i, nu_f,
-            htot_is_function_only_of_energy, t_slab_edges=t_slab_edges, 
+            htot_is_function_only_of_energy, t_slab_edges=t_slab_edges,
+            return_evolution_operator=return_evolution_operator,
             magnus_exp_order=magnus_exp_order, n_jobs=n_jobs, integration_method=integration_method,
             rtol=rtol, atol=atol, growth_factor_n_slabs=growth_factor_n_slabs,
             growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
@@ -8565,19 +9208,19 @@ def osc_prob_2nu_vacuum(
     validate_input : bool, optional
         True to validate input (default); False not to, which is faster
         but riskier.
+    save_log : bool, optional
+        If True, also write all messages to the log file.
+    filename_log : str, optional
+        Name of the log file.
+    file_log : TextIOWrapper, optional
+        Open file handle to write the log to, if one is already open.
+    close_file_log_upon_exit : bool, optional
+        If True, close ``file_log`` before returning.
     verbose : int, optional
         0 not to print warnings and errors; 1 to print them; 2 to print
         progress.
 
     
-    save_log : bool, optional
-        If True, also write all messages to the log file.
-    filename_log : str, optional
-        Name of the log file.
-    file_log : file object, optional
-        Open file handle to write the log to, if one is already open.
-    close_file_log_upon_exit : bool, optional
-        If True, close ``file_log`` before returning.
     angles : str, optional
         How the mixing angle is stated: ``'sin'`` (default) its sine,
         ``'sin2'`` its sine *squared* -- which is what global fits report --
@@ -8662,8 +9305,12 @@ def osc_prob_3nu_vacuum(
 
     By default, returns :math:`3 \times 3` probability matrices for all 
     the oscillation channels. Each matrix has shape ``np.ndarray([[Pee,
-    Pem,Pet],[Pme,Pmm,Pmt],[Pte,Ptm,Ptt]])``.  The matrix is symmetric, 
-    i.e., ``Pme == Pee``, ``Pte == Pet``, and ``Ptm == Pmt``.  
+    Pem,Pet],[Pme,Pmm,Pmt],[Pte,Ptm,Ptt]])``.  The matrix is symmetric
+    only when ``dCP`` is zero, where ``Pem == Pme``, ``Pet == Pte`` and
+    ``Pmt == Ptm``.  A non-zero ``dCP`` breaks it, and the shipped
+    parameter set carries one: at the example below the two sides differ
+    by 4.8e-02.  ``P[i][j]`` is always the probability that flavor ``i``
+    arrives as flavor ``j``.
 
     If a single energy and baseline is given, the function returns a 
     single matrix.  If multiple energies and baselines are given, 
@@ -8743,19 +9390,19 @@ def osc_prob_3nu_vacuum(
     validate_input : bool, optional
         True to validate input (default); False not to, which is faster
         but riskier.
+    save_log : bool, optional
+        If True, also write all messages to the log file.
+    filename_log : str, optional
+        Name of the log file.
+    file_log : TextIOWrapper, optional
+        Open file handle to write the log to, if one is already open.
+    close_file_log_upon_exit : bool, optional
+        If True, close ``file_log`` before returning.
     verbose : int, optional
         0 not to print warnings and errors; 1 to print them; 2 to print
         progress.
 
     
-    save_log : bool, optional
-        If True, also write all messages to the log file.
-    filename_log : str, optional
-        Name of the log file.
-    file_log : file object, optional
-        Open file handle to write the log to, if one is already open.
-    close_file_log_upon_exit : bool, optional
-        If True, close ``file_log`` before returning.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -8773,7 +9420,7 @@ def osc_prob_3nu_vacuum(
     --------
     If both ``energy`` and ``L`` are single values, this function returns
     the full :math:`3\times 3` probability matrix computed at those
-    values, using the NuFit 6.0 (normal ordering) defaults for any
+    values, using the NuFIT 6.1 (normal ordering) defaults for any
     oscillation parameter not passed explicitly:
 
     .. jupyter-execute::
@@ -8885,9 +9532,12 @@ def osc_prob_4nu_vacuum(
     By default, returns :math:`4 \times 4` probability matrices for all 
     the oscillation channels. Each matrix has shape ``np.ndarray([[Pee,
     Pem,Pet,Pes],[Pme,Pmm,Pmt,Pms],[Pte,Ptm,Ptt,Pts],
-    [Pse,Psm,Pst,Pss]])``.  The matrix is symmetric, i.e., 
-    ``Pme == Pee``, ``Pte == Pet``, ``Pse == Pes``, ``Ptm == Pmt``,
-    ``Psm == Pms``, and ``Pst == Pts``.
+    [Pse,Psm,Pst,Pss]])``.  The matrix is symmetric only when every CP
+    phase is zero, where ``Pem == Pme``, ``Pet == Pte``, ``Pes == Pse``,
+    ``Pmt == Ptm``, ``Pms == Psm`` and ``Pts == Pst``.  A non-zero phase
+    breaks it, and the shipped parameter set carries one: at the example
+    below the two sides differ by 4.8e-02.  ``P[i][j]`` is always the
+    probability that flavor ``i`` arrives as flavor ``j``.
 
     If a single energy and baseline is given, the function returns a 
     single matrix.  If multiple energies and baselines are given, 
@@ -8980,19 +9630,19 @@ def osc_prob_4nu_vacuum(
     validate_input : bool, optional
         True to validate input (default); False not to, which is faster
         but riskier.
+    save_log : bool, optional
+        If True, also write all messages to the log file.
+    filename_log : str, optional
+        Name of the log file.
+    file_log : TextIOWrapper, optional
+        Open file handle to write the log to, if one is already open.
+    close_file_log_upon_exit : bool, optional
+        If True, close ``file_log`` before returning.
     verbose : int, optional
         0 not to print warnings and errors; 1 to print them; 2 to print
         progress.
 
     
-    save_log : bool, optional
-        If True, also write all messages to the log file.
-    filename_log : str, optional
-        Name of the log file.
-    file_log : file object, optional
-        Open file handle to write the log to, if one is already open.
-    close_file_log_upon_exit : bool, optional
-        If True, close ``file_log`` before returning.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -9009,7 +9659,7 @@ def osc_prob_4nu_vacuum(
     Examples
     --------
     With the sterile-sector angles/phases given explicitly and the
-    active-sector angles left at their NuFit 6.0 defaults:
+    active-sector angles left at their NuFIT 6.1 defaults:
 
     .. jupyter-execute::
 
@@ -9128,10 +9778,13 @@ def osc_prob_5nu_vacuum(
     the oscillation channels. Each matrix has shape ``np.ndarray([[Pee,
     Pem,Pet,Pes1,Pes2],[Pme,Pmm,Pmt,Pms1,Pms2],[Pte,Ptm,Ptt,Pts1,Pts2],
     [Ps1e,Ps1m,Ps1t,Ps1s1,Ps1s2],[Ps2e,Ps2m,Ps2t,Ps2s1,Ps2s2]])``.  The 
-    matrix is symmetric, i.e., ``Pme == Pee``, ``Pte == Pet``, 
-    ``Ps1e == Pes1``, ``Ps2e == Pes2`` ``Ptm == Pmt``,
-    ``Ps1m == Pms1``, ``Ps1t == Pts1``, ``Ps2t == Pts2``, and 
-    ``Ps2s1 == Ps1s2``.
+    matrix is symmetric only when every CP phase is zero, where
+    ``Pem == Pme``, ``Pet == Pte``, ``Pes1 == Ps1e``, ``Pes2 == Ps2e``,
+    ``Pmt == Ptm``, ``Pms1 == Ps1m``, ``Pts1 == Ps1t``, ``Pts2 == Ps2t``
+    and ``Ps1s2 == Ps2s1``.  A non-zero phase breaks it, and the shipped
+    parameter set carries one: at the example below the two sides differ
+    by 4.8e-02.  ``P[i][j]`` is always the probability that flavor ``i``
+    arrives as flavor ``j``.
 
     If a single energy and baseline is given, the function returns a 
     single matrix.  If multiple energies and baselines are given, 
@@ -9238,19 +9891,19 @@ def osc_prob_5nu_vacuum(
     validate_input : bool, optional
         True to validate input (default); False not to, which is faster
         but riskier.
+    save_log : bool, optional
+        If True, also write all messages to the log file.
+    filename_log : str, optional
+        Name of the log file.
+    file_log : TextIOWrapper, optional
+        Open file handle to write the log to, if one is already open.
+    close_file_log_upon_exit : bool, optional
+        If True, close ``file_log`` before returning.
     verbose : int, optional
         0 not to print warnings and errors; 1 to print them; 2 to print
         progress.
 
     
-    save_log : bool, optional
-        If True, also write all messages to the log file.
-    filename_log : str, optional
-        Name of the log file.
-    file_log : file object, optional
-        Open file handle to write the log to, if one is already open.
-    close_file_log_upon_exit : bool, optional
-        If True, close ``file_log`` before returning.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -9267,7 +9920,7 @@ def osc_prob_5nu_vacuum(
     Examples
     --------
     With the sterile-sector angles/phases given explicitly and the
-    active-sector angles left at their NuFit 6.0 defaults:
+    active-sector angles left at their NuFIT 6.1 defaults:
 
     .. jupyter-execute::
 
@@ -9424,9 +10077,10 @@ def osc_prob_2nu_matter_constant_density(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angle is stated: ``'sin'`` (default) its sine,
         ``'sin2'`` its sine *squared* -- which is what global fits report --
@@ -9455,6 +10109,10 @@ def osc_prob_2nu_matter_constant_density(
         density_matter_is_in_g_per_cm3=density_matter_is_in_g_per_cm3,
         density_is_of_number_of_electrons=density_is_of_number_of_electrons,
         validate_input=validate_input,
+        save_log=save_log,
+        filename_log=filename_log,
+        file_log=file_log,
+        close_file_log_upon_exit=close_file_log_upon_exit,
         new_recursion_limit=None,
         verbose=verbose,
         angles=angles,
@@ -9547,9 +10205,10 @@ def osc_prob_3nu_matter_constant_density(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -9690,9 +10349,10 @@ def osc_prob_4nu_matter_constant_density(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -9852,9 +10512,10 @@ def osc_prob_5nu_matter_constant_density(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -9920,6 +10581,7 @@ def osc_prob_2nu_matter_exp_density(
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
     angles: Optional[str]='sin',
+    _rho_func: Optional[Callable]=None,
     **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the two-neutrino oscillation 
     probability in matter with an exponentially falling density profile.
@@ -9983,14 +10645,21 @@ def osc_prob_2nu_matter_exp_density(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angle is stated: ``'sin'`` (default) its sine,
         ``'sin2'`` its sine *squared* -- which is what global fits report --
         ``'rad'`` the angle itself in radians, or ``'deg'`` in degrees.  Any other
         value raises.
+
+    _rho_func : Callable, optional
+        Internal: a density profile to use in place of the exponential one, which is how the
+        ``osc_prob_*_sun*`` wrappers pass a tabulated standard solar model (see
+        :mod:`magnus.solarmodels`).  ``rho_central`` and ``l_scale`` are then not used.  Leave
+        it None.  Default: None.
 
     Returns
     -------
@@ -10008,7 +10677,8 @@ def osc_prob_2nu_matter_exp_density(
 
     return osc_prob_matter_std_potential(
         num_flavors=2,
-        rho_func=matter.exp_density_profile(rho_central, l_scale),
+        rho_func=(matter.exp_density_profile(rho_central, l_scale) if _rho_func is None
+                  else _rho_func),
         energy=energy,
         L=L,
         osc_params={'sth': sth, 'Dm2': Dm2},
@@ -10058,6 +10728,7 @@ def osc_prob_3nu_matter_exp_density(
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
     angles: Optional[str]='sin',
+    _rho_func: Optional[Callable]=None,
     **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the three-neutrino oscillation 
     probability in matter with an exponentially falling density profile.
@@ -10122,15 +10793,22 @@ def osc_prob_3nu_matter_exp_density(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
         themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
         ``'deg'`` the CP phase is read as degrees too; under the other three
         it stays in radians, a sine being no way to state a phase.
+
+    _rho_func : Callable, optional
+        Internal: a density profile to use in place of the exponential one, which is how the
+        ``osc_prob_*_sun*`` wrappers pass a tabulated standard solar model (see
+        :mod:`magnus.solarmodels`).  ``rho_central`` and ``l_scale`` are then not used.  Leave
+        it None.  Default: None.
 
     Returns
     -------
@@ -10145,7 +10823,8 @@ def osc_prob_3nu_matter_exp_density(
 
     return osc_prob_matter_std_potential(
         num_flavors=3,
-        rho_func=matter.exp_density_profile(rho_central, l_scale),
+        rho_func=(matter.exp_density_profile(rho_central, l_scale) if _rho_func is None
+                  else _rho_func),
         energy=energy,
         L=L,
         osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 'D21': D21, 'D31': D31},
@@ -10202,6 +10881,7 @@ def osc_prob_4nu_matter_exp_density(
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
     angles: Optional[str]='sin',
+    _rho_func: Optional[Callable]=None,
     **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the four-neutrino (3+1) oscillation 
     probability in matter with an exponentially falling density profile.
@@ -10278,15 +10958,22 @@ def osc_prob_4nu_matter_exp_density(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
         themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
         ``'deg'`` the CP phases are read as degrees too; under the other three
         they stay in radians, a sine being no way to state a phase.
+
+    _rho_func : Callable, optional
+        Internal: a density profile to use in place of the exponential one, which is how the
+        ``osc_prob_*_sun*`` wrappers pass a tabulated standard solar model (see
+        :mod:`magnus.solarmodels`).  ``rho_central`` and ``l_scale`` are then not used.  Leave
+        it None.  Default: None.
 
     Returns
     -------
@@ -10301,7 +10988,8 @@ def osc_prob_4nu_matter_exp_density(
 
     return osc_prob_matter_std_potential(
         num_flavors=4,
-        rho_func=matter.exp_density_profile(rho_central, l_scale),
+        rho_func=(matter.exp_density_profile(rho_central, l_scale) if _rho_func is None
+                  else _rho_func),
         energy=energy,
         L=L,
         osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 's14': s14, 'd14': d14, 
@@ -10365,6 +11053,7 @@ def osc_prob_5nu_matter_exp_density(
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
     angles: Optional[str]='sin',
+    _rho_func: Optional[Callable]=None,
     **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the five-neutrino (3+2) oscillation 
     probability in matter with an exponentially falling density profile.
@@ -10453,15 +11142,22 @@ def osc_prob_5nu_matter_exp_density(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
         themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
         ``'deg'`` the CP phases are read as degrees too; under the other three
         they stay in radians, a sine being no way to state a phase.
+
+    _rho_func : Callable, optional
+        Internal: a density profile to use in place of the exponential one, which is how the
+        ``osc_prob_*_sun*`` wrappers pass a tabulated standard solar model (see
+        :mod:`magnus.solarmodels`).  ``rho_central`` and ``l_scale`` are then not used.  Leave
+        it None.  Default: None.
 
     Returns
     -------
@@ -10476,7 +11172,8 @@ def osc_prob_5nu_matter_exp_density(
 
     return osc_prob_matter_std_potential(
         num_flavors=5,
-        rho_func=matter.exp_density_profile(rho_central, l_scale),
+        rho_func=(matter.exp_density_profile(rho_central, l_scale) if _rho_func is None
+                  else _rho_func),
         energy=energy,
         L=L,
         osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 's14': s14, 'd14': d14, 
@@ -10523,6 +11220,9 @@ def osc_prob_2nu_earth(
     electron_fraction_mantle: Optional[Union[int, float]]=None,
     electron_fraction_crust: Optional[Union[int, float]]=None,
     electron_fraction_ocean: Optional[Union[int, float]]=None,
+    source_depth: Optional[Union[int, float]]=0.0,
+    detector_depth: Optional[Union[int, float]]=0.0,
+    density_matter_ocean: Optional[Union[int, float]]=None,
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
@@ -10547,6 +11247,14 @@ def osc_prob_2nu_earth(
     are not ``None``), then the neutrino travels the chord joining them 
     through the Earth, overriding any given value of costhz given, and 
     using the chord length as the baseline. 
+
+    Both locations lie on the surface.  To put either end of the
+    trajectory underground, give ``costhz`` instead and name
+    ``source_depth``, ``detector_depth``, or both.  ``costhz`` is the
+    zenith angle at the detector, which is the surface angle when the
+    detector is on the surface, so nothing changes for a call that
+    leaves the depths alone.  A buried detector fixes where the
+    trajectory ends, so ``L`` is then computed rather than given.
 
     The initial and final location can be given as a three-entry tuple
     of coordinates in the (degree, minute, second) format.  Alternatively,
@@ -10601,6 +11309,11 @@ def osc_prob_2nu_earth(
 
     .. versionadded:: 1.0.0
 
+    .. versionchanged:: 1.1.1
+       Added ``source_depth``, ``detector_depth`` and ``density_matter_ocean``.
+       Their defaults leave the trajectory and the density profile exactly as
+       they were: both endpoints on the surface, and PREM's own ocean.
+
     Parameters
     ----------
     energy : int, float, list, or np.ndarray
@@ -10623,29 +11336,6 @@ def osc_prob_2nu_earth(
         Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
     nu_f : int, optional
         Final flavor index; see ``nu_i``. Default: None.
-    validate_input : bool, optional
-        If True, validate the input parameters. Default: True.
-    save_log : bool, optional
-        If True, also write log messages to a file. Default: False.
-    filename_log : str, optional
-        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
-    file_log : TextIOWrapper, optional
-        Optional file object to write log messages to. Default: None.
-    close_file_log_upon_exit : bool, optional
-        If True, close the log file before returning. Default: True.
-    verbose : int, optional
-        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
-    \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function, and
-        through it to :func:`osc_prob`, whose signature declares them. The refinement
-        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
-        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
-        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
-
-    
     ratio_number_neutrons_to_protons : int, float, or Callable, optional
         :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
         matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: None,
@@ -10690,6 +11380,49 @@ def osc_prob_2nu_earth(
         hydrogen has :math:`Z/A = 1`).  PREM's ocean is a global average that a
         land-based baseline does not cross; pass
         :data:`magnus.earth.Y_E_CRUST_PREM` for one.
+    source_depth : int or float, optional
+        Depth of the neutrino's entry point below the surface of the Earth
+        [:math:`\text{eV}^{-1}`].  Default: 0.0, i.e. the neutrino enters at
+        the surface, which is the geometry every earlier version assumed.
+    detector_depth : int or float, optional
+        Depth of the detector below the surface of the Earth
+        [:math:`\text{eV}^{-1}`].  The zenith angle ``costhz`` is measured at
+        the detector, so a buried detector also sees downward-going neutrinos
+        (``costhz > 0``) through its overburden.  Naming this fixes where the
+        trajectory ends, so ``L`` must then be left as None and the baseline
+        is computed for you.  Default: 0.0, i.e. a detector on the surface.
+    density_matter_ocean : int or float, optional
+        Density of PREM's outermost shell, :math:`r > 6368` km
+        [:math:`\text{g cm}^{-3}`].  PREM puts a global-average ocean there,
+        at 1.020; continental rock is about 2.6 and Antarctic ice about 0.92.
+        The shell is 3 km thick, so this matters for a trajectory close to
+        horizontal, which can spend its whole length inside it.  Pair it with
+        ``electron_fraction_ocean``, which sets the composition of the same
+        shell.  Default: None, i.e. PREM's own ocean.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
+
+    
     angles : str, optional
         How the mixing angle is stated: ``'sin'`` (default) its sine,
         ``'sin2'`` its sine *squared* -- which is what global fits report --
@@ -10718,13 +11451,20 @@ def osc_prob_2nu_earth(
     # and using the chord length as the baseline. If only a single location is given, throw an 
     # exception.  If neither of the two locations are given, use the given value of costhz and of 
     # baseline given (could be an array of baselines).
+    # Both depths are declared Optional, so None has to mean "no depth".  Normalized here,
+    # where they first arrive, because the three uses below divide by gd.UNIT_KM and a None
+    # would surface as a TypeError rather than this package's descriptive ValueError.
+    source_depth, detector_depth = earth._depths_or_zero(source_depth, detector_depth)
+
     costhz, L = validate_input_osc_prob_earth(source_func_name, loc_ini, loc_fin, costhz, L,
-        verbose=verbose) # L in eV^{-1}
+        verbose=verbose, source_depth=source_depth, detector_depth=detector_depth) # L in eV^{-1}
 
     # Align the slab edges with the crossings of the PREM layer boundaries along the chord: the
     # matter density is discontinuous there, and the high-order quadrature of the Magnus kernel
     # converges at its nominal order only if the Hamiltonian is smooth inside each slab.
-    t_breakpoints = earth.prem_layer_edges_along_chord(costhz)*gd.UNIT_KM # [eV^{-1}]
+    t_breakpoints = earth.prem_layer_edges_along_chord(
+        costhz, source_depth/gd.UNIT_KM,
+        detector_depth/gd.UNIT_KM)*gd.UNIT_KM # [eV^{-1}]
 
     # A caller may have breakpoints of their own -- a feature in a custom H, say.  These
     # wrappers set t_breakpoints themselves, so an argument of the same name arrived in
@@ -10761,7 +11501,9 @@ def osc_prob_2nu_earth(
         costhz, electron_fraction, ratio_number_neutrons_to_protons,
         electron_fraction_core, electron_fraction_mantle,
         electron_fraction_crust, electron_fraction_ocean,
-        source_func_name, num_flavors=2)
+        source_func_name, num_flavors=2,
+        source_depth=source_depth, detector_depth=detector_depth,
+        density_matter_ocean=density_matter_ocean)
 
     return osc_prob_matter_std_potential(
         num_flavors=2,
@@ -10773,7 +11515,7 @@ def osc_prob_2nu_earth(
         # end.  Declared, not detected: see _earth_chord_symmetry.  Returns None -- and
         # so takes the ordinary path -- unless every requested baseline is the whole
         # chord, because a chord is symmetric over no shorter prefix of itself.
-        symmetric_over=_earth_chord_symmetry(costhz, L),
+        symmetric_over=_earth_chord_symmetry(costhz, L, source_depth, detector_depth),
         osc_params={'sth': sth, 'Dm2': Dm2},
         L0=0.0,
         nubar=nubar,
@@ -10818,6 +11560,9 @@ def osc_prob_3nu_earth(
     electron_fraction_mantle: Optional[Union[int, float]]=None,
     electron_fraction_crust: Optional[Union[int, float]]=None,
     electron_fraction_ocean: Optional[Union[int, float]]=None,
+    source_depth: Optional[Union[int, float]]=0.0,
+    detector_depth: Optional[Union[int, float]]=0.0,
+    density_matter_ocean: Optional[Union[int, float]]=None,
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
@@ -10842,6 +11587,14 @@ def osc_prob_3nu_earth(
     are not ``None``), then the neutrino travels the chord joining them 
     through the Earth, overriding any given value of costhz given, and 
     using the chord length as the baseline. 
+
+    Both locations lie on the surface.  To put either end of the
+    trajectory underground, give ``costhz`` instead and name
+    ``source_depth``, ``detector_depth``, or both.  ``costhz`` is the
+    zenith angle at the detector, which is the surface angle when the
+    detector is on the surface, so nothing changes for a call that
+    leaves the depths alone.  A buried detector fixes where the
+    trajectory ends, so ``L`` is then computed rather than given.
 
     The initial and final location can be given as a three-entry tuple
     of coordinates in the (degree, minute, second) format.  Alternatively,
@@ -10871,7 +11624,7 @@ def osc_prob_3nu_earth(
     Examples
     --------
     Standard three-neutrino oscillations through the Earth, using the
-    NuFit 6.0 defaults for the oscillation parameters:
+    NuFIT 6.1 defaults for the oscillation parameters:
 
     .. jupyter-execute::
 
@@ -10893,6 +11646,11 @@ def osc_prob_3nu_earth(
         P
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.1
+       Added ``source_depth``, ``detector_depth`` and ``density_matter_ocean``.
+       Their defaults leave the trajectory and the density profile exactly as
+       they were: both endpoints on the surface, and PREM's own ocean.
 
     Parameters
     ----------
@@ -10926,29 +11684,6 @@ def osc_prob_3nu_earth(
         Final flavor index; see ``nu_i``. Default: None.
     default_osc_params_set_name : str, optional
         Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
-    validate_input : bool, optional
-        If True, validate the input parameters. Default: True.
-    save_log : bool, optional
-        If True, also write log messages to a file. Default: False.
-    filename_log : str, optional
-        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
-    file_log : TextIOWrapper, optional
-        Optional file object to write log messages to. Default: None.
-    close_file_log_upon_exit : bool, optional
-        If True, close the log file before returning. Default: True.
-    verbose : int, optional
-        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
-    \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function, and
-        through it to :func:`osc_prob`, whose signature declares them. The refinement
-        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
-        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
-        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
-
-    
     ratio_number_neutrons_to_protons : int, float, or Callable, optional
         :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
         matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: None,
@@ -10993,6 +11728,49 @@ def osc_prob_3nu_earth(
         hydrogen has :math:`Z/A = 1`).  PREM's ocean is a global average that a
         land-based baseline does not cross; pass
         :data:`magnus.earth.Y_E_CRUST_PREM` for one.
+    source_depth : int or float, optional
+        Depth of the neutrino's entry point below the surface of the Earth
+        [:math:`\text{eV}^{-1}`].  Default: 0.0, i.e. the neutrino enters at
+        the surface, which is the geometry every earlier version assumed.
+    detector_depth : int or float, optional
+        Depth of the detector below the surface of the Earth
+        [:math:`\text{eV}^{-1}`].  The zenith angle ``costhz`` is measured at
+        the detector, so a buried detector also sees downward-going neutrinos
+        (``costhz > 0``) through its overburden.  Naming this fixes where the
+        trajectory ends, so ``L`` must then be left as None and the baseline
+        is computed for you.  Default: 0.0, i.e. a detector on the surface.
+    density_matter_ocean : int or float, optional
+        Density of PREM's outermost shell, :math:`r > 6368` km
+        [:math:`\text{g cm}^{-3}`].  PREM puts a global-average ocean there,
+        at 1.020; continental rock is about 2.6 and Antarctic ice about 0.92.
+        The shell is 3 km thick, so this matters for a trajectory close to
+        horizontal, which can spend its whole length inside it.  Pair it with
+        ``electron_fraction_ocean``, which sets the composition of the same
+        shell.  Default: None, i.e. PREM's own ocean.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
+
+    
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -11022,13 +11800,20 @@ def osc_prob_3nu_earth(
     # and using the chord length as the baseline. If only a single location is given, throw an 
     # exception.  If neither of the two locations are given, use the given value of costhz and of 
     # baseline given (could be an array of baselines).
+    # Both depths are declared Optional, so None has to mean "no depth".  Normalized here,
+    # where they first arrive, because the three uses below divide by gd.UNIT_KM and a None
+    # would surface as a TypeError rather than this package's descriptive ValueError.
+    source_depth, detector_depth = earth._depths_or_zero(source_depth, detector_depth)
+
     costhz, L = validate_input_osc_prob_earth(source_func_name, loc_ini, loc_fin, costhz, L,
-        verbose=verbose)
+        verbose=verbose, source_depth=source_depth, detector_depth=detector_depth)
 
     # Align the slab edges with the crossings of the PREM layer boundaries along the chord: the
     # matter density is discontinuous there, and the high-order quadrature of the Magnus kernel
     # converges at its nominal order only if the Hamiltonian is smooth inside each slab.
-    t_breakpoints = earth.prem_layer_edges_along_chord(costhz)*gd.UNIT_KM # [eV^{-1}]
+    t_breakpoints = earth.prem_layer_edges_along_chord(
+        costhz, source_depth/gd.UNIT_KM,
+        detector_depth/gd.UNIT_KM)*gd.UNIT_KM # [eV^{-1}]
 
     # A caller may have breakpoints of their own -- a feature in a custom H, say.  These
     # wrappers set t_breakpoints themselves, so an argument of the same name arrived in
@@ -11061,7 +11846,9 @@ def osc_prob_3nu_earth(
         costhz, electron_fraction, ratio_number_neutrons_to_protons,
         electron_fraction_core, electron_fraction_mantle,
         electron_fraction_crust, electron_fraction_ocean,
-        source_func_name, num_flavors=3)
+        source_func_name, num_flavors=3,
+        source_depth=source_depth, detector_depth=detector_depth,
+        density_matter_ocean=density_matter_ocean)
 
     return osc_prob_matter_std_potential(
         num_flavors=3,
@@ -11073,7 +11860,7 @@ def osc_prob_3nu_earth(
         # end.  Declared, not detected: see _earth_chord_symmetry.  Returns None -- and
         # so takes the ordinary path -- unless every requested baseline is the whole
         # chord, because a chord is symmetric over no shorter prefix of itself.
-        symmetric_over=_earth_chord_symmetry(costhz, L),
+        symmetric_over=_earth_chord_symmetry(costhz, L, source_depth, detector_depth),
         osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 'D21': D21, 'D31': D31},
         L0=0.0,
         nubar=nubar,
@@ -11125,6 +11912,9 @@ def osc_prob_4nu_earth(
     electron_fraction_mantle: Optional[Union[int, float]]=None,
     electron_fraction_crust: Optional[Union[int, float]]=None,
     electron_fraction_ocean: Optional[Union[int, float]]=None,
+    source_depth: Optional[Union[int, float]]=0.0,
+    detector_depth: Optional[Union[int, float]]=0.0,
+    density_matter_ocean: Optional[Union[int, float]]=None,
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
@@ -11149,6 +11939,14 @@ def osc_prob_4nu_earth(
     are not ``None``), then the neutrino travels the chord joining them 
     through the Earth, overriding any given value of costhz given, and 
     using the chord length as the baseline. 
+
+    Both locations lie on the surface.  To put either end of the
+    trajectory underground, give ``costhz`` instead and name
+    ``source_depth``, ``detector_depth``, or both.  ``costhz`` is the
+    zenith angle at the detector, which is the surface angle when the
+    detector is on the surface, so nothing changes for a call that
+    leaves the depths alone.  A buried detector fixes where the
+    trajectory ends, so ``L`` is then computed rather than given.
 
     The initial and final location can be given as a three-entry tuple
     of coordinates in the (degree, minute, second) format.  Alternatively,
@@ -11178,7 +11976,7 @@ def osc_prob_4nu_earth(
     Examples
     --------
     Four-neutrino (3+1 sterile) oscillations through the Earth, with a
-    modest sterile mixing on top of the NuFit 6.0 active-sector defaults:
+    modest sterile mixing on top of the NuFIT 6.1 active-sector defaults:
 
     .. jupyter-execute::
 
@@ -11203,6 +12001,11 @@ def osc_prob_4nu_earth(
         P
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.1
+       Added ``source_depth``, ``detector_depth`` and ``density_matter_ocean``.
+       Their defaults leave the trajectory and the density profile exactly as
+       they were: both endpoints on the surface, and PREM's own ocean.
 
     Parameters
     ----------
@@ -11248,29 +12051,6 @@ def osc_prob_4nu_earth(
         Final flavor index; see ``nu_i``. Default: None.
     default_osc_params_set_name : str, optional
         Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
-    validate_input : bool, optional
-        If True, validate the input parameters. Default: True.
-    save_log : bool, optional
-        If True, also write log messages to a file. Default: False.
-    filename_log : str, optional
-        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
-    file_log : TextIOWrapper, optional
-        Optional file object to write log messages to. Default: None.
-    close_file_log_upon_exit : bool, optional
-        If True, close the log file before returning. Default: True.
-    verbose : int, optional
-        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
-    \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function, and
-        through it to :func:`osc_prob`, whose signature declares them. The refinement
-        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
-        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
-        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
-
-    
     ratio_number_neutrons_to_protons : int, float, or Callable, optional
         :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
         matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: None,
@@ -11315,6 +12095,49 @@ def osc_prob_4nu_earth(
         hydrogen has :math:`Z/A = 1`).  PREM's ocean is a global average that a
         land-based baseline does not cross; pass
         :data:`magnus.earth.Y_E_CRUST_PREM` for one.
+    source_depth : int or float, optional
+        Depth of the neutrino's entry point below the surface of the Earth
+        [:math:`\text{eV}^{-1}`].  Default: 0.0, i.e. the neutrino enters at
+        the surface, which is the geometry every earlier version assumed.
+    detector_depth : int or float, optional
+        Depth of the detector below the surface of the Earth
+        [:math:`\text{eV}^{-1}`].  The zenith angle ``costhz`` is measured at
+        the detector, so a buried detector also sees downward-going neutrinos
+        (``costhz > 0``) through its overburden.  Naming this fixes where the
+        trajectory ends, so ``L`` must then be left as None and the baseline
+        is computed for you.  Default: 0.0, i.e. a detector on the surface.
+    density_matter_ocean : int or float, optional
+        Density of PREM's outermost shell, :math:`r > 6368` km
+        [:math:`\text{g cm}^{-3}`].  PREM puts a global-average ocean there,
+        at 1.020; continental rock is about 2.6 and Antarctic ice about 0.92.
+        The shell is 3 km thick, so this matters for a trajectory close to
+        horizontal, which can spend its whole length inside it.  Pair it with
+        ``electron_fraction_ocean``, which sets the composition of the same
+        shell.  Default: None, i.e. PREM's own ocean.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
+
+    
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -11344,13 +12167,20 @@ def osc_prob_4nu_earth(
     # and using the chord length as the baseline. If only a single location is given, throw an 
     # exception.  If neither of the two locations are given, use the given value of costhz and of 
     # baseline given (could be an array of baselines).
+    # Both depths are declared Optional, so None has to mean "no depth".  Normalized here,
+    # where they first arrive, because the three uses below divide by gd.UNIT_KM and a None
+    # would surface as a TypeError rather than this package's descriptive ValueError.
+    source_depth, detector_depth = earth._depths_or_zero(source_depth, detector_depth)
+
     costhz, L = validate_input_osc_prob_earth(source_func_name, loc_ini, loc_fin, costhz, L,
-        verbose=verbose)
+        verbose=verbose, source_depth=source_depth, detector_depth=detector_depth)
 
     # Align the slab edges with the crossings of the PREM layer boundaries along the chord: the
     # matter density is discontinuous there, and the high-order quadrature of the Magnus kernel
     # converges at its nominal order only if the Hamiltonian is smooth inside each slab.
-    t_breakpoints = earth.prem_layer_edges_along_chord(costhz)*gd.UNIT_KM # [eV^{-1}]
+    t_breakpoints = earth.prem_layer_edges_along_chord(
+        costhz, source_depth/gd.UNIT_KM,
+        detector_depth/gd.UNIT_KM)*gd.UNIT_KM # [eV^{-1}]
 
     # A caller may have breakpoints of their own -- a feature in a custom H, say.  These
     # wrappers set t_breakpoints themselves, so an argument of the same name arrived in
@@ -11383,7 +12213,9 @@ def osc_prob_4nu_earth(
         costhz, electron_fraction, ratio_number_neutrons_to_protons,
         electron_fraction_core, electron_fraction_mantle,
         electron_fraction_crust, electron_fraction_ocean,
-        source_func_name, num_flavors=4)
+        source_func_name, num_flavors=4,
+        source_depth=source_depth, detector_depth=detector_depth,
+        density_matter_ocean=density_matter_ocean)
 
     return osc_prob_matter_std_potential(
         num_flavors=4,
@@ -11395,7 +12227,7 @@ def osc_prob_4nu_earth(
         # end.  Declared, not detected: see _earth_chord_symmetry.  Returns None -- and
         # so takes the ordinary path -- unless every requested baseline is the whole
         # chord, because a chord is symmetric over no shorter prefix of itself.
-        symmetric_over=_earth_chord_symmetry(costhz, L),
+        symmetric_over=_earth_chord_symmetry(costhz, L, source_depth, detector_depth),
         osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 's14': s14, 'd14': d14, 
             's24': s24, 'd24': d24, 's34': s34, 'D21': D21, 'D31': D31, 'D41': D41},
         L0=0.0,
@@ -11454,6 +12286,9 @@ def osc_prob_5nu_earth(
     electron_fraction_mantle: Optional[Union[int, float]]=None,
     electron_fraction_crust: Optional[Union[int, float]]=None,
     electron_fraction_ocean: Optional[Union[int, float]]=None,
+    source_depth: Optional[Union[int, float]]=0.0,
+    detector_depth: Optional[Union[int, float]]=0.0,
+    density_matter_ocean: Optional[Union[int, float]]=None,
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
@@ -11478,6 +12313,14 @@ def osc_prob_5nu_earth(
     are not ``None``), then the neutrino travels the chord joining them 
     through the Earth, overriding any given value of costhz given, and 
     using the chord length as the baseline. 
+
+    Both locations lie on the surface.  To put either end of the
+    trajectory underground, give ``costhz`` instead and name
+    ``source_depth``, ``detector_depth``, or both.  ``costhz`` is the
+    zenith angle at the detector, which is the surface angle when the
+    detector is on the surface, so nothing changes for a call that
+    leaves the depths alone.  A buried detector fixes where the
+    trajectory ends, so ``L`` is then computed rather than given.
 
     The initial and final location can be given as a three-entry tuple
     of coordinates in the (degree, minute, second) format.  Alternatively,
@@ -11507,7 +12350,7 @@ def osc_prob_5nu_earth(
     Examples
     --------
     Five-neutrino (3+2 sterile) oscillations through the Earth, with
-    modest sterile mixing on top of the NuFit 6.0 active-sector defaults:
+    modest sterile mixing on top of the NuFIT 6.1 active-sector defaults:
 
     .. jupyter-execute::
 
@@ -11534,6 +12377,11 @@ def osc_prob_5nu_earth(
         P
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.1
+       Added ``source_depth``, ``detector_depth`` and ``density_matter_ocean``.
+       Their defaults leave the trajectory and the density profile exactly as
+       they were: both endpoints on the surface, and PREM's own ocean.
 
     Parameters
     ----------
@@ -11591,29 +12439,6 @@ def osc_prob_5nu_earth(
         Final flavor index; see ``nu_i``. Default: None.
     default_osc_params_set_name : str, optional
         Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
-    validate_input : bool, optional
-        If True, validate the input parameters. Default: True.
-    save_log : bool, optional
-        If True, also write log messages to a file. Default: False.
-    filename_log : str, optional
-        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
-    file_log : TextIOWrapper, optional
-        Optional file object to write log messages to. Default: None.
-    close_file_log_upon_exit : bool, optional
-        If True, close the log file before returning. Default: True.
-    verbose : int, optional
-        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
-    \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function, and
-        through it to :func:`osc_prob`, whose signature declares them. The refinement
-        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
-        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
-        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
-
-    
     ratio_number_neutrons_to_protons : int, float, or Callable, optional
         :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
         matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: None,
@@ -11658,6 +12483,49 @@ def osc_prob_5nu_earth(
         hydrogen has :math:`Z/A = 1`).  PREM's ocean is a global average that a
         land-based baseline does not cross; pass
         :data:`magnus.earth.Y_E_CRUST_PREM` for one.
+    source_depth : int or float, optional
+        Depth of the neutrino's entry point below the surface of the Earth
+        [:math:`\text{eV}^{-1}`].  Default: 0.0, i.e. the neutrino enters at
+        the surface, which is the geometry every earlier version assumed.
+    detector_depth : int or float, optional
+        Depth of the detector below the surface of the Earth
+        [:math:`\text{eV}^{-1}`].  The zenith angle ``costhz`` is measured at
+        the detector, so a buried detector also sees downward-going neutrinos
+        (``costhz > 0``) through its overburden.  Naming this fixes where the
+        trajectory ends, so ``L`` must then be left as None and the baseline
+        is computed for you.  Default: 0.0, i.e. a detector on the surface.
+    density_matter_ocean : int or float, optional
+        Density of PREM's outermost shell, :math:`r > 6368` km
+        [:math:`\text{g cm}^{-3}`].  PREM puts a global-average ocean there,
+        at 1.020; continental rock is about 2.6 and Antarctic ice about 0.92.
+        The shell is 3 km thick, so this matters for a trajectory close to
+        horizontal, which can spend its whole length inside it.  Pair it with
+        ``electron_fraction_ocean``, which sets the composition of the same
+        shell.  Default: None, i.e. PREM's own ocean.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
+
+    
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -11687,13 +12555,20 @@ def osc_prob_5nu_earth(
     # and using the chord length as the baseline. If only a single location is given, throw an 
     # exception.  If neither of the two locations are given, use the given value of costhz and of 
     # baseline given (could be an array of baselines).
+    # Both depths are declared Optional, so None has to mean "no depth".  Normalized here,
+    # where they first arrive, because the three uses below divide by gd.UNIT_KM and a None
+    # would surface as a TypeError rather than this package's descriptive ValueError.
+    source_depth, detector_depth = earth._depths_or_zero(source_depth, detector_depth)
+
     costhz, L = validate_input_osc_prob_earth(source_func_name, loc_ini, loc_fin, costhz, L,
-        verbose=verbose)
+        verbose=verbose, source_depth=source_depth, detector_depth=detector_depth)
 
     # Align the slab edges with the crossings of the PREM layer boundaries along the chord: the
     # matter density is discontinuous there, and the high-order quadrature of the Magnus kernel
     # converges at its nominal order only if the Hamiltonian is smooth inside each slab.
-    t_breakpoints = earth.prem_layer_edges_along_chord(costhz)*gd.UNIT_KM # [eV^{-1}]
+    t_breakpoints = earth.prem_layer_edges_along_chord(
+        costhz, source_depth/gd.UNIT_KM,
+        detector_depth/gd.UNIT_KM)*gd.UNIT_KM # [eV^{-1}]
 
     # A caller may have breakpoints of their own -- a feature in a custom H, say.  These
     # wrappers set t_breakpoints themselves, so an argument of the same name arrived in
@@ -11726,7 +12601,9 @@ def osc_prob_5nu_earth(
         costhz, electron_fraction, ratio_number_neutrons_to_protons,
         electron_fraction_core, electron_fraction_mantle,
         electron_fraction_crust, electron_fraction_ocean,
-        source_func_name, num_flavors=5)
+        source_func_name, num_flavors=5,
+        source_depth=source_depth, detector_depth=detector_depth,
+        density_matter_ocean=density_matter_ocean)
 
     return osc_prob_matter_std_potential(
         num_flavors=5,
@@ -11738,7 +12615,7 @@ def osc_prob_5nu_earth(
         # end.  Declared, not detected: see _earth_chord_symmetry.  Returns None -- and
         # so takes the ordinary path -- unless every requested baseline is the whole
         # chord, because a chord is symmetric over no shorter prefix of itself.
-        symmetric_over=_earth_chord_symmetry(costhz, L),
+        symmetric_over=_earth_chord_symmetry(costhz, L, source_depth, detector_depth),
         osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 's14': s14, 'd14': d14, 
             's15': s15, 'd15': d15, 's24': s24, 'd24': d24, 's25': s25, 's34': s34, 's35': s35, 
             'd35': d35, 'D21': D21, 'D31': D31, 'D41': D41, 'D51': D51},
@@ -11780,6 +12657,9 @@ def osc_prob_earth(
     electron_fraction_mantle: Optional[Union[int, float]]=None,
     electron_fraction_crust: Optional[Union[int, float]]=None,
     electron_fraction_ocean: Optional[Union[int, float]]=None,
+    source_depth: Optional[Union[int, float]]=0.0,
+    detector_depth: Optional[Union[int, float]]=0.0,
+    density_matter_ocean: Optional[Union[int, float]]=None,
     magnus_exp_order: Optional[int]=4,
     n_jobs: Optional[int]=1,
     integration_method: Optional[str]='gl',
@@ -11789,6 +12669,8 @@ def osc_prob_earth(
     verbose: Optional[int]=0,
     strategy: Optional[str]='auto',
     strategy_info: Optional[Dict]=None,
+    average: Optional[bool]=False,
+    average_spread: Optional[float]=None,
     **kwargs
 ) -> Union[float, np.ndarray]:
     r"""Compute and return the neutrino oscillation probability inside
@@ -11798,6 +12680,13 @@ def osc_prob_earth(
     neutrino flavors: the user supplies their own Hamiltonian function,
     ``H_func``, and this routine takes care of the geometry of the
     trajectory through the Earth and of the matter density along it.
+
+    The trajectory runs between two points on the surface unless
+    ``source_depth`` or ``detector_depth`` says otherwise.  ``costhz`` is
+    the zenith angle at the detector, which is the surface angle when the
+    detector is on the surface, so nothing changes for a call that leaves
+    the depths alone.  A buried detector fixes where the trajectory ends,
+    so ``L`` is then computed rather than given.
 
     ``H_func`` must be a function of either three arguments,
     ``H_func(energy, l, VCC)``, or two arguments,
@@ -11826,6 +12715,12 @@ def osc_prob_earth(
 
     .. versionadded:: 1.0.0
 
+    .. versionchanged:: 1.1.1
+       Added ``source_depth``, ``detector_depth`` and ``density_matter_ocean``.
+       Their defaults leave the trajectory and the density profile exactly as
+       they were: both endpoints on the surface, and PREM's own ocean.
+       Added ``average``.
+
     Parameters
     ----------
     H_func : Callable
@@ -11852,7 +12747,13 @@ def osc_prob_earth(
     nu_f : int, optional
         Final flavor index; see ``nu_i``.
     ratio_number_neutrons_to_protons : int or float, optional
-        Ratio of the number of neutrons to protons in Earth matter. Default: 1.0.
+        Accepted and **inert on this entry point**.  The density derives its own ratio from
+        the layered :math:`Y_e`, and with a caller-supplied ``H_func`` there is no
+        package-built matter projector for the ratio to enter -- sterile entries, if any,
+        are ``H_func``'s own business.  Changing it moves nothing: the largest difference
+        between ``r = 1.0`` and ``r = 0.1`` is exactly 0.0, at three flavors and at four.
+        The flavor-specific wrappers do use it, and there it is worth 0.29 in probability.
+        Default: 1.0.
     electron_fraction : int or float, optional
         One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
         ``0.5`` reproduces the uniform composition assumed before those existed.
@@ -11870,6 +12771,23 @@ def osc_prob_earth(
     electron_fraction_ocean : int or float, optional
         :math:`Y_e` for :math:`r > 6368` km.  Default:
         :data:`magnus.earth.Y_E_OCEAN_PREM` (0.5551, seawater).
+    source_depth : int or float, optional
+        Depth of the neutrino's entry point below the surface of the Earth
+        [:math:`\text{eV}^{-1}`].  Default: 0.0, i.e. the neutrino enters at
+        the surface, which is the geometry every earlier version assumed.
+    detector_depth : int or float, optional
+        Depth of the detector below the surface of the Earth
+        [:math:`\text{eV}^{-1}`].  The zenith angle ``costhz`` is measured at
+        the detector, so a buried detector also sees downward-going neutrinos
+        (``costhz > 0``) through its overburden.  Naming this fixes where the
+        trajectory ends, so ``L`` must then be left as None and the baseline
+        is computed for you.  Default: 0.0, i.e. a detector on the surface.
+    density_matter_ocean : int or float, optional
+        Density of PREM's outermost shell, :math:`r > 6368` km
+        [:math:`\text{g cm}^{-3}`].  PREM puts a global-average ocean there,
+        at 1.020; continental rock is about 2.6 and Antarctic ice about 0.92.
+        Pair it with ``electron_fraction_ocean``, which sets the composition
+        of the same shell.  Default: None, i.e. PREM's own ocean.
     magnus_exp_order : int, optional
         Highest order of the Magnus expansion. Default: 4.
     n_jobs : int, optional
@@ -11877,7 +12795,9 @@ def osc_prob_earth(
     integration_method : str, optional
         'gl', 'trapezoid', or 'simpson'. Default: 'gl'.
     rtol, atol : int or float, optional
-        Target relative/absolute tolerance for the adaptive slab refinement. Default: 1e-3 each.
+        Target relative/absolute tolerance for the adaptive slab refinement.  With
+        ``average=True`` on a smooth profile, the tighter of the two is the tolerance of the
+        phase average instead; see :func:`osc_prob_energy_baseline`.  Default: 1e-3 each.
     validate_input : bool, optional
         If True, validate the input parameters. Default: True.
     verbose : int, optional
@@ -11900,6 +12820,24 @@ def osc_prob_earth(
     strategy_info : dict, optional
         If given, filled in place with which engine actually answered, following the
         same out-parameter convention as ``convergence_info`` in :func:`osc_prob`.
+    average : bool, optional
+        If True, return the phase average of the probability over a relative energy spread (see
+        :mod:`magnus.avgprob`) instead of the oscillating one, as the wrappers do with the
+        same keyword; ``strategy`` is then not consulted.  Which route answers follows from
+        the Hamiltonian: a function of the energy alone is averaged in closed form, one
+        eigendecomposition per energy; a function of position is averaged by adiabatic
+        transport along its instantaneous eigenstates, with a Magnus patch across every
+        non-adiabatic crossing, when the profile is smooth; and across an energy window, with
+        a warning, when ``t_breakpoints`` declare discontinuities.  ``n_jobs`` and the
+        cumulative traversal play no role on this route, and on a smooth profile the tighter
+        of ``rtol`` and ``atol`` is its tolerance.  Cannot be combined with
+        ``return_evolution_operator``.  Default: False.
+    average_spread : float, optional
+        Relative energy spread :math:`\sigma` of the phase average ``average=True`` returns:
+        every interference term keeps its phase and is weighted by
+        :math:`e^{-\sigma^2\phi'^2/2}`, :math:`\phi' = d\phi/d\ln E` (see
+        :data:`magnus.avgprob.AVG_PHASE_SPREAD`).  Ignored without ``average``.  Default:
+        None, meaning 0.1.
 
     Returns
     -------
@@ -11953,11 +12891,18 @@ def osc_prob_earth(
         loc_fin = earth.coordinates_of_named_location(source_func_name, loc_name=loc_fin)
 
     # Resolve the trajectory: either the chord between two surface locations, or (costhz, L)
+    # Both depths are declared Optional, so None has to mean "no depth".  Normalized here,
+    # where they first arrive, because the three uses below divide by gd.UNIT_KM and a None
+    # would surface as a TypeError rather than this package's descriptive ValueError.
+    source_depth, detector_depth = earth._depths_or_zero(source_depth, detector_depth)
+
     costhz, L = validate_input_osc_prob_earth(source_func_name, loc_ini, loc_fin, costhz, L,
-        verbose=verbose)
+        verbose=verbose, source_depth=source_depth, detector_depth=detector_depth)
 
     # Align the slab edges with the crossings of the PREM layer boundaries along the chord
-    t_breakpoints = earth.prem_layer_edges_along_chord(costhz)*gd.UNIT_KM # [eV^{-1}]
+    t_breakpoints = earth.prem_layer_edges_along_chord(
+        costhz, source_depth/gd.UNIT_KM,
+        detector_depth/gd.UNIT_KM)*gd.UNIT_KM # [eV^{-1}]
 
     # A caller may have breakpoints of their own -- a feature in a custom H, say.  These
     # wrappers set t_breakpoints themselves, so an argument of the same name arrived in
@@ -11984,7 +12929,9 @@ def osc_prob_earth(
         costhz, electron_fraction, ratio_number_neutrons_to_protons,
         electron_fraction_core, electron_fraction_mantle,
         electron_fraction_crust, electron_fraction_ocean,
-        source_func_name, num_flavors=None)
+        source_func_name, num_flavors=None,
+        source_depth=source_depth, detector_depth=detector_depth,
+        density_matter_ocean=density_matter_ocean)
     VCC_func = matter.vcc_func_from_rho_func(
         rho_func=rho_func,
         nubar=nubar,
@@ -11995,8 +12942,9 @@ def osc_prob_earth(
     # here and not by a general caller, and why it declines unless the whole chord is traversed.
     return _osc_prob_with_potential(source_func_name, H_func, VCC_func, energy, L, 0.0, nu_i,
         nu_f, t_breakpoints, magnus_exp_order, n_jobs, integration_method, rtol, atol,
-        validate_input, verbose, strategy=strategy, strategy_info=strategy_info,
-        symmetric_over=_earth_chord_symmetry(costhz, L), **kwargs)
+        validate_input, verbose, strategy=strategy, strategy_info=strategy_info, average=average,
+        average_spread=average_spread,
+        symmetric_over=_earth_chord_symmetry(costhz, L, source_depth, detector_depth), **kwargs)
 
 
 def _osc_prob_with_potential(
@@ -12019,8 +12967,11 @@ def _osc_prob_with_potential(
     strategy: Optional[str] = 'auto',
     strategy_info: Optional[Dict] = None,
     symmetric_over: Optional[tuple] = None,
+    return_evolution_operator: Optional[bool] = False,
+    average: Optional[bool] = False,
+    average_spread: Optional[float] = None,
     **kwargs
-) -> Union[float, np.ndarray]:
+) -> Union[float, np.ndarray, Tuple[np.ndarray, np.ndarray]]:
     r"""Common machinery of :func:`osc_prob_earth` and
     :func:`osc_prob_sun`: wire a user-supplied Hamiltonian function --
     H_func(energy, l, VCC) or H_func(energy, l) -- to the environment
@@ -12028,6 +12979,9 @@ def _osc_prob_with_potential(
     :func:`osc_prob_energy_baseline`.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.1
+       Added ``return_evolution_operator`` and ``average``.
 
     .. note::
         With ``strategy='auto'`` (the default) or ``'hybrid'``, this also tries the
@@ -12038,13 +12992,6 @@ def _osc_prob_with_potential(
 
     Parameters
     ----------
-    strategy_info : dict, optional
-        If given, filled in place with which engine actually answered, exactly as in
-        :func:`osc_prob_matter_std_potential` -- see that function for the keys.  A
-        user-supplied Hamiltonian gets the same answer to "which engine answered, and what
-        stood aside" as a built-in scenario does. Default: None.
-
-        .. versionadded:: 1.0.0
     source_func_name : str
         Name of the calling function (``osc_prob_earth`` or ``osc_prob_sun``), used to build more
         informative error messages.
@@ -12071,7 +13018,9 @@ def _osc_prob_with_potential(
     integration_method : str
         'gl', 'trapezoid', or 'simpson'.
     rtol, atol : int or float, optional
-        Target relative/absolute tolerance for the adaptive slab refinement.
+        Target relative/absolute tolerance for the adaptive slab refinement.  With
+        ``average=True`` on a smooth profile, the tighter of the two is the tolerance of the
+        phase average instead; see :func:`osc_prob_energy_baseline`.
     validate_input : bool
         If True, validate that ``H_func`` has the expected signature.
     verbose : int
@@ -12083,10 +13032,40 @@ def _osc_prob_with_potential(
         Default: 'auto'.
 
         .. versionadded:: 1.0.0
+    strategy_info : dict, optional
+        If given, filled in place with which engine actually answered, exactly as in
+        :func:`osc_prob_matter_std_potential` -- see that function for the keys.  A
+        user-supplied Hamiltonian gets the same answer to "which engine answered, and what
+        stood aside" as a built-in scenario does. Default: None.
+
+        .. versionadded:: 1.0.0
     symmetric_over : tuple, optional
         Interval over which the caller declares the profile mirror-symmetric, forwarded to
         :func:`osc_prob`.  Set by :func:`osc_prob_earth`, whose chord is symmetric by geometry;
         left None by :func:`osc_prob_sun`, whose profile is monotonic.
+    return_evolution_operator : bool, optional
+        If True, return the pair ``(P, U)`` instead of ``P`` alone, with ``U`` the
+        evolution operators, one ``(d, d)`` array per point.  Cannot be combined
+        with ``average``. Default: False.
+
+    average : bool, optional
+        If True, return the phase average of the probability over a relative energy spread (see
+        :mod:`magnus.avgprob`) instead of the oscillating one, as the wrappers do with the
+        same keyword; ``strategy`` is then not consulted.  Which route answers follows from
+        the Hamiltonian: a function of the energy alone is averaged in closed form, one
+        eigendecomposition per energy; a function of position is averaged by adiabatic
+        transport along its instantaneous eigenstates, with a Magnus patch across every
+        non-adiabatic crossing, when the profile is smooth; and across an energy window, with
+        a warning, when ``t_breakpoints`` declare discontinuities.  ``n_jobs`` and the
+        cumulative traversal play no role on this route, and on a smooth profile the tighter
+        of ``rtol`` and ``atol`` is its tolerance.  Cannot be combined with
+        ``return_evolution_operator``.  Default: False.
+    average_spread : float, optional
+        Relative energy spread :math:`\sigma` of the phase average ``average=True`` returns:
+        every interference term keeps its phase and is weighted by
+        :math:`e^{-\sigma^2\phi'^2/2}`, :math:`\phi' = d\phi/d\ln E` (see
+        :data:`magnus.avgprob.AVG_PHASE_SPREAD`).  Ignored without ``average``.  Default:
+        None, meaning 0.1.
     \**kwargs
         Additional arguments forwarded to :func:`osc_prob_energy_baseline`.
 
@@ -12113,9 +13092,10 @@ def _osc_prob_with_potential(
 
     Returns
     -------
-    float or np.ndarray
-        Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for
-        each (energy, L) point.
+    float, np.ndarray, or tuple
+        Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are
+        given) for each (energy, L) point.  With
+        ``return_evolution_operator=True``, the pair ``(P, U)``.
     """
 
     if validate_input:
@@ -12131,6 +13111,9 @@ def _osc_prob_with_potential(
         if strategy not in ('auto', 'hybrid', 'magnus'):
             raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + \
                 ": strategy must be 'auto', 'hybrid', or 'magnus'.")
+
+    if return_evolution_operator:
+        _check_operator_request(average, strategy, source_func_name)
 
     n_params_H = _n_required_params(H_func)
     if n_params_H == 3:
@@ -12163,7 +13146,23 @@ def _osc_prob_with_potential(
 
     # Watched as a unit, as in the three scenario wrappers, so that a user-supplied Hamiltonian
     # gets the same answer to "which engine answered, and what stood aside" as a built-in one.
-    with _engine_probe(info=strategy_info, extra={'hidden_feature': _hidden, 'sampling': _osc}):
+    with _engine_probe(disabled=_OPERATOR_ONLY_FROM_LADDER if return_evolution_operator else (),
+                       info=strategy_info, extra={'hidden_feature': _hidden, 'sampling': _osc}):
+        # Phase average, as in the three scenario wrappers: answered before any engine
+        # that would resolve the phases the average discards.  Dispatched from here rather
+        # than through osc_prob_energy_baseline, so that its errors and warnings name the
+        # function the caller called.
+        P_avg = _avg_prob_dispatch(htot, False, energy, L, L0, nu_i, nu_f, average,
+            source_func_name,
+            smooth_profile=(t_breakpoints is None or len(np.atleast_1d(t_breakpoints)) == 0),
+            engine_kwargs=dict(t_breakpoints=t_breakpoints, magnus_exp_order=magnus_exp_order,
+                n_jobs=n_jobs, integration_method=integration_method, rtol=rtol, atol=atol,
+                validate_input=validate_input, verbose=verbose, cumulative=cumulative,
+                symmetric_over=symmetric_over, kwargs=kwargs),
+            average_spread=average_spread)
+        if P_avg is not NotImplemented:
+            return P_avg
+
         P_hybrid = (NotImplemented if cumulative is True else
             _osc_prob_hybrid_dispatch_generic(htot, VCC_func, energy, L, L0, nu_i, nu_f,
                 t_breakpoints, rtol, atol, magnus_exp_order, integration_method, strategy,
@@ -12172,6 +13171,7 @@ def _osc_prob_with_potential(
             return P_hybrid
 
         return osc_prob_energy_baseline(htot, energy, L, L0, nu_i, nu_f, False,
+            return_evolution_operator=return_evolution_operator,
             t_breakpoints=t_breakpoints, magnus_exp_order=magnus_exp_order, n_jobs=n_jobs,
             integration_method=integration_method, rtol=rtol, atol=atol,
             validate_input=validate_input, verbose=verbose, cumulative=cumulative,
@@ -12181,6 +13181,99 @@ def _osc_prob_with_potential(
 #-----------------------------------------------------------------------
 # In matter, standard oscillations, in the Sun
 #-----------------------------------------------------------------------
+
+
+def _is_exponential(density_profile) -> bool:
+    return str(density_profile).strip().lower() == solarmodels.EXPONENTIAL
+
+
+def _solar_profile(density_profile, ratio_number_neutrons_to_protons, source_func_name: str):
+    r"""The density profile and neutron-to-proton ratio a Sun wrapper passes on.
+
+    For the exponential fit, ``(None, ratio)``: the ``_exp_density`` wrapper then builds the
+    profile exactly as it always has, and a ratio left unset is 1.0, as it always was.  For a
+    standard solar model, its tabulated electron density, and the ratio as given or, left unset,
+    the model's own composition (:mod:`magnus.solarmodels`).
+
+    .. versionadded:: 1.1.1
+    """
+    if _is_exponential(density_profile):
+        return None, (1.0 if ratio_number_neutrons_to_protons is None
+                      else ratio_number_neutrons_to_protons)
+    try:
+        name = solarmodels.canonical_name(density_profile)
+    except ValueError as e:
+        raise ValueError(str(e).replace(" solarmodels:", " oscprob." + source_func_name +
+            ": density_profile:", 1)) from None
+    ratio = (solarmodels.neutron_to_proton_ratio_profile(name)
+             if ratio_number_neutrons_to_protons is None else ratio_number_neutrons_to_protons)
+    return solarmodels.electron_density_profile(name), ratio
+
+
+def _stop_at_table_edge(density_profile, stop_at_table_edge, L, L0, source_func_name: str):
+    r"""Which baselines reach past a solar model's last tabulated radius, when that is refused.
+
+    Returns ``(L, None)`` unless ``stop_at_table_edge`` is set and some baseline does.  Then each
+    such baseline is replaced by ``L0``, a path of zero length that costs nothing and keeps the
+    call's shape, and the second value marks the results :func:`_refuse_past_table_edge` must
+    blank; a warning says how many and where the edge is.  A path that *starts* past the edge
+    has nothing inside the table to compute, and is refused outright.
+
+    .. versionadded:: 1.1.1
+    """
+    if not stop_at_table_edge:
+        return L, None
+    if _is_exponential(density_profile):
+        raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": "
+            "stop_at_table_edge applies to a tabulated standard solar model, and the exponential "
+            "fit has no last row to stop at.  Name one through density_profile -- " +
+            ", ".join(solarmodels.SOLAR_MODELS) + " -- or leave stop_at_table_edge at False.")
+    name = solarmodels.canonical_name(density_profile)
+    edge, r_edge = solarmodels.table_edge(name), solarmodels.solar_model_info(name)['r_max']
+    if float(L0) > edge:
+        raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": the path "
+            "starts past the last tabulated radius of the " + name + " solar model, " +
+            format(r_edge, '.4g') + " R_sun, so with stop_at_table_edge=True there is nothing "
+            "inside the table to compute.  Start the path inside it, or leave "
+            "stop_at_table_edge at False to continue the profile past the table.")
+    L_arr = np.asarray(L, dtype=float)
+    beyond = L_arr > edge
+    if not np.any(beyond):
+        return L, None
+    warnings.warn(gd.WARNING_MSG_NO_COLOR + " oscprob." + source_func_name + ": " +
+        str(int(np.sum(beyond))) + " of " + str(int(np.size(beyond))) + " baseline(s) reach past "
+        "the last tabulated radius of the " + name + " solar model, " + format(r_edge, '.4g') +
+        " R_sun, and stop_at_table_edge=True returns NaN there instead of a probability.  Leave "
+        "it False to continue the profile past the table along the slope of its last interval, "
+        "or use a model tabulated to the surface (B16 and B23 are).",
+        SolarModelRangeWarning, stacklevel=3)
+    L_eff = np.where(beyond, float(L0), L_arr)
+    return (float(L_eff) if np.ndim(L_eff) == 0 else L_eff), beyond
+
+
+def _refuse_past_table_edge(P, beyond):
+    r"""Blank the results :func:`_stop_at_table_edge` marked, leaving the rest as computed.
+
+    ``P`` is whatever the wrapper returns -- a probability, a matrix, one per point, or the pair
+    ``(P, U)`` -- and its first axis runs over the points when there is more than one.
+
+    .. versionadded:: 1.1.1
+    """
+    if beyond is None:
+        return P
+    if isinstance(P, tuple):
+        return tuple(_refuse_past_table_edge(x, beyond) for x in P)
+    out = np.array(P, dtype=complex if np.iscomplexobj(P) else float)
+    b = np.asarray(beyond)
+    if b.size == 1 or out.ndim == 0:
+        if bool(np.any(b)):
+            out[...] = np.nan
+    elif out.shape[0] == b.size:
+        out[b.ravel()] = np.nan
+    else:
+        out[...] = np.nan
+    return out[()] if out.ndim == 0 else out
+
 
 def osc_prob_2nu_sun(
     energy: Union[float, list, np.ndarray], 
@@ -12199,6 +13292,8 @@ def osc_prob_2nu_sun(
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
     angles: Optional[str]='sin',
+    density_profile: Optional[str]='exp',
+    stop_at_table_edge: Optional[bool]=False,
     **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the two-neutrino oscillation probability
     for neutrinos inside the Sun.
@@ -12243,6 +13338,10 @@ def osc_prob_2nu_sun(
         P
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.1
+       Takes ``density_profile``, to use a tabulated standard solar model in place of the
+       exponential fit, and ``stop_at_table_edge``.
 
     .. note::
         Dispatches to a fast, closed-form interaction-picture Magnus
@@ -12303,14 +13402,28 @@ def osc_prob_2nu_sun(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angle is stated: ``'sin'`` (default) its sine,
         ``'sin2'`` its sine *squared* -- which is what global fits report --
         ``'rad'`` the angle itself in radians, or ``'deg'`` in degrees.  Any other
         value raises.
+
+    density_profile : str, optional
+        The Sun's electron density.  ``'exp'``, the default, is the exponential fit described
+        above.  The name of a standard solar model -- one of
+        :data:`magnus.solarmodels.SOLAR_MODELS`, such as ``'B16-GS98'``, in any case -- uses
+        that model's tabulated profile instead: interpolated in the logarithm of the density,
+        held flat below the first tabulated radius, and continued past the last along the slope
+        of the last interval (see :mod:`magnus.solarmodels`).  Default: 'exp'.
+    stop_at_table_edge : bool, optional
+        Only with a standard solar model.  If True, a baseline reaching past the model's last
+        tabulated radius returns NaN instead of a probability, with a
+        :class:`SolarModelRangeWarning` naming the edge; if False, the profile is continued past
+        it.  Default: False.
 
     Returns
     -------
@@ -12320,7 +13433,9 @@ def osc_prob_2nu_sun(
     # If any of the flavor indices is > 1, fix it (read the docstring above).
     nu_i, nu_f = valid_flavor_indices_2nu(nu_i, nu_f)
 
-    return osc_prob_2nu_matter_exp_density(
+    _rho, _ = _solar_profile(density_profile, None, 'osc_prob_2nu_sun')
+    L, _beyond = _stop_at_table_edge(density_profile, stop_at_table_edge, L, L0, 'osc_prob_2nu_sun')
+    P = osc_prob_2nu_matter_exp_density(
         energy=energy,
         L=L,
         L0=L0,
@@ -12340,8 +13455,10 @@ def osc_prob_2nu_sun(
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
         angles=angles,
+        _rho_func=_rho,
         **kwargs
     )
+    return _refuse_past_table_edge(P, _beyond)
 
 
 def osc_prob_3nu_sun(
@@ -12366,6 +13483,8 @@ def osc_prob_3nu_sun(
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
     angles: Optional[str]='sin',
+    density_profile: Optional[str]='exp',
+    stop_at_table_edge: Optional[bool]=False,
     **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the three-neutrino oscillation probability 
     for neutrinos inside the Sun.
@@ -12385,7 +13504,7 @@ def osc_prob_3nu_sun(
     Examples
     --------
     Standard three-neutrino oscillations through the Sun, using the
-    NuFit 6.0 defaults for the oscillation parameters:
+    NuFIT 6.1 defaults for the oscillation parameters:
 
     .. jupyter-execute::
 
@@ -12408,6 +13527,10 @@ def osc_prob_3nu_sun(
         P
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.1
+       Takes ``density_profile``, to use a tabulated standard solar model in place of the
+       exponential fit, and ``stop_at_table_edge``.
 
     Parameters
     ----------
@@ -12435,8 +13558,6 @@ def osc_prob_3nu_sun(
         Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
     nu_f : int, optional
         Final flavor index; see ``nu_i``. Default: None.
-    default_osc_params_set_name : str, optional
-        Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
     strategy : str, optional
         Numerical strategy used to compute the evolution operator: 'auto' (default),
         'hybrid', or 'magnus'; see the ``strategy`` parameter of
@@ -12444,6 +13565,8 @@ def osc_prob_3nu_sun(
         :doc:`/adiabatic_strategy` for the derivation and validation. Default: 'auto'.
 
         .. versionadded:: 1.0.0
+    default_osc_params_set_name : str, optional
+        Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
     validate_input : bool, optional
         If True, validate the input parameters. Default: True.
     save_log : bool, optional
@@ -12462,9 +13585,10 @@ def osc_prob_3nu_sun(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -12472,13 +13596,28 @@ def osc_prob_3nu_sun(
         ``'deg'`` the CP phase is read as degrees too; under the other three
         it stays in radians, a sine being no way to state a phase.
 
+    density_profile : str, optional
+        The Sun's electron density.  ``'exp'``, the default, is the exponential fit described
+        above.  The name of a standard solar model -- one of
+        :data:`magnus.solarmodels.SOLAR_MODELS`, such as ``'B16-GS98'``, in any case -- uses
+        that model's tabulated profile instead: interpolated in the logarithm of the density,
+        held flat below the first tabulated radius, and continued past the last along the slope
+        of the last interval (see :mod:`magnus.solarmodels`).  Default: 'exp'.
+    stop_at_table_edge : bool, optional
+        Only with a standard solar model.  If True, a baseline reaching past the model's last
+        tabulated radius returns NaN instead of a probability, with a
+        :class:`SolarModelRangeWarning` naming the edge; if False, the profile is continued past
+        it.  Default: False.
+
     Returns
     -------
     float or np.ndarray
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
-    return osc_prob_3nu_matter_exp_density(
+    _rho, _ = _solar_profile(density_profile, None, 'osc_prob_3nu_sun')
+    L, _beyond = _stop_at_table_edge(density_profile, stop_at_table_edge, L, L0, 'osc_prob_3nu_sun')
+    P = osc_prob_3nu_matter_exp_density(
         energy=energy,
         L=L,
         L0=L0,
@@ -12503,8 +13642,10 @@ def osc_prob_3nu_sun(
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
         angles=angles,
+        _rho_func=_rho,
         **kwargs
     )
+    return _refuse_past_table_edge(P, _beyond)
 
 
 def osc_prob_4nu_sun(
@@ -12535,7 +13676,9 @@ def osc_prob_4nu_sun(
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
     angles: Optional[str]='sin',
-    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
+    ratio_number_neutrons_to_protons: Optional[Union[int, float, Callable]]=None,
+    density_profile: Optional[str]='exp',
+    stop_at_table_edge: Optional[bool]=False,
     **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the four-neutrino (3+1) oscillation 
     probability for neutrinos inside the Sun.
@@ -12555,7 +13698,7 @@ def osc_prob_4nu_sun(
     Examples
     --------
     Four-neutrino (3+1 sterile) oscillations through the Sun, with a
-    modest sterile mixing on top of the NuFit 6.0 active-sector defaults:
+    modest sterile mixing on top of the NuFIT 6.1 active-sector defaults:
 
     .. jupyter-execute::
 
@@ -12580,6 +13723,12 @@ def osc_prob_4nu_sun(
         P
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.1
+       Takes ``density_profile``, to use a tabulated standard solar model in place of the
+       exponential fit, and ``stop_at_table_edge``.  ``ratio_number_neutrons_to_protons``
+       defaults to None: 1.0 with the exponential profile, as before, and the model's own
+       composition with a standard solar model.
 
     Parameters
     ----------
@@ -12619,8 +13768,6 @@ def osc_prob_4nu_sun(
         Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
     nu_f : int, optional
         Final flavor index; see ``nu_i``. Default: None.
-    default_osc_params_set_name : str, optional
-        Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
     strategy : str, optional
         Numerical strategy used to compute the evolution operator: 'auto' (default),
         'hybrid', or 'magnus'; see the ``strategy`` parameter of
@@ -12628,6 +13775,8 @@ def osc_prob_4nu_sun(
         :doc:`/adiabatic_strategy` for the derivation and validation. Default: 'auto'.
 
         .. versionadded:: 1.0.0
+    default_osc_params_set_name : str, optional
+        Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
     validate_input : bool, optional
         If True, validate the input parameters. Default: True.
     save_log : bool, optional
@@ -12646,24 +13795,10 @@ def osc_prob_4nu_sun(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
-    ratio_number_neutrons_to_protons : int or float, optional
-        :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
-        matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
-        (isoscalar matter, i.e. :math:`Y_e = 0.5`).
-
-        **The Sun is not isoscalar, and this is the only way to say so.**  It is
-        hydrogen-rich, so :math:`Y_e = (1 + X)/2` runs from about 0.68 at the center to
-        0.88 near the surface, and :math:`r = (1 - Y_e)/Y_e` from about 0.47 down to
-        0.14 -- nowhere near 1.0, unlike the Earth where the isoscalar value at least
-        sits among the layers.  The solar profile is a fit to the electron *number*
-        density, so :math:`Y_e` is already inside it and there is nothing for the
-        library to derive :math:`r` from: it has to be stated here.  Left at 1.0 the
-        averaged survival probability moves by about 4e-03 at
-        :math:`\sin\theta_{14} = 0.4`, above the default tolerance.  Three flavors are
-        unaffected -- the projector's sterile block is empty.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -12671,13 +13806,48 @@ def osc_prob_4nu_sun(
         ``'deg'`` the CP phases are read as degrees too; under the other three
         they stay in radians, a sine being no way to state a phase.
 
+    ratio_number_neutrons_to_protons : int, float, Callable, or None, optional
+        :math:`r = n_n/n_p` of the medium, a number or a function of position.  Scales the
+        sterile states' entry in the matter term; see
+        :func:`magnus.matter.matter_potential_projector`.  Default: None, which means 1.0
+        (isoscalar matter, i.e. :math:`Y_e = 0.5`) with the exponential profile, as before,
+        and the model's own composition with a standard solar model:
+        :math:`r = (1 - X)/(1 + X)` at every radius, from its hydrogen mass fraction :math:`X`
+        (see :func:`magnus.solarmodels.neutron_to_proton_ratio_profile`).  A value passed here
+        is used as given, with either profile.
+
+        **The Sun is not isoscalar.**  It is hydrogen-rich, so :math:`Y_e = (1 + X)/2` runs
+        from about 0.68 at the center to 0.88 near the surface, and :math:`r` from about 0.47
+        down to 0.14 -- nowhere near 1.0, unlike the Earth where the isoscalar value at least
+        sits among the layers.  The exponential profile is a fit to the electron *number*
+        density and carries no composition to derive :math:`r` from, so 1.0 is kept there as
+        before; naming a standard solar model through ``density_profile`` supplies one.  Left
+        at 1.0 the averaged survival probability moves by about 4e-03 at
+        :math:`\sin\theta_{14} = 0.4`, above the default tolerance.  Three flavors are
+        unaffected -- the projector's sterile block is empty.
+    density_profile : str, optional
+        The Sun's electron density.  ``'exp'``, the default, is the exponential fit described
+        above.  The name of a standard solar model -- one of
+        :data:`magnus.solarmodels.SOLAR_MODELS`, such as ``'B16-GS98'``, in any case -- uses
+        that model's tabulated profile instead: interpolated in the logarithm of the density,
+        held flat below the first tabulated radius, and continued past the last along the slope
+        of the last interval (see :mod:`magnus.solarmodels`).  With the sterile states it also supplies the composition; see
+        ``ratio_number_neutrons_to_protons``.  Default: 'exp'.
+    stop_at_table_edge : bool, optional
+        Only with a standard solar model.  If True, a baseline reaching past the model's last
+        tabulated radius returns NaN instead of a probability, with a
+        :class:`SolarModelRangeWarning` naming the edge; if False, the profile is continued past
+        it.  Default: False.
+
     Returns
     -------
     float or np.ndarray
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
-    return osc_prob_4nu_matter_exp_density(
+    _rho, ratio_number_neutrons_to_protons = _solar_profile(density_profile, ratio_number_neutrons_to_protons, 'osc_prob_4nu_sun')
+    L, _beyond = _stop_at_table_edge(density_profile, stop_at_table_edge, L, L0, 'osc_prob_4nu_sun')
+    P = osc_prob_4nu_matter_exp_density(
         energy=energy,
         L=L,
         L0=L0,
@@ -12709,8 +13879,10 @@ def osc_prob_4nu_sun(
         verbose=verbose,
         angles=angles,
         ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
+        _rho_func=_rho,
         **kwargs
     )
+    return _refuse_past_table_edge(P, _beyond)
 
 
 def osc_prob_5nu_sun(
@@ -12747,7 +13919,9 @@ def osc_prob_5nu_sun(
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
     angles: Optional[str]='sin',
-    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
+    ratio_number_neutrons_to_protons: Optional[Union[int, float, Callable]]=None,
+    density_profile: Optional[str]='exp',
+    stop_at_table_edge: Optional[bool]=False,
     **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the five-neutrino (3+2) oscillation 
     probability for neutrinos inside the Sun.
@@ -12767,7 +13941,7 @@ def osc_prob_5nu_sun(
     Examples
     --------
     Five-neutrino (3+2 sterile) oscillations through the Sun, with
-    modest sterile mixing on top of the NuFit 6.0 active-sector defaults:
+    modest sterile mixing on top of the NuFIT 6.1 active-sector defaults:
 
     .. jupyter-execute::
 
@@ -12795,6 +13969,12 @@ def osc_prob_5nu_sun(
         P
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.1
+       Takes ``density_profile``, to use a tabulated standard solar model in place of the
+       exponential fit, and ``stop_at_table_edge``.  ``ratio_number_neutrons_to_protons``
+       defaults to None: 1.0 with the exponential profile, as before, and the model's own
+       composition with a standard solar model.
 
     Parameters
     ----------
@@ -12846,8 +14026,6 @@ def osc_prob_5nu_sun(
         Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
     nu_f : int, optional
         Final flavor index; see ``nu_i``. Default: None.
-    default_osc_params_set_name : str, optional
-        Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
     strategy : str, optional
         Numerical strategy used to compute the evolution operator: 'auto' (default),
         'hybrid', or 'magnus'; see the ``strategy`` parameter of
@@ -12855,6 +14033,8 @@ def osc_prob_5nu_sun(
         :doc:`/adiabatic_strategy` for the derivation and validation. Default: 'auto'.
 
         .. versionadded:: 1.0.0
+    default_osc_params_set_name : str, optional
+        Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
     validate_input : bool, optional
         If True, validate the input parameters. Default: True.
     save_log : bool, optional
@@ -12873,24 +14053,10 @@ def osc_prob_5nu_sun(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
-    ratio_number_neutrons_to_protons : int or float, optional
-        :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
-        matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
-        (isoscalar matter, i.e. :math:`Y_e = 0.5`).
-
-        **The Sun is not isoscalar, and this is the only way to say so.**  It is
-        hydrogen-rich, so :math:`Y_e = (1 + X)/2` runs from about 0.68 at the center to
-        0.88 near the surface, and :math:`r = (1 - Y_e)/Y_e` from about 0.47 down to
-        0.14 -- nowhere near 1.0, unlike the Earth where the isoscalar value at least
-        sits among the layers.  The solar profile is a fit to the electron *number*
-        density, so :math:`Y_e` is already inside it and there is nothing for the
-        library to derive :math:`r` from: it has to be stated here.  Left at 1.0 the
-        averaged survival probability moves by about 4e-03 at
-        :math:`\sin\theta_{14} = 0.4`, above the default tolerance.  Three flavors are
-        unaffected -- the projector's sterile block is empty.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -12898,13 +14064,48 @@ def osc_prob_5nu_sun(
         ``'deg'`` the CP phases are read as degrees too; under the other three
         they stay in radians, a sine being no way to state a phase.
 
+    ratio_number_neutrons_to_protons : int, float, Callable, or None, optional
+        :math:`r = n_n/n_p` of the medium, a number or a function of position.  Scales the
+        sterile states' entry in the matter term; see
+        :func:`magnus.matter.matter_potential_projector`.  Default: None, which means 1.0
+        (isoscalar matter, i.e. :math:`Y_e = 0.5`) with the exponential profile, as before,
+        and the model's own composition with a standard solar model:
+        :math:`r = (1 - X)/(1 + X)` at every radius, from its hydrogen mass fraction :math:`X`
+        (see :func:`magnus.solarmodels.neutron_to_proton_ratio_profile`).  A value passed here
+        is used as given, with either profile.
+
+        **The Sun is not isoscalar.**  It is hydrogen-rich, so :math:`Y_e = (1 + X)/2` runs
+        from about 0.68 at the center to 0.88 near the surface, and :math:`r` from about 0.47
+        down to 0.14 -- nowhere near 1.0, unlike the Earth where the isoscalar value at least
+        sits among the layers.  The exponential profile is a fit to the electron *number*
+        density and carries no composition to derive :math:`r` from, so 1.0 is kept there as
+        before; naming a standard solar model through ``density_profile`` supplies one.  Left
+        at 1.0 the averaged survival probability moves by about 4e-03 at
+        :math:`\sin\theta_{14} = 0.4`, above the default tolerance.  Three flavors are
+        unaffected -- the projector's sterile block is empty.
+    density_profile : str, optional
+        The Sun's electron density.  ``'exp'``, the default, is the exponential fit described
+        above.  The name of a standard solar model -- one of
+        :data:`magnus.solarmodels.SOLAR_MODELS`, such as ``'B16-GS98'``, in any case -- uses
+        that model's tabulated profile instead: interpolated in the logarithm of the density,
+        held flat below the first tabulated radius, and continued past the last along the slope
+        of the last interval (see :mod:`magnus.solarmodels`).  With the sterile states it also supplies the composition; see
+        ``ratio_number_neutrons_to_protons``.  Default: 'exp'.
+    stop_at_table_edge : bool, optional
+        Only with a standard solar model.  If True, a baseline reaching past the model's last
+        tabulated radius returns NaN instead of a probability, with a
+        :class:`SolarModelRangeWarning` naming the edge; if False, the profile is continued past
+        it.  Default: False.
+
     Returns
     -------
     float or np.ndarray
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
-    return osc_prob_5nu_matter_exp_density(
+    _rho, ratio_number_neutrons_to_protons = _solar_profile(density_profile, ratio_number_neutrons_to_protons, 'osc_prob_5nu_sun')
+    L, _beyond = _stop_at_table_edge(density_profile, stop_at_table_edge, L, L0, 'osc_prob_5nu_sun')
+    P = osc_prob_5nu_matter_exp_density(
         energy=energy,
         L=L,
         L0=L0,
@@ -12942,8 +14143,10 @@ def osc_prob_5nu_sun(
         verbose=verbose,
         angles=angles,
         ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
+        _rho_func=_rho,
         **kwargs
     )
+    return _refuse_past_table_edge(P, _beyond)
 
 
 def osc_prob_sun(
@@ -12963,6 +14166,10 @@ def osc_prob_sun(
     verbose: Optional[int]=0,
     strategy: Optional[str]='auto',
     strategy_info: Optional[Dict]=None,
+    average: Optional[bool]=False,
+    average_spread: Optional[float]=None,
+    density_profile: Optional[str]='exp',
+    stop_at_table_edge: Optional[bool]=False,
     **kwargs
 ) -> Union[float, np.ndarray]:
     r"""Compute and return the neutrino oscillation probability inside
@@ -12997,6 +14204,9 @@ def osc_prob_sun(
 
     .. versionadded:: 1.0.0
 
+    .. versionchanged:: 1.1.1
+       Added ``average``, ``density_profile`` and ``stop_at_table_edge``.
+
     Parameters
     ----------
     H_func : Callable
@@ -13022,7 +14232,9 @@ def osc_prob_sun(
     integration_method : str, optional
         'gl', 'trapezoid', or 'simpson'. Default: 'gl'.
     rtol, atol : int or float, optional
-        Target relative/absolute tolerance for the adaptive slab refinement. Default: 1e-3 each.
+        Target relative/absolute tolerance for the adaptive slab refinement.  With
+        ``average=True`` on a smooth profile, the tighter of the two is the tolerance of the
+        phase average instead; see :func:`osc_prob_energy_baseline`.  Default: 1e-3 each.
     validate_input : bool, optional
         If True, validate the input parameters. Default: True.
     verbose : int, optional
@@ -13043,6 +14255,39 @@ def osc_prob_sun(
     strategy_info : dict, optional
         If given, filled in place with which engine actually answered, following the
         same out-parameter convention as ``convergence_info`` in :func:`osc_prob`.
+    average : bool, optional
+        If True, return the phase average of the probability over a relative energy spread (see
+        :mod:`magnus.avgprob`) instead of the oscillating one, as the wrappers do with the
+        same keyword; ``strategy`` is then not consulted.  Which route answers follows from
+        the Hamiltonian: a function of the energy alone is averaged in closed form, one
+        eigendecomposition per energy; a function of position is averaged by adiabatic
+        transport along its instantaneous eigenstates, with a Magnus patch across every
+        non-adiabatic crossing, when the profile is smooth; and across an energy window, with
+        a warning, when ``t_breakpoints`` declare discontinuities.  ``n_jobs`` and the
+        cumulative traversal play no role on this route, and on a smooth profile the tighter
+        of ``rtol`` and ``atol`` is its tolerance.  Cannot be combined with
+        ``return_evolution_operator``.  Default: False.
+    average_spread : float, optional
+        Relative energy spread :math:`\sigma` of the phase average ``average=True`` returns:
+        every interference term keeps its phase and is weighted by
+        :math:`e^{-\sigma^2\phi'^2/2}`, :math:`\phi' = d\phi/d\ln E` (see
+        :data:`magnus.avgprob.AVG_PHASE_SPREAD`).  Ignored without ``average``.  Default:
+        None, meaning 0.1.
+    density_profile : str, optional
+        The Sun's electron density, which sets the ``VCC`` passed to ``H_func``.  ``'exp'``,
+        the default, is the exponential fit described above.  The name of a standard solar
+        model -- one of :data:`magnus.solarmodels.SOLAR_MODELS`, such as ``'B16-GS98'``, in any
+        case -- uses that model's tabulated profile instead: interpolated in the logarithm of
+        the density, held flat below the first tabulated radius, and continued past the last
+        along the slope of the last interval (see :mod:`magnus.solarmodels`).  Only the
+        electron density reaches ``H_func``; a Hamiltonian with sterile states that wants the
+        model's composition as well can take it from
+        :func:`magnus.solarmodels.neutron_to_proton_ratio_profile`.  Default: 'exp'.
+    stop_at_table_edge : bool, optional
+        Only with a standard solar model.  If True, a baseline reaching past the model's last
+        tabulated radius returns NaN instead of a probability, with a
+        :class:`SolarModelRangeWarning` naming the edge; if False, the profile is continued past
+        it.  Default: False.
 
     Returns
     -------
@@ -13086,20 +14331,30 @@ def osc_prob_sun(
     """
     source_func_name = sys._getframe().f_code.co_name
 
+    _rho, _ = _solar_profile(density_profile, None, source_func_name)
+    L, _beyond = _stop_at_table_edge(density_profile, stop_at_table_edge, L, L0,
+                                     source_func_name)
+
     # Solar electron number density [eV^3] along the radial trajectory; the antineutrino sign
     # flip of the potential is applied inside matter.vcc_func_from_rho_func.  The profile
     # evaluations are cached on repeated position grids.
     VCC_func = matter.vcc_func_from_rho_func(
-        rho_func=lambda l: matter.density_matter_func_exp(l, gd.NUM_DENSITY_E_SUN_CENTRAL,
-            gd.L_SCALE_SUN), # [eV^3] (l in eV^{-1})
+        rho_func=((lambda l: matter.density_matter_func_exp(l, gd.NUM_DENSITY_E_SUN_CENTRAL,
+            gd.L_SCALE_SUN)) if _rho is None else _rho), # [eV^3] (l in eV^{-1})
         L0=L0,
         nubar=nubar,
         density_is_of_number_of_electrons=True) # [eV]
     VCC_func = _PositionProfileCache(VCC_func)
 
-    return _osc_prob_with_potential(source_func_name, H_func, VCC_func, energy, L, L0, nu_i,
-        nu_f, None, magnus_exp_order, n_jobs, integration_method, rtol, atol,
-        validate_input, verbose, strategy=strategy, strategy_info=strategy_info, **kwargs)
+    # Popped rather than left in kwargs: the positional slot below is t_breakpoints, so a
+    # caller who supplied one collided with the None passed here.  osc_prob_earth already
+    # pops it; this path did not.
+    t_breakpoints = kwargs.pop('t_breakpoints', None)
+    P = _osc_prob_with_potential(source_func_name, H_func, VCC_func, energy, L, L0, nu_i,
+        nu_f, t_breakpoints, magnus_exp_order, n_jobs, integration_method, rtol, atol,
+        validate_input, verbose, strategy=strategy, strategy_info=strategy_info,
+        average=average, average_spread=average_spread, **kwargs)
+    return _refuse_past_table_edge(P, _beyond)
 
 
 #-----------------------------------------------------------------------
@@ -13137,13 +14392,6 @@ def osc_prob_2nu_matter_nsi_constant_density(
 
     Parameters
     ----------
-    strategy_info : dict, optional
-        If given, filled in place with which engine actually answered, exactly as in
-        :func:`osc_prob_matter_std_potential` -- see that function for the keys.  A
-        user-supplied Hamiltonian gets the same answer to "which engine answered, and what
-        stood aside" as a built-in scenario does. Default: None.
-
-        .. versionadded:: 1.0.0
     energy : int, float, list, or np.ndarray
         Neutrino energy/energies.
     L : int, float, list, or np.ndarray
@@ -13190,9 +14438,10 @@ def osc_prob_2nu_matter_nsi_constant_density(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angle is stated: ``'sin'`` (default) its sine,
         ``'sin2'`` its sine *squared* -- which is what global fits report --
@@ -13222,6 +14471,10 @@ def osc_prob_2nu_matter_nsi_constant_density(
         density_matter_is_in_g_per_cm3=density_matter_is_in_g_per_cm3,
         density_is_of_number_of_electrons=density_is_of_number_of_electrons,
         validate_input=validate_input,
+        save_log=save_log,
+        filename_log=filename_log,
+        file_log=file_log,
+        close_file_log_upon_exit=close_file_log_upon_exit,
         new_recursion_limit=None,
         verbose=verbose,
         angles=angles,
@@ -13333,9 +14586,10 @@ def osc_prob_3nu_matter_nsi_constant_density(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -13365,6 +14619,10 @@ def osc_prob_3nu_matter_nsi_constant_density(
         density_is_of_number_of_electrons=density_is_of_number_of_electrons,
         default_osc_params_set_name=default_osc_params_set_name,
         validate_input=validate_input,
+        save_log=save_log,
+        filename_log=filename_log,
+        file_log=file_log,
+        close_file_log_upon_exit=close_file_log_upon_exit,
         new_recursion_limit=None,
         verbose=verbose,
         angles=angles,
@@ -13506,9 +14764,10 @@ def osc_prob_4nu_matter_nsi_constant_density(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -13540,6 +14799,10 @@ def osc_prob_4nu_matter_nsi_constant_density(
         density_is_of_number_of_electrons=density_is_of_number_of_electrons,
         default_osc_params_set_name=default_osc_params_set_name,
         validate_input=validate_input,
+        save_log=save_log,
+        filename_log=filename_log,
+        file_log=file_log,
+        close_file_log_upon_exit=close_file_log_upon_exit,
         new_recursion_limit=None,
         verbose=verbose,
         angles=angles,
@@ -13714,9 +14977,10 @@ def osc_prob_5nu_matter_nsi_constant_density(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -13750,6 +15014,10 @@ def osc_prob_5nu_matter_nsi_constant_density(
         density_is_of_number_of_electrons=density_is_of_number_of_electrons,
         default_osc_params_set_name=default_osc_params_set_name,
         validate_input=validate_input,
+        save_log=save_log,
+        filename_log=filename_log,
+        file_log=file_log,
+        close_file_log_upon_exit=close_file_log_upon_exit,
         new_recursion_limit=None,
         verbose=verbose,
         angles=angles,
@@ -13785,6 +15053,7 @@ def osc_prob_2nu_matter_nsi_exp_density(
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
     angles: Optional[str]='sin',
+    _rho_func: Optional[Callable]=None,
     **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the two-neutrino oscillation probability in
     matter with an exponentially falling density profile, including
@@ -13853,14 +15122,21 @@ def osc_prob_2nu_matter_nsi_exp_density(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angle is stated: ``'sin'`` (default) its sine,
         ``'sin2'`` its sine *squared* -- which is what global fits report --
         ``'rad'`` the angle itself in radians, or ``'deg'`` in degrees.  Any other
         value raises.
+
+    _rho_func : Callable, optional
+        Internal: a density profile to use in place of the exponential one, which is how the
+        ``osc_prob_*_sun*`` wrappers pass a tabulated standard solar model (see
+        :mod:`magnus.solarmodels`).  ``rho_central`` and ``l_scale`` are then not used.  Leave
+        it None.  Default: None.
 
     Returns
     -------
@@ -13878,7 +15154,8 @@ def osc_prob_2nu_matter_nsi_exp_density(
 
     return osc_prob_matter_nsi(
         num_flavors=2,
-        rho_func=matter.exp_density_profile(rho_central, l_scale),
+        rho_func=(matter.exp_density_profile(rho_central, l_scale) if _rho_func is None
+                  else _rho_func),
         energy=energy,
         L=L,
         osc_params={'sth': sth, 'Dm2': Dm2},
@@ -13935,6 +15212,7 @@ def osc_prob_3nu_matter_nsi_exp_density(
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
     angles: Optional[str]='sin',
+    _rho_func: Optional[Callable]=None,
     **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the three-neutrino oscillation probability in
     matter with an exponentially falling density profile, including
@@ -14012,15 +15290,22 @@ def osc_prob_3nu_matter_nsi_exp_density(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
         themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
         ``'deg'`` the CP phase is read as degrees too; under the other three
         it stays in radians, a sine being no way to state a phase.
+
+    _rho_func : Callable, optional
+        Internal: a density profile to use in place of the exponential one, which is how the
+        ``osc_prob_*_sun*`` wrappers pass a tabulated standard solar model (see
+        :mod:`magnus.solarmodels`).  ``rho_central`` and ``l_scale`` are then not used.  Leave
+        it None.  Default: None.
 
     Returns
     -------
@@ -14035,7 +15320,8 @@ def osc_prob_3nu_matter_nsi_exp_density(
 
     return osc_prob_matter_nsi(
         num_flavors=3,
-        rho_func=matter.exp_density_profile(rho_central, l_scale),
+        rho_func=(matter.exp_density_profile(rho_central, l_scale) if _rho_func is None
+                  else _rho_func),
         energy=energy,
         L=L,
         osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 'D21': D21, 'D31': D31},
@@ -14104,6 +15390,7 @@ def osc_prob_4nu_matter_nsi_exp_density(
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
     angles: Optional[str]='sin',
+    _rho_func: Optional[Callable]=None,
     **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the four-neutrino (3+1) oscillation 
     probability in matter with an exponentially falling density profile,
@@ -14201,15 +15488,22 @@ def osc_prob_4nu_matter_nsi_exp_density(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
         themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
         ``'deg'`` the CP phases are read as degrees too; under the other three
         they stay in radians, a sine being no way to state a phase.
+
+    _rho_func : Callable, optional
+        Internal: a density profile to use in place of the exponential one, which is how the
+        ``osc_prob_*_sun*`` wrappers pass a tabulated standard solar model (see
+        :mod:`magnus.solarmodels`).  ``rho_central`` and ``l_scale`` are then not used.  Leave
+        it None.  Default: None.
 
     Returns
     -------
@@ -14224,7 +15518,8 @@ def osc_prob_4nu_matter_nsi_exp_density(
 
     return osc_prob_matter_nsi(
         num_flavors=4,
-        rho_func=matter.exp_density_profile(rho_central, l_scale),
+        rho_func=(matter.exp_density_profile(rho_central, l_scale) if _rho_func is None
+                  else _rho_func),
         energy=energy,
         L=L,
         osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 's14': s14, 'd14': d14, 
@@ -14306,6 +15601,7 @@ def osc_prob_5nu_matter_nsi_exp_density(
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
     angles: Optional[str]='sin',
+    _rho_func: Optional[Callable]=None,
     **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the five-neutrino (3+2) oscillation 
     probability in matter with an exponentially falling density profile,
@@ -14425,15 +15721,22 @@ def osc_prob_5nu_matter_nsi_exp_density(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
         themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
         ``'deg'`` the CP phases are read as degrees too; under the other three
         they stay in radians, a sine being no way to state a phase.
+
+    _rho_func : Callable, optional
+        Internal: a density profile to use in place of the exponential one, which is how the
+        ``osc_prob_*_sun*`` wrappers pass a tabulated standard solar model (see
+        :mod:`magnus.solarmodels`).  ``rho_central`` and ``l_scale`` are then not used.  Leave
+        it None.  Default: None.
 
     Returns
     -------
@@ -14448,7 +15751,8 @@ def osc_prob_5nu_matter_nsi_exp_density(
 
     return osc_prob_matter_nsi(
         num_flavors=5,
-        rho_func=matter.exp_density_profile(rho_central, l_scale),
+        rho_func=(matter.exp_density_profile(rho_central, l_scale) if _rho_func is None
+                  else _rho_func),
         energy=energy,
         L=L,
         osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 's14': s14, 'd14': d14,
@@ -14501,6 +15805,9 @@ def osc_prob_2nu_earth_nsi(
     electron_fraction_mantle: Optional[Union[int, float]]=None,
     electron_fraction_crust: Optional[Union[int, float]]=None,
     electron_fraction_ocean: Optional[Union[int, float]]=None,
+    source_depth: Optional[Union[int, float]]=0.0,
+    detector_depth: Optional[Union[int, float]]=0.0,
+    density_matter_ocean: Optional[Union[int, float]]=None,
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
@@ -14522,6 +15829,14 @@ def osc_prob_2nu_earth_nsi(
     are not ``None``), then the neutrino travels the chord joining them 
     through the Earth, overriding any given value of costhz given, and 
     using the chord length as the baseline. 
+
+    Both locations lie on the surface.  To put either end of the
+    trajectory underground, give ``costhz`` instead and name
+    ``source_depth``, ``detector_depth``, or both.  ``costhz`` is the
+    zenith angle at the detector, which is the surface angle when the
+    detector is on the surface, so nothing changes for a call that
+    leaves the depths alone.  A buried detector fixes where the
+    trajectory ends, so ``L`` is then computed rather than given.
 
     The initial and final location can be given as a three-entry tuple
     of coordinates in the (degree, minute, second) format.  Alternatively,
@@ -14577,6 +15892,11 @@ def osc_prob_2nu_earth_nsi(
 
     .. versionadded:: 1.0.0
 
+    .. versionchanged:: 1.1.1
+       Added ``source_depth``, ``detector_depth`` and ``density_matter_ocean``.
+       Their defaults leave the trajectory and the density profile exactly as
+       they were: both endpoints on the surface, and PREM's own ocean.
+
     Parameters
     ----------
     energy : int, float, list, or np.ndarray
@@ -14603,29 +15923,6 @@ def osc_prob_2nu_earth_nsi(
         Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
     nu_f : int, optional
         Final flavor index; see ``nu_i``. Default: None.
-    validate_input : bool, optional
-        If True, validate the input parameters. Default: True.
-    save_log : bool, optional
-        If True, also write log messages to a file. Default: False.
-    filename_log : str, optional
-        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
-    file_log : TextIOWrapper, optional
-        Optional file object to write log messages to. Default: None.
-    close_file_log_upon_exit : bool, optional
-        If True, close the log file before returning. Default: True.
-    verbose : int, optional
-        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
-    \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function, and
-        through it to :func:`osc_prob`, whose signature declares them. The refinement
-        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
-        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
-        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
-
-    
     ratio_number_neutrons_to_protons : int, float, or Callable, optional
         :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
         matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: None,
@@ -14670,6 +15967,49 @@ def osc_prob_2nu_earth_nsi(
         hydrogen has :math:`Z/A = 1`).  PREM's ocean is a global average that a
         land-based baseline does not cross; pass
         :data:`magnus.earth.Y_E_CRUST_PREM` for one.
+    source_depth : int or float, optional
+        Depth of the neutrino's entry point below the surface of the Earth
+        [:math:`\text{eV}^{-1}`].  Default: 0.0, i.e. the neutrino enters at
+        the surface, which is the geometry every earlier version assumed.
+    detector_depth : int or float, optional
+        Depth of the detector below the surface of the Earth
+        [:math:`\text{eV}^{-1}`].  The zenith angle ``costhz`` is measured at
+        the detector, so a buried detector also sees downward-going neutrinos
+        (``costhz > 0``) through its overburden.  Naming this fixes where the
+        trajectory ends, so ``L`` must then be left as None and the baseline
+        is computed for you.  Default: 0.0, i.e. a detector on the surface.
+    density_matter_ocean : int or float, optional
+        Density of PREM's outermost shell, :math:`r > 6368` km
+        [:math:`\text{g cm}^{-3}`].  PREM puts a global-average ocean there,
+        at 1.020; continental rock is about 2.6 and Antarctic ice about 0.92.
+        The shell is 3 km thick, so this matters for a trajectory close to
+        horizontal, which can spend its whole length inside it.  Pair it with
+        ``electron_fraction_ocean``, which sets the composition of the same
+        shell.  Default: None, i.e. PREM's own ocean.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
+
+    
     angles : str, optional
         How the mixing angle is stated: ``'sin'`` (default) its sine,
         ``'sin2'`` its sine *squared* -- which is what global fits report --
@@ -14698,13 +16038,20 @@ def osc_prob_2nu_earth_nsi(
     # and using the chord length as the baseline. If only a single location is given, throw an 
     # exception.  If neither of the two locations are given, use the given value of costhz and of 
     # baseline given (could be an array of baselines).
+    # Both depths are declared Optional, so None has to mean "no depth".  Normalized here,
+    # where they first arrive, because the three uses below divide by gd.UNIT_KM and a None
+    # would surface as a TypeError rather than this package's descriptive ValueError.
+    source_depth, detector_depth = earth._depths_or_zero(source_depth, detector_depth)
+
     costhz, L = validate_input_osc_prob_earth(source_func_name, loc_ini, loc_fin, costhz, L,
-        verbose=verbose)
+        verbose=verbose, source_depth=source_depth, detector_depth=detector_depth)
 
     # Align the slab edges with the crossings of the PREM layer boundaries along the chord: the
     # matter density is discontinuous there, and the high-order quadrature of the Magnus kernel
     # converges at its nominal order only if the Hamiltonian is smooth inside each slab.
-    t_breakpoints = earth.prem_layer_edges_along_chord(costhz)*gd.UNIT_KM # [eV^{-1}]
+    t_breakpoints = earth.prem_layer_edges_along_chord(
+        costhz, source_depth/gd.UNIT_KM,
+        detector_depth/gd.UNIT_KM)*gd.UNIT_KM # [eV^{-1}]
 
     # A caller may have breakpoints of their own -- a feature in a custom H, say.  These
     # wrappers set t_breakpoints themselves, so an argument of the same name arrived in
@@ -14740,7 +16087,9 @@ def osc_prob_2nu_earth_nsi(
         costhz, electron_fraction, ratio_number_neutrons_to_protons,
         electron_fraction_core, electron_fraction_mantle,
         electron_fraction_crust, electron_fraction_ocean,
-        source_func_name, num_flavors=2)
+        source_func_name, num_flavors=2,
+        source_depth=source_depth, detector_depth=detector_depth,
+        density_matter_ocean=density_matter_ocean)
 
     return osc_prob_matter_nsi(
         num_flavors=2,
@@ -14752,7 +16101,7 @@ def osc_prob_2nu_earth_nsi(
         # end.  Declared, not detected: see _earth_chord_symmetry.  Returns None -- and
         # so takes the ordinary path -- unless every requested baseline is the whole
         # chord, because a chord is symmetric over no shorter prefix of itself.
-        symmetric_over=_earth_chord_symmetry(costhz, L),
+        symmetric_over=_earth_chord_symmetry(costhz, L, source_depth, detector_depth),
         osc_params={'sth': sth, 'Dm2': Dm2},
         nsi_params={'eps_aa': eps_aa, 'eps_ab': eps_ab},
         L0=0.0,
@@ -14804,6 +16153,9 @@ def osc_prob_3nu_earth_nsi(
     electron_fraction_mantle: Optional[Union[int, float]]=None,
     electron_fraction_crust: Optional[Union[int, float]]=None,
     electron_fraction_ocean: Optional[Union[int, float]]=None,
+    source_depth: Optional[Union[int, float]]=0.0,
+    detector_depth: Optional[Union[int, float]]=0.0,
+    density_matter_ocean: Optional[Union[int, float]]=None,
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
@@ -14825,6 +16177,14 @@ def osc_prob_3nu_earth_nsi(
     are not ``None``), then the neutrino travels the chord joining them 
     through the Earth, overriding any given value of costhz given, and 
     using the chord length as the baseline. 
+
+    Both locations lie on the surface.  To put either end of the
+    trajectory underground, give ``costhz`` instead and name
+    ``source_depth``, ``detector_depth``, or both.  ``costhz`` is the
+    zenith angle at the detector, which is the surface angle when the
+    detector is on the surface, so nothing changes for a call that
+    leaves the depths alone.  A buried detector fixes where the
+    trajectory ends, so ``L`` is then computed rather than given.
 
     The initial and final location can be given as a three-entry tuple
     of coordinates in the (degree, minute, second) format.  Alternatively,
@@ -14854,7 +16214,7 @@ def osc_prob_3nu_earth_nsi(
     Examples
     --------
     Three-neutrino oscillations through the Earth with non-standard
-    interactions, using the NuFit 6.0 defaults for the standard
+    interactions, using the NuFIT 6.1 defaults for the standard
     oscillation parameters:
 
     .. jupyter-execute::
@@ -14878,6 +16238,11 @@ def osc_prob_3nu_earth_nsi(
         P
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.1
+       Added ``source_depth``, ``detector_depth`` and ``density_matter_ocean``.
+       Their defaults leave the trajectory and the density profile exactly as
+       they were: both endpoints on the surface, and PREM's own ocean.
 
     Parameters
     ----------
@@ -14923,29 +16288,6 @@ def osc_prob_3nu_earth_nsi(
         Final flavor index; see ``nu_i``. Default: None.
     default_osc_params_set_name : str, optional
         Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
-    validate_input : bool, optional
-        If True, validate the input parameters. Default: True.
-    save_log : bool, optional
-        If True, also write log messages to a file. Default: False.
-    filename_log : str, optional
-        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
-    file_log : TextIOWrapper, optional
-        Optional file object to write log messages to. Default: None.
-    close_file_log_upon_exit : bool, optional
-        If True, close the log file before returning. Default: True.
-    verbose : int, optional
-        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
-    \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function, and
-        through it to :func:`osc_prob`, whose signature declares them. The refinement
-        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
-        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
-        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
-
-    
     ratio_number_neutrons_to_protons : int, float, or Callable, optional
         :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
         matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: None,
@@ -14990,6 +16332,49 @@ def osc_prob_3nu_earth_nsi(
         hydrogen has :math:`Z/A = 1`).  PREM's ocean is a global average that a
         land-based baseline does not cross; pass
         :data:`magnus.earth.Y_E_CRUST_PREM` for one.
+    source_depth : int or float, optional
+        Depth of the neutrino's entry point below the surface of the Earth
+        [:math:`\text{eV}^{-1}`].  Default: 0.0, i.e. the neutrino enters at
+        the surface, which is the geometry every earlier version assumed.
+    detector_depth : int or float, optional
+        Depth of the detector below the surface of the Earth
+        [:math:`\text{eV}^{-1}`].  The zenith angle ``costhz`` is measured at
+        the detector, so a buried detector also sees downward-going neutrinos
+        (``costhz > 0``) through its overburden.  Naming this fixes where the
+        trajectory ends, so ``L`` must then be left as None and the baseline
+        is computed for you.  Default: 0.0, i.e. a detector on the surface.
+    density_matter_ocean : int or float, optional
+        Density of PREM's outermost shell, :math:`r > 6368` km
+        [:math:`\text{g cm}^{-3}`].  PREM puts a global-average ocean there,
+        at 1.020; continental rock is about 2.6 and Antarctic ice about 0.92.
+        The shell is 3 km thick, so this matters for a trajectory close to
+        horizontal, which can spend its whole length inside it.  Pair it with
+        ``electron_fraction_ocean``, which sets the composition of the same
+        shell.  Default: None, i.e. PREM's own ocean.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
+
+    
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -15019,13 +16404,20 @@ def osc_prob_3nu_earth_nsi(
     # and using the chord length as the baseline. If only a single location is given, throw an 
     # exception.  If neither of the two locations are given, use the given value of costhz and of 
     # baseline given (could be an array of baselines).
+    # Both depths are declared Optional, so None has to mean "no depth".  Normalized here,
+    # where they first arrive, because the three uses below divide by gd.UNIT_KM and a None
+    # would surface as a TypeError rather than this package's descriptive ValueError.
+    source_depth, detector_depth = earth._depths_or_zero(source_depth, detector_depth)
+
     costhz, L = validate_input_osc_prob_earth(source_func_name, loc_ini, loc_fin, costhz, L,
-        verbose=verbose)
+        verbose=verbose, source_depth=source_depth, detector_depth=detector_depth)
 
     # Align the slab edges with the crossings of the PREM layer boundaries along the chord: the
     # matter density is discontinuous there, and the high-order quadrature of the Magnus kernel
     # converges at its nominal order only if the Hamiltonian is smooth inside each slab.
-    t_breakpoints = earth.prem_layer_edges_along_chord(costhz)*gd.UNIT_KM # [eV^{-1}]
+    t_breakpoints = earth.prem_layer_edges_along_chord(
+        costhz, source_depth/gd.UNIT_KM,
+        detector_depth/gd.UNIT_KM)*gd.UNIT_KM # [eV^{-1}]
 
     # A caller may have breakpoints of their own -- a feature in a custom H, say.  These
     # wrappers set t_breakpoints themselves, so an argument of the same name arrived in
@@ -15058,7 +16450,9 @@ def osc_prob_3nu_earth_nsi(
         costhz, electron_fraction, ratio_number_neutrons_to_protons,
         electron_fraction_core, electron_fraction_mantle,
         electron_fraction_crust, electron_fraction_ocean,
-        source_func_name, num_flavors=3)
+        source_func_name, num_flavors=3,
+        source_depth=source_depth, detector_depth=detector_depth,
+        density_matter_ocean=density_matter_ocean)
 
     return osc_prob_matter_nsi(
         num_flavors=3,
@@ -15070,7 +16464,7 @@ def osc_prob_3nu_earth_nsi(
         # end.  Declared, not detected: see _earth_chord_symmetry.  Returns None -- and
         # so takes the ordinary path -- unless every requested baseline is the whole
         # chord, because a chord is symmetric over no shorter prefix of itself.
-        symmetric_over=_earth_chord_symmetry(costhz, L),
+        symmetric_over=_earth_chord_symmetry(costhz, L, source_depth, detector_depth),
         osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 'D21': D21, 'D31': D31},
         nsi_params={'eps_ee': eps_ee, 'eps_em': eps_em, 'eps_et': eps_et, 'eps_mm': eps_mm,
             'eps_mt': eps_mt, 'eps_tt': eps_tt},
@@ -15134,6 +16528,9 @@ def osc_prob_4nu_earth_nsi(
     electron_fraction_mantle: Optional[Union[int, float]]=None,
     electron_fraction_crust: Optional[Union[int, float]]=None,
     electron_fraction_ocean: Optional[Union[int, float]]=None,
+    source_depth: Optional[Union[int, float]]=0.0,
+    detector_depth: Optional[Union[int, float]]=0.0,
+    density_matter_ocean: Optional[Union[int, float]]=None,
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
@@ -15155,6 +16552,14 @@ def osc_prob_4nu_earth_nsi(
     are not ``None``), then the neutrino travels the chord joining them 
     through the Earth, overriding any given value of costhz given, and 
     using the chord length as the baseline. 
+
+    Both locations lie on the surface.  To put either end of the
+    trajectory underground, give ``costhz`` instead and name
+    ``source_depth``, ``detector_depth``, or both.  ``costhz`` is the
+    zenith angle at the detector, which is the surface angle when the
+    detector is on the surface, so nothing changes for a call that
+    leaves the depths alone.  A buried detector fixes where the
+    trajectory ends, so ``L`` is then computed rather than given.
 
     The initial and final location can be given as a three-entry tuple
     of coordinates in the (degree, minute, second) format.  Alternatively,
@@ -15210,6 +16615,11 @@ def osc_prob_4nu_earth_nsi(
         P
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.1
+       Added ``source_depth``, ``detector_depth`` and ``density_matter_ocean``.
+       Their defaults leave the trajectory and the density profile exactly as
+       they were: both endpoints on the surface, and PREM's own ocean.
 
     Parameters
     ----------
@@ -15275,29 +16685,6 @@ def osc_prob_4nu_earth_nsi(
         Final flavor index; see ``nu_i``. Default: None.
     default_osc_params_set_name : str, optional
         Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
-    validate_input : bool, optional
-        If True, validate the input parameters. Default: True.
-    save_log : bool, optional
-        If True, also write log messages to a file. Default: False.
-    filename_log : str, optional
-        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
-    file_log : TextIOWrapper, optional
-        Optional file object to write log messages to. Default: None.
-    close_file_log_upon_exit : bool, optional
-        If True, close the log file before returning. Default: True.
-    verbose : int, optional
-        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
-    \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function, and
-        through it to :func:`osc_prob`, whose signature declares them. The refinement
-        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
-        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
-        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
-
-    
     ratio_number_neutrons_to_protons : int, float, or Callable, optional
         :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
         matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: None,
@@ -15342,6 +16729,49 @@ def osc_prob_4nu_earth_nsi(
         hydrogen has :math:`Z/A = 1`).  PREM's ocean is a global average that a
         land-based baseline does not cross; pass
         :data:`magnus.earth.Y_E_CRUST_PREM` for one.
+    source_depth : int or float, optional
+        Depth of the neutrino's entry point below the surface of the Earth
+        [:math:`\text{eV}^{-1}`].  Default: 0.0, i.e. the neutrino enters at
+        the surface, which is the geometry every earlier version assumed.
+    detector_depth : int or float, optional
+        Depth of the detector below the surface of the Earth
+        [:math:`\text{eV}^{-1}`].  The zenith angle ``costhz`` is measured at
+        the detector, so a buried detector also sees downward-going neutrinos
+        (``costhz > 0``) through its overburden.  Naming this fixes where the
+        trajectory ends, so ``L`` must then be left as None and the baseline
+        is computed for you.  Default: 0.0, i.e. a detector on the surface.
+    density_matter_ocean : int or float, optional
+        Density of PREM's outermost shell, :math:`r > 6368` km
+        [:math:`\text{g cm}^{-3}`].  PREM puts a global-average ocean there,
+        at 1.020; continental rock is about 2.6 and Antarctic ice about 0.92.
+        The shell is 3 km thick, so this matters for a trajectory close to
+        horizontal, which can spend its whole length inside it.  Pair it with
+        ``electron_fraction_ocean``, which sets the composition of the same
+        shell.  Default: None, i.e. PREM's own ocean.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
+
+    
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -15371,13 +16801,20 @@ def osc_prob_4nu_earth_nsi(
     # and using the chord length as the baseline. If only a single location is given, throw an 
     # exception.  If neither of the two locations are given, use the given value of costhz and of 
     # baseline given (could be an array of baselines).
+    # Both depths are declared Optional, so None has to mean "no depth".  Normalized here,
+    # where they first arrive, because the three uses below divide by gd.UNIT_KM and a None
+    # would surface as a TypeError rather than this package's descriptive ValueError.
+    source_depth, detector_depth = earth._depths_or_zero(source_depth, detector_depth)
+
     costhz, L = validate_input_osc_prob_earth(source_func_name, loc_ini, loc_fin, costhz, L,
-        verbose=verbose)
+        verbose=verbose, source_depth=source_depth, detector_depth=detector_depth)
 
     # Align the slab edges with the crossings of the PREM layer boundaries along the chord: the
     # matter density is discontinuous there, and the high-order quadrature of the Magnus kernel
     # converges at its nominal order only if the Hamiltonian is smooth inside each slab.
-    t_breakpoints = earth.prem_layer_edges_along_chord(costhz)*gd.UNIT_KM # [eV^{-1}]
+    t_breakpoints = earth.prem_layer_edges_along_chord(
+        costhz, source_depth/gd.UNIT_KM,
+        detector_depth/gd.UNIT_KM)*gd.UNIT_KM # [eV^{-1}]
 
     # A caller may have breakpoints of their own -- a feature in a custom H, say.  These
     # wrappers set t_breakpoints themselves, so an argument of the same name arrived in
@@ -15410,7 +16847,9 @@ def osc_prob_4nu_earth_nsi(
         costhz, electron_fraction, ratio_number_neutrons_to_protons,
         electron_fraction_core, electron_fraction_mantle,
         electron_fraction_crust, electron_fraction_ocean,
-        source_func_name, num_flavors=4)
+        source_func_name, num_flavors=4,
+        source_depth=source_depth, detector_depth=detector_depth,
+        density_matter_ocean=density_matter_ocean)
 
     return osc_prob_matter_nsi(
         num_flavors=4,
@@ -15422,7 +16861,7 @@ def osc_prob_4nu_earth_nsi(
         # end.  Declared, not detected: see _earth_chord_symmetry.  Returns None -- and
         # so takes the ordinary path -- unless every requested baseline is the whole
         # chord, because a chord is symmetric over no shorter prefix of itself.
-        symmetric_over=_earth_chord_symmetry(costhz, L),
+        symmetric_over=_earth_chord_symmetry(costhz, L, source_depth, detector_depth),
         osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 's14': s14, 'd14': d14, 
             's24': s24, 'd24': d24, 's34': s34, 'D21': D21, 'D31': D31, 'D41': D41},
         nsi_params={'eps_ee': eps_ee, 'eps_em': eps_em, 'eps_et': eps_et, 'eps_es': eps_es, 
@@ -15499,6 +16938,9 @@ def osc_prob_5nu_earth_nsi(
     electron_fraction_mantle: Optional[Union[int, float]]=None,
     electron_fraction_crust: Optional[Union[int, float]]=None,
     electron_fraction_ocean: Optional[Union[int, float]]=None,
+    source_depth: Optional[Union[int, float]]=0.0,
+    detector_depth: Optional[Union[int, float]]=0.0,
+    density_matter_ocean: Optional[Union[int, float]]=None,
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
@@ -15520,6 +16962,14 @@ def osc_prob_5nu_earth_nsi(
     are not ``None``), then the neutrino travels the chord joining them 
     through the Earth, overriding any given value of costhz given, and 
     using the chord length as the baseline. 
+
+    Both locations lie on the surface.  To put either end of the
+    trajectory underground, give ``costhz`` instead and name
+    ``source_depth``, ``detector_depth``, or both.  ``costhz`` is the
+    zenith angle at the detector, which is the surface angle when the
+    detector is on the surface, so nothing changes for a call that
+    leaves the depths alone.  A buried detector fixes where the
+    trajectory ends, so ``L`` is then computed rather than given.
 
     The initial and final location can be given as a three-entry tuple
     of coordinates in the (degree, minute, second) format.  Alternatively,
@@ -15578,6 +17028,11 @@ def osc_prob_5nu_earth_nsi(
         P
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.1
+       Added ``source_depth``, ``detector_depth`` and ``density_matter_ocean``.
+       Their defaults leave the trajectory and the density profile exactly as
+       they were: both endpoints on the surface, and PREM's own ocean.
 
     Parameters
     ----------
@@ -15665,29 +17120,6 @@ def osc_prob_5nu_earth_nsi(
         Final flavor index; see ``nu_i``. Default: None.
     default_osc_params_set_name : str, optional
         Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
-    validate_input : bool, optional
-        If True, validate the input parameters. Default: True.
-    save_log : bool, optional
-        If True, also write log messages to a file. Default: False.
-    filename_log : str, optional
-        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
-    file_log : TextIOWrapper, optional
-        Optional file object to write log messages to. Default: None.
-    close_file_log_upon_exit : bool, optional
-        If True, close the log file before returning. Default: True.
-    verbose : int, optional
-        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
-    \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function, and
-        through it to :func:`osc_prob`, whose signature declares them. The refinement
-        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
-        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
-        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
-
-    
     ratio_number_neutrons_to_protons : int, float, or Callable, optional
         :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
         matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: None,
@@ -15732,6 +17164,49 @@ def osc_prob_5nu_earth_nsi(
         hydrogen has :math:`Z/A = 1`).  PREM's ocean is a global average that a
         land-based baseline does not cross; pass
         :data:`magnus.earth.Y_E_CRUST_PREM` for one.
+    source_depth : int or float, optional
+        Depth of the neutrino's entry point below the surface of the Earth
+        [:math:`\text{eV}^{-1}`].  Default: 0.0, i.e. the neutrino enters at
+        the surface, which is the geometry every earlier version assumed.
+    detector_depth : int or float, optional
+        Depth of the detector below the surface of the Earth
+        [:math:`\text{eV}^{-1}`].  The zenith angle ``costhz`` is measured at
+        the detector, so a buried detector also sees downward-going neutrinos
+        (``costhz > 0``) through its overburden.  Naming this fixes where the
+        trajectory ends, so ``L`` must then be left as None and the baseline
+        is computed for you.  Default: 0.0, i.e. a detector on the surface.
+    density_matter_ocean : int or float, optional
+        Density of PREM's outermost shell, :math:`r > 6368` km
+        [:math:`\text{g cm}^{-3}`].  PREM puts a global-average ocean there,
+        at 1.020; continental rock is about 2.6 and Antarctic ice about 0.92.
+        The shell is 3 km thick, so this matters for a trajectory close to
+        horizontal, which can spend its whole length inside it.  Pair it with
+        ``electron_fraction_ocean``, which sets the composition of the same
+        shell.  Default: None, i.e. PREM's own ocean.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
+
+    
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -15761,13 +17236,20 @@ def osc_prob_5nu_earth_nsi(
     # and using the chord length as the baseline. If only a single location is given, throw an 
     # exception.  If neither of the two locations are given, use the given value of costhz and of 
     # baseline given (could be an array of baselines).
+    # Both depths are declared Optional, so None has to mean "no depth".  Normalized here,
+    # where they first arrive, because the three uses below divide by gd.UNIT_KM and a None
+    # would surface as a TypeError rather than this package's descriptive ValueError.
+    source_depth, detector_depth = earth._depths_or_zero(source_depth, detector_depth)
+
     costhz, L = validate_input_osc_prob_earth(source_func_name, loc_ini, loc_fin, costhz, L,
-        verbose=verbose)
+        verbose=verbose, source_depth=source_depth, detector_depth=detector_depth)
 
     # Align the slab edges with the crossings of the PREM layer boundaries along the chord: the
     # matter density is discontinuous there, and the high-order quadrature of the Magnus kernel
     # converges at its nominal order only if the Hamiltonian is smooth inside each slab.
-    t_breakpoints = earth.prem_layer_edges_along_chord(costhz)*gd.UNIT_KM # [eV^{-1}]
+    t_breakpoints = earth.prem_layer_edges_along_chord(
+        costhz, source_depth/gd.UNIT_KM,
+        detector_depth/gd.UNIT_KM)*gd.UNIT_KM # [eV^{-1}]
 
     # A caller may have breakpoints of their own -- a feature in a custom H, say.  These
     # wrappers set t_breakpoints themselves, so an argument of the same name arrived in
@@ -15800,7 +17282,9 @@ def osc_prob_5nu_earth_nsi(
         costhz, electron_fraction, ratio_number_neutrons_to_protons,
         electron_fraction_core, electron_fraction_mantle,
         electron_fraction_crust, electron_fraction_ocean,
-        source_func_name, num_flavors=5)
+        source_func_name, num_flavors=5,
+        source_depth=source_depth, detector_depth=detector_depth,
+        density_matter_ocean=density_matter_ocean)
 
     return osc_prob_matter_nsi(
         num_flavors=5,
@@ -15812,7 +17296,7 @@ def osc_prob_5nu_earth_nsi(
         # end.  Declared, not detected: see _earth_chord_symmetry.  Returns None -- and
         # so takes the ordinary path -- unless every requested baseline is the whole
         # chord, because a chord is symmetric over no shorter prefix of itself.
-        symmetric_over=_earth_chord_symmetry(costhz, L),
+        symmetric_over=_earth_chord_symmetry(costhz, L, source_depth, detector_depth),
         osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 's14': s14, 'd14': d14, 
             's15': s15, 'd15': d15, 's24': s24, 'd24': d24, 's25': s25, 's34': s34, 's35': s35, 
             'd35': d35, 'D21': D21, 'D31': D31, 'D41': D41, 'D51': D51},
@@ -15865,6 +17349,8 @@ def osc_prob_2nu_sun_nsi(
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
     angles: Optional[str]='sin',
+    density_profile: Optional[str]='exp',
+    stop_at_table_edge: Optional[bool]=False,
     **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the two-neutrino oscillation probability 
     for neutrinos inside the Sun, including non-standard interactions
@@ -15906,6 +17392,10 @@ def osc_prob_2nu_sun_nsi(
         P
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.1
+       Takes ``density_profile``, to use a tabulated standard solar model in place of the
+       exponential fit, and ``stop_at_table_edge``.
 
     .. note::
         Dispatches to a fast, closed-form interaction-picture Magnus
@@ -15963,14 +17453,28 @@ def osc_prob_2nu_sun_nsi(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angle is stated: ``'sin'`` (default) its sine,
         ``'sin2'`` its sine *squared* -- which is what global fits report --
         ``'rad'`` the angle itself in radians, or ``'deg'`` in degrees.  Any other
         value raises.
+
+    density_profile : str, optional
+        The Sun's electron density.  ``'exp'``, the default, is the exponential fit described
+        above.  The name of a standard solar model -- one of
+        :data:`magnus.solarmodels.SOLAR_MODELS`, such as ``'B16-GS98'``, in any case -- uses
+        that model's tabulated profile instead: interpolated in the logarithm of the density,
+        held flat below the first tabulated radius, and continued past the last along the slope
+        of the last interval (see :mod:`magnus.solarmodels`).  Default: 'exp'.
+    stop_at_table_edge : bool, optional
+        Only with a standard solar model.  If True, a baseline reaching past the model's last
+        tabulated radius returns NaN instead of a probability, with a
+        :class:`SolarModelRangeWarning` naming the edge; if False, the profile is continued past
+        it.  Default: False.
 
     Returns
     -------
@@ -15978,7 +17482,9 @@ def osc_prob_2nu_sun_nsi(
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
-    return osc_prob_2nu_matter_nsi_exp_density(
+    _rho, _ = _solar_profile(density_profile, None, 'osc_prob_2nu_sun_nsi')
+    L, _beyond = _stop_at_table_edge(density_profile, stop_at_table_edge, L, L0, 'osc_prob_2nu_sun_nsi')
+    P = osc_prob_2nu_matter_nsi_exp_density(
         energy=energy,
         L=L,
         L0=L0,
@@ -16000,8 +17506,10 @@ def osc_prob_2nu_sun_nsi(
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
         angles=angles,
+        _rho_func=_rho,
         **kwargs
     )
+    return _refuse_past_table_edge(P, _beyond)
 
 
 def osc_prob_3nu_sun_nsi(
@@ -16032,6 +17540,8 @@ def osc_prob_3nu_sun_nsi(
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
     angles: Optional[str]='sin',
+    density_profile: Optional[str]='exp',
+    stop_at_table_edge: Optional[bool]=False,
     **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the three-neutrino oscillation probability 
     for neutrinos inside the Sun.
@@ -16047,7 +17557,7 @@ def osc_prob_3nu_sun_nsi(
     Examples
     --------
     Three-neutrino oscillations through the Sun with non-standard
-    interactions, using the NuFit 6.0 defaults for the standard
+    interactions, using the NuFIT 6.1 defaults for the standard
     oscillation parameters:
 
     .. jupyter-execute::
@@ -16071,6 +17581,10 @@ def osc_prob_3nu_sun_nsi(
         P
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.1
+       Takes ``density_profile``, to use a tabulated standard solar model in place of the
+       exponential fit, and ``stop_at_table_edge``.
 
     Parameters
     ----------
@@ -16110,8 +17624,6 @@ def osc_prob_3nu_sun_nsi(
         Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
     nu_f : int, optional
         Final flavor index; see ``nu_i``. Default: None.
-    default_osc_params_set_name : str, optional
-        Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
     strategy : str, optional
         Numerical strategy used to compute the evolution operator: 'auto' (default),
         'hybrid', or 'magnus'; see the ``strategy`` parameter of
@@ -16119,6 +17631,8 @@ def osc_prob_3nu_sun_nsi(
         :doc:`/adiabatic_strategy` for the derivation and validation. Default: 'auto'.
 
         .. versionadded:: 1.0.0
+    default_osc_params_set_name : str, optional
+        Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
     validate_input : bool, optional
         If True, validate the input parameters. Default: True.
     save_log : bool, optional
@@ -16137,9 +17651,10 @@ def osc_prob_3nu_sun_nsi(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -16147,13 +17662,28 @@ def osc_prob_3nu_sun_nsi(
         ``'deg'`` the CP phase is read as degrees too; under the other three
         it stays in radians, a sine being no way to state a phase.
 
+    density_profile : str, optional
+        The Sun's electron density.  ``'exp'``, the default, is the exponential fit described
+        above.  The name of a standard solar model -- one of
+        :data:`magnus.solarmodels.SOLAR_MODELS`, such as ``'B16-GS98'``, in any case -- uses
+        that model's tabulated profile instead: interpolated in the logarithm of the density,
+        held flat below the first tabulated radius, and continued past the last along the slope
+        of the last interval (see :mod:`magnus.solarmodels`).  Default: 'exp'.
+    stop_at_table_edge : bool, optional
+        Only with a standard solar model.  If True, a baseline reaching past the model's last
+        tabulated radius returns NaN instead of a probability, with a
+        :class:`SolarModelRangeWarning` naming the edge; if False, the profile is continued past
+        it.  Default: False.
+
     Returns
     -------
     float or np.ndarray
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
-    return osc_prob_3nu_matter_nsi_exp_density(
+    _rho, _ = _solar_profile(density_profile, None, 'osc_prob_3nu_sun_nsi')
+    L, _beyond = _stop_at_table_edge(density_profile, stop_at_table_edge, L, L0, 'osc_prob_3nu_sun_nsi')
+    P = osc_prob_3nu_matter_nsi_exp_density(
         energy=energy,
         L=L,
         L0=L0,
@@ -16184,8 +17714,10 @@ def osc_prob_3nu_sun_nsi(
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
         angles=angles,
+        _rho_func=_rho,
         **kwargs
     )
+    return _refuse_past_table_edge(P, _beyond)
 
 
 def osc_prob_4nu_sun_nsi(
@@ -16226,7 +17758,9 @@ def osc_prob_4nu_sun_nsi(
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
     angles: Optional[str]='sin',
-    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
+    ratio_number_neutrons_to_protons: Optional[Union[int, float, Callable]]=None,
+    density_profile: Optional[str]='exp',
+    stop_at_table_edge: Optional[bool]=False,
     **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the four-neutrino (3+1) oscillation 
     probability for neutrinos inside the Sun.
@@ -16269,6 +17803,12 @@ def osc_prob_4nu_sun_nsi(
         P
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.1
+       Takes ``density_profile``, to use a tabulated standard solar model in place of the
+       exponential fit, and ``stop_at_table_edge``.  ``ratio_number_neutrons_to_protons``
+       defaults to None: 1.0 with the exponential profile, as before, and the model's own
+       composition with a standard solar model.
 
     Parameters
     ----------
@@ -16328,8 +17868,6 @@ def osc_prob_4nu_sun_nsi(
         Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
     nu_f : int, optional
         Final flavor index; see ``nu_i``. Default: None.
-    default_osc_params_set_name : str, optional
-        Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
     strategy : str, optional
         Numerical strategy used to compute the evolution operator: 'auto' (default),
         'hybrid', or 'magnus'; see the ``strategy`` parameter of
@@ -16337,6 +17875,8 @@ def osc_prob_4nu_sun_nsi(
         :doc:`/adiabatic_strategy` for the derivation and validation. Default: 'auto'.
 
         .. versionadded:: 1.0.0
+    default_osc_params_set_name : str, optional
+        Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
     validate_input : bool, optional
         If True, validate the input parameters. Default: True.
     save_log : bool, optional
@@ -16355,24 +17895,10 @@ def osc_prob_4nu_sun_nsi(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
-    ratio_number_neutrons_to_protons : int or float, optional
-        :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
-        matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
-        (isoscalar matter, i.e. :math:`Y_e = 0.5`).
-
-        **The Sun is not isoscalar, and this is the only way to say so.**  It is
-        hydrogen-rich, so :math:`Y_e = (1 + X)/2` runs from about 0.68 at the center to
-        0.88 near the surface, and :math:`r = (1 - Y_e)/Y_e` from about 0.47 down to
-        0.14 -- nowhere near 1.0, unlike the Earth where the isoscalar value at least
-        sits among the layers.  The solar profile is a fit to the electron *number*
-        density, so :math:`Y_e` is already inside it and there is nothing for the
-        library to derive :math:`r` from: it has to be stated here.  Left at 1.0 the
-        averaged survival probability moves by about 4e-03 at
-        :math:`\sin\theta_{14} = 0.4`, above the default tolerance.  Three flavors are
-        unaffected -- the projector's sterile block is empty.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -16380,13 +17906,48 @@ def osc_prob_4nu_sun_nsi(
         ``'deg'`` the CP phases are read as degrees too; under the other three
         they stay in radians, a sine being no way to state a phase.
 
+    ratio_number_neutrons_to_protons : int, float, Callable, or None, optional
+        :math:`r = n_n/n_p` of the medium, a number or a function of position.  Scales the
+        sterile states' entry in the matter term; see
+        :func:`magnus.matter.matter_potential_projector`.  Default: None, which means 1.0
+        (isoscalar matter, i.e. :math:`Y_e = 0.5`) with the exponential profile, as before,
+        and the model's own composition with a standard solar model:
+        :math:`r = (1 - X)/(1 + X)` at every radius, from its hydrogen mass fraction :math:`X`
+        (see :func:`magnus.solarmodels.neutron_to_proton_ratio_profile`).  A value passed here
+        is used as given, with either profile.
+
+        **The Sun is not isoscalar.**  It is hydrogen-rich, so :math:`Y_e = (1 + X)/2` runs
+        from about 0.68 at the center to 0.88 near the surface, and :math:`r` from about 0.47
+        down to 0.14 -- nowhere near 1.0, unlike the Earth where the isoscalar value at least
+        sits among the layers.  The exponential profile is a fit to the electron *number*
+        density and carries no composition to derive :math:`r` from, so 1.0 is kept there as
+        before; naming a standard solar model through ``density_profile`` supplies one.  Left
+        at 1.0 the averaged survival probability moves by about 4e-03 at
+        :math:`\sin\theta_{14} = 0.4`, above the default tolerance.  Three flavors are
+        unaffected -- the projector's sterile block is empty.
+    density_profile : str, optional
+        The Sun's electron density.  ``'exp'``, the default, is the exponential fit described
+        above.  The name of a standard solar model -- one of
+        :data:`magnus.solarmodels.SOLAR_MODELS`, such as ``'B16-GS98'``, in any case -- uses
+        that model's tabulated profile instead: interpolated in the logarithm of the density,
+        held flat below the first tabulated radius, and continued past the last along the slope
+        of the last interval (see :mod:`magnus.solarmodels`).  With the sterile states it also supplies the composition; see
+        ``ratio_number_neutrons_to_protons``.  Default: 'exp'.
+    stop_at_table_edge : bool, optional
+        Only with a standard solar model.  If True, a baseline reaching past the model's last
+        tabulated radius returns NaN instead of a probability, with a
+        :class:`SolarModelRangeWarning` naming the edge; if False, the profile is continued past
+        it.  Default: False.
+
     Returns
     -------
     float or np.ndarray
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
-    return osc_prob_4nu_matter_nsi_exp_density(
+    _rho, ratio_number_neutrons_to_protons = _solar_profile(density_profile, ratio_number_neutrons_to_protons, 'osc_prob_4nu_sun_nsi')
+    L, _beyond = _stop_at_table_edge(density_profile, stop_at_table_edge, L, L0, 'osc_prob_4nu_sun_nsi')
+    P = osc_prob_4nu_matter_nsi_exp_density(
         energy=energy,
         L=L,
         L0=L0,
@@ -16428,8 +17989,10 @@ def osc_prob_4nu_sun_nsi(
         verbose=verbose,
         angles=angles,
         ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
+        _rho_func=_rho,
         **kwargs
     )
+    return _refuse_past_table_edge(P, _beyond)
 
 
 def osc_prob_5nu_sun_nsi(
@@ -16481,7 +18044,9 @@ def osc_prob_5nu_sun_nsi(
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
     angles: Optional[str]='sin',
-    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
+    ratio_number_neutrons_to_protons: Optional[Union[int, float, Callable]]=None,
+    density_profile: Optional[str]='exp',
+    stop_at_table_edge: Optional[bool]=False,
     **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the five-neutrino (3+2) oscillation 
     probability for neutrinos inside the Sun.
@@ -16527,6 +18092,12 @@ def osc_prob_5nu_sun_nsi(
         P
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.1
+       Takes ``density_profile``, to use a tabulated standard solar model in place of the
+       exponential fit, and ``stop_at_table_edge``.  ``ratio_number_neutrons_to_protons``
+       defaults to None: 1.0 with the exponential profile, as before, and the model's own
+       composition with a standard solar model.
 
     Parameters
     ----------
@@ -16608,8 +18179,6 @@ def osc_prob_5nu_sun_nsi(
         Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
     nu_f : int, optional
         Final flavor index; see ``nu_i``. Default: None.
-    default_osc_params_set_name : str, optional
-        Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
     strategy : str, optional
         Numerical strategy used to compute the evolution operator: 'auto' (default),
         'hybrid', or 'magnus'; see the ``strategy`` parameter of
@@ -16617,6 +18186,8 @@ def osc_prob_5nu_sun_nsi(
         :doc:`/adiabatic_strategy` for the derivation and validation. Default: 'auto'.
 
         .. versionadded:: 1.0.0
+    default_osc_params_set_name : str, optional
+        Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
     validate_input : bool, optional
         If True, validate the input parameters. Default: True.
     save_log : bool, optional
@@ -16635,24 +18206,10 @@ def osc_prob_5nu_sun_nsi(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
-    ratio_number_neutrons_to_protons : int or float, optional
-        :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
-        matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
-        (isoscalar matter, i.e. :math:`Y_e = 0.5`).
-
-        **The Sun is not isoscalar, and this is the only way to say so.**  It is
-        hydrogen-rich, so :math:`Y_e = (1 + X)/2` runs from about 0.68 at the center to
-        0.88 near the surface, and :math:`r = (1 - Y_e)/Y_e` from about 0.47 down to
-        0.14 -- nowhere near 1.0, unlike the Earth where the isoscalar value at least
-        sits among the layers.  The solar profile is a fit to the electron *number*
-        density, so :math:`Y_e` is already inside it and there is nothing for the
-        library to derive :math:`r` from: it has to be stated here.  Left at 1.0 the
-        averaged survival probability moves by about 4e-03 at
-        :math:`\sin\theta_{14} = 0.4`, above the default tolerance.  Three flavors are
-        unaffected -- the projector's sterile block is empty.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -16660,13 +18217,48 @@ def osc_prob_5nu_sun_nsi(
         ``'deg'`` the CP phases are read as degrees too; under the other three
         they stay in radians, a sine being no way to state a phase.
 
+    ratio_number_neutrons_to_protons : int, float, Callable, or None, optional
+        :math:`r = n_n/n_p` of the medium, a number or a function of position.  Scales the
+        sterile states' entry in the matter term; see
+        :func:`magnus.matter.matter_potential_projector`.  Default: None, which means 1.0
+        (isoscalar matter, i.e. :math:`Y_e = 0.5`) with the exponential profile, as before,
+        and the model's own composition with a standard solar model:
+        :math:`r = (1 - X)/(1 + X)` at every radius, from its hydrogen mass fraction :math:`X`
+        (see :func:`magnus.solarmodels.neutron_to_proton_ratio_profile`).  A value passed here
+        is used as given, with either profile.
+
+        **The Sun is not isoscalar.**  It is hydrogen-rich, so :math:`Y_e = (1 + X)/2` runs
+        from about 0.68 at the center to 0.88 near the surface, and :math:`r` from about 0.47
+        down to 0.14 -- nowhere near 1.0, unlike the Earth where the isoscalar value at least
+        sits among the layers.  The exponential profile is a fit to the electron *number*
+        density and carries no composition to derive :math:`r` from, so 1.0 is kept there as
+        before; naming a standard solar model through ``density_profile`` supplies one.  Left
+        at 1.0 the averaged survival probability moves by about 4e-03 at
+        :math:`\sin\theta_{14} = 0.4`, above the default tolerance.  Three flavors are
+        unaffected -- the projector's sterile block is empty.
+    density_profile : str, optional
+        The Sun's electron density.  ``'exp'``, the default, is the exponential fit described
+        above.  The name of a standard solar model -- one of
+        :data:`magnus.solarmodels.SOLAR_MODELS`, such as ``'B16-GS98'``, in any case -- uses
+        that model's tabulated profile instead: interpolated in the logarithm of the density,
+        held flat below the first tabulated radius, and continued past the last along the slope
+        of the last interval (see :mod:`magnus.solarmodels`).  With the sterile states it also supplies the composition; see
+        ``ratio_number_neutrons_to_protons``.  Default: 'exp'.
+    stop_at_table_edge : bool, optional
+        Only with a standard solar model.  If True, a baseline reaching past the model's last
+        tabulated radius returns NaN instead of a probability, with a
+        :class:`SolarModelRangeWarning` naming the edge; if False, the profile is continued past
+        it.  Default: False.
+
     Returns
     -------
     float or np.ndarray
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
-    return osc_prob_5nu_matter_nsi_exp_density(
+    _rho, ratio_number_neutrons_to_protons = _solar_profile(density_profile, ratio_number_neutrons_to_protons, 'osc_prob_5nu_sun_nsi')
+    L, _beyond = _stop_at_table_edge(density_profile, stop_at_table_edge, L, L0, 'osc_prob_5nu_sun_nsi')
+    P = osc_prob_5nu_matter_nsi_exp_density(
         energy=energy,
         L=L,
         L0=L0,
@@ -16719,8 +18311,10 @@ def osc_prob_5nu_sun_nsi(
         verbose=verbose,
         angles=angles,
         ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
+        _rho_func=_rho,
         **kwargs
     )
+    return _refuse_past_table_edge(P, _beyond)
 
 
 #-----------------------------------------------------------------------
@@ -16763,7 +18357,7 @@ def osc_prob_2nu_vacuum_liv(
     Dm2 : int or float
         Mass-squared difference :math:`\Delta m^2` of the two-flavor system.
     sxi : int or float, optional
-        Sin(xi), with xi the rotation angle between the space of the eigenvectors of the LIV operator and the flavor states. Default: 0.0.
+        Rotation angle xi between the space of the eigenvectors of the LIV operator and the flavor states, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     b1 : int or float, optional
         Eigenvalue b1 of the LIV operator. Default: 0.0.
     b2 : int or float, optional
@@ -16794,9 +18388,10 @@ def osc_prob_2nu_vacuum_liv(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines,
         ``'sin2'`` their sines *squared* -- which is what global fits report --
@@ -16884,13 +18479,13 @@ def osc_prob_3nu_vacuum_liv(
     D31 : int or float, optional
         Mass-squared difference :math:`\Delta m_{31}^2`. Default: None.
     sxi12 : int or float, optional
-        Sin(xi_12), one of the mixing angles between the space of the eigenvectors of the LIV operator and the flavor states. Default: 0.0.
+        Mixing angle xi_12 between the space of the eigenvectors of the LIV operator and the flavor states, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     sxi23 : int or float, optional
-        Sin(xi_23); see ``sxi12``. Default: 0.0.
+        Angle xi_23; see ``sxi12``. Default: 0.0.
     sxi13 : int or float, optional
-        Sin(xi_13); see ``sxi12``. Default: 0.0.
+        Angle xi_13; see ``sxi12``. Default: 0.0.
     dxiCP : int or float, optional
-        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+        CP-violation phase of the LIV operator [radian, or degree if ``angles='deg'``]. Default: 0.0.
     b1 : int or float, optional
         Eigenvalue b1 of the LIV operator. Default: 0.0.
     b2 : int or float, optional
@@ -16925,9 +18520,10 @@ def osc_prob_3nu_vacuum_liv(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -17040,23 +18636,23 @@ def osc_prob_4nu_vacuum_liv(
     D41 : int or float, optional
         Mass-squared difference :math:`\Delta m_{41}^2`. Default: 0.0.
     sxi12 : int or float, optional
-        Sin(xi_12), one of the mixing angles between the space of the eigenvectors of the LIV operator and the flavor states. Default: 0.0.
+        Mixing angle xi_12 between the space of the eigenvectors of the LIV operator and the flavor states, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     sxi23 : int or float, optional
-        Sin(xi_23); see ``sxi12``. Default: 0.0.
+        Angle xi_23; see ``sxi12``. Default: 0.0.
     sxi13 : int or float, optional
-        Sin(xi_13); see ``sxi12``. Default: 0.0.
+        Angle xi_13; see ``sxi12``. Default: 0.0.
     dxi13 : int or float, optional
         CP-violation phase of the LIV operator [radian] (replaces ``dxiCP`` for 4/5-flavor systems). Default: 0.0.
     sxi14 : int or float, optional
-        Sin(xi_14); see ``sxi12``. Default: 0.0.
+        Angle xi_14; see ``sxi12``. Default: 0.0.
     dxi14 : int or float, optional
-        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+        CP-violation phase of the LIV operator [radian, or degree if ``angles='deg'``]. Default: 0.0.
     sxi24 : int or float, optional
-        Sin(xi_24); see ``sxi12``. Default: 0.0.
+        Angle xi_24; see ``sxi12``. Default: 0.0.
     dxi24 : int or float, optional
-        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+        CP-violation phase of the LIV operator [radian, or degree if ``angles='deg'``]. Default: 0.0.
     sxi34 : int or float, optional
-        Sin(xi_34); see ``sxi12``. Default: 0.0.
+        Angle xi_34; see ``sxi12``. Default: 0.0.
     b1 : int or float, optional
         Eigenvalue b1 of the LIV operator. Default: 0.0.
     b2 : int or float, optional
@@ -17093,9 +18689,10 @@ def osc_prob_4nu_vacuum_liv(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -17234,33 +18831,33 @@ def osc_prob_5nu_vacuum_liv(
     D51 : int or float, optional
         Mass-squared difference :math:`\Delta m_{51}^2`. Default: 0.0.
     sxi12 : int or float, optional
-        Sin(xi_12), one of the mixing angles between the space of the eigenvectors of the LIV operator and the flavor states. Default: 0.0.
+        Mixing angle xi_12 between the space of the eigenvectors of the LIV operator and the flavor states, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     sxi23 : int or float, optional
-        Sin(xi_23); see ``sxi12``. Default: 0.0.
+        Angle xi_23; see ``sxi12``. Default: 0.0.
     sxi13 : int or float, optional
-        Sin(xi_13); see ``sxi12``. Default: 0.0.
+        Angle xi_13; see ``sxi12``. Default: 0.0.
     dxi13 : int or float, optional
         CP-violation phase of the LIV operator [radian] (replaces ``dxiCP`` for 4/5-flavor systems). Default: 0.0.
     sxi14 : int or float, optional
-        Sin(xi_14); see ``sxi12``. Default: 0.0.
+        Angle xi_14; see ``sxi12``. Default: 0.0.
     dxi14 : int or float, optional
-        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+        CP-violation phase of the LIV operator [radian, or degree if ``angles='deg'``]. Default: 0.0.
     sxi15 : int or float, optional
-        Sin(xi_15); see ``sxi12``. Default: 0.0.
+        Angle xi_15; see ``sxi12``. Default: 0.0.
     dxi15 : int or float, optional
-        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+        CP-violation phase of the LIV operator [radian, or degree if ``angles='deg'``]. Default: 0.0.
     sxi24 : int or float, optional
-        Sin(xi_24); see ``sxi12``. Default: 0.0.
+        Angle xi_24; see ``sxi12``. Default: 0.0.
     dxi24 : int or float, optional
-        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+        CP-violation phase of the LIV operator [radian, or degree if ``angles='deg'``]. Default: 0.0.
     sxi25 : int or float, optional
-        Sin(xi_25); see ``sxi12``. Default: 0.0.
+        Angle xi_25; see ``sxi12``. Default: 0.0.
     sxi34 : int or float, optional
-        Sin(xi_34); see ``sxi12``. Default: 0.0.
+        Angle xi_34; see ``sxi12``. Default: 0.0.
     sxi35 : int or float, optional
-        Sin(xi_35); see ``sxi12``. Default: 0.0.
+        Angle xi_35; see ``sxi12``. Default: 0.0.
     dxi35 : int or float, optional
-        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+        CP-violation phase of the LIV operator [radian, or degree if ``angles='deg'``]. Default: 0.0.
     b1 : int or float, optional
         Eigenvalue b1 of the LIV operator. Default: 0.0.
     b2 : int or float, optional
@@ -17299,9 +18896,10 @@ def osc_prob_5nu_vacuum_liv(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -17390,7 +18988,7 @@ def osc_prob_2nu_matter_liv_constant_density(
     Dm2 : int or float
         Mass-squared difference :math:`\Delta m^2` of the two-flavor system.
     sxi : int or float, optional
-        Sin(xi), with xi the rotation angle between the space of the eigenvectors of the LIV operator and the flavor states. Default: 0.0.
+        Rotation angle xi between the space of the eigenvectors of the LIV operator and the flavor states, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     b1 : int or float, optional
         Eigenvalue b1 of the LIV operator. Default: 0.0.
     b2 : int or float, optional
@@ -17431,9 +19029,10 @@ def osc_prob_2nu_matter_liv_constant_density(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines,
         ``'sin2'`` their sines *squared* -- which is what global fits report --
@@ -17535,13 +19134,13 @@ def osc_prob_3nu_matter_liv_constant_density(
     D31 : int or float, optional
         Mass-squared difference :math:`\Delta m_{31}^2`. Default: None.
     sxi12 : int or float, optional
-        Sin(xi_12), one of the mixing angles between the space of the eigenvectors of the LIV operator and the flavor states. Default: 0.0.
+        Mixing angle xi_12 between the space of the eigenvectors of the LIV operator and the flavor states, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     sxi23 : int or float, optional
-        Sin(xi_23); see ``sxi12``. Default: 0.0.
+        Angle xi_23; see ``sxi12``. Default: 0.0.
     sxi13 : int or float, optional
-        Sin(xi_13); see ``sxi12``. Default: 0.0.
+        Angle xi_13; see ``sxi12``. Default: 0.0.
     dxiCP : int or float, optional
-        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+        CP-violation phase of the LIV operator [radian, or degree if ``angles='deg'``]. Default: 0.0.
     b1 : int or float, optional
         Eigenvalue b1 of the LIV operator. Default: 0.0.
     b2 : int or float, optional
@@ -17586,9 +19185,10 @@ def osc_prob_3nu_matter_liv_constant_density(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -17715,23 +19315,23 @@ def osc_prob_4nu_matter_liv_constant_density(
     D41 : int or float, optional
         Mass-squared difference :math:`\Delta m_{41}^2`. Default: 0.0.
     sxi12 : int or float, optional
-        Sin(xi_12), one of the mixing angles between the space of the eigenvectors of the LIV operator and the flavor states. Default: 0.0.
+        Mixing angle xi_12 between the space of the eigenvectors of the LIV operator and the flavor states, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     sxi23 : int or float, optional
-        Sin(xi_23); see ``sxi12``. Default: 0.0.
+        Angle xi_23; see ``sxi12``. Default: 0.0.
     sxi13 : int or float, optional
-        Sin(xi_13); see ``sxi12``. Default: 0.0.
+        Angle xi_13; see ``sxi12``. Default: 0.0.
     dxi13 : int or float, optional
         CP-violation phase of the LIV operator [radian] (replaces ``dxiCP`` for 4/5-flavor systems). Default: 0.0.
     sxi14 : int or float, optional
-        Sin(xi_14); see ``sxi12``. Default: 0.0.
+        Angle xi_14; see ``sxi12``. Default: 0.0.
     dxi14 : int or float, optional
-        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+        CP-violation phase of the LIV operator [radian, or degree if ``angles='deg'``]. Default: 0.0.
     sxi24 : int or float, optional
-        Sin(xi_24); see ``sxi12``. Default: 0.0.
+        Angle xi_24; see ``sxi12``. Default: 0.0.
     dxi24 : int or float, optional
-        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+        CP-violation phase of the LIV operator [radian, or degree if ``angles='deg'``]. Default: 0.0.
     sxi34 : int or float, optional
-        Sin(xi_34); see ``sxi12``. Default: 0.0.
+        Angle xi_34; see ``sxi12``. Default: 0.0.
     b1 : int or float, optional
         Eigenvalue b1 of the LIV operator. Default: 0.0.
     b2 : int or float, optional
@@ -17778,9 +19378,10 @@ def osc_prob_4nu_matter_liv_constant_density(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -17933,33 +19534,33 @@ def osc_prob_5nu_matter_liv_constant_density(
     D51 : int or float, optional
         Mass-squared difference :math:`\Delta m_{51}^2`. Default: 0.0.
     sxi12 : int or float, optional
-        Sin(xi_12), one of the mixing angles between the space of the eigenvectors of the LIV operator and the flavor states. Default: 0.0.
+        Mixing angle xi_12 between the space of the eigenvectors of the LIV operator and the flavor states, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     sxi23 : int or float, optional
-        Sin(xi_23); see ``sxi12``. Default: 0.0.
+        Angle xi_23; see ``sxi12``. Default: 0.0.
     sxi13 : int or float, optional
-        Sin(xi_13); see ``sxi12``. Default: 0.0.
+        Angle xi_13; see ``sxi12``. Default: 0.0.
     dxi13 : int or float, optional
         CP-violation phase of the LIV operator [radian] (replaces ``dxiCP`` for 4/5-flavor systems). Default: 0.0.
     sxi14 : int or float, optional
-        Sin(xi_14); see ``sxi12``. Default: 0.0.
+        Angle xi_14; see ``sxi12``. Default: 0.0.
     dxi14 : int or float, optional
-        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+        CP-violation phase of the LIV operator [radian, or degree if ``angles='deg'``]. Default: 0.0.
     sxi15 : int or float, optional
-        Sin(xi_15); see ``sxi12``. Default: 0.0.
+        Angle xi_15; see ``sxi12``. Default: 0.0.
     dxi15 : int or float, optional
-        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+        CP-violation phase of the LIV operator [radian, or degree if ``angles='deg'``]. Default: 0.0.
     sxi24 : int or float, optional
-        Sin(xi_24); see ``sxi12``. Default: 0.0.
+        Angle xi_24; see ``sxi12``. Default: 0.0.
     dxi24 : int or float, optional
-        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+        CP-violation phase of the LIV operator [radian, or degree if ``angles='deg'``]. Default: 0.0.
     sxi25 : int or float, optional
-        Sin(xi_25); see ``sxi12``. Default: 0.0.
+        Angle xi_25; see ``sxi12``. Default: 0.0.
     sxi34 : int or float, optional
-        Sin(xi_34); see ``sxi12``. Default: 0.0.
+        Angle xi_34; see ``sxi12``. Default: 0.0.
     sxi35 : int or float, optional
-        Sin(xi_35); see ``sxi12``. Default: 0.0.
+        Angle xi_35; see ``sxi12``. Default: 0.0.
     dxi35 : int or float, optional
-        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+        CP-violation phase of the LIV operator [radian, or degree if ``angles='deg'``]. Default: 0.0.
     b1 : int or float, optional
         Eigenvalue b1 of the LIV operator. Default: 0.0.
     b2 : int or float, optional
@@ -18008,9 +19609,10 @@ def osc_prob_5nu_matter_liv_constant_density(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -18086,6 +19688,7 @@ def osc_prob_2nu_matter_liv_exp_density(
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
     angles: Optional[str]='sin',
+    _rho_func: Optional[Callable]=None,
     **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the two-neutrino oscillation probability in
     matter with an exponentially falling density profile, under (one 
@@ -18110,7 +19713,7 @@ def osc_prob_2nu_matter_liv_exp_density(
     Dm2 : int or float
         Mass-squared difference :math:`\Delta m^2` of the two-flavor system.
     sxi : int or float, optional
-        Sin(xi), with xi the rotation angle between the space of the eigenvectors of the LIV operator and the flavor states. Default: 0.0.
+        Rotation angle xi between the space of the eigenvectors of the LIV operator and the flavor states, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     b1 : int or float, optional
         Eigenvalue b1 of the LIV operator. Default: 0.0.
     b2 : int or float, optional
@@ -18151,14 +19754,21 @@ def osc_prob_2nu_matter_liv_exp_density(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines,
         ``'sin2'`` their sines *squared* -- which is what global fits report --
         ``'rad'`` the angles themselves in radians, or ``'deg'`` in degrees.  Any other
         value raises.
+
+    _rho_func : Callable, optional
+        Internal: a density profile to use in place of the exponential one, which is how the
+        ``osc_prob_*_sun*`` wrappers pass a tabulated standard solar model (see
+        :mod:`magnus.solarmodels`).  ``rho_central`` and ``l_scale`` are then not used.  Leave
+        it None.  Default: None.
 
     Returns
     -------
@@ -18180,7 +19790,8 @@ def osc_prob_2nu_matter_liv_exp_density(
         L=L,
         osc_params={'sth': sth, 'Dm2': Dm2},
         liv_params={'sxi': sxi, 'b1': b1, 'b2': b2, 'Lambda': Lambda, 'n_liv': n_liv},
-        rho_func=matter.exp_density_profile(rho_central, l_scale),
+        rho_func=(matter.exp_density_profile(rho_central, l_scale) if _rho_func is None
+                  else _rho_func),
         L0=L0,
         ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons, 
         electron_fraction=electron_fraction,
@@ -18235,6 +19846,7 @@ def osc_prob_3nu_matter_liv_exp_density(
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
     angles: Optional[str]='sin',
+    _rho_func: Optional[Callable]=None,
     **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the three-neutrino oscillation probability in
     matter with an exponentially falling density profile, under (one 
@@ -18267,13 +19879,13 @@ def osc_prob_3nu_matter_liv_exp_density(
     D31 : int or float, optional
         Mass-squared difference :math:`\Delta m_{31}^2`. Default: None.
     sxi12 : int or float, optional
-        Sin(xi_12), one of the mixing angles between the space of the eigenvectors of the LIV operator and the flavor states. Default: 0.0.
+        Mixing angle xi_12 between the space of the eigenvectors of the LIV operator and the flavor states, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     sxi23 : int or float, optional
-        Sin(xi_23); see ``sxi12``. Default: 0.0.
+        Angle xi_23; see ``sxi12``. Default: 0.0.
     sxi13 : int or float, optional
-        Sin(xi_13); see ``sxi12``. Default: 0.0.
+        Angle xi_13; see ``sxi12``. Default: 0.0.
     dxiCP : int or float, optional
-        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+        CP-violation phase of the LIV operator [radian, or degree if ``angles='deg'``]. Default: 0.0.
     b1 : int or float, optional
         Eigenvalue b1 of the LIV operator. Default: 0.0.
     b2 : int or float, optional
@@ -18316,15 +19928,22 @@ def osc_prob_3nu_matter_liv_exp_density(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
         themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
         ``'deg'`` the CP phases are read as degrees too; under the other three
         they stay in radians, a sine being no way to state a phase.
+
+    _rho_func : Callable, optional
+        Internal: a density profile to use in place of the exponential one, which is how the
+        ``osc_prob_*_sun*`` wrappers pass a tabulated standard solar model (see
+        :mod:`magnus.solarmodels`).  ``rho_central`` and ``l_scale`` are then not used.  Leave
+        it None.  Default: None.
 
     Returns
     -------
@@ -18344,7 +19963,8 @@ def osc_prob_3nu_matter_liv_exp_density(
         osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 'D21': D21, 'D31': D31},
         liv_params={'sxi12': sxi12, 'sxi23': sxi23, 'sxi13': sxi13, 'dxiCP': dxiCP, 'b1': b1, 
             'b2': b2, 'b3': b3, 'Lambda': Lambda, 'n_liv': n_liv},
-        rho_func=matter.exp_density_profile(rho_central, l_scale),
+        rho_func=(matter.exp_density_profile(rho_central, l_scale) if _rho_func is None
+                  else _rho_func),
         L0=L0,
         ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons, 
         electron_fraction=electron_fraction,
@@ -18411,6 +20031,7 @@ def osc_prob_4nu_matter_liv_exp_density(
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
     angles: Optional[str]='sin',
+    _rho_func: Optional[Callable]=None,
     **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the four-neutrino oscillation probability in
     matter with an exponentially falling density profile, under (one 
@@ -18455,23 +20076,23 @@ def osc_prob_4nu_matter_liv_exp_density(
     D41 : int or float, optional
         Mass-squared difference :math:`\Delta m_{41}^2`. Default: 0.0.
     sxi12 : int or float, optional
-        Sin(xi_12), one of the mixing angles between the space of the eigenvectors of the LIV operator and the flavor states. Default: 0.0.
+        Mixing angle xi_12 between the space of the eigenvectors of the LIV operator and the flavor states, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     sxi23 : int or float, optional
-        Sin(xi_23); see ``sxi12``. Default: 0.0.
+        Angle xi_23; see ``sxi12``. Default: 0.0.
     sxi13 : int or float, optional
-        Sin(xi_13); see ``sxi12``. Default: 0.0.
+        Angle xi_13; see ``sxi12``. Default: 0.0.
     dxi13 : int or float, optional
         CP-violation phase of the LIV operator [radian] (replaces ``dxiCP`` for 4/5-flavor systems). Default: 0.0.
     sxi14 : int or float, optional
-        Sin(xi_14); see ``sxi12``. Default: 0.0.
+        Angle xi_14; see ``sxi12``. Default: 0.0.
     dxi14 : int or float, optional
-        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+        CP-violation phase of the LIV operator [radian, or degree if ``angles='deg'``]. Default: 0.0.
     sxi24 : int or float, optional
-        Sin(xi_24); see ``sxi12``. Default: 0.0.
+        Angle xi_24; see ``sxi12``. Default: 0.0.
     dxi24 : int or float, optional
-        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+        CP-violation phase of the LIV operator [radian, or degree if ``angles='deg'``]. Default: 0.0.
     sxi34 : int or float, optional
-        Sin(xi_34); see ``sxi12``. Default: 0.0.
+        Angle xi_34; see ``sxi12``. Default: 0.0.
     b1 : int or float, optional
         Eigenvalue b1 of the LIV operator. Default: 0.0.
     b2 : int or float, optional
@@ -18516,15 +20137,22 @@ def osc_prob_4nu_matter_liv_exp_density(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
         themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
         ``'deg'`` the CP phases are read as degrees too; under the other three
         they stay in radians, a sine being no way to state a phase.
+
+    _rho_func : Callable, optional
+        Internal: a density profile to use in place of the exponential one, which is how the
+        ``osc_prob_*_sun*`` wrappers pass a tabulated standard solar model (see
+        :mod:`magnus.solarmodels`).  ``rho_central`` and ``l_scale`` are then not used.  Leave
+        it None.  Default: None.
 
     Returns
     -------
@@ -18546,7 +20174,8 @@ def osc_prob_4nu_matter_liv_exp_density(
         liv_params={'sxi12': sxi12, 'sxi23': sxi23, 'sxi13': sxi13, 'dxi13': dxi13, 'sxi14': sxi14,
             'dxi14': dxi14, 'sxi24': sxi24, 'dxi24': dxi24, 'sxi34': sxi34, 'b1': b1, 'b2': b2, 
             'b3': b3, 'b4': b4, 'Lambda': Lambda, 'n_liv': n_liv},
-        rho_func=matter.exp_density_profile(rho_central, l_scale),
+        rho_func=(matter.exp_density_profile(rho_central, l_scale) if _rho_func is None
+                  else _rho_func),
         L0=L0,
         ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons, 
         electron_fraction=electron_fraction,
@@ -18625,6 +20254,7 @@ def osc_prob_5nu_matter_liv_exp_density(
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
     angles: Optional[str]='sin',
+    _rho_func: Optional[Callable]=None,
     **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the five-neutrino oscillation probability in
     matter with an exponentially falling density profile, under (one 
@@ -18681,33 +20311,33 @@ def osc_prob_5nu_matter_liv_exp_density(
     D51 : int or float, optional
         Mass-squared difference :math:`\Delta m_{51}^2`. Default: 0.0.
     sxi12 : int or float, optional
-        Sin(xi_12), one of the mixing angles between the space of the eigenvectors of the LIV operator and the flavor states. Default: 0.0.
+        Mixing angle xi_12 between the space of the eigenvectors of the LIV operator and the flavor states, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     sxi23 : int or float, optional
-        Sin(xi_23); see ``sxi12``. Default: 0.0.
+        Angle xi_23; see ``sxi12``. Default: 0.0.
     sxi13 : int or float, optional
-        Sin(xi_13); see ``sxi12``. Default: 0.0.
+        Angle xi_13; see ``sxi12``. Default: 0.0.
     dxi13 : int or float, optional
         CP-violation phase of the LIV operator [radian] (replaces ``dxiCP`` for 4/5-flavor systems). Default: 0.0.
     sxi14 : int or float, optional
-        Sin(xi_14); see ``sxi12``. Default: 0.0.
+        Angle xi_14; see ``sxi12``. Default: 0.0.
     dxi14 : int or float, optional
-        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+        CP-violation phase of the LIV operator [radian, or degree if ``angles='deg'``]. Default: 0.0.
     sxi15 : int or float, optional
-        Sin(xi_15); see ``sxi12``. Default: 0.0.
+        Angle xi_15; see ``sxi12``. Default: 0.0.
     dxi15 : int or float, optional
-        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+        CP-violation phase of the LIV operator [radian, or degree if ``angles='deg'``]. Default: 0.0.
     sxi24 : int or float, optional
-        Sin(xi_24); see ``sxi12``. Default: 0.0.
+        Angle xi_24; see ``sxi12``. Default: 0.0.
     dxi24 : int or float, optional
-        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+        CP-violation phase of the LIV operator [radian, or degree if ``angles='deg'``]. Default: 0.0.
     sxi25 : int or float, optional
-        Sin(xi_25); see ``sxi12``. Default: 0.0.
+        Angle xi_25; see ``sxi12``. Default: 0.0.
     sxi34 : int or float, optional
-        Sin(xi_34); see ``sxi12``. Default: 0.0.
+        Angle xi_34; see ``sxi12``. Default: 0.0.
     sxi35 : int or float, optional
-        Sin(xi_35); see ``sxi12``. Default: 0.0.
+        Angle xi_35; see ``sxi12``. Default: 0.0.
     dxi35 : int or float, optional
-        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+        CP-violation phase of the LIV operator [radian, or degree if ``angles='deg'``]. Default: 0.0.
     b1 : int or float, optional
         Eigenvalue b1 of the LIV operator. Default: 0.0.
     b2 : int or float, optional
@@ -18754,15 +20384,22 @@ def osc_prob_5nu_matter_liv_exp_density(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
         themselves in radians, or ``'deg'`` in degrees.  Any other value raises.  Under
         ``'deg'`` the CP phases are read as degrees too; under the other three
         they stay in radians, a sine being no way to state a phase.
+
+    _rho_func : Callable, optional
+        Internal: a density profile to use in place of the exponential one, which is how the
+        ``osc_prob_*_sun*`` wrappers pass a tabulated standard solar model (see
+        :mod:`magnus.solarmodels`).  ``rho_central`` and ``l_scale`` are then not used.  Leave
+        it None.  Default: None.
 
     Returns
     -------
@@ -18786,7 +20423,8 @@ def osc_prob_5nu_matter_liv_exp_density(
             'dxi14': dxi14, 'sxi15': sxi15, 'dxi15': dxi15, 'sxi24': sxi24, 'dxi24': dxi24, 
             'sxi25': sxi25, 'sxi34': sxi34, 'sxi35': sxi35, 'dxi35': dxi35, 'b1': b1, 'b2': b2, 
             'b3': b3, 'b4': b4, 'b5': b5, 'Lambda': Lambda, 'n_liv': n_liv},
-        rho_func=matter.exp_density_profile(rho_central, l_scale),
+        rho_func=(matter.exp_density_profile(rho_central, l_scale) if _rho_func is None
+                  else _rho_func),
         L0=L0,
         ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons, 
         electron_fraction=electron_fraction,
@@ -18832,6 +20470,9 @@ def osc_prob_2nu_earth_liv(
     electron_fraction_mantle: Optional[Union[int, float]]=None,
     electron_fraction_crust: Optional[Union[int, float]]=None,
     electron_fraction_ocean: Optional[Union[int, float]]=None,
+    source_depth: Optional[Union[int, float]]=0.0,
+    detector_depth: Optional[Union[int, float]]=0.0,
+    density_matter_ocean: Optional[Union[int, float]]=None,
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
@@ -18853,6 +20494,14 @@ def osc_prob_2nu_earth_liv(
     are not ``None``), then the neutrino travels the chord joining them 
     through the Earth, overriding any given value of costhz given, and 
     using the chord length as the baseline. 
+
+    Both locations lie on the surface.  To put either end of the
+    trajectory underground, give ``costhz`` instead and name
+    ``source_depth``, ``detector_depth``, or both.  ``costhz`` is the
+    zenith angle at the detector, which is the surface angle when the
+    detector is on the surface, so nothing changes for a call that
+    leaves the depths alone.  A buried detector fixes where the
+    trajectory ends, so ``L`` is then computed rather than given.
 
     The initial and final location can be given as a three-entry tuple
     of coordinates in the (degree, minute, second) format.  Alternatively,
@@ -18908,6 +20557,11 @@ def osc_prob_2nu_earth_liv(
 
     .. versionadded:: 1.0.0
 
+    .. versionchanged:: 1.1.1
+       Added ``source_depth``, ``detector_depth`` and ``density_matter_ocean``.
+       Their defaults leave the trajectory and the density profile exactly as
+       they were: both endpoints on the surface, and PREM's own ocean.
+
     Parameters
     ----------
     energy : int, float, list, or np.ndarray
@@ -18917,7 +20571,7 @@ def osc_prob_2nu_earth_liv(
     Dm2 : int or float
         Mass-squared difference :math:`\Delta m^2` of the two-flavor system.
     sxi : int or float, optional
-        Sin(xi), with xi the rotation angle between the space of the eigenvectors of the LIV operator and the flavor states. Default: 0.0.
+        Rotation angle xi between the space of the eigenvectors of the LIV operator and the flavor states, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     b1 : int or float, optional
         Eigenvalue b1 of the LIV operator. Default: 0.0.
     b2 : int or float, optional
@@ -18940,29 +20594,6 @@ def osc_prob_2nu_earth_liv(
         Initial flavor index. If given together with ``nu_f``, a single channel is returned instead of the full probability matrix. Default: None.
     nu_f : int, optional
         Final flavor index; see ``nu_i``. Default: None.
-    validate_input : bool, optional
-        If True, validate the input parameters. Default: True.
-    save_log : bool, optional
-        If True, also write log messages to a file. Default: False.
-    filename_log : str, optional
-        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
-    file_log : TextIOWrapper, optional
-        Optional file object to write log messages to. Default: None.
-    close_file_log_upon_exit : bool, optional
-        If True, close the log file before returning. Default: True.
-    verbose : int, optional
-        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
-    \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function, and
-        through it to :func:`osc_prob`, whose signature declares them. The refinement
-        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
-        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
-        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
-
-    
     ratio_number_neutrons_to_protons : int, float, or Callable, optional
         :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
         matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: None,
@@ -19007,6 +20638,49 @@ def osc_prob_2nu_earth_liv(
         hydrogen has :math:`Z/A = 1`).  PREM's ocean is a global average that a
         land-based baseline does not cross; pass
         :data:`magnus.earth.Y_E_CRUST_PREM` for one.
+    source_depth : int or float, optional
+        Depth of the neutrino's entry point below the surface of the Earth
+        [:math:`\text{eV}^{-1}`].  Default: 0.0, i.e. the neutrino enters at
+        the surface, which is the geometry every earlier version assumed.
+    detector_depth : int or float, optional
+        Depth of the detector below the surface of the Earth
+        [:math:`\text{eV}^{-1}`].  The zenith angle ``costhz`` is measured at
+        the detector, so a buried detector also sees downward-going neutrinos
+        (``costhz > 0``) through its overburden.  Naming this fixes where the
+        trajectory ends, so ``L`` must then be left as None and the baseline
+        is computed for you.  Default: 0.0, i.e. a detector on the surface.
+    density_matter_ocean : int or float, optional
+        Density of PREM's outermost shell, :math:`r > 6368` km
+        [:math:`\text{g cm}^{-3}`].  PREM puts a global-average ocean there,
+        at 1.020; continental rock is about 2.6 and Antarctic ice about 0.92.
+        The shell is 3 km thick, so this matters for a trajectory close to
+        horizontal, which can spend its whole length inside it.  Pair it with
+        ``electron_fraction_ocean``, which sets the composition of the same
+        shell.  Default: None, i.e. PREM's own ocean.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
+
+    
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines,
         ``'sin2'`` their sines *squared* -- which is what global fits report --
@@ -19035,13 +20709,20 @@ def osc_prob_2nu_earth_liv(
     # and using the chord length as the baseline. If only a single location is given, throw an 
     # exception.  If neither of the two locations are given, use the given value of costhz and of 
     # baseline given (could be an array of baselines).
+    # Both depths are declared Optional, so None has to mean "no depth".  Normalized here,
+    # where they first arrive, because the three uses below divide by gd.UNIT_KM and a None
+    # would surface as a TypeError rather than this package's descriptive ValueError.
+    source_depth, detector_depth = earth._depths_or_zero(source_depth, detector_depth)
+
     costhz, L = validate_input_osc_prob_earth(source_func_name, loc_ini, loc_fin, costhz, L,
-        verbose=verbose)
+        verbose=verbose, source_depth=source_depth, detector_depth=detector_depth)
 
     # Align the slab edges with the crossings of the PREM layer boundaries along the chord: the
     # matter density is discontinuous there, and the high-order quadrature of the Magnus kernel
     # converges at its nominal order only if the Hamiltonian is smooth inside each slab.
-    t_breakpoints = earth.prem_layer_edges_along_chord(costhz)*gd.UNIT_KM # [eV^{-1}]
+    t_breakpoints = earth.prem_layer_edges_along_chord(
+        costhz, source_depth/gd.UNIT_KM,
+        detector_depth/gd.UNIT_KM)*gd.UNIT_KM # [eV^{-1}]
 
     # A caller may have breakpoints of their own -- a feature in a custom H, say.  These
     # wrappers set t_breakpoints themselves, so an argument of the same name arrived in
@@ -19077,7 +20758,9 @@ def osc_prob_2nu_earth_liv(
         costhz, electron_fraction, ratio_number_neutrons_to_protons,
         electron_fraction_core, electron_fraction_mantle,
         electron_fraction_crust, electron_fraction_ocean,
-        source_func_name, num_flavors=2)
+        source_func_name, num_flavors=2,
+        source_depth=source_depth, detector_depth=detector_depth,
+        density_matter_ocean=density_matter_ocean)
 
     return osc_prob_liv(
         num_flavors=2,
@@ -19089,7 +20772,7 @@ def osc_prob_2nu_earth_liv(
         # end.  Declared, not detected: see _earth_chord_symmetry.  Returns None -- and
         # so takes the ordinary path -- unless every requested baseline is the whole
         # chord, because a chord is symmetric over no shorter prefix of itself.
-        symmetric_over=_earth_chord_symmetry(costhz, L),
+        symmetric_over=_earth_chord_symmetry(costhz, L, source_depth, detector_depth),
         osc_params={'sth': sth, 'Dm2': Dm2},
         liv_params={'sxi': sxi, 'b1': b1, 'b2': b2, 'Lambda': Lambda, 'n_liv': n_liv},
         L0=0.0,
@@ -19144,6 +20827,9 @@ def osc_prob_3nu_earth_liv(
     electron_fraction_mantle: Optional[Union[int, float]]=None,
     electron_fraction_crust: Optional[Union[int, float]]=None,
     electron_fraction_ocean: Optional[Union[int, float]]=None,
+    source_depth: Optional[Union[int, float]]=0.0,
+    detector_depth: Optional[Union[int, float]]=0.0,
+    density_matter_ocean: Optional[Union[int, float]]=None,
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
@@ -19165,6 +20851,14 @@ def osc_prob_3nu_earth_liv(
     are not ``None``), then the neutrino travels the chord joining them 
     through the Earth, overriding any given value of costhz given, and 
     using the chord length as the baseline. 
+
+    Both locations lie on the surface.  To put either end of the
+    trajectory underground, give ``costhz`` instead and name
+    ``source_depth``, ``detector_depth``, or both.  ``costhz`` is the
+    zenith angle at the detector, which is the surface angle when the
+    detector is on the surface, so nothing changes for a call that
+    leaves the depths alone.  A buried detector fixes where the
+    trajectory ends, so ``L`` is then computed rather than given.
 
     The initial and final location can be given as a three-entry tuple
     of coordinates in the (degree, minute, second) format.  Alternatively,
@@ -19194,7 +20888,7 @@ def osc_prob_3nu_earth_liv(
     Examples
     --------
     Three-neutrino oscillations through the Earth under Lorentz-invariance
-    violation, using the NuFit 6.0 defaults for the standard oscillation
+    violation, using the NuFIT 6.1 defaults for the standard oscillation
     parameters:
 
     .. jupyter-execute::
@@ -19221,6 +20915,11 @@ def osc_prob_3nu_earth_liv(
 
     .. versionadded:: 1.0.0
 
+    .. versionchanged:: 1.1.1
+       Added ``source_depth``, ``detector_depth`` and ``density_matter_ocean``.
+       Their defaults leave the trajectory and the density profile exactly as
+       they were: both endpoints on the surface, and PREM's own ocean.
+
     Parameters
     ----------
     energy : int, float, list, or np.ndarray
@@ -19246,13 +20945,13 @@ def osc_prob_3nu_earth_liv(
     D31 : int or float, optional
         Mass-squared difference :math:`\Delta m_{31}^2`. Default: None.
     sxi12 : int or float, optional
-        Sin(xi_12), one of the mixing angles between the space of the eigenvectors of the LIV operator and the flavor states. Default: 0.0.
+        Mixing angle xi_12 between the space of the eigenvectors of the LIV operator and the flavor states, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     sxi23 : int or float, optional
-        Sin(xi_23); see ``sxi12``. Default: 0.0.
+        Angle xi_23; see ``sxi12``. Default: 0.0.
     sxi13 : int or float, optional
-        Sin(xi_13); see ``sxi12``. Default: 0.0.
+        Angle xi_13; see ``sxi12``. Default: 0.0.
     dxiCP : int or float, optional
-        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+        CP-violation phase of the LIV operator [radian, or degree if ``angles='deg'``]. Default: 0.0.
     b1 : int or float, optional
         Eigenvalue b1 of the LIV operator. Default: 0.0.
     b2 : int or float, optional
@@ -19271,29 +20970,6 @@ def osc_prob_3nu_earth_liv(
         Final flavor index; see ``nu_i``. Default: None.
     default_osc_params_set_name : str, optional
         Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
-    validate_input : bool, optional
-        If True, validate the input parameters. Default: True.
-    save_log : bool, optional
-        If True, also write log messages to a file. Default: False.
-    filename_log : str, optional
-        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
-    file_log : TextIOWrapper, optional
-        Optional file object to write log messages to. Default: None.
-    close_file_log_upon_exit : bool, optional
-        If True, close the log file before returning. Default: True.
-    verbose : int, optional
-        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
-    \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function, and
-        through it to :func:`osc_prob`, whose signature declares them. The refinement
-        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
-        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
-        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
-
-    
     ratio_number_neutrons_to_protons : int, float, or Callable, optional
         :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
         matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: None,
@@ -19338,6 +21014,49 @@ def osc_prob_3nu_earth_liv(
         hydrogen has :math:`Z/A = 1`).  PREM's ocean is a global average that a
         land-based baseline does not cross; pass
         :data:`magnus.earth.Y_E_CRUST_PREM` for one.
+    source_depth : int or float, optional
+        Depth of the neutrino's entry point below the surface of the Earth
+        [:math:`\text{eV}^{-1}`].  Default: 0.0, i.e. the neutrino enters at
+        the surface, which is the geometry every earlier version assumed.
+    detector_depth : int or float, optional
+        Depth of the detector below the surface of the Earth
+        [:math:`\text{eV}^{-1}`].  The zenith angle ``costhz`` is measured at
+        the detector, so a buried detector also sees downward-going neutrinos
+        (``costhz > 0``) through its overburden.  Naming this fixes where the
+        trajectory ends, so ``L`` must then be left as None and the baseline
+        is computed for you.  Default: 0.0, i.e. a detector on the surface.
+    density_matter_ocean : int or float, optional
+        Density of PREM's outermost shell, :math:`r > 6368` km
+        [:math:`\text{g cm}^{-3}`].  PREM puts a global-average ocean there,
+        at 1.020; continental rock is about 2.6 and Antarctic ice about 0.92.
+        The shell is 3 km thick, so this matters for a trajectory close to
+        horizontal, which can spend its whole length inside it.  Pair it with
+        ``electron_fraction_ocean``, which sets the composition of the same
+        shell.  Default: None, i.e. PREM's own ocean.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
+
+    
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -19367,13 +21086,20 @@ def osc_prob_3nu_earth_liv(
     # and using the chord length as the baseline. If only a single location is given, throw an 
     # exception.  If neither of the two locations are given, use the given value of costhz and of 
     # baseline given (could be an array of baselines).
+    # Both depths are declared Optional, so None has to mean "no depth".  Normalized here,
+    # where they first arrive, because the three uses below divide by gd.UNIT_KM and a None
+    # would surface as a TypeError rather than this package's descriptive ValueError.
+    source_depth, detector_depth = earth._depths_or_zero(source_depth, detector_depth)
+
     costhz, L = validate_input_osc_prob_earth(source_func_name, loc_ini, loc_fin, costhz, L,
-        verbose=verbose)
+        verbose=verbose, source_depth=source_depth, detector_depth=detector_depth)
 
     # Align the slab edges with the crossings of the PREM layer boundaries along the chord: the
     # matter density is discontinuous there, and the high-order quadrature of the Magnus kernel
     # converges at its nominal order only if the Hamiltonian is smooth inside each slab.
-    t_breakpoints = earth.prem_layer_edges_along_chord(costhz)*gd.UNIT_KM # [eV^{-1}]
+    t_breakpoints = earth.prem_layer_edges_along_chord(
+        costhz, source_depth/gd.UNIT_KM,
+        detector_depth/gd.UNIT_KM)*gd.UNIT_KM # [eV^{-1}]
 
     # A caller may have breakpoints of their own -- a feature in a custom H, say.  These
     # wrappers set t_breakpoints themselves, so an argument of the same name arrived in
@@ -19406,7 +21132,9 @@ def osc_prob_3nu_earth_liv(
         costhz, electron_fraction, ratio_number_neutrons_to_protons,
         electron_fraction_core, electron_fraction_mantle,
         electron_fraction_crust, electron_fraction_ocean,
-        source_func_name, num_flavors=3)
+        source_func_name, num_flavors=3,
+        source_depth=source_depth, detector_depth=detector_depth,
+        density_matter_ocean=density_matter_ocean)
 
     return osc_prob_liv(
         num_flavors=3,
@@ -19418,7 +21146,7 @@ def osc_prob_3nu_earth_liv(
         # end.  Declared, not detected: see _earth_chord_symmetry.  Returns None -- and
         # so takes the ordinary path -- unless every requested baseline is the whole
         # chord, because a chord is symmetric over no shorter prefix of itself.
-        symmetric_over=_earth_chord_symmetry(costhz, L),
+        symmetric_over=_earth_chord_symmetry(costhz, L, source_depth, detector_depth),
         osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 'D21': D21, 'D31': D31},
         liv_params={'sxi12': sxi12, 'sxi23': sxi23, 'sxi13': sxi13, 'dxiCP': dxiCP, 'b1': b1, 
             'b2': b2, 'b3': b3, 'Lambda': Lambda, 'n_liv': n_liv},
@@ -19487,6 +21215,9 @@ def osc_prob_4nu_earth_liv(
     electron_fraction_mantle: Optional[Union[int, float]]=None,
     electron_fraction_crust: Optional[Union[int, float]]=None,
     electron_fraction_ocean: Optional[Union[int, float]]=None,
+    source_depth: Optional[Union[int, float]]=0.0,
+    detector_depth: Optional[Union[int, float]]=0.0,
+    density_matter_ocean: Optional[Union[int, float]]=None,
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
@@ -19508,6 +21239,14 @@ def osc_prob_4nu_earth_liv(
     are not ``None``), then the neutrino travels the chord joining them 
     through the Earth, overriding any given value of costhz given, and 
     using the chord length as the baseline. 
+
+    Both locations lie on the surface.  To put either end of the
+    trajectory underground, give ``costhz`` instead and name
+    ``source_depth``, ``detector_depth``, or both.  ``costhz`` is the
+    zenith angle at the detector, which is the surface angle when the
+    detector is on the surface, so nothing changes for a call that
+    leaves the depths alone.  A buried detector fixes where the
+    trajectory ends, so ``L`` is then computed rather than given.
 
     The initial and final location can be given as a three-entry tuple
     of coordinates in the (degree, minute, second) format.  Alternatively,
@@ -19564,6 +21303,11 @@ def osc_prob_4nu_earth_liv(
 
     .. versionadded:: 1.0.0
 
+    .. versionchanged:: 1.1.1
+       Added ``source_depth``, ``detector_depth`` and ``density_matter_ocean``.
+       Their defaults leave the trajectory and the density profile exactly as
+       they were: both endpoints on the surface, and PREM's own ocean.
+
     Parameters
     ----------
     energy : int, float, list, or np.ndarray
@@ -19601,23 +21345,23 @@ def osc_prob_4nu_earth_liv(
     D41 : int or float, optional
         Mass-squared difference :math:`\Delta m_{41}^2`. Default: 0.0.
     sxi12 : int or float, optional
-        Sin(xi_12), one of the mixing angles between the space of the eigenvectors of the LIV operator and the flavor states. Default: 0.0.
+        Mixing angle xi_12 between the space of the eigenvectors of the LIV operator and the flavor states, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     sxi23 : int or float, optional
-        Sin(xi_23); see ``sxi12``. Default: 0.0.
+        Angle xi_23; see ``sxi12``. Default: 0.0.
     sxi13 : int or float, optional
-        Sin(xi_13); see ``sxi12``. Default: 0.0.
+        Angle xi_13; see ``sxi12``. Default: 0.0.
     dxi13 : int or float, optional
         CP-violation phase of the LIV operator [radian] (replaces ``dxiCP`` for 4/5-flavor systems). Default: 0.0.
     sxi14 : int or float, optional
-        Sin(xi_14); see ``sxi12``. Default: 0.0.
+        Angle xi_14; see ``sxi12``. Default: 0.0.
     dxi14 : int or float, optional
-        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+        CP-violation phase of the LIV operator [radian, or degree if ``angles='deg'``]. Default: 0.0.
     sxi24 : int or float, optional
-        Sin(xi_24); see ``sxi12``. Default: 0.0.
+        Angle xi_24; see ``sxi12``. Default: 0.0.
     dxi24 : int or float, optional
-        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+        CP-violation phase of the LIV operator [radian, or degree if ``angles='deg'``]. Default: 0.0.
     sxi34 : int or float, optional
-        Sin(xi_34); see ``sxi12``. Default: 0.0.
+        Angle xi_34; see ``sxi12``. Default: 0.0.
     b1 : int or float, optional
         Eigenvalue b1 of the LIV operator. Default: 0.0.
     b2 : int or float, optional
@@ -19638,29 +21382,6 @@ def osc_prob_4nu_earth_liv(
         Final flavor index; see ``nu_i``. Default: None.
     default_osc_params_set_name : str, optional
         Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
-    validate_input : bool, optional
-        If True, validate the input parameters. Default: True.
-    save_log : bool, optional
-        If True, also write log messages to a file. Default: False.
-    filename_log : str, optional
-        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
-    file_log : TextIOWrapper, optional
-        Optional file object to write log messages to. Default: None.
-    close_file_log_upon_exit : bool, optional
-        If True, close the log file before returning. Default: True.
-    verbose : int, optional
-        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
-    \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function, and
-        through it to :func:`osc_prob`, whose signature declares them. The refinement
-        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
-        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
-        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
-
-    
     ratio_number_neutrons_to_protons : int, float, or Callable, optional
         :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
         matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: None,
@@ -19705,6 +21426,49 @@ def osc_prob_4nu_earth_liv(
         hydrogen has :math:`Z/A = 1`).  PREM's ocean is a global average that a
         land-based baseline does not cross; pass
         :data:`magnus.earth.Y_E_CRUST_PREM` for one.
+    source_depth : int or float, optional
+        Depth of the neutrino's entry point below the surface of the Earth
+        [:math:`\text{eV}^{-1}`].  Default: 0.0, i.e. the neutrino enters at
+        the surface, which is the geometry every earlier version assumed.
+    detector_depth : int or float, optional
+        Depth of the detector below the surface of the Earth
+        [:math:`\text{eV}^{-1}`].  The zenith angle ``costhz`` is measured at
+        the detector, so a buried detector also sees downward-going neutrinos
+        (``costhz > 0``) through its overburden.  Naming this fixes where the
+        trajectory ends, so ``L`` must then be left as None and the baseline
+        is computed for you.  Default: 0.0, i.e. a detector on the surface.
+    density_matter_ocean : int or float, optional
+        Density of PREM's outermost shell, :math:`r > 6368` km
+        [:math:`\text{g cm}^{-3}`].  PREM puts a global-average ocean there,
+        at 1.020; continental rock is about 2.6 and Antarctic ice about 0.92.
+        The shell is 3 km thick, so this matters for a trajectory close to
+        horizontal, which can spend its whole length inside it.  Pair it with
+        ``electron_fraction_ocean``, which sets the composition of the same
+        shell.  Default: None, i.e. PREM's own ocean.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
+
+    
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -19734,13 +21498,20 @@ def osc_prob_4nu_earth_liv(
     # and using the chord length as the baseline. If only a single location is given, throw an 
     # exception.  If neither of the two locations are given, use the given value of costhz and of 
     # baseline given (could be an array of baselines).
+    # Both depths are declared Optional, so None has to mean "no depth".  Normalized here,
+    # where they first arrive, because the three uses below divide by gd.UNIT_KM and a None
+    # would surface as a TypeError rather than this package's descriptive ValueError.
+    source_depth, detector_depth = earth._depths_or_zero(source_depth, detector_depth)
+
     costhz, L = validate_input_osc_prob_earth(source_func_name, loc_ini, loc_fin, costhz, L,
-        verbose=verbose)
+        verbose=verbose, source_depth=source_depth, detector_depth=detector_depth)
 
     # Align the slab edges with the crossings of the PREM layer boundaries along the chord: the
     # matter density is discontinuous there, and the high-order quadrature of the Magnus kernel
     # converges at its nominal order only if the Hamiltonian is smooth inside each slab.
-    t_breakpoints = earth.prem_layer_edges_along_chord(costhz)*gd.UNIT_KM # [eV^{-1}]
+    t_breakpoints = earth.prem_layer_edges_along_chord(
+        costhz, source_depth/gd.UNIT_KM,
+        detector_depth/gd.UNIT_KM)*gd.UNIT_KM # [eV^{-1}]
 
     # A caller may have breakpoints of their own -- a feature in a custom H, say.  These
     # wrappers set t_breakpoints themselves, so an argument of the same name arrived in
@@ -19773,7 +21544,9 @@ def osc_prob_4nu_earth_liv(
         costhz, electron_fraction, ratio_number_neutrons_to_protons,
         electron_fraction_core, electron_fraction_mantle,
         electron_fraction_crust, electron_fraction_ocean,
-        source_func_name, num_flavors=4)
+        source_func_name, num_flavors=4,
+        source_depth=source_depth, detector_depth=detector_depth,
+        density_matter_ocean=density_matter_ocean)
 
     return osc_prob_liv(
         num_flavors=4,
@@ -19785,7 +21558,7 @@ def osc_prob_4nu_earth_liv(
         # end.  Declared, not detected: see _earth_chord_symmetry.  Returns None -- and
         # so takes the ordinary path -- unless every requested baseline is the whole
         # chord, because a chord is symmetric over no shorter prefix of itself.
-        symmetric_over=_earth_chord_symmetry(costhz, L),
+        symmetric_over=_earth_chord_symmetry(costhz, L, source_depth, detector_depth),
         osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 's14': s14, 'd14': d14, 
             's24': s24, 'd24': d24, 's34': s34, 'D21': D21, 'D31': D31, 'D41': D41},
         liv_params={'sxi12': sxi12, 'sxi23': sxi23, 'sxi13': sxi13, 'dxi13': dxi13, 'sxi14': sxi14,
@@ -19868,6 +21641,9 @@ def osc_prob_5nu_earth_liv(
     electron_fraction_mantle: Optional[Union[int, float]]=None,
     electron_fraction_crust: Optional[Union[int, float]]=None,
     electron_fraction_ocean: Optional[Union[int, float]]=None,
+    source_depth: Optional[Union[int, float]]=0.0,
+    detector_depth: Optional[Union[int, float]]=0.0,
+    density_matter_ocean: Optional[Union[int, float]]=None,
     validate_input: Optional[bool]=True, 
     save_log: Optional[bool]=False, 
     filename_log: Optional[str]='./out.log',
@@ -19889,6 +21665,14 @@ def osc_prob_5nu_earth_liv(
     are not ``None``), then the neutrino travels the chord joining them 
     through the Earth, overriding any given value of costhz given, and 
     using the chord length as the baseline. 
+
+    Both locations lie on the surface.  To put either end of the
+    trajectory underground, give ``costhz`` instead and name
+    ``source_depth``, ``detector_depth``, or both.  ``costhz`` is the
+    zenith angle at the detector, which is the surface angle when the
+    detector is on the surface, so nothing changes for a call that
+    leaves the depths alone.  A buried detector fixes where the
+    trajectory ends, so ``L`` is then computed rather than given.
 
     The initial and final location can be given as a three-entry tuple
     of coordinates in the (degree, minute, second) format.  Alternatively,
@@ -19946,6 +21730,11 @@ def osc_prob_5nu_earth_liv(
 
     .. versionadded:: 1.0.0
 
+    .. versionchanged:: 1.1.1
+       Added ``source_depth``, ``detector_depth`` and ``density_matter_ocean``.
+       Their defaults leave the trajectory and the density profile exactly as
+       they were: both endpoints on the surface, and PREM's own ocean.
+
     Parameters
     ----------
     energy : int, float, list, or np.ndarray
@@ -19995,33 +21784,33 @@ def osc_prob_5nu_earth_liv(
     D51 : int or float, optional
         Mass-squared difference :math:`\Delta m_{51}^2`. Default: 0.0.
     sxi12 : int or float, optional
-        Sin(xi_12), one of the mixing angles between the space of the eigenvectors of the LIV operator and the flavor states. Default: 0.0.
+        Mixing angle xi_12 between the space of the eigenvectors of the LIV operator and the flavor states, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     sxi23 : int or float, optional
-        Sin(xi_23); see ``sxi12``. Default: 0.0.
+        Angle xi_23; see ``sxi12``. Default: 0.0.
     sxi13 : int or float, optional
-        Sin(xi_13); see ``sxi12``. Default: 0.0.
+        Angle xi_13; see ``sxi12``. Default: 0.0.
     dxi13 : int or float, optional
         CP-violation phase of the LIV operator [radian] (replaces ``dxiCP`` for 4/5-flavor systems). Default: 0.0.
     sxi14 : int or float, optional
-        Sin(xi_14); see ``sxi12``. Default: 0.0.
+        Angle xi_14; see ``sxi12``. Default: 0.0.
     dxi14 : int or float, optional
-        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+        CP-violation phase of the LIV operator [radian, or degree if ``angles='deg'``]. Default: 0.0.
     sxi15 : int or float, optional
-        Sin(xi_15); see ``sxi12``. Default: 0.0.
+        Angle xi_15; see ``sxi12``. Default: 0.0.
     dxi15 : int or float, optional
-        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+        CP-violation phase of the LIV operator [radian, or degree if ``angles='deg'``]. Default: 0.0.
     sxi24 : int or float, optional
-        Sin(xi_24); see ``sxi12``. Default: 0.0.
+        Angle xi_24; see ``sxi12``. Default: 0.0.
     dxi24 : int or float, optional
-        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+        CP-violation phase of the LIV operator [radian, or degree if ``angles='deg'``]. Default: 0.0.
     sxi25 : int or float, optional
-        Sin(xi_25); see ``sxi12``. Default: 0.0.
+        Angle xi_25; see ``sxi12``. Default: 0.0.
     sxi34 : int or float, optional
-        Sin(xi_34); see ``sxi12``. Default: 0.0.
+        Angle xi_34; see ``sxi12``. Default: 0.0.
     sxi35 : int or float, optional
-        Sin(xi_35); see ``sxi12``. Default: 0.0.
+        Angle xi_35; see ``sxi12``. Default: 0.0.
     dxi35 : int or float, optional
-        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+        CP-violation phase of the LIV operator [radian, or degree if ``angles='deg'``]. Default: 0.0.
     b1 : int or float, optional
         Eigenvalue b1 of the LIV operator. Default: 0.0.
     b2 : int or float, optional
@@ -20044,29 +21833,6 @@ def osc_prob_5nu_earth_liv(
         Final flavor index; see ``nu_i``. Default: None.
     default_osc_params_set_name : str, optional
         Name of the predefined oscillation-parameter set used to fill in any oscillation parameter left as None (see ``globaldefs.OSC_PARAMS_PREDEFINED``). Default: 'OSC_PARAMS_DEFAULT'.
-    validate_input : bool, optional
-        If True, validate the input parameters. Default: True.
-    save_log : bool, optional
-        If True, also write log messages to a file. Default: False.
-    filename_log : str, optional
-        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
-    file_log : TextIOWrapper, optional
-        Optional file object to write log messages to. Default: None.
-    close_file_log_upon_exit : bool, optional
-        If True, close the log file before returning. Default: True.
-    verbose : int, optional
-        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
-    \**kwargs
-        Additional arguments forwarded to the underlying middle-layer function, and
-        through it to :func:`osc_prob`, whose signature declares them. The refinement
-        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
-        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
-        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
-
-    
     ratio_number_neutrons_to_protons : int, float, or Callable, optional
         :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
         matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: None,
@@ -20111,6 +21877,49 @@ def osc_prob_5nu_earth_liv(
         hydrogen has :math:`Z/A = 1`).  PREM's ocean is a global average that a
         land-based baseline does not cross; pass
         :data:`magnus.earth.Y_E_CRUST_PREM` for one.
+    source_depth : int or float, optional
+        Depth of the neutrino's entry point below the surface of the Earth
+        [:math:`\text{eV}^{-1}`].  Default: 0.0, i.e. the neutrino enters at
+        the surface, which is the geometry every earlier version assumed.
+    detector_depth : int or float, optional
+        Depth of the detector below the surface of the Earth
+        [:math:`\text{eV}^{-1}`].  The zenith angle ``costhz`` is measured at
+        the detector, so a buried detector also sees downward-going neutrinos
+        (``costhz > 0``) through its overburden.  Naming this fixes where the
+        trajectory ends, so ``L`` must then be left as None and the baseline
+        is computed for you.  Default: 0.0, i.e. a detector on the surface.
+    density_matter_ocean : int or float, optional
+        Density of PREM's outermost shell, :math:`r > 6368` km
+        [:math:`\text{g cm}^{-3}`].  PREM puts a global-average ocean there,
+        at 1.020; continental rock is about 2.6 and Antarctic ice about 0.92.
+        The shell is 3 km thick, so this matters for a trajectory close to
+        horizontal, which can spend its whole length inside it.  Pair it with
+        ``electron_fraction_ocean``, which sets the composition of the same
+        shell.  Default: None, i.e. PREM's own ocean.
+    validate_input : bool, optional
+        If True, validate the input parameters. Default: True.
+    save_log : bool, optional
+        If True, also write log messages to a file. Default: False.
+    filename_log : str, optional
+        Name of the log file (used if ``save_log`` is True and no ``file_log`` object is given). Default: './out.log'.
+    file_log : TextIOWrapper, optional
+        Optional file object to write log messages to. Default: None.
+    close_file_log_upon_exit : bool, optional
+        If True, close the log file before returning. Default: True.
+    verbose : int, optional
+        Verbosity level: 0 (silent), 1 (warnings), 2 (progress of the refinement loops). Default: 0.
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
+
+    
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -20140,13 +21949,20 @@ def osc_prob_5nu_earth_liv(
     # and using the chord length as the baseline. If only a single location is given, throw an 
     # exception.  If neither of the two locations are given, use the given value of costhz and of 
     # baseline given (could be an array of baselines).
+    # Both depths are declared Optional, so None has to mean "no depth".  Normalized here,
+    # where they first arrive, because the three uses below divide by gd.UNIT_KM and a None
+    # would surface as a TypeError rather than this package's descriptive ValueError.
+    source_depth, detector_depth = earth._depths_or_zero(source_depth, detector_depth)
+
     costhz, L = validate_input_osc_prob_earth(source_func_name, loc_ini, loc_fin, costhz, L,
-        verbose=verbose)
+        verbose=verbose, source_depth=source_depth, detector_depth=detector_depth)
 
     # Align the slab edges with the crossings of the PREM layer boundaries along the chord: the
     # matter density is discontinuous there, and the high-order quadrature of the Magnus kernel
     # converges at its nominal order only if the Hamiltonian is smooth inside each slab.
-    t_breakpoints = earth.prem_layer_edges_along_chord(costhz)*gd.UNIT_KM # [eV^{-1}]
+    t_breakpoints = earth.prem_layer_edges_along_chord(
+        costhz, source_depth/gd.UNIT_KM,
+        detector_depth/gd.UNIT_KM)*gd.UNIT_KM # [eV^{-1}]
 
     # A caller may have breakpoints of their own -- a feature in a custom H, say.  These
     # wrappers set t_breakpoints themselves, so an argument of the same name arrived in
@@ -20179,7 +21995,9 @@ def osc_prob_5nu_earth_liv(
         costhz, electron_fraction, ratio_number_neutrons_to_protons,
         electron_fraction_core, electron_fraction_mantle,
         electron_fraction_crust, electron_fraction_ocean,
-        source_func_name, num_flavors=5)
+        source_func_name, num_flavors=5,
+        source_depth=source_depth, detector_depth=detector_depth,
+        density_matter_ocean=density_matter_ocean)
 
     return osc_prob_liv(
         num_flavors=5,
@@ -20191,7 +22009,7 @@ def osc_prob_5nu_earth_liv(
         # end.  Declared, not detected: see _earth_chord_symmetry.  Returns None -- and
         # so takes the ordinary path -- unless every requested baseline is the whole
         # chord, because a chord is symmetric over no shorter prefix of itself.
-        symmetric_over=_earth_chord_symmetry(costhz, L),
+        symmetric_over=_earth_chord_symmetry(costhz, L, source_depth, detector_depth),
         osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 's14': s14, 'd14': d14, 
             's15': s15, 'd15': d15, 's24': s24, 'd24': d24, 's25': s25, 's34': s34, 's35': s35, 
             'd35': d35, 'D21': D21, 'D31': D31, 'D41': D41, 'D51': D51},
@@ -20247,6 +22065,8 @@ def osc_prob_2nu_sun_liv(
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
     angles: Optional[str]='sin',
+    density_profile: Optional[str]='exp',
+    stop_at_table_edge: Optional[bool]=False,
     **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the two-neutrino oscillation probability 
     for neutrinos inside the Sun, under (one form of) Lorentz-invariance
@@ -20262,6 +22082,10 @@ def osc_prob_2nu_sun_liv(
 
     .. versionadded:: 1.0.0
 
+    .. versionchanged:: 1.1.1
+       Takes ``density_profile``, to use a tabulated standard solar model in place of the
+       exponential fit, and ``stop_at_table_edge``.
+
     Parameters
     ----------
     energy : float, list, or np.ndarray
@@ -20275,7 +22099,7 @@ def osc_prob_2nu_sun_liv(
     Dm2 : int or float
         Mass-squared difference :math:`\Delta m^2` of the two-flavor system.
     sxi : int or float, optional
-        Sin(xi), with xi the rotation angle between the space of the eigenvectors of the LIV operator and the flavor states. Default: 0.0.
+        Rotation angle xi between the space of the eigenvectors of the LIV operator and the flavor states, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     b1 : int or float, optional
         Eigenvalue b1 of the LIV operator. Default: 0.0.
     b2 : int or float, optional
@@ -20315,14 +22139,28 @@ def osc_prob_2nu_sun_liv(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines,
         ``'sin2'`` their sines *squared* -- which is what global fits report --
         ``'rad'`` the angles themselves in radians, or ``'deg'`` in degrees.  Any other
         value raises.
+
+    density_profile : str, optional
+        The Sun's electron density.  ``'exp'``, the default, is the exponential fit described
+        above.  The name of a standard solar model -- one of
+        :data:`magnus.solarmodels.SOLAR_MODELS`, such as ``'B16-GS98'``, in any case -- uses
+        that model's tabulated profile instead: interpolated in the logarithm of the density,
+        held flat below the first tabulated radius, and continued past the last along the slope
+        of the last interval (see :mod:`magnus.solarmodels`).  Default: 'exp'.
+    stop_at_table_edge : bool, optional
+        Only with a standard solar model.  If True, a baseline reaching past the model's last
+        tabulated radius returns NaN instead of a probability, with a
+        :class:`SolarModelRangeWarning` naming the edge; if False, the profile is continued past
+        it.  Default: False.
 
     Returns
     -------
@@ -20330,7 +22168,9 @@ def osc_prob_2nu_sun_liv(
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
-    return osc_prob_2nu_matter_liv_exp_density(
+    _rho, _ = _solar_profile(density_profile, None, 'osc_prob_2nu_sun_liv')
+    L, _beyond = _stop_at_table_edge(density_profile, stop_at_table_edge, L, L0, 'osc_prob_2nu_sun_liv')
+    P = osc_prob_2nu_matter_liv_exp_density(
         energy=energy,
         L=L,
         L0=L0,
@@ -20364,8 +22204,10 @@ def osc_prob_2nu_sun_liv(
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
         angles=angles,
+        _rho_func=_rho,
         **kwargs
     )
+    return _refuse_past_table_edge(P, _beyond)
 
 
 def osc_prob_3nu_sun_liv(
@@ -20398,6 +22240,8 @@ def osc_prob_3nu_sun_liv(
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
     angles: Optional[str]='sin',
+    density_profile: Optional[str]='exp',
+    stop_at_table_edge: Optional[bool]=False,
     **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the three-neutrino oscillation probability 
     for neutrinos inside the Sun, under (one form of) Lorentz-invariance
@@ -20412,6 +22256,10 @@ def osc_prob_3nu_sun_liv(
     Wook Kim.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.1
+       Takes ``density_profile``, to use a tabulated standard solar model in place of the
+       exponential fit, and ``stop_at_table_edge``.
 
     Parameters
     ----------
@@ -20434,13 +22282,13 @@ def osc_prob_3nu_sun_liv(
     D31 : int or float, optional
         Mass-squared difference :math:`\Delta m_{31}^2`. Default: None.
     sxi12 : int or float, optional
-        Sin(xi_12), one of the mixing angles between the space of the eigenvectors of the LIV operator and the flavor states. Default: 0.0.
+        Mixing angle xi_12 between the space of the eigenvectors of the LIV operator and the flavor states, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     sxi23 : int or float, optional
-        Sin(xi_23); see ``sxi12``. Default: 0.0.
+        Angle xi_23; see ``sxi12``. Default: 0.0.
     sxi13 : int or float, optional
-        Sin(xi_13); see ``sxi12``. Default: 0.0.
+        Angle xi_13; see ``sxi12``. Default: 0.0.
     dxiCP : int or float, optional
-        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+        CP-violation phase of the LIV operator [radian, or degree if ``angles='deg'``]. Default: 0.0.
     b1 : int or float, optional
         Eigenvalue b1 of the LIV operator. Default: 0.0.
     b2 : int or float, optional
@@ -20482,9 +22330,10 @@ def osc_prob_3nu_sun_liv(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -20492,13 +22341,28 @@ def osc_prob_3nu_sun_liv(
         ``'deg'`` the CP phases are read as degrees too; under the other three
         they stay in radians, a sine being no way to state a phase.
 
+    density_profile : str, optional
+        The Sun's electron density.  ``'exp'``, the default, is the exponential fit described
+        above.  The name of a standard solar model -- one of
+        :data:`magnus.solarmodels.SOLAR_MODELS`, such as ``'B16-GS98'``, in any case -- uses
+        that model's tabulated profile instead: interpolated in the logarithm of the density,
+        held flat below the first tabulated radius, and continued past the last along the slope
+        of the last interval (see :mod:`magnus.solarmodels`).  Default: 'exp'.
+    stop_at_table_edge : bool, optional
+        Only with a standard solar model.  If True, a baseline reaching past the model's last
+        tabulated radius returns NaN instead of a probability, with a
+        :class:`SolarModelRangeWarning` naming the edge; if False, the profile is continued past
+        it.  Default: False.
+
     Returns
     -------
     float or np.ndarray
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
-    return osc_prob_3nu_matter_liv_exp_density(
+    _rho, _ = _solar_profile(density_profile, None, 'osc_prob_3nu_sun_liv')
+    L, _beyond = _stop_at_table_edge(density_profile, stop_at_table_edge, L, L0, 'osc_prob_3nu_sun_liv')
+    P = osc_prob_3nu_matter_liv_exp_density(
         energy=energy,
         L=L,
         L0=L0,
@@ -20540,8 +22404,10 @@ def osc_prob_3nu_sun_liv(
         close_file_log_upon_exit=close_file_log_upon_exit,
         verbose=verbose,
         angles=angles,
+        _rho_func=_rho,
         **kwargs
     )
+    return _refuse_past_table_edge(P, _beyond)
 
 
 def osc_prob_4nu_sun_liv(
@@ -20586,7 +22452,9 @@ def osc_prob_4nu_sun_liv(
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
     angles: Optional[str]='sin',
-    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
+    ratio_number_neutrons_to_protons: Optional[Union[int, float, Callable]]=None,
+    density_profile: Optional[str]='exp',
+    stop_at_table_edge: Optional[bool]=False,
     **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the four-neutrino oscillation probability 
     for neutrinos inside the Sun, under (one form of) Lorentz-invariance
@@ -20601,6 +22469,12 @@ def osc_prob_4nu_sun_liv(
     Wook Kim.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.1
+       Takes ``density_profile``, to use a tabulated standard solar model in place of the
+       exponential fit, and ``stop_at_table_edge``.  ``ratio_number_neutrons_to_protons``
+       defaults to None: 1.0 with the exponential profile, as before, and the model's own
+       composition with a standard solar model.
 
     Parameters
     ----------
@@ -20635,23 +22509,23 @@ def osc_prob_4nu_sun_liv(
     D41 : int or float, optional
         Mass-squared difference :math:`\Delta m_{41}^2`. Default: 0.0.
     sxi12 : int or float, optional
-        Sin(xi_12), one of the mixing angles between the space of the eigenvectors of the LIV operator and the flavor states. Default: 0.0.
+        Mixing angle xi_12 between the space of the eigenvectors of the LIV operator and the flavor states, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     sxi23 : int or float, optional
-        Sin(xi_23); see ``sxi12``. Default: 0.0.
+        Angle xi_23; see ``sxi12``. Default: 0.0.
     sxi13 : int or float, optional
-        Sin(xi_13); see ``sxi12``. Default: 0.0.
+        Angle xi_13; see ``sxi12``. Default: 0.0.
     dxi13 : int or float, optional
         CP-violation phase of the LIV operator [radian] (replaces ``dxiCP`` for 4/5-flavor systems). Default: 0.0.
     sxi14 : int or float, optional
-        Sin(xi_14); see ``sxi12``. Default: 0.0.
+        Angle xi_14; see ``sxi12``. Default: 0.0.
     dxi14 : int or float, optional
-        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+        CP-violation phase of the LIV operator [radian, or degree if ``angles='deg'``]. Default: 0.0.
     sxi24 : int or float, optional
-        Sin(xi_24); see ``sxi12``. Default: 0.0.
+        Angle xi_24; see ``sxi12``. Default: 0.0.
     dxi24 : int or float, optional
-        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+        CP-violation phase of the LIV operator [radian, or degree if ``angles='deg'``]. Default: 0.0.
     sxi34 : int or float, optional
-        Sin(xi_34); see ``sxi12``. Default: 0.0.
+        Angle xi_34; see ``sxi12``. Default: 0.0.
     b1 : int or float, optional
         Eigenvalue b1 of the LIV operator. Default: 0.0.
     b2 : int or float, optional
@@ -20695,24 +22569,10 @@ def osc_prob_4nu_sun_liv(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
-    ratio_number_neutrons_to_protons : int or float, optional
-        :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
-        matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
-        (isoscalar matter, i.e. :math:`Y_e = 0.5`).
-
-        **The Sun is not isoscalar, and this is the only way to say so.**  It is
-        hydrogen-rich, so :math:`Y_e = (1 + X)/2` runs from about 0.68 at the center to
-        0.88 near the surface, and :math:`r = (1 - Y_e)/Y_e` from about 0.47 down to
-        0.14 -- nowhere near 1.0, unlike the Earth where the isoscalar value at least
-        sits among the layers.  The solar profile is a fit to the electron *number*
-        density, so :math:`Y_e` is already inside it and there is nothing for the
-        library to derive :math:`r` from: it has to be stated here.  Left at 1.0 the
-        averaged survival probability moves by about 4e-03 at
-        :math:`\sin\theta_{14} = 0.4`, above the default tolerance.  Three flavors are
-        unaffected -- the projector's sterile block is empty.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -20720,13 +22580,48 @@ def osc_prob_4nu_sun_liv(
         ``'deg'`` the CP phases are read as degrees too; under the other three
         they stay in radians, a sine being no way to state a phase.
 
+    ratio_number_neutrons_to_protons : int, float, Callable, or None, optional
+        :math:`r = n_n/n_p` of the medium, a number or a function of position.  Scales the
+        sterile states' entry in the matter term; see
+        :func:`magnus.matter.matter_potential_projector`.  Default: None, which means 1.0
+        (isoscalar matter, i.e. :math:`Y_e = 0.5`) with the exponential profile, as before,
+        and the model's own composition with a standard solar model:
+        :math:`r = (1 - X)/(1 + X)` at every radius, from its hydrogen mass fraction :math:`X`
+        (see :func:`magnus.solarmodels.neutron_to_proton_ratio_profile`).  A value passed here
+        is used as given, with either profile.
+
+        **The Sun is not isoscalar.**  It is hydrogen-rich, so :math:`Y_e = (1 + X)/2` runs
+        from about 0.68 at the center to 0.88 near the surface, and :math:`r` from about 0.47
+        down to 0.14 -- nowhere near 1.0, unlike the Earth where the isoscalar value at least
+        sits among the layers.  The exponential profile is a fit to the electron *number*
+        density and carries no composition to derive :math:`r` from, so 1.0 is kept there as
+        before; naming a standard solar model through ``density_profile`` supplies one.  Left
+        at 1.0 the averaged survival probability moves by about 4e-03 at
+        :math:`\sin\theta_{14} = 0.4`, above the default tolerance.  Three flavors are
+        unaffected -- the projector's sterile block is empty.
+    density_profile : str, optional
+        The Sun's electron density.  ``'exp'``, the default, is the exponential fit described
+        above.  The name of a standard solar model -- one of
+        :data:`magnus.solarmodels.SOLAR_MODELS`, such as ``'B16-GS98'``, in any case -- uses
+        that model's tabulated profile instead: interpolated in the logarithm of the density,
+        held flat below the first tabulated radius, and continued past the last along the slope
+        of the last interval (see :mod:`magnus.solarmodels`).  With the sterile states it also supplies the composition; see
+        ``ratio_number_neutrons_to_protons``.  Default: 'exp'.
+    stop_at_table_edge : bool, optional
+        Only with a standard solar model.  If True, a baseline reaching past the model's last
+        tabulated radius returns NaN instead of a probability, with a
+        :class:`SolarModelRangeWarning` naming the edge; if False, the profile is continued past
+        it.  Default: False.
+
     Returns
     -------
     float or np.ndarray
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
-    return osc_prob_4nu_matter_liv_exp_density(
+    _rho, ratio_number_neutrons_to_protons = _solar_profile(density_profile, ratio_number_neutrons_to_protons, 'osc_prob_4nu_sun_liv')
+    L, _beyond = _stop_at_table_edge(density_profile, stop_at_table_edge, L, L0, 'osc_prob_4nu_sun_liv')
+    P = osc_prob_4nu_matter_liv_exp_density(
         energy=energy,
         L=L,
         L0=L0,
@@ -20780,8 +22675,10 @@ def osc_prob_4nu_sun_liv(
         verbose=verbose,
         angles=angles,
         ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
+        _rho_func=_rho,
         **kwargs
     )
+    return _refuse_past_table_edge(P, _beyond)
 
 
 def osc_prob_5nu_sun_liv(
@@ -20838,7 +22735,9 @@ def osc_prob_5nu_sun_liv(
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
     angles: Optional[str]='sin',
-    ratio_number_neutrons_to_protons: Optional[Union[int, float]]=1.0,
+    ratio_number_neutrons_to_protons: Optional[Union[int, float, Callable]]=None,
+    density_profile: Optional[str]='exp',
+    stop_at_table_edge: Optional[bool]=False,
     **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the five-neutrino oscillation probability 
     for neutrinos inside the Sun, under (one form of) Lorentz-invariance
@@ -20853,6 +22752,12 @@ def osc_prob_5nu_sun_liv(
     Wook Kim.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.1
+       Takes ``density_profile``, to use a tabulated standard solar model in place of the
+       exponential fit, and ``stop_at_table_edge``.  ``ratio_number_neutrons_to_protons``
+       defaults to None: 1.0 with the exponential profile, as before, and the model's own
+       composition with a standard solar model.
 
     Parameters
     ----------
@@ -20899,33 +22804,33 @@ def osc_prob_5nu_sun_liv(
     D51 : int or float, optional
         Mass-squared difference :math:`\Delta m_{51}^2`. Default: 0.0.
     sxi12 : int or float, optional
-        Sin(xi_12), one of the mixing angles between the space of the eigenvectors of the LIV operator and the flavor states. Default: 0.0.
+        Mixing angle xi_12 between the space of the eigenvectors of the LIV operator and the flavor states, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     sxi23 : int or float, optional
-        Sin(xi_23); see ``sxi12``. Default: 0.0.
+        Angle xi_23; see ``sxi12``. Default: 0.0.
     sxi13 : int or float, optional
-        Sin(xi_13); see ``sxi12``. Default: 0.0.
+        Angle xi_13; see ``sxi12``. Default: 0.0.
     dxi13 : int or float, optional
         CP-violation phase of the LIV operator [radian] (replaces ``dxiCP`` for 4/5-flavor systems). Default: 0.0.
     sxi14 : int or float, optional
-        Sin(xi_14); see ``sxi12``. Default: 0.0.
+        Angle xi_14; see ``sxi12``. Default: 0.0.
     dxi14 : int or float, optional
-        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+        CP-violation phase of the LIV operator [radian, or degree if ``angles='deg'``]. Default: 0.0.
     sxi15 : int or float, optional
-        Sin(xi_15); see ``sxi12``. Default: 0.0.
+        Angle xi_15; see ``sxi12``. Default: 0.0.
     dxi15 : int or float, optional
-        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+        CP-violation phase of the LIV operator [radian, or degree if ``angles='deg'``]. Default: 0.0.
     sxi24 : int or float, optional
-        Sin(xi_24); see ``sxi12``. Default: 0.0.
+        Angle xi_24; see ``sxi12``. Default: 0.0.
     dxi24 : int or float, optional
-        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+        CP-violation phase of the LIV operator [radian, or degree if ``angles='deg'``]. Default: 0.0.
     sxi25 : int or float, optional
-        Sin(xi_25); see ``sxi12``. Default: 0.0.
+        Angle xi_25; see ``sxi12``. Default: 0.0.
     sxi34 : int or float, optional
-        Sin(xi_34); see ``sxi12``. Default: 0.0.
+        Angle xi_34; see ``sxi12``. Default: 0.0.
     sxi35 : int or float, optional
-        Sin(xi_35); see ``sxi12``. Default: 0.0.
+        Angle xi_35; see ``sxi12``. Default: 0.0.
     dxi35 : int or float, optional
-        CP-violation phase of the LIV operator [radian]. Default: 0.0.
+        CP-violation phase of the LIV operator [radian, or degree if ``angles='deg'``]. Default: 0.0.
     b1 : int or float, optional
         Eigenvalue b1 of the LIV operator. Default: 0.0.
     b2 : int or float, optional
@@ -20971,24 +22876,10 @@ def osc_prob_5nu_sun_liv(
         keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
         ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
         ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
-        ``n_jobs``; the logging ones are ``save_log``, ``filename_log`` and ``verbose``.
-        They do not appear in this signature because they are not this function's to
-        declare, so ``help()`` on it will not list them: see :func:`osc_prob`.
-    ratio_number_neutrons_to_protons : int or float, optional
-        :math:`r = n_n/n_p` of the medium.  Scales the sterile states' entry in the
-        matter term; see :func:`magnus.matter.matter_potential_projector`.  Default: 1.0
-        (isoscalar matter, i.e. :math:`Y_e = 0.5`).
-
-        **The Sun is not isoscalar, and this is the only way to say so.**  It is
-        hydrogen-rich, so :math:`Y_e = (1 + X)/2` runs from about 0.68 at the center to
-        0.88 near the surface, and :math:`r = (1 - Y_e)/Y_e` from about 0.47 down to
-        0.14 -- nowhere near 1.0, unlike the Earth where the isoscalar value at least
-        sits among the layers.  The solar profile is a fit to the electron *number*
-        density, so :math:`Y_e` is already inside it and there is nothing for the
-        library to derive :math:`r` from: it has to be stated here.  Left at 1.0 the
-        averaged survival probability moves by about 4e-03 at
-        :math:`\sin\theta_{14} = 0.4`, above the default tolerance.  Three flavors are
-        unaffected -- the projector's sterile block is empty.
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -20996,13 +22887,48 @@ def osc_prob_5nu_sun_liv(
         ``'deg'`` the CP phases are read as degrees too; under the other three
         they stay in radians, a sine being no way to state a phase.
 
+    ratio_number_neutrons_to_protons : int, float, Callable, or None, optional
+        :math:`r = n_n/n_p` of the medium, a number or a function of position.  Scales the
+        sterile states' entry in the matter term; see
+        :func:`magnus.matter.matter_potential_projector`.  Default: None, which means 1.0
+        (isoscalar matter, i.e. :math:`Y_e = 0.5`) with the exponential profile, as before,
+        and the model's own composition with a standard solar model:
+        :math:`r = (1 - X)/(1 + X)` at every radius, from its hydrogen mass fraction :math:`X`
+        (see :func:`magnus.solarmodels.neutron_to_proton_ratio_profile`).  A value passed here
+        is used as given, with either profile.
+
+        **The Sun is not isoscalar.**  It is hydrogen-rich, so :math:`Y_e = (1 + X)/2` runs
+        from about 0.68 at the center to 0.88 near the surface, and :math:`r` from about 0.47
+        down to 0.14 -- nowhere near 1.0, unlike the Earth where the isoscalar value at least
+        sits among the layers.  The exponential profile is a fit to the electron *number*
+        density and carries no composition to derive :math:`r` from, so 1.0 is kept there as
+        before; naming a standard solar model through ``density_profile`` supplies one.  Left
+        at 1.0 the averaged survival probability moves by about 4e-03 at
+        :math:`\sin\theta_{14} = 0.4`, above the default tolerance.  Three flavors are
+        unaffected -- the projector's sterile block is empty.
+    density_profile : str, optional
+        The Sun's electron density.  ``'exp'``, the default, is the exponential fit described
+        above.  The name of a standard solar model -- one of
+        :data:`magnus.solarmodels.SOLAR_MODELS`, such as ``'B16-GS98'``, in any case -- uses
+        that model's tabulated profile instead: interpolated in the logarithm of the density,
+        held flat below the first tabulated radius, and continued past the last along the slope
+        of the last interval (see :mod:`magnus.solarmodels`).  With the sterile states it also supplies the composition; see
+        ``ratio_number_neutrons_to_protons``.  Default: 'exp'.
+    stop_at_table_edge : bool, optional
+        Only with a standard solar model.  If True, a baseline reaching past the model's last
+        tabulated radius returns NaN instead of a probability, with a
+        :class:`SolarModelRangeWarning` naming the edge; if False, the profile is continued past
+        it.  Default: False.
+
     Returns
     -------
     float or np.ndarray
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
-    return osc_prob_5nu_matter_liv_exp_density(
+    _rho, ratio_number_neutrons_to_protons = _solar_profile(density_profile, ratio_number_neutrons_to_protons, 'osc_prob_5nu_sun_liv')
+    L, _beyond = _stop_at_table_edge(density_profile, stop_at_table_edge, L, L0, 'osc_prob_5nu_sun_liv')
+    P = osc_prob_5nu_matter_liv_exp_density(
         energy=energy,
         L=L,
         L0=L0,
@@ -21068,8 +22994,10 @@ def osc_prob_5nu_sun_liv(
         verbose=verbose,
         angles=angles,
         ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
+        _rho_func=_rho,
         **kwargs
     )
+    return _refuse_past_table_edge(P, _beyond)
 
 
 
@@ -21092,6 +23020,7 @@ __all__ = [
     'ToleranceNotAchievedWarning',
     'HybridCertificationWarning',
     'UnmarkedDiscontinuityWarning',
+    'SolarModelRangeWarning',
     'HiddenFeatureWarning',
     'ENGINE_FAMILIES',
     'CrossCheckInconclusiveWarning',

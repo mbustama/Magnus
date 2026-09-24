@@ -28,8 +28,11 @@ numbers [1]_ (in the :math:`B_1 = -1/2` convention):
 
 with :math:`S_n^{(j)}` the sums of nested commutators of the lower-order
 terms with :math:`A` (:math:`B_3 = B_5 = 0`, so those groups vanish
-identically).  Orders 1--6 are written out inline; above that the terms
-are generated from the same recursion, at any order.
+identically).  Orders 1--6 are written out inline; orders 7--10 are
+generated from the same recursion when it runs.  The ceiling is
+:data:`MAGNUS_EXP_ORDER_MAX`, and it is a real one: the table of group
+factors stops at :math:`j = 8`, so at order 11 the :math:`j = 10` group
+would be dropped rather than truncated, and the term would be wrong.
 
 Two families of methods are available, selected via
 ``integration_method``:
@@ -213,8 +216,10 @@ class MagnusConvergenceWarning(UserWarning):
     """
 
 
-# Bernoulli numbers B_k (negative-B_1 convention), kept for reference;
-# only B_1, B_2, and B_4 enter at the orders implemented here (<= 6).
+# Bernoulli numbers B_k (negative-B_1 convention), kept for reference.
+# B_1, B_2 and B_4 are the ones the inline orders (<= 6) use; orders 7-10 also
+# use B_6 and B_8, and B_8 is not in this dict -- _GROUP_FACTORS below carries
+# the factors the recursion actually reads.
 B = {
     0: 1.0, 1: -0.5, 2: 1.0/6.0, 3: 0.0, 4: -1.0/30.0, 5: 0.0, 6: 1.0/42.0,
 }
@@ -765,12 +770,17 @@ def _evaluate_A(A: Callable, times: np.ndarray,
                 A_eval_mode: Optional[str] = None) -> Tuple[np.ndarray, str]:
     r"""Evaluate the matrix function A at all requested times.
 
-    Silently tries a single vectorized call, A(times), which is much
-    faster than evaluating point by point.  The vectorized result is
-    accepted only if it has the expected shape and matches a scalar
-    spot-check evaluation; otherwise (or if the vectorized call raises)
-    the routine falls back to a per-point loop.  A constant A (one that
-    ignores its argument) is detected and broadcast.
+    Tries a single vectorized call, A(times), which is much faster than
+    evaluating point by point.  The vectorized result is accepted only if
+    it has the expected shape and matches a scalar spot-check evaluation;
+    otherwise (or if the vectorized call raises) the routine falls back to
+    a per-point loop.  A constant A (one that ignores its argument) is
+    detected and broadcast.
+
+    The fallback is not silent: it emits
+    :class:`ScalarHamiltonianWarning`, once per session, and so does a
+    request for ``A_eval_mode='vector'`` that does not produce a conforming
+    stack.  Callers that merely probe how A can be evaluated inherit it.
 
     Parameters
     ----------
@@ -1310,7 +1320,8 @@ def _available_memory_bytes():
 _CUMULATIVE_TERMS = (0, 1, 2, 4, 7, 12, 21, 38, 71, 136, 265)
 
 WORKING_SET_SAFETY = 2.0
-"""float: fraction of available memory the quadrature working set may claim.
+"""float: divisor applied to available memory before the quadrature working set is
+fitted into it, so the working set may claim 1/WORKING_SET_SAFETY of what is free.
 
 Matches :data:`magnus.oscprob.OUTPUT_GUARD_SAFETY`; the two guards cover different
 allocations and should refuse at the same point.
@@ -1544,7 +1555,7 @@ def _magnus_gl(
         Slab widths :math:`h`, broadcastable against the leading axes of ``An``.
     order : int
         Requested order; mapped to the smallest GL scheme with at least
-        that order (1-2 -> GL1, 3-4 -> GL2, 5-6 -> GL3).
+        that order (1-2 -> GL1, 3-4 -> GL2, 5-6 -> GL3, 7-8 -> GL4).
 
     Returns
     -------
@@ -1687,7 +1698,13 @@ def _gl_nodes(order: int) -> np.ndarray:
     Returns
     -------
     np.ndarray
-        GL nodes on [0, 1] (1, 2, 3, or 4 of them).
+        GL nodes on [0, 1] (1, 2, 3, or 4 of them).  This is the shared module
+        constant itself, not a copy, and it is writeable: do not assign into it.
+
+    Raises
+    ------
+    ValueError
+        If ``order`` exceeds ``MAGNUS_EXP_ORDER_MAX_GL``.
     """
     if order > MAGNUS_EXP_ORDER_MAX_GL:
         # Backstop.  _validate() reports this with a fuller message, but it is skipped when
@@ -1735,8 +1752,16 @@ def _deferred_slab_norm():
     The honest way to use the discarded signal would be a *different* warning -- "this request
     needed many refinement levels" -- rather than a quieter version of this one.
 
-    Private, and stays private: nothing in the package uses it, and shipping public API for a
-    design that was measured and rejected would be worse than keeping the knowledge here.
+    The window ladders of the phase average (:mod:`magnus.avgprob`) do use it (issue #66), and
+    there the measurement comes out the other way.  Those ladders compare operator elements,
+    phases included, rather than probabilities, and every operator they return is evaluated
+    again at the level they settle on, which checks its own slabs.  Over 55 chords through the
+    Sun (10 GeV to 50 TeV, five of them against a brute-force average), keying the warning to
+    the returned level took the firings from 6 to 3, and none of the dropped ones preceded an
+    error above 1e-4: the largest error on any of the 55 was 4.2e-5.
+
+    Private, and stays private: shipping public API for a design whose merit depends on the
+    ladder it serves would be worse than keeping the knowledge here.
 
     Nested blocks share the outermost sink, so an inner engine's slabs are attributed to the
     level being computed rather than starting a fresh collection.
@@ -2167,7 +2192,7 @@ r"""str: Module-level switch selecting how :math:`\exp(\Omega)` is computed.
 Which routine exponentiates each slab.  This is not a correctness switch: the two
 backends agree to about 1e-15 wherever a kernel is used, which is the accuracy either one
 has -- and where it would not, it is not used: the 3x3 kernel reports the conditioning of
-its own characteriztic cubic, the 4x4/5x5 Jacobi kernel reports non-convergence at its
+its own characteristic cubic, the 4x4/5x5 Jacobi kernel reports non-convergence at its
 sweep cap, and ``eigh`` answers instead.  See :data:`magnus.expmkernels.SEV_TOL`.
 
 * ``'auto'`` (the default): the compiled kernels of :mod:`magnus.expmkernels`
@@ -2389,7 +2414,7 @@ def _expm_stack(Om: np.ndarray, warn_wide: bool = False,
                 and expmkernels.supports_dim(Om.shape[-1])):
             U, lam, sev = expmkernels.expm_herm_stack(K)
             # The kernel forecasts whether it has lost more digits than eigh would -- the
-            # 3x3 from the conditioning of its own characteriztic cubic, the 4x4/5x5
+            # 3x3 from the conditioning of its own characteristic cubic, the 4x4/5x5
             # Jacobi kernel by hitting its sweep cap without converging -- and where it
             # has, eigh answers instead.  For the 3x3 that needs a clustered spectrum AND
             # a large norm together (measured up to 7440x worse than eigh in that corner,
@@ -2439,8 +2464,13 @@ def _validate(order: int, integration_method: str):
     ----------
     order : int
         Requested Magnus order; must satisfy 1 <= order <= MAGNUS_EXP_ORDER_MAX.
+        On ``'gl'``, which is the default method, the tighter cap
+        ``MAGNUS_EXP_ORDER_MAX_GL`` applies, so the stated ceiling is
+        reachable only on ``'trapezoid'`` and ``'simpson'``.
     integration_method : str
-        Must be one of ``valid_integration_methods``.
+        Must be one of ``valid_integration_methods``.  Orders above 6 on
+        ``'trapezoid'`` or ``'simpson'`` emit
+        :class:`MagnusHighOrderCostWarning`.
 
     Returns
     -------
@@ -2492,7 +2522,7 @@ def magnus_expansion(
     validate_input: Optional[bool] = True,
     A_eval_mode: Optional[str] = None,
     expm_backend: Optional[str] = None
-) -> np.ndarray:
+) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
     r"""Compute :math:`\exp(\Omega_1 + \cdots + \Omega_\text{order})` of :math:`A(t)` from
     ``t0`` to ``t1``.
 
@@ -2517,7 +2547,7 @@ def magnus_expansion(
         On ``'gl'`` (the default) it is the classical order of the method,
         reached by the smallest collocation scheme that attains it: 1-2 use
         one node, 3-4 two, 5-6 three, 7-8 four, and a request above 8 raises
-        rather than quietly returning order 8.  On ``'simpson'`` and ``'trapz'``
+        rather than quietly returning order 8.  On ``'trapezoid'`` and ``'simpson'``
         it is instead the index of the last term ``Omega_k`` retained, and
         the delivered order is ``2*(order//2) + 2`` because the truncation
         is symmetric about the slab midpoint.  Measured global rates:
@@ -2542,7 +2572,8 @@ def magnus_expansion(
     return_magnus_terms : bool, optional
         If True, also return the individual Magnus terms.  For the
         'gl' method the terms are not separable, and a single-element
-        list containing the total :math:`\Omega` is returned instead.
+        stack of shape ``(1, ..., d, d)`` holding the total
+        :math:`\Omega` is returned instead.
     validate_input : bool, optional
         If True, validate ``order`` and ``integration_method``
         (raises ValueError on invalid input).
@@ -2644,7 +2675,7 @@ def evolution_operators_from_samples(
         On ``'gl'`` (the default) it is the classical order of the method,
         reached by the smallest collocation scheme that attains it: 1-2 use
         one node, 3-4 two, 5-6 three, 7-8 four, and a request above 8 raises
-        rather than quietly returning order 8.  On ``'simpson'`` and ``'trapz'``
+        rather than quietly returning order 8.  On ``'trapezoid'`` and ``'simpson'``
         it is instead the index of the last term ``Omega_k`` retained, and
         the delivered order is ``2*(order//2) + 2`` because the truncation
         is symmetric about the slab midpoint.  Measured global rates:
@@ -2719,8 +2750,14 @@ def gl_nodes(order: int) -> np.ndarray:
     Returns
     -------
     np.ndarray
-        GL nodes on [0, 1] (1, 2, 3, or 4 of them).
-    
+        GL nodes on [0, 1] (1, 2, 3, or 4 of them).  This is the shared module
+        constant itself, not a copy, and it is writeable: do not assign into it.
+
+    Raises
+    ------
+    ValueError
+        If ``order`` exceeds ``MAGNUS_EXP_ORDER_MAX_GL``.
+
     Examples
     --------
     .. jupyter-execute::
@@ -2734,7 +2771,10 @@ def gl_nodes(order: int) -> np.ndarray:
 
     One to four nodes: the scheme uses the fewest that reach the order.
 """
-    return _gl_nodes(order)
+    # A copy: _gl_nodes returns the module constant itself, so writing into the value
+    # handed to a caller would corrupt every later quadrature in the process.  The
+    # internal callers keep using _gl_nodes, so no hot path pays for this.
+    return _gl_nodes(order).copy()
 
 
 USE_PALINDROME = True
@@ -2775,8 +2815,10 @@ def palindromic(*arrays: np.ndarray) -> bool:
 
     Parameters
     ----------
-    arrays : np.ndarray
+    *arrays : np.ndarray
         Arrays to test, given as separate arguments and each reversed along its first axis.
+        An empty call, and any array with fewer than two entries along its first axis, is
+        trivially palindromic; a 0-d array is an error, since it has no first axis.
 
     Returns
     -------
@@ -2813,7 +2855,7 @@ roughly thirteen times headroom over the measured worst case while still admitti
 floating-point noise: even at 1024 slabs the bound is ~1e-13 relative, which no physically uneven
 grid approaches.
 
-See :func:`_mirror_applies` for why this one comparison is a tolerance when :func:`palindromic`
+See ``_mirror_applies`` for why this one comparison is a tolerance when :func:`palindromic`
 is exact."""
 
 
@@ -2825,9 +2867,9 @@ def _mirror_applies(edges: np.ndarray, widths: np.ndarray,
     ``(lo, hi)``.  A declaration is not enough on its own: the engines above this layer call the
     Magnus routines on *sub*-ranges of a profile (the cumulative scan, the adiabatic and
     interaction-picture paths), and a sub-range of a symmetric profile is not itself symmetric.
-    So the chain must be checked to span exactly the declared interval, and to be palindromic in
-    its widths -- both exactly, never within a tolerance, for the reason given in
-    :func:`palindromic`.
+    So the chain must be checked to span the declared interval exactly, and to be palindromic
+    in its widths to within a few ulp.  The span test is the exact one; the widths test is not,
+    for the reason the next paragraph gives.
 
     A widths test alone would **not** be sufficient even with a symmetric profile, and is the
     trap this function exists to avoid: a monotonic (solar-like) profile on a uniform grid has
@@ -2899,7 +2941,7 @@ def magnus_expansion_multislab(
         On ``'gl'`` (the default) it is the classical order of the method,
         reached by the smallest collocation scheme that attains it: 1-2 use
         one node, 3-4 two, 5-6 three, 7-8 four, and a request above 8 raises
-        rather than quietly returning order 8.  On ``'simpson'`` and ``'trapz'``
+        rather than quietly returning order 8.  On ``'trapezoid'`` and ``'simpson'``
         it is instead the index of the last term ``Omega_k`` retained, and
         the delivered order is ``2*(order//2) + 2`` because the truncation
         is symmetric about the slab midpoint.  Measured global rates:
@@ -2928,7 +2970,8 @@ def magnus_expansion_multislab(
     symmetric_over : tuple, optional
         Caller's declaration that ``A(t) == A(lo + hi - t)`` on ``(lo, hi)``.
         When given, and when the slab chain is found to span exactly that
-        interval with exactly palindromic widths, ``A`` is evaluated on the
+        interval with widths palindromic to within a few ulp (see
+        ``_mirror_applies``), ``A`` is evaluated on the
         first half of the slabs only and the rest follows by reversal --
         halving the calls to the caller's Hamiltonian.  Ignored when
         :data:`USE_PALINDROME` is False.

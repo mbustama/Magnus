@@ -257,7 +257,7 @@ def from_sines(angles: str, sines: dict, phases: dict = None):
     r"""The inverse of :func:`resolve`: states stored sines in the caller's convention.
 
     Needed wherever the package supplies values the caller did not: the predefined parameter
-    sets and the NuFit tables are stored as sines, and handing a sine back to someone working
+    sets and the NuFIT tables are stored as sines, and handing a sine back to someone working
     in degrees produces a parameter set in **two** conventions at once.  Omitting one angle
     from a ``angles='deg'`` call would otherwise fill it from the defaults as a sine, and the
     builder would then read 0.1499 as 0.1499 degrees -- a converged, unitary, wrong answer,

@@ -10,7 +10,7 @@ factors used by the various modules of Magnus: unit conversions (km,
 cm, GeV, etc., to natural units of eV), fundamental constants (G_F,
 particle masses, Avogadro's number), Earth/Sun radii and reference
 densities, flavor index constants (NUE, NUMU, NUTAU, NUS), predefined
-oscillation/NSI/LIV parameter sets (e.g., NuFit 6.1, the default), and ANSI terminal
+oscillation/NSI/LIV parameter sets (e.g., NuFIT 6.1, the default), and ANSI terminal
 color codes (class ``cstyle``) used to format warning/error messages.
 
 Routine listings
@@ -19,13 +19,15 @@ Routine listings
     * cstyle - ANSI terminal color-code constants
     * set_color_output - Enables or disables ANSI color in the warning
            and error message prefixes
-    * load_nufit_params - Loads one NuFit release/ordering/category as a
+    * load_nufit_params - Loads one NuFIT release/ordering/category as a
            dict of standard oscillation parameters, in whichever ``angles``
            convention is asked for
 
 The remaining module-level names are physical constants, unit-conversion
-factors, the ANGLE_CONVENTIONS tuple and the MixingAngleConventionWarning
-class, not routines; see the module source for the full list.
+factors, the ANGLE_CONVENTIONS tuple and the three warning classes defined
+here -- MixingAngleConventionWarning, BaselineUnitWarning and
+SterileMatterCompositionWarning -- not routines; see the module source for
+the full list.
 """
 
 
@@ -163,9 +165,10 @@ class BaselineUnitWarning(UserWarning):
     :math:`L_{\rm km} \times` :data:`CONV_KM_TO_INV_EV`, some 5.07e9 per kilometer.
     Passing the raw kilometer value does not fail: the call returns a converged, exactly
     unitary probability for a baseline a few meters long, which looks like an ordinary
-    answer rather than a wrong one.  Measured on the Sun, 694700 passed raw returns 0.910
-    at 20 MeV where the correct value is 0.290, and the survival probability comes out
-    *rising* with energy, which is backwards for an MSW resonance.
+    answer rather than a wrong one.  Measured on the Sun, the radius in kilometres passed
+    raw returns 1.000 at 20 MeV where the correct value is 0.29, and the survival
+    probability comes out *rising* with energy, which is backwards for an MSW
+    resonance.
 
     The threshold is :data:`IMPLAUSIBLE_BASELINE_NATURAL_UNITS`, about two meters in
     natural units, so a genuinely short baseline is still reachable without tripping it.
@@ -270,7 +273,7 @@ def set_color_output(enabled: bool) -> None:
 
 
 MAGNUS_MAX_PREDEFINED_NUM_FLAVORS = 5
-r"""float: Module-level constant
+r"""int: Module-level constant
 
 Maximum number of flavors for which we have hard-coded routines in the oscprob module.
 Units: [Adimensional]
@@ -347,14 +350,14 @@ Units: [:math:`\text{cm}^{3}~\text{eV}^{3}`]
 CONV_EV_TO_G = 1.783e-33
 r"""float: Module-level constant
 
-Multiplicative conversion factor from :math:`\text{eV}^{-1}` to grams.
+Multiplicative conversion factor from eV to grams: the mass equivalent of one eV.
 Units: [:math:`\text{g eV}^{-1}`]
 """
 
 CONV_G_TO_EV = 1./CONV_EV_TO_G
 r"""float: Module-level constant
 
-Multiplicative conversion factor from grams to :math:`\text{eV}^{-1}`.
+Multiplicative conversion factor from grams to eV, as a mass.
 Units: [:math:`\text{eV g}^{-1}`]
 """
 
@@ -369,7 +372,7 @@ Units: [:math:`\text{g}^{-1}~\text{cm}^{3}~\text{eV}^{4}`]
 SQRT_OF_2 = np.sqrt(2.0)
 r"""float: Module-level constant
 
-Square root of 2..
+Square root of 2.
 Units: [Adimensional]
 """
 
@@ -432,7 +435,9 @@ NUM_DENSITY_E_EARTH_CRUST = DENSITY_MATTER_CRUST_G_PER_CM3 * CONV_G_TO_EV \
                             / pow(CONV_CM_TO_INV_EV, 3.0)
 r"""float: Module-level constant
 
-Electron number density in the Earth's crust
+Electron number density in the Earth's crust.  The mean nucleon mass is taken as
+:math:`(m_p + m_n)/2`, not the atomic mass unit, which puts this about 0.8% below the
+textbook :math:`\rho N_A Y_e`; :data:`VCC_EARTH_CRUST` inherits the same convention.
 Units: [:math:`\text{eV}^{3}`]
 """
 
@@ -450,10 +455,11 @@ Average Earth radius.
 Units: [km]
 """
 
-SUN_RADIUS = 6.947e5
+SUN_RADIUS = 6.957e5
 r"""float: Module-level constant
 
-Average solar radius.
+Nominal solar radius, IAU 2015 Resolution B3.  :data:`L_SCALE_SUN` is derived from
+it, so every solar scale height and baseline in the package follows it.
 Units: [km]
 """
 
@@ -500,63 +506,104 @@ Units: [:math:`\text{eV}^{-1}`]
 """
 
 NUE = 0
-r"""float: Module-level constant
+r"""int: Module-level constant
 
 Index used to denote nu_e flavor when computing probabilities.
 Units: [Adimensional]
 """
 
 NUMU = 1
-r"""float: Module-level constant
+r"""int: Module-level constant
 
 Index used to denote nu_mu flavor when computing probabilities.
 Units: [Adimensional]
 """
 
 NUTAU = 2
-r"""float: Module-level constant
+r"""int: Module-level constant
 
 Index used to denote nu_tau flavor when computing probabilities.
 Units: [Adimensional]
 """
 
 NUS = 3
-r"""float: Module-level constant
+r"""int: Module-level constant
 
-Index used to denote the sterile flavor in when computing four-neutrino
+Index used to denote the sterile flavor when computing four-neutrino
 (3+1) probabilities.
 Units: [Adimensional]
 """
 
 NUS1 = 3
-r"""float: Module-level constant
+r"""int: Module-level constant
 
-Index used to denote the first sterile flavor in when computing 
+Index used to denote the first sterile flavor when computing 
 five-neutrino (3+2) probabilities.
 Units: [Adimensional]
 """
 
 NUS2 = 4
-r"""float: Module-level constant
+r"""int: Module-level constant
 
-Index used to denote the second sterile flavor in when computing 
+Index used to denote the second sterile flavor when computing 
 five-neutrino (3+2) probabilities.
 Units: [Adimensional]
 """
 
 
 UNIT_KEV = 1.e3
+r"""float: Module-level constant
+
+One keV, in eV.  Multiply by it to turn a number of keV into the eV every
+entry point expects: ``1.0*gd.UNIT_KEV`` is one keV.
+Units: [:math:`\text{eV keV}^{-1}`]
+"""
+
 UNIT_MEV = 1.e6
+r"""float: Module-level constant
+
+One MeV, in eV.  Multiply by it to turn a number of MeV into the eV every
+entry point expects: ``1.0*gd.UNIT_MEV`` is one MeV.
+Units: [:math:`\text{eV MeV}^{-1}`]
+"""
+
 UNIT_GEV = 1.e9
+r"""float: Module-level constant
+
+One GeV, in eV.  Multiply by it to turn a number of GeV into the eV every
+entry point expects: ``1.0*gd.UNIT_GEV`` is one GeV.
+Units: [:math:`\text{eV GeV}^{-1}`]
+"""
+
 UNIT_TEV = 1.e12
+r"""float: Module-level constant
+
+One TeV, in eV.  Multiply by it to turn a number of TeV into the eV every
+entry point expects: ``1.0*gd.UNIT_TEV`` is one TeV.
+Units: [:math:`\text{eV TeV}^{-1}`]
+"""
+
 UNIT_PEV = 1.e15
+r"""float: Module-level constant
+
+One PeV, in eV.  Multiply by it to turn a number of PeV into the eV every
+entry point expects: ``1.0*gd.UNIT_PEV`` is one PeV.
+Units: [:math:`\text{eV PeV}^{-1}`]
+"""
+
 UNIT_EEV = 1.e18
+r"""float: Module-level constant
+
+One EeV, in eV.  Multiply by it to turn a number of EeV into the eV every
+entry point expects: ``1.0*gd.UNIT_EEV`` is one EeV.
+Units: [:math:`\text{eV EeV}^{-1}`]
+"""
 
 
 S12_NO_BF_NUFIT_6_0 = np.sqrt(0.308)
 r"""float: Module-level constant
 
-Lepton mixing angle :math:`\sin\theta_{12}`, best fit from NuFit 6.0, assuming
+Lepton mixing angle :math:`\sin\theta_{12}`, best fit from NuFIT 6.0, assuming
 normal ordering with SK atmospheric data.
 Units: [Adimensional]
 """
@@ -564,7 +611,7 @@ Units: [Adimensional]
 S23_NO_BF_NUFIT_6_0 = np.sqrt(0.470)
 r"""float: Module-level constant
 
-Lepton mixing angle :math:`\sin\theta_{23}`, best fit from NuFit 6.0, assuming
+Lepton mixing angle :math:`\sin\theta_{23}`, best fit from NuFIT 6.0, assuming
 normal ordering with SK atmospheric data.
 Units: [Adimensional]
 """
@@ -572,7 +619,7 @@ Units: [Adimensional]
 S13_NO_BF_NUFIT_6_0 = np.sqrt(2.215e-2)
 r"""float: Module-level constant
 
-Lepton mixing angle :math:`\sin\theta_{13}`, best fit from NuFit 6.0, assuming
+Lepton mixing angle :math:`\sin\theta_{13}`, best fit from NuFIT 6.0, assuming
 normal ordering with SK atmospheric data.
 Units: [Adimensional]
 """
@@ -580,7 +627,7 @@ Units: [Adimensional]
 DCP_NO_BF_NUFIT_6_0 = 212./180.*np.pi
 r"""float: Module-level constant
 
-Lepton CP-violation phase :math:`\delta_\text{CP}`, best fit from NuFit 6.0, assuming
+Lepton CP-violation phase :math:`\delta_\text{CP}`, best fit from NuFIT 6.0, assuming
 normal ordering with SK atmospheric data.
 Units: [radian]
 """
@@ -588,7 +635,7 @@ Units: [radian]
 D21_NO_BF_NUFIT_6_0 = 7.49e-5
 r"""float: Module-level constant
 
-Mass-squared difference :math:`\Delta m_{21}^2`, best fit from NuFit 6.0, assuming
+Mass-squared difference :math:`\Delta m_{21}^2`, best fit from NuFIT 6.0, assuming
 normal ordering with SK atmospheric data.
 Units: [:math:`\text{eV}^{2}`]
 """
@@ -596,7 +643,7 @@ Units: [:math:`\text{eV}^{2}`]
 D31_NO_BF_NUFIT_6_0 = 2.513e-3
 r"""float: Module-level constant
 
-Mass-squared difference :math:`\Delta m_{31}^2`, best fit from NuFit 6.0, assuming
+Mass-squared difference :math:`\Delta m_{31}^2`, best fit from NuFIT 6.0, assuming
 normal ordering with SK atmospheric data.
 Units: [:math:`\text{eV}^{2}`]
 """
@@ -604,7 +651,7 @@ Units: [:math:`\text{eV}^{2}`]
 S12_IO_BF_NUFIT_6_0 = np.sqrt(0.308)
 r"""float: Module-level constant
 
-Lepton mixing angle :math:`\sin\theta_{12}`, best fit from NuFit 6.0, assuming
+Lepton mixing angle :math:`\sin\theta_{12}`, best fit from NuFIT 6.0, assuming
 inverted ordering with SK atmospheric data.
 Units: [Adimensional]
 """
@@ -612,7 +659,7 @@ Units: [Adimensional]
 S23_IO_BF_NUFIT_6_0 = np.sqrt(0.550)
 r"""float: Module-level constant
 
-Lepton mixing angle :math:`\sin\theta_{23}`, best fit from NuFit 6.0, assuming
+Lepton mixing angle :math:`\sin\theta_{23}`, best fit from NuFIT 6.0, assuming
 inverted ordering with SK atmospheric data.
 Units: [Adimensional]
 """
@@ -620,7 +667,7 @@ Units: [Adimensional]
 S13_IO_BF_NUFIT_6_0 = np.sqrt(2.231e-2)
 r"""float: Module-level constant
 
-Lepton mixing angle :math:`\sin\theta_{13}`, best fit from NuFit 6.0, assuming
+Lepton mixing angle :math:`\sin\theta_{13}`, best fit from NuFIT 6.0, assuming
 inverted ordering with SK atmospheric data.
 Units: [Adimensional]
 """
@@ -628,7 +675,7 @@ Units: [Adimensional]
 DCP_IO_BF_NUFIT_6_0 = 274./180.*np.pi
 r"""float: Module-level constant
 
-Lepton CP-violation phase :math:`\delta_\text{CP}`, best fit from NuFit 6.0, assuming
+Lepton CP-violation phase :math:`\delta_\text{CP}`, best fit from NuFIT 6.0, assuming
 inverted ordering with SK atmospheric data.
 Units: [radian]
 """
@@ -636,30 +683,30 @@ Units: [radian]
 D21_IO_BF_NUFIT_6_0 = 7.49e-5
 r"""float: Module-level constant
 
-Mass-squared difference :math:`\Delta m_{21}^2`, best fit from NuFit 6.0, assuming
-normal ordering with SK atmospheric data.
+Mass-squared difference :math:`\Delta m_{21}^2`, best fit from NuFIT 6.0, assuming
+inverted ordering with SK atmospheric data.
 Units: [:math:`\text{eV}^{2}`]
 """
 
 D32_IO_BF_NUFIT_6_0 = -2.484e-3
 r"""float: Module-level constant
 
-Mass-squared difference :math:`\Delta m_{32}^2`, best fit from NuFit 6.0, assuming
-normal ordering with SK atmospheric data.
+Mass-squared difference :math:`\Delta m_{32}^2`, best fit from NuFIT 6.0, assuming
+inverted ordering with SK atmospheric data.
 Units: [:math:`\text{eV}^{2}`]
 """
 
 D31_IO_BF_NUFIT_6_0 = D32_IO_BF_NUFIT_6_0+D21_IO_BF_NUFIT_6_0
 r"""float: Module-level constant
 
-Mass-squared difference :math:`\Delta m_{31}^2`, best fit from NuFit 6.0, assuming
+Mass-squared difference :math:`\Delta m_{31}^2`, best fit from NuFIT 6.0, assuming
 inverted ordering with SK atmospheric data.
 Units: [:math:`\text{eV}^{2}`]
 """
 
 OSC_PARAMS_NU_FIT_6_0_SK_NO = {
-    'name': 'OSC_PARAMS_NU_FIT_6_0_NO',
-    'description': 'NuFit 6.0, NO, with SK atmospheric data',
+    'name': 'OSC_PARAMS_NU_FIT_6_0_SK_NO',
+    'description': 'NuFIT 6.0, NO, with SK atmospheric data',
     's12': S12_NO_BF_NUFIT_6_0,
     's23': S23_NO_BF_NUFIT_6_0,
     's13': S13_NO_BF_NUFIT_6_0,
@@ -669,8 +716,8 @@ OSC_PARAMS_NU_FIT_6_0_SK_NO = {
 }
 
 OSC_PARAMS_NU_FIT_6_0_SK_IO = {
-    'name': 'OSC_PARAMS_NU_FIT_6_0_IO',
-    'description': 'NuFit 6.0, IO, with SK atmospheric data',
+    'name': 'OSC_PARAMS_NU_FIT_6_0_SK_IO',
+    'description': 'NuFIT 6.0, IO, with SK atmospheric data',
     's12': S12_IO_BF_NUFIT_6_0,
     's23': S23_IO_BF_NUFIT_6_0,
     's13': S13_IO_BF_NUFIT_6_0,
@@ -735,14 +782,14 @@ Units: [Adimensional]
 """
 
 EPS_2 = [EPS_EE, EPS_EM, EPS_MM]
-r"""float: Module-level constant
+r"""list of float: Module-level constant
 
 Vector of total NSI strength parameters for two-neutrino oscillations.
 Units: [Adimensional]
 """
 
 EPS_3 = [EPS_EE, EPS_EM, EPS_ET, EPS_MM, EPS_MT, EPS_TT]
-r"""float: Module-level constant
+r"""list of float: Module-level constant
 
 Vector of total NSI strength parameters for three-neutrino oscillations.
 Units: [Adimensional]
@@ -807,11 +854,11 @@ Units: [eV]
 
 
 # =============================================================================
-# Historical NuFit global-fit values (v1.0 - v6.1)
+# Historical NuFIT global-fit values (v1.0 - v6.1)
 # =============================================================================
 #
 # NUFIT_GLOBAL_FITS collects best-fit values of the standard three-flavor
-# oscillation parameters from every NuFit global-fit release, from v1.0
+# oscillation parameters from every NuFIT global-fit release, from v1.0
 # (2012) to v6.1 (2025), transcribed directly from the official parameter
 # tables at http://www.nu-fit.org/?q=node/12 (each release's
 # "vXX.tbl-parameters.pdf"). Use load_nufit_params() below to retrieve a
@@ -823,10 +870,10 @@ Units: [eV]
 # is a dict with keys 's12', 's23', 's13' (= sin(theta_ij), not sin^2),
 # 'dCP' (radian), 'D21' and 'D31' (eV^2). 'ordering' is 'NO' or 'IO'. For
 # IO, 'D31' is derived as Delta m^2_32 + Delta m^2_21 (Delta m^2_32 is what
-# NuFit actually tabulates for IO), matching the convention already used by
+# NuFIT actually tabulates for IO), matching the convention already used by
 # OSC_PARAMS_NU_FIT_6_0_SK_IO above.
 #
-# 'category' is release-specific, since NuFit has used different secondary
+# 'category' is release-specific, since NuFIT has used different secondary
 # splits over its history (the first-listed category is the one
 # load_nufit_params() returns by default):
 #   * v1.0-v1.3: 'free_fluxes_rsbl' (reactor fluxes left free, short-baseline
@@ -837,10 +884,10 @@ Units: [eV]
 #   * v4.0 onward: 'with_SK' vs. 'without_SK', whether the (non-public)
 #     Super-Kamiokande atmospheric chi^2 map is folded into the fit (v6.0/6.1
 #     also add the latest IceCube/DeepCore chi^2 map into the 'with_SK'
-#     variant; see the NuFit 6.0/6.1 papers for details).
+#     variant; see the NuFIT 6.0/6.1 papers for details).
 #   * v2.0, v2.2, v3.0-v3.2: no secondary split; a single 'default' category.
 #
-# v1.0-v1.3 predate NuFit's separate global fits per mass ordering: only
+# v1.0-v1.3 predate NuFIT's separate global fits per mass ordering: only
 # Delta m^2_3l was reported for each ordering hypothesis (as Delta m^2_31
 # for NO and Delta m^2_32 for IO); theta12, theta23, theta13, and :math:`\delta_\text{CP}`
 # were reported as a single ordering-independent fit. For these four
@@ -850,7 +897,7 @@ Units: [eV]
 # best-fit solutions ("octants"), only the global best-fit octant is
 # stored (the secondary, subleading solution is not).
 #
-# The Bayesian-analysis variant of NuFit 2.0 (a different statistical
+# The Bayesian-analysis variant of NuFIT 2.0 (a different statistical
 # methodology, not a different data category) is not included here.
 
 NUFIT_GLOBAL_FITS = {
@@ -1090,29 +1137,38 @@ NUFIT_GLOBAL_FITS = {
 
 
 def load_nufit_params(version='NuFIT 6.1', ordering='NO', category=None, angles='sin'):
-    r"""Load standard three-flavor mixing parameters from a NuFit global fit.
+    r"""Load standard three-flavor mixing parameters from a NuFIT global fit.
 
     Looks up ``NUFIT_GLOBAL_FITS`` for the requested release, mass
     ordering, and (release-specific) secondary category, and returns them
     as a plain dict with the same parameter names used throughout Magnus
     (``s12``, ``s23``, ``s13``, ``dCP``, ``D21``, ``D31``), so the result
     can be passed directly as keyword arguments to any ``osc_prob_3nu_*``
-    function (or to :func:`magnus.hamiltonians.hamiltonians3nu` and other
-    functions that take the same standard-oscillation parameter names).
+    function (or to the builders in :py:mod:`magnus.hamiltonians.hamiltonians3nu`
+    and other functions that take the same standard-oscillation parameter names).
 
     Parameters
     ----------
     version : str, optional
-        NuFit release to load, e.g. ``'NuFIT 6.1'``, ``'NuFIT 5.2'``,
+        NuFIT release to load, e.g. ``'NuFIT 6.1'``, ``'NuFIT 5.2'``,
         ``'NuFIT 1.0'``. See ``NUFIT_GLOBAL_FITS.keys()`` for the full list
         of available releases (v1.0 through v6.1). Default: ``'NuFIT 6.1'``
         (the latest release at the time of writing).
     ordering : str, optional
         Neutrino mass ordering: ``'NO'`` (normal) or ``'IO'`` (inverted).
         Default: ``'NO'``.
+    category : str or None, optional
+        Release-specific secondary category (e.g. ``'with_SK'`` /
+        ``'without_SK'`` for v4.0+, ``'LEM'`` / ``'LID'`` for v2.1,
+        ``'free_fluxes_rsbl'`` / ``'huber_fluxes_no_rsbl'`` for v1.0-v1.3).
+        If ``None`` (default), the release's preferred/primary category is
+        used (for releases with a ``with_SK``/``without_SK`` split, this is
+        ``'with_SK'``). See ``NUFIT_GLOBAL_FITS[version]['categories'].keys()``
+        for the categories available for a given release. Default: None.
+
     angles : str, optional
         Convention the three mixing angles are returned in: ``'sin'`` (default) their sines,
-        ``'sin2'`` their sines *squared* -- which is the form NuFit itself reports --
+        ``'sin2'`` their sines *squared* -- which is the form NuFIT itself reports --
         ``'rad'`` the angles in radians, or ``'deg'`` in degrees.  Under ``'deg'`` ``dCP``
         is converted too.
 
@@ -1124,15 +1180,6 @@ def load_nufit_params(version='NuFIT 6.1', ordering='NO', category=None, angles=
         :func:`magnus.hamiltonians.hamiltonians3nu.hamiltonian_3nu_vacuum_energy_independent`
         catches that particular pairing, but the reliable fix is to state the convention once
         and use it on both calls.
-    category : str or None, optional
-        Release-specific secondary category (e.g. ``'with_SK'`` /
-        ``'without_SK'`` for v4.0+, ``'LEM'`` / ``'LID'`` for v2.1,
-        ``'free_fluxes_rsbl'`` / ``'huber_fluxes_no_rsbl'`` for v1.0-v1.3).
-        If ``None`` (default), the release's preferred/primary category is
-        used (for releases with a ``with_SK``/``without_SK`` split, this is
-        ``'with_SK'``). See ``NUFIT_GLOBAL_FITS[version]['categories'].keys()``
-        for the categories available for a given release.
-
     Returns
     -------
     dict
@@ -1144,9 +1191,10 @@ def load_nufit_params(version='NuFIT 6.1', ordering='NO', category=None, angles=
     Raises
     ------
     ValueError
-        If ``version`` is not a known NuFit release, if ``ordering`` is
-        not ``'NO'`` or ``'IO'``, or if ``category`` is not one of the
-        categories available for ``version``.
+        If ``version`` is not a known NuFIT release, if ``ordering`` is
+        not ``'NO'`` or ``'IO'``, if ``category`` is not one of the
+        categories available for ``version``, or if ``angles`` is not one of
+        :data:`ANGLE_CONVENTIONS`.
 
     Examples
     --------
@@ -1182,7 +1230,7 @@ def load_nufit_params(version='NuFIT 6.1', ordering='NO', category=None, angles=
     if version not in NUFIT_GLOBAL_FITS:
         available = ', '.join(NUFIT_GLOBAL_FITS.keys())
         raise ValueError(
-            "Error in magnus: globaldefs.load_nufit_params: unknown NuFit "
+            "Error in magnus: globaldefs.load_nufit_params: unknown NuFIT "
             "version '%s'. Available versions: %s." % (version, available))
 
     if ordering not in ('NO', 'IO'):
@@ -1229,14 +1277,14 @@ def load_nufit_params(version='NuFIT 6.1', ordering='NO', category=None, angles=
 # one set of numbers, and a future release is a one-line change here rather than a second
 # table to keep in step.
 OSC_PARAMS_NU_FIT_6_1_SK_NO = {
-    'name': 'OSC_PARAMS_NU_FIT_6_1_NO',
-    'description': 'NuFit 6.1, NO, with SK atmospheric data',
+    'name': 'OSC_PARAMS_NU_FIT_6_1_SK_NO',
+    'description': 'NuFIT 6.1, NO, with SK atmospheric data',
     **load_nufit_params('NuFIT 6.1', 'NO', category='with_SK'),
 }
 
 OSC_PARAMS_NU_FIT_6_1_SK_IO = {
-    'name': 'OSC_PARAMS_NU_FIT_6_1_IO',
-    'description': 'NuFit 6.1, IO, with SK atmospheric data',
+    'name': 'OSC_PARAMS_NU_FIT_6_1_SK_IO',
+    'description': 'NuFIT 6.1, IO, with SK atmospheric data',
     **load_nufit_params('NuFIT 6.1', 'IO', category='with_SK'),
 }
 
@@ -1248,6 +1296,49 @@ OSC_PARAMS_PREDEFINED['OSC_PARAMS_NU_FIT_6_1_SK_IO'] = OSC_PARAMS_NU_FIT_6_1_SK_
 OSC_PARAMS_PREDEFINED['OSC_PARAMS_DEFAULT'] = OSC_PARAMS_NU_FIT_6_1_SK_NO
 
 
+# Every remaining NuFIT release gets a name too, so that `default_osc_params_set_name`
+# reaches all of them and not only the two newest.  The names are generated rather than
+# written out, for the reason the 6.1 block gives: one set of numbers, and a new release
+# is a new entry in NUFIT_GLOBAL_FITS rather than a second table to keep in step.
+#
+# Two naming rules, because the releases are not uniform.  From 4.0 onward each splits its
+# fits by whether SK atmospheric data is included, and both halves get a name: ..._SK_NO /
+# ..._SK_IO for 'with_SK', which is exactly the spelling the hand-written 6.0 and 6.1
+# entries above already use, and ..._NOSK_NO / ..._NOSK_IO for 'without_SK'.  Before 4.0
+# there is no such split -- 1.0 to 1.3 divide by reactor-flux treatment, 2.1 into its LEM
+# and LID analyses, the rest carry a single category -- so those sets are named ..._NO / ..._IO
+# and take the release's primary category, the same one `load_nufit_params` uses when asked
+# for none.  Their secondary categories are deliberately left nameless: 'NO' already means
+# normal ordering here, so a name carrying 'huber_fluxes_no_rsbl' would read as two
+# orderings at once.  Those fits are reached by passing `category` to the loader.
+#
+# Entries already present are left alone.  The 6.0 dicts are built from module constants
+# whose values differ from the loader's in the last bit (same ten significant figures,
+# different rounding path), and overwriting them here would move a result that the bit-
+# identity tests pin.
+for _version, _fit in NUFIT_GLOBAL_FITS.items():
+    _tag = _version.replace('NuFIT ', '').replace('.', '_')
+    _categories = _fit.get('categories', {})
+    if 'with_SK' in _categories:
+        _wanted = (('SK_', 'with_SK', ', with SK atmospheric data'),
+                   ('NOSK_', 'without_SK', ', without SK atmospheric data'))
+    else:
+        _wanted = (('', None, ''),)
+    for _infix, _category, _blurb in _wanted:
+        for _ordering in ('NO', 'IO'):
+            _name = 'OSC_PARAMS_NU_FIT_%s_%s%s' % (_tag, _infix, _ordering)
+            if _name in OSC_PARAMS_PREDEFINED:
+                continue
+            OSC_PARAMS_PREDEFINED[_name] = {
+                'name': _name,
+                'description': 'NuFIT %s, %s%s' % (
+                    _version.replace('NuFIT ', ''), _ordering, _blurb),
+                **load_nufit_params(_version, _ordering, category=_category),
+            }
+del _version, _fit, _tag, _categories, _wanted
+del _infix, _category, _blurb, _ordering, _name
+
+
 __all__ = [
     'cstyle',
     'set_color_output',
@@ -1256,6 +1347,8 @@ __all__ = [
     'ERROR_MSG_NO_COLOR',
     'ERROR_MSG_IN_COLOR',
     'ANGLE_CONVENTIONS',
+    'BaselineUnitWarning',
+    'IMPLAUSIBLE_BASELINE_NATURAL_UNITS',
     'MixingAngleConventionWarning',
     'SterileMatterCompositionWarning',
     'TOL_MSG_NO_COLOR',

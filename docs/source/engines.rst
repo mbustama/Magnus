@@ -14,8 +14,9 @@ for what to do when one warns.
 The engines
 -------------
 
-Six independent engines can answer a request. None of them is a special case of another,
-and each declines requests it cannot serve honestly.
+Seven engines can answer a request, and each declines the ones it cannot serve
+honestly. Several of them share machinery, which is what makes the section after the
+table necessary.
 
 .. list-table::
    :header-rows: 1
@@ -55,6 +56,15 @@ and each declines requests it cannot serve honestly.
      - Baselines nest: :math:`U(0\to L_2) = U(L_1 \to L_2)\,U(0 \to L_1)`.
      - A baseline scan at a **single** energy, with a position-dependent ``H``.
      - Differing energies, ``t_slab_edges``, a baseline behind ``L0``, a constant ``H``.
+   * - **Phase average**
+       (:mod:`magnus.avgprob`)
+     - The observable averages over the energy resolution; every interference term keeps
+       its phase, weighted by the spread of that phase across ``average_spread``.
+     - ``average=True``, on every entry point that takes the keyword.
+     - Nothing -- but it warns where the result depends on the spread, and where the
+       profile has a feature narrower than its 200-probe grid that could move
+       probability, it takes the windows from the hybrid's refinement, or warns that
+       none resolves it.
    * - **Adiabatic + Magnus hybrid**
        (:func:`magnus.adiabatic.hybrid_propagator`)
      - ``H`` is smooth at the scale of a 200-point probe grid.
@@ -62,7 +72,8 @@ and each declines requests it cannot serve honestly.
      - Breakpoints or slab edges supplied, a constant potential, no requested tolerance,
        a profile that fails the resolution test, or failure to self-certify.
 
-A sixth reference, ``scipy.linalg.expm``, is not an engine but is used as an oracle by
+The eighth entry in the registry, ``scipy.linalg.expm``, never answers a request; it is
+used as an oracle by
 :func:`magnus.oscprob.cross_check_strategies` wherever it is *exact* -- a constant ``H``,
 or a piecewise-constant one whose edges are declared.
 
@@ -82,7 +93,11 @@ grouping the package will defend:
   function.
 * ``'adiabatic'`` -- the hybrid strategy. A genuinely different method; its blind spots are
   the resonance detector's, not the quadrature's.
-* ``'exact'`` -- ``expm``, independent of all of them.
+* ``'phase-average'`` -- the phase average. It propagates only across non-adiabatic
+  windows, with the hybrid's Magnus patch, and carries every stretch between them
+  analytically, so it shares no quadrature with the ladder; what it shares with the others
+  is the eigendecomposition of the same ``H``.
+* ``'exact'`` -- ``expm`` and the constant-Hamiltonian engine, independent of the rest.
 
 Two engines in the same family can be wrong in the same way at the same time. Their
 disagreement is informative; their agreement is not.
@@ -105,8 +120,10 @@ engines in a fixed order, falling through on ``NotImplemented``:
      - Engine
      - Why it is first
    * - ``average=True`` and the Hamiltonian is position-independent
+       (on every entry point, ``osc_prob_energy_baseline`` and the
+       Earth and Sun routes included)
      - closed-form phase average (``magnus.avgprob``)
-     - No propagation at all; the decohered limit is algebraic
+     - No propagation at all; the phase average of a constant ``H`` is algebraic
    * - Smooth profile, a tolerance was requested, ``strategy != 'magnus'``,
        and the scan is shorter than
        :data:`~magnus.oscprob.HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS` --
@@ -116,6 +133,9 @@ engines in a fixed order, falling through on ``NotImplemented``:
    * - Exponential profile, two flavors -- *and it converges*
      - interaction picture
      - An exact reference solution exists for this one case
+   * - ``V_CC`` does not vary along the trajectory
+     - constant Hamiltonian
+     - The series terminates at its first term, so the answer is one exponential
    * - Many energies at a single baseline
      - energy-batched scan
      - One traversal serves every energy
@@ -123,9 +143,10 @@ engines in a fixed order, falling through on ``NotImplemented``:
        :data:`~magnus.oscprob.CUMULATIVE_AUTO_MIN_POINTS` points
      - cumulative scan
      - Every baseline is a prefix of the longest one
-   * - Otherwise
+   * - Otherwise, or whenever ``return_evolution_operator=True``
      - general Magnus ladder
-     - Always applicable; the one that is never skipped
+     - Always applicable; the one that is never skipped, and the only one
+       that forms the evolution operator
 
 Each row falls through to the next on ``NotImplemented``, so the last row is
 reached whenever nothing above it applies.
@@ -180,7 +201,8 @@ three scenario wrappers to see the route without changing it::
 
     info = {}
     P = oscprob.osc_prob_matter_std_potential(..., strategy_info=info)
-    info['engine']      # 'hybrid', 'ip_exp', 'separable', 'cumulative', 'magnus', 'average'
+    info['engine']      # 'hybrid', 'ip_exp', 'separable', 'constant',
+                        # 'cumulative', 'magnus' or 'average'
     info['certified']   # for the hybrid strategy
     info['declined']    # [(engine, why it stood aside)]
 

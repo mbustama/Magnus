@@ -787,3 +787,336 @@ def test_earth_averaging_falls_back_to_sampling_and_says_so():
     assert str(100.0*ap.AVG_DEFAULT_ENERGY_SPREAD) in text, "the window width is not named"
     assert str(ap.AVG_DEFAULT_N_SAMPLES) in text, "the sample count is not named"
     assert 'standard error' in text, "the uncertainty of the result is not quoted"
+
+
+# ----------------------------------------------------------------------
+# average=True on the direct route: osc_prob_energy_baseline, osc_prob_earth, osc_prob_sun
+# ----------------------------------------------------------------------
+
+def _std_pieces():
+    """The energy-independent vacuum Hamiltonian and the matter projector, for Hamiltonians
+    built by hand that must match the wrappers' exactly."""
+    import magnus.hamiltonians as hams
+    import magnus.matter as matter
+    hv = np.asarray(hams.hamiltonian_3nu_vacuum_energy_independent(**OSC_PARAMS), dtype=complex)
+    proj = np.asarray(matter.matter_potential_projector(3), dtype=complex)
+    return hv, proj
+
+
+def test_average_on_the_direct_route_matches_the_closed_form_for_a_matrix():
+    """A constant matrix on osc_prob_energy_baseline: the same closed form the vacuum wrapper
+    returns, bit for bit, since both run one eigendecomposition on the same matrix."""
+    import magnus.hamiltonians as hams
+    H = np.asarray(hams.hamiltonian_3nu_vacuum(ENERGY, **OSC_PARAMS), dtype=complex)
+    direct = np.asarray(op.osc_prob_energy_baseline(H, ENERGY, FAR, average=True))
+    wrapper = np.asarray(op.osc_prob_3nu_vacuum(ENERGY, FAR, average=True, **OSC_PARAMS))
+    assert maxabs(direct - wrapper) == 0.0
+
+
+def test_average_on_the_direct_route_accepts_an_energy_only_function():
+    """The energy-only form, declared by the flag, takes the same closed-form route."""
+    hv, _ = _std_pieces()
+    direct = np.asarray(op.osc_prob_energy_baseline(lambda enu: hv/enu, ENERGY, FAR,
+                                                    H_func_is_function_only_of_energy=True,
+                                                    average=True))
+    wrapper = np.asarray(op.osc_prob_3nu_vacuum(ENERGY, FAR, average=True, **OSC_PARAMS))
+    assert maxabs(direct - wrapper) < 1e-14
+
+
+def _exp_density_hamiltonian(rho0, l_scale):
+    import magnus.matter as matter
+    hv, proj = _std_pieces()
+    vcc = matter.vcc_func_from_rho_func(lambda l: rho0*np.exp(-l/l_scale), 0.0, 1.0, 0.5,
+                                        nubar=False, density_matter_is_in_g_per_cm3=True,
+                                        density_is_of_number_of_electrons=False)
+
+    def H(enu, l):
+        return hv/enu + np.asarray(vcc(l))[..., None, None]*proj
+    return H
+
+
+def test_average_on_the_direct_route_matches_the_wrapper_on_a_smooth_profile():
+    """A position-dependent Hamiltonian built by hand from the same exponential density the
+    wrapper builds inside: both take the adiabatic route on the same samples."""
+    rho0, l_scale, L = 5.0, 1000.0*gd.UNIT_KM, 5000.0*gd.UNIT_KM
+    H = _exp_density_hamiltonian(rho0, l_scale)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        direct = np.asarray(op.osc_prob_energy_baseline(H, ENERGY, L, 0.0, average=True))
+        wrapper = np.asarray(op.osc_prob_3nu_matter_exp_density(
+            ENERGY, L, 0.0, rho0, l_scale, density_matter_is_in_g_per_cm3=True,
+            average=True, **OSC_PARAMS))
+    assert maxabs(direct - wrapper) < 1e-10
+
+
+def test_average_on_the_direct_route_accepts_a_position_only_function():
+    """The position-only form is accepted, and returns the decohered limit: it does not depend on
+    energy, so an energy spread has no slope to act on (issue #64).  The two-argument form of the
+    same Hamiltonian does, and here returns something else -- at 1 GeV over 5000 km the phases
+    past the window run at tens of radians and part of their interference survives."""
+    rho0, l_scale, L = 5.0, 1000.0*gd.UNIT_KM, 5000.0*gd.UNIT_KM
+    H = _exp_density_hamiltonian(rho0, l_scale)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        two = np.asarray(op.osc_prob_energy_baseline(H, ENERGY, L, 0.0, average=True))
+        one = np.asarray(op.osc_prob_energy_baseline(lambda l: H(ENERGY, l), ENERGY, L, 0.0,
+                                                     average=True))
+    decohered, _ = ap.averaged_probabilities_adiabatic(lambda l: H(ENERGY, l), 0.0, L)
+    assert maxabs(one - decohered) < 1e-12
+    assert maxabs(two - decohered) > 0.1
+
+
+def test_average_on_the_direct_route_uses_the_window_average_across_declared_edges():
+    """With t_breakpoints declared there is no instantaneous eigenbasis to decohere in, so
+    both the direct route and the standard wrapper propagate across an energy window and
+    warn about it; the window is the same, so the numbers agree."""
+    import magnus.hamiltonians as hams
+    import magnus.matter as matter
+    energy, l1 = 50.0e6, gd.L_SCALE_SUN
+    edges = np.array([0.0, 0.17, 0.41, 0.63, 0.88, 1.0])*l1
+    values = gd.NUM_DENSITY_E_SUN_CENTRAL*np.array([0.03, 0.21, 0.07, 0.30, 0.12])
+
+    def ne(l):
+        x = np.asarray(l, dtype=float)
+        idx = np.clip(np.searchsorted(edges, x, side='right') - 1, 0, len(values) - 1)
+        a = np.asarray(values[idx])
+        return a[()] if a.ndim == 0 else a
+
+    sth, Dm2 = gd.S12_NO_BF_NUFIT_6_0, gd.D21_NO_BF_NUFIT_6_0
+    h_vac = np.asarray(hams.hamiltonian_2nu_vacuum_energy_independent(sth, Dm2), dtype=complex)
+    proj = np.diag([1.0, 0.0]).astype(complex)
+    vcc = matter.vcc_func_from_rho_func(ne, 0.0, 1.0, 0.5, nubar=False,
+                                        density_matter_is_in_g_per_cm3=False,
+                                        density_is_of_number_of_electrons=True)
+
+    def H(enu, l):
+        return h_vac/enu + np.asarray(vcc(l))[..., None, None]*proj
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter('always')
+        direct = np.asarray(op.osc_prob_energy_baseline(H, energy, l1, 0.0, average=True,
+                                                        t_breakpoints=edges[1:-1]))
+        wrapper = np.asarray(op.osc_prob_matter_std_potential(
+            2, ne, energy, l1, {'sth': sth, 'Dm2': Dm2}, L0=0.0,
+            density_is_of_number_of_electrons=True, t_breakpoints=edges[1:-1], average=True))
+    assert any(issubclass(w.category, op.PhaseAveragingWarning) for w in caught)
+    assert maxabs(direct - wrapper) < 1e-10
+
+
+def test_average_on_the_direct_route_refuses_the_operator():
+    import magnus.hamiltonians as hams
+    H = np.asarray(hams.hamiltonian_3nu_vacuum(ENERGY, **OSC_PARAMS), dtype=complex)
+    with pytest.raises(ValueError, match='osc_prob_energy_baseline.*average'):
+        op.osc_prob_energy_baseline(H, ENERGY, FAR, average=True,
+                                    return_evolution_operator=True)
+
+
+def test_osc_prob_names_the_batching_keywords_it_does_not_take():
+    """average and cumulative pass the passthrough guard, because the batching layer declares
+    them, and used to reach magnus_expansion_multislab as an unexpected keyword.  osc_prob
+    now refuses them by name."""
+    import magnus.hamiltonians as hams
+    H = np.asarray(hams.hamiltonian_3nu_vacuum(ENERGY, **OSC_PARAMS), dtype=complex)
+    for key in ('average', 'cumulative'):
+        with pytest.raises(ValueError, match='osc_prob.*' + key + '.*osc_prob_energy_baseline'):
+            op.osc_prob(H, 0.0, FAR, **{key: True})
+
+
+def test_average_reaches_osc_prob_earth_and_matches_the_thin_wrapper():
+    """A user Hamiltonian of the standard form through osc_prob_earth, averaged, equals the
+    thin wrapper's averaged answer on the same chord; the engine reported is the average."""
+    import magnus.earth as earth
+    hv, proj = _std_pieces()
+    costhz = -0.8
+    L = earth.distance_traveled_inside_earth(costhz)*gd.UNIT_KM
+
+    def H(enu, l, VCC):
+        return hv/enu + np.asarray(VCC)[..., None, None]*proj
+
+    info = {}
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        direct = np.asarray(op.osc_prob_earth(H, ENERGY, costhz=costhz, L=L, average=True,
+                                              strategy_info=info))
+        wrapper = np.asarray(op.osc_prob_3nu_earth(ENERGY, costhz=costhz, L=L, average=True,
+                                                   **OSC_PARAMS))
+    assert maxabs(direct - wrapper) < 1e-8
+    assert info['engine'] == 'average'
+
+
+def test_average_reaches_osc_prob_sun_and_matches_the_thin_wrapper():
+    hv, proj = _std_pieces()
+    E, L = 10.0*gd.UNIT_MEV, 0.05*gd.SUN_RADIUS*gd.UNIT_KM
+
+    def H(enu, l, VCC):
+        return hv/enu + np.asarray(VCC)[..., None, None]*proj
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        direct = np.asarray(op.osc_prob_sun(H, E, L, 0.0, average=True))
+        wrapper = np.asarray(op.osc_prob_3nu_sun(E, L, 0.0, average=True, **OSC_PARAMS))
+    assert maxabs(direct - wrapper) < 1e-10
+
+
+def test_average_on_the_direct_route_keeps_the_batching_shapes():
+    rho0, l_scale, L = 5.0, 1000.0*gd.UNIT_KM, 5000.0*gd.UNIT_KM
+    H = _exp_density_hamiltonian(rho0, l_scale)
+    energies = np.array([0.5, 1.0, 2.0])*gd.UNIT_GEV
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        full = op.osc_prob_energy_baseline(H, energies, L, 0.0, average=True)
+        one = op.osc_prob_energy_baseline(H, energies, L, 0.0, nu_i=gd.NUE, nu_f=gd.NUE,
+                                          average=True)
+        scalar = op.osc_prob_energy_baseline(H, float(energies[0]), L, 0.0, nu_i=gd.NUE,
+                                             nu_f=gd.NUE, average=True)
+    assert np.shape(full) == (3, 3, 3) and np.shape(one) == (3,)
+    assert np.isscalar(scalar) or np.shape(scalar) == ()
+    assert np.allclose(np.asarray(one), np.asarray(full)[:, gd.NUE, gd.NUE])
+
+
+def test_average_off_is_the_plain_call_on_the_direct_route():
+    rho0, l_scale, L = 5.0, 1000.0*gd.UNIT_KM, 5000.0*gd.UNIT_KM
+    H = _exp_density_hamiltonian(rho0, l_scale)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        without = np.asarray(op.osc_prob_energy_baseline(H, ENERGY, L, 0.0))
+        explicit = np.asarray(op.osc_prob_energy_baseline(H, ENERGY, L, 0.0, average=False))
+    assert maxabs(without - explicit) == 0.0
+
+
+# ----------------------------------------------------------------------
+# Features narrower than the probe grid (issue #60)
+# ----------------------------------------------------------------------
+# The supernova shock ray of issue #60 (notebook 14, paper Fig. 17): three flavors, 15 MeV,
+# 10,000 to 80,000 km, a contact front at 12,348 km and a forward shock at 30,323 km.  The
+# averaging engine searches for windows once, on 200 probes 350 km apart, so a front narrower
+# than that was never examined and the fully adiabatic 0.039 came back silently.
+_KM = gd.UNIT_KM
+_R_CONTACT, _R_FORWARD, _R0, _R1 = 12348.0, 30323.0, 1.0e4, 8.0e4     # km
+
+
+def _smoothstep(u):
+    u = np.clip(np.asarray(u, dtype=float), 0.0, 1.0)
+    return u*u*(3.0 - 2.0*u)
+
+
+def _ne_shock(w_km):
+    """Electron density of the shocked ray, with both fronts ``w_km`` wide."""
+    m_n = 0.5*(gd.MASS_PROTON + gd.MASS_NEUTRON)
+
+    def rarefaction(r, rs):   # Fogli, Lisi, Mirizzi & Montanino (2003)
+        u = np.clip(1.0 - np.asarray(r, dtype=float)/rs, 0.0, 1.0)
+        return np.exp((0.28 - 0.69*np.log(rs))*np.arcsin(u)**1.1)
+
+    def ne(l):
+        r = np.asarray(l, dtype=float)/_KM
+        f = 1.0 + _smoothstep((_R_FORWARD + 0.5*w_km - r)/w_km)*(10.0*rarefaction(r, _R_FORWARD) - 1.0)
+        f = f*(1.0 + _smoothstep((_R_CONTACT + 0.5*w_km - r)/w_km)*1.5)
+        out = 1.0e14*r**(-2.4)*f*gd.UNIT_G_PER_CM3/m_n*0.5
+        return out[()] if np.ndim(out) == 0 else out
+    return ne
+
+
+def _shock_average(w_km, **extra):
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter('always')
+        P = op.osc_prob_matter_std_potential(3, _ne_shock(w_km), 15.0*gd.UNIT_MEV, _R1*_KM,
+            gd.load_nufit_params('NuFIT 6.1'), L0=_R0*_KM, nu_i=gd.NUE, nu_f=gd.NUE,
+            average=True, density_is_of_number_of_electrons=True, **extra)
+    return float(np.asarray(P)), {w.category for w in caught}
+
+
+def test_a_front_narrower_than_the_probe_grid_is_found():
+    """70 km fronts, a fifth of the probe spacing.  The engine used to return 0.039 here,
+    silently -- the value for a trajectory with no fronts at all.
+
+    0.371 +/- 0.010 is a decohered reference built without the averaging engine: the
+    instantaneous probability, resolved with the fronts declared, averaged over the last
+    10,000 km and over 15 MeV +/- 2%.  It is stable across energy windows of 2 to 10%."""
+    P, caught = _shock_average(70.0)
+    assert abs(P - 0.371) < 0.03, "P = %.4f against a decohered reference of 0.371" % P
+    assert op.UnmarkedDiscontinuityWarning not in caught
+
+
+def test_an_undeclared_jump_no_refinement_resolves_is_loud():
+    """0.07 km fronts are jumps at every probe density up to 12,800.  No window can be put
+    on them, so the answer cannot be made right -- but it must no longer be silent."""
+    _, caught = _shock_average(0.07)
+    assert op.UnmarkedDiscontinuityWarning in caught
+
+
+def test_declaring_the_fronts_takes_the_route_that_handles_them():
+    """The cure the warning names.  With the fronts declared the call averages over an
+    energy window instead, measured at 0.558 against a decohered reference of
+    0.594 +/- 0.031, and the adiabatic engine -- which cannot see the fronts -- is not used."""
+    edges = [(r + s*0.035)*_KM for r in (_R_CONTACT, _R_FORWARD) for s in (-1, 1)]
+    P, caught = _shock_average(0.07, t_breakpoints=edges)
+    assert op.UnmarkedDiscontinuityWarning not in caught
+    assert abs(P - 0.594) < 0.1
+
+
+def _sharp_but_inert(width_frac):
+    """The solar-like profile above plus a sharp step in a term proportional to the identity.
+
+    Such a term shifts every level alike, so it never rotates the eigenbasis: however sharp,
+    it cannot move probability between levels, and its sudden-transfer bound is zero."""
+    H_smooth, l1 = _exponential_H(SOLAR_ENERGY), 5.0*L_SCALE
+    scale = float(np.max(np.abs(np.asarray(H_smooth(0.0)))))
+
+    def H(l):
+        x = np.asarray(l, dtype=float)
+        step = scale*0.5*(1.0 + np.tanh((x - 0.4137*l1)/(width_frac*l1)))
+        return np.asarray(H_smooth(x)) + np.asarray(step)[..., None, None]*np.eye(3)
+    return H, l1
+
+
+def test_a_sharp_feature_that_cannot_move_probability_is_left_alone():
+    """Sharpness at the probe scale is not enough to escalate.  A solar-model table
+    interpolated in log-density is sharp at every grid point of its core, where even an
+    instantaneous change moves at most 5e-7 between levels, and escalating there changed
+    nothing.  Only a feature able to move more than SUDDEN_TRANSFER_THRESHOLD escalates."""
+    import magnus.adiabatic as ad
+    H, l1 = _sharp_but_inert(1.0e-5)
+    ls, flagged, _ = ad._concentrated_intervals(H, 0.0, l1, 200)
+    assert flagged.size, "the step no longer looks sharp at the probe scale; the case has no teeth"
+    # The step adds nothing to what the smooth profile beneath it moves across the same
+    # interval, and that is far below the threshold.
+    smooth = _exponential_H(SOLAR_ENERGY)
+    for i in flagged:
+        with_step = ap._sudden_transfer(H, ls[i], ls[i + 1])
+        assert abs(with_step - ap._sudden_transfer(smooth, ls[i], ls[i + 1])) < 1e-12
+        assert with_step < 0.01*ap.SUDDEN_TRANSFER_THRESHOLD
+    _, report = ap.averaged_probabilities_adiabatic(H, 0.0, l1)
+    assert report['escalated'] is False
+    assert report['resolved'] is None and report['certified'] is None
+
+
+def test_a_smooth_profile_gets_exactly_the_unescalated_answer():
+    """Where nothing is escalated the result is what it was before 1.1.1, bit for bit."""
+    H, l1 = _exponential_H(SOLAR_ENERGY), 5.0*L_SCALE
+    P, report = ap.averaged_probabilities_adiabatic(H, 0.0, l1)
+    crossing, windows, _ = ap.level_crossing_matrix(H, 0.0, l1)
+    V0 = np.linalg.eigh(np.asarray(H(0.0), dtype=complex))[1]
+    V1 = np.linalg.eigh(np.asarray(H(l1), dtype=complex))[1]
+    expected = (V0.real**2 + V0.imag**2) @ crossing @ (V1.real**2 + V1.imag**2).T
+    assert report['escalated'] is False
+    assert np.array_equal(P, expected)
+    assert report['windows'] == windows
+
+
+def test_the_report_says_which_search_the_windows_came_from():
+    """A direct caller of averaged_probabilities_adiabatic gets the escalation too, and a
+    report saying so: the dispatcher's warnings are built from these keys."""
+    import magnus.matter as matter
+    h_vac = hams.hamiltonian_3nu_vacuum_energy_independent(S12, S23, S13, DCP, D21, D31)
+    vcc = matter.vcc_func_from_rho_func(_ne_shock(70.0), 0.0, 1.0, 0.5, nubar=False,
+        density_matter_is_in_g_per_cm3=False, density_is_of_number_of_electrons=True)
+    energy = 15.0*gd.UNIT_MEV
+
+    def H(l):
+        return (1.0/energy)*np.asarray(h_vac) + np.asarray(vcc(l))[..., None, None]*np.diag([1.0, 0, 0])
+
+    _, report = ap.averaged_probabilities_adiabatic(H, _R0*_KM, _R1*_KM)
+    assert report['escalated'] is True
+    assert report['resolved'] is True
+    assert report['windows'], "escalated and resolved, yet no window on the fronts"

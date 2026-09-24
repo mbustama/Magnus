@@ -89,11 +89,15 @@ table:
      - ``osc_prob_{N}nu_earth[_nsi|_liv]``
    * - sun
      - std / nsi / liv
-     - --
+     - exp / a solar model
      - ``osc_prob_{N}nu_sun[_nsi|_liv]``
 
 Examples
 ----------
+
+.. The example blocks below are checked against the live CLI by
+   tests/test_cli_examples_match.py.  Do not hand-edit their output: run
+   `python tests/test_cli_examples_match.py --write` instead.
 
 Three-flavor vacuum oscillation, full probability matrix (output captured
 from this version):
@@ -102,13 +106,13 @@ from this version):
 
    $ magnus prob --flavors 3 --environment vacuum \
        --energy 1 --energy-unit GeV --baseline 1300 --baseline-unit km
-   Magνs 1.0.0rc1 -- osc_prob_3nu_vacuum
+   Magνs 1.1.1 -- osc_prob_3nu_vacuum
    E = 1 GeV, L = 1300 km
 
                nu_e   nu_mu  nu_tau
-   nu_e      0.9297  0.0085  0.0618
-   nu_mu     0.0311  0.3885  0.5804
-   nu_tau    0.0393  0.6029  0.3578
+   nu_e      0.9289  0.0085  0.0625
+   nu_mu     0.0313  0.3923  0.5764
+   nu_tau    0.0398  0.5992  0.3611
 
 The same calculation, one channel only:
 
@@ -116,7 +120,7 @@ The same calculation, one channel only:
 
    $ magnus prob --flavors 3 --environment vacuum --energy 1 --energy-unit GeV \
        --baseline 1300 --baseline-unit km --nu-i e --nu-f mu
-   Magνs 1.0.0rc1 -- osc_prob_3nu_vacuum
+   Magνs 1.1.1 -- osc_prob_3nu_vacuum
    E = 1 GeV, L = 1300 km
 
    P = 0.0085
@@ -128,13 +132,38 @@ named locations -- see ``--loc-ini``/``--loc-fin`` below):
 
    $ magnus prob --flavors 3 --environment earth --energy 1 --energy-unit GeV \
        --costhz -0.8 --baseline 10193.6 --baseline-unit km
-   Magνs 1.0.0rc1 -- osc_prob_3nu_earth
+   Magνs 1.1.1 -- osc_prob_3nu_earth
    E = 1 GeV, L = 10193.6 km
 
                nu_e   nu_mu  nu_tau
-   nu_e      0.9128  0.0863  0.0009
-   nu_mu     0.0629  0.6681  0.2690
-   nu_tau    0.0243  0.2456  0.7301
+   nu_e      0.9129  0.0861  0.0010
+   nu_mu     0.0638  0.6912  0.2449
+   nu_tau    0.0233  0.2227  0.7540
+
+That command also writes ``MagnusConvergenceWarning`` twice to standard error:
+some slabs of this chord are wider than the sufficient condition for the series
+to converge.  It reports a slab width rather than an error; :doc:`diagnostics`
+gives its measured false-alarm rate and says what to do about it.
+
+The Sun, through a tabulated standard solar model rather than the exponential
+fit (:doc:`solar_models` lists the twelve, and ``--density-profile`` takes
+their names in any case):
+
+.. code-block:: text
+
+   $ magnus prob --flavors 3 --environment sun --density-profile B16-GS98 \
+       --energy 10 --energy-unit MeV --baseline 300000 --baseline-unit km
+   Magνs 1.1.1 -- osc_prob_3nu_sun
+   E = 10 MeV, L = 300000 km, B16-GS98 solar model
+
+               nu_e   nu_mu  nu_tau
+   nu_e      0.5739  0.1825  0.2436
+   nu_mu     0.1588  0.6341  0.2071
+   nu_tau    0.2673  0.1834  0.5493
+
+``--stop-at-table-edge`` returns ``nan``, with a warning, for a baseline that
+ends past the model's last tabulated radius, instead of continuing the profile
+beyond it.
 
 Constant-density matter with non-standard interactions:
 
@@ -143,13 +172,13 @@ Constant-density matter with non-standard interactions:
    $ magnus prob --flavors 3 --environment matter --scenario nsi --rho 2.7 \
        --eps-ee 0.06 --eps-em -0.06 \
        --energy 1 --energy-unit GeV --baseline 1000 --baseline-unit km
-   Magνs 1.0.0rc1 -- osc_prob_3nu_matter_nsi_constant_density
+   Magνs 1.1.1 -- osc_prob_3nu_matter_nsi_constant_density
    E = 1 GeV, L = 1000 km
 
                nu_e   nu_mu  nu_tau
-   nu_e      0.9898  0.0093  0.0009
-   nu_mu     0.0093  0.9906  0.0001
-   nu_tau    0.0009  0.0001  0.9990
+   nu_e      0.9895  0.0095  0.0010
+   nu_mu     0.0096  0.9903  0.0001
+   nu_tau    0.0009  0.0002  0.9989
 
 Vacuum with a (deliberately large, for illustration) Lorentz-invariance-violating
 term -- compare to the plain-vacuum result above at the same energy and baseline:
@@ -159,13 +188,13 @@ term -- compare to the plain-vacuum result above at the same energy and baseline
    $ magnus prob --flavors 3 --environment vacuum --scenario liv \
        --sxi12 0.3 --b1 6e-13 --b2 1.2e-12 --liv-lambda 1e9 --n-liv 1 \
        --energy 1 --energy-unit GeV --baseline 1300 --baseline-unit km
-   Magνs 1.0.0rc1 -- osc_prob_3nu_vacuum_liv
+   Magνs 1.1.1 -- osc_prob_3nu_vacuum_liv
    E = 1 GeV, L = 1300 km
 
                nu_e   nu_mu  nu_tau
-   nu_e      0.4971  0.0506  0.4523
-   nu_mu     0.1341  0.7020  0.1639
-   nu_tau    0.3688  0.2474  0.3838
+   nu_e      0.4956  0.0510  0.4535
+   nu_mu     0.1349  0.7013  0.1639
+   nu_tau    0.3696  0.2477  0.3827
 
 A 3+2 sterile scenario (5 flavors), machine-readable output:
 
@@ -201,32 +230,18 @@ the full description of the three values).  It defaults to ``auto`` and is
 ignored for vacuum and constant-density environments, whose Hamiltonians do not
 depend on position at all.
 
-This matters most for low-energy solar neutrinos, where the accumulated phase is
-extreme.  ``magnus`` is not merely slower there -- it can hit its refinement caps
-and return a confidently wrong number:
+Since ``auto`` is the default, you need this flag only to *opt out* of the
+hybrid strategy (``--strategy magnus``, which reproduces the behavior of
+releases before the adiabatic strategy existed) or to force it and be warned
+when it cannot certify its own result (``--strategy hybrid``).
 
-.. code-block:: bash
-
-   magnus prob --flavors 3 --environment sun --energy 10 --energy-unit MeV \
-       --baseline 626000 --nu-i e --nu-f e --strategy magnus
-
-.. code-block:: text
-
-   P = 0.6560
-
-.. code-block:: bash
-
-   magnus prob --flavors 3 --environment sun --energy 10 --energy-unit MeV \
-       --baseline 626000 --nu-i e --nu-f e --strategy auto
-
-.. code-block:: text
-
-   P = 0.2905
-
-The second value is the correct one.  Since ``auto`` is the default, you only
-need this flag to *opt out* of the hybrid strategy (``--strategy magnus``, to
-reproduce the older behavior) or to force it and be warned when it cannot
-certify its own result (``--strategy hybrid``).
+Opting out is rarely what you want.  ``magnus`` resolves the oscillation phase
+slab by slab, and a low-energy solar neutrino accumulates an extreme amount of
+it, so that is the route that runs into a refinement cap and raises
+``ToleranceNotAchievedWarning``.  `Notebook 12
+<https://github.com/mbustama/Magnus/blob/main/notebooks/12_magnus_adiabatic_hybrid_strategy.ipynb>`_
+times all three against ``solve_ivp`` from two to five flavors, with and
+without NSI, printing the error beside each time.
 
 Errors are explicit rather than silent
 ------------------------------------------
@@ -249,36 +264,41 @@ traceback:
 Full flag reference
 ----------------------
 
+.. The block below is generated from src/magnus/cli.py by docs/regen_cli_help.py
+   and checked by lint.yml.  Edit the argparse help strings in cli.py, then run
+   `python3 docs/regen_cli_help.py`; edits made here are reverted.
+
 The complete, current ``--help`` output (every flag is grouped by what it
 configures):
 
 .. code-block:: text
 
    usage: magnus prob [-h] [--flavors {2,3,4,5}] [--environment {vacuum,matter,earth,sun}]
-                      [--scenario {std,nsi,liv}] [--density-profile {constant,exp}]
-                      [--nubar] --energy ENERGY [--energy-unit {eV,keV,MeV,GeV,TeV,PeV}]
+                      [--scenario {std,nsi,liv}] [--density-profile PROFILE] [--nubar]
+                      --energy ENERGY [--energy-unit {eV,keV,MeV,GeV,TeV,PeV}]
                       [--baseline BASELINE] [--l0 L0] [--baseline-unit {eV-1,km,cm}]
                       [--rho RHO] [--rho-central RHO_CENTRAL] [--l-scale L_SCALE]
                       [--density-unit {g/cm3,natural}] [--ratio-n-to-p RATIO_N_TO_P]
                       [--electron-fraction ELECTRON_FRACTION] [--costhz COSTHZ]
-                      [--loc-ini LOC_INI] [--loc-fin LOC_FIN] [--angles {sin,sin2,rad,deg}]
-                      [--sth STH] [--dm2 DM2] [--s12 S12] [--s23 S23] [--s13 S13]
-                      [--dcp DCP] [--dm21 D21] [--dm31 D31]
-                      [--osc-params-set {OSC_PARAMS_DEFAULT,OSC_PARAMS_NU_FIT_6_0_SK_IO,OSC_PARAMS_NU_FIT_6_0_SK_NO,OSC_PARAMS_NU_FIT_6_1_SK_IO,OSC_PARAMS_NU_FIT_6_1_SK_NO}]
-                      [--s14 S14] [--d14 D14] [--s24 S24] [--d24 D24] [--s34 S34]
-                      [--dm41 D41] [--s15 S15] [--d15 D15] [--s25 S25] [--s35 S35]
-                      [--d35 D35] [--dm51 D51] [--eps-aa EPS_AA] [--eps-ab EPS_AB]
-                      [--eps-ee EPS_EE] [--eps-em EPS_EM] [--eps-et EPS_ET]
-                      [--eps-mm EPS_MM] [--eps-mt EPS_MT] [--eps-tt EPS_TT]
-                      [--eps-es EPS_ES] [--eps-ms EPS_MS] [--eps-ts EPS_TS]
-                      [--eps-ss EPS_SS] [--eps-es1 EPS_ES1] [--eps-es2 EPS_ES2]
-                      [--eps-ms1 EPS_MS1] [--eps-ms2 EPS_MS2] [--eps-ts1 EPS_TS1]
-                      [--eps-ts2 EPS_TS2] [--eps-s1s1 EPS_S1S1] [--eps-s1s2 EPS_S1S2]
-                      [--eps-s2s2 EPS_S2S2] [--sxi SXI] [--sxi12 SXI12] [--sxi23 SXI23]
-                      [--sxi13 SXI13] [--dxicp DXICP] [--dxi13 DXI13] [--sxi14 SXI14]
-                      [--dxi14 DXI14] [--sxi24 SXI24] [--dxi24 DXI24] [--sxi34 SXI34]
-                      [--sxi15 SXI15] [--dxi15 DXI15] [--sxi25 SXI25] [--sxi35 SXI35]
-                      [--dxi35 DXI35] [--b1 B1] [--b2 B2] [--b3 B3] [--b4 B4] [--b5 B5]
+                      [--loc-ini LOC_INI] [--loc-fin LOC_FIN]
+                      [--detector-depth DETECTOR_DEPTH] [--source-depth SOURCE_DEPTH]
+                      [--stop-at-table-edge] [--angles {sin,sin2,rad,deg}] [--sth STH]
+                      [--dm2 DM2] [--s12 S12] [--s23 S23] [--s13 S13] [--dcp DCP]
+                      [--dm21 D21] [--dm31 D31] [--osc-params-set NAME] [--s14 S14]
+                      [--d14 D14] [--s24 S24] [--d24 D24] [--s34 S34] [--dm41 D41]
+                      [--s15 S15] [--d15 D15] [--s25 S25] [--s35 S35] [--d35 D35]
+                      [--dm51 D51] [--eps-aa EPS_AA] [--eps-ab EPS_AB] [--eps-ee EPS_EE]
+                      [--eps-em EPS_EM] [--eps-et EPS_ET] [--eps-mm EPS_MM]
+                      [--eps-mt EPS_MT] [--eps-tt EPS_TT] [--eps-es EPS_ES]
+                      [--eps-ms EPS_MS] [--eps-ts EPS_TS] [--eps-ss EPS_SS]
+                      [--eps-es1 EPS_ES1] [--eps-es2 EPS_ES2] [--eps-ms1 EPS_MS1]
+                      [--eps-ms2 EPS_MS2] [--eps-ts1 EPS_TS1] [--eps-ts2 EPS_TS2]
+                      [--eps-s1s1 EPS_S1S1] [--eps-s1s2 EPS_S1S2] [--eps-s2s2 EPS_S2S2]
+                      [--sxi SXI] [--sxi12 SXI12] [--sxi23 SXI23] [--sxi13 SXI13]
+                      [--dxicp DXICP] [--dxi13 DXI13] [--sxi14 SXI14] [--dxi14 DXI14]
+                      [--sxi24 SXI24] [--dxi24 DXI24] [--sxi34 SXI34] [--sxi15 SXI15]
+                      [--dxi15 DXI15] [--sxi25 SXI25] [--sxi35 SXI35] [--dxi35 DXI35]
+                      [--b1 B1] [--b2 B2] [--b3 B3] [--b4 B4] [--b5 B5]
                       [--liv-lambda LAMBDA] [--n-liv N_LIV] [--nu-i NU_I] [--nu-f NU_F]
                       [--magnus-exp-order MAGNUS_EXP_ORDER]
                       [--integration-method {gl,trapezoid,simpson}] [--rtol RTOL]
@@ -297,23 +317,31 @@ configures):
                            Model), 'nsi' (non-standard interactions), or 'liv' (Lorentz-
                            invariance violation). 'nsi' is not available with --environment
                            vacuum. Default: std.
-     --density-profile {constant,exp}
-                           Matter density profile, only used with --environment matter:
-                           'constant' (requires --rho) or 'exp' (requires --rho-central and
-                           --l-scale). Default: constant.
+     --density-profile PROFILE
+                           Matter density profile. With --environment matter: 'constant'
+                           (the default; requires --rho) or 'exp' (requires --rho-central
+                           and --l-scale). With --environment sun: 'exp' (the default) or a
+                           tabulated standard solar model, named in any case: BP2000, BP04,
+                           BS05-OP, BS05-AGS-OP, B16-GS98, B16-AGSS09met, B23-GS98,
+                           B23-AGSS09, B23-C11, B23-AAG21, B23-MB22m, B23-MB22p.
      --nubar               Compute the probability for antineutrinos instead of neutrinos.
+                           No effect with --flavors 2 --environment vacuum, where there is
+                           no CP phase and no matter, so the two probabilities are equal.
 
    Energy and baseline:
      --energy ENERGY       Neutrino energy.
      --energy-unit {eV,keV,MeV,GeV,TeV,PeV}
                            Unit of --energy (default: GeV).
      --baseline BASELINE   Baseline / final position. Required for vacuum, matter, and sun,
-                           and for earth when using --costhz. Only computed automatically
-                           for earth when both --loc-ini and --loc-fin are given instead.
+                           and for earth when using --costhz, unless --source-depth or
+                           --detector-depth is given, which computes it. Computed
+                           automatically for earth when both --loc-ini and --loc-fin are
+                           given instead. --detector-depth requires it to be omitted.
      --l0 L0               Initial position (used by --environment sun and --density-
                            profile exp). Default: 0.0.
      --baseline-unit {eV-1,km,cm}
-                           Unit of --baseline, --l0, and --l-scale (default: km).
+                           Unit of --baseline, --l0, --l-scale, --source-depth and
+                           --detector-depth (default: km).
 
    Matter (--environment matter):
      --rho RHO             Matter density (constant profile).
@@ -337,6 +365,21 @@ configures):
                            magnus.earth.loc_coords_dms. Must be given together with --loc-
                            fin, as an alternative to --costhz.
      --loc-fin LOC_FIN     Final location name; see --loc-ini.
+     --detector-depth DETECTOR_DEPTH
+                           Depth of the detector below the surface, in --baseline-unit. The
+                           zenith angle is measured at the detector, so a buried one also
+                           sees downward-going neutrinos (--costhz > 0) through its
+                           overburden. Computes the baseline, so --baseline must be
+                           omitted. Default: 0 (a detector on the surface).
+     --source-depth SOURCE_DEPTH
+                           Depth of the neutrino's entry point below the surface, in
+                           --baseline-unit. Default: 0 (entry at the surface).
+
+   Sun (--environment sun):
+     --stop-at-table-edge  With a tabulated solar model, do not extrapolate past its last
+                           row: a baseline that ends beyond it returns nan, with a warning.
+                           Without it, the density continues the last row's logarithmic
+                           slope. Not available with 'exp', which has no table.
 
    Standard oscillation parameters (2-flavor):
      --angles {sin,sin2,rad,deg}
@@ -350,17 +393,20 @@ configures):
      --dm2 DM2             Mass-squared difference Delta m^2 (required for --flavors 2).
 
    Standard oscillation parameters (3+ flavors):
-     --s12 S12             Mixing angle theta_12, per --angles. Default: NuFit 6.1.
-     --s23 S23             Mixing angle theta_23, per --angles. Default: NuFit 6.1.
-     --s13 S13             Mixing angle theta_13, per --angles. Default: NuFit 6.1.
-     --dcp DCP             delta_CP [radian, or degree with --angles deg]. Default: NuFit
+     --s12 S12             Mixing angle theta_12, per --angles. Default: NuFIT 6.1.
+     --s23 S23             Mixing angle theta_23, per --angles. Default: NuFIT 6.1.
+     --s13 S13             Mixing angle theta_13, per --angles. Default: NuFIT 6.1.
+     --dcp DCP             delta_CP [radian, or degree with --angles deg]. Default: NuFIT
                            6.1.
-     --dm21 D21            Mass-squared difference Delta m^2_21. Default: NuFit 6.1.
-     --dm31 D31            Mass-squared difference Delta m^2_31. Default: NuFit 6.1.
-     --osc-params-set {OSC_PARAMS_DEFAULT,OSC_PARAMS_NU_FIT_6_0_SK_IO,OSC_PARAMS_NU_FIT_6_0_SK_NO,OSC_PARAMS_NU_FIT_6_1_SK_IO,OSC_PARAMS_NU_FIT_6_1_SK_NO}
+     --dm21 D21            Mass-squared difference Delta m^2_21. Default: NuFIT 6.1.
+     --dm31 D31            Mass-squared difference Delta m^2_31. Default: NuFIT 6.1.
+     --osc-params-set NAME
                            Predefined set used to fill in any of s12/s23/s13/dCP/D21/D31
-                           left unspecified: normal ordering (..._NO) or inverted ordering
-                           (..._IO). OSC_PARAMS_DEFAULT is NuFit 6.1 NO. Taken from
+                           left unspecified: one per NuFIT release, in normal ordering
+                           (..._NO) or inverted (..._IO), and for releases from 4.0 on with
+                           (..._SK_) or without (..._NOSK_) Super-Kamiokande atmospheric
+                           data. OSC_PARAMS_DEFAULT is NuFIT 6.1 SK NO. Pass an unknown
+                           name to see the full list. Taken from
                            globaldefs.OSC_PARAMS_PREDEFINED rather than listed here,
                            because a hand-written list went stale: it offered only the 6.0
                            sets, so asking for inverted ordering silently dropped a release
@@ -410,18 +456,24 @@ configures):
      --sxi12 SXI12         LIV mixing angle xi_12, per --angles.
      --sxi23 SXI23         LIV mixing angle xi_23, per --angles.
      --sxi13 SXI13         LIV mixing angle xi_13, per --angles.
-     --dxicp DXICP         (3nu) LIV CP-violation phase [radian].
-     --dxi13 DXI13         (4/5nu) LIV CP-violation phase [radian] (replaces --dxicp).
+     --dxicp DXICP         (3nu) LIV CP-violation phase [radian, or degree with --angles
+                           deg].
+     --dxi13 DXI13         (4/5nu) LIV CP-violation phase [radian, or degree with --angles
+                           deg] (replaces --dxicp).
      --sxi14 SXI14         (4/5nu) LIV mixing angle xi_14, per --angles.
-     --dxi14 DXI14         (4/5nu) LIV CP-violation phase [radian].
+     --dxi14 DXI14         (4/5nu) LIV CP-violation phase [radian, or degree with --angles
+                           deg].
      --sxi24 SXI24         (4/5nu) LIV mixing angle xi_24, per --angles.
-     --dxi24 DXI24         (4/5nu) LIV CP-violation phase [radian].
+     --dxi24 DXI24         (4/5nu) LIV CP-violation phase [radian, or degree with --angles
+                           deg].
      --sxi34 SXI34         (4/5nu) LIV mixing angle xi_34, per --angles.
      --sxi15 SXI15         (5nu) LIV mixing angle xi_15, per --angles.
-     --dxi15 DXI15         (5nu) LIV CP-violation phase [radian].
+     --dxi15 DXI15         (5nu) LIV CP-violation phase [radian, or degree with --angles
+                           deg].
      --sxi25 SXI25         (5nu) LIV mixing angle xi_25, per --angles.
      --sxi35 SXI35         (5nu) LIV mixing angle xi_35, per --angles.
-     --dxi35 DXI35         (5nu) LIV CP-violation phase [radian].
+     --dxi35 DXI35         (5nu) LIV CP-violation phase [radian, or degree with --angles
+                           deg].
      --b1 B1               LIV eigenvalue b1.
      --b2 B2               LIV eigenvalue b2.
      --b3 B3               LIV eigenvalue b3.
@@ -438,15 +490,17 @@ configures):
 
    Advanced numerics:
      --magnus-exp-order MAGNUS_EXP_ORDER
-                           Highest order of the Magnus expansion (1-8). Default: 4.
+                           Highest order of the Magnus expansion (1-10; 1-8 with the
+                           default --integration-method gl). Default: 4.
      --integration-method {gl,trapezoid,simpson}
                            Quadrature method. 'gl' (Gauss-Legendre collocation) needs only
                            1-4 Hamiltonian evaluations per slab and matches its quadrature
                            order to the expansion order, so it is both the fastest and the
                            most accurate for a smooth Hamiltonian. 'trapezoid'/'simpson'
-                           sample a uniform grid of --n-tpts-per-slab points instead, and
-                           are the safer choice if the Hamiltonian is not smooth within a
-                           slab. Default: gl.
+                           sample a uniform grid of 100 points per slab instead (the
+                           library default; the CLI does not expose it), and are the safer
+                           choice if the Hamiltonian is not smooth within a slab. Default:
+                           gl.
      --rtol RTOL           Relative tolerance on the agreement between successive
                            refinement levels -- a stopping rule, not a guaranteed accuracy.
                            Default: 1e-3.
@@ -465,7 +519,8 @@ configures):
    Output:
      --json                Print the result as JSON instead of a table.
      --precision PRECISION
-                           Decimal digits shown in table output. Default: 4.
+                           Decimal digits shown in the table and in the single-channel
+                           value; ignored with --json. Default: 4.
 
 Implementation notes
 -----------------------

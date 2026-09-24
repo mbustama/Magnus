@@ -3,9 +3,10 @@
 # Copyright (C) 2026 Mauricio Bustamante
 r"""avgprob.py
 
-Contains the *phase-averaged* (fully decohered) oscillation
-probabilities, the exact :math:`L/E \to \infty` limit reached by
-high-energy astrophysical neutrinos.
+Contains the *phase-averaged* oscillation probabilities: the phase
+average over a relative energy spread, which ``average=True`` returns,
+and the exact :math:`L/E \to \infty` limit it reduces to where every
+phase has decohered, as for high-energy astrophysical neutrinos.
 
 Physical idea: a neutrino produced at a cosmological distance arrives
 with an oscillation phase :math:`\Delta m^2 L / 2E` of order
@@ -47,16 +48,34 @@ The distinction is not academic here: a sterile state with a small
 :math:`\Delta m^2_{41}`, or any degenerate spectrum, makes the naive sum
 quietly wrong.
 
-The same per-pair phase decides whether the averaged limit applies at
-all.  A pair whose phase spread is neither much larger than
-:math:`2\pi` (decohered) nor much smaller than one (coherent) sits in
-between, where no closed form is valid; :func:`coherence_report` names
-those pairs, and the callers in :mod:`magnus.oscprob` warn rather than
-return a number the physics does not support.
+The same per-pair phase decides whether the limit applies at all.  A
+pair whose phase is neither much larger than :math:`2\pi` (decohered) nor
+much smaller than one (coherent) sits in between, where the limit does
+not describe it; :func:`coherence_report` names those pairs.
 
-This module is self-contained: it depends only on ``numpy``, not on
-:mod:`magnus.oscprob`, so it can be applied to any Hermitian Hamiltonian
-of any dimension independently of the rest of the API.
+The phase average
+-----------------
+
+A measurement with a relative energy resolution :math:`\sigma` averages a
+phase over the range it covers across that resolution, and does not
+average one that barely changes.  The phase average keeps every
+interference term with its phase at the central energy and weights it by
+:math:`e^{-\sigma^2\phi'^2/2}`, :math:`\phi' = d\phi/d\ln E`: the limit
+above where every phase runs through many cycles, the oscillation
+probability where none does, and a smooth weighting between.  Mixing and
+the eigenbases stay at the central energy, so a probability without
+interference is unchanged.  :func:`phase_averaged_probabilities_constant_hamiltonian`
+and :func:`phase_averaged_probabilities_adiabatic` compute it, and they
+are what ``average=True`` in :mod:`magnus.oscprob` returns; the pairs
+:func:`coherence_report` names are where the result depends on
+:math:`\sigma`, and :mod:`magnus.oscprob` warns there.  The functions
+that return the limit are unchanged.
+
+This module stands apart from :mod:`magnus.oscprob`, so it can be applied to any
+Hermitian Hamiltonian of any dimension independently of the rest of the API.  It
+depends on ``numpy`` and on :mod:`magnus.adiabatic`; everything except
+:func:`level_crossing_matrix` and :func:`averaged_probabilities_adiabatic` needs
+``numpy`` alone.
 
 Routine listings
 ----------------
@@ -69,6 +88,8 @@ Routine listings
     level_crossing_matrix
     averaged_probabilities_adiabatic
     averaged_probabilities_numerically
+    phase_averaged_probabilities_constant_hamiltonian
+    phase_averaged_probabilities_adiabatic
 """
 
 __author__ = "Mauricio Bustamante"
@@ -102,8 +123,10 @@ treated as fully coherent, so that its cross term is kept in full.
 
 The gap between this and :data:`DECOHERENCE_PHASE_THRESHOLD` is deliberate and
 is not a tolerance to be tightened away: a pair falling between the two is in
-neither limit, and no averaged expression describes it.  Such pairs are reported
-by :func:`coherence_report` rather than silently assigned to one side.
+neither limit, and no averaged expression describes it.  Such a pair is still
+placed in a block -- coherent below the decoherence threshold, decohered at or
+above it -- so the accompanying number is a definite choice; what
+:func:`coherence_report` adds is that the choice is not made silently.
 
 .. versionadded:: 1.0.0
 """
@@ -231,8 +254,9 @@ def coherence_report(
     -------
     (list of list of int, list of (int, int, float))
         The coherence blocks, and the list of ``(i, j, phase)`` triples for pairs
-        that are in neither limit.  An empty second element means the averaged
-        result is exact for this spectrum and baseline.
+        that are in neither limit.  An empty second element means no pair sits
+        between the two thresholds; the averaged result is then exact up to the
+        residual the thresholds themselves allow, not exactly exact.
     """
     lam = np.asarray(eigenvalues, dtype=float).ravel()
     blocks = coherence_blocks(lam, phase_scale, decoherence_threshold)
@@ -351,7 +375,9 @@ def averaged_probabilities_constant_hamiltonian(
         Baseline [:math:`\text{eV}^{-1}`], used only to decide which eigenvalues
         have decohered from each other.  If None (default), every pair is taken
         to be decohered, which is the astrophysical limit and makes the result
-        independent of distance.
+        independent of distance.  Only for a single Hamiltonian: giving a baseline
+        for a batch raises, since the coherence structure may differ from one entry
+        to the next.
 
     Returns
     -------
@@ -388,8 +414,10 @@ Ten per cent is the order of a real detector's energy resolution, and it is the
 *smearing* that does the averaging: the physical statement is that the
 oscillation phase varies by many cycles across whatever window the measurement
 integrates over.  It is a default, not a property of the physics, so it is named
-here rather than buried, every use of it is warned about, and callers with an
-actual resolution should pass theirs.
+here rather than buried, every use of it through the :mod:`magnus.oscprob` entry
+points is warned about, and callers with an actual resolution should pass theirs.
+Calling this module directly warns nobody: the width and the standard error come
+back in the result instead.
 
 .. versionadded:: 1.0.0
 """
@@ -494,7 +522,9 @@ def adiabatic_phase_differences(
     l0, l1 : float
         Start and end of the trajectory [:math:`\text{eV}^{-1}`].
     n_points : int, optional
-        Number of sampling points; forced to be odd for Simpson's rule.  Default: 201.
+        Number of sampling points.  Truncated to an integer, raised to 3 if smaller,
+        then raised to the next odd number for Simpson's rule -- all three silently.
+        Default: 201.
 
     Returns
     -------
@@ -506,7 +536,9 @@ def adiabatic_phase_differences(
     if n_points % 2 == 0: n_points += 1
 
     grid = np.linspace(float(l0), float(l1), n_points)
-    lam = np.array([np.linalg.eigvalsh(np.asarray(H_func(l), dtype=complex)) for l in grid])
+    # One vectorized Hamiltonian call and one batched eigendecomposition: the same eigenvalues,
+    # bit for bit, without a Python call per grid point (issue #64).
+    lam = np.linalg.eigvalsh(adiabatic._H_on_grid(H_func, grid))
 
     # Simpson weights, times the uniform spacing
     h = (grid[-1] - grid[0])/(n_points - 1)
@@ -516,6 +548,101 @@ def adiabatic_phase_differences(
     integral = (h/3.0)*(weights @ lam)                          # (d,), int lambda_i dl
 
     return integral[:, None] - integral[None, :]
+
+
+SUDDEN_TRANSFER_THRESHOLD = 1.0e-3
+r"""float: Module-level constant
+
+How much probability a feature must be able to move between levels before
+:func:`averaged_probabilities_adiabatic` stops trusting its own 200-point search to have seen it.
+
+That search looks for non-adiabatic windows once, on a fixed probe grid.  A density front
+narrower than the probe spacing falls between two probes and is never examined: no window
+opens, :math:`P^\text{cross}` is the identity, and the answer is the fully adiabatic one,
+returned without a warning (issue #60).  Such a front can be *seen* cheaply -- one half of a
+probe interval carries nearly all of that interval's change -- but seeing it is not enough,
+because a solar-model table interpolated in log-density shows the same shape at every one of
+its grid points in the core, where nothing happens.  What separates the two is whether the
+feature could move a neutrino at all.  An instantaneous change from :math:`H(l_a)` to
+:math:`H(l_b)` moves at most :math:`\max_{i\ne j}|\langle v_i(l_a)|v_j(l_b)\rangle|^2`
+between levels, and a monotone passage between the two positions moves less; when even that
+bound is below this threshold, the feature cannot change the averaged probability by more than
+the default tolerance, and today's answer stands.
+
+Measured (``docs/dev/adversarial_batteries/sudden_transfer_sweep.py``) as the largest bound over
+the intervals the probe grid finds concentrated:
+
+=======================================================  =================  ==============================
+population                                               largest bound      averaged answer today
+=======================================================  =================  ==============================
+BS05 solar model, cubic and linear, 1-30 MeV (core)      4.8e-07            escalating moves it <= 1.7e-16
+issue #60's shock ray, the 16 of 24 fronts it got wrong  0.20 - 0.74        off by 0.08 - 0.56
+the same ray, broad fronts it got right                  9.3e-03 - 0.70     right
+supernova turbulence, 5-30 MeV                           0.043 - 0.93       off by up to 0.25
+Earth crust with undeclared layer edges, 5-30 MeV        7.3e-06 - 4.7e-03  not scored; 1 of 9 escalates
+=======================================================  =================  ==============================
+
+1e-3, the default tolerance, sits three orders above the solar model and two below the
+smallest front the engine gets wrong.  Across the roughly 5,000 averaged calls the notebooks
+make, it escalates 16 pixels of paper Figure 5f and nothing else; three of those change, each
+to within 0.001 of a decohered reference.
+
+.. versionadded:: 1.1.1
+"""
+
+
+def _sudden_transfer(H_func: Callable, l_a: float, l_b: float) -> float:
+    r"""The most probability an instantaneous change from ``H(l_a)`` to ``H(l_b)`` moves between levels.
+
+    See :data:`SUDDEN_TRANSFER_THRESHOLD`.
+
+    .. versionadded:: 1.1.1
+    """
+    V_a = np.linalg.eigh(np.asarray(H_func(l_a), dtype=complex))[1]
+    V_b = np.linalg.eigh(np.asarray(H_func(l_b), dtype=complex))[1]
+    M = np.abs(V_a.conj().T @ V_b)**2
+    np.fill_diagonal(M, 0.0)
+    return float(np.max(M))
+
+
+def _unseen_features(H_func: Callable, l0: float, l1: float, n_probe: int) -> List[Tuple[float, float]]:
+    r"""Probe intervals too sharp for a grid of ``n_probe`` points that could still move probability.
+
+    See :data:`SUDDEN_TRANSFER_THRESHOLD`.
+
+    .. versionadded:: 1.1.1
+    """
+    ls, flagged, _ = adiabatic._concentrated_intervals(H_func, float(l0), float(l1), n_probe)
+    return [(float(ls[i]), float(ls[i + 1])) for i in flagged
+            if _sudden_transfer(H_func, ls[i], ls[i + 1]) > SUDDEN_TRANSFER_THRESHOLD]
+
+
+def _crossing_from_windows(
+    H_func: Callable,
+    d: int,
+    windows: List[Tuple[float, float]],
+    magnus_exp_order: int,
+    integration_method: str
+) -> Tuple[np.ndarray, bool]:
+    r"""Level-to-level probabilities across ``windows``, each patched exactly; see :func:`level_crossing_matrix`.
+
+    .. versionadded:: 1.1.1
+    """
+    crossing = np.eye(d)
+    converged = True
+    for (l_b, l_c) in windows:
+        U_patch, ok = adiabatic._local_evolution_operator(H_func, l_b, l_c, magnus_exp_order,
+            integration_method)
+        converged = converged and ok
+
+        V_b = np.linalg.eigh(np.asarray(H_func(l_b), dtype=complex))[1]
+        V_c = np.linalg.eigh(np.asarray(H_func(l_c), dtype=complex))[1]
+
+        # M[j, i] is the amplitude to arrive on level j having entered on level i, so the
+        # probability matrix indexed by the starting level is the transpose of |M|^2.
+        M = V_c.conj().T @ U_patch @ V_b
+        crossing = crossing @ (M.real**2 + M.imag**2).T
+    return crossing, converged
 
 
 def level_crossing_matrix(
@@ -573,22 +700,8 @@ def level_crossing_matrix(
 
     windows, _ = adiabatic.find_nonadiabatic_windows(H_func, float(l0), float(l1),
         threshold=threshold, n_probe=n_probe, fd_step_frac=fd_step_frac)
-
-    crossing = np.eye(d)
-    converged = True
-    for (l_b, l_c) in windows:
-        U_patch, ok = adiabatic._local_evolution_operator(H_func, l_b, l_c, magnus_exp_order,
-            integration_method)
-        converged = converged and ok
-
-        V_b = np.linalg.eigh(np.asarray(H_func(l_b), dtype=complex))[1]
-        V_c = np.linalg.eigh(np.asarray(H_func(l_c), dtype=complex))[1]
-
-        # M[j, i] is the amplitude to arrive on level j having entered on level i, so the
-        # probability matrix indexed by the starting level is the transpose of |M|^2.
-        M = V_c.conj().T @ U_patch @ V_b
-        crossing = crossing @ (M.real**2 + M.imag**2).T
-
+    crossing, converged = _crossing_from_windows(H_func, d, windows, magnus_exp_order,
+        integration_method)
     return crossing, windows, converged
 
 
@@ -617,6 +730,13 @@ def averaged_probabilities_adiabatic(
     evolution is adiabatic.  This is the standard MSW-plus-decoherence result, generalized to any
     number of levels and any number of crossings.
 
+    The windows come from a single search on ``n_probe`` points, which cannot see a front
+    narrower than their spacing.  So the profile is first checked for features that sharp and
+    able to move probability (see :data:`SUDDEN_TRANSFER_THRESHOLD`); where there is one, the
+    windows are taken from :func:`magnus.adiabatic.hybrid_propagator` instead, which refines its
+    search until it certifies, and which reports a profile it cannot resolve at all.  Everywhere
+    else the result is what it was, bit for bit.
+
     Two things have to hold for the expression to mean anything, and both are checked rather
     than assumed.  The levels must have decohered from each other by the time of detection, and
     if there is more than one crossing they must also have decohered *between* crossings, since
@@ -624,6 +744,11 @@ def averaged_probabilities_adiabatic(
     interference that is still there.  Both are reported.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.1
+       Checks for features narrower than the probe spacing that could move probability, and
+       takes the windows from :func:`magnus.adiabatic.hybrid_propagator` where it finds one
+       (issue #60).  The report gains ``'escalated'``, ``'resolved'`` and ``'certified'``.
 
     Parameters
     ----------
@@ -634,7 +759,7 @@ def averaged_probabilities_adiabatic(
     n_points : int, optional
         Sampling density for the accumulated-phase integrals.  Default: 201.
     threshold, n_probe, fd_step_frac : float, int, float, optional
-        Passed to :func:`level_crossing_matrix`.
+        Passed to :func:`level_crossing_matrix`. Defaults: 0.1, 200 and 1e-6.
     magnus_exp_order : int, optional
         Magnus order for the local patches.  Default: 6.
     integration_method : str, optional
@@ -645,9 +770,21 @@ def averaged_probabilities_adiabatic(
     (np.ndarray, dict)
         The averaged probability matrix, rows summing to one, and a report with keys
         ``'windows'`` (the non-adiabatic windows), ``'patches_converged'`` (bool),
-        ``'undecided'`` (pairs that are in neither the coherent nor the decohered limit over the
-        whole trajectory) and ``'undecided_between_crossings'`` (the same, over each adiabatic
-        stretch separating two crossings).
+        ``'undecided'`` (pairs that are in neither the coherent nor the decohered limit over
+        the whole trajectory, as ``(i, j, phase)`` triples) and
+        ``'undecided_between_crossings'`` (every pair that has *not* decohered over an
+        adiabatic stretch separating two crossings, coherent pairs included, since composing
+        crossings as probabilities fails for those too; entries are
+        ``(l_start, l_end, i, j, phase)``).  The returned matrix is always the fully
+        decohered form, so these entries qualify a number that was computed regardless --
+        unlike the constant-Hamiltonian route, which keeps coherent pairs coherent.
+
+        Three more keys say which search the windows came from.  ``'escalated'`` is True when
+        the profile has a feature the ``n_probe`` grid cannot see and that could move
+        probability.  Then ``'resolved'`` is whether :func:`magnus.adiabatic.hybrid_propagator`
+        could resolve it -- False means a discontinuity, the matrix is the unescalated one, and
+        declaring the feature through ``t_breakpoints`` is the cure -- and ``'certified'`` is
+        whether that refinement certified.  Both are None when nothing escalated.
     """
     H0 = np.asarray(H_func(l0), dtype=complex)
     H1 = np.asarray(H_func(l1), dtype=complex)
@@ -655,9 +792,29 @@ def averaged_probabilities_adiabatic(
     V0 = np.linalg.eigh(H0)[1]
     V1 = np.linalg.eigh(H1)[1]
 
-    crossing, windows, converged = level_crossing_matrix(H_func, l0, l1, threshold=threshold,
-        n_probe=n_probe, fd_step_frac=fd_step_frac, magnus_exp_order=magnus_exp_order,
-        integration_method=integration_method)
+    # One search on n_probe points is all the windows usually need, and it is exactly what
+    # this function did before 1.1.1.  It cannot see a front narrower than the probe spacing:
+    # on a supernova shock ray every such front was missed, P^cross came out the identity, and
+    # the fully adiabatic answer was returned wrong by up to 0.56, silently (issue #60).  Where
+    # the profile has a feature that sharp and able to move probability, take the windows from
+    # the refinement the instantaneous route already certifies with -- or learn that no
+    # refinement resolves it, which the caller turns into a warning.
+    escalated = bool(_unseen_features(H_func, l0, l1, n_probe))
+    resolved = certified = None
+    windows = None
+    if escalated:
+        h_info = {}
+        _, h_windows, certified = adiabatic.hybrid_propagator(H_func, float(l0), float(l1),
+            info=h_info)
+        resolved, certified = bool(h_info.get('resolved', True)), bool(certified)
+        if resolved:
+            windows = [tuple(w) for w in h_windows]
+            crossing, converged = _crossing_from_windows(H_func, H0.shape[-1], windows,
+                magnus_exp_order, integration_method)
+    if windows is None:
+        crossing, windows, converged = level_crossing_matrix(H_func, l0, l1,
+            threshold=threshold, n_probe=n_probe, fd_step_frac=fd_step_frac,
+            magnus_exp_order=magnus_exp_order, integration_method=integration_method)
 
     W0 = V0.real**2 + V0.imag**2
     W1 = V1.real**2 + V1.imag**2
@@ -690,10 +847,578 @@ def averaged_probabilities_adiabatic(
         'patches_converged': bool(converged),
         'undecided': undecided,
         'undecided_between_crossings': undecided_between,
+        'escalated': escalated,
+        'resolved': resolved,
+        'certified': certified,
     }
 
     return P, report
 
+
+
+# ------------------------------------------------------------------------------------------------
+# The phase average (issue #64)
+# ------------------------------------------------------------------------------------------------
+
+AVG_PHASE_SPREAD = 0.1
+r"""float: Module-level constant
+
+Default relative energy spread :math:`\sigma` of the phase average returned by
+:func:`phase_averaged_probabilities_constant_hamiltonian` and
+:func:`phase_averaged_probabilities_adiabatic`, and by ``average=True`` in
+:mod:`magnus.oscprob`.
+
+The phase average keeps every interference term with its phase at the central energy and
+multiplies it by :math:`e^{-\sigma^2\phi'^2/2}`, where :math:`\phi' = d\phi/d\ln E` is how fast
+that phase runs with energy.  A term whose phase runs through many cycles across a spread
+:math:`\sigma` is dropped, as the :math:`L/E \to \infty` limit drops it; a term whose phase barely
+moves is kept with its real value; the ones in between are damped smoothly.  Ten per cent is a
+typical resolution of neutrino detectors and telescopes.  Mixing, crossing amplitudes and the
+eigenbases at the two ends of the path stay at the central energy: this averages phases, not
+probabilities, so a result without interference is returned unchanged.
+
+.. versionadded:: 1.1.1
+"""
+
+
+PHASE_AVERAGE_WINDOW_THRESHOLD = 0.01
+r"""float: Module-level constant
+
+Adiabaticity threshold at which :func:`phase_averaged_probabilities_adiabatic` looks for
+non-adiabatic windows, lower than the 0.1 of :func:`averaged_probabilities_adiabatic`.
+
+Outside a window the evolution is carried as adiabatic, so whatever small transfer between levels
+happens there is lost; the decohered limit hides that loss, and the phase average does not,
+because it keeps the interference such a transfer carries.  Measured against a brute-force average
+of the same definition on five solar chords from 10 GeV to 10 TeV: at 0.1 the error reaches
+2.6e-03, at 0.03 and at 0.01 every chord is within 4.2e-05.  On the two-level crossing of
+``tests/test_phase_average.py`` 0.03 leaves 3.4e-04 and 0.01 leaves 5.1e-07, hence 0.01; the cost
+falls only on calls whose phases survive the spread, since the others never reach this search.
+
+.. versionadded:: 1.1.1
+"""
+
+
+PHASE_AVERAGE_PATCH_ATOL = 1.0e-5
+r"""float: Module-level constant
+
+Tolerance on the elements of each window's evolution operator in
+:func:`phase_averaged_probabilities_adiabatic`, looser than the 1e-7 of the Magnus patch the
+hybrid strategy uses.  The slab count doubles until two successive operators agree to it, so the
+tolerance sets the cost of every window, at every node.  Measured on three solar chords whose
+windows are long (10 GeV at :math:`b = 0.6\,R_\odot`, 100 GeV and 1 TeV at :math:`0.2\,R_\odot`,
+B16-GS98): at 1e-5 the probability moves by at most 1.4e-07 from its value at 1e-7, three orders
+below the 1e-4 at which :mod:`magnus.oscprob` returns the decohered limit instead, and the call is
+5 to 16 times faster.
+
+It is the default of :func:`phase_averaged_probabilities_adiabatic`, read at each call.  The
+entry points of :mod:`magnus.oscprob` pass the tighter of their ``rtol`` and ``atol`` instead,
+1e-3 by default (issue #65).  With :data:`PHASE_AVERAGE_PHASE_TOL` loosened with it, measured on
+twenty chords through the solar core (30 GeV to 3 TeV, :math:`b = 0.05` to :math:`0.48\,R_\odot`),
+the probability moves by at most 4.6e-06 from its value at 1e-5, and the call is 2.4 times
+faster at the median (0.9 to 6.3).
+
+.. versionadded:: 1.1.1
+"""
+
+
+PHASE_AVERAGE_PHASE_TOL = 1.0e-5
+r"""float: Module-level constant
+
+Tolerance on the pair phases of each adiabatic stretch in
+:func:`phase_averaged_probabilities_adiabatic`, in rad.  The stretch's grid doubles until the
+pair phases that can still matter move by less than it, which moves a probability by at most as
+much.  Like :data:`PHASE_AVERAGE_PATCH_ATOL`, it is the default of that function, read at each
+call, and the entry points of :mod:`magnus.oscprob` pass the tighter of ``rtol`` and ``atol``
+instead.
+
+.. versionadded:: 1.1.1
+"""
+
+
+PHASE_SPREAD_SENSITIVITY_THRESHOLD = 1.0e-3
+r"""float: Module-level constant
+
+Largest :math:`|\sigma\, \partial P / \partial\sigma|` a phase-averaged probability may have
+before :mod:`magnus.oscprob` warns that it depends on the spread.  That derivative is the change
+per e-fold of :math:`\sigma`; the threshold is the default tolerance of the package.
+
+.. versionadded:: 1.1.1
+"""
+
+
+_SLOPE_FLOOR = 10.0
+_PRUNE_Z = 9.0
+_HERMITE_MAX = 31
+_MAX_TERMS = 200_000
+
+
+def _pair_slopes(slope_diff: np.ndarray, phase_diff: np.ndarray, scale: float,
+                 dH_dlnE_step: Optional[float]) -> np.ndarray:
+    r"""Pair slopes, with those below their round-off floor replaced by minus the pair phase.
+
+    A slope is a difference of two Hellmann-Feynman derivatives, each carrying the round-off of
+    :math:`dH/d\ln E`: :math:`\epsilon |H| L`, times :math:`1/h` when the derivative is a finite
+    difference of step :math:`h`.  Below that floor the computed slope is noise -- a pseudo-Dirac
+    pair split by 1e-21 eV^2 reads 0.2 rad at 100 TeV over 100 Mpc with h = 1e-3, and 25 rad with
+    h = 1e-4, against a true 8e-5 rad (the case of issue #61) -- so the pair is treated as
+    vacuum-like, where the slope is exactly minus the phase.
+    """
+    floor = _SLOPE_FLOOR*np.finfo(float).eps*scale/(dH_dlnE_step if dH_dlnE_step else 1.0)
+    return np.where(np.abs(slope_diff) < floor, -phase_diff, slope_diff)
+
+
+def phase_averaged_probabilities_constant_hamiltonian(
+    hamiltonian: Union[Sequence, np.ndarray],
+    dH_dlnE: Union[Sequence, np.ndarray],
+    baseline: Union[float, np.ndarray],
+    spread: Optional[float] = AVG_PHASE_SPREAD,
+    dH_dlnE_step: Optional[float] = None
+) -> Tuple[np.ndarray, np.ndarray]:
+    r"""Phase-averaged probabilities for a constant Hamiltonian, from a flavor state at the start.
+
+    .. math::
+
+       P_{\alpha\beta} = \sum_{ij} V^*_{\alpha i} V_{\beta i} V_{\alpha j} V^*_{\beta j}\,
+       e^{-i\phi_{ij}}\, e^{-\sigma^2 \phi_{ij}'^2/2} ,
+       \qquad \phi_{ij} = (\lambda_i - \lambda_j) L ,
+
+    with :math:`\phi'_{ij} = d\phi_{ij}/d\ln E` from the Hellmann-Feynman derivatives
+    :math:`d\lambda_i/d\ln E = \langle v_i|\, dH/d\ln E\, |v_i\rangle`.  At :math:`\sigma = 0`
+    this is the oscillation probability itself; for :math:`\sigma|\phi'| \gg 1` on every pair it
+    is the decohered sum :math:`\sum_i |V_{\alpha i}|^2 |V_{\beta i}|^2`.  In vacuum
+    :math:`\phi' = -\phi`, so a phase of :math:`2\pi` keeps 82 per cent of its interference at
+    :math:`\sigma = 10\%`, a phase of 30 rad about one per cent, and a phase of 40 rad
+    :math:`3\times10^{-4}`.  See :data:`AVG_PHASE_SPREAD`.
+
+    .. versionadded:: 1.1.1
+
+    Parameters
+    ----------
+    hamiltonian : list or np.ndarray
+        Hermitian Hamiltonian [eV], shape ``(..., d, d)``; a leading batch axis is allowed.
+    dH_dlnE : list or np.ndarray
+        Its derivative with respect to :math:`\ln E` [eV], same shape.
+    baseline : float or np.ndarray
+        Length of the path [:math:`\text{eV}^{-1}`], broadcast against the batch axes.
+    spread : float, optional
+        Relative energy spread :math:`\sigma`.  Default: :data:`AVG_PHASE_SPREAD`.
+    dH_dlnE_step : float, optional
+        The step in :math:`\ln E` of the finite difference ``dH_dlnE`` came from, if it came
+        from one: it sets the round-off floor below which a pair's slope is taken from its
+        phase instead (see issue #61).  None (default) means the derivative is exact.
+
+    Returns
+    -------
+    (np.ndarray, np.ndarray)
+        The probability matrix, shape ``(..., d, d)``, the initial flavor as the row index; and
+        :math:`\max |\sigma\, \partial P/\partial\sigma|` over its entries, shape ``(...)``.
+    """
+    H = np.asarray(hamiltonian, dtype=complex)
+    D = np.asarray(dH_dlnE, dtype=complex)
+    if H.ndim < 2 or H.shape[-1] != H.shape[-2] or D.shape != H.shape:
+        raise ValueError("Error in magnus: magnus.avgprob.phase_averaged_probabilities_constant_hamiltonian: "
+            "the Hamiltonian must be square, of shape (..., d, d), and its derivative the same shape; "
+            "got " + str(H.shape) + " and " + str(D.shape) + ".")
+    if spread is None or spread < 0.0:
+        raise ValueError("Error in magnus: magnus.avgprob.phase_averaged_probabilities_constant_hamiltonian: "
+            "the spread must be a non-negative number, not " + repr(spread) + ".")
+    lam, V = np.linalg.eigh(H)
+    slope = np.real(np.einsum('...ai,...ab,...bi->...i', V.conj(), D, V))
+    L = np.asarray(baseline, dtype=float)[..., None, None]
+    phi = (lam[..., :, None] - lam[..., None, :])*L
+    scale = np.max(np.abs(lam), axis=-1)[..., None, None]*np.abs(L)
+    dphi = _pair_slopes((slope[..., :, None] - slope[..., None, :])*L, phi, scale, dH_dlnE_step)
+    x2 = (spread*dphi)**2
+    w = np.exp(-0.5*x2)
+    rot = np.exp(-1j*phi)
+    # P_ab = Re sum_ij X_abi conj(X_abj) K_ij, X_abi = conj(V_ai) V_bi, as one batched product
+    # over j for the weights and their sigma-derivative together.
+    X = V.conj()[..., :, None, :]*V[..., None, :, :]
+    K = np.stack([rot*w, rot*(-x2*w)], axis=-3)                       # (..., 2, i, j)
+    Xc = X.conj()
+    Kt = np.swapaxes(K, -1, -2)                                         # (..., 2, j, i)
+    Y = Xc[..., None, :, :, :] @ Kt[..., :, None, :, :]                # (..., 2, a, b, i)
+    PS = np.real(np.sum(X[..., None, :, :, :]*Y, axis=-1))             # (..., 2, a, b)
+    P, S = PS[..., 0, :, :], PS[..., 1, :, :]
+    return P, np.max(np.abs(S), axis=(-2, -1))
+
+
+def _stretch_once(H_func: Callable, D_func: Callable, a: float, z: float, n: int):
+    """Dynamical phase, its slope, and the transported eigenvectors at both ends, on n points."""
+    xs = np.linspace(a, z, n)
+    xs[0], xs[-1] = a, z
+    Hs = adiabatic._H_on_grid(H_func, xs)
+    Ds = adiabatic._H_on_grid(D_func, xs)
+    lam, V = np.linalg.eigh(Hs)
+    sl = np.real(np.einsum('nai,nab,nbi->ni', V.conj(), Ds, V))
+    h = (z - a)/(n - 1)
+    w = np.ones(n)
+    w[1:-1:2] = 4.0
+    w[2:-1:2] = 2.0
+    ov = np.einsum('nai,nai->ni', V[:-1].conj(), V[1:])
+    transport = -np.sum(np.angle(ov), axis=0)
+    return ((h/3.0)*(w @ lam), (h/3.0)*(w @ sl), transport, V[0], V[-1],
+            float(np.max(np.abs(lam)))*abs(z - a), float(np.min(np.abs(ov))))
+
+
+def _stretch(H_func: Callable, D_func: Callable, a: float, z: float, V_start: np.ndarray,
+             V_end: np.ndarray, spread: float, n0: int = 801, n_max: int = 102_401,
+             phase_tol: Optional[float] = None) -> dict:
+    r"""Adiabatic transport from ``a`` to ``z`` as per-level phases and slopes in ``ln E``.
+
+    The phase of level :math:`i` carries the dynamical phase :math:`\int\lambda_i`, the
+    parallel-transport phase along the grid, and the phase differences between the grid's
+    eigenvectors at the two ends and the bases ``V_start``, ``V_end`` the neighbouring windows
+    and the readout use -- so the transport composes with them whatever phase ``eigh`` gave each
+    eigenvector.  Simpson's rule on a grid doubled until the pair phases that can still matter
+    (weight above :math:`10^{-12}`) move by less than ``phase_tol`` [rad], which moves a
+    probability by at most as much; None means :data:`PHASE_AVERAGE_PHASE_TOL`.  A tabulated
+    profile, interpolated with kinks at its rows, converges slowly: measured on a solar chord at
+    100 GeV, phases of 3e3 rad move by 1e-3 rad between 801 and 1601 points and by 1e-6 between
+    25 601 and 51 201.
+    """
+    d = V_start.shape[0]
+    tol = PHASE_AVERAGE_PHASE_TOL if phase_tol is None else phase_tol
+    if z <= a:
+        # Zero length: the only transport is the change of basis, which must be diagonal.
+        ph = np.angle(np.einsum('ai,ai->i', V_end.conj(), V_start))
+        return dict(phase=-ph, slope=np.zeros(d), scale=0.0, converged=True, min_overlap=1.0, n=1)
+    n, prev, converged = n0, None, False
+    while True:
+        Phi, dPhi, transport, V0, V1, scale, min_ov = _stretch_once(H_func, D_func, a, z, n)
+        match = (np.angle(np.einsum('ai,ai->i', V0.conj(), V_start))
+                 + np.angle(np.einsum('ai,ai->i', V_end.conj(), V1)))
+        phase = Phi - transport - match
+        if prev is not None:
+            dp = (phase - prev[0])
+            ds = (dPhi - prev[1])
+            wgt = np.exp(-0.5*(spread*(dPhi[:, None] - dPhi[None, :]))**2) > 1.0e-12
+            change = max(float(np.max(np.abs(dp[:, None] - dp[None, :])[wgt], initial=0.0)),
+                         spread*float(np.max(np.abs(ds[:, None] - ds[None, :]), initial=0.0)))
+            if change < tol:
+                converged = True
+                break
+        if 2*n - 1 > n_max:
+            break
+        prev = (phase, dPhi)
+        n = 2*n - 1
+    return dict(phase=phase, slope=dPhi, scale=scale, converged=converged, min_overlap=min_ov, n=n)
+
+
+def _window_amplitudes(H_func: Callable, D_func: Callable, l_b: float, l_c: float,
+                       u_nodes: np.ndarray, V_b: np.ndarray, V_c: np.ndarray, magnus_exp_order: int,
+                       integration_method: str, n_slabs0: int = 400, max_n_slabs: int = 32_768,
+                       patch_atol: Optional[float] = None) -> Tuple[np.ndarray, bool]:
+    r"""The amplitude matrix :math:`V(l_c)^\dagger U_u V(l_b)` across a window, at every node.
+
+    :math:`U_u` evolves with :math:`H + u\,D_\text{diag}`, where :math:`D_\text{diag}` is the part
+    of :math:`dH/d\ln E` diagonal in the instantaneous eigenbasis: an energy offset :math:`u`
+    moves every eigenvalue by :math:`u\, d\lambda_i/d\ln E` and leaves the eigenvectors alone,
+    which is the definition of the phase average carried inside the window.  The node
+    :math:`u = 0` is the patch function of :func:`level_crossing_matrix`, at ``patch_atol`` (None
+    means :data:`PHASE_AVERAGE_PATCH_ATOL`, read here rather than bound at import); the
+    others share one slab count, converged at the largest :math:`|u|` (measured on the chords of
+    :data:`PHASE_AVERAGE_PATCH_ATOL`, every node converged on its own lands on the same count),
+    and one evaluation of the Hamiltonian, its derivative and its eigenbasis per quadrature
+    position.
+    """
+    d = V_b.shape[0]
+    cache = {}
+
+    def HD(t):
+        key = (np.shape(t), np.asarray(t, dtype=float).tobytes())
+        if key not in cache:
+            ta = np.atleast_1d(np.asarray(t, dtype=float))
+            H = adiabatic._H_on_grid(H_func, ta)
+            D = adiabatic._H_on_grid(D_func, ta)
+            _, V = np.linalg.eigh(H)
+            sl = np.real(np.einsum('nai,nab,nbi->ni', V.conj(), D, V))
+            Dd = (V*sl[:, None, :]) @ V.conj().transpose(0, 2, 1)
+            cache[key] = (H[0], Dd[0]) if np.ndim(t) == 0 else (H, Dd)
+        return cache[key]
+
+    def U_at(u, n):
+        def A(t):
+            H, Dd = HD(t)
+            return -1j*(H + u*Dd)
+        e = np.linspace(l_b, l_c, n + 1)
+        chain = adiabatic.magnuscore.magnus_expansion_multislab(A, np.column_stack([e[:-1], e[1:]]),
+            n_tpts_per_slab=2, order=magnus_exp_order, integration_method=integration_method,
+            A_eval_mode='vector')
+        return adiabatic.magnuscore.ordered_product(chain)
+
+    u_max = float(np.max(np.abs(u_nodes))) if len(u_nodes) else 0.0
+    if patch_atol is None:
+        patch_atol = PHASE_AVERAGE_PATCH_ATOL
+    n, converged = n_slabs0, True
+    if u_max > 0.0:
+        converged = False
+        # The ladder's levels are compared, never returned: the operators returned are evaluated
+        # below, at the level it settles on, and those evaluations check their own slabs.  So the
+        # check that a slab is narrow enough for the Magnus series is held for the ladder, and a
+        # coarse first level does not warn about a grid nobody receives (issue #66).
+        with adiabatic.magnuscore._deferred_slab_norm():
+            prev = U_at(u_max, n)
+            while n < max_n_slabs:
+                n *= 2
+                nxt = U_at(u_max, n)
+                if np.max(np.abs(nxt - prev)) <= patch_atol:
+                    converged = True
+                    break
+                prev = nxt
+        cache.clear()
+    M = np.empty((len(u_nodes), d, d), dtype=complex)
+    for k, u in enumerate(u_nodes):
+        if u == 0.0:
+            U, ok = adiabatic._local_evolution_operator(H_func, l_b, l_c, magnus_exp_order,
+                integration_method, patch_atol=patch_atol, defer_slab_norm=True)
+            converged = converged and ok
+        else:
+            U = U_at(float(u), n)
+        M[k] = V_c.conj().T @ U @ V_b
+    return M, converged
+
+
+def _hermite_order(x: float, tol: float = 1.0e-9) -> int:
+    r"""Odd Gauss-Hermite order whose truncation of :math:`e^{-i\kappa u}`, :math:`\sigma|\kappa| \le x`, is below ``tol``."""
+    if x < 1.0e-12:
+        return 1
+    K = 3
+    while K <= _HERMITE_MAX:
+        # |c_m| <~ x^m/m!, times max_t t^m e^{-t^2/2} = (m/e)^(m/2)
+        bound = np.exp(K*np.log(x) + 0.5*K*(np.log(K) - 1.0) - np.sum(np.log(np.arange(1, K + 1))))
+        if bound < tol:
+            return K
+        K += 2
+    return K
+
+
+def phase_averaged_probabilities_adiabatic(
+    H_func: Callable,
+    dH_dlnE_func: Callable,
+    l0: float,
+    l1: float,
+    spread: Optional[float] = AVG_PHASE_SPREAD,
+    threshold: Optional[float] = PHASE_AVERAGE_WINDOW_THRESHOLD,
+    windows: Optional[List[Tuple[float, float]]] = None,
+    n_probe: Optional[int] = 200,
+    fd_step_frac: Optional[float] = 1.0e-6,
+    magnus_exp_order: Optional[int] = 6,
+    integration_method: Optional[str] = 'gl',
+    dH_dlnE_step: Optional[float] = None,
+    patch_atol: Optional[float] = None,
+    phase_tol: Optional[float] = None
+) -> Tuple[np.ndarray, dict]:
+    r"""Phase-averaged probabilities on a smooth position-dependent Hamiltonian.
+
+    The neutrino starts decohered in the eigenbasis at :math:`l_0`, as in
+    :func:`averaged_probabilities_adiabatic`, and is read out in the flavor basis at :math:`l_1`.
+    In between, every interference term is kept with its phase and weighted by the spread of
+    that phase across a relative energy spread :math:`\sigma` (see :data:`AVG_PHASE_SPREAD`):
+    formally, the Gaussian average over :math:`u = \delta\ln E` of the evolution under
+    :math:`H + u\,D_\text{diag}`, with :math:`D_\text{diag}` the part of :math:`dH/d\ln E`
+    diagonal in the instantaneous eigenbasis -- an energy offset moves the eigenvalues and
+    leaves the eigenvectors.
+
+    It is computed without sampling energies across the adiabatic stretches.  Each non-adiabatic
+    window is an amplitude matrix, evaluated at a few Gauss-Hermite nodes in :math:`u` (a uniform
+    grid when its internal phase runs too fast for that); each stretch between windows is a
+    diagonal phase with an exact slope in :math:`u`.  The density matrix is carried as terms
+    labelled by accumulated slope, whose Gaussian average is analytic, and a term is dropped only
+    once no later stretch can bring its slope back within reach.  So the answer does not depend on
+    where the windows are drawn: one window over a stretch or two windows with the stretch between
+    them give the same number.
+
+    Where there is no window the evolution is adiabatic, a decohered start carries no
+    interference, and the result is the decohered expression of
+    :func:`averaged_probabilities_adiabatic`.
+
+    .. versionadded:: 1.1.1
+
+    Parameters
+    ----------
+    H_func : Callable
+        Hamiltonian as a function of position, ``H_func(l)`` [eV]; arrays of positions are used
+        where it accepts them.
+    dH_dlnE_func : Callable
+        Its derivative with respect to :math:`\ln E`, as a function of position [eV].
+    l0, l1 : float
+        Production and detection positions [:math:`\text{eV}^{-1}`].
+    spread : float, optional
+        Relative energy spread :math:`\sigma`.  Default: :data:`AVG_PHASE_SPREAD`.
+    threshold : float, optional
+        Adiabaticity threshold of the window search.  Default:
+        :data:`PHASE_AVERAGE_WINDOW_THRESHOLD`.
+    windows : list of (float, float), optional
+        Windows to use instead of searching.  Default: None.
+    n_probe, fd_step_frac : int, float, optional
+        Passed to the window search.  Defaults: 200 and 1e-6.
+    magnus_exp_order : int, optional
+        Magnus order of the window patches.  Default: 6.
+    integration_method : str, optional
+        Integration method of the window patches.  Default: 'gl'.
+    dH_dlnE_step : float, optional
+        See :func:`phase_averaged_probabilities_constant_hamiltonian`.  Default: None.
+    patch_atol : float, optional
+        Tolerance on the elements of each window's evolution operator.  Default: None, which
+        means :data:`PHASE_AVERAGE_PATCH_ATOL`.
+    phase_tol : float, optional
+        Tolerance on the pair phases of each adiabatic stretch [rad].  Default: None, which
+        means :data:`PHASE_AVERAGE_PHASE_TOL`.
+
+    Returns
+    -------
+    (np.ndarray, dict)
+        The probability matrix, initial flavor as the row index; and a report with keys
+        ``'windows'``, ``'escalated'``, ``'resolved'``, ``'certified'`` (as in
+        :func:`averaged_probabilities_adiabatic`), ``'patches_converged'``,
+        ``'phases_converged'``, ``'n_nodes'`` and ``'method'`` (``'hermite'``, ``'grid'``, or
+        ``'none'`` without windows), ``'n_terms'``, and ``'sigma_sensitivity'``, the largest
+        :math:`|\sigma\, \partial P/\partial\sigma|`.
+
+    Raises
+    ------
+    RuntimeError
+        If the number of terms would exceed an internal bound (``_MAX_TERMS``): many windows
+        with many flavors whose phases never decohere.
+    """
+    if spread is None or spread < 0.0:
+        raise ValueError("Error in magnus: magnus.avgprob.phase_averaged_probabilities_adiabatic: the "
+            "spread must be a non-negative number, not " + repr(spread) + ".")
+    l0, l1 = float(l0), float(l1)
+    _, V0 = np.linalg.eigh(np.asarray(H_func(l0), dtype=complex))
+    _, V1 = np.linalg.eigh(np.asarray(H_func(l1), dtype=complex))
+    d = V0.shape[0]
+    W0 = V0.real**2 + V0.imag**2
+    W1 = V1.real**2 + V1.imag**2
+    report = dict(escalated=False, resolved=None, certified=None)
+
+    if windows is None:
+        escalated = bool(_unseen_features(H_func, l0, l1, n_probe))
+        report['escalated'] = escalated
+        if escalated:
+            h_info = {}
+            _, h_windows, certified = adiabatic.hybrid_propagator(H_func, l0, l1, info=h_info)
+            report['resolved'] = bool(h_info.get('resolved', True))
+            report['certified'] = bool(certified)
+            if report['resolved']:
+                windows = [tuple(w) for w in h_windows]
+        if windows is None:
+            windows, _ = adiabatic.find_nonadiabatic_windows(H_func, l0, l1, threshold=threshold,
+                n_probe=n_probe, fd_step_frac=fd_step_frac)
+    windows = [(float(b), float(c)) for b, c in windows]
+    report['windows'] = windows
+
+    if not windows:
+        report.update(patches_converged=True, phases_converged=True, n_nodes=0, method='none',
+                      n_terms=1, sigma_sensitivity=0.0)
+        return W0 @ W1.T, report
+
+    # Eigenbases at every window edge: the windows' amplitudes and the stretches' transport
+    # are both expressed in these, so they compose whatever phase eigh gave each vector.
+    V_b = [np.linalg.eigh(np.asarray(H_func(b), dtype=complex))[1] for b, _ in windows]
+    V_c = [np.linalg.eigh(np.asarray(H_func(c), dtype=complex))[1] for _, c in windows]
+    ends = [b for b, _ in windows][1:] + [l1]
+    V_ends = V_b[1:] + [V1]
+    stretches = [_stretch(H_func, dH_dlnE_func, c, z, V_c[i], V_ends[i], spread,
+                          phase_tol=phase_tol)
+                 for i, ((_, c), z) in enumerate(zip(windows, ends))]
+    report['phases_converged'] = all(s['converged'] for s in stretches)
+
+    # How fast the phases inside each window run with u: this sets the nodes.
+    drift = []
+    for (b, c) in windows:
+        _, dPhi, _, _, _, _, _ = _stretch_once(H_func, dH_dlnE_func, b, c, 801)
+        drift.append(float(np.max(dPhi) - np.min(dPhi)))
+    D_W = float(sum(drift))
+    K = _hermite_order(spread*D_W)
+    if K <= _HERMITE_MAX:
+        x, wq = np.polynomial.hermite_e.hermegauss(K)
+        wq = wq/wq.sum()
+        u = spread*x
+        method = 'hermite'
+    else:
+        # Frequencies up to twice the windows' drift plus what survives pruning, alias-free
+        du = 2*np.pi/(2*D_W + _PRUNE_Z/spread + 12.0/spread)
+        m = int(np.ceil(6.0*spread/du))
+        u = du*np.arange(-m, m + 1)
+        wq = np.exp(-0.5*(u/spread)**2)
+        wq = wq/wq.sum()
+        method = 'grid'
+    report.update(n_nodes=len(u), method=method)
+
+    Ms, conv = [], True
+    for (b, c), Vb, Vc in zip(windows, V_b, V_c):
+        M, ok = _window_amplitudes(H_func, dH_dlnE_func, b, c, u, Vb, Vc, magnus_exp_order,
+                                   integration_method, patch_atol=patch_atol)
+        Ms.append(M)
+        conv = conv and ok
+    report['patches_converged'] = conv
+
+    # Propagate rho(u) = sum_t R_t(u) exp(-i s_t u), R_t at every node, in the level bases.
+    span = [float(np.max(s['slope']) - np.min(s['slope'])) for s in stretches]
+    reach_after = [D_W + sum(span[j] for j in range(i + 1, len(windows)))
+                   for i in range(len(windows))]
+    R0 = np.zeros((len(u), d, d, d), dtype=complex)
+    for a in range(d):
+        R0[:, a] = np.diag(W0[a])[None]
+    terms = {0: (0.0, R0)}
+    for i in range(len(windows)):
+        M = Ms[i]
+        terms = {key: (s, np.einsum('kij,kajm,klm->kail', M, R, M.conj()))
+                 for key, (s, R) in terms.items()}
+        st = stretches[i]
+        ph = np.exp(-1j*st['phase'])
+        rot = ph[:, None]*ph.conj()[None, :]
+        dsl = _pair_slopes(st['slope'][:, None] - st['slope'][None, :],
+                           st['phase'][:, None] - st['phase'][None, :], st['scale'], dH_dlnE_step)
+        new = {}
+        for key, (s, R) in terms.items():
+            Rr = R*rot[None, None]
+            for p in range(d):
+                for q in range(d):
+                    snew = s + (0.0 if p == q else float(dsl[p, q]))
+                    if spread*(abs(snew) - reach_after[i]) > _PRUNE_Z:
+                        continue
+                    kk = int(round(snew*spread*1.0e9)) if spread > 0.0 else 0
+                    if kk not in new:
+                        if len(new) >= _MAX_TERMS:
+                            raise RuntimeError("Error in magnus: magnus.avgprob."
+                                "phase_averaged_probabilities_adiabatic: more than "
+                                + str(_MAX_TERMS) + " interference terms survive across "
+                                + str(len(windows)) + " windows at " + str(d) + " flavors.")
+                        new[kk] = (snew, np.zeros_like(R))
+                    new[kk][1][:, :, p, q] += Rr[:, :, p, q]
+        terms = new
+    report['n_terms'] = len(terms)
+
+    P = np.zeros((d, d), dtype=complex)
+    dP = np.zeros((d, d), dtype=complex)
+    if method == 'hermite':
+        He = np.polynomial.hermite_e.hermevander(x, K - 1)
+        fact = np.cumprod(np.r_[1.0, np.arange(1, K)])
+        mm = np.arange(K)
+    for s, R in terms.values():
+        F = np.einsum('bi,kaij,bj->kab', V1, R, V1.conj())
+        if method == 'hermite':
+            # R(u) = sum_m c_m He_m(u/sigma); E[He_m(x) e^{-itx}] = (-it)^m e^{-t^2/2}, and
+            # sigma d/dsigma brings in (x^2 - 1) = He_2, with He_2 He_m = He_{m+2} + 2m He_m
+            # + m(m-1) He_{m-2}.
+            c = np.einsum('k,km,kab->mab', wq, He, F)/fact[:, None, None]
+            t = spread*s
+            z = -1j*t
+            g = np.exp(-0.5*t*t)*z**mm
+            zm2 = np.where(mm >= 2, z**np.maximum(mm - 2, 0), 0.0)
+            g2 = np.exp(-0.5*t*t)*(z**(mm + 2) + 2*mm*z**mm + mm*(mm - 1)*zm2)
+            P += np.einsum('m,mab->ab', g, c)
+            dP += np.einsum('m,mab->ab', g2, c)
+        else:
+            gk = np.exp(-1j*s*u)[:, None, None]*F
+            P += np.einsum('k,kab->ab', wq, gk)
+            dP += np.einsum('k,kab->ab', wq*((u/spread)**2 - 1.0), gk)
+    report['sigma_sensitivity'] = float(np.max(np.abs(dP.real)))
+    return P.real, report
 
 __all__ = [
     'DECOHERENCE_PHASE_THRESHOLD',
@@ -702,10 +1427,18 @@ __all__ = [
     'coherence_report',
     'averaged_probabilities_from_eigenbasis',
     'averaged_probabilities_constant_hamiltonian',
+    'SUDDEN_TRANSFER_THRESHOLD',
     'AVG_DEFAULT_ENERGY_SPREAD',
     'AVG_DEFAULT_N_SAMPLES',
     'adiabatic_phase_differences',
     'level_crossing_matrix',
     'averaged_probabilities_adiabatic',
     'averaged_probabilities_numerically',
+    'AVG_PHASE_SPREAD',
+    'PHASE_AVERAGE_WINDOW_THRESHOLD',
+    'PHASE_SPREAD_SENSITIVITY_THRESHOLD',
+    'PHASE_AVERAGE_PATCH_ATOL',
+    'PHASE_AVERAGE_PHASE_TOL',
+    'phase_averaged_probabilities_constant_hamiltonian',
+    'phase_averaged_probabilities_adiabatic',
 ]

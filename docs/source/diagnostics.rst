@@ -251,15 +251,44 @@ much*, where the code knows), what to change, and when it is genuinely safe to i
        the numbers at all.
      - Pass ``density_matter_is_in_g_per_cm3=True``, or convert yourself (multiply by
        ``gd.UNIT_G_PER_CM3``).
+   * - :class:`magnus.globaldefs.BaselineUnitWarning`
+     - A baseline is small enough to have been read in kilometers and left unconverted.
+     - Yes, entirely. One eV⁻¹ is about 2e-7 m, so the call propagates a chord a few
+       meters long and returns a converged, unitary probability for it.
+     - Multiply by ``gd.UNIT_KM`` (or ``gd.CONV_KM_TO_INV_EV``).
+   * - :class:`magnus.globaldefs.MixingAngleConventionWarning`
+     - ``angles='deg'`` was declared, but the values are the size of sines -- every
+       measured angle read as degrees would be about fifty times too small.
+     - Yes. A converged, unitary and entirely wrong probability rather than an error.
+     - Drop ``angles='deg'``; its default ``'sin'`` is what
+       :func:`~magnus.globaldefs.load_nufit_params` returns.
+   * - :class:`magnus.globaldefs.SterileMatterCompositionWarning`
+     - ``electron_fraction`` and ``ratio_number_neutrons_to_protons`` describe different
+       media (four and five flavors only).
+     - Yes, for the sterile states' entry in the matter projector. Three flavors are
+       unaffected.
+     - Omit the ratio and let it be derived from :math:`Y_e` (its default, ``None``).
    * - :class:`magnus.oscprob.UnmarkedDiscontinuityWarning`
      - The Hamiltonian is discontinuous at the grid scale and no ``t_breakpoints`` were
-       given.
-     - Yes, and refinement cannot help -- a straddling slab only gets narrower.
-     - ``t_breakpoints`` at the jumps. Measured: median 7.8e-04 → 1.3e-12.
+       given -- on a cumulative scan, on the hybrid strategy, or with ``average=True``
+       where the jump could move probability between levels.
+     - Yes, and refinement cannot help -- a straddling slab only gets narrower, and the
+       averaged route treats the jump as smooth.
+     - ``t_breakpoints`` at the jumps. Measured: median 7.8e-04 → 1.3e-12 on a scan; with
+       ``average=True`` on a supernova shock, 0.04 → 0.56 against a reference of 0.59.
    * - :class:`magnus.oscprob.PhaseAveragingWarning`
-     - ``average=True`` where the oscillation has not averaged.
-     - The matrix is valid; the *question* does not apply there.
-     - Use ``average=False``; the s.e.m. is reported.
+     - ``average=True`` where the phase average depends on its spread: some interference
+       has partly survived it, and :math:`|\sigma\,\partial P/\partial\sigma|` exceeds
+       1e-3.  Also on every energy-window average across declared discontinuities, and, for
+       a Hamiltonian without energy dependence, where the limit does not apply.
+     - The number is the average over the spread asked for, not over another.
+     - ``average_spread`` set to the resolution of the measurement; the s.e.m. is
+       reported for the window average.
+   * - :class:`magnus.hamiltonians.hamiltonians_pseudodirac.PseudoDiracSplittingWarning`
+     - The pseudo-Dirac splitting is not small against the standard mass-squared ones.
+     - The number is what was asked for; the *model* is the wrong one. At that size the
+       two scales overlap and the pair is an ordinary sterile state.
+     - The four- and five-flavor routines, which describe that spectrum properly.
    * - :class:`magnus.magnus.MagnusHighOrderCostWarning`
      - ``magnus_exp_order`` above 6 on ``'trapezoid'``/``'simpson'``.
      - No -- it is a cost trade, not an error.
@@ -270,7 +299,9 @@ much*, where the code knows), what to change, and when it is genuinely safe to i
        of the tolerance.
      - Raise the named cap; or loosen ``rtol``/``atol``; or add ``t_breakpoints``.
    * - :class:`magnus.oscprob.HybridCertificationWarning`
-     - ``strategy='hybrid'`` was forced and a point did not self-certify.
+     - ``strategy='hybrid'`` was forced and a point did not self-certify; or, with
+       ``average=True``, the crossing probabilities on the adiabatic route could not be
+       certified.
      - **Unverified, which is not the same as wrong.** The result is still exactly unitary.
      - ``strategy='auto'`` (falls back automatically); or ``t_breakpoints`` at known
        structure; or a looser tolerance.
@@ -283,6 +314,19 @@ much*, where the code knows), what to change, and when it is genuinely safe to i
      - **Unknown.** This reports a slab width, not an error.
      - Narrower slabs (smaller ``rtol``/``atol``, larger ``n_slabs``); ``t_breakpoints`` at
        any jump. Raising the order does not help.
+   * - :class:`magnus.oscprob.CrossCheckInconclusiveWarning`
+     - :func:`~magnus.oscprob.cross_check_strategies` compared nothing, so its spread is
+       0.0 for want of a second opinion rather than because two engines agreed.
+     - No -- but the *diagnostic* is empty, which reads like a clean bill of health.
+     - Pass an entry point that takes ``strategy`` (``osc_prob`` itself does not), and
+       check ``out['ran']`` before reading any spread.
+   * - :class:`magnus.oscprob.SolarModelRangeWarning`
+     - ``stop_at_table_edge=True`` on a Sun entry point, and a baseline ends past the
+       solar model's last tabulated radius.
+     - Yes, as asked: those points come back as NaN.  The others are computed as usual.
+     - Nothing, if NaN is what you wanted.  Otherwise leave ``stop_at_table_edge`` False
+       to continue the profile past the table, or use a model tabulated to the surface
+       (B16, B23); see :doc:`solar_models`.
 
 **Measured false-positive rates** (``docs/dev/adversarial_batteries/warn_fp.py``, 168
 configurations across the profile families this package serves, d = 2-5, scored against

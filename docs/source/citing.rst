@@ -16,14 +16,18 @@ the version you used — results can depend on it, and Magνs records its own:
    import magnus
    print(magnus.__version__)
 
-.. code-block:: bibtex
+.. The version below is |release|, which conf.py reads from pyproject.toml -- the one place
+   the number is written.  A parsed-literal rather than a bibtex code-block, because a
+   code-block does not expand substitutions and this page would carry a second copy of it.
+
+.. parsed-literal::
 
    @software{Magnus,
      author  = {Bustamante, Mauricio},
-     title   = {{Mag$\nu$s: neutrino oscillation probabilities via the
+     title   = {{Mag$\\nu$s: neutrino oscillation probabilities via the
                  Magnus expansion}},
      url     = {https://github.com/mbustama/Magnus},
-     version = {1.0.0rc1},
+     version = {|release|},
      year    = {2026}
    }
 

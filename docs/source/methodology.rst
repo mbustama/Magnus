@@ -216,14 +216,15 @@ meaning "use the cap appropriate to ``integration_method``": 20000 for
 ``magnus.oscprob.MAX_N_SLABS_DEFAULT``; an explicit value is always used as
 given).  A single cap cannot serve both families, because their cost per
 slab differs by more than an order of magnitude -- ``'gl'`` evaluates the
-Hamiltonian 1 to 3 times per slab, the quadrature methods
+Hamiltonian 1 to 4 times per slab, the quadrature methods
 ``n_tpts_per_slab`` times.  With a shared cap of 2000, ``'gl'`` hit the
 ceiling on problems it could resolve comfortably (eV-scale sterile
 splittings over an Earth-crossing baseline need about 8,600 slabs) and
 reported that it could not verify convergence, on answers that were in fact
 far more accurate than the quadrature methods reached within the same cap.
-Even at 20000 slabs, ``'gl'`` is the cheaper worst case: 40,000-60,000
-Hamiltonian evaluations, against the ~200,000 that 2000 quadrature slabs at
+Even at 20000 slabs, ``'gl'`` is the cheaper worst case: 40,000 Hamiltonian
+evaluations at the default order and 80,000 at order 8, against the ~200,000
+that 2000 quadrature slabs at
 100 points per slab already permit.
 
 If a refinement cap (``max_n_slabs``, ``max_n_tpts_per_slab``,
@@ -288,11 +289,11 @@ Dropping to order 2 is almost never worthwhile -- at :math:`10^{-8}` on the
 Earth cases it needs thousands of slabs where order 6 needs about a hundred,
 and runs roughly twenty times slower.
 
-Beyond order 6 the terms are generated rather than written out, the count
-roughly doubles per order, and ``'gl'`` has no scheme at all (see
-:doc:`expansion_terms`), so orders 7 to 10 require ``'trapezoid'`` or
-``'simpson'`` and warn about their cost.  They are there for accuracy
-studies rather than production runs.
+Beyond order 6 the terms are generated rather than written out and their count
+roughly doubles per order (see :doc:`expansion_terms`).  ``'gl'`` reaches order
+8 on its four-node scheme; orders 9 and 10 exist only on ``'trapezoid'`` and
+``'simpson'``, which warn about their cost above order 6.  The high orders are
+there for accuracy studies rather than production runs.
 
 .. note::
    How these numbers were obtained, since they are the basis for leaving the
@@ -424,7 +425,7 @@ the methodology above directly:
   the same Schrödinger equation, confirming that each additional Magnus
   order improves the error, and that the Gauss-Legendre integrators
   achieve their nominal orders 2/4/6 (measured error reduction ratios of
-  4.0/16.0/63.8 under slab halving, matching :math:`2^{\text{order}+1}`).
+  4.0/16.0/63.8 under slab halving, matching :math:`2^{\text{order}}`).
 * **Physical probabilities** are cross-checked against closed-form
   expressions for 2ν and 3ν vacuum oscillations and 2ν constant-density
   matter oscillations (for both neutrinos and antineutrinos), and against
@@ -436,11 +437,17 @@ the methodology above directly:
   quadrature) that isolates the slab time-ordering from every other
   source of numerical error.
 
-In practice, the default tolerance setting (``rtol = atol = 1e-3``, a
-target for the difference between successive refinements rather than a
-strict global error bound) delivers an actual accuracy of about
-:math:`5\times10^{-4}` on Earth crossings, verified against
-:math:`10^{-7}`-tolerance references.
+In practice the default setting (``rtol = atol = 1e-3``, a target for the
+difference between successive refinements rather than a strict global error
+bound) is usually far better than it promises and occasionally worse.  Over
+eight Earth chords from grazing to core-crossing at six energies between 0.5
+and 20 GeV, the same call at :math:`10^{-7}` differs from it by a median of
+9e-07 and a p90 of 1.2e-04 -- but by 2.2e-03 on the core-crossing chord at
+0.5 GeV, outside the tolerance that was asked for.  No single figure summarises
+a spread of three orders.  That sweep is
+``docs/dev/adversarial_batteries/prem_default_tolerance.py``; :doc:`diagnostics`
+gives the distribution over much larger populations, scored against an
+independent oracle rather than against a tighter run of the same method.
 
 See :doc:`references` for full citations of the works referred to above.
 
@@ -501,12 +508,12 @@ Mass ordering
 The ordering is carried by the **sign of** :math:`\Delta m^2_{31}`, not by a
 flag: positive is normal, negative is inverted. ``OSC_PARAMS_DEFAULT`` is the
 normal ordering, with :math:`\Delta m^2_{31} = +2.511 \times 10^{-3}`
-eV\ :sup:`2`. It is NuFit 6.1, the same release
-:func:`~magnus.globaldefs.load_nufit_params` returns by default, and is derived
-from it rather than written out a second time.
-``magnus.globaldefs.OSC_PARAMS_PREDEFINED`` also carries
-``OSC_PARAMS_NU_FIT_6_1_SK_NO``, ``..._SK_IO`` and the 6.0 pair, if you want to
-name the fit explicitly.
+eV\ :sup:`2`. It is NuFIT 6.1 with Super-Kamiokande atmospheric data, the same
+release :func:`~magnus.globaldefs.load_nufit_params` returns by default, and is
+derived from it rather than written out a second time.
+``magnus.globaldefs.OSC_PARAMS_PREDEFINED`` carries every NuFIT release from 1.0
+on, in both orderings and, from 4.0 on, with and without that atmospheric data,
+if you want to name the fit explicitly.
 
 For two flavors the same rule applies to :math:`\Delta m^2`, which is what
 makes the two-flavor case easy to get backwards: flipping its sign moves the
@@ -523,10 +530,11 @@ take the square root — ``gd.S12_NO_BF_NUFIT_6_0`` is ``np.sqrt(0.308)``.
 Phases are in **radians**; the default :math:`\delta_{CP}` is 3.7001 rad, i.e.
 212 degrees.
 
-Two flavors take ``sth`` and ``Dm2`` rather than ``s12`` and ``D21``. Passing
-the three-flavor names to a two-flavor call is not an error — the keys are
-simply not recognized — so check the names if a two-flavor result looks
-untouched by the parameters you set.
+Two flavors take ``sth`` and ``Dm2`` rather than ``s12`` and ``D21``. This is
+one of the few convention errors here that cannot pass quietly: unrecognized
+keywords are refused by name at the call site rather than forwarded down, so a
+two-flavor call written with the three-flavor names raises instead of returning
+a probability computed from the defaults.
 
 Units
 ~~~~~

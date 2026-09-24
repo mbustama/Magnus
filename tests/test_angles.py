@@ -162,7 +162,7 @@ def test_ordinary_degrees_do_not_warn():
 # ----------------------------------------------------------------------
 
 def test_load_nufit_params_reproduces_the_published_table():
-    """NuFit quotes sin^2 and degrees; the loader must give back exactly those.
+    """NuFIT quotes sin^2 and degrees; the loader must give back exactly those.
 
     An independent check: these numbers come from the publication, not from inverting
     Magnus's own stored sines with Magnus's own arithmetic.

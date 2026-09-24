@@ -44,10 +44,10 @@ COMMENT_COLUMN = 36
 # Directories shown as a single entry rather than enumerated, and exempt from
 # the membership check.  Each holds many files of one kind, none of which a
 # reader needs named: developer findings and adversarial batteries, figures
-# lifted out of the executed notebooks, and notebook output.  Listing them
-# would triple the tree without telling anyone anything.
+# lifted out of the executed notebooks, notebook output, and the solar-model
+# tables.  Listing them would triple the tree without telling anyone anything.
 COLLAPSED = ('docs/dev/', 'img/gallery/', 'fig/', 'resources/paper/figs/',
-             'resources/benchmarks/')
+             'resources/benchmarks/', 'src/magnus/data/solar_models/')
 
 TREE = [
     ('.github/', 'GitHub Actions workflows: tests, lint, notebooks, docs, publishing'),
@@ -116,7 +116,8 @@ TREE = [
     ('docs/source/quickstart.rst', 'Worked Python-API code examples for every entry point'),
     ('docs/source/recipes.rst', 'What Magnus can compute, with the code -- executed at build time'),
     ('docs/source/references.rst', 'Bibliography page rendering'),
-    ('docs/source/refs.bib', 'BibTeX citations for the Magnus-expansion and PREM literature'),
+    ('docs/source/refs.bib', 'BibTeX citations for the Magnus-expansion, PREM and solar-model literature'),
+    ('docs/source/solar_models.rst', 'The twelve tabulated standard solar models, and how the Sun wrappers use them'),
     ('docs/source/tutorials.rst', 'Guide to the numbered example notebooks in notebooks/'),
     ('fig/', 'Plots produced by the example notebooks'),
     ('img/', 'Figures used by the documentation'),
@@ -157,7 +158,7 @@ TREE = [
     ('notebooks/12_magnus_adiabatic_hybrid_strategy.ipynb',
      "'auto' against 'magnus', timed against solve_ivp"),
     ('notebooks/13_magnus_tabulated_solar_model.ipynb',
-     'A real BS05 profile: an error that is a phase'),
+     'The twelve solar models by name, and the observable an experiment measures'),
     ('notebooks/14_magnus_supernova_shock.ipynb',
      'A shock front: an error that is an envelope'),
     ('notebooks/15_magnus_antineutrinos.ipynb',
@@ -171,7 +172,7 @@ TREE = [
     ('notebooks/19_magnus_custom_hamiltonian.ipynb',
      'The H_func contract, and the vectorization trick'),
     ('notebooks/20_magnus_numerical_edge_cases.ipynb',
-     'Degeneracies that return numbers, and the nine warnings'),
+     'Degeneracies that return numbers, and the fourteen warnings'),
     ('notebooks/21_magnus_what_tolerance_means.ipynb',
      'rtol is a stopping criterion, not an error bound'),
     ('notebooks/22_magnus_which_engine_answered.ipynb',
@@ -280,6 +281,8 @@ TREE = [
      ' reference probabilities, order curves, and timings'),
     ('notebooks/nufit_chi2.json', 'Those profiles, v2.0-v6.1 (NuFIT collaboration)'),
     ('notebooks/shock_reference.json', 'That oracle, as exact hex floats'),
+    ('notebooks/solar_models_cache.json',
+     "Notebook 13's comparison of the twelve solar models, keyed on its inputs"),
     ('pyproject.toml', 'Build system, dependencies, and the `magnus` console-script entry point'),
     ('resources/', 'Travels with the code; reaches neither the wheel nor the sdist'),
     ('resources/benchmarks/',
@@ -314,8 +317,12 @@ TREE = [
      "NuOscProbExact's bibliography, with the Magnus entries appended below a separator"),
     ('resources/paper/elsarticle.cls', 'Bundled, so the folder compiles without the Elsevier bundle'),
     ('resources/paper/elsarticle-num.bst', None),
-    ('resources/paper/figs/', 'Its twenty-one figures, written by notebook 28'),
+    ('resources/paper/figs/', 'Its twenty-three figures, written by notebook 28'),
     ('tools/', 'Standalone utilities that are not part of the package'),
+    ('tools/build_solar_model_tables.py',
+     "Trims the authors' solar-model files to the shipped tables, checking each hash"),
+    ('tools/lint_notebook_cells.py',
+     'Finds names the notebooks use but never define; run by the lint workflow'),
     ('tools/make_demo_video.py',
      "Joins and shrinks notebook 27's clips; shared with NuOscProbExact"),
     ('src/', 'The package itself -- the only thing a `pip install` delivers'),
@@ -326,11 +333,13 @@ TREE = [
     ('src/magnus/authors.py', 'Package author string (internal; not part of the public API)'),
     ('src/magnus/avgprob.py', 'Phase-averaged (decohered) probabilities'),
     ('src/magnus/cli.py', '`magnus` command-line calculator (also `python -m magnus`)'),
+    ('src/magnus/data/', 'Package data, installed with the code'),
+    ('src/magnus/data/solar_models/', 'Twelve standard solar models: three columns each, with provenance'),
     ('src/magnus/earth.py', 'PREM density profile, chord/zenith-angle geometry'),
     ('src/magnus/expansionterms.py', 'Generates the Omega_k terms symbolically, to any order'),
     ('src/magnus/expmkernels.py',
      'Compiled Cayley-Hamilton matrix exponential for 2x2/3x3 (the numba backend)'),
-    ('src/magnus/globaldefs.py', 'Units, physical constants, NuFit parameter sets'),
+    ('src/magnus/globaldefs.py', 'Units, physical constants, NuFIT parameter sets'),
     ('src/magnus/hamiltonians/', '2nu-5nu Hamiltonians: vacuum, matter, NSI, LIV (the one true subpackage)'),
     ('src/magnus/hamiltonians/__init__.py', 'Explicit named imports from the four hamiltonians{2,3,4,5}nu.py modules'),
     ('src/magnus/hamiltonians/_angles.py', 'Interprets the four angles conventions; rejects an out-of-range sine'),
@@ -346,9 +355,12 @@ TREE = [
     ('src/magnus/oscprobstd.py', 'Closed-form 2nu/3nu probabilities (used to validate the wrapper API)'),
     ('src/magnus/plotting.py', 'Pre-packaged plotting tools: one call instead of thirty lines'),
     ('src/magnus/py.typed', 'PEP 561 marker: tells type checkers the annotations are real'),
+    ('src/magnus/solarmodels.py', 'Tabulated standard solar models, as profiles for the Sun wrappers'),
     ('src/magnus/version.py', 'Resolves the version from pyproject.toml (internal)'),
-    ('src/requirements.txt', 'Sphinx + theme + extensions needed to build the docs'),
+    ('src/requirements.txt', 'The three runtime dependencies: numpy, scipy, joblib'),
     ('tests/', 'Test suite (pytest; runs in CI)'),
+    ('tests/test_paper_cache_only.py',
+     "MAGNUS_PAPER_CACHE_ONLY stops notebook 28 on a cache miss instead of recomputing"),
     ('tests/test_paper_cache_key_is_portable.py',
      "The figure cache's key survives a change of machine: a ULP must not move it"),
     ('tests/test_ci_honours_the_docs.py',
@@ -357,10 +369,19 @@ TREE = [
      'The committed .ipynb files are the ones make_notebooks.py builds'),
     ('tests/test_paper_assets_are_tracked.py',
      "Every figure main.tex includes is tracked, which .gitignore's *.pdf defeats"),
+    ('tests/test_readme_lists_every_notebook.py',
+     'notebooks/README.md describes every notebook make_notebooks.py builds'),
+    ('tests/test_adiabatic_validation_table.py',
+     "adiabatic_strategy.rst's speed-up table and make_figures.py's chart agree"),
+    ('tests/test_cli_examples_match.py',
+     "cli.rst's worked examples still print what the CLI prints"),
+    ('tests/test_diagnostics_documents_every_warning.py',
+     "diagnostics.rst's catalogue covers every warning class the package defines"),
     ('tests/conftest.py', 'Path setup so magnus is importable without installation'),
     ('tests/test_adiabatic.py', 'Adiabatic + Magnus hybrid strategy: detection, merging, ODE cross-checks'),
     ('tests/test_angles.py', "The four `angles` conventions and the guards between them"),
     ('tests/test_avgprob.py', 'Phase-averaged probabilities'),
+    ('tests/test_phase_average.py', 'The phase average over an energy spread (issue #64)'),
     ('tests/test_cli.py', 'magnus command-line calculator'),
     ('tests/test_pseudodirac.py',
      'Pseudo-Dirac Hamiltonians: the Dirac limit, blocks, and the factor of two'),
@@ -374,7 +395,7 @@ TREE = [
     ('tests/test_fuzz_statistics.py', 'Randomized profiles, scored in bulk'),
     ('tests/test_file_tree.py',
      'This file: generates the tree above and checks it against git'),
-    ('tests/test_globaldefs.py', 'NuFit historical parameter dict/loader'),
+    ('tests/test_globaldefs.py', 'NuFIT historical parameter dict/loader'),
     ('tests/test_hamiltonians.py', 'Hamiltonian/mixing-matrix builders'),
     ('tests/test_invariants.py', 'Properties that must hold across the whole engine matrix'),
     ('tests/test_magnus_expansion.py', 'Magnus-core correctness (terms, orders, GL rates, unitarity)'),
@@ -383,6 +404,7 @@ TREE = [
     ('tests/test_plotting.py', 'Pre-packaged plotting tools: house-style defaults, layouts'),
     ('tests/test_routine_listings.py',
      "Each module's Routine listings names every public function it defines"),
+    ('tests/test_solarmodels.py', 'Solar-model tables, their profiles, and the Sun wrappers that use them'),
     ('tests/test_tolerance.py', 'What rtol/atol promise, and the effective-refinement gate'),
     ('tests/test_validation.py', 'Input-validation guards and their error messages'),
     ('tests/test_version.py', 'Version resolution from pyproject.toml / installed metadata'),
@@ -450,7 +472,7 @@ def render_summary_tree():
 
 def _readme_block(text):
     lines = text.split('\n')
-    start = next(i for i, l in enumerate(lines) if l.startswith('## File Tree'))
+    start = next(i for i, l in enumerate(lines) if l.startswith('## Repository layout'))
     # The opening fence carries an info string (```text); the closing one does
     # not.  Matching '```' exactly finds the CLOSING fence first and rewrites
     # the wrong region -- which is exactly what it did.

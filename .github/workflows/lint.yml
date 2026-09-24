@@ -47,6 +47,14 @@ jobs:
         # start anywhere, which ruff reads as F811 redefinition.
         run: ruff check src/magnus/ tests/ docs/ notebooks/make_notebooks.py
 
+      - name: Lint the notebook cells
+        # The step above lints the generator, but every notebook cell lives inside it as
+        # a string literal, which ruff never looks into.  This one concatenates the code
+        # cells of each committed notebook and asks for F821 alone.  Blocking, because a
+        # cell that reads a cached value reaches an undefined name only when the cache
+        # misses, which is a red build weeks after the mistake.
+        run: python tools/lint_notebook_cells.py
+
       - name: Run Ruff Formatter (Check Only)
         # Informational only.  The codebase predates ruff format and is not formatted to
         # its style; reformatting it wholesale would bury real changes in diff noise.

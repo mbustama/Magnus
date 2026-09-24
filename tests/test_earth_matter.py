@@ -521,3 +521,142 @@ def test_the_neutron_to_proton_ratio_is_inert_on_the_sun_only_below_four_flavour
                  'osc_prob_5nu_sun_nsi', 'osc_prob_4nu_sun_liv', 'osc_prob_5nu_sun_liv'):
         assert 'ratio_number_neutrons_to_protons' in inspect.signature(
             getattr(op, name)).parameters, name
+
+
+# ---------------------------------------------------------------------------
+# Underground source and detector (1.1.1)
+# ---------------------------------------------------------------------------
+
+def test_the_default_depths_reproduce_the_surface_chord_bit_for_bit():
+    # The point of the defaults is that they change nothing, so approx is the wrong
+    # comparison here: the three trajectory functions must return the same bits they
+    # returned before either depth existed.
+    R = gd.EARTH_RADIUS
+    for costhz in np.linspace(-1.0, 1.0, 2001):
+        expected = 0.0 if costhz > 0.0 else -2.0*R*costhz
+        assert earth.distance_traveled_inside_earth(costhz) == expected
+        assert earth.distance_traveled_inside_earth(costhz, 0.0, 0.0) == expected
+    for costhz in (-1.0, -0.9, -0.5, -0.05, 0.0, 0.5):
+        assert np.array_equal(earth.prem_layer_edges_along_chord(costhz),
+                              earth.prem_layer_edges_along_chord(costhz, 0.0, 0.0))
+        d = earth.distance_traveled_inside_earth(costhz)
+        ls = np.linspace(0.0, d, 501)
+        assert np.array_equal(
+            earth.earth_radial_distance_from_depth(costhz, ls),
+            earth.earth_radial_distance_from_depth(costhz, ls, source_depth=0.0,
+                                                   detector_depth=0.0))
+
+
+def test_a_buried_endpoint_lands_on_its_own_radius():
+    R = gd.EARTH_RADIUS
+    for source_depth in (0.0, 1.4, 100.0, 2000.0):
+        for detector_depth in (0.0, 2.0, 50.0, 3000.0):
+            for costhz in (-1.0, -0.9, -0.5, -0.05, 0.05, 0.5, 1.0):
+                try:
+                    L = earth.distance_traveled_inside_earth(
+                        costhz, source_depth, detector_depth)
+                except ValueError:
+                    continue            # the trajectory cannot reach that source
+                kw = {'source_depth': source_depth, 'detector_depth': detector_depth}
+                assert earth.earth_radial_distance_from_depth(costhz, 0.0, **kw) \
+                    == pytest.approx(R - source_depth, abs=1e-9)
+                assert earth.earth_radial_distance_from_depth(costhz, L, **kw) \
+                    == pytest.approx(R - detector_depth, abs=1e-9)
+
+
+def test_a_detector_underground_sees_what_a_surface_one_cannot():
+    # A detector on the surface has no path at all for costhz > 0.  Bury it and the
+    # overburden becomes a real, short baseline: straight down it is exactly the depth,
+    # and at 60 degrees from vertical it is the depth over the cosine, less the small
+    # correction the Earth's curvature makes.
+    assert earth.distance_traveled_inside_earth(1.0) == 0.0
+    assert earth.distance_traveled_inside_earth(1.0, detector_depth=2.0) \
+        == pytest.approx(2.0, abs=1e-9)
+    slanted = earth.distance_traveled_inside_earth(0.5, detector_depth=2.0)
+    assert slanted == pytest.approx(4.0, rel=1e-3)
+    assert slanted < 4.0
+
+
+def test_the_layer_crossings_stop_at_a_buried_endpoint():
+    # Every crossing returned must sit on a PREM boundary and inside the trajectory.
+    for source_depth, detector_depth, costhz in ((0.0, 2.0, -0.9), (100.0, 50.0, -0.6),
+                                                 (0.0, 3000.0, -1.0), (0.0, 20.0, 1.0)):
+        kw = {'source_depth': source_depth, 'detector_depth': detector_depth}
+        edges = earth.prem_layer_edges_along_chord(costhz, source_depth, detector_depth)
+        L = earth.distance_traveled_inside_earth(costhz, source_depth, detector_depth)
+        assert np.all((edges > 0.0) & (edges < L))
+        radii = earth.earth_radial_distance_from_depth(costhz, edges, **kw)
+        for r in np.atleast_1d(radii):
+            assert min(abs(r - b) for b in earth.PREM_BOUNDARIES) < 1e-6
+    # A detector 2 km down is still inside PREM's outermost shell, so looking straight
+    # down it crosses no boundary at all.
+    assert len(earth.prem_layer_edges_along_chord(1.0, detector_depth=2.0)) == 0
+    # Pushed below 6368 km it loses the crossing a surface detector would have seen.
+    assert len(earth.prem_layer_edges_along_chord(-1.0, detector_depth=5.0)) \
+        == len(earth.prem_layer_edges_along_chord(-1.0)) - 1
+
+
+def test_a_depth_outside_the_earth_is_rejected():
+    for bad in (-1.0, gd.EARTH_RADIUS, 2.0*gd.EARTH_RADIUS):
+        with pytest.raises(ValueError):
+            earth.distance_traveled_inside_earth(-0.5, detector_depth=bad)
+        with pytest.raises(ValueError):
+            earth.distance_traveled_inside_earth(-0.5, source_depth=bad)
+
+
+def test_a_trajectory_that_never_reaches_the_source_is_rejected():
+    # Near-horizontal at the detector, the trajectory stays above 6000 km, so a source
+    # 4000 km down is not on it.
+    with pytest.raises(ValueError):
+        earth.distance_traveled_inside_earth(-0.05, source_depth=4000.0)
+    # Downward-going, the trajectory only climbs as it is traced back, so the source
+    # cannot be below the detector.
+    with pytest.raises(ValueError):
+        earth.distance_traveled_inside_earth(0.5, source_depth=100.0, detector_depth=0.0)
+
+
+def test_the_ocean_density_can_be_replaced():
+    # PREM's outermost shell only.
+    assert earth.density_matter_func_prem(6369.0) == pytest.approx(1.020)
+    assert earth.density_matter_func_prem(6369.0, density_matter_ocean=2.65) \
+        == pytest.approx(2.65)
+    for r in (3000.0, 5000.0, 6360.0):
+        assert earth.density_matter_func_prem(r, density_matter_ocean=2.65) \
+            == pytest.approx(earth.density_matter_func_prem(r))
+    got = earth.density_matter_func_prem(np.array([5000.0, 6360.0, 6369.0]),
+                                         density_matter_ocean=2.65)
+    assert got[2] == pytest.approx(2.65)
+    assert got[1] == pytest.approx(earth.density_matter_func_prem(6360.0))
+
+
+def test_a_depth_of_none_means_no_depth():
+    # Both parameters are declared Optional, so None has to mean something, and the only
+    # thing it can mean is an endpoint on the surface.  Before this was normalized, None
+    # reached a division and raised TypeError instead of being read as zero.
+    R = gd.EARTH_RADIUS
+    assert earth.distance_traveled_inside_earth(-0.5, None, None) \
+        == earth.distance_traveled_inside_earth(-0.5)
+    assert np.array_equal(earth.prem_layer_edges_along_chord(-0.8, None, None),
+                          earth.prem_layer_edges_along_chord(-0.8))
+    assert earth.earth_radial_distance_from_depth(-0.8, 100.0, source_depth=None,
+                                                  detector_depth=None) \
+        == earth.earth_radial_distance_from_depth(-0.8, 100.0)
+    L = earth.distance_traveled_inside_earth(-0.8)*gd.UNIT_KM
+    common = dict(energy=10.0*gd.UNIT_GEV, costhz=-0.8, L=L, nu_i=1, nu_f=1,
+                  rtol=1.0e-11, atol=1.0e-13)
+    assert op.osc_prob_3nu_earth(source_depth=None, detector_depth=None, **common) \
+        == op.osc_prob_3nu_earth(**common)
+    assert R > 0.0                      # the radius is what the depths are measured from
+
+
+def test_a_cosine_outside_its_range_is_rejected_on_the_buried_branch():
+    # The general trajectory formulas take the square root of 1 - costhz^2, so an input
+    # outside [-1, 1] would return NaN, and NaN propagates all the way to a probability.
+    for bad in (-1.5, 1.5, 2.0):
+        with pytest.raises(ValueError, match='costhz'):
+            earth.distance_traveled_inside_earth(bad, detector_depth=2.0)
+        with pytest.raises(ValueError, match='costhz'):
+            earth.prem_layer_edges_along_chord(bad, detector_depth=2.0)
+    # The surface branch keeps its long-standing behavior of returning a number, which is
+    # what every existing result was computed with.
+    assert earth.distance_traveled_inside_earth(-1.5) == pytest.approx(3.0*gd.EARTH_RADIUS)

@@ -8,9 +8,10 @@ drifted out of step with the validation table it sits directly beneath: the char
 a 25,800x bar for the case that table reports as ~30x (25,800x came from a *different*
 measurement -- a standard-3nu run at 2 MeV that does not appear in the table at all).
 
-The numbers now live in exactly one place in this repository, ``VALIDATION_GRID`` below,
-which mirrors the table in ``adiabatic_strategy.rst``.  Change a measurement there, rerun
-this script, and the chart follows::
+The chart is drawn from ``VALIDATION_GRID`` below, which carries the same measurements as
+the validation table in ``adiabatic_strategy.rst``; ``tests/test_adiabatic_validation_table.py``
+fails if the two ever disagree.  Change a measurement in both, rerun this script, and the
+chart follows::
 
     python3 docs/make_figures.py
 
@@ -48,7 +49,8 @@ INK = '#333333'
 GRID = '#cccccc'
 
 # (label, number of non-adiabatic windows, measured speedup vs. tight-tolerance solve_ivp).
-# Must stay in step with the validation table in docs/source/adiabatic_strategy.rst.
+# Must stay in step with the validation table in docs/source/adiabatic_strategy.rst,
+# which tests/test_adiabatic_validation_table.py checks rather than trusts.
 VALIDATION_GRID = [
     ('Standard 3ν', 0, 3600),
     ('Standard 4ν (3+1)', 0, 4670),
@@ -190,13 +192,13 @@ BAND = '#dce7f5'     # the wide band for oscprob / layer groups
 MODULE_TIERS = [
     ['magnus', 'expmkernels', 'expansionterms'],
     ['globaldefs', 'adiabatic'],
-    ['earth', 'matter', 'avgprob'],
+    ['earth', 'matter', 'solarmodels', 'avgprob'],
     ['hamiltonians'],
     ['oscprobstd'],
 ]
 MODULE_EDGES = [
     ('magnus', 'globaldefs'), ('magnus', 'adiabatic'),
-    ('globaldefs', 'earth'), ('globaldefs', 'matter'),
+    ('globaldefs', 'earth'), ('globaldefs', 'matter'), ('globaldefs', 'solarmodels'),
     ('adiabatic', 'avgprob'),
     ('matter', 'hamiltonians'), ('globaldefs', 'hamiltonians'),
     ('hamiltonians', 'oscprobstd'),
@@ -261,10 +263,11 @@ def module_layout(path):
     for tier, names in enumerate(MODULE_TIERS):
         y = 0.55 + tier*dy
         span = width/(len(names) + 1)
+        w = min(bw, 0.88*span)          # a fourth box in a tier would overlap at full width
         for i, name in enumerate(names):
             x = left + span*(i + 1)
             pos[name] = (x, y)
-            rects[name] = _rounded(ax, x, y, bw, bh, name)
+            rects[name] = _rounded(ax, x, y, w, bh, name)
 
     for src, dst in MODULE_EDGES:
         deferred = (src, dst) == ('globaldefs', 'hamiltonians')

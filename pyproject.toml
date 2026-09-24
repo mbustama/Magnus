@@ -8,7 +8,7 @@ build-backend = "setuptools.build_meta"
 # [tool.setuptools.packages.find] below); the two are independent, and plain
 # `magnus` was already taken on PyPI by an unrelated project.
 name = "magnuspy"
-version = "1.1.0"
+version = "1.1.1"
 description = "Neutrino oscillation probabilities via the Magnus expansion, for an arbitrary number of flavors and any Hamiltonian, time-dependent or not."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -71,7 +71,7 @@ fast = []          # numba is a base dependency; kept so `magnuspy[fast]` still 
 test = ["pytest", "pytest-cov", "pytest-xdist", "matplotlib>=3.5", "nbformat"]
 dev = ["pytest", "pytest-cov", "pytest-xdist", "twine", "build", "ruff",
        "matplotlib>=3.5", "nbformat"]
-notebooks = ["nbformat", "nbclient", "ipykernel", "matplotlib>=3.5", "scipy", "mpmath"]
+notebooks = ["nbformat", "nbclient", "ipykernel", "matplotlib>=3.5", "scipy", "mpmath", "python-ternary"]
 docs = ["sphinx", "sphinx-autoapi", "sphinx-rtd-theme", "sphinx-copybutton", "sphinxcontrib-bibtex", "sphinxcontrib-mermaid", "myst-parser", "jupyter-sphinx", "ipykernel", "matplotlib>=3.5"]
 
 [project.scripts]
@@ -93,7 +93,9 @@ where = ["src"]
 # installed package, mypy and pyright treat magnuspy as untyped and discard every one of
 # those annotations.  The file is empty by design; its presence is the whole signal.
 [tool.setuptools.package-data]
-magnus = ["py.typed"]
+# The solar-model tables behind density_profile (magnus.solarmodels); each carries its source,
+# citation and terms in its header.
+magnus = ["py.typed", "data/solar_models/*.dat"]
 
 [tool.ruff]
 line-length = 100

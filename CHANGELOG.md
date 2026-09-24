@@ -7,7 +7,298 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **The phase average**, in `magnus.avgprob`:
+  `phase_averaged_probabilities_constant_hamiltonian` and
+  `phase_averaged_probabilities_adiabatic` (issue #64).  Every interference
+  term keeps its phase at the central energy and is weighted by
+  `exp(-sigma^2 phi'^2/2)`, `phi' = d phi / d ln E`, the spread a relative
+  energy spread `sigma` gives that phase; mixing, crossing amplitudes and the
+  eigenbases at the two ends stay at the central energy.  So a phase that runs
+  through many cycles is dropped, as in the `L/E -> infinity` limit, one that
+  barely moves is kept with its real value, and those between are damped
+  smoothly, where the existing functions keep a pair at zero phase below 2 pi
+  and drop it above (constant Hamiltonian), or drop every pair (smooth
+  profile).  On a profile the definition carries into the non-adiabatic
+  windows -- an energy offset moves each instantaneous eigenvalue and leaves
+  the eigenvectors -- so the answer does not depend on where the windows are
+  drawn: the step on the solar disk of issue #62 came from exactly that.
+  Windows are solved at a few Gauss-Hermite nodes in the offset, the stretches
+  between them are exact phases with exact slopes, and no energy is sampled.
+  Measured against a brute-force average of the same definition on five solar
+  chords from 10 GeV to 10 TeV: within 4.2e-05, where the decohered limit is
+  off by up to 0.14.  New constants: `AVG_PHASE_SPREAD` (0.1, the default
+  `sigma`), `PHASE_AVERAGE_WINDOW_THRESHOLD` (0.01, the window search of the
+  profile route), `PHASE_AVERAGE_PATCH_ATOL` (1e-5, the tolerance of its window
+  solves: at most 4.3e-07 from 1e-7 over 30 solar chords, and up to 18 times
+  faster) and `PHASE_SPREAD_SENSITIVITY_THRESHOLD`.  A pair whose slope
+  is round-off, as a pseudo-Dirac pair's is over cosmological distances, is
+  kept coherent rather than averaged away on noise (issue #61).  The existing
+  functions are unchanged.
+
+- Twelve standard solar models ship with the package, and every Sun entry
+  point -- the `osc_prob_{2,3,4,5}nu_sun[_nsi|_liv]` wrappers and
+  `osc_prob_sun` -- takes `density_profile` to use one in place of the
+  exponential fit: BP2000, BP04, BS05-OP, BS05-AGS-OP, B16-GS98,
+  B16-AGSS09met, and B23 in six solar compositions, named in any case.  The
+  electron density comes from each table's mass density and hydrogen
+  fraction, interpolated in its logarithm, held flat below the first row and
+  continued along the last interval's slope past the last.  The sterile
+  wrappers take the neutron-to-proton ratio from the same table unless
+  `ratio_number_neutrons_to_protons` is given; its default is now `None`,
+  which the exponential fit reads as the 1.0 it always used.
+  `stop_at_table_edge=True` returns NaN instead, with the new
+  `SolarModelRangeWarning`, for a baseline that ends past the last row.  The
+  new module `magnus.solarmodels` reads the tables and gives each model's
+  reference, source and terms of use, and
+  `tools/build_solar_model_tables.py` rebuilds them from the authors' files,
+  refusing any whose hash has changed.  On the command line,
+  `--density-profile` takes the model names with `--environment sun`, and
+  `--stop-at-table-edge` is new.  Defaults are unchanged bit for bit.  See
+  the new *Standard solar models* page of the documentation.  Notebook 13
+  now takes its model by name and compares all twelve on the averaged
+  observable, from a cache (`solar_models_cache.json`) that continuous
+  integration reads rather than recomputes; notebook 28 draws the solar
+  figures through the Sun wrappers, which moves the 3+1 and 3+2 curves of
+  the averaged-probability figure by up to 3.5e-3, since they now take
+  n_n/n_p from the table.
+
+- `average=True` on the direct route: `osc_prob_energy_baseline`,
+  `osc_prob_earth` and `osc_prob_sun` now take the keyword that the wrappers
+  have carried since 1.0.0, so a Hamiltonian of your own gets the
+  phase-averaged limit from the same call the wrappers use, by the same three
+  routes -- the closed form when the Hamiltonian does not depend on position,
+  adiabatic transport with a Magnus patch at every crossing when it does and
+  the profile is smooth, and an energy-window average when `t_breakpoints` or
+  `t_slab_edges` declare discontinuities.  The Hamiltonian may be a matrix, a
+  function of the energy, of the position, or of both.  `average=True` refuses
+  `return_evolution_operator=True`, since the averaged routes form no operator.
+  Defaults are unchanged bit for bit.
+- `osc_prob` refuses `average` and `cumulative` by name.  Both pass the
+  passthrough guard, because the batching layer declares them, and used to
+  travel down `**kwargs` to `magnus_expansion_multislab`, which rejected them
+  with a `TypeError` naming a function the caller never invoked; the error now
+  says which function takes them.
+
+- Every oscillation-probability function can return the converged evolution
+  operator alongside the probabilities: `return_evolution_operator=True` makes
+  the call return the pair `(P, U)`, with `P` exactly what it returns today and
+  `U` the operator over the same interval, complex and unitary, indexed
+  `U[final, initial]` so that `P == abs(U)**2.T`.  The keyword lives in the
+  core `osc_prob`, in `osc_prob_energy_baseline` and in the generic entry
+  points, and reaches all sixty `osc_prob_{N}nu_*` wrappers through their
+  `**kwargs`.  It exists for observables built from amplitudes -- the
+  mass-state content of what leaves a dense source, the phase-averaged flavor
+  content at a distant detector -- which no probability matrix can give back,
+  since the phases are gone.  With the keyword set, the refinement ladder
+  compares the operator itself between levels, at the same `rtol` and `atol`,
+  so the returned operator is converged in its phases and not only in its
+  moduli; the specialized engines (hybrid, interaction picture, scan) stand
+  aside for the call, since only the general ladder forms the operator, and a
+  baseline scan takes the per-point path instead of the cumulative traversal.
+  `average=True` and `strategy='hybrid'` are refused together with it, with
+  an error naming the entry point, rather than ignored.  Every default result
+  is unchanged bit for bit: with the keyword off, the only difference is one
+  boolean test at the exit points of the core.
+
+- Either end of an Earth trajectory can now be underground.  Every Earth
+  entry point takes `source_depth` and `detector_depth`, and
+  `earth.distance_traveled_inside_earth`,
+  `earth.earth_radial_distance_from_depth` and
+  `earth.prem_layer_edges_along_chord` take them too.  The zenith angle is
+  measured at the detector, which is what it already meant when the detector
+  was on the surface, so a buried detector also sees downward-going
+  neutrinos (`costhz > 0`) through its overburden — a trajectory the surface
+  geometry gives no path for at all.  Naming `detector_depth` fixes where
+  the trajectory ends, so `L` is then computed rather than given, and
+  passing both raises.  The two named locations still describe a
+  surface-to-surface chord, so combining them with a depth raises as well.
+  Both defaults are zero and every default result is unchanged bit for bit:
+  the three geometry functions return through the expressions they have
+  always used, rather than through the generalized ones, which agree on
+  every zenith angle tested but are not the same expression.
+- `density_matter_ocean` replaces the density of PREM's outermost shell,
+  wherever `electron_fraction_ocean` already replaced its composition.  That
+  shell is 3 km of global-average ocean at 1.020 g/cm³; a detector under
+  continental rock sits under about 2.6 instead, and one under Antarctic ice
+  under about 0.92.  It is a correction worth making for a trajectory close
+  to horizontal, which can spend its whole length inside that shell.
+- Every NuFit release now has a named oscillation-parameter set, so
+  `default_osc_params_set_name` reaches all eighteen of them rather than only
+  6.0 and 6.1.  From 4.0 onward a release splits its fits by whether
+  Super-Kamiokande atmospheric data is included, and both halves are named:
+  `OSC_PARAMS_NU_FIT_<version>_SK_<ordering>`, the spelling the 6.0 and 6.1
+  entries already used, and `OSC_PARAMS_NU_FIT_<version>_NOSK_<ordering>`.  An
+  earlier release has no such split and is `OSC_PARAMS_NU_FIT_<version>_<ordering>`;
+  its secondary categories stay reachable through `load_nufit_params` alone,
+  since `NO` already means normal ordering here and a name carrying
+  `huber_fluxes_no_rsbl` would read as two orderings at once.  Fifty-three
+  names in all.  They are generated from `NUFIT_GLOBAL_FITS`, so a future
+  release needs no second table.  The four existing entries are untouched: the
+  6.0 dictionaries are built from module constants whose values differ from the
+  loader's in the last bit, and a caller pinned to 6.0 keeps the same bits.
+
+### Changed
+
+- **`average=True` returns the phase average** (issue #64), with the spread
+  set by a new keyword, `average_spread` (default 0.1), on every entry point
+  that takes `average`.  Before, a constant Hamiltonian kept each pair of
+  levels at zero phase below 2 pi and dropped it above, and a smooth profile
+  dropped every interference term, including the readout at the end of the
+  path: so a phase of 1 rad was set to zero, one of 20 rad was dropped
+  although 14 per cent of its interference survives a 10 per cent spread,
+  and the solar disk stepped wherever the window search changed its windows
+  (issue #62).  Each point is still computed the old way first, and the old
+  value is returned bit for bit wherever the phase average agrees with it to
+  1e-4 -- on a profile it is not even recomputed without a non-adiabatic
+  window, since adiabatic transport of a decohered start carries no
+  interference.  Measured over every averaged call in the notebooks, tests
+  and documentation, about 5 900 points: every solar MSW curve, notebooks 13,
+  24, 25 and 27, and paper Figures 14-17 are unchanged; 1 557 points move,
+  1 538 of them pixels of paper Figure 5f from 10 GeV up, the rest short
+  baselines and profiles with windows at GeV energies, each a case where the
+  old value was not the average.  `PhaseAveragingWarning` now says that the
+  result depends on the spread (it changes by more than 1e-3 per e-fold of
+  it) rather than that no averaged expression applies.  A Hamiltonian that
+  does not depend on energy, passed as a matrix or as a function of position
+  alone, has no spread to average over and keeps the old behavior; so does
+  the energy-window route of a profile with declared discontinuities.
+  `strategy_info` records the spread, how many points were recomputed, and
+  the largest sensitivity.  Where the result does not change it does not cost
+  more either: on a constant Hamiltonian the points whose pairs have all
+  decohered are now formed in one batch, bit for bit, so an astrophysical
+  vacuum average over 1000 energies takes 11 ms against 26 ms before, check
+  included.
+
+- **A converged `average=True` no longer warns about the coarse levels of its
+  windows** (issue #66).  The phase average solves each non-adiabatic window
+  on a ladder of slab counts, and its first, coarsest levels raised
+  `MagnusConvergenceWarning` although the level returned was fine: the chord
+  of the paper's solar-tomography listing printed it four times.  The window
+  ladders now check the slab norm once, on the level they return; the
+  hybrid strategy and the decohered route keep the check on every level.
+  Over 55 solar chords, firings fell from 6 to 3, none of those dropped
+  preceded an error above 1e-4, and the probabilities are unchanged bit for
+  bit.
+
+- **`rtol` and `atol` set the tolerance of the phase average on a smooth
+  profile** (issue #65).  They were accepted there and dropped without a
+  word: the window patches and the stretch phases converged to a fixed 1e-5,
+  and `PHASE_AVERAGE_PATCH_ATOL`, bound as a default argument at import, did
+  nothing when changed.  Both now converge to the tighter of `rtol` and
+  `atol`, 1e-3 by default, and the decohered limit is returned only where the
+  phase average agrees with it within that tolerance, or within 1e-4 if that
+  is tighter.  Over twenty chords through the solar core, 30 GeV to 3 TeV,
+  the default moves the probability by at most 4.6e-06 from its value at
+  1e-5 and is 2.4 times faster at the median (0.9 to 6.3).
+  `phase_averaged_probabilities_adiabatic` takes `patch_atol` and
+  `phase_tol`; their defaults, `PHASE_AVERAGE_PATCH_ATOL` and the new
+  `PHASE_AVERAGE_PHASE_TOL` (1e-5 each), are read at each call.
+
+- **The adiabatic machinery evaluates the Hamiltonian in batches.**  The search
+  for non-adiabatic windows took the finite-difference derivative at every probe
+  point, and bisected every gap extremum, one Python call per position: about
+  1300 Hamiltonian calls per energy on an averaged solar call, most of its time.
+  The probe grid, the bisections (all of them advanced together, sixty batched
+  steps), the adiabaticity at every candidate, the growth of every window, the
+  parallel transport of `adiabatic_propagator`, the accumulated phases and
+  `oscillation_sampling` now evaluate the Hamiltonian over an array of positions
+  and decompose it in one batched call.  Every reduction is still formed per
+  position as before, so the results are unchanged: 15 044 calls to the
+  adiabatic and averaging functions, over the four solar curves, disk chords
+  with windows, hybrid-strategy calls, notebooks 10, 12, 13 and 23 and the
+  adiabatic and averaging tests, return identical bits.  The one difference
+  found was a single derivative entry, 1 ulp, on a chord profile whose scalar
+  and array evaluations disagree in the last place (NumPy squares an array but
+  calls `pow` on a scalar); nothing downstream moved.  A Hamiltonian that only
+  takes one position at a time is evaluated position by position, as before.
+  The four averaged solar curves of the paper's solar figure (three flavors, with
+  NSI, 3+1 and 3+2, ninety energies each), timed interleaved against the previous
+  code on an idle machine: 1.6, 1.6, 3.1 and 4.9 s before, 0.56, 0.57, 0.88 and
+  1.2 s after, 3.5 times faster together.  The hybrid strategy shares these functions
+  and gains with them (issue #64).
+
 ### Fixed
+
+- `MAGNUS_PAPER_CACHE_ONLY` now forbids notebook 28 from recomputing anything,
+  as both READMEs said it did (issue #63).  Only the scan and timing sections
+  honored it; `cached()`, the helper behind about thirty others, printed
+  "configuration moved, recomputing" and recomputed on the runner, so a
+  section whose configuration moved passed continuous integration instead of
+  failing and naming itself.  It now stops the build the way those two do.
+  The committed cache holds every section under its current key: rebuilt with
+  the variable set, all 84 are read back and none recomputed.
+
+- `average=True` missed any feature narrower than the grid it searches for
+  non-adiabatic windows on, and returned the fully adiabatic answer without a
+  warning (issue #60).  The adiabatic averaging engine looks for windows once,
+  on 200 probes, and never refines; on a supernova shock ray 70,000 km long
+  the probes are 350 km apart, so fronts 0.07 to 70 km wide were never
+  examined, and the call returned 0.04 where the averaged probability is 0.37
+  to 0.59.  The profile is now checked first for features that sharp and able
+  to move probability between levels -- an instantaneous change across them
+  would move more than the new `avgprob.SUDDEN_TRANSFER_THRESHOLD`, the
+  default tolerance.  Where there is one, the windows come from the hybrid
+  strategy's refinement instead, which certifies them; where no refinement
+  resolves the feature, `UnmarkedDiscontinuityWarning` says so and names the
+  cure, `t_breakpoints`.  Of 24 fronts 0.07 to 2000 km wide on that ray, 16
+  are now within 0.01 of a decohered reference and 8 warn; 16 were silently
+  wrong before.  Nothing else moves: every Sun wrapper, the BS05 solar model
+  and the tabulated profiles return the same result, bit for bit, and of the
+  roughly 5,000 averaged calls in the notebooks only 16 pixels of paper
+  Figure 5f are escalated, three of them changing, each to within 0.001 of a
+  reference.  The report of `averaged_probabilities_adiabatic` gains
+  `escalated`, `resolved` and `certified`.  The issue's own reference
+  values, 0.84 and 0.18, were a position average at one energy, which keeps
+  the interference between the two fronts; the averaged probability is the
+  decohered one, and against it the answers with the fronts declared are
+  right, not wrong as the issue said.
+
+- The hybrid engine carried a decoupled state across an exact level crossing
+  onto the other level, and certified the result (issue #59).  At their
+  defaults the 4nu Sun wrappers decouple the sterile state, whose matter term
+  then crosses the lowest active level inside the Sun; for neutrinos between
+  1 and 300 MeV, `osc_prob_4nu_sun`, `_nsi` and `_liv` came back certified and
+  wrong at 17 of 25 energies, the sterile row landing on an active level
+  (P_ss = 0 where it is 1) and P_ee off by up to 0.53.  Two levels that do not
+  couple have an adiabaticity parameter of 0 over a gap of round-off, and the
+  test for a degenerate pair was `gap > 0`, which caught an exact crossing only
+  when round-off happened to give a gap of exactly 0.0.  A gap `eigh` cannot
+  resolve now counts as degenerate, so every such crossing gets a window; the
+  bound is the new `adiabatic.DEGENERACY_ULPS`, measured at 303 exact
+  crossings against 2565 ordinary candidates, with eleven orders of magnitude
+  between them.  Every call without a degenerate pair is unchanged by this
+  part, bit for bit.
+
+- The hybrid engine's refinement certified on agreement alone as soon as any
+  window had opened, so a window at one resonance vouched for the stretch of
+  path it did not cover: a resonance just below the adiabaticity threshold
+  elsewhere was left to adiabatic transport, which agrees with itself whether
+  or not it is right.  The requirement that the adiabaticity parameter fit the
+  tolerance, which used to apply only when no window opened, now applies to
+  whatever no window covers.  Found through the fix above, where the window at
+  the sterile crossing let `osc_prob_4nu_sun` at 237 MeV certify 1.6e-03 out
+  after two iterations while the 3nu call on the same physics refines five
+  times and is right to 8e-05.  Over 300 Sun calls of two to five flavors this
+  moved eight results besides the 4nu defaults: seven became 55 to 7500 times
+  more accurate (the largest gain, a 3nu call at 187 MeV, from 1.3e-04 to 1.8e-08),
+  and one the hybrid can no longer certify is answered by the general ladder
+  within the requested tolerance.  `find_nonadiabatic_windows` and
+  `hybrid_propagator` report the new quantity as `gamma_unpatched` in `info`.
+
+- The scenario functions warn, past `MAGNUS_MAX_PREDEFINED_NUM_FLAVORS`, that they
+  will use the vacuum Hamiltonian passed in `h_vac_energy_indep`, and that path
+  did not work.  `unpack_oscillation_params_from_dict` fell off the end of its
+  own branch and returned None, which `validate_input_battery` then iterated,
+  raising `TypeError`; with `validate_input=False` the parameter-filling step ran
+  on names that the 2-to-5 unpacking had never assigned, raising
+  `UnboundLocalError`.  The helper now returns an empty array, and the four
+  parameter-filling sites are bounded above as well as below, so
+  `osc_prob_vacuum`, `osc_prob_matter_std_potential`, `osc_prob_matter_nsi` and
+  `osc_prob_liv` accept any flavor count when handed a Hamiltonian.  Verified at
+  six and eight flavors, in vacuum and in matter; the two- through five-flavor
+  results are unchanged, bit for bit.
 
 - `earth.dms_to_decimal` added the minutes and seconds to a negative degree
   value instead of counting them in its direction, so every West or South

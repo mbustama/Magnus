@@ -42,6 +42,7 @@ resources/paper/*.blg
 resources/paper/*.log
 resources/paper/*.out
 resources/paper/*.spl
+resources/paper/*.toc
 resources/paper/*.png
 resources/paper/figs/*.png
 notebooks/external_solar_average_cost.partial.json

@@ -10,7 +10,9 @@ script.
 Your first probability
 ------------------------
 
-Install with ``pip install magnuspy``, then:
+Install Magνs with ``pip install magnuspy`` -- the distribution is
+``magnuspy`` on PyPI, the import package is ``magnus`` (see
+:doc:`installation`) -- then:
 
 .. code-block:: python
 
@@ -75,9 +77,8 @@ baseline.
 The last two are the ones to check first when a result looks untouched by the
 parameters you set; see :ref:`conventions`.
 
-Install Magνs with ``pip install magnuspy`` -- the distribution is
-``magnuspy`` on PyPI, the import package is ``magnus`` (see
-:doc:`installation`) -- then:
+Everything from here on also uses NumPy, so the imports for the rest of the
+page are:
 
 .. code-block:: python
 
@@ -86,7 +87,7 @@ Install Magνs with ``pip install magnuspy`` -- the distribution is
    import magnus.globaldefs as gd
 
 Oscillation parameters that are not passed explicitly default to the
-`NuFit 6.1 <http://www.nu-fit.org>`_ best fit (normal ordering) -- the same
+`NuFIT 6.1 <http://www.nu-fit.org>`_ best fit (normal ordering) -- the same
 release :func:`~magnus.globaldefs.load_nufit_params` returns by default; pass
 ``s12``, ``D31``, ``dCP``, etc., or ``nubar=True``, to change them.
 
@@ -114,7 +115,7 @@ through:
 
    P = oscprob.osc_prob_3nu_vacuum(energy, L, **osc)
 
-Every NuFit release from v1.0 to v6.1 is available, along with the
+Every NuFIT release from v1.0 to v6.1 is available, along with the
 release-specific secondary category where one exists (``'with_SK'`` /
 ``'without_SK'`` from v4.0, ``'LEM'`` / ``'LID'`` for v2.1); omitting
 ``category`` takes the release's preferred one.  ``gd.NUFIT_GLOBAL_FITS.keys()``
@@ -250,7 +251,7 @@ built-in potential entirely.
           s12=0.308, s23=0.470, s13=2.215e-2,
           dCP=212./180.*np.pi, D21=7.49e-5, D31=2.513e-3, angles='sin2')
 
-      # or straight off the NuFit table, degrees and all
+      # or straight off the NuFIT table, degrees and all
       h_vac = hamiltonians.hamiltonian_3nu_vacuum_energy_independent(
           s12=33.76, s23=43.28, s13=8.62,
           dCP=212.0, D21=7.49e-5, D31=2.513e-3, angles='deg')

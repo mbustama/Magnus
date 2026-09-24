@@ -49,6 +49,12 @@ electron number density as `n_e = rho * N_A * (1 + X) / 2` — the hydrogen mass
 from the table rather than assumed, because `Y_e` runs from 0.68 at the centre to 0.86 at the
 surface and a fixed 0.5 would be wrong by up to 70 %.
 
+The package itself now ships this model, trimmed to the three columns it reads, as
+`src/magnus/data/solar_models/bs05_ags_op.dat` (built by `tools/build_solar_model_tables.py`
+from this same file, whose SHA-256 it checks).  The full copy stays here because
+`physical_profiles.py` reads it, and so that the batteries do not depend on the package's
+data.
+
 ## Everything else here
 
 Every other file in this directory is original to this repository. The **shapes** of two

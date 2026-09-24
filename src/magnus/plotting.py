@@ -28,7 +28,9 @@ The functions take **named arguments for the quantities every figure has**
 settings: ``legend_kw``, ``grid_kw``, ``savefig_kw``, ``subplots_kw``, and per
 curve any :class:`~matplotlib.lines.Line2D` keyword.
 
-There is deliberately **no bare** ``**kwargs`` **on any of these functions**. A
+There is deliberately **no bare** ``**kwargs`` **on any of these functions** except
+the three presets, which forward verbatim to :func:`plot_curves` under the name
+``**_forbidden``, so a typo still raises and names the offending key. A
 catch-all signature accepts a misspelled keyword in silence, and this project
 has already paid for that once: ``oscprob``'s keyword chain forwarded unknown
 names down several layers before failing somewhere unrecognizable, which is why
@@ -819,7 +821,8 @@ def plot_probability_vs_baseline(
     xscale : str, optional
         Abscissa scale. Default is ``'log'``.
     ymajor, yminor : float, optional
-        Ordinate tick spacings.
+        Ordinate tick spacings.  Pass None to hand the axis back to Matplotlib's own
+        locator. Default: 0.10 and 0.02.
 
     Returns
     -------
@@ -900,7 +903,8 @@ def plot_probability_vs_energy(
     xscale : str, optional
         Abscissa scale. Default is ``'log'``.
     ymajor, yminor : float, optional
-        Ordinate tick spacings.
+        Ordinate tick spacings.  Pass None to hand the axis back to Matplotlib's own
+        locator. Default: 0.10 and 0.02.
 
     Returns
     -------
@@ -1050,7 +1054,8 @@ def plot_probability_with_profile(
     shared_ylabel_labelpad : float, optional
         Padding of that shared label. Default is ``20.0``.
     title : str, optional
-        Title, placed above the density panel.
+        Title, placed above the top panel, which is the density panel only when
+        ``profiles`` is given.
     title_fontsize : float, optional
         Title font size. Default is ``23.0``.
     xlim : tuple of float, optional
@@ -1090,7 +1095,8 @@ def plot_probability_with_profile(
     grid_kw : dict, optional
         Extra keywords merged over :data:`HOUSE_GRID_KW`.
     ylabel_labelpad : float, optional
-        Padding of the ordinate labels.
+        Padding of the density panel's ordinate label.  The probability panels use a
+        fixed padding of 15 and do not read this. Default: 25.0.
     figsize : tuple of float, optional
         Figure size. Defaults to ``(18, 9)`` for one probability panel, growing
         by 4.5 inches per extra panel.
@@ -1343,6 +1349,15 @@ def plot_probability_with_average(
         akw.update(average_kw or {})
         curves.append(dict(y=avg_curve, **akw))
 
+    # Three keywords are handled here rather than forwarded.  `legend` collided with the
+    # legend=False below, so a caller who forwarded it got "multiple values" and could not
+    # suppress the legend at all.  `savefig` would have written the file inside the call
+    # below, before the averaged entry is added to the legend, so the saved figure was
+    # missing the very thing the plot exists to show.
+    _legend = _forbidden.pop('legend', True)
+    _savefig = _forbidden.pop('savefig', None)
+    _savefig_kw = _forbidden.pop('savefig_kw', None)
+
     fig, ax = plot_probability_vs_baseline(x, curves, legend=False, **_forbidden)
 
     main = ax[0] if isinstance(ax, np.ndarray) else ax
@@ -1356,7 +1371,10 @@ def plot_probability_with_average(
     for key, name in (('legend_title', 'title'), ('legend_loc', 'loc')):
         if _forbidden.get(key) is not None:
             lkw[name] = _forbidden[key]
-    main.legend(handles, labs, **lkw)
+    if _legend:
+        main.legend(handles, labs, **lkw)
+    # Saved last, so the file carries the averaged entry.
+    _finish(fig, _savefig, _savefig_kw, False)
     return fig, ax
 
 
@@ -1625,7 +1643,8 @@ def plot_oscillogram(
     xlim, ylim : tuple of float, optional
         Axis limits. Default to the data range.
     xmajor, xminor, ymajor, yminor : float, optional
-        Tick spacings.
+        Tick spacings.  Pass None to hand an axis back to Matplotlib's own locator.
+        Default: 0.2, 0.02, 0.1 and 0.02.
     figsize : tuple of float, optional
         Figure size. Default is ``(9.0, 9.0)``.
     contourf_kw : dict, optional

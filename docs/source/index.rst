@@ -65,7 +65,61 @@ Magnus series lives in the Lie algebra, so the resulting evolution operator
 is **exactly unitary by construction** — probabilities are non-negative and
 sum to one at machine precision, at any accuracy setting.
 
-.. _when-is-magnus-a-win:
+**Flexible.**  The Hamiltonian is an argument, not an assumption.  Standard
+oscillations, non-standard interactions, Lorentz-invariance violation, sterile
+states, pseudo-Dirac pairs and a model of your own all go through the same call.
+Two to five flavors ship ready-made; the generic entry points take any dimension
+and any profile, given as a function of position.
+
+**Fast.**  A scan over energy or arrival direction is one batched call rather than
+a loop, worth one to two orders of magnitude per probability.  The median call
+over 164 Earth and solar configurations is **2 ms**; a 200-energy Earth-crossing
+scan takes 76 ms, and a 100x100 oscillogram about 2 s.
+
+**Accurate.**  Probabilities are unitary by construction at every setting, not by
+refinement, and on a smooth profile Magνs reaches **2.9e-13** where a composition
+of constant slabs floors at 2.5e-11.  Where it cannot certify its own answer, it
+says so.
+
+What it can compute
+--------------------
+
+* Oscillations through a **varying profile**: the Earth's PREM layers, a tabulated
+  solar model, a supernova shock front, or any density you supply.
+* The **phase-averaged** probability a solar or astrophysical experiment actually
+  measures, over its energy resolution, without resolving the oscillation.
+* The **evolution operator** itself, alongside the probabilities, for observables
+  built from amplitudes.
+* The same probabilities **from a shell**, with no Python, through the ``magnus``
+  command.
+
+What it has been used for
+--------------------------
+
+Each of these is one call with a different Hamiltonian, profile or observable.
+
+* **Beam experiments** — appearance probabilities along the DUNE, T2K, Hyper-K and
+  ESS chords, from two named sites (`notebook 04
+  <https://github.com/mbustama/Magnus/blob/main/notebooks/04_magnus_long_baseline.ipynb>`_).
+* **Atmospheric oscillograms** — probability over zenith angle and energy in a
+  single batched call (`notebook 06
+  <https://github.com/mbustama/Magnus/blob/main/notebooks/06_magnus_oscillograms.ipynb>`_).
+* **Solar neutrinos** — a real BS05 profile and the averaged probability an
+  experiment sees (`notebook 13
+  <https://github.com/mbustama/Magnus/blob/main/notebooks/13_magnus_tabulated_solar_model.ipynb>`_).
+* **Supernova shock fronts** — where a travelling discontinuity changes the
+  conversion probability itself (`notebook 14
+  <https://github.com/mbustama/Magnus/blob/main/notebooks/14_magnus_supernova_shock.ipynb>`_).
+* **Astrophysical flavor composition**, including pseudo-Dirac pairs that stay
+  coherent after everything else has averaged (`notebook 29
+  <https://github.com/mbustama/Magnus/blob/main/notebooks/29_magnus_pseudo_dirac.ipynb>`_).
+* **A Hamiltonian of your own** — a long-range :math:`L_e - L_\mu` interaction
+  sourced by the Sun's electrons, a cavity in the Earth's crust, geoneutrinos, or
+  a jet inside a collapsing star (`notebook 19
+  <https://github.com/mbustama/Magnus/blob/main/notebooks/19_magnus_custom_hamiltonian.ipynb>`_).
+
+:doc:`recipes` gives the code for each in a few lines; :doc:`tutorials` is the
+guided tour.
 
 .. _what-accuracy-means:
 
@@ -96,20 +150,23 @@ tolerance.  Truncating early costs accuracy, never norm.
      - machine precision
    * - 2ν constant-density matter vs the closed form, ν and ν̄
      - machine precision
-   * - Earth crossing (PREM) at the default ``rtol = atol = 1e-3``, against a
-       1e-7-tolerance reference
-     - ~5e-4
+   * - Earth crossing (PREM) at the default ``rtol = atol = 1e-3``, against the
+       same call at 1e-7
+     - median 9e-7, worst 2e-3
    * - Asymmetric profiles with complex Hamiltonians vs ``solve_ivp``/DOP853 at
        ``rtol=1e-12``
      - 1e-4 to 1e-7
-   * - Energy-batched scan vs the per-point path
-     - exactly 0.0
+   * - Energy-batched scan vs the per-point path, grid and tolerances pinned
+     - 1e-12
    * - ``n_jobs > 1`` vs serial
      - exactly 0.0
 
-The last two rows are the ones worth reading twice: they are *bit-identity*
-assertions, not tolerances, so an optimization that changed an answer would fail
-them rather than pass quietly.
+The last row is the one worth reading twice: it is a *bit-identity* assertion
+rather than a tolerance, so an optimization that changed an answer would fail it
+rather than pass quietly.  The batched scan is held to 1e-12, and only with the
+grid pinned, which is what isolates the batching: left to refine on its own it
+builds the matter profile once for the whole scan, moving the answer at the 1e-6
+level.  Notebook 24 measures that comparison.
 
 **And the honest caveat.** ``rtol``/``atol`` are a stopping criterion --- the
 ladder halts when two successive refinement levels agree --- not a bound on the
@@ -118,6 +175,8 @@ error of what is returned.  Usually that is conservative.  It is not always:
 two levels agreed coincidentally and the answer was wrong by 0.855.  Magνs warns
 loudly in that regime, and :doc:`diagnostics` reports the measured
 false-alarm rate of each warning.
+
+.. _when-is-magnus-a-win:
 
 When is Magνs a win?
 ------------------------
@@ -234,10 +293,16 @@ evaluates Magνs for a job it was never meant to do:**
 When to use NuOscProbExact instead
 -----------------------------------
 
-Magνs is not the right tool for a Hamiltonian that does not change: where a
-closed form exists, an exact algebraic solution beats a truncated series.
-:doc:`comparison` carries the decision table --- which of the two to reach for,
-case by case --- together with the measured speed and accuracy behind it.
+Magνs answers a constant-density call exactly: the series terminates at its first
+term, so the evolution operator is a single exponential carrying no discretization
+at all, and a whole scan is one batched exponential.  What NuOscProbExact offers
+there is not a better answer but a leaner route to it, being built for that case
+alone rather than carrying a general solver's dispatch, validation and refinement
+ladder.  The margin is narrow and runs both ways: on a 3ν constant-density scan
+Magνs costs 1.10 µs per energy against NuOscProbExact's 1.44 µs batched, while at
+a *single* point it costs 33.8 µs against 19.9 µs.  :doc:`comparison` carries the
+decision table --- which of the two to reach for, case by case --- together with
+the measured speed and accuracy behind it.
 
 
 .. _what-magnus-earns-its-place-on:
@@ -264,7 +329,10 @@ The SU(N) closed forms stop at SU(4); Magνs has no ceiling.
 **Pre-packaged observables.**  ``average=True`` returns the phase-averaged
 probability a solar experiment actually measures, evaluated in closed form,
 rather than leaving you to resolve some 13 000 radians of phase and average the
-result yourself.  Neither of the other codes offers it.
+result yourself.  Neither of the other codes offers it.  And every entry point
+can hand back the converged evolution operator alongside the probabilities
+(``return_evolution_operator=True``), for the observables that are built from
+amplitudes rather than from probabilities.
 
 .. _performance:
 
@@ -371,6 +439,7 @@ Salient Features
    tutorials
    comparison
    functions
+   solar_models
    cli
    plotting
 

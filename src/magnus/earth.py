@@ -10,11 +10,13 @@ Routine listings
 ----------------
 
     * density_matter_func_prem - Returns the density inside the Earth
-           using the Preliminary Reference Earth Model (PREM)
+           using the Preliminary Reference Earth Model (PREM), with an
+           optional override of the outermost shell's density
     * prem_layer_edges_along_chord - Returns the positions at which a
            chord through the Earth crosses the PREM layer boundaries
     * distance_traveled_inside_earth - Returns the chord length for a
-           given neutrino direction
+           given neutrino direction, with either endpoint optionally
+           underground
     * earth_radial_distance_from_depth - Converts position along a
            chord to radial distance from the center of the Earth
     * dms_to_decimal - Converts (degree, minute, second) coordinates to
@@ -84,7 +86,8 @@ _PREM_COEFFS = np.array([
 
 
 def density_matter_func_prem(r: Union[float, np.ndarray],
-    tol: Optional[float]=1.e-8) -> Union[float, np.ndarray]:
+    tol: Optional[float]=1.e-8,
+    density_matter_ocean: Optional[float]=None) -> Union[float, np.ndarray]:
     r"""Returns the matter density inside the Earth according to the
     Preliminary Reference Earth Model (PREM) [1]_.
 
@@ -95,6 +98,10 @@ def density_matter_func_prem(r: Union[float, np.ndarray],
 
     .. versionadded:: 1.0.0
 
+    .. versionchanged:: 1.1.1
+       Added ``density_matter_ocean``, which replaces the density of
+       PREM's outermost shell.  Left as None, the profile is unchanged.
+
     Parameters
     ----------
     r : float or np.ndarray
@@ -104,6 +111,15 @@ def density_matter_func_prem(r: Union[float, np.ndarray],
         ``globaldefs.EARTH_RADIUS`` before a ValueError is raised;
         radii within the tolerance are clamped onto the surface.
         Default: 1e-8.
+    density_matter_ocean : float, optional
+        Density of the outermost PREM shell, :math:`r > 6368` km
+        [:math:`\text{g cm}^{-3}`]. PREM puts a global-average ocean
+        there, at 1.020; a detector under continental rock sits under
+        about 2.6 instead, and one under Antarctic ice under about 0.92.
+        Pass ``electron_fraction_ocean`` alongside it to set the
+        composition of the same shell, which
+        :func:`electron_fraction_func_prem` handles. Default: None, i.e.
+        PREM's own ocean.
 
     Returns
     -------
@@ -151,35 +167,138 @@ def density_matter_func_prem(r: Union[float, np.ndarray],
     # right-closed bins of the piecewise definition, e.g., r <= 1221.5) and
     # evaluate the density polynomial via Horner's rule.  This is ~10x
     # faster than an np.select over the ten shells.
-    c = _PREM_COEFFS[np.searchsorted(PREM_BOUNDARIES, r, side='left')]
+    shell = np.searchsorted(PREM_BOUNDARIES, r, side='left')
+    c = _PREM_COEFFS[shell]
     density = c[..., 0] + x*(c[..., 1] + x*(c[..., 2] + x*c[..., 3]))
+
+    # PREM's outermost shell is 3 km of global-average ocean.  A detector under rock or
+    # ice has none, and for a trajectory close to horizontal that shell can be the whole
+    # path, so a caller who knows what their outermost 3 km is made of can say so.  The
+    # substitution is by shell index rather than by radius, so it tracks the boundary at
+    # 6368 km wherever the lookup puts it.  Left as None, nothing is substituted and the
+    # returned array is the one every earlier version returned.
+    if density_matter_ocean is not None:
+        density = np.where(shell == len(PREM_BOUNDARIES), float(density_matter_ocean),
+                           density)
 
     return float(density) if scalar_input else density
 
 
-def distance_traveled_inside_earth(costhz: float) -> float:
+def _depths_or_zero(source_depth: Optional[float],
+    detector_depth: Optional[float]) -> tuple[float, float]:
+    r"""Returns the two depths with None read as zero, i.e. as an endpoint on the surface.
+
+    Both parameters are declared Optional, so None has to mean something; the only thing
+    it can mean is "no depth".  Normalizing here rather than at each use keeps the test
+    that selects the default code path (``source_depth == 0.0 and detector_depth == 0.0``)
+    from sending a None down the general branch, where it would surface as a TypeError
+    from ``float(None)`` instead of this package's descriptive ValueError.
+
+    .. versionadded:: 1.1.1
+    """
+    return (0.0 if source_depth is None else source_depth,
+            0.0 if detector_depth is None else detector_depth)
+
+
+def _validated_endpoint_radii(costhz: float, source_depth: float, detector_depth: float,
+    source_func_name: str) -> tuple[float, float]:
+    r"""Returns (r_source, r_detector) [km] for two depths below the surface.
+
+    Shared by the three trajectory functions so that one depth cannot be rejected by one
+    of them and accepted by another.  A depth equal to the Earth's radius would put an
+    endpoint at the center, where the zenith angle no longer names a direction, so the
+    interval is half open.
+
+    The cosine is checked here too, and only here, which means only on the buried branch.
+    A cosine outside [-1, 1] is not a direction, and the general trajectory formulas take
+    the square root of :math:`1 - \cos^2\theta_z` and would return NaN for one -- quietly,
+    since NaN propagates all the way to a probability.  The surface branch keeps its own
+    long-standing behavior of returning a number for such input rather than raising,
+    because tightening it would change results that already exist.
+
+    .. versionadded:: 1.1.1
+    """
+    R = gd.EARTH_RADIUS
+
+    if not (-1.0 <= float(costhz) <= 1.0):
+        raise ValueError('Error in magnus: earth.' + source_func_name + ': costhz is the ' + \
+            'cosine of the zenith angle, so it must lie in [-1, 1]; got ' + str(costhz) + '.')
+
+    for name, value in (('source_depth', source_depth), ('detector_depth', detector_depth)):
+        if not (0.0 <= float(value) < R):
+            raise ValueError('Error in magnus: earth.' + source_func_name + ': ' + name + \
+                ' is measured below the surface of the Earth, so it must lie in ' + \
+                '[0, globaldefs.EARTH_RADIUS = ' + str(R) + ') km; got ' + str(value) + '.')
+
+    return R - float(source_depth), R - float(detector_depth)
+
+
+def distance_traveled_inside_earth(costhz: float, source_depth: Optional[float]=0.0,
+    detector_depth: Optional[float]=0.0) -> float:
     r"""Returns the distance traveled by a neutrino inside the Earth,
     traveling with a cosine of zenith angle costhz.
-    
-    Returns the length of the path traveled by a neutrino from the 
-    surface ot the Earth, through it, until it reaches a detector. The
+
+    Returns the length of the path traveled by a neutrino from its point
+    of entry into the Earth, through it, until it reaches a detector. The
     direction of the neutrino is parametrized by the zenith angle of the
-    neutrino. Assumes that the neutrino detector is on the surface of 
-    the Earth, not underground. As a result, the distance is zero for
-    all values of costhz > 0.
+    neutrino, **measured at the detector**.
+
+    By default the source and the detector both sit on the surface, which
+    is the geometry every earlier version assumed: the path is the full
+    chord, and its length is zero for all values of costhz > 0.  Burying
+    either end moves the corresponding endpoint to a smaller radius.  The
+    zenith angle keeps its meaning throughout, since at zero depth the
+    detector is on the surface; a buried detector sees a downward-going
+    neutrino (costhz > 0) through its overburden, so the path length is
+    then positive rather than zero.
+
+    Writing :math:`r_{\rm s} = R_\oplus - {}` ``source_depth`` and
+    :math:`r_{\rm d} = R_\oplus - {}` ``detector_depth``, the impact
+    parameter of the trajectory is :math:`b = r_{\rm d} \sqrt{1 -
+    \cos^2\theta_z}` and its length is
+
+    .. math::
+       L = \sqrt{r_{\rm s}^2 - b^2} - r_{\rm d} \cos\theta_z ~.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.1
+       Added ``source_depth`` and ``detector_depth``.  Their defaults of
+       zero reproduce the surface-to-surface chord bit for bit, through
+       the same expression as before.
 
     Parameters
     ----------
     costhz : float
-        Cosine of the zenith angle of the neutrino.
+        Cosine of the zenith angle of the neutrino, measured at the
+        detector; must lie in [-1, 1].  The bound is enforced only when an
+        endpoint is buried: with both ends on the surface, a costhz outside
+        it returns a number rather than raising.
+    source_depth : float or None, optional
+        Depth of the entry point below the surface [km].  None is read as
+        0.0. Default: 0.0, i.e. the neutrino enters at the surface.
+    detector_depth : float or None, optional
+        Depth of the detector below the surface [km].  None is read as 0.0.
+        Default: 0.0, i.e. the detector sits on the surface.
 
     Returns
     -------
     float
-        Path length inside the Earth [km].
-    
+        Path length inside the Earth [km].  Every ``osc_prob_*`` baseline is
+        in :math:`\text{eV}^{-1}`, so multiply by
+        :data:`magnus.globaldefs.UNIT_KM` before passing this on; handing the
+        raw value over returns a converged, unitary, wrong answer.
+
+    Raises
+    ------
+    ValueError
+        If ``costhz`` is outside [-1, 1] and an endpoint is buried, if either
+        depth is outside [0, R_earth), if the trajectory never reaches the
+        source radius, which happens when the source is buried below the
+        trajectory's closest approach to the center, or if the resulting path
+        length is negative, which happens when the source sits deeper than the
+        detector on a downward-going trajectory.
+
     Examples
     --------
     .. jupyter-execute::
@@ -189,12 +308,58 @@ def distance_traveled_inside_earth(costhz: float) -> float:
         for costhz in (-0.2, -0.5, -1.0):
             print('costhz = %5.2f -> %8.1f km'
                   % (costhz, earth.distance_traveled_inside_earth(costhz)))
+
+    A detector 2 km underground sees a shorter upward-going path, and a
+    downward-going one through its overburden:
+
+    .. jupyter-execute::
+
+        for costhz in (-1.0, 0.5, 1.0):
+            print('costhz = %5.2f -> %10.4f km'
+                  % (costhz, earth.distance_traveled_inside_earth(
+                      costhz, detector_depth=2.0)))
 """
-    return 0.0 if costhz > 0.0 else -2.0 * gd.EARTH_RADIUS * costhz
+    source_depth, detector_depth = _depths_or_zero(source_depth, detector_depth)
+
+    # The default geometry returns through the expression this function has always used,
+    # rather than through the general one below.  The two agree bitwise on every zenith
+    # angle tested (220001 of them, randomized and gridded), but "agrees on everything
+    # measured" is a weaker promise than "is the same expression", and every result this
+    # package has published was computed with this line.
+    if source_depth == 0.0 and detector_depth == 0.0:
+        return 0.0 if costhz > 0.0 else -2.0 * gd.EARTH_RADIUS * costhz
+
+    r_s, r_d = _validated_endpoint_radii(costhz, source_depth, detector_depth,
+                                         'distance_traveled_inside_earth')
+
+    # Grouped as (r_s - r_d)(r_s + r_d) + (r_d costhz)^2 rather than the algebraically
+    # equal r_s^2 - r_d^2 (1 - costhz^2).  The second form subtracts two numbers near
+    # R_earth^2 and loses the leading digits when the two radii are close, which is the
+    # common case; the first is exact when they are equal.
+    disc = (r_s - r_d)*(r_s + r_d) + (r_d*costhz)**2
+
+    if disc < 0.0:
+        raise ValueError('Error in magnus: earth.distance_traveled_inside_earth: the ' + \
+            'trajectory never reaches the source radius. Its closest approach to the ' + \
+            'center is ' + str(r_d*np.sqrt(1.0-costhz*costhz)) + ' km, which is above ' + \
+            'the source at ' + str(r_s) + ' km. Move the source outwards, or point the ' + \
+            'trajectory closer to the vertical.')
+
+    length = np.sqrt(disc) - r_d*costhz
+
+    if length < 0.0:
+        raise ValueError('Error in magnus: earth.distance_traveled_inside_earth: a ' + \
+            'downward-going trajectory (costhz = ' + str(costhz) + ' >= 0) travels ' + \
+            'outward as it is traced back from the detector, so it can only start at a ' + \
+            'radius above the detector. The source is at ' + str(r_s) + ' km and the ' + \
+            'detector at ' + str(r_d) + ' km.')
+
+    return float(length)
 
 
 def earth_radial_distance_from_depth(costhz: float, l: Union[float, np.ndarray],
-    tol: Optional[float]=1.e-8) -> Union[float, np.ndarray]:
+    tol: Optional[float]=1.e-8, source_depth: Optional[float]=0.0,
+    detector_depth: Optional[float]=0.0) -> Union[float, np.ndarray]:
     r"""Returns the radial distance measured from the center of the
     Earth to a position inside the Earth, given by costhz and l.
 
@@ -205,20 +370,36 @@ def earth_radial_distance_from_depth(costhz: float, l: Union[float, np.ndarray],
     l.  Accepts a single distance or an array of distances; array input
     is evaluated in a single vectorized pass.
 
+    The two depths move the endpoints of that trajectory, exactly as they
+    do in :func:`distance_traveled_inside_earth`, and carry the same
+    defaults: the entry point is on the surface and so is the detector.
+    Whatever the depths, ``l`` is measured from the entry point, so
+    ``l = 0`` returns the source radius and ``l = L`` the detector's.
+
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.1
+       Added ``source_depth`` and ``detector_depth``.  Their defaults of
+       zero reproduce the surface-to-surface chord bit for bit, through
+       the same expression as before.
 
     Parameters
     ----------
     costhz : float
-        Cosine of the zenith angle of the neutrino.
+        Cosine of the zenith angle of the neutrino, measured at the
+        detector.
     l : float or np.ndarray
         Distance(s) of the neutrino from its point of entry into the
         Earth [km].
     tol : float, optional
-        Absolute tolerance by which ``l`` may exceed the distance
+        Absolute tolerance [km] by which ``l`` may exceed the distance
         traveled inside the Earth before a ValueError is raised;
         distances within the tolerance are clamped onto the exit point.
         Default: 1e-8.
+    source_depth : float, optional
+        Depth of the entry point below the surface [km]. Default: 0.0.
+    detector_depth : float, optional
+        Depth of the detector below the surface [km]. Default: 0.0.
 
     Returns
     -------
@@ -229,12 +410,28 @@ def earth_radial_distance_from_depth(costhz: float, l: Union[float, np.ndarray],
     ------
     ValueError
         If any l exceeds the distance traveled inside the Earth for
-        this value of costhz by more than the tolerance tol.
+        this value of costhz by more than the tolerance tol, or if
+        either depth is rejected by
+        :func:`distance_traveled_inside_earth`.
+
+    Examples
+    --------
+    .. jupyter-execute::
+
+        from magnus import earth
+
+        L = earth.distance_traveled_inside_earth(-0.8, detector_depth=2.0)
+        for l in (0.0, 0.5*L, L):
+            print('l = %9.3f km -> r = %8.3f km'
+                  % (l, earth.earth_radial_distance_from_depth(
+                      -0.8, l, detector_depth=2.0)))
     """
+    source_depth, detector_depth = _depths_or_zero(source_depth, detector_depth)
+
     scalar_input = (np.ndim(l) == 0)
     l = np.asarray(l, dtype=float)
 
-    d = distance_traveled_inside_earth(costhz)
+    d = distance_traveled_inside_earth(costhz, source_depth, detector_depth)
 
     if np.any(l - d > tol):
         raise ValueError('Error in magnus: earth_radial_distance_from_depth: value of ' + \
@@ -244,15 +441,36 @@ def earth_radial_distance_from_depth(costhz: float, l: Union[float, np.ndarray],
     # Clamp values of l within tolerance of the exit point onto the exit point
     l = np.minimum(l, d)
 
-    r2 = gd.EARTH_RADIUS*gd.EARTH_RADIUS
-    r2 = r2 + (d-l)**2
-    r2 = r2 + 2.0*gd.EARTH_RADIUS*(d-l)*costhz
-    r = np.sqrt(np.abs(r2))
+    # As in distance_traveled_inside_earth, the default geometry returns through the
+    # expression this function has always used.  Here the two forms are not bitwise equal
+    # -- they differ by 1.5e-14 relative, the general one being the more accurate, since
+    # it is exactly symmetric about the closest approach where this one is symmetric only
+    # to 8.8e-10 km -- so routing the default through the general form would perturb every
+    # Earth result the package has ever produced.  Improving the default is a change worth
+    # making on its own evidence, not a side effect of adding a parameter.
+    if source_depth == 0.0 and detector_depth == 0.0:
+        r2 = gd.EARTH_RADIUS*gd.EARTH_RADIUS
+        r2 = r2 + (d-l)**2
+        r2 = r2 + 2.0*gd.EARTH_RADIUS*(d-l)*costhz
+        r = np.sqrt(np.abs(r2))
+        return float(r) if scalar_input else r
+
+    _, r_d = _validated_endpoint_radii(costhz, source_depth, detector_depth,
+                                       'earth_radial_distance_from_depth')
+
+    # Distance from the entry point to the trajectory's closest approach to the center,
+    # which is where its radius is the impact parameter b.  Everything else follows from
+    # Pythagoras on the right triangle (b, l - l_closest, r).
+    b = r_d*np.sqrt(1.0 - costhz*costhz)
+    l_closest = d + r_d*costhz
+
+    r = np.sqrt(b*b + (l - l_closest)**2)
 
     return float(r) if scalar_input else r
 
 
-def prem_layer_edges_along_chord(costhz: float) -> np.ndarray:
+def prem_layer_edges_along_chord(costhz: float, source_depth: Optional[float]=0.0,
+    detector_depth: Optional[float]=0.0) -> np.ndarray:
     r"""Returns the positions along a chord through the Earth at which
     the chord crosses the PREM layer boundaries.
 
@@ -274,20 +492,38 @@ def prem_layer_edges_along_chord(costhz: float) -> np.ndarray:
 
        u^2 + 2 R \cos\theta_z\, u + \left(R^2 - r_b^2\right) = 0 .
 
+    The two depths move the endpoints of the trajectory, exactly as they
+    do in :func:`distance_traveled_inside_earth`.  Only crossings strictly
+    inside the trajectory are returned, so burying an endpoint drops the
+    boundaries the shortened path no longer reaches.  An endpoint that
+    lands exactly on a boundary radius is not a crossing: the density is
+    smooth on the whole of a path that stops there.
+
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.1
+       Added ``source_depth`` and ``detector_depth``.  Their defaults of
+       zero reproduce the surface-to-surface chord bit for bit, through
+       the same expression as before.
 
     Parameters
     ----------
     costhz : float
-        Cosine of the zenith angle of the neutrino (crossings exist
-        only for costhz < 0).
+        Cosine of the zenith angle of the neutrino, measured at the
+        detector.  With both endpoints on the surface, crossings exist
+        only for costhz < 0; a buried detector also sees a downward-going
+        trajectory through its overburden.
+    source_depth : float, optional
+        Depth of the entry point below the surface [km]. Default: 0.0.
+    detector_depth : float, optional
+        Depth of the detector below the surface [km]. Default: 0.0.
 
     Returns
     -------
     np.ndarray
         Sorted crossing positions l [km], each strictly inside (0, d).
         Empty if the chord crosses no boundary.
-    
+
     Examples
     --------
     .. jupyter-execute::
@@ -303,23 +539,65 @@ def prem_layer_edges_along_chord(costhz: float) -> np.ndarray:
               % (len(edges), np.round(edges[:3], 1)))
         print('symmetric about the midpoint:',
               np.allclose(edges + edges[::-1], d))
+
+    A buried detector loses the crossings its shortened path no longer
+    reaches.  Looking straight up, it keeps all eighteen until it passes
+    below a boundary itself; looking straight down, its whole overburden
+    lies inside PREM's outermost shell, so it crosses nothing:
+
+    .. jupyter-execute::
+
+        for depth in (0.0, 2.0, 20.0):
+            print('%5.1f km down: %2d crossings looking up, %d looking down'
+                  % (depth,
+                     len(earth.prem_layer_edges_along_chord(-1.0, detector_depth=depth)),
+                     len(earth.prem_layer_edges_along_chord(1.0, detector_depth=depth))))
 """
-    if costhz >= 0.0:
+    source_depth, detector_depth = _depths_or_zero(source_depth, detector_depth)
+
+    # The default geometry keeps the expression this function has always used, for the
+    # reason given in distance_traveled_inside_earth.  The general branch below reduces to
+    # it, the two differing only in which end each parameterizes from.
+    if source_depth == 0.0 and detector_depth == 0.0:
+        if costhz >= 0.0:
+            return np.array([])
+
+        R = gd.EARTH_RADIUS
+        d = -2.0*R*costhz                    # chord length [km]
+        rmin2 = R*R*(1.0 - costhz*costhz)    # (squared) closest approach to the center
+
+        crossings = []
+        for rb in PREM_BOUNDARIES:
+            disc = rb*rb - rmin2
+            if disc <= 0.0:                  # chord never reaches this depth
+                continue
+            s = np.sqrt(disc)
+            for u in (-R*costhz - s, -R*costhz + s):
+                if 0.0 < u < d:
+                    crossings.append(d - u)
+
+        return np.unique(np.array(sorted(crossings)))
+
+    _, r_d = _validated_endpoint_radii(costhz, source_depth, detector_depth,
+                                       'prem_layer_edges_along_chord')
+
+    d = distance_traveled_inside_earth(costhz, source_depth, detector_depth)
+
+    if d <= 0.0:                             # a trajectory of no length crosses nothing
         return np.array([])
 
-    R = gd.EARTH_RADIUS
-    d = -2.0*R*costhz                    # chord length [km]
-    rmin2 = R*R*(1.0 - costhz*costhz)    # (squared) closest approach to the center
+    rmin2 = r_d*r_d*(1.0 - costhz*costhz)    # (squared) closest approach to the center
+    l_closest = d + r_d*costhz               # entry point to closest approach [km]
 
     crossings = []
     for rb in PREM_BOUNDARIES:
         disc = rb*rb - rmin2
-        if disc <= 0.0:                  # chord never reaches this depth
+        if disc <= 0.0:                      # trajectory never reaches this depth
             continue
         s = np.sqrt(disc)
-        for u in (-R*costhz - s, -R*costhz + s):
-            if 0.0 < u < d:
-                crossings.append(d - u)
+        for l in (l_closest - s, l_closest + s):
+            if 0.0 < l < d:
+                crossings.append(l)
 
     return np.unique(np.array(sorted(crossings)))
 
@@ -442,8 +720,12 @@ def costhz_between_points_on_surface(lat1_dms: tuple[float, float, float],
     Computes the cosine of the zenith angle at which a neutrino would need to travel in a
     straight chord through the Earth to reach the second location from the first (e.g., a source
     and a detector both on the surface).  Assumes a spherical Earth and a detector on the
-    surface, not underground, so the returned value is always non-positive (an upward- or
-    horizontally-traveling neutrino, i.e. costhz > 0, would not cross the Earth's interior at all).
+    surface, not underground, so the returned value is always non-positive.  A neutrino
+    arriving from above, ``costhz > 0``, crosses no part of the Earth's interior, and
+    ``costhz = 0`` grazes the surface horizontally.
+    Two surface coordinates cannot describe a buried endpoint; to place one, give the zenith
+    angle directly and pass ``source_depth`` or ``detector_depth`` to
+    :func:`distance_traveled_inside_earth`.
 
     .. versionadded:: 1.0.0
 
@@ -482,7 +764,8 @@ def coordinates_of_named_location(source_func_name: str, loc_name: str) -> np.nd
     ----------
     source_func_name : str
         Name of the calling function, used only to build a more informative error message if
-        ``loc_name`` is not found.
+        ``loc_name`` is not found.  The message prefixes it with ``oscprob.``, so a caller
+        from another module is reported under that name.
     loc_name : str
         Name of the predefined location (e.g., ``'kamioka'``, ``'south_pole'``). See
         ``earth.loc_coords_dms`` for the full list.
@@ -490,7 +773,13 @@ def coordinates_of_named_location(source_func_name: str, loc_name: str) -> np.nd
     Returns
     -------
     np.ndarray
-        Array ``[lat, lon]``, with ``lat`` and ``lon`` each a (degree, minute, second) tuple.
+        Array of shape ``(2, 3)`` in degrees, arcminutes and arcseconds: row 0 the
+        latitude, row 1 the longitude.  The stored tuples are converted to floats.
+
+    Raises
+    ------
+    ValueError
+        If ``loc_name`` is not one of the predefined locations.
     """
     # The latitude and longitude are each returned in day-minute-second format, (dd, mm, ss)
 
@@ -637,7 +926,10 @@ def neutron_to_proton_ratio_from_electron_fraction(electron_fraction):
     Parameters
     ----------
     electron_fraction : float or np.ndarray
-        :math:`Y_e`, in (0, 1].
+        :math:`Y_e`, in (0, 1].  Unchecked here: the domain is enforced by the caller,
+        ``magnus.oscprob._earth_composition``.  A zero returns ``inf`` with a NumPy
+        divide warning, and a value outside the range returns a negative ratio in
+        silence.
 
     Returns
     -------

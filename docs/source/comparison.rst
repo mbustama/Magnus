@@ -144,12 +144,22 @@ Refined against itself, each code reaches:
    * -
      - Magνs
      - NuOscProbExact
-   * - Best accuracy reached
+   * - Best accuracy **tried**
      - **3.3e-10**
      - 5.6e-05
    * - Cost per call
      - ~20× more
      - ~20× less
+
+**Neither figure is a floor.**  Each is the last point of a sweep that was still
+descending: Magνs over ``rtol`` down to 1e-8 against a 1e-11 reference, and
+NuOscProbExact over 2, 4, 8 and 16 slabs per segment against a 64-slab one,
+improving by about an order at every doubling and never run past 16 here.  What
+the closed form can actually reach is settled elsewhere: the paper's cross-code
+planes score each code against a 50-digit reference built in *its own* constants
+and conventions, and put NuOscProbExact near 2e-10 on a core-crossing chord.
+This comparison could not have resolved that in any case -- its referee's own
+residual is 4.3e-07.
 
 The residual between the two codes is 4.1e-04, which is the same order as the
 *looser* of the two curves — so most of it is NuOscProbExact's discretization
@@ -284,29 +294,40 @@ algorithm run faster.
 A supernova shock: the width of the front decides
 ----------------------------------------------------
 
-The same physics, the same codes, and the winner changes with one parameter —
-how sharp the front is:
+The same physics, the same codes, and one parameter — how sharp the front is —
+decides what each method can reach:
 
 .. list-table::
    :header-rows: 1
-   :widths: 30 35 35
+   :widths: 20 20 24 36
 
    * - Front width
      - Magνs
      - NuOscProbExact
+     - Cost of one probability
    * - 0.07 km (sharp)
-     - 2.4e-09
-     - 1.4e-09
+     - 8.9e-10
+     - 1.6e-08
+     - 194 000 µs vs 2 400
    * - 70 km (smooth)
-     - **9.6e-10**
-     - 5.6e-06
+     - **1.9e-11**
+     - 5.1e-06
+     - 178 000 µs vs 2 300
 
-On a sharp front the profile *is* piecewise constant, which is the closed
-form's home ground and it matches Magνs there at a fraction of the cost.  Widen
-the front and the same closed form stalls four orders of magnitude higher,
-because it is now approximating a smooth function with steps.  Neither result
-is about implementation quality; both are about which method the problem
-belongs to.
+**Read the cost column first.**  The closed form is about eighty times cheaper
+at either width, and the front does not change that.  What the front changes is
+how much accuracy it gives up for the saving: a factor of eighteen when the
+front is sharp, five orders of magnitude when it is wide.
+
+A sharp front *is* piecewise constant, which is the closed form's home ground,
+and it stops there at 1.6e-08.  Widen the front and the same closed form is
+approximating a smooth function with steps, so it stops five orders of
+magnitude higher, at 5.1e-06 — anything finer than that on a wide front is
+Magνs's alone.  Neither result is about implementation quality; both are about
+which method the problem belongs to.
+
+Below about 1e-6 the trade is not available at all: on a profile resolved to no
+better than that, the closed form is the cheapest thing here.
 
 Summary
 ---------
@@ -324,7 +345,8 @@ Summary
    * - PREM 3ν, cost
      - NuOscProbExact by ~20×
    * - PREM 3ν, accuracy reachable
-     - Magνs to 3e-10; the closed form stalls near 6e-05
+     - Magνs to 3e-10; the closed form was swept only to 16 slabs, still
+       improving, and reaches about 2e-10 when pushed (see above)
    * - PREM 3+1, cost
      - NuOscProbExact by ~400×, and Magνs *warns*
    * - PREM 3+1, accuracy reachable
@@ -337,7 +359,8 @@ Summary
    * - Solar averaged observable
      - Magνs returns it directly; nothing else here offers it
    * - Supernova shock
-     - The width of the front decides, not the flavor content
+     - The closed form is ~80× cheaper at either width; the width decides how
+       much reach that costs — 18× sharp, 5 orders wide
 
 The table has no winner in it.  It has a **boundary**.
 

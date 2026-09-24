@@ -48,19 +48,23 @@ repository root:
    cd Magnus
    pip install -e .
 
+Either way, one command confirms it worked:
+
 .. code-block:: bash
 
    magnus prob --flavors 3 --environment vacuum --energy 1 --energy-unit GeV \
        --baseline 1300 --baseline-unit km
 
-If you would rather not install anything, put ``src/`` on your Python
-path instead.  That is all that is needed -- every module imports through
-the ``magnus`` package (``import magnus.globaldefs``), so the package
-directory itself does not belong on the path:
+If you would rather not install the package at all, put ``src/`` on your Python
+path instead.  You still need its three runtime dependencies:
 
 .. code-block:: bash
 
    pip install -r src/requirements.txt
+
+Then point at ``src/`` itself.  Every module imports through the ``magnus``
+package (``import magnus.globaldefs``), so the package directory does not
+belong on the path:
 
 .. code-block:: python
 
@@ -81,9 +85,9 @@ is configured correctly for your system:
    pip install -e '.[test]'
    pytest tests/ -v
 
-It is about 1200 tests and takes some fifteen minutes with ``-n auto``; the same suite runs in CI on
-Python 3.10-3.13 on every push, so the badge on the :doc:`index` page tells
-you whether it passes there.
+It is about 1400 tests and takes a few minutes with ``-n auto``; the same suite
+runs in CI on Python 3.10-3.13 on every push, so the badge on the :doc:`index`
+page tells you whether it passes there.
 
 **What passing means.**  The suite is not only a smoke test, so it is worth
 knowing what it establishes:
@@ -97,10 +101,12 @@ knowing what it establishes:
 * **Against an independently coded recursion.**  The Magnus terms at orders
   1--6, and the Gauss--Legendre convergence rates under slab halving (error
   ratios 4, 16, 64).
-* **Properties that must hold exactly.**  Unitarity, and two *bit-identity*
-  assertions rather than tolerances: the energy-batched scan against the
-  per-point path, and ``n_jobs > 1`` against serial.  An optimization that
-  changed an answer fails those rather than passing quietly.
+* **Properties that must hold exactly.**  Unitarity, and one *bit-identity*
+  assertion rather than a tolerance: ``n_jobs > 1`` against serial, which an
+  optimization that changed an answer fails rather than passing quietly.  The
+  energy-batched scan is held to 1e-12 against the per-point path, with the
+  grid and tolerances pinned so that the two are arithmetically the same
+  problem.
 * **Conventions.**  Slab ordering, the antineutrino potential sign, the mass
   ordering and the channel indexing -- each of which has been wrong here at
   some point, and each of which is self-consistent when wrong.  See
@@ -210,7 +216,8 @@ File Tree
    │       ├── quickstart.rst          # Worked Python-API code examples for every entry point
    │       ├── recipes.rst             # What Magnus can compute, with the code -- executed at build time
    │       ├── references.rst          # Bibliography page rendering
-   │       ├── refs.bib                # BibTeX citations for the Magnus-expansion and PREM literature
+   │       ├── refs.bib                # BibTeX citations for the Magnus-expansion, PREM and solar-model literature
+   │       ├── solar_models.rst        # The twelve tabulated standard solar models, and how the Sun wrappers use them
    │       └── tutorials.rst           # Guide to the numbered example notebooks in notebooks/
    ├── fig/                            # Plots produced by the example notebooks
    ├── img/                            # Figures used by the documentation
@@ -235,14 +242,14 @@ File Tree
    │   ├── 10_magnus_averaged_probability.ipynb  # What survives when the phase is unresolvable
    │   ├── 11_magnus_matrix_exponential.ipynb  # How exp(Omega) is actually built
    │   ├── 12_magnus_adiabatic_hybrid_strategy.ipynb  # 'auto' against 'magnus', timed against solve_ivp
-   │   ├── 13_magnus_tabulated_solar_model.ipynb  # A real BS05 profile: an error that is a phase
+   │   ├── 13_magnus_tabulated_solar_model.ipynb  # The twelve solar models by name, and the observable an experiment measures
    │   ├── 14_magnus_supernova_shock.ipynb  # A shock front: an error that is an envelope
    │   ├── 15_magnus_antineutrinos.ipynb  # Conjugate and flip, and two ways to get it half right
    │   ├── 16_magnus_exact_vs_approximations.ipynb  # Where the textbook formulas are exact, and where the substitution breaks
    │   ├── 17_magnus_ordering_and_octant.ipynb  # The sign of D31, and how large the two open questions are
    │   ├── 18_magnus_unusual_density_profiles.ipynb  # Arrangement beats the mean, except for one exact symmetry
    │   ├── 19_magnus_custom_hamiltonian.ipynb  # The H_func contract, and the vectorization trick
-   │   ├── 20_magnus_numerical_edge_cases.ipynb  # Degeneracies that return numbers, and the nine warnings
+   │   ├── 20_magnus_numerical_edge_cases.ipynb  # Degeneracies that return numbers, and the fourteen warnings
    │   ├── 21_magnus_what_tolerance_means.ipynb  # rtol is a stopping criterion, not an error bound
    │   ├── 22_magnus_which_engine_answered.ipynb  # strategy_info, and an error bar with no oracle
    │   ├── 23_magnus_when_averaging_helps.ipynb  # Phase error falls away, envelope error does not
@@ -299,7 +306,8 @@ File Tree
    │   ├── matplotlibrc                # Shared plot styling for the notebooks
    │   ├── paper_figure_cache.json     # Every paper-figure input that depends on the configuration and not on the run: reference probabilities, order curves, and timings
    │   ├── nufit_chi2.json             # Those profiles, v2.0-v6.1 (NuFIT collaboration)
-   │   └── shock_reference.json        # That oracle, as exact hex floats
+   │   ├── shock_reference.json        # That oracle, as exact hex floats
+   │   └── solar_models_cache.json     # Notebook 13's comparison of the twelve solar models, keyed on its inputs
    ├── pyproject.toml                  # Build system, dependencies, and the `magnus` console-script entry point
    ├── resources/                      # Travels with the code; reaches neither the wheel nor the sdist
    │   ├── benchmarks/                 # The cross-code benchmark harness and its frozen artifacts, copied from NuOscProbExact so its measurements can be reproduced here
@@ -321,8 +329,10 @@ File Tree
    │       ├── refs.bib                # NuOscProbExact's bibliography, with the Magnus entries appended below a separator
    │       ├── elsarticle.cls          # Bundled, so the folder compiles without the Elsevier bundle
    │       ├── elsarticle-num.bst
-   │       └── figs/                   # Its twenty-one figures, written by notebook 28
+   │       └── figs/                   # Its twenty-three figures, written by notebook 28
    ├── tools/                          # Standalone utilities that are not part of the package
+   │   ├── build_solar_model_tables.py  # Trims the authors' solar-model files to the shipped tables, checking each hash
+   │   ├── lint_notebook_cells.py      # Finds names the notebooks use but never define; run by the lint workflow
    │   └── make_demo_video.py          # Joins and shrinks notebook 27's clips; shared with NuOscProbExact
    ├── src/                            # The package itself -- the only thing a `pip install` delivers
    │   ├── magnus/                     # Main Python package
@@ -332,10 +342,12 @@ File Tree
    │   │   ├── authors.py              # Package author string (internal; not part of the public API)
    │   │   ├── avgprob.py              # Phase-averaged (decohered) probabilities
    │   │   ├── cli.py                  # `magnus` command-line calculator (also `python -m magnus`)
+   │   │   ├── data/                   # Package data, installed with the code
+   │   │   │   └── solar_models/       # Twelve standard solar models: three columns each, with provenance
    │   │   ├── earth.py                # PREM density profile, chord/zenith-angle geometry
    │   │   ├── expansionterms.py       # Generates the Omega_k terms symbolically, to any order
    │   │   ├── expmkernels.py          # Compiled Cayley-Hamilton matrix exponential for 2x2/3x3 (the numba backend)
-   │   │   ├── globaldefs.py           # Units, physical constants, NuFit parameter sets
+   │   │   ├── globaldefs.py           # Units, physical constants, NuFIT parameter sets
    │   │   ├── hamiltonians/           # 2nu-5nu Hamiltonians: vacuum, matter, NSI, LIV (the one true subpackage)
    │   │   │   ├── __init__.py         # Explicit named imports from the four hamiltonians{2,3,4,5}nu.py modules
    │   │   │   ├── _angles.py          # Interprets the four angles conventions; rejects an out-of-range sine
@@ -350,17 +362,24 @@ File Tree
    │   │   ├── oscprobstd.py           # Closed-form 2nu/3nu probabilities (used to validate the wrapper API)
    │   │   ├── plotting.py             # Pre-packaged plotting tools: one call instead of thirty lines
    │   │   ├── py.typed                # PEP 561 marker: tells type checkers the annotations are real
+   │   │   ├── solarmodels.py          # Tabulated standard solar models, as profiles for the Sun wrappers
    │   │   └── version.py              # Resolves the version from pyproject.toml (internal)
-   │   └── requirements.txt            # Sphinx + theme + extensions needed to build the docs
+   │   └── requirements.txt            # The three runtime dependencies: numpy, scipy, joblib
    └── tests/                          # Test suite (pytest; runs in CI)
+       ├── test_paper_cache_only.py    # MAGNUS_PAPER_CACHE_ONLY stops notebook 28 on a cache miss instead of recomputing
        ├── test_paper_cache_key_is_portable.py  # The figure cache's key survives a change of machine: a ULP must not move it
        ├── test_ci_honours_the_docs.py  # Every MAGNUS_* variable the docs tell CI to set, a workflow actually sets
        ├── test_notebooks_match_their_generator.py  # The committed .ipynb files are the ones make_notebooks.py builds
        ├── test_paper_assets_are_tracked.py  # Every figure main.tex includes is tracked, which .gitignore's *.pdf defeats
+       ├── test_readme_lists_every_notebook.py  # notebooks/README.md describes every notebook make_notebooks.py builds
+       ├── test_adiabatic_validation_table.py  # adiabatic_strategy.rst's speed-up table and make_figures.py's chart agree
+       ├── test_cli_examples_match.py  # cli.rst's worked examples still print what the CLI prints
+       ├── test_diagnostics_documents_every_warning.py  # diagnostics.rst's catalogue covers every warning class the package defines
        ├── conftest.py                 # Path setup so magnus is importable without installation
        ├── test_adiabatic.py           # Adiabatic + Magnus hybrid strategy: detection, merging, ODE cross-checks
        ├── test_angles.py              # The four `angles` conventions and the guards between them
        ├── test_avgprob.py             # Phase-averaged probabilities
+       ├── test_phase_average.py       # The phase average over an energy spread (issue #64)
        ├── test_cli.py                 # magnus command-line calculator
        ├── test_pseudodirac.py         # Pseudo-Dirac Hamiltonians: the Dirac limit, blocks, and the factor of two
        ├── test_documented_examples.py  # Runs the code blocks in README.md and quickstart.rst
@@ -370,7 +389,7 @@ File Tree
        ├── test_expm_backend.py        # The two matrix-exponential backends, their switch, and degeneracies
        ├── test_fuzz_statistics.py     # Randomized profiles, scored in bulk
        ├── test_file_tree.py           # This file: generates the tree above and checks it against git
-       ├── test_globaldefs.py          # NuFit historical parameter dict/loader
+       ├── test_globaldefs.py          # NuFIT historical parameter dict/loader
        ├── test_hamiltonians.py        # Hamiltonian/mixing-matrix builders
        ├── test_invariants.py          # Properties that must hold across the whole engine matrix
        ├── test_magnus_expansion.py    # Magnus-core correctness (terms, orders, GL rates, unitarity)
@@ -378,6 +397,7 @@ File Tree
        ├── test_palindrome.py          # The palindromic-profile optimization and its gate
        ├── test_plotting.py            # Pre-packaged plotting tools: house-style defaults, layouts
        ├── test_routine_listings.py    # Each module's Routine listings names every public function it defines
+       ├── test_solarmodels.py         # Solar-model tables, their profiles, and the Sun wrappers that use them
        ├── test_tolerance.py           # What rtol/atol promise, and the effective-refinement gate
        ├── test_validation.py          # Input-validation guards and their error messages
        └── test_version.py             # Version resolution from pyproject.toml / installed metadata

@@ -5,12 +5,13 @@ r"""expansionterms.py
 
 Generate the terms of the Magnus expansion symbolically, to any order.
 
-The numerical core in :mod:`magnus.magnus` evaluates the Magnus expansion with the
-coefficients of each commutator group written out explicitly in Python, which is fast but
-fixes the highest order at whatever was typed in.  This module derives those same terms
-from the recursion itself, in exact rational arithmetic, for any order -- so the
-hard-coded ones can be *checked* rather than trusted, and so an order beyond the
-implemented ceiling can still be inspected on paper.
+The numerical core in :mod:`magnus.magnus` writes the coefficients of each commutator
+group out explicitly in Python through order 6, and builds orders 7 to 10 from the same
+recursion when it runs; the ceiling is ``magnus.magnus.MAGNUS_EXP_ORDER_MAX``, set by how
+far the table of group factors reaches.  This module derives those same terms from the
+recursion itself, in exact rational arithmetic, at any order -- so the built-in ones can
+be *checked* rather than trusted, and so an order beyond the implemented ceiling can
+still be inspected on paper.
 
 The recursion is the standard Bernoulli-number one [1]_ (in the :math:`B_1 = -1/2`
 convention):
@@ -38,9 +39,9 @@ This is the same form the numerical core implements, deliberately.  Writing
 other common presentation, but it does not correspond to anything the code evaluates, so
 it would be of no use for checking the implementation.
 
-The number of terms grows quickly -- 1 at order 1, 26 at order 6, 211 at order 8, 1918 at
-order 10 -- which is why the implemented ceiling is a deliberate choice rather than an
-oversight.  See :doc:`/expansion_terms` for the derivation, the expansion printed out,
+The number of terms grows quickly -- 1 at order 1, 9 at order 6, 33 at order 8, 129 at
+order 10, the counts :func:`count_terms` returns -- which is why the implemented ceiling
+is a deliberate choice rather than an oversight.  See :doc:`/expansion_terms` for the derivation, the expansion printed out,
 and worked examples.
 
 References
@@ -151,6 +152,11 @@ def bernoulli_factor(j: int) -> Fraction:
     fractions.Fraction
         :math:`B_j / j!`.
 
+    Raises
+    ------
+    ValueError
+        If ``j`` is negative.  The check lives in :func:`bernoulli`, which this calls.
+
     Examples
     --------
     .. jupyter-execute::
@@ -211,9 +217,10 @@ def omega_terms(order: int) -> Tuple[Term, ...]:
 
     Returns
     -------
-    tuple of (fractions.Fraction, tuple)
-        The terms of :math:`\Omega_n`.  For ``order=1`` this is the single term
-        :math:`(1, A)`, the integrand of :math:`\Omega_1 = \int A`.
+    tuple of (fractions.Fraction, Word)
+        The terms of :math:`\Omega_n`.  A word is a nested commutator, written as a tuple,
+        except at ``order=1``, where the single term is ``(1, 'A')`` -- the word is the
+        bare string, the integrand of :math:`\Omega_1 = \int A`.
 
     Raises
     ------
@@ -259,6 +266,11 @@ def magnus_terms(max_order: int) -> Dict[int, Tuple[Term, ...]]:
     dict
         Maps each order :math:`n` to the terms of :math:`\Omega_n`.
 
+    Raises
+    ------
+    ValueError
+        If ``max_order`` is less than 1.
+
     Examples
     --------
     .. jupyter-execute::
@@ -291,6 +303,12 @@ def count_terms(order: int) -> int:
     int
         Number of distinct commutator terms in :math:`\Omega_n`.
 
+    Raises
+    ------
+    ValueError
+        If ``order`` is less than 1.  The check lives in :func:`omega_terms`, which this
+        calls to build the terms it counts.
+
     Examples
     --------
     .. jupyter-execute::
@@ -319,10 +337,11 @@ def format_term(term: Term, with_coeff: bool = True) -> str:
 
     Parameters
     ----------
-    term : (fractions.Fraction, tuple)
-        A term, as returned by :func:`omega_terms`.
+    term : (fractions.Fraction, Word)
+        A term, as returned by :func:`omega_terms`.  The word is a tuple at every order
+        above 1, and the string ``'A'`` at order 1.
     with_coeff : bool, optional
-        If True (default), prefix the commutator with its coefficient.
+        If True, prefix the commutator with its coefficient. Default: True.
 
     Returns
     -------
@@ -348,8 +367,10 @@ def format_term(term: Term, with_coeff: bool = True) -> str:
 def print_magnus_terms(max_order: int, file=None) -> None:
     r"""Prints the Magnus expansion, order by order, up to ``max_order``.
 
-    Each order is printed as the integrand of :math:`\Omega_n`, one term per line, with
-    its exact rational coefficient.
+    Each order opens with a header naming it and counting its terms, then prints the
+    integrand of :math:`\Omega_n`, one term per line, with its exact rational coefficient.
+    Order 1 is the exception: its single term has coefficient 1 and is printed as
+    ``int A``, without one.
 
     .. versionadded:: 1.0.0
 
@@ -386,9 +407,11 @@ def print_magnus_terms(max_order: int, file=None) -> None:
 
 
 __all__ = [
-    # The two type aliases below appear in the signatures of everything else
-    # here, so they have to be documented or those signatures render as dead
-    # references.
+    # 'Term' appears in the signature of format_term and in the Returns of
+    # omega_terms and magnus_terms, and it expands to 'Word'; both are exported
+    # so neither renders as a dead reference.
+    #
+
     'Word',
     'Term',
     'bernoulli',

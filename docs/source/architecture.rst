@@ -16,10 +16,14 @@ itself); this page is about the *code*, not the *math*.
 Module layout
 ---------------
 
-Magνs is thirteen modules under ``src/magnus/`` plus the
-``hamiltonians`` subpackage, each with a single, non-overlapping
-responsibility, all explicitly listed in ``magnus/__init__.py``'s
-``submodules``/``__all__``. The figure is the **actual** import graph,
+Magνs is thirteen modules under ``src/magnus/`` plus the ``hamiltonians``
+subpackage, each with a single, non-overlapping responsibility (``authors.py``
+and ``version.py`` are internal helpers rather than part of that picture).
+``magnus/__init__.py``'s ``submodules``/``__all__`` advertise twelve of them.
+``expmkernels`` is imported alongside but left out of the list, being an
+implementation detail of ``magnus.magnus``; ``cli`` is not imported at all,
+since it is the console script's entry point rather than something a caller
+reaches through ``import magnus``. The figure is the **actual** import graph,
 top-level imports only, and an arrow points from a module to one that
 imports it -- so it reads bottom-up, and nothing at the bottom knows
 anything above it:
@@ -44,19 +48,22 @@ anything above it:
      - Compiled kernels for the matrix exponential: Cayley--Hamilton at 2x2 and
        3x3, a batched Jacobi eigensolver at 4x4 and 5x5
    * - ``expansionterms``
-     - The explicit :math:`\Omega_1`, :math:`\Omega_2`, :math:`\Omega_3`
-       integrands
+     - The Magnus terms derived from the Bernoulli recursion in exact rational
+       arithmetic, at any order (:doc:`expansion_terms`)
    * - ``globaldefs``
      - Physical constants, unit conversions, NuFIT parameter sets
    * - ``adiabatic``
      - Adiabatic transport and the Magnus-patch ``hybrid_propagator``
    * - ``earth``
      - PREM density profile, chord and zenith-angle geometry
+   * - ``solarmodels``
+     - Tabulated standard solar models, as density and composition profiles
+       (:doc:`solar_models`); imports only ``globaldefs``
    * - ``matter``
      - Density profiles, electron number density, :math:`V_{\rm CC}`
        construction, the matter-potential projector
    * - ``avgprob``
-     - The decohered (phase-averaged) limit
+     - The phase average over an energy spread, and the decohered limit it reduces to
    * - ``hamiltonians``
      - Mixing matrices and vacuum/matter/NSI/LIV Hamiltonians, two to
        five flavors (``hamiltonians{2,3,4,5}nu.py``)
@@ -102,17 +109,19 @@ easy to break by accident when adding code:
   place instead of scattering it across the physics and numerical
   modules.
 
-``earth.py``, ``globaldefs.py``, ``magnus.py``, ``adiabatic.py``,
-``avgprob.py``, ``expansionterms.py``, ``expmkernels.py``, ``matter.py``,
-``oscprob.py``, ``oscprobstd.py``, and ``plotting.py`` are flat sibling files directly
-under ``src/magnus/`` -- there is no subpackage directory
+``adiabatic.py``, ``avgprob.py``, ``cli.py``, ``earth.py``,
+``expansionterms.py``, ``expmkernels.py``, ``globaldefs.py``, ``magnus.py``,
+``matter.py``, ``oscprob.py``, ``oscprobstd.py``, ``plotting.py`` and
+``solarmodels.py`` are flat
+sibling files directly under ``src/magnus/`` -- there is no subpackage directory
 wrapping any of them. Only ``magnus.hamiltonians`` is a genuine
-subpackage, since it holds four distinct, flavor-count-specific modules
-(``hamiltonians2nu.py`` through ``hamiltonians5nu.py``); its
-``__init__.py`` explicitly imports and re-exports each one's public
-names (no ``from .module import *``). ``magnus/__init__.py`` itself
-explicitly imports all twelve top-level modules (again, no wildcard
-imports) so that ``import magnus`` alone makes ``magnus.earth``,
+subpackage, since it holds one module per flavor count
+(``hamiltonians2nu.py`` through ``hamiltonians5nu.py``) plus
+``hamiltonians_pseudodirac.py`` for the paired spectra of
+:doc:`averaged_probability`; its ``__init__.py`` explicitly imports and
+re-exports each one's public names (no ``from .module import *``).
+``magnus/__init__.py`` does the same for the twelve it lists (again, no
+wildcard imports) so that ``import magnus`` alone makes ``magnus.earth``,
 ``magnus.oscprob``, etc. immediately accessible.
 
 ``plotting.py`` is the one module outside this dependency picture: it
@@ -130,7 +139,7 @@ closed-form validation counterpart to the wrapper API), so both
 The three-layer structure of ``magnus.oscprob``
 ----------------------------------------------------
 
-``magnus.oscprob`` is the largest module (~10,000 lines) because it exposes a
+``magnus.oscprob`` is the largest module (~22,000 lines) because it exposes a
 dedicated, explicitly-named function for every combination of
 (flavor count) :math:`\times` (environment) :math:`\times` (BSM
 scenario) — roughly 60 combinations. To keep that size from turning into
@@ -208,7 +217,7 @@ any of the refinement/logging keyword arguments that layers 1-2 own:
    magnus_exp_order, n_jobs, integration_method, rtol, atol,
    growth_factor_n_slabs, growth_factor_n_tpts_per_slab, max_num_loops,
    min_n_slabs, max_n_slabs, min_n_tpts_per_slab, max_n_tpts_per_slab,
-   new_recursion_limit
+   new_recursion_limit, return_evolution_operator, average
 
 This is not a style preference; it is a correctness requirement, and the
 history of this package shows what happens when it is violated. Before
@@ -234,6 +243,19 @@ CI, and will fail if it is ever violated again:
 If you are adding a wrapper and find yourself typing
 ``rtol: Optional[float] = 1.e-3`` in its signature, that is a signal you
 are working at the wrong layer: forward it through ``**kwargs`` instead.
+
+``return_evolution_operator`` and ``average`` follow the same rule, and show
+why the rule pays: declared by ``osc_prob_energy_baseline`` and the generic
+entry points (the operator keyword by the core as well), every one of the sixty
+``osc_prob_{N}nu_*`` wrappers got them for free through ``**kwargs``. One
+consequence to know about: the passthrough guard reads its accepted keywords
+off those signatures, so a keyword that only the batching layer declares would
+pass the guard on ``osc_prob`` and fail deep inside the engine; ``osc_prob``
+therefore refuses ``average`` and ``cumulative`` by name. The keyword is honored by the core and
+the batching layer; the specialized engines answer with probabilities only,
+so the entry points disable them for the call (through the same
+``_engine_probe`` mechanism the cross-check uses) and the general ladder
+answers.
 
 Data flow: how the Hamiltonian and potential are built
 -----------------------------------------------------------
@@ -309,7 +331,7 @@ closest sibling to copy from. The recipe:
            r"""Compute the 3nu NSI oscillation probability for a
            user-supplied radial matter density profile.
 
-           .. versionadded:: 1.0.0
+           .. versionadded:: <the next release>
            """
            return osc_prob_matter_nsi(
                num_flavors=3,
@@ -392,5 +414,5 @@ Where things live: a quick lookup
        :math:`V_{CC}` potential construction
      - ``magnus.matter``
    * - A physical constant, unit conversion, or a predefined oscillation
-       parameter set (e.g. NuFit 6.0)
+       parameter set (e.g. NuFIT 6.0)
      - ``magnus.globaldefs``

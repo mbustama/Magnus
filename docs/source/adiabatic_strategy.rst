@@ -432,8 +432,8 @@ both real and genuinely complex (CP-violating) Hamiltonians.
 
    Measured speedup versus a tight-tolerance ``solve_ivp`` ground truth
    across the validation grid (log scale), plotting exactly the numbers in
-   the table above -- both come from ``VALIDATION_GRID`` in
-   ``docs/make_figures.py``, so they cannot drift apart. Purely adiabatic
+   the table above -- ``tests/test_adiabatic_validation_table.py`` holds the
+   two against each other, so they cannot drift apart. Purely adiabatic
    cases (green) are fastest, since no exact patch is ever computed; cases
    needing one or more Magnus patches (red) are still 30-90x faster than
    direct integration, dominated by the (still cheap, since the window is
@@ -442,12 +442,12 @@ both real and genuinely complex (CP-violating) Hamiltonians.
 Speedups for the patched cases are smaller than the purely adiabatic ones
 for a simple reason: a patch means ``solve_ivp`` itself is being compared
 against on a shorter, more tractable sub-problem (the same reason the
-purely-adiabatic 2ν case reaches the largest speedup of all -- it is also
-the case where ``solve_ivp`` is slowest, since nothing shortens its own
-work). What stays constant across every case is the two things that
-matter: exact unitarity, at every accuracy setting, and agreement with
-direct integration well within the package's standard :math:`10^{-3}`
-target tolerance.
+purely-adiabatic 5ν case reaches the largest speedup of all -- it is also
+the case where ``solve_ivp`` is slowest, since a larger Hamiltonian does
+nothing to shorten its own work). What stays constant across every case is
+the two things that matter: exact unitarity, at every accuracy setting, and
+agreement with direct integration well within the package's standard
+:math:`10^{-3}` target tolerance.
 
 Limitations and scope
 --------------------------

@@ -42,6 +42,41 @@ matrix. Full walk-through:
 `notebook 01 <https://github.com/mbustama/Magnus/blob/main/notebooks/01_magnus_introduction.ipynb>`_.
 
 
+The evolution operator, for observables built from amplitudes
+----------------------------------------------------------------
+
+A probability is a modulus squared. When the observable needs the amplitudes
+themselves -- the content of each mass eigenstate in the state that leaves a
+dense source, and from it the flavor composition at a detector so far away
+that the phases have averaged -- ask any entry point for the evolution
+operator alongside the probabilities. The refinement ladder then converges the
+operator itself, phases included.
+
+.. jupyter-execute::
+
+    import magnus.hamiltonians as hams
+
+    OSC = gd.load_nufit_params('NuFIT 6.1')
+    P, U = oscprob.osc_prob_3nu_matter_exp_density(
+        1.0*gd.UNIT_GEV, 5000.0*gd.UNIT_KM, 0.0, 10.0, 1000.0*gd.UNIT_KM,
+        density_matter_is_in_g_per_cm3=True, return_evolution_operator=True,
+        n_slabs=32, **OSC)
+
+    # The mixing matrix in vacuum, the medium past the source; then the
+    # mass-state content of what leaves, and the flavor content far away
+    R = hams.pmns_mixing_matrix(OSC['s12'], OSC['s23'], OSC['s13'], OSC['dCP'])
+    content = abs(R.conj().T @ U)**2
+    P_far = abs(R)**2 @ content
+
+    print('at the edge of the source, P_ee = %.4f' % np.asarray(P)[0][0])
+    print('far away, phases averaged, P_ee = %.4f' % P_far[0, 0])
+
+``P`` is what the same call returns without the keyword; ``U`` is complex and
+unitary, indexed ``U[final, initial]``, so ``abs(U)**2.T`` is ``P``. See
+:doc:`functions` for what the keyword does to the engine dispatch and the two
+combinations it refuses.
+
+
 A scan, without a loop
 ----------------------
 
@@ -92,6 +127,30 @@ aligned with the layer boundaries all follow.
     print('chord   = %.0f km' % (L/gd.UNIT_KM))
     print('P_mue   = %.6f' % P[1][0])
 
+A detector underground is the same call with its depth named. The zenith angle
+is measured at the detector, so the baseline follows from the geometry and is
+computed rather than given. A buried detector also sees downward-going
+neutrinos through its overburden, which a detector on the surface has no path
+for at all.
+
+.. jupyter-execute::
+
+    depth = 2.0*gd.UNIT_KM
+
+    for costhz_det in (-0.5, 1.0):
+        L_km = earth.distance_traveled_inside_earth(
+            costhz_det, detector_depth=depth/gd.UNIT_KM)
+        P_buried = np.asarray(oscprob.osc_prob_3nu_earth(
+            10.0*gd.UNIT_GEV, costhz=costhz_det, detector_depth=depth))
+        print('costhz = %5.2f: %10.3f km, P_mumu = %.6f'
+              % (costhz_det, L_km, P_buried[1][1]))
+
+PREM's outermost shell is 3 km of global-average ocean, which a detector under
+rock or ice is not sitting under. Replace its density with
+``density_matter_ocean``, and its composition with ``electron_fraction_ocean``.
+Both matter for a trajectory close to horizontal, which can spend its whole
+length inside that shell.
+
 The PREM layer boundaries are inserted as mandatory slab edges automatically, so
 the quadrature never integrates across a density discontinuity. Notebooks
 `02 <https://github.com/mbustama/Magnus/blob/main/notebooks/02_magnus_2nu_vacuum_matter.ipynb>`_
@@ -113,7 +172,9 @@ A profile of your own
 
 Any callable returning a density as a function of position works. The Sun's
 exponential profile ships as a helper, and carries a tag that lets the
-interaction-picture fast path recognize it.
+interaction-picture fast path recognize it.  For the Sun itself, twelve published
+standard solar models ship as well, and the Sun wrappers take them by name
+(see :doc:`solar_models`).
 
 .. jupyter-execute::
 
@@ -211,9 +272,11 @@ Choosing a strategy, and seeing which engine answered
 -----------------------------------------------------
 
 ``strategy='auto'`` (the default) tries an adiabatic-transport-plus-Magnus-patch
-propagator first and falls back silently. ``'magnus'`` is the pre-1.0.0 route.
-The difference is not only speed: on solar configurations the fallback can be
-*fast and wrong*.
+propagator first and falls back silently. ``'magnus'`` reproduces the behavior
+of releases before that propagator existed. The difference is not only speed: on
+the NSI configurations notebook 12 measures, the fallback is the faster route
+and the less accurate one, raising ``ToleranceNotAchievedWarning`` rather than
+answering quietly.
 
 .. jupyter-execute::
 

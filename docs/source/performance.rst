@@ -123,10 +123,9 @@ Every slab ends in a matrix exponential, and ``np.linalg.eigh`` costs **about 1.
 flat, because it loops over LAPACK internally instead of vectorizing over the stack.
 :data:`magnus.magnus.EXPM_BACKEND` selects between that and the compiled kernels in
 :mod:`magnus.expmkernels` -- ``'numba'`` means the Cayley-Hamilton kernel at dimensions 2
-and 3 and the Jacobi eigensolver at 4 and 5, a distinction that did not exist when this
-paragraph was written.  The Cayley-Hamilton kernel which applies to :math:`K` the polynomial interpolating
-:math:`\exp(-i\lambda)` on its spectrum -- no eigenvectors, and the eigenvalues in closed
-form.
+and 3 and the Jacobi eigensolver at 4 and 5.  The Cayley-Hamilton kernel applies to
+:math:`K` the polynomial interpolating :math:`\exp(-i\lambda)` on its spectrum -- no
+eigenvectors, and the eigenvalues in closed form.
 
 Interleaved round-robin, minima of many repetitions, with a control the change cannot
 touch:

@@ -40,7 +40,7 @@ def hashes():
 
     source = (ROOT/'notebooks'/'make_notebooks.py').read_text()
     namespace = {'np': np, 'hashlib': hashlib}
-    for anchor in ('FINGERPRINT_DIGITS = 12', 'def _hashable',
+    for anchor in ('FINGERPRINT_DIGITS = 12', 'def _hashable', 'def _python_scalars',
                    'def fingerprint', 'def legacy_fingerprint'):
         assert anchor in source, (
             'make_notebooks.py no longer contains %r; the paper cache hash has been '
@@ -48,7 +48,7 @@ def hashes():
         start = source.index(anchor)
         exec(compile(source[start:source.index('\n\n\n', start)], '<fingerprint>', 'exec'),
              namespace)
-    return namespace['fingerprint'], namespace['legacy_fingerprint']
+    return namespace['fingerprint'], namespace['legacy_fingerprint'], namespace['_python_scalars']
 
 
 # Values at the magnitude the real keys carry: a matter potential is ~1e-13 eV, and a
@@ -62,7 +62,7 @@ SAMPLES = np.array([1.23456789012345e-13, 4.2e-14, 9.87e-13, -5.5e-13])
 
 def test_one_ulp_does_not_move_the_key(hashes):
     """The failure that turned a latent problem into a red main."""
-    fingerprint, _ = hashes
+    fingerprint, _, _ = hashes
     nudged = np.nextafter(SAMPLES, np.inf)
     assert fingerprint(SAMPLES) == fingerprint(nudged), (
         'a one-ULP difference changes the cache key, so the key is machine-dependent '
@@ -71,13 +71,13 @@ def test_one_ulp_does_not_move_the_key(hashes):
 
 def test_the_old_hash_really_did_move(hashes):
     """So the test above is measuring the fix and not a property floats had anyway."""
-    _, legacy = hashes
+    _, legacy, _ = hashes
     assert legacy(SAMPLES) != legacy(np.nextafter(SAMPLES, np.inf))
 
 
 def test_a_real_change_still_moves_the_key(hashes):
     """Tolerance bought at the twelfth digit, and no further."""
-    fingerprint, _ = hashes
+    fingerprint, _, _ = hashes
     for rel in (1.0e-9, 1.0e-6, 1.0e-3):
         assert fingerprint(SAMPLES) != fingerprint(SAMPLES*(1.0 + rel)), (
             'a relative change of %g leaves the cache key alone, so a moved '
@@ -86,7 +86,7 @@ def test_a_real_change_still_moves_the_key(hashes):
 
 def test_plain_floats_are_quantized_too(hashes):
     """Tolerances and baselines reach the key as Python floats, not only as arrays."""
-    fingerprint, _ = hashes
+    fingerprint, _, _ = hashes
     x = 3000.0*1.0e9
     assert fingerprint(x) == fingerprint(np.nextafter(x, np.inf))
     assert fingerprint(x) != fingerprint(x*(1.0 + 1.0e-9))
@@ -104,3 +104,21 @@ def test_every_stored_fingerprint_is_a_full_hash():
              if isinstance(entry, dict) and 'fingerprint' in entry
              and len(entry['fingerprint']) != 64}
     assert not short, 'cache entries carry truncated fingerprints: %s' % short
+
+
+def test_a_numpy_scalar_hashes_as_the_python_scalar_it_holds(hashes):
+    """NumPy 2 writes repr(np.float64(0.3)) as 'np.float64(0.3)', where NumPy 1 wrote '0.3'.
+
+    A key holding one, such as a sorted dict of mixing parameters, therefore hit the cache under
+    NumPy 1 and missed on CI under NumPy 2.  Every NumPy scalar in a key enters as the Python
+    scalar it holds, whose repr is what NumPy 1 printed, so no stored key moves.
+    """
+    fingerprint, _, python_scalars = hashes
+    plain = [('D41', 1.0), ('n', 3), ('s14', 0.31622776601683794), ('sterile', True)]
+    held = [('D41', np.float64(1.0)), ('n', np.int64(3)),
+            ('s14', np.sqrt(np.float64(0.10))), ('sterile', np.bool_(True))]
+    assert fingerprint(held) == fingerprint(plain)
+    assert fingerprint({'a': np.float64(0.5)}) == fingerprint({'a': 0.5})
+    converted = python_scalars(held)
+    assert all(type(v) in (float, int, bool) for _, v in converted)
+    assert repr(converted) == repr(plain)

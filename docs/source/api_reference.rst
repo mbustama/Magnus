@@ -5,7 +5,7 @@ Generated from the docstrings, module by module. Every public function,
 class and module-level constant Magνs ships appears here with its full
 signature, its parameters and what it returns.
 
-This is the exhaustive view. Three other pages are usually the faster way in:
+This is the exhaustive view. Four other pages are usually the faster way in:
 
 * :doc:`recipes` — what the package can compute, with the code that computes it.
 * :doc:`functions` — the whole ``osc_prob_*`` family laid out by environment and
@@ -40,3 +40,4 @@ what was swept, on which workloads, and what the alternatives cost.
    api/magnus/oscprob/index
    api/magnus/oscprobstd/index
    api/magnus/plotting/index
+   api/magnus/solarmodels/index

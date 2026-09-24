@@ -356,7 +356,7 @@ def test_hybrid_propagator_does_not_certify_when_the_first_patch_fails(monkeypat
     def fake_once(H_func, l0, l1, threshold, n_probe, n_points, fd_step_frac,
                   magnus_exp_order, integration_method):
         calls.append((threshold, n_probe, n_points))
-        return np.eye(2, dtype=complex), [(1.0, 2.0)], False, 0.0
+        return np.eye(2, dtype=complex), [(1.0, 2.0)], False, 0.0, 0.0
 
     monkeypatch.setattr(ad, '_hybrid_propagator_once', fake_once)
     H_func, l0, l1 = _flat_2level_H()
@@ -380,7 +380,7 @@ def test_hybrid_propagator_does_not_certify_when_a_later_patch_fails(monkeypatch
     def fake_once(H_func, l0, l1, threshold, n_probe, n_points, fd_step_frac,
                   magnus_exp_order, integration_method):
         calls.append((threshold, n_probe, n_points))
-        return np.eye(2, dtype=complex), [], results[len(calls) - 1], 0.0
+        return np.eye(2, dtype=complex), [], results[len(calls) - 1], 0.0, 0.0
 
     monkeypatch.setattr(ad, '_hybrid_propagator_once', fake_once)
     H_func, l0, l1 = _flat_2level_H()
@@ -643,6 +643,117 @@ def test_subthreshold_nonadiabaticity_is_not_certified_on_agreement_alone():
     assert err < 1e-3, f"certified but wrong by {err:.2e}"
 
 
+# ----------------------------------------------------------------------
+# Exact crossings, and what a window does not vouch for (issue #59)
+# ----------------------------------------------------------------------
+
+def _crossing_pair(scale, l_cross):
+    """Two levels that do not couple, crossing at ``l_cross`` on [0, 1], with ``|H| ~ scale``."""
+    def H(l):
+        x = np.asarray(l, dtype=float)
+        a, b = 1.0 + x, 1.0 + l_cross + 0.5*(x - l_cross)
+        out = np.zeros(x.shape + (2, 2), dtype=complex)
+        out[..., 0, 0], out[..., 1, 1] = scale*a, scale*b
+        return out
+    return H
+
+
+@pytest.mark.parametrize('scale', [1.0e-20, 1.0e-10, 1.0, 1.0e10])
+@pytest.mark.parametrize('l_cross', [0.137, 0.37, 0.5, 0.811])
+def test_an_exact_crossing_always_gets_a_window(scale, l_cross):
+    """Two levels that do not couple cross exactly.  At the candidate the coupling is zero and
+    the gap is round-off, not 0.0, so gamma = 0/round-off^2 used to score the crossing 0 and
+    leave it to adiabatic transport, which follows eigenvalues in sorted order and so carried
+    each state onto the other's level.  Whether a given crossing escaped depended on whether
+    round-off happened to give a gap of exactly 0.0; hence several positions and four systems
+    of units, which moves where that last bit lands.
+    """
+    H = _crossing_pair(scale, l_cross)
+    windows, candidates = ad.find_nonadiabatic_windows(H, 0.0, 1.0)
+    at = [c for c in candidates if abs(c['l'] - l_cross) < 1e-6]
+    assert at, "the crossing at l = %g was not even found as a candidate" % l_cross
+    assert all(c['gamma'] == np.inf for c in at), \
+        "an exact crossing scored gamma = %r" % [c['gamma'] for c in at]
+    assert any(w0 <= l_cross <= w1 for w0, w1 in windows), \
+        "no window covers the exact crossing at l = %g: %r" % (l_cross, windows)
+
+
+@pytest.mark.parametrize('l_cross', [0.137, 0.37, 0.5, 0.811])
+def test_an_exact_crossing_does_not_carry_a_state_onto_the_other_level(l_cross):
+    """The consequence the window prevents: two uncoupled levels cannot exchange population,
+    so P is the identity.  Transport through the crossing in sorted order swapped them, P
+    becoming [[0, 1], [1, 0]], and certified."""
+    U, windows, certified = ad.hybrid_propagator(_crossing_pair(1.0, l_cross), 0.0, 1.0)
+    P = np.abs(U).T**2
+    assert certified
+    assert maxabs(P - np.eye(2)) < 1e-12, "population moved between uncoupled levels:\n%r" % P
+
+
+def test_a_window_elsewhere_does_not_waive_the_adiabaticity_requirement():
+    """The sub-threshold profile of the test above, with a third level that couples to nothing
+    and crosses one of the other two.  That crossing gets a window, correctly -- and a window
+    used to be all it took for the loop to certify on agreement alone, as though it vouched for
+    the stretch it does not cover.  The sub-threshold resonance was left to adiabatic transport
+    and the answer certified wrong.  Found on osc_prob_4nu_sun (issue #59), where the decoupled
+    sterile state crosses an active level: 1.6e-03 out at 237 MeV, the 3nu call on the same
+    physics right to 8e-05.
+    """
+    H2, l1 = _solar_bump_H(0.04)
+    # A decoupled third level, crossing the lower of the other two once, away from the bump.
+    lam0 = np.linalg.eigvalsh(np.asarray(H2(0.0)))
+    lam1 = np.linalg.eigvalsh(np.asarray(H2(l1)))
+    s0, s1 = lam0[0] - 0.2*(lam0[1] - lam0[0]), lam1[0] + 0.2*(lam1[1] - lam1[0])
+
+    def H3(l):
+        x = np.asarray(l, dtype=float)
+        out = np.zeros(x.shape + (3, 3), dtype=complex)
+        out[..., :2, :2] = np.asarray(H2(x))
+        out[..., 2, 2] = s0 + (s1 - s0)*x/l1
+        return out
+
+    # The premises: the crossing is exact and is windowed, and the rest of the path sits under
+    # the default threshold with gamma above the tolerance, so it needs refinement to be right.
+    info = {}
+    windows0, _ = ad.find_nonadiabatic_windows(H3, 0.0, l1, threshold=0.1, info=info)
+    assert windows0, "the exact crossing of the decoupled level was not windowed"
+    assert 1e-3 < info['gamma_unpatched'] < 0.1, \
+        "gamma off the crossing is %.2e; the case has no teeth" % info['gamma_unpatched']
+
+    U, windows, certified = ad.hybrid_propagator(H3, 0.0, l1, rtol=1e-3, atol=1e-3)
+    assert certified
+    P = np.abs(U).T**2
+    P_exact = np.abs(exact_U(H3, 0.0, l1, 3)).T**2
+    err = maxabs(P - P_exact)
+    assert err < 1e-3, "certified but wrong by %.2e" % err
+
+
+def test_decoupled_sterile_state_leaves_the_three_flavor_answer_alone():
+    """The call of issue #59.  At their defaults the 4nu Sun wrappers decouple the sterile
+    state, so H is the 3nu Hamiltonian plus one level that mixes with nothing: P must be the
+    3nu matrix with the sterile state surviving with certainty.  The sterile level crosses the
+    lowest active one inside the Sun; transported through it in sorted order, the sterile row
+    landed on an active level -- P_ss = 0 -- and P_ee was off by up to 0.53, certified.  Among
+    the energies: 10 MeV, the issue's own; 147 and 237 MeV, where a window at the crossing used
+    to waive the adiabaticity requirement for the rest of the path.
+    """
+    import magnus.oscprob as op
+    L = 0.5*gd.SUN_RADIUS*gd.UNIT_KM
+    for E_mev in (2.0, 10.0, 147.0, 237.0):
+        kw = dict(energy=E_mev*gd.UNIT_MEV, L=L, L0=0.0)
+        P3 = np.asarray(op.osc_prob_3nu_sun(**kw, strategy='magnus', max_n_slabs=400000,
+                                            rtol=1e-7, atol=1e-7))
+        for f in (op.osc_prob_4nu_sun, op.osc_prob_4nu_sun_nsi, op.osc_prob_4nu_sun_liv):
+            info = {}
+            P = np.asarray(f(**kw, strategy_info=info))
+            assert info['certified']
+            assert abs(P[3, 3] - 1.0) < 1e-10 and maxabs(P[3, :3]) < 1e-10 \
+                and maxabs(P[:3, 3]) < 1e-10, \
+                "%s at %g MeV moved the decoupled sterile state:\n%r" % (f.__name__, E_mev, P)
+            err = maxabs(P[:3, :3] - P3)
+            assert err < 1e-3, "%s at %g MeV: active block off by %.2e (engine %s)" \
+                % (f.__name__, E_mev, err, info['engine'])
+
+
 def test_find_nonadiabatic_windows_reports_gamma_max_via_info():
     """The out-parameter hybrid_propagator's certification rests on, pinned directly."""
     H_func, _, l1 = _solar_step_H()
@@ -653,6 +764,8 @@ def test_find_nonadiabatic_windows_reports_gamma_max_via_info():
     # It must dominate every candidate's own gamma, since it is a max over the probe grid too.
     for c in candidates:
         assert info['gamma_max'] >= c['gamma'] - 1e-30
+    # What adiabatic transport carries alone is a subset of all of it.
+    assert 0.0 <= info['gamma_unpatched'] <= info['gamma_max']
     # Omitting info must remain valid (backward compatibility of the public signature).
     ad.find_nonadiabatic_windows(H_func, 0.0, l1)
 
