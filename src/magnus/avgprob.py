@@ -899,6 +899,22 @@ falls only on calls whose phases survive the spread, since the others never reac
 """
 
 
+PHASE_AVERAGE_PATCH_ATOL = 1.0e-5
+r"""float: Module-level constant
+
+Tolerance on the elements of each window's evolution operator in
+:func:`phase_averaged_probabilities_adiabatic`, looser than the 1e-7 of the Magnus patch the
+hybrid strategy uses.  The slab count doubles until two successive operators agree to it, so the
+tolerance sets the cost of every window, at every node.  Measured on three solar chords whose
+windows are long (10 GeV at :math:`b = 0.6\,R_\odot`, 100 GeV and 1 TeV at :math:`0.2\,R_\odot`,
+B16-GS98): at 1e-5 the probability moves by at most 1.4e-07 from its value at 1e-7, three orders
+below the 1e-4 at which :mod:`magnus.oscprob` returns the decohered limit instead, and the call is
+5 to 16 times faster.
+
+.. versionadded:: 1.1.1
+"""
+
+
 PHASE_SPREAD_SENSITIVITY_THRESHOLD = 1.0e-3
 r"""float: Module-level constant
 
@@ -1070,16 +1086,18 @@ def _stretch(H_func: Callable, D_func: Callable, a: float, z: float, V_start: np
 def _window_amplitudes(H_func: Callable, D_func: Callable, l_b: float, l_c: float,
                        u_nodes: np.ndarray, V_b: np.ndarray, V_c: np.ndarray, magnus_exp_order: int,
                        integration_method: str, n_slabs0: int = 400, max_n_slabs: int = 32_768,
-                       patch_atol: float = 1.0e-7) -> Tuple[np.ndarray, bool]:
+                       patch_atol: float = PHASE_AVERAGE_PATCH_ATOL) -> Tuple[np.ndarray, bool]:
     r"""The amplitude matrix :math:`V(l_c)^\dagger U_u V(l_b)` across a window, at every node.
 
     :math:`U_u` evolves with :math:`H + u\,D_\text{diag}`, where :math:`D_\text{diag}` is the part
     of :math:`dH/d\ln E` diagonal in the instantaneous eigenbasis: an energy offset :math:`u`
     moves every eigenvalue by :math:`u\, d\lambda_i/d\ln E` and leaves the eigenvectors alone,
     which is the definition of the phase average carried inside the window.  The node
-    :math:`u = 0` is the patch of :func:`level_crossing_matrix` itself; the others share one slab
-    count, converged at the largest :math:`|u|`, and one evaluation of the Hamiltonian, its
-    derivative and its eigenbasis per quadrature position.
+    :math:`u = 0` is the patch function of :func:`level_crossing_matrix`, at ``patch_atol``; the
+    others share one slab count, converged at the largest :math:`|u|` (measured on the chords of
+    :data:`PHASE_AVERAGE_PATCH_ATOL`, every node converged on its own lands on the same count),
+    and one evaluation of the Hamiltonian, its derivative and its eigenbasis per quadrature
+    position.
     """
     d = V_b.shape[0]
     cache = {}
@@ -1123,7 +1141,7 @@ def _window_amplitudes(H_func: Callable, D_func: Callable, l_b: float, l_c: floa
     for k, u in enumerate(u_nodes):
         if u == 0.0:
             U, ok = adiabatic._local_evolution_operator(H_func, l_b, l_c, magnus_exp_order,
-                integration_method)
+                integration_method, patch_atol=patch_atol)
             converged = converged and ok
         else:
             U = U_at(float(u), n)
@@ -1379,6 +1397,7 @@ __all__ = [
     'AVG_PHASE_SPREAD',
     'PHASE_AVERAGE_WINDOW_THRESHOLD',
     'PHASE_SPREAD_SENSITIVITY_THRESHOLD',
+    'PHASE_AVERAGE_PATCH_ATOL',
     'phase_averaged_probabilities_constant_hamiltonian',
     'phase_averaged_probabilities_adiabatic',
 ]

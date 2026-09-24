@@ -30,7 +30,9 @@ and the project uses [Semantic Versioning](https://semver.org/).
   chords from 10 GeV to 10 TeV: within 4.2e-05, where the decohered limit is
   off by up to 0.14.  New constants: `AVG_PHASE_SPREAD` (0.1, the default
   `sigma`), `PHASE_AVERAGE_WINDOW_THRESHOLD` (0.01, the window search of the
-  profile route) and `PHASE_SPREAD_SENSITIVITY_THRESHOLD`.  A pair whose slope
+  profile route), `PHASE_AVERAGE_PATCH_ATOL` (1e-5, the tolerance of its window
+  solves: at most 4.3e-07 from 1e-7 over 30 solar chords, and up to 18 times
+  faster) and `PHASE_SPREAD_SENSITIVITY_THRESHOLD`.  A pair whose slope
   is round-off, as a pseudo-Dirac pair's is over cosmological distances, is
   kept coherent rather than averaged away on noise (issue #61).  The existing
   functions are unchanged.
