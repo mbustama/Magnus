@@ -203,7 +203,7 @@ Computation of neutrino flavor oscillation probabilities for an arbitrary number
 \smallskip
 %%%%
 {\em Solution method:}\\
-The evolution operator is propagated with the Magnus expansion. Truncated time-ordered integrals of the Hamiltonian are evaluated by Gauss--Legendre quadrature over a chain of position slabs and exponentiated; every truncation remains in the Lie algebra, so the operator is unitary by construction. Slab widths are chosen adaptively from a requested tolerance, and slab edges are placed on the discontinuities of a layered profile. Where the accumulated phase is extreme, an adiabatic transport is composed with exact local Magnus patches across the non-adiabatic windows. The phase-averaged, decohered limit is available in closed form, without propagating. \\ \\
+The evolution operator is propagated with the Magnus expansion. Truncated time-ordered integrals of the Hamiltonian are evaluated by Gauss--Legendre quadrature over a chain of position slabs and exponentiated; every truncation remains in the Lie algebra, so the operator is unitary by construction. Slab widths are chosen adaptively from a requested tolerance, and slab edges are placed on the discontinuities of a layered profile. Where the accumulated phase is extreme, an adiabatic transport is composed with exact local Magnus patches across the non-adiabatic windows. The phase-averaged probability is available without resolving the oscillation: each interference term is weighted by the spread of its phase across the energy resolution. Where every phase has run through many cycles, this is the decohered limit. \\ \\
 \smallskip
 %%%%
 {\em Additional comments, including restrictions, unusual features:}\\
@@ -312,7 +312,7 @@ P_5nu = oscprob.osc_prob_5nu_matter_exp_density(
     D41=1.0, D51=1.7)
 \end{lstlisting}
 
-\magnus~ships with Hamiltonians that tackle commonly explored scenarios---including propagation in vacuum, in uniform matter, inside the Earth and the Sun, through a supernova shock---and using both standard and new-physics cases. The latter includes, but is not limited to, non-standard neutrino-matter interactions, Lorentz-invariance violation, sterile neutrinos, and pseudo-Dirac neutrinos. \magnus~ships these cases readily available for up to five neutrino flavors (\ie, three active flavors, plus two additional ones), but is easily extendable to more. Further, \magnus~also returns the \emph{phase-averaged} (decohered) form of the probabilities, \ie, the $L/E \to \infty$ limit a solar or astrophysical measurement is sensitive to because it integrates over many cycles of a phase that cannot be resolved. Finally, \magnus ~ships optimized functions to compute and render commonly used plots in the field, such as of probability vs.~distance and vs.~energy, oscillograms, and bi-probability plots.  The application programming interface (API) is extensively documented and made publicly available, along with implementation details, and a large number of tutorial notebooks.
+\magnus~ships with Hamiltonians that tackle commonly explored scenarios---including propagation in vacuum, in uniform matter, inside the Earth and the Sun, through a supernova shock---and using both standard and new-physics cases. The latter includes, but is not limited to, non-standard neutrino-matter interactions, Lorentz-invariance violation, sterile neutrinos, and pseudo-Dirac neutrinos. \magnus~ships these cases readily available for up to five neutrino flavors (\ie, three active flavors, plus two additional ones), but is easily extendable to more. Further, \magnus~also returns the \emph{phase-averaged} probability, \ie, the probability with each interference term damped by the spread of its phase across the energy resolution of the measurement. Where a phase runs through many cycles, as for a solar or an astrophysical neutrino, this is the $L/E \to \infty$ limit. Finally, \magnus ~ships optimized functions to compute and render commonly used plots in the field, such as of probability vs.~distance and vs.~energy, oscillograms, and bi-probability plots.  The application programming interface (API) is extensively documented and made publicly available, along with implementation details, and a large number of tutorial notebooks.
 
 % We present the method in full later. For now, two properties follow.
 
@@ -416,7 +416,7 @@ The Magnus expansion is due to Magnus\ \cite{Magnus:1954zz} and has a large lite
 
 The expansion has been used for neutrino oscillations before. It was brought to two-flavor evolution in matter by D'Olivo and Oteo\ \cite{DOlivo:1990xs}, developed for realistic profiles by Ioannisian and Smirnov\ \cite{Ioannisian:2008ve}, and turned into a practical integrator for the three-flavor problem by Casas \emph{et al.}\ \cite{Casas:2016asi}, who reported gains of up to two orders of magnitude in speed over general-purpose differential-equation solvers. 
 
-What has not been available is a general-purpose, tested, documented implementation, which \magnus\ is. It takes an arbitrary Hermitian Hamiltonian at an arbitrary number of flavors, chooses its own discretization from a requested tolerance, and places its slab edges on the discontinuities of a layered profile. It also says which of its six internal engines answered a call---the independent methods that can serve a request, listed in Section \ref{sec:engines}---and reports, rather than assuming, when the evidence for its own convergence is weak, naming how far from converged it stopped.  \magnus\ implements the Magnus expansion carried to order 10 (the maximum by default, extendable), the quadratures, the slab chain and its adaptive refinement, an exactly unitary matrix exponential, the composition with adiabatic transport for extreme accumulated phase, the closed-form decohered limit, and the engineering that makes a whole scan over neutrino energy or arrival direction one batched call rather than thousands of separate ones.
+What has not been available is a general-purpose, tested, documented implementation, which \magnus\ is. It takes an arbitrary Hermitian Hamiltonian at an arbitrary number of flavors, chooses its own discretization from a requested tolerance, and places its slab edges on the discontinuities of a layered profile. It also says which of its seven internal engines answered a call---the independent methods that can serve a request, listed in Section \ref{sec:engines}---and reports, rather than assuming, when the evidence for its own convergence is weak, naming how far from converged it stopped.  \magnus\ implements the Magnus expansion carried to order 10 (the maximum by default, extendable), the quadratures, the slab chain and its adaptive refinement, an exactly unitary matrix exponential, the composition with adiabatic transport for extreme accumulated phase, the phase-averaged probability, and the engineering that makes a whole scan over neutrino energy or arrival direction one batched call rather than thousands of separate ones.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -772,7 +772,7 @@ Besides the phase $\Phi_k$ from its eigenvalue, an eigenstate that follows a cha
  \gamma_{jk} = \frac{\lvert\langle v_j \lvert \tfrac{d\mathbb{H}}{dl} \rvert v_k \rangle\rvert}
  {(\lambda_k - \lambda_j)^2} \;.
 \end{equation}
-The second quantity measures how non-adiabatic the pair of levels $(j, k)$ is: small where the levels are far apart compared with how fast $\mathbb{H}$ changes, large where they approach. (The adiabaticity parameter of the Landau-Zener literature is its inverse.) Both expressions need only the derivative of $\mathbb{H}$, not the derivative of an eigenvector, which would depend on the above arbitrary phase. 
+The second quantity measures how non-adiabatic the pair of levels $(j, k)$ is: small where the levels are far apart compared with how fast $\mathbb{H}$ changes, large where they approach. (For two flavors, $\gamma_{jk} = 1/(2\gamma_{\rm LZ})$, where $\gamma_{\rm LZ} = \lvert \lambda_k - \lambda_j \rvert / (2\lvert d\theta_m/dl \rvert)$, with $\theta_m$ the mixing angle in matter, is the adiabaticity parameter of the Landau-Zener literature.) Both expressions need only the derivative of $\mathbb{H}$, not the derivative of an eigenvector, which would depend on the above arbitrary phase. 
 
 We evaluate $\gamma_{jk}$ for every pair of eigenvalues $(j, k)$ along the whole trajectory. A crossing between any two of them is therefore found, and so are several crossings that happen at the same place, as when three eigenvalues approach each other at once. Around each position where $\gamma_{jk}$ exceeds a threshold, $0.1$ on the first pass, we grow a window outward until $\gamma_{jk}$ falls below the threshold again, so that the window has the physical width of the crossing; overlapping windows are merged. Inside each window, adiabatic evolution is not trusted; the evolution operator across it is computed with the Magnus expansion instead, as described next. Outside the windows, \equ{adiabatic} is used.
 
@@ -803,7 +803,7 @@ Two ways of failing remain, neither specific to \magnus: any method that evaluat
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\subsection{The phase-averaged limit, in closed form}
+\subsection{The phase-averaged probability}
 \label{sec:averaged}
 
 A neutrino from an astrophysical source arrives with a phase that no experiment resolves. For a TeV neutrino from $100$~Mpc the accumulated phase is of order $10^{16}$ radians, and none of the quantities that fix it---the distance, the size of the source, the energy of the neutrino---is known to anything near the precision it would take to resolve the oscillations. Whatever the phase is, the measurement averages over many cycles of it. Propagating such a neutrino while trying to resolve the oscillation is expensive and unnecessary; what is needed is the average.
@@ -825,6 +825,7 @@ Three properties of \equ{averaged} are worth noting:
 \item In vacuum, it is the same for neutrinos and antineutrinos, since the antineutrino probability is obtained by replacing $\mathbb{V}$ with $\mathbb{V}^\ast$, and \equ{averaged} contains only $\lvert \mathbb{V} \rvert^2$. At three flavors, the CP-violation phase, $\delta_{\rm CP}$, still affects the result through the values of $\lvert \mathbb{V}_{\alpha i} \rvert^2$, but it produces no difference between neutrinos and antineutrinos. In matter, neutrinos and antineutrinos have different averaged probabilities, because the matter potential has opposite signs for the two.
 \item It does not depend on the baseline. It depends on the energy only through the eigenvectors of $\mathbb{H}$. In vacuum, those are independent of the energy, since the vacuum Hamiltonian is proportional to $1/E$ and a matrix and any multiple of it have the same eigenvectors, so the averaged probability is a constant. In matter, the eigenvectors change with the energy, through the competition between the matter potential and the vacuum term, and so does the averaged probability. A non-standard Hamiltonian may have an entirely different energy dependence.
 \end{enumerate}
+These are properties of the limit. Where part of an interference term survives (see below), none of the three holds in general. The probability then depends on the baseline and is not symmetric under the exchange of $\alpha$ and $\beta$. In vacuum, CP violation again distinguishes neutrinos from antineutrinos.
 
 \smallskip
 
@@ -835,11 +836,21 @@ Three properties of \equ{averaged} are worth noting:
  =
  \sum_b \left\vert \sum_{i \in b} \mathbb{V}^\ast_{\alpha i}\mathbb{V}_{\beta i} \right\vert^2 \;,
 \end{equation}
-which reduces to \equ{averaged} when every block contains one eigenvalue. The distinction matters whenever two eigenvalues lie close enough that their phase difference does not average out over the baseline, as for a pseudo-Dirac pair or a sterile state with a small mass splitting, and it matters absolutely for a degenerate spectrum: with all eigenvalues equal, nothing oscillates and the probability is the identity, while \equ{averaged} would return a mixture. A pair that is neither coherent nor fully averaged is described by neither equation, and \magnus\ says so instead of returning a number.
+which reduces to \equ{averaged} when every block contains one eigenvalue. The distinction matters whenever two eigenvalues lie close enough that their phase difference does not average out over the baseline, as for a pseudo-Dirac pair or a sterile state with a small mass splitting, and it matters absolutely for a degenerate spectrum: with all eigenvalues equal, nothing oscillates and the probability is the identity, while \equ{averaged} would return a mixture. A pair that is neither coherent nor fully averaged is described by neither equation. For such a pair, the average depends on how the phase is spread in energy. We compute that average next.
 
 \smallskip
 
-\textit{What the average is not.---}It is not the effect of a finite experimental resolution. A spread in baseline or energy that partly suppresses an oscillation without removing it is described by damping factors multiplying each term of the probability\ \cite{Kiers:1995zj, Blennow:2005yk, Ohlsson:2000mj}; that is an operation on the final probability, and \magnus\ does not perform it. Nor is it the same as averaging the probability over an energy band, because $\mathbb{H}$ depends on the energy: averaging over a band averages over different Hamiltonians, while \equ{averaged_blocks} averages the phase of one. In vacuum, the two coincide, since the eigenvectors do not depend on energy. In matter, they differ by an amount set by how fast the eigenvectors change with energy across the band. For standard oscillations that change is largest near a resonance and vanishes again at high density, where the eigenvectors are pinned to the flavor states; for a non-standard Hamiltonian it follows whatever energy dependence that Hamiltonian has.
+\textit{The phase average.---}A measurement averages over what it cannot resolve. Equation (\ref{equ:averaged}) assumes that this includes every phase. A detector with a relative energy resolution $\sigma$ averages a phase over the range the phase covers across that resolution. A phase that barely changes with energy is not averaged at all. Over 1000~km at 1~GeV, the atmospheric phase is about 6~rad, so \equ{averaged} misses the oscillation entirely. Therefore, {\tt average=True} returns the phase average, in which each interference term keeps its phase at the central energy and is damped by the spread of that phase,
+\begin{equation}
+ \label{equ:phase_average}
+ \left\langle P_{\nu_\alpha \to \nu_\beta} \right\rangle
+ =
+ \sum_{ij} \mathbb{V}^\ast_{\alpha i}\mathbb{V}_{\beta i}\mathbb{V}_{\alpha j}\mathbb{V}^\ast_{\beta j}\,
+ e^{-i\phi_{ij}}\, e^{-\sigma^2 \phi_{ij}'^2/2} \;,
+\end{equation}
+with $\phi_{ij} = (\lambda_i - \lambda_j)L$ and $\phi'_{ij} = d\phi_{ij}/d\ln E$. The damping factor is the average of $e^{-i\phi}$ over a Gaussian spread of width $\sigma$ in $\ln E$, the form familiar from wave packets and finite resolution\ \cite{Kiers:1995zj, Blennow:2005yk, Ohlsson:2000mj}. In vacuum, $\phi' = -\phi$. At $\sigma = 10\%$, a phase of $2\pi$ keeps 82\% of its interference; a phase of 20~rad keeps 14\%; a phase of 40~rad keeps $3\times10^{-4}$. Equation (\ref{equ:phase_average}) is therefore \equ{averaged} wherever every phase runs through many cycles, the oscillation probability itself where none does, and a smooth interpolation in between. We obtain the slopes from the Hellmann-Feynman identity of \equ{hf}, $d\lambda_i/d\ln E = \langle v_i|\, d\mathbb{H}/d\ln E\, |v_i\rangle$, with $d\mathbb{H}/d\ln E$ from a central difference, so they cost two more evaluations of $\mathbb{H}$ and no diagonalization. The spread is set with {\tt average\_spread} and is $10\%$ by default.
+
+Only the phases are averaged: $\mathbb{V}$ stays at the central energy. That is not the same as averaging the probability over an energy band. Because $\mathbb{H}$ depends on the energy, a band average also averages over different Hamiltonians. In vacuum, where the eigenvectors do not depend on energy, the phase average and the band average differ only through the second-order dependence of the phase on the energy offset. In matter, their difference is set by how fast the eigenvectors change with energy. On the BS2005-AGS,OP solar curve from 0.1 to 20~MeV, a $10\%$ band average moves 26 of 40 energies by more than $10^{-4}$. Equation (\ref{equ:phase_average}) moves none of them, since that curve carries no interference. Wherever \equ{phase_average} agrees with the limit to $10^{-4}$, \magnus\ returns the limit, computed as before.
 
 \smallskip
 
@@ -853,6 +864,8 @@ which reduces to \equ{averaged} when every block contains one eigenvalue. The di
  \lvert \mathbb{V}_{\beta j}(l_1)\rvert^2 \;,
 \end{equation}
 where $\mathbb{V}(l_0)$ and $\mathbb{V}(l_1)$ are the eigenvector matrices at production and at detection, and $P^{\rm cross}_{ij}$ is the probability that a neutrino produced in eigenstate $i$ arrives in eigenstate $j$. Where the evolution is adiabatic, $P^{\rm cross}$ is the identity; across a crossing, it is computed with the Magnus patch of Sec.~\ref{sec:hybrid}. The crossings are located on a grid of probes along the path. A feature narrower than their spacing, such as a sharp density front, would fall between two of them; where the profile has one that could move probability between levels, \magnus\ locates the crossings with the refinement ladder of Sec.~\ref{sec:hybrid} instead, and where no refinement resolves it, it warns that the feature must be declared. This is the standard result for solar neutrinos\ \cite{Kuo:1989qe, Dighe:1999bi}, here for any number of eigenstates and any number of crossings. For a constant Hamiltonian, $\mathbb{V}(l_0) = \mathbb{V}(l_1)$ and $P^{\rm cross}$ is the identity, and \equ{averaged_varying} reduces to \equ{averaged}.
+
+Equation (\ref{equ:averaged_varying}) composes the crossings as probabilities and reads the result out incoherently. It therefore keeps no phase at all---neither between two crossings nor between the last crossing and the end of the path, however short that stretch is. The phase average carries its definition onto the path instead. An energy offset $u = \delta \ln E$ moves each instantaneous eigenvalue by $u\, d\lambda_i/d\ln E$ and leaves the eigenvectors unchanged. We average the evolution under $\mathbb{H} + u\, \mathbb{D}_{\rm diag}$ over a Gaussian in $u$ of width $\sigma$, with $\mathbb{D}_{\rm diag}$ the part of $d\mathbb{H}/d\ln E$ diagonal in the instantaneous eigenbasis. \magnus\ computes it without sampling energies along the path: each crossing is a Magnus patch evaluated at a few Gauss-Hermite nodes in $u$, each adiabatic stretch between crossings a phase with an exact slope in $u$. The answer then does not depend on where the crossing windows are drawn. Where there is no crossing, it is \equ{averaged_varying}. Against a brute-force average of the same definition on five chords through the Sun, from 10~GeV to 10~TeV, it agrees to $4 \times 10^{-5}$; \equ{averaged_varying} is off by up to 0.14 on the same chords (Sec.~\ref{sec:solar_tomography}).
 
 (A varying medium is one reason for the eigenbases at the two ends to differ; \equ{averaged_varying} does not care what the reason is. If the mixing matrix is not unitary, because heavy states have been integrated out, its effective form can differ between the production and the detection process\ \cite{Antusch:2014woa, Blennow:2016jkn, Fong:2022oim}. And if the mixing parameters run with energy, and new physics brings that running into the range an experiment spans, then production and detection at different energies see two evaluations of one matrix\ \cite{Antusch:2003kp, Antusch:2005gp, Bustamante:2010bf, Babu:2021cxe, Babu:2022non, Ge:2024ibn, Bustamante:2026zst}. Equation (\ref{equ:averaged_varying}) accommodates either case with $P^{\rm cross}$ the identity and the two matrices supplied directly. Presently, \magnus\ does not expose that: it computes both eigenbases from the one Hamiltonian it is given.)
 
@@ -895,11 +908,11 @@ Every other function that \magnus\ exposes to the user builds a Hamiltonian for 
 \begin{figure*}[t!]
  \centering
  \includegraphics[width=0.98\textwidth]{architecture.pdf}
- \caption{\label{fig:architecture}The modules of \magnus\ and the path of a request through them. A Hamiltonian enters from the left, either supplied by the user as a function of position or built by {\tt hamiltonians} for one of the implemented scenarios, with the density profile provided by {\tt matter} or {\tt earth}. The request is handled in {\tt oscprob}, which contains the refinement ladder of Section \ref{sec:refinement} and the choice of engine of Section \ref{sec:engines}. From there the computation proceeds along one of two routes: through {\tt magnus}, which evaluates the expansion slab by slab and contains no physics, or through {\tt avgprob} and {\tt adiabatic}, which evaluate no slabs---the first for the phase-averaged limit, the second for transport along the instantaneous eigenstates, which calls {\tt magnus} back to compute the evolution across a level crossing. The dashed arrow to {\tt expmkernels} indicates that this module affects only the speed: a {\tt NumPy} implementation of the same exponential exists behind it, and the test suite verifies that the two agree to round-off}
+ \caption{\label{fig:architecture}The modules of \magnus\ and the path of a request through them. A Hamiltonian enters from the left, either supplied by the user as a function of position or built by {\tt hamiltonians} for one of the implemented scenarios, with the density profile provided by {\tt matter} or {\tt earth}. The request is handled in {\tt oscprob}, which contains the refinement ladder of Section \ref{sec:refinement} and the choice of engine of Section \ref{sec:engines}. From there the computation proceeds along one of two routes: through {\tt magnus}, which evaluates the expansion slab by slab and contains no physics, or through {\tt avgprob} and {\tt adiabatic}, which evaluate no slabs---the first for the phase average, the second for transport along the instantaneous eigenstates, which calls {\tt magnus} back to compute the evolution across a level crossing. The dashed arrow to {\tt expmkernels} indicates that this module affects only the speed: a {\tt NumPy} implementation of the same exponential exists behind it, and the test suite verifies that the two agree to round-off}
 \end{figure*}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-Figure~\ref{fig:architecture} shows the modules of \magnus\ and the path of a request through them, from a Hamiltonian on the left to a probability on the right. A request arrives at the {\tt oscprob} module and leaves it either to {\tt magnus}, which evaluates the expansion slab by slab, to {\tt avgprob}, which computes the phase-averaged limit of the probability, or to {\tt adiabatic}, which transports the neutrino state along the instantaneous eigenstates, returning to {\tt magnus} only to cross a level crossing within non-adiabatic Magnus patches. The route is selected internally by \magnus\ from the form of the request, not by the user; Section \ref{sec:engines} below gives the order in which the candidates are tried.
+Figure~\ref{fig:architecture} shows the modules of \magnus\ and the path of a request through them, from a Hamiltonian on the left to a probability on the right. A request arrives at the {\tt oscprob} module and leaves it either to {\tt magnus}, which evaluates the expansion slab by slab, to {\tt avgprob}, which computes the phase average of the probability, or to {\tt adiabatic}, which transports the neutrino state along the instantaneous eigenstates, returning to {\tt magnus} only to cross a level crossing within non-adiabatic Magnus patches. The route is selected internally by \magnus\ from the form of the request, not by the user; Section \ref{sec:engines} below gives the order in which the candidates are tried.
 
 Two properties of this arrangement are not visible from outside the package. First, {\tt magnus} imports nothing from the rest of it. The module is numerical linear algebra on an arbitrary matrix-valued function $\mathbb{A}(l)$, with no reference to neutrinos, and it can therefore be tested against the recursion of \equ{recursion} without involving any of the probability code. Second, {\tt oscprob} is the only module that imports every other one. The physics, environments, and numerical core are connected in that one module.
 
@@ -937,7 +950,7 @@ Extending the package usually requires only a new Hamiltonian. {\tt osc\_prob} a
  {\tt expmkernels} & Compiled kernels for the exponential: Cayley--Hamilton at $2\times2$ and $3\times3$, batched Jacobi solver at $4\times4$ and $5\times5$ \\
  {\tt expansionterms} & The recursion of \equ{recursion}, in exact rational arithmetic, at any order \\
  {\tt adiabatic} & Adiabatic transport, detection of level crossings, the combined propagator \\
- {\tt avgprob} & The phase-averaged limit \\
+ {\tt avgprob} & The phase average \\
  {\tt earth} & The PREM profile, chord and zenith-angle geometry \\
  {\tt solarmodels} & Tabulated standard solar models: electron density and composition along a radial ray \\
  {\tt matter} & Density profiles, electron density, $V_{\rm CC}$, the matter-potential projector \\
@@ -1025,7 +1038,7 @@ The keyword {\tt strategy} is that exception: it gates a single engine rather th
 \textit{The engines.---}Figure~\ref{fig:strategies} and Table\tabl{engines} show the seven engines in the order in which they are tried internally by \magnus. 
 \begin{enumerate}
 
-\item \emph{Phase average.} This engine answers every request made with {\tt average=True}, by one of three routes chosen by $\mathbb{H}$. When $\mathbb{H}$ does not depend on position, it returns \equ{averaged}, the limit of $P_{\nu_\alpha \to \nu_\beta}$ as $L/E \to \infty$, in which every interference term between two eigenstates of $\mathbb{H}$ has averaged to zero; this is the quantity a solar or an astrophysical experiment measures. It diagonalizes $\mathbb{H}$ once, numerically, then evaluates \equ{averaged} from the moduli of the eigenvector components: nothing is propagated, no baseline enters, and no average over a range of baselines or energies is taken. When $\mathbb{H}$ varies smoothly along the path, it returns the same limit through \equ{averaged_varying}, transporting along the instantaneous eigenstates with the Magnus patch of Sec.~\ref{sec:hybrid} across every crossing that is not adiabatic. When the profile declares discontinuities, there is no instantaneous eigenbasis, and it propagates for real across a window in energy and averages over it, a different quantity (Sec.~\ref{sec:average_keyword}). See Sec.~\ref{sec:astro} for an example.
+\item \emph{Phase average.} This engine answers every request made with {\tt average=True}, by one of three routes chosen by $\mathbb{H}$. When $\mathbb{H}$ does not depend on position, it returns \equ{phase_average}, the probability with each interference term damped by the spread of its phase across the energy resolution. That is the quantity a solar or an astrophysical experiment measures. Where every phase has decohered, it is the limit \equ{averaged}. The engine diagonalizes $\mathbb{H}$ once and propagates nothing. When $\mathbb{H}$ varies smoothly along the path, the engine transports along the instantaneous eigenstates, keeping each phase with its weight, with the Magnus patch of Sec.~\ref{sec:hybrid} across every crossing that is not adiabatic. Without such a crossing, the result is \equ{averaged_varying}. When the profile declares discontinuities, there is no instantaneous eigenbasis; the engine then propagates for real across a window in energy and averages over it, a different quantity (Sec.~\ref{sec:average_keyword}). See Sec.~\ref{sec:astro} for an example.
 
 \smallskip
 
@@ -1073,7 +1086,7 @@ Agreement among the engines is not a check, since the general ladder, the cumula
 \begin{figure*}[t!]
  \centering
  \includegraphics[width=\textwidth]{strategies.pdf}
- \caption{\label{fig:strategies}The seven \magnus\ engines that can answer a probability request, in the order in which they are tried. Each row draws what its engine does to the trajectory: for the phase average, $\langle P \rangle$ read from the eigenbases of $\mathbb{H}$, exact and with no baseline when one eigenbasis serves the whole path, and otherwise from the eigenbases at the two ends and the probability of each crossing between them, with no phase tracked in either case; adiabatic transport with an exact Magnus patch across the resonance; the fast vacuum phase removed analytically before a single Magnus pass; one exponential for the whole path where $\mathbb{H}$ does not vary; one evaluation of the profile shared across multiple energies; one pass returning multiple baselines; and the general Magnus ladder, refining until two successive stages agree. Shading represents the matter density. An engine declines a request whose conditions it does not meet; in that case, the request passes to the next engine, so the last engine (general Magnus ladder) is reached whenever no other applies; \tabl{engines} gives the conditions.}
+ \caption{\label{fig:strategies}The seven \magnus\ engines that can answer a probability request, in the order in which they are tried. Each row draws what its engine does to the trajectory: for the phase average, $\langle P \rangle$ in closed form from the eigenbasis of $\mathbb{H}$ when one eigenbasis serves the whole path, otherwise transported along the instantaneous eigenstates with a Magnus patch across each crossing, each phase kept and weighted by its spread in energy; adiabatic transport with an exact Magnus patch across the resonance; the fast vacuum phase removed analytically before a single Magnus pass; one exponential for the whole path where $\mathbb{H}$ does not vary; one evaluation of the profile shared across multiple energies; one pass returning multiple baselines; and the general Magnus ladder, refining until two successive stages agree. Shading represents the matter density. An engine declines a request whose conditions it does not meet; in that case, the request passes to the next engine, so the last engine (general Magnus ladder) is reached whenever no other applies; \tabl{engines} gives the conditions.}
 \end{figure*}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -1187,7 +1200,7 @@ P3 = prob(3, castle_wall, E, L, osc,
 \subsection{Documentation and executable examples}
 \label{sec:documentation}
 
-The main documentation is the accompanying site\ \cite{MagnusDocs}, whose source is kept in the repository~\cite{Magnus} beside the code. Besides an API reference generated from the source, it presents the method of Sec.~\ref{sec:method} in the form in which it is implemented: a page deriving the expansion terms at any order, one on the adiabatic transport with Magnus patches of Sec.~\ref{sec:hybrid}, one on the phase-averaged limit of Sec.~\ref{sec:averaged}, and one on the engines of Sec.\ref{sec:engines}, and the order in which they are tried. A performance page gives every tuned constant together with the set of cases on which it was measured, or states that it was not measured. A diagnostics page gives the measured false-alarm rate of every warning the package can raise. The 29 executable notebooks of \ref{app:notebooks} are the long form of all of this; one of them (notebook \#28) produces every figure in this paper, and the test suite executes all of the notebooks on every push to the repository.
+The main documentation is the accompanying site\ \cite{MagnusDocs}, whose source is kept in the repository~\cite{Magnus} beside the code. Besides an API reference generated from the source, it presents the method of Sec.~\ref{sec:method} in the form in which it is implemented: a page deriving the expansion terms at any order, one on the adiabatic transport with Magnus patches of Sec.~\ref{sec:hybrid}, one on the phase average of Sec.~\ref{sec:averaged}, and one on the engines of Sec.\ref{sec:engines}, and the order in which they are tried. A performance page gives every tuned constant together with the set of cases on which it was measured, or states that it was not measured. A diagnostics page gives the measured false-alarm rate of every warning the package can raise. The 29 executable notebooks of \ref{app:notebooks} are the long form of all of this; one of them (notebook \#28) produces every figure in this paper, and the test suite executes all of the notebooks on every push to the repository.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -1833,7 +1846,7 @@ The same probabilities come from one call over a two-slab profile with the edge 
 \subsubsection{Asking for the averaged probability}
 \label{sec:average_keyword}
 
-Every function above also returns the phase-averaged limit of Sec.~\ref{sec:averaged}, with one keyword, {\tt average}. For a Hamiltonian that does not depend on position, {\tt average=True} returns \equ{averaged} from the eigenvectors of $\mathbb{H}$, one diagonalization per energy and no propagation at all. Where some pairs of eigenstates have not decohered over the baseline, it returns \equ{averaged_blocks} instead, grouping the pairs itself. In the context of Listing~\ref{lst:constant},
+Every function above also returns the phase average of Sec.~\ref{sec:averaged}, with one keyword, {\tt average}. A second keyword, {\tt average\_spread}, sets the spread $\sigma$. For a Hamiltonian that does not depend on position, {\tt average=True} returns \equ{phase_average} from the eigenvectors of $\mathbb{H}$, one diagonalization per energy and no propagation at all; where every pair of eigenstates has decohered over the baseline, that is \equ{averaged}. In the context of Listing~\ref{lst:constant},
 \begin{pysnip}
 FAR = 1.0e8*gd.UNIT_KM   # Astrophysical L
 P = oscprob.osc_prob_3nu_vacuum(
@@ -1842,25 +1855,20 @@ P = oscprob.osc_prob_3nu_vacuum(
 # familiar sum_i |U_ei|^2 |U_mi|^2, from the
 # eigenvectors alone
 \end{pysnip}
-Whether a pair has averaged is decided from the baseline and the eigenvalue gap, not assumed. Asked at the $1\,000$~km of Listing~\ref{lst:constant} instead, the same call answers with a warning:
+At the $1\,000$~km of Listing~\ref{lst:constant}, the phases have not decohered. The same call then returns the average over the spread, with a warning that the result depends on the spread:
 \begin{pysnip}
 P = oscprob.osc_prob_3nu_vacuum(
     E, L, average=True, **osc)   # 1000 km
-# PhaseAveragingWarning: the averaged
-# probability was requested at 1 of 1
-# (energy, L) point(s) where at least one
-# pair of eigenvalues has neither decohered
-# nor stayed coherent, so no averaged
-# expression describes it.  The oscillation
-# probability itself (average=False) is the
-# meaningful quantity there.
-# P[0, 0] = 1.0000; without the keyword,
-# the observable: 0.9924
+# PhaseAveragingWarning: the phase-averaged
+# probability depends on the energy spread
+# at 1 of 1 (energy, L) point(s) ...
+# P[0, 0] = 0.9844, P[1, 1] = 0.9088;
+# without the keyword: 0.9924, 0.9955
 \end{pysnip}
 
-The keyword is neither a resolution effect nor a mean over an energy window: the first is a damping of each term of the probability that \magnus\ does not perform, the second an estimator that does not converge on a varying profile (Sec.~\ref{sec:averaging_is_not_estimating}). 
+The keyword applies the damping that an energy resolution produces on each interference term. It is not a mean over an energy window: such a mean is an estimator that does not converge on a varying profile (Sec.~\ref{sec:averaging_is_not_estimating}). 
 
-For a Hamiltonian that varies along the path, {\tt average=True} returns \equ{averaged_varying}: the neutrino decoheres in the eigenbasis at production, is transported along the instantaneous eigenstates, with the Magnus patch of Sec.~\ref{sec:hybrid} across every crossing that is not adiabatic, then read out in the eigenbasis at detection. That route needs an instantaneous eigenbasis, so it applies to a profile without discontinuities. Where the profile declares them, through {\tt t\_breakpoints} or {\tt t\_slab\_edges}, there is no such basis. (An undeclared discontinuity that could move the probability is reported with {\tt UnmarkedDiscontinuityWarning} rather than treated as smooth.) \magnus\ then propagates for real across a window in energy and averages, warning that this is a different quantity: an average over that window rather than the limit. A chord through the Earth is that case: the PREM layer boundaries are breakpoints.
+For a Hamiltonian that varies along the path, {\tt average=True} returns the phase average of Sec.~\ref{sec:averaged}. The neutrino starts decohered in the eigenbasis at production. It is transported along the instantaneous eigenstates, keeping each phase with its weight, with the Magnus patch of Sec.~\ref{sec:hybrid} across every crossing that is not adiabatic. It is read out in the flavor basis at detection. Without such a crossing, the result is \equ{averaged_varying}. On such a profile, {\tt rtol} and {\tt atol} set the tolerance of the phase average, as they do for any other call. The Magnus patches and the phases of the adiabatic stretches converge to the tighter of {\tt rtol} and {\tt atol}, $10^{-3}$ by default. The limit is kept only where the phase average agrees with it within that tolerance, or within $10^{-4}$ if that is tighter. Over twenty chords through the solar core, from 30~GeV to 3~TeV, the default moves the probability by at most $5 \times 10^{-6}$ from its value at a tolerance of $10^{-5}$. That route needs an instantaneous eigenbasis, so it applies to a profile without discontinuities. Where the profile declares them, through {\tt t\_breakpoints} or {\tt t\_slab\_edges}, there is no such basis. (An undeclared discontinuity that could move the probability is reported with {\tt UnmarkedDiscontinuityWarning} rather than treated as smooth.) \magnus\ then propagates for real across a window in energy and averages, warning that this is a different quantity: an average of the probability over that window. A chord through the Earth is that case: the PREM layer boundaries are breakpoints.
 
 The keyword lives on every wrapper and scenario function, as well as on the direct route of Sec.~\ref{sec:wrapper_vs_direct}, {\tt osc\_prob\_energy\_baseline}, {\tt osc\_prob\_earth}, and {\tt osc\_prob\_sun}, so a custom Hamiltonian is averaged the same way as a shipped Hamiltonian, \ie,
 \begin{pysnip}
@@ -1870,7 +1878,7 @@ P = oscprob.osc_prob_energy_baseline(
 # P[0, 0] = 0.8926: Eq. (23) again,
 # now from the eigenvectors in matter
 \end{pysnip}
-There are two settings it does not combine with: {\tt osc\_prob} itself computes one point and refuses the keyword by name; and {\tt return\_evolution\_operator} (Sec.~\ref{sec:evolution_operator}) keeps the phases the average discards, so passing it with {\tt average} together raises. Which route answered is reported in {\tt strategy\_info['engine']} as {\tt 'average'} (Sec.~\ref{sec:which_engine}).
+There are two settings it does not combine with: {\tt osc\_prob} itself computes one point and refuses the keyword by name; and {\tt return\_evolution\_operator} (Sec.~\ref{sec:evolution_operator}) keeps the phases the average weights, so passing it with {\tt average} together raises. Which route answered is reported in {\tt strategy\_info['engine']} as {\tt 'average'} (Sec.~\ref{sec:which_engine}).
 
 Three later sections use the keyword: the Sun (Sec.~\ref{sec:sun}, Listing~\ref{lst:sun}), where \equ{averaged_varying} replaces a phase of $10^{5}$ radians that no panel could show; the flavor composition of TeV--PeV astrophysical fluxes (Sec.~\ref{sec:astro}), where \equ{averaged} is the whole observable; and a custom Hamiltonian on the direct route (Sec.~\ref{sec:lri_sun}). Section~\ref{sec:jet} is the case the keyword does not cover: there the coherence at production matters, so the averaging is done at Earth, from the evolution operator.
 
@@ -2927,9 +2935,9 @@ The bottom panel shows the passage between the two regimes, over an energy range
 
 Listing~\ref{lst:sun} computes the four curves. The BS2005-AGS,OP table is one of the twelve standard solar models that ship with \magnus\ (\tabl{solar_models}), and every Sun wrapper takes it by name through {\tt density\_profile}. The wrapper interpolates the electron number density log-linearly between the tabulated radii. For the sterile states, it also reads the neutron-to-proton ratio from the table, $n_n/n_p = (1 - X)/(1 + X)$ at each radius, with $X$ the hydrogen mass fraction. The only difference from an ordinary probability call is {\tt average=True} (Sec.~\ref{sec:average_keyword}). With it, \magnus\ does not propagate along the ray. Instead, it diagonalizes $\mathbb{H}$ at the two ends of the ray, verifies along the ray that the passage is adiabatic and that the levels have decohered by the surface, and contracts the two eigenbases as in \equ{averaged_varying}. Where a crossing fails the adiabatic test, it is bridged by the Magnus patch of Sec.~\ref{sec:hybrid}; on the Sun, none does. 
 
-In Listing~\ref{lst:sun}, between the four probability calls only the wrapper changes, and with it the Hamiltonian. The cost of the calls follows the number of levels whose eigenvalues must be tracked, not the content of the Hamiltonian. The non-standard interactions add no levels to the standard three-flavor case, while each sterile state adds level pairs for the engine to test for adiabaticity and decoherence along the ray: three pairs at three flavors, six at $3+1$, ten at $3+2$. The four curves take about 1~s, 1~s, 2~s, and 3~s, respectively, over ninety energies.
+In Listing~\ref{lst:sun}, between the four probability calls only the wrapper changes, and with it the Hamiltonian. The cost of the calls follows the number of levels whose eigenvalues must be tracked, not the content of the Hamiltonian. The non-standard interactions add no levels to the standard three-flavor case, while each sterile state adds level pairs for the engine to test for adiabaticity and decoherence along the ray: three pairs at three flavors, six at $3+1$, ten at $3+2$. The four curves take about 0.5~s, 0.5~s, 0.8~s, and 1.2~s, respectively, over ninety energies.
 
-\begin{lstlisting}[language=Python, caption={The four averaged solar probabilities of \figu{solar}, complete and runnable as it stands: the BS2005-AGS,OP table\ \cite{Bahcall:2004pz} ships with \magnus, and every Sun wrapper takes it by name through {\tt density\_profile}. The same keywords serve the four wrappers. {\tt average=True} is the whole of the difference from an instantaneous call: it returns \equ{averaged_varying} from the eigenbases at the two ends of the ray, without propagating the phase it would otherwise have to average away. The four curves take about seven seconds. Naming {\tt 'B16-GS98'} instead gives the B16-GS98 curve of \figu{solar_models}. See notebooks \#10, \#13, and \#28, and Sec.~\ref{sec:sun} for details.}, label={lst:sun}, float=tbp]
+\begin{lstlisting}[language=Python, caption={The four averaged solar probabilities of \figu{solar}, complete and runnable as it stands: the BS2005-AGS,OP table\ \cite{Bahcall:2004pz} ships with \magnus, and every Sun wrapper takes it by name through {\tt density\_profile}. The same keywords serve the four wrappers. {\tt average=True} is the whole of the difference from an instantaneous call: it returns \equ{averaged_varying} from the eigenbases at the two ends of the ray, without propagating the phase it would otherwise have to average away. The four curves take about three seconds. Naming {\tt 'B16-GS98'} instead gives the B16-GS98 curve of \figu{solar_models}. See notebooks \#10, \#13, and \#28, and Sec.~\ref{sec:sun} for details.}, label={lst:sun}, float=tbp]
 import numpy as np
 import magnus.oscprob as oscprob
 import magnus.globaldefs as gd
@@ -3629,13 +3637,13 @@ The oscillated curve is the same distribution multiplied by $\langle P_{\bar\nu_
 \begin{figure}[t!]
  \centering
  \includegraphics[width=\columnwidth]{solar_adiabaticity.pdf}
- \caption{\label{fig:solar_adiabaticity}{\it Top}: the setup. An isotropic flux of $\nu_e$ crosses the Sun and continues to Earth, where it may oscillate. The impact parameter $b$ is marked on one ray. {\it Bottom:} Adiabaticity of a neutrino trajectory through the Sun against neutrino energy, computed with \magnus\ on the BS2005-AGS,OP solar density profile\ \cite{Bahcall:2004pz}, for four impact parameters, each defining a chord through the Sun. The parameter $\gamma_{\rm max}$ is the adiabaticity parameter of \equ{hf}, evaluated at its maximum value along the chord and over the three pairs of eigenvalue levels. See notebook \#28 and Sec.~\ref{sec:solar_tomography} for details.}
+ \caption{\label{fig:solar_adiabaticity}{\it Top}: the setup. An isotropic flux of $\nu_e$ crosses the Sun and continues to Earth, where it may oscillate. The impact parameter $b$ is marked on one ray. {\it Bottom:} Adiabaticity of a neutrino trajectory through the Sun against neutrino energy, computed with \magnus\ on the B16-GS98 solar density profile\ \cite{Vinyoles:2016djt}, tabulated up to the surface, for four impact parameters, each defining a chord through the Sun. The parameter $\gamma_{\rm max}$ is the adiabaticity parameter of \equ{hf}, evaluated at its maximum value along the chord and over the three pairs of eigenvalue levels. See notebook \#28 and Sec.~\ref{sec:solar_tomography} for details.}
 \end{figure}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-Neutrinos made outside the Solar System cross the Sun on their way to Earth. At around 10~MeV, they are mainly from the diffuse supernova neutrino background. From TeV to PeV, they are part of the high-energy astrophysical flux. Both fluxes are isotropic, so a share of each passes through the Sun before reaching a detector. Below, we compute what that does to their oscillations, using the same tabulated BS2005-AGS,OP density profile\ \cite{Bahcall:2004pz} from Sec.~\ref{sec:sun}.
+Neutrinos made outside the Solar System cross the Sun on their way to Earth. At around 10~MeV, they are mainly from the diffuse supernova neutrino background. From TeV to PeV, they are part of the high-energy astrophysical flux. Both fluxes are isotropic, so a share of each passes through the Sun before reaching a detector. Below, we compute what that does to their oscillations, using the B16-GS98 profile\ \cite{Vinyoles:2016djt} of Table~\ref{tab:solar_models}. Unlike BS2005-AGS,OP, it is tabulated up to the solar surface, so every chord crosses the whole Sun.
 
-A neutrino from such a source has traveled far enough that the wave packets of its mass eigenstates have separated. What arrives is an incoherent mixture, so what is measured is the phase-averaged probability of Sec.~\ref{sec:averaged} instead of the instantaneous one. Inside the Sun, the Hamiltonian changes along the path, which makes \equ{averaged_varying} the applicable form of the probability, with the eigenbasis taken at entry and at exit, and the level-crossing matrix $P^{\rm cross}$ between them.
+A neutrino from such a source has traveled far enough that the wave packets of its mass eigenstates have separated. What arrives is an incoherent mixture, so what is measured is the phase-averaged probability of Sec.~\ref{sec:averaged} instead of the instantaneous one. Inside the Sun, the Hamiltonian changes along the path, so the phase average is carried along it (Sec.~\ref{sec:averaged}). The neutrino starts decohered in the eigenbasis at the point of entry and follows the instantaneous eigenstates. It crosses each non-adiabatic region through a Magnus patch and is read out in flavor at exit. Where no crossing is non-adiabatic, the result is \equ{averaged_varying}, with the level-crossing matrix $P^{\rm cross}$ between the eigenbases at entry and exit.
 
 Both ends of the path lie in vacuum, where the eigenvectors are the vacuum mixing matrix, so $\mathbb{V}(l_0) = \mathbb{V}(l_1) = \mathbb{U}$ in \equ{averaged_varying}. An adiabatic passage would make $P^{\rm cross}$ the identity. Equation (\ref{equ:averaged_varying}) would then collapse to \equ{averaged} evaluated in vacuum, leaving no trace of the Sun. Whether or not the passage is adiabatic depends on the energy, via \equ{hf}.
 
@@ -3648,8 +3656,11 @@ import magnus.adiabatic as adiabatic
 import magnus.hamiltonians as ham
 import magnus.matter as matter
 import magnus.globaldefs as gd
+import magnus.solarmodels as solarmodels
 
 R = gd.SUN_RADIUS*gd.UNIT_KM
+ne_sun = solarmodels.electron_density_profile(
+    'B16-GS98')
 b = 0.3*R                # impact parameter
 half = np.sqrt(R**2 - b**2)
 E = 100.0*gd.UNIT_GEV
@@ -3670,17 +3681,17 @@ info = {}
 adiabatic.find_nonadiabatic_windows(
     H, 0.0, 2*half, n_probe=20000,
     info=info)
-info['gamma_max']        # 13.2510
+info['gamma_max']        # 13.7460
 \end{pysnip}
-Here, {\tt ne\_sun} is the log-interpolated BS2005-AGS,OP table of Sec.~\ref{sec:sun}, {\tt ne} evaluates it along the chord, and {\tt hv} is the vacuum Hamiltonian at this energy. The value shown is for a $100$-GeV neutrino crossing at an impact parameter of $b = 0.3\,R_\odot$.
+Here, {\tt ne\_sun} is the B16-GS98 table, interpolated in its logarithm, {\tt ne} evaluates it along the chord, and {\tt hv} is the vacuum Hamiltonian at this energy. The value shown is for a $100$-GeV neutrino crossing at an impact parameter of $b = 0.3\,R_\odot$.
 
-The parameter $\gamma_{\rm max}$ grows with energy because the vacuum splitting $\Delta m^2/2E$ shrinks while the matter potential in the Sun stays fixed. Above $100$~GeV, $\gamma_{\rm max}$ is attained at a radius between $0.97$ and $0.98\,R_\odot$, independently of the impact parameter. That shell sits just below the solar surface, where the density gradient is steepest (see \figu{solar}). [Figure~\ref{fig:solar_adiabaticity} shows only the effect of oscillations; absorption, which matters above the GeV scale, is outside what \magnus\ models (Sec.~\ref{sec:limitations}).]
+The parameter $\gamma_{\rm max}$ grows with energy because the vacuum splitting $\Delta m^2/2E$ shrinks while the matter potential in the Sun stays fixed. It is attained just inside the 1-2 resonance, where the matter potential equals $\Delta m^2_{21}\cos 2\theta_{12}/2E$, independently of the impact parameter. As the energy grows, that density is reached further out: $\gamma_{\rm max}$ sits at $0.97\,R_\odot$ at $100$~GeV, at $0.990\,R_\odot$ at 1~TeV, and at $0.998\,R_\odot$ at 100~TeV. By 1~PeV, it reaches $5\times10^6$ on the diameter. [Figure~\ref{fig:solar_adiabaticity} shows only the effect of oscillations; absorption, which matters above the GeV scale, is outside what \magnus\ models (Sec.~\ref{sec:limitations}).]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \begin{figure*}[t!]
  \centering
  \includegraphics[width=\textwidth]{solar_tomography.pdf}
- \caption{\label{fig:solar_tomography}The Sun seen face-on in the $\nu_e$ survival channel, computed with \magnus\ on the BS2005-AGS,OP solar density profile\ \cite{Bahcall:2004pz}. The line of sight runs into the page, so each point of the disk is an impact parameter and the neutrino crosses the whole Sun along it. The color is the phase-averaged $P_{\nu_e \to \nu_e}$ at exit. See notebook \#28 and Sec.~\ref{sec:solar_tomography} for details.}
+ \caption{\label{fig:solar_tomography}The Sun seen face-on in the $\nu_e$ survival channel, computed with \magnus\ on the B16-GS98 solar density profile\ \cite{Vinyoles:2016djt}. The line of sight runs into the page, so each point of the disk is an impact parameter and the neutrino crosses the whole Sun along it. The color is the phase-averaged $P_{\nu_e \to \nu_e}$ at exit, for a relative energy spread of $10\%$, averaged over the area of each pixel. See notebook \#28 and Sec.~\ref{sec:solar_tomography} for details.}
 \end{figure*}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -3694,13 +3705,13 @@ P = oscprob.osc_prob_matter_std_potential(
     osc_params=osc, L0=0.0, nu_i=gd.NUE,
     nu_f=gd.NUE,
     density_is_of_number_of_electrons=True)
-P                        # 0.365123
+P                        # 0.304987
 \end{pysnip}
-Here, {\tt average=True} evaluates the phase-averaged limit in closed form, \equ{averaged_varying}. Section~\ref{sec:averaging_is_not_estimating} shows why averaging a scan of probabilities does not necessarily reproduce this.  (Drawing the instantaneous probability would take thousands of impact parameters per panel: $\int V_{\rm CC} \, dl$ changes by $7.5$ cycles when $b$ moves by $0.0013\,R_\odot$, so the probability swings between nearly the full probability range---from 0.12 to 0.98---from one pixel to the next.)
+Here, {\tt average=True} returns the phase average along the chord, without sampling energies. Section~\ref{sec:averaging_is_not_estimating} shows why averaging a scan of probabilities does not necessarily reproduce this.  (The phase average keeps the matter phase $\int V_{\rm CC}\,dl$, $8676$~rad across the diameter. That phase does not depend on the energy, so no energy spread averages it. It draws rings in the core of the disk, $1.8\times10^{-4}\,R_\odot$ apart at $b = 0.11\,R_\odot$ and $5.1\times10^{-4}\,R_\odot$ apart at $b = 0.3\,R_\odot$. At 1~TeV, they move $P$ by up to about $\pm 0.03$. The value printed above sits on one of them: within one ring spacing of $b = 0.3\,R_\odot$, $P$ ranges from 0.282 to 0.308. Each pixel of \figu{solar_tomography} is therefore averaged over its area. The panels from 30~GeV to 3~TeV sample $7\,773$ impact parameters each, $6\,772$ of them inside $b = 0.5\,R_\odot$.)
 
-At $10$~MeV, the disk is uniform at about $\sum_i |\mathbb{U}_{ei}|^4 \approx 0.55$: the Sun is transparent, exactly as $P^{\rm cross} = \mathbb{1}$ requires. At intermediate energies, structure appears in the form of rings; this occurs within the non-adiabatic region of \figu{solar_adiabaticity}. The rings are drawn by the level-crossing $P^{\rm cross}$ of \equ{averaged_varying}, the one quantity in the averaged probability that departs from the identity. The deepest point of the ring pattern moves outward with energy, settling at $b = 0.88\,R_\odot$ above 1~TeV. At 50~TeV, the disk is uniform again, but for the opposite reason it was uniform at 10~MeV. The matter term at 50~TeV exceeds $\Delta m^2_{31}/2E$ even in the tenuous outer shells, so the eigenstates of $\mathbb{H}$ at both ends of the chord lie close to the flavor states: the largest of the three, $|\mathbb{V}_{ei}(l_0)|^2$ of \equ{averaged_varying}, is 0.991 at 50~TeV, against 0.676 at 10~MeV. This means that, at the highest energies, a $\nu_e$ enters as one eigenstate and leaves as the same one, whatever $P^{\rm cross}$ does in between.
+At $10$~MeV, the disk is uniform at about $\sum_i |\mathbb{U}_{ei}|^4 \approx 0.55$: the Sun is transparent, exactly as $P^{\rm cross} = \mathbb{1}$ requires. At intermediate energies, rings appear, within the non-adiabatic region of \figu{solar_adiabaticity}. They are drawn by the crossings: where the passage is not adiabatic, the level-crossing probabilities depart from the identity. The phase average also keeps part of the interference that \equ{averaged_varying} discards. That interference changes the depth of the rings: at 300~GeV, the deepest one reaches $P = 0.03$ at $b = 0.81\,R_\odot$, against $0.20$ in \equ{averaged_varying}. From 300~GeV up, the deepest ring moves outward, to $b = 0.89\,R_\odot$ at 1~TeV and $0.91\,R_\odot$ at 10 and 50~TeV. At 50~TeV, the disk is uniform again, but for a different reason than at 10~MeV: a $\nu_e$ that enters the Sun leaves it as a $\nu_e$, at every impact parameter. The Sun only adds a phase to it; the survival probability does not depend on that phase.
 
-To be clear, no neutrino telescope resolves any of this structure. While the Sun has been imaged in MeV neutrinos, most famously by Super-Kamiokande, the width of that image is set by the angular resolution of the detector: the recoil electron of neutrino-electron elastic scattering carries the neutrino direction only to within tens of degrees, against a disk of half a degree. At tens of TeV, the angular resolution is better, but still comparable to the size of the disk itself. The rings of \figu{solar_tomography} would need arcminute-level resolution to be resolved (the instantaneous probability would need arcsecond-level). In addition, the panels of \figu{solar_tomography} at GeV energies---where the rings first appear---lie in a band where no astrophysical neutrino flux has been identified above the atmospheric background.
+To be clear, no neutrino telescope resolves any of this structure. While the Sun has been imaged in MeV neutrinos, most famously by Super-Kamiokande, the width of that image is set by the angular resolution of the detector: the recoil electron of neutrino-electron elastic scattering carries the neutrino direction only to within tens of degrees, against a disk of half a degree. At tens of TeV, the angular resolution is better, but still comparable to the size of the disk itself. The rings of \figu{solar_tomography} are a few arcseconds to a few arcminutes wide. The rings of the matter phase, over which each pixel is averaged, are $0.2$ to $4$ arcseconds apart. In addition, the panels of \figu{solar_tomography} at GeV energies---where the rings first appear---lie in a band where no astrophysical neutrino flux has been identified above the atmospheric background.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -3798,7 +3809,7 @@ def stepped(r):            # Mena et al., model C
 r0s = R0 + 4.9e9*np.arange(8)/8.0
 
 def p_earth(rho, **extra):
-    """P at Earth, Eq. (25), averaged over the
+    """P at Earth, Eq. (26), averaged over the
     production points."""
     P_out = np.zeros((len(E), 3, 3))
     for r0 in r0s:
@@ -3929,7 +3940,7 @@ def shc(x):
                      where=(x != 0.0))
 
 def long_range_potential(r, n_e, m):
-    """Eq. (34): V_emu(r)/g'^2, spherical n_e."""
+    """Eq. (35): V_emu(r)/g'^2, spherical n_e."""
     I_in = cumulative(r**2*n_e*shc(m*r), r)
     I_out = cumulative(r*n_e*np.exp(-m*r), r)
     I_out = I_out[-1] - I_out      # From r outward
@@ -3950,7 +3961,7 @@ h_vac = hamiltonians.\
 q = np.diag([1.0, -1.0, 0.0])     # L_e-L_mu charges
 
 def H_lri(v):
-    """Eq. (32) with V_emu = v on r, as H(E, l)."""
+    """Eq. (33) with V_emu = v on r, as H(E, l)."""
     def H(E, l):
         h_matt = hamiltonians.hamiltonian_3nu_matter_td(
             l, vcc_sun)
