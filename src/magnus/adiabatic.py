@@ -1498,9 +1498,16 @@ def find_nonadiabatic_windows(H_func: Callable, l0: float, l1: float,
 
 def _local_evolution_operator(H_func: Callable, l_b: float, l_c: float, magnus_exp_order: int,
     integration_method: str, n_slabs0: Optional[int] = 400, max_n_slabs: Optional[int] = 32_768,
-    patch_atol: Optional[float] = 1e-7) -> Tuple[np.ndarray, bool]:
+    patch_atol: Optional[float] = 1e-7,
+    defer_slab_norm: Optional[bool] = False) -> Tuple[np.ndarray, bool]:
     r"""Computes the (exact, not adiabatic) evolution operator across a single non-adiabatic
     window, via the package's own Magnus kernel, doubling the slab count until convergence.
+
+    With ``defer_slab_norm``, the check that each slab is narrow enough for the Magnus series
+    (:class:`magnus.magnus.MagnusConvergenceWarning`) is made once, on the level returned,
+    rather than on every level of the ladder; the phase average of :mod:`magnus.avgprob` asks
+    for it (issue #66).  The default keeps the check on every level, as the hybrid strategy and
+    the decohered route have always had it.
 
     ``patch_atol`` **provenance.**  Swept over 1e-5 to 1e-9 across 18 workloads
     (``constants_audit2.py``).  The worst error is 4.49e-04 at 1e-5, 1e-6 and the 1e-7 default,
@@ -1563,15 +1570,29 @@ def _local_evolution_operator(H_func: Callable, l_b: float, l_c: float, magnus_e
             order=magnus_exp_order, integration_method=integration_method)
         return magnuscore.ordered_product(U_chain)
 
+    def level(n: int) -> Tuple[np.ndarray, Optional[float]]:
+        # The operator at n slabs and, when deferring, the largest slab norm it met.
+        if not defer_slab_norm:
+            return U_at(n), None
+        with magnuscore._deferred_slab_norm() as sink:
+            start = len(sink)
+            U = U_at(n)
+            return U, max(sink[start:], default=0.0)
+
+    def returned(U: np.ndarray, norm: Optional[float], ok: bool) -> Tuple[np.ndarray, bool]:
+        if norm is not None:
+            magnuscore._warn_slab_norm(norm)
+        return U, ok
+
     n_slabs = n_slabs0
-    U_prev = U_at(n_slabs)
+    U_prev, norm_prev = level(n_slabs)
     while n_slabs < max_n_slabs:
         n_slabs *= 2
-        U_next = U_at(n_slabs)
+        U_next, norm_next = level(n_slabs)
         if np.max(np.abs(U_next - U_prev)) <= patch_atol:
-            return U_next, True
-        U_prev = U_next
-    return U_prev, False
+            return returned(U_next, norm_next, True)
+        U_prev, norm_prev = U_next, norm_next
+    return returned(U_prev, norm_prev, False)
 
 
 def _hybrid_propagator_once(H_func: Callable, l0: float, l1: float, threshold: float,

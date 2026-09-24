@@ -1752,8 +1752,16 @@ def _deferred_slab_norm():
     The honest way to use the discarded signal would be a *different* warning -- "this request
     needed many refinement levels" -- rather than a quieter version of this one.
 
-    Private, and stays private: nothing in the package uses it, and shipping public API for a
-    design that was measured and rejected would be worse than keeping the knowledge here.
+    The window ladders of the phase average (:mod:`magnus.avgprob`) do use it (issue #66), and
+    there the measurement comes out the other way.  Those ladders compare operator elements,
+    phases included, rather than probabilities, and every operator they return is evaluated
+    again at the level they settle on, which checks its own slabs.  Over 55 chords through the
+    Sun (10 GeV to 50 TeV, five of them against a brute-force average), keying the warning to
+    the returned level took the firings from 6 to 3, and none of the dropped ones preceded an
+    error above 1e-4: the largest error on any of the 55 was 4.2e-5.
+
+    Private, and stays private: shipping public API for a design whose merit depends on the
+    ladder it serves would be worse than keeping the knowledge here.
 
     Nested blocks share the outermost sink, so an inner engine's slabs are attributed to the
     level being computed rather than starting a fresh collection.

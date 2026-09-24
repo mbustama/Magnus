@@ -438,6 +438,50 @@ def test_the_module_tolerances_are_read_at_each_call(monkeypatch):
     assert report['windows'] and seen and all(x == 3.0e-4 for x in seen)
 
 
+def test_a_converged_call_does_not_warn_about_the_coarse_levels_of_its_windows():
+    """Issue #66: the paper's chord (b = 0.3 R_sun, 100 GeV) printed MagnusConvergenceWarning
+    four times, from the first levels of the window ladders, and returned a converged value."""
+    import magnus.magnus as mm
+    ne_chord, L = solar_chord(0.3)
+    nufit = gd.load_nufit_params('NuFIT 6.1')
+    args = (op.osc_prob_matter_std_potential, 3, ne_chord, 100.0*gd.UNIT_GEV, L, nufit)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        with mm._deferred_slab_norm() as sink:
+            call(*args, average=True, **CHORD_KW)
+    assert max(sink) >= np.pi                 # some level was coarse: the old scheme warned
+    P, warned = call(*args, average=True, **CHORD_KW)
+    assert 'MagnusConvergenceWarning' not in warned
+    assert abs(float(P) - 0.304987) < 1e-6
+
+
+def test_a_window_ladder_still_warns_about_the_level_it_returns():
+    """Deferred, not dropped: a ladder stopped at a coarse level warns, deferring or not."""
+    import magnus.magnus as mm
+    H, _, l0, l1 = crossing_H()
+    for defer in (False, True):
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter('always')
+            _, ok = ad._local_evolution_operator(H, l0, l1, 6, 'gl', n_slabs0=2, max_n_slabs=4,
+                                                 defer_slab_norm=defer)
+        assert not ok
+        assert any(issubclass(x.category, mm.MagnusConvergenceWarning) for x in w)
+
+
+def test_only_the_phase_average_defers_the_slab_norm_check():
+    """A ladder that starts coarse and converges: the hybrid strategy's patch still warns about
+    the coarse level, the phase average's does not."""
+    import magnus.magnus as mm
+    H, _, l0, l1 = crossing_H()
+    for defer, expected in ((False, True), (True, False)):
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter('always')
+            _, ok = ad._local_evolution_operator(H, l0, l1, 6, 'gl', n_slabs0=2,
+                                                 defer_slab_norm=defer)
+        assert ok
+        assert any(issubclass(x.category, mm.MagnusConvergenceWarning) for x in w) == expected
+
+
 def test_a_round_off_pseudo_dirac_pair_does_not_warn_through_the_dispatcher():
     """Issue #61 as reported: osc_prob_energy_baseline on a pseudo-Dirac pair at 100 TeV over
     100 Mpc warned that the pair was undecided below 1e-18 eV^2, on a round-off phase."""

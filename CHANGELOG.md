@@ -171,6 +171,17 @@ and the project uses [Semantic Versioning](https://semver.org/).
   vacuum average over 1000 energies takes 11 ms against 26 ms before, check
   included.
 
+- **A converged `average=True` no longer warns about the coarse levels of its
+  windows** (issue #66).  The phase average solves each non-adiabatic window
+  on a ladder of slab counts, and its first, coarsest levels raised
+  `MagnusConvergenceWarning` although the level returned was fine: the chord
+  of the paper's solar-tomography listing printed it four times.  The window
+  ladders now check the slab norm once, on the level they return; the
+  hybrid strategy and the decohered route keep the check on every level.
+  Over 55 solar chords, firings fell from 6 to 3, none of those dropped
+  preceded an error above 1e-4, and the probabilities are unchanged bit for
+  bit.
+
 - **`rtol` and `atol` set the tolerance of the phase average on a smooth
   profile** (issue #65).  They were accepted there and dropped without a
   word: the window patches and the stretch phases converged to a fixed 1e-5,

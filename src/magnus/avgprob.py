@@ -1154,20 +1154,25 @@ def _window_amplitudes(H_func: Callable, D_func: Callable, l_b: float, l_c: floa
     n, converged = n_slabs0, True
     if u_max > 0.0:
         converged = False
-        prev = U_at(u_max, n)
-        while n < max_n_slabs:
-            n *= 2
-            nxt = U_at(u_max, n)
-            if np.max(np.abs(nxt - prev)) <= patch_atol:
-                converged = True
-                break
-            prev = nxt
+        # The ladder's levels are compared, never returned: the operators returned are evaluated
+        # below, at the level it settles on, and those evaluations check their own slabs.  So the
+        # check that a slab is narrow enough for the Magnus series is held for the ladder, and a
+        # coarse first level does not warn about a grid nobody receives (issue #66).
+        with adiabatic.magnuscore._deferred_slab_norm():
+            prev = U_at(u_max, n)
+            while n < max_n_slabs:
+                n *= 2
+                nxt = U_at(u_max, n)
+                if np.max(np.abs(nxt - prev)) <= patch_atol:
+                    converged = True
+                    break
+                prev = nxt
         cache.clear()
     M = np.empty((len(u_nodes), d, d), dtype=complex)
     for k, u in enumerate(u_nodes):
         if u == 0.0:
             U, ok = adiabatic._local_evolution_operator(H_func, l_b, l_c, magnus_exp_order,
-                integration_method, patch_atol=patch_atol)
+                integration_method, patch_atol=patch_atol, defer_slab_norm=True)
             converged = converged and ok
         else:
             U = U_at(float(u), n)
