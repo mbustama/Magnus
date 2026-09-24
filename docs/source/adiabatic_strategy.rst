@@ -242,7 +242,10 @@ evaluation: it repeats the entire computation with the threshold tightened
 successive results, and only reports the result as certified once two
 successive levels agree within the requested ``rtol``/``atol`` -- the same
 successive-refinement discipline :func:`magnus.oscprob.osc_prob` already
-uses for its own slab count. If a local patch itself fails to converge
+uses for its own slab count. Because a window that does not move between
+levels holds the same patch in both, that comparison cannot see a patch's
+own error, so every patch is converged on its own to
+:math:`\min(10^{-7}, (\text{atol} + \text{rtol})/10)`. If a local patch itself fails to converge
 within its own slab cap, or the refinement loop exhausts its iteration
 budget without two levels agreeing, the propagator returns its best
 estimate (still exactly unitary) but reports it as **not** certified.
