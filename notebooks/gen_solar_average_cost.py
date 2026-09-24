@@ -5,6 +5,12 @@ What the *averaged* solar probability costs, per physics configuration, on the
 real BS2005-AGS,OP model.  Writes ``external_solar_average_cost.json``.
 
     python notebooks/gen_solar_average_cost.py > notebooks/external_solar_average_cost.json
+    python notebooks/gen_solar_average_cost.py --magnus-only
+
+The second form re-times the Magnus arm of the existing file in place and leaves every
+reference as it was measured: the references take about ninety minutes, and a change to the
+package moves only the Magnus arm.  It checks that each probability is unchanged before
+replacing a time, and records when, where and on which version the re-timing ran.
 
 WHY COST AND NOT SPEED-AGAINST-ACCURACY.  On this profile the averaged
 probability has no accuracy dial.  Every eigenvalue pair is fully decohered and
@@ -21,7 +27,7 @@ THE PROFILE IS THE TABULATED MODEL, NOT THE EXPONENTIAL FIT.  ``osc_prob_*_sun``
 uses the fit; this script uses ``gen_profile_benchmarks.solar_profile()``, which
 log-interpolates the BS2005-AGS,OP table.  The fit is high by a factor 2.4 inside
 0.05 R_sun, so they are different problems rather than two versions of one -- and
-they cost differently: 5-8 ms on the fit against 8-40 ms here.
+they cost differently: 5 to 16 ms here (re-timed 2026-09-24, Magnus 1.1.1).
 
 Timings are best-of-N wall clock with the first call discarded (it carries the
 numba compile), and an interleaved control workload is recorded so a later run
@@ -207,8 +213,8 @@ def control():
     return a @ a
 
 
-def main():
-    warnings.simplefilter('ignore')
+def configurations():
+    """The profile, the baseline and the eight cases, each with its Magnus call."""
     prof = gpb.solar_profile()
     per_ne = gpb.matter.VCC_func(l=0.0, num_density_e_func=lambda l: 1.0)
     L = prof['baseline']
@@ -243,12 +249,58 @@ def main():
              ('3+1', 4, 'std', std(4)), ('3+2', 5, 'std', std(5)),
              ('3nu + NSI', 3, 'nsi', nsi(3)), ('3nu + LIV', 3, 'liv', liv(3)),
              ('3+1 + NSI', 4, 'nsi', nsi(4)), ('3+2 + NSI', 5, 'nsi', nsi(5))]
+    return prof, L, cases
 
-    REF_SECONDS = {}
+
+def control_ratio():
+    """The interleaved control: best of two alternating series of the same workload."""
     best = {'a': np.inf, 'b': np.inf}
     for _ in range(9):
         for k in ('a', 'b'):
             best[k] = min(best[k], timed(control))
+    return best['a']/best['b']
+
+
+def retime_magnus():
+    """Re-time the Magnus arm of the stored file, in place, references untouched."""
+    warnings.simplefilter('ignore')
+    path = pathlib.Path(__file__).resolve().parent/'external_solar_average_cost.json'
+    out = json.loads(path.read_text())
+    rows = {r['label']: r for r in out['cases']}
+    _, _, cases = configurations()
+    ratio = control_ratio()
+    for label, d, kind, call in cases:
+        row = rows[label]
+        P = np.asarray(call())
+        p_ee = float(P[0, 0])
+        # A time belongs to the number it produced.  If the probability moved, the old
+        # reference no longer prices the same quantity, and the row must be measured whole.
+        if abs(p_ee - row['p_ee']) > 1.0e-12:
+            raise SystemExit('%s: P_ee moved from %.15f to %.15f; re-measure the whole row'
+                             % (label, row['p_ee'], p_ee))
+        t = timed(call)
+        print('  %-11s %8.2f ms (was %8.2f)   P_ee change %.1e'
+              % (label, 1.0e3*t, row['ms'], abs(p_ee - row['p_ee'])), file=sys.stderr, flush=True)
+        row.update(seconds=t, ms=1.0e3*t, p_ee=p_ee,
+                   unitarity=float(np.max(np.abs(P.sum(axis=1) - 1.0))))
+        if row.get('reference_measured'):
+            row['reference_agreement'] = abs(row['reference_p_ee'] - p_ee)
+    out['magnus_retimed'] = dict(
+        date=time.strftime('%Y-%m-%d'), machine=platform.platform(),
+        python=platform.python_version(), numpy=np.__version__,
+        magnus=getattr(__import__('magnus'), '__version__', '?'),
+        control_ratio=ratio, repeat=REPEAT,
+        note=('seconds, ms, p_ee and unitarity re-measured on this date; the reference '
+              'fields and the top-level machine record are those of the original run'))
+    path.write_text(json.dumps(out, indent=1) + '\n')
+
+
+def main():
+    warnings.simplefilter('ignore')
+    prof, L, cases = configurations()
+
+    REF_SECONDS = {}
+    ratio = control_ratio()
     out = {'note': 'Cost of the averaged probability, BS2005-AGS,OP, per configuration',
            'profile': 'BS2005-AGS,OP, log-interpolated (NOT the exponential fit)',
            'energy_ev': ENERGY, 'baseline_inv_ev': L,
@@ -257,7 +309,7 @@ def main():
                                     'the value; see docs/dev/SCOPE_FIG13.md'),
            'machine': platform.platform(), 'python': platform.python_version(),
            'numpy': np.__version__, 'magnus': getattr(__import__('magnus'), '__version__', '?'),
-           'control_ratio': best['a']/best['b'], 'repeat': REPEAT,
+           'control_ratio': ratio, 'repeat': REPEAT,
            'reference_note': ('reference_seconds is the SAME averaged probability by '
                               'direct integration: one DOP853 solve at rtol 1e-8 with '
                               'dense output, then the phase average taken from the '
@@ -339,4 +391,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    retime_magnus() if '--magnus-only' in sys.argv[1:] else main()

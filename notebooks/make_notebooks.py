@@ -19678,7 +19678,7 @@ h_tr = plt.Line2D([], [], ls='none', marker='>', ms=5.2, mfc='white', mec=INK, m
 # -- the same integration, measured where that was possible and projected where it was
 # not -- and the triangles are labelled with their times where they are drawn.
 ax.legend([h_dot, (h_sq, h_tr)],
-          [r'Mag$\nu$s, closed form', r'{\tt DOP853}, then averaged'],
+          [r'Mag$\nu$s', r'{\tt DOP853}, then averaged'],
           handler_map={tuple: mpl.legend_handler.HandlerTuple(ndivide=None, pad=0.7)},
           loc='lower left', bbox_to_anchor=(0.0, 1.02, 1.0, 0.102), mode='expand',
           ncol=2, handlelength=1.8, columnspacing=1.0, handletextpad=0.5,
