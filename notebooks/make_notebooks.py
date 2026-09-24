@@ -13781,9 +13781,11 @@ COL, WIDE = 3.487, 7.224
 trapz = getattr(np, 'trapezoid', None) or np.trapz
 
 OSC = gd.load_nufit_params('NuFIT 6.1')
-STERILE4 = dict(s14=np.sqrt(0.10), s24=np.sqrt(0.10), s34=0.0, D41=1.0)
-STERILE5 = dict(s14=np.sqrt(0.10), s24=np.sqrt(0.10), s34=0.0,
-                s15=np.sqrt(0.06), s25=np.sqrt(0.06), s35=0.0, D41=1.0, D51=1.7)
+# Python floats, not NumPy scalars: a cache key writes these with repr, and NumPy 2 writes
+# np.sqrt(0.10) as 'np.float64(0.316...)' where NumPy 1 wrote '0.316...'.
+STERILE4 = dict(s14=float(np.sqrt(0.10)), s24=float(np.sqrt(0.10)), s34=0.0, D41=1.0)
+STERILE5 = dict(s14=float(np.sqrt(0.10)), s24=float(np.sqrt(0.10)), s34=0.0,
+                s15=float(np.sqrt(0.06)), s25=float(np.sqrt(0.06)), s35=0.0, D41=1.0, D51=1.7)
 EPS = dict(eps_ee=0.10, eps_em=0.05+0.0j, eps_et=0.0j, eps_mm=0.0,
            eps_mt=0.03+0.0j, eps_tt=0.0)
 FLAVOR_LABEL = {2: r'$2\nu$', 3: r'$3\nu$', 4: r'$3+1$', 5: r'$3+2$'}
@@ -13974,6 +13976,24 @@ def _hashable(value):
     return '%.*e' % (FINGERPRINT_DIGITS - 1, value)
 
 
+def _python_scalars(value):
+    """The value with every NumPy scalar in it made the Python scalar it holds.
+
+    What is not an array or a float is hashed through repr, and NumPy 2 writes a scalar's repr
+    as 'np.float64(0.3)' where NumPy 1 wrote '0.3'.  So a key holding one, such as a sorted
+    dict of mixing parameters, hit the cache under one version and missed under the other, and
+    with MAGNUS_PAPER_CACHE_ONLY set the build failed.  Python's repr of the value is what NumPy
+    1 printed, digit for digit, so no key written under NumPy 1 changes.
+    """
+    if isinstance(value, np.generic):
+        return value.item()
+    if isinstance(value, (list, tuple)):
+        return type(value)(_python_scalars(v) for v in value)
+    if isinstance(value, dict):
+        return {_python_scalars(k): _python_scalars(v) for k, v in value.items()}
+    return value
+
+
 def fingerprint(*parts):
     """Everything a stored result depends on, in one hash.
 
@@ -13983,7 +14003,9 @@ def fingerprint(*parts):
 
     Floats are quantized first; see FINGERPRINT_DIGITS for why.  The cost is that a change
     below the twelfth significant digit no longer invalidates an entry, which is the point:
-    a difference that small is the machine talking, not the physics.
+    a difference that small is the machine talking, not the physics.  NumPy scalars enter as
+    the Python scalars they hold, so the key is the same under NumPy 1 and 2; see
+    `_python_scalars`.
     """
     h = hashlib.sha256()
     for part in parts:
@@ -13999,7 +14021,7 @@ def fingerprint(*parts):
                 isinstance(x, float) for x in part):
             h.update('|'.join(_hashable(x) for x in part).encode())
         else:
-            h.update(repr(part).encode())
+            h.update(repr(_python_scalars(part)).encode())
     return h.hexdigest()
 
 
