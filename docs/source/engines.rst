@@ -58,12 +58,11 @@ table necessary.
      - Differing energies, ``t_slab_edges``, a baseline behind ``L0``, a constant ``H``.
    * - **Phase average**
        (:mod:`magnus.avgprob`)
-     - The observable integrates over phase; pairs that have not decohered are summed
-       coherently, as blocks.
+     - The observable averages over the energy resolution; every interference term keeps
+       its phase, weighted by the spread of that phase across ``average_spread``.
      - ``average=True``, on every entry point that takes the keyword.
-     - Nothing -- but where a pair sits between the coherent and decohered limits it
-       warns rather than returning an averaged expression that does not apply, and where
-       the profile has a feature narrower than its 200-probe grid that could move
+     - Nothing -- but it warns where the result depends on the spread, and where the
+       profile has a feature narrower than its 200-probe grid that could move
        probability, it takes the windows from the hybrid's refinement, or warns that
        none resolves it.
    * - **Adiabatic + Magnus hybrid**
@@ -94,9 +93,10 @@ grouping the package will defend:
   function.
 * ``'adiabatic'`` -- the hybrid strategy. A genuinely different method; its blind spots are
   the resonance detector's, not the quadrature's.
-* ``'phase-average'`` -- the decohered limit. It propagates nothing, so it shares no
-  quadrature with any of the others; what it shares with them is the eigendecomposition
-  of the same ``H``.
+* ``'phase-average'`` -- the phase average. It propagates only across non-adiabatic
+  windows, with the hybrid's Magnus patch, and carries every stretch between them
+  analytically, so it shares no quadrature with the ladder; what it shares with the others
+  is the eigendecomposition of the same ``H``.
 * ``'exact'`` -- ``expm`` and the constant-Hamiltonian engine, independent of the rest.
 
 Two engines in the same family can be wrong in the same way at the same time. Their
@@ -123,7 +123,7 @@ engines in a fixed order, falling through on ``NotImplemented``:
        (on every entry point, ``osc_prob_energy_baseline`` and the
        Earth and Sun routes included)
      - closed-form phase average (``magnus.avgprob``)
-     - No propagation at all; the decohered limit is algebraic
+     - No propagation at all; the phase average of a constant ``H`` is algebraic
    * - Smooth profile, a tolerance was requested, ``strategy != 'magnus'``,
        and the scan is shorter than
        :data:`~magnus.oscprob.HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS` --

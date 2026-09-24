@@ -87,7 +87,7 @@ What it can compute
 * Oscillations through a **varying profile**: the Earth's PREM layers, a tabulated
   solar model, a supernova shock front, or any density you supply.
 * The **phase-averaged** probability a solar or astrophysical experiment actually
-  measures, in closed form, without propagating.
+  measures, over its energy resolution, without resolving the oscillation.
 * The **evolution operator** itself, alongside the probabilities, for observables
   built from amplitudes.
 * The same probabilities **from a shell**, with no Python, through the ``magnus``

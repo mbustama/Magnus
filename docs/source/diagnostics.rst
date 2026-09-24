@@ -277,9 +277,13 @@ much*, where the code knows), what to change, and when it is genuinely safe to i
      - ``t_breakpoints`` at the jumps. Measured: median 7.8e-04 → 1.3e-12 on a scan; with
        ``average=True`` on a supernova shock, 0.04 → 0.56 against a reference of 0.59.
    * - :class:`magnus.oscprob.PhaseAveragingWarning`
-     - ``average=True`` where the oscillation has not averaged.
-     - The matrix is valid; the *question* does not apply there.
-     - Use ``average=False``; the s.e.m. is reported.
+     - ``average=True`` where the phase average depends on its spread: some interference
+       has partly survived it, and :math:`|\sigma\,\partial P/\partial\sigma|` exceeds
+       1e-3.  Also on every energy-window average across declared discontinuities, and, for
+       a Hamiltonian without energy dependence, where the limit does not apply.
+     - The number is the average over the spread asked for, not over another.
+     - ``average_spread`` set to the resolution of the measurement; the s.e.m. is
+       reported for the window average.
    * - :class:`magnus.hamiltonians.hamiltonians_pseudodirac.PseudoDiracSplittingWarning`
      - The pseudo-Dirac splitting is not small against the standard mass-squared ones.
      - The number is what was asked for; the *model* is the wrong one. At that size the

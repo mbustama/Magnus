@@ -3860,22 +3860,16 @@ def _avg_prob_dispatch(
     Returns ``NotImplemented`` when ``average`` is falsy, so a caller can place this ahead of
     its ordinary dispatch chain and fall through untouched in the default case.
 
-    Averaging is exact here and costs one eigendecomposition per energy: with the Hamiltonian
-    independent of position, the evolution is a fixed set of phases whose averages are known in
-    closed form (see :mod:`magnus.avgprob`).  Which pairs of eigenvalues have actually averaged
-    is decided from the baseline rather than assumed, so a request made where the oscillation
-    has not decohered is warned about instead of being answered with an expression that does not
-    describe it.
-
-    Since 1.1.1 the first two routes return the phase average of :mod:`magnus.avgprob`
-    (issue #64) wherever it differs from the decohered limit: every interference term kept with
-    its phase and weighted by the spread of that phase across a relative energy spread
-    ``average_spread``.  Each point is computed the old way first; it is recomputed only where
-    some interference can survive -- on a profile, only where the old search found a
-    non-adiabatic window, since adiabatic transport of a decohered start carries none -- and the
-    old value is returned, bit for bit, wherever the two agree within
-    ``_PHASE_AVERAGE_GATE``.  ``PhaseAveragingWarning`` then means that the result depends on
-    the spread.
+    The first two routes return the phase average of :mod:`magnus.avgprob` (issue #64): every
+    interference term kept with its phase and weighted by the spread of that phase across a
+    relative energy spread ``average_spread``.  With the Hamiltonian independent of position it
+    is a closed form, one eigendecomposition per energy.  Each point is computed as the decohered
+    limit first, and recomputed only where some interference can survive -- on a profile, only
+    where the limit's own search found a non-adiabatic window, since adiabatic transport of a
+    decohered start carries none; the limit is returned, bit for bit, wherever the two agree
+    within ``_PHASE_AVERAGE_GATE``.  ``PhaseAveragingWarning`` then says that the result depends
+    on the spread.  A Hamiltonian without energy dependence keeps the limit, and the warning
+    keeps its original meaning for it: some pair has neither decohered nor stayed coherent.
 
     .. versionadded:: 1.0.0
 
@@ -3973,7 +3967,7 @@ def _avg_prob_dispatch(
             spread_sensitive_points += 1
 
     if htot_is_function_only_of_energy:
-        # Constant along the trajectory: the averaged limit is closed-form, one
+        # Constant along the trajectory: the limit is closed-form, one
         # eigendecomposition per energy.
         H = np.stack([np.asarray(htot(float(enu)), dtype=complex) for enu in energy_arr])
         eigenvalues, eigenvectors = np.linalg.eigh(H)
@@ -6589,7 +6583,7 @@ def osc_prob_energy_baseline(
     # so probing here avoids re-probing inside every osc_prob call.
     H_first = H_at_energy(energy[0])
 
-    # Phase-averaged limit, requested with average=True: the same dispatch the wrappers place
+    # Phase average, requested with average=True: the same dispatch the wrappers place
     # ahead of their engines, reached here on the direct route.  Answered before the
     # evaluation-mode probe below, which the averaged routes never use.  The size check that
     # the ordinary path runs further down is run here first, since this route allocates its
@@ -7487,7 +7481,7 @@ def osc_prob_vacuum(
     _reject_parameter_set_metadata(kwargs, 'osc_prob_vacuum')
     _check_passthrough_kwargs(kwargs, 'osc_prob_vacuum')
 
-    # Phase-averaged limit, requested with average=True: exact and closed-form whenever the
+    # Phase average, requested with average=True: closed-form whenever the
     # Hamiltonian does not depend on position, so it is tried before any of the propagation
     # machinery below, all of which would resolve phases that the average discards (see
     # _avg_prob_dispatch and :mod:`magnus.avgprob`).
@@ -7958,7 +7952,7 @@ def osc_prob_matter_std_potential(
     _reject_parameter_set_metadata(kwargs, 'osc_prob_matter_std_potential')
     _check_passthrough_kwargs(kwargs, 'osc_prob_matter_std_potential')
 
-    # Phase-averaged limit, requested with average=True: exact and closed-form whenever the
+    # Phase average, requested with average=True: closed-form whenever the
     # Hamiltonian does not depend on position, so it is tried before any of the propagation
     # machinery below, all of which would resolve phases that the average discards (see
     # _avg_prob_dispatch and :mod:`magnus.avgprob`).
@@ -8519,7 +8513,7 @@ def osc_prob_matter_nsi(
     _reject_parameter_set_metadata(kwargs, 'osc_prob_matter_nsi')
     _check_passthrough_kwargs(kwargs, 'osc_prob_matter_nsi')
 
-    # Phase-averaged limit, requested with average=True: exact and closed-form whenever the
+    # Phase average, requested with average=True: closed-form whenever the
     # Hamiltonian does not depend on position, so it is tried before any of the propagation
     # machinery below, all of which would resolve phases that the average discards (see
     # _avg_prob_dispatch and :mod:`magnus.avgprob`).
@@ -9027,7 +9021,7 @@ def osc_prob_liv(
     _reject_parameter_set_metadata(kwargs, 'osc_prob_liv')
     _check_passthrough_kwargs(kwargs, 'osc_prob_liv')
 
-    # Phase-averaged limit, requested with average=True: exact and closed-form whenever the
+    # Phase average, requested with average=True: closed-form whenever the
     # Hamiltonian does not depend on position, so it is tried before any of the propagation
     # machinery below, all of which would resolve phases that the average discards (see
     # _avg_prob_dispatch and :mod:`magnus.avgprob`).
@@ -13127,7 +13121,7 @@ def _osc_prob_with_potential(
     # gets the same answer to "which engine answered, and what stood aside" as a built-in one.
     with _engine_probe(disabled=_OPERATOR_ONLY_FROM_LADDER if return_evolution_operator else (),
                        info=strategy_info, extra={'hidden_feature': _hidden, 'sampling': _osc}):
-        # Phase-averaged limit, as in the three scenario wrappers: answered before any engine
+        # Phase average, as in the three scenario wrappers: answered before any engine
         # that would resolve the phases the average discards.  Dispatched from here rather
         # than through osc_prob_energy_baseline, so that its errors and warnings name the
         # function the caller called.

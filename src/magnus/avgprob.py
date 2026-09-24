@@ -3,9 +3,10 @@
 # Copyright (C) 2026 Mauricio Bustamante
 r"""avgprob.py
 
-Contains the *phase-averaged* (fully decohered) oscillation
-probabilities, the exact :math:`L/E \to \infty` limit reached by
-high-energy astrophysical neutrinos.
+Contains the *phase-averaged* oscillation probabilities: the phase
+average over a relative energy spread, which ``average=True`` returns,
+and the exact :math:`L/E \to \infty` limit it reduces to where every
+phase has decohered, as for high-energy astrophysical neutrinos.
 
 Physical idea: a neutrino produced at a cosmological distance arrives
 with an oscillation phase :math:`\Delta m^2 L / 2E` of order
@@ -47,12 +48,28 @@ The distinction is not academic here: a sterile state with a small
 :math:`\Delta m^2_{41}`, or any degenerate spectrum, makes the naive sum
 quietly wrong.
 
-The same per-pair phase decides whether the averaged limit applies at
-all.  A pair whose phase spread is neither much larger than
-:math:`2\pi` (decohered) nor much smaller than one (coherent) sits in
-between, where no closed form is valid; :func:`coherence_report` names
-those pairs, and the callers in :mod:`magnus.oscprob` warn rather than
-return a number the physics does not support.
+The same per-pair phase decides whether the limit applies at all.  A
+pair whose phase is neither much larger than :math:`2\pi` (decohered) nor
+much smaller than one (coherent) sits in between, where the limit does
+not describe it; :func:`coherence_report` names those pairs.
+
+The phase average
+-----------------
+
+A measurement with a relative energy resolution :math:`\sigma` averages a
+phase over the range it covers across that resolution, and does not
+average one that barely changes.  The phase average keeps every
+interference term with its phase at the central energy and weights it by
+:math:`e^{-\sigma^2\phi'^2/2}`, :math:`\phi' = d\phi/d\ln E`: the limit
+above where every phase runs through many cycles, the oscillation
+probability where none does, and a smooth weighting between.  Mixing and
+the eigenbases stay at the central energy, so a probability without
+interference is unchanged.  :func:`phase_averaged_probabilities_constant_hamiltonian`
+and :func:`phase_averaged_probabilities_adiabatic` compute it, and they
+are what ``average=True`` in :mod:`magnus.oscprob` returns; the pairs
+:func:`coherence_report` names are where the result depends on
+:math:`\sigma`, and :mod:`magnus.oscprob` warns there.  The functions
+that return the limit are unchanged.
 
 This module stands apart from :mod:`magnus.oscprob`, so it can be applied to any
 Hermitian Hamiltonian of any dimension independently of the rest of the API.  It
@@ -907,9 +924,9 @@ def _pair_slopes(slope_diff: np.ndarray, phase_diff: np.ndarray, scale: float,
     A slope is a difference of two Hellmann-Feynman derivatives, each carrying the round-off of
     :math:`dH/d\ln E`: :math:`\epsilon |H| L`, times :math:`1/h` when the derivative is a finite
     difference of step :math:`h`.  Below that floor the computed slope is noise -- a pseudo-Dirac
-    pair at 100 Mpc reads hundreds of radians and would be averaged away although it is coherent
-    (the case of issue #61) -- so the pair is treated as vacuum-like, where the slope is exactly
-    minus the phase.
+    pair split by 1e-21 eV^2 reads 0.2 rad at 100 TeV over 100 Mpc with h = 1e-3, and 25 rad with
+    h = 1e-4, against a true 8e-5 rad (the case of issue #61) -- so the pair is treated as
+    vacuum-like, where the slope is exactly minus the phase.
     """
     floor = _SLOPE_FLOOR*np.finfo(float).eps*scale/(dH_dlnE_step if dH_dlnE_step else 1.0)
     return np.where(np.abs(slope_diff) < floor, -phase_diff, slope_diff)

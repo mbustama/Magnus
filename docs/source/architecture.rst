@@ -63,7 +63,7 @@ anything above it:
      - Density profiles, electron number density, :math:`V_{\rm CC}`
        construction, the matter-potential projector
    * - ``avgprob``
-     - The decohered (phase-averaged) limit
+     - The phase average over an energy spread, and the decohered limit it reduces to
    * - ``hamiltonians``
      - Mixing matrices and vacuum/matter/NSI/LIV Hamiltonians, two to
        five flavors (``hamiltonians{2,3,4,5}nu.py``)

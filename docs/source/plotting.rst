@@ -28,7 +28,7 @@ Only five layouts beyond it are genuinely distinct: small multiples (where the
 comparison runs *between* panels, so every panel needs identical limits while
 the labels, title and legend must each appear exactly once), a density profile
 stacked over probability panels, an oscillating probability under its
-phase-averaged limit, the bi-probability plane, and the oscillogram.
+phase average, the bi-probability plane, and the oscillogram.
 
 What it draws
 ---------------
@@ -54,7 +54,7 @@ What it draws
      - Matter-density panel above one or more probability panels sharing an
        abscissa.
    * - :func:`~magnus.plotting.plot_probability_with_average`
-     - An oscillating probability with its phase-averaged limit overlaid; see
+     - An oscillating probability with its phase average overlaid; see
        :doc:`averaged_probability`.
    * - :func:`~magnus.plotting.plot_biprobability`
      - Neutrino against antineutrino appearance probability, as
