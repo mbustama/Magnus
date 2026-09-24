@@ -84,8 +84,9 @@ says so.
 What it can compute
 --------------------
 
-* Oscillations through a **varying profile**: the Earth's PREM layers, a tabulated
-  solar model, a supernova shock front, or any density you supply.
+* Oscillations through a **varying profile**: the Earth's PREM layers, any of
+  twelve tabulated standard solar models, a supernova shock front, or any density
+  you supply.
 * The **phase-averaged** probability a solar or astrophysical experiment actually
   measures, over its energy resolution, without resolving the oscillation.
 * The **evolution operator** itself, alongside the probabilities, for observables
@@ -104,8 +105,8 @@ Each of these is one call with a different Hamiltonian, profile or observable.
 * **Atmospheric oscillograms** — probability over zenith angle and energy in a
   single batched call (`notebook 06
   <https://github.com/mbustama/Magnus/blob/main/notebooks/06_magnus_oscillograms.ipynb>`_).
-* **Solar neutrinos** — a real BS05 profile and the averaged probability an
-  experiment sees (`notebook 13
+* **Solar neutrinos** — twelve standard solar models, taken by name, and the
+  averaged probability an experiment sees (`notebook 13
   <https://github.com/mbustama/Magnus/blob/main/notebooks/13_magnus_tabulated_solar_model.ipynb>`_).
 * **Supernova shock fronts** — where a travelling discontinuity changes the
   conversion probability itself (`notebook 14
@@ -327,9 +328,8 @@ per-model work, because nothing in the method assumes a form for :math:`H`.
 The SU(N) closed forms stop at SU(4); Magνs has no ceiling.
 
 **Pre-packaged observables.**  ``average=True`` returns the phase-averaged
-probability a solar experiment actually measures, evaluated in closed form,
-rather than leaving you to resolve some 13 000 radians of phase and average the
-result yourself.  Neither of the other codes offers it.  And every entry point
+probability a solar experiment actually measures, without resolving some 13 000
+radians of phase and averaging the result yourself.  Neither of the other codes offers it.  And every entry point
 can hand back the converged evolution operator alongside the probabilities
 (``return_evolution_operator=True``), for the observables that are built from
 amplitudes rather than from probabilities.
@@ -406,16 +406,17 @@ Salient Features
 * **Vacuum, matter, Earth, and Sun**: constant-density matter, exponentially
   falling density profiles, the Earth (`Preliminary Reference Earth Model
   <https://doi.org/10.1016/0031-9201(81)90046-7>`_, including chords between
-  named detector sites), the Sun, or any density profile you supply.
+  named detector sites), the Sun on an exponential fit or any of twelve standard
+  solar models (:doc:`solar_models`), or any density profile you supply.
 * **Beyond the Standard Model**: non-standard neutrino interactions (NSI)
   and CPT-odd Lorentz-invariance violation (LIV), for every flavor count and
   environment above.
-* **Magnus expansion to order 8**, with the term recursion verified
+* **Magnus expansion to order 10**, with the term recursion verified
   term-by-term against the literature, and three integration methods.  The
   default, **Gauss-Legendre collocation integrators**, reaches orders
-  2/4/6/8 from only 1/2/3/4 Hamiltonian evaluations per slab; cumulative
-  trapezoid/Simpson quadrature remains available for Hamiltonians that are
-  not smooth within a slab.
+  2/4/6/8 from only 1/2/3/4 Hamiltonian evaluations per slab.  Cumulative
+  trapezoid and Simpson quadrature reach order 10 and serve Hamiltonians that
+  are not smooth within a slab.
 * **Exact unitarity**, adaptive refinement to a requested tolerance with
   physics-informed starting slab counts and warm starts across scans, slab
   edges aligned with density discontinuities, and an energy-batched scan
