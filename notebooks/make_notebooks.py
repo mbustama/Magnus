@@ -13994,6 +13994,44 @@ def _python_scalars(value):
     return value
 
 
+class _Rounded:
+    """A float nested inside a key part, written at FINGERPRINT_DIGITS.
+
+    A top-level float or a flat list of floats was always quantized, but a float inside a
+    dict or a list of pairs reached the hash through repr, digit for digit.  Most of those
+    are typed constants and harmless; the long-range couplings of `solar_long_range` are
+    computed, and their last place differed between two GitHub runners, so the section
+    missed on `main` after passing on the branch.
+    """
+    __slots__ = ('text',)
+
+    def __init__(self, value):
+        self.text = _hashable(value)
+
+    def __repr__(self):
+        return self.text
+
+    def __eq__(self, other):
+        return isinstance(other, _Rounded) and other.text == self.text
+
+    def __hash__(self):
+        return hash(self.text)
+
+
+def _rounded(value):
+    """The value with every NumPy scalar made a Python one and every float, however deep,
+    written at FINGERPRINT_DIGITS; nothing else in it changes."""
+    if isinstance(value, np.generic):
+        value = value.item()
+    if isinstance(value, float):
+        return _Rounded(value)
+    if isinstance(value, (list, tuple)):
+        return type(value)(_rounded(v) for v in value)
+    if isinstance(value, dict):
+        return {_rounded(k): _rounded(v) for k, v in value.items()}
+    return value
+
+
 def fingerprint(*parts):
     """Everything a stored result depends on, in one hash.
 
@@ -14001,11 +14039,35 @@ def fingerprint(*parts):
     built them, so a change anywhere upstream -- a mixing angle, an energy, a potential, a
     baseline -- invalidates the entry without having to be enumerated.
 
-    Floats are quantized first; see FINGERPRINT_DIGITS for why.  The cost is that a change
-    below the twelfth significant digit no longer invalidates an entry, which is the point:
-    a difference that small is the machine talking, not the physics.  NumPy scalars enter as
-    the Python scalars they hold, so the key is the same under NumPy 1 and 2; see
-    `_python_scalars`.
+    Floats are quantized first, wherever they sit in a part; see FINGERPRINT_DIGITS for why.
+    The cost is that a change below the twelfth significant digit no longer invalidates an
+    entry, which is the point: a difference that small is the machine talking, not the
+    physics.  NumPy scalars enter as the Python scalars they hold, so the key is the same
+    under NumPy 1 and 2; see `_python_scalars`.
+    """
+    h = hashlib.sha256()
+    for part in parts:
+        if isinstance(part, np.ndarray):
+            a = np.ascontiguousarray(part)
+            if a.dtype.kind == 'f':
+                h.update('|'.join(_hashable(x) for x in a.ravel().tolist()).encode())
+            else:
+                h.update(a.tobytes())
+        elif isinstance(part, float):
+            h.update(_hashable(part).encode())
+        elif isinstance(part, (list, tuple)) and part and all(
+                isinstance(x, float) for x in part):
+            h.update('|'.join(_hashable(x) for x in part).encode())
+        else:
+            h.update(repr(_rounded(part)).encode())
+    return h.hexdigest()
+
+
+def _shallow_fingerprint(*parts):
+    """The hash as it stood until floats nested in a part were quantized too.
+
+    Kept only so that an entry written under it is recognised and restamped rather than
+    recomputed; see `earlier_fingerprints`.  It is not written any more.
     """
     h = hashlib.sha256()
     for part in parts:
@@ -14040,8 +14102,17 @@ def legacy_fingerprint(*parts):
     return h.hexdigest()
 
 
+def earlier_fingerprints(*parts):
+    """The keys the same configuration had under the schemes this file used before.
+
+    An entry stored under any of them is relabelled, not recomputed: matching one proves the
+    configuration is the one the entry was computed for.
+    """
+    return {legacy_fingerprint(*parts), _shallow_fingerprint(*parts)}
+
+
 def restamp(blob, section, key, *key_parts):
-    """Relabel an entry written under the exact-bits hash, without recomputing it.
+    """Relabel an entry written under an earlier hash, without recomputing it.
 
     Called where a section keys itself rather than going through `cached`.  The legacy
     hash matching is the proof that the stored value was computed for exactly this
@@ -14050,8 +14121,8 @@ def restamp(blob, section, key, *key_parts):
     """
     entry = blob.get(section) or {}
     stored = entry.get('fingerprint')
-    if stored is not None and stored != key and stored == legacy_fingerprint(*key_parts):
-        print('  %s restamped %s -> %s, same configuration under the quantized hash'
+    if stored is not None and stored != key and stored in earlier_fingerprints(*key_parts):
+        print('  %s restamped %s -> %s, same configuration under an earlier hash'
               % (section, stored[:12], key[:12]))
         blob[section] = dict(entry, fingerprint=key)
         write_cache(blob)
@@ -14073,13 +14144,14 @@ def cached(section, key_parts, compute, what=''):
     key = fingerprint(*key_parts)
     got = blob.get(section)
     stored = got.get('fingerprint') if got else None
-    # An entry written before the hash was quantized is recognised by the old scheme and
-    # restamped with the new key.  The configuration is proven unchanged by the legacy
-    # hash matching, so nothing is recomputed and nothing is taken on trust: a section
-    # that really has moved matches neither key and is recomputed as before.
-    if (got and stored != key and stored == legacy_fingerprint(*key_parts)
+    # An entry written under an earlier scheme -- exact bits, or floats nested in a part
+    # left unquantized -- is recognised by that scheme and restamped with the new key.  The
+    # configuration is proven unchanged by the earlier hash matching, so nothing is
+    # recomputed and nothing is taken on trust: a section that really has moved matches
+    # no key and is recomputed as before.
+    if (got and stored != key and stored in earlier_fingerprints(*key_parts)
             and not os.environ.get('MAGNUS_PAPER_REDO')):
-        print('  %s restamped %s -> %s, same configuration under the quantized hash'
+        print('  %s restamped %s -> %s, same configuration under an earlier hash'
               % (section, stored[:12], key[:12]))
         blob[section] = dict(got, fingerprint=key)
         write_cache(blob)
@@ -14918,15 +14990,15 @@ def scan_setup():
     blob = json.loads(MP_CACHE.read_text()) if MP_CACHE.exists() else {}
     cached = blob.get('scan', {})
     # This section keys itself rather than going through `cached()`, so it needs the same
-    # restamp: an entry written under the exact-bits hash is recognised by that hash and
-    # relabelled with the quantized one.  Matching the legacy hash proves the
+    # restamp: an entry written under an earlier hash is recognised by that hash and
+    # relabelled with the current one.  Matching an earlier hash proves the
     # configuration is the one the entry was computed for, so nothing is recomputed.
     if (cached and cached.get('fingerprint') != key
-            and cached.get('fingerprint') == legacy_fingerprint(
+            and cached.get('fingerprint') in earlier_fingerprints(
                 profile_samples(VCC2, L2), float(L2), D2, MP_DPS_SCAN, MP_SCAN_TARGET,
                 [c[0] for c in CODES],
                 [float(e) for e in ENERGIES2], RTOL_FIXED, 'fixed-tolerance')):
-        print('  scan restamped %s -> %s, same configuration under the quantized hash'
+        print('  scan restamped %s -> %s, same configuration under an earlier hash'
               % (cached['fingerprint'][:12], key[:12]))
         cached = dict(cached, fingerprint=key)
         blob['scan'] = cached
