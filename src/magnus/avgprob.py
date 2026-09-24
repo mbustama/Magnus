@@ -911,6 +911,27 @@ B16-GS98): at 1e-5 the probability moves by at most 1.4e-07 from its value at 1e
 below the 1e-4 at which :mod:`magnus.oscprob` returns the decohered limit instead, and the call is
 5 to 16 times faster.
 
+It is the default of :func:`phase_averaged_probabilities_adiabatic`, read at each call.  The
+entry points of :mod:`magnus.oscprob` pass the tighter of their ``rtol`` and ``atol`` instead,
+1e-3 by default (issue #65).  With :data:`PHASE_AVERAGE_PHASE_TOL` loosened with it, measured on
+twenty chords through the solar core (30 GeV to 3 TeV, :math:`b = 0.05` to :math:`0.48\,R_\odot`),
+the probability moves by at most 4.6e-06 from its value at 1e-5, and the call is 2.4 times
+faster at the median (0.9 to 6.3).
+
+.. versionadded:: 1.1.1
+"""
+
+
+PHASE_AVERAGE_PHASE_TOL = 1.0e-5
+r"""float: Module-level constant
+
+Tolerance on the pair phases of each adiabatic stretch in
+:func:`phase_averaged_probabilities_adiabatic`, in rad.  The stretch's grid doubles until the
+pair phases that can still matter move by less than it, which moves a probability by at most as
+much.  Like :data:`PHASE_AVERAGE_PATCH_ATOL`, it is the default of that function, read at each
+call, and the entry points of :mod:`magnus.oscprob` pass the tighter of ``rtol`` and ``atol``
+instead.
+
 .. versionadded:: 1.1.1
 """
 
@@ -930,7 +951,6 @@ _SLOPE_FLOOR = 10.0
 _PRUNE_Z = 9.0
 _HERMITE_MAX = 31
 _MAX_TERMS = 200_000
-_PHASE_TOL = 1.0e-5
 
 
 def _pair_slopes(slope_diff: np.ndarray, phase_diff: np.ndarray, scale: float,
@@ -1043,7 +1063,8 @@ def _stretch_once(H_func: Callable, D_func: Callable, a: float, z: float, n: int
 
 
 def _stretch(H_func: Callable, D_func: Callable, a: float, z: float, V_start: np.ndarray,
-             V_end: np.ndarray, spread: float, n0: int = 801, n_max: int = 102_401) -> dict:
+             V_end: np.ndarray, spread: float, n0: int = 801, n_max: int = 102_401,
+             phase_tol: Optional[float] = None) -> dict:
     r"""Adiabatic transport from ``a`` to ``z`` as per-level phases and slopes in ``ln E``.
 
     The phase of level :math:`i` carries the dynamical phase :math:`\int\lambda_i`, the
@@ -1051,12 +1072,14 @@ def _stretch(H_func: Callable, D_func: Callable, a: float, z: float, V_start: np
     eigenvectors at the two ends and the bases ``V_start``, ``V_end`` the neighbouring windows
     and the readout use -- so the transport composes with them whatever phase ``eigh`` gave each
     eigenvector.  Simpson's rule on a grid doubled until the pair phases that can still matter
-    (weight above :math:`10^{-12}`) move by less than ``_PHASE_TOL`` = 1e-5 rad, which moves a
-    probability by at most as much.  A tabulated profile, interpolated with kinks at its rows,
-    converges slowly: measured on a solar chord at 100 GeV, phases of 3e3 rad move by 1e-3 rad
-    between 801 and 1601 points and by 1e-6 between 25 601 and 51 201.
+    (weight above :math:`10^{-12}`) move by less than ``phase_tol`` [rad], which moves a
+    probability by at most as much; None means :data:`PHASE_AVERAGE_PHASE_TOL`.  A tabulated
+    profile, interpolated with kinks at its rows, converges slowly: measured on a solar chord at
+    100 GeV, phases of 3e3 rad move by 1e-3 rad between 801 and 1601 points and by 1e-6 between
+    25 601 and 51 201.
     """
     d = V_start.shape[0]
+    tol = PHASE_AVERAGE_PHASE_TOL if phase_tol is None else phase_tol
     if z <= a:
         # Zero length: the only transport is the change of basis, which must be diagonal.
         ph = np.angle(np.einsum('ai,ai->i', V_end.conj(), V_start))
@@ -1073,7 +1096,7 @@ def _stretch(H_func: Callable, D_func: Callable, a: float, z: float, V_start: np
             wgt = np.exp(-0.5*(spread*(dPhi[:, None] - dPhi[None, :]))**2) > 1.0e-12
             change = max(float(np.max(np.abs(dp[:, None] - dp[None, :])[wgt], initial=0.0)),
                          spread*float(np.max(np.abs(ds[:, None] - ds[None, :]), initial=0.0)))
-            if change < _PHASE_TOL:
+            if change < tol:
                 converged = True
                 break
         if 2*n - 1 > n_max:
@@ -1086,14 +1109,15 @@ def _stretch(H_func: Callable, D_func: Callable, a: float, z: float, V_start: np
 def _window_amplitudes(H_func: Callable, D_func: Callable, l_b: float, l_c: float,
                        u_nodes: np.ndarray, V_b: np.ndarray, V_c: np.ndarray, magnus_exp_order: int,
                        integration_method: str, n_slabs0: int = 400, max_n_slabs: int = 32_768,
-                       patch_atol: float = PHASE_AVERAGE_PATCH_ATOL) -> Tuple[np.ndarray, bool]:
+                       patch_atol: Optional[float] = None) -> Tuple[np.ndarray, bool]:
     r"""The amplitude matrix :math:`V(l_c)^\dagger U_u V(l_b)` across a window, at every node.
 
     :math:`U_u` evolves with :math:`H + u\,D_\text{diag}`, where :math:`D_\text{diag}` is the part
     of :math:`dH/d\ln E` diagonal in the instantaneous eigenbasis: an energy offset :math:`u`
     moves every eigenvalue by :math:`u\, d\lambda_i/d\ln E` and leaves the eigenvectors alone,
     which is the definition of the phase average carried inside the window.  The node
-    :math:`u = 0` is the patch function of :func:`level_crossing_matrix`, at ``patch_atol``; the
+    :math:`u = 0` is the patch function of :func:`level_crossing_matrix`, at ``patch_atol`` (None
+    means :data:`PHASE_AVERAGE_PATCH_ATOL`, read here rather than bound at import); the
     others share one slab count, converged at the largest :math:`|u|` (measured on the chords of
     :data:`PHASE_AVERAGE_PATCH_ATOL`, every node converged on its own lands on the same count),
     and one evaluation of the Hamiltonian, its derivative and its eigenbasis per quadrature
@@ -1125,6 +1149,8 @@ def _window_amplitudes(H_func: Callable, D_func: Callable, l_b: float, l_c: floa
         return adiabatic.magnuscore.ordered_product(chain)
 
     u_max = float(np.max(np.abs(u_nodes))) if len(u_nodes) else 0.0
+    if patch_atol is None:
+        patch_atol = PHASE_AVERAGE_PATCH_ATOL
     n, converged = n_slabs0, True
     if u_max > 0.0:
         converged = False
@@ -1175,7 +1201,9 @@ def phase_averaged_probabilities_adiabatic(
     fd_step_frac: Optional[float] = 1.0e-6,
     magnus_exp_order: Optional[int] = 6,
     integration_method: Optional[str] = 'gl',
-    dH_dlnE_step: Optional[float] = None
+    dH_dlnE_step: Optional[float] = None,
+    patch_atol: Optional[float] = None,
+    phase_tol: Optional[float] = None
 ) -> Tuple[np.ndarray, dict]:
     r"""Phase-averaged probabilities on a smooth position-dependent Hamiltonian.
 
@@ -1227,6 +1255,12 @@ def phase_averaged_probabilities_adiabatic(
         Integration method of the window patches.  Default: 'gl'.
     dH_dlnE_step : float, optional
         See :func:`phase_averaged_probabilities_constant_hamiltonian`.  Default: None.
+    patch_atol : float, optional
+        Tolerance on the elements of each window's evolution operator.  Default: None, which
+        means :data:`PHASE_AVERAGE_PATCH_ATOL`.
+    phase_tol : float, optional
+        Tolerance on the pair phases of each adiabatic stretch [rad].  Default: None, which
+        means :data:`PHASE_AVERAGE_PHASE_TOL`.
 
     Returns
     -------
@@ -1282,7 +1316,8 @@ def phase_averaged_probabilities_adiabatic(
     V_c = [np.linalg.eigh(np.asarray(H_func(c), dtype=complex))[1] for _, c in windows]
     ends = [b for b, _ in windows][1:] + [l1]
     V_ends = V_b[1:] + [V1]
-    stretches = [_stretch(H_func, dH_dlnE_func, c, z, V_c[i], V_ends[i], spread)
+    stretches = [_stretch(H_func, dH_dlnE_func, c, z, V_c[i], V_ends[i], spread,
+                          phase_tol=phase_tol)
                  for i, ((_, c), z) in enumerate(zip(windows, ends))]
     report['phases_converged'] = all(s['converged'] for s in stretches)
 
@@ -1311,7 +1346,7 @@ def phase_averaged_probabilities_adiabatic(
     Ms, conv = [], True
     for (b, c), Vb, Vc in zip(windows, V_b, V_c):
         M, ok = _window_amplitudes(H_func, dH_dlnE_func, b, c, u, Vb, Vc, magnus_exp_order,
-                                   integration_method)
+                                   integration_method, patch_atol=patch_atol)
         Ms.append(M)
         conv = conv and ok
     report['patches_converged'] = conv
@@ -1398,6 +1433,7 @@ __all__ = [
     'PHASE_AVERAGE_WINDOW_THRESHOLD',
     'PHASE_SPREAD_SENSITIVITY_THRESHOLD',
     'PHASE_AVERAGE_PATCH_ATOL',
+    'PHASE_AVERAGE_PHASE_TOL',
     'phase_averaged_probabilities_constant_hamiltonian',
     'phase_averaged_probabilities_adiabatic',
 ]

@@ -3867,7 +3867,8 @@ def _avg_prob_dispatch(
     limit first, and recomputed only where some interference can survive -- on a profile, only
     where the limit's own search found a non-adiabatic window, since adiabatic transport of a
     decohered start carries none; the limit is returned, bit for bit, wherever the two agree
-    within ``_PHASE_AVERAGE_GATE``.  ``PhaseAveragingWarning`` then says that the result depends
+    within ``_PHASE_AVERAGE_GATE``, or, on a profile, within the tighter of ``rtol`` and ``atol``
+    in ``engine_kwargs`` when that is tighter still.  ``PhaseAveragingWarning`` then says that the result depends
     on the spread.  A Hamiltonian without energy dependence keeps the limit, and the warning
     keeps its original meaning for it: some pair has neither decohered nor stayed coherent.
 
@@ -3904,7 +3905,10 @@ def _avg_prob_dispatch(
         transport; False selects the energy-window average.
     engine_kwargs : dict or None
         Engine settings forwarded to the energy-window route.  Required there: the
-        non-smooth branch raises ``ValueError`` without them.
+        non-smooth branch raises ``ValueError`` without them.  On a smooth profile, the tighter
+        of their ``rtol`` and ``atol`` is the tolerance of the phase average's window patches
+        and stretch phases (issue #65); without either, those take the defaults of
+        :func:`magnus.avgprob.phase_averaged_probabilities_adiabatic`.
     average_spread : float or None
         Relative energy spread of the phase average.  None means
         :data:`magnus.avgprob.AVG_PHASE_SPREAD`.
@@ -3955,11 +3959,18 @@ def _avg_prob_dispatch(
     unaveraged_points = 0
     largest_sensitivity = 0.0
     h = _PHASE_SLOPE_STEP
+    # The caller's tolerance, for the profile route: the phase average converges its patches and
+    # phases to the tighter of rtol and atol, and the limit stands only where it agrees within
+    # that, if it is tighter than the gate (issue #65).
+    tols = [float(t) for t in ((engine_kwargs or {}).get('rtol'), (engine_kwargs or {}).get('atol'))
+            if t is not None]
+    tol = min(tols) if tols else None
+    gate = _PHASE_AVERAGE_GATE if tol is None else min(_PHASE_AVERAGE_GATE, tol)
 
     def keep_or_replace(i, P_new, sensitivity):
         # Today's value, bit for bit, unless the phase average moves it by more than the gate.
         nonlocal recomputed_points, spread_sensitive_points, largest_sensitivity
-        if np.max(np.abs(P_new - P_out[i])) >= _PHASE_AVERAGE_GATE:
+        if np.max(np.abs(P_new - P_out[i])) >= gate:
             P_out[i] = P_new
             recomputed_points += 1
         largest_sensitivity = max(largest_sensitivity, float(sensitivity))
@@ -4067,7 +4078,8 @@ def _avg_prob_dispatch(
                             - np.asarray(htot(enu*np.exp(-h), l), dtype=complex))/(2.0*h)
                 try:
                     P_new, pa_report = avgprob.phase_averaged_probabilities_adiabatic(H_of_l, D_of_l,
-                        float(L0), float(L_arr[i]), spread=spread, dH_dlnE_step=h)
+                        float(L0), float(L_arr[i]), spread=spread, dH_dlnE_step=h,
+                        patch_atol=tol, phase_tol=tol)
                 except RuntimeError:
                     unaveraged_points += 1
                     continue
@@ -6351,9 +6363,14 @@ def osc_prob_energy_baseline(
     integration_method : str
         Forwarded to :func:`osc_prob` for each (energy, L) point; see its docstring.
     rtol : int or float, optional
-        Forwarded to :func:`osc_prob` for each (energy, L) point; see its docstring.
+        Forwarded to :func:`osc_prob` for each (energy, L) point; see its docstring.  With
+        ``average=True`` on a smooth position-dependent Hamiltonian, the tighter of ``rtol`` and
+        ``atol`` is instead the tolerance of the phase average: of its window patches, of its
+        stretch phases, and of the agreement below which the decohered limit is returned (see
+        :func:`magnus.avgprob.phase_averaged_probabilities_adiabatic`).
     atol : int or float, optional
-        Forwarded to :func:`osc_prob` for each (energy, L) point; see its docstring.
+        Forwarded to :func:`osc_prob` for each (energy, L) point; see its docstring, and
+        ``rtol`` for ``average=True``.
     growth_factor_n_slabs : int or float
         Forwarded to :func:`osc_prob` for each (energy, L) point; see its docstring.
 
@@ -6472,7 +6489,8 @@ def osc_prob_energy_baseline(
         instantaneous eigenstates, with a Magnus patch across every non-adiabatic crossing,
         when the profile is smooth; and across an energy window, with a warning, when
         ``t_breakpoints`` or ``t_slab_edges`` declare discontinuities.  ``strategy``,
-        ``n_jobs`` and the cumulative traversal play no role on this route.  A matrix, or a
+        ``n_jobs`` and the cumulative traversal play no role on this route, and on a smooth
+        profile the tighter of ``rtol`` and ``atol`` is its tolerance.  A matrix, or a
         function of position alone, does not depend on the energy, so an energy spread has
         nothing to act on and it keeps the decohered limit.  Cannot be combined with
         ``return_evolution_operator``.  Default: False.
@@ -7631,7 +7649,8 @@ def osc_prob_matter_std_potential(
         Name of the predefined oscillation-parameter set used to fill in any parameter left as
         None in ``osc_params``. Default: 'OSC_PARAMS_DEFAULT'.
     average : bool, optional
-        If True, return the phase-averaged probability rather than the oscillating one.
+        If True, return the phase-averaged probability rather than the oscillating one.  On a
+        smooth profile, the tighter of ``rtol`` and ``atol`` is its tolerance.
     average_spread : float, optional
         Relative energy spread :math:`\sigma` of the phase average ``average=True`` returns:
         every interference term keeps its phase and is weighted by
@@ -8198,7 +8217,8 @@ def osc_prob_matter_nsi(
         Name of the predefined oscillation-parameter set used to fill in any parameter left as
         None in ``osc_params``. Default: 'OSC_PARAMS_DEFAULT'.
     average : bool, optional
-        If True, return the phase-averaged probability rather than the oscillating one.
+        If True, return the phase-averaged probability rather than the oscillating one.  On a
+        smooth profile, the tighter of ``rtol`` and ``atol`` is its tolerance.
     average_spread : float, optional
         Relative energy spread :math:`\sigma` of the phase average ``average=True`` returns:
         every interference term keeps its phase and is weighted by
@@ -8705,7 +8725,8 @@ def osc_prob_liv(
         Name of the predefined oscillation-parameter set used to fill in any parameter left as
         None in ``osc_params``. Default: 'OSC_PARAMS_DEFAULT'.
     average : bool, optional
-        If True, return the phase-averaged probability rather than the oscillating one.
+        If True, return the phase-averaged probability rather than the oscillating one.  On a
+        smooth profile, the tighter of ``rtol`` and ``atol`` is its tolerance.
     average_spread : float, optional
         Relative energy spread :math:`\sigma` of the phase average ``average=True`` returns:
         every interference term keeps its phase and is weighted by
@@ -12774,7 +12795,9 @@ def osc_prob_earth(
     integration_method : str, optional
         'gl', 'trapezoid', or 'simpson'. Default: 'gl'.
     rtol, atol : int or float, optional
-        Target relative/absolute tolerance for the adaptive slab refinement. Default: 1e-3 each.
+        Target relative/absolute tolerance for the adaptive slab refinement.  With
+        ``average=True`` on a smooth profile, the tighter of the two is the tolerance of the
+        phase average instead; see :func:`osc_prob_energy_baseline`.  Default: 1e-3 each.
     validate_input : bool, optional
         If True, validate the input parameters. Default: True.
     verbose : int, optional
@@ -12806,7 +12829,8 @@ def osc_prob_earth(
         transport along its instantaneous eigenstates, with a Magnus patch across every
         non-adiabatic crossing, when the profile is smooth; and across an energy window, with
         a warning, when ``t_breakpoints`` declare discontinuities.  ``n_jobs`` and the
-        cumulative traversal play no role on this route.  Cannot be combined with
+        cumulative traversal play no role on this route, and on a smooth profile the tighter
+        of ``rtol`` and ``atol`` is its tolerance.  Cannot be combined with
         ``return_evolution_operator``.  Default: False.
     average_spread : float, optional
         Relative energy spread :math:`\sigma` of the phase average ``average=True`` returns:
@@ -12994,7 +13018,9 @@ def _osc_prob_with_potential(
     integration_method : str
         'gl', 'trapezoid', or 'simpson'.
     rtol, atol : int or float, optional
-        Target relative/absolute tolerance for the adaptive slab refinement.
+        Target relative/absolute tolerance for the adaptive slab refinement.  With
+        ``average=True`` on a smooth profile, the tighter of the two is the tolerance of the
+        phase average instead; see :func:`osc_prob_energy_baseline`.
     validate_input : bool
         If True, validate that ``H_func`` has the expected signature.
     verbose : int
@@ -13031,7 +13057,8 @@ def _osc_prob_with_potential(
         transport along its instantaneous eigenstates, with a Magnus patch across every
         non-adiabatic crossing, when the profile is smooth; and across an energy window, with
         a warning, when ``t_breakpoints`` declare discontinuities.  ``n_jobs`` and the
-        cumulative traversal play no role on this route.  Cannot be combined with
+        cumulative traversal play no role on this route, and on a smooth profile the tighter
+        of ``rtol`` and ``atol`` is its tolerance.  Cannot be combined with
         ``return_evolution_operator``.  Default: False.
     average_spread : float, optional
         Relative energy spread :math:`\sigma` of the phase average ``average=True`` returns:
@@ -14205,7 +14232,9 @@ def osc_prob_sun(
     integration_method : str, optional
         'gl', 'trapezoid', or 'simpson'. Default: 'gl'.
     rtol, atol : int or float, optional
-        Target relative/absolute tolerance for the adaptive slab refinement. Default: 1e-3 each.
+        Target relative/absolute tolerance for the adaptive slab refinement.  With
+        ``average=True`` on a smooth profile, the tighter of the two is the tolerance of the
+        phase average instead; see :func:`osc_prob_energy_baseline`.  Default: 1e-3 each.
     validate_input : bool, optional
         If True, validate the input parameters. Default: True.
     verbose : int, optional
@@ -14235,7 +14264,8 @@ def osc_prob_sun(
         transport along its instantaneous eigenstates, with a Magnus patch across every
         non-adiabatic crossing, when the profile is smooth; and across an energy window, with
         a warning, when ``t_breakpoints`` declare discontinuities.  ``n_jobs`` and the
-        cumulative traversal play no role on this route.  Cannot be combined with
+        cumulative traversal play no role on this route, and on a smooth profile the tighter
+        of ``rtol`` and ``atol`` is its tolerance.  Cannot be combined with
         ``return_evolution_operator``.  Default: False.
     average_spread : float, optional
         Relative energy spread :math:`\sigma` of the phase average ``average=True`` returns:

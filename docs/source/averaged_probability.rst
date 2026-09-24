@@ -128,8 +128,8 @@ returns the limit for it.  Away from the limit, the three properties above fail:
 terms that do.
 
 Every point is computed as the limit first, and returned as such, bit for bit, wherever the
-phase average agrees with it to 1e-4, so a result that was right before stays exactly what it
-was.
+phase average agrees with it to 1e-4 (on a profile, to the tighter of ``rtol`` and ``atol`` if
+that is smaller), so a result that was right before stays exactly what it was.
 
 Coherence, and where the spread matters
 -----------------------------------------
@@ -302,6 +302,15 @@ keeps it, so the windows are searched at an adiabaticity threshold of 0.01
 average of the same definition on five solar chords from 10 GeV to 10 TeV, the result is within
 4.2e-5; on the same chords the limit is off by up to 0.14.
 
+The call's ``rtol`` and ``atol`` set the tolerance: the window patches and the stretch phases
+converge to the tighter of the two, 1e-3 by default, and the limit is returned only where it
+agrees with the phase average within that, or within 1e-4 if that is tighter.  On twenty chords
+through the solar core, from 30 GeV to 3 TeV, the default moves the probability by at most
+4.6e-6 from its value at 1e-5, at 2.4 times the speed.  Called directly,
+:func:`magnus.avgprob.phase_averaged_probabilities_adiabatic` takes the two tolerances as
+``patch_atol`` and ``phase_tol``, 1e-5 each by default
+(:data:`magnus.avgprob.PHASE_AVERAGE_PATCH_ATOL`, :data:`magnus.avgprob.PHASE_AVERAGE_PHASE_TOL`).
+
 When there is no closed form
 --------------------------------
 
@@ -343,7 +352,7 @@ Cost
      - 6 ms per energy
    * - A profile with windows whose phases survive: a solar chord, 10 GeV to 1 TeV
      - Windows at Gauss-Hermite nodes
-     - 5.9 s (10 GeV) to 0.35 s (1 TeV) per point
+     - 0.21 s (10 GeV) to 0.08 s (1 TeV) per point, at the default tolerance
    * - Earth (PREM)
      - Sampled over an energy window
      - ~0.1 s

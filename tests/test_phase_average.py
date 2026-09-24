@@ -358,6 +358,86 @@ def test_a_profile_with_a_window_is_recomputed_and_reported():
     assert 'PhaseAveragingWarning' not in warned      # matter phases: the spread does not matter
 
 
+def solar_chord(br):
+    """The electron density along the chord at impact parameter br R_sun, B16-GS98, and its
+    length."""
+    R = gd.SUN_RADIUS*gd.UNIT_KM
+    ne = solarmodels.electron_density_profile('B16-GS98')
+    b = br*R
+    hl = np.sqrt(R**2 - b**2)
+
+    def ne_chord(l):
+        return ne(np.sqrt((np.asarray(l, dtype=float) - hl)**2 + b**2))
+
+    return ne_chord, 2*hl
+
+
+CHORD_KW = dict(nu_i=0, nu_f=0, density_is_of_number_of_electrons=True, L0=0.0)
+
+
+def test_rtol_and_atol_are_the_tolerance_of_the_phase_average(monkeypatch):
+    """Issue #65: on a smooth profile they were accepted and dropped.  The window patches and
+    the stretch phases now converge to the tighter of the two."""
+    seen = []
+    real = ap.phase_averaged_probabilities_adiabatic
+
+    def spy(*args, **kwargs):
+        seen.append((kwargs.get('patch_atol'), kwargs.get('phase_tol')))
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(ap, 'phase_averaged_probabilities_adiabatic', spy)
+    ne_chord, L = solar_chord(0.9)
+    nufit = gd.load_nufit_params('NuFIT 6.1')
+    for kw, want in ((dict(), 1.0e-3), (dict(rtol=1.0e-4), 1.0e-4),
+                     (dict(rtol=1.0e-2, atol=1.0e-6), 1.0e-6)):
+        call(op.osc_prob_matter_std_potential, 3, ne_chord, 1.0e4*gd.UNIT_GEV, L, nufit,
+             average=True, **CHORD_KW, **kw)
+        assert seen[-1] == (want, want)
+
+
+def test_the_decohered_limit_stands_only_within_the_tolerance_asked_for(monkeypatch):
+    """A phase average 5e-5 from the limit: inside the gate of 1e-4 at the default tolerance,
+    so the limit comes back bit for bit; outside it at atol = 1e-5, so the phase average does."""
+    old = {}
+    real_old = ap.averaged_probabilities_adiabatic
+
+    def spy_old(*args, **kwargs):
+        P, report = real_old(*args, **kwargs)
+        old['P'] = P.copy()
+        return P, report
+
+    def near_new(*args, **kwargs):
+        return old['P'] + 5.0e-5, dict(sigma_sensitivity=0.0, patches_converged=True,
+                                       phases_converged=True)
+
+    monkeypatch.setattr(ap, 'averaged_probabilities_adiabatic', spy_old)
+    monkeypatch.setattr(ap, 'phase_averaged_probabilities_adiabatic', near_new)
+    ne_chord, L = solar_chord(0.9)
+    nufit = gd.load_nufit_params('NuFIT 6.1')
+    args = (op.osc_prob_matter_std_potential, 3, ne_chord, 1.0e4*gd.UNIT_GEV, L, nufit)
+    P, _ = call(*args, average=True, **CHORD_KW)
+    assert float(P) == old['P'][0, 0]
+    P, _ = call(*args, average=True, atol=1.0e-5, **CHORD_KW)
+    assert float(P) == old['P'][0, 0] + 5.0e-5
+
+
+def test_the_module_tolerances_are_read_at_each_call(monkeypatch):
+    """PHASE_AVERAGE_PATCH_ATOL used to be bound as a default argument at import, so setting it
+    did nothing."""
+    seen = []
+    real = ad._local_evolution_operator
+
+    def spy(*args, **kwargs):
+        seen.append(kwargs.get('patch_atol'))
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(ad, '_local_evolution_operator', spy)
+    monkeypatch.setattr(ap, 'PHASE_AVERAGE_PATCH_ATOL', 3.0e-4)
+    H, D, l0, l1 = crossing_H()
+    _, report = ap.phase_averaged_probabilities_adiabatic(H, D, l0, l1)
+    assert report['windows'] and seen and all(x == 3.0e-4 for x in seen)
+
+
 def test_a_round_off_pseudo_dirac_pair_does_not_warn_through_the_dispatcher():
     """Issue #61 as reported: osc_prob_energy_baseline on a pseudo-Dirac pair at 100 TeV over
     100 Mpc warned that the pair was undecided below 1e-18 eV^2, on a round-off phase."""

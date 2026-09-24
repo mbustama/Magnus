@@ -171,6 +171,20 @@ and the project uses [Semantic Versioning](https://semver.org/).
   vacuum average over 1000 energies takes 11 ms against 26 ms before, check
   included.
 
+- **`rtol` and `atol` set the tolerance of the phase average on a smooth
+  profile** (issue #65).  They were accepted there and dropped without a
+  word: the window patches and the stretch phases converged to a fixed 1e-5,
+  and `PHASE_AVERAGE_PATCH_ATOL`, bound as a default argument at import, did
+  nothing when changed.  Both now converge to the tighter of `rtol` and
+  `atol`, 1e-3 by default, and the decohered limit is returned only where the
+  phase average agrees with it within that tolerance, or within 1e-4 if that
+  is tighter.  Over twenty chords through the solar core, 30 GeV to 3 TeV,
+  the default moves the probability by at most 4.6e-06 from its value at
+  1e-5 and is 2.4 times faster at the median (0.9 to 6.3).
+  `phase_averaged_probabilities_adiabatic` takes `patch_atol` and
+  `phase_tol`; their defaults, `PHASE_AVERAGE_PATCH_ATOL` and the new
+  `PHASE_AVERAGE_PHASE_TOL` (1e-5 each), are read at each call.
+
 - **The adiabatic machinery evaluates the Hamiltonian in batches.**  The search
   for non-adiabatic windows took the finite-difference derivative at every probe
   point, and bisected every gap extremum, one Python call per position: about
