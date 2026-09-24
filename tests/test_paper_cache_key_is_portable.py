@@ -41,7 +41,8 @@ def hashes():
     source = (ROOT/'notebooks'/'make_notebooks.py').read_text()
     namespace = {'np': np, 'hashlib': hashlib}
     for anchor in ('FINGERPRINT_DIGITS = 12', 'def _hashable', 'def _python_scalars',
-                   'def fingerprint', 'def legacy_fingerprint'):
+                   'class _Rounded', 'def _rounded', 'def fingerprint', 'def _shallow_fingerprint',
+                   'def legacy_fingerprint', 'def earlier_fingerprints'):
         assert anchor in source, (
             'make_notebooks.py no longer contains %r; the paper cache hash has been '
             'restructured and this test needs updating' % anchor)
@@ -122,3 +123,40 @@ def test_a_numpy_scalar_hashes_as_the_python_scalar_it_holds(hashes):
     converted = python_scalars(held)
     assert all(type(v) in (float, int, bool) for _, v in converted)
     assert repr(converted) == repr(plain)
+
+
+def test_a_nested_float_is_quantized_too(hashes):
+    """A float inside a dict or a list of pairs reached the hash through repr, digit for digit.
+
+    The long-range couplings of notebook 28's solar_long_range key are computed, and their
+    last place differed between two GitHub runners: the section passed on the branch and
+    missed on main.  One ulp inside a dict must not move the key; a change a thousand times
+    larger still must.
+    """
+    fingerprint, _, _ = hashes
+    g = 8.641658082371646e-54
+    base = fingerprint('lri', {'1': g, '0.1': 3.193173940586491e-53}, [('s12', 0.55)])
+    ulp = fingerprint('lri', {'1': float(np.nextafter(g, np.inf)), '0.1': 3.193173940586491e-53},
+                      [('s12', 0.55)])
+    assert ulp == base
+    assert fingerprint('lri', {'1': g*(1 + 1e-9), '0.1': 3.193173940586491e-53},
+                       [('s12', 0.55)]) != base
+
+
+def test_an_entry_stored_under_the_shallow_hash_is_recognised():
+    """Quantizing nested floats changed the key of every section that nests one.  Those entries
+    are relabelled, not recomputed: the key the same configuration had before is among the
+    earlier ones."""
+    import hashlib
+
+    source = (ROOT/'notebooks'/'make_notebooks.py').read_text()
+    ns = {'np': np, 'hashlib': hashlib}
+    for anchor in ('FINGERPRINT_DIGITS = 12', 'def _hashable', 'def _python_scalars',
+                   'class _Rounded', 'def _rounded', 'def fingerprint', 'def _shallow_fingerprint',
+                   'def legacy_fingerprint', 'def earlier_fingerprints'):
+        start = source.index(anchor)
+        exec(compile(source[start:source.index('\n\n\n', start)], '<fingerprint>', 'exec'), ns)
+    parts = ('lri', [0.1, 1.0], {'1': 8.641658082371646e-54}, sorted({'s12': 0.55}.items()))
+    assert ns['fingerprint'](*parts) != ns['_shallow_fingerprint'](*parts)
+    assert ns['_shallow_fingerprint'](*parts) in ns['earlier_fingerprints'](*parts)
+    assert ns['fingerprint'](*parts) not in ns['earlier_fingerprints'](*parts)

@@ -21105,7 +21105,7 @@
   "seconds": 7.0
  },
  "oscillogram_Earth_3_nu": {
-  "fingerprint": "2faf5909e05264a94705cb60c7d63891de57e94730b1a4f2a8f42774336ec96b",
+  "fingerprint": "1bcc7f4c21ade652bf2440221319925acd58018df83eb859378a2f3ab6e5773f",
   "value": [
    [
     0.014461194835290462,
@@ -55454,7 +55454,7 @@
   "seconds": 4.0
  },
  "oscillogram_Earth_3_nu_NSI": {
-  "fingerprint": "0d05d7a34a7f99e750d605086d1114808f2f4647e4b8c67e1a9388ff2f2ccc09",
+  "fingerprint": "42eb7a70d20c8af4f9a3d59602cf465bdb7dc3cdd13bf0593f2338996ad70e19",
   "value": [
    [
     0.22488796035398162,
@@ -89803,7 +89803,7 @@
   "seconds": 3.9
  },
  "oscillogram_Earth_3_1": {
-  "fingerprint": "88f9c127fcda47f7df0962c0fbfa7ab1fa6c603b6c4839ef6c9da0dd500e4a17",
+  "fingerprint": "a096e16a8b13bc96a8b9bf6f90290dbc089b82089725690f95599f4e0865519b",
   "value": [
    [
     0.9621892326184813,
@@ -124152,7 +124152,7 @@
   "seconds": 21.2
  },
  "oscillogram_Earth_3_2": {
-  "fingerprint": "f09ccd0d475d3bdebf30a2eb8e6aa2a1343faee0d28eb1b21c1e229ad545276c",
+  "fingerprint": "35b26ffe39f08a74cfc2508664afae822444897e0bf6064fdb27668474191e29",
   "value": [
    [
     0.7752320513020272,
@@ -158501,7 +158501,7 @@
   "seconds": 45.5
  },
  "solar_3_nu": {
-  "fingerprint": "3ed5ef6447324ca9b91f4da4f05a2f98f1e3ffa0013eb22c421b0811e5bb3e8d",
+  "fingerprint": "1155d40406cfb2aafc88846999b92f3d64a87eb9910f25011747f3fdbdb268c4",
   "value": {
    "P": [
     0.5449462953410618,
@@ -158694,7 +158694,7 @@
   "seconds": 1.5
  },
  "solar_3_nu_NSI": {
-  "fingerprint": "98ae2a35e3bd703c8933be1aef30232952c8da4716fc9911119369b0f9d2f1fa",
+  "fingerprint": "292c0e6e7437bdb4dcb2cf92cc726dababa0b73fad896371d7ebab578ba10b86",
   "value": {
    "P": [
     0.5444035895322594,
@@ -158887,7 +158887,7 @@
   "seconds": 1.5
  },
  "solar_3_1": {
-  "fingerprint": "e0e6fd92b22497345aa27c804014dbe62c75d2ba8afd2c6bae9b124bc33014a9",
+  "fingerprint": "233e9dc37f9305168cb76f4a6a2edcee8438ac6e4165a3ee2642f3e93b19b245",
   "value": {
    "P": [
     0.4515997456340078,
@@ -159080,7 +159080,7 @@
   "seconds": 3.2
  },
  "solar_3_2": {
-  "fingerprint": "4d5bbfb7d1f7f16ca43eafb9e9a92e767297706415091a0ef7d4cd95525233f4",
+  "fingerprint": "52fa33ef25c9bafc6053e064e36bc1e637c3e218e86479e742b24a6084638a51",
   "value": {
    "P": [
     0.4027317787485922,
@@ -159273,7 +159273,7 @@
   "seconds": 5.1
  },
  "solar_long_range": {
-  "fingerprint": "1f99156f0092750f7bb524cdb6682ea4364a37d07ad80983ab78e36b18f49018",
+  "fingerprint": "b3fb311ed556fac7545ed810aa39c5282b6934e1da972955b9da2e896a146963",
   "value": {
    "std": [
     0.5449462953410618,
@@ -159498,7 +159498,7 @@
   "seconds": 4.0
  },
  "shock_3_nu_0p07": {
-  "fingerprint": "63268e3f7c79a215a833fe8f9f035d7dc04103f8bf020863f3d388a66b944d8f",
+  "fingerprint": "aede9aeb724e8ef782ae65cf0150ed7e74e0a17641d7b46ea780298a1de01d49",
   "value": {
    "full": [
     0.9642422192469445,
@@ -164511,7 +164511,7 @@
   "seconds": 0.2
  },
  "shock_3_1_0p07": {
-  "fingerprint": "3633b955cc578261d42011050176525366692af3b0ffbfd58db80733ab908ef5",
+  "fingerprint": "0586dda4937029b415791af2745fd951f23ded0b74188492afd7fb592c0059d9",
   "value": {
    "full": [
     0.6447783785439044,
@@ -169524,7 +169524,7 @@
   "seconds": 0.3
  },
  "shock_3_nu_NSI_0p07": {
-  "fingerprint": "78c29cb0a81d36df074bcad3251f182110b0ed66af72528a974f3a4b2cb37e64",
+  "fingerprint": "16a69a186d60feffd0027085ed259b7adf863df9d7a53cf9372caf812d7a51d3",
   "value": {
    "full": [
     0.995325389022489,
@@ -174537,7 +174537,7 @@
   "seconds": 0.2
  },
  "shock_3_2_0p07": {
-  "fingerprint": "2bd285920d521ce1f5c4a84b6640ac1bf0b6b1059124e2623702f56db691e5c4",
+  "fingerprint": "c3fd34d7a4a4081ba79c78458178bbc4fd7fd3d6614011ca06684fe38aa4336a",
   "value": {
    "full": [
     0.5727728758850236,
@@ -179550,7 +179550,7 @@
   "seconds": 0.5
  },
  "shock_3_nu_70": {
-  "fingerprint": "5b9bfb519eeef7bf958d3122586a4da65846b75fc7a487d01ff05afbb4a73bdd",
+  "fingerprint": "03f21d4d945707b0cdd446b208d8f09fda1eba379e532690a6d8d4aaa819893d",
   "value": {
    "full": [
     0.9642422192469445,
@@ -184563,7 +184563,7 @@
   "seconds": 0.2
  },
  "shock_3_1_70": {
-  "fingerprint": "76875608363832ae93954738efb5572b8d966a7551485603c65227e85b03fdcb",
+  "fingerprint": "b9cb3ed5de3bb4276bbcf0da82da331e01a7b5486fbdf8053c0b5901c728c83c",
   "value": {
    "full": [
     0.6447783785439044,
@@ -189576,7 +189576,7 @@
   "seconds": 0.3
  },
  "shock_3_nu_NSI_70": {
-  "fingerprint": "1e505f5887a526b78d66faa3b12866fc3596c0b4d0cb8fac7c7b72f952276ddc",
+  "fingerprint": "f15caa6e090aee5524bef33c419edf97ccb9e87a0cb2ea41fe2197e2bb73b19b",
   "value": {
    "full": [
     0.995325389022489,
@@ -194589,7 +194589,7 @@
   "seconds": 0.2
  },
  "shock_3_2_70": {
-  "fingerprint": "7b6824771359690aeadc7db63701dd56a20b396b8e5cbced6996c36c77946c73",
+  "fingerprint": "32606171f1d53716baa490301f6fc598b411c20860fbd16b29ba561d00ee270e",
   "value": {
    "full": [
     0.5727728758850236,
@@ -199602,7 +199602,7 @@
   "seconds": 0.5
  },
  "astro_vacuum": {
-  "fingerprint": "0b3a6f73fb96c93b26aba244bf7dd91760f59f6f7837ef1b5ba2e39b2bf60890",
+  "fingerprint": "dc6b64ba4d7aa7d97f6697299e6c88b203f84a8d85e9f26d36400a159b8a6c41",
   "value": {
    "p3": [
     [
@@ -202195,7 +202195,7 @@
   "seconds": 0.0
  },
  "astro_liv": {
-  "fingerprint": "f6e1715bcbe4e5b057a87e4c19c0410f5731900b7676ce5f5a2d8203c522db85",
+  "fingerprint": "22a518ca823d71a77b4c0b22c75c64c1285aa31a5c85d38366c3b92fc1d47cbc",
   "value": [
    [
     [
@@ -203224,7 +203224,7 @@
   "seconds": 0.0
  },
  "astro_earth_nsi": {
-  "fingerprint": "95ad779e8715568538954769239efbef155f1bb89ba83693aafc60051fcfdbaa",
+  "fingerprint": "a59ea05a2ffa8f14bce7b6654acd1be3d66da9a80136d35cdf6042685979aa7c",
   "value": [
    [
     [
@@ -204253,7 +204253,7 @@
   "seconds": 0.0
  },
  "astro_pseudo_dirac": {
-  "fingerprint": "eeaddf717484fbe6ef4a8153daaa1a983bc59b32fbb60028a3098216bf70d71d",
+  "fingerprint": "bbb1a0d884e47620f2e80fa8810917b7518468a301355805e0323c005d0c94bb",
   "value": [
    [
     [
@@ -205822,7 +205822,7 @@
   "seconds": 0.0
  },
  "sterile_scan_m1_nu": {
-  "fingerprint": "bf6038be2932f686bab3bdfd6237dfe3da2d28d1f150c59e2d7455cec1ba1a8c",
+  "fingerprint": "c0e2ed12ab4674f09938901960ecdf885dcbed8058328777dc39f2892700d774",
   "value": [
    [
     -2.3626649729546756e-05,
@@ -212391,7 +212391,7 @@
   "seconds": 46.2
  },
  "sterile_scan_m0p5_nu": {
-  "fingerprint": "8f02adc3d10a3cebe387cc9b30f78ff0e1a0b55eb511fc672c1739f07ba583ad",
+  "fingerprint": "88fcd5f6f0a89459c98b05d0713aacd354f69cd8af34d9b2f2c610afdbd1a97c",
   "value": [
    [
     -0.004381060286636318,
@@ -218960,7 +218960,7 @@
   "seconds": 32.3
  },
  "sterile_scan_m1_nubar": {
-  "fingerprint": "a48502d757da933aa8e5a351367150766698b15ae42d9e9adf65a28d124486d9",
+  "fingerprint": "de1b863512a045213e8aa1ba25644e6cbeabab5d376b3ce2d7c5db9d4c648970",
   "value": [
    [
     -0.0005757538662710671,
@@ -225529,7 +225529,7 @@
   "seconds": 39.8
  },
  "sterile_scan_m0p5_nubar": {
-  "fingerprint": "55bad0f06edf09ee3cacd720700789235c250e3811892cacd6a357efa09619f1",
+  "fingerprint": "04fd9f9ab9b82bd2c3823e4ee184bb9c26e02db28955c0f5e0146c7e1c4b0945",
   "value": [
    [
     -0.00564145068363664,
@@ -232098,7 +232098,7 @@
   "seconds": 33.0
  },
  "solar_gamma_b0": {
-  "fingerprint": "65b4cecc4e28564d5482f59feae743c5ef276d52c6400b0ad3b93d06c18fd5c4",
+  "fingerprint": "9a0a16490de8fbe278c7fa8dbb4a4a6d5e750c6a165fce0dce9403d7faedd05f",
   "value": [
    4.7957906128302364e-06,
    7.175436252160788e-06,
@@ -232217,7 +232217,7 @@
   "seconds": 110.3
  },
  "solar_gamma_b0p6": {
-  "fingerprint": "20970f29a7b8af7252c64aeec526bee21417a48d978b2f7e0868f80c642801ac",
+  "fingerprint": "64c4eca76f5d063109b345f2a0f84993a59adbab583201ed9a42def3825245fc",
   "value": [
    6.85699599238704e-09,
    1.0030695050120084e-08,
@@ -232336,7 +232336,7 @@
   "seconds": 95.8
  },
  "solar_gamma_b0p9": {
-  "fingerprint": "9fc1dddfed2fa692715c9ab38b9577372a8830c311ebfd546e4404dd5ce46598",
+  "fingerprint": "437332c9b42efc13b402f8547588f0818405657a67aee5239cf8974d5be9a966",
   "value": [
    5.690583177024838e-10,
    8.323312510241455e-10,
@@ -232455,7 +232455,7 @@
   "seconds": 75.6
  },
  "solar_gamma_b0p95": {
-  "fingerprint": "dc3c497c8f25ae0e7a7aff73611ddcb86cea948aa8b1fc510628223d51875acc",
+  "fingerprint": "bc091c226c4d9e7b90b9dc0c363c3916730e6838c7392744bea36168352f1c10",
   "value": [
    2.419722528739497e-10,
    3.539188796317451e-10,
@@ -232574,7 +232574,7 @@
   "seconds": 76.5
  },
  "solar_disk_0p01": {
-  "fingerprint": "09192fe52499a663f360e6b119df187b385ba9e92b0919b8da3fbb32f77b68c1",
+  "fingerprint": "37b8a7a37d07622ebf188f777b7c49f0b6138b3e2378fb36290d4f732fc9b7d5",
   "value": [
    0.548142608336102,
    0.548142608336102,
@@ -232784,7 +232784,7 @@
   "seconds": 0.5
  },
  "solar_disk_10": {
-  "fingerprint": "b07ab8b315a31ed73d9585084328e17b5a88ded9aab6aac0ec32f97eca331405",
+  "fingerprint": "6923db3185e7e7b0ce75df15989d792353f8eadb7ac2b1724c69d0afabbcf49a",
   "value": [
    0.5285905131703764,
    0.5285931076617811,
@@ -234794,7 +234794,7 @@
   "seconds": 6039.0
  },
  "solar_disk_30": {
-  "fingerprint": "9a004f6a60004a1facab70263fb33166c23231de4c476bb803ef682899b28cd6",
+  "fingerprint": "5427591b9b660406ee588b28e0bbf9e49d0c620c9a57d7e391220105ecb77b95",
   "value": [
    0.4040784222469498,
    0.40470878934428706,
@@ -236804,7 +236804,7 @@
   "seconds": 366.5
  },
  "solar_disk_100": {
-  "fingerprint": "fc5f91c30b9a289aa13438b4913d75cced8387e7f7dc4db493b16b899b52df1f",
+  "fingerprint": "d77356d59a559747f42d6f7ce640a96799fbabb6b255418a7e8bad2d00c6222f",
   "value": [
    0.29849802436887457,
    0.2993114534254261,
@@ -238814,7 +238814,7 @@
   "seconds": 354.5
  },
  "solar_disk_300": {
-  "fingerprint": "9ffce11541f1a15ef60de3214789b823f26788f5075b083016fae92c405d3102",
+  "fingerprint": "310e944fd70983c80b5d2c77e9311f4f84fb0fa83b7e9acf32ac05d409736dd1",
   "value": [
    0.4006317260381563,
    0.4020040432607047,
@@ -240824,7 +240824,7 @@
   "seconds": 189.4
  },
  "solar_disk_1000": {
-  "fingerprint": "9bb0db9190d72eb5176a3031b15e09af67fa2bcc1da1b2454163768d42b08860",
+  "fingerprint": "87a47563e95e30665fe2707aed21518d641cb1ce63da8d7b046f96311eb20296",
   "value": [
    0.5444728388998085,
    0.543394849342748,
@@ -242834,7 +242834,7 @@
   "seconds": 148.4
  },
  "solar_disk_3000": {
-  "fingerprint": "72d143792ddfadc6d163774febf7c472509007ae20f734fc389f3e4e3fd402d8",
+  "fingerprint": "dfa877cf8aac767eec8499187321a7434ccff51dfde9f6f76ce7c97b7323704e",
   "value": [
    0.5412724985517927,
    0.540910228623706,
@@ -244844,7 +244844,7 @@
   "seconds": 139.8
  },
  "solar_disk_10000": {
-  "fingerprint": "c39ec54d80455ea46648b199d5f55581119ce6916656d29ef4360f1c10b11729",
+  "fingerprint": "a1fc96d247a24bf2d26b958bdaebcd952b1bcac3094625e0fd230b78aa9e5c84",
   "value": [
    0.548023498278894,
    0.5479760982651145,
@@ -246854,7 +246854,7 @@
   "seconds": 137.7
  },
  "solar_disk_50000": {
-  "fingerprint": "106e02220064f9c3564a4d481fee6242f0d58276c4445b707c0cbbbdef7530ea",
+  "fingerprint": "c14d3c01366c0aec7f1abea91e42c061245bda9a93142af0675761ce50eea8c5",
   "value": [
    0.5439547793380747,
    0.543961040351332,
@@ -257867,7 +257867,7 @@
   "seconds": 23.9
  },
  "turb_convergence": {
-  "fingerprint": "ee6dcf1e4b43422698b94830692ba9868ba3142e9c2f3adc88510cf74f1fb27f",
+  "fingerprint": "4bf7d9475d83f5620695203f906bdf03bb132236cb7e834538982f10e0db5ee3",
   "value": [
    0.7893530025883405,
    0.7893530025883405,
@@ -257880,7 +257880,7 @@
   "seconds": 24.2
  },
  "turb_levels_1": {
-  "fingerprint": "0d994d265b4e1159d55bc78f1e04c0f6179e4ea6750bd7af600b2019291a59c1",
+  "fingerprint": "42981ef2a69880ecd2a288e0140c6c01d242378bb054aa2a4cf49e670e80ffb6",
   "value": {
    "closed": [
     3.4412828418644526e-07,
@@ -261112,7 +261112,7 @@
   "seconds": 23.4
  },
  "turb_levels_3": {
-  "fingerprint": "05a764c3cabc6216b95b4179a92c812339b39a6921601835ccffe8e21b12a43f",
+  "fingerprint": "6c3650b89ee032498df379ee4c69f500e7435a08bfd1e0c8baad173aa518a17f",
   "value": {
    "closed": [
     3.0796153373445037e-06,
@@ -264344,7 +264344,7 @@
   "seconds": 62.7
  },
  "turb_levels_10": {
-  "fingerprint": "64ef23c47060dc6c829e1fbf337c4178e2efed318ff350d38352e8fad032daa2",
+  "fingerprint": "435f72fe9e065bf8a958186e19be9b14586e22f668150c75f193cfbdba76176e",
   "value": {
    "closed": [
     3.206260070950793e-05,
@@ -267576,7 +267576,7 @@
   "seconds": 215.8
  },
  "turb_levels_30": {
-  "fingerprint": "bb0980326e3d1e47a71c56690861b0e316a03910b2f1595d972b9116e2835d4b",
+  "fingerprint": "442db28f45e9040806796fb0d06fb0523d3d8569f183e64c97708c54cc0e604d",
   "value": {
    "closed": [
     0.00015623409089247394,
@@ -270808,7 +270808,7 @@
   "seconds": 685.2
  },
  "turb_flavor_1": {
-  "fingerprint": "6da8f07ef48d4edd6a21036b14b3e88ff2cc61ad57a3dacc86fbcef31e1685d1",
+  "fingerprint": "971c4aa694b14d652c3fb9470842d98fe7d558c711f58c84e67a314f949a7c06",
   "value": {
    "P2": [
     0.0004610561177858363,
@@ -271966,7 +271966,7 @@
   "seconds": 9.6
  },
  "turb_flavor_3": {
-  "fingerprint": "c402d7112e9c5561c42eb2ad9a4c8560b9ab9ac3a9185be17d27adafbf984457",
+  "fingerprint": "de88fb80797fe495e3f6dea9e5c04f3221f0b5179e2d863d108c372c06d43256",
   "value": {
    "P2": [
     0.001673186834216949,
@@ -273124,7 +273124,7 @@
   "seconds": 28.0
  },
  "turb_flavor_10": {
-  "fingerprint": "7ab32986f79acc878ec69cc9c06be577b23acae2bd22a6803172217fe777d504",
+  "fingerprint": "5dd0a1d1e4095c2edca46612c2304b978f93fa3c87da38bede6f6284775bc09f",
   "value": {
    "P2": [
     0.14115068102859987,
@@ -274282,7 +274282,7 @@
   "seconds": 100.0
  },
  "turb_flavor_30": {
-  "fingerprint": "d308eb42f896764405b2e93d6954e9227d100863ee970b0d47b82856f61992fc",
+  "fingerprint": "261b2c6ec08db9aa170d4b0116b3467d5a8df2185ffc3c08c1d54eb091a9fe05",
   "value": {
    "P2": [
     0.38128637217643935,
@@ -275440,7 +275440,7 @@
   "seconds": 314.3
  },
  "jet_smooth": {
-  "fingerprint": "1058389232b69cc43fce17d5676610ae229d46613ab1d2ae3f8d2496de745730",
+  "fingerprint": "b6b52cb4b44949f6518da839a653592c310224b41fef7b13c095abf46bc3d66c",
   "value": {
    "P_earth": [
     [
@@ -278189,7 +278189,7 @@
   "seconds": 106.8
  },
  "jet_turbulent": {
-  "fingerprint": "908a7e660669a693d904ff52a7868f18c4359be6f07cd29f468433ccc16c1364",
+  "fingerprint": "875f7e50b2df029134cf81a0cb55b8dd196494c2cf2f600d2f41a5413050e84e",
   "value": {
    "P_earth": [
     [
@@ -280938,7 +280938,7 @@
   "seconds": 286.2
  },
  "jet_stepped": {
-  "fingerprint": "f21c58779d9929def4d7b74e33989f05b29980354ef148a03eacb859e90e82ac",
+  "fingerprint": "c5328d4d4f0a2e627ef361752a2a0451d01cee85c7e809724e20f69d923dcd98",
   "value": {
    "P_earth": [
     [
@@ -283687,7 +283687,7 @@
   "seconds": 102.5
  },
  "solar_model_BS05": {
-  "fingerprint": "045d9ff7296d57368c316f9d947ecd27032e7ad66cf8863130a597254e744555",
+  "fingerprint": "8d53726520206759eca294cc04362994e203e499bf9fbedbe7fa9746375bbfc0",
   "value": {
    "P": [
     0.5449462953410618,
@@ -283788,7 +283788,7 @@
   "seconds": 1.6
  },
  "solar_model_B16": {
-  "fingerprint": "ba4c0cc6258e99bd3ef03289141d3b72539f50e17d238e841e277da7068c98dd",
+  "fingerprint": "82afbdb0fde3070c173022f2798a6720aa222013cc5ee39e6de5300c69b886c0",
   "value": {
    "P": [
     0.544981333732389,
@@ -283889,7 +283889,7 @@
   "seconds": 1.5
  },
  "solar_model_exp": {
-  "fingerprint": "82161fc38d25941cb235647046e982608a19c58ed9a84c25f97214e25a73dea7",
+  "fingerprint": "45bf100531e5922653d927660cf1dcfcf8f995b2a1a56116d5998a3dbe517c5c",
   "value": {
    "P": [
     0.5403340452345857,
@@ -283990,7 +283990,7 @@
   "seconds": 0.5
  },
  "solar_production_1MeV": {
-  "fingerprint": "6f8b7f27e6409dfb5de2ac4ba02bb760a3ba52d4a800917db4c72b9b4bdd3b48",
+  "fingerprint": "dfc2d3172a8376f47ff0c662ff749ff106d368bfb6a1175327e2ad3a599aa8bb",
   "value": {
    "std": [
     0.5132183029996215,
@@ -284085,7 +284085,7 @@
   "seconds": 0.7
  },
  "solar_production_5MeV": {
-  "fingerprint": "889fc4e8366202eb6d95a02c8d43f451a78451cd0eaa2b6e1284db7cea9c0cb6",
+  "fingerprint": "97894816e1052885f5588be204434c3cf44c5063b0cdcd169323b5f7ad79b049",
   "value": {
    "std": [
     0.37538358125953347,
@@ -284180,7 +284180,7 @@
   "seconds": 0.8
  },
  "solar_production_20MeV": {
-  "fingerprint": "4d2caf43c2a84cedb3436d7c3ceb427987baec2e1c8aa33f439bb3b13038ce8f",
+  "fingerprint": "43e2ac07f25b787baf263ef94ecbd2c22cee30407710f8545b39539db8bb3e48",
   "value": {
    "std": [
     0.29931744573657193,
@@ -284275,7 +284275,7 @@
   "seconds": 0.8
  },
  "solar_two_flavor_BS05": {
-  "fingerprint": "e4b4e7874727690cfa02cf9a3d73e826be8b5cbd860d5552ad3b7db69bdbbb50",
+  "fingerprint": "50a78da3744b88876e882d13d7576099f607c0623a53a21c5efa7dc544b61399",
   "value": {
    "P2": [
     0.5697851278089169,
@@ -284376,7 +284376,7 @@
   "seconds": 0.9
  },
  "solar_two_flavor_B16": {
-  "fingerprint": "e39b6e7162b54a3362eba2255d5011b817bd27ee6d4bd8729e2b30710973804c",
+  "fingerprint": "dbac7e37671d5dd912da6a5504f8c0f2eb467d3659541cbbe07f53b194fc2937",
   "value": {
    "P2": [
     0.5698216321924989,
@@ -284477,7 +284477,7 @@
   "seconds": 1.0
  },
  "solar_two_flavor_exp": {
-  "fingerprint": "f7df9c3e316a528a35505d1411e771271b21e89ca40f989829a3f57979829622",
+  "fingerprint": "3a2bd5d153d54d5905dc587570f604cda47b9cb38df9541d554093264a2ed2bb",
   "value": {
    "P2": [
     0.564979303234727,
@@ -284578,7 +284578,7 @@
   "seconds": 0.5
  },
  "shock_energy_none": {
-  "fingerprint": "3f726a0d06ea2c0a9410638e24210329d4b70cc5f267be47b5b142d7e04a09c8",
+  "fingerprint": "2a3eaddb25baa3e5ddc5a27fde658dbb4bc3d9b9fcdfd84d42238e8c56e25ccd",
   "value": {
    "P": [
     0.025473716647878616,
@@ -284649,7 +284649,7 @@
   "seconds": 0.9
  },
  "shock_energy_0p07": {
-  "fingerprint": "4c721432251853fb0a3afa61b65dad77b40588af81b7ad9ce97e566616a50023",
+  "fingerprint": "3ce797e071deef9b137209424ce84e59b5dad7e4a28aaa22dd9f48fa33297a95",
   "value": {
    "mean": [
     0.2560467519168666,
@@ -284782,7 +284782,7 @@
   "seconds": 106.7
  },
  "shock_energy_70": {
-  "fingerprint": "e178aae30f6d59017be5bb2e263f079898f20a7b76aabebf973b5c07522ded3f",
+  "fingerprint": "0f42b0a3647dcbac1e2c39a15d7a78ded614ea6ba74f6991dcbe6b834102957a",
   "value": {
    "mean": [
     0.541047413493486,
@@ -284915,7 +284915,7 @@
   "seconds": 177.8
  },
  "geo_energy_local": {
-  "fingerprint": "2a4eb62e4c6bae0359c6d3c21ebf16922ce3e5beff9e3ce3b2b79220698ef837",
+  "fingerprint": "ed85dcc3a19f4e0e53df3aaa5aa2b874d3b18eac42cc8db8d3e02206adaf0139",
   "value": [
    0.38482500621556615,
    0.38480559367089856,
@@ -307424,7 +307424,7 @@
   "seconds": 0.6
  },
  "geo_energy_far_crust": {
-  "fingerprint": "ad0f68339ea6e628ecc4b677b753aa08beb84e5d4b7450567355bffa4ea64f5c",
+  "fingerprint": "77f89e5cf890daa305f57e85ad76bb8b86fc4662ba0b29a36baf5db61cc4c69f",
   "value": [
    0.14294846190466773,
    0.14745946620696904,
@@ -329933,7 +329933,7 @@
   "seconds": 18.7
  },
  "geo_energy_mantle": {
-  "fingerprint": "85dd139f0033e76213341602a7935c212d4f7476fe9f973790903e4e334f89bb",
+  "fingerprint": "1e8d729bcf8b8e7a788c3531bc6433d43ebb812721a08199f691958117503204",
   "value": [
    0.9265101223242456,
    0.9150715906720366,
@@ -352442,7 +352442,7 @@
   "seconds": 23.8
  },
  "geo_energy_core": {
-  "fingerprint": "b390abeea1e69529f97b55d25da057a37e619d3d060577aa3911fe4f9e86790a",
+  "fingerprint": "7dc817269fbfb9e9b16fbe3fe209ef9ac8e604ffe92d097975ff8eff6ab11aa6",
   "value": [
    0.6073036992403339,
    0.6037207525683888,
@@ -374951,7 +374951,7 @@
   "seconds": 40.3
  },
  "geo_matter_average": {
-  "fingerprint": "1feecf128998bb8726598f0a012c90eb488efdc834e8ab0b93e65b1ee3501e86",
+  "fingerprint": "9b8b46f0ac58c9006545712de1791d6f0628e25b1c1553a6175586e3eb465b26",
   "value": {
    "far_crust": [
     0.5496705514059403,
@@ -375869,7 +375869,7 @@
   "seconds": 54.0
  },
  "geo_local_scan": {
-  "fingerprint": "346e88efe07381437bd1d26effea2d295c6613fa8480e397b41cae2c83fbfc49",
+  "fingerprint": "f94677f408d7000f43fd918d1fa82245cf6e4c49442a0e4c2578617227a777e4",
   "value": [
    0.8310990682618641,
    0.826830511385707,
@@ -377166,7 +377166,7 @@
   "seconds": 1.5
  },
  "geo_flux_unoscillated": {
-  "fingerprint": "45f13c54c84568bbd12fb24a9dcf102ad094015da93f429ebbb1a6403bc063cd",
+  "fingerprint": "c073660ff5bcd333cf36f9eb150fe58df218a3962b03082250d1abf774ba656b",
   "value": {
    "dPhi": [
     257.8620945685817,
@@ -378979,7 +378979,7 @@
   "seconds": 0.8
  },
  "geo_flux_window_average": {
-  "fingerprint": "2e2a9da3c9537d5ab28d198d7685256e2bd43014ad5b76ab39bb9e9a657c5066",
+  "fingerprint": "ab0644191607784ee53a15df7fa91d6716f104447b6e0d2c29d2ef5a32d615ca",
   "value": [
    0.922099770497181,
    0.9215600558964343,
@@ -379888,7 +379888,7 @@
   "seconds": 11.0
  },
  "prob_vs_L_constant": {
-  "fingerprint": "6dcf2008240d9c1a93c0d2d8f02cb534a3848d26ec0ed54465f9b7509b43048e",
+  "fingerprint": "b27882e3273740a283fa5f29bc25b1e1627ed3e70823ae964cff906ecc5595bf",
   "value": [
    [
     [
@@ -464897,7 +464897,7 @@
   "seconds": 0.0
  },
  "prob_vs_L_exponential": {
-  "fingerprint": "5fa69576a3d383c198195e1b07f959b3dee5a310b74f8b1c5e849e5221c60c5e",
+  "fingerprint": "194c6f1702445f8f80c1f4adcfdc4751d42e2418c0ae4a847ad152fd92c48650",
   "value": [
    [
     [
@@ -549906,7 +549906,7 @@
   "seconds": 0.0
  },
  "prob_vs_L_gaussian": {
-  "fingerprint": "d1ec745b7b345e59864c35ab1ed6227333ccb78ffac951da35421724f8057078",
+  "fingerprint": "e35c09a920cc9d84ea2728502ca4daa0f4c6103e4fd9af56e16605d3353ce6ca",
   "value": [
    [
     [
@@ -634915,7 +634915,7 @@
   "seconds": 0.0
  },
  "prob_vs_E_constant": {
-  "fingerprint": "f27d2a82ef4c42a26de2e29f65a57cb8ce12fc213f185ce7768cfd9c305911cf",
+  "fingerprint": "b6be0e31090a7c1ef4a8320ef1ead57e5a6f2408f94d0b3bfc1c33bddcab1b0d",
   "value": [
    [
     [
@@ -685924,7 +685924,7 @@
   "seconds": 0.0
  },
  "prob_vs_E_exponential": {
-  "fingerprint": "3c9be9ee3bc05bb1720e7e54a43157419ac453a7093ece305e959d35ab8461ad",
+  "fingerprint": "61de28fbf1d1d8e2ab2369e74748b1c4ab5a31b35eac895139a1fcba7ceaeba3",
   "value": [
    [
     [
@@ -736933,7 +736933,7 @@
   "seconds": 10.2
  },
  "prob_vs_E_gaussian": {
-  "fingerprint": "c132f759bbd2f14814554fbbbf5a6ee4d175524454a5c6ff6896accdc28876ff",
+  "fingerprint": "ca84d25031a7946ab729ac0734cfe9afbc2f91bf6d2cef40da17f49eab358aa9",
   "value": [
    [
     [
@@ -787942,7 +787942,7 @@
   "seconds": 9.3
  },
  "solar_disk_1000_core": {
-  "fingerprint": "2eaad3766fdd82badc2cf910b436a42a6eacd0d073e29b0d3f842f1e6930a497",
+  "fingerprint": "71c40ba25f9a340eeebf11d156c6ff858060318bbe6dd38b75b0aa18a2c348ca",
   "value": [
    0.5444728388998085,
    0.543394849342748,
@@ -794723,7 +794723,7 @@
   "seconds": 821.0
  },
  "solar_disk_3000_core": {
-  "fingerprint": "a84368bc9d3dd650d8aae565fa1e9a2d723f7fc0aff2666f387d0c2e3186dc35",
+  "fingerprint": "1ed0e21cc28f61f51ed4412256382bed5f411a57022b32e105878cfc5266cdca",
   "value": [
    0.5412724985517927,
    0.540910228623706,
@@ -801504,7 +801504,7 @@
   "seconds": 1087.6
  },
  "solar_disk_300_core": {
-  "fingerprint": "1ea17ad477a548300341d4db925f07bafa9a447dc5ff95a6811fd42a2c409373",
+  "fingerprint": "e57ded864ddbc845e84585fe3bbb8e21982dad92ddf71565617bb175baea8ef3",
   "value": [
    0.4006326892142707,
    0.4020052015910241,
@@ -808285,7 +808285,7 @@
   "seconds": 386.1
  },
  "solar_disk_100_core": {
-  "fingerprint": "47fe1f608f961a2766417a849621637f7e22c87ad8f099191215b02417dec4e4",
+  "fingerprint": "30965253b52d06a4c250dc98e5c339fd35ce08abec4849f3adfde39afd680b13",
   "value": [
    0.2985012039146927,
    0.2993134217000965,
@@ -815066,7 +815066,7 @@
   "seconds": 693.7
  },
  "solar_disk_30_core": {
-  "fingerprint": "3f2142c467f9850d8f49fb8d1f098a1a2828ab47bc904d73ef74f82520bd1108",
+  "fingerprint": "da7b77532b888bb15adcfd68583a6fcbcc95012619bf7c777ecfea477d8bbb71",
   "value": [
    0.4040786760779928,
    0.40472817198889205,
