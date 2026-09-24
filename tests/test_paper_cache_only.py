@@ -24,7 +24,7 @@ import numpy as np
 import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-ANCHORS = ('FINGERPRINT_DIGITS = 12', 'def _hashable', 'def fingerprint',
+ANCHORS = ('FINGERPRINT_DIGITS = 12', 'def _hashable', 'def _python_scalars', 'def fingerprint',
            'def legacy_fingerprint', 'def cache_miss', 'def write_cache', 'def cached(section')
 
 
