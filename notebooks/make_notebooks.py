@@ -5538,7 +5538,7 @@ set the strongest limits on the higher-dimension operators.
 # -------------------------------------------- 10_magnus_averaged_probability
 books['10_magnus_averaged_probability.ipynb'] = notebook(
     'Phase-averaged (decohered) probabilities: `average=True`',
-    "A neutrino from an astrophysical source arrives with an oscillation phase\n$\\Delta m^2 L / 2E$ of order $10^{15}$.  Nothing in that number — the source\ndistance, the size of the production region, the detector's energy resolution —\nis known to anything close to the precision it would take to predict the phase,\nso the measurement integrates over many complete cycles and every oscillatory\nterm averages away.  What survives is\n\n$$P(\\nu_\\alpha \\to \\nu_\\beta) = \\sum_i |V_{\\alpha i}|^2 |V_{\\beta i}|^2$$\n\nwhere $V$ diagonalizes the Hamiltonian.  This is the exact $L/E \\to \\infty$\nlimit, not an approximation to be refined, and it costs one matrix product\ninstead of resolving $10^{15}$ radians.\n\nEvery oscillation-probability function in Mag$\nu$s takes `average=True`.  This\nnotebook shows it for **2ν, 3ν, 4ν and 5ν**, and for a **custom Hamiltonian**\nthat is not one of the ones Mag$\nu$s ships with.  Each plot plots the oscillating\nprobability against baseline (solid) together with its averaged value (dashed),\nso the average can be read as what the oscillation settles around.\n\nSee the [Phase-Averaged Probabilities](https://mbustama.github.io/Magnus/averaged_probability.html)\npage of the documentation for the derivation, the coherence criterion, and the\ntreatment of position-dependent Hamiltonians.",
+    "A neutrino from an astrophysical source arrives with an oscillation phase\n$\\Delta m^2 L / 2E$ of order $10^{15}$.  Nothing in that number — the source\ndistance, the size of the production region, the detector's energy resolution —\nis known to anything close to the precision it would take to predict the phase,\nso the measurement integrates over many complete cycles and every oscillatory\nterm averages away.  What survives is\n\n$$P(\\nu_\\alpha \\to \\nu_\\beta) = \\sum_i |V_{\\alpha i}|^2 |V_{\\beta i}|^2$$\n\nwhere $V$ diagonalizes the Hamiltonian.  This is the exact $L/E \\to \\infty$\nlimit, and it costs one matrix product instead of resolving $10^{15}$ radians.\n`average=True` returns it wherever every phase has decohered.  Where one has not, it\nreturns the **phase average**: each interference term kept, weighted by how much its\nphase spreads across the energy resolution (`average_spread`, 10 % by default).\n\nEvery oscillation-probability function in Mag$\nu$s takes `average=True`.  This\nnotebook shows it for **2ν, 3ν, 4ν and 5ν**, and for a **custom Hamiltonian**\nthat is not one of the ones Mag$\nu$s ships with.  Each plot plots the oscillating\nprobability against baseline (solid) together with its averaged value (dashed),\nso the average can be read as what the oscillation settles around.\n\nSee the [Phase-Averaged Probabilities](https://mbustama.github.io/Magnus/averaged_probability.html)\npage of the documentation for the derivation, the coherence criterion, and the\ntreatment of position-dependent Hamiltonians.",
     [
     code(r'''import numpy as np
 import matplotlib.pyplot as plt
@@ -5731,12 +5731,12 @@ plot_oscillating_and_averaged(
     r'Custom $3\times3$ Hamiltonian',
     'prob_custom_hamiltonian_averaged_vs_baseline.pdf',
     ylabel=r'Probability')"""),
-    md(r'''## When the average does not apply
+    md(r'''## When the spread matters
 
-The averaged expression is a limit, and Mag$\nu$s checks whether the request is
-actually in it.  At a terrestrial baseline the solar pair has accumulated a
-fraction of a radian and has not decohered at all, so no averaged expression
-describes the result — and asking for one warns instead of quietly answering.'''),
+The limit assumes that every phase has decohered.  At a terrestrial baseline the
+atmospheric phase is a few radians and the solar one a fraction of a radian, so the
+average depends on the energy spread it is taken over, and asking for it at the
+default spread says so with `PhaseAveragingWarning`.'''),
     code(r'''import warnings
 
 with warnings.catch_warnings(record=True) as caught:
@@ -5749,7 +5749,17 @@ for w in caught:
         print('PhaseAveragingWarning:')
         print(' ', str(w.message)[:300], '...')
 
-# The same check, done directly: which pairs are in neither limit?
+# How much it depends: P(nu_mu -> nu_mu) at 1 GeV over 1000 km, against the spread
+with warnings.catch_warnings():
+    warnings.simplefilter('ignore')
+    for spread in (0.02, 0.05, 0.1, 0.3):
+        P_mumu = oscprob.osc_prob_3nu_vacuum(1.0*gd.UNIT_GEV, 1000.0*gd.UNIT_KM,
+                                             nu_i=gd.NUMU, nu_f=gd.NUMU, average=True,
+                                             average_spread=spread, **osc)
+        print(f'average_spread = {spread:4.2f}:   P_mumu = {float(P_mumu):.4f}')
+print()
+
+# Pair by pair, which the limit does not describe
 eigenvalues = np.array([0.0, osc['D21'], osc['D31']])/(2.0*gd.UNIT_GEV)
 for baseline_km in [1.0e3, 1.0e6, 1.0e8]:
     blocks, undecided = avgprob.coherence_report(eigenvalues, baseline_km*gd.UNIT_KM)
@@ -6407,7 +6417,7 @@ procedure) behind everything demonstrated in this notebook.'''),
 # ------------------------------------------- 13_magnus_tabulated_solar_model
 books['13_magnus_tabulated_solar_model.ipynb'] = notebook(
     'Tabulated solar models: are you computing the observable?',
-    "Mag$\\nu$s ships twelve standard solar models, from BP2000 to the B23 series, and the Sun\nwrappers take any of them by name through `density_profile`; the default is an exponential\nfit. This notebook works with one of them, **BS2005-AGS,OP** (Bahcall, Serenelli & Basu,\nApJ 621, L85), and uses it to separate two quantities that are easy to confuse:\n\n* the **instantaneous** probability at one baseline, which is what `osc_prob_*` returns;\n* the **phase-averaged** probability, which is what a solar-neutrino experiment measures.\n\nThey are different quantities, not two estimates of one quantity, and the notebook's\nheadline is about how you get the second.\n\n**The tempting route does not work.** Averaging a scan of instantaneous probabilities over a\nwindow of several oscillation lengths looks like the obvious way to reach the observable. On\na solar trajectory it is not: the answer sits several $10^{-3}$ from the averaged limit and\ndrifts by $2\\times10^{-3}$ depending on how wide a window you pick, because widening the window\nalso averages over a changing density. The estimator has no converged value to offer.\n\n**The direct route is exact.** `average=True` evaluates the phase-averaged limit in closed\nform -- one matrix product, no scan -- and it reproduces the textbook adiabatic MSW\nexpression to **machine precision, 3e-16, across 1--20 MeV**, checked against a formula that\nowes nothing to Mag$\\nu$s.\n\nThe notebook also shows the diagnostics: `strategy_info['sampling']` for how coarsely a scan\nresolves the oscillation it is sampling, and `avgprob.coherence_report` for whether the\naveraged limit applies at all.\n\n**Section 7 compares all twelve models** on the averaged observable. Its numbers are stored in\n`solar_models_cache.json` and read back on every rebuild, so continuous integration does not\nrecompute them.",
+    "Mag$\\nu$s ships twelve standard solar models, from BP2000 to the B23 series, and the Sun\nwrappers take any of them by name through `density_profile`; the default is an exponential\nfit. This notebook works with one of them, **BS2005-AGS,OP** (Bahcall, Serenelli & Basu,\nApJ 621, L85), and uses it to separate two quantities that are easy to confuse:\n\n* the **instantaneous** probability at one baseline, which is what `osc_prob_*` returns;\n* the **phase-averaged** probability, which is what a solar-neutrino experiment measures.\n\nThey are different quantities, not two estimates of one quantity, and the notebook's\nheadline is about how you get the second.\n\n**The tempting route does not work.** Averaging a scan of instantaneous probabilities over a\nwindow of several oscillation lengths looks like the obvious way to reach the observable. On\na solar trajectory it is not: the answer sits several $10^{-3}$ from the averaged limit and\ndrifts by $2\\times10^{-3}$ depending on how wide a window you pick, because widening the window\nalso averages over a changing density. The estimator has no converged value to offer.\n\n**The direct route is exact.** `average=True` evaluates the phase average -- on this ray, which\nhas no non-adiabatic window, the decohered limit -- with no scan, and it reproduces the textbook adiabatic MSW\nexpression to **machine precision, 3e-16, across 1--20 MeV**, checked against a formula that\nowes nothing to Mag$\\nu$s.\n\nThe notebook also shows the diagnostics: `strategy_info['sampling']` for how coarsely a scan\nresolves the oscillation it is sampling, and `avgprob.coherence_report` for whether the\naveraged limit applies at all.\n\n**Section 7 compares all twelve models** on the averaged observable. Its numbers are stored in\n`solar_models_cache.json` and read back on every rebuild, so continuous integration does not\nrecompute them.",
     [
     code(r'''import os
 import time
@@ -6665,8 +6675,9 @@ statistical.
 
 ### The averaged probability, computed rather than estimated
 
-`average=True` evaluates the phase-averaged limit in closed form -- one matrix product, no
-scan, no window. And it can be checked against something outside Mag$\nu$s entirely: for two
+`average=True` evaluates the phase average -- on this ray, which has no non-adiabatic window,
+the decohered limit -- with no scan and no window. And it can be checked against something
+outside Mag$\nu$s entirely: for two
 flavors on an adiabatic trajectory the averaged survival probability is the textbook MSW
 expression
 
@@ -8851,7 +8862,7 @@ For a constant Hamiltonian one slab is already exact, so all three agree.'''),
 | `HybridCertificationWarning` | the adiabatic path could not certify itself | yes |
 | `UnmarkedDiscontinuityWarning` | a density jump was detected, not declared | **yes -- pass `t_breakpoints`** |
 | `HiddenFeatureWarning` | structure was found the sampling nearly missed | yes |
-| `PhaseAveragingWarning` | `average=True` where the phase has not averaged | yes -- wrong question |
+| `PhaseAveragingWarning` | `average=True` where the phase average depends on its spread | yes -- set `average_spread` |
 | `CrossCheckInconclusiveWarning` | a spread of zero because nothing was compared | yes -- the check did not run |
 | `SterileMatterCompositionWarning` | the sterile entry and the density describe different media | yes |
 | `PseudoDiracSplittingWarning` | a pseudo-Dirac splitting is not small against the standard ones | yes -- wrong regime |
@@ -8905,18 +8916,19 @@ provoke('unmarked density jump', lambda: oscprob.osc_prob_matter_std_potential(
     2, step_ne, 50.0e6, 1.0*L_SCALE, PARAMS_2NU, L0=0.0,
     density_is_of_number_of_electrons=True))
 
-# 6. asking for the averaged probability where nothing has averaged yet
-provoke('average=True, few cycles', lambda: oscprob.osc_prob_3nu_vacuum(
-    ENERGY, 5.0*gd.UNIT_KM, **OSC, average=True))
+# 6. asking for the averaged probability where it depends on the energy spread
+provoke('average=True, a few cycles', lambda: oscprob.osc_prob_3nu_vacuum(
+    ENERGY, 1.0e3*gd.UNIT_KM, **OSC, average=True))
 
-# ... and the same request where it genuinely has
+# ... and the same request where every phase has decohered
 provoke('average=True, many cycles', lambda: oscprob.osc_prob_3nu_vacuum(
-    ENERGY, 5.0e4*gd.UNIT_KM, **OSC, average=True))'''),
+    ENERGY, 1.0e8*gd.UNIT_KM, **OSC, average=True))'''),
     md(r'''The last two lines are the pattern worth internalizing. `PhaseAveragingWarning` is
-not about accuracy -- the returned matrix is a perfectly valid doubly stochastic probability
-matrix either way. It says the *question* does not apply at that baseline, because the phase
-has not averaged and no averaged expression describes it. Move far enough out and it goes
-quiet.
+not about accuracy -- the returned matrix is a perfectly valid probability matrix either way.
+It says the phase average depends on the energy spread it is taken over: at 1000 km the phases
+have run through a few cycles, part of their interference survives a 10 % spread, and the
+number changes with `average_spread`. Move far enough out, and every phase has decohered and
+it goes quiet; close enough in, and none has moved, and it is quiet too.
 
 ## Summary
 
@@ -9447,9 +9459,9 @@ a phase error, and the observable was fine all along. If it stays put, the error
 
 ## 3. Asking for the averaged probability directly
 
-You do not have to build the average by hand. `average=True` returns the exact decohered limit
--- the value the oscillation averages to when every relative phase is unresolvable -- and
-`magnus.avgprob` exposes the machinery for a finite window.'''),
+You do not have to build the average by hand. `average=True` returns the phase average, which
+where every relative phase is unresolvable is the exact decohered limit -- the value the
+oscillation averages to -- and `magnus.avgprob` exposes the machinery for a finite window.'''),
     code(r'''analytic = float(np.asarray(oscprob.osc_prob_2nu_vacuum(
     1.0e7, BASELINE, sth, Dm2, nu_i=gd.NUE, nu_f=gd.NUE, average=True)))
 
@@ -9458,8 +9470,9 @@ print('numerical mean over the 2 MeV band      : %.6f' % P.mean())
 print('difference                              : %.2e' % abs(analytic - P.mean()))'''),
     md(r'''They differ in the third decimal, and that is not an error in either: the analytic
 value is the infinite-window limit, while the band mean is over 6.1 cycles with the edges
-falling where they fall. Asking for `average=True` where the phase has *not* averaged raises
-`PhaseAveragingWarning` -- notebook 20 provokes it deliberately.
+falling where they fall. Asking for `average=True` where the phase has *not* averaged returns
+the phase average at the spread asked for, and `PhaseAveragingWarning` says the answer depends
+on it -- notebook 20 provokes it deliberately.
 
 ## Summary
 
@@ -9487,8 +9500,8 @@ different matter conditions; notebook 13's solar ray is exactly that case. It
 prints 0.84x for the linear interpolant and 1.47x for the cubic, on the same ray as the 53x
 above and with a different window -- which is how little the ratio means there. Use it to tell
 phase from envelope on a *controlled* comparison like this one. To get the observable, ask
-for it: `average=True` computes the decohered limit in closed form, with no window to
-choose.'''),
+for it: `average=True` computes the phase average, the decohered limit where every phase has
+decohered, with no window to choose.'''),
     ])
 
 
@@ -14319,10 +14332,11 @@ for i, ((name, when), y) in enumerate(zip(rows, ys)):
                 arrowprops=dict(arrowstyle='-|>', color=INK, lw=0.8))
     if i == 0:
         # Two cases of one expression, Eq. (averaged_varying), stacked in the row's space.
-        # Top: one eigenbasis serves the whole path and there is no crossing, so <P> is exact
-        # and needs no baseline -- unlike the constant-Hamiltonian row below, which returns
-        # the oscillating P(L) through exp(-iHL).  Drawn flat and undivided, as that row is.  Bottom: H varies -- the eigenbases at the two ends and
-        # the probability of each crossing between them.  No phase is tracked in either.
+        # Top: one eigenbasis serves the whole path and there is no crossing, so <P> comes in
+        # closed form.  Drawn flat and undivided, as the constant-Hamiltonian row below is.
+        # Bottom: H varies -- the eigenbases at the two ends and a Magnus patch at each
+        # crossing between them.  In both, each phase is kept, weighted by its spread (the
+        # phase average).
         # Taller than half a row each, using the free space under the title, with a clear
         # gap between them so they read as two cases rather than one striped bar.
         h2, gap = 3.3, 1.1
@@ -14330,7 +14344,7 @@ for i, ((name, when), y) in enumerate(zip(rows, ys)):
         yt = yb + h2 + gap
         ax.add_patch(Rectangle((X0, yt), X1-X0, h2, facecolor=SLAB[2], edgecolor=INK,
                                lw=0.7, zorder=2))
-        ax.text((X0+X1)/2, yt+h2/2, r'$\langle P\rangle$ from one eigenbasis: exact, no baseline',
+        ax.text((X0+X1)/2, yt+h2/2, r'$\langle P\rangle$ from one eigenbasis, in closed form',
                 ha='center', va='center', fontsize=6.4, color='white', zorder=5)
         n = 60; e = np.linspace(X0, X1, n+1)
         g = plt.cm.Blues(np.linspace(0.75, 0.15, n))
@@ -14340,12 +14354,12 @@ for i, ((name, when), y) in enumerate(zip(rows, ys)):
         px = X0 + 0.80*(X1-X0)
         ax.add_patch(Rectangle((px, yb), 2.4, h2, facecolor=ORANGE, edgecolor='black',
                                lw=0.8, zorder=4))
-        ax.text(px+1.2, yb-0.9, r'$P^{\rm cross}$', ha='center', va='top',
+        ax.text(px+1.2, yb-0.9, 'Magnus patch', ha='center', va='top',
                 fontsize=6.6, color=ORANGE)
-        ax.text(X0+0.38*(X1-X0), yb+h2/2, r'$\langle P\rangle$ from the eigenbases at both ends',
+        ax.text(X0+0.38*(X1-X0), yb+h2/2, r'$\langle P\rangle$ transported between patches',
                 ha='center', va='center', fontsize=6.4, color='white', zorder=5)
-        # Near the middle of the bar, a little left of it, so that it clears P^cross.
-        ax.text(X0+0.40*(X1-X0), yb-1.4, 'No phase is tracked in either case',
+        # Near the middle of the bar, a little left of it, so that it clears the patch label.
+        ax.text(X0+0.34*(X1-X0), yb-1.4, 'Each phase kept, weighted by its spread',
                 ha='center', va='top', fontsize=6.4, color=INK)
     elif i == 1:                                 # smooth gradient, one exact patch
         n = 60; e = np.linspace(X0, X1, n+1)
@@ -16391,8 +16405,8 @@ assert R_SUN == solarmodels.table_edge('BS05-AGS-OP')
 
 
 # The same profile the wrappers build, except past the last row, where this one holds the
-# edge value and theirs continues the last interval's slope.  Only the chords of the
-# solar disk below reach past it, and they are drawn on this clamped profile (issue #62).
+# edge value and theirs continues the last interval's slope.  Nothing below reaches past it:
+# the chords of Figures 5e and 5f run on B16-GS98, which is tabulated to the surface (issue #62).
 def ne_sun(l):
     xs = np.clip(np.asarray(l, dtype=float), x_solar[0], x_solar[-1])
     out = np.exp(np.interp(xs, x_solar, log_ne))
@@ -16965,15 +16979,23 @@ save(fig, 'solar_long_range.pdf')'''),
 
 A neutrino that crosses the Sun from outside enters where the density vanishes, so it starts
 as a vacuum mass eigenstate. If the passage is adiabatic it leaves as the same one, and the
-Sun drops out of the flavor composition entirely. Whether that holds is decided by
+Sun drops out of the flavor composition entirely. Whether that holds is decided by the
+adiabaticity parameter of Eq. (hf), the one `magnus.adiabatic` evaluates,
 
-$$\gamma_{ij}(l) = \frac{|\lambda_i - \lambda_j|^2}{2\,|\langle i|\,d\mathbb{H}/dl\,|j\rangle|},$$
+$$\gamma_{jk}(l) = \frac{|\langle v_j|\,d\mathbb{H}/dl\,|v_k\rangle|}{(\lambda_k - \lambda_j)^2},$$
 
-the usual $\Delta\lambda / 2|d\theta_m/dl|$ written so that no mixing angle has to be defined
-for three flavors. This cell takes the worst case over position and over level pair.'''),
+which is large where the passage is non-adiabatic. For two flavors it equals
+$|d\theta_m/dl|/\Delta\lambda$, that is $1/(2\gamma_{\rm LZ})$, where
+$\gamma_{\rm LZ} = \Delta\lambda/(2|d\theta_m/dl|)$ is the Landau-Zener adiabaticity parameter;
+written as above, it needs no mixing angle for three flavors. This cell takes the largest value
+over position and over level pair.'''),
     code(r'''# ------------------------------------- adiabaticity along a solar chord
 import magnus.adiabatic as adiabatic
-# The chord at impact parameter b, and the worst adiabaticity anywhere on it.
+# The chord at impact parameter b, and the worst adiabaticity anywhere on it.  The chords run
+# on B16-GS98, which is tabulated out to the surface, so they start and end where the density
+# vanishes; BS2005-AGS,OP stops at 0.983 R_sun and a chord past it has no profile (issue #62).
+CHORD_MODEL = 'B16-GS98'
+ne_chord = solarmodels.electron_density_profile(CHORD_MODEL)
 SOLAR_R = gd.SUN_RADIUS*gd.UNIT_KM
 SOLAR_H_EI = hamiltonians.hamiltonian_3nu_vacuum_energy_independent(
     OSC['s12'], OSC['s23'], OSC['s13'], OSC['dCP'], OSC['D21'], OSC['D31'])
@@ -16988,7 +17010,7 @@ def solar_chord_ne(br):
     hl = np.sqrt(max(SOLAR_R**2 - b**2, 0.0))
 
     def ne_b(l):
-        return ne_sun(np.sqrt((np.asarray(l, dtype=float) - hl)**2 + b**2))
+        return ne_chord(np.sqrt((np.asarray(l, dtype=float) - hl)**2 + b**2))
 
     return ne_b, hl
 
@@ -17020,7 +17042,7 @@ def solar_gamma_curve(br):
     def run():
         return [gamma_max(e*gd.UNIT_GEV, br) for e in SOLAR_E]
     key = ('solar_gamma_pkg', float(br), [float(x) for x in SOLAR_E],
-           sorted(OSC.items()), float(SOLAR_R))
+           sorted(OSC.items()), float(SOLAR_R), CHORD_MODEL)
     tag = 'solar_gamma_b%s' % ('%g' % br).replace('.', 'p')
     return np.asarray(cached(tag, key, run, what='one adiabaticity curve'))
 
@@ -17049,10 +17071,10 @@ for y_arrow in (-0.88, -0.44, 0.0, 0.44, 0.88):
 # the center, where the density is highest, dark at the surface.
 solar_cmap = plt.get_cmap('afmhot')
 solar_edges = np.linspace(0.0, 1.0, 60)
-solar_lo, solar_hi = np.log10(ne_tab.min()), np.log10(ne_tab.max())
-for r0, r1 in zip(solar_edges[:-1], solar_edges[1:]):
-    shade = (np.log10(np.interp(0.5*(r0 + r1), r_over_rsun, ne_tab))
-             - solar_lo)/(solar_hi - solar_lo)
+solar_log_ne = np.log10(ne_chord(0.5*(solar_edges[:-1] + solar_edges[1:])*SOLAR_R))
+solar_lo, solar_hi = solar_log_ne.min(), solar_log_ne.max()
+for r0, r1, log_ne_r in zip(solar_edges[:-1], solar_edges[1:], solar_log_ne):
+    shade = (log_ne_r - solar_lo)/(solar_hi - solar_lo)
     axs.add_patch(Wedge((SUN_X, 0.0), r1*SUN_RD, 0.0, 90.0, width=(r1 - r0)*SUN_RD,
                         facecolor=solar_cmap(0.12 + 0.78*shade), edgecolor='none',
                         zorder=4))
@@ -17102,15 +17124,15 @@ ax.axhspan(1.0, 1e12, color='0.5', alpha=0.13, lw=0, zorder=0)
 for br, color, label in SOLAR_B:
     ax.loglog(SOLAR_E, GAMMA[br], color=color, lw=1.2, zorder=3, label=label)
 ax.axhline(1.0, color=INK, lw=0.8, ls=(0, (3, 2)), zorder=2)
-ax.set_xlim(SOLAR_E[0], SOLAR_E[-1]); ax.set_ylim(1e-10, 1e4)
-ax.set_yticks([10.0**k for k in range(-10, 5)])
+ax.set_xlim(SOLAR_E[0], SOLAR_E[-1]); ax.set_ylim(1e-10, 1e7)
+ax.set_yticks([10.0**k for k in range(-10, 8)])
 ax.set_yticklabels([('' if k % 2 else (r'$1$' if k == 0 else r'$10^{%d}$' % k))
-                    for k in range(-10, 5)])
+                    for k in range(-10, 8)])
 ax.set_xticks([10.0**k for k in range(-3, 7)])
 ax.set_xticklabels([(r'$1$' if k == 0 else r'$10^{%d}$' % k)
                     for k in range(-3, 7)])
 # A touch more air under the energy labels than the shared rcParams give.
-ax.tick_params(axis='x', which='major', pad=2.6)
+ax.tick_params(axis='x', which='major', pad=3.4)
 ax.xaxis.set_minor_locator(mpl.ticker.LogLocator(base=10.0, subs=tuple(np.arange(2, 10)*0.1),
                                                  numticks=100))
 ax.yaxis.set_minor_locator(mpl.ticker.LogLocator(base=10.0, subs=tuple(np.arange(2, 10)*0.1),
@@ -17134,54 +17156,162 @@ save(fig, 'solar_adiabaticity.pdf')'''),
     md(r'''## Figure 5f --- the Sun in the electron-neutrino channel
 
 The line of sight runs into the page, so a point of the disk is an impact parameter and the
-neutrino crosses the whole Sun along it. What is plotted is the **phase-averaged**
-probability. The instantaneous one is not drawable here: at $100$~GeV the $\nu_e$ state
-accumulates about $1\,030$ cycles of $\int V\,dl$ across a chord, which changes by $7.5$
-cycles when $b$ moves by $0.0013\,R_\odot$, so $P$ sweeps the whole range between adjacent
-pixels. The averaged probability carries no such phase: its structure is the level-crossing
-matrix, and it converges at 200 impact parameters.'''),
+neutrino crosses the whole Sun along it, on B16-GS98. What is plotted is the **phase average**
+of `average=True`: every interference term kept with its phase, and weighted by the spread of
+that phase across a 10 % energy spread.
+
+Above a few GeV some of those phases are set by the matter potential and barely depend on
+energy, so no energy spread averages them, and the probability oscillates with $b$ in rings
+from $0.003$ to $0.03\,R_\odot$ apart, in places finer than a pixel ($0.0038\,R_\odot$). A
+pixel is a range of impact parameters, so each is drawn as the average of the probability over
+its own area, 8 by 8 sub-samples of a grid in $b$ that resolves the rings,
+$\Delta b = 0.0005\,R_\odot$. The grid is computed in parallel, one process per core; the
+paper cache holds it.'''),
     code(r'''# --------------------------- the Sun in the electron-neutrino channel
-# Each pixel is an impact parameter; the neutrino crosses the whole Sun along it.
-SOLAR_NB = 200
-SOLAR_BGRID = np.linspace(0.0, 1.0, SOLAR_NB)
+# Each pixel is a range of impact parameters; the neutrino crosses the whole Sun along each.
+import concurrent.futures
+import multiprocessing
+import os
+import warnings
+
+import magnus.avgprob as avgprob
+
 SOLAR_PANELS = [(0.01, r'$10$~MeV'), (10.0, r'$10$~GeV'), (30.0, r'$30$~GeV'),
                 (100.0, r'$100$~GeV'), (300.0, r'$300$~GeV'), (1.0e3, r'$1$~TeV'),
                 (3.0e3, r'$3$~TeV'), (1.0e4, r'$10$~TeV'), (5.0e4, r'$50$~TeV')]
 
 
+SOLAR_STEP = 0.0005                        # R_sun, the uniform grid from 1 GeV up
+SOLAR_B_CORE = 0.5                         # inside it, a grid of its own
+SOLAR_PER_RING = 5
+# Only where the core's rings would show.  Their amplitude in P, read off the uniform grid, is
+# 0.006 to 0.04 from 30 GeV to 3 TeV, and aliased it moves pixels by up to 0.02 (at 1 TeV).
+# At 10 and 50 TeV it is 0.003 and 0.0006, under one colour step (1/256) before any
+# averaging; at 10 GeV the core has no rings inside b = 0.47, and the uniform grid resolves
+# those outside it (7.7 samples per ring).
+SOLAR_CORE_PANELS = (30.0, 100.0, 300.0, 1.0e3, 3.0e3)
+
+
+def solar_bgrid(energy_gev):
+    # Uniform, and fine enough from b = SOLAR_B_CORE out: no rings at 10 MeV; from 10 GeV,
+    # 0.0037 to 0.03 R_sun apart there (measured at db = 0.001 on B16-GS98: 0.0056 at 10 GeV
+    # and b = 0.5, 0.027 at 30 GeV and b = 0.7), so seven or more samples to the finest.
+    step = 0.005 if energy_gev < 1.0 else SOLAR_STEP
+    return np.linspace(0.0, 1.0, int(round(1.0/step)) + 1)
+
+
+def matter_phase(br, n=4001):
+    # The integral of V_CC along the chord, in rad: 8676 across the diameter.
+    ne_b, hl = solar_chord_ne(br)
+    l = np.linspace(0.0, 2*hl, n)
+    v = PER_NE*ne_b(l)
+    return float(np.sum(0.5*(v[1:] + v[:-1])*np.diff(l)))
+
+
+def solar_core_grid():
+    # Inside SOLAR_B_CORE the rings are those of the matter phase, 2 pi/|d(phase)/db| apart:
+    # 1.8e-4 R_sun at b = 0.11, 5.1e-4 at 0.3, 3.7e-3 at 0.5.  The uniform grid is coarser
+    # than that and aliases them.  The phase does not depend on energy, so one grid serves
+    # every panel: SOLAR_PER_RING points per ring, and never sparser than the uniform grid.
+    bb = np.linspace(0.0, SOLAR_B_CORE, 4001)
+    phase = np.array([matter_phase(br) for br in bb])
+    ring = 2*np.pi/np.maximum(np.abs(np.gradient(phase, bb)), 1e-300)
+    step = np.minimum(SOLAR_STEP, ring/SOLAR_PER_RING)
+    count = np.concatenate([[0.0], np.cumsum(0.5*(1/step[1:] + 1/step[:-1])*np.diff(bb))])
+    return np.interp(np.arange(0.0, count[-1]), count, bb)
+
+
+SOLAR_CORE = solar_core_grid()
+
+
+def solar_point(args):
+    # One chord: the phase average of P(nu_e -> nu_e) after the whole crossing.
+    energy_gev, br = args
+    ne_b, hl = solar_chord_ne(br)
+    if hl <= 0.0:
+        return np.nan
+    return float(quiet(
+        oscprob.osc_prob_matter_std_potential, 3, ne_b, energy_gev*gd.UNIT_GEV, 2*hl,
+        average=True, osc_params=OSC, L0=0.0, nu_i=gd.NUE, nu_f=gd.NUE,
+        density_is_of_number_of_electrons=True))
+
+
 def solar_disk(energy_gev):
-    """Phase-averaged P(nu_e -> nu_e) after the whole crossing, per impact parameter."""
-    def run():
-        out = []
-        for br in SOLAR_BGRID:
-            ne_b, hl = solar_chord_ne(br)
-            if hl <= 0.0:
-                out.append(np.nan); continue
-            out.append(float(quiet(
-                oscprob.osc_prob_matter_std_potential, 3, ne_b,
-                energy_gev*gd.UNIT_GEV, 2*hl, average=True, osc_params=OSC, L0=0.0,
-                nu_i=gd.NUE, nu_f=gd.NUE, density_is_of_number_of_electrons=True)))
-        return out
-    key = ('solar_disk', float(energy_gev), SOLAR_NB, sorted(OSC.items()), float(SOLAR_R))
+    # P against b on the panel's grid, over one process per core where fork is available.
+    def run(grid):
+        jobs = [(energy_gev, float(br)) for br in grid]
+        try:
+            context = multiprocessing.get_context('fork')
+        except ValueError:
+            return [solar_point(job) for job in jobs]
+        workers = max(1, (os.cpu_count() or 2) - 1)
+        with warnings.catch_warnings():
+            # The kernel runs threads of its own; the workers touch none of them.
+            warnings.simplefilter('ignore', DeprecationWarning)
+            with concurrent.futures.ProcessPoolExecutor(workers, mp_context=context) as pool:
+                return list(pool.map(solar_point, jobs, chunksize=4))
+    grid = solar_bgrid(energy_gev)
+    key = ('solar_disk_pixels', float(energy_gev), len(grid), sorted(OSC.items()),
+           float(SOLAR_R), CHORD_MODEL, avgprob.AVG_PHASE_SPREAD)
     tag = 'solar_disk_%s' % ('%g' % energy_gev).replace('.', 'p').replace('+', '')
-    P = np.asarray(cached(tag, key, run, what='one panel of the solar disk'))
+    P = np.asarray(cached(tag, key, lambda: run(grid), what='one panel of the solar disk'))
     P[np.isnan(P)] = P[np.isfinite(P)][-1]
-    return P
+    if energy_gev not in SOLAR_CORE_PANELS:
+        return grid, P
+    # The core on its own grid, stored apart, so that the uniform grid's outer points stand.
+    key = ('solar_disk_core', float(energy_gev), len(SOLAR_CORE), SOLAR_B_CORE,
+           SOLAR_PER_RING, sorted(OSC.items()), float(SOLAR_R), CHORD_MODEL,
+           avgprob.AVG_PHASE_SPREAD)
+    core = np.asarray(cached(tag + '_core', key, lambda: run(SOLAR_CORE),
+                             what='the core of one panel of the solar disk'))
+    outer = grid >= SOLAR_B_CORE
+    return np.concatenate([SOLAR_CORE, grid[outer]]), np.concatenate([core, P[outer]])
 
 
 SOLAR_MAPS = [solar_disk(e) for e, _ in SOLAR_PANELS]
 
-SOLAR_NPIX = 520
+SOLAR_NPIX, SOLAR_SUB = 520, 8
 solar_g = np.linspace(-1.0, 1.0, SOLAR_NPIX)
-solar_xx, solar_yy = np.meshgrid(solar_g, solar_g)
-solar_rr = np.sqrt(solar_xx**2 + solar_yy**2)
+# Each pixel is averaged over its own area: 8 x 8 sub-samples, those inside the limb.
+solar_px = solar_g[1] - solar_g[0]
+solar_sub = (np.arange(SOLAR_SUB) + 0.5)/SOLAR_SUB - 0.5
+solar_sx = (solar_g[:, None] + solar_px*solar_sub[None, :]).ravel()
+solar_rr = np.sqrt(solar_sx[None, :]**2 + solar_sx[:, None]**2).reshape(
+    SOLAR_NPIX, SOLAR_SUB, SOLAR_NPIX, SOLAR_SUB)
+solar_in = solar_rr <= 1.0
+# Each sub-sample stands for a square of side solar_w.  Along any direction its spread in r
+# has the variance of a band that wide, so it takes the mean of P over that band rather than
+# P at its centre: in the core the rings are finer than the sub-samples, which would alias
+# them.  The band means are tabulated on a grid far finer than either, then interpolated.
+solar_w = solar_px/SOLAR_SUB
+solar_rf = np.linspace(0.0, 1.0, 200001)
+solar_lo = np.clip(solar_rf - 0.5*solar_w, 0.0, 1.0)
+solar_hi = np.clip(solar_rf + 0.5*solar_w, 0.0, 1.0)
+
+
+def band_integral(grid, P, x):
+    # The integral from 0 to x of P interpolated linearly, exactly: quadratic in each interval.
+    C = np.concatenate([[0.0], np.cumsum(0.5*(P[1:] + P[:-1])*np.diff(grid))])
+    i = np.clip(np.searchsorted(grid, x, side='right') - 1, 0, len(grid) - 2)
+    t, h = x - grid[i], grid[i + 1] - grid[i]
+    return C[i] + P[i]*t + 0.5*(P[i + 1] - P[i])*t*t/h
+
+
+def pixel_average(grid, P):
+    band = ((band_integral(grid, P, solar_hi) - band_integral(grid, P, solar_lo))
+            / (solar_hi - solar_lo))
+    values = np.where(solar_in, np.interp(np.clip(solar_rr, 0.0, 1.0), solar_rf, band), 0.0)
+    count = solar_in.sum(axis=(1, 3))
+    with np.errstate(invalid='ignore'):
+        return np.where(count > 0, values.sum(axis=(1, 3))/np.maximum(count, 1), np.nan)
+
+
 fig, axes = plt.subplots(3, 3, figsize=(WIDE, WIDE*0.92), sharex=True, sharey=True)
 solar_th = np.linspace(0.0, 2.0*np.pi, 500)
-for ax, P, (e, label) in zip(axes.ravel(), SOLAR_MAPS, SOLAR_PANELS):
-    M = np.where(solar_rr <= 1.0, np.interp(np.clip(solar_rr, 0.0, 1.0), SOLAR_BGRID, P),
-                 np.nan)
+for ax, (grid, P), (e, label) in zip(axes.ravel(), SOLAR_MAPS, SOLAR_PANELS):
+    M = pixel_average(grid, P)
     im = ax.pcolormesh(solar_g, solar_g, M, cmap='viridis', vmin=0.0, vmax=1.0,
-                       shading='gouraud', rasterized=True)
+                       shading='nearest', rasterized=True)
     ax.plot(np.cos(solar_th), np.sin(solar_th), color=INK, lw=0.8)
     ax.set_aspect('equal'); ax.set_xlim(-1.12, 1.12); ax.set_ylim(-1.12, 1.12)
     ax.set_xticks([-1, 0, 1]); ax.set_yticks([-1, 0, 1])
@@ -17198,8 +17328,9 @@ cb.set_label(r'Phase-averaged $P_{\nu_e \to \nu_e}$ after crossing the Sun', fon
              labelpad=4)
 print('  vacuum decohered value, sum_i |U_ei|^4 = %.6f'
       % float(np.sum(np.abs(np.linalg.eigh(SOLAR_H_EI)[1][0, :])**4)))
-for P, (e, label) in zip(SOLAR_MAPS, SOLAR_PANELS):
-    print('  %-10s P in [%.6f, %.6f]' % (label, P.min(), P.max()))
+for (grid, P), (e, label) in zip(SOLAR_MAPS, SOLAR_PANELS):
+    print('  %-10s %5d impact parameters, P in [%.6f, %.6f]'
+          % (label, len(grid), np.nanmin(P), np.nanmax(P)))
 save(fig, 'solar_tomography.pdf')'''),
     md(r'''## Figure 5g --- neutrinos from a jet inside a collapsing star
 
@@ -18108,11 +18239,12 @@ L_ASTRO = earth.distance_traveled_inside_earth(COSTHZ_ASTRO)*gd.CONV_KM_TO_INV_E
 N_LIV, E_STAR = 1, 100.0e3*gd.UNIT_GEV
 B3_ASTRO = float(OSC['D31'])/(2.0*E_STAR**(N_LIV + 1))
 
-# The wrappers carry the averaged limit with one keyword.  They decide from the baseline
-# and the eigenvalue gaps which pairs have decohered, so the baseline has to be
-# astrophysical in fact: at 100 Mpc every pair has decohered at every energy drawn, while
-# over 1e8 km, less than an astronomical unit, the pair split by Dm21^2 has not completed a
-# cycle above a few TeV, so the wrapper warns and returns the coherent expression instead.
+# The wrappers carry the phase average with one keyword: each pair's interference is
+# weighted by exp(-sigma^2 phi'^2/2), phi' the slope of its phase in ln E.  So the baseline
+# has to be astrophysical in fact: at 100 Mpc every pair has decohered at every energy
+# drawn and the spread sigma drops out, while over 1e8 km, less than an astronomical unit,
+# some pairs keep part of their phase from 1 to 100 TeV, and the wrapper warns there that
+# the result depends on the spread.
 L_SOURCE = 100.0*3.0857e19*gd.CONV_KM_TO_INV_EV        # 100 Mpc [eV^-1]
 LIV_ASTRO = dict(sxi12=OSC['s12'], sxi23=OSC['s23'], sxi13=OSC['s13'], dxiCP=0.0,
                  b1=0.0, b2=0.0, b3=B3_ASTRO, Lambda=1.0, n_liv=N_LIV)
@@ -18156,10 +18288,11 @@ P_NSI = np.einsum('ij,ejk->eik', P_VAC3[0], P_EARTH)
 # chosen per state, and that is the whole of the physics here: pair all three and every
 # active-active probability halves by the same factor, so the composition is untouched.
 # Pair one, and the suppression is uneven and the composition moves.  We pair the second
-# mass state alone.  At 100 Mpc a splitting of 1e-13 eV^2 leaves both members of the pair
-# decohered from each other across the whole range drawn, so no averaged expression is
-# being stretched: the direct route groups the spectrum itself, and finds four singletons.
-# No wrapper ships this Hamiltonian, so it is built and handed to osc_prob_energy_baseline.
+# mass state alone.  At 100 Mpc a splitting of 1e-13 eV^2 winds the pair's phase through
+# 78 rad or more at every energy drawn, so the pair has decohered.  No wrapper ships this
+# Hamiltonian, so it is built as a matrix and handed to osc_prob_energy_baseline, which
+# takes a fixed matrix to its decohered limit: it groups the spectrum itself, and finds
+# four singletons.
 PD_PAIRS = {1: 1.0e-13}
 U_PMNS = np.asarray(hamiltonians.pmns_mixing_matrix(
     OSC['s12'], OSC['s23'], OSC['s13'], OSC['dCP']), dtype=complex)
@@ -19929,12 +20062,12 @@ print('as it must be: two of the three states carry a partner.')'''),
 
     md(r"""## 6. Sweeping the splitting through the three regimes
 
-The library recognizes three regimes and refuses the middle one. Sweeping $\delta m^2$ upward
-at fixed $L/E$ walks through all three: coherent pairs, then a band where neither limit
-describes the physics, then full decoherence into six singletons.
+`coherence_report` recognizes three regimes. Sweeping $\delta m^2$ upward at fixed $L/E$ walks
+through all three: coherent pairs, then a band where neither limit describes the physics, then
+full decoherence into six singletons.
 
-`coherence_report` is what says which regime you are in, and the un-averaged probability is the
-only valid route through the middle band."""),
+`coherence_report` says which regime you are in. In the middle band only an average over the
+resolution of the measurement describes what is measured."""),
 
     code(r'''print('%-12s %-32s %s' % ('dm2 [eV^2]', 'blocks', 'regime'))
 print('-'*66)
@@ -19956,9 +20089,13 @@ for dm2 in (1.0e-19, 1.0e-18, 1.0e-17, 3.0e-17, 1.0e-16, 1.0e-15, 1.0e-13):
         regime = 'coherent pairs: block form'
     print('%-12.1e %-32s %s' % (dm2, str(blocks_i), regime))'''),
 
-    md(r"""The middle band is not a numerical inconvenience: no averaged expression describes it.
-Asking the library to average there raises `PhaseAveragingWarning` rather than returning a
-number that looks fine."""),
+    md(r"""The middle band is not a numerical inconvenience: neither limit describes it. There
+`average=True` returns the phase average -- each pair's cross term kept with its phase, damped
+by how much that phase spreads across the energy resolution -- and it is neither limit. At
+$\delta m^2 = 3\times10^{-17}$ eV$^2$ the pair phase is 2.35 rad, the two members of each pair
+interfere destructively, and $\langle P_{ee}\rangle$ falls below both, to
+$\sum_j |U_{ej}|^4 \cos^2(\phi/2)$; it rises toward the decohered sum as the spread widens,
+and `PhaseAveragingWarning` says that it depends on the spread."""),
 
     code(r'''lam_mid = hamiltonians.pseudo_dirac_mass_squared(
     M2, {j: 3.0e-17 for j in range(3)})/(2.0*100.0*gd.UNIT_TEV)
@@ -19969,10 +20106,31 @@ print('pairs in neither limit (i, j, relative phase in radians):')
 for i, j, relative_phase in undecided[:6]:
     print('   (%d, %d)   %.3f rad' % (i, j, relative_phase))
 print()
-print('That list is what makes the difference.  Empty, and one of the two averaged')
-print('expressions applies.  Non-empty, as here, and neither does: the phases sit')
-print('between %.2g and 2*pi, too large to keep the cross term and too small to' % 1.0e-2)
-print('drop it.  The library raises PhaseAveragingWarning rather than choosing.')'''),
+print('That list is what makes the difference.  Empty, and one of the two limits')
+print('applies.  Non-empty, as here, and neither does: the phases sit between')
+print('%.2g and 2*pi, too large to keep the cross term whole and too small to drop it.' % 1.0e-2)
+print()
+
+# average=True there: the phase average, which is neither limit, and depends on the spread
+pairs_mid = {j: 3.0e-17 for j in range(3)}
+
+
+def H_mid(energy):
+    return hamiltonians.hamiltonian_pseudo_dirac_vacuum(energy, U, M2, pairs_mid)
+
+
+W_mid = hamiltonians.pseudo_dirac_mixing_matrix(U, pairs_mid)
+print('  block form (coherent pairs)  <P_ee> = %.5f' % block_form(W_mid, blocks_mid, 0, 0))
+for spread in (0.01, 0.1, 0.3, 1.0):
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter('always')
+        P_mid = oscprob.osc_prob_energy_baseline(
+            H_mid, 100.0*gd.UNIT_TEV, L_100MPC, 0.0, nu_i=gd.NUE, nu_f=gd.NUE,
+            H_func_is_function_only_of_energy=True, average=True, average_spread=spread)
+    warned = any(issubclass(w.category, oscprob.PhaseAveragingWarning) for w in caught)
+    print('  average_spread = %.2f         <P_ee> = %.5f%s'
+          % (spread, float(P_mid), '   (PhaseAveragingWarning)' if warned else ''))
+print('  naive sum (decohered)        <P_ee> = %.5f' % naive_sum(W_mid, 0, 0))'''),
 
     md(r"""## 7. On Earth, the effect is invisible
 
