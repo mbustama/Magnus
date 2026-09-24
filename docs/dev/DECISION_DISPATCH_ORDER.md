@@ -246,3 +246,61 @@ rather than inferred from the figure.
 - **The `cumulative` default flip.** The evidence above strengthens the case considerably --
   every sub-scan measured is better on both axes at once -- but flipping the default moves every
   baseline scan in the package, and deserves its own decision with its own evidence.
+
+---
+
+## Addendum, 2026-09-24: the ladder goes ahead of the hybrid for a moderate phase (issue #70)
+
+The order above still holds, with one route added ahead of it under `strategy='auto'`. The
+hybrid dispatcher returns a `_PreferLadder` marker instead of running when all three hold:
+
+- `min(rtol, atol) >= AUTO_LADDER_MIN_TOLERANCE` (1e-6);
+- the estimated accumulated phase, the integral of the spread of H's eigenvalues up to the
+  longest baseline, is at most `AUTO_LADDER_MAX_PHASE` (1e4 rad);
+- the ladder's starting slab count is at most `AUTO_LADDER_MAX_FLOOR_FRACTION` (1/4) of the
+  resolved `max_n_slabs`.
+
+The caller then skips the interaction picture and runs the separable scan or the general ladder
+at a tenth of the tolerance, with `min_n_slabs` raised to the count at which every slab meets
+the `MagnusConvergenceWarning` condition.
+
+Why: the hybrid's cost is ~87% window search, which does not follow the tolerance. The four
+exponential-profile scans of the paper's Fig. 1 (140 energies each) took 8 s at 1e-3 on the
+hybrid, bit for bit the answer it gives at 1e-12; the ladder computes them in 40 ms. (At Listing 1's
+own 1e-12, naming `strategy='magnus', magnus_exp_order=8` takes 0.43 s against 7.7 s on the
+hybrid, and lands within 1e-13 of DOP853 where the hybrid is 2e-11 off.) Over 20 smooth workloads with DOP853 references (phases 5 to 1.2e4 rad on the spread
+measure), the ladder at a tenth of the tolerance was 2 to 60 times faster on a single point and
+12 to 500 times faster per scan point, worst error 1.7e-4 at 1e-3 and 4.1e-8 at 1e-6. The
+first single-point loss for the ladder was at 7.8e4 rad, hence 1e4. At 1e-9 the ladder cost 0.9
+to 1.3 times the hybrid at four and five flavors, hence the 1e-6 floor on the tolerance.
+
+Why the spread and not the norm of the integrated H (what `suggest_n_slabs` uses): through an
+MSW region the matter and vacuum terms cancel in the integral, so on the Sun the norm reads 2.2
+to 2.9 times low. The first version of this route used it and sent a two-flavor request at
+10 MeV over 0.9 R_sun (1.46e4 rad) to the ladder at an estimated 5 572.
+
+Why the interaction picture is skipped: in the #70 campaign, below 1e4 rad at 1e-6 and looser,
+the two-flavor cases were the only ones where `strategy='magnus'` lost to the hybrid (up to 3.8x
+per scan point), because the interaction picture answered them.
+
+Why the slab floor: `suggest_n_slabs` seeds at 2 pi per slab on purpose, so the first rungs of
+every request on this route broke the convergence condition and warned, although the rung
+returned met it. Suppressing that warning was measured and rejected for `osc_prob` (see
+`magnus._deferred_slab_norm`); starting the ladder inside the condition removes the rungs the
+warning described rather than hiding it, and the warning still fires if the estimate misses.
+
+Why the cap condition: the floor is set by the largest spectral radius on the path (trace
+included, because the warning's norm includes it), so on the Sun the core density sets it for
+the whole path: 8 300 to 21 000 slabs against the Gauss-Legendre cap of 20 000 on every solar
+path measured. The 10 MeV request above started at 18 334, could not refine, and warned
+`ToleranceNotAchievedWarning`; the hybrid answers it in 0.05 s. The campaign workloads that take
+the route start at 5 to 4 700.
+
+Why the resolution test runs on the route: the hybrid's `adiabatic._profile_is_resolved` is also
+what warns about an undeclared density jump (`UnmarkedDiscontinuityWarning`). Skipping the
+hybrid skipped the warning, which `test_unmarked_density_step_is_not_answered_silently_wrong`
+caught. It now runs in `_auto_prefers_ladder` on the same grids (200, then 6400 probes); a
+profile that fails it still goes to the ladder, where the hybrid would have sent it.
+
+Unchanged: `strategy='hybrid'`, `strategy='magnus'`, tolerances tighter than 1e-6, and every
+solar path measured (MeV and GeV, two and three flavors, exponential and B16).

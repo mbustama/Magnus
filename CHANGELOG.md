@@ -141,6 +141,26 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- **`strategy='auto'` hands a moderate phase at a loose tolerance to the
+  Magnus ladder** (issue #70).  On a smooth profile it used to run the hybrid
+  strategy at every tolerance, and the hybrid's cost is its window search,
+  which does not follow the tolerance: the four scans of the paper's Fig. 1
+  took 8 s at the default of 1e-3.  Now the ladder answers instead when `min(rtol, atol)` is
+  at least `AUTO_LADDER_MIN_TOLERANCE` (1e-6), the estimated accumulated
+  phase (the integral of the spread of H's eigenvalues) is at most
+  `AUTO_LADDER_MAX_PHASE` (1e4 rad), and the ladder can start within a
+  quarter of its slab cap (`AUTO_LADDER_MAX_FLOOR_FRACTION`).  It runs at a
+  tenth of the tolerance (`AUTO_LADDER_TOLERANCE_MARGIN`), without the
+  interaction picture, starting on slabs over which the Magnus series is
+  guaranteed to converge.  Over 20 smooth workloads with phases from 5 to
+  1.2e4 rad it was 2 to 60 times faster on a single point and 12 to 500
+  times faster per point of a 40-energy scan, within the tolerance on every
+  one; the Fig. 1 scans now take 40 ms of computation.  `strategy_info` reports the handoff as the
+  hybrid declining, with the reason `'auto prefers the ladder'`, and the
+  hybrid's test for an undeclared density jump still runs, with its reason
+  and `UnmarkedDiscontinuityWarning`.  Every solar path, tolerances tighter
+  than 1e-6, `strategy='hybrid'` and `strategy='magnus'` are unchanged.
+
 - **`average=True` returns the phase average** (issue #64), with the spread
   set by a new keyword, `average_spread` (default 0.1), on every entry point
   that takes `average`.  Before, a constant Hamiltonian kept each pair of

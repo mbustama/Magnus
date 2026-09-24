@@ -705,6 +705,78 @@ defect.  Pass ``cumulative=True`` to take the cumulative scan below the threshol
 """
 
 
+AUTO_LADDER_MAX_PHASE = 1.0e4
+r"""float: Module-level constant
+
+Largest estimated accumulated phase, in radians, at which ``strategy='auto'`` hands a smooth
+profile to the Magnus ladder instead of the hybrid strategy (issue #70), provided the tolerance
+is no tighter than :data:`AUTO_LADDER_MIN_TOLERANCE` and the ladder's starting slab count stays
+within :data:`AUTO_LADDER_MAX_FLOOR_FRACTION` of its cap.  The phase is the integral of the
+spread of the Hamiltonian's eigenvalues along the path, the phase of its fastest oscillation,
+from 17 samples at up to five of the requested energies (see ``_estimated_phase``).
+
+The hybrid strategy's cost is set by its search for non-adiabatic windows (87 % of a call on the
+profile of the paper's Fig. 1), which does not depend on the tolerance, so at the default
+``rtol = atol = 1e-3`` it returned ~1e-12 at ~10 ms per point where 1e-3 was asked for.  Measured
+over 20 smooth workloads with phases from 5 to 1.2e4 rad on this measure (exponential profiles
+from 25 to 250 000 km, 2 to 5 flavors, NSI and LIV), each scored against ``solve_ivp``/DOP853 at
+1e-12: the ladder, run at a tenth of the requested tolerance, is 2 to 60 times faster on a
+single point and 12 to 500 times faster per point of a 40-energy scan, and stays inside the
+tolerance on every workload (worst 1.7e-4 at 1e-3, 4.1e-8 at 1e-6).  It first lost on a single
+point at 7.8e4 rad; 1e4 keeps a factor of eight below that.
+
+The measure matters on the Sun.  The norm of the integrated Hamiltonian, which
+:func:`magnus.magnus.suggest_n_slabs` uses, lets the matter and vacuum terms cancel through the
+MSW region and reads 2.2 to 2.9 times low there: it put a two-flavor request at 10 MeV over
+0.9 R_sun, whose phase is 1.46e4 rad, at 5 572.
+
+.. versionadded:: 1.1.1
+"""
+
+
+AUTO_LADDER_MAX_FLOOR_FRACTION = 0.25
+r"""float: Module-level constant
+
+Largest fraction of the slab cap (``max_n_slabs``, resolved per integration method) that the
+ladder's starting slab count may take for ``strategy='auto'`` to hand it a request (issue #70).
+The starting count is the one at which every slab meets the sufficient condition
+:class:`magnus.magnus.MagnusConvergenceWarning` checks (see ``_PreferLadder``); the ladder refines
+by a factor of 1.5 per rung, so a quarter leaves three rungs below the cap.
+
+Every solar path measured starts at 8 300 to 21 000 slabs against the Gauss-Legendre cap of
+20 000, because the core density sets the count for the whole path.  Without this condition a
+two-flavor request at 10 MeV over 0.9 R_sun started at 18 334, could not refine, and warned
+:class:`ToleranceNotAchievedWarning` where the hybrid strategy answers in 0.05 s.  The workloads
+behind :data:`AUTO_LADDER_MAX_PHASE` start at 5 to 4 700.
+
+.. versionadded:: 1.1.1
+"""
+
+
+AUTO_LADDER_MIN_TOLERANCE = 1.0e-6
+r"""float: Module-level constant
+
+Tightest ``min(rtol, atol)`` at which ``strategy='auto'`` may prefer the Magnus ladder over the
+hybrid strategy; see :data:`AUTO_LADDER_MAX_PHASE`.  At 1e-9 the ladder's advantage shrinks or
+reverses at four and five flavors (0.9 to 1.3 times the hybrid's cost), while the hybrid
+strategy reaches about 1e-9 on these profiles at no extra cost.
+
+.. versionadded:: 1.1.1
+"""
+
+
+AUTO_LADDER_TOLERANCE_MARGIN = 10.0
+r"""float: Module-level constant
+
+Factor by which ``strategy='auto'`` tightens ``rtol`` and ``atol`` when it hands a request to
+the Magnus ladder in place of the hybrid strategy.  The ladder's tolerances are a stopping
+criterion, not an error bound, and the energy-batched scan engine can land several times outside
+them (issue #71: 5.8e-3 at a requested 1e-3); asked for a tenth, it stayed inside the requested
+tolerance on every workload measured for :data:`AUTO_LADDER_MAX_PHASE`.
+
+.. versionadded:: 1.1.1
+"""
+
 CUMULATIVE_N_ACC_SAFETY = 4
 r"""int: Module-level constant
 
@@ -5716,6 +5788,138 @@ def _resolve_cumulative_kwarg(kwargs, strategy):
     return 'auto' if strategy != 'magnus' else False
 
 
+class _PreferLadder:
+    r"""What the hybrid dispatchers return when ``strategy='auto'`` hands a request to the ladder.
+
+    Distinct from ``NotImplemented`` because the caller has to act on it (issue #70): the
+    remaining engines run at the tolerances and slab floor of :meth:`request`, and the
+    interaction-picture fast path is skipped.
+
+    .. versionadded:: 1.1.1
+
+    Attributes
+    ----------
+    min_n_slabs : int
+        The fewest slabs over the longest baseline on which every slab meets the sufficient
+        condition :class:`magnus.magnus.MagnusConvergenceWarning` checks; see
+        :func:`_estimated_phase`.
+    """
+    __slots__ = ('min_n_slabs',)
+
+    def __init__(self, min_n_slabs: int):
+        self.min_n_slabs = int(min_n_slabs)
+
+    def __repr__(self):
+        return '_PreferLadder(min_n_slabs=%d)' % self.min_n_slabs
+
+    def request(self, rtol, atol, min_n_slabs, max_n_slabs, integration_method):
+        r"""The ``(rtol, atol, min_n_slabs)`` the ladder runs at.
+
+        Each tolerance divided by :data:`AUTO_LADDER_TOLERANCE_MARGIN` (a ``None`` left as it
+        is), and the caller's ``min_n_slabs`` raised to :attr:`min_n_slabs`, capped at the
+        resolved ``max_n_slabs``.  The floor keeps the refinement from starting on slabs wider
+        than the Magnus series is guaranteed to converge over: the seed of
+        :func:`magnus.magnus.suggest_n_slabs` allows twice that width on purpose, and on this
+        route every request then warned about slabs the ladder went on to refine away.
+
+        .. versionadded:: 1.1.1
+        """
+        m = AUTO_LADDER_TOLERANCE_MARGIN
+        rtol = None if rtol is None else rtol/m
+        atol = None if atol is None else atol/m
+        cap = _resolve_max_n_slabs(max_n_slabs, integration_method)
+        floor = min(max(int(min_n_slabs or 1), self.min_n_slabs), int(cap))
+        return rtol, atol, floor
+
+
+def _estimated_phase(H_at_energy: Callable, energy_arr: np.ndarray, L_arr: np.ndarray,
+                     L0: float, n_probe: int = 17, n_energies: int = 5) -> Tuple[float, int]:
+    r"""The accumulated phase of a request, and the slab count that keeps each slab convergent.
+
+    The phase is the integral of :math:`\lambda_{\max} - \lambda_{\min}`, the spread of the
+    Hamiltonian's eigenvalues, from ``L0`` to the longest requested baseline: the phase of the
+    fastest oscillation, which is what the ladder has to resolve (see
+    :data:`AUTO_LADDER_MAX_PHASE` for why not the norm of the integrated Hamiltonian).  The slab
+    count is the fewest uniform slabs over that span on which
+    :math:`\int_{\rm slab} \lVert H \rVert_2 \, dl \le \pi`, the sufficient condition
+    :class:`magnus.magnus.MagnusConvergenceWarning` checks, bounded with the largest spectral
+    radius met.  Both come from ``n_probe`` samples at up to ``n_energies`` of the requested
+    energies spread over their range, about 85 evaluations of the Hamiltonian whatever the size
+    of the request.
+
+    .. versionadded:: 1.1.1
+
+    Returns
+    -------
+    tuple of (float, int)
+        The largest phase over the sampled energies, in radians, and the slab count.
+    """
+    L0 = float(L0)
+    L1 = float(np.max(np.asarray(L_arr, dtype=float)))
+    if not L1 > L0:
+        return 0.0, 1
+    energies = np.unique(np.asarray(energy_arr, dtype=float))
+    if len(energies) > n_energies:
+        energies = energies[np.unique(np.round(
+            np.linspace(0, len(energies) - 1, n_energies)).astype(int))]
+    ls = np.linspace(L0, L1, n_probe)
+    phase = radius = 0.0
+    for enu in energies:
+        H_of_l = H_at_energy(enu)
+        eigs = np.linalg.eigvalsh(np.array([np.asarray(H_of_l(l), dtype=complex) for l in ls]))
+        spread = eigs[:, -1] - eigs[:, 0]
+        phase = max(phase, float(np.sum(0.5*(spread[1:] + spread[:-1])*np.diff(ls))))
+        # Trace included, because the norm the warning checks includes it.
+        radius = max(radius, float(np.max(np.abs(eigs))))
+    return phase, max(1, int(np.ceil((L1 - L0)*radius/np.pi)))
+
+
+def _auto_prefers_ladder(H_at_energy: Callable, energy_arr: np.ndarray, L_arr: np.ndarray,
+                         L0: float, rtol: float, atol: float,
+                         max_n_slabs: int) -> Optional[_PreferLadder]:
+    r"""Whether ``strategy='auto'`` should hand a smooth-profile request to the ladder (issue #70).
+
+    Yes when the tolerance is no tighter than :data:`AUTO_LADDER_MIN_TOLERANCE`, the estimated
+    accumulated phase is at most :data:`AUTO_LADDER_MAX_PHASE`, and the ladder's starting slab
+    count is at most :data:`AUTO_LADDER_MAX_FLOOR_FRACTION` of ``max_n_slabs``, the resolved cap.
+    ``rtol`` and ``atol`` are the dispatcher's, with a ``None`` already made 0.0; the tighter of
+    the nonzero ones is the tolerance.  Records the decision in ``strategy_info`` when it is
+    taken.
+
+    Handing the request over skips the hybrid strategy's resolution test, which is also what
+    warns about a density jump nobody declared (:class:`UnmarkedDiscontinuityWarning`).  So the
+    test runs here too, on the same probe grids, at the lowest requested energy: a profile that
+    fails it still goes to the ladder, which is where the hybrid strategy would have sent it, but
+    with the reason and the warning the hybrid strategy gives.
+
+    .. versionadded:: 1.1.1
+
+    Returns
+    -------
+    _PreferLadder or None
+        The marker the dispatcher returns, or None to run the hybrid strategy.
+    """
+    tols = [t for t in (rtol, atol) if t > 0.0]
+    if not tols or min(tols) < AUTO_LADDER_MIN_TOLERANCE:
+        return None
+    phase, n_floor = _estimated_phase(H_at_energy, energy_arr, L_arr, L0)
+    if (phase > AUTO_LADDER_MAX_PHASE) or (n_floor > AUTO_LADDER_MAX_FLOOR_FRACTION*max_n_slabs):
+        return None
+    H_lo = H_at_energy(float(np.min(np.asarray(energy_arr, dtype=float))))
+    l0, l1 = float(L0), float(np.max(np.asarray(L_arr, dtype=float)))
+    resolved = (adiabatic._profile_is_resolved(H_lo, l0, l1, 200)
+                or adiabatic._profile_is_resolved(H_lo, l0, l1, 6400))
+    detail = dict(estimated_phase=phase, min_n_slabs=n_floor,
+                  tolerance_margin=AUTO_LADDER_TOLERANCE_MARGIN)
+    if resolved:
+        _note_engine('hybrid', answered=False, reason='auto prefers the ladder', **detail)
+    else:
+        _note_engine('hybrid', answered=False, certified=False,
+                     reason='the profile is not resolved at the probe scale', **detail)
+        _warn_hybrid_unresolved()
+    return _PreferLadder(n_floor)
+
+
 def _osc_prob_hybrid_dispatch(
     h_vac_energy_indep: np.ndarray,
     VCC_func: Union[Callable, float],
@@ -5898,6 +6102,15 @@ def _osc_prob_hybrid_dispatch(
                     H = H + (enu**n_liv)*h_liv_energy_indep
                 return H
             return H_of_l
+
+    # Under strategy='auto', a moderate phase at a loose tolerance goes to the ladder instead: the
+    # hybrid strategy's cost does not follow the tolerance, and there it is the slower route by
+    # one to two orders of magnitude (issue #70; see AUTO_LADDER_MAX_PHASE).
+    prefer = (_auto_prefers_ladder(H_at_energy, energy_arr, L_arr, L0, rtol, atol,
+                  _resolve_max_n_slabs(scan_kwargs.get('max_n_slabs'), integration_method))
+              if strategy == 'auto' else None)
+    if prefer is not None:
+        return prefer
 
     P_out = _hybrid_propagator_scan(H_at_energy, energy_arr, L_arr, L0, rtol, atol,
         magnus_exp_order, integration_method, strategy, d)
@@ -6145,6 +6358,15 @@ def _osc_prob_hybrid_dispatch_generic(
         return H_of_l
 
     d = np.asarray(htot(energy_arr[0], L0)).shape[-1]
+
+    # Under strategy='auto', a moderate phase at a loose tolerance goes to the ladder instead: the
+    # hybrid strategy's cost does not follow the tolerance, and there it is the slower route by
+    # one to two orders of magnitude (issue #70; see AUTO_LADDER_MAX_PHASE).
+    prefer = (_auto_prefers_ladder(H_at_energy, energy_arr, L_arr, L0, rtol, atol,
+                  _resolve_max_n_slabs(None, integration_method))
+              if strategy == 'auto' else None)
+    if prefer is not None:
+        return prefer
 
     P_out = _hybrid_propagator_scan(H_at_energy, energy_arr, L_arr, L0, rtol, atol,
         magnus_exp_order, integration_method, strategy, d)
@@ -7682,7 +7904,20 @@ def osc_prob_matter_std_potential(
           ``HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS`` points, which the cumulative scan
           (see ``cumulative`` in :func:`osc_prob_energy_baseline`) answers from one traversal
           instead of one hybrid call per point -- measured on solar profiles as tens of times
-          faster at equal or better accuracy.
+          faster at equal or better accuracy.  Ahead of the hybrid, it hands a request to the
+          Magnus ladder when the tolerance is no tighter than :data:`AUTO_LADDER_MIN_TOLERANCE`,
+          the estimated accumulated phase is at most :data:`AUTO_LADDER_MAX_PHASE`, and the
+          ladder can start well below its slab cap (:data:`AUTO_LADDER_MAX_FLOOR_FRACTION`):
+          there the hybrid is the slower route by one to two orders of magnitude, because its
+          window search costs the same at any tolerance.  The ladder then runs at a tenth of the
+          requested ``rtol`` and ``atol`` (:data:`AUTO_LADDER_TOLERANCE_MARGIN`), without the
+          interaction-picture integrator, on slabs narrow enough from its first rung for the
+          Magnus series to converge.  ``strategy_info`` reports the handoff as the hybrid
+          declining, with the reason ``'auto prefers the ladder'``; the hybrid's test for a
+          density jump nobody declared still runs, with its reason and its warning.
+
+        .. versionchanged:: 1.1.1
+           ``'auto'`` hands a moderate phase at a loose tolerance to the ladder (issue #70).
 
         The hybrid strategy is the natural tool exactly where the plain Magnus refinement needs
         very many slabs (an extreme accumulated phase, e.g., low-energy solar neutrinos crossing
@@ -8022,7 +8257,14 @@ def osc_prob_matter_std_potential(
         # energy measured.  See docs/dev/DECISION_DISPATCH_ORDER.md.
         P_hybrid = _osc_prob_hybrid_dispatch(h_vac_energy_indep, VCC_func, h_matt_proj, None, None,
             energy, L, L0, nu_i, nu_f, scan_kwargs, strategy)
-        if P_hybrid is not NotImplemented:
+        # strategy='auto' handed the request to the ladder (issue #70): the engines below run at a
+        # tenth of the tolerance, and the interaction-picture fast path is skipped.
+        prefer_ladder = isinstance(P_hybrid, _PreferLadder)
+        if prefer_ladder:
+            rtol, atol, min_n_slabs = P_hybrid.request(rtol, atol, min_n_slabs, max_n_slabs,
+                                                       integration_method)
+            scan_kwargs = dict(scan_kwargs, rtol=rtol, atol=atol, min_n_slabs=min_n_slabs)
+        elif P_hybrid is not NotImplemented:
             return P_hybrid
 
         # Fast path for a genuine exponential density profile (e.g., the Sun): factor out the
@@ -8032,7 +8274,8 @@ def osc_prob_matter_std_potential(
         # NotImplemented) if the profile is not exponential or if it fails to converge (e.g., near an
         # MSW resonance), in which case the general methods below are used instead.  Reached only
         # where the hybrid strategy declined, or with strategy == 'magnus'.
-        P_ip = _osc_prob_ip_exp_dispatch(h_vac_energy_indep, VCC_func, h_matt_proj, None, None,
+        P_ip = NotImplemented if prefer_ladder else _osc_prob_ip_exp_dispatch(
+            h_vac_energy_indep, VCC_func, h_matt_proj, None, None,
             energy, L, L0, nu_i, nu_f, scan_kwargs)
         if P_ip is not NotImplemented:
             return P_ip
@@ -8569,13 +8812,20 @@ def osc_prob_matter_nsi(
         # osc_prob_matter_std_potential for why it precedes the interaction-picture fast path.
         P_hybrid = _osc_prob_hybrid_dispatch(h_vac_energy_indep, VCC_func, h_matt, None, None,
             energy, L, L0, nu_i, nu_f, scan_kwargs, strategy)
-        if P_hybrid is not NotImplemented:
+        # See the matching comment in osc_prob_matter_std_potential (issue #70).
+        prefer_ladder = isinstance(P_hybrid, _PreferLadder)
+        if prefer_ladder:
+            rtol, atol, min_n_slabs = P_hybrid.request(rtol, atol, min_n_slabs, max_n_slabs,
+                                                       integration_method)
+            scan_kwargs = dict(scan_kwargs, rtol=rtol, atol=atol, min_n_slabs=min_n_slabs)
+        elif P_hybrid is not NotImplemented:
             return P_hybrid
 
         # Fast path for a genuine exponential density profile (e.g., the Sun), reached only where the
         # hybrid strategy declined: see _osc_prob_ip_exp_dispatch and the matching comment in
         # osc_prob_matter_std_potential.
-        P_ip = _osc_prob_ip_exp_dispatch(h_vac_energy_indep, VCC_func, h_matt, None, None,
+        P_ip = NotImplemented if prefer_ladder else _osc_prob_ip_exp_dispatch(
+            h_vac_energy_indep, VCC_func, h_matt, None, None,
             energy, L, L0, nu_i, nu_f, scan_kwargs)
         if P_ip is not NotImplemented:
             return P_ip
@@ -9084,7 +9334,14 @@ def osc_prob_liv(
             # osc_prob_matter_std_potential for why it precedes the interaction-picture fast path.
             P_scan = _osc_prob_hybrid_dispatch(h_vac_energy_indep, VCC_func, h_matt,
                 h_liv_energy_indep, n_liv, energy, L, L0, nu_i, nu_f, scan_kwargs, strategy)
-            if P_scan is NotImplemented:
+            # See the matching comment in osc_prob_matter_std_potential (issue #70).
+            prefer_ladder = isinstance(P_scan, _PreferLadder)
+            if prefer_ladder:
+                rtol, atol, min_n_slabs = P_scan.request(rtol, atol, min_n_slabs, max_n_slabs,
+                                                         integration_method)
+                scan_kwargs = dict(scan_kwargs, rtol=rtol, atol=atol, min_n_slabs=min_n_slabs)
+                P_scan = NotImplemented
+            elif P_scan is NotImplemented:
                 # Fast path for a genuine exponential density profile (e.g., the Sun), reached only
                 # where the hybrid strategy declined: see _osc_prob_ip_exp_dispatch and the matching
                 # comment in osc_prob_matter_std_potential.
@@ -13167,7 +13424,13 @@ def _osc_prob_with_potential(
             _osc_prob_hybrid_dispatch_generic(htot, VCC_func, energy, L, L0, nu_i, nu_f,
                 t_breakpoints, rtol, atol, magnus_exp_order, integration_method, strategy,
                 kwargs))
-        if P_hybrid is not NotImplemented:
+        # strategy='auto' handed the request to the ladder, which runs at a tenth of the
+        # tolerance and above a slab floor (issue #70; see osc_prob_matter_std_potential).
+        if isinstance(P_hybrid, _PreferLadder):
+            rtol, atol, n_floor = P_hybrid.request(rtol, atol, kwargs.get('min_n_slabs'),
+                kwargs.get('max_n_slabs'), integration_method)
+            kwargs = dict(kwargs, min_n_slabs=n_floor)
+        elif P_hybrid is not NotImplemented:
             return P_hybrid
 
         return osc_prob_energy_baseline(htot, energy, L, L0, nu_i, nu_f, False,
@@ -23109,6 +23372,10 @@ __all__ = [
     'CUMULATIVE_AUTO_MIN_POINTS',
     'HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS',
     'CUMULATIVE_N_ACC_SAFETY',
+    'AUTO_LADDER_MAX_PHASE',
+    'AUTO_LADDER_MIN_TOLERANCE',
+    'AUTO_LADDER_TOLERANCE_MARGIN',
+    'AUTO_LADDER_MAX_FLOOR_FRACTION',
     'OUTPUT_GUARD_MIN_BYTES',
     'OUTPUT_GUARD_SAFETY',
     'IP_EXP_LOOP_CAP',

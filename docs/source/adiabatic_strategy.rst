@@ -297,6 +297,17 @@ point:
    at equal or better accuracy. Below that number of points the hybrid
    strategy is the cheaper of the two and keeps the scan.
 
+   Ahead of the hybrid, it hands a request to the Magnus ladder when the
+   tolerance is no tighter than
+   :data:`~magnus.oscprob.AUTO_LADDER_MIN_TOLERANCE` (1e-6) and the
+   estimated accumulated phase is at most
+   :data:`~magnus.oscprob.AUTO_LADDER_MAX_PHASE` (1e4 rad), provided the
+   ladder can start well below its slab cap, which no solar path does. The
+   hybrid's window search costs the same at any tolerance, so at a loose one
+   on a moderate phase it is the slower route by one to two orders of
+   magnitude. The ladder runs at a tenth of the requested tolerance; see
+   :ref:`dispatch-order` for the measurement.
+
 Unlike the two-flavor interaction-picture fast path, the hybrid strategy
 has **no restriction on the number of flavors**: the resonance detector and
 adiabatic propagator make no assumption about the Hamiltonian's dimension
