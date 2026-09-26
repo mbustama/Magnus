@@ -3327,3 +3327,17 @@ def test_return_evolution_operator_off_is_the_plain_call():
             energies, 2000.0*gd.UNIT_KM, 0.0, 5.0, 1000.0*gd.UNIT_KM,
             density_matter_is_in_g_per_cm3=True, return_evolution_operator=False))
     assert np.array_equal(a, b)
+
+
+def test_every_wrapper_documents_the_forwarded_keywords():
+    """Sec. 5.2 of the paper: every wrapper's docstring names the refinement keywords it
+    forwards and refers to osc_prob.  The four vacuum wrappers once lacked the entry."""
+    import re
+    import magnus.oscprob as op
+    names = [n for n in dir(op)
+             if re.fullmatch(r'osc_prob_[2-5]nu_[a-z_]+', n) and not n.endswith('_std')]
+    assert len(names) == 56
+    for n in names:
+        doc = getattr(op, n).__doc__ or ''
+        for key in ('rtol', 'atol', 'strict_convergence', 'n_jobs', 'osc_prob`'):
+            assert key in doc, f'{n}: docstring does not mention {key}'
