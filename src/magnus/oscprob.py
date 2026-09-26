@@ -431,6 +431,16 @@ A growth-rule fix was tried instead -- enlarging ``n_slabs`` so that the *edge* 
 ``growth_factor_n_slabs`` -- and **rejected on measurement**: it left two of the six misses in
 place and cost slightly more (median 22 slabs against 21).
 
+**The energy-batched engine** (``_osc_prob_scan_separable``) applies the same bound, on
+grids with breakpoints only, measuring refinement as grid points times points per slab so that
+the quadrature methods' growth in points per slab counts too.  There it carries both fixes: the
+bound decides which agreements count, and the growth rule, rejected above as a *substitute* for
+the bound, keeps the ladder from wasting levels on steps the bound would refuse.  Without it,
+on a PREM chord at two flavors and rtol = atol = 1e-3, two of twelve energies stopped on a
+20 -> 22 point comparison and returned 2.5e-3 off, silently (issue #71); with both, the scan is
+within tolerance and faster (0.7 of the time at two flavors, 0.8 at three from 1e-4 on; 1.2 at
+three flavors and 1e-3, where the old ladder stopped on a false agreement).
+
 .. versionadded:: 1.0.0
 """
 
@@ -4783,6 +4793,14 @@ def _osc_prob_scan_separable(
     within (rtol, atol); converged energies drop out of the batch.  Energies
     are processed in chunks to bound the memory of the sample array.
 
+    With ``t_breakpoints``, which are inserted into every level's grid, the
+    ladder grows the real grid rather than the nominal slab count, and an
+    agreement counts only between levels whose real grids differ by at least
+    :data:`MIN_EFFECTIVE_REFINEMENT` (grid points times points per slab); a
+    level cut short by ``max_n_slabs`` below that bound ends in a
+    :class:`ToleranceNotAchievedWarning` instead.  Without breakpoints the
+    nominal and real steps coincide and neither rule applies.
+
     .. versionadded:: 1.0.0
 
     Parameters
@@ -4872,6 +4890,15 @@ def _osc_prob_scan_separable(
         else:
             n_slabs = min_n_slabs
 
+    # Breakpoints strictly inside the path, sorted and without duplicates: the same set every
+    # level's grid gets, and what _n_grid_points counts.
+    bp_in = (np.unique(np.atleast_1d(np.asarray(t_breakpoints, dtype=float)))
+             if t_breakpoints is not None else np.zeros(0))
+    bp_in = bp_in[(bp_in > L0) & (bp_in < L_val)]
+    # Refinement of the previous level's real grid (grid points times points per slab); see
+    # MIN_EFFECTIVE_REFINEMENT.  Only used with breakpoints.
+    r_prev = None
+
     P_prev = np.full((nE, dim, dim), np.nan)
     P_out = np.empty((nE, dim, dim))
     active = np.arange(nE)
@@ -4885,9 +4912,7 @@ def _osc_prob_scan_separable(
         # Slab grid shared by all energies (PREM-layer breakpoints included)
         grid = np.linspace(L0, L_val, n_slabs + 1)
         if (t_breakpoints is not None) and (len(np.atleast_1d(t_breakpoints)) > 0):
-            bp = np.atleast_1d(np.asarray(t_breakpoints, dtype=float))
-            bp = bp[(bp > L0) & (bp < L_val)]
-            grid = np.unique(np.concatenate([grid, bp]))
+            grid = np.unique(np.concatenate([grid, bp_in]))
         edges = np.column_stack([grid[:-1], grid[1:]])
         widths = edges[:, 1] - edges[:, 0]
 
@@ -4931,6 +4956,13 @@ def _osc_prob_scan_separable(
         have_prev = ~np.isnan(prev[:, 0, 0])
         conv = have_prev & np.all(np.abs(P_new - prev) <= atol + rtol*np.abs(prev),
                                   axis=(-1, -2))
+        if bp_in.size:
+            # As in osc_prob: two grids that differ by a few breakpoint-dominated percent agree
+            # without having converged, so their agreement does not count.
+            r_level = len(grid)*n_tpts_per_slab
+            if (r_prev is not None) and (r_level < MIN_EFFECTIVE_REFINEMENT*r_prev):
+                conv[:] = False
+            r_prev = r_level
         P_out[active[conv]] = P_new[conv]
         P_prev[active] = P_new
         active = active[~conv]
@@ -4960,7 +4992,34 @@ def _osc_prob_scan_separable(
                 (n_tpts_per_slab < max_n_tpts_per_slab) and
                 (n_tpts_per_slab == n_tpts_old)):
             n_tpts_per_slab += 1
+        if bp_in.size and (growth_factor_n_slabs > 1.0):
+            # The breakpoints are in every level's grid, so at small counts the nominal step
+            # barely refines it (on a PREM chord, 4 -> 6 slabs is 21 -> 23 points), and the
+            # agreement test above would refuse it.  Grow the real grid instead; the point
+            # count is solved for in one step, since it is n_slabs + 1 + the breakpoints not
+            # on a node.
+            r_old = len(grid)*n_tpts_old
+            if (_n_grid_points(L0, L_val, n_slabs, bp_in)*n_tpts_per_slab <
+                    MIN_EFFECTIVE_REFINEMENT*r_old):
+                target = max(growth_factor_n_slabs, MIN_EFFECTIVE_REFINEMENT)*r_old/n_tpts_per_slab
+                n_slabs = int(min(max(n_slabs, np.ceil(target) - 1 - bp_in.size), max_n_slabs))
+                while ((n_slabs < max_n_slabs) and
+                       (_n_grid_points(L0, L_val, n_slabs, bp_in) < target)):
+                    n_slabs += 1
         loop_count += 1
+
+
+def _n_grid_points(L0: float, L_val: float, n_slabs: int, bp_in: np.ndarray) -> int:
+    r"""Number of points of the grid ``np.unique(np.concatenate([np.linspace(L0, L_val,
+    n_slabs + 1), bp_in]))``, without building it.
+
+    ``bp_in`` must be sorted, without duplicates, and strictly inside (``L0``, ``L_val``), as
+    :func:`_osc_prob_scan_separable` prepares it.  A breakpoint that falls exactly on a node
+    of the uniform grid adds no point.
+    """
+    nodes = np.linspace(L0, L_val, n_slabs + 1)
+    i = np.minimum(np.searchsorted(nodes, bp_in), n_slabs)
+    return n_slabs + 1 + int(np.count_nonzero(nodes[i] != bp_in))
 
 
 def _osc_prob_scan_constant_h(

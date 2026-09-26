@@ -405,6 +405,8 @@ TREE = [
     ('tests/test_plotting.py', 'Pre-packaged plotting tools: house-style defaults, layouts'),
     ('tests/test_routine_listings.py',
      "Each module's Routine listings names every public function it defines"),
+    ('tests/test_separable_breakpoints.py',
+     'The energy-batched engine on grids with breakpoints: real refinement only (issue #71)'),
     ('tests/test_solarmodels.py', 'Solar-model tables, their profiles, and the Sun wrappers that use them'),
     ('tests/test_tolerance.py', 'What rtol/atol promise, and the effective-refinement gate'),
     ('tests/test_validation.py', 'Input-validation guards and their error messages'),

@@ -256,6 +256,24 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- The energy-batched engine could stop on two nearly identical grids and
+  return, without a warning, an answer outside the requested tolerance, on
+  any energy scan with declared breakpoints: Earth chords through the Earth
+  wrappers or `t_breakpoints` (issue #71).  The breakpoints are inserted into
+  every refinement level's grid, so at small slab counts a nominal x1.5 step
+  barely refines it: on the PREM chord at cos(theta_z) = -0.9, 4 -> 6 slabs is
+  20 -> 22 points.  At two flavors and `rtol = atol = 1e-3`, two of twelve
+  energies stopped on that comparison and came back 2.5e-3 off, and the
+  three-flavor Earth wrapper at 1e-4 came back 2.8e-4 off.  The engine now
+  applies the per-point ladder's bound, `MIN_EFFECTIVE_REFINEMENT`, on grids
+  with breakpoints, and grows the real grid instead of the nominal slab count,
+  so it does not spend levels on steps the bound would refuse.  Every case
+  measured is now within tolerance.  Scans are faster at two flavors (about
+  0.7 of the time) and at three flavors from `rtol = 1e-4` on (0.7 to 0.9); at
+  three flavors and 1e-3 they take 1.1 to 1.2 times as long, since the old
+  ladder stopped there on a false agreement.  Without breakpoints, and at four
+  and five flavors on the PREM chord, results are unchanged, bit for bit.
+
 - The hybrid strategy could certify, without a warning, an answer outside a
   tolerance tighter than about `atol + rtol = 1e-6`.  `hybrid_propagator`
   checked its result against the requested `rtol`/`atol`, but every Magnus
