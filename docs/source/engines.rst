@@ -176,6 +176,12 @@ hybrid when all three of these hold:
   :data:`magnus.oscprob.AUTO_LADDER_MAX_FLOOR_FRACTION` = 1/4 of its cap, which keeps every
   solar path on the hybrid.
 
+For an energy scan at one baseline that the energy-batched scan will take, the phase condition
+is dropped (issue #84).  That engine shares its slabs across the energies, so the phase limit,
+which prices the ladder one point at a time, does not apply: on 100 energies of a three-flavor,
+two-resonance profile whose phase estimate sat just above it, the hybrid took 62 s and the
+batched scan 0.4 s.
+
 The ladder then runs at a tenth of the tolerance
 (:data:`magnus.oscprob.AUTO_LADDER_TOLERANCE_MARGIN`), skips the interaction picture and starts
 on slabs over which the Magnus series is guaranteed to converge.  The hybrid's test for an
@@ -219,15 +225,16 @@ numerical one -- but a user scanning N and watching their answer move by five or
 magnitude in accuracy will otherwise assume something is broken.
 
 **Seeing which engine answered.** The fallbacks are silent by design: they happen on
-ordinary calls and warning about them would be noise. Pass ``strategy_info`` to any of the
-three scenario wrappers to see the route without changing it::
+ordinary calls and warning about them would be noise. Pass ``strategy_info`` to any scenario
+function or wrapper, or to :func:`~magnus.oscprob.osc_prob_earth` or
+:func:`~magnus.oscprob.osc_prob_sun`, to see the route without changing it::
 
     info = {}
     P = oscprob.osc_prob_matter_std_potential(..., strategy_info=info)
     info['engine']      # 'hybrid', 'ip_exp', 'separable', 'constant',
                         # 'cumulative', 'magnus' or 'average'
     info['certified']   # for the hybrid strategy
-    info['declined']    # [(engine, why it stood aside)]
+    info['declined']    # [(engine, why it gave up)], for engines that tried
 
 This is the answer to "why did my result move?" and "why did this call get slow?", both of
 which were previously unanswerable from outside the package.

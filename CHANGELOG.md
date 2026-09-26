@@ -9,6 +9,13 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **`strategy_info` in vacuum.** `osc_prob_vacuum` and its wrappers
+  (`osc_prob_{2,3,4,5}nu_vacuum`) accept `strategy_info`, as every other
+  scenario function does; before, passing it raised `ValueError` (unrecognized
+  keyword).  It reports `'average'`, `'constant'` or `'magnus'`.  The
+  description of `'declined'` now says what it lists: engines that attempted the
+  request and gave up, not every engine that did not apply.
+
 - **The phase average**, in `magnus.avgprob`:
   `phase_averaged_probabilities_constant_hamiltonian` and
   `phase_averaged_probabilities_adiabatic` (issue #64).  Every interference
@@ -162,8 +169,12 @@ and the project uses [Semantic Versioning](https://semver.org/).
   one; the Fig. 1 scans now take 40 ms of computation.  `strategy_info` reports the handoff as the
   hybrid declining, with the reason `'auto prefers the ladder'`, and the
   hybrid's test for an undeclared density jump still runs, with its reason
-  and `UnmarkedDiscontinuityWarning`.  Every solar path, tolerances tighter
-  than 1e-6, `strategy='hybrid'` and `strategy='magnus'` are unchanged.
+  and `UnmarkedDiscontinuityWarning`.  An energy scan at one baseline that the
+  energy-batched scan will take goes to it whatever its phase (issue #84): the
+  phase limit prices the ladder point by point, and applied to a scan it sent
+  one three-flavor, two-resonance scan of 100 energies to the hybrid, 62 s
+  against 0.4 s.  Every solar path, tolerances tighter than 1e-6,
+  `strategy='hybrid'` and `strategy='magnus'` are unchanged.
 
 - **`average=True` returns the phase average** (issue #64), with the spread
   set by a new keyword, `average_spread` (default 0.1), on every entry point

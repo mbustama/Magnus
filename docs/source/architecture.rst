@@ -374,13 +374,150 @@ closest sibling to copy from. The recipe:
 
       pytest tests/test_oscprob.py -k "redeclares_standard or nubar_present" -v
 
+.. _new-scenario:
+
+How to add your own scenario (layer 2)
+----------------------------------------
+
 If your new function needs genuinely new *physics* (not just a new
 environment) -- e.g. a Hamiltonian term that does not fit
-vacuum/matter/NSI/LIV -- then the right layer to extend is layer 2: add
-a new ``osc_prob_<scenario>`` function generic in ``num_flavors``,
-following the pattern of ``osc_prob_liv``, and a matching
-``hamiltonian_<n>nu_<scenario>`` in ``magnus.hamiltonians`` for each
-flavor count you support. Only then add layer-3 wrappers on top of it.
+vacuum/matter/NSI/LIV -- then the right layer to extend is layer 2: a new
+``osc_prob_<scenario>`` function, generic in ``num_flavors``, that builds the
+Hamiltonian as a function of energy (and of position, in matter) and hands it
+to ``osc_prob_energy_baseline``. That call is what gives your function arrays of
+energies and baselines, warm starts, the refinement keywords, ``average=True``,
+and the cumulative scan over baselines, with no further work.
+
+The example below adds an :math:`L_e - L_\mu` long-range potential: a term
+:math:`v_{\rm LRI}\,{\rm diag}(1, -1, 0, \ldots)` that does not depend on
+energy and reverses sign for antineutrinos, on top of the standard vacuum and
+matter Hamiltonian. Every piece it needs ships with the package: the vacuum
+builders of ``magnus.hamiltonians``, and ``matter.matter_potential_projector``
+and ``matter.vcc_func_from_rho_func`` for the matter term.
+
+.. jupyter-execute::
+
+    import numpy as np
+    import magnus.globaldefs as gd
+    import magnus.hamiltonians as hamiltonians
+    import magnus.matter as matter
+    import magnus.oscprob as oscprob
+
+
+    def _vacuum_part(num_flavors, osc_params, nubar):
+        """The vacuum Hamiltonian times the energy, H_vac * E, from the standard parameters.
+
+        The shipped builders take the parameters positionally, and name the CP phase ``dCP`` at
+        three flavors and ``d13`` beyond, so the dictionary is unpacked explicitly."""
+        p = osc_params
+        if num_flavors == 2:
+            return hamiltonians.hamiltonian_2nu_vacuum_energy_independent(p['sth'], p['Dm2'])
+        if num_flavors == 3:
+            return hamiltonians.hamiltonian_3nu_vacuum_energy_independent(
+                p['s12'], p['s23'], p['s13'], p['dCP'], p['D21'], p['D31'], nubar=nubar)
+        if num_flavors == 4:
+            return hamiltonians.hamiltonian_4nu_vacuum_energy_independent(
+                p['s12'], p['s23'], p['s13'], p['dCP'], p['s14'], p['d14'], p['s24'], p['d24'],
+                p['s34'], p['D21'], p['D31'], p['D41'], nubar=nubar)
+        if num_flavors == 5:
+            return hamiltonians.hamiltonian_5nu_vacuum_energy_independent(
+                p['s12'], p['s23'], p['s13'], p['dCP'], p['s14'], p['d14'], p['s15'], p['d15'],
+                p['s24'], p['d24'], p['s25'], p['s34'], p['s35'], p['d35'], p['D21'], p['D31'],
+                p['D41'], p['D51'], nubar=nubar)
+        raise ValueError('num_flavors must be 2, 3, 4, or 5, not %r.' % (num_flavors,))
+
+
+    def osc_prob_lri(num_flavors, energy, L, osc_params, v_lri, rho_func=0.0, L0=0.0,
+                     nubar=False, nu_i=None, nu_f=None, density_matter_is_in_g_per_cm3=False,
+                     **kwargs):
+        """Oscillation probabilities with an L_e - L_mu long-range potential, in vacuum or matter.
+
+        The new term is energy-independent and diagonal in flavor, v_lri * diag(1, -1, 0, ...),
+        with the sign reversed for antineutrinos.  Everything else is the standard Hamiltonian:
+        vacuum, plus the charged-current potential of rho_func.  Refinement keywords (rtol, atol,
+        n_slabs, t_breakpoints, ...) and average=True reach osc_prob_energy_baseline through
+        **kwargs."""
+        h_vac = np.asarray(_vacuum_part(num_flavors, osc_params, nubar), dtype=complex)
+        h_lri = np.zeros((num_flavors, num_flavors), dtype=complex)
+        h_lri[0, 0], h_lri[1, 1] = 1.0, -1.0
+        h_lri *= -v_lri if nubar else v_lri
+
+        if rho_func == 0.0:                         # vacuum: no position dependence
+            def htot(enu):
+                return h_vac/enu + h_lri
+            only_energy = True
+        else:
+            # The shipped constructors: the potential carries the antineutrino sign itself.
+            proj = np.asarray(matter.matter_potential_projector(num_flavors), dtype=complex)
+            vcc = matter.vcc_func_from_rho_func(rho_func, L0, nubar=nubar,
+                density_matter_is_in_g_per_cm3=density_matter_is_in_g_per_cm3)
+            if callable(vcc):
+                # An array of positions returns a stack of Hamiltonians, position axis first,
+                # which lets the Magnus routines evaluate every node of a slab in one call.
+                def htot(enu, l):
+                    v = np.asarray(vcc(l))
+                    return h_vac/enu + v[..., None, None]*proj + h_lri
+                only_energy = False
+            else:
+                def htot(enu):
+                    return h_vac/enu + vcc*proj + h_lri
+                only_energy = True
+
+        return oscprob.osc_prob_energy_baseline(htot, energy, L, L0=L0, nu_i=nu_i, nu_f=nu_f,
+            H_func_is_function_only_of_energy=only_energy, **kwargs)
+
+Called with the same arguments as the shipped scenario functions, and with the
+new term switched off, it returns what ``osc_prob_matter_std_potential`` does:
+
+.. jupyter-execute::
+
+    import warnings
+    import numpy as np
+    import magnus.globaldefs as gd
+    import magnus.oscprob as oscprob
+    from magnus.magnus import MagnusConvergenceWarning
+
+    osc = gd.load_nufit_params('NuFIT 6.1')
+    E = np.array([0.5, 1.0])*gd.UNIT_GEV
+    L = 1300.0*gd.UNIT_KM
+    rho = lambda l: 3.0*np.exp(-np.asarray(l)/(2000.0*gd.UNIT_KM))   # g/cm^3
+
+    # The ladder's first, coarse levels raise MagnusConvergenceWarning, which reports a slab
+    # width rather than an error (see diagnostics); the comparison below is what checks the answer.
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore', MagnusConvergenceWarning)
+        P_std = oscprob.osc_prob_matter_std_potential(3, rho, E, L, osc,
+            density_matter_is_in_g_per_cm3=True, rtol=1e-9, atol=1e-9)
+        P_off = osc_prob_lri(3, E, L, osc, 0.0, rho_func=rho,
+            density_matter_is_in_g_per_cm3=True, rtol=1e-9, atol=1e-9)
+        P_on = osc_prob_lri(3, E, L, osc, 1.0e-14, rho_func=rho,
+            density_matter_is_in_g_per_cm3=True, rtol=1e-9, atol=1e-9)
+
+    print('term off, largest difference from the shipped function: %.0e'
+          % np.max(np.abs(np.asarray(P_off) - np.asarray(P_std))))
+    print('P(nu_mu -> nu_e), term off:', np.round(np.asarray(P_off)[:, gd.NUMU, gd.NUE], 4))
+    print('P(nu_mu -> nu_e), term on: ', np.round(np.asarray(P_on)[:, gd.NUMU, gd.NUE], 4))
+
+What a function written this way does **not** get is the batched engines.
+The shipped scenario functions try the phase average, the adiabatic transport
+with Magnus patches, the interaction-picture expansion, the constant-Hamiltonian
+engine and the energy-batched scan themselves, before calling
+``osc_prob_energy_baseline`` (see :doc:`engines`); a new function that goes
+straight to ``osc_prob_energy_baseline`` is answered, unless ``average=True``,
+by the cumulative scan or, point by point, by the general Magnus ladder. The
+answer is the same to the tolerance; the cost is not. On a scan of 200 energies
+from 0.3 to 10 GeV over the example profile above, with the term off, the
+shipped ``osc_prob_matter_std_potential`` (answered by the energy-batched scan)
+took 6 ms and ``osc_prob_lri`` took 88 ms, 15 times longer (warm, best of three,
+on one machine). To recover that speed, a scenario function has to dispatch to
+the batched engines as the shipped ones do; ``osc_prob_liv`` is the model to
+follow.
+
+To make the new scenario part of the package rather than your own code, add a
+matching ``hamiltonian_<n>nu_<scenario>`` builder in ``magnus.hamiltonians`` for
+each flavor count you support, move the function into ``magnus.oscprob`` next to
+``osc_prob_liv``, and only then add wrappers on top of it, as in the previous
+section.
 
 Where things live: a quick lookup
 -------------------------------------

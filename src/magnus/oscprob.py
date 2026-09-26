@@ -715,6 +715,13 @@ within :data:`AUTO_LADDER_MAX_FLOOR_FRACTION` of its cap.  The phase is the inte
 spread of the Hamiltonian's eigenvalues along the path, the phase of its fastest oscillation,
 from 17 samples at up to five of the requested energies (see ``_estimated_phase``).
 
+It does not apply to an energy scan at one baseline that the energy-batched scan will take
+(issue #84).  That engine shares its slabs across the energies, while the hybrid pays its window
+search at every energy, so the limit, which prices the ladder one point at a time, would send
+such a scan to the slower route: 62 s against 0.4 s on 100 energies of a three-flavor,
+two-resonance profile whose estimate (1.05e4, at the lowest energy) sat just above it.  The
+slab-count condition still applies, and keeps the full Sun on the hybrid.
+
 The hybrid strategy's cost is set by its search for non-adiabatic windows (87 % of a call on the
 profile of the paper's Fig. 1), which does not depend on the tolerance, so at the default
 ``rtol = atol = 1e-3`` it returned ~1e-12 at ~10 ms per point where 1e-3 was asked for.  Measured
@@ -5876,7 +5883,7 @@ def _estimated_phase(H_at_energy: Callable, energy_arr: np.ndarray, L_arr: np.nd
 
 def _auto_prefers_ladder(H_at_energy: Callable, energy_arr: np.ndarray, L_arr: np.ndarray,
                          L0: float, rtol: float, atol: float,
-                         max_n_slabs: int) -> Optional[_PreferLadder]:
+                         max_n_slabs: int, batched_scan: bool = False) -> Optional[_PreferLadder]:
     r"""Whether ``strategy='auto'`` should hand a smooth-profile request to the ladder (issue #70).
 
     Yes when the tolerance is no tighter than :data:`AUTO_LADDER_MIN_TOLERANCE`, the estimated
@@ -5885,6 +5892,15 @@ def _auto_prefers_ladder(H_at_energy: Callable, energy_arr: np.ndarray, L_arr: n
     ``rtol`` and ``atol`` are the dispatcher's, with a ``None`` already made 0.0; the tighter of
     the nonzero ones is the tolerance.  Records the decision in ``strategy_info`` when it is
     taken.
+
+    With ``batched_scan`` -- several energies at one shared baseline, which the energy-batched
+    engine answers in one pass -- the phase condition is dropped and only the slab-count
+    condition applies.  The phase limit prices the ladder one point at a time; the batched engine
+    shares its slabs across the energies, so the hybrid strategy, which pays its window search
+    at every energy, is the slower route there by far: 62 s against 0.4 s on 100 energies of a
+    three-flavor, two-resonance profile whose phase estimate (1.05e4, at the lowest energy) sat
+    just above the limit.  The slab-count condition still keeps the full Sun on the hybrid
+    strategy.
 
     Handing the request over skips the hybrid strategy's resolution test, which is also what
     warns about a density jump nobody declared (:class:`UnmarkedDiscontinuityWarning`).  So the
@@ -5903,7 +5919,8 @@ def _auto_prefers_ladder(H_at_energy: Callable, energy_arr: np.ndarray, L_arr: n
     if not tols or min(tols) < AUTO_LADDER_MIN_TOLERANCE:
         return None
     phase, n_floor = _estimated_phase(H_at_energy, energy_arr, L_arr, L0)
-    if (phase > AUTO_LADDER_MAX_PHASE) or (n_floor > AUTO_LADDER_MAX_FLOOR_FRACTION*max_n_slabs):
+    if ((phase > AUTO_LADDER_MAX_PHASE) and not batched_scan) \
+            or (n_floor > AUTO_LADDER_MAX_FLOOR_FRACTION*max_n_slabs):
         return None
     H_lo = H_at_energy(float(np.min(np.asarray(energy_arr, dtype=float))))
     l0, l1 = float(L0), float(np.max(np.asarray(L_arr, dtype=float)))
@@ -6105,9 +6122,16 @@ def _osc_prob_hybrid_dispatch(
 
     # Under strategy='auto', a moderate phase at a loose tolerance goes to the ladder instead: the
     # hybrid strategy's cost does not follow the tolerance, and there it is the slower route by
-    # one to two orders of magnitude (issue #70; see AUTO_LADDER_MAX_PHASE).
+    # one to two orders of magnitude (issue #70; see AUTO_LADDER_MAX_PHASE).  An energy scan the
+    # energy-batched engine will take is handed over whatever its phase (see
+    # _auto_prefers_ladder); the conditions below mirror that engine's own declines.
+    batched_scan = ((np.unique(energy_arr).size > 1) and (np.unique(L_arr).size == 1)
+                    and (scan_kwargs.get('n_jobs', 1) == 1)
+                    and (scan_kwargs.get('verbose', 0) < 1)
+                    and ('separable' not in _ENGINES_DISABLED))
     prefer = (_auto_prefers_ladder(H_at_energy, energy_arr, L_arr, L0, rtol, atol,
-                  _resolve_max_n_slabs(scan_kwargs.get('max_n_slabs'), integration_method))
+                  _resolve_max_n_slabs(scan_kwargs.get('max_n_slabs'), integration_method),
+                  batched_scan=batched_scan)
               if strategy == 'auto' else None)
     if prefer is not None:
         return prefer
@@ -7500,6 +7524,7 @@ def osc_prob_vacuum(
     h_vac_energy_indep: Union[list, np.ndarray]=None,
     average: Optional[bool]=False,
     average_spread: Optional[float]=None,
+    strategy_info: Optional[Dict]=None,
     nubar: Optional[bool]=False, 
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
@@ -7538,7 +7563,7 @@ def osc_prob_vacuum(
     .. versionadded:: 1.0.0
 
     .. versionchanged:: 1.1.1
-       Added ``return_evolution_operator``.
+       Added ``return_evolution_operator`` and ``strategy_info``.
 
     Parameters
     ----------
@@ -7653,6 +7678,16 @@ def osc_prob_vacuum(
         between levels, with the same ``rtol`` and ``atol``, so the returned operator is
         converged in its own right (phases included) and not only in its moduli.  Every
         other setting keeps its meaning.  Default: False.
+    strategy_info : dict, optional
+        If given, filled in place with which engine answered, as for
+        :func:`osc_prob_matter_std_potential`: ``'engine'`` is ``'average'`` for
+        ``average=True``, ``'constant'`` for the one stacked exponential that answers every
+        other request, and ``'magnus'`` when the request goes to the ladder (with
+        ``return_evolution_operator=True``, or a keyword the constant engine does not take).
+        The other keys (``'family'``, ``'certified'``, ``'declined'``, ``'trace'``) have the
+        meaning given there.  Costs nothing when omitted.  Default: None.
+
+        .. versionadded:: 1.1.1
 
     Returns
     -------
@@ -7725,39 +7760,43 @@ def osc_prob_vacuum(
     # Hamiltonian does not depend on position, so it is tried before any of the propagation
     # machinery below, all of which would resolve phases that the average discards (see
     # _avg_prob_dispatch and :mod:`magnus.avgprob`).
-    if return_evolution_operator:
-        # The phase-averaged and scan engines below answer with probabilities only, so the
-        # request goes straight to the ladder, which is the one engine that forms the operator.
-        _check_operator_request(average, None, 'osc_prob_vacuum')
+    # Everything below is dispatch: which engine gets the request.  Watched as a unit so that
+    # strategy_info can report which one answered, as in osc_prob_matter_std_potential; see
+    # _engine_probe.  Costs one list allocation per call when nobody is watching.
+    with _engine_probe(info=strategy_info):
+        if return_evolution_operator:
+            # The phase-averaged and scan engines below answer with probabilities only, so the
+            # request goes straight to the ladder, which is the one engine that forms the operator.
+            _check_operator_request(average, None, 'osc_prob_vacuum')
+            return osc_prob_energy_baseline(htot, energy, L, 0.0, nu_i, nu_f,
+                htot_is_function_only_of_energy, n_jobs=n_jobs, validate_input=validate_input,
+                verbose=verbose, return_evolution_operator=True, **kwargs)
+
+        P_avg = _avg_prob_dispatch(htot, htot_is_function_only_of_energy, energy, L, 0.0,
+            nu_i, nu_f, average, 'osc_prob_vacuum', average_spread=average_spread)
+        if P_avg is not NotImplemented:
+            return P_avg
+
+        # Batched exact path.  The Hamiltonian is position-independent -- which the loop below
+        # already relied on, one point at a time -- so the entire request is a single stacked
+        # exponential: U(E) = exp(-i h_vac(E) (L - 0)).  Vacuum is the most trivially constant case
+        # there is, and it was taking the slowest route available: measured at 18-28 us per energy
+        # against ~1 us here.  A constant (indeed zero) potential is what selects the 'constant'
+        # engine inside the dispatcher, and h_matt is None because there is no matter term at all.
+        P_scan = _osc_prob_scan_separable_dispatch(
+            h_vac_energy_indep, 0.0, None, None, None, energy, L, 0.0, nu_i, nu_f,
+            dict(t_slab_edges=None, n_jobs=n_jobs, save_log=save_log, file_log=file_log,
+                 rtol=None, atol=None, cumulative=None, verbose=verbose, kwargs=kwargs))
+        if P_scan is not NotImplemented:
+            return P_scan
+
+        # Generate the probabilities for all pairs of energy and baseline in zip(energy, L).  (The
+        # Hamiltonian is constant in position, so osc_prob computes each point exactly with a single
+        # slab; the tolerance and refinement parameters play no role and are not forwarded.)
         return osc_prob_energy_baseline(htot, energy, L, 0.0, nu_i, nu_f,
             htot_is_function_only_of_energy, n_jobs=n_jobs, validate_input=validate_input,
-            verbose=verbose, return_evolution_operator=True, **kwargs)
-
-    P_avg = _avg_prob_dispatch(htot, htot_is_function_only_of_energy, energy, L, 0.0, nu_i, nu_f,
-        average, 'osc_prob_vacuum', average_spread=average_spread)
-    if P_avg is not NotImplemented:
-        return P_avg
-
-    # Batched exact path.  The Hamiltonian is position-independent -- which the loop below
-    # already relied on, one point at a time -- so the entire request is a single stacked
-    # exponential: U(E) = exp(-i h_vac(E) (L - 0)).  Vacuum is the most trivially constant case
-    # there is, and it was taking the slowest route available: measured at 18-28 us per energy
-    # against ~1 us here.  A constant (indeed zero) potential is what selects the 'constant'
-    # engine inside the dispatcher, and h_matt is None because there is no matter term at all.
-    P_scan = _osc_prob_scan_separable_dispatch(
-        h_vac_energy_indep, 0.0, None, None, None, energy, L, 0.0, nu_i, nu_f,
-        dict(t_slab_edges=None, n_jobs=n_jobs, save_log=save_log, file_log=file_log,
-             rtol=None, atol=None, cumulative=None, verbose=verbose, kwargs=kwargs))
-    if P_scan is not NotImplemented:
-        return P_scan
-
-    # Generate the probabilities for all pairs of energy and baseline in zip(energy, L).  (The
-    # Hamiltonian is constant in position, so osc_prob computes each point exactly with a single
-    # slab; the tolerance and refinement parameters play no role and are not forwarded.)
-    return osc_prob_energy_baseline(htot, energy, L, 0.0, nu_i, nu_f,
-        htot_is_function_only_of_energy, n_jobs=n_jobs, validate_input=validate_input,
-        verbose=verbose, save_log=save_log, filename_log=filename_log, file_log=file_log,
-        close_file_log_upon_exit=close_file_log_upon_exit, **kwargs)
+            verbose=verbose, save_log=save_log, filename_log=filename_log, file_log=file_log,
+            close_file_log_upon_exit=close_file_log_upon_exit, **kwargs)
 
 
 def osc_prob_matter_std_potential(
@@ -7912,12 +7951,16 @@ def osc_prob_matter_std_potential(
           window search costs the same at any tolerance.  The ladder then runs at a tenth of the
           requested ``rtol`` and ``atol`` (:data:`AUTO_LADDER_TOLERANCE_MARGIN`), without the
           interaction-picture integrator, on slabs narrow enough from its first rung for the
-          Magnus series to converge.  ``strategy_info`` reports the handoff as the hybrid
+          Magnus series to converge.  An energy scan at one baseline that the energy-batched
+          scan will take is handed over whatever its phase (issue #84): that engine shares its
+          slabs across the energies, so the phase limit, which prices the ladder point by point,
+          does not apply to it.  ``strategy_info`` reports the handoff as the hybrid
           declining, with the reason ``'auto prefers the ladder'``; the hybrid's test for a
           density jump nobody declared still runs, with its reason and its warning.
 
         .. versionchanged:: 1.1.1
-           ``'auto'`` hands a moderate phase at a loose tolerance to the ladder (issue #70).
+           ``'auto'`` hands a moderate phase at a loose tolerance to the ladder (issue #70),
+           and an energy scan the energy-batched scan will take at any phase (issue #84).
 
         The hybrid strategy is the natural tool exactly where the plain Magnus refinement needs
         very many slabs (an extreme accumulated phase, e.g., low-energy solar neutrinos crossing
@@ -7970,8 +8013,11 @@ def osc_prob_matter_std_potential(
           returned, so this is ``True`` whenever the engine is ``'hybrid'``; under
           ``'hybrid'`` it can be ``False``, and then it means the accuracy is **unverified**,
           not that the answer is wrong.
-        * ``'declined'`` -- ``[(engine, reason)]`` for the engines that stood aside first.
-          Most requests decline most engines, which is ordinary and not a finding.
+        * ``'declined'`` -- ``[(engine, reason)]`` for the engines that attempted the
+          request and gave up: the adiabatic engine (not certified, the profile not resolved
+          at the probe scale, or, under ``strategy='auto'``, handed to the ladder) and the
+          interaction picture (did not converge).  An engine whose conditions the request does
+          not meet is not listed, so the list is often empty.
         * ``'trace'`` -- every dispatch decision in order, with per-engine detail (for the
           cumulative scan, ``'n_acc'`` and whether it came from a ceiling).
 
@@ -8492,8 +8538,11 @@ def osc_prob_matter_nsi(
           returned, so this is ``True`` whenever the engine is ``'hybrid'``; under
           ``'hybrid'`` it can be ``False``, and then it means the accuracy is **unverified**,
           not that the answer is wrong.
-        * ``'declined'`` -- ``[(engine, reason)]`` for the engines that stood aside first.
-          Most requests decline most engines, which is ordinary and not a finding.
+        * ``'declined'`` -- ``[(engine, reason)]`` for the engines that attempted the
+          request and gave up: the adiabatic engine (not certified, the profile not resolved
+          at the probe scale, or, under ``strategy='auto'``, handed to the ladder) and the
+          interaction picture (did not converge).  An engine whose conditions the request does
+          not meet is not listed, so the list is often empty.
         * ``'trace'`` -- every dispatch decision in order, with per-engine detail (for the
           cumulative scan, ``'n_acc'`` and whether it came from a ceiling).
 
@@ -9009,8 +9058,11 @@ def osc_prob_liv(
           returned, so this is ``True`` whenever the engine is ``'hybrid'``; under
           ``'hybrid'`` it can be ``False``, and then it means the accuracy is **unverified**,
           not that the answer is wrong.
-        * ``'declined'`` -- ``[(engine, reason)]`` for the engines that stood aside first.
-          Most requests decline most engines, which is ordinary and not a finding.
+        * ``'declined'`` -- ``[(engine, reason)]`` for the engines that attempted the
+          request and gave up: the adiabatic engine (not certified, the profile not resolved
+          at the probe scale, or, under ``strategy='auto'``, handed to the ladder) and the
+          interaction picture (did not converge).  An engine whose conditions the request does
+          not meet is not listed, so the list is often empty.
         * ``'trace'`` -- every dispatch decision in order, with per-engine detail (for the
           cumulative scan, ``'n_acc'`` and whether it came from a ceiling).
 

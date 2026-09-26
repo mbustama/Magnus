@@ -86,10 +86,22 @@ def test_a_tight_tolerance_keeps_the_hybrid(tol):
 
 
 def test_a_phase_above_the_threshold_keeps_the_hybrid(monkeypatch):
+    """One energy: an energy scan at a shared baseline is exempt (next test)."""
+    info = {}
+    monkeypatch.setattr(op, 'AUTO_LADDER_MAX_PHASE', 1.0)
+    p3(ENERGIES[:1], rtol=1e-3, atol=1e-3, strategy_info=info)
+    assert info['engine'] == 'hybrid'
+
+
+def test_an_energy_scan_ignores_the_phase_threshold(monkeypatch):
+    """The phase limit prices the ladder point by point; the energy-batched engine shares its
+    slabs across the energies, so an energy scan at one baseline goes to it whatever its
+    phase.  Only the slab-count condition, which keeps the full Sun on the hybrid, applies."""
     info = {}
     monkeypatch.setattr(op, 'AUTO_LADDER_MAX_PHASE', 1.0)
     p3(ENERGIES[:2], rtol=1e-3, atol=1e-3, strategy_info=info)
-    assert info['engine'] == 'hybrid'
+    assert info['engine'] == 'separable'
+    assert declined(info).get('hybrid') == 'auto prefers the ladder'
 
 
 @pytest.mark.parametrize('strategy', ['hybrid', 'magnus'])
