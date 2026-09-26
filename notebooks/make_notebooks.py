@@ -15796,8 +15796,8 @@ LABELS = {('gl',2):'Order 2, G-L', ('gl',4):'Order 4, G-L',
 for k in SERIES:
     col, ls = STYLE[k]
     ax[2].loglog(NS, curves[k], ls=ls, color=col, lw=1.2,
-                 label=r'%s, $N^{%d}$' % (LABELS[k], POWERS[k]))
-ax[2].set_xlabel(r'Slabs along the trajectory, $N$')
+                 label=r'%s, $N_{\rm slabs}^{%d}$' % (LABELS[k], POWERS[k]))
+ax[2].set_xlabel(r'Slabs along the trajectory, $N_{\rm slabs}$')
 ax[2].set_ylabel(r'Max $|\Delta P|$, multiple slabs')
 logx(ax[2]); logy(ax[2]); snug(ax[2], NS)
 ax[2].set_ylim(3.0e-16, 1.0)
