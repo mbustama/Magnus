@@ -14390,14 +14390,15 @@ serve honestly and falls through to the next.'''),
 # than named.  The order is the dispatch order of the three scenario wrappers.
 SLAB = ['#eaf2fb', '#bcd8f3', '#7fb4e6', '#3a86d4', '#1c71d8']
 from matplotlib.patches import Rectangle
-fig, ax = plt.subplots(figsize=(WIDE, 4.3))
-ax.set_xlim(0, 90); ax.set_ylim(0, 100); ax.axis('off')
+fig, ax = plt.subplots(figsize=(WIDE, 4.5))
+# Taller than before: the averaged-probability row has three routes to draw.
+ax.set_xlim(0, 90); ax.set_ylim(0, 104); ax.axis('off')
 X0, X1 = 30.0, 66.0                      # the bar spans the same x in every row
 H = 6.2                                  # bar height
 rows = [
- ('Phase average',         'An average is asked for'),
+ ('Averaged probability',  'An average is asked for'),
  ('Adiabatic $+$ Magnus',  'Smooth profile, a tolerance,\nand it certifies itself'),
- ('Interaction picture',   'Declared exponential, two flavors,\nand its iteration converges'),
+ ('Interaction picture',   'Declared exponential, two flavors,\none baseline, and it converges'),
  ('Constant Hamiltonian',  '$\\mathbb{H}$ does not vary\nalong the trajectory'),
  ('Energy-batched scan',   'Many energies,\none baseline'),
  ('Cumulative scan',       'One energy,\nmany baselines'),
@@ -14409,37 +14410,56 @@ def bar(y, edges, shades, lw=0.7):
     for (a, b), c in zip(edges, shades):
         ax.add_patch(Rectangle((a, y), b-a, H, facecolor=c, edgecolor=INK, lw=lw, zorder=2))
 
+# The averaged-probability row stacks three bars, from y - 0.6 to y + 11.5; its name, its arrow
+# and its condition sit at the middle of the stack rather than at the middle of one bar.
+YMID0 = 5.45
 for i, ((name, when), y) in enumerate(zip(rows, ys)):
+    yc = y + (YMID0 if i == 0 else H/2)
     # The energy-batched row has arrows entering at its left edge, so its name needs
     # more clearance than the others.
-    ax.text(X0-(5.0 if i == 4 else 3.3), y+H/2, name, ha='right', va='center',
+    ax.text(X0-(5.0 if i == 4 else 3.3), yc, name, ha='right', va='center',
             fontsize=8.6, color='black')
     # The ladder row carries the refine arrow just past its bar, so its condition
     # text starts further right than the others'.
-    ax.text(X1+(6.0 if i == 6 else 2.6), y+H/2, when, ha='left', va='center',
-            fontsize=6.6, color=INK)
-    # Every engine takes the neutrino along the path -- the phase average too, which crosses
-    # the same windows the hybrid patches and only tracks no phase between them.  The
+    ax.text(X1+(6.0 if i == 6 else 2.6), yc, when, ha='left', va='center', fontsize=6.6,
+            color=INK)
+    # Every engine takes the neutrino along the path -- the averages too, which cross
+    # the same windows the hybrid patches.  The
     # energy-batched row already has three blue arrows entering at X0, so its black one
     # starts further left rather than hiding behind them.
     bx = X0 - (2.9 if i == 4 else 0.6)
-    ax.annotate('', xy=(bx, y+H/2), xytext=(bx-1.2, y+H/2),
+    ax.annotate('', xy=(bx, yc), xytext=(bx-1.2, yc),
                 arrowprops=dict(arrowstyle='-|>', color=INK, lw=0.8))
     if i == 0:
-        # Two cases of one expression, Eq. (averaged_varying), stacked in the row's space.
+        # The three routes of the averaged-probability engine, stacked in the row's space.
         # Top: one eigenbasis serves the whole path and there is no crossing, so <P> comes in
         # closed form.  Drawn flat and undivided, as the constant-Hamiltonian row below is.
-        # Bottom: H varies -- the eigenbases at the two ends and a Magnus patch at each
-        # crossing between them.  In both, each phase is kept, weighted by its spread (the
-        # phase average).
-        # Taller than half a row each, using the free space under the title, with a clear
-        # gap between them so they read as two cases rather than one striped bar.
+        # Middle: the profile declares discontinuities (see below).
+        # Bottom: H varies smoothly -- the eigenbases at the two ends and a Magnus patch at
+        # each crossing between them.  Top and bottom keep each phase, weighted by its spread
+        # (the phase average).  Clear gaps between the bars, so that they read as three cases
+        # rather than one striped bar.
         h2, gap = 3.3, 1.1
         yb = y - 0.6
-        yt = yb + h2 + gap
+        yw = yb + h2 + gap                       # the energy-window route
+        yt = yw + h2 + gap                       # the closed form
         ax.add_patch(Rectangle((X0, yt), X1-X0, h2, facecolor=SLAB[2], edgecolor=INK,
                                lw=0.7, zorder=2))
         ax.text((X0+X1)/2, yt+h2/2, r'$\langle P\rangle$ from one eigenbasis, in closed form',
+                ha='center', va='center', fontsize=6.4, color='white', zorder=5)
+        # Third case: the profile declares discontinuities, so there is no instantaneous
+        # eigenbasis to transport along.  The probability is computed at several energies
+        # across a window and averaged -- a different quantity from the other two, which is
+        # why it is drawn with its jumps rather than as a smooth gradient.
+        # The jumps sit near the ends of the bar, clear of its label.
+        steps = [X0, X0+0.09*(X1-X0), X0+0.91*(X1-X0), X1]
+        for (l, r), c in zip(zip(steps[:-1], steps[1:]), [SLAB[4], SLAB[2], SLAB[3]]):
+            ax.add_patch(Rectangle((l, yw), r-l, h2, facecolor=c, edgecolor='none', zorder=2))
+        ax.add_patch(Rectangle((X0, yw), X1-X0, h2, fill=False, edgecolor=INK, lw=0.7, zorder=3))
+        for xj in steps[1:-1]:
+            ax.plot([xj, xj], [yw, yw+h2], color='black', lw=1.4, zorder=4)
+        ax.text((X0+X1)/2, yw+h2/2,
+                r'Declared jumps: $P$ averaged over energies',
                 ha='center', va='center', fontsize=6.4, color='white', zorder=5)
         n = 60; e = np.linspace(X0, X1, n+1)
         g = plt.cm.Blues(np.linspace(0.75, 0.15, n))
@@ -14475,7 +14495,8 @@ for i, ((name, when), y) in enumerate(zip(rows, ys)):
         ax.add_patch(Rectangle((X0, y), X1-X0, H, fill=False, edgecolor=INK, lw=0.7, zorder=3))
         xs = np.linspace(X0+1, X1-1, 300)
         ax.plot(xs, y+H/2 + 1.5*np.sin((xs-X0)*1.5), color='white', lw=0.9, zorder=5)
-        ax.text((X0+X1)/2, y-1.6, r'Vacuum phase removed analytically, then one Magnus pass',
+        ax.text((X0+X1)/2, y-1.6,
+                r'Vacuum phase removed analytically; slabs refined until two passes agree',
                 ha='center', va='top', fontsize=6.4, color=INK)
     elif i == 3:                                 # nothing to compose: one exponential
         # The series terminates at its first term when H does not vary, so the whole
@@ -14522,7 +14543,7 @@ for i, ((name, when), y) in enumerate(zip(rows, ys)):
 
 # The order they are tried in, drawn once in the margin: down the middle it crossed
 # every bar and collided with the notes under rows 1, 3 and 5.
-ax.annotate('', xy=(6.0, ys[-1]-1.0), xytext=(6.0, ys[0]+H+1.0),
+ax.annotate('', xy=(6.0, ys[-1]-1.0), xytext=(6.0, ys[0]+12.5),
             arrowprops=dict(arrowstyle='-|>', color='black', lw=1.2))
 ax.text(3.2, (ys[0]+ys[-1])/2 + H/2, 'Tried in this order; each falls through to the next',
         rotation=90, ha='center', va='center', fontsize=7.0, color='black')
@@ -14553,7 +14574,7 @@ refine_arrow.xy = tuple(ax.transData.inverted().transform((end[0], end[1] - shor
 fig.canvas.draw()
 content = fig.get_tightbbox(fig.canvas.get_renderer())          # inches
 x_mid = ax.transData.inverted().transform(((content.x0 + content.x1)/2*fig.dpi, 0.0))[0]
-ax.text(x_mid, 98.6, r'How Mag$\nu$s answers a call: the seven engines, in dispatch order',
+ax.text(x_mid, 102.6, r'How Mag$\nu$s answers a call: the seven engines, in dispatch order',
         ha='center', va='center', fontsize=9.4, color='black')
 save(fig, 'strategies.pdf')'''),
 
