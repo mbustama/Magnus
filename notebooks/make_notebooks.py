@@ -20143,8 +20143,8 @@ ax.legend([h_dot, (h_sq, h_tr)],
 # Which profile these eight rows were priced on, said inside the panel so the figure
 # carries it without the caption.
 ax.text(0.030, 0.975, r'Sun (BS2005-AGS,OP)', transform=ax.transAxes,
-        ha='left', va='top', fontsize=7.5, color=INK, zorder=6,
-        bbox=dict(boxstyle='round,pad=0.35', fc='white', ec=INK, lw=0.6))
+        ha='left', va='top', fontsize=7.5, color='black', zorder=6,
+        bbox=dict(boxstyle='round,pad=0.35', fc='white', ec='black', lw=0.6))
 fig.tight_layout(pad=0.6)
 save(fig, 'solar_average_cost.pdf')'''),
     md(r'''## Figure 11 --- what asking for more workers buys
@@ -20223,8 +20223,8 @@ def workers_panel(ax):
 def corner_label(ax, text):
     r"""The rounded label naming the chord, in the top left corner of a panel."""
     return ax.text(0.030, 0.962, text, transform=ax.transAxes, ha='left', va='top',
-                   fontsize=7.8, color=INK, zorder=6,
-                   bbox=dict(boxstyle='round,pad=0.35', fc='white', ec=INK, lw=0.6))
+                   fontsize=7.8, color='black', zorder=6,
+                   bbox=dict(boxstyle='round,pad=0.35', fc='white', ec='black', lw=0.6))
 
 
 # What the knob costs where a caller most often reaches for it: one baseline shared by
