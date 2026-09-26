@@ -19665,8 +19665,8 @@ if NMISS:
 logx(ax); logy(ax)
 ax.set_xlabel(r'Supernova shock front width [km]', labelpad=2.0)
 ax.set_ylabel(r'Time per probability at $|\Delta P| \leq 10^{-7}$ [ms]', labelpad=2.0)
-ax.set_xlim(0.045, 1.35e3)
-ax.set_ylim(0.28, 108.0)
+ax.set_xlim(0.045, 1.0e3)
+ax.set_ylim(0.28, 1.0e2)
 ax.grid(True, which='major', color=GRID, lw=0.5)
 ax.set_axisbelow(True)
 
@@ -19687,10 +19687,10 @@ sec.xaxis.set_minor_formatter(FuncFormatter(lambda *_: ''))
 ax.legend(loc='lower left', bbox_to_anchor=(0.0, 1.135, 1.0, 0.10), mode='expand',
           ncol=2, handlelength=1.7, columnspacing=0.9, handletextpad=0.5,
           labelspacing=0.3, borderaxespad=0.0, fontsize=7.2)
-# Which profile the four curves were priced on, in the top right corner.
-ax.text(0.972, 0.962, r'SN shock, $15$~MeV', transform=ax.transAxes,
-        ha='right', va='top', fontsize=7.8, color=INK, zorder=7,
-        bbox=dict(boxstyle='round,pad=0.35', fc='white', ec=INK, lw=0.6))
+# Which profile the four curves were priced on, in the top left corner.
+ax.text(0.028, 0.962, r'SN shock, $15$~MeV', transform=ax.transAxes,
+        ha='left', va='top', fontsize=7.8, color='black', zorder=7,
+        bbox=dict(boxstyle='round,pad=0.35', fc='white', ec='black', lw=0.6))
 fig.tight_layout(pad=0.4)
 save(fig, 'shock_cost.pdf')'''),
     md(r'''## Figure 9 --- six codes through the Earth
