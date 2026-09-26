@@ -431,7 +431,7 @@ A growth-rule fix was tried instead -- enlarging ``n_slabs`` so that the *edge* 
 ``growth_factor_n_slabs`` -- and **rejected on measurement**: it left two of the six misses in
 place and cost slightly more (median 22 slabs against 21).
 
-**The energy-batched engine** (:func:`_osc_prob_scan_separable`) applies the same bound, on
+**The energy-batched engine** (``_osc_prob_scan_separable``) applies the same bound, on
 grids with breakpoints only, measuring refinement as grid points times points per slab so that
 the quadrature methods' growth in points per slab counts too.  There it carries both fixes: the
 bound decides which agreements count, and the growth rule, rejected above as a *substitute* for
