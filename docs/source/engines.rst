@@ -219,15 +219,16 @@ numerical one -- but a user scanning N and watching their answer move by five or
 magnitude in accuracy will otherwise assume something is broken.
 
 **Seeing which engine answered.** The fallbacks are silent by design: they happen on
-ordinary calls and warning about them would be noise. Pass ``strategy_info`` to any of the
-three scenario wrappers to see the route without changing it::
+ordinary calls and warning about them would be noise. Pass ``strategy_info`` to any scenario
+function or wrapper, or to :func:`~magnus.oscprob.osc_prob_earth` or
+:func:`~magnus.oscprob.osc_prob_sun`, to see the route without changing it::
 
     info = {}
     P = oscprob.osc_prob_matter_std_potential(..., strategy_info=info)
     info['engine']      # 'hybrid', 'ip_exp', 'separable', 'constant',
                         # 'cumulative', 'magnus' or 'average'
     info['certified']   # for the hybrid strategy
-    info['declined']    # [(engine, why it stood aside)]
+    info['declined']    # [(engine, why it gave up)], for engines that tried
 
 This is the answer to "why did my result move?" and "why did this call get slow?", both of
 which were previously unanswerable from outside the package.

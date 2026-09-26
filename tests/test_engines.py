@@ -669,3 +669,41 @@ def test_constant_appears_in_the_cross_check_tables():
         if label != 'constant':
             assert 'constant' in forbid, (
                 "%r does not forbid 'constant', so forcing it cannot work" % label)
+
+
+# ----------------------------------------------------------------------
+# strategy_info in vacuum
+# ----------------------------------------------------------------------
+
+def _vacuum(**kw):
+    return op.osc_prob_vacuum(3, np.array([0.5e9, 1.0e9, 2.0e9]), 1300.0*gd.UNIT_KM,
+                              PARAMS_3NU, **kw)
+
+
+def test_strategy_info_in_vacuum_names_each_engine():
+    """Vacuum reaches three engines, and strategy_info names each, as it does in matter."""
+    for kw, engine in ((dict(), 'constant'),
+                       (dict(average=True), 'average'),
+                       (dict(return_evolution_operator=True), 'magnus'),
+                       (dict(verbose=1), 'magnus')):
+        info = {}
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            _vacuum(strategy_info=info, **kw)
+        assert info['engine'] == engine, kw
+        assert info['family'] == op.ENGINE_FAMILIES[engine]
+        assert info['declined'] == []
+
+
+def test_strategy_info_in_vacuum_reaches_the_wrappers():
+    """The wrappers forward **kwargs to osc_prob_vacuum, which used to reject the keyword."""
+    for wrapper, kw in ((op.osc_prob_2nu_vacuum, PARAMS_2NU), (op.osc_prob_3nu_vacuum, {}),
+                        (op.osc_prob_4nu_vacuum, {}), (op.osc_prob_5nu_vacuum, {})):
+        info = {}
+        wrapper(1.0e9, 1300.0*gd.UNIT_KM, strategy_info=info, **kw)
+        assert info['engine'] == 'constant', wrapper.__name__
+
+
+def test_strategy_info_in_vacuum_is_free_and_optional():
+    """Watching must not move the answer, in vacuum as in matter."""
+    assert maxabs(np.asarray(_vacuum()) - np.asarray(_vacuum(strategy_info={}))) == 0.0

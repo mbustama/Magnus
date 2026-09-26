@@ -9,6 +9,13 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **`strategy_info` in vacuum.** `osc_prob_vacuum` and its wrappers
+  (`osc_prob_{2,3,4,5}nu_vacuum`) accept `strategy_info`, as every other
+  scenario function does; before, passing it raised `ValueError` (unrecognized
+  keyword).  It reports `'average'`, `'constant'` or `'magnus'`.  The
+  description of `'declined'` now says what it lists: engines that attempted the
+  request and gave up, not every engine that did not apply.
+
 - **The phase average**, in `magnus.avgprob`:
   `phase_averaged_probabilities_constant_hamiltonian` and
   `phase_averaged_probabilities_adiabatic` (issue #64).  Every interference

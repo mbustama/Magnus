@@ -7500,6 +7500,7 @@ def osc_prob_vacuum(
     h_vac_energy_indep: Union[list, np.ndarray]=None,
     average: Optional[bool]=False,
     average_spread: Optional[float]=None,
+    strategy_info: Optional[Dict]=None,
     nubar: Optional[bool]=False, 
     nu_i: Optional[int]=None, 
     nu_f: Optional[int]=None,
@@ -7538,7 +7539,7 @@ def osc_prob_vacuum(
     .. versionadded:: 1.0.0
 
     .. versionchanged:: 1.1.1
-       Added ``return_evolution_operator``.
+       Added ``return_evolution_operator`` and ``strategy_info``.
 
     Parameters
     ----------
@@ -7653,6 +7654,16 @@ def osc_prob_vacuum(
         between levels, with the same ``rtol`` and ``atol``, so the returned operator is
         converged in its own right (phases included) and not only in its moduli.  Every
         other setting keeps its meaning.  Default: False.
+    strategy_info : dict, optional
+        If given, filled in place with which engine answered, as for
+        :func:`osc_prob_matter_std_potential`: ``'engine'`` is ``'average'`` for
+        ``average=True``, ``'constant'`` for the one stacked exponential that answers every
+        other request, and ``'magnus'`` when the request goes to the ladder (with
+        ``return_evolution_operator=True``, or a keyword the constant engine does not take).
+        The other keys (``'family'``, ``'certified'``, ``'declined'``, ``'trace'``) have the
+        meaning given there.  Costs nothing when omitted.  Default: None.
+
+        .. versionadded:: 1.1.1
 
     Returns
     -------
@@ -7725,39 +7736,43 @@ def osc_prob_vacuum(
     # Hamiltonian does not depend on position, so it is tried before any of the propagation
     # machinery below, all of which would resolve phases that the average discards (see
     # _avg_prob_dispatch and :mod:`magnus.avgprob`).
-    if return_evolution_operator:
-        # The phase-averaged and scan engines below answer with probabilities only, so the
-        # request goes straight to the ladder, which is the one engine that forms the operator.
-        _check_operator_request(average, None, 'osc_prob_vacuum')
+    # Everything below is dispatch: which engine gets the request.  Watched as a unit so that
+    # strategy_info can report which one answered, as in osc_prob_matter_std_potential; see
+    # _engine_probe.  Costs one list allocation per call when nobody is watching.
+    with _engine_probe(info=strategy_info):
+        if return_evolution_operator:
+            # The phase-averaged and scan engines below answer with probabilities only, so the
+            # request goes straight to the ladder, which is the one engine that forms the operator.
+            _check_operator_request(average, None, 'osc_prob_vacuum')
+            return osc_prob_energy_baseline(htot, energy, L, 0.0, nu_i, nu_f,
+                htot_is_function_only_of_energy, n_jobs=n_jobs, validate_input=validate_input,
+                verbose=verbose, return_evolution_operator=True, **kwargs)
+
+        P_avg = _avg_prob_dispatch(htot, htot_is_function_only_of_energy, energy, L, 0.0,
+            nu_i, nu_f, average, 'osc_prob_vacuum', average_spread=average_spread)
+        if P_avg is not NotImplemented:
+            return P_avg
+
+        # Batched exact path.  The Hamiltonian is position-independent -- which the loop below
+        # already relied on, one point at a time -- so the entire request is a single stacked
+        # exponential: U(E) = exp(-i h_vac(E) (L - 0)).  Vacuum is the most trivially constant case
+        # there is, and it was taking the slowest route available: measured at 18-28 us per energy
+        # against ~1 us here.  A constant (indeed zero) potential is what selects the 'constant'
+        # engine inside the dispatcher, and h_matt is None because there is no matter term at all.
+        P_scan = _osc_prob_scan_separable_dispatch(
+            h_vac_energy_indep, 0.0, None, None, None, energy, L, 0.0, nu_i, nu_f,
+            dict(t_slab_edges=None, n_jobs=n_jobs, save_log=save_log, file_log=file_log,
+                 rtol=None, atol=None, cumulative=None, verbose=verbose, kwargs=kwargs))
+        if P_scan is not NotImplemented:
+            return P_scan
+
+        # Generate the probabilities for all pairs of energy and baseline in zip(energy, L).  (The
+        # Hamiltonian is constant in position, so osc_prob computes each point exactly with a single
+        # slab; the tolerance and refinement parameters play no role and are not forwarded.)
         return osc_prob_energy_baseline(htot, energy, L, 0.0, nu_i, nu_f,
             htot_is_function_only_of_energy, n_jobs=n_jobs, validate_input=validate_input,
-            verbose=verbose, return_evolution_operator=True, **kwargs)
-
-    P_avg = _avg_prob_dispatch(htot, htot_is_function_only_of_energy, energy, L, 0.0, nu_i, nu_f,
-        average, 'osc_prob_vacuum', average_spread=average_spread)
-    if P_avg is not NotImplemented:
-        return P_avg
-
-    # Batched exact path.  The Hamiltonian is position-independent -- which the loop below
-    # already relied on, one point at a time -- so the entire request is a single stacked
-    # exponential: U(E) = exp(-i h_vac(E) (L - 0)).  Vacuum is the most trivially constant case
-    # there is, and it was taking the slowest route available: measured at 18-28 us per energy
-    # against ~1 us here.  A constant (indeed zero) potential is what selects the 'constant'
-    # engine inside the dispatcher, and h_matt is None because there is no matter term at all.
-    P_scan = _osc_prob_scan_separable_dispatch(
-        h_vac_energy_indep, 0.0, None, None, None, energy, L, 0.0, nu_i, nu_f,
-        dict(t_slab_edges=None, n_jobs=n_jobs, save_log=save_log, file_log=file_log,
-             rtol=None, atol=None, cumulative=None, verbose=verbose, kwargs=kwargs))
-    if P_scan is not NotImplemented:
-        return P_scan
-
-    # Generate the probabilities for all pairs of energy and baseline in zip(energy, L).  (The
-    # Hamiltonian is constant in position, so osc_prob computes each point exactly with a single
-    # slab; the tolerance and refinement parameters play no role and are not forwarded.)
-    return osc_prob_energy_baseline(htot, energy, L, 0.0, nu_i, nu_f,
-        htot_is_function_only_of_energy, n_jobs=n_jobs, validate_input=validate_input,
-        verbose=verbose, save_log=save_log, filename_log=filename_log, file_log=file_log,
-        close_file_log_upon_exit=close_file_log_upon_exit, **kwargs)
+            verbose=verbose, save_log=save_log, filename_log=filename_log, file_log=file_log,
+            close_file_log_upon_exit=close_file_log_upon_exit, **kwargs)
 
 
 def osc_prob_matter_std_potential(
@@ -7970,8 +7985,11 @@ def osc_prob_matter_std_potential(
           returned, so this is ``True`` whenever the engine is ``'hybrid'``; under
           ``'hybrid'`` it can be ``False``, and then it means the accuracy is **unverified**,
           not that the answer is wrong.
-        * ``'declined'`` -- ``[(engine, reason)]`` for the engines that stood aside first.
-          Most requests decline most engines, which is ordinary and not a finding.
+        * ``'declined'`` -- ``[(engine, reason)]`` for the engines that attempted the
+          request and gave up: the adiabatic engine (not certified, the profile not resolved
+          at the probe scale, or, under ``strategy='auto'``, handed to the ladder) and the
+          interaction picture (did not converge).  An engine whose conditions the request does
+          not meet is not listed, so the list is often empty.
         * ``'trace'`` -- every dispatch decision in order, with per-engine detail (for the
           cumulative scan, ``'n_acc'`` and whether it came from a ceiling).
 
@@ -8492,8 +8510,11 @@ def osc_prob_matter_nsi(
           returned, so this is ``True`` whenever the engine is ``'hybrid'``; under
           ``'hybrid'`` it can be ``False``, and then it means the accuracy is **unverified**,
           not that the answer is wrong.
-        * ``'declined'`` -- ``[(engine, reason)]`` for the engines that stood aside first.
-          Most requests decline most engines, which is ordinary and not a finding.
+        * ``'declined'`` -- ``[(engine, reason)]`` for the engines that attempted the
+          request and gave up: the adiabatic engine (not certified, the profile not resolved
+          at the probe scale, or, under ``strategy='auto'``, handed to the ladder) and the
+          interaction picture (did not converge).  An engine whose conditions the request does
+          not meet is not listed, so the list is often empty.
         * ``'trace'`` -- every dispatch decision in order, with per-engine detail (for the
           cumulative scan, ``'n_acc'`` and whether it came from a ceiling).
 
@@ -9009,8 +9030,11 @@ def osc_prob_liv(
           returned, so this is ``True`` whenever the engine is ``'hybrid'``; under
           ``'hybrid'`` it can be ``False``, and then it means the accuracy is **unverified**,
           not that the answer is wrong.
-        * ``'declined'`` -- ``[(engine, reason)]`` for the engines that stood aside first.
-          Most requests decline most engines, which is ordinary and not a finding.
+        * ``'declined'`` -- ``[(engine, reason)]`` for the engines that attempted the
+          request and gave up: the adiabatic engine (not certified, the profile not resolved
+          at the probe scale, or, under ``strategy='auto'``, handed to the ladder) and the
+          interaction picture (did not converge).  An engine whose conditions the request does
+          not meet is not listed, so the list is often empty.
         * ``'trace'`` -- every dispatch decision in order, with per-engine detail (for the
           cumulative scan, ``'n_acc'`` and whether it came from a ceiling).
 
