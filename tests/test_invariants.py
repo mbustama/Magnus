@@ -6,10 +6,12 @@ these are the properties a seam cannot break without being noticed.  None of the
 reference solution, which is what makes them cheap enough to run here rather than only in a
 battery.
 
-**Two of them are exact and the rest are not, and the difference is the point.**  Reordering
-baselines or distributing points over workers must not change a single bit -- there is no
-numerical reason for it to.  ``strategy='auto'`` and ``strategy='magnus'`` *are* different
-methods and will differ; the work is choosing how much, per invariant, from a measured
+**Some of them are exact and the rest are not, and the difference is the point.**  Reordering
+baselines or repeating a call must not change a single bit -- there is no numerical reason for
+it to.  Distributing points over workers *does* change bits, because each worker warm-starts
+from the first point rather than from its neighbour; that one is held to the tolerance.
+``strategy='auto'`` and ``strategy='magnus'`` *are* different methods and will differ; the
+work is choosing how much, per invariant, from a measured
 distribution rather than from a guess.  The bounds below come from
 ``docs/dev/adversarial_batteries/invariants.py``, which sweeps 60 configurations (5 profile
 families x d in {2,3} x 2 energies x N in {1, 8, 30}); each test's docstring records what that
@@ -83,18 +85,66 @@ def test_shuffled_baselines_give_identical_results(profile, d, energy):
 
 
 @pytest.mark.parametrize('profile,d,energy', MATRIX)
-def test_parallel_points_give_identical_results(profile, d, energy):
-    """Measured over 60 configurations: 0.00e+00 every time.  The warm start carries state
-    from point to point, so this is the invariant that would break first if it were carried
-    wrongly across workers."""
+def test_baseline_scan_does_not_depend_on_n_jobs(profile, d, energy):
+    """A scan over baselines at one energy is answered by the cumulative scan, which runs in one
+    process whatever ``n_jobs`` says, so the answer is identical bit for bit.
+
+    This is *not* a test of parallelism: no worker is started.  It used to be named as one
+    (``test_parallel_points_give_identical_results``), and the paper cited it for a claim that
+    a parallel run is bit-identical to a serial one, which is not true -- see
+    ``test_parallel_scan_agrees_with_serial_to_the_tolerance`` below.  The engine is asserted
+    so that the test says what it exercises."""
     Ls = np.linspace(0.05*L1, L1, 12)
-    assert maxabs(call(profile, d, energy, Ls) - call(profile, d, energy, Ls, n_jobs=2)) == 0.0
+    info_serial, info_parallel = {}, {}
+    P_serial = call(profile, d, energy, Ls, strategy_info=info_serial)
+    P_parallel = call(profile, d, energy, Ls, n_jobs=2, strategy_info=info_parallel)
+    assert info_serial['engine'] == info_parallel['engine'] == 'cumulative'
+    assert maxabs(P_serial - P_parallel) == 0.0
 
 
 @pytest.mark.parametrize('profile,d,energy', MATRIX)
 def test_repeated_calls_are_bit_identical(profile, d, energy):
     Ls = np.linspace(0.05*L1, L1, 8)
     assert maxabs(call(profile, d, energy, Ls) - call(profile, d, energy, Ls)) == 0.0
+
+
+# ----------------------------------------------------------------------
+# parallel against serial: equal to the tolerance, not bit for bit
+# ----------------------------------------------------------------------
+
+@pytest.mark.parametrize('profile,d,energy', MATRIX)
+def test_parallel_scan_agrees_with_serial_to_the_tolerance(profile, d, energy, monkeypatch):
+    """A scan that no batched engine accepts -- every energy with its own baseline, on the
+    general ladder -- computed serially and with two workers.
+
+    Not bit for bit, and it should not be: a serial scan warm-starts each point from its
+    neighbour, a parallel one warm-starts every point from the first, and a ladder that starts
+    on a different rung can stop on a different rung.  So the two agree to the tolerance, not
+    to the last bit.  Measured on these four configurations at rtol = atol = 1e-6: at most
+    1.1e-07 apart.  At the default 1e-3 the gap reached 3.5e-03 -- above the tolerance, which is
+    a stopping criterion rather than a bound -- so the test runs at 1e-6, where the bound below
+    has a factor of ten of room over what was measured.
+
+    Parallelism is asserted, not assumed: joblib's ``Parallel`` is wrapped to count its calls,
+    because a scan that quietly went to a single-process engine would pass any comparison."""
+    started = []
+
+    class CountingParallel(op.Parallel):
+        def __call__(self, iterable):
+            started.append(self.n_jobs)
+            return super().__call__(iterable)
+
+    monkeypatch.setattr(op, 'Parallel', CountingParallel)
+    energies = energy*np.linspace(0.8, 1.25, 8)
+    Ls = np.linspace(0.3*L1, L1, 8)
+    kw = dict(strategy='magnus', rtol=1e-6, atol=1e-6)
+    info_serial, info_parallel = {}, {}
+    P_serial = call(profile, d, energies, Ls, strategy_info=info_serial, **kw)
+    assert started == []
+    P_parallel = call(profile, d, energies, Ls, n_jobs=2, strategy_info=info_parallel, **kw)
+    assert started == [2], 'the parallel path was not taken'
+    assert info_serial['engine'] == info_parallel['engine'] == 'magnus'
+    assert maxabs(P_serial - P_parallel) < 1e-5
 
 
 # ----------------------------------------------------------------------
