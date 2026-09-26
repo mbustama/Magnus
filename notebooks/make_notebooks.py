@@ -14890,6 +14890,192 @@ brace(X1 + 0.28, YC - 0.75, 7.75, 'Batching')
 brace(X1 + 0.28, YD[-1] - 0.22, 2.85, 'Parallelization')
 
 save(fig, 'batching.pdf')'''),
+    md(r'''## Figure 1f --- declaring the structure of a profile (Sec. 5.6)
+
+A schematic, not a measurement. One density profile with a discontinuity, and three grids
+along it, each with the slabs at the discontinuity enlarged: nothing declared, where one slab
+straddles the discontinuity and the quadrature smooths the step over; `t_breakpoints`, where
+the ladder keeps an edge at the discontinuity at every refinement level; and `t_slab_edges`,
+where the user's grid is evaluated once and never refined.'''),
+    code(r'''# ------------------------------------------- declaring the structure of a profile (Sec. 5.6)
+# A schematic, not a measurement.  One profile with a density jump, and three ways of placing
+# slab edges along it, each with the slabs at the jump enlarged:
+# (a) nothing declared: on the ladder's own uniform grid one slab straddles the jump, and the
+#     quadrature, sampling H at its nodes on either side, treats the step as smooth;
+# (b) t_breakpoints: the ladder's grid changes from level to level, but an edge stays at the
+#     jump, so every slab lies on one smooth piece;
+# (c) t_slab_edges: the user's grid, evaluated once and never refined; right when it has an edge at
+#     the jump (a grid that misses one is left wrong, with nothing to repair it).
+# The dashed coloured line in each enlargement is what the order-4 rule integrates exactly: an H that is
+# linear across the slab, through its values at the two Gauss-Legendre nodes.
+from matplotlib.patches import Rectangle, Polygon
+
+C_BAD, C_BP, C_USER = RED, BLUE, PURPLE
+
+fig, ax = plt.subplots(figsize=(COL, 4.85))
+ax.set_axis_off()
+X0, X1 = 2.3, 9.85                                       # the path, in axis units
+XJ = X0 + 0.3713*(X1 - X0)                               # the density jump
+ZX0, ZX1 = 4.2, 9.85                                     # the enlargements, horizontally
+ax.set_xlim(0.0, 10.0)
+ax.set_ylim(3.75, 19.0)
+GL = np.array([0.5 - np.sqrt(3.0)/6.0, 0.5 + np.sqrt(3.0)/6.0])   # order-4 nodes, on [0, 1]
+
+
+def rho(x):
+    """Density along the path, in [0, 1]: smooth on either side of one jump."""
+    s = (np.asarray(x) - X0)/(X1 - X0)
+    return np.where(np.asarray(x) < XJ, 0.22, 0.72) + 0.12*np.sin(3.0*s)
+
+
+def lane(y, edges, color, h=0.34, edge_color=None, highlight=None, mark_jump=False):
+    """A grid: a bar cut at `edges`.  `highlight` outlines one slab in red; `mark_jump` draws
+    the edge at the jump thick."""
+    for a, b in zip(edges[:-1], edges[1:]):
+        ax.add_patch(Rectangle((a, y - h/2), b - a, h, facecolor=color, alpha=0.30,
+                               edgecolor=color, lw=0.5, zorder=3))
+    for a in edges[1:-1]:
+        ax.plot([a, a], [y - h/2, y + h/2], color=edge_color or color, lw=0.6, zorder=4)
+    if mark_jump:
+        ax.plot([XJ, XJ], [y - h/2 - 0.03, y + h/2 + 0.03], color=color, lw=1.5, zorder=6)
+    if highlight is not None:
+        a, b = edges[highlight], edges[highlight + 1]
+        ax.add_patch(Rectangle((a, y - h/2), b - a, h, fill=False, edgecolor=C_BAD, lw=1.2,
+                               zorder=6))
+
+
+def row_title(y, tag, title, note):
+    ax.text(0.0, y, r'\textbf{(%s)}\ %s' % (tag, title), ha='left', va='bottom',
+            fontsize=7.6, color=INK)
+    ax.text(X1, y, note, ha='right', va='bottom', fontsize=6.4, color='0.35')
+
+
+# Labels drawn over lines and shading carry a white outline, so they stay legible.
+HALO = [pe.withStroke(linewidth=2.2, foreground='white')]
+
+def pointer(x_tip, y, label, color, fontsize, offset=0.24, sep=0.2, **kw):
+    """A label with a filled triangle to its left, pointing at x_tip from `offset` to its right
+    (clear of any line drawn at x_tip); the label starts `sep` beyond the triangle.  The triangle
+    is centred on the label's rendered height, which is only known once the label is drawn."""
+    t = ax.text(x_tip + offset + sep, y, label, ha='left', va='center', fontsize=fontsize,
+                color=color, zorder=8, **kw)
+    fig.canvas.draw()
+    bb = t.get_window_extent().transformed(ax.transData.inverted())
+    ax.plot(x_tip + offset, 0.5*(bb.y0 + bb.y1), marker='<', ms=4.5, color=color, zorder=8)
+
+
+# Every enlargement shows the same stretch of the path, so that the discontinuity sits at the
+# same place in all three boxes.
+WA, WB = XJ - 0.49, XJ + 0.74
+
+
+def enlarge(y_lane, grid, focus, zy0, zy1, color, title, text, h=0.34, breakpoint=False,
+            labels=False):
+    """Enlarge the stretch [WA, WB] of a grid into a box from zy0 to zy1: the true density, a
+    thin line at every slab edge, the discontinuity (dashed), and for each slab in `focus`
+    (indices into `grid`) its two node samples and the straight line through them, with the
+    misrepresented area shaded.  `labels` names the slab edge and the quadrature nodes."""
+    wa, wb = WA, WB
+    ax.add_patch(Polygon([[wa, y_lane - h/2], [wb, y_lane - h/2], [ZX1, zy1], [ZX0, zy1]],
+                         closed=True, facecolor=color, alpha=0.16, edgecolor='none', zorder=1))
+    ax.add_patch(Rectangle((ZX0, zy0), ZX1 - ZX0, zy1 - zy0, fill=False, edgecolor=color,
+                           lw=0.8, zorder=4))
+
+    def zx(x):
+        return ZX0 + (np.asarray(x) - wa)/(wb - wa)*(ZX1 - ZX0)
+
+    def zy(r):
+        return zy0 + 0.15 + (zy1 - zy0 - 0.5)*(np.asarray(r) - 0.1)/0.8
+
+    # The true density, each side of the discontinuity drawn on its own, joined by the step.
+    for lo, hi in ((wa, XJ - 1e-9), (XJ + 1e-9, wb)):
+        xs_t = np.linspace(lo, hi, 300)
+        ax.plot(zx(xs_t), zy(rho(xs_t)), color=INK, lw=1.0, zorder=5)
+    ax.plot([zx(XJ)]*2, [zy(rho(XJ - 1e-9)), zy(rho(XJ + 1e-9))], color=INK, lw=1.0, zorder=5)
+    for k in focus:
+        sa, sb = grid[k], grid[k + 1]
+        xs_s = np.linspace(sa, sb, 300)
+        r_true = rho(np.clip(xs_s, sa + 1e-9, sb - 1e-9)) if XJ in (sa, sb) else rho(xs_s)
+        nodes = sa + (sb - sa)*GL
+        rn = rho(nodes)
+        seen = rn[0] + (rn[1] - rn[0])/(nodes[1] - nodes[0])*(xs_s - nodes[0])
+        ax.fill_between(zx(xs_s), zy(r_true), zy(seen), color=color, alpha=0.18, lw=0, zorder=4)
+        ax.plot(zx(xs_s), zy(seen), color=color, lw=0.9, ls=(0, (3, 2)), zorder=6)
+        ax.plot(zx(nodes), zy(rn), 'o', ms=3.2, color=color, zorder=7)
+    for e in grid:                                       # every slab edge in view
+        if wa < e < wb:
+            ax.plot([zx(e)]*2, [zy0, zy1], color=color, lw=0.6, zorder=4)
+    ax.plot([zx(XJ)]*2, [zy0, zy1], color='0.55', lw=0.6, ls=(0, (2, 2)), zorder=6)
+    if labels:
+        e_left = min(e for e in grid if wa < e < wb)
+        ax.text(zx(e_left) - 0.2, 0.5*(zy0 + zy1), 'Slab edge', rotation=90, ha='center',
+                va='center', fontsize=6.0, color=color, zorder=8, path_effects=HALO)
+        k = focus[0]
+        xn = (grid[k] + (grid[k + 1] - grid[k])*GL)[1]  # the second node
+        ax.annotate('Quadrature node', xy=(zx(xn), zy(rho(xn))),
+                    xytext=(zx(grid[k + 1]) - 0.1, zy(rho(xn)) - 0.75), ha='right', va='center',
+                    fontsize=6.0, color=color, path_effects=HALO,
+                    arrowprops=dict(arrowstyle='-', lw=0.5, color=color, shrinkA=1,
+                                    shrinkB=3), zorder=7)
+    if breakpoint:
+        yb = zy0 + 0.52*(zy1 - zy0)
+        pointer(zx(XJ), yb, 'Breakpoint', color, 6.4, sep=0.2, path_effects=HALO)
+    ax.text(ZX0 - 0.12, zy1 - 0.05, title, ha='right', va='top', fontsize=6.4, color=color,
+            linespacing=1.2)
+    ax.text(ZX0 - 0.12, zy0 + 0.05, text, ha='right', va='bottom', fontsize=6.0,
+            color='0.35', linespacing=1.2)
+
+
+# The profile, drawn as a curve, and the jump carried down through the rows of slabs (broken
+# where the enlargements sit, which have a scale of their own).
+YP0, YP1 = 16.9, 18.5
+xs = np.linspace(X0, X1, 800)
+ax.plot(xs, YP0 + (YP1 - YP0)*rho(xs), color=INK, lw=1.0, zorder=3)
+ax.annotate('', xy=(X1 + 0.12, YP0), xytext=(X0, YP0), zorder=2,
+            arrowprops=dict(arrowstyle='-|>', mutation_scale=6, lw=0.6, color=INK,
+                            shrinkA=0, shrinkB=0))
+ax.annotate('', xy=(X0, YP1 + 0.2), xytext=(X0, YP0), zorder=2,
+            arrowprops=dict(arrowstyle='-|>', mutation_scale=6, lw=0.6, color=INK,
+                            shrinkA=0, shrinkB=0))
+ax.text(X0 - 0.15, 0.5*(YP0 + YP1), 'Density', rotation=90, ha='right', va='center',
+        fontsize=7.2, color=INK)
+pointer(XJ, YP0 + 0.26, 'Discontinuity', '0.35', 6.6)
+ax.text(X1, YP0 - 0.12, 'Position along the path', ha='right', va='top',
+        fontsize=6.6, color=INK)
+for y_lo, y_hi in ((15.2, YP1), (10.6, 12.2), (6.5, 7.6)):
+    ax.plot([XJ, XJ], [y_lo, y_hi], color='0.55', lw=0.6, ls=(0, (2, 2)), zorder=1)
+
+# (a) Nothing declared: the ladder's uniform grid, one slab straddling the jump.
+YA = 15.4
+row_title(15.85, 'a', 'Nothing declared', 'Error falls as $h$')
+ea = np.linspace(X0, X1, 10)
+ka = int(np.searchsorted(ea, XJ)) - 1
+lane(YA, ea, '0.55', edge_color='0.30', highlight=ka)
+enlarge(YA, ea, [ka], 12.55, 14.75, C_BAD, 'A slab straddles\nthe discontinuity',
+        'The step is\nsmoothed over', labels=True)
+
+# (b) t_breakpoints: the grid changes from level to level; the edge at the jump stays.
+YB = [11.3, 10.8]
+row_title(11.75, 'b', r'{\tt t\_breakpoints}', 'Error falls as $h^p$')
+for y, n, lab in zip(YB, (7, 12), (r'Level $k$', r'Level $k+1$')):
+    eb = np.sort(np.concatenate([np.linspace(X0, X1, n + 1), [XJ]]))
+    lane(y, eb, C_BP, mark_jump=True)
+    ax.text(X0 - 0.12, y, lab, ha='right', va='center', fontsize=6.6, color=INK)
+jb = int(np.searchsorted(eb, XJ))
+enlarge(YB[-1], eb, [jb - 1, jb], 7.95, 10.15, C_BP, 'Slabs at the\ndiscontinuity',
+        'Each slab on\none side', breakpoint=True)
+
+# (c) t_slab_edges: the user's grid, evaluated once and never refined.  With an edge at the
+# jump every slab lies on one piece, as in (b), from a single evaluation.
+YC = 6.7
+row_title(7.15, 'c', r'{\tt t\_slab\_edges}', 'One evaluation, never refined')
+ec = np.array([X0, X0 + 0.9, X0 + 1.8, XJ - 0.4, XJ, XJ + 0.55, XJ + 1.6, XJ + 3.0, X1 - 0.6, X1])
+lane(YC, ec, C_USER, mark_jump=True)
+ax.text(X0 - 0.12, YC, 'User\'s grid', ha='right', va='center', fontsize=6.6, color=INK)
+enlarge(YC, ec, [3, 4], 3.95, 6.15, C_USER, 'Slabs at the\ndiscontinuity',
+        'As in (b), in\none evaluation')
+
+save(fig, 'declaring_edges.pdf')'''),
     md(r'''## Figure 2 --- slab width follows the profile, not the phase
 
 Three measurements: one slab against a constant Hamiltonian over six decades of $\Phi$;
