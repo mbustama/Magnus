@@ -14390,14 +14390,15 @@ serve honestly and falls through to the next.'''),
 # than named.  The order is the dispatch order of the three scenario wrappers.
 SLAB = ['#eaf2fb', '#bcd8f3', '#7fb4e6', '#3a86d4', '#1c71d8']
 from matplotlib.patches import Rectangle
-fig, ax = plt.subplots(figsize=(WIDE, 4.3))
-ax.set_xlim(0, 90); ax.set_ylim(0, 100); ax.axis('off')
+fig, ax = plt.subplots(figsize=(WIDE, 4.5))
+# Taller than before: the averaged-probability row has three routes to draw.
+ax.set_xlim(0, 90); ax.set_ylim(0, 104); ax.axis('off')
 X0, X1 = 30.0, 66.0                      # the bar spans the same x in every row
 H = 6.2                                  # bar height
 rows = [
- ('Phase average',         'An average is asked for'),
+ ('Averaged probability',  'An average is asked for'),
  ('Adiabatic $+$ Magnus',  'Smooth profile, a tolerance,\nand it certifies itself'),
- ('Interaction picture',   'Declared exponential, two flavors,\nand its iteration converges'),
+ ('Interaction picture',   'Declared exponential, two flavors,\none baseline, and it converges'),
  ('Constant Hamiltonian',  '$\\mathbb{H}$ does not vary\nalong the trajectory'),
  ('Energy-batched scan',   'Many energies,\none baseline'),
  ('Cumulative scan',       'One energy,\nmany baselines'),
@@ -14409,37 +14410,56 @@ def bar(y, edges, shades, lw=0.7):
     for (a, b), c in zip(edges, shades):
         ax.add_patch(Rectangle((a, y), b-a, H, facecolor=c, edgecolor=INK, lw=lw, zorder=2))
 
+# The averaged-probability row stacks three bars, from y - 0.6 to y + 11.5; its name, its arrow
+# and its condition sit at the middle of the stack rather than at the middle of one bar.
+YMID0 = 5.45
 for i, ((name, when), y) in enumerate(zip(rows, ys)):
+    yc = y + (YMID0 if i == 0 else H/2)
     # The energy-batched row has arrows entering at its left edge, so its name needs
     # more clearance than the others.
-    ax.text(X0-(5.0 if i == 4 else 3.3), y+H/2, name, ha='right', va='center',
+    ax.text(X0-(5.0 if i == 4 else 3.3), yc, name, ha='right', va='center',
             fontsize=8.6, color='black')
     # The ladder row carries the refine arrow just past its bar, so its condition
     # text starts further right than the others'.
-    ax.text(X1+(6.0 if i == 6 else 2.6), y+H/2, when, ha='left', va='center',
-            fontsize=6.6, color=INK)
-    # Every engine takes the neutrino along the path -- the phase average too, which crosses
-    # the same windows the hybrid patches and only tracks no phase between them.  The
+    ax.text(X1+(6.0 if i == 6 else 2.6), yc, when, ha='left', va='center', fontsize=6.6,
+            color=INK)
+    # Every engine takes the neutrino along the path -- the averages too, which cross
+    # the same windows the hybrid patches.  The
     # energy-batched row already has three blue arrows entering at X0, so its black one
     # starts further left rather than hiding behind them.
     bx = X0 - (2.9 if i == 4 else 0.6)
-    ax.annotate('', xy=(bx, y+H/2), xytext=(bx-1.2, y+H/2),
+    ax.annotate('', xy=(bx, yc), xytext=(bx-1.2, yc),
                 arrowprops=dict(arrowstyle='-|>', color=INK, lw=0.8))
     if i == 0:
-        # Two cases of one expression, Eq. (averaged_varying), stacked in the row's space.
+        # The three routes of the averaged-probability engine, stacked in the row's space.
         # Top: one eigenbasis serves the whole path and there is no crossing, so <P> comes in
         # closed form.  Drawn flat and undivided, as the constant-Hamiltonian row below is.
-        # Bottom: H varies -- the eigenbases at the two ends and a Magnus patch at each
-        # crossing between them.  In both, each phase is kept, weighted by its spread (the
-        # phase average).
-        # Taller than half a row each, using the free space under the title, with a clear
-        # gap between them so they read as two cases rather than one striped bar.
+        # Middle: the profile declares discontinuities (see below).
+        # Bottom: H varies smoothly -- the eigenbases at the two ends and a Magnus patch at
+        # each crossing between them.  Top and bottom keep each phase, weighted by its spread
+        # (the phase average).  Clear gaps between the bars, so that they read as three cases
+        # rather than one striped bar.
         h2, gap = 3.3, 1.1
         yb = y - 0.6
-        yt = yb + h2 + gap
+        yw = yb + h2 + gap                       # the energy-window route
+        yt = yw + h2 + gap                       # the closed form
         ax.add_patch(Rectangle((X0, yt), X1-X0, h2, facecolor=SLAB[2], edgecolor=INK,
                                lw=0.7, zorder=2))
         ax.text((X0+X1)/2, yt+h2/2, r'$\langle P\rangle$ from one eigenbasis, in closed form',
+                ha='center', va='center', fontsize=6.4, color='white', zorder=5)
+        # Third case: the profile declares discontinuities, so there is no instantaneous
+        # eigenbasis to transport along.  The probability is computed at several energies
+        # across a window and averaged -- a different quantity from the other two, which is
+        # why it is drawn with its jumps rather than as a smooth gradient.
+        # The jumps sit near the ends of the bar, clear of its label.
+        steps = [X0, X0+0.09*(X1-X0), X0+0.91*(X1-X0), X1]
+        for (l, r), c in zip(zip(steps[:-1], steps[1:]), [SLAB[4], SLAB[2], SLAB[3]]):
+            ax.add_patch(Rectangle((l, yw), r-l, h2, facecolor=c, edgecolor='none', zorder=2))
+        ax.add_patch(Rectangle((X0, yw), X1-X0, h2, fill=False, edgecolor=INK, lw=0.7, zorder=3))
+        for xj in steps[1:-1]:
+            ax.plot([xj, xj], [yw, yw+h2], color='black', lw=1.4, zorder=4)
+        ax.text((X0+X1)/2, yw+h2/2,
+                r'Declared jumps: $P$ averaged over energies',
                 ha='center', va='center', fontsize=6.4, color='white', zorder=5)
         n = 60; e = np.linspace(X0, X1, n+1)
         g = plt.cm.Blues(np.linspace(0.75, 0.15, n))
@@ -14475,7 +14495,8 @@ for i, ((name, when), y) in enumerate(zip(rows, ys)):
         ax.add_patch(Rectangle((X0, y), X1-X0, H, fill=False, edgecolor=INK, lw=0.7, zorder=3))
         xs = np.linspace(X0+1, X1-1, 300)
         ax.plot(xs, y+H/2 + 1.5*np.sin((xs-X0)*1.5), color='white', lw=0.9, zorder=5)
-        ax.text((X0+X1)/2, y-1.6, r'Vacuum phase removed analytically, then one Magnus pass',
+        ax.text((X0+X1)/2, y-1.6,
+                r'Vacuum phase removed analytically; slabs refined until two passes agree',
                 ha='center', va='top', fontsize=6.4, color=INK)
     elif i == 3:                                 # nothing to compose: one exponential
         # The series terminates at its first term when H does not vary, so the whole
@@ -14522,7 +14543,7 @@ for i, ((name, when), y) in enumerate(zip(rows, ys)):
 
 # The order they are tried in, drawn once in the margin: down the middle it crossed
 # every bar and collided with the notes under rows 1, 3 and 5.
-ax.annotate('', xy=(6.0, ys[-1]-1.0), xytext=(6.0, ys[0]+H+1.0),
+ax.annotate('', xy=(6.0, ys[-1]-1.0), xytext=(6.0, ys[0]+12.5),
             arrowprops=dict(arrowstyle='-|>', color='black', lw=1.2))
 ax.text(3.2, (ys[0]+ys[-1])/2 + H/2, 'Tried in this order; each falls through to the next',
         rotation=90, ha='center', va='center', fontsize=7.0, color='black')
@@ -14553,7 +14574,7 @@ refine_arrow.xy = tuple(ax.transData.inverted().transform((end[0], end[1] - shor
 fig.canvas.draw()
 content = fig.get_tightbbox(fig.canvas.get_renderer())          # inches
 x_mid = ax.transData.inverted().transform(((content.x0 + content.x1)/2*fig.dpi, 0.0))[0]
-ax.text(x_mid, 98.6, r'How Mag$\nu$s answers a call: the seven engines, in dispatch order',
+ax.text(x_mid, 102.6, r'How Mag$\nu$s answers a call: the seven engines, in dispatch order',
         ha='center', va='center', fontsize=9.4, color='black')
 save(fig, 'strategies.pdf')'''),
 
@@ -14572,15 +14593,16 @@ fig, axd = plt.subplots(figsize=(WIDE, WIDE*0.34))
 axd.set_axis_off(); axd.set_xlim(0.0, 30.0); axd.set_ylim(0.0, 10.2)
 
 
-def _abox(x, y, w, h, face, edge, title, body):
+def _abox(x, y, w, h, face, edge, title, body, body_drop=1.30):
+    # body_drop: from the top of the box to the first body line; larger for a two-line title.
     axd.add_patch(FancyBboxPatch((x, y), w, h,
                                  boxstyle='round,pad=0.12,rounding_size=0.25',
                                  facecolor=face, edgecolor=edge, lw=0.9, zorder=2))
     axd.text(x + w/2.0, y + h - 0.42, title, ha='center', va='top', fontsize=7.6,
-             color=edge, zorder=3,
+             color=edge, zorder=3, linespacing=1.25,
              fontfamily='monospace' if title[0].islower() else None)
     if body:
-        axd.text(x + w/2.0, y + h - 1.30, body, ha='center', va='top', fontsize=6.0,
+        axd.text(x + w/2.0, y + h - body_drop, body, ha='center', va='top', fontsize=6.0,
                  color='0.25', zorder=3, linespacing=1.5)
 
 
@@ -14593,17 +14615,26 @@ def _aarr(x0, y0, x1, y1, color='0.35', ls='-'):
 # Left: what goes in.  Middle: where a request is met.  Right: the three routes out.
 _abox(0.3, 6.00, 7.1, 3.50, C_IN, E_IN, 'Your Hamiltonian',
       'Any callable $\\mathbb{H}(l)$ returning\na Hermitian matrix, of any\nsize, or a constant one.')
-_abox(0.3, 0.50, 7.1, 3.50, C_IN, E_IN, 'hamiltonians, matter, earth',
-      'The worked scenarios and the\nprofiles they run through: PREM,\nthe Sun, NSI, LIV, sterile.')
+# The four modules that supply a Hamiltonian or a profile do not fit on one line of the box's
+# title, so the title takes two and the body starts lower.
+_abox(0.3, 0.30, 7.1, 3.90, C_IN, E_IN, 'hamiltonians, matter,\nearth, solarmodels',
+      'The worked scenarios and the\nprofiles they run through: PREM,\nthe Sun, NSI, LIV, sterile.',
+      body_drop=1.85)
+# The engines are tried before osc_prob is reached; osc_prob and its ladder are the last of
+# the seven, not the way in to them (Sec. 5.4 of the paper, Table tab:engines).
 _abox(8.9, 2.85, 7.3, 4.30, C_CORE, E_CORE, 'oscprob',
-      'Sixty named wrappers.\n$\\rightarrow$ four scenario functions\n'
-      '$\\rightarrow$ {\\tt osc\\_prob} and its ladder\n$\\rightarrow$ seven engines, self-chosen')
+      '56 named wrappers\n$\\rightarrow$ four scenario functions\n'
+      '$\\rightarrow$ seven engines, tried in order;\nthe last is {\\tt osc\\_prob}\'s ladder')
+# Ten terms, not order ten: magnus_exp_order counts the terms kept, and the order delivered
+# depends on the quadrature (at most 8 by collocation, 12 by Simpson; Table tab:orders).
 _abox(17.7, 6.00, 6.4, 3.50, C_CORE, E_CORE, 'magnus',
-      'The expansion to order ten,\nthe quadrature, the slab\ncomposition. No physics in it.')
+      'The expansion to ten terms,\nthe quadrature, the slab\ncomposition. No physics in it.')
 _abox(17.7, 0.50, 6.4, 3.50, C_COMP, E_COMP, 'avgprob, adiabatic',
       'The routes that walk no\nslabs: the phase average, and\ntransport along the eigenbasis.')
+# Agree to round-off, not the same numbers; the speed-up is the 3x3 one on a stack
+# (docs/source/performance.rst: 6.8x at 108 slabs, 6.9x at 4096; 2x2 reaches 13x).
 _abox(25.6, 2.98, 4.1, 4.05, C_ACC, E_ACC, 'expmkernels',
-      'Compiled kernels:\nthe same numbers,\n$6.8{\\times}$ on the\nexponential.')
+      'Compiled kernels:\nagree to round-off,\n$\\approx 7{\\times}$ faster\nat three flavors.')
 
 _aarr(7.5, 7.4, 8.8, 6.6)
 _aarr(7.5, 2.6, 8.8, 3.6)
@@ -14615,27 +14646,35 @@ axd.text(21.2, 5.00, 'Magnus patches', ha='left', va='center', fontsize=5.6, col
 save(fig, 'architecture.pdf')'''),
     md(r'''## Figure 1d --- the four layers of oscprob
 
-A request enters at a named wrapper and descends, left to right, to the engine that answers
-it: the wrapper packs its named parameters into a dictionary, a scenario function builds the
-Hamiltonian, `osc_prob_energy_baseline` runs the scan over energies and baselines, and
-`osc_prob` computes each point. The wrappers are a product set --- the same fourteen
-environment-and-scenario names at each of four flavor counts --- so the box lists the fourteen
-once under the name pattern, and $4 \times 14 = 56$ is every wrapper there is.'''),
+A request enters at a named wrapper and descends, left to right, through the layers: the wrapper
+packs its named parameters into a dictionary, a scenario function builds the Hamiltonian and tries
+the first five engines, `osc_prob_energy_baseline` tries the sixth, the cumulative scan, and
+otherwise calls `osc_prob` once per point, and `osc_prob` is itself the seventh engine, the
+general Magnus ladder. The engines hang below the layer that tries them. The wrappers are a
+product set --- the same fourteen environment-and-scenario names at each of four flavor counts ---
+so the box lists the fourteen once under the name pattern, and $4 \times 14 = 56$ is every wrapper
+there is.'''),
     code(r'''from matplotlib.patches import FancyBboxPatch
 # ------------------------------------------------ the four layers of oscprob
-# A request enters at a named wrapper and descends, left to right, to the engine that
-# answers it.  The wrappers are a product set: the same fourteen environment-and-scenario
-# names at each of four flavor counts, so the box lists the fourteen once under the name
-# pattern, and 4 x 14 = 56 is every wrapper there is.
+# A request enters at a named wrapper and descends, left to right, through the layers.  The
+# engines of Sec. 5.4 hang below the layer that tries them: the scenario functions try the
+# first five, osc_prob_energy_baseline the sixth, and osc_prob is itself the seventh, the
+# general Magnus ladder, reached only when no other engine applies (Table tab:engines; the
+# call sites are in oscprob.py: _avg_prob_dispatch, _osc_prob_hybrid_dispatch,
+# _osc_prob_ip_exp_dispatch and _osc_prob_scan_separable_dispatch in each scenario function,
+# _osc_prob_cumulative_scan in osc_prob_energy_baseline).  The wrappers are a product set:
+# the same fourteen environment-and-scenario names at each of four flavor counts, so the box
+# lists the fourteen once under the name pattern, and 4 x 14 = 56 is every wrapper there is.
 C_TOP, E_TOP = '#eaf2fb', '#1c71d8'
 C_2ND, E_2ND = '#eef7f0', '#26a269'
 C_3RD, E_3RD = '#fdf3e7', '#b5651d'
 C_BASE, E_BASE = '#f4eef7', '#813d9c'
-C_ENG, E_ENG = '#fff4e6', '#c64600'
+C_ENG, E_ENG = '#f1f1f1', '#4d4d4d'
 
 fig, axd = plt.subplots(figsize=(WIDE, 3.15))
 axd.set_xlim(-0.2, 32.5); axd.set_ylim(0, 11.5); axd.axis('off')
-YMID = 5.75                                             # the arrows' line
+YMID = 5.75                                             # the wrapper box is centred here
+YUP = 8.35                                              # the layer row
 # One set of vertical margins for every box, so the white space above the title and below
 # the last line is the same everywhere whatever the box holds.
 PAD, TITLE_DROP, LINE, LINE_H = 0.42, 0.66, 0.50, 0.30   # data units
@@ -14645,12 +14684,19 @@ def tt(s):
     return r'\texttt{%s}' % s.replace('_', r'\_')
 
 
-def box(x, w, face, edge, title, items, size=6.0):
-    """A box sized to its content.  `items` are (text, style, extra_gap_after) with style
-    one of 'centre', 'head', 'name'; the box height follows from them."""
+def box(x, w, face, edge, title, items, size=6.0, yc=YMID, yb=None, yt=None):
+    """A box sized to its content.  `items` are (text, style, extra_gap_after) with style one
+    of 'centre', 'head', 'name', 'left'; the box height follows from them.  The box is centred
+    at height yc, or, if given, has its drawn bottom edge at yb or its drawn top edge at yt.
+    Returns the (bottom, top) of the drawn edge."""
     body = TITLE_DROP + sum(LINE + gap for _, _, gap in items) - LINE + LINE_H
     h = PAD + body + PAD
-    y0 = YMID - h/2.0
+    if yb is not None:
+        y0 = yb + 0.12                                  # the drawn edge includes the pad
+    elif yt is not None:
+        y0 = yt - 0.12 - h
+    else:
+        y0 = yc - h/2.0
     axd.add_patch(FancyBboxPatch((x, y0), w, h, boxstyle='round,pad=0.12,rounding_size=0.25',
                                  facecolor=face, edgecolor=edge, lw=0.9, zorder=2))
     top = y0 + h - PAD
@@ -14664,18 +14710,31 @@ def box(x, w, face, edge, title, items, size=6.0):
         elif style == 'head':
             axd.text(x + 0.55, y, r'\emph{%s}' % text, ha='left', va='top', fontsize=5.6,
                      color=edge, zorder=3)
+        elif style == 'left':
+            axd.text(x + 0.55, y, text, ha='left', va='top', fontsize=size, color='0.25',
+                     zorder=3)
         else:
             axd.text(x + 1.05, y, r'$\ldots$' + tt(text), ha='left', va='top', fontsize=5.6,
                      color='0.25', zorder=3)
         y -= LINE + gap
+    return y0 - 0.12, y0 + h + 0.12                    # the drawn edge includes the pad
 
 
-def arrow(x0, x1, label):
-    axd.annotate('', xy=(x1, YMID), xytext=(x0, YMID), zorder=1,
+def arrow(x0, x1, label, y=YUP):
+    axd.annotate('', xy=(x1, y), xytext=(x0, y), zorder=1,
                  arrowprops=dict(arrowstyle='-|>', mutation_scale=8, lw=0.9, color='0.35',
                                  shrinkA=1, shrinkB=1))
-    axd.text(0.5*(x0 + x1), YMID + 0.22, label, ha='center', va='bottom', fontsize=5.4,
+    axd.text(0.5*(x0 + x1), y + 0.22, label, ha='center', va='bottom', fontsize=5.4,
              color='0.35', zorder=3, linespacing=1.25)
+
+
+def down(x, y0, y1, label):
+    """A layer trying its engines: an arrow down from the layer to the engines it tries."""
+    axd.annotate('', xy=(x, y1), xytext=(x, y0), zorder=1,
+                 arrowprops=dict(arrowstyle='-|>', mutation_scale=8, lw=0.9, color=E_ENG,
+                                 shrinkA=1, shrinkB=1))
+    axd.text(x + 0.25, 0.5*(y0 + y1), label, ha='left', va='center', fontsize=5.4,
+             color=E_ENG, zorder=3)
 
 
 pattern = (tt('osc_prob_') + r'$\{$' + tt('2nu') + ', ' + tt('3nu') + ', ' + tt('4nu') + ', '
@@ -14690,30 +14749,354 @@ top_items += [('Non-standard interactions', 'head', 0.0)]
 top_items += [(n, 'name', 0.0) for n in NSI[:-1]] + [(NSI[-1], 'name', 0.16)]
 top_items += [('Lorentz-invariance violation', 'head', 0.0)]
 top_items += [(n, 'name', 0.0) for n in LIV]
-box(0.3, 7.6, C_TOP, E_TOP, 'Top layer: 56 named wrappers', top_items)
+bot1, _ = box(0.3, 7.6, C_TOP, E_TOP, 'Top layer: 56 named wrappers', top_items)
 
-arrow(8.15, 9.75, 'Parameter\ndictionary')
-box(9.9, 6.3, C_2ND, E_2ND, 'Second layer: scenarios',
-    [(tt('osc_prob_vacuum'), 'centre', 0.0),
-     (tt('osc_prob_matter_std_potential'), 'centre', 0.0),
-     (tt('osc_prob_matter_nsi'), 'centre', 0.0),
-     (tt('osc_prob_liv'), 'centre', 0.0)], size=5.6)
-arrow(16.45, 18.05, '$\\mathbb{H}(l)$')
-box(18.2, 4.6, C_3RD, E_3RD, 'Third layer: scan',
-    [(tt('osc_prob_energy_baseline'), 'centre', 0.0),
-     ('One call per energy', 'centre', 0.0),
-     ('and baseline; warm starts.', 'centre', 0.0)], size=5.6)
-arrow(23.05, 24.65, 'One point\nat a time')
-box(24.8, 3.4, C_BASE, E_BASE, 'Base layer',
+# The layer row.
+X2, W2 = 9.9, 6.3
+X3, W3 = 18.425, 5.6                                    # equal gaps either side
+X4, W4 = 26.25, 5.95
+arrow(8.15, X2 - 0.15, 'Parameter\ndictionary')
+b2, _ = box(X2, W2, C_2ND, E_2ND, 'Second layer: scenarios',
+            [(tt('osc_prob_vacuum'), 'centre', 0.0),
+             (tt('osc_prob_matter_std_potential'), 'centre', 0.0),
+             (tt('osc_prob_matter_nsi'), 'centre', 0.0),
+             (tt('osc_prob_liv'), 'centre', 0.0)], size=5.6, yc=YUP)
+arrow(X2 + W2 + 0.15, X3 - 0.15, '$\\mathbb{H}$, if\nno engine\napplies')
+b3, _ = box(X3, W3, C_3RD, E_3RD, 'Third layer: scan',
+            [(tt('osc_prob_energy_baseline'), 'centre', 0.0),
+             ('Engine 6 if it applies;', 'centre', 0.0),
+             ('else one call per point,', 'centre', 0.0),
+             ('with warm starts.', 'centre', 0.0)], size=5.6, yc=YUP)
+arrow(X3 + W3 + 0.15, X4 - 0.15, 'One point\nat a time')
+box(X4, W4, C_BASE, E_BASE, 'Base layer',
     [(tt('osc_prob'), 'centre', 0.0),
-     ('Refinement ladder,', 'centre', 0.0),
-     ('validation, logging.', 'centre', 0.0)], size=5.6)
-arrow(28.45, 30.05, 'From the\nrequest')
-box(30.2, 2.0, C_ENG, E_ENG, 'Engines', [('Seven', 'centre', 0.0), ('routes', 'centre', 0.0)],
-    size=5.6)
+     ('Engine 7, the general', 'centre', 0.0),
+     ('Magnus ladder: reached', 'centre', 0.0),
+     ('when no other applies.', 'centre', 0.0)], size=5.6, yc=YUP)
+
+# The engine row: the engines each layer tries, in the order of Table tab:engines.  The
+# first box sits on the same baseline as the wrapper box; the second hangs from the same top.
+_, top5 = box(X2, W2, C_ENG, E_ENG, 'Engines 1--5, tried in order',
+              [('1\\enspace Averaged probability', 'left', 0.0),
+               ('2\\enspace Adiabatic $+$ Magnus patches', 'left', 0.0),
+               ('3\\enspace Interaction picture', 'left', 0.0),
+               ('4\\enspace Constant Hamiltonian', 'left', 0.0),
+               ('5\\enspace Energy-batched scan', 'left', 0.0)], size=5.6, yb=bot1)
+down(X2 + W2/2.0, b2, top5, 'Tried first')
+_, top6 = box(X3, W3, C_ENG, E_ENG, 'Engine 6',
+              [('Cumulative scan', 'centre', 0.0),
+               ('over baselines', 'centre', 0.0)], size=5.6, yt=top5)
+down(X3 + W3/2.0, b3, top6, 'Tried first')
 
 fig.tight_layout(pad=0.3)
 save(fig, 'layers.pdf')'''),
+    md(r'''## Figure 1e --- batching against parallelization (Sec. 5.5)
+
+A schematic, not a measurement. Four ways of computing a scan, drawn along one density
+profile: one point at a time; the energy-batched scan, which shares one grid and one
+sampling of the profile among all energies; the cumulative scan, which records every
+baseline in one pass; and `n_jobs` processes, which share the per-point ladders of the
+first row among them without reducing the work. Each bar is the final slab grid of one
+refinement ladder, and its colour is the process that runs it.'''),
+    code(r'''# ------------------------------------------- batching against parallelization (Sec. 5.5)
+# A schematic, not a measurement.  Four ways of computing a scan, drawn along one profile:
+# (a) one point at a time, the path every point takes when no batched engine applies;
+# (b) the energy-batched scan, where the profile is sampled once per slab and shared by every
+#     energy; (c) the cumulative scan, one traversal recording every baseline; (d) n_jobs
+# processes, which share the points of (a) among them without reducing the work.  Each lane is
+# the final grid of one ladder, cut into its slabs; a lane's colour is the process that runs it.
+# The ladder traverses the profile once per refinement level, so the notes count ladders.
+from matplotlib.patches import Rectangle
+
+C_ONE, C_BATCH, C_CUM = '0.55', BLUE, GREEN
+C_WORK = [INK, ORANGE, PURPLE, RED]                      # calling process, then workers 1-3
+
+fig, ax = plt.subplots(figsize=(COL, 3.65))
+ax.set_axis_off()
+X0, X1 = 2.55, 9.85                                      # the path, in axis units
+ax.set_xlim(0.0, 10.85)                                  # room for the braces
+ax.set_ylim(-0.6, 12.35)
+
+def density(x):
+    s = (x - X0)/(X1 - X0)
+    return 0.25 + 0.75*np.exp(-2.2*s) + 0.25*np.exp(-((s - 0.62)/0.07)**2)
+
+# The profile, once for the whole figure: shading is density, as in Fig. strategies.
+xs = np.linspace(X0, X1, 400)
+ax.imshow(density(xs)[None, :], extent=(X0, X1, 11.35, 11.95), aspect='auto',
+          cmap='Greys', vmin=0.0, vmax=1.6, zorder=1)
+ax.add_patch(Rectangle((X0, 11.35), X1 - X0, 0.6, fill=False, lw=0.6, ec=INK, zorder=2))
+ax.text(X0 - 0.12, 11.65, 'Density profile', ha='right', va='center', fontsize=7.2, color=INK)
+ax.annotate('', xy=(X1, 12.2), xytext=(X0, 12.2),
+            arrowprops=dict(arrowstyle='-|>', mutation_scale=7, lw=0.7, color=INK))
+ax.text(0.5*(X0 + X1), 12.3, 'Position along the path', ha='center', va='bottom',
+        fontsize=7.2, color=INK)
+
+
+def lane(y, n_slabs, color, x_end=X1, h=0.34, alpha=1.0, edge=None):
+    """One traversal: a bar cut into n_slabs slabs of equal width.  `edge`, if given, draws the
+    slab edges in that colour at full opacity, for a pale bar whose own edges would not show."""
+    edges = np.linspace(X0, x_end, n_slabs + 1)
+    for a, b in zip(edges[:-1], edges[1:]):
+        ax.add_patch(Rectangle((a, y - h/2), b - a, h, facecolor=color, alpha=0.30*alpha,
+                               edgecolor=color, lw=0.5, zorder=3))
+    if edge is not None:
+        for a in edges[1:-1]:
+            ax.plot([a, a], [y - h/2, y + h/2], color=edge, lw=0.6, zorder=4)
+    return edges
+
+
+def brace(x, y0, y1, label, w=0.26):
+    """A curly brace from y0 to y1 at x, opening to the left, with a label turned 90 degrees."""
+    n = 200
+    half = np.linspace(0.0, 1.0, n)
+    beta = 12.0
+    bump = 1.0/(1.0 + np.exp(-beta*(half - half[0]))) + 1.0/(1.0 + np.exp(-beta*(half - half[-1])))
+    bump = (bump - bump.min())/(bump.max() - bump.min())
+    xs_b = x + w*np.concatenate([bump, bump[::-1]])
+    ys_b = np.linspace(y0, y1, 2*n)
+    ax.plot(xs_b, ys_b, color=INK, lw=0.8, solid_capstyle='round', zorder=5)
+    ax.text(x + w + 0.12, 0.5*(y0 + y1), label, rotation=90, ha='left', va='center',
+            fontsize=7.6, color=INK)
+
+
+def row_title(y, tag, title, note):
+    ax.text(0.0, y, r'\textbf{(%s)}\ %s' % (tag, title), ha='left', va='bottom',
+            fontsize=7.6, color=INK)
+    ax.text(X1, y, note, ha='right', va='bottom', fontsize=6.4, color='0.35')
+
+
+# (a) One point at a time: each energy traverses the profile on its own, and each settles on its
+# own slab count, since each refines on its own.
+YA = [9.95, 9.5, 9.05, 8.6]
+row_title(10.35, 'a', 'One point at a time', 'One ladder per energy')
+for i, (y, n) in enumerate(zip(YA, (7, 9, 11, 14))):
+    lane(y, n, C_ONE, edge='0.30')
+    ax.text(X0 - 0.12, y, r'$E_%d$' % (i + 1), ha='right', va='center', fontsize=7.2)
+
+# (b) Energy-batched scan: one grid shared by every energy; the profile is sampled once per slab
+# and used by all of them, and the energies move through the slabs together.
+YB = [7.05, 6.6, 6.15, 5.7]
+row_title(7.45, 'b', 'Energy-batched scan', 'One ladder for all energies')
+for i, y in enumerate(YB):
+    edges = lane(y, 11, C_BATCH)
+    ax.text(X0 - 0.12, y, r'$E_%d$' % (i + 1), ha='right', va='center', fontsize=7.2)
+for a in edges[1:-1]:                                    # the shared slab edges
+    ax.plot([a, a], [YB[-1] - 0.24, YB[0] + 0.24], color=C_BATCH, lw=0.5, zorder=4)
+
+# (c) Cumulative scan: one energy, one traversal, the running product recorded at each baseline.
+YC = 4.2
+row_title(4.6, 'c', 'Cumulative scan', 'One probe, then one pass')
+lane(YC, 14, C_CUM)
+ax.text(X0 - 0.12, YC, r'$E$', ha='right', va='center', fontsize=7.2)
+for k, xl in enumerate(np.linspace(X0, X1, 15)[[4, 7, 10, 14]]):
+    ax.plot([xl, xl], [YC - 0.3, YC + 0.3], color=C_CUM, lw=1.1, zorder=5)
+    ax.text(xl, YC - 0.36, r'$L_%d$' % (k + 1), ha='center', va='top', fontsize=6.6,
+            color=C_CUM)
+
+# (d) n_jobs processes: the lanes of (a), shared out.  The first point runs in the calling
+# process; the rest are divided among the workers.  Every point still traverses on its own.
+YD = [2.15, 1.65, 1.15, 0.65, 0.15, -0.35]
+row_title(2.55, 'd', r'{\tt n\_jobs} $= 3$', 'One ladder per energy')
+who = [0, 1, 2, 3, 1, 2]
+labels = ['Calling process', 'Worker 1', 'Worker 2', 'Worker 3', 'Worker 1', 'Worker 2']
+for i, (y, n, w) in enumerate(zip(YD, (7, 9, 11, 14, 10, 12), who)):
+    lane(y, n, C_WORK[w])
+    ax.text(X0 - 0.12, y, r'$E_%d$' % (i + 1), ha='right', va='center', fontsize=7.2)
+    ax.text(X0 - 0.62, y, labels[i], ha='right', va='center', fontsize=6.0,
+            color=C_WORK[w])
+
+# Which rows are batching and which parallelization: (b) and (c) against (d).
+brace(X1 + 0.28, YC - 0.75, 7.75, 'Batching')
+brace(X1 + 0.28, YD[-1] - 0.22, 2.85, 'Parallelization')
+
+save(fig, 'batching.pdf')'''),
+    md(r'''## Figure 1f --- declaring the structure of a profile (Sec. 5.6)
+
+A schematic, not a measurement. One density profile with a discontinuity, and three grids
+along it, each with the slabs at the discontinuity enlarged: nothing declared, where one slab
+straddles the discontinuity and the quadrature smooths the step over; `t_breakpoints`, where
+the ladder keeps an edge at the discontinuity at every refinement level; and `t_slab_edges`,
+where the user's grid is evaluated once and never refined.'''),
+    code(r'''# ------------------------------------------- declaring the structure of a profile (Sec. 5.6)
+# A schematic, not a measurement.  One profile with a density jump, and three ways of placing
+# slab edges along it, each with the slabs at the jump enlarged:
+# (a) nothing declared: on the ladder's own uniform grid one slab straddles the jump, and the
+#     quadrature, sampling H at its nodes on either side, treats the step as smooth;
+# (b) t_breakpoints: the ladder's grid changes from level to level, but an edge stays at the
+#     jump, so every slab lies on one smooth piece;
+# (c) t_slab_edges: the user's grid, evaluated once and never refined; right when it has an edge at
+#     the jump (a grid that misses one is left wrong, with nothing to repair it).
+# The dashed coloured line in each enlargement is what the order-4 rule integrates exactly: an H that is
+# linear across the slab, through its values at the two Gauss-Legendre nodes.
+from matplotlib.patches import Rectangle, Polygon
+
+C_BAD, C_BP, C_USER = RED, BLUE, PURPLE
+
+fig, ax = plt.subplots(figsize=(COL, 4.85))
+ax.set_axis_off()
+X0, X1 = 2.3, 9.85                                       # the path, in axis units
+XJ = X0 + 0.3713*(X1 - X0)                               # the density jump
+ZX0, ZX1 = 4.2, 9.85                                     # the enlargements, horizontally
+ax.set_xlim(0.0, 10.0)
+ax.set_ylim(3.75, 19.0)
+GL = np.array([0.5 - np.sqrt(3.0)/6.0, 0.5 + np.sqrt(3.0)/6.0])   # order-4 nodes, on [0, 1]
+
+
+def rho(x):
+    """Density along the path, in [0, 1]: smooth on either side of one jump."""
+    s = (np.asarray(x) - X0)/(X1 - X0)
+    return np.where(np.asarray(x) < XJ, 0.22, 0.72) + 0.12*np.sin(3.0*s)
+
+
+def lane(y, edges, color, h=0.34, edge_color=None, highlight=None, mark_jump=False):
+    """A grid: a bar cut at `edges`.  `highlight` outlines one slab in red; `mark_jump` draws
+    the edge at the jump thick."""
+    for a, b in zip(edges[:-1], edges[1:]):
+        ax.add_patch(Rectangle((a, y - h/2), b - a, h, facecolor=color, alpha=0.30,
+                               edgecolor=color, lw=0.5, zorder=3))
+    for a in edges[1:-1]:
+        ax.plot([a, a], [y - h/2, y + h/2], color=edge_color or color, lw=0.6, zorder=4)
+    if mark_jump:
+        ax.plot([XJ, XJ], [y - h/2 - 0.03, y + h/2 + 0.03], color=color, lw=1.5, zorder=6)
+    if highlight is not None:
+        a, b = edges[highlight], edges[highlight + 1]
+        ax.add_patch(Rectangle((a, y - h/2), b - a, h, fill=False, edgecolor=C_BAD, lw=1.2,
+                               zorder=6))
+
+
+def row_title(y, tag, title, note):
+    ax.text(0.0, y, r'\textbf{(%s)}\ %s' % (tag, title), ha='left', va='bottom',
+            fontsize=7.6, color=INK)
+    ax.text(X1, y, note, ha='right', va='bottom', fontsize=6.4, color='0.35')
+
+
+# Labels drawn over lines and shading carry a white outline, so they stay legible.
+HALO = [pe.withStroke(linewidth=2.2, foreground='white')]
+
+def pointer(x_tip, y, label, color, fontsize, offset=0.24, sep=0.2, **kw):
+    """A label with a filled triangle to its left, pointing at x_tip from `offset` to its right
+    (clear of any line drawn at x_tip); the label starts `sep` beyond the triangle.  The triangle
+    is centred on the label's rendered height, which is only known once the label is drawn."""
+    t = ax.text(x_tip + offset + sep, y, label, ha='left', va='center', fontsize=fontsize,
+                color=color, zorder=8, **kw)
+    fig.canvas.draw()
+    bb = t.get_window_extent().transformed(ax.transData.inverted())
+    ax.plot(x_tip + offset, 0.5*(bb.y0 + bb.y1), marker='<', ms=4.5, color=color, zorder=8)
+
+
+# Every enlargement shows the same stretch of the path, so that the discontinuity sits at the
+# same place in all three boxes.
+WA, WB = XJ - 0.49, XJ + 0.74
+
+
+def enlarge(y_lane, grid, focus, zy0, zy1, color, title, text, h=0.34, breakpoint=False,
+            labels=False):
+    """Enlarge the stretch [WA, WB] of a grid into a box from zy0 to zy1: the true density, a
+    thin line at every slab edge, the discontinuity (dashed), and for each slab in `focus`
+    (indices into `grid`) its two node samples and the straight line through them, with the
+    misrepresented area shaded.  `labels` names the slab edge and the quadrature nodes."""
+    wa, wb = WA, WB
+    ax.add_patch(Polygon([[wa, y_lane - h/2], [wb, y_lane - h/2], [ZX1, zy1], [ZX0, zy1]],
+                         closed=True, facecolor=color, alpha=0.16, edgecolor='none', zorder=1))
+    ax.add_patch(Rectangle((ZX0, zy0), ZX1 - ZX0, zy1 - zy0, fill=False, edgecolor=color,
+                           lw=0.8, zorder=4))
+
+    def zx(x):
+        return ZX0 + (np.asarray(x) - wa)/(wb - wa)*(ZX1 - ZX0)
+
+    def zy(r):
+        return zy0 + 0.15 + (zy1 - zy0 - 0.5)*(np.asarray(r) - 0.1)/0.8
+
+    # The true density, each side of the discontinuity drawn on its own, joined by the step.
+    for lo, hi in ((wa, XJ - 1e-9), (XJ + 1e-9, wb)):
+        xs_t = np.linspace(lo, hi, 300)
+        ax.plot(zx(xs_t), zy(rho(xs_t)), color=INK, lw=1.0, zorder=5)
+    ax.plot([zx(XJ)]*2, [zy(rho(XJ - 1e-9)), zy(rho(XJ + 1e-9))], color=INK, lw=1.0, zorder=5)
+    for k in focus:
+        sa, sb = grid[k], grid[k + 1]
+        xs_s = np.linspace(sa, sb, 300)
+        r_true = rho(np.clip(xs_s, sa + 1e-9, sb - 1e-9)) if XJ in (sa, sb) else rho(xs_s)
+        nodes = sa + (sb - sa)*GL
+        rn = rho(nodes)
+        seen = rn[0] + (rn[1] - rn[0])/(nodes[1] - nodes[0])*(xs_s - nodes[0])
+        ax.fill_between(zx(xs_s), zy(r_true), zy(seen), color=color, alpha=0.18, lw=0, zorder=4)
+        ax.plot(zx(xs_s), zy(seen), color=color, lw=0.9, ls=(0, (3, 2)), zorder=6)
+        ax.plot(zx(nodes), zy(rn), 'o', ms=3.2, color=color, zorder=7)
+    for e in grid:                                       # every slab edge in view
+        if wa < e < wb:
+            ax.plot([zx(e)]*2, [zy0, zy1], color=color, lw=0.6, zorder=4)
+    ax.plot([zx(XJ)]*2, [zy0, zy1], color='0.55', lw=0.6, ls=(0, (2, 2)), zorder=6)
+    if labels:
+        e_left = min(e for e in grid if wa < e < wb)
+        ax.text(zx(e_left) - 0.2, 0.5*(zy0 + zy1), 'Slab edge', rotation=90, ha='center',
+                va='center', fontsize=6.0, color=color, zorder=8, path_effects=HALO)
+        k = focus[0]
+        xn = (grid[k] + (grid[k + 1] - grid[k])*GL)[1]  # the second node
+        ax.annotate('Quadrature node', xy=(zx(xn), zy(rho(xn))),
+                    xytext=(zx(grid[k + 1]) - 0.1, zy(rho(xn)) - 0.75), ha='right', va='center',
+                    fontsize=6.0, color=color, path_effects=HALO,
+                    arrowprops=dict(arrowstyle='-', lw=0.5, color=color, shrinkA=1,
+                                    shrinkB=3), zorder=7)
+    if breakpoint:
+        yb = zy0 + 0.52*(zy1 - zy0)
+        pointer(zx(XJ), yb, 'Breakpoint', color, 6.4, sep=0.2, path_effects=HALO)
+    ax.text(ZX0 - 0.12, zy1 - 0.05, title, ha='right', va='top', fontsize=6.4, color=color,
+            linespacing=1.2)
+    ax.text(ZX0 - 0.12, zy0 + 0.05, text, ha='right', va='bottom', fontsize=6.0,
+            color='0.35', linespacing=1.2)
+
+
+# The profile, drawn as a curve, and the jump carried down through the rows of slabs (broken
+# where the enlargements sit, which have a scale of their own).
+YP0, YP1 = 16.9, 18.5
+xs = np.linspace(X0, X1, 800)
+ax.plot(xs, YP0 + (YP1 - YP0)*rho(xs), color=INK, lw=1.0, zorder=3)
+ax.annotate('', xy=(X1 + 0.12, YP0), xytext=(X0, YP0), zorder=2,
+            arrowprops=dict(arrowstyle='-|>', mutation_scale=6, lw=0.6, color=INK,
+                            shrinkA=0, shrinkB=0))
+ax.annotate('', xy=(X0, YP1 + 0.2), xytext=(X0, YP0), zorder=2,
+            arrowprops=dict(arrowstyle='-|>', mutation_scale=6, lw=0.6, color=INK,
+                            shrinkA=0, shrinkB=0))
+ax.text(X0 - 0.15, 0.5*(YP0 + YP1), 'Density', rotation=90, ha='right', va='center',
+        fontsize=7.2, color=INK)
+pointer(XJ, YP0 + 0.26, 'Discontinuity', '0.35', 6.6)
+ax.text(X1, YP0 - 0.12, 'Position along the path', ha='right', va='top',
+        fontsize=6.6, color=INK)
+for y_lo, y_hi in ((15.2, YP1), (10.6, 12.2), (6.5, 7.6)):
+    ax.plot([XJ, XJ], [y_lo, y_hi], color='0.55', lw=0.6, ls=(0, (2, 2)), zorder=1)
+
+# (a) Nothing declared: the ladder's uniform grid, one slab straddling the jump.
+YA = 15.4
+row_title(15.85, 'a', 'Nothing declared', 'Error falls as $h$')
+ea = np.linspace(X0, X1, 10)
+ka = int(np.searchsorted(ea, XJ)) - 1
+lane(YA, ea, '0.55', edge_color='0.30', highlight=ka)
+enlarge(YA, ea, [ka], 12.55, 14.75, C_BAD, 'A slab straddles\nthe discontinuity',
+        'The step is\nsmoothed over', labels=True)
+
+# (b) t_breakpoints: the grid changes from level to level; the edge at the jump stays.
+YB = [11.3, 10.8]
+row_title(11.75, 'b', r'{\tt t\_breakpoints}', 'Error falls as $h^p$')
+for y, n, lab in zip(YB, (7, 12), (r'Level $k$', r'Level $k+1$')):
+    eb = np.sort(np.concatenate([np.linspace(X0, X1, n + 1), [XJ]]))
+    lane(y, eb, C_BP, mark_jump=True)
+    ax.text(X0 - 0.12, y, lab, ha='right', va='center', fontsize=6.6, color=INK)
+jb = int(np.searchsorted(eb, XJ))
+enlarge(YB[-1], eb, [jb - 1, jb], 7.95, 10.15, C_BP, 'Slabs at the\ndiscontinuity',
+        'Each slab on\none side', breakpoint=True)
+
+# (c) t_slab_edges: the user's grid, evaluated once and never refined.  With an edge at the
+# jump every slab lies on one piece, as in (b), from a single evaluation.
+YC = 6.7
+row_title(7.15, 'c', r'{\tt t\_slab\_edges}', 'One evaluation, never refined')
+ec = np.array([X0, X0 + 0.9, X0 + 1.8, XJ - 0.4, XJ, XJ + 0.55, XJ + 1.6, XJ + 3.0, X1 - 0.6, X1])
+lane(YC, ec, C_USER, mark_jump=True)
+ax.text(X0 - 0.12, YC, 'User\'s grid', ha='right', va='center', fontsize=6.6, color=INK)
+enlarge(YC, ec, [3, 4], 3.95, 6.15, C_USER, 'Slabs at the\ndiscontinuity',
+        'As in (b), in\none evaluation')
+
+save(fig, 'declaring_edges.pdf')'''),
     md(r'''## Figure 2 --- slab width follows the profile, not the phase
 
 Three measurements: one slab against a constant Hamiltonian over six decades of $\Phi$;
@@ -15413,8 +15796,8 @@ LABELS = {('gl',2):'Order 2, G-L', ('gl',4):'Order 4, G-L',
 for k in SERIES:
     col, ls = STYLE[k]
     ax[2].loglog(NS, curves[k], ls=ls, color=col, lw=1.2,
-                 label=r'%s, $N^{%d}$' % (LABELS[k], POWERS[k]))
-ax[2].set_xlabel(r'Slabs along the trajectory, $N$')
+                 label=r'%s, $N_{\rm slabs}^{%d}$' % (LABELS[k], POWERS[k]))
+ax[2].set_xlabel(r'Slabs along the trajectory, $N_{\rm slabs}$')
 ax[2].set_ylabel(r'Max $|\Delta P|$, multiple slabs')
 logx(ax[2]); logy(ax[2]); snug(ax[2], NS)
 ax[2].set_ylim(3.0e-16, 1.0)
@@ -19282,8 +19665,8 @@ if NMISS:
 logx(ax); logy(ax)
 ax.set_xlabel(r'Supernova shock front width [km]', labelpad=2.0)
 ax.set_ylabel(r'Time per probability at $|\Delta P| \leq 10^{-7}$ [ms]', labelpad=2.0)
-ax.set_xlim(0.045, 1.35e3)
-ax.set_ylim(0.28, 108.0)
+ax.set_xlim(0.045, 1.0e3)
+ax.set_ylim(0.28, 1.0e2)
 ax.grid(True, which='major', color=GRID, lw=0.5)
 ax.set_axisbelow(True)
 
@@ -19304,10 +19687,10 @@ sec.xaxis.set_minor_formatter(FuncFormatter(lambda *_: ''))
 ax.legend(loc='lower left', bbox_to_anchor=(0.0, 1.135, 1.0, 0.10), mode='expand',
           ncol=2, handlelength=1.7, columnspacing=0.9, handletextpad=0.5,
           labelspacing=0.3, borderaxespad=0.0, fontsize=7.2)
-# Which profile the four curves were priced on, in the top right corner.
-ax.text(0.972, 0.962, r'SN shock, $15$~MeV', transform=ax.transAxes,
-        ha='right', va='top', fontsize=7.8, color=INK, zorder=7,
-        bbox=dict(boxstyle='round,pad=0.35', fc='white', ec=INK, lw=0.6))
+# Which profile the four curves were priced on, in the top left corner.
+ax.text(0.028, 0.962, r'SN shock, $15$~MeV', transform=ax.transAxes,
+        ha='left', va='top', fontsize=7.8, color='black', zorder=7,
+        bbox=dict(boxstyle='round,pad=0.35', fc='white', ec='black', lw=0.6))
 fig.tight_layout(pad=0.4)
 save(fig, 'shock_cost.pdf')'''),
     md(r'''## Figure 9 --- six codes through the Earth
@@ -19760,8 +20143,8 @@ ax.legend([h_dot, (h_sq, h_tr)],
 # Which profile these eight rows were priced on, said inside the panel so the figure
 # carries it without the caption.
 ax.text(0.030, 0.975, r'Sun (BS2005-AGS,OP)', transform=ax.transAxes,
-        ha='left', va='top', fontsize=7.5, color=INK, zorder=6,
-        bbox=dict(boxstyle='round,pad=0.35', fc='white', ec=INK, lw=0.6))
+        ha='left', va='top', fontsize=7.5, color='black', zorder=6,
+        bbox=dict(boxstyle='round,pad=0.35', fc='white', ec='black', lw=0.6))
 fig.tight_layout(pad=0.6)
 save(fig, 'solar_average_cost.pdf')'''),
     md(r'''## Figure 11 --- what asking for more workers buys
@@ -19840,8 +20223,8 @@ def workers_panel(ax):
 def corner_label(ax, text):
     r"""The rounded label naming the chord, in the top left corner of a panel."""
     return ax.text(0.030, 0.962, text, transform=ax.transAxes, ha='left', va='top',
-                   fontsize=7.8, color=INK, zorder=6,
-                   bbox=dict(boxstyle='round,pad=0.35', fc='white', ec=INK, lw=0.6))
+                   fontsize=7.8, color='black', zorder=6,
+                   bbox=dict(boxstyle='round,pad=0.35', fc='white', ec='black', lw=0.6))
 
 
 # What the knob costs where a caller most often reaches for it: one baseline shared by

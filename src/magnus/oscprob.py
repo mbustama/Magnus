@@ -9476,8 +9476,16 @@ def osc_prob_2nu_vacuum(
     verbose : int, optional
         0 not to print warnings and errors; 1 to print them; 2 to print
         progress.
-
-    
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angle is stated: ``'sin'`` (default) its sine,
         ``'sin2'`` its sine *squared* -- which is what global fits report --
@@ -9658,8 +9666,16 @@ def osc_prob_3nu_vacuum(
     verbose : int, optional
         0 not to print warnings and errors; 1 to print them; 2 to print
         progress.
-
-    
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -9898,8 +9914,16 @@ def osc_prob_4nu_vacuum(
     verbose : int, optional
         0 not to print warnings and errors; 1 to print them; 2 to print
         progress.
-
-    
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -10159,8 +10183,16 @@ def osc_prob_5nu_vacuum(
     verbose : int, optional
         0 not to print warnings and errors; 1 to print them; 2 to print
         progress.
-
-    
+    \**kwargs
+        Additional arguments forwarded to the underlying middle-layer function, and
+        through it to :func:`osc_prob`, whose signature declares them. The refinement
+        keywords reached this way are ``n_slabs``, ``min_n_slabs``, ``max_n_slabs``,
+        ``t_slab_edges``, ``t_breakpoints``, ``magnus_exp_order``,
+        ``integration_method``, ``rtol``, ``atol``, ``strict_convergence`` and
+        ``n_jobs``.  They do not appear in this signature because they are not this
+        function's to declare, so ``help()`` on it will not list them: see
+        :func:`osc_prob`.  The logging arguments are this function's own, and are
+        documented above.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles

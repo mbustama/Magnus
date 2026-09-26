@@ -1597,15 +1597,16 @@ def _local_evolution_operator(H_func: Callable, l_b: float, l_c: float, magnus_e
 
 def _hybrid_propagator_once(H_func: Callable, l0: float, l1: float, threshold: float,
     n_probe: int, n_points: int, fd_step_frac: float, magnus_exp_order: int,
-    integration_method: str) -> Tuple[np.ndarray, List[Tuple[float, float]], bool, float,
-                                      float]:
+    integration_method: str, patch_atol: float = 1.0e-7) -> Tuple[np.ndarray,
+                                      List[Tuple[float, float]], bool, float, float]:
     r"""One evaluation of the hybrid propagator at a fixed set of internal tolerance knobs (see
     :func:`hybrid_propagator` for the self-certifying refinement built on top of this).
 
     Returns the operator, the windows used, whether every local patch converged, the largest
     adiabaticity parameter seen on the probe grid, and the largest seen outside every window
     (which the caller needs to judge the stretch adiabatic transport carries alone -- see
-    :data:`GAMMA_TO_ERROR`)."""
+    :data:`GAMMA_TO_ERROR`).  ``patch_atol`` is what every local patch converges to; see
+    :func:`hybrid_propagator` for how it follows the requested tolerance."""
     info = {}
     windows, _ = find_nonadiabatic_windows(H_func, l0, l1, threshold=threshold, n_probe=n_probe,
         fd_step_frac=fd_step_frac, info=info)
@@ -1621,7 +1622,7 @@ def _hybrid_propagator_once(H_func: Callable, l0: float, l1: float, threshold: f
     for (l_b, l_c) in windows:
         U_total = adiabatic_propagator(H_func, cursor, l_b, n_points=n_points) @ U_total
         U_patch, ok = _local_evolution_operator(H_func, l_b, l_c, magnus_exp_order,
-            integration_method)
+            integration_method, patch_atol=patch_atol)
         all_patches_converged = all_patches_converged and ok
         U_total = U_patch @ U_total
         cursor = l_c
@@ -1675,7 +1676,10 @@ def hybrid_propagator(H_func: Callable, l0: float, l1: float, rtol: Optional[flo
     .. versionchanged:: 1.1.1
        The adiabaticity requirement applies to the stretch outside every window, not only to a
        result with no window at all; and a degenerate pair, including an exact crossing, always
-       gets a window (see :data:`DEGENERACY_ULPS`).
+       gets a window (see :data:`DEGENERACY_ULPS`).  Every Magnus patch converges to
+       ``min(1e-7, (atol + rtol)/10)`` instead of a fixed 1e-7, so a tolerance tighter than
+       about 1e-6 now reaches the patches; before, the result was certified at the requested
+       tolerance while each patch was converged only to 1e-7.
 
     Parameters
     ----------
@@ -1694,7 +1698,11 @@ def hybrid_propagator(H_func: Callable, l0: float, l1: float, rtol: Optional[flo
         two successive levels agree, and no error of the returned operator is ever estimated.
         See the ``rtol`` entry of :func:`magnus.oscprob.osc_prob` for what that does and does
         not promise.  ``certified`` is the flag that says whether the loop stopped because it
-        agreed or because it ran out of room.
+        agreed or because it ran out of room.  Every Magnus patch is converged to
+        ``min(1e-7, (atol + rtol)/10)``: a window that does not change between levels holds the
+        same patch in both, so the agreement test cannot vouch for a patch, and the patch has
+        to meet the tolerance on its own.  A patch that cannot within its slab cap leaves the
+        result uncertified.
     atol : float, optional
         Absolute tolerance on the same agreement; see ``rtol``.  Default: 1e-3.
     magnus_exp_order : int, optional
@@ -1895,8 +1903,17 @@ def hybrid_propagator(H_func: Callable, l0: float, l1: float, rtol: Optional[flo
                         n_windows=int(n_windows), iterations=int(iterations),
                         patches_converged=bool(patches_ok))
 
+    # Every Magnus patch converges to this, and it has to follow the requested tolerance.  The
+    # agreement test below cannot see a patch's own error: a window that does not change
+    # between iterations holds the same deterministic patch in both, so they agree trivially.
+    # At the patches' old fixed 1e-7 the hybrid certified an answer 2.0e-11 off DOP853 at a
+    # requested rtol of 1e-12 (the paper's Listing 1, 3nu at 2 MeV); at a tenth of the
+    # tolerance it is 3.0e-14.  At atol + rtol >= 1e-6 this is 1e-7, as it always was.
+    patch_atol = min(1.0e-7, 0.1*(atol + rtol))
+
     U_prev, windows_prev, ok_prev, gamma_prev, gu_prev = _hybrid_propagator_once(H_func, l0,
-        l1, threshold, n_probe, n_points, fd_step_frac, magnus_exp_order, integration_method)
+        l1, threshold, n_probe, n_points, fd_step_frac, magnus_exp_order, integration_method,
+        patch_atol)
     if not ok_prev or not resolved:
         report(len(windows_prev), gamma_prev, gu_prev, 1, ok_prev)
         return U_prev, windows_prev, False
@@ -1933,7 +1950,7 @@ def hybrid_propagator(H_func: Callable, l0: float, l1: float, rtol: Optional[flo
             break
         U_next, windows_next, ok_next, gamma_next, gu_next = _hybrid_propagator_once(H_func,
             l0, l1, threshold, n_probe, n_points, fd_step_frac, magnus_exp_order,
-            integration_method)
+            integration_method, patch_atol)
         if not ok_next:
             report(len(windows_next), gamma_next, gu_next, iterations, False)
             return U_next, windows_next, False

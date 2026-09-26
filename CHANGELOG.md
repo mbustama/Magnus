@@ -141,6 +141,10 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- **Python 3.13 declared supported.**  The `pyproject.toml` classifiers now list
+  3.13, which CI has tested and passed on `main`; they listed only 3.10-3.12 before,
+  so PyPI did not show 3.13 as supported.
+
 - **`strategy='auto'` hands a moderate phase at a loose tolerance to the
   Magnus ladder** (issue #70).  On a smooth profile it used to run the hybrid
   strategy at every tolerance, and the hybrid's cost is its window search,
@@ -240,6 +244,23 @@ and the project uses [Semantic Versioning](https://semver.org/).
   and gains with them (issue #64).
 
 ### Fixed
+
+- The hybrid strategy could certify, without a warning, an answer outside a
+  tolerance tighter than about `atol + rtol = 1e-6`.  `hybrid_propagator`
+  checked its result against the requested `rtol`/`atol`, but every Magnus
+  patch inside a non-adiabatic window converged only to a fixed 1e-7, and the
+  agreement test cannot see a patch's error: a window that does not move
+  between refinement levels holds the same patch in both.  The paper's
+  Listing 1 at `rtol=1e-12` (3nu, 2 MeV) came back 2.0e-11 off DOP853, and a
+  2nu solar chord (0.3 R_sun, 10 MeV) 4.8e-09 off at every tolerance, ten
+  times outside `rtol=1e-9, atol=1e-11`, certified each time.  Every patch
+  now converges to `min(1e-7, (atol + rtol)/10)`, so at `atol + rtol >= 1e-6`,
+  the default included, nothing changes, bit for bit.  Over 140 cases at
+  `rtol` 1e-7, 1e-9 and 1e-12 checked against DOP853, 78 were silent misses
+  under `strategy='hybrid'` and `'auto'`, and none are now.  A patch that
+  cannot reach the tolerance within its slab cap leaves the result
+  uncertified, with `HybridCertificationWarning`, as before: that solar chord
+  is now 3.0e-10 off, and warns at `rtol` 1e-9 and 1e-12.
 
 - `MAGNUS_PAPER_CACHE_ONLY` now forbids notebook 28 from recomputing anything,
   as both READMEs said it did (issue #63).  Only the scan and timing sections

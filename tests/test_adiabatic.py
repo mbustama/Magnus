@@ -354,7 +354,7 @@ def test_hybrid_propagator_does_not_certify_when_the_first_patch_fails(monkeypat
     calls = []
 
     def fake_once(H_func, l0, l1, threshold, n_probe, n_points, fd_step_frac,
-                  magnus_exp_order, integration_method):
+                  magnus_exp_order, integration_method, patch_atol=1.0e-7):
         calls.append((threshold, n_probe, n_points))
         return np.eye(2, dtype=complex), [(1.0, 2.0)], False, 0.0, 0.0
 
@@ -378,7 +378,7 @@ def test_hybrid_propagator_does_not_certify_when_a_later_patch_fails(monkeypatch
     calls = []
 
     def fake_once(H_func, l0, l1, threshold, n_probe, n_points, fd_step_frac,
-                  magnus_exp_order, integration_method):
+                  magnus_exp_order, integration_method, patch_atol=1.0e-7):
         calls.append((threshold, n_probe, n_points))
         return np.eye(2, dtype=complex), [], results[len(calls) - 1], 0.0, 0.0
 
@@ -393,6 +393,60 @@ def test_hybrid_propagator_does_not_certify_when_a_later_patch_fails(monkeypatch
     assert calls[1] != calls[0], "the second pass must run at genuinely tightened knobs"
     assert maxabs(U.conj().T @ U - np.eye(2)) < 1e-12
 
+
+
+def _listing1_worst_point(monkeypatch, rtol, atol):
+    """The paper's Listing 1 at its worst point, through the public wrapper with
+    strategy='hybrid': 3nu at 2 MeV along an exponential profile (3e3 g/cm^3 at the origin,
+    scale height 10 km, 25 km).  Returns P_ee, strategy_info, the Hamiltonian the wrapper
+    handed the hybrid (so a reference integrates exactly the same one) and every patch
+    tolerance used."""
+    import magnus.oscprob as op
+    captured, seen = {}, []
+    real_hp, real_patch = ad.hybrid_propagator, ad._local_evolution_operator
+
+    def hp(H_func, *args, **kwargs):
+        captured['H'] = H_func
+        return real_hp(H_func, *args, **kwargs)
+
+    def patch(*args, **kwargs):
+        seen.append(kwargs.get('patch_atol'))
+        return real_patch(*args, **kwargs)
+
+    monkeypatch.setattr(ad, 'hybrid_propagator', hp)
+    monkeypatch.setattr(ad, '_local_evolution_operator', patch)
+    info = {}
+    P = op.osc_prob_3nu_matter_exp_density(
+        np.array([0.002])*gd.UNIT_GEV, L=25.0*gd.UNIT_KM, L0=0.0, rho_central=3.e3,
+        l_scale=10.0*gd.UNIT_KM, density_matter_is_in_g_per_cm3=True, nu_i=gd.NUE,
+        nu_f=gd.NUE, rtol=rtol, atol=atol, strategy='hybrid', strategy_info=info,
+        **gd.load_nufit_params('NuFIT 6.1'))
+    return float(np.asarray(P).ravel()[0]), info, captured['H'], seen
+
+
+def test_patches_converge_to_a_tenth_of_a_tight_tolerance(monkeypatch):
+    """A window that does not change between refinement levels holds the same patch in both,
+    so the agreement test cannot vouch for it: the patch has to meet the tolerance itself.  At
+    atol + rtol >= 1e-6 the patch tolerance stays at the 1e-7 it always was."""
+    _, _, _, seen = _listing1_worst_point(monkeypatch, 1e-3, 1e-3)
+    assert seen and all(t == 1.0e-7 for t in seen)
+    _, _, _, seen = _listing1_worst_point(monkeypatch, 1e-12, 1e-14)
+    assert seen and all(t == pytest.approx(0.1*(1e-12 + 1e-14)) for t in seen)
+
+
+def test_a_certified_answer_meets_a_tight_tolerance(monkeypatch):
+    """With every patch converged to a fixed 1e-7, this point came back certified and 2.0e-11
+    off DOP853 at a requested rtol of 1e-12: twenty times outside, with no warning.  Converged
+    to a tenth of the tolerance, it is 3e-14."""
+    P, info, H_func, _ = _listing1_worst_point(monkeypatch, 1e-12, 1e-14)
+    assert info['certified'] is True
+
+    def rhs(l, y):
+        return (-1j*np.asarray(H_func(l)) @ y.reshape(3, 3)).ravel()
+    sol = solve_ivp(rhs, (0.0, 25.0*gd.UNIT_KM), np.eye(3, dtype=complex).ravel(),
+                    rtol=1e-13, atol=1e-15, method='DOP853')
+    P_ref = abs(sol.y[0, -1])**2
+    assert abs(P - P_ref) < 1e-12
 
 def test_windows_are_found_away_from_gap_extrema():
     """The adiabaticity parameter is not largest where the gap is stationary.
