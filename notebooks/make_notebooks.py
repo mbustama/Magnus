@@ -14625,27 +14625,35 @@ axd.text(21.2, 5.00, 'Magnus patches', ha='left', va='center', fontsize=5.6, col
 save(fig, 'architecture.pdf')'''),
     md(r'''## Figure 1d --- the four layers of oscprob
 
-A request enters at a named wrapper and descends, left to right, to the engine that answers
-it: the wrapper packs its named parameters into a dictionary, a scenario function builds the
-Hamiltonian, `osc_prob_energy_baseline` runs the scan over energies and baselines, and
-`osc_prob` computes each point. The wrappers are a product set --- the same fourteen
-environment-and-scenario names at each of four flavor counts --- so the box lists the fourteen
-once under the name pattern, and $4 \times 14 = 56$ is every wrapper there is.'''),
+A request enters at a named wrapper and descends, left to right, through the layers: the wrapper
+packs its named parameters into a dictionary, a scenario function builds the Hamiltonian and tries
+the first five engines, `osc_prob_energy_baseline` tries the sixth, the cumulative scan, and
+otherwise calls `osc_prob` once per point, and `osc_prob` is itself the seventh engine, the
+general Magnus ladder. The engines hang below the layer that tries them. The wrappers are a
+product set --- the same fourteen environment-and-scenario names at each of four flavor counts ---
+so the box lists the fourteen once under the name pattern, and $4 \times 14 = 56$ is every wrapper
+there is.'''),
     code(r'''from matplotlib.patches import FancyBboxPatch
 # ------------------------------------------------ the four layers of oscprob
-# A request enters at a named wrapper and descends, left to right, to the engine that
-# answers it.  The wrappers are a product set: the same fourteen environment-and-scenario
-# names at each of four flavor counts, so the box lists the fourteen once under the name
-# pattern, and 4 x 14 = 56 is every wrapper there is.
+# A request enters at a named wrapper and descends, left to right, through the layers.  The
+# engines of Sec. 5.4 hang below the layer that tries them: the scenario functions try the
+# first five, osc_prob_energy_baseline the sixth, and osc_prob is itself the seventh, the
+# general Magnus ladder, reached only when no other engine applies (Table tab:engines; the
+# call sites are in oscprob.py: _avg_prob_dispatch, _osc_prob_hybrid_dispatch,
+# _osc_prob_ip_exp_dispatch and _osc_prob_scan_separable_dispatch in each scenario function,
+# _osc_prob_cumulative_scan in osc_prob_energy_baseline).  The wrappers are a product set:
+# the same fourteen environment-and-scenario names at each of four flavor counts, so the box
+# lists the fourteen once under the name pattern, and 4 x 14 = 56 is every wrapper there is.
 C_TOP, E_TOP = '#eaf2fb', '#1c71d8'
 C_2ND, E_2ND = '#eef7f0', '#26a269'
 C_3RD, E_3RD = '#fdf3e7', '#b5651d'
 C_BASE, E_BASE = '#f4eef7', '#813d9c'
-C_ENG, E_ENG = '#fff4e6', '#c64600'
+C_ENG, E_ENG = '#f1f1f1', '#4d4d4d'
 
 fig, axd = plt.subplots(figsize=(WIDE, 3.15))
 axd.set_xlim(-0.2, 32.5); axd.set_ylim(0, 11.5); axd.axis('off')
-YMID = 5.75                                             # the arrows' line
+YMID = 5.75                                             # the wrapper box is centred here
+YUP = 8.35                                              # the layer row
 # One set of vertical margins for every box, so the white space above the title and below
 # the last line is the same everywhere whatever the box holds.
 PAD, TITLE_DROP, LINE, LINE_H = 0.42, 0.66, 0.50, 0.30   # data units
@@ -14655,12 +14663,19 @@ def tt(s):
     return r'\texttt{%s}' % s.replace('_', r'\_')
 
 
-def box(x, w, face, edge, title, items, size=6.0):
-    """A box sized to its content.  `items` are (text, style, extra_gap_after) with style
-    one of 'centre', 'head', 'name'; the box height follows from them."""
+def box(x, w, face, edge, title, items, size=6.0, yc=YMID, yb=None, yt=None):
+    """A box sized to its content.  `items` are (text, style, extra_gap_after) with style one
+    of 'centre', 'head', 'name', 'left'; the box height follows from them.  The box is centred
+    at height yc, or, if given, has its drawn bottom edge at yb or its drawn top edge at yt.
+    Returns the (bottom, top) of the drawn edge."""
     body = TITLE_DROP + sum(LINE + gap for _, _, gap in items) - LINE + LINE_H
     h = PAD + body + PAD
-    y0 = YMID - h/2.0
+    if yb is not None:
+        y0 = yb + 0.12                                  # the drawn edge includes the pad
+    elif yt is not None:
+        y0 = yt - 0.12 - h
+    else:
+        y0 = yc - h/2.0
     axd.add_patch(FancyBboxPatch((x, y0), w, h, boxstyle='round,pad=0.12,rounding_size=0.25',
                                  facecolor=face, edgecolor=edge, lw=0.9, zorder=2))
     top = y0 + h - PAD
@@ -14674,18 +14689,31 @@ def box(x, w, face, edge, title, items, size=6.0):
         elif style == 'head':
             axd.text(x + 0.55, y, r'\emph{%s}' % text, ha='left', va='top', fontsize=5.6,
                      color=edge, zorder=3)
+        elif style == 'left':
+            axd.text(x + 0.55, y, text, ha='left', va='top', fontsize=size, color='0.25',
+                     zorder=3)
         else:
             axd.text(x + 1.05, y, r'$\ldots$' + tt(text), ha='left', va='top', fontsize=5.6,
                      color='0.25', zorder=3)
         y -= LINE + gap
+    return y0 - 0.12, y0 + h + 0.12                    # the drawn edge includes the pad
 
 
-def arrow(x0, x1, label):
-    axd.annotate('', xy=(x1, YMID), xytext=(x0, YMID), zorder=1,
+def arrow(x0, x1, label, y=YUP):
+    axd.annotate('', xy=(x1, y), xytext=(x0, y), zorder=1,
                  arrowprops=dict(arrowstyle='-|>', mutation_scale=8, lw=0.9, color='0.35',
                                  shrinkA=1, shrinkB=1))
-    axd.text(0.5*(x0 + x1), YMID + 0.22, label, ha='center', va='bottom', fontsize=5.4,
+    axd.text(0.5*(x0 + x1), y + 0.22, label, ha='center', va='bottom', fontsize=5.4,
              color='0.35', zorder=3, linespacing=1.25)
+
+
+def down(x, y0, y1, label):
+    """A layer trying its engines: an arrow down from the layer to the engines it tries."""
+    axd.annotate('', xy=(x, y1), xytext=(x, y0), zorder=1,
+                 arrowprops=dict(arrowstyle='-|>', mutation_scale=8, lw=0.9, color=E_ENG,
+                                 shrinkA=1, shrinkB=1))
+    axd.text(x + 0.25, 0.5*(y0 + y1), label, ha='left', va='center', fontsize=5.4,
+             color=E_ENG, zorder=3)
 
 
 pattern = (tt('osc_prob_') + r'$\{$' + tt('2nu') + ', ' + tt('3nu') + ', ' + tt('4nu') + ', '
@@ -14700,27 +14728,44 @@ top_items += [('Non-standard interactions', 'head', 0.0)]
 top_items += [(n, 'name', 0.0) for n in NSI[:-1]] + [(NSI[-1], 'name', 0.16)]
 top_items += [('Lorentz-invariance violation', 'head', 0.0)]
 top_items += [(n, 'name', 0.0) for n in LIV]
-box(0.3, 7.6, C_TOP, E_TOP, 'Top layer: 56 named wrappers', top_items)
+bot1, _ = box(0.3, 7.6, C_TOP, E_TOP, 'Top layer: 56 named wrappers', top_items)
 
-arrow(8.15, 9.75, 'Parameter\ndictionary')
-box(9.9, 6.3, C_2ND, E_2ND, 'Second layer: scenarios',
-    [(tt('osc_prob_vacuum'), 'centre', 0.0),
-     (tt('osc_prob_matter_std_potential'), 'centre', 0.0),
-     (tt('osc_prob_matter_nsi'), 'centre', 0.0),
-     (tt('osc_prob_liv'), 'centre', 0.0)], size=5.6)
-arrow(16.45, 18.05, '$\\mathbb{H}(l)$')
-box(18.2, 4.6, C_3RD, E_3RD, 'Third layer: scan',
-    [(tt('osc_prob_energy_baseline'), 'centre', 0.0),
-     ('One call per energy', 'centre', 0.0),
-     ('and baseline; warm starts.', 'centre', 0.0)], size=5.6)
-arrow(23.05, 24.65, 'One point\nat a time')
-box(24.8, 3.4, C_BASE, E_BASE, 'Base layer',
+# The layer row.
+X2, W2 = 9.9, 6.3
+X3, W3 = 18.425, 5.6                                    # equal gaps either side
+X4, W4 = 26.25, 5.95
+arrow(8.15, X2 - 0.15, 'Parameter\ndictionary')
+b2, _ = box(X2, W2, C_2ND, E_2ND, 'Second layer: scenarios',
+            [(tt('osc_prob_vacuum'), 'centre', 0.0),
+             (tt('osc_prob_matter_std_potential'), 'centre', 0.0),
+             (tt('osc_prob_matter_nsi'), 'centre', 0.0),
+             (tt('osc_prob_liv'), 'centre', 0.0)], size=5.6, yc=YUP)
+arrow(X2 + W2 + 0.15, X3 - 0.15, '$\\mathbb{H}$, if\nno engine\napplies')
+b3, _ = box(X3, W3, C_3RD, E_3RD, 'Third layer: scan',
+            [(tt('osc_prob_energy_baseline'), 'centre', 0.0),
+             ('Engine 6 if it applies;', 'centre', 0.0),
+             ('else one call per point,', 'centre', 0.0),
+             ('with warm starts.', 'centre', 0.0)], size=5.6, yc=YUP)
+arrow(X3 + W3 + 0.15, X4 - 0.15, 'One point\nat a time')
+box(X4, W4, C_BASE, E_BASE, 'Base layer',
     [(tt('osc_prob'), 'centre', 0.0),
-     ('Refinement ladder,', 'centre', 0.0),
-     ('validation, logging.', 'centre', 0.0)], size=5.6)
-arrow(28.45, 30.05, 'From the\nrequest')
-box(30.2, 2.0, C_ENG, E_ENG, 'Engines', [('Seven', 'centre', 0.0), ('routes', 'centre', 0.0)],
-    size=5.6)
+     ('Engine 7, the general', 'centre', 0.0),
+     ('Magnus ladder: reached', 'centre', 0.0),
+     ('when no other applies.', 'centre', 0.0)], size=5.6, yc=YUP)
+
+# The engine row: the engines each layer tries, in the order of Table tab:engines.  The
+# first box sits on the same baseline as the wrapper box; the second hangs from the same top.
+_, top5 = box(X2, W2, C_ENG, E_ENG, 'Engines 1--5, tried in order',
+              [('1\\enspace Averaged probability', 'left', 0.0),
+               ('2\\enspace Adiabatic $+$ Magnus patches', 'left', 0.0),
+               ('3\\enspace Interaction picture', 'left', 0.0),
+               ('4\\enspace Constant Hamiltonian', 'left', 0.0),
+               ('5\\enspace Energy-batched scan', 'left', 0.0)], size=5.6, yb=bot1)
+down(X2 + W2/2.0, b2, top5, 'Tried first')
+_, top6 = box(X3, W3, C_ENG, E_ENG, 'Engine 6',
+              [('Cumulative scan', 'centre', 0.0),
+               ('over baselines', 'centre', 0.0)], size=5.6, yt=top5)
+down(X3 + W3/2.0, b3, top6, 'Tried first')
 
 fig.tight_layout(pad=0.3)
 save(fig, 'layers.pdf')'''),
