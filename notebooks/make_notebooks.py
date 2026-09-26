@@ -14572,15 +14572,16 @@ fig, axd = plt.subplots(figsize=(WIDE, WIDE*0.34))
 axd.set_axis_off(); axd.set_xlim(0.0, 30.0); axd.set_ylim(0.0, 10.2)
 
 
-def _abox(x, y, w, h, face, edge, title, body):
+def _abox(x, y, w, h, face, edge, title, body, body_drop=1.30):
+    # body_drop: from the top of the box to the first body line; larger for a two-line title.
     axd.add_patch(FancyBboxPatch((x, y), w, h,
                                  boxstyle='round,pad=0.12,rounding_size=0.25',
                                  facecolor=face, edgecolor=edge, lw=0.9, zorder=2))
     axd.text(x + w/2.0, y + h - 0.42, title, ha='center', va='top', fontsize=7.6,
-             color=edge, zorder=3,
+             color=edge, zorder=3, linespacing=1.25,
              fontfamily='monospace' if title[0].islower() else None)
     if body:
-        axd.text(x + w/2.0, y + h - 1.30, body, ha='center', va='top', fontsize=6.0,
+        axd.text(x + w/2.0, y + h - body_drop, body, ha='center', va='top', fontsize=6.0,
                  color='0.25', zorder=3, linespacing=1.5)
 
 
@@ -14593,17 +14594,26 @@ def _aarr(x0, y0, x1, y1, color='0.35', ls='-'):
 # Left: what goes in.  Middle: where a request is met.  Right: the three routes out.
 _abox(0.3, 6.00, 7.1, 3.50, C_IN, E_IN, 'Your Hamiltonian',
       'Any callable $\\mathbb{H}(l)$ returning\na Hermitian matrix, of any\nsize, or a constant one.')
-_abox(0.3, 0.50, 7.1, 3.50, C_IN, E_IN, 'hamiltonians, matter, earth',
-      'The worked scenarios and the\nprofiles they run through: PREM,\nthe Sun, NSI, LIV, sterile.')
+# The four modules that supply a Hamiltonian or a profile do not fit on one line of the box's
+# title, so the title takes two and the body starts lower.
+_abox(0.3, 0.30, 7.1, 3.90, C_IN, E_IN, 'hamiltonians, matter,\nearth, solarmodels',
+      'The worked scenarios and the\nprofiles they run through: PREM,\nthe Sun, NSI, LIV, sterile.',
+      body_drop=1.85)
+# The engines are tried before osc_prob is reached; osc_prob and its ladder are the last of
+# the seven, not the way in to them (Sec. 5.4 of the paper, Table tab:engines).
 _abox(8.9, 2.85, 7.3, 4.30, C_CORE, E_CORE, 'oscprob',
-      'Sixty named wrappers.\n$\\rightarrow$ four scenario functions\n'
-      '$\\rightarrow$ {\\tt osc\\_prob} and its ladder\n$\\rightarrow$ seven engines, self-chosen')
+      '56 named wrappers\n$\\rightarrow$ four scenario functions\n'
+      '$\\rightarrow$ seven engines, tried in order;\nthe last is {\\tt osc\\_prob}\'s ladder')
+# Ten terms, not order ten: magnus_exp_order counts the terms kept, and the order delivered
+# depends on the quadrature (at most 8 by collocation, 12 by Simpson; Table tab:orders).
 _abox(17.7, 6.00, 6.4, 3.50, C_CORE, E_CORE, 'magnus',
-      'The expansion to order ten,\nthe quadrature, the slab\ncomposition. No physics in it.')
+      'The expansion to ten terms,\nthe quadrature, the slab\ncomposition. No physics in it.')
 _abox(17.7, 0.50, 6.4, 3.50, C_COMP, E_COMP, 'avgprob, adiabatic',
       'The routes that walk no\nslabs: the phase average, and\ntransport along the eigenbasis.')
+# Agree to round-off, not the same numbers; the speed-up is the 3x3 one on a stack
+# (docs/source/performance.rst: 6.8x at 108 slabs, 6.9x at 4096; 2x2 reaches 13x).
 _abox(25.6, 2.98, 4.1, 4.05, C_ACC, E_ACC, 'expmkernels',
-      'Compiled kernels:\nthe same numbers,\n$6.8{\\times}$ on the\nexponential.')
+      'Compiled kernels:\nagree to round-off,\n$\\approx 7{\\times}$ faster\nat three flavors.')
 
 _aarr(7.5, 7.4, 8.8, 6.6)
 _aarr(7.5, 2.6, 8.8, 3.6)
