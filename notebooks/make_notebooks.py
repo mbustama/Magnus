@@ -14769,6 +14769,127 @@ down(X3 + W3/2.0, b3, top6, 'Tried first')
 
 fig.tight_layout(pad=0.3)
 save(fig, 'layers.pdf')'''),
+    md(r'''## Figure 1e --- batching against parallelization (Sec. 5.5)
+
+A schematic, not a measurement. Four ways of computing a scan, drawn along one density
+profile: one point at a time; the energy-batched scan, which shares one grid and one
+sampling of the profile among all energies; the cumulative scan, which records every
+baseline in one pass; and `n_jobs` processes, which share the per-point ladders of the
+first row among them without reducing the work. Each bar is the final slab grid of one
+refinement ladder, and its colour is the process that runs it.'''),
+    code(r'''# ------------------------------------------- batching against parallelization (Sec. 5.5)
+# A schematic, not a measurement.  Four ways of computing a scan, drawn along one profile:
+# (a) one point at a time, the path every point takes when no batched engine applies;
+# (b) the energy-batched scan, where the profile is sampled once per slab and shared by every
+#     energy; (c) the cumulative scan, one traversal recording every baseline; (d) n_jobs
+# processes, which share the points of (a) among them without reducing the work.  Each lane is
+# the final grid of one ladder, cut into its slabs; a lane's colour is the process that runs it.
+# The ladder traverses the profile once per refinement level, so the notes count ladders.
+from matplotlib.patches import Rectangle
+
+C_ONE, C_BATCH, C_CUM = '0.55', BLUE, GREEN
+C_WORK = [INK, ORANGE, PURPLE, RED]                      # calling process, then workers 1-3
+
+fig, ax = plt.subplots(figsize=(COL, 3.65))
+ax.set_axis_off()
+X0, X1 = 2.55, 9.85                                      # the path, in axis units
+ax.set_xlim(0.0, 10.85)                                  # room for the braces
+ax.set_ylim(-0.6, 12.35)
+
+def density(x):
+    s = (x - X0)/(X1 - X0)
+    return 0.25 + 0.75*np.exp(-2.2*s) + 0.25*np.exp(-((s - 0.62)/0.07)**2)
+
+# The profile, once for the whole figure: shading is density, as in Fig. strategies.
+xs = np.linspace(X0, X1, 400)
+ax.imshow(density(xs)[None, :], extent=(X0, X1, 11.35, 11.95), aspect='auto',
+          cmap='Greys', vmin=0.0, vmax=1.6, zorder=1)
+ax.add_patch(Rectangle((X0, 11.35), X1 - X0, 0.6, fill=False, lw=0.6, ec=INK, zorder=2))
+ax.text(X0 - 0.12, 11.65, 'Density profile', ha='right', va='center', fontsize=7.2, color=INK)
+ax.annotate('', xy=(X1, 12.2), xytext=(X0, 12.2),
+            arrowprops=dict(arrowstyle='-|>', mutation_scale=7, lw=0.7, color=INK))
+ax.text(0.5*(X0 + X1), 12.3, 'Position along the path', ha='center', va='bottom',
+        fontsize=7.2, color=INK)
+
+
+def lane(y, n_slabs, color, x_end=X1, h=0.34, alpha=1.0, edge=None):
+    """One traversal: a bar cut into n_slabs slabs of equal width.  `edge`, if given, draws the
+    slab edges in that colour at full opacity, for a pale bar whose own edges would not show."""
+    edges = np.linspace(X0, x_end, n_slabs + 1)
+    for a, b in zip(edges[:-1], edges[1:]):
+        ax.add_patch(Rectangle((a, y - h/2), b - a, h, facecolor=color, alpha=0.30*alpha,
+                               edgecolor=color, lw=0.5, zorder=3))
+    if edge is not None:
+        for a in edges[1:-1]:
+            ax.plot([a, a], [y - h/2, y + h/2], color=edge, lw=0.6, zorder=4)
+    return edges
+
+
+def brace(x, y0, y1, label, w=0.26):
+    """A curly brace from y0 to y1 at x, opening to the left, with a label turned 90 degrees."""
+    n = 200
+    half = np.linspace(0.0, 1.0, n)
+    beta = 12.0
+    bump = 1.0/(1.0 + np.exp(-beta*(half - half[0]))) + 1.0/(1.0 + np.exp(-beta*(half - half[-1])))
+    bump = (bump - bump.min())/(bump.max() - bump.min())
+    xs_b = x + w*np.concatenate([bump, bump[::-1]])
+    ys_b = np.linspace(y0, y1, 2*n)
+    ax.plot(xs_b, ys_b, color=INK, lw=0.8, solid_capstyle='round', zorder=5)
+    ax.text(x + w + 0.12, 0.5*(y0 + y1), label, rotation=90, ha='left', va='center',
+            fontsize=7.6, color=INK)
+
+
+def row_title(y, tag, title, note):
+    ax.text(0.0, y, r'\textbf{(%s)}\ %s' % (tag, title), ha='left', va='bottom',
+            fontsize=7.6, color=INK)
+    ax.text(X1, y, note, ha='right', va='bottom', fontsize=6.4, color='0.35')
+
+
+# (a) One point at a time: each energy traverses the profile on its own, and each settles on its
+# own slab count, since each refines on its own.
+YA = [9.95, 9.5, 9.05, 8.6]
+row_title(10.35, 'a', 'One point at a time', 'One ladder per energy')
+for i, (y, n) in enumerate(zip(YA, (7, 9, 11, 14))):
+    lane(y, n, C_ONE, edge='0.30')
+    ax.text(X0 - 0.12, y, r'$E_%d$' % (i + 1), ha='right', va='center', fontsize=7.2)
+
+# (b) Energy-batched scan: one grid shared by every energy; the profile is sampled once per slab
+# and used by all of them, and the energies move through the slabs together.
+YB = [7.05, 6.6, 6.15, 5.7]
+row_title(7.45, 'b', 'Energy-batched scan', 'One ladder for all energies')
+for i, y in enumerate(YB):
+    edges = lane(y, 11, C_BATCH)
+    ax.text(X0 - 0.12, y, r'$E_%d$' % (i + 1), ha='right', va='center', fontsize=7.2)
+for a in edges[1:-1]:                                    # the shared slab edges
+    ax.plot([a, a], [YB[-1] - 0.24, YB[0] + 0.24], color=C_BATCH, lw=0.5, zorder=4)
+
+# (c) Cumulative scan: one energy, one traversal, the running product recorded at each baseline.
+YC = 4.2
+row_title(4.6, 'c', 'Cumulative scan', 'One probe, then one pass')
+lane(YC, 14, C_CUM)
+ax.text(X0 - 0.12, YC, r'$E$', ha='right', va='center', fontsize=7.2)
+for k, xl in enumerate(np.linspace(X0, X1, 15)[[4, 7, 10, 14]]):
+    ax.plot([xl, xl], [YC - 0.3, YC + 0.3], color=C_CUM, lw=1.1, zorder=5)
+    ax.text(xl, YC - 0.36, r'$L_%d$' % (k + 1), ha='center', va='top', fontsize=6.6,
+            color=C_CUM)
+
+# (d) n_jobs processes: the lanes of (a), shared out.  The first point runs in the calling
+# process; the rest are divided among the workers.  Every point still traverses on its own.
+YD = [2.15, 1.65, 1.15, 0.65, 0.15, -0.35]
+row_title(2.55, 'd', r'{\tt n\_jobs} $= 3$', 'One ladder per energy')
+who = [0, 1, 2, 3, 1, 2]
+labels = ['Calling process', 'Worker 1', 'Worker 2', 'Worker 3', 'Worker 1', 'Worker 2']
+for i, (y, n, w) in enumerate(zip(YD, (7, 9, 11, 14, 10, 12), who)):
+    lane(y, n, C_WORK[w])
+    ax.text(X0 - 0.12, y, r'$E_%d$' % (i + 1), ha='right', va='center', fontsize=7.2)
+    ax.text(X0 - 0.62, y, labels[i], ha='right', va='center', fontsize=6.0,
+            color=C_WORK[w])
+
+# Which rows are batching and which parallelization: (b) and (c) against (d).
+brace(X1 + 0.28, YC - 0.75, 7.75, 'Batching')
+brace(X1 + 0.28, YD[-1] - 0.22, 2.85, 'Parallelization')
+
+save(fig, 'batching.pdf')'''),
     md(r'''## Figure 2 --- slab width follows the profile, not the phase
 
 Three measurements: one slab against a constant Hamiltonian over six decades of $\Phi$;
