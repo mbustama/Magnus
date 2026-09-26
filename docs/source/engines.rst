@@ -176,6 +176,12 @@ hybrid when all three of these hold:
   :data:`magnus.oscprob.AUTO_LADDER_MAX_FLOOR_FRACTION` = 1/4 of its cap, which keeps every
   solar path on the hybrid.
 
+For an energy scan at one baseline that the energy-batched scan will take, the phase condition
+is dropped (issue #84).  That engine shares its slabs across the energies, so the phase limit,
+which prices the ladder one point at a time, does not apply: on 100 energies of a three-flavor,
+two-resonance profile whose phase estimate sat just above it, the hybrid took 62 s and the
+batched scan 0.4 s.
+
 The ladder then runs at a tenth of the tolerance
 (:data:`magnus.oscprob.AUTO_LADDER_TOLERANCE_MARGIN`), skips the interaction picture and starts
 on slabs over which the Magnus series is guaranteed to converge.  The hybrid's test for an

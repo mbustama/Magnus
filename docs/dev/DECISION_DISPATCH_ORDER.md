@@ -260,6 +260,16 @@ hybrid dispatcher returns a `_PreferLadder` marker instead of running when all t
 - the ladder's starting slab count is at most `AUTO_LADDER_MAX_FLOOR_FRACTION` (1/4) of the
   resolved `max_n_slabs`.
 
+For an energy scan at one baseline that the energy-batched scan will take (more than one energy,
+one shared baseline, `n_jobs == 1`, not verbose, `separable` not disabled), the phase condition
+is dropped (issue #84). The phase limit prices the ladder one point at a time; the batched
+engine shares its slabs across the energies, while the hybrid pays its window search at every
+energy. `_estimated_phase` takes the largest phase over the sampled energies, so the lowest
+energy of a scan could push a request past 1e4 that each of its points would pass: measured on
+100 energies of a three-flavor, two-resonance profile (estimate 1.05e4), the hybrid took 62 s
+and the batched scan 0.4 s, within the tolerance. The slab-count condition still keeps every
+solar path on the hybrid: a 20-energy scan over the full Sun at 1 MeV and at 10 MeV stays there.
+
 The caller then skips the interaction picture and runs the separable scan or the general ladder
 at a tenth of the tolerance, with `min_n_slabs` raised to the count at which every slab meets
 the `MagnusConvergenceWarning` condition.

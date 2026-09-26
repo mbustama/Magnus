@@ -309,7 +309,10 @@ point:
    hybrid's window search costs the same at any tolerance, so at a loose one
    on a moderate phase it is the slower route by one to two orders of
    magnitude. The ladder runs at a tenth of the requested tolerance; see
-   :ref:`dispatch-order` for the measurement.
+   :ref:`dispatch-order` for the measurement. An energy scan at one baseline
+   that the energy-batched scan will take is handed over whatever its phase,
+   since that engine shares its slabs across the energies; the slab-count
+   condition alone keeps the full Sun on the hybrid.
 
 Unlike the two-flavor interaction-picture fast path, the hybrid strategy
 has **no restriction on the number of flavors**: the resonance detector and
