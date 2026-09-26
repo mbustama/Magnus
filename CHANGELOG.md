@@ -141,6 +141,10 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- **Python 3.13 declared supported.**  The `pyproject.toml` classifiers now list
+  3.13, which CI has tested and passed on `main`; they listed only 3.10-3.12 before,
+  so PyPI did not show 3.13 as supported.
+
 - **`strategy='auto'` hands a moderate phase at a loose tolerance to the
   Magnus ladder** (issue #70).  On a smooth profile it used to run the hybrid
   strategy at every tolerance, and the hybrid's cost is its window search,
