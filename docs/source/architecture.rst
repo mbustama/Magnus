@@ -471,21 +471,27 @@ new term switched off, it returns what ``osc_prob_matter_std_potential`` does:
 
 .. jupyter-execute::
 
+    import warnings
     import numpy as np
     import magnus.globaldefs as gd
     import magnus.oscprob as oscprob
+    from magnus.magnus import MagnusConvergenceWarning
 
     osc = gd.load_nufit_params('NuFIT 6.1')
     E = np.array([0.5, 1.0])*gd.UNIT_GEV
     L = 1300.0*gd.UNIT_KM
     rho = lambda l: 3.0*np.exp(-np.asarray(l)/(2000.0*gd.UNIT_KM))   # g/cm^3
 
-    P_std = oscprob.osc_prob_matter_std_potential(3, rho, E, L, osc,
-        density_matter_is_in_g_per_cm3=True, rtol=1e-9, atol=1e-9)
-    P_off = osc_prob_lri(3, E, L, osc, 0.0, rho_func=rho,
-        density_matter_is_in_g_per_cm3=True, rtol=1e-9, atol=1e-9)
-    P_on = osc_prob_lri(3, E, L, osc, 1.0e-14, rho_func=rho,
-        density_matter_is_in_g_per_cm3=True, rtol=1e-9, atol=1e-9)
+    # The ladder's first, coarse levels raise MagnusConvergenceWarning, which reports a slab
+    # width rather than an error (see diagnostics); the comparison below is what checks the answer.
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore', MagnusConvergenceWarning)
+        P_std = oscprob.osc_prob_matter_std_potential(3, rho, E, L, osc,
+            density_matter_is_in_g_per_cm3=True, rtol=1e-9, atol=1e-9)
+        P_off = osc_prob_lri(3, E, L, osc, 0.0, rho_func=rho,
+            density_matter_is_in_g_per_cm3=True, rtol=1e-9, atol=1e-9)
+        P_on = osc_prob_lri(3, E, L, osc, 1.0e-14, rho_func=rho,
+            density_matter_is_in_g_per_cm3=True, rtol=1e-9, atol=1e-9)
 
     print('term off, largest difference from the shipped function: %.0e'
           % np.max(np.abs(np.asarray(P_off) - np.asarray(P_std))))
