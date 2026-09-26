@@ -398,6 +398,7 @@ File Tree
        ├── test_palindrome.py          # The palindromic-profile optimization and its gate
        ├── test_plotting.py            # Pre-packaged plotting tools: house-style defaults, layouts
        ├── test_routine_listings.py    # Each module's Routine listings names every public function it defines
+       ├── test_separable_breakpoints.py  # The energy-batched engine on grids with breakpoints: real refinement only (issue #71)
        ├── test_solarmodels.py         # Solar-model tables, their profiles, and the Sun wrappers that use them
        ├── test_tolerance.py           # What rtol/atol promise, and the effective-refinement gate
        ├── test_validation.py          # Input-validation guards and their error messages
