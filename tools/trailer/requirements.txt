@@ -1,0 +1,14 @@
+# The exact versions the trailer was last rendered with (Python 3.11.15, Linux x86-64).
+# Magnus itself is installed from this repository:  pip install -e .   (from the repo root)
+#
+# Required
+numpy==2.4.6
+scipy==1.17.1
+matplotlib==3.10.8          # other versions shift text and tick placement by a pixel or two
+pillow==12.3.0              # comes with matplotlib; render.py and the storyboard use it directly
+numba==0.67.0               # a Magnus dependency (the fast matrix-exponential kernels)
+joblib==1.6.0               # a Magnus dependency
+imageio-ffmpeg==0.6.0       # ships a static ffmpeg (libx264 + AAC) used to encode the MP4
+#
+# Optional: only the storyboard review page, to show pages of the paper's PDF figures
+pymupdf==1.28.2
