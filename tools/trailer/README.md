@@ -106,8 +106,9 @@ How each kind of shot is drawn:
 - **A scene** (`"scene"` in the shot) is drawn at the shot's progress, in a box below the title
   band, with the shot's words in the band at the top of the frame (clear of a video player's
   controls), one phrase after another.  The last 12 % of a shot holds the finished picture.
-  Each scene's finished picture is measured once and centred in the space below the band, and
-  every frame of the shot uses that same offset, so nothing drifts from frame to frame.
+  Each scene's finished picture is measured once (the rows of pixels that differ from the
+  background) and raised so that its top sits just under the band; every frame of the shot uses
+  that same offset, so nothing drifts from frame to frame.
 - **A pillar** ("Accurate.", "Fast.") puts its big word and its line in the title band.
 - **The code moment** types its code, then draws the opening's matter curve from it.
 - **"Flexible."** and the **cards** (the question, the reveal, "From textbook to frontier.", the

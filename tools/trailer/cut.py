@@ -216,11 +216,14 @@ def in_content(fig, draw, dy=0.0):
         fig.add_axes = add
 
 
-# Where a scene's finished picture sits below the title band decides where all its frames sit: the
-# scenes were laid out with titles of their own at the top, now moved into the band, so each is
-# measured once at u = 1 and raised to be centred between the band and a margin at the bottom.
-# One offset per shot, the same for every frame, so nothing moves from frame to frame.
-FREE = (0.03, 0.835)                          # the space below the band, in fractions of the frame
+# The scenes were laid out with titles of their own at the top, now moved into the band, which left
+# them sitting low.  Each is measured once, on its finished picture (u = 1): drawn at low
+# resolution, the first and last rows of pixels that differ from the background are its extent.
+# (Axes' bounding boxes cannot be used for this: an empty axes reports its full extent.)  It is
+# then raised so that its top sits TOP_GAP below the band; one offset per shot, the same for every
+# frame, so nothing moves from frame to frame.
+BAND_BOTTOM = 1 - BAND / 9                    # where the band ends, in fractions of the frame
+TOP_GAP = 0.03
 _offsets = {}
 
 
@@ -229,13 +232,17 @@ def content_offset(key, draw):
         fig = _plt.figure(figsize=(16, 9), dpi=40, facecolor=BG)
         in_content(fig, draw)
         fig.canvas.draw()
-        r = fig.canvas.get_renderer()
-        boxes = [a.get_tightbbox(r) for a in fig.axes]
-        y0 = min(b.y0 for b in boxes if b is not None) / fig.bbox.height
-        y1 = max(b.y1 for b in boxes if b is not None) / fig.bbox.height
+        img = np.asarray(fig.canvas.buffer_rgba())[..., :3].astype(int)
         _plt.close(fig)
-        dy = 0.5 * (FREE[0] + FREE[1]) - 0.5 * (y0 + y1)
-        _offsets[key] = float(np.clip(dy, FREE[0] - y0, FREE[1] - y1)) if y1 - y0 < FREE[1] - FREE[0] else FREE[1] - y1
+        bg = np.array([int(BG[i:i + 2], 16) for i in (1, 3, 5)])
+        rows = np.where((np.abs(img - bg).sum(axis=2) > 24).any(axis=1))[0]
+        if rows.size == 0:
+            _offsets[key] = 0.0
+        else:
+            h = img.shape[0]
+            top, bottom = 1 - rows[0] / h, 1 - (rows[-1] + 1) / h     # fractions of the frame, from below
+            dy = (BAND_BOTTOM - TOP_GAP) - top                          # top just under the band
+            _offsets[key] = float(max(dy, 0.01 - bottom)) if top - bottom < BAND_BOTTOM - TOP_GAP else 0.0
     return _offsets[key]
 
 
