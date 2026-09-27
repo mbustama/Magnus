@@ -1,10 +1,11 @@
 r"""Renders the trailer's new scenes (see ``scenes.py``) as stills and as animations.
 
 For each scene: ``build/stills/<name>.png`` (the finished frame), ``build/frames/<name>/f*.png``
-(1280x720, 30 fps, over the shot's length at 96 bpm; the last 12 % holds the finished frame), and
-a clip in ``build/clips/``.  Run ``data.py`` first.  One scene at a time on one core::
+(30 fps, over the shot's length at 96 bpm; the last 12 % holds the finished frame), and a clip in
+``build/clips/``.  Frames are 1280x720 by default, for review; ``--width 1920`` gives the final
+1920x1080 (the same drawing, scaled).  Run ``data.py`` first.  One scene at a time on one core::
 
-    nice -n 19 python tools/trailer/render.py [--stills-only] [scene ...]
+    nice -n 19 python tools/trailer/render.py [--stills-only] [--width W] [scene ...]
 
 The clip is H.264 in MP4 from the PNG frames when the ffmpeg on the PATH (or in $FFMPEG) can
 do that.  Otherwise, as with the ffmpeg bundled with Playwright, which reads only piped JPEG and
@@ -32,8 +33,11 @@ def ffmpeg():
     raise SystemExit('no ffmpeg found: set $FFMPEG')
 
 
+WIDTH = 1280                                         # pixels; the drawing is 16 x 9 inches
+
+
 def frame(draw, u, path):
-    fig = plt.figure(figsize=(16, 9), dpi=80, facecolor=BG)
+    fig = plt.figure(figsize=(16, 9), dpi=WIDTH / 16, facecolor=BG)
     ax = fig.add_axes([0, 0, 1, 1])
     ax.set_xlim(0, 16)
     ax.set_ylim(0, 9)
@@ -85,5 +89,12 @@ def render(name, stills_only=False):
 if __name__ == '__main__':
     args = sys.argv[1:]
     stills_only = '--stills-only' in args
+    if '--width' in args:
+        i = args.index('--width')
+        WIDTH = int(args[i + 1])
+        del args[i:i + 2]
+    unknown = [a for a in args if not a.startswith('--') and a not in scenes.SCENES]
+    if unknown:
+        raise SystemExit('unknown scene(s) %s; choose from %s' % (unknown, ', '.join(scenes.SCENES)))
     for name in [a for a in args if not a.startswith('--')] or list(scenes.SCENES):
         render(name, stills_only)

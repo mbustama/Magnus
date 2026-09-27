@@ -9,29 +9,94 @@ remade here, in the trailer's own look; no figure source in the repository is ed
 | `trailer.json` | The script and timeline: one entry per shot, in beats at 96 bpm, with its words, what moves, and where its picture comes from (a new `scene`, or the paper figure or notebook animation it will be remade from, `still_from`).  Also the decisions still open. |
 | `common.py` | Paths, the look (colors, fonts), the two physics setups the new scenes use, and an independent reference integrator (no Magnus code) that checks the adiabatic scene. |
 | `data.py` | Computes every number the new scenes show, with Magnus, and prints the checks the storyboard cites. |
-| `scenes.py` | The new scenes, each drawn as a function of its progress `u` from 0 to 1: the opening's two tracks, the adiabatic switch, and six diagrams (the burden, the Hamiltonian, how Magnus works, how `strategy='auto'` picks a solver, many energies in one call, 2 to 5 flavors). |
-| `render.py` | Renders each scene as a still (`u = 1`) and as frames and a clip. |
-| `storyboard/` | `build.py` and its `template.html`: one page with a panel per shot, for review before the final render. |
+| `scenes.py` | The new scenes, each drawn as a function of its progress `u` from 0 to 1. |
+| `render.py` | Renders each scene as a still (`u = 1`), as PNG frames, and as a clip. |
+| `storyboard/` | `build.py` and its `template.html`: one page with a panel per shot, for review. |
 
-## Running it
+## Creating the animations
 
-From the repository root, on one core each (`nice` keeps them out of the way of other work):
+### 1. What you need
+
+- The repository's own environment (`pip install -e .` from the root): NumPy, SciPy and
+  Matplotlib (the scenes were made with 3.10.8), which brings Pillow.
+- `ffmpeg` on the PATH, or its path in `$FFMPEG`, to turn frames into clips.
+- For the storyboard only: PyMuPDF (`pip install pymupdf`), for thumbnails of paper figures.
+- Internet access on the first run: the two fonts, IBM Plex Mono and Unbounded (both under the
+  SIL Open Font License), are downloaded from the Google Fonts repository into
+  `build/fonts/`.  After that, nothing is fetched.
+
+Run everything from the repository root.  `nice -n 19` keeps a render out of the way of other
+work; each script uses one core, so scenes can be rendered in parallel from separate shells.
+
+### 2. Compute the data
 
 ```bash
-nice -n 19 python tools/trailer/data.py              # a few minutes; writes build/*.npz, build/diagrams.json
-nice -n 19 python tools/trailer/render.py            # all scenes; or name some, or --stills-only
-python tools/trailer/storyboard/build.py             # build/storyboard.html
+nice -n 19 python tools/trailer/data.py
 ```
 
-Everything is written under `tools/trailer/build/`, which git ignores: the data, the stills
-(1280×720), the PNG frames (30 fps) and the clips.  The PNG frames are the masters for the
-final encode.  `render.py` writes H.264 MP4 when the `ffmpeg` on the PATH (or in `$FFMPEG`)
-can; with the ffmpeg bundled with Playwright, which reads only JPEG and writes only VP8, it
-writes a WebM for review instead.
+This writes `build/opening.npz`, `build/adiabatic.npz` and `build/diagrams.json`, and prints
+one check line per step.  They should read:
 
-The two fonts, IBM Plex Mono and Unbounded (both under the SIL Open Font License), are
-downloaded from the Google Fonts repository on first use into `build/fonts/`.  The storyboard's
-thumbnails of paper figures need PyMuPDF.
+```
+opening: max P vacuum 0.108, matter 0.233
+code moment: max |P - wrapper| = 3.7e-08, warnings: none
+adiabatic: ... engines {'magnus': 15, 'hybrid': 225}, warnings none, max |P - reference| at 10 points = 5.2e-05, windows [(44993.6, 45005.1)]
+diagrams: ladder [(2, 0.01118), ..., (21, 0.10203)], converged 0.10202; ...; |U|^2 rows sum to 1: True
+```
+
+A step can be run on its own: `data.py opening`, `code`, `adiabatic` or `diagrams`.  The
+adiabatic step is the slow one (about a minute here): it makes 240 separate calls, so that
+each point is answered by the engine `strategy='auto'` picks for it.
+
+### 3. Render the scenes
+
+```bash
+nice -n 19 python tools/trailer/render.py                       # every scene, 1280x720 (review)
+nice -n 19 python tools/trailer/render.py switch opening        # only these scenes
+nice -n 19 python tools/trailer/render.py --stills-only         # the finished frames only
+nice -n 19 python tools/trailer/render.py --width 1920          # final size, 1920x1080
+```
+
+The scenes, with their length at 96 bpm (the same as their shot in `trailer.json`):
+
+| Scene | Beats | Seconds | Frames | What moves |
+|---|---|---|---|---|
+| `opening` | 14 | 8.8 | 262 | One neutrino rides two tracks, vacuum and matter; each P(νμ→νe) draws itself up to it |
+| `burden` | 10 | 6.3 | 188 | 25 solver files fill an experiments × theories grid, then converge on one H(E, x) |
+| `hamiltonian` | 8 | 5.0 | 150 | H = H_vac/E + V(x)·P_e + H_new(x) writes itself; each term lights its card |
+| `auto` | 6 | 3.8 | 112 | The five branches of `strategy='auto'` light in turn |
+| `switch` | 12 | 7.5 | 225 | The neutrino crosses three resonances; the shock window turns amber and is magnified; P_ee lands one dot per call, with the engine that answered |
+| `flavors` | 3 | 1.9 | 56 | Flavor-content bars grow from 2 to 5 flavors |
+| `slabs` | 4 | 2.5 | 75 | The path is sliced, the exponentials multiply, the real ladder converges |
+| `fast` | 4 | 2.5 | 75 | 2000 energies stream into one call; the spectrum draws |
+
+For each scene the output is:
+
+- `build/stills/<scene>.png`: the finished frame;
+- `build/frames/<scene>/f0000.png ...`: every frame, the masters for the final edit (the last
+  12 % of each scene holds the finished frame);
+- `build/clips/<scene>.mp4`: H.264, when the ffmpeg can read PNG frames and has `libx264`.
+  Otherwise (the ffmpeg bundled with Playwright reads only JPEG and writes only VP8) the
+  frames go through quality-95 JPEG into `build/clips/<scene>.webm`, good enough for review.
+
+To change a scene, edit its function in `scenes.py` (it receives the figure, a full-frame
+axes in a 16 × 9 coordinate box, and `u`), then re-render just that scene.  `seg(u, a, b)`
+from `common.py` gives the eased progress of a step that runs from `u = a` to `u = b`.
+
+### 4. Review them in the storyboard
+
+```bash
+python tools/trailer/storyboard/build.py        # -> build/storyboard.html
+```
+
+One self-contained page: the timeline, then a panel per shot, with each new scene playing its
+clip and every other shot showing the paper figure or notebook animation it starts from.
+
+### 5. Clean up
+
+Everything generated lives in `tools/trailer/build/`, which git ignores; delete it to start
+over.  At 1280×720 the frames average about 45 KB, so all eight scenes (1143 frames) take
+about 50 MB; at 1920×1080 a frame is about 1.7 times larger.
 
 ## What the scenes rest on
 
