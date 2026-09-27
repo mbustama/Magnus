@@ -7,7 +7,6 @@ everything they write goes to ``tools/trailer/build/``, which git ignores.
 """
 import pathlib
 import sys
-import urllib.request
 
 import numpy as np
 
@@ -32,26 +31,18 @@ MONO = DISP = 'Inter'
 # Inter is under the SIL Open Font License.  Its static files come from the official release,
 # downloaded once on first use; Matplotlib renders only the default instance of a variable font,
 # so the static weights are needed for bold and italic.
-INTER_ZIP = 'https://github.com/rsms/inter/releases/download/v4.1/Inter-4.1.zip'
+FONTS = HERE / 'fonts'                   # Inter 4.1, from github.com/rsms/inter/releases (extras/ttf)
 INTER_FILES = ('Regular', 'Italic', 'Medium', 'SemiBold', 'Bold', 'BoldItalic')
 
 
 def setup_matplotlib():
-    """Agg backend, Inter registered and used for everything, the mathematics included."""
-    import io
-    import zipfile
+    """Agg backend, Inter registered and used for everything, the mathematics included.  The font
+    files ship with the trailer, in ``fonts/`` (Inter 4.1, SIL Open Font License)."""
     import matplotlib
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
     from matplotlib import font_manager as fm
-    fonts = BUILD / 'fonts'
-    fonts.mkdir(parents=True, exist_ok=True)
-    wanted = [fonts / ('Inter-%s.ttf' % w) for w in INTER_FILES]
-    if not all(f.exists() for f in wanted):
-        z = zipfile.ZipFile(io.BytesIO(urllib.request.urlopen(INTER_ZIP).read()))
-        for f in wanted:
-            f.write_bytes(z.read('extras/ttf/' + f.name))
-        (fonts / 'Inter-LICENSE.txt').write_bytes(z.read('LICENSE.txt'))
+    wanted = [FONTS / ('Inter-%s.ttf' % w) for w in INTER_FILES]
     for f in wanted:
         fm.fontManager.addfont(str(f))
     plt.rcParams.update({'font.family': 'Inter', 'mathtext.fontset': 'custom', 'mathtext.rm': 'Inter',

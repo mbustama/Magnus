@@ -7,19 +7,23 @@ the trailer's own look; no figure source in the repository is edited.
 
 ## Quick start
 
-From the repository root:
+From scratch, on a machine with Python 3.10 or later and git:
 
 ```bash
-pip install -e .                      # the package, NumPy, SciPy, Matplotlib (with Pillow)
-pip install imageio-ffmpeg pymupdf    # an ffmpeg with H.264 and AAC; PDF thumbnails for the storyboard
+git clone https://github.com/mbustama/Magnus.git && cd Magnus
+git checkout trailer-v2                              # until the trailer is merged into main
+python -m venv .venv && source .venv/bin/activate
+pip install -e .                                     # Magnus itself
+pip install -r tools/trailer/requirements.txt        # the exact versions the trailer was made with
 
 nice -n 19 python tools/trailer/data.py                 # 1. every number the scenes show (a few minutes)
-nice -n 19 python tools/trailer/cut.py --jobs 4         # 2. every frame, the music, the MP4
+nice -n 19 python tools/trailer/cut.py --jobs 4         # 2. every frame, the music, the MP4 (about 20 min on 4 cores)
 ```
 
 The result is `tools/trailer/build/magnus_trailer.mp4`: 1920×1080, 30 fps, H.264 video with
-AAC stereo audio, 2:02.5 long (196 beats at 96 bpm).  The first run needs internet access
-once, to download the font (see "Fonts").
+AAC stereo audio, 2:02.5 long (196 beats at 96 bpm), about 8 MB.  Nothing is downloaded while
+it is made: the font ships in `fonts/`, and the numbers come from Magnus and from the paper's
+cache in the repository.
 
 Everything the scripts write goes to `tools/trailer/build/`, which git ignores.
 
@@ -35,16 +39,23 @@ Everything the scripts write goes to `tools/trailer/build/`, which git ignores.
 | `render.py` | Renders any scene alone, as a still, as PNG frames and as a clip.  Also finds ffmpeg for the other scripts. |
 | `cut.py` | Assembles the whole trailer, shot by shot, as 1920×1080 frames, writes the music and muxes both into the MP4. |
 | `music.py` | The music: an original piece synthesized from sine waves and noise. |
+| `requirements.txt` | Every package the scripts need, pinned to the versions the trailer was last rendered with. |
+| `fonts/` | Inter 4.1, the trailer's only font (six TTF styles and its SIL Open Font License). |
 | `storyboard/` | `build.py` and `template.html`: a review page with one panel per shot. |
 
 ## Step by step
 
 ### 1. What you need
 
-- **The package and its dependencies**: `pip install -e .` from the repository root.  The scenes
-  were made with Matplotlib 3.10.8.
-- **An ffmpeg with `libx264`, `aac` and PNG input**, for the MP4.  `pip install imageio-ffmpeg`
-  provides one, and the scripts find it on their own.  To use another, set `$FFMPEG` to its
+- **Python 3.10 or later** (the trailer was last rendered with 3.11.15 on Linux x86-64).
+- **Magnus**: `pip install -e .` from the repository root.
+- **The packages in `requirements.txt`**: `pip install -r tools/trailer/requirements.txt`.
+  They are pinned to the versions of the last render: NumPy 2.4.6, SciPy 1.17.1, Matplotlib
+  3.10.8, Pillow 12.3.0, Numba 0.67.0, joblib 1.6.0, imageio-ffmpeg 0.6.0, and optionally
+  PyMuPDF 1.28.2.  Other versions should work, but Matplotlib in particular can move text and
+  ticks by a pixel, so use these to get the same frames.
+- **An ffmpeg with `libx264`, `aac` and PNG input**, for the MP4.  `imageio-ffmpeg` (in the
+  requirements) provides one, and the scripts find it on their own.  To use another, set `$FFMPEG` to its
   path.  Without either, the scripts fall back to an `ffmpeg` on the PATH, and then to the one
   bundled with Playwright, which can write only silent WebM review clips: `cut.py` needs audio,
   so it needs one of the first two.
@@ -109,9 +120,9 @@ How each kind of shot is drawn:
   Each scene's finished picture is measured once (the rows of pixels that differ from the
   background) and raised so that its top sits just under the band; every frame of the shot uses
   that same offset, so nothing drifts from frame to frame.
-- **A pillar** ("Accurate.", "Fast.") puts its big word and its line in the title band.
+- **A pillar** ("Accurate", "Fast") puts its big word and its line in the title band.
 - **The code moment** types its code, then draws the opening's matter curve from it.
-- **"Flexible."** and the **cards** (the question, the reveal, "From textbook to frontier.", the
+- **"Flexible"** and the **cards** (the question, the reveal, "From textbook to frontier", the
   ending) are drawn in `cut.py` itself.
 
 Cuts are hard, on the beat; the picture fades in from black and out to black at the ends.
@@ -180,11 +191,16 @@ It is mastered to −2 dBFS, leaving room for the AAC encoder, whose peaks can o
 
 ## Fonts
 
-The trailer uses a single font, Inter 4.1 (SIL Open Font License), for text, numbers, math and
-code alike; it has the Greek letters (ν, μ, τ, Δ), the arrow → and superscripts that the scenes
-need.  On the first run, `common.setup_matplotlib()` downloads the release zip from
-github.com/rsms/inter once and extracts the TTFs and the license into `build/fonts/`; after that
-nothing is fetched.
+The trailer uses a single font, Inter 4.1 by Rasmus Andersson, for text, numbers, mathematics
+and code alike.  It has every glyph the scenes need: the Greek letters (ν, μ, τ, Δ, Ω), the arrow
+→, superscripts and the minus sign.  Neutrino flavors are always written with subscripts, as
+Matplotlib mathematics (`$P(\nu_\mu \to \nu_e)$`), in Inter too.
+
+The six styles used (Regular, Italic, Medium, SemiBold, Bold, BoldItalic) are in `fonts/`, with
+their license (SIL Open Font License 1.1, which allows redistributing them with the scripts).
+They are the files in `extras/ttf/` of `Inter-4.1.zip` from
+https://github.com/rsms/inter/releases/tag/v4.1.  `common.setup_matplotlib()` registers them
+with Matplotlib and sets them as the text and mathematics font; nothing is fetched.
 
 ## What the scenes rest on
 
