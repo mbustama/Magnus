@@ -337,7 +337,8 @@ File Tree
    ├── tools/                          # Standalone utilities that are not part of the package
    │   ├── build_solar_model_tables.py  # Trims the authors' solar-model files to the shipped tables, checking each hash
    │   ├── lint_notebook_cells.py      # Finds names the notebooks use but never define; run by the lint workflow
-   │   └── make_demo_video.py          # Joins and shrinks notebook 27's clips; shared with NuOscProbExact
+   │   ├── make_demo_video.py          # Joins and shrinks notebook 27's clips; shared with NuOscProbExact
+   │   └── trailer/                    # The trailer (issue #99): its script, and the scripts that compute and draw its scenes
    ├── src/                            # The package itself -- the only thing a `pip install` delivers
    │   ├── magnus/                     # Main Python package
    │   │   ├── __init__.py             # Explicit named imports from the four hamiltonians{2,3,4,5}nu.py modules

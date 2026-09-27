@@ -47,7 +47,7 @@ COMMENT_COLUMN = 36
 # lifted out of the executed notebooks, notebook output, and the solar-model
 # tables.  Listing them would triple the tree without telling anyone anything.
 COLLAPSED = ('docs/dev/', 'img/gallery/', 'fig/', 'resources/paper/figs/',
-             'resources/benchmarks/', 'src/magnus/data/solar_models/')
+             'resources/benchmarks/', 'src/magnus/data/solar_models/', 'tools/trailer/')
 
 TREE = [
     ('.github/', 'GitHub Actions workflows: tests, lint, notebooks, docs, publishing'),
@@ -325,6 +325,7 @@ TREE = [
      'Finds names the notebooks use but never define; run by the lint workflow'),
     ('tools/make_demo_video.py',
      "Joins and shrinks notebook 27's clips; shared with NuOscProbExact"),
+    ('tools/trailer/', 'The trailer (issue #99): its script, and the scripts that compute and draw its scenes'),
     ('src/', 'The package itself -- the only thing a `pip install` delivers'),
     ('src/magnus/', 'Main Python package'),
     ('src/magnus/__init__.py', 'Explicit named imports from the four hamiltonians{2,3,4,5}nu.py modules'),
