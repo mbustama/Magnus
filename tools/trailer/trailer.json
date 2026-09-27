@@ -13,8 +13,8 @@
    "beats": 14,
    "words": [
     "Neutrinos oscillate in flavor as they propagate",
-    "Through vacuum, and through matter",
-    "Matter changes how it oscillates"
+    "Here, in vacuum and through matter of varying density",
+    "Matter effects reshape the oscillation probability"
    ],
    "kind": "schematic",
    "scene": "opening",
@@ -26,9 +26,9 @@
    "act": 2,
    "beats": 12,
    "words": [
-    "Every neutrino experiment needs oscillation probabilities",
-    "New-physics models change the calculation",
-    "So each case gets its own solver"
+    "Every analysis needs oscillation probabilities",
+    "For its own baseline, matter profile, and physics model",
+    "Too often, each one means writing a new solver"
    ],
    "kind": "schematic",
    "scene": "burden",
@@ -40,8 +40,8 @@
    "act": 2,
    "beats": 6,
    "words": [
-    "What if you never had to",
-    "write another solver?"
+    "What if one solver",
+    "handled all of them?"
    ],
    "kind": "card",
    "visual": "the question, on the beat; the music drops out for the last beat"
@@ -52,10 +52,11 @@
    "beats": 13,
    "words": [
     "Magνs",
+    "Oscillation probabilities from the Magnus expansion",
     "Any number of flavors",
-    "Any matter profile",
-    "Standard Model and beyond",
-    "You write the physics, Magνs does the math"
+    "Any matter density profile",
+    "Standard oscillations and new physics",
+    "You write the Hamiltonian, Magνs computes the probabilities"
    ],
    "kind": "card",
    "visual": "the logotype answers the question; the four lines land one per two beats"
@@ -77,7 +78,7 @@
    "act": 4,
    "beats": 10,
    "words": [
-    "Write your Hamiltonian, call one function"
+    "Define H(E, x), then make a single call"
    ],
    "kind": "code",
    "scene": "opening",
@@ -102,7 +103,7 @@
    "act": 4,
    "beats": 6,
    "words": [
-    "Magνs picks the right solver for each calculation"
+    "Magνs chooses the integration strategy for each calculation"
    ],
    "kind": "schematic",
    "scene": "auto",
@@ -114,8 +115,8 @@
    "act": 4,
    "beats": 10,
    "words": [
-    "Slow changes: followed adiabatically",
-    "Sudden changes: found and solved exactly"
+    "Slowly varying matter: fast adiabatic evolution",
+    "Non-adiabatic regions: patched with the Magnus expansion"
    ],
    "kind": "schematic",
    "scene": "switch",
@@ -127,7 +128,7 @@
    "act": 5,
    "beats": 4,
    "words": [
-    "Two to five flavors, built in"
+    "Two to five flavors, ready to use"
    ],
    "kind": "schematic",
    "scene": "flavors",
@@ -140,7 +141,7 @@
    "beats": 9,
    "words": [
     "Oscillograms: neutrinos through the Earth",
-    "Standard physics: three flavors"
+    "Three-flavor oscillations, PREM density profile"
    ],
    "kind": "schematic",
    "scene": "earth_osc",
@@ -152,7 +153,7 @@
    "act": 5,
    "beats": 5,
    "words": [
-    "Or add more flavors: sterile neutrinos"
+    "Add sterile neutrinos: 3+1 and 3+2"
    ],
    "kind": "schematic",
    "scene": "earth_more",
@@ -164,7 +165,7 @@
    "act": 5,
    "beats": 7,
    "words": [
-    "Long-baseline neutrino experiments"
+    "Long-baseline experiments"
    ],
    "kind": "schematic",
    "scene": "baselines",
@@ -188,9 +189,9 @@
    "act": 5,
    "beats": 8,
    "words": [
-    "Start from the Standard Model",
+    "Standard three-flavor oscillations",
     "Add non-standard interactions",
-    "Add Lorentz violation"
+    "Add Lorentz-invariance violation"
    ],
    "kind": "schematic",
    "scene": "bsm",
@@ -202,7 +203,7 @@
    "act": 5,
    "beats": 6,
    "words": [
-    "Cosmic neutrinos: predict the flavor mix at Earth"
+    "Astrophysical neutrinos: flavor composition at Earth"
    ],
    "kind": "schematic",
    "scene": "triangle",
@@ -236,7 +237,7 @@
    "act": 6,
    "beats": 7,
    "words": [
-    "Find a hidden body deep underground"
+    "Neutrino tomography: detect a buried density anomaly"
    ],
    "kind": "schematic",
    "scene": "cavity",
@@ -248,7 +249,7 @@
    "act": 6,
    "beats": 7,
    "words": [
-    "Trace where geoneutrinos come from"
+    "Geoneutrinos: survival probability from each source region"
    ],
    "kind": "schematic",
    "scene": "geo",
@@ -260,7 +261,7 @@
    "act": 6,
    "beats": 6,
    "words": [
-    "Follow neutrinos out of a stellar jet"
+    "Neutrinos escaping from a jet inside a star"
    ],
    "kind": "schematic",
    "scene": "jet",
@@ -272,7 +273,7 @@
    "act": 6,
    "beats": 7,
    "words": [
-    "Test new long-range forces"
+    "Probe new long-range forces with solar neutrinos"
    ],
    "kind": "schematic",
    "scene": "lri",
@@ -287,7 +288,7 @@
    "words": [
     "Accurate"
    ],
-   "sub": "It refines until successive answers agree, and warns you when they don't",
+   "sub": "Refines adaptively to the requested tolerance, and warns when it is not reached",
    "visual": "new diagram: the path is cut into slabs, one exponential each, multiplied into U; beside it the real ladder at one point (2 to 21 slabs) jumps, then two answers agree within 1e-5",
    "source": "new: tools/trailer/scenes.py, diagram 3 (fixed-slab Magnus runs at 3 GeV, 10,000 km)",
    "scene": "slabs"
@@ -300,7 +301,7 @@
    "words": [
     "Fast"
    ],
-   "sub": "Thousands of energies in one call",
+   "sub": "Thousands of energies in one vectorized call",
    "visual": "new diagram: 2000 energies stream into one osc_prob_3nu_earth call; the spectrum lands in one piece",
    "source": "new: tools/trailer/scenes.py, diagram 5 (a real 2000-energy Earth call; no timing shown)",
    "scene": "fast"

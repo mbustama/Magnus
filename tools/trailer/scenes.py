@@ -148,7 +148,7 @@ def switch(fig, ax, u):
         y0 = ai.get_ylim()[0]
         ai.plot([xx[-1] - 1100, xx[-1] - 100], [y0, y0], color=MUT, lw=2, clip_on=False, alpha=m)
         ai.text(xx[-1] - 600, y0, '1000 km\n', color=MUT, fontfamily=MONO, fontsize=11, ha='center', va='bottom', alpha=m)
-        ai.text(0.03, 0.97, 'Solved exactly', transform=ai.transAxes, color=AMBER, fontfamily=MONO, fontsize=14,
+        ai.text(0.03, 0.97, 'Magnus patch', transform=ai.transAxes, color=AMBER, fontfamily=MONO, fontsize=14,
                 va='top', alpha=m)
         for s in ai.spines.values():
             s.set_visible(True)

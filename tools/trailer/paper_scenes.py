@@ -58,31 +58,49 @@ def land():
     return _land
 
 
+_land_images = {}
+
+
+def land_image(detector, n=560):
+    """The visible hemisphere as an image: ocean, land, and a mask for the coastlines.  Each pixel
+    of the disc is taken back through the orthographic projection (centred 90 degrees south of the
+    detector, as in the paper, so the detector sits at the top of the limb) to a latitude and
+    longitude, and tested against notebook 28's land polygons.  Unlike clipping the polygons, this
+    is right for any viewpoint, including continents that wrap around the limb."""
+    if detector not in _land_images:
+        from matplotlib.path import Path
+        y, x = np.mgrid[1:-1:n * 1j, -1:1:n * 1j]
+        rho = np.hypot(x, y)
+        inside = rho <= 1.0
+        c = np.arcsin(np.clip(rho, 0, 1))
+        lat0, lon0 = np.radians(detector[0] - 90.0), np.radians(detector[1])
+        with np.errstate(invalid='ignore', divide='ignore'):
+            lat = np.arcsin(np.cos(c) * np.sin(lat0) + np.where(rho > 0, y * np.sin(c) * np.cos(lat0) / rho, 0))
+            lon = lon0 + np.arctan2(x * np.sin(c), rho * np.cos(c) * np.cos(lat0) - y * np.sin(c) * np.sin(lat0))
+        lon = (np.degrees(lon) + 180.0) % 360.0 - 180.0
+        pts = np.column_stack([lon[inside], np.degrees(lat[inside])])
+        is_land = np.zeros(len(pts), bool)
+        for ring in land():
+            path = Path(np.asarray(ring, float))
+            for shift in (0.0, 360.0, -360.0):              # rings that cross the antimeridian
+                is_land |= path.contains_points(pts + [shift, 0.0])
+        mask = np.zeros(inside.shape)
+        mask[inside] = is_land
+        _land_images[detector] = (mask, inside)
+    return _land_images[detector]
+
+
 def earth_disc(a, cut=(270, 360), alpha=1.0, labels=True, detector=(42.5, 13.6)):
-    """The Earth, seen with a quarter cut away to show the PREM layers.  The continents are
-    projected as in the paper (notebook 28, cell 87): orthographic, centred 90 degrees south of
-    the detector, so the detector sits at the top of the limb."""
-    from matplotlib.patches import Polygon as Poly
-    surface = Wedge((0, 0), 1.0, 0, 360, fc='#15325a', ec='none', alpha=alpha, zorder=1)
-    a.add_patch(surface)
-    lat0, lon0 = np.radians(detector[0] - 90.0), np.radians(detector[1])
-    for ring in land():
-        r = np.radians(np.asarray(ring, dtype=float))
-        lon, lat = r[:, 0], r[:, 1]
-        cosc = np.sin(lat0) * np.sin(lat) + np.cos(lat0) * np.cos(lat) * np.cos(lon - lon0)
-        if (cosc > 0).sum() < 3:
-            continue
-        x = np.cos(lat) * np.sin(lon - lon0)
-        y = np.cos(lat0) * np.sin(lat) - np.sin(lat0) * np.cos(lat) * np.cos(lon - lon0)
-        far = cosc <= 0
-        if far.any():                                   # the far side, pushed out to the limb
-            n = np.hypot(x, y)
-            n[n == 0] = 1.0
-            x, y = np.where(far, x / n, x), np.where(far, y / n, y)
-        patch = Poly(np.column_stack([x, y]), closed=True, fc='#3f6f4f', ec='#6fa37e', lw=0.6, alpha=alpha,
-                     zorder=2)
-        a.add_patch(patch)
-        patch.set_clip_path(surface)
+    """The Earth, seen with a quarter cut away to show the PREM layers, the continents on its face."""
+    from matplotlib.colors import to_rgba
+    mask, inside = land_image(detector)
+    img = np.zeros(mask.shape + (4,))
+    img[inside] = to_rgba('#15325a', alpha)
+    img[mask > 0.5] = to_rgba('#3f6f4f', alpha)
+    a.imshow(img, extent=(-1, 1, -1, 1), origin='upper', interpolation='bilinear', zorder=1)
+    n = mask.shape[0]
+    g = np.linspace(-1, 1, n)
+    a.contour(g, g[::-1], mask, levels=[0.5], colors=['#6fa37e'], linewidths=0.7, alpha=alpha, zorder=2)
     for r0, r1, col, name in PREM[::-1]:
         a.add_patch(Wedge((0, 0), r1 / R_E, *cut, width=(r1 - r0) / R_E, fc=col, ec=BG, lw=0.8,
                           alpha=alpha, zorder=3))
