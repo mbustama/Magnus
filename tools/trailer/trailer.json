@@ -49,17 +49,18 @@
   {
    "id": "reveal",
    "act": 3,
-   "beats": 13,
+   "beats": 15,
    "words": [
     "Magνs",
     "Neutrino oscillation probabilities",
+    "An open-source Python package",
     "Any number of flavors",
     "Any matter density profile",
     "Standard oscillations and new physics",
     "You write the Hamiltonian, Magνs computes the probabilities"
    ],
    "kind": "card",
-   "visual": "the logotype answers the question; the four lines land one per two beats"
+   "visual": "the logotype answers the question; the six lines land one per two beats"
   },
   {
    "id": "hamiltonian",
@@ -324,6 +325,7 @@
    "beats": 13,
    "words": [
     "pip install magnuspy",
+    "Open source (GPL-3.0)  ·  Python 3.10+",
     "Fully documented API  ·  Tutorial notebooks",
     "Docs: mbustama.github.io/Magnus",
     "Code: github.com/mbustama/Magnus",

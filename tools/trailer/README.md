@@ -21,7 +21,7 @@ nice -n 19 python tools/trailer/cut.py --jobs 4         # 2. every frame, the mu
 ```
 
 The result is `tools/trailer/build/magnus_trailer.mp4`: 1920×1080, 30 fps, H.264 video with
-AAC stereo audio, 2:02.5 long (196 beats at 96 bpm), about 8 MB.  Nothing is downloaded while
+AAC stereo audio, 2:03.75 long (198 beats at 96 bpm), about 8 MB.  Nothing is downloaded while
 it is made: the fonts ship in `fonts/`, and the numbers come from Magnus and from the paper's
 cache in the repository.
 
@@ -100,7 +100,7 @@ nice -n 19 python tools/trailer/cut.py --jobs 4 --width 1280    # a smaller, fas
 
 `cut.py` works in three stages:
 
-1. **Frames.** It draws every frame of every shot in `trailer.json` fresh, at 1920×1080 (3675
+1. **Frames.** It draws every frame of every shot in `trailer.json` fresh, at 1920×1080 (3712
    frames at 30 fps), into `build/cut/f00000.png ...`, on as many processes as `--jobs`.  A run
    that is interrupted resumes where it stopped, since frames already drawn are skipped:
    **delete `build/cut/` after changing a scene or the script**, or old frames stay.
@@ -167,7 +167,7 @@ and their lengths from `trailer.json`.
 ### 7. Clean up
 
 Delete `tools/trailer/build/` to start over.  The frames of the full cut are the bulk of it:
-3675 frames at 1920×1080.
+3712 frames at 1920×1080.
 
 ## The music
 

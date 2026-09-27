@@ -102,13 +102,13 @@ def card(fig, ax, s, u, n):
         logotype(fig, ax, 8, 5.9, 100, alpha=at(0))      # a fade only: a growing logotype jitters
         for i, w in enumerate(words[1:]):
             last = i == len(words) - 2
-            text(ax, 8, 4.3 - 0.75 * i, w, 25 if last else 24, TEAL if last else INK, DISP,
+            text(ax, 8, 4.4 - 0.68 * i, w, 25 if last else 24, TEAL if last else INK, DISP,
                  alpha=at(3 + 2 * i), ha='center', va='center', weight=700 if last else 500)
     elif sid == 'cta':
         typed = words[0][:int(len(words[0]) * seg(u * beats, 0.3, 3))]
         text(ax, 8, 6.9, '$ ' + typed, 40, TEAL, MONO, ha='center', va='center')
-        for i, w in enumerate(words[1:5]):
-            text(ax, 8, 5.6 - 0.62 * i, w, 21, INK, MONO, alpha=at(3.5 + 1.2 * i), ha='center', va='center')
+        for i, w in enumerate(words[1:6]):
+            text(ax, 8, 5.75 - 0.58 * i, w, 21, INK, MONO, alpha=at(3.5 + 1.2 * i), ha='center', va='center')
         logotype(fig, ax, 8, 2.35, 70, alpha=at(9))
         text(ax, 8, 1.25, 'Accurate  ·  Fast  ·  Flexible', 24, AMBER, DISP, alpha=at(10),
              ha='center', va='center')
