@@ -1515,9 +1515,10 @@ prob_matt_castle_wall_wide = np.array([oscprob.osc_prob(lambda l: H_func_castle_
                                                      n_slabs=150, n_tpts_per_slab=100, magnus_exp_order=3, n_jobs=10,
                                                      t_breakpoints=castle_wall_breakpoints(n_castle_slabs_wide, l_ini, l_fin))[nu_i][nu_f] \
                                           for enu in energies])  '''),
-    md(r'''The energy scan uses `oscprob.osc_prob_energy_baseline`, which takes the whole array of
-energies in one call instead of a Python loop.  That is the single most useful habit for
-making a scan fast, and notebook 24 measures what it saves.'''),
+    md(r'''The distance scan above uses `oscprob.osc_prob_energy_baseline` with `cumulative=True`,
+which answers every baseline from one traversal of the profile instead of a Python loop.
+That is the single most useful habit for making a scan fast, and notebook 24 measures what
+it saves.  The energy scan here still loops over `osc_prob`, one energy at a time.'''),
     code(r'''smooth = lambda y: sp.signal.savgol_filter(y, window_length=301, polyorder=1)
 fig, ax = plotting.plot_probability_with_profile(
     energies, None,
@@ -3376,9 +3377,10 @@ each trajectory samples stacked on top.
 The profile panel is what makes the figure worth reading. Each baseline
 crosses a different part of the Earth, so the four curves sample different
 depths: the South Pole trajectory is the only one long enough to reach the
-core, which is the step up to $N_e/N_{\rm Av} \approx 5.5$ near
-$10^4$ km. Where that step falls along the baseline is exactly where the
-corresponding probability curve changes character.
+core, which is the step from $N_e/N_{\rm Av} \approx 2.7$ to $4.6$ at about
+$3\,500$ km, rising to $5.1$ before it steps back down at about $8\,100$ km.
+Where that step falls along the baseline is exactly where the corresponding
+probability curve changes character.
 
 This is one call to `magnus.plotting.plot_probability_with_profile`.  Given
 trajectories rather than curves, it computes as well as draws: one
@@ -4044,8 +4046,8 @@ fig, ax = plotting.plot_biprobability(
 trajectories.
 
 The resonance energy depends on the density the trajectory samples, and for the
-atmospheric splitting it falls near 10.6 GeV in the crust, 6.3 GeV in the upper mantle and
-2.9 GeV in the outer core.  No single energy is on resonance for all four baselines at
+atmospheric splitting it falls at 11-12 GeV in the crust, 8-9.5 GeV in the upper mantle and
+2.8-3.4 GeV in the outer core.  No single energy is on resonance for all four baselines at
 once.  Below we repeat the calculation at 20 GeV, and only the energy changes in the
 call: the wrapper refines each probability until two successive grids agree to its
 default tolerance, rather than using a grid fixed in advance.
@@ -8211,8 +8213,8 @@ radius twice: the density profile *is* a palindrome. Mag$\nu$s exploits that by 
 Hamiltonian on the first half of the slab chain and obtaining the rest by reversal, which
 halves the calls to your `H_func`. It is worth 1.4--1.67x on an expensive Hamiltonian and
 nothing measurable on plain PREM, where a density lookup is too cheap to be worth
-halving -- the documentation quotes 0.91x there and notebook 24 measures 1.10x, which is the
-same statement twice.
+halving -- the documentation quotes 0.91x there and notebook 24 measures about 1.1x, which is
+the same statement twice.
 `magnus.magnus.USE_PALINDROME` disarms it. Notebook 24 measures this.
 
 Note that the optimization reuses *evaluations of the profile*, which is valid whatever
@@ -9344,8 +9346,9 @@ above shows that such a mean is an estimator with its own bias -- 6.08e-03 from 
 limit here, over 6.1 cycles. On a profile whose density varies appreciably across the window,
 that bias does not shrink as the window widens, because a wider window also averages over
 different matter conditions; notebook 13's solar ray is exactly that case. It
-prints 0.84x for the linear interpolant and 1.47x for the cubic, on the same ray as the 53x
-above and with a different window -- which is how little the ratio means there. Use it to tell
+prints 9.07x for the linear interpolant and 2.87x for the cubic, on the same ray: a factor of
+three apart, and both between the ~100x and ~7x that separate phase from envelope above --
+which is how little the ratio means there. Use it to tell
 phase from envelope on a *controlled* comparison like this one. To get the observable, ask
 for it: `average=True` computes the phase average, the decohered limit where every phase has
 decohered, with no window to choose.'''),
@@ -18408,13 +18411,15 @@ for col, width in enumerate(WIDTHS):
     # A box on the parent marking where the inset was taken from, with corner
     # connectors.  At 0.07 km the box is a hairline, which is the honest width.
     lo, hi = top.get_ylim()
-    rect, lines = top.indicate_inset(
+    indicator = top.indicate_inset(
         ((R_FORWARD_KM - half_in)/1.0e3, lo, 2.0*half_in/1.0e3, hi - lo),
         inset_ax=ins, edgecolor='0.45', linewidth=0.5, alpha=1.0)
     # Neither the marking box nor its connectors survive: the box spans the full height
     # of the panel, so at 70 km it reads as a shaded block standing over the shock.
-    rect.set(visible=False)
-    for ln in lines:
+    # Hidden one by one: since Matplotlib 3.10 the call returns an InsetIndicator, and
+    # hiding the indicator itself leaves the box and connectors drawn.
+    indicator.rectangle.set(visible=False)
+    for ln in indicator.connectors:
         ln.set(visible=False)
 
     for label, color, call in SCEN:
