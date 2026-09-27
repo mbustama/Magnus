@@ -186,7 +186,7 @@ Using and diagnosing the machinery
 
 `20. Numerical edge cases <https://github.com/mbustama/Magnus/blob/main/notebooks/20_magnus_numerical_edge_cases.ipynb>`_
    Exact degeneracies, zero baselines and empty requests all return numbers
-   rather than ``NaN``. Plus what each of the fourteen warning classes means, and
+   rather than ``NaN``. Plus what each of the fifteen warning classes means, and
    which to act on.
 
 `21. What rtol and atol promise <https://github.com/mbustama/Magnus/blob/main/notebooks/21_magnus_what_tolerance_means.ipynb>`_

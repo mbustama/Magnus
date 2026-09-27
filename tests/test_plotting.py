@@ -929,6 +929,276 @@ def test_oscillogram_defaults_its_limits_to_the_data_range(oscillogram):
 
 
 # ----------------------------------------------------------------------
+# plot_oscillogram computing through the Earth wrappers
+# ----------------------------------------------------------------------
+
+EARTH_C = np.linspace(-1.0, -0.2, 5)
+EARTH_LE = np.linspace(0.0, 1.0, 4)
+
+
+def _by_hand(fn, nu_i, nu_f, **kw):
+    """The loop plot_oscillogram is meant to run, written out: one wrapper call per zenith."""
+    import magnus.earth as earth
+    energy = 10.0**EARTH_LE*gd.UNIT_GEV
+    cols = [np.asarray(fn(energy, costhz=float(cz),
+                          L=earth.distance_traveled_inside_earth(float(cz))*gd.UNIT_KM,
+                          nu_i=nu_i, nu_f=nu_f, **kw), dtype=float)
+            for cz in EARTH_C]
+    return np.column_stack(cols)
+
+
+@pytest.mark.parametrize('composition', [
+    {},                                                   # the wrappers' layered default
+    {'electron_fraction': 0.5},
+    {'electron_fraction_core': 0.45},
+])
+def test_oscillogram_computed_is_the_earth_wrapper_loop(composition):
+    """Without a probability, the oscillogram is the Earth wrapper's answer per zenith angle,
+    bit for bit, with the composition passed through unchanged."""
+    import magnus.oscprob as op
+    fig, ax, P = mp.plot_oscillogram(EARTH_C, EARTH_LE, nu_i=gd.NUMU, nu_f=gd.NUE,
+                                     num_flavors=3, return_probability=True, **composition)
+    assert P.shape == (len(EARTH_LE), len(EARTH_C))
+    assert np.array_equal(P, _by_hand(op.osc_prob_3nu_earth, gd.NUMU, gd.NUE, **composition))
+
+
+def test_the_electron_fraction_override_reaches_the_wrapper():
+    """A uniform Y_e = 0.5 is a different Earth from the layered default, so the maps differ."""
+    kw = dict(nu_i=gd.NUMU, nu_f=gd.NUE, num_flavors=3, return_probability=True)
+    *_, P_layered = mp.plot_oscillogram(EARTH_C, EARTH_LE, **kw)
+    *_, P_uniform = mp.plot_oscillogram(EARTH_C, EARTH_LE, electron_fraction=0.5, **kw)
+    assert not np.array_equal(P_layered, P_uniform)
+
+
+def test_oscillogram_computed_at_two_flavors():
+    import magnus.oscprob as op
+    params = dict(sth=0.55, Dm2=2.5e-3)
+    *_, P = mp.plot_oscillogram(EARTH_C, EARTH_LE, nu_i=0, nu_f=0, num_flavors=2,
+                                osc_params=params, return_probability=True)
+    assert np.array_equal(P, _by_hand(op.osc_prob_2nu_earth, 0, 0, **params))
+
+
+def test_oscillogram_without_return_probability_returns_the_figure_only():
+    out = mp.plot_oscillogram(EARTH_C, EARTH_LE, nu_i=gd.NUMU, nu_f=gd.NUMU, num_flavors=3)
+    assert len(out) == 2
+
+
+@pytest.mark.parametrize('kw, message', [
+    (dict(num_flavors=3), 'needs nu_i and nu_f'),
+    (dict(nu_i=gd.NUMU, nu_f=gd.NUMU), 'num_flavors = 2, 3, 4 or 5'),
+    (dict(nu_i=gd.NUMU, nu_f=gd.NUMU, num_flavors=6), 'num_flavors = 2, 3, 4 or 5'),
+    (dict(nu_i=0, nu_f=0, num_flavors=2), 'must give sth and Dm2'),
+    (dict(nu_i=gd.NUMU, nu_f=gd.NUMU, num_flavors=3, electron_fraction=0.5,
+          wrapper_kw=dict(electron_fraction=0.4)), 'cannot be given in wrapper_kw'),
+    (dict(nu_i=gd.NUMU, nu_f=gd.NUMU, num_flavors=3, wrapper_kw=dict(costhz=-0.5)),
+     'cannot be given in wrapper_kw'),
+])
+def test_oscillogram_computation_refuses_what_it_cannot_honour(kw, message):
+    with pytest.raises(ValueError, match=message):
+        mp.plot_oscillogram(EARTH_C, EARTH_LE, **kw)
+
+
+def test_oscillogram_refuses_a_probability_and_the_arguments_that_compute_it(oscillogram):
+    """Drawing one array while ignoring the parameters given with it would be a silent lie."""
+    c, lE, P = oscillogram
+    with pytest.raises(ValueError, match='not both'):
+        mp.plot_oscillogram(c, lE, P, num_flavors=3)
+    with pytest.raises(ValueError, match='not both'):
+        mp.plot_oscillogram(c, lE, P, electron_fraction=0.5)
+
+
+# ----------------------------------------------------------------------
+# plot_probability_with_profile computing through the Earth wrappers
+# ----------------------------------------------------------------------
+
+PROFILE_L = np.linspace(100.0, 9000.0, 8)          # [km], inside the costhz=-0.9 chord
+PROFILE_E = np.logspace(0.0, 1.0, 6)                # [GeV]
+
+
+def _profile(**kw):
+    kw.setdefault('nu_i', gd.NUMU)
+    kw.setdefault('nu_f', gd.NUE)
+    kw.setdefault('num_flavors', 3)
+    return mp.plot_probability_with_profile(PROFILE_L, return_probability=True, **kw)
+
+
+@pytest.mark.parametrize('composition', [{}, {'electron_fraction': 0.5}])
+def test_profile_computed_over_baseline_is_the_earth_wrapper_call(composition):
+    """One wrapper call per trajectory over its baselines, bit for bit."""
+    import magnus.oscprob as op
+    fig, ax, P = _profile(trajectories=[dict(costhz=-0.9, color='C3')],
+                          energy=3.0*gd.UNIT_GEV, **composition)
+    expected = op.osc_prob_3nu_earth(3.0*gd.UNIT_GEV, costhz=-0.9, L=PROFILE_L*gd.UNIT_KM,
+                                     nu_i=gd.NUMU, nu_f=gd.NUE, **composition)
+    assert np.array_equal(P[0], np.asarray(expected, dtype=float))
+    assert len(ax) == 2                                 # density panel + one probability
+    assert np.array_equal(ax[1].get_lines()[0].get_ydata(), P[0])
+    assert ax[0].get_lines()[0].get_color() == 'C3'
+
+
+def test_profile_computed_over_energy_is_the_earth_wrapper_call_at_the_full_chord():
+    import magnus.earth as earth
+    import magnus.oscprob as op
+    fig, ax, P = mp.plot_probability_with_profile(
+        PROFILE_E, trajectories=[dict(loc_ini='fermilab', loc_fin='cern')], x_axis='energy',
+        nu_i=gd.NUMU, nu_f=gd.NUE, num_flavors=3, return_probability=True)
+    expected = op.osc_prob_3nu_earth(PROFILE_E*gd.UNIT_GEV, loc_ini='fermilab', loc_fin='cern',
+                                     nu_i=gd.NUMU, nu_f=gd.NUE)
+    assert np.array_equal(P[0], np.asarray(expected, dtype=float))
+    assert len(ax) == 1                                 # no density panel on this axis
+    assert 'GeV' in ax[-1].get_xlabel()
+    del earth
+
+
+def test_profile_density_panel_is_the_electron_density_the_wrapper_integrates():
+    """rho * Y_e per layer (to the nucleon-mass factor), following a Y_e override."""
+    import magnus.earth as earth
+    r = earth.earth_radial_distance_from_depth(-0.9, PROFILE_L)
+    rho = earth.density_matter_func_prem(r)
+    layered = _profile(trajectories=[dict(costhz=-0.9)], energy=gd.UNIT_GEV)[1][0]
+    uniform = _profile(trajectories=[dict(costhz=-0.9)], energy=gd.UNIT_GEV,
+                       electron_fraction=0.5)[1][0]
+    y_layered = layered.get_lines()[0].get_ydata()
+    y_uniform = uniform.get_lines()[0].get_ydata()
+    assert np.allclose(y_layered, rho*earth.electron_fraction_func_prem(r), rtol=1e-2)
+    assert np.allclose(y_uniform, rho*0.5, rtol=1e-2)
+    assert not np.allclose(y_layered, y_uniform, rtol=1e-3)
+
+
+def test_profile_trajectories_carry_their_own_abscissa_and_can_share_a_panel():
+    other = np.linspace(100.0, 1000.0, 5)
+    fig, ax, P = _profile(trajectories=[dict(costhz=-0.9), dict(costhz=-0.1, x=other)],
+                          energy=gd.UNIT_GEV, panel_per_trajectory=False)
+    assert len(ax) == 2 and len(ax[1].get_lines()) == 2
+    assert [len(p) for p in P] == [len(PROFILE_L), 5]
+
+
+@pytest.mark.parametrize('kw, message', [
+    (dict(trajectories=[dict(costhz=-0.9)]), 'needs energy'),
+    (dict(trajectories=[dict(costhz=-0.9)], x_axis='energy', energy=1e9), 'cannot also be given'),
+    (dict(trajectories=[dict(costhz=-0.9)], x_axis='energy', show_profile=True),
+     'needs the baseline axis'),
+    (dict(trajectories=[dict(costhz=-0.9)], energy=1e9, x_axis='zenith'), "'baseline' or 'energy'"),
+    (dict(trajectories=[dict(color='C0')], energy=1e9), 'either costhz or both'),
+    (dict(trajectories=[dict(costhz=-0.9, loc_ini='cern', loc_fin='fermilab')], energy=1e9),
+     'either costhz or both'),
+    (dict(trajectories=[dict(costhz=-0.9)], energy=1e9, wrapper_kw=dict(L=1.0)),
+     'cannot be given in wrapper_kw'),
+    (dict(trajectories=[dict(costhz=-0.9)], energy=1e9, wrapper_kw=dict(detector_depth=1.0)),
+     'surface to surface'),
+    (dict(trajectories=[], energy=1e9), 'trajectories is empty'),
+])
+def test_profile_computation_refuses_what_it_cannot_honour(kw, message):
+    with pytest.raises(ValueError, match=message):
+        _profile(**kw)
+
+
+def test_profile_refuses_curves_and_trajectories_together(sample):
+    L, exact, _ = sample
+    with pytest.raises(ValueError, match='not both'):
+        mp.plot_probability_with_profile(L, None, [[dict(y=exact)]],
+                                         trajectories=[dict(costhz=-0.5)], energy=1e9)
+    with pytest.raises(ValueError, match='not both'):
+        mp.plot_probability_with_profile(L, None, [[dict(y=exact)]], energy=1e9)
+    with pytest.raises(ValueError, match='not both'):
+        mp.plot_probability_with_profile(L, None, [[dict(y=exact)]], return_probability=True)
+    with pytest.raises(ValueError, match='give panels'):
+        mp.plot_probability_with_profile(L)
+
+
+# ----------------------------------------------------------------------
+# plot_biprobability computing through the Earth wrappers
+# ----------------------------------------------------------------------
+
+BIPROB_DCP = np.linspace(-np.pi, np.pi, 4)
+DUNE = dict(loc_ini='fermilab', loc_fin='homestake')
+
+
+def _biprob_by_hand(fn, energy, phases, **kw):
+    one = lambda d, nubar: np.asarray(fn(energy, dCP=d, nubar=nubar, nu_i=gd.NUMU,   # noqa: E731
+                                         nu_f=gd.NUE, **kw), dtype=float).item()
+    return (np.array([one(d, False) for d in phases]),
+            np.array([one(d, True) for d in phases]))
+
+
+def test_biprobability_computed_is_the_earth_wrapper_loop():
+    """Per curve and phase, the wrapper's neutrino and antineutrino answers, bit for bit;
+    a configuration's own parameters override the shared ones for its curve only, and a
+    dCP carried by a parameter set gives way to the phases scanned."""
+    import magnus.oscprob as op
+    no = gd.load_nufit_params('NuFIT 6.1', 'NO')
+    io = gd.load_nufit_params('NuFIT 6.1', 'IO')
+    fig, ax, P_nu, P_nubar = mp.plot_biprobability(
+        configurations=[dict(DUNE), dict(DUNE, **io)], dcp=BIPROB_DCP,
+        energy=2.0*gd.UNIT_GEV, num_flavors=3, osc_params=no, return_probability=True)
+    for i, params in enumerate((no, io)):
+        params = {k: v for k, v in params.items() if k != 'dCP'}
+        nu, nubar = _biprob_by_hand(op.osc_prob_3nu_earth, 2.0*gd.UNIT_GEV, BIPROB_DCP,
+                                    **DUNE, **params)
+        assert np.array_equal(P_nu[i], nu) and np.array_equal(P_nubar[i], nubar)
+        assert np.array_equal(ax.get_lines()[i].get_xdata(), nu)
+
+
+def test_biprobability_costhz_configuration_defaults_to_the_full_chord():
+    import magnus.earth as earth
+    import magnus.oscprob as op
+    *_, P_nu, P_nubar = mp.plot_biprobability(
+        configurations=[dict(costhz=-0.3, energy=3.0*gd.UNIT_GEV)], dcp=BIPROB_DCP,
+        num_flavors=3, electron_fraction=0.5, return_probability=True)
+    L = earth.distance_traveled_inside_earth(-0.3)*gd.UNIT_KM
+    nu, nubar = _biprob_by_hand(op.osc_prob_3nu_earth, 3.0*gd.UNIT_GEV, BIPROB_DCP,
+                                costhz=-0.3, L=L, electron_fraction=0.5)
+    assert np.array_equal(P_nu[0], nu) and np.array_equal(P_nubar[0], nubar)
+
+
+def test_biprobability_marker_at_a_phase_is_computed():
+    import magnus.oscprob as op
+    fig, ax = mp.plot_biprobability(configurations=[dict(DUNE)], dcp=BIPROB_DCP,
+                                    energy=2.0*gd.UNIT_GEV, num_flavors=3,
+                                    markers=[dict(dcp=0.5, marker='*')], legend=False)
+    nu, nubar = _biprob_by_hand(op.osc_prob_3nu_earth, 2.0*gd.UNIT_GEV, [0.5], **DUNE)
+    point = ax.collections[0].get_offsets()[0]
+    assert np.array_equal(np.asarray(point), [nu[0], nubar[0]])
+
+
+def test_biprobability_channel_sets_the_default_labels(biprob):
+    _, p_nu, p_nubar = biprob
+    fig, ax = mp.plot_biprobability([p_nu], [p_nubar], nu_i=gd.NUE, nu_f=gd.NUMU)
+    assert ax.get_xlabel() == mp.prob_label(gd.NUE, gd.NUMU)
+    assert ax.get_ylabel() == mp.prob_label(gd.NUE, gd.NUMU, nubar=True)
+
+
+@pytest.mark.parametrize('kw, message', [
+    (dict(num_flavors=2, osc_params=dict(sth=0.5, Dm2=2e-3)), 'num_flavors = 3, 4 or 5'),
+    (dict(num_flavors=3, wrapper_kw=dict(nubar=True)), 'cannot be given in wrapper_kw'),
+    (dict(num_flavors=3, wrapper_kw=dict(costhz=-0.5)), 'cannot be given in wrapper_kw'),
+    (dict(num_flavors=3, configurations=[dict(DUNE, nubar=True)]), 'cannot be given in a configuration'),
+    (dict(num_flavors=3, configurations=[dict(costhz=-0.5)], energy=None), 'gives no energy'),
+    (dict(num_flavors=3, configurations=[dict(DUNE, L=1.0)]), 'L goes with costhz'),
+    (dict(num_flavors=3, configurations=[dict(loc_ini='cern')]), 'either costhz or both'),
+    (dict(num_flavors=3, configurations=[]), 'configurations is empty'),
+    (dict(num_flavors=3, nu_i=gd.NUMU), 'both nu_i and nu_f'),
+    (dict(num_flavors=3, markers=[dict(dcp=0.0, index=1)]), "one of an 'index'"),
+])
+def test_biprobability_computation_refuses_what_it_cannot_honour(kw, message):
+    kw = dict(dict(configurations=[dict(DUNE)], dcp=BIPROB_DCP, energy=2.0*gd.UNIT_GEV), **kw)
+    with pytest.raises(ValueError, match=message):
+        mp.plot_biprobability(**kw)
+
+
+def test_biprobability_refuses_probabilities_and_the_arguments_that_compute_them(biprob):
+    _, p_nu, p_nubar = biprob
+    with pytest.raises(ValueError, match='not both'):
+        mp.plot_biprobability([p_nu], [p_nubar], configurations=[dict(DUNE)])
+    with pytest.raises(ValueError, match='not both'):
+        mp.plot_biprobability([p_nu], [p_nubar], num_flavors=3)
+    with pytest.raises(ValueError, match="'dcp' is a phase to compute"):
+        mp.plot_biprobability([p_nu], [p_nubar], markers=[dict(dcp=0.0)])
+    with pytest.raises(ValueError, match='give prob_nu and prob_nubar'):
+        mp.plot_biprobability([p_nu])
+
+
+# ----------------------------------------------------------------------
 # the optional dependency
 # ----------------------------------------------------------------------
 

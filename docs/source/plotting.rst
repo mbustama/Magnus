@@ -52,15 +52,22 @@ What it draws
        other.
    * - :func:`~magnus.plotting.plot_probability_with_profile`
      - Matter-density panel above one or more probability panels sharing an
-       abscissa.
+       abscissa.  Given trajectories instead of curves, it computes the
+       probabilities through the Earth wrappers, against baseline or energy,
+       and draws the electron density they integrate.
    * - :func:`~magnus.plotting.plot_probability_with_average`
      - An oscillating probability with its phase average overlaid; see
        :doc:`averaged_probability`.
    * - :func:`~magnus.plotting.plot_biprobability`
      - Neutrino against antineutrino appearance probability, as
-       :math:`\delta_{\rm CP}` runs over its range.
+       :math:`\delta_{\rm CP}` runs over its range.  Given configurations
+       (a path, an energy, parameters) instead of probabilities, it computes
+       them through the Earth wrappers, markers at named phases included.
    * - :func:`~magnus.plotting.plot_oscillogram`
      - Probability over zenith angle and energy, as a filled contour map.
+       Given no probability, it computes one through the Earth wrappers, with
+       the PREM layer boundaries declared and a layered electron fraction that
+       can be overridden.
 
 Installation
 --------------
