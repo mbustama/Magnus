@@ -48,9 +48,10 @@ Two families of methods are available, selected via
 
 * ``'trapezoid'`` / ``'simpson'``: sample :math:`A(t)` on a uniform grid
   of ``n_tpts`` points and evaluate the nested integrals with cumulative
-  quadrature.  Fully general, and so the safer choice if :math:`A(t)`
-  has a kink or a discontinuity *inside* a slab, where Gauss-Legendre
-  loses its order advantage.  The quadrature error
+  quadrature.  Fully general.  A kink or a discontinuity is best made a
+  slab edge (``t_breakpoints``), where each slab then samples its own
+  side of it and every rule keeps its order; one left *inside* a slab
+  degrades every rule.  The quadrature error
   (:math:`\mathcal{O}(h^2)` or :math:`\mathcal{O}(h^4)`) can dominate
   the Magnus truncation error at high orders unless ``n_tpts`` grows
   accordingly.
@@ -2904,6 +2905,83 @@ def _mirror_applies(edges: np.ndarray, widths: np.ndarray,
     return bool(np.max(np.abs(widths - widths[::-1])) <= bound)
 
 
+def _breakpoint_edge_flags(edges: np.ndarray, t_breakpoints, flags: bool = True):
+    r"""Which slab edges are declared breakpoints, and a warning for any breakpoint inside a slab.
+
+    ``edges`` is a time-ordered chain, shape (n_slabs, 2).  A breakpoint within 8 ulp of an edge
+    counts as on it: edges built with ``linspace`` can miss a breakpoint by an ulp, and the
+    one-sided sample only needs the right side of the jump.  Breakpoints outside the chain are
+    ignored, since a caller that walks a trajectory block by block (the cumulative scan) passes
+    every block the whole set.  A breakpoint strictly inside a slab means that slab straddles the
+    discontinuity, which no quadrature rule integrates at its order, so it warns.
+
+    Returns
+    -------
+    tuple or None
+        ``(lf, rt, tol)``: boolean flags (n_slabs,) for a breakpoint on each slab's left and right
+        edge, and the 8-ulp tolerance used; None when no breakpoint lies on the chain, or when
+        ``flags`` is False (the check for a breakpoint inside a slab still runs).
+    """
+    left, right = edges[:, 0], edges[:, 1]
+    # The chain is time-ordered, so its largest magnitude is at one of its two ends.
+    tol = 8.0*np.spacing(max(abs(left[0]), abs(right[-1])))
+    bp = np.atleast_1d(np.asarray(t_breakpoints, dtype=float))
+    bp = np.sort(bp[(bp >= left[0] - tol) & (bp <= right[-1] + tol)])
+    if bp.size == 0:
+        return None
+    contiguous = np.array_equal(left[1:], right[:-1])
+    if contiguous:
+        # Contiguous (every internal chain): the n + 1 grid points, one bisection for all.
+        pts = np.append(left, right[-1])
+        j = np.searchsorted(pts, bp)
+        jl, jr = np.maximum(j - 1, 0), np.minimum(j, pts.size - 1)
+        dl, dr = np.abs(bp - pts[jl]), np.abs(pts[jr] - bp)
+        on = np.minimum(dl, dr) <= tol
+        inside = ~on
+    else:
+        k = np.clip(np.searchsorted(left, bp, side='right') - 1, 0, len(edges) - 1)
+        inside = (bp > left[k] + tol) & (bp < right[k] - tol)
+    if np.any(inside):
+        from magnus.oscprob import UnmarkedDiscontinuityWarning   # oscprob imports this module
+        warnings.warn(
+            "magnus_expansion_multislab: %d of the t_breakpoints lie strictly inside a slab (the "
+            "first at %.17g), so that slab straddles a discontinuity and is integrated below its "
+            "order. Make every breakpoint a slab edge." % (int(np.sum(inside)), bp[inside][0]),
+            UnmarkedDiscontinuityWarning, stacklevel=3)
+    if not flags:
+        return None
+    if contiguous:
+        f = np.zeros(pts.size, bool)
+        f[np.where(dl <= dr, jl, jr)[on]] = True
+        lf, rt = f[:-1], f[1:]
+    else:
+        def near(x):
+            i = np.clip(np.searchsorted(bp, x), 1, bp.size)
+            return np.minimum(np.abs(x - bp[i - 1]),
+                              np.abs(bp[np.minimum(i, bp.size - 1)] - x)) <= tol
+        lf, rt = near(left), near(right)
+    if not (lf.any() or rt.any()):
+        return None
+    return lf, rt, tol
+
+
+def _one_sided_samples(tgrid: np.ndarray, edges: np.ndarray, widths: np.ndarray,
+                       lf: np.ndarray, rt: np.ndarray, tol: float) -> None:
+    r"""Move, in place, the endpoint samples that sit on a breakpoint just inside their slab.
+
+    Cumulative quadrature samples each slab at both ends, and at a density jump the profile
+    returns one side's value there, so the slab on the other side integrates a sample from the
+    wrong layer: an error proportional to 1/m, whatever the rule.  Moving that sample in by
+    ``min(max(1e-8 w, tol), w/2)`` keeps the count and the weights and restores the rule's
+    order; ``tol`` (8 ulp of the chain's largest position) covers breakpoints computed with
+    round-off.  ``tgrid`` is (n, m) with m >= 2; ``edges``, ``widths``, ``lf`` and ``rt``
+    describe the same n slabs.
+    """
+    nudge = np.minimum(np.maximum(1e-8*widths, tol), 0.5*widths)
+    tgrid[lf, 0] = edges[lf, 0] + nudge[lf]
+    tgrid[rt, -1] = edges[rt, 1] - nudge[rt]
+
+
 def magnus_expansion_multislab(
     A: Callable,
     t_slab_edges: Union[list, np.ndarray],
@@ -2913,7 +2991,8 @@ def magnus_expansion_multislab(
     validate_input: Optional[bool] = True,
     A_eval_mode: Optional[str] = None,
     symmetric_over: Optional[tuple] = None,
-    expm_backend: Optional[str] = None
+    expm_backend: Optional[str] = None,
+    t_breakpoints: Optional[np.ndarray] = None
 ) -> np.ndarray:
     r"""Compute the evolution operators of all time slabs at once.
 
@@ -2988,6 +3067,20 @@ def magnus_expansion_multislab(
         Which routine exponentiates each slab: ``'auto'``, ``'numba'`` or
         ``'eigh'``.  If None (default), the module-level ``EXPM_BACKEND``
         decides.
+    t_breakpoints : array_like, optional
+        Positions where ``A`` is not smooth (a density jump, a kink), as in
+        :func:`magnus.oscprob.osc_prob`.  Here the slabs are already given,
+        so they are not inserted: each should be a slab edge.  On
+        ``'trapezoid'`` and ``'simpson'``, a slab's sample at a breakpoint
+        edge is taken just inside the slab, so that each side of a jump is
+        integrated with its own values and the rule keeps its order (without
+        it, the sample from the wrong side costs an error proportional to
+        ``1/n_tpts_per_slab``).  ``'gl'`` samples no endpoints and is
+        unaffected.  A breakpoint strictly inside a slab raises
+        :class:`magnus.oscprob.UnmarkedDiscontinuityWarning`; breakpoints
+        outside the chain are ignored.  If None (default), nothing changes.
+
+        .. versionadded:: 1.1.1
 
     Returns
     -------
@@ -3018,7 +3111,21 @@ def magnus_expansion_multislab(
     else:
         s = np.linspace(0.0, 1.0, n_tpts_per_slab)      # normalized grid
 
-    if _mirror_applies(edges, widths, symmetric_over):
+    one_sided = None
+    if t_breakpoints is not None:
+        if validate_input:
+            bpv = np.asarray(t_breakpoints)
+            if (bpv.ndim > 1) or np.iscomplexobj(bpv) or not np.all(np.isfinite(bpv)):
+                raise ValueError(
+                    "Error in magnus: magnus.magnus_expansion_multislab: t_breakpoints must "
+                    "be a 1-D array of finite real positions.")
+        one_sided = _breakpoint_edge_flags(edges, t_breakpoints,
+                                           flags=(integration_method != 'gl'))
+
+    # The mirrored half reuses the first half's samples reversed, which is right for the
+    # one-sided samples only if the breakpoint edges are themselves palindromic.
+    if _mirror_applies(edges, widths, symmetric_over) and (
+            one_sided is None or np.array_equal(one_sided[0], one_sided[1][::-1])):
         # Evaluate the first half only; the mirrored half is the same samples read backwards.
         # Both node sets are symmetric within their slab (Gauss-Legendre nodes are, and so is
         # linspace(0, 1, m)), so reversing the sample axis lands on the mirror slab's own nodes.
@@ -3031,6 +3138,9 @@ def magnus_expansion_multislab(
         n_slabs = edges.shape[0]
         n_half = (n_slabs + 1)//2
         tgrid = edges[:n_half, :1] + widths[:n_half, None]*s
+        if one_sided is not None:
+            _one_sided_samples(tgrid, edges[:n_half], widths[:n_half],
+                               one_sided[0][:n_half], one_sided[1][:n_half], one_sided[2])
         At_half, used_mode = _evaluate_A(A, tgrid, A_eval_mode)
         At = np.empty((n_slabs,) + At_half.shape[1:], dtype=At_half.dtype)
         At[:n_half] = At_half
@@ -3044,6 +3154,8 @@ def magnus_expansion_multislab(
                                  widths[:n_slabs - n_half][::-1]])
     else:
         tgrid = edges[:, :1] + widths[:, None]*s            # (n_slabs, m)
+        if one_sided is not None:
+            _one_sided_samples(tgrid, edges, widths, *one_sided)
         At, used_mode = _evaluate_A(A, tgrid, A_eval_mode)  # (n_slabs, m, d, d)
 
     return evolution_operators_from_samples(At, widths, order,

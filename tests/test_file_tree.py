@@ -400,6 +400,8 @@ TREE = [
     ('tests/test_hamiltonians.py', 'Hamiltonian/mixing-matrix builders'),
     ('tests/test_invariants.py', 'Properties that must hold across the whole engine matrix'),
     ('tests/test_magnus_expansion.py', 'Magnus-core correctness (terms, orders, GL rates, unitarity)'),
+    ('tests/test_one_sided_breakpoints.py',
+     "'trapezoid'/'simpson' sample each side of a declared breakpoint with its own values"),
     ('tests/test_oscprob.py', 'Oscillation-probability engine, closed-form and ODE cross-checks'),
     ('tests/test_palindrome.py', 'The palindromic-profile optimization and its gate'),
     ('tests/test_plotting.py', 'Pre-packaged plotting tools: house-style defaults, layouts'),

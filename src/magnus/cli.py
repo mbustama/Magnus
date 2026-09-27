@@ -331,7 +331,7 @@ def build_parser() -> argparse.ArgumentParser:
              "it is both the fastest and the most accurate for a smooth Hamiltonian. "
              "'trapezoid'/'simpson' sample a uniform grid of 100 points per slab instead "
              "(the library default; the CLI does not expose it), "
-             "and are the safer choice if the Hamiltonian is not smooth within a slab. "
+             "and at a declared breakpoint sample each side of a jump with its own values. "
              "Default: gl.")
     g_num.add_argument('--rtol', type=float, default=1.e-3,
         help='Relative tolerance on the agreement between successive refinement levels -- a stopping rule, not a guaranteed accuracy. Default: 1e-3.')

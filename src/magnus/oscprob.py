@@ -445,6 +445,25 @@ three flavors and 1e-3, where the old ladder stopped on a false agreement).
 """
 
 
+QUADRATURE_SEED_MIN_SLABS = 4
+r"""int: Module-level constant
+
+Least phase-based starting slab count that the energy-batched engine applies to the quadrature
+rules (``'trapezoid'``, ``'simpson'``); below it they start from ``min_n_slabs``, as the
+per-point ladder always does for them.  ``'gl'`` always takes the seed.
+
+Seeding the quadrature rules pays when the trajectory holds many oscillation lengths -- on a
+core-crossing chord at 50 energies, 1016 ms -> 40 ms -- and costs when it holds few: a seed of
+2-3 slabs can send the ladder through one level more.  Measured over 212 scans (smooth and
+breakpoint profiles, 2 to 40 energies, both rules, rtol = atol = 1e-3 and 1e-4), the work with
+the seed against without it, by seed: at 2, worst 2.14x (median 0.81x); at 3, worst 1.24x
+(0.67x); at 4, worst 0.87x (0.54x); at 5 and above, never more than 0.36x.  So 4 is the smallest
+seed that never cost work.
+
+.. versionadded:: 1.1.1
+"""
+
+
 BATCH_WORKING_ENTRIES = 65_536
 r"""int: Module-level constant
 
@@ -1181,16 +1200,19 @@ class UnmarkedDiscontinuityWarning(ToleranceNotAchievedWarning):
     those two: measured at 1.36e-03 and 2.10e-03 against a requested 1e-3, silently, and
     2.33e-11 and 4.35e-14 once the edges were declared.
 
-    Detection is a measurement, not a guess: the profile is sampled at two grid densities and
-    the largest adjacent change in ``H`` is compared (see
-    ``magnus.adiabatic._profile_is_resolved``).  A :math:`C^1` profile halves that change when
-    the spacing halves; a jump does not.  On the profile families this package ships --- solar
+    Detection is a measurement, not a guess: within each probe interval, the test asks what
+    fraction of the change in ``H`` falls in one half (see
+    ``magnus.adiabatic._profile_is_resolved`` and
+    :data:`magnus.adiabatic.RESOLUTION_RATIO`).  For a :math:`C^1` profile the halves carry
+    about half each; a jump lands in one half.  On the profile families this package ships --- solar
     exponential, multi-resonance, noisy, sinusoidal --- the test reports "resolved" every time,
     and it flagged 12 of 12 random piecewise profiles.
 
     Subclasses :class:`ToleranceNotAchievedWarning` so that code already filtering on the parent
-    also catches this.  Not raised when ``t_breakpoints`` was supplied: the caller has then said
-    where the edges are, and the grid honors them.
+    also catches this.  The routes above do not raise it when ``t_breakpoints`` was supplied:
+    the caller has then said where the edges are, and the grid honors them.  It is raised by
+    :func:`magnus.magnus.magnus_expansion_multislab`, whose slabs are given, when a declared
+    breakpoint lies strictly inside one of them.
 
     **Measured rates** (``docs/dev/adversarial_batteries/warn_fp.py``, 168 configurations
     including 48 random piecewise-constant profiles with the edges deliberately left
@@ -3637,6 +3659,18 @@ def osc_prob(
             magnus.suggest_n_slabs(lambda t: -1j*H_func(t), t_ini, t_fin,
                 A_eval_mode=A_eval_mode)), 1, max_n_slabs))
 
+    # The breakpoints the loop below inserts into every grid, handed on to the slab kernel for
+    # 'trapezoid' and 'simpson', which sample slab endpoints: at a declared jump each slab then
+    # samples its own side (see magnus.magnus_expansion_multislab).  'gl' samples no endpoints,
+    # so it gets None and pays nothing.
+    bp_one_sided = None
+    if ((t_slab_edges_original is None) and (integration_method != 'gl') and
+            (t_breakpoints is not None) and (len(np.atleast_1d(t_breakpoints)) > 0)):
+        bp_one_sided = np.atleast_1d(np.asarray(t_breakpoints, dtype=float))
+        bp_one_sided = bp_one_sided[(bp_one_sided > t_ini) & (bp_one_sided < t_fin)]
+        if bp_one_sided.size == 0:
+            bp_one_sided = None
+
     while True:
 
         # These checks only apply when osc_prob is run with a requested tolerance (rtol, atol) that
@@ -3786,7 +3820,7 @@ def osc_prob(
             U_chain = compute_evolution_operator_multiple_slabs(H_func, t_slab_edges,
                 n_tpts_per_slab, magnus_exp_order, integration_method=integration_method,
                 A_eval_mode=A_eval_mode,
-                symmetric_over=symmetric_over, **kwargs)
+                symmetric_over=symmetric_over, t_breakpoints=bp_one_sided, **kwargs)
 
         # Now compute the time-ordered product of all evolution operators across all slabs.  The
         # neutrino crosses the slabs in the order in which they appear in U_chain (earliest first),
@@ -4791,7 +4825,13 @@ def _osc_prob_scan_separable(
     for the quadrature methods, the points per slab) grows geometrically
     until the probabilities of each energy agree between successive levels
     within (rtol, atol); converged energies drop out of the batch.  Energies
-    are processed in chunks to bound the memory of the sample array.
+    are processed in chunks to bound the memory of the sample array.  Two
+    differences: the phase-based starting slab count is applied to
+    ``'trapezoid'``/``'simpson'`` too, when it is at least
+    :data:`QUADRATURE_SEED_MIN_SLABS` (:func:`osc_prob` seeds ``'gl'`` only);
+    and, as there, a quadrature rule samples each side of a declared
+    breakpoint with its own values (see
+    :func:`magnus.magnus.magnus_expansion_multislab`).
 
     With ``t_breakpoints``, which are inserted into every level's grid, the
     ladder grows the real grid rather than the nominal slab count, and an
@@ -4865,30 +4905,36 @@ def _osc_prob_scan_separable(
         n_tpts_per_slab = min_n_tpts_per_slab
         # Physics-informed starting number of slabs (see magnus.suggest_n_slabs):
         # integral of the traceless Hamiltonian over the trajectory, maximized
-        # over the energies of the scan
-        if integration_method == 'gl':
-            ts = np.linspace(L0, L_val, 17)
-            V17 = np.asarray(VCC_func(ts))
-            if callable(h_matt):
-                # Same trapezoid, on samples of the full matter matrix M(l) = VCC(l)*P(l):
-                # with a position-resolved projector the integral no longer factorizes into
-                # I_V times one constant matrix, but M(l) is still energy-independent, so
-                # the seed still costs one 17-point sweep shared by every energy.
-                M17 = V17[:, None, None]*np.asarray(h_matt(ts))
-                I_M = (np.sum(M17, axis=0) - 0.5*(M17[0] + M17[-1]))*(L_val - L0)/16.0
-                M = (L_val - L0)*H_E + I_M
-            else:
-                I_V = (np.sum(V17) - 0.5*(V17[0] + V17[-1]))*(L_val - L0)/16.0
-                M = (L_val - L0)*H_E + I_V*h_matt
-            M = M - (np.trace(M, axis1=-2, axis2=-1)/dim)[:, None, None]*np.eye(dim)
+        # over the energies of the scan.  The quadrature rules take it only when it is at least
+        # QUADRATURE_SEED_MIN_SLABS (see there); n_tpts_per_slab still starts at its minimum.
+        ts = np.linspace(L0, L_val, 17)
+        V17 = np.asarray(VCC_func(ts))
+        if callable(h_matt):
+            # Same trapezoid, on samples of the full matter matrix M(l) = VCC(l)*P(l):
+            # with a position-resolved projector the integral no longer factorizes into
+            # I_V times one constant matrix, but M(l) is still energy-independent, so
+            # the seed still costs one 17-point sweep shared by every energy.
+            M17 = V17[:, None, None]*np.asarray(h_matt(ts))
+            I_M = (np.sum(M17, axis=0) - 0.5*(M17[0] + M17[-1]))*(L_val - L0)/16.0
+            M = (L_val - L0)*H_E + I_M
+        else:
+            I_V = (np.sum(V17) - 0.5*(V17[0] + V17[-1]))*(L_val - L0)/16.0
+            M = (L_val - L0)*H_E + I_V*h_matt
+        M = M - (np.trace(M, axis1=-2, axis2=-1)/dim)[:, None, None]*np.eye(dim)
+        if ((integration_method != 'gl') and not (np.ceil(np.max(np.sqrt(np.sum(
+                np.abs(M)**2, axis=(-2, -1))))/(2.0*np.pi)) >= QUADRATURE_SEED_MIN_SLABS)):
+            # The Frobenius norm bounds the spectral one from above, so the seed is already
+            # below the threshold: skip the SVD.
+            phase = 0.0
+        else:
             try:
                 phase = np.max(np.linalg.svd(M, compute_uv=False))
             except np.linalg.LinAlgError:
                 phase = 0.0
-            n_slabs = int(np.clip(max(min_n_slabs,
-                np.ceil(phase/(2.0*np.pi))), 1, max_n_slabs))
-        else:
-            n_slabs = min_n_slabs
+        seed = np.ceil(phase/(2.0*np.pi))
+        if (integration_method != 'gl') and not (seed >= QUADRATURE_SEED_MIN_SLABS):
+            seed = 0.0
+        n_slabs = int(np.clip(max(min_n_slabs, seed), 1, max_n_slabs))
 
     # Breakpoints strictly inside the path, sorted and without duplicates: the same set every
     # level's grid gets, and what _n_grid_points counts.
@@ -4921,6 +4967,13 @@ def _osc_prob_scan_separable(
         else:
             s = np.linspace(0.0, 1.0, n_tpts_per_slab)
         tgrid = edges[:, :1] + widths[:, None]*s              # (n_slabs, m)
+        if bp_in.size and (integration_method != 'gl'):
+            # At a breakpoint, each slab samples its own side of the jump (see
+            # magnus._one_sided_samples).  bp_in values are the grid's edges exactly.
+            f = np.zeros(len(grid), bool)
+            f[np.searchsorted(grid, bp_in)] = True        # bp_in values are grid points exactly
+            magnus._one_sided_samples(tgrid, edges, widths, f[:-1], f[1:],
+                                      8.0*np.spacing(max(abs(L0), abs(L_val))))
         V = np.asarray(VCC_func(tgrid.ravel())).reshape(tgrid.shape)
         if callable(h_matt):
             # Samples of M(l) = VCC(l)*P(l) on the same grid, shared across energies: the
@@ -6567,13 +6620,23 @@ def _osc_prob_cumulative_scan(H_func, L_out, L0, n_acc, magnus_exp_order,
     for j in np.flatnonzero(out_idx == 0):
         P[j] = np.transpose(running.real**2 + running.imag**2)
 
+    # The breakpoints the grid contains, for the endpoint-sampling rules only (see osc_prob);
+    # each block ignores those outside its own span.
+    bp_one_sided = None
+    if ((integration_method != 'gl') and (t_breakpoints is not None) and
+            (len(np.atleast_1d(t_breakpoints)) > 0)):
+        bp_one_sided = np.atleast_1d(np.asarray(t_breakpoints, dtype=float))
+        bp_one_sided = bp_one_sided[(bp_one_sided > edges[0]) & (bp_one_sided < edges[-1])]
+        if bp_one_sided.size == 0:
+            bp_one_sided = None
+
     _, block = _tile_for_working_set(1, n_slabs, dim*dim, live_arrays=8)
     for start in range(0, n_slabs, block):
         stop = min(start + block, n_slabs)
         U = compute_evolution_operator_multiple_slabs(
             H_func, np.column_stack([edges[start:stop], edges[start + 1:stop + 1]]),
             n_tpts_per_slab, magnus_exp_order, integration_method=integration_method,
-            A_eval_mode=A_eval_mode, **kwargs)
+            A_eval_mode=A_eval_mode, t_breakpoints=bp_one_sided, **kwargs)
         # Outputs landing inside this block, in edge order, so the running product is
         # snapshotted at the right moment without a second pass.  The fold itself runs
         # compiled (numba permitting): its Python form cost ~1.2 us/slab in numpy dispatch,
@@ -6754,9 +6817,12 @@ def osc_prob_energy_baseline(
         cumulative scan can be ~1.3x slower in wall time, which is a few milliseconds.
 
         Because the two paths build different grids, results move -- within the requested
-        tolerance, and generally toward the truth.  Pass ``strategy='magnus'`` to reproduce
-        pre-1.0.0 numbers exactly: it opts out of the adiabatic strategy and already implies
-        ``cumulative=False``.
+        tolerance, and generally toward the truth.  To reproduce pre-1.0.0 numbers exactly,
+        pass ``cumulative=False`` here, or ``strategy='magnus'`` to the wrappers (which opts
+        out of the adiabatic strategy and already implies ``cumulative=False``); this function
+        has no ``strategy`` parameter.  Both hold for ``'gl'``; ``'trapezoid'`` and
+        ``'simpson'`` results at declared breakpoints moved in 1.1.1 (see
+        :func:`magnus.magnus.magnus_expansion_multislab`).
 
         ``cumulative=False`` is the narrower flag and guarantees only that **the cumulative scan
         is not used**; the hybrid path is still free to answer, at any point count.  It was
@@ -7987,7 +8053,11 @@ def osc_prob_matter_std_potential(
           behavior of Magνs as it was before the adiabatic strategy was added,
           unconditionally.  It therefore also opts out of the cumulative baseline scan, which
           postdates that behavior: pass ``strategy='magnus'`` to reproduce older numbers
-          exactly, on a baseline scan as well as at a single point.
+          exactly, on a baseline scan as well as at a single point -- with ``'gl'``, the
+          default.  With ``'trapezoid'``/``'simpson'`` the numbers moved in 1.1.1: at
+          declared breakpoints they now sample each side of a jump with its own values, and
+          the energy-batched engine seeds their starting slab count when it is at least
+          :data:`QUADRATURE_SEED_MIN_SLABS`.
         * ``'hybrid'`` additionally tries :func:`magnus.adiabatic.hybrid_propagator` (adiabatic
           transport, with a Magnus patch at any non-adiabatic window; see
           :doc:`/adiabatic_strategy`) for any requested (energy, L) point where ``rho_func`` is
@@ -23511,6 +23581,7 @@ __all__ = [
     # which left every cross-reference to them rendering as dead text.
     'IP_EXP_N_SLABS_CAP',
     'MIN_EFFECTIVE_REFINEMENT',
+    'QUADRATURE_SEED_MIN_SLABS',
     'BATCH_WORKING_ENTRIES',
     'CUMULATIVE_AUTO_MIN_POINTS',
     'HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS',

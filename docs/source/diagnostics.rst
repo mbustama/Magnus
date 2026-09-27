@@ -271,7 +271,9 @@ much*, where the code knows), what to change, and when it is genuinely safe to i
    * - :class:`magnus.oscprob.UnmarkedDiscontinuityWarning`
      - The Hamiltonian is discontinuous at the grid scale and no ``t_breakpoints`` were
        given -- on a cumulative scan, on the hybrid strategy, or with ``average=True``
-       where the jump could move probability between levels.
+       where the jump could move probability between levels.  Also raised by
+       :func:`magnus.magnus.magnus_expansion_multislab` when a declared breakpoint lies
+       strictly inside one of the slabs it was given.
      - Yes, and refinement cannot help -- a straddling slab only gets narrower, and the
        averaged route treats the jump as smooth.
      - ``t_breakpoints`` at the jumps. Measured: median 7.8e-04 → 1.3e-12 on a scan; with
