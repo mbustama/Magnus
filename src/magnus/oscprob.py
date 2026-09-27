@@ -4856,7 +4856,15 @@ def _osc_prob_scan_separable(
     :class:`ToleranceNotAchievedWarning` instead.  Without breakpoints the
     nominal and real steps coincide and neither rule applies.
 
+    An energy accepted on a level that refined only the points per slab, because the slab
+    count was already pinned at ``max_n_slabs``, raises a :class:`ToleranceNotAchievedWarning`:
+    that agreement verifies the quadrature inside each slab, not the slab count.  The warning
+    changes no result and no work.
+
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.1
+       Warns on an acceptance at the slab cap that refined only the points per slab (#71).
 
     Parameters
     ----------
@@ -4959,6 +4967,9 @@ def _osc_prob_scan_separable(
     # Refinement of the previous level's real grid (grid points times points per slab); see
     # MIN_EFFECTIVE_REFINEMENT.  Only used with breakpoints.
     r_prev = None
+    # The previous level's slab count, to tell a level that refined only the points per slab.
+    n_slabs_prev_level = None
+    warned_at_slab_cap = False
 
     P_prev = np.full((nE, dim, dim), np.nan)
     P_out = np.empty((nE, dim, dim))
@@ -5031,6 +5042,20 @@ def _osc_prob_scan_separable(
             if (r_prev is not None) and (r_level < MIN_EFFECTIVE_REFINEMENT*r_prev):
                 conv[:] = False
             r_prev = r_level
+        if (conv.any() and (growth_factor_n_slabs > 1.0) and (n_slabs >= max_n_slabs)
+                and (n_slabs_prev_level == n_slabs) and not warned_at_slab_cap):
+            # Pinned at the slab cap, this level refined only the points per slab.  Agreeing with
+            # the last one verifies the quadrature inside each slab, not the slab count, so an
+            # energy accepted here can sit well outside the tolerance (issue #71).
+            warnings.warn("osc_prob (energy-batched scan): some energies were accepted at the "
+                "slab cap (max_n_slabs = " + str(max_n_slabs) + "), where successive levels "
+                "refined only the points per slab; that verifies the quadrature inside each "
+                "slab but not the number of slabs, so the returned probabilities may be "
+                "inaccurate. Raise max_n_slabs, or use integration_method='gl' (default cap " +
+                str(MAX_N_SLABS_DEFAULT['gl']) + "). Shown once per session.",
+                ToleranceNotAchievedWarning, stacklevel=2)
+            warned_at_slab_cap = True
+        n_slabs_prev_level = n_slabs
         P_out[active[conv]] = P_new[conv]
         P_prev[active] = P_new
         active = active[~conv]

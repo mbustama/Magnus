@@ -296,10 +296,14 @@ much*, where the code knows), what to change, and when it is genuinely safe to i
      - No -- it is a cost trade, not an error.
      - Usually narrower slabs at order 4 or 6 instead.
    * - :class:`magnus.oscprob.ToleranceNotAchievedWarning`
-     - A refinement cap was reached with the last two levels still disagreeing.
+     - A refinement cap was reached with the last two levels still disagreeing; or, in the
+       energy-batched scan, energies were accepted at the slab cap on levels that refined only
+       the points per slab (``'trapezoid'``/``'simpson'``), which verifies the quadrature but
+       not the slab count.
      - Unverified. The message reports **how far** from converged it stopped, as a multiple
        of the tolerance.
-     - Raise the named cap; or loosen ``rtol``/``atol``; or add ``t_breakpoints``.
+     - Raise the named cap; or loosen ``rtol``/``atol``; or add ``t_breakpoints``.  At the
+       slab cap, ``integration_method='gl'`` (default cap 20000) is the other way out.
    * - :class:`magnus.oscprob.HybridCertificationWarning`
      - ``strategy='hybrid'`` was forced and a point did not self-certify; or, with
        ``average=True``, the crossing probabilities on the adiabatic route could not be

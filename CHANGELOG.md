@@ -352,6 +352,18 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **The energy-batched scan now warns when it accepts an energy at the slab cap** (part of
+  #71).  Once `'trapezoid'` or `'simpson'` reach `max_n_slabs` (2000 by default), each
+  further level refines only the points per slab; two such levels agreeing verifies the
+  quadrature inside each slab but not the slab count, and the scan accepted them silently.
+  On the multi-resonance test profile at `rtol = atol = 1e-6` that answer was 2.5e-4 off
+  (250 times the tolerance) while successive levels agreed to 7e-8.  Such an acceptance now
+  raises `ToleranceNotAchievedWarning`, naming `max_n_slabs` and `integration_method='gl'`.
+  Nothing else changes: the same levels, work and probabilities.  Over the 477 scans of the
+  #71 measurement pool it catches 62 of the 132 energies that were outside tolerance
+  without a warning; it also fires on 297 energies that happened to be within tolerance,
+  all in the three workloads that need more than 2000 slabs, where their accuracy could not
+  be verified either.
 - **`'trapezoid'` and `'simpson'` now keep their order at declared breakpoints** (part
   of #71).  Both sample each slab at its two ends, and a declared breakpoint is a slab
   edge; at a density jump the profile returns one side's value there, so the slab on the
