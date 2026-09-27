@@ -175,7 +175,7 @@ every run writes the same audio.  96 bpm in D minor, following each act's cue:
 7. **Accurate, fast, flexible**: three chord hits, resolving.
 8. **Get it**: a final D-major chord with a long fade.
 
-It is mastered to −1 dBFS.  Run it alone with `python tools/trailer/music.py`, which writes
+It is mastered to −2 dBFS, leaving room for the AAC encoder, whose peaks can overshoot the source.  Run it alone with `python tools/trailer/music.py`, which writes
 `build/music.wav` for the length of the current script.
 
 ## Fonts

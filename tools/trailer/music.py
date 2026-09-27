@@ -185,7 +185,7 @@ def compose(seconds):
 
 
 def write(seconds=None):
-    """Composes, mixes (with a simple reverb), masters to -1 dBFS and writes build/music.wav."""
+    """Composes, mixes (with a simple reverb), masters to -2 dBFS and writes build/music.wav."""
     if seconds is None:
         seconds = sum(s['beats'] for s in T['shots']) * SPB
     dry, wet = compose(seconds)
@@ -199,7 +199,7 @@ def write(seconds=None):
     mix[:int(0.05 * SR)] *= np.linspace(0, 1, int(0.05 * SR))[:, None]
     mix[-fade:] *= np.linspace(1, 0, fade)[:, None] ** 2
     mix = np.tanh(1.6 * mix / np.max(np.abs(mix))) / np.tanh(1.6)   # soft limiter
-    mix *= 10 ** (-1 / 20)
+    mix *= 10 ** (-2 / 20)                                        # -2 dBFS: room for the AAC encoder to overshoot
     out = BUILD / 'music.wav'
     with wave.open(str(out), 'wb') as w:
         w.setnchannels(2)
