@@ -1,5 +1,5 @@
 {
- "_about": "Script and timeline of the trailer (issue #99), second cut. Durations are in beats at 96 bpm (0.625 s per beat). A shot's picture is either a new scene drawn by scenes.py ('scene') or the paper figure or notebook animation it will be remade from ('still_from'); every plot is remade for the video by these scripts, and no figure source is edited. Every word card and code line is for the author to approve.",
+ "_about": "Script and timeline of the trailer (issue #99), third cut. Durations are in beats at 96 bpm (0.625 s per beat). A shot's picture is either a new scene drawn by scenes.py ('scene') or the paper figure or notebook animation it will be remade from ('still_from'); every plot is remade for the video by these scripts, and no figure source is edited. Every word card and code line is for the author to approve.",
  "fps": 30,
  "size": [
   1920,
@@ -8,13 +8,26 @@
  "bpm": 96,
  "shots": [
   {
+   "id": "flavor",
+   "act": 1,
+   "beats": 10,
+   "words": [
+    "Neutrinos change flavor as they travel",
+    "The chance of each flavor oscillates with distance"
+   ],
+   "kind": "schematic",
+   "scene": "flavor",
+   "visual": "a muon neutrino travels, its color the mix of flavors it carries; behind it the chance of each flavor stacks up, three flavors in vacuum at 1 GeV",
+   "source": "new: tools/trailer/data.py (step opening), osc_prob_3nu_vacuum"
+  },
+  {
    "id": "open_tracks",
    "act": 1,
-   "beats": 14,
+   "beats": 12,
    "words": [
-    "One neutrino, two journeys.",
-    "Through empty space, and through matter.",
-    "Matter changes how it oscillates."
+    "One neutrino, two journeys",
+    "Through vacuum, and through matter",
+    "Matter changes how it oscillates"
    ],
    "kind": "schematic",
    "scene": "opening",
@@ -26,13 +39,13 @@
    "act": 2,
    "beats": 12,
    "words": [
-    "Every experiment needs oscillation probabilities.",
-    "Every new idea in physics changes the calculation.",
-    "So each case ends up with its own solver, written from scratch."
+    "Every neutrino experiment needs oscillation probabilities",
+    "Every new idea in physics changes the calculation",
+    "So each case gets its own solver"
    ],
    "kind": "schematic",
    "scene": "burden",
-   "visual": "a 5 x 5 grid, experiments down, theories across; a solver file fills every cell, then every row converges on one box, H(E, x)",
+   "visual": "a 5 x 5 grid, experiments down, theories across; a solver file fills every cell, then every row converges on a box asking: one solver for all?",
    "source": "new: tools/trailer/scenes.py"
   },
   {
@@ -41,7 +54,7 @@
    "beats": 6,
    "words": [
     "What if you never had to",
-    "write one again?"
+    "write another solver?"
    ],
    "kind": "card",
    "visual": "the question, on the beat; the music drops out for the last beat"
@@ -52,10 +65,10 @@
    "beats": 13,
    "words": [
     "Magνs",
-    "Any number of flavors.",
-    "Any matter profile.",
-    "Standard Model and beyond.",
-    "You write the physics. Magνs does the math."
+    "Any number of flavors",
+    "Any matter profile",
+    "Standard Model and beyond",
+    "You write the physics, Magνs does the math"
    ],
    "kind": "card",
    "visual": "the logotype answers the question; the four lines land one per two beats"
@@ -63,9 +76,9 @@
   {
    "id": "hamiltonian",
    "act": 4,
-   "beats": 8,
+   "beats": 7,
    "words": [
-    "All you provide is the Hamiltonian."
+    "All you provide is the Hamiltonian"
    ],
    "kind": "schematic",
    "scene": "hamiltonian",
@@ -77,7 +90,7 @@
    "act": 4,
    "beats": 10,
    "words": [
-    "Write your Hamiltonian. Call one function."
+    "Write your Hamiltonian, call one function"
    ],
    "kind": "code",
    "scene": "opening",
@@ -102,7 +115,7 @@
    "act": 4,
    "beats": 6,
    "words": [
-    "Magνs picks the right solver for each calculation."
+    "Magνs picks the right solver for each calculation"
    ],
    "kind": "schematic",
    "scene": "auto",
@@ -112,11 +125,10 @@
   {
    "id": "switch",
    "act": 4,
-   "beats": 11,
+   "beats": 10,
    "words": [
-    "Where matter changes slowly, it follows the neutrino adiabatically.",
-    "Where it changes abruptly, it finds the spot and solves it exactly.",
-    "No tuning needed."
+    "Slow changes: followed adiabatically",
+    "Sudden changes: found and solved exactly"
    ],
    "kind": "schematic",
    "scene": "switch",
@@ -128,7 +140,7 @@
    "act": 5,
    "beats": 4,
    "words": [
-    "Two to five flavors, built in."
+    "Two to five flavors, built in"
    ],
    "kind": "schematic",
    "scene": "flavors",
@@ -140,8 +152,8 @@
    "act": 5,
    "beats": 9,
    "words": [
-    "Through the Earth, one direction at a time.",
-    "Standard physics: three flavors."
+    "Oscillograms: neutrinos through the Earth",
+    "Standard physics: three flavors"
    ],
    "kind": "schematic",
    "scene": "earth_osc",
@@ -151,9 +163,9 @@
   {
    "id": "m_earth_more",
    "act": 5,
-   "beats": 6,
+   "beats": 5,
    "words": [
-    "Or add more flavors: sterile neutrinos."
+    "Or add more flavors: sterile neutrinos"
    ],
    "kind": "schematic",
    "scene": "earth_more",
@@ -165,7 +177,7 @@
    "act": 5,
    "beats": 7,
    "words": [
-    "From Fermilab to anywhere on Earth."
+    "Long-baseline neutrino experiments"
    ],
    "kind": "schematic",
    "scene": "baselines",
@@ -177,7 +189,7 @@
    "act": 5,
    "beats": 5,
    "words": [
-    "Map out CP violation."
+    "Bi-probability plots: map out CP violation"
    ],
    "kind": "schematic",
    "scene": "cp",
@@ -189,9 +201,9 @@
    "act": 5,
    "beats": 8,
    "words": [
-    "Start from the Standard Model.",
-    "Add non-standard interactions.",
-    "Add Lorentz violation."
+    "Start from the Standard Model",
+    "Add non-standard interactions",
+    "Add Lorentz violation"
    ],
    "kind": "schematic",
    "scene": "bsm",
@@ -203,7 +215,7 @@
    "act": 5,
    "beats": 6,
    "words": [
-    "Cosmic neutrinos: predict the flavor mix at Earth."
+    "Cosmic neutrinos: predict the flavor mix at Earth"
    ],
    "kind": "schematic",
    "scene": "triangle",
@@ -215,7 +227,7 @@
    "act": 6,
    "beats": 3,
    "words": [
-    "From textbook to frontier."
+    "From textbook to frontier"
    ],
    "kind": "card",
    "visual": "title card"
@@ -225,11 +237,11 @@
    "act": 6,
    "beats": 7,
    "words": [
-    "Image the Sun with its own neutrinos."
+    "Neutrinos crossing the Sun reveal its interior"
    ],
    "kind": "schematic",
    "scene": "sun",
-   "visual": "the Sun in the electron-neutrino channel, scanned ray by ray at 30 GeV, then from 100 GeV to 3 TeV",
+   "visual": "a diffuse flux of electron neutrinos crossing the Sun, one line of sight per pixel: scanned at 30 GeV, then from 100 GeV to 3 TeV",
    "source": "the paper's solar tomography (notebook 28, cell 66), from its cache"
   },
   {
@@ -237,7 +249,7 @@
    "act": 6,
    "beats": 7,
    "words": [
-    "Find a hidden body deep underground."
+    "Find a hidden body deep underground"
    ],
    "kind": "schematic",
    "scene": "cavity",
@@ -249,7 +261,7 @@
    "act": 6,
    "beats": 7,
    "words": [
-    "Trace where geoneutrinos come from."
+    "Trace where geoneutrinos come from"
    ],
    "kind": "schematic",
    "scene": "geo",
@@ -259,9 +271,9 @@
   {
    "id": "b_jet",
    "act": 6,
-   "beats": 7,
+   "beats": 6,
    "words": [
-    "Follow neutrinos out of a stellar jet."
+    "Follow neutrinos out of a stellar jet"
    ],
    "kind": "schematic",
    "scene": "jet",
@@ -273,7 +285,7 @@
    "act": 6,
    "beats": 7,
    "words": [
-    "Test new long-range forces."
+    "Test new long-range forces"
    ],
    "kind": "schematic",
    "scene": "lri",
@@ -286,9 +298,9 @@
    "beats": 4,
    "kind": "pillar",
    "words": [
-    "Accurate."
+    "Accurate"
    ],
-   "sub": "It refines until successive answers agree, and warns you when they don't.",
+   "sub": "It refines until successive answers agree, and warns you when they don't",
    "visual": "new diagram: the path is cut into slabs, one exponential each, multiplied into U; beside it the real ladder at one point (2 to 21 slabs) jumps, then two answers agree within 1e-5",
    "source": "new: tools/trailer/scenes.py, diagram 3 (fixed-slab Magnus runs at 3 GeV, 10,000 km)",
    "scene": "slabs"
@@ -299,9 +311,9 @@
    "beats": 4,
    "kind": "pillar",
    "words": [
-    "Fast."
+    "Fast"
    ],
-   "sub": "Thousands of energies in one call.",
+   "sub": "Thousands of energies in one call",
    "visual": "new diagram: 2000 energies stream into one osc_prob_3nu_earth call; the spectrum lands in one piece",
    "source": "new: tools/trailer/scenes.py, diagram 5 (a real 2000-energy Earth call; no timing shown)",
    "scene": "fast"
@@ -312,9 +324,9 @@
    "beats": 4,
    "kind": "pillar",
    "words": [
-    "Flexible."
+    "Flexible"
    ],
-   "sub": "Any Hamiltonian, any number of flavors.",
+   "sub": "Any Hamiltonian, any number of flavors",
    "visual": "the Hamiltonian chips from act 4 return and lock into place",
    "source": ""
   },
@@ -328,7 +340,7 @@
     "Docs: mbustama.github.io/Magnus",
     "Code: github.com/mbustama/Magnus",
     "Mauricio Bustamante  ·  mbustamante@gmail.com",
-    "Magνs: accurate, fast, flexible."
+    "Accurate · Fast · Flexible"
    ],
    "kind": "card",
    "visual": "the install line types in; the documentation, links and author follow; the logotype with its three words last"

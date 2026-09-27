@@ -23,7 +23,7 @@ FPS, BPM = 30, 96
 SPB = 60.0 / BPM                        # seconds per beat
 
 # The look: one dark theme, three accents (nu_e blue, nu_mu amber, nu_tau teal) and two more.
-BG, PANEL, LINE, INK, MUT = '#06080d', '#0f1626', '#232c3f', '#e9edf5', '#5d6780'
+BG, PANEL, LINE, INK, MUT = '#06080d', '#0f1626', '#232c3f', '#e9edf5', '#a3acbf'   # MUT: labels and ticks
 BLUE, AMBER, TEAL, ROSE, VIOLET = '#5aa9ff', '#f0a33c', '#3fd0a4', '#ff6b8b', '#b48cff'
 MONO = ['IBM Plex Mono', 'DejaVu Sans Mono']     # DejaVu covers the Greek letters Plex lacks
 DISP = 'Unbounded'

@@ -18,7 +18,7 @@ nice -n 19 python tools/trailer/cut.py --jobs 4         # 2. every frame, the mu
 ```
 
 The result is `tools/trailer/build/magnus_trailer.mp4`: 1920×1080, 30 fps, H.264 video with
-AAC stereo audio, 1:57.5 long (188 beats at 96 bpm).  The first run needs internet access
+AAC stereo audio, 2:00 long (192 beats at 96 bpm).  The first run needs internet access
 once, to download the two fonts (see "Fonts").
 
 Everything the scripts write goes to `tools/trailer/build/`, which git ignores.
@@ -30,7 +30,7 @@ Everything the scripts write goes to `tools/trailer/build/`, which git ignores.
 | `trailer.json` | The script and timeline: one entry per shot, in beats at 96 bpm, with its words (shown in the title band), what moves, the scene that draws it, and where its numbers come from.  Also the decisions still open. |
 | `common.py` | Paths, the look (colors, fonts, easing), the physics setups of the new scenes, and an independent reference integrator (no Magnus code) that checks the adiabatic scene. |
 | `data.py` | Computes every number the scenes show, with Magnus, and prints the checks. |
-| `scenes.py` | The scenes made for the trailer: the opening, the burden, the Hamiltonian, how `strategy='auto'` picks a solver, the adiabatic switch, the flavors, the slab ladder, many energies in one call. |
+| `scenes.py` | The scenes made for the trailer: the first slide (neutrinos changing flavor), the two journeys, the burden, the Hamiltonian, how `strategy='auto'` picks a solver, the adiabatic switch, the flavors, the slab ladder, many energies in one call. |
 | `paper_scenes.py` | The paper's figures remade as trailer scenes: the Earth oscillogram and its sterile-neutrino versions, Fermilab to four sites, CP violation, new physics, the flavor triangle, the Sun imaged, a buried body, geoneutrinos, a stellar jet, a long-range force. |
 | `render.py` | Renders any scene alone, as a still, as PNG frames and as a clip.  Also finds ffmpeg for the other scripts. |
 | `cut.py` | Assembles the whole trailer, shot by shot, as 1920×1080 frames, writes the music and muxes both into the MP4. |
@@ -63,11 +63,11 @@ nice -n 19 python tools/trailer/data.py paper adiabatic   # or only some
 
 | Step | Writes | What it computes |
 |---|---|---|
-| `opening` | `build/opening.npz` | P(νμ→νe) at 3 GeV over 0–10,000 km, in vacuum and through an illustrative varying density |
+| `opening` | `build/opening.npz` | The first slide, the chance of each flavor for a 1 GeV νμ over 0–3000 km in vacuum; and P(νμ→νe) at 3 GeV over 0–10,000 km, in vacuum and through an illustrative varying density |
 | `code` | nothing | Checks that the code moment's user Hamiltonian runs without a warning and matches the shipped wrapper |
 | `adiabatic` | `build/adiabatic.npz` | The adiabatic scene: 240 calls under `strategy='auto'` (about a minute), the levels, the resonances and the window Magnus patches, checked against the independent reference |
 | `diagrams` | `build/diagrams.json` | The slab ladder at one point, a 2000-energy Earth spectrum, the mixing matrices for 2 to 5 flavors |
-| `paper` | `build/paper.npz` | The remade paper scenes (seconds): the oscillograms, the Sun, the jet, the geoneutrino curves and the long-range sweep from the paper's cache; Fermilab to four sites, CP violation, new physics, the flavor triangle and the buried body computed here with notebook 28's settings |
+| `paper` | `build/paper.npz`, `build/land.json` | The remade paper scenes (seconds), and the continents of the paper's globes (notebook 28's `LAND` polygons, parsed from the notebook file): the oscillograms, the Sun, the jet, the geoneutrino curves and the long-range sweep from the paper's cache; Fermilab to four sites, CP violation, new physics, the flavor triangle and the buried body computed here with notebook 28's settings |
 
 Each step prints a check line.  They should read:
 
@@ -89,7 +89,7 @@ nice -n 19 python tools/trailer/cut.py --jobs 4 --width 1280    # a smaller, fas
 
 `cut.py` works in three stages:
 
-1. **Frames.** It draws every frame of every shot in `trailer.json` fresh, at 1920×1080 (3525
+1. **Frames.** It draws every frame of every shot in `trailer.json` fresh, at 1920×1080 (3600
    frames at 30 fps), into `build/cut/f00000.png ...`, on as many processes as `--jobs`.  A run
    that is interrupted resumes where it stopped, since frames already drawn are skipped:
    **delete `build/cut/` after changing a scene or the script**, or old frames stay.
@@ -106,6 +106,8 @@ How each kind of shot is drawn:
 - **A scene** (`"scene"` in the shot) is drawn at the shot's progress, in a box below the title
   band, with the shot's words in the band at the top of the frame (clear of a video player's
   controls), one phrase after another.  The last 12 % of a shot holds the finished picture.
+  Each scene's finished picture is measured once and centred in the space below the band, and
+  every frame of the shot uses that same offset, so nothing drifts from frame to frame.
 - **A pillar** ("Accurate.", "Fast.") puts its big word and its line in the title band.
 - **The code moment** types its code, then draws the opening's matter curve from it.
 - **"Flexible."** and the **cards** (the question, the reveal, "From textbook to frontier.", the
@@ -153,7 +155,7 @@ and their lengths from `trailer.json`.
 ### 7. Clean up
 
 Delete `tools/trailer/build/` to start over.  The frames of the full cut are the bulk of it:
-3525 frames at 1920×1080.
+3600 frames at 1920×1080.
 
 ## The music
 
@@ -184,7 +186,9 @@ the Greek letters Plex Mono lacks.
 
 ## What the scenes rest on
 
-- **The opening**: P(νμ→νe) at 3 GeV over 0–10,000 km, in vacuum (`osc_prob_3nu_vacuum`) and
+- **The first slide**: the chance of each flavor for a 1 GeV νμ in vacuum over 0–3000 km
+  (`osc_prob_3nu_vacuum`, NuFIT 6.1).
+- **The two journeys**: P(νμ→νe) at 3 GeV over 0–10,000 km, in vacuum (`osc_prob_3nu_vacuum`) and
   through an illustrative density profile (`osc_prob_matter_std_potential`); NuFIT 6.1.
 - **The code moment**: the user Hamiltonian shown on screen runs through
   `osc_prob_energy_baseline` without a warning and matches `osc_prob_matter_std_potential` to
@@ -198,9 +202,12 @@ the Greek letters Plex Mono lacks.
 - **The diagrams**: the slab ladder is a real run at one point (fixed slab counts 2 to 21);
   the spectrum is a real 2000-energy `osc_prob_3nu_earth` call (no timing is claimed); the
   flavor bars are the package's own mixing matrices.
+- **The globes** show the continents as the paper's do (notebook 28's `LAND` outlines, projected
+  with the detector at the top of the limb: Kamioka, Fermilab, Gran Sasso).
 - **The paper scenes**: the paper's own numbers (notebook 28), read from its cache where it
   cached them: the oscillograms (cell 42), the long-range force in the Sun (cell 62), the Sun
-  imaged at five energies from 30 GeV to 3 TeV (cell 66, on its uniform impact-parameter grid),
+  imaged at five energies from 30 GeV to 3 TeV by a diffuse flux of neutrinos crossing it (cell 66, on
+  its uniform impact-parameter grid),
   the jet (cell 69) and the geoneutrino curves (cells 86–88).  The rest is computed by
   `data.py paper` with the paper's settings: Fermilab to four sites (cell 44), new physics
   (cell 27), the flavor triangle (cell 84) and the buried body (cell 48, on 160 beam angles

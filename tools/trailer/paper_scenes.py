@@ -45,18 +45,54 @@ def axes(fig, rect, xlog=False):
     return a
 
 
-def earth_disc(a, cut=(270, 360), alpha=1.0, labels=True):
-    """The Earth in cross-section: the surface, and one quarter cut away to show the PREM layers."""
-    a.add_patch(Circle((0, 0), 1.0, fc='#10233d', ec='#5aa9ff', lw=1.4, alpha=alpha, zorder=1))
+_land = None
+
+
+def land():
+    """The continents of the paper's globes (notebook 28's LAND, [lon, lat] rings), read once."""
+    global _land
+    if _land is None:
+        import json
+        from common import BUILD
+        _land = json.loads((BUILD / 'land.json').read_text())
+    return _land
+
+
+def earth_disc(a, cut=(270, 360), alpha=1.0, labels=True, detector=(42.5, 13.6)):
+    """The Earth, seen with a quarter cut away to show the PREM layers.  The continents are
+    projected as in the paper (notebook 28, cell 87): orthographic, centred 90 degrees south of
+    the detector, so the detector sits at the top of the limb."""
+    from matplotlib.patches import Polygon as Poly
+    surface = Wedge((0, 0), 1.0, 0, 360, fc='#15325a', ec='none', alpha=alpha, zorder=1)
+    a.add_patch(surface)
+    lat0, lon0 = np.radians(detector[0] - 90.0), np.radians(detector[1])
+    for ring in land():
+        r = np.radians(np.asarray(ring, dtype=float))
+        lon, lat = r[:, 0], r[:, 1]
+        cosc = np.sin(lat0) * np.sin(lat) + np.cos(lat0) * np.cos(lat) * np.cos(lon - lon0)
+        if (cosc > 0).sum() < 3:
+            continue
+        x = np.cos(lat) * np.sin(lon - lon0)
+        y = np.cos(lat0) * np.sin(lat) - np.sin(lat0) * np.cos(lat) * np.cos(lon - lon0)
+        far = cosc <= 0
+        if far.any():                                   # the far side, pushed out to the limb
+            n = np.hypot(x, y)
+            n[n == 0] = 1.0
+            x, y = np.where(far, x / n, x), np.where(far, y / n, y)
+        patch = Poly(np.column_stack([x, y]), closed=True, fc='#3f6f4f', ec='#6fa37e', lw=0.6, alpha=alpha,
+                     zorder=2)
+        a.add_patch(patch)
+        patch.set_clip_path(surface)
     for r0, r1, col, name in PREM[::-1]:
         a.add_patch(Wedge((0, 0), r1 / R_E, *cut, width=(r1 - r0) / R_E, fc=col, ec=BG, lw=0.8,
-                          alpha=alpha, zorder=2))
+                          alpha=alpha, zorder=3))
+    a.add_patch(Circle((0, 0), 1.0, fc='none', ec='#5aa9ff', lw=1.4, alpha=alpha, zorder=4))
     if labels:
-        for r0, r1, col, name in PREM[:3]:
-            rm = 0.5 * (r0 + r1) / R_E if r0 else 0.1
-            th = np.radians(0.5 * (cut[0] + cut[1]))
+        th = np.radians(0.5 * (cut[0] + cut[1]))
+        for r0, r1, col, name in PREM[1:3]:             # outer core and mantle; the inner core is too small
+            rm = 0.5 * (r0 + r1) / R_E
             a.text(rm * np.cos(th) + 0.02, rm * np.sin(th), name, fontsize=11, color=BG, fontfamily=MONO,
-                   ha='center', va='center', rotation=np.degrees(th) + 90, alpha=alpha, zorder=3)
+                   ha='center', va='center', rotation=np.degrees(th) + 90, alpha=alpha, zorder=5)
     a.set_xlim(-1.15, 1.15)
     a.set_ylim(-1.15, 1.15)
     a.set_aspect('equal')
@@ -84,7 +120,7 @@ def earth_osc(fig, ax, u):
     cz, E, grid = d['osc_cz'], d['osc_e_gev'], d['osc_3nu']
     k = int(np.clip(seg(u, 0.05, 0.92), 0, 1) * len(cz))
     g = fig.add_axes([0.02, 0.10, 0.40, 0.72])
-    earth_disc(g, cut=(270, 360))
+    earth_disc(g, cut=(270, 360), detector=(36.4, 137.3))             # Kamioka at the top
     c = cz[max(0, min(k, len(cz) - 1))]
     s = np.sqrt(max(0.0, 1 - c * c))
     end = (-2 * c * s, 1 - 2 * c * c)                  # detector at the top, looking down
@@ -150,7 +186,7 @@ SITES = [('snolab', 'SNOLAB', BLUE), ('homestake', 'Homestake', TEAL), ('cern', 
 def baselines(fig, ax, u):
     d = P()
     g = fig.add_axes([0.02, 0.12, 0.38, 0.70])
-    earth_disc(g, cut=(200, 340), labels=False, alpha=0.9)
+    earth_disc(g, cut=(200, 340), labels=False, detector=(41.8, -88.3))   # Fermilab at the top
     g.plot([0], [1], marker='o', ms=12, color='#ffffff', zorder=9)
     g.text(0, 1.07, 'Fermilab', fontsize=15, color=INK, fontfamily=MONO, ha='center', va='bottom')
     a = dark(fig.add_axes([0.47, 0.16, 0.48, 0.64]))
@@ -334,9 +370,9 @@ def sun(fig, ax, u):
     e = E[min(len(E) - 1, int(round(t)))]
     txt = '%g MeV' % (e * 1e3) if e < 1 else ('%g GeV' % e if e < 1000 else '%g TeV' % (e / 1000))
     ax.text(12.3, 6.0, txt, fontsize=40, color=INK, fontfamily=[DISP, 'DejaVu Sans'], weight=700, va='center')
-    ax.text(12.3, 5.0, r'$P(\nu_e \to \nu_e)$ after', fontsize=15, color=MUT, fontfamily=MONO, va='center')
-    ax.text(12.3, 4.5, 'crossing the Sun,', fontsize=15, color=MUT, fontfamily=MONO, va='center')
-    ax.text(12.3, 4.0, 'one ray per pixel', fontsize=15, color=MUT, fontfamily=MONO, va='center')
+    ax.text(12.3, 5.0, r'$P(\nu_e \to \nu_e)$ of a diffuse', fontsize=15, color=MUT, fontfamily=MONO, va='center')
+    ax.text(12.3, 4.5, 'flux crossing the Sun,', fontsize=15, color=MUT, fontfamily=MONO, va='center')
+    ax.text(12.3, 4.0, 'one line of sight per pixel', fontsize=15, color=MUT, fontfamily=MONO, va='center')
     cb = fig.add_axes([0.07, 0.2, 0.012, 0.5])
     cb.imshow(np.linspace(1, 0, 256)[:, None], aspect='auto', cmap=PCMAP, extent=(0, 1, 0, 1))
     cb.set_xticks([])
@@ -394,7 +430,7 @@ GEO = [('local', 'Local crust, 100 km', TEAL, 10.0, 0.078), ('far_crust', 'Far c
 def geo(fig, ax, u):
     d = P()
     g = fig.add_axes([0.01, 0.10, 0.40, 0.74])
-    earth_disc(g, cut=(0, 90))
+    earth_disc(g, cut=(0, 90), detector=(42.5, 13.6))                 # Gran Sasso at the top
     g.plot([0], [1.0], marker='*', ms=22, color='#ffffff', zorder=9)
     g.text(-0.05, 1.05, 'Detector', fontsize=14, color=INK, fontfamily=MONO, ha='right', va='bottom')
     Rdet = (R_E - 1.4) / R_E
@@ -483,6 +519,7 @@ def lri(fig, ax, u):
     for cx, rng, col, name in ((0.0, None, INK, 'Standard'), (3.6, 0.1, BLUE, 'Range: a tenth of the Sun'),
                                (7.2, 1.0, ROSE, 'Range: the whole Sun')):
         g.add_patch(Circle((cx, 0), 1.0, fc='#3a2a14', ec=AMBER, lw=1.5))
+        g.text(cx - 0.45, 0.55, 'Sun', fontsize=14, color=AMBER, fontfamily=MONO, ha='center', va='center')
         pos = cx + s * 1.25
         if rng is not None:
             g.add_patch(Circle((pos, 0), rng, fc=col if rng < 0.5 else 'none', ec=col, lw=2, alpha=0.5 if rng < 0.5 else 0.9))

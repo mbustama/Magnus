@@ -99,7 +99,7 @@ def card(fig, ax, s, u, n):
     ax.set_xlim(0, 16)
     ax.set_ylim(0, 9)
     if sid == 'reveal':
-        logotype(fig, ax, 8, 5.9, 96 + 8 * seg(u, 0, 0.2), alpha=at(0))
+        logotype(fig, ax, 8, 5.9, 100, alpha=at(0))      # a fade only: a growing logotype jitters
         for i, w in enumerate(words[1:]):
             last = i == len(words) - 2
             text(ax, 8, 4.3 - 0.75 * i, w, 30 if last else 24, TEAL if last else INK, [DISP, 'DejaVu Sans'],
@@ -110,11 +110,11 @@ def card(fig, ax, s, u, n):
         for i, w in enumerate(words[1:5]):
             text(ax, 8, 5.6 - 0.62 * i, w, 21, INK, MONO, alpha=at(3.5 + 1.2 * i), ha='center', va='center')
         logotype(fig, ax, 8, 2.35, 70, alpha=at(9))
-        text(ax, 8, 1.25, 'Accurate.  Fast.  Flexible.', 24, AMBER, [DISP, 'DejaVu Sans'], alpha=at(10),
+        text(ax, 8, 1.25, 'Accurate  ·  Fast  ·  Flexible', 24, AMBER, [DISP, 'DejaVu Sans'], alpha=at(10),
              ha='center', va='center')
     else:
         for i, w in enumerate(words):
-            text(ax, 8, 5.4 - 1.15 * i + 0.575 * (len(words) - 1), w, 48 if len(words) == 1 or i == 0 else 40,
+            text(ax, 8, 5.4 - 1.15 * i + 0.575 * (len(words) - 1), w, 46,
                  INK, [DISP, 'DejaVu Sans'], alpha=at(2 * i), ha='center', va='center', weight=700)
 
 
@@ -193,17 +193,19 @@ _plt = None
 CONTENT = ((1 - CONTENT_FRAC) / 2, 0.0, CONTENT_FRAC, CONTENT_FRAC)
 
 
-def in_content(fig, draw):
-    """Runs draw(fig, ax) with ax covering CONTENT in the scene's 16 x 9 units, and every axes the
-    scene adds (given in whole-frame fractions) mapped into CONTENT too."""
+def in_content(fig, draw, dy=0.0):
+    """Runs draw(fig, ax) with ax covering CONTENT (raised by dy, a fraction of the frame) in the
+    scene's 16 x 9 units, and every axes the scene adds (given in fractions of that box) mapped
+    into it too."""
     add = fig.add_axes
     cx, cy, cw, ch = CONTENT
+    cy += dy
 
     def mapped(rect, **kw):
         x, y, w, h = rect
         return add([cx + x * cw, cy + y * ch, w * cw, h * ch], **kw)
 
-    ax = add(list(CONTENT))
+    ax = add([cx, cy, cw, ch])
     ax.set_xlim(0, 16)
     ax.set_ylim(0, 9)
     ax.axis('off')
@@ -212,6 +214,29 @@ def in_content(fig, draw):
         draw(fig, ax)
     finally:
         fig.add_axes = add
+
+
+# Where a scene's finished picture sits below the title band decides where all its frames sit: the
+# scenes were laid out with titles of their own at the top, now moved into the band, so each is
+# measured once at u = 1 and raised to be centred between the band and a margin at the bottom.
+# One offset per shot, the same for every frame, so nothing moves from frame to frame.
+FREE = (0.03, 0.835)                          # the space below the band, in fractions of the frame
+_offsets = {}
+
+
+def content_offset(key, draw):
+    if key not in _offsets:
+        fig = _plt.figure(figsize=(16, 9), dpi=40, facecolor=BG)
+        in_content(fig, draw)
+        fig.canvas.draw()
+        r = fig.canvas.get_renderer()
+        boxes = [a.get_tightbbox(r) for a in fig.axes]
+        y0 = min(b.y0 for b in boxes if b is not None) / fig.bbox.height
+        y1 = max(b.y1 for b in boxes if b is not None) / fig.bbox.height
+        _plt.close(fig)
+        dy = 0.5 * (FREE[0] + FREE[1]) - 0.5 * (y0 + y1)
+        _offsets[key] = float(np.clip(dy, FREE[0] - y0, FREE[1] - y1)) if y1 - y0 < FREE[1] - FREE[0] else FREE[1] - y1
+    return _offsets[key]
 
 
 def draw_frame(job):
@@ -236,12 +261,13 @@ def draw_frame(job):
         card(fig, ax, s, u, n)
     else:
         if kind == 'code':
-            in_content(fig, lambda f, a: code_moment(f, a, s, u, n))
+            final, now = (lambda f, a: code_moment(f, a, s, 1.0, n)), (lambda f, a: code_moment(f, a, s, u, n))
         elif s['id'] == 't_flexible':
-            in_content(fig, lambda f, a: flexible(f, a, s, u, n))
+            final, now = (lambda f, a: flexible(f, a, s, 1.0, n)), (lambda f, a: flexible(f, a, s, u, n))
         else:
             draw = scenes.all_scenes()[s['scene']][0]
-            in_content(fig, lambda f, a: draw(f, a, u_scene))
+            final, now = (lambda f, a: draw(f, a, 1.0)), (lambda f, a: draw(f, a, u_scene))
+        in_content(fig, now, content_offset(s['id'], final))
         ax = fig.add_axes([0, 0, 1, 1])                    # the title band, over everything
         ax.set_xlim(0, 16)
         ax.set_ylim(0, 9)

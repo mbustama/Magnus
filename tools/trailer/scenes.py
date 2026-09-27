@@ -61,6 +61,47 @@ def glow(ax, x, y, col, sizes=((1400, 0.10), (600, 0.22), (240, 0.45), (90, 1.0)
         ax.scatter([x], [y], s=s, color='#ffffff' if a == 1.0 else col, alpha=a, lw=0, zorder=6, clip_on=False)
 
 
+# ------------------------------------------------------------------ act 1: flavor change
+FLAVOR_COLORS = (BLUE, AMBER, TEAL)                        # nu_e, nu_mu, nu_tau
+
+
+def flavor(fig, ax, u):
+    """A muon neutrino travels; its color is its mix of flavors, and the chance of each flavor
+    stacks up behind it, drawn up to where it is.  1 GeV, vacuum, three flavors."""
+    d = load('opening.npz')
+    L, P = d['flavor_L'], d['flavor_P']
+    k = int(round((0.01 + 0.99 * np.clip(u / 0.92, 0, 1)) * (len(L) - 1)))
+    a = fig.add_axes([0.07, 0.14, 0.78, 0.62])
+    plain(a)
+    a.set_xlim(0, L[-1])
+    a.set_ylim(0, 1)
+    base = np.zeros(len(L))
+    for f, col in enumerate(FLAVOR_COLORS):
+        a.fill_between(L, base, base + P[:, f], color=col, alpha=0.10, lw=0)
+        a.fill_between(L[:k + 1], base[:k + 1], (base + P[:, f])[:k + 1], color=col, alpha=0.85, lw=0)
+        base = base + P[:, f]
+    mix = sum(P[k, f] * np.array(matplotlib_rgb(c)) for f, c in enumerate(FLAVOR_COLORS))
+    a.axvline(L[k], color='#ffffff', lw=1.5, alpha=0.7)
+    glow(a, L[k], 1.07, tuple(mix), sizes=((2600, 0.12), (1300, 0.25), (520, 0.6), (220, 1.0)))
+    a.scatter([L[k]], [1.07], s=220, color=tuple(mix), zorder=8, lw=0, clip_on=False)
+    a.set_xticks([0, 1000, 2000, 3000])
+    a.set_xticklabels(['0', '1000', '2000', '3000 km'])
+    a.set_yticks([0, 0.5, 1])
+    a.tick_params(colors=MUT, labelsize=13, length=0)
+    monoticks(a)
+    for f, (name, col) in enumerate(zip((r'$\nu_e$', r'$\nu_\mu$', r'$\nu_\tau$'), FLAVOR_COLORS)):
+        a.text(1.02, 0.8 - 0.3 * f, name, transform=a.transAxes, color=col, fontsize=26, va='center')
+        a.text(1.02, 0.8 - 0.3 * f - 0.09, '%.0f%%' % (100 * P[k, f]), transform=a.transAxes, color=INK,
+               fontsize=16, fontfamily=MONO, va='center')
+    a.text(0, -0.13, 'Distance travelled by a muon neutrino of 1 GeV', transform=a.transAxes, color=MUT,
+           fontsize=14, fontfamily=MONO, va='top')
+
+
+def matplotlib_rgb(c):
+    from matplotlib.colors import to_rgb
+    return to_rgb(c)
+
+
 # ------------------------------------------------------------------ act 1: two journeys
 def opening(fig, ax, u):
     """One neutrino rides two tracks, vacuum above and matter below; each track's P(nu_mu -> nu_e)
@@ -102,7 +143,6 @@ def switch(fig, ax, u):
     Magnus and magnified at right); P_ee lands one dot per call."""
     d = load('adiabatic.npz')
     x, lam, Ls, P, res, wins, c2, km = (d[k] for k in ('x', 'lam', 'Ls', 'P', 'res', 'wins', 'c2', 'km'))
-    engines = d['engines']
     X, LX = x * km / 1e6, Ls * km / 1e6
     xn = X[-1] * np.clip(u / 0.9, 0.004, 1)
     wa, wb = wins[0] * km / 1e6
@@ -123,10 +163,9 @@ def switch(fig, ax, u):
         if r * km / 1e6 <= xn:
             a.axvline(r * km / 1e6, color=MUT, lw=0.8, ls=(0, (2, 4)))
     glow(a, xn, lam[min(k, len(X) - 1), 1], BLUE)
-    t(a, 0, hi, 'THE LEVELS THE NEUTRINO FOLLOWS', 14, TEAL, DISP, weight=700, va='top')
-    labels = ((res[0], 'Slow crossing,\nadiabatic transport', TEAL, 'left', lo),
-              (wins[0][0], 'Shock crossing,  \nnon-adiabatic  ', AMBER, 'right', hi * 0.93 + lo * 0.07),
-              (res[2], 'Slow crossing,\nadiabatic transport', TEAL, 'left', lo))
+    labels = ((res[0], 'Adiabatic', TEAL, 'left', lo),
+              (wins[0][0], 'Non-adiabatic  ', AMBER, 'right', hi * 0.93 + lo * 0.07),
+              (res[2], 'Adiabatic', TEAL, 'left', lo))
     for pos, s, col, ha, y in labels:
         p = seg(xn, pos * km / 1e6, pos * km / 1e6 + 0.15)
         t(a, pos * km / 1e6 + (0.03 if ha == 'left' else 0), y, s, 12, col, ha=ha,
@@ -150,10 +189,8 @@ def switch(fig, ax, u):
         y0 = ai.get_ylim()[0]
         ai.plot([xx[-1] - 1100, xx[-1] - 100], [y0, y0], color=MUT, lw=2, clip_on=False, alpha=m)
         ai.text(xx[-1] - 600, y0, '1000 km\n', color=MUT, fontfamily=MONO, fontsize=11, ha='center', va='bottom', alpha=m)
-        ai.text(0.03, 0.97, 'MAGNUS PATCH', transform=ai.transAxes, color=AMBER, fontfamily=DISP, fontsize=14,
-                weight=700, va='top', alpha=m)
-        ai.text(0.03, 0.87, 'Window found by Magnus,\nsolved exactly', transform=ai.transAxes, color=INK,
-                fontfamily=MONO, fontsize=12, va='top', alpha=m)
+        ai.text(0.03, 0.97, 'Solved exactly', transform=ai.transAxes, color=AMBER, fontfamily=MONO, fontsize=14,
+                va='top', alpha=m)
         for s in ai.spines.values():
             s.set_visible(True)
             s.set_color(AMBER)
@@ -169,7 +206,7 @@ def switch(fig, ax, u):
         ap.scatter(LX[:kk], P[:kk], s=22, color=BLUE, lw=0)
         j = kk - 1
         ap.scatter([LX[j]], [P[j]], s=90, color='#fff', zorder=5, lw=0)
-        ap.text(0, 1.3, r'$P(\nu_e \to \nu_e)$ = %.2f     One dot per call, answered by: %s' % (P[j], engines[j]), color=INK,
+        ap.text(0, 1.3, r'$P(\nu_e \to \nu_e)$ = %.2f' % P[j], color=INK,
                 fontfamily=MONO, fontsize=15, va='top')
     ap.set_xticks([0, 1, 2, 3, 4])
     ap.set_xticklabels(['0', '1', '2', '3', '4 million km'])
@@ -199,9 +236,8 @@ def burden(fig, ax, u):
               p=seg(u, 0.62 + 0.02 * i, 0.76 + 0.02 * i))
     b = seg(u, 0.74, 0.86)
     box(ax, 12.3, 3.1, 3.1, 1.8, fc='#1a1406', ec=AMBER, lw=2.2, r=0.2, alpha=b)
-    t(ax, 13.85, 4.25, r'$H(E,\,x)$', 30, INK, ha='center', va='center', alpha=b)
-    t(ax, 13.85, 3.45, 'One solver', 13, AMBER, ha='center', va='center', alpha=seg(u, 0.84, 0.92))
-    t(ax, 13.85, 2.5, '25 files become 1 function', 12, MUT, ha='center', alpha=seg(u, 0.9, 0.98))
+    t(ax, 13.85, 4.35, 'One solver', 22, INK, DISP, ha='center', va='center', alpha=b, weight=700)
+    t(ax, 13.85, 3.6, 'for all?', 22, AMBER, DISP, ha='center', va='center', alpha=seg(u, 0.84, 0.92), weight=700)
 
 
 # ------------------------------------------------------------------ diagram 2: the Hamiltonian
@@ -358,7 +394,7 @@ def flavors(fig, ax, u):
 
 
 # name -> (draw function, beats, data it needs); beats match trailer.json
-SCENES = {'opening': (opening, 14, 'opening'), 'switch': (switch, 12, 'adiabatic'),
+SCENES = {'flavor': (flavor, 10, 'opening'), 'opening': (opening, 14, 'opening'), 'switch': (switch, 12, 'adiabatic'),
           'burden': (burden, 10, None), 'hamiltonian': (hamiltonian, 8, 'diagrams'),
           'slabs': (slabs, 4, 'diagrams'), 'auto': (auto, 6, None), 'fast': (fast, 4, 'diagrams'),
           'flavors': (flavors, 3, 'diagrams')}
