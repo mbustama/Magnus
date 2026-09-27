@@ -17,7 +17,7 @@ import sys
 
 import numpy as np
 
-from common import (BUILD, REPO, HERE, BG, INK, BLUE, AMBER, TEAL, VIOLET, MONO, DISP, FPS, SPB,
+from common import (BUILD, REPO, HERE, BG, INK, BLUE, AMBER, TEAL, VIOLET, MONO, DISP, CODE, FPS, SPB,
                     seg, setup_matplotlib)
 
 T = __import__('json').loads((HERE / 'trailer.json').read_text())
@@ -136,10 +136,10 @@ def code_moment(fig, ax, s, u, n):
         if i in s.get('highlight', []) and u > 0.52:
             ax.add_patch(FancyBboxPatch((0.75, y - 0.26), 8.1, 0.52, boxstyle='round,pad=0,rounding_size=0.05',
                                         fc=AMBER, ec='none', alpha=0.18 * seg(u, 0.52, 0.6)))
-        t = text(ax, 0.95, y, vis if vis else ' ', CODE_PT, '#cfd6e4', MONO, va='center')
+        t = text(ax, 0.95, y, vis if vis else ' ', CODE_PT, '#cfd6e4', CODE, va='center')
         if 0 < left + len(ln) <= len(ln) and u < 0.5 and int(u * 60) % 2 == 0:
             x1 = ax.transData.inverted().transform(t.get_window_extent(fig.canvas.get_renderer()))[1, 0]
-            text(ax, x1 + 0.05, y, '|', CODE_PT, TEAL, MONO, va='center', weight=700)
+            text(ax, x1 + 0.05, y, '|', CODE_PT, TEAL, CODE, va='center', weight=700)
     d = scenes.load('opening.npz')
     L, Pm = d['L'], d['Pm']
     g = seg(u, 0.55, 0.95)

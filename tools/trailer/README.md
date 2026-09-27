@@ -22,7 +22,7 @@ nice -n 19 python tools/trailer/cut.py --jobs 4         # 2. every frame, the mu
 
 The result is `tools/trailer/build/magnus_trailer.mp4`: 1920×1080, 30 fps, H.264 video with
 AAC stereo audio, 2:02.5 long (196 beats at 96 bpm), about 8 MB.  Nothing is downloaded while
-it is made: the font ships in `fonts/`, and the numbers come from Magnus and from the paper's
+it is made: the fonts ship in `fonts/`, and the numbers come from Magnus and from the paper's
 cache in the repository.
 
 Everything the scripts write goes to `tools/trailer/build/`, which git ignores.
@@ -40,7 +40,7 @@ Everything the scripts write goes to `tools/trailer/build/`, which git ignores.
 | `cut.py` | Assembles the whole trailer, shot by shot, as 1920×1080 frames, writes the music and muxes both into the MP4. |
 | `music.py` | The music: an original piece synthesized from sine waves and noise. |
 | `requirements.txt` | Every package the scripts need, pinned to the versions the trailer was last rendered with. |
-| `fonts/` | Inter 4.1, the trailer's only font (six TTF styles and its SIL Open Font License). |
+| `fonts/` | The two fonts and their SIL Open Font Licenses: Inter 4.1 (six styles) for everything, IBM Plex Mono 1.1.0 (two styles) for the code. |
 | `storyboard/` | `build.py` and `template.html`: a review page with one panel per shot. |
 
 ## Step by step
@@ -191,16 +191,21 @@ It is mastered to −2 dBFS, leaving room for the AAC encoder, whose peaks can o
 
 ## Fonts
 
-The trailer uses a single font, Inter 4.1 by Rasmus Andersson, for text, numbers, mathematics
-and code alike.  It has every glyph the scenes need: the Greek letters (ν, μ, τ, Δ, Ω), the arrow
-→, superscripts and the minus sign.  Neutrino flavors are always written with subscripts, as
-Matplotlib mathematics (`$P(\nu_\mu \to \nu_e)$`), in Inter too.
+Two fonts, both under the SIL Open Font License 1.1, which allows redistributing them with the
+scripts.  Both ship in `fonts/` with their licenses, and `common.setup_matplotlib()` registers
+them with Matplotlib; nothing is fetched.
 
-The six styles used (Regular, Italic, Medium, SemiBold, Bold, BoldItalic) are in `fonts/`, with
-their license (SIL Open Font License 1.1, which allows redistributing them with the scripts).
-They are the files in `extras/ttf/` of `Inter-4.1.zip` from
-https://github.com/rsms/inter/releases/tag/v4.1.  `common.setup_matplotlib()` registers them
-with Matplotlib and sets them as the text and mathematics font; nothing is fetched.
+- **Inter 4.1** by Rasmus Andersson sets everything (titles, labels, numbers and mathematics)
+  except the code.  It has every glyph the scenes need: the Greek letters (ν, μ, τ, Δ, Ω), the
+  arrow →, superscripts and the minus sign.  Neutrino flavors are always written with
+  subscripts, as Matplotlib mathematics (`$P(\nu_\mu \to \nu_e)$`), in Inter too.  The six
+  styles (Regular, Italic, Medium, SemiBold, Bold, BoldItalic) are the files in `extras/ttf/` of
+  `Inter-4.1.zip` from https://github.com/rsms/inter/releases/tag/v4.1
+  (`fonts/LICENSE-Inter.txt`).
+- **IBM Plex Mono 1.1.0** sets only the code of the code moment, as code is read in a monospaced
+  font.  Regular and Bold (for the cursor) are the files in `fonts/complete/ttf/` of
+  `ibm-plex-mono.zip` from the `@ibm/plex-mono@1.1.0` release of https://github.com/IBM/plex
+  (`fonts/LICENSE-IBMPlexMono.txt`).
 
 ## What the scenes rest on
 

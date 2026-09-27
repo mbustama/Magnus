@@ -229,7 +229,7 @@ def hamiltonian(fig, ax, u):
     if g > 0:
         ax.plot(xs[:k], 2.3 + 0 * xs[:k], color=AMBER, lw=2.4, alpha=0.55)
         ax.plot(xs[:k], (2.9 + 1.2 * np.exp(-((xs - 8.1) / 0.7)**2) + 0.12 * np.sin(9 * xs))[:k], color=AMBER, lw=2.6)
-    t(ax, 9.9, 2.3, 'Constant', 11, MUT, va='center', alpha=seg(u, 0.58, 0.64))
+    t(ax, 8.1, 1.95, 'Constant', 11, MUT, ha='center', va='center', alpha=seg(u, 0.58, 0.64))
     t(ax, 9.3, 4.35, 'Varying', 11, MUT, va='center', alpha=seg(u, 0.58, 0.64))
     for k, c in enumerate(['Sterile neutrinos', 'Non-standard interactions', 'Lorentz violation', 'Long-range forces']):
         v = seg(u, 0.72 + 0.05 * k, 0.8 + 0.05 * k)

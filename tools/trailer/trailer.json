@@ -90,7 +90,8 @@
     "def H(E, x):  # your Hamiltonian",
     "    return H_vac/E + np.multiply.outer(V(x), P_e)",
     "",
-    "P = oscprob.osc_prob_energy_baseline(H, energy, L, nu_i=1, nu_f=0)"
+    "P = oscprob.osc_prob_energy_baseline(",
+    "    H, energy, L, nu_i=1, nu_f=0)"
    ],
    "highlight": [
     2,

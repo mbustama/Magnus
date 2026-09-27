@@ -28,21 +28,25 @@ BLUE, AMBER, TEAL, ROSE, VIOLET = '#5aa9ff', '#f0a33c', '#3fd0a4', '#ff6b8b', '#
 # MONO and DISP are kept as names for the two roles, and both are Inter.
 MONO = DISP = 'Inter'
 
-# Inter is under the SIL Open Font License.  Its static files come from the official release,
-# downloaded once on first use; Matplotlib renders only the default instance of a variable font,
-# so the static weights are needed for bold and italic.
-FONTS = HERE / 'fonts'                   # Inter 4.1, from github.com/rsms/inter/releases (extras/ttf)
+# The fonts ship in fonts/, both under the SIL Open Font License, as static files (Matplotlib
+# renders only the default instance of a variable font).  Inter 4.1 (github.com/rsms/inter,
+# extras/ttf of the release) sets everything except the code moment's code, which is set in
+# IBM Plex Mono 1.1.0 (github.com/IBM/plex, fonts/complete/ttf of the plex-mono release).
+FONTS = HERE / 'fonts'
 INTER_FILES = ('Regular', 'Italic', 'Medium', 'SemiBold', 'Bold', 'BoldItalic')
+CODE = 'IBM Plex Mono'
+CODE_FILES = ('Regular', 'Bold')
 
 
 def setup_matplotlib():
-    """Agg backend, Inter registered and used for everything, the mathematics included.  The font
-    files ship with the trailer, in ``fonts/`` (Inter 4.1, SIL Open Font License)."""
+    """Agg backend; Inter registered and used for everything, the mathematics included, and
+    IBM Plex Mono registered for the code moment's code."""
     import matplotlib
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
     from matplotlib import font_manager as fm
-    wanted = [FONTS / ('Inter-%s.ttf' % w) for w in INTER_FILES]
+    wanted = ([FONTS / ('Inter-%s.ttf' % w) for w in INTER_FILES]
+              + [FONTS / ('IBMPlexMono-%s.ttf' % w) for w in CODE_FILES])
     for f in wanted:
         fm.fontManager.addfont(str(f))
     plt.rcParams.update({'font.family': 'Inter', 'mathtext.fontset': 'custom', 'mathtext.rm': 'Inter',
