@@ -690,14 +690,30 @@ the step.
 SHARP_MAX_POINTS = 16
 r"""int: Module-level constant
 
-At most this many probe intervals are looked into by ``_sharp_feature_points``, those whose
-chord carries the largest jump relative to the gap first.
+At most this many probe intervals are looked into by ``_sharp_feature_points`` in one look,
+those whose chord carries the largest jump relative to the gap first.  Intervals already inside
+a window are not counted, and :func:`hybrid_propagator` looks again after each restart (see
+:data:`SHARP_MAX_ROUNDS`), so a profile with more steps than this is covered over several looks.
 
 .. versionadded:: 1.1.1
 """
 
 
-def _sharp_feature_points(H_func: Callable, probe: Dict, tol: float) -> List[float]:
+SHARP_MAX_ROUNDS = 8
+r"""int: Module-level constant
+
+How many times :func:`hybrid_propagator` restarts its refinement for sharp features found
+between the probe points, at most :data:`SHARP_MAX_POINTS` new ones each time.  Measured on a
+staircase of 32 hidden steps: with a single look it certified an answer 1.8e-02 off; two looks
+cover it.  A path that still shows new sharp features after this many is not certified.
+
+.. versionadded:: 1.1.1
+"""
+
+
+def _sharp_feature_points(H_func: Callable, probe: Dict, tol: float,
+                          windows: Optional[List[Tuple[float, float]]] = None,
+                          known: Optional[List[float]] = None) -> List[float]:
     r"""Positions between the probe points where ``H`` changes too sharply for adiabatic transport,
     found from the probe grid :func:`find_resonance_candidates` already evaluated (issue #100).
 
@@ -711,11 +727,15 @@ def _sharp_feature_points(H_func: Callable, probe: Dict, tol: float) -> List[flo
     with the derivatives the probe sweep measured at its two ends, times the interval's length.
     An interval is looked into when the chord is more than :data:`SHARP_CHORD_RATIO` times both
     (something happened between the probe points that neither saw) and the jump is not
-    negligible against the smaller gap at its ends: a sudden change of ``H`` by
-    :math:`\lVert\Delta H\rVert` mixes the levels by about :math:`\lVert\Delta H\rVert/g`, so
-    a jump below :math:`\sqrt{\mathrm{tol}}/10` of the gap moves no probability by the
-    tolerance.  Inside each such interval, the steepest step is narrowed down twice on 33 points,
-    and its middle is returned; the caller evaluates :math:`\gamma` there exactly.
+    negligible against the smaller gap at its ends.  A sudden change of ``H`` by
+    :math:`\lVert\Delta H\rVert` mixes the levels by about :math:`\lVert\Delta H\rVert/g`,
+    and that enters a probability *linearly*, through interference, so only a jump below a tenth
+    of the tolerance times the gap is skipped.  Intervals inside one of ``windows`` are skipped
+    too, as are intervals holding one of the ``known`` points, which the caller already
+    examines: without that, a look would keep returning the same strongest intervals, and the
+    :data:`SHARP_MAX_POINTS` cap would never reach the rest.  Inside each remaining interval, the steepest step is narrowed down
+    three times on 33 points, to about :math:`3\times10^{-5}` of the interval, and its middle is
+    returned; the caller evaluates :math:`\gamma` there exactly.
 
     Costs one difference and one norm per probe interval, on arrays already in memory, and
     Hamiltonian evaluations only inside the intervals it looks into.  What it cannot see is a
@@ -725,10 +745,10 @@ def _sharp_feature_points(H_func: Callable, probe: Dict, tol: float) -> List[flo
     .. versionadded:: 1.1.1
     """
     Hs, dH, lam, ls = probe.get('H'), probe['dH'], probe['lam'], probe['ls']
-    if Hs is None or len(ls) < 2 or lam.shape[-1] < 2:
+    if Hs is None or len(ls) < 2 or lam.shape[-1] < 2 or not ls[-1] > ls[0]:
         return []
     # Squared Frobenius norms through real views: this runs on every certified call, on up to
-    # 6400 intervals, so it is written for speed (0.67 ms there, 53 us at 400 probe points).
+    # 6400 intervals, so it is written for speed (0.31 ms there, 25 us at 400 probe points).
     n = len(ls)
     dl = np.diff(ls)
     chord = np.ascontiguousarray(np.diff(Hs, axis=0)).view(float).reshape(n - 1, -1)
@@ -741,7 +761,14 @@ def _sharp_feature_points(H_func: Callable, probe: Dict, tol: float) -> List[flo
     gap = np.min(np.diff(lam[np.union1d(flag, flag + 1)], axis=1), axis=1)
     gap = dict(zip(np.union1d(flag, flag + 1).tolist(), gap.tolist()))
     g = np.array([min(gap[i], gap[i + 1]) for i in flag.tolist()])
-    keep = chord2[flag] > 0.01*tol*g*g
+    keep = chord2[flag] > 0.01*tol*tol*g*g
+    if windows:
+        for a, b in windows:
+            keep &= ~((ls[flag] >= a) & (ls[flag + 1] <= b))
+    if known:
+        k = np.asarray(known, dtype=float)
+        at = np.searchsorted(ls, k, side='right') - 1          # the interval holding each point
+        keep &= ~np.isin(flag, at)
     flag, g = flag[keep], g[keep]
     if flag.size == 0:
         return []
@@ -750,7 +777,7 @@ def _sharp_feature_points(H_func: Callable, probe: Dict, tol: float) -> List[flo
     out = []
     for i in flag:
         a, b = ls[i], ls[i + 1]
-        for _ in range(2):                 # narrow down to the steepest sub-step, twice
+        for _ in range(3):                 # narrow down to the steepest sub-step, three times
             sub = np.linspace(a, b, 33)
             step = np.diff(_H_on_grid(H_func, sub), axis=0)
             k = int(np.argmax(np.sum(step.real**2 + step.imag**2, axis=(1, 2))))
@@ -1753,8 +1780,8 @@ def hybrid_propagator(H_func: Callable, l0: float, l1: float, rtol: Optional[flo
     max_n_points: Optional[int] = 12864, fd_step_frac: Optional[float] = 1.e-6,
     max_iters: Optional[int] = 12,
     info: Optional[Dict] = None,
-    _sharp_points: Optional[List[float]] = None) -> Tuple[np.ndarray, List[Tuple[float, float]],
-                                                          bool]:
+    _sharp_points: Optional[List[float]] = None,
+    _sharp_rounds: int = 0) -> Tuple[np.ndarray, List[Tuple[float, float]], bool]:
     r"""Computes the evolution operator via adiabatic transport, with a Magnus patch at every
     non-adiabatic window, self-certified against successive refinement of every internal
     tolerance knob.
@@ -2056,25 +2083,52 @@ def hybrid_propagator(H_func: Callable, l0: float, l1: float, rtol: Optional[flo
     # 0.492.  The look runs once, only here, and on the probe grid of the level about to be
     # certified, which is already in memory; where it finds nothing that could move the answer
     # by the tolerance, the result certified is exactly the one certified before.
-    extra_points = _sharp_points            # None: not looked yet
+    extra_points = _sharp_points            # the sharp features examined from the first level
+    added = []                              # new ones found at the certifying level, if any
 
-    def sharp_features_matter(windows: List[Tuple[float, float]], probe: Dict) -> bool:
-        r"""Whether a sharp feature outside ``windows`` has a gamma the certification could not
-        accept.  Looks on first use; afterwards the points found are in ``extra_points``, and
-        :func:`find_nonadiabatic_windows` accounts for them itself."""
-        nonlocal extra_points
-        if extra_points is not None:
-            return False
-        extra_points = _sharp_feature_points(H_func, probe, atol + rtol)
-        outside = [p for p in extra_points if not any(a <= p <= b for a, b in windows)]
-        if not outside:
-            return False
-        d = np.asarray(H_func(l0), dtype=complex).shape[-1]
-        pairs = [(j, k) for j in range(d) for k in range(j + 1, d)]
-        gammas = _point_adiabaticity_many(H_func, [p for p in outside for _ in pairs],
-            [j for _ in outside for j, _k in pairs], [k for _ in outside for _j, k in pairs],
-            (l1 - l0)*fd_step_frac, (l0, l1))
-        return not adiabatic_is_good_enough(max(gammas))
+    def sharp_features_matter(windows: List[Tuple[float, float]], probe: Dict) -> Optional[str]:
+        r"""What the sharp features outside ``windows`` require: None (certify), ``'restart'``
+        or ``'decline'``.  Looks once per pass, on the probe grid of the level about to be
+        certified.
+
+        On the first pass it acts only when some feature has a gamma the certification could
+        not accept, so a call with nothing of the kind certifies exactly what it did before.  A
+        pass that already restarted acts on *every* new feature: one look examines at most
+        :data:`SHARP_MAX_POINTS`, and many features each harmless alone can still add up (a
+        staircase of 32 hidden steps: 1.8e-02 off, each step passing on its own).  They get a
+        window only where the refinement's own threshold asks for one.  After
+        :data:`SHARP_MAX_ROUNDS` restarts, new features mean the answer is not certified."""
+        points = _sharp_feature_points(H_func, probe, atol + rtol, windows, extra_points)
+        if _sharp_rounds > 0 and len(probe['ls']) < max_n_probe:
+            # A restarted pass may certify at a coarse level, where small steps drown in the
+            # profile's own change across an interval; look on the finest probe grid as well.
+            # Costs one grid of Hamiltonians and derivatives, only in calls already restarted.
+            fine = np.linspace(l0, l1, max_n_probe)
+            finest = dict(ls=fine, H=_H_on_grid(H_func, fine),
+                          dH=_dH_dl_on_grid(H_func, fine, (l1 - l0)*fd_step_frac, (l0, l1)))
+            finest['lam'] = np.linalg.eigvalsh(finest['H'])
+            points = sorted(set(points)
+                            | set(_sharp_feature_points(H_func, finest, atol + rtol, windows,
+                                                        extra_points)))
+        if not points:
+            return None
+        if _sharp_rounds == 0:
+            d = np.asarray(H_func(l0), dtype=complex).shape[-1]
+            pairs = [(j, k) for j in range(d) for k in range(j + 1, d)]
+            gammas = _point_adiabaticity_many(H_func, [p for p in points for _ in pairs],
+                [j for _ in points for j, _k in pairs], [k for _ in points for _j, k in pairs],
+                (l1 - l0)*fd_step_frac, (l0, l1))
+            if adiabatic_is_good_enough(max(gammas)):
+                return None
+        else:
+            known = set(extra_points or [])
+            points = [p for p in points if p not in known]
+            if not points:
+                return None
+        if _sharp_rounds >= SHARP_MAX_ROUNDS:
+            return 'decline'
+        added.extend(points)
+        return 'restart'
 
     iterations = 1
     for _ in range(max_iters):
@@ -2104,22 +2158,31 @@ def hybrid_propagator(H_func: Callable, l0: float, l1: float, rtol: Optional[flo
             # which opens windows over it eventually, since gamma is measured on the same grid
             # the threshold is compared against.
             if adiabatic_is_good_enough(max(gu_next, gu_prev)):
-                if not sharp_features_matter(windows_next, probe_next):
+                verdict = sharp_features_matter(windows_next, probe_next)
+                if verdict is None:
                     report(len(windows_next), max(gamma_next, gamma_prev),
                            max(gu_next, gu_prev), iterations, True)
                     return U_next, windows_next, True
+                if verdict == 'decline':
+                    report(len(windows_next), max(gamma_next, gamma_prev),
+                           max(gu_next, gu_prev), iterations, False)
+                    return U_next, windows_next, False
                 # A sharp feature the probe grid missed.  Start the refinement again with it
                 # among the points examined from the first level: found this late, the knobs are
                 # near their ceilings, and a window opened at the lowest threshold grows over
                 # the whole path (measured on issue #100: uncertified at 0.208; from the first
                 # level, certified at 0.4921 against 0.4922).  Only a call that would otherwise
                 # have certified a wrong answer pays for the second pass.
-                return hybrid_propagator(H_func, l0, l1, rtol=rtol, atol=atol,
+                result = hybrid_propagator(H_func, l0, l1, rtol=rtol, atol=atol,
                     magnus_exp_order=magnus_exp_order, integration_method=integration_method,
                     threshold0=threshold0, min_threshold=min_threshold, n_probe0=n_probe0,
                     max_n_probe=max_n_probe, n_points0=n_points0, max_n_points=max_n_points,
                     fd_step_frac=fd_step_frac, max_iters=max_iters, info=info,
-                    _sharp_points=extra_points)
+                    _sharp_points=sorted((extra_points or []) + added),
+                    _sharp_rounds=_sharp_rounds + 1)
+                if info is not None:          # every pass counts, not only the last
+                    info['iterations'] = info.get('iterations', 0) + iterations
+                return result
         U_prev, windows_prev, ok_prev, gamma_prev, gu_prev = (U_next, windows_next, ok_next,
                                                               gamma_next, gu_next)
 

@@ -753,6 +753,35 @@ def test_a_sharp_shock_between_the_probe_points_is_never_certified_wrong(S, W):
             "certified P_ee = %.6f against %.6f" % (P, _SHOCK_REFERENCE[(S, W)])
 
 
+def test_more_hidden_steps_than_one_look_examines_are_all_examined():
+    """A staircase of 32 small steps, each between two probe points: more than the 16 intervals
+    one look examines, and each step harmless on its own though together they move P by 4e-2.
+    With a single look the hybrid certified 0.3830 against 0.3650; each restarted pass now looks
+    again, past what it already examines and on the finest probe grid, until nothing new
+    appears.  The reference is an exponential-midpoint product with closed-form 2x2 steps,
+    independent of this package (0.36498, stable to 8e-6)."""
+    S, W, dv = 100.0, 1.5, 0.02
+    l1 = 3000.0*S
+    grid = np.linspace(0.0, l1, 400)
+    centres = [0.5*(grid[k] + grid[k + 1]) for k in 60 + 4*np.arange(32)]
+    c2, s2 = np.cos(2*_SHOCK_TH), np.sin(2*_SHOCK_TH)
+
+    def H(l):
+        x = np.asarray(l, dtype=float)
+        v = 3.0*np.exp(-x/(500.0*S))
+        for xs in centres:
+            v = v + dv*0.5*(1 + np.tanh((x - xs)/W))*np.exp(-(x - xs).clip(0)/(1e9*S))
+        out = np.empty(x.shape + (2, 2), dtype=complex)
+        out[..., 0, 0], out[..., 1, 1] = 0.5*(2*v - c2), 0.5*c2
+        out[..., 0, 1] = out[..., 1, 0] = 0.5*s2
+        return out
+
+    U, windows, certified = ad.hybrid_propagator(H, 0.0, l1)
+    P = abs(U[0, 0])**2
+    if certified:
+        assert abs(P - 0.36498) < 1e-3, "certified P_ee = %.5f against 0.36498" % P
+
+
 def test_the_look_between_probe_points_finds_the_shock_where_it_is():
     """It returns a position on the steep part of the front, where gamma is evaluated."""
     H, l1 = _shock_H(100, 0.8)

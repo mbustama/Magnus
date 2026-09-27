@@ -352,7 +352,9 @@ probe grid** -- see the two limits below.
      it has already computed, evaluates :math:`\gamma` exactly at the steepest
      point of any interval where the chord is more than twice as steep, and, if
      that point could move the answer by the tolerance, repeats the refinement
-     with it examined from the first level.  Measured on a shock of width 0.8
+     with it examined from the first level.  A repeated pass looks again, on
+     the finest probe grid too, so a profile with more such steps than one look
+     examines is covered over several passes.  Measured on a shock of width 0.8
      (in units of the inverse vacuum splitting) on a path of :math:`3\times10^5`,
      the result certified went from 0.153 to 0.4921, against 0.4922.  Where
      nothing is found, the result certified is bit-for-bit the one before.

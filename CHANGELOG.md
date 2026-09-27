@@ -360,17 +360,23 @@ and the project uses [Semantic Versioning](https://semver.org/).
   of width 0.8 on a path of 3e5, in units of the inverse vacuum splitting) that was
   `P_ee = 0.153` against a correct 0.492.  Before certifying, `hybrid_propagator` now compares,
   on every probe interval, the change of `H` across it with the derivatives measured at its
-  ends, which catches a step of any width; at the steepest point of any interval flagged it
-  evaluates the adiabaticity parameter exactly, and if that could move the answer by the
-  tolerance it repeats the refinement with the point examined from the first level.  The
-  issue's case now certifies 0.4921 against 0.4922.
+  ends, which catches a step narrower than the probe spacing wherever it falls between two probe
+  points (one within a few widths of a probe point is seen by that point's own derivative).  At
+  the steepest point of each interval flagged it evaluates the adiabaticity parameter exactly,
+  and if that could move the answer by the tolerance it repeats the refinement with the point
+  examined from the first level.  A restarted pass looks again, on the finest probe grid too,
+  past the points it already examines, for up to 8 restarts, so a profile with more steps than
+  one look examines (16) is covered as well: a staircase of 32 small steps, each harmless alone,
+  went from certified 1.8e-02 off to 1.1e-04.  The issue's case now certifies 0.4921 against
+  0.4922.
   - **Nothing else moves.**  Over the 53 cases of the physical-profile population (solar
     tables, BS05, supernova shocks and turbulence, Earth chords with an undeclared crust, and
     the issue's profiles), 50 are bit-for-bit what they were, probabilities and certification
     alike.  The three that change were certified wrong by 0.34 to 0.49, and now certify
     within 1.2e-4 of `solve_ivp`.
   - **Nor does the speed.**  The check reads arrays the probe sweep already computed: 25 us
-    at 400 probe points and 0.31 ms at 6400, only on calls about to certify.  Over 37 timed
+    at 400 probe points and 0.31 ms at 6400, only on calls about to certify.  Only a call that
+    would otherwise have certified a wrong answer pays for a restart.  Over 37 timed
     cases, from 7 ms tabulated profiles to 5 s solar-model scans, main and this change agree
     within run-to-run noise (-1.1 % summed).
   - It still cannot see a bump that rises and falls between two probe points (see
