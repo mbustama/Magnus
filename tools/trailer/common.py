@@ -55,7 +55,7 @@ def setup_matplotlib():
     for f in wanted:
         fm.fontManager.addfont(str(f))
     plt.rcParams.update({'font.family': 'Inter', 'mathtext.fontset': 'custom', 'mathtext.rm': 'Inter',
-                         'mathtext.it': 'Inter:italic', 'mathtext.bf': 'Inter:bold', 'mathtext.sf': 'Inter',
+                         'mathtext.it': 'Inter:italic', 'mathtext.bf': 'Inter:bold', 'mathtext.sf': 'Inter', 'mathtext.cal': 'Inter',
                          'axes.unicode_minus': True})
     return plt
 

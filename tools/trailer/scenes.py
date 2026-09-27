@@ -259,7 +259,7 @@ def slabs(fig, ax, u):
       alpha=seg(u, 0.44, 0.52))
     t(ax, 5.5, 2.85, r'$P = |U_{e\mu}|^2$, unitary by construction', 13, MUT, ha='center', alpha=seg(u, 0.5, 0.56))
     lad = D['ladder']
-    t(ax, 11.0, 7.35, 'Slabs    P(νμ→νe)', 13, MUT, alpha=seg(u, 0.5, 0.55))
+    t(ax, 11.0, 7.35, r'Slabs    $P(\nu_\mu \to \nu_e)$', 13, MUT, alpha=seg(u, 0.5, 0.55))
     for k, (ns, P) in enumerate(lad):
         v = seg(u, 0.54 + 0.055 * k, 0.58 + 0.055 * k)
         yk = 6.75 - 0.62 * k
