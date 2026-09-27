@@ -12,6 +12,8 @@ remade here, in the trailer's own look; no figure source in the repository is ed
 | `scenes.py` | The new scenes, each drawn as a function of its progress `u` from 0 to 1. |
 | `render.py` | Renders each scene as a still (`u = 1`), as PNG frames, and as a clip. |
 | `storyboard/` | `build.py` and its `template.html`: one page with a panel per shot, for review. |
+| `cut.py` | Assembles the whole trailer, shot by shot, as 1920×1080 frames, and muxes them with the music into `build/magnus_trailer.mp4`. |
+| `music.py` | The music: an original piece synthesized from sine waves and noise (nothing sampled, nothing to license), following each act's cue; the climax melody plays the Earth spectrum of the "Fast" diagram. |
 
 ## Creating the animations
 
@@ -92,7 +94,36 @@ python tools/trailer/storyboard/build.py        # -> build/storyboard.html
 One self-contained page: the timeline, then a panel per shot, with each new scene playing its
 clip and every other shot showing the paper figure or notebook animation it starts from.
 
-### 5. Clean up
+### 5. Put the whole trailer together, with the music
+
+```bash
+nice -n 19 python tools/trailer/cut.py --jobs 4        # frames, music, then build/magnus_trailer.mp4
+```
+
+`cut.py` draws every frame of every shot fresh at 1920×1080 (2906 frames, 96.9 s at 30 fps)
+into `build/cut/`, using as many processes as `--jobs`; an interrupted run resumes, since frames
+already drawn are skipped (delete `build/cut/` after changing a scene).  Then it writes
+`build/music.wav` (`music.py`, also runnable on its own) and muxes both into
+`build/magnus_trailer.mp4`: H.264 (CRF 18) with AAC audio at 192 kb/s.
+
+What each kind of shot shows:
+
+- a shot with a `scene`: that scene at the shot's progress;
+- a pillar ("Accurate.", "Fast."): its scene with the big word and line over it;
+- the code moment: the code types in, then the opening's matter curve draws from it;
+- cards (the burden line, the reveal, "Beyond the textbook.", the ending): drawn in `cut.py`;
+- a shot with `still_from`: **a placeholder until that shot is remade**, the paper figure (or the
+  notebook animation, playing) framed on the dark ground with a slow push in, tagged
+  "placeholder: to be remade".
+
+Words go on a caption band at the bottom, several phrases one after another; cuts are hard, on
+the beat; the picture fades in from black and out to black at the ends.
+
+This step needs an ffmpeg with `libx264`, `aac` and PNG input, which the ffmpeg bundled with
+Playwright lacks.  One that has them comes with `pip install imageio-ffmpeg`; point `$FFMPEG`
+at `python -c "import imageio_ffmpeg; print(imageio_ffmpeg.get_ffmpeg_exe())"`.
+
+### 6. Clean up
 
 Everything generated lives in `tools/trailer/build/`, which git ignores; delete it to start
 over.  At 1280×720 the frames average about 45 KB, so all eight scenes (1143 frames) take
